@@ -2,7 +2,7 @@
 //! every root it certifies within the zero band.** Circles tilted to a
 //! cylinder wall — the poses the ladder arm takes — decided at
 //! `ε = 1e-6, 1e-9, 1e-12` against the exact oracle
-//! ([`crate::boolean::conic_oracle::exact`]):
+//! ([`geom_brep::curve_face::conic_oracle::exact`]):
 //!
 //! - a circle tangent to the wall, or crossing or clearing it by less
 //!   than `Kε` in the residual the band classifies (`d + d²/2r` at a
@@ -19,20 +19,20 @@
 //!   certified root within the zero band of a true one, and no `Miss` on
 //!   a true crossing.
 //!
-//! Circles grazing a torus ([`crate::boolean::circle_torus`], the same
+//! Circles grazing a torus ([`geom_brep::curve_face::circle_torus`], the same
 //! subdivision) are judged against the same oracle at the zero band
 //! rather than `Kε`: none within it is answered, and every answer in the
 //! gap is true.
 
 test_utils::gated_to![
     "crates/topo/src/boolean/conic_quadric/mod.rs",
-    "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-brep/src/quartic.rs",
     "crates/geom-core/src/bisect.rs",
-    "crates/topo/src/boolean/circle_torus.rs",
-    "crates/topo/src/boolean/conic_oracle.rs",
-    "crates/topo/src/boolean/conic_oracle/",
+    "crates/geom-brep/src/curve_face/circle_torus.rs",
+    "crates/geom-brep/src/curve_face/conic_oracle.rs",
+    "crates/geom-brep/src/curve_face/conic_oracle/",
     "crates/topo/src/boolean/solid_contain.rs",
     "crates/geom-brep/src/implicit.rs",
     "crates/geom-core/src/predicate.rs",
@@ -43,8 +43,8 @@ test_utils::gated_to![
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use crate::boolean::circle_torus::circle_torus_roots;
-use crate::boolean::conic_oracle::exact;
+use geom_brep::curve_face::circle_torus::circle_torus_roots;
+use geom_brep::curve_face::conic_oracle::exact;
 use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
 
@@ -96,7 +96,7 @@ fn tangent_circle(r: f64, rho: f64, depth: f64, g: f64, b: f64) -> geom::Curve3<
 /// Moving one past `π` by `TAU` is exact (Sterbenz), so the difference
 /// rounds at its own scale, not at the spacing near `2π`. Both must lie
 /// within `π` of `0` once moved: the door reports within `π` of the
-/// arc's midpoint (`geom_brep::half_angle::near_midpoint`), `[−1, 1]` here.
+/// arc's midpoint (`geom_core::period::Period::near`), `[−1, 1]` here.
 fn arc_between(a: f64, b: f64, rho: f64) -> f64 {
     let centred = |x: f64| if x > PI { x - TAU } else { x };
     (centred(a) - centred(b)).abs() * rho
@@ -749,7 +749,7 @@ fn certified_near_gap(family: &[geom::Curve3<f64>]) -> usize {
         .filter(|c| {
             let found = match conic_quadric_roots(c, -1.0, 1.0, &wall(1.0), band) {
                 Ok(Ok(CircleRoots::Certified(found))) => found,
-                Ok(Err(Unsettled::Meter)) => return false,
+                Ok(Err(Unsettled::Meter { .. })) => return false,
                 other => panic!("{c:?}: answered neither certified nor `Meter`: {other:?}"),
             };
             let truth = exact::truth(c, &wall(1.0));

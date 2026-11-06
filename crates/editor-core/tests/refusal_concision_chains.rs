@@ -827,7 +827,7 @@ mod kernel {
         pub(super) const REVOLVE_ERROR: RevolveError = [
             Band, EmptyProfile, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
-            SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
+            SliverRadius, ArcCrossesAxis, SliverAxisClearance, ApexEndOffSheet,
             NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
             PinnedRunStation, CapPlane, Op, Pcurve,
@@ -2072,13 +2072,13 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverAxisClearance {
                 loop_index: 0,
                 segment_index: 3,
-                decision: sweep::ClearanceDecision::ArcApex,
+                decision: sweep::ClearanceDecision::ArcReach,
                 source: diag(),
             },
         ),
         (
-            "UnsupportedToroid",
-            E::UnsupportedToroid {
+            "ApexEndOffSheet",
+            E::ApexEndOffSheet {
                 loop_index: 0,
                 segment_index: 3,
             },
@@ -3578,7 +3578,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use sweep::blend::{
         BlendDecision, BlendError as E, BlendKind, BlendSite, Breach, ClassifiedMargin,
-        CornerConfig,
+        CornerConfig, KnifeRefusal,
     };
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
     let (face, edge, vertex) = (FaceKey::default(), EdgeKey::default(), VertexKey::default());
@@ -3640,10 +3640,19 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "KnifeEdge",
+            "KnifeEdge(never opens)",
             E::KnifeEdge {
                 edge,
-                margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
+                margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
+                refusal: KnifeRefusal::NeverOpens,
+            },
+        ),
+        (
+            "KnifeEdge(no room)",
+            E::KnifeEdge {
+                edge,
+                margin: decided("fillet3_knife_room", -1e-3, Sign::Negative),
+                refusal: KnifeRefusal::NoRoom { radius: 1.2 },
             },
         ),
         (
@@ -4496,7 +4505,9 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
         ),
         (
             "Carrier/Unsettled",
-            F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter)),
+            F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter {
+                row: "test_meter",
+            })),
         ),
     ];
     faults

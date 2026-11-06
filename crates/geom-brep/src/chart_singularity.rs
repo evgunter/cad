@@ -64,6 +64,7 @@ use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
 
+use crate::ladder::{Answering, Climb, Refusal, Rung, climb};
 use crate::props::{LoopEdge, PoleLeft, sphere_pole_left};
 use crate::recourse::{ReadAt, RefusedArm, RefusedSide, SizedDecision};
 
@@ -164,7 +165,7 @@ pub fn sphere_poles<T: Real>(
 /// ([`sheet_apexes`]), from the chart's own frame; none for any other
 /// kind.
 pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
-    let (anchor, axis) = (chart.anchor(), chart.axis());
+    let (anchor, axis) = (chart.frame().origin, chart.frame().axis);
     match chart.arm() {
         ChartArm::Sphere { radius } => sphere_poles(anchor, axis, radius).to_vec(),
         ChartArm::Cone { .. } => vec![(Singularity::Apex, anchor)],
@@ -250,14 +251,16 @@ pub enum SideUnread {
 #[derive(Clone, Debug)]
 pub enum Unread<T> {
     /// Its distance to a vertex or an edge is in band
-    /// ([`on_boundary`]).
+    /// ([`on_boundary`]). Ranked by its margin ([`Refusal::Margin`]).
     Boundary {
         /// The escalation, carrying the margin.
         cause: Indeterminate,
         /// The distance.
         distance: T,
     },
-    /// The side of `loops[r#loop]` it lies on is undecided.
+    /// The side of `loops[r#loop]` it lies on is undecided. Ranked by its
+    /// margin where a band decision escalated; a side that straddles its
+    /// own bound, which no tolerance decides, is a limit.
     Side {
         /// The loop.
         r#loop: usize,
@@ -268,7 +271,11 @@ pub enum Unread<T> {
     /// neither clear the point past the band nor bring it within reach of
     /// one of them inside the refinement's budget, or a carrier with no
     /// stated speed bound to refine against. No other edge places the
-    /// point on the boundary, and none is undecided.
+    /// point on the boundary, and none is undecided. UNSETTLED
+    /// ([`Refusal::Unsettled`]): it moves with the band (a coarser one
+    /// can settle the edge on the point) and carries no margin to rank
+    /// by, so a margin in band, which says how far the point is, is
+    /// reported ahead of it.
     Carrier {
         /// The loop.
         r#loop: usize,
@@ -279,11 +286,42 @@ pub enum Unread<T> {
     /// surface axis: a sample reads no chart point away from every
     /// singular point, a step of its walk cannot be certified to turn
     /// less than an eighth of a turn about the axis within the
-    /// refinement's budget, or the loop winds more than once.
+    /// refinement's budget, or the loop winds more than once. A limit:
+    /// no band moves a winding count.
     Loop {
         /// The loop.
         r#loop: usize,
     },
+}
+
+impl<T> Unread<T> {
+    /// What this reading is to a ladder ([`Refusal`]), as each variant's
+    /// docs state it. Whether a reading is EXEMPT is a consumer's
+    /// question, never this one: tier 3 exempts a pole an unsettled edge
+    /// or an unread walk meets ([`Undecided::of`]), and the import pass
+    /// refuses both.
+    #[must_use]
+    pub const fn refusal(&self) -> Refusal {
+        match self {
+            Self::Boundary { cause, .. }
+            | Self::Side {
+                why: SideUnread::Banded(cause),
+                ..
+            } => Refusal::Margin(*cause),
+            Self::Side {
+                why: SideUnread::Straddle,
+                ..
+            }
+            | Self::Loop { .. } => Refusal::Limit,
+            Self::Carrier { .. } => Refusal::Unsettled,
+        }
+    }
+
+    /// This reading as a ladder's rung ([`Refusal::rung`]). No reading
+    /// that does not place a point refuses the whole query.
+    pub(crate) fn rung<A>(self) -> Rung<A, Self> {
+        self.refusal().rung(self, Rung::Blocked)
+    }
 }
 
 /// **A reading in band**, owned: what import refuses a point [`locate`]
@@ -398,7 +436,8 @@ pub fn vertex_at_singular_point<T: Decide>(
 /// inside the face or outside it. A distance in band, or a sampled edge
 /// that does not settle, is that point's answer only where no other
 /// vertex or edge places it on the boundary; a distance in band is
-/// answered before an unsettled edge. A reading that cannot place a
+/// answered before an unsettled edge ([`Unread::refusal`]). A reading that
+/// cannot place a
 /// point ([`Unread`]) is that point's answer; the others are read
 /// regardless.
 pub fn locate<T: Decide>(
@@ -455,8 +494,9 @@ fn locate_one<T: Decide>(
 /// # Errors
 ///
 /// A distance in band ([`Unread::Boundary`]), answered before a sampled
-/// edge that does not settle ([`Unread::Carrier`]), and each only where
-/// no other vertex or edge places `x` on the boundary.
+/// edge that does not settle ([`Unread::Carrier`]) as
+/// [`Unread::refusal`] ranks them, and each only where no other vertex or edge places `x`
+/// on the boundary.
 pub fn place_on_boundary<T: Decide>(
     loops: &[FaceLoop<'_, T>],
     x: Point3<T>,
@@ -484,33 +524,28 @@ pub fn place_on_boundary<T: Decide>(
             Err(cause) => return Err(Unread::Boundary { cause, distance }),
         }
     }
-    // Inside an edge: the first that decides on.
-    let mut in_band: Option<Unread<T>> = None;
-    let mut unsettled: Option<Unread<T>> = None;
-    for (l, lp) in loops.iter().enumerate() {
-        for (k, e) in lp.edges.iter().enumerate() {
-            match nearest_on_edge(e, x, band) {
-                Near::Off => {}
-                Near::On { t } => {
-                    return Ok(Some(Lies::InsideEdge {
-                        r#loop: l,
-                        edge: k,
-                        t,
-                    }));
-                }
-                Near::InBand { cause, distance } => {
-                    in_band.get_or_insert(Unread::Boundary { cause, distance });
-                }
-                Near::Unsettled => {
-                    unsettled.get_or_insert(Unread::Carrier { r#loop: l, edge: k });
-                }
-            }
+    // Inside an edge: the first that decides on, a ladder ([`climb`])
+    // whose answering edge names where the point lies
+    // (`Answering::First`). An edge that does not decide is ranked as its
+    // reading states ([`Unread::refusal`]): a distance in band ahead of a
+    // sampled edge that does not settle.
+    let edges = loops
+        .iter()
+        .enumerate()
+        .flat_map(|(l, lp)| lp.edges.iter().enumerate().map(move |(k, e)| (l, k, e)));
+    climb(Answering::First, edges, |(l, k, e)| {
+        match nearest_on_edge(e, x, band) {
+            Near::Off => Rung::Passes,
+            Near::On { t } => Rung::Answers(Lies::InsideEdge {
+                r#loop: l,
+                edge: k,
+                t,
+            }),
+            Near::InBand { cause, distance } => Unread::Boundary { cause, distance }.rung(),
+            Near::Unsettled => Unread::Carrier { r#loop: l, edge: k }.rung(),
         }
-    }
-    match in_band.or(unsettled) {
-        Some(why) => Err(why),
-        None => Ok(None),
-    }
+    })
+    .into_reading()
 }
 
 /// Where a point lies against one edge's carrier.
@@ -526,7 +561,7 @@ enum Near<T> {
 }
 
 /// **The carrier parameter of the point of `carrier` nearest `x`**: its
-/// [`Curve3::nearest_foot`] seeded at `from`, `None` where the carrier
+/// [`Curve3::nearest`] seeded at `from`, `None` where the carrier
 /// has none. A periodic carrier's ([`Curve3::is_periodic`]) is brought
 /// into `[from, from + τ]`, the turn at or past `from`: the upper end is
 /// reached only where the reduction rounds, a point a hair behind `from`
@@ -534,7 +569,7 @@ enum Near<T> {
 /// point on a circle's axis, where every point of the circle is nearest,
 /// reads `from`.
 pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
-    let t = carrier.nearest_foot(x, from)?.t();
+    let t = carrier.nearest(x, from)?;
     Some(if carrier.is_periodic() {
         from + (t - from).reduce_periodic(T::tau())
     } else {
@@ -754,20 +789,25 @@ impl<'a, T: Decide> Sides<'a, T> {
         x: Point3<T>,
         sense: bool,
     ) -> Result<bool, Unread<T>> {
-        let mut unread: Option<Unread<T>> = None;
-        for l in 0..self.loops.len() {
-            if !crate::chart_image::bounds_area(self.loops[l]) {
-                continue;
-            }
+        // The ladder ([`climb`]) whose answer is a loop that leaves `x`
+        // outside: any one does, alike ([`Answering::Any`]).
+        let bounding: Vec<usize> = (0..self.loops.len())
+            .filter(|&l| crate::chart_image::bounds_area(self.loops[l]))
+            .collect();
+        // A loop whose side does not read (a side or a walk: `left_holds`
+        // reads nothing else) is ranked as its reading states.
+        let outside = climb(Answering::Any, bounding, |l| {
             match self.left_holds(l, singularity, x) {
-                Ok(left) if left != sense => return Ok(false),
-                Ok(_) => {}
-                Err(why) => {
-                    unread.get_or_insert(why);
-                }
+                Ok(left) if left != sense => Rung::Answers(()),
+                Ok(_) => Rung::Passes,
+                Err(why) => why.rung(),
             }
+        });
+        match outside {
+            Climb::Answered { .. } => Ok(false),
+            Climb::Undecided(why) => Err(why),
+            Climb::Passed => Ok(true),
         }
-        unread.map_or(Ok(true), Err)
     }
 }
 
@@ -838,12 +878,17 @@ struct WalkSample<T: Real> {
 /// - it stays off the surface axis where `ρ_min = ρ(m) − r` is positive,
 ///   and then turns about it through at most `2r/ρ_min` — a line's
 ///   exactly its principal step;
-/// - its chart `v` moves by at most `2r/R` on a sphere and `2r` along a
-///   cone's slant, and a circle's by its height range about the axis
-///   over `ρ_min`;
+/// - its chart `v` moves by at most `2r/a` on a sphere of radius `a`
+///   and on a spindle sheet of minor radius `a`, `2r` along a cone's
+///   slant, and a circle's by its height range about the axis over
+///   `ρ_min`;
 /// - so its share of the metric area `−∮ g(v) du` is within
 ///   `1.5·sup|g′|·Δv·Δu` of the trapezoid the walk sums (`∂g/∂v` is the
-///   chart's area element: `R² cos v`, and `sin α · |v|` on a cone).
+///   chart's area element: `a² cos v` on the sphere, `sin α · |v|` on a
+///   cone, and `a(R + a cos v)` on a spindle sheet of signed major
+///   radius `R`. On the sheet `|v| ≤ v*`, where `R + a cos v` runs from
+///   `0` at the apexes to `R + a` at `v = 0` for either sign of `R`, so
+///   its sup is `a(R + a)`: the sheet's widest radius times `a`).
 ///
 /// A step is bisected until it is certified to turn by less than a
 /// sixteenth of a turn, so its principal step is its turn and the steps
@@ -862,8 +907,8 @@ struct WalkSample<T: Real> {
 /// `None` where a sample reads no chart point away from every singular
 /// point, fewer than three samples read, a step cannot be certified to
 /// turn by less than a sixteenth of a turn, an edge has no speed bound
-/// ([`speed_bound`]: a rational spline), the loop winds more than
-/// once, or the chart is a spindle sheet's, which has no walk lane yet.
+/// ([`speed_bound`]: a rational spline), or the loop winds more than
+/// once.
 #[must_use]
 pub fn walk_loop<T: Decide>(
     chart: &ChartInverse<T>,
@@ -873,7 +918,7 @@ pub fn walk_loop<T: Decide>(
 ) -> Option<LoopWalk<T>> {
     let shapes: Vec<EdgeShape<T>> = edges
         .iter()
-        .map(|e| EdgeShape::of(&e.carrier, chart.axis()))
+        .map(|e| EdgeShape::of(&e.carrier, chart.frame().axis))
         .collect::<Option<_>>()?;
     let read = |e: usize, t: T, depth: u32, last: bool| -> Option<WalkSample<T>> {
         let p = edges[e].carrier.eval(t);
@@ -1022,28 +1067,29 @@ struct Shape<T: Real> {
 
 #[derive(Clone, Copy)]
 enum ShapeKind<T> {
-    /// A sphere of radius `R`.
+    /// A sphere of its radius.
     Sphere(T),
     /// A cone of half-angle `α`: `sin α`, `cos α`.
     Cone(T, T),
+    /// A spindle sheet of signed major radius `R` and minor radius `r`.
+    Sheet(T, T),
     /// No singular point: no walk is read.
     Other,
 }
 
 impl<T: Decide> Shape<T> {
-    /// `None` for a spindle sheet's chart, which has no walk lane yet.
     fn of(chart: &ChartInverse<T>, on_loop: Vec<Point3<T>>, escalate: T) -> Option<Self> {
         let kind = match chart.arm() {
             ChartArm::Sphere { radius } => ShapeKind::Sphere(radius),
             ChartArm::Cone { half_angle } => ShapeKind::Cone(half_angle.sin(), half_angle.cos()),
+            ChartArm::Spindle { major, minor } => ShapeKind::Sheet(major, minor),
             ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => {
                 ShapeKind::Other
             }
-            ChartArm::Spindle { .. } => return None,
         };
         Some(Self {
-            anchor: chart.anchor(),
-            axis: chart.axis(),
+            anchor: chart.frame().origin,
+            axis: chart.frame().axis,
             kind,
             on_loop,
             escalate,
@@ -1056,6 +1102,7 @@ impl<T: Decide> Shape<T> {
         match self.kind {
             ShapeKind::Sphere(r) => r.powi(2) * v.sin(),
             ShapeKind::Cone(sin, _) => sin * v.abs() * v * T::from_f64(0.5),
+            ShapeKind::Sheet(major, minor) => minor * (major * v + minor * v.sin()),
             ShapeKind::Other => T::zero(),
         }
     }
@@ -1177,7 +1224,7 @@ fn step_bound<T: Decide>(
                 return None;
             }
             let turn = if along && edges[s.edge].line {
-                principal(b.x - a.x).abs()
+                geom::separation(b.x, a.x)
             } else {
                 span / rho_min
             };
@@ -1185,7 +1232,7 @@ fn step_bound<T: Decide>(
                 return None;
             }
             let dv = match shape.kind {
-                ShapeKind::Sphere(r) => span / r,
+                ShapeKind::Sphere(r) | ShapeKind::Sheet(_, r) => span / r,
                 ShapeKind::Cone(..) | ShapeKind::Other => span,
             };
             let dv = match (along, edges[s.edge].height, shape.kind) {
@@ -1200,13 +1247,16 @@ fn step_bound<T: Decide>(
         _ => (
             T::pi(),
             match shape.kind {
-                ShapeKind::Sphere(r) => span / r,
+                ShapeKind::Sphere(r) | ShapeKind::Sheet(_, r) => span / r,
                 ShapeKind::Cone(..) | ShapeKind::Other => span,
             },
         ),
     };
     let slope = match shape.kind {
         ShapeKind::Sphere(r) => r.powi(2),
+        // `R + r cos v ∈ [0, R + r]` on the sheet's window, for either
+        // sign of `R` (the doc above).
+        ShapeKind::Sheet(major, minor) => minor * (major + minor),
         ShapeKind::Cone(sin, _) => {
             let v = |w: WalkSample<T>| w.uv.map_or(T::zero(), |uv| uv.y.abs());
             sin * (v(s).max(v(q)) + span)
@@ -1214,12 +1264,6 @@ fn step_bound<T: Decide>(
         ShapeKind::Other => T::zero(),
     };
     Some(T::from_f64(1.5) * slope * dv * turn)
-}
-
-/// The principal value of an angle step, in `(−π, π]`.
-fn principal<T: Real>(d: T) -> T {
-    let (s, c) = d.sin_cos();
-    s.atan2(c)
 }
 
 /// A walk's sums: its winding, its area, its bound, and each step's
@@ -1268,7 +1312,7 @@ fn sum_walk<T: Decide>(
     for (j, &(i, uv)) in charted.iter().enumerate() {
         (v_lo, v_hi) = (v_lo.min(uv.y), v_hi.max(uv.y));
         let (k, next) = charted[(j + 1) % m];
-        let step = principal(next.x - uv.x);
+        let step = geom_core::period::Period::new(T::tau()).near(next.x - uv.x, T::zero());
         total = total + step;
         let term = -(shape.g(uv.y) + shape.g(next.y)) * T::from_f64(0.5) * step;
         area = area + term;
@@ -1461,4 +1505,98 @@ pub fn spline_collapsed_row<T: Decide>(
         )
     });
     (!spans).then_some(row)
+}
+
+/// [`Unread::refusal`], the one ranking of what [`place_on_boundary`]
+/// and [`Sides::holds`] keep, stated on the type.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod refusal_rows {
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{SideUnread, Unread};
+    use crate::ladder::{Answering, Climb, Refusal, climb};
+
+    fn cause(margin: MarginDiag) -> Indeterminate {
+        Indeterminate {
+            margin,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("t"),
+            terminal_sliver: false,
+        }
+    }
+
+    /// **Each reading's refusal**: a margin is ranked by itself, a
+    /// straddle and a walk that does not read are limits, and a sampled
+    /// edge that does not settle is unsettled (it moves with the band and
+    /// carries no margin).
+    #[test]
+    fn each_reading_refuses_as_its_variant_says() {
+        let in_band = cause(MarginDiag::value(5e-9));
+        let r = |why: Unread<f64>| why.refusal();
+        assert_eq!(
+            r(Unread::Boundary {
+                cause: in_band,
+                distance: 0.0
+            }),
+            Refusal::Margin(in_band)
+        );
+        assert_eq!(
+            r(Unread::Side {
+                r#loop: 0,
+                why: SideUnread::Banded(in_band)
+            }),
+            Refusal::Margin(in_band)
+        );
+        assert_eq!(
+            r(Unread::Side {
+                r#loop: 0,
+                why: SideUnread::Straddle
+            }),
+            Refusal::Limit
+        );
+        assert_eq!(r(Unread::Loop { r#loop: 0 }), Refusal::Limit);
+        assert_eq!(
+            r(Unread::Carrier { r#loop: 0, edge: 0 }),
+            Refusal::Unsettled
+        );
+    }
+
+    /// **A ladder ranks a limit, then a margin, then an unsettled
+    /// reading**, whatever order it read them in; an unsettled reading
+    /// alone is the refusal.
+    #[test]
+    fn a_ladder_ranks_limit_then_margin_then_unsettled() {
+        let rank =
+            |readings: Vec<Unread<f64>>| climb(Answering::First, readings, Unread::rung::<()>);
+        let banded = |l, m| Unread::Side {
+            r#loop: l,
+            why: SideUnread::Banded(cause(m)),
+        };
+        let got = rank(vec![
+            banded(0, MarginDiag::value(5e-9)),
+            banded(1, MarginDiag::INVALID),
+        ]);
+        assert!(
+            matches!(got, Climb::Undecided(Unread::Side { r#loop: 1, .. })),
+            "{got:?}"
+        );
+        let carrier = Unread::Carrier { r#loop: 0, edge: 0 };
+        let got = rank(vec![
+            carrier.clone(),
+            Unread::Boundary {
+                cause: cause(MarginDiag::value(5e-9)),
+                distance: 5e-9,
+            },
+        ]);
+        assert!(
+            matches!(got, Climb::Undecided(Unread::Boundary { .. })),
+            "{got:?}"
+        );
+        let got = rank(vec![carrier]);
+        assert!(
+            matches!(got, Climb::Undecided(Unread::Carrier { .. })),
+            "{got:?}"
+        );
+    }
 }

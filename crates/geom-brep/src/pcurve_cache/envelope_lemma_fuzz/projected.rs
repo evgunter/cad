@@ -682,7 +682,7 @@ fn a_spindle_toruss_bound_asks_its_lever_positive() {
         minor: 2.0,
     };
     assert_eq!(
-        spindle.over(1e-3, 0.5, (0.0, 0.0), ask),
+        spindle.over(1e-3, (0.5, 0.5), (0.0, 0.0), ask),
         Err(-1.75),
         "the lever (ρ + R)² − r² = −1.75 at ρ = ½ is refused"
     );
@@ -690,11 +690,154 @@ fn a_spindle_toruss_bound_asks_its_lever_positive() {
         major: 2.0,
         minor: 1.0,
     };
-    let bound = ring.over(1e-3, 0.5, (0.0, 0.0), ask);
+    let bound = ring.over(1e-3, (0.5, 0.5), (0.0, 0.0), ask);
     assert!(
         bound.is_ok_and(|m| m > 0.0),
         "a ring torus's lever is positive and its bound is: {bound:?}"
     );
+}
+
+/// `f = (m² − r²)(M² − r²)` in a sheet's meridian half-plane.
+fn sheet_form(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
+    let r2 = minor * minor;
+    ((rho - major).powi(2) + z * z - r2) * ((rho + major).powi(2) + z * z - r2)
+}
+
+/// The exact distance in the meridian half-plane from `(ρ, z)` to the
+/// sheet `{(R + r cos v, r sin v) : |v| ≤ v*}`: the circle's nearest
+/// point where that lies at `ρ ≥ 0`, else the nearer apex (the arc's
+/// ends, `(0, ±√(r² − R²))`).
+fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
+    let m = ((rho - major).powi(2) + z * z).sqrt();
+    if major + minor * (rho - major) / m >= 0.0 {
+        (m - minor).abs()
+    } else {
+        let h = (minor * minor - major * major).sqrt();
+        (rho * rho + (z - h).powi(2))
+            .sqrt()
+            .min((rho * rho + (z + h).powi(2)).sqrt())
+    }
+}
+
+/// **A spindle sheet's bound is this sheet's distance**: wherever
+/// [`Meters::over`] certifies a box in a sheet's meridian half-plane, the
+/// distance of every point of the box from THIS sheet (not the torus's
+/// other sheet, and not its circle past the apexes) is at most the
+/// bound. Lemons and apples of every proportion, the box seeded on the
+/// sheet, on the other sheet, at an apex, on the axis or anywhere near,
+/// at scales from `1e-9` to `1e-1`, as a point or a small box; `|f|`'s
+/// sup is read on a grid of the box and doubled, so a miss is the
+/// formula's, not the grid's.
+///
+/// The side check (`|m − r|·|R| ≤ r·ρ`) is what selects the sheet, and
+/// this row is what holds it: without it the lever alone certifies
+/// parts near the other sheet and past the apexes, and the bound
+/// under-reads them by the thousand (`a_parts_past_a_sheets_apex_is_refused_by_the_side_check`
+/// is one, written down).
+///
+/// [`Meters::over`]: super::super::projected::Meters::over
+#[test]
+fn a_spindle_bound_is_this_sheets_distance() {
+    use super::super::projected::Meters;
+    let mut s = fuzz::start("a_spindle_bound_is_this_sheets_distance");
+    for i in 0..fuzz::scaled(40_000) {
+        let minor = s.range(0.2, 2.0);
+        let mut u = s.range(-0.98, 0.98);
+        if u.abs() < 0.02 {
+            u = 0.5;
+        }
+        let major = minor * u;
+        let h = (minor * minor - major * major).sqrt();
+        let (rho0, z0) = match i % 5 {
+            0 | 1 => {
+                let vs = (-major / minor).acos();
+                let v = s.range(-vs, vs);
+                (major + minor * v.cos(), minor * v.sin())
+            }
+            2 => {
+                let vs = (major / minor).acos();
+                let v = s.range(-vs, vs);
+                (-major + minor * v.cos(), minor * v.sin())
+            }
+            3 => (0.0, if s.unit() < 0.5 { h } else { -h }),
+            _ => (
+                s.range(0.0, 2.0 * minor),
+                s.range(-2.0 * minor, 2.0 * minor),
+            ),
+        };
+        let scale = s.log_uniform(1e-9, 1e-1);
+        let rho_c = (rho0 + scale * s.range(-1.0, 1.0)).max(0.0);
+        let z_c = z0 + scale * s.range(-1.0, 1.0);
+        let point = s.unit() < 0.3;
+        let (dr, dz) = if point {
+            (0.0, 0.0)
+        } else {
+            (scale * s.unit(), scale * s.unit())
+        };
+        let (rho_lo, rho_hi) = ((rho_c - dr).max(0.0), rho_c + dr);
+        let (z_lo, z_hi) = (z_c - dz, z_c + dz);
+        let n = if point { 0 } else { 12 };
+        let (mut f_sup, mut far) = (0.0_f64, 0.0_f64);
+        for a in 0..=n {
+            for b in 0..=n {
+                let at = |k: u32| {
+                    if n == 0 {
+                        0.0
+                    } else {
+                        f64::from(k) / f64::from(n)
+                    }
+                };
+                let rho = rho_lo + (rho_hi - rho_lo) * at(a);
+                let z = z_lo + (z_hi - z_lo) * at(b);
+                f_sup = f_sup.max(sheet_form(major, minor, rho, z).abs());
+                far = far.max(sheet_distance(major, minor, rho, z));
+            }
+        }
+        let f_sup = 2.0 * f_sup + 1e-300;
+        let positive = |x: f64| if x > 0.0 { Ok(x) } else { Err(()) };
+        let bound =
+            Meters::Spindle { major, minor }.over(f_sup, (rho_lo, rho_hi), (z_lo, z_hi), positive);
+        if let Ok(bound) = bound {
+            assert!(
+                far <= bound * (1.0 + 1e-9) + 1e-15,
+                "draw {i}: R {major} r {minor}, box ρ [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
+                 a point {far} from the sheet past the bound {bound}; {}",
+                fuzz::replay()
+            );
+        }
+    }
+}
+
+/// **A part past a sheet's apex is refused by the side check**: the
+/// apple `R = 0.9, r = 1` (apexes at `z = ±√0.19`), a point by the axis
+/// between them, at `(ρ, z) = (0.1, 0.2)`. The lever `(ρ + R)² + z² − r²`
+/// is positive there (`0.04`), so the lever alone would certify
+/// `|m − r| ≈ 0.175`, the distance from the whole meridian circle, which
+/// is not this sheet's: the circle's nearest point is across the axis,
+/// and the sheet's own nearest point is its upper apex (`≈ 0.256`).
+/// `|m − r|·|R| ≤ r·ρ` fails, and [`Meters::over`] refuses. With that
+/// check removed, [`a_spindle_bound_is_this_sheets_distance`] goes red
+/// at every seed tried.
+///
+/// [`Meters::over`]: super::super::projected::Meters::over
+#[test]
+fn a_parts_past_a_sheets_apex_is_refused_by_the_side_check() {
+    use super::super::projected::Meters;
+    let (major, minor, rho, z) = (0.9_f64, 1.0_f64, 0.1_f64, 0.2_f64);
+    let lever = (rho + major).powi(2) + z * z - minor * minor;
+    assert!(lever > 0.0, "the lever reads {lever}, which certifies");
+    let m = ((rho - major).powi(2) + z * z).sqrt();
+    let whole = (m - minor).abs();
+    let own = sheet_distance(major, minor, rho, z);
+    assert!(
+        whole < own,
+        "the circle's distance {whole} under-reads the sheet's {own}"
+    );
+    assert!(whole * major.abs() > minor * rho, "the side check fails");
+    let f = sheet_form(major, minor, rho, z).abs();
+    let positive = |x: f64| if x > 0.0 { Ok(x) } else { Err(x) };
+    let got = Meters::Spindle { major, minor }.over(f, (rho, rho), (z, z), positive);
+    assert!(got.is_err(), "the side check refuses: {got:?}");
 }
 
 /// One respect a dominance row moves.
@@ -920,7 +1063,7 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     );
     let image = project(&circle, Some((0.2, 1.4)), &sphere, b).expect("clear of the poles");
     let mut turned = image.clone();
-    turned.azimuth[0] += 2;
+    turned.azimuth[0].0 += 2;
     let err = PcurveCache::certify(
         Pcurve::Projected(Box::new(turned)),
         0.2,
@@ -992,7 +1135,7 @@ fn wrong_nappe_refusal() -> PcurveCertifyError {
         *nappe = crate::Nappe::Mirror;
     }
     for m in &mut image.azimuth {
-        *m += 2;
+        m.0 += 2;
     }
     let lane = crate::FittedLane::<Interval>::certified();
     let (t0, t1) = (Interval::from_f64(0.0), Interval::from_f64(1.0));
@@ -1049,7 +1192,10 @@ fn an_off_chart_spline_refuses_by_incidence() {
 
 /// **A line near a cylinder's ruling images on the projected lane, and
 /// its envelope dominates** (`projected::line_off_cylinder_sup`): a line
-/// whose radial speed reads in the band or definite, standing up to
+/// whose ruling reading reads in the band or definite (its lean along the
+/// wall, drawn in the band or past it, times the span's reach from its
+/// origin, drawn at least 1, so the reading is no smaller than the lean:
+/// `ruling_miss`), standing up to
 /// half the zero band off the wall, over a span on which its lean along
 /// the wall moves it by at most `0.3·zero` more, derives the projected
 /// image, certifies at `f64` and at `Interval`, and its envelope covers
@@ -1083,7 +1229,7 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
         let side = if s.below(2) == 0 { 1.0 } else { -1.0 };
         let dir = axis * s.range(0.3, 3.0) + tang * (side * lean);
         let off = b.zero() * s.range(-0.5, 0.5);
-        let mid = s.range(-2.0, 2.0);
+        let mid = if s.below(2) == 0 { 1.0 } else { -1.0 } * s.range(1.0, 2.0);
         let h = ((0.6 * b.zero() * radius).sqrt() / lean).min(2.0) * s.range(0.1, 1.0);
         let at_mid = origin + r * (radius + off) + axis * s.range(-1.0, 1.0);
         let carrier = Curve3::line(at_mid - dir * mid, dir);
@@ -1556,9 +1702,7 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
 /// part refuses.
 #[test]
 fn each_conversion_reads_its_stated_floors() {
-    use super::super::projected::{
-        PieceHull, ProjectedChart, ProjectedHull, SpanHull, net_incidence,
-    };
+    use super::super::projected::{PieceHull, ProjectedHull, SpanHull, net_incidence};
     let b = band();
     let (f, d) = (1e-3, 0.25);
     let hull = |rho_lo: f64, z: (f64, f64)| ProjectedHull {
@@ -1570,6 +1714,7 @@ fn each_conversion_reads_its_stated_floors() {
             range: (0.0, 1.0),
             f_sup: f,
             rho_lo,
+            rho_hi: rho_lo + 0.5,
             z,
             meters: f64::NAN,
             floors: (0.0, 0.0),
@@ -1583,17 +1728,10 @@ fn each_conversion_reads_its_stated_floors() {
         half_angle: alpha,
         u_ref: Vec3::unit_x(),
     };
-    // The stored scalars are deliberately wrong: the lever reads the
-    // twin's angle, not the row's.
-    let stored = |nappe| ProjectedChart::Cone {
-        sin: 0.0,
-        cos: 0.0,
-        nappe,
-    };
     let (inc, floor) = net_incidence(
         &hull(1.0, (0.5, 2.0)),
         (0.0, 1.0),
-        &stored(crate::Nappe::Opening),
+        Some(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -1608,7 +1746,7 @@ fn each_conversion_reads_its_stated_floors() {
     let mirror = net_incidence(
         &hull(0.1, (0.5, 2.0)),
         (0.0, 1.0),
-        &stored(crate::Nappe::Mirror),
+        Some(crate::Nappe::Mirror),
         &cone,
         d,
         b,
@@ -1659,23 +1797,9 @@ fn each_conversion_reads_its_stated_floors() {
             },
         ),
     ] {
-        let chart = match surf {
-            Surface::Torus { major_radius, .. } => ProjectedChart::Torus {
-                major: major_radius,
-            },
-            Surface::Sphere { .. } => ProjectedChart::Sphere,
-            _ => ProjectedChart::Cylinder,
-        };
-        let (inc, floor) = net_incidence(
-            &hull(rho, (0.0, 0.0)),
-            (0.0, 1.0),
-            &chart,
-            &surf,
-            d,
-            b,
-            false,
-        )
-        .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
+        let (inc, floor) =
+            net_incidence(&hull(rho, (0.0, 0.0)), (0.0, 1.0), None, &surf, d, b, false)
+                .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
         assert!(close(inc, want), "{surf:?}: {inc:e} against {want:e}");
         assert!(close(floor, rho - d), "{surf:?}: floor {floor}");
     }
@@ -1684,7 +1808,7 @@ fn each_conversion_reads_its_stated_floors() {
     let got = net_incidence(
         &uncertified,
         (0.0, 1.0),
-        &stored(crate::Nappe::Opening),
+        Some(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -1811,9 +1935,9 @@ fn turned_piece_refusal(torus: bool) -> PcurveCertifyError {
     let mut image = project(&c, None, &surf, b).expect("on the chart");
     assert_eq!(image.pieces(), 1, "a 120° arc holds one sector");
     if torus {
-        image.tube[0] += 2;
+        image.tube[0].0 += 2;
     } else {
-        image.azimuth[0] += 2;
+        image.azimuth[0].0 += 2;
     }
     let lane = crate::FittedLane::<f64>::certified();
     PcurveCache::certify_projected(image, 0.0, 1.0, &c, &surf, b, Some(lane))
@@ -1867,9 +1991,9 @@ fn grazing_piece_refusal(torus: bool) -> PcurveCertifyError {
     };
     let mut image = project(&c, None, &surf, b).expect("on the chart");
     image.breaks = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    image.azimuth = vec![0];
+    image.azimuth = vec![geom::Quarter(0)];
     if torus {
-        image.tube = vec![0];
+        image.tube = vec![geom::Quarter(0)];
     }
     let lane = crate::FittedLane::<f64>::certified();
     PcurveCache::certify_projected(image, 0.0, 1.0, &c, &surf, b, Some(lane))
@@ -1937,7 +2061,7 @@ fn a_period_jump_inside_a_piece_or_at_a_break_refuses() {
     );
     let image = project(&c, None, &cylinder, b).expect("on the cylinder");
     let mut turned = image.clone();
-    *turned.azimuth.last_mut().unwrap() += 4;
+    turned.azimuth.last_mut().unwrap().0 += 4;
     let lane = crate::FittedLane::<f64>::certified();
     let err = PcurveCache::certify_projected(turned, 0.0, 1.0, &c, &cylinder, b, Some(lane))
         .expect_err("a whole-turn jump at a break");
@@ -2060,7 +2184,15 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
     let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
     let edge = (0.0, 0.5);
     let read = |hull: &super::super::projected::ProjectedHull| {
-        super::super::projected::net_incidence(hull, edge, &image.chart, &twin, 0.0, b, false)
+        super::super::projected::net_incidence(
+            hull,
+            edge,
+            image.chart.nappe(),
+            &twin,
+            0.0,
+            b,
+            false,
+        )
     };
     let (clean, _) = read(&hull).expect("the clean hull");
     assert!(clean <= b.zero(), "{clean:e}");

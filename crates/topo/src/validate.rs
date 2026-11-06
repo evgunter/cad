@@ -476,16 +476,6 @@ pub(crate) fn decide_positive<T: Decide>(
     geom_core::k_stats::decide_positive(name, margin, band)
 }
 
-/// [`decide`] gated on a definitely negative margin
-/// ([`geom_core::k_stats::decide_negative`]).
-pub(crate) fn decide_negative<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<(), Indeterminate> {
-    geom_core::k_stats::decide_negative(name, margin, band)
-}
-
 /// **Whether a reading's own rounding leaves an in-band reading the
 /// input's**: the rounding, `K` times over, decided Zero under `name`, so
 /// it lies within the `ε/K` share of the band that K's noise headroom
@@ -1152,12 +1142,12 @@ pub enum ValidationError {
         /// The end missed and its margin's verdict.
         miss: geom::SpindleMiss,
     },
-    /// Tier 3: a spindle face's closure reaches an apex of its sheet at
-    /// one of its vertices, or the face is not shown clear of one: a
-    /// face at a sheet's apex has no lane yet, and no reader settles a
-    /// sheet face's side at a point yet. A missing lane, not a defect:
-    /// an apex inside an edge or the interior that the face's door does
-    /// place is [`ValidationError::ChartSingularityNotAVertex`].
+    /// Tier 3: a spindle face is not shown clear of an apex of its sheet
+    /// that is not one of its vertices: the walk of its loops through
+    /// the sheet's chart did not read, or its loops did not flatten. A
+    /// missing lane, not a defect: an apex the walk places inside the
+    /// face, or one inside an edge, is
+    /// [`ValidationError::ChartSingularityNotAVertex`].
     SheetApexReached {
         /// The face.
         face: FaceKey,
@@ -3322,11 +3312,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         // An arc rim's refusal reads as its exact image's check where
         // that names a limb, and as its fitted path's otherwise, as its
         // decision does (`ArcRimRefusal::decision`).
-        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal::Refused {
-            iso,
-            limb,
-            bound,
-        })) => {
+        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal { iso, limb, bound })) => {
             let limb = iso
                 .and_then(geom_brep::PcurveCheck::incidence_limb)
                 .unwrap_or(*limb);
@@ -3494,12 +3480,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
         }
-        // Both are lifted to `CertifyError::Escalated` at the door
+        // Lifted to `CertifyError::Escalated` at the door
         // (`from_plane_nurbs`), as every lane escalation is; read here by
-        // their own decision for a caller holding the lane's refusal.
-        CertifyError::PlaneNurbs(
-            p @ (P::Escalated { .. } | P::ArcRim(geom_brep::ArcRimRefusal::Escalated { .. })),
-        ) => p
+        // its own decision for a caller holding the lane's refusal.
+        CertifyError::PlaneNurbs(p @ P::Escalated { .. }) => p
             .decision()
             .map_or(KIND, |(check, _)| certify_undecided(check)),
         CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),
@@ -4475,9 +4459,9 @@ impl ValidationError {
             },
             Self::SheetApexReached { point, .. } => write!(
                 f,
-                "a spindle face reaches {} at one of its vertices, or is not shown clear of \
-                 it, and a face at a sheet's apex is not built yet. Recourse: keep the face's \
-                 boundary clear of its axis",
+                "a spindle face is not shown clear of {}, which is not one of its vertices, \
+                 and no lane reads its side there yet. Recourse: end the face at the apex, as \
+                 a vertex, or keep its boundary clear of the axis",
                 singularity_noun(*point)
             ),
             Self::DegenerateTorusEscalated { cause, .. } => write!(
@@ -8173,13 +8157,16 @@ pub(crate) fn tier3_local_checks_marked<
     // The loops are check 6's curved arm's, and "at a vertex" reads each
     // vertex's stored point.
     //
-    // A sheet apex is stricter, since no lane reads a face at one yet:
-    // inside an edge or the interior it is refused as a pole is, and at
-    // a vertex, or anywhere it is not shown outside the face (no door
-    // settles, the boundary placement refuses without a reading in band,
-    // or the loops do not flatten or walk), it is refused
-    // `SheetApexReached`. Only a reading in band stays the undecided
-    // finding, which carries its ending.
+    // A sheet apex is read as a pole is: at a vertex passes, inside an
+    // edge or the interior refuses. It is stricter only where it is not
+    // shown outside the face, which refuses `SheetApexReached` where a
+    // pole is exempt. No door places a point on a sheet, so
+    // its side is the walk of each surface cycle's chart image through
+    // the sheet's chart (`geom_brep::chart_singularity::holds`); not
+    // shown outside is that walk unread, the boundary placement refusing
+    // without a reading in band, or loops that do not flatten. Only a
+    // reading in band stays the undecided finding, which carries its
+    // ending.
     // ------------------------------------------------------------------
     let sheet_unshown = |face: FaceKey, errors: &mut Vec<ValidationError>| {
         use geom_brep::chart_singularity::{Singularity, singular_points};
@@ -8240,6 +8227,18 @@ pub(crate) fn tier3_local_checks_marked<
             continue;
         };
         let every: Vec<usize> = (0..cycles.len()).collect();
+        // A sheet's apex no door places is read by the walk of each
+        // surface cycle's chart image through the sheet's chart.
+        let walked = || -> Option<Vec<Vec<geom_brep::LoopEdge<T>>>> {
+            cycles
+                .iter()
+                .map(|cycle| {
+                    let image = crate::surface_boundary::chart_image(body, cycle)?;
+                    crate::props::run_edges(body, &image.half_edges).ok()
+                })
+                .collect()
+        };
+        let sense = body.faces.get(face_key).is_some_and(|f| f.sense);
         for (point, x) in singular_points(&chart) {
             let face = face_key;
             let sheet_apex = matches!(
@@ -8258,9 +8257,6 @@ pub(crate) fn tier3_local_checks_marked<
                         lies: SingularityLies::InsideEdge { edge: he.edge },
                     });
                 }
-                Ok(Some(_)) if sheet_apex => {
-                    errors.push(ValidationError::SheetApexReached { face, point });
-                }
                 Ok(Some(_)) => {}
                 Ok(None) => match crate::one_region::door_side(body, face, &every, x, band) {
                     Ok(Some(true)) => {
@@ -8278,7 +8274,34 @@ pub(crate) fn tier3_local_checks_marked<
                     // reachable only through the two readings' rounding,
                     // which the band's gap is far wider than.
                     Ok(None) if sheet_apex => {
-                        errors.push(ValidationError::SheetApexReached { face, point });
+                        use geom_brep::chart_singularity::{Unread, holds};
+                        let read = walked().map(|images| {
+                            let loops: Vec<&[_]> = images.iter().map(Vec::as_slice).collect();
+                            holds(surface, &loops, sense, point, band)
+                        });
+                        match read {
+                            Some(Ok(false)) => {}
+                            Some(Ok(true)) => {
+                                errors.push(ValidationError::ChartSingularityNotAVertex {
+                                    face,
+                                    point,
+                                    lies: SingularityLies::Interior,
+                                });
+                            }
+                            Some(Err(Unread::Side {
+                                why: SideUnread::Banded(diag),
+                                ..
+                            })) => {
+                                errors.push(ValidationError::ChartSingularityUndecided {
+                                    face,
+                                    point,
+                                    reading: Undecided::Side(SideUnread::Banded(diag)),
+                                });
+                            }
+                            Some(Err(_)) | None => {
+                                errors.push(ValidationError::SheetApexReached { face, point });
+                            }
+                        }
                     }
                     Ok(Some(false) | None) => {}
                     // The door's boundary reading in band is the same
@@ -9515,7 +9538,10 @@ fn ring_outer_meeting<T: Decide>(
         crate::boolean::loop_circle(body, outer, band),
         crate::boolean::loop_circle(body, ring, band),
     ) {
-        return match circle_pair(circles_of(o.center, o.radius, r.center, r.radius), band) {
+        return match circle_pair(
+            circles_of(o.frame.origin, o.radius, r.frame.origin, r.radius),
+            band,
+        ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
             Ok(
                 CirclePair::ExternallyTangent
@@ -9656,7 +9682,7 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
         geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -9998,7 +10024,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
         } => {
             let carrier = geom::Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -10222,7 +10248,12 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             radius,
         }) => {
             let d = p - *center;
@@ -12902,7 +12933,7 @@ mod tests {
         let off = C::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
-            why: "the line's points are not on the chart (its distance from the chart at a sample of its span is past the band)",
+            why: "the line's points are not on the chart (its distance from the chart is past the band somewhere in its span)",
             margin: None,
         };
         let undecided = C::Escalated {
@@ -14906,7 +14937,7 @@ mod tests {
         let u_ref = (s - center) / radius;
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -16123,7 +16154,7 @@ mod tests {
             .expect("one sense of the circle is the arc asked for");
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -18757,43 +18788,45 @@ mod door_roster {
             .collect()
     }
 
-    /// **A sheet apex at a vertex of its face is reached**: the brick's
-    /// top face on a lemon (`R = −0.3`, `r = 0.5`, apexes `0.4` above
-    /// and below its centre) whose upper apex is the corner `(1, 1, 1)`.
-    /// The placement reads it at the vertex, which passes a pole and
-    /// refuses an apex; the lower apex, off the face, is not shown clear.
+    /// **A sheet apex at a vertex of its face passes**, as a pole
+    /// there does: the brick's top face on a lemon (`R = −0.3`,
+    /// `r = 0.5`, apexes `0.4` above and below its centre) whose upper
+    /// apex is the corner `(1, 1, 1)`. The placement reads it at the
+    /// vertex; the lower apex, off the face, the walk of its loop shows
+    /// outside.
     #[test]
-    fn a_sheet_apex_at_a_face_vertex_is_reached() {
-        use geom_brep::chart_singularity::Singularity::{SheetApexDown, SheetApexUp};
+    fn a_sheet_apex_at_a_face_vertex_passes() {
         let findings = brick_face_on_a_sheet(top, geom_core::Point3::new(1.0, 1.0, 0.6), -0.3, 0.5);
-        assert_eq!(
-            reached(&findings),
-            [SheetApexUp, SheetApexDown],
-            "{findings:?}"
-        );
+        assert!(findings.is_empty(), "{findings:?}");
     }
 
-    /// **A sheet apex in its face's interior is reached**: the lemon's
-    /// upper apex at the top face's centre `(0.5, 0.5, 1)`. No door
-    /// reads a sheet's side yet, so the apex is not shown outside the
-    /// face and refuses (the reviewers' lemon probe).
+    /// **A sheet apex in its face's interior is no vertex**: the
+    /// lemon's upper apex at the top face's centre `(0.5, 0.5, 1)`. The
+    /// walk of the face's loop places it inside, as a pole there is
+    /// placed (the reviewers' lemon probe), and the lower apex outside.
     #[test]
-    fn a_sheet_apex_inside_a_face_is_reached() {
-        use geom_brep::chart_singularity::Singularity::{SheetApexDown, SheetApexUp};
+    fn a_sheet_apex_inside_a_face_is_not_a_vertex() {
+        use geom_brep::chart_singularity::Singularity::SheetApexUp;
         let findings = brick_face_on_a_sheet(top, geom_core::Point3::new(0.5, 0.5, 0.6), -0.3, 0.5);
-        assert_eq!(
-            reached(&findings),
-            [SheetApexUp, SheetApexDown],
+        assert!(
+            matches!(
+                findings.as_slice(),
+                [crate::ValidationError::ChartSingularityNotAVertex {
+                    point: SheetApexUp,
+                    lies: crate::SingularityLies::Interior,
+                    ..
+                }]
+            ),
             "{findings:?}"
         );
     }
 
     /// **A sheet apex inside an edge is no vertex**, refused as a pole
     /// there is: the upper apex at the midpoint `(0.5, 1, 1)` of a top
-    /// edge.
+    /// edge; the lower apex the walk shows outside.
     #[test]
     fn a_sheet_apex_inside_an_edge_is_not_a_vertex() {
-        use geom_brep::chart_singularity::Singularity::{SheetApexDown, SheetApexUp};
+        use geom_brep::chart_singularity::Singularity::SheetApexUp;
         let findings = brick_face_on_a_sheet(top, geom_core::Point3::new(0.5, 1.0, 0.6), -0.3, 0.5);
         assert!(
             findings.iter().any(|e| matches!(
@@ -18806,30 +18839,26 @@ mod door_roster {
             )),
             "{findings:?}"
         );
-        assert_eq!(reached(&findings), [SheetApexDown], "{findings:?}");
+        assert!(reached(&findings).is_empty(), "{findings:?}");
     }
 
-    /// **A sheet face is refused unless shown clear of its apexes**:
-    /// the lemon's axis three units off the face, both apexes far
-    /// outside it, still refuses each, because no reader settles a
-    /// sheet face's side at a point yet (stage 2's walk). A sheet
-    /// apex's unread side is never exempt, as a pole's is.
+    /// **A sheet face shown clear of its apexes passes**: the lemon's
+    /// axis three units off the face, both apexes far outside it, which
+    /// the walk of the face's loop through the sheet's chart reads. A
+    /// sheet apex whose side is unread is never exempt, as a pole's is,
+    /// so with the walk unwired both refuse `SheetApexReached`.
     #[test]
-    fn a_sheet_face_not_shown_clear_of_its_apexes_is_reached() {
-        use geom_brep::chart_singularity::Singularity::{SheetApexDown, SheetApexUp};
+    fn a_sheet_face_shown_clear_of_its_apexes_passes() {
         let findings = brick_face_on_a_sheet(top, geom_core::Point3::new(3.5, 0.5, 0.6), -0.3, 0.5);
-        assert_eq!(
-            reached(&findings),
-            [SheetApexUp, SheetApexDown],
-            "{findings:?}"
-        );
+        assert!(findings.is_empty(), "{findings:?}");
     }
 
     /// **A horn a hair past `R = r`, accepted in band, closes at one
     /// finite cusp**: `spindle_sheet` decides it a horn, its chart's
-    /// apexes are both the centre with `v = π` (the clamped radicand of
-    /// `geom::sheet_apex`, where `√(r² − R²)` was NaN), and tier 3 reads
-    /// the cusp, at the top face's centre, as reached.
+    /// apexes are both the centre (the clamped radicand of
+    /// `geom::sheet_apex`, where `√(r² − R²)` was NaN), which its chart
+    /// lists once, at `v = π`, and tier 3 reads the cusp, at the top
+    /// face's centre, as reached.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn a_horn_a_hair_past_r_closes_at_one_finite_cusp() {
@@ -18846,10 +18875,10 @@ mod door_roster {
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         let poles = crate::chart::Chart::of(&sheet).unwrap().poles();
-        assert_eq!(poles.len(), 2);
+        assert_eq!(poles.len(), 1, "{poles:?}");
         for (p, v) in &poles {
             assert_eq!((p.x, p.y, p.z), (center.x, center.y, center.z), "{poles:?}");
-            assert_eq!(v.abs(), core::f64::consts::PI, "{poles:?}");
+            assert_eq!(*v, core::f64::consts::PI, "{poles:?}");
         }
         let findings = brick_face_on_a_sheet(top, center, major, minor);
         assert_eq!(reached(&findings).len(), 2, "{findings:?}");

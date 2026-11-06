@@ -1544,7 +1544,7 @@ pub(super) fn tilted_slab() -> Body<f64> {
 #[test]
 fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
     let (band_body, band_face) = seamless_band(-1.0, 1.0);
-    let surface = band_body.face_surface(band_face).unwrap().clone();
+    let surface = band_body.proven_face(band_face).surface().clone();
     let read = crate::pcurves::loop_windings(&band_body, band_face, &surface, band())
         .expect("the seamless band's loops read");
     assert!(
@@ -1759,7 +1759,7 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
     );
     // The sheet's seed face is the band's key in its own arena.
     assert!(wall_body.get_face(band_face).is_some(), "the keys coincide");
-    let surface = |b: &Body<f64>, f| b.face_surface(f).unwrap().clone();
+    let surface = |b: &Body<f64>, f| b.proven_face(f).surface().clone();
     let mut cache = ops::ChartCache::default();
     assert!(matches!(
         cache.describes(
@@ -2420,7 +2420,7 @@ fn torus_iso(
         },
         carrier: Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -3336,8 +3336,8 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
 /// dropped, and [`super::perp_to`] as `v − a·(a·v)`.
 #[test]
 fn every_torus_touch_holds_against_a_sampling_oracle() {
-    use super::super::conic_oracle::unit;
     use core::f64::consts::FRAC_PI_2;
+    use geom_brep::curve_face::conic_oracle::unit;
     use test_utils::fuzz;
     let band = band();
     let eps = band.zero();
@@ -3359,7 +3359,7 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
             );
             let t = Tor::new(
                 Point3::origin() + (c - Point3::origin()) * scale,
-                unit(&mut rng),
+                unit(|lo, hi| rng.range(lo, hi)),
                 big_r,
                 ratio * big_r,
             );

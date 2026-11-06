@@ -56,6 +56,11 @@ pub enum Rung<A, E> {
     /// The reading met a limit no tolerance moves: kept, and ranked ahead
     /// of an in-band one ([`Evidence`]).
     Blocked(E),
+    /// The reading did not settle, on no margin and in a way the band
+    /// moves (a coarser one may settle it): kept, and ranked after every
+    /// other kept reading, so a margin in band, which says how far the
+    /// question is from deciding, is the refusal ahead of it.
+    Unsettled(E),
 }
 
 /// A reading a band did not decide, as what it is ([`Rung::InBand`],
@@ -77,6 +82,51 @@ impl Kept<Indeterminate> {
             Self::Blocked(cause)
         } else {
             Self::InBand(cause)
+        }
+    }
+}
+
+/// **What a refusal a ladder's reader met is to the ladder** — the
+/// one classification of a refusal, as [`Rung`] holds it — stated by
+/// the refusal's own type beside its variants (a `refusal()` method on
+/// it), so no reader spells a second table of which variant is a limit.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Refusal {
+    /// Ranked by its margin ([`Kept::of`]).
+    Margin(Indeterminate),
+    /// In band, with no margin carried: a tighter tolerance may decide it.
+    InBand,
+    /// A limit no tolerance moves.
+    Limit,
+    /// A refusal of the whole query (a corrupt input, two readings that
+    /// contradict, a refusal every point reads alike): the ladder stops
+    /// ([`Rung::Aborts`]).
+    Abort,
+    /// Band-dependent with no margin ([`Rung::Unsettled`]).
+    Unsettled,
+}
+
+impl Refusal {
+    /// The rung a reading refused with `e` stands as: kept by its kind,
+    /// or, for an abort, the rung `abort` makes of `e`.
+    pub fn rung<A, E>(self, e: E, abort: impl FnOnce(E) -> Rung<A, E>) -> Rung<A, E> {
+        match self {
+            Self::Margin(cause) => Kept::of(cause).map(|_| e).into(),
+            Self::InBand => Rung::InBand(e),
+            Self::Limit => Rung::Blocked(e),
+            Self::Unsettled => Rung::Unsettled(e),
+            Self::Abort => abort(e),
+        }
+    }
+}
+
+impl<E> Kept<E> {
+    /// The same kept kind over `f`'s reading: a reader whose refusal
+    /// carries more than the cause it was ranked by.
+    pub fn map<F>(self, f: impl FnOnce(E) -> F) -> Kept<F> {
+        match self {
+            Self::InBand(e) => Kept::InBand(f(e)),
+            Self::Blocked(e) => Kept::Blocked(f(e)),
         }
     }
 }
@@ -184,6 +234,7 @@ impl<A, E> Rung<A, E> {
             Self::Passes => Rung::Passes,
             Self::InBand(e) => Rung::InBand(f(e)),
             Self::Blocked(e) => Rung::Blocked(f(e)),
+            Self::Unsettled(e) => Rung::Unsettled(f(e)),
         }
     }
 }
@@ -254,10 +305,7 @@ pub fn climb<I, A, E>(
 ) -> Climb<A, E> {
     match climb_evidence(answering, rungs, read) {
         Ok((at, answer)) => Climb::Answered { at, answer },
-        Err(kept) => match kept.ranked() {
-            Ranked::Blocked(e) | Ranked::InBand(e) => Climb::Undecided(e),
-            Ranked::Neither => Climb::Passed,
-        },
+        Err(kept) => kept.refusal().map_or(Climb::Passed, Climb::Undecided),
     }
 }
 
@@ -291,12 +339,17 @@ pub fn climb_evidence<I, A, E>(
                 continue;
             }
             Rung::InBand(e) => {
-                kept.in_band(e);
+                kept.keep(Kept::InBand(e));
                 held.push((log, true));
                 continue;
             }
             Rung::Blocked(e) => {
-                kept.blocked(e);
+                kept.keep(Kept::Blocked(e));
+                held.push((log, true));
+                continue;
+            }
+            Rung::Unsettled(e) => {
+                kept.unsettled(e);
                 held.push((log, true));
                 continue;
             }
@@ -374,11 +427,14 @@ pub fn read_identity<T: Decide>(
 ///    decide, carried with its value. It is not ranked first because the
 ///    reading it stopped went no further: a tighter tolerance may decide
 ///    it and still leave it to meet the limit;
-/// 3. else neither, and the caller says what that means.
+/// 3. else the first unsettled reading ([`Rung::Unsettled`]): it carries
+///    no margin, and the band moves it;
+/// 4. else neither, and the caller says what that means.
 #[derive(Debug)]
 pub struct Evidence<E> {
     blocked: Option<E>,
     in_band: Option<E>,
+    unsettled: Option<E>,
 }
 
 /// [`Evidence`]'s verdict.
@@ -388,6 +444,8 @@ pub enum Ranked<E> {
     Blocked(E),
     /// No limit met; the first in-band reading.
     InBand(E),
+    /// Neither a limit nor a margin in band; the first unsettled reading.
+    Unsettled(E),
     /// Neither was kept.
     Neither,
 }
@@ -397,6 +455,7 @@ impl<E> Default for Evidence<E> {
         Self {
             blocked: None,
             in_band: None,
+            unsettled: None,
         }
     }
 }
@@ -412,6 +471,22 @@ impl<E> Evidence<E> {
         self.in_band.get_or_insert(e);
     }
 
+    /// Keeps `kept` as what it is, if it is the first of its kind: for a
+    /// run of readings outside a climb, which no reading of answers (the
+    /// cuts a later search reads its candidates off).
+    pub fn keep(&mut self, kept: Kept<E>) {
+        match kept {
+            Kept::InBand(e) => self.in_band(e),
+            Kept::Blocked(e) => self.blocked(e),
+        }
+    }
+
+    /// Keeps `e` as an unsettled reading ([`Rung::Unsettled`]), if it is
+    /// the first.
+    pub fn unsettled(&mut self, e: E) {
+        self.unsettled.get_or_insert(e);
+    }
+
     /// `self`'s readings first, then `later`'s: the evidence of two runs
     /// read in that order.
     #[must_use]
@@ -419,6 +494,7 @@ impl<E> Evidence<E> {
         Self {
             blocked: self.blocked.or(later.blocked),
             in_band: self.in_band.or(later.in_band),
+            unsettled: self.unsettled.or(later.unsettled),
         }
     }
 
@@ -429,13 +505,24 @@ impl<E> Evidence<E> {
         self.blocked.is_some()
     }
 
+    /// The refusal the ranking names, of whatever kind; `None` where
+    /// nothing was kept. For a caller that refuses alike on every kind.
+    #[must_use]
+    pub fn refusal(self) -> Option<E> {
+        match self.ranked() {
+            Ranked::Blocked(e) | Ranked::InBand(e) | Ranked::Unsettled(e) => Some(e),
+            Ranked::Neither => None,
+        }
+    }
+
     /// The one ranking (the type's docs).
     #[must_use]
     pub fn ranked(self) -> Ranked<E> {
-        match (self.blocked, self.in_band) {
-            (Some(e), _) => Ranked::Blocked(e),
-            (None, Some(e)) => Ranked::InBand(e),
-            (None, None) => Ranked::Neither,
+        match (self.blocked, self.in_band, self.unsettled) {
+            (Some(e), _, _) => Ranked::Blocked(e),
+            (None, Some(e), _) => Ranked::InBand(e),
+            (None, None, Some(e)) => Ranked::Unsettled(e),
+            (None, None, None) => Ranked::Neither,
         }
     }
 }
@@ -475,6 +562,31 @@ mod tests {
         data: &[(&'static str, f64)],
     ) -> (IdentityLadder, Vec<&'static str>, Vec<&'static str>) {
         recorded(|| read_identity(data.iter().map(|&(n, m)| (n, Margin::of(m))), band()))
+    }
+
+    /// **`Evidence::refusal` names the ranked refusal**, whatever its
+    /// kind: a limit ahead of an in-band reading read before it, in band
+    /// ahead of unsettled, and none where nothing was kept.
+    #[test]
+    fn evidence_refusal_is_the_ranked_one_of_any_kind() {
+        use super::Kept;
+        let mut e = Evidence::default();
+        e.unsettled("unsettled");
+        e.keep(Kept::InBand("in band"));
+        e.keep(Kept::Blocked("limit"));
+        assert_eq!(
+            e.refusal(),
+            Some("limit"),
+            "a limit outranks what came before it"
+        );
+        let mut e = Evidence::default();
+        e.unsettled("unsettled");
+        e.keep(Kept::InBand("in band"));
+        assert_eq!(e.refusal(), Some("in band"), "in band outranks unsettled");
+        let mut e = Evidence::default();
+        e.unsettled("unsettled");
+        assert_eq!(e.refusal(), Some("unsettled"), "unsettled is a refusal");
+        assert_eq!(Evidence::<&str>::default().refusal(), None, "nothing kept");
     }
 
     /// **A later definite datum answers past an earlier in-band one**,
@@ -669,6 +781,7 @@ mod tests {
         let rank = |e: Evidence<u8>| match e.ranked() {
             Ranked::Blocked(e) => (1, e),
             Ranked::InBand(e) => (2, e),
+            Ranked::Unsettled(e) => (4, e),
             Ranked::Neither => (3, 0),
         };
         let mut a = Evidence::default();

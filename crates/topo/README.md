@@ -993,9 +993,17 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   one regular curve at their shared vertex: the surfaces are transverse
   there (tangent arms one order up), or the chart is regular there.
   Distinct components of one locus never share a point, so the vertex
-  decides the branch, and nothing is compared between the two edges. A
-  pole, a cone's apex or any point where the locus is not one curve is
-  never joinable; a reading of the vertex in the margin band refuses
+  decides the branch, and nothing is compared between the two edges.
+  The iso-family arm is a class reading of each carrier, so a boolean
+  whose join makes two of its input edges one on it records that
+  reading's Zero, the most either carrier misses its family by, as one
+  coincidence row naming the two (`DecisionSite::IsoJoin`, one carrier
+  continuing) for the `unproven-coincidence` lint ([coincidence]); a
+  join of two pieces of one input edge is that edge read twice, and a
+  join of two edges whose descriptions name one surface pair is that
+  pair's locus read twice, so neither records anything. A pole, a
+  cone's apex or any point where the locus is not one curve is never
+  joinable; a reading of the vertex in the margin band refuses
   typed. A closed edge the join makes keeps one *conventional vertex*:
   a vertex whose only edge is that one closed edge, at both its ends.
   Its position, and the edge's parameter origin and witness that hang
@@ -1174,12 +1182,14 @@ solid touches itself, its whole link there (`sweep_self_touch_points`,
 by `rest::one_material`), a link holding a curved face, a face with a
 curved edge held at its corner, a planar face with a spline edge, or a
 point tied inside a curved edge read as its faces' tangent cones
-(`FaceSector::tangent`) where their first order decides, and left
-unread where it does not (`census::SelfTouch::SecondOrder`: a cone's
-apex, a cusp corner, sheets tangent to first order, a face whose
-tangent reading does not build, or sectors lying on each other). Every
-other use of a face's normal in the coincidence sweeps is
-sense-invariant.
+(`FaceSector::tangent`) where their first order decides, one order
+down where it ties at a cusp corner or along a ray
+(`link::second_order`), and left unread where neither decides
+(`census::SelfTouch::SecondOrder`: a cone's apex, a horn beside a sheet
+along its ray, a curved sheet holding a tied ray inside it, sheets the
+bends do not part, a face whose tangent reading does not build, or
+sectors lying on each other). Every other use of a face's normal in the
+coincidence sweeps is sense-invariant.
 
 The tangent reading is the germ's (`rest::first_order`). Under the
 blow-up `q ↦ p + (q − p)/t` the faces about `p` tend in C¹, as
@@ -1198,6 +1208,62 @@ a shared edge at dihedral π, graphs over complementary domains of one
 plane), each of which survives the perturbation. So the cone's verdict
 is the faces' at every small enough scale: the germ's, which is what
 the link claim is about.
+
+Where the first order ties along a ray `u` — a cusp corner, whose two
+edges leave along it, or a bound lying on another sheet's plane where
+the faces keep no coincidence — the reading goes one order down
+(`link::second_order`). Cut the faces square to `u` at distance `s` and
+scale the cut by `2/s²`: as `s → 0`, an edge leaving `p` along `u`
+with curvature vector `κ` meets the cut at `κ`, and a face whose
+tangent plane holds `u` meets it in a straight line of the face's
+outward normal `m` through its edges' points; a face whose tangent
+plane does not hold `u`, or holds it outside its sector, leaves the cut
+for good. So the germ about `u` is the cut's picture along the ray:
+
+- **a cusp corner** is a horn where the edge back into the vertex
+  stands left of the edge out (`(κ₁ − κ₀)·(m × u) > 0`), the face the
+  segment between them; the whole turn but a horn where it stands
+  right, the face its line less that segment, and a sector of the whole
+  turn at first order;
+- **a ring of horns** (each meeting the next at the edge back into it)
+  is a polygon; where every vertex off a side stands strictly on one
+  side of that side's face, the same side throughout, the polygon is
+  convex and simple and its faces' normals all point out of it (a thorn
+  of material) or all into it (a needle of void). The cone of the
+  link's sectors must read the ray decidedly outside its material for
+  a thorn, inside it for a needle, so no sheet of the cone comes near
+  it and the windings either side of the polygon differ by one;
+- **sheets along a ray where a bound ties** are half-lines from their
+  edges' points into their sectors, and planar sheets through the ray
+  whole lines through the point; where no two meet but at an edge's
+  point they share (without folding there), they are curves bounding
+  the material on their outward sides, and the cone, which sees them
+  meet on the ray as edges meet, reads the faces' winding about it as
+  the cut does.
+
+Each such sign is the bend's Taylor term at the arm `l` in metres
+(`Δκ·l²/2`), decided with the first order's residue there charged
+(`Reading::charged`): the two departures' parting off the plane it is
+read against (`δ·l`, decided zero), the ray's lean off a plane it lies
+on, and a sheet's lean along a line it runs on at first order. The
+sign of `Δκ` is jet data at `p`, and that is all the reading claims:
+nothing here bounds the third-order terms out at the arm, and the
+argument does not need it. What the charge buys is that the residue
+the first order left cannot reverse that sign at any scale the band
+resolves. The residue's part grows as `δ·s` and the bend's as
+`Δκ·s²/2`, so the bend's outweighs it above `s₀ = 2δ/|Δκ|`. With
+`|Δκ|·l²/2 − δ·l` past the escalation `K·zero` (`K` the band's
+escalation over its zero) and `δ·l` within `zero`, `s₀ < l/K`; and
+below `s₀` each term is at most `δ·s₀ ≤ (δl)²/(|Δκ|l²/2) ≤ zero/K`:
+inside the band. Left unread:
+
+- a sign the charge leaves in band;
+- a picture whose sheets meet;
+- a horn beside a sector along its ray;
+- a thorn the cone round it reaches (the ray not decidedly outside the
+  cone's material for a thorn, inside it for a needle), which may be a
+  real overlap;
+- a curved sheet holding a tied ray inside it, whose line is not read.
 
 The chord reading is the cross-section's (`FaceSector::chord`). A
 cylinder or cone face along a line edge of it, the edge lying in a

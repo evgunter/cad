@@ -20,3 +20,30 @@ A window centred on zero with its cut at `±π`, where only a horn's cusp lies, 
 
 A sheet's points read their `v` in `[−v*, v*]` for every `R` in `(−r, r]`, pinned by an apple near the horn in `chart_point`'s foot test.
 
+
+## Evidence (stage 1 piece 2)
+
+Once the revolve mints sheets, a wide apple reaches a body. The band
+`|v| ≤ 2.4` of `R = 0.8, r = 1` (`v* ≈ 2.50`, past `π − 1`) between two
+cones to `y = ±1.2`, built as `crates/sweep/tests/a_conical_ended_football_revolves.rs`
+builds its bands, revolves, passes tier 3 and measures its exact volume
+and area at ε = 1e-9 and 1e-12: the props lane lifts its own branch. The
+mesh does not: `mesh::tessellate` at δ = 1e-2 refuses
+`UnsupportedCurvedDomain { off_bbox: 54, first_uv: (3.03, 2.4) }`, the
+sheet's rim at `v = −2.4` read a turn off, at `+3.88`. So the window is
+what keeps the wide apple out of the football suite; that row of the
+suite is the pin once this is fixed.
+
+## Evidence (stage 2)
+
+The horn is the widest apple (`v* = π`). Stage 2 builds the needle tip
+(`crates/sweep/tests/the_football_revolves.rs`
+`a_horn_reached_at_its_cusp_from_one_side_is_a_needle_tip`) on the
+horn's upper side, `π/2 ≤ v ≤ π`, which the latitude window holds.
+`topo::Chart::poles` lists the horn's one cusp once, at `v = π`, where
+that window reads it. The same needle on the lower side,
+`−π ≤ v ≤ −π/2`, has its meridian's lower stretch `v < 1 − π` read a
+turn off, and its cusp at `+π`; it is not in the suite. A window that
+holds `[−v*, v*]` for every sheet still has to place a horn's cusp at
+`+π` for an upper face and `−π` for a lower one, so the fix reads the
+cusp's `v` off the face, as a seam's.

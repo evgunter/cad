@@ -342,7 +342,8 @@ impl SsiLimb {
     /// of where the limb judges a carrier against its surfaces, with
     /// its image a witness: the SSI door, and the edge certifier's
     /// lanes that run the limbs (their ending is
-    /// [`crate::certify::recourse`]'s). What a limb's value measures is
+    /// [`crate::CertCheck`]'s [`crate::recourse::DoorCheck::recourse`]).
+    /// What a limb's value measures is
     /// the door's to say: where the image under judgement is a STORED
     /// one, the value at a break is that image's own miss
     /// (`PcurveCheck::of_fitted_limb`). Limbs 1 and 2 are the fitted
@@ -1817,12 +1818,57 @@ pub(crate) const CHART_TUBE_NEEDS_FORM: &str = "the chart uniqueness tube reads 
      cylinder, a sphere or a ring torus against a NURBS surface; this partner has no form it \
      reads";
 
-/// [`certify_branch`]'s refusal of a curved partner whose parameters are
+/// [`certify_branch`]'s refusal of a chart's partner whose parameters are
 /// not exact at the certificate's scalar: its canonical form is `f64`
 /// structure, and a widened partner is a family of surfaces.
-pub(crate) const CHART_TUBE_PARTNER_INEXACT: &str = "the chart uniqueness tube reads a curved \
-     partner through its canonical form at f64, and this partner's parameters are not exact at \
-     the certificate's scalar — refused rather than represented by a midpoint";
+pub(crate) const CHART_TUBE_PARTNER_INEXACT: &str = "the chart uniqueness tube reads a \
+     partner through its canonical form at f64, and this partner's parameters are not exact, \
+     certified values at the certificate's scalar — refused rather than represented by a \
+     midpoint";
+
+/// A scalar as one exact `f64`: its value where its enclosure certifies
+/// a single point, `None` where it is widened or left its domain
+/// ([`chart_partner_form`]).
+pub(crate) fn exact_certified<T: CertifiedEnclosure>(x: T) -> Option<f64> {
+    x.certified_bracket()
+        .and_then(|(lo, hi)| (lo == hi && !lo.is_nan()).then_some(lo))
+}
+
+/// **The form limb 3 reads a chart's partner by**: the partner, a plane
+/// among them, at `f64` ([`super::residual::ImplicitForm`]), so only
+/// where every scalar of it is an exact `f64` whose enclosure certifies.
+/// A scalar that left its domain is refused with a widened one, however
+/// exact its endpoints: the form would be of an equation nobody
+/// evaluated (S41).
+///
+/// # Errors
+///
+/// [`SsiError::UnsupportedCertificate`]: [`CHART_TUBE_PARTNER_INEXACT`]
+/// for a widened or domain-violated scalar, [`CHART_TUBE_NEEDS_FORM`] for
+/// a partner with no form.
+///
+/// `exact` reads one scalar ([`exact_certified`] at the certificate's
+/// scalar).
+pub(crate) fn chart_partner_form<T: Real>(
+    partner: &Surface<T>,
+    exact: impl Fn(T) -> Option<f64>,
+) -> Result<super::residual::ImplicitForm, SsiError> {
+    let inexact = core::cell::Cell::new(false);
+    let at_f64 = partner.map_scalar(|x| {
+        exact(x).unwrap_or_else(|| {
+            inexact.set(true);
+            f64::NAN
+        })
+    });
+    if inexact.get() {
+        return Err(SsiError::UnsupportedCertificate {
+            what: CHART_TUBE_PARTNER_INEXACT,
+        });
+    }
+    super::residual::ImplicitForm::of(&at_f64).map_err(|_| SsiError::UnsupportedCertificate {
+        what: CHART_TUBE_NEEDS_FORM,
+    })
+}
 
 /// The uniqueness tube of a certified carrier, as boxes — what the
 /// exhaustiveness accounting pass consumes to prove cells "accounted"
@@ -2421,39 +2467,8 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            // A curved partner is read through its canonical form at
-            // `f64`, so only where every scalar of it is an exact `f64`.
-            let curved = match **partner {
-                Surface::Plane { .. } => None,
-                _ => {
-                    let inexact = core::cell::Cell::new(false);
-                    let at_f64 = partner.map_scalar(|x| {
-                        exact(x).unwrap_or_else(|| {
-                            inexact.set(true);
-                            f64::NAN
-                        })
-                    });
-                    if inexact.get() {
-                        return Err(SsiError::UnsupportedCertificate {
-                            what: CHART_TUBE_PARTNER_INEXACT,
-                        });
-                    }
-                    Some(super::residual::Curved::of(&at_f64).map_err(|_| {
-                        SsiError::UnsupportedCertificate {
-                            what: CHART_TUBE_NEEDS_FORM,
-                        }
-                    })?)
-                }
-            };
-            let phi = match (*partner, &curved) {
-                (Surface::Plane { origin, normal, .. }, _) => ChartPhi::from((*origin, *normal)),
-                (_, Some(c)) => ChartPhi::Curved(c),
-                (_, None) => {
-                    return Err(SsiError::UnsupportedCertificate {
-                        what: CHART_TUBE_NEEDS_FORM,
-                    });
-                }
-            };
+            let form = chart_partner_form(partner, exact_certified)?;
+            let phi = ChartPhi(&form);
             limb_three((widest, extent), band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
                 // speed along that axis. The padded windows are the
@@ -2800,6 +2815,28 @@ mod tests {
             Point3::new(iv(0.0), iv(0.5), iv(0.0))
         }
 
+        /// The plane through `origin` normal to `normal`, by its form, the
+        /// one way limb 3 reads a partner ([`crate::ssi::certify::chart_partner_form`]).
+        fn plane_at(
+            origin: Point3<Interval>,
+            normal: Vec3<Interval>,
+        ) -> crate::ssi::residual::ImplicitForm {
+            let u_ref = if geom_core::Bounds::hi(normal.x).abs() < 0.5 {
+                Vec3::new(iv(1.0), iv(0.0), iv(0.0))
+            } else {
+                Vec3::new(iv(0.0), iv(1.0), iv(0.0))
+            };
+            crate::ssi::certify::chart_partner_form(
+                &geom::Surface::Plane {
+                    origin,
+                    normal,
+                    u_ref,
+                },
+                crate::ssi::certify::exact_certified,
+            )
+            .expect("an exact plane has a form")
+        }
+
         /// A domain violation whose bracket is finite AND strictly positive,
         /// so the margin it produces is zero-free: the laundered answer is a
         /// *usable* certificate, not an obvious refusal.
@@ -2848,7 +2885,7 @@ mod tests {
             let probe = probe_tube_chart(
                 &u_line(),
                 &NurbsBoxes::new(&unit_patch()),
-                (on_line(), normal),
+                &plane_at(on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
             )
@@ -2869,6 +2906,10 @@ mod tests {
 
         /// The row S41 is about: the same geometry with the *same endpoints*
         /// on `n.y`, differing only in the decoration, must not certify.
+        /// Limb 3 reads the plane through its form alone, so the door is
+        /// the form's ([`crate::ssi::certify::chart_partner_form`]): a normal whose
+        /// enclosure left its domain is refused there, a widened one as
+        /// much as one exact to its endpoints, before any rung reads it.
         #[test]
         fn a_violated_normal_cannot_certify() {
             let n = trv_pos();
@@ -2881,24 +2922,94 @@ mod tests {
                 geom_core::CertifiedEnclosure::certified_bracket(n).is_none(),
                 "fixture drifted: it certifies"
             );
-            let normal = Vec3::new(iv(0.0), n, iv(0.0));
-            let verdict = probe_tube_chart(
-                &u_line(),
-                &NurbsBoxes::new(&unit_patch()),
-                (on_line(), normal),
-                (0.0, (0.01, 0.01)),
-                at_ends(),
-            )
-            .expect("the unit patch's chart is not degenerate")
-            .expect("the probe answers at this rung");
+            // A violation whose endpoints are one exact value.
+            let point = Interval::from_bounds(-1.0, 0.0).sqrt() + iv(2.0);
+            assert_eq!(
+                (geom_core::Bounds::lo(point), geom_core::Bounds::hi(point)),
+                (2.0, 2.0),
+                "fixture drifted"
+            );
             assert!(
-                verdict.margin.is_nan() && verdict.one_arc.is_none(),
-                "a domain-violated plane normal produced transversality \
-                 margin {} — the crossing read the BRACKET door, so the \
-                 chart tube certifies uniqueness from a plane equation that \
-                 was clamped out of its own domain; refused, the rung \
-                 measured nothing",
-                verdict.margin
+                geom_core::CertifiedEnclosure::certified_bracket(point).is_none(),
+                "fixture drifted: it certifies"
+            );
+            for n in [n, point] {
+                let plane = geom::Surface::Plane {
+                    origin: on_line(),
+                    normal: Vec3::new(iv(0.0), n, iv(0.0)),
+                    u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                };
+                let got = crate::ssi::certify::chart_partner_form(
+                    &plane,
+                    crate::ssi::certify::exact_certified,
+                );
+                assert!(
+                    matches!(
+                        got,
+                        Err(SsiError::UnsupportedCertificate { what })
+                            if what == crate::ssi::certify::CHART_TUBE_PARTNER_INEXACT
+                    ),
+                    "a domain-violated plane normal [{}, {}] was given a form: the chart \
+                     tube would certify uniqueness from a plane equation clamped out of \
+                     its own domain",
+                    geom_core::Bounds::lo(n),
+                    geom_core::Bounds::hi(n)
+                );
+            }
+        }
+
+        /// **Limb 3 refuses a domain-violated plane before any rung.** The
+        /// same plane, its normal's `y` a domain violation whose endpoints
+        /// are one exact value, handed to the certificate as the unit
+        /// patch's partner with the `u`-aligned pcurve, limb 3 alone
+        /// asked: the certificate refuses it as a partner not exact at its
+        /// scalar, the door [`crate::ssi::certify::chart_partner_form`]
+        /// guards. Red against limb 3 reading the partner's scalars by
+        /// their endpoints alone.
+        #[test]
+        fn limb_three_refuses_a_domain_violated_plane() {
+            use crate::ssi::certify::{Lane, Limbs, Refused, certify_branch};
+            use crate::ssi::{ChartedNurbs, SsiOperand};
+            let point = Interval::from_bounds(-1.0, 0.0).sqrt() + iv(2.0);
+            let plane = geom::Surface::Plane {
+                origin: on_line(),
+                normal: Vec3::new(iv(0.0), point, iv(0.0)),
+                u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            };
+            let patch = unit_patch();
+            let wall = ChartedNurbs::mint(&patch).expect("the unit patch mints");
+            let carrier = geom::NurbsCurve3::new(
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                vec![
+                    Point3::new(iv(0.1), iv(0.5), iv(0.0)),
+                    Point3::new(iv(0.9), iv(0.5), iv(0.0)),
+                ],
+                vec![geom_core::Real::one(); 2],
+            )
+            .expect("valid carrier");
+            let pcurve = u_line();
+            let got = certify_branch(
+                &geom::Curve3::Nurbs(std::sync::Arc::new(carrier)),
+                (iv(0.0), iv(1.0)),
+                Lane::AtRest {
+                    a: &SsiOperand::Analytic(&plane),
+                    b: &SsiOperand::Nurbs(wall),
+                    pcurve_a: None,
+                    pcurve_b: Some(&pcurve),
+                },
+                iv(1.0),
+                geom_core::Band::new(1e-9, 1e-8).expect("a valid band"),
+                Limbs::Tube,
+                &mut Refused::default(),
+            );
+            assert!(
+                matches!(
+                    got,
+                    Err(SsiError::UnsupportedCertificate { what })
+                        if what == crate::ssi::certify::CHART_TUBE_PARTNER_INEXACT
+                ),
+                "a domain-violated plane normal reached limb 3's rungs: {:?}",
+                got.err()
             );
         }
 
@@ -2927,7 +3038,7 @@ mod tests {
             let verdict = probe_tube_chart(
                 &pcurve,
                 &NurbsBoxes::new(&unit_patch()),
-                (on_line(), normal),
+                &plane_at(on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
             );
@@ -2959,7 +3070,7 @@ mod tests {
             let verdict = probe_tube_chart(
                 &u_line(),
                 &NurbsBoxes::new(&point_patch),
-                (on_line(), normal),
+                &plane_at(on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
             );
@@ -2998,7 +3109,7 @@ mod tests {
             let verdict = probe_tube_chart(
                 &u_line(),
                 &NurbsBoxes::new(&ridge),
-                (on_line(), normal),
+                &plane_at(on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
             );
@@ -3029,7 +3140,7 @@ mod tests {
             let verdict = probe_tube_chart(
                 &still,
                 &NurbsBoxes::new(&unit_patch()),
-                (on_line(), normal),
+                &plane_at(on_line(), normal),
                 (0.0, (0.01, 0.01)),
                 at_ends(),
             );
@@ -3498,7 +3609,7 @@ mod tests {
             let pc = b
                 .pcurve_b
                 .as_ref()
-                .expect("the ℝ⁴ arm fits the wall's pcurve");
+                .expect("the 1×2 arm fits the wall's pcurve");
 
             // The recorded pad is the rung over each axis's own speed.
             let want = (rung / su, rung / sv);
@@ -3528,7 +3639,7 @@ mod tests {
             let probe = probe_tube_chart(
                 pc,
                 &NurbsBoxes::new(&wall),
-                (origin, n),
+                &crate::ssi::residual::ImplicitForm::of(&plane).unwrap(),
                 (rung, (pad_u, pad_v)),
                 ends,
             )
@@ -3555,7 +3666,7 @@ mod tests {
             let at_fold = probe_tube_chart(
                 pc,
                 &NurbsBoxes::new(&wall),
-                (origin, n),
+                &crate::ssi::residual::ImplicitForm::of(&plane).unwrap(),
                 (rung, (folded, folded)),
                 ends,
             )

@@ -74,7 +74,7 @@ fn sign(s: &mut fuzz::Rng) -> f64 {
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
     Curve3::Circle(geom::Circle {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },
@@ -560,7 +560,7 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -590,7 +590,7 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2353,7 +2353,7 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: n,
                     u_ref,
                 },
@@ -2423,10 +2423,10 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
                     fuzz::replay()
                 );
             }
-            // On the torus but none of its circles: its general lane is
-            // not written yet (D3).
+            // On the torus but none of its circles: its general lane's
+            // own "not yet", where the image's sectors do not hold (D3).
             Err(PcurveCertifyError::NoGeneralLane {
-                gap: crate::LaneGap::Unwritten,
+                gap: crate::LaneGap::Pose { .. },
                 ..
             }) => answers[2] += 1,
             Err(PcurveCertifyError::Escalated { .. }) => answers[3] += 1,
@@ -2439,7 +2439,7 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
         }
     }
     println!(
-        "[fuzz] envelope_lemma::moved_villarceau: {} minted, {} off, {} no lane yet, {} escalated",
+        "[fuzz] envelope_lemma::moved_villarceau: {} minted, {} off, {} no pose yet, {} escalated",
         answers[0], answers[1], answers[2], answers[3]
     );
 }

@@ -15,7 +15,11 @@ crates/geom 212
 # as composite_rows does (SECTARMS, the NURBS × implicit arm's stage 1);
 # back to 219 with work/sectarms/the-canonical-implicit-forms-are-spelled-three-times.md,
 # whose one home reads the held knots.
-crates/geom-brep 222
+# geom-brep 222 -> 221: plane × NURBS folds onto the 1×2 lane (SECTARMS,
+# the NURBS × implicit arm's stage 4): the plane's ℝ⁴ lane's readers retire,
+# and ssi::plane_pcurve reads the carrier's knots for the plane's affine
+# pcurve, one fewer in all.
+crates/geom-brep 221
 crates/geom-core 18
 crates/mesh 37
 crates/step-export 9

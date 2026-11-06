@@ -109,11 +109,14 @@
 //! goes on; the cell that spends the budget escalates at once, on the
 //! held escalation if there is one, without reading the cells left.
 
+use geom::Conic as _;
 use geom_core::k_stats::{decide, decide_reported, gate_rejection, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, SizedPass, Vec3,
     rounding_charge,
 };
+
+use crate::ladder::{Answering, Climb, Rung, climb};
 
 /// The cells the first cut makes of the turn.
 const GAP_START: usize = 32;
@@ -124,36 +127,31 @@ const GAP_BISECTIONS: u32 = 64;
 /// The window sizes a turn is tried at, each half the last.
 const GAP_WINDOWS: u32 = 32;
 
-/// **A torus's core circle**, swept by its angle: `center + R·(cos φ·u +
-/// sin φ·v)`, `u` and `v` unit and square to each other and to the axis.
+/// **A torus's core circle**, swept by its angle, on the torus's frame
+/// squared ([`geom::Frame::square`]), so its basis is unit and square.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Core<T: Real> {
-    pub(crate) center: Point3<T>,
-    pub(crate) u: Vec3<T>,
-    pub(crate) v: Vec3<T>,
-    pub(crate) radius: T,
+    pub(crate) circle: geom::Circle<T>,
 }
 
 impl<T: Real> Core<T> {
-    /// The core of the torus `(center, axis, R)` whose seam is `u_ref`.
-    pub(crate) fn of(center: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>, radius: T) -> Self {
-        let frame = geom::square_frame(axis, u_ref);
+    /// The core of radius `R` of the torus placed at `frame`.
+    pub(crate) fn of(frame: &geom::Frame<T>, radius: T) -> Self {
+        let square = frame.square();
         Self {
-            center,
-            u: frame.u_ref,
-            v: frame.axis.cross(frame.u_ref),
-            radius,
+            circle: geom::Circle::new(
+                geom::Frame::new(frame.origin, square.axis, square.u_ref),
+                radius,
+            ),
         }
     }
 
     pub(crate) fn point(self, phi: T) -> Point3<T> {
-        let (s, c) = phi.sin_cos();
-        self.center + (self.u * c + self.v * s) * self.radius
+        self.circle.point_at(phi)
     }
 
     fn velocity(self, phi: T) -> Vec3<T> {
-        let (s, c) = phi.sin_cos();
-        (self.v * c - self.u * s) * self.radius
+        self.circle.derivative_at(phi)
     }
 }
 
@@ -162,7 +160,7 @@ impl<T: Real> Core<T> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Spine<T: Real> {
     /// A cylinder's axis.
-    Line { origin: Point3<T>, axis: Vec3<T> },
+    Line(geom::Line<T>),
     /// A torus's core circle.
     Circle {
         center: Point3<T>,
@@ -176,7 +174,7 @@ impl<T: Real> Spine<T> {
     /// reading: what the reading's coordinates are made of.
     fn anchor(self) -> (Point3<T>, T) {
         match self {
-            Self::Line { origin, .. } => (origin, T::zero()),
+            Self::Line(line) => (line.origin, T::zero()),
             Self::Circle { center, radius, .. } => (center, radius),
         }
     }
@@ -278,19 +276,21 @@ fn squared<T: Real>(w: Vec3<T>, dp: Vec3<T>, ddp: Vec3<T>, axis: Option<Vec3<T>>
 
 fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T> {
     let (p, dp) = (core.point(phi), core.velocity(phi));
-    let ddp = core.center - p;
-    let big = core.radius;
+    let ddp = core.circle.frame.origin - p;
+    let big = core.circle.radius;
     let (two, four) = (T::from_f64(2.0), T::from_f64(4.0));
     let (anchor, spread) = spine.anchor();
-    let size =
-        (core.center - Point3::origin()).norm() + big + (anchor - Point3::origin()).norm() + spread;
+    let size = (core.circle.frame.origin - Point3::origin()).norm()
+        + big
+        + (anchor - Point3::origin()).norm()
+        + spread;
     // The charges of the offset's own products (module docs, `Rounding`).
     let e_w = rounding_charge(size);
     let e1 = rounding_charge(four * big * size);
     let e2 = rounding_charge(two * big * (big + two * size));
     match spine {
-        Spine::Line { origin, axis } => {
-            let [g, g1, g2] = squared(p - origin, dp, ddp, Some(axis));
+        Spine::Line(line) => {
+            let [g, g1, g2] = squared(p - line.origin, dp, ddp, Some(line.dir));
             let d = g.sqrt();
             Reading {
                 d,
@@ -378,10 +378,10 @@ impl<T: Decide> Sweep<'_, T> {
     /// offset, `D′/R`; levered by the core radius it is the point
     /// deviation that turning the core by that angle moves.
     fn slope(&self, slope: T, d_hi: T) -> Margin<T> {
-        let big = self.core.radius;
+        let big = self.core.circle.radius;
         Margin::levered(
             slope / (T::from_f64(2.0) * d_hi * big),
-            crate::ExtentBall::of_circle(self.core.center, big).lever(),
+            crate::ExtentBall::of_circle(self.core.circle.frame.origin, big).lever(),
         )
     }
 
@@ -392,7 +392,7 @@ impl<T: Decide> Sweep<'_, T> {
     /// `2R(3R + |Πw|)`, and for the circle `ρ‴`, from `ρ = √S`, at most
     /// `(3R² + ρR)/ρ + 3R(R² + ρR)/ρ² + 3R³/ρ²` over `ρ ≥ ρ_lo`.
     fn third(&self, r: Reading<T>, reach: T) -> Option<T> {
-        let big = self.core.radius;
+        let big = self.core.circle.radius;
         let (two, three) = (T::from_f64(2.0), T::from_f64(3.0));
         let far = r.reach + reach;
         match (self.spine, r.kink) {
@@ -435,7 +435,7 @@ impl<T: Decide> Sweep<'_, T> {
     }
 
     fn cell(&self, far: bool, (lo, m, hi): (T, T, T), w: T) -> Cell<T> {
-        let big = self.core.radius;
+        let big = self.core.circle.radius;
         let two = T::from_f64(2.0);
         let reach = big * w;
         let r = read(self.core, self.spine, far, m);
@@ -499,7 +499,7 @@ impl<T: Decide> Sweep<'_, T> {
     /// gap `Zero` with its own ends turning. `G` over a window is its
     /// Taylor bound about the turn, its value read back through `√`.
     fn turn_window(&self, far: bool, (lo, hi): (T, T), w: T) -> Option<Gap<T>> {
-        let big = self.core.radius;
+        let big = self.core.circle.radius;
         let (two, six) = (T::from_f64(2.0), T::from_f64(6.0));
         let slope = |phi: T| read(self.core, self.spine, far, phi).g1;
         let (mut a, mut b) = (lo, hi);
@@ -588,7 +588,7 @@ pub(crate) fn critical_gap<T: Decide>(
     };
     let branches: &[bool] = match spine {
         Spine::Circle { .. } => &[false, true],
-        Spine::Line { .. } => &[false],
+        Spine::Line(_) => &[false],
     };
     let two = T::from_f64(2.0);
     let piece = T::tau() / T::from_f64(GAP_START as f64);
@@ -605,20 +605,22 @@ pub(crate) fn critical_gap<T: Decide>(
         spent += 1;
         let w = (hi - lo) / two;
         let m = lo + w;
-        let mut open = None;
-        for &far in branches {
+        // The cell's branches, a ladder ([`climb`]) whose answer is the
+        // first tangent branch, which names the gap (`Answering::First`);
+        // a branch the cell leaves open is kept, and bisects the cell
+        // where none is tangent.
+        let r = match climb(Answering::First, branches, |&far| {
             match sweep.cell(far, (lo, m, hi), w) {
-                Cell::Clear => {}
-                Cell::Tangent(gap) => return Ok(gap),
-                Cell::Open(r) => {
-                    open.get_or_insert(r);
-                }
+                Cell::Clear => Rung::Passes,
+                Cell::Tangent(gap) => Rung::Answers(gap),
+                Cell::Open(r) => Rung::InBand(r),
             }
-        }
-        let Some(r) = open else {
-            continue;
+        }) {
+            Climb::Answered { answer, .. } => return Ok(answer),
+            Climb::Passed => continue,
+            Climb::Undecided(r) => r,
         };
-        let reach = core.radius * w;
+        let reach = core.circle.radius * w;
         let floored = matches!(
             decide(rows.floor, Margin::of(reach * T::from_f64(4.0)), band),
             Ok(Sign::Zero)

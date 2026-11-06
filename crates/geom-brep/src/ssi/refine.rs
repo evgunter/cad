@@ -73,6 +73,7 @@ use super::march::{
 use super::section::{BandVerdict, band_verdict};
 use super::system::LocalSystem;
 use super::{BranchBound, SSI_FIT_DEGREE, SsiError};
+use crate::ladder::{Answering, Climb, Rung, climb};
 
 /// Where refinement stopped short of a certificate
 /// ([`SsiError::RefinementExhausted`]).
@@ -425,9 +426,9 @@ where
 /// polyline's length where every gap's half falls in the band, bounded
 /// by the lane ([`BranchBound::of_lane`]). Otherwise, on the ℝ³ lane,
 /// [`SsiError::RefinementExhausted`] stopped with nothing to halve, the
-/// slab's limit as its refusal ([`SsiError::TraceUnresolved`]); on the
-/// plane × NURBS lane, [`SsiError::MarchShortOfFit`], counting what each
-/// gap's midpoint did.
+/// slab's limit as its refusal ([`SsiError::TraceUnresolved`]); on a
+/// chart lane, [`SsiError::MarchShortOfFit`], counting what each gap's
+/// midpoint did.
 pub(crate) fn fit_minimum<const M: usize, const N: usize, S>(
     sys: &S,
     mut states: Vec<[f64; N]>,
@@ -446,23 +447,44 @@ where
                 .total_cmp(&chord(&states, i))
                 .then(i.cmp(&j))
         });
-        let mut in_band = None;
+        // The round is a ladder over the gaps, longest first: the first
+        // whose midpoint settles is where the sample goes, and a near
+        // tangency refuses the fit. The refusal where none settles is a
+        // census of every gap, so each is counted beside the ladder.
         let (mut halves_in_band, mut unsettled, mut off_domain) = (0usize, 0usize, 0usize);
-        for &i in &gaps {
+        let round = climb(Answering::First, &gaps, |&i| {
             match halve(sys, &states[i], &states[i + 1], ctx, band) {
-                Halving::Settled(mid) => {
-                    states.insert(i + 1, mid);
-                    continue 'round;
-                }
+                Halving::Settled(mid) => Rung::Answers(Ok((i, mid))),
+                Halving::Tangent(tangent) => Rung::Aborts(Err(tangent)),
                 Halving::InBand(verdict) => {
                     halves_in_band += 1;
-                    in_band.get_or_insert(verdict);
+                    Rung::InBand(verdict)
                 }
-                Halving::Unsettled => unsettled += 1,
-                Halving::OffDomain => off_domain += 1,
-                Halving::Tangent(tangent) => return Err(tangent),
+                Halving::Unsettled => {
+                    unsettled += 1;
+                    Rung::Passes
+                }
+                Halving::OffDomain => {
+                    off_domain += 1;
+                    Rung::Passes
+                }
             }
-        }
+        });
+        let in_band = match round {
+            Climb::Answered {
+                answer: Ok((i, mid)),
+                ..
+            } => {
+                states.insert(i + 1, mid);
+                continue 'round;
+            }
+            Climb::Answered {
+                answer: Err(tangent),
+                ..
+            } => return Err(tangent),
+            Climb::Undecided(verdict) => Some(verdict),
+            Climb::Passed => None,
+        };
         // Every gap's half in the band: the branch is short.
         if let (Some(verdict), 0, 0) = (in_band, unsettled, off_domain) {
             return Err(SsiError::ShortBranchUncertified {
@@ -1308,6 +1330,60 @@ mod tests {
                 })
             ),
             "two states the band apart on the wall: the sized refusal"
+        );
+    }
+
+    /// **A 1×2 branch short of the fit is bounded by the wall.** A plane
+    /// at height ½ cuts the ramp `z = v` along `v = ½`; two states of that
+    /// section `2e-9` apart in `u` have their one gap's half in the band,
+    /// so the fit's minimum refuses the sized way, bounded by the wall's
+    /// rectangle with the wall's recourse, not the ℝ³ slab's. Red against
+    /// a bound read off the state's length as ℝ⁴ alone.
+    #[test]
+    fn a_short_implicit_chart_branch_is_bounded_by_the_wall() {
+        use super::fit_minimum;
+        use geom::{NurbsSurface, Surface};
+        use geom_core::spline::KnotVector;
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let ramp = NurbsSurface::new(
+            k.clone(),
+            k,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 1.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 1.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.5, 0.5, 0.5),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let sys = crate::ssi::system::ImplicitChartR2 {
+            partner: &plane,
+            wall: &ramp,
+        };
+        let ctx = MarchContext::<2> {
+            domain: [[0.0, 1.0]; 2],
+            extent: 1.0,
+            tol: kernel_ctx(band).tol,
+            max_steps: SSI_MAX_STEPS,
+            spent: Default::default(),
+        };
+        let got = fit_minimum(&sys, vec![[0.5, 0.5], [0.5 + 2e-9, 0.5]], &ctx, band);
+        assert!(
+            matches!(
+                got,
+                Err(SsiError::ShortBranchUncertified {
+                    bounded_by: BranchBound::Wall,
+                    ..
+                })
+            ),
+            "two states the band apart on the wall's chart: {got:?}"
         );
     }
 }

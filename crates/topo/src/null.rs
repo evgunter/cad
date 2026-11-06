@@ -1121,7 +1121,7 @@ mod tests {
                 let geom::Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },
@@ -1245,9 +1245,9 @@ mod tests {
 
     /// Every stored row of `face`'s loops, sorted.
     fn face_rows(body: &Body<f64>, face: FaceKey) -> Vec<String> {
-        let f = body.get_face(face).unwrap();
-        let mut out: Vec<String> = body
-            .face_loops_linked(face, f)
+        let f = body.proven_face(face);
+        let mut out: Vec<String> = f
+            .loops()
             .filter_map(|(_, l, _)| match l.boundary {
                 crate::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
                 crate::LoopBoundary::Empty { .. } => None,

@@ -351,13 +351,7 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, a: Vec3<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        Leg::whole(Round {
-            center: self.center,
-            normal: a.cross(t),
-            radius: self.radius,
-            e1: a,
-            e2: t,
-        })
+        Leg::whole(Round::new(self.center, a.cross(t), self.radius, a))
     }
 }
 

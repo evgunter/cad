@@ -136,8 +136,12 @@ pub enum Unsettled {
     /// and not a crossing at any order the finder reads.
     Tangency,
     /// A meter refused: the residual's rounding, or a located root's
-    /// slack, is not definitely inside the band.
-    Meter,
+    /// slack, is not definitely inside the band, or a generator's own
+    /// inequality did not read definite.
+    Meter {
+        /// The check that refused: its predicate row.
+        row: &'static str,
+    },
     /// The walk ran past [`geom_core::bisect::PIECE_BUDGET`].
     Exhausted,
     /// A piece at the walk's floor whose enclosure the band cannot decide:

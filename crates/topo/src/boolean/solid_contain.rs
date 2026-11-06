@@ -460,11 +460,35 @@ impl PointInSolidError {
     /// point stands ([`Self::in_band`]), a limit the door met near it
     /// ([`Self::confined`]), or a side that neither the volume nor an
     /// aimed ray could read for the point's rays that met nothing
-    /// ([`Self::sideless`]) — another point's rays may meet the boundary. Every other refusal is about a body — a
-    /// face kind with no arm, a corrupt face — and answers the same at
-    /// any point.
+    /// ([`Self::sideless`]) — another point's rays may meet the boundary.
+    /// Every other refusal is about a body — a face kind with no arm, a
+    /// corrupt face — and answers the same at any point.
     pub(crate) fn inconclusive(&self) -> bool {
         self.in_band() || self.confined() || self.sideless()
+    }
+
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]), derived from the partition above,
+    /// the type's one classification: a reading in band is ranked by its
+    /// margin where it carries one; a limit the door met near the point,
+    /// or a side no ray could read, is a limit; and every refusal that is
+    /// not [`Self::inconclusive`] answers the same at any point (a face
+    /// kind with no arm, a corrupt or inside-out body, a solid that is
+    /// not there), so a ladder over points reading it again gains
+    /// nothing: it aborts.
+    pub(in crate::boolean) fn refusal(&self) -> geom_brep::ladder::Refusal {
+        use geom_brep::ladder::Refusal;
+        if self.in_band() {
+            match self {
+                Self::Escalated { diag, .. } => Refusal::Margin(*diag),
+                Self::Loop(e) => e.refusal(),
+                _ => Refusal::InBand,
+            }
+        } else if self.confined() || self.sideless() {
+            Refusal::Limit
+        } else {
+            Refusal::Abort
+        }
     }
 
     /// A ray of the point's that met nothing, whose side neither the
@@ -914,11 +938,11 @@ fn face_geo_arms<T: Decide>(
     face: FaceKey,
     charts: &ChartGroups,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    match body.face_surface_linked(face, f) {
+    let f = body.proven_face(face);
+    match f.surface() {
         Surface::Plane { origin, normal, .. } => Ok(FaceGeo::Plane(
             *origin,
-            plane_outward_normal(f, *normal).vec(),
+            plane_outward_normal(f.record(), *normal).vec(),
         )),
         &Surface::Cylinder {
             origin,
@@ -931,7 +955,7 @@ fn face_geo_arms<T: Decide>(
                 axis,
                 radius,
                 region,
-                sense: f.sense,
+                sense: f.sense(),
             }),
             None => {
                 let anchor = boundary_point(body, face)?;
@@ -955,7 +979,7 @@ fn face_geo_arms<T: Decide>(
                 axis,
                 half_angle,
                 region,
-                sense: f.sense,
+                sense: f.sense(),
             }),
             None => Ok(FaceGeo::PartialCone {
                 apex,
@@ -976,7 +1000,7 @@ fn face_geo_arms<T: Decide>(
                     center,
                     radius,
                     region,
-                    sense: f.sense,
+                    sense: f.sense(),
                 }),
                 None => Err(PointInSolidError::PartialSphereFace { face }),
             },
@@ -1005,7 +1029,7 @@ fn face_geo_arms<T: Decide>(
                     major_radius,
                     minor_radius,
                     region,
-                    sense: f.sense,
+                    sense: f.sense(),
                 }),
                 None => Err(PointInSolidError::PartialTorusFace { face }),
             }
@@ -1092,7 +1116,7 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
 ///
 /// Where `face`, a face of the selection, does not resolve.
 pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PointInSolidError> {
-    let kind = body.proven_face_surface(face).kind();
+    let kind = body.proven_face(face).surface().kind();
     (!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind })
 }
 
@@ -1120,9 +1144,9 @@ fn partial_reach<T: Decide>(
     face: FaceKey,
     anchor: Point3<T>,
 ) -> Result<Lever<T>, PointInSolidError> {
-    let f = proven(&body.faces, face, EntityId::Face);
+    let f = body.proven_face(face);
     let mut reach = geom_brep::ExtentBall::point(anchor).lever();
-    for (lk, _, _) in body.face_loops_linked(face, f) {
+    for (lk, _, _) in f.loops() {
         reach = reach.max(loop_extent_from(body, lk, anchor)?);
     }
     Ok(reach)
@@ -1176,8 +1200,7 @@ fn torus_closed_group<T: Decide>(
 /// `(ρ² − r²)/2r` in metres: the form the certification layer
 /// classifies.
 fn wall_elevation<T: Decide>(origin: Point3<T>, axis: Vec3<T>, radius: T, q: Point3<T>) -> T {
-    let w = q - origin;
-    let radial = w - axis * w.dot(axis);
+    let radial = geom::Line { origin, dir: axis }.offset(q);
     (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius)
 }
 
@@ -1295,8 +1318,9 @@ pub(crate) fn trim_window_short<T: Decide>(
 ///
 /// # Panics
 ///
-/// Where `face`, a boundary half-edge's edge or that edge's curve does
-/// not resolve (D2 row 4): a torn curve is not null scaffolding. The
+/// Where `face`, its outer loop (a link of the face), a boundary
+/// half-edge's edge or that edge's curve does not resolve (D2 row 4): a
+/// torn curve is not null scaffolding. The
 /// links hold at rest and, on the reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn sphere_chart_trim<T: Decide>(
@@ -1308,16 +1332,12 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     band: Band,
 ) -> Result<Option<SphereChartTrim<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let f = proven(&body.faces, face, EntityId::Face);
-    if !f.rings.is_empty() {
+    let f = body.proven_face(face);
+    if !f.record().rings.is_empty() {
         return Ok(None);
     }
-    let surf = body.face_surface_linked(face, f).clone();
-    let LoopBoundary::Cycle { first } = body
-        .get_loop(f.outer)
-        .ok_or(PointInSolidError::CorruptFace { face })?
-        .boundary
-    else {
+    let surf = f.surface().clone();
+    let LoopBoundary::Cycle { first } = f.outer().1.boundary else {
         return Ok(None);
     };
     // A definite class miss is `None` (the honest remainder); an
@@ -1367,7 +1387,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     u_ref: u_c,
                 },
@@ -1729,7 +1749,7 @@ pub(crate) fn point_in_face<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, PointInSolidError> {
     let f = body
-        .get_face(face)
+        .passed_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let region = |lk| -> Result<LoopContainment, PointInSolidError> {
         point_in_loop_projected(body, lk, normal, p, band).map_err(|e| match e {
@@ -1739,7 +1759,7 @@ pub(crate) fn point_in_face<T: Decide>(
             e => PointInSolidError::Loop(e),
         })
     };
-    for (lk, l, role) in body.face_loops_linked(face, f) {
+    for (lk, l, role) in f.loops() {
         let outer = role.is_outer();
         if let LoopBoundary::Empty { .. } = l.boundary {
             // An empty outer loop bounds no region (mid-op scaffolding
@@ -2336,8 +2356,8 @@ pub(crate) fn selection_reach<T: Decide>(
 ) -> Result<Lever<T>, PointInSolidError> {
     let mut reach = geom_brep::ExtentBall::point(q).lever();
     for &face in faces {
-        let f = proven(&body.faces, face, EntityId::Face);
-        for (l, _, _) in body.face_loops_linked(face, f) {
+        let f = body.proven_face(face);
+        for (l, _, _) in f.loops() {
             reach = reach.max(loop_extent_from(body, l, q)?);
         }
     }
@@ -2448,7 +2468,7 @@ pub(super) fn line_wall_roots<T: Decide>(
     about: About,
 ) -> Result<WallRoots<T>, WallRootFault> {
     let w0 = q - origin;
-    let w0p = w0 - axis * w0.dot(axis);
+    let w0p = geom::Line { origin, dir: axis }.offset(q);
     let dp = d - axis * d.dot(axis);
     let a2 = dp.norm_squared();
     let two_r = T::from_f64(2.0) * radius;
@@ -2903,7 +2923,10 @@ fn ray_passes_beside<T: Decide>(
         let h = (v - q).dot(m);
         (h, T::zero() - h)
     };
-    let edge = |c: &geom::cover::Cover<T>| (T::zero() - c.support(-m) - base, base - c.support(m));
+    let edge = |c: &geom::cover::Cover<T>| {
+        let (lo, hi) = c.range_along(m);
+        (lo - base, base - hi)
+    };
     for (a, b) in verts.into_iter().map(vertex).chain(covers.iter().map(edge)) {
         above = Some(above.map_or(a, |x| x.min(a)));
         below = Some(below.map_or(b, |x| x.min(b)));
@@ -3400,7 +3423,7 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let gap = crate::sector_shape::point_segment_distance(q, far, at);
+        let gap = geom_brep::sector_shape::point_segment_distance(q, far, at);
         // The distance is a short chain (differences, a projection, a
         // norm), each rounding under half an ulp of the lengths it is
         // read from: the kernel's one charge for such a chain.
@@ -3533,7 +3556,7 @@ fn wall_crosses_by_turn<T: Decide>(
     // can be made red by no pose, and factor 0 only by a ruling drifting
     // by far more than the band, which a valid body bounds by a plane
     // through that ruling: not built.
-    for e in body.proven_face_edges(face) {
+    for e in body.proven_face(face).edges() {
         if e.across == face {
             continue;
         }
@@ -3545,22 +3568,26 @@ fn wall_crosses_by_turn<T: Decide>(
             return Ok(None);
         };
         let off = match *curve.carrier() {
-            geom::Curve3::Line(geom::Line { dir, .. }) => {
+            geom::Curve3::Line(geom::Line { origin: o, dir }) => {
                 let (t0, t1) = curve.params();
-                (dir / dir.norm()).cross(axis).norm() * ((t1 - t0) * dir.norm()).abs()
+                let start = geom::Line {
+                    origin: o + dir * t0,
+                    dir,
+                };
+                geom_brep::ruling_miss(&start, (T::zero(), t1 - t0), geom_brep::Ruling::Axis(axis))
+                    .value()
             }
             geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: normal,
                         ..
                     },
                 radius: r,
             }) => {
-                let w = center - origin;
                 r.abs() * (normal / normal.norm()).cross(axis).norm()
-                    + (w - axis * w.dot(axis)).norm()
+                    + geom::Line { origin, dir: axis }.offset(center).norm()
             }
             _ => return Ok(None),
         };
@@ -3630,7 +3657,7 @@ fn loop_turn<T: Decide>(
         normal.dot(u.cross(w)).atan2(u.dot(w))
     };
     let mut turn = T::zero();
-    for e in body.proven_face_edges(face) {
+    for e in body.proven_face(face).edges() {
         // A seam inside the face is walked once each way, and its two
         // turns cancel: it is left out, not summed, since in floats two
         // passes whose products vanish both read `atan2(+0, x < 0) = π`.
@@ -3730,7 +3757,7 @@ pub(crate) fn edge_clearance<T: Decide>(
         .and_then(|ed| body.get_curve_geom(ed.curve))
         .and_then(crate::null::CurveGeom::certified)?;
     match *curve.carrier() {
-        geom::Curve3::Line(_) => Some(crate::sector_shape::point_segment_distance(
+        geom::Curve3::Line(_) => Some(geom_brep::sector_shape::point_segment_distance(
             at(e.ends[0])?,
             at(e.ends[1])?,
             m,
@@ -3760,13 +3787,14 @@ pub(crate) fn edge_clearance<T: Decide>(
 /// # Panics
 ///
 /// Where `face`, a face the ray read, or its boundary walk does not
-/// resolve ([`Body::proven_face_edges`]).
+/// resolve ([`crate::live::FaceView::edges`]).
 fn every_bound_read<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    body.proven_face_edges(face)
+    body.proven_face(face)
+        .edges()
         .iter()
         .all(|e| e.across == face || read.contains(&e.edge))
 }
@@ -3782,7 +3810,8 @@ fn every_edge_read<T: geom_core::Real>(
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    body.proven_face_edges(face)
+    body.proven_face(face)
+        .edges()
         .iter()
         .all(|e| read.contains(&e.edge))
 }
@@ -4111,7 +4140,7 @@ fn chart_normal<T: Decide>(
     p: Point3<T>,
 ) -> Result<Vec3<T>, RayFault<PointInSolidError>> {
     Ok(geom_brep::implicit_gradient(
-        body.proven_face_surface(face),
+        body.proven_face(face).surface(),
         p,
     ))
 }
@@ -4137,7 +4166,7 @@ fn reach_margin<T: Decide>(
     m: &Met<T>,
     root: T,
 ) -> Result<T, RayFault<PointInSolidError>> {
-    let surface = body.proven_face_surface(face);
+    let surface = body.proven_face(face).surface();
     let (at, passage) = (q + d * root, q + d * m.at);
     let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
     let n = chart_normal(body, face, at)?;
@@ -4968,7 +4997,9 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
             }
             return Err(match kept.ranked() {
                 geom_brep::ladder::Ranked::Blocked(e) => RayFault::Blocked(e),
-                geom_brep::ladder::Ranked::InBand(e) => RayFault::InBand(e),
+                geom_brep::ladder::Ranked::InBand(e) | geom_brep::ladder::Ranked::Unsettled(e) => {
+                    RayFault::InBand(e)
+                }
                 geom_brep::ladder::Ranked::Neither => RayFault::Unread,
             });
         }

@@ -376,7 +376,7 @@ impl<T: Real> ExtentBall<T> {
     pub fn of_conic(curve: &Curve3<T>) -> Option<Self> {
         curve
             .conic()
-            .map(|k| Self::new(k.frame().center, k.speed_hi()))
+            .map(|k| Self::new(k.frame().origin, k.speed_hi()))
     }
 
     /// **The ball about `at` holding a spline carrier's control net**:
@@ -981,7 +981,10 @@ impl<T: SpanLocate> Reach<T> {
                 let base = (pivot - Point3::origin()).dot(dir);
                 carrier.cover_over(ParamWindow::new(*t0, *t1)).map_or_else(
                     |_| (poison(), poison()),
-                    |c| (T::zero() - c.support(-dir) - base, c.support(dir) - base),
+                    |c| {
+                        let (lo, hi) = c.range_along(dir);
+                        (lo - base, hi - base)
+                    },
                 )
             }
         }
@@ -1088,11 +1091,11 @@ impl<T: SpanLocate> Reach<T> {
             Self::Span {
                 carrier:
                     Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { center, .. },
+                        frame: geom::Frame { origin: center, .. },
                         ..
                     })
                     | Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { center, .. },
+                        frame: geom::Frame { origin: center, .. },
                         ..
                     })
                     | Curve3::Spiric { center, .. },
@@ -1127,11 +1130,11 @@ impl<T: SpanLocate> Reach<T> {
             Self::Span {
                 carrier:
                     Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { center, .. },
+                        frame: geom::Frame { origin: center, .. },
                         ..
                     })
                     | Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { center, .. },
+                        frame: geom::Frame { origin: center, .. },
                         ..
                     })
                     | Curve3::Spiric { center, .. },
@@ -1306,7 +1309,7 @@ mod tests {
             if let Curve3::Circle(c) = &carrier {
                 // The whole circle's farthest point from the pivot, exactly:
                 // `√(h² + (ρ + r)²)`, `h` off its plane, `ρ` across it.
-                let w = pivot - c.frame.center;
+                let w = pivot - c.frame.origin;
                 let h = w.dot(c.frame.axis);
                 let rho = (w - c.frame.axis * h).norm();
                 let exact = (h * h + (rho + c.radius).powi(2)).sqrt();

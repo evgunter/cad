@@ -1,15 +1,15 @@
 //! Acceptance (e): revolve's typed refusals — half-plane crossings,
 //! sliver radii (micro-radius revolve), degenerate/sliver/full-range/
 //! poisoned angles, degenerate/poisoned axes, non-manifold axis
-//! contact, horn/spindle toroids, and arc-interior half-plane
-//! violations. Every case is a
+//! contact, an arc ending at a spindle sheet's apex, and arc-interior
+//! half-plane violations. Every case is a
 //! typed [`RevolveError`], never a panic or silent approximation.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
 
-use core::f64::consts::{FRAC_PI_8, PI};
+use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom_core::Vec2;
@@ -198,21 +198,6 @@ fn isolated_axis_vertex_in_full_revolve_is_non_manifold() {
 // suites.
 
 #[test]
-fn axis_crossing_tube_is_an_unsupported_toroid() {
-    // Quarter arc on a carrier centered at (0.5, 0) with radius 0.6:
-    // every arc point stays at r > 0, but the carrier reaches across
-    // the axis — a spindle torus, refused per D3's ring convention.
-    let lp = bulge_loop(vec![
-        (Point2::new(1.1, 0.0), FRAC_PI_8.tan()),
-        (Point2::new(0.5, 0.6), 0.0),
-        (Point2::new(0.5, 0.0), 0.0),
-    ]);
-    let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
-    assert!(matches!(e, RevolveError::UnsupportedToroid { .. }), "{e:?}");
-}
-
-#[test]
 fn arc_interior_across_the_axis_is_typed() {
     // A clockwise semicircle from (0, −1) to (0, 1) bulging through
     // (−1, 0): endpoints on the axis, apex definitely across it.
@@ -223,4 +208,91 @@ fn arc_interior_across_the_axis_is_typed() {
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::ArcCrossesAxis { .. }), "{e:?}");
+}
+
+/// A one-segment loop: the full circle centred at `(cx, cy)` with radius
+/// `r`, starting at carrier angle `phase`.
+fn full_circle(cx: f64, cy: f64, r: f64, phase: f64) -> ProfileLoop<f64> {
+    RawLoop::new([(
+        Point2::new(cx + r * phase.cos(), cy + r * phase.sin()),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(cx, cy),
+            radius: r,
+            sweep: core::f64::consts::TAU,
+        }),
+    )])
+}
+
+/// **The arc rule reads the interior before the ends**: an arc that
+/// passes its circle's point of least radius crosses the axis, whether
+/// or not an end of it is on the axis, so each of these refuses
+/// `ArcCrossesAxis`.
+///
+/// - A full circle wholly across the axis, touching it at its one vertex
+///   (`R = −r`, centre `(−1, 0)`): no sheet exists for it.
+/// - A full lemon circle (`R = −0.5, r = 1`) whose vertex is an apex.
+/// - The lemon's long arc between its two apexes, through `x < 0`,
+///   closed along the axis.
+#[test]
+fn an_arc_through_its_least_radius_crosses_the_axis_whatever_its_ends() {
+    let h = 0.75_f64.sqrt();
+    for (what, lp) in [
+        (
+            "a circle wholly across the axis",
+            full_circle(-1.0, 0.0, 1.0, 0.0),
+        ),
+        (
+            "a full lemon circle from its apex",
+            full_circle(-0.5, 0.0, 1.0, PI / 3.0),
+        ),
+        (
+            "the lemon's long arc between its apexes",
+            bulge_loop(vec![
+                (Point2::new(0.0, -h), -(PI / 3.0).tan()),
+                (Point2::new(0.0, h), 0.0),
+            ]),
+        ),
+    ] {
+        let got = revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(1.0),
+            Tol::witness(),
+        );
+        assert!(
+            matches!(got, Err(RevolveError::ArcCrossesAxis { .. })),
+            "{what}: {:?}",
+            got.map(|_| "built")
+        );
+    }
+}
+
+/// **An arc on a sheet's circle that dips across the axis crosses it**,
+/// its ends clear of the axis: on an apple (`R = 0.5`) and a lemon
+/// (`R = −0.5`), the arc from `(ρ, z)` the long way round through
+/// `v = π` to `(ρ, −z)`, closed by a box out to `x = 3`.
+#[test]
+fn a_sheet_arc_dipping_across_the_axis_crosses_it() {
+    for (what, big, v) in [("apple", 0.5, 1.5), ("lemon", -0.5, 0.5)] {
+        let r = 1.0_f64;
+        let (rho, z) = (big + r * f64::cos(v), r * f64::sin(v));
+        let turn = 2.0 * PI - 2.0 * v;
+        let lp = bulge_loop(vec![
+            (Point2::new(rho, z), (turn / 4.0).tan()),
+            (Point2::new(rho, -z), 0.0),
+            (Point2::new(3.0, -z), 0.0),
+            (Point2::new(3.0, z), 0.0),
+        ]);
+        let got = revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        );
+        assert!(
+            matches!(got, Err(RevolveError::ArcCrossesAxis { .. })),
+            "{what}: {:?}",
+            got.map(|_| "built")
+        );
+    }
 }

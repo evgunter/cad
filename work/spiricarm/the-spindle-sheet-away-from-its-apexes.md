@@ -2,13 +2,14 @@
 id: the-spindle-sheet-away-from-its-apexes
 kind: unit
 title: Surface::Spindle stage 1: the sheet away from its apexes (datums, shared core, revolve's arc classification, window-form readers), landing the football with conical ends
-status: dispatched
+status: closed
 opened: 2026-11-03
 priority: P0
 cost: H
 parent: horn-and-spindle-tori-have-no-representation
 branch: spiricarm/spindle-sheet
-pr: 6473
+pr: 6486
+closed: 2026-11-04
 ---
 
 
@@ -51,3 +52,7 @@ Stage 1 of `horn-and-spindle-tori-have-no-representation`, which Ev ruled on PR 
 - Pair sections against a sheet beyond what the football needs (typed "no lane yet").
 
 Review tier: **dual**. A new surface kind is an architectural decision with broad impact, and hard to change later.
+
+## Closed (2026-11-04)
+
+PR 6473 (the variant and every arm) and PR 6486 (the football with conical ends builds). The sheet away from its apexes revolves, certifies, measures and meshes, with tier 3 passing. The wide apple measures, but its tessellation refuses (`a-wide-apples-tube-angle-passes-the-latitude-windows-cut`). The tour stop is `the-conical-ended-football-has-no-tour-stop`. The apex is stage 2, on the parent row.

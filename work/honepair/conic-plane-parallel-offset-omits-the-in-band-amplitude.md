@@ -10,7 +10,7 @@ cost: M
 
 ## What
 
-`split_conic_plane_parallel` (`crates/topo/src/splitting/classify.rs:507`)
+`plane_crossing_plane_parallel` (`crates/geom-brep/src/curve_face/plane_crossing.rs`, `conic_plane_candidates`)
 routes a conic whose amplitude (its tilt times its radius) reads Zero
 to `ConicPlaneMeet::Parallel { offset }`. `topo::boolean::reduce` then
 serves "the edge lies in the face plane" on

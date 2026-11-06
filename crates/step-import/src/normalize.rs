@@ -221,8 +221,7 @@ fn chart_direction(
     // samples reads as the step it is. It covers 5% of a full period,
     // i.e. ~0.31 rad; anything materially smaller than that is not a
     // reading.
-    let (sin, cos) = (hi - lo).sin_cos();
-    let step = sin.atan2(cos);
+    let step = geom_core::period::Period::new(core::f64::consts::TAU).near(hi - lo, 0.0);
     (step.abs() > 0.1).then_some(step > 0.0)
 }
 
@@ -421,7 +420,9 @@ fn mint_band(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center, axis: n, ..
+                            origin: center,
+                            axis: n,
+                            ..
                         },
                     radius,
                 }) => {
@@ -654,8 +655,8 @@ fn seam_vertex_on_loop(
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q = crate::signed_zero::plus_zero_point(circle.frame.center + s_u_ref * circle.radius);
-        let mut t = geom::Conic::angle_of(circle, q);
+        let q = crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius);
+        let mut t = geom::Conic::azimuth(circle, q).near(0.0);
         while t <= spec.t0 {
             t += TAU;
         }

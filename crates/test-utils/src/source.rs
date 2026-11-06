@@ -490,9 +490,16 @@ pub fn boundary_after(code: &str, at: usize) -> bool {
         .is_none_or(|c| !c.is_alphanumeric() && c != '_')
 }
 
-/// minimum count, a required file) should assert it on the result.
+/// Every `.rs` file under `dir`, sorted; `dir` itself when it is one
+/// `.rs` file, so a guard can read a module's `foo.rs` beside its
+/// `foo/` directory. Panics on an unreadable directory or an empty
+/// result; a guard with a stronger premise (a minimum count, a required
+/// file) should assert it on the result.
 #[must_use]
 pub fn rust_sources(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    if dir.is_file() && dir.extension().is_some_and(|e| e == "rs") {
+        return vec![dir.to_path_buf()];
+    }
     fn collect(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         let entries = std::fs::read_dir(dir)
             .unwrap_or_else(|e| panic!("a readable source directory {}: {e}", dir.display()));

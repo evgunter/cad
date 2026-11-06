@@ -12,7 +12,8 @@
 //! otherwise the middle of each piece of the span the point may rest on
 //! polished to the point's foot ([`Curve3::foot`]). A witness halfway to
 //! an unpolished piece middle lies within the band's gap of a joint, not
-//! at it.
+//! at it. An endless span ([`Span::endless`]) has no ends ([`Span::ends`]):
+//! none is read, and none anchors a witness.
 //!
 //! **The walk** is [`geom_core::bisect`]'s, over pairs of pieces. A piece
 //! reaches at most `ℓ` metres from its middle point, `ℓ` its half-span
@@ -32,9 +33,15 @@
 //! within the band. A pair that
 //! stops is polished toward the meeting by Gauss–Newton, each carrier's
 //! foot of the other's point is polished, and the point is read on both
-//! spans ([`Span::contact`]). Every piece the walk does not clear ends at
-//! such a pair, so no meeting is left unread; an escalated clearing keeps
-//! its piece. Every point read is read under the reader's stretch rule
+//! spans ([`Span::contact`]) with the window the pieces make: the pair's
+//! gap bound and reach (`pose`'s module docs, "The gap's lower bound"),
+//! every pair of the pieces within the pieces' reach and the polish's
+//! run of it, and the curvature at most the carriers' bounds. An Off at
+//! the polished pair prunes only where that bound says the pieces hold
+//! no meeting of the spans; where its premise is not proved
+//! (`curve_pair_walk_basin`) the window is undecided and the Off
+//! escalates. Every piece the walk does not clear ends at such a pair,
+//! so no meeting is left unread; an escalated clearing keeps its piece. Every point read is read under the reader's stretch rule
 //! (the parent module's docs). A walk past
 //! [`geom_core::bisect::PIECE_BUDGET`] refuses typed
 //! ([`Unsettled::Exhausted`]).
@@ -240,7 +247,7 @@ fn polished_feet<T: Decide>(
 ) -> Result<Vec<T>, geom_core::bisect::Exhausted> {
     let mut out: Vec<T> = Vec::new();
     for seed in feet(r, q, band)? {
-        let t = r.curve().foot(q, seed).t();
+        let t = r.curve().foot(q, seed).seed();
         if !out.iter().any(|&u| same(u, t)) {
             out.push(t);
         }
@@ -251,6 +258,34 @@ fn polished_feet<T: Decide>(
 /// Whether two parameters are one, read exactly.
 fn same<T: Decide>(s: T, t: T) -> bool {
     super::compare("curve_pair_walk_same_foot", s, t) == Some(Sign::Zero)
+}
+
+/// **The window of a polished piece pair** (`pose`'s module docs, "The
+/// gap's lower bound"): every pair of the pieces lies within `span`
+/// metres, along its carrier, of the polished parameter on it (its run
+/// to the piece's middle and the piece's own reach), and the carriers'
+/// curvature is at most their bounds over the whole carrier. Where the
+/// sine at the pair, less the turn over `span` twice, is not proved
+/// positive (`curve_pair_walk_basin`) the premise fails and the window
+/// is undecided.
+fn window<T: Decide>(
+    (ra, pa, s): (&Read<'_, '_, T>, Piece<T>, T),
+    (rb, pb, t): (&Read<'_, '_, T>, Piece<T>, T),
+    band: Band,
+) -> super::WindowBound<T> {
+    let run = |r: &Read<'_, '_, T>, p: Piece<T>, u: T| {
+        Margin::metered_sup(u - p.mid(), r.hi()).value().abs() + p.reach(r.hi())
+    };
+    let span = run(ra, pa, s).max(run(rb, pb, t));
+    let curvature = ra.curvature + rb.curvature;
+    super::polish::bound(
+        ("curve_pair_walk_basin", None),
+        ra.curve().ders1(s),
+        rb.curve().ders1(t),
+        curvature,
+        (T::from_f64(band.escalate()), span),
+    )
+    .unwrap_or_else(super::polish::undecided)
 }
 
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart
@@ -289,9 +324,8 @@ fn witnesses<T: Decide>(
 ) -> Result<Vec<Point3<T>>, geom_core::bisect::Exhausted> {
     let mut points = Vec::new();
     for (r, other) in [(ra, rb), (rb, ra)] {
-        let (o0, o1) = other.span.params();
         let mut ends = Vec::new();
-        for q in [other.curve().eval(o0), other.curve().eval(o1)] {
+        for (_, q) in other.span.ends() {
             ends.extend(polished_feet(r, q, band)?);
         }
         points.extend(
@@ -329,11 +363,9 @@ pub(super) fn meet<T: Decide>(
         found: found.points,
         shared: None,
     };
-    // Each span's ends against the other, first.
+    // Each span's ends against the other, first: none of an endless one.
     for (r, other, first) in [(&ra, &rb, true), (&rb, &ra, false)] {
-        let (t0, t1) = r.span.params();
-        for t in [t0, t1] {
-            let q = r.curve().eval(t);
+        for (t, q) in r.span.ends() {
             let Ok(feet) = polished_feet(other, q, band) else {
                 return Err(exhausted(found));
             };
@@ -373,16 +405,21 @@ pub(super) fn meet<T: Decide>(
                 let slack = (ra.curve().eval(ma) - rb.curve().eval(mb)).norm()
                     + pa.reach(ra.hi())
                     + pb.reach(rb.hi());
-                let (s, t, _) = super::polish::pair(
+                let (s, t) = super::polish::pair(
                     |s| ra.curve().ders1(s),
                     |t| rb.curve().ders1(t),
                     (ma, mb),
                     |m| step_taken(m, slack),
                 );
-                let t = rb.curve().foot(ra.curve().eval(s), t).t();
-                let s = ra.curve().foot(rb.curve().eval(t), s).t();
-                let q = ra.curve().eval(s);
-                found.offer(q, || read_both((a, &[s]), (b, &[t]), q, band), band);
+                let t = rb.curve().foot(ra.curve().eval(s), t).seed();
+                let s = ra.curve().foot(rb.curve().eval(t), s).seed();
+                let candidate = super::Candidate {
+                    point: ra.curve().eval(s),
+                    ta: s,
+                    tb: t,
+                    bound: Some(window((&ra, pa, s), (&rb, pb, t), band)),
+                };
+                found.read(a, b, candidate, band);
                 return Step::Settled;
             }
             if !stop_a && (stop_b || pa.depth <= pb.depth) {

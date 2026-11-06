@@ -412,6 +412,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                 },
                 (Some(Surface::Cone { .. }), _) => Carrier::Other("a cone face"),
                 (Some(Surface::Torus { .. }), _) => Carrier::Other("a torus face"),
+                (Some(Surface::Spindle { .. }), _) => Carrier::Other("a spindle-torus sheet face"),
                 (Some(_), _) => Carrier::Other("a free-form face"),
                 (None, _) => Carrier::Other("an unreadable face"),
             }
@@ -704,7 +705,7 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
         Curve3::Line(_) => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
         // The reach is the larger semi-axis, whichever is stored first.
         Curve3::Circle(_) | Curve3::Ellipse(_) => {
-            c.conic().map(|k| from(k.frame().center) + k.speed_hi())
+            c.conic().map(|k| from(k.frame().origin) + k.speed_hi())
         }
         // Every point of the spiric lies on its torus, within `R + r` of
         // the torus centre.
@@ -1433,6 +1434,9 @@ fn link_reads<T: Decide>(
             }
             LinkRefusal::Unread(TouchUnread::ChordScale) => {
                 "a cell with an edge too long or too short to measure"
+            }
+            LinkRefusal::Unread(TouchUnread::EdgeTangent(_)) => {
+                "a cell on a curved edge whose direction does not read there"
             }
             LinkRefusal::Unread(TouchUnread::Corrupt) => "a cell whose topology does not read",
         };

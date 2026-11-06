@@ -357,6 +357,24 @@ pub enum PointInLoopError {
     OffPlane(OffPlane),
 }
 
+impl PointInLoopError {
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]): an escalation by its margin, a
+    /// schedule no ray settled in band, an edge no ray crosses a limit,
+    /// and a loop that does not walk or a point off its plane a refusal
+    /// of the whole query.
+    #[must_use]
+    pub fn refusal(&self) -> geom_brep::ladder::Refusal {
+        use geom_brep::ladder::Refusal;
+        match self {
+            Self::Escalated { diag, .. } => Refusal::Margin(*diag),
+            Self::RayExhausted { .. } => Refusal::InBand,
+            Self::Uncrossable(_) => Refusal::Limit,
+            Self::CorruptLoop { .. } | Self::OffPlane(_) => Refusal::Abort,
+        }
+    }
+}
+
 /// **Which of [`point_in_loop`]'s preconditions failed**, for `loop`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OffPlane {
@@ -1548,11 +1566,9 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line(_) => ArcFloor::Segment(crate::sector_shape::point_segment_distance(
-            carrier.eval(t0),
-            carrier.eval(t1),
-            q,
-        )),
+        geom::Curve3::Line(_) => ArcFloor::Segment(
+            geom_brep::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
+        ),
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             let Some(crate::ring_path::LoopArc::Conic(arc)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))
@@ -1566,7 +1582,11 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 unreachable!("a circle or an ellipse")
             };
             let (major, minor) = (conic.speed_hi(), conic.speed_lo());
-            let geom::Frame { center, axis, .. } = *conic.frame();
+            let geom::Frame {
+                origin: center,
+                axis,
+                ..
+            } = *conic.frame();
             let n = axis / axis.norm();
             let w = q - center;
             let height = w.dot(n);
@@ -1927,7 +1947,7 @@ fn certify_plane<T: Decide>(
             None | Some(geom::Curve3::Line(_)) => {}
             Some(conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
                 if let (Some(k), Some(ball)) = (conic.conic(), ExtentBall::of_conic(conic)) {
-                    margins.extend([off(k.frame().center), tilt(k.frame().axis, ball.lever())]);
+                    margins.extend([off(k.frame().origin), tilt(k.frame().axis, ball.lever())]);
                 }
             }
             Some(&geom::Curve3::Spiric {
@@ -2440,7 +2460,7 @@ mod tests {
         // A circle: an overlap in its band escalates, one past it is wound.
         let circle = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center: Point3::new(0.0, 0.0, 0.0),
+                origin: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },

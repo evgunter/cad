@@ -2,8 +2,13 @@
 id: a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce
 kind: issue
 title: A circle arc of one operand lying on the other's cylinder refuses CurvedPierceUnsupported where a mate holds the two rims: klein wall 3 stops there
-status: open
+status: closed
 opened: 2026-11-03
+priority: P0
+cost: M
+branch: splice/rim-arc-on-cylinder
+closed: 2026-11-04
+pr: 6481
 ---
 
 
@@ -23,3 +28,7 @@ The loop's cap sits flat on the neck's rim (the annular REST mate), so this arc 
 ## The question
 
 The curved pierce door takes no conic lying on the face it is read against ("an undeclared on-carrier edge or conic", `topo::BooleanError::CurvedPierceUnsupported`'s docs). Here the coincidence is the mate's own rim. Whether the arc should be cleared as on the face's boundary (the two rims are one circle) or as a declared coincidence is SPLICE's call; this row records the stop and its witness.
+
+## Closed (SPLICE, PR 6481, 2026-11-04)
+
+`reduce::parents_distinct_from` takes the carrier ladder's `Distinct` as before. On `OutsideInventory` with a `Surface::Nurbs` parent it now asks `spline_off_carrier`, a one-way reading that answers Distinct or unread, never "same". The net is cut into its Bézier pieces at the distinct knot breakpoints (`Knots::runs()`), and the sheet reads Distinct only when every piece has a point decided off the carrier. The certificate is the identity theorem on the piece's polynomial, so it is gated on an allow-list of the carriers whose decided residual is the whole real variety: Plane, Cylinder, Sphere, the double Cone (`|h|`), and Torus where `R − r` is decided Positive. A Spindle, whose residual sees one sheet of its quartic, and any future kind stay unread. `carrier_pair_relation`'s inventory is not widened. Klein walls 3 and 4 now stop at `GermFrameUnsupported { a_face: 6v1 Cone, b_face: 4v1 Nurbs }` at every ε (SECTARMS' cone stage). The sweep row `a_rim_arc_on_a_cylinder_beside_a_spline_wall` stops at `EdgeUndescribed { Crease }` (the describer reading a C¹ double knot by multiplicity, evidence on `a-meeting-on-a-g1-arc-joint-of-a-spline-face-refuses-as-a-crease`) and at 1e-6 at an in-band `CurvedPierceEscalated`. Single FULL review: APPROVE-WITH-FIXES. Its spindle counterexample and margin gap were fixed in the fix pass, with the reviewer's rows adopted. Residue filed on ONECOPY: `a-knot-vectors-breakpoints-are-collected-four-times-with-no-door`, `the-spline-polynomial-identity-certificate-has-two-homes` (both P3).

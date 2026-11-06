@@ -341,22 +341,26 @@ fn eps_row(eps: f64) -> usize {
 /// `*/Report` lines away and `Plain/Decision` 992 → 976. Every digest
 /// moved, at every row
 /// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
+///
+/// Both `*/Assertion` lines 2807 → 2827 and 4231 → 4251 forms, and their
+/// digests, at every row, re-taken at what main measures (2026-11-03,
+/// `c02eb40c` and `72d09443`), not explained.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 976 forms 9789 frozen 0 digest 8858c21e7c09110b4a4a85bbf14ec889\n\
-     Plain/Assertion calls 532 forms 2807 frozen 0 digest b1292a7d0849233b0dc62e91e26d70ac\n\
+     Plain/Assertion calls 532 forms 2827 frozen 0 digest 1e690da705f1ff979f6baa7ebd1b4117\n\
      Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4231 frozen 0 digest 22e1ea40284774ef624fde19d7ba0f06",
+     Early/Assertion calls 532 forms 4251 frozen 0 digest 6b3b7bf949a504555358aa0bb0aa7e70",
     "\
      Plain/Decision calls 976 forms 9789 frozen 0 digest 08650e2e51b39ab8a7719732f4e2430a\n\
-     Plain/Assertion calls 532 forms 2807 frozen 0 digest ed4fab55a50737de9fa0d4bba53f57ec\n\
+     Plain/Assertion calls 532 forms 2827 frozen 0 digest c24c9cc21aa752ba8d607b8a2120d21f\n\
      Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4231 frozen 0 digest f84140de6ef76c9c89ac18d75feab99a",
+     Early/Assertion calls 532 forms 4251 frozen 0 digest f9717af682f90b4f681bdb58875b7142",
     "\
      Plain/Decision calls 976 forms 9789 frozen 0 digest 4b7556244d138ea5c634de0f542b7f0a\n\
-     Plain/Assertion calls 532 forms 2807 frozen 0 digest 4ba81d361ee96c59e00226ced255f112\n\
+     Plain/Assertion calls 532 forms 2827 frozen 0 digest eae6aef0526c86d2529a6cee68bfb8f7\n\
      Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4231 frozen 0 digest fc61ebc3d4a97dba3fec18a676708db6",
+     Early/Assertion calls 532 forms 4251 frozen 0 digest 190715b1f2234c1dd0f536f3d786cbbc",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -638,7 +642,7 @@ const PLATE_MAX_TERMS: usize = 28;
 /// slab's `Early/Assertion` digests move the same way at each ε row.
 ///
 /// The pcurve envelope's orthonormal chart squaring its frame by cross
-/// products (`geom::square_frame`) builds its frame terms in another
+/// products (`geom::Frame::square`) builds its frame terms in another
 /// form: `Plain/Decision`, `Early/Assertion` and `Door/Decision` +14
 /// forms each, and the `Plain/Assertion` digest; every call and freeze
 /// holds.
@@ -781,12 +785,20 @@ const PLATE_MAX_TERMS: usize = 28;
 /// over an argument with no rational-turn part are keyed by the
 /// sign-normalised argument, each `sin` read as `−sin(−ω)`. The 168
 /// forms downstream carry the new keys at their old sizes.
+///
+/// Re-taken at what main measures (2026-11-03, `72d09443`), not
+/// explained: `Plain/Decision` 1149 → 1203 calls (20618 → 60702 forms),
+/// `Early/Decision` 342 → 396 (11649 → 51733), both `*/Assertion` lines
+/// 20 forms up and `Door/Decision` 8. The angle reads' `Period::near`
+/// moves none of it: its merge base prints this ledger. Its
+/// `*/Assertion` and `Door/Decision` digests re-taken again at what main
+/// measures (2026-11-04, `5d7602ff`), the counts held.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1149 forms 20618 frozen 36 digest 5b68ab11cb6a6488e4a842bd68fd8b54\n\
-     Plain/Assertion calls 824 forms 9331 frozen 193 digest 3b9e5da836f18dc5a35a3a4ece119754\n\
-     Early/Decision calls 342 forms 11649 frozen 0 digest 38b61e2e3311ab58939c93cd540bd52b\n\
-     Early/Assertion calls 824 forms 10745 frozen 0 digest bfcde6cb8486b98883080e5e22c9cf20\n\
-     Door/Decision calls 557 forms 13569 frozen 0 digest 07819a3c990e37a0b06cfef06cbc955d";
+     Plain/Decision calls 1203 forms 60702 frozen 36 digest 457440ce7de9a424ed0065851f00a412\n\
+     Plain/Assertion calls 824 forms 9351 frozen 193 digest 97789bb665946c02b5bebf1d1baaeeff\n\
+     Early/Decision calls 396 forms 51733 frozen 0 digest b272d5e188ed848881fea7f04a859248\n\
+     Early/Assertion calls 824 forms 10765 frozen 0 digest 9a4c77de848c841fcbec6f432309a2a4\n\
+     Door/Decision calls 557 forms 13577 frozen 0 digest 0b513bbc711539cfa00cdbffc4df2189";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

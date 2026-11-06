@@ -30,7 +30,7 @@
 //! **Past needs a nearest foot.** That the foot lies past the span says
 //! the point lies off it only where the foot is the point's nearest point
 //! of the carrier, which it is on a line and a circle
-//! ([`geom::Foot::is_nearest`]). On an ellipse, a spiric oval or a spline
+//! ([`geom::Foot::nearest`]). On an ellipse, a spiric oval or a spline
 //! the foot is a polished stationary point, perhaps a far branch's, so a
 //! `Past` there stands only on a certificate that the point is clear of
 //! the span itself: the piece walk over the span's own parameters
@@ -55,13 +55,15 @@
 //! seed turned by the signs of two zeros ([`geom::Curve3::foot`]), so a
 //! place read there would decide sides of a half turn the point does not
 //! have. Otherwise, at an end is [`Reading::End`]; inside, the carrier's
-//! reading decides, on ([`Reading::On`]) or undecided (its refusal);
+//! reading decides, on ([`Reading::On`], at the parameter that reading
+//! certifies) or undecided (its refusal);
 //! past, the point is off the span, on the carrier
 //! ([`Reading::Carrier`]) or not ([`Reading::Off`], an undecided carrier
 //! included, since no answer to it puts the point on the span). A place
 //! the band cannot read is a refusal: the carrier's where it refused
 //! too, else the place's.
 
+use geom::cover::Cover;
 use geom::{CarrierEscalation, CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
 use geom_core::k_stats::{self, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
@@ -73,6 +75,8 @@ pub struct Span<'a, T: Real> {
     carrier: &'a Curve3<T>,
     t0: T,
     t1: T,
+    /// The carrier's points at `t0` and `t1`, evaluated once.
+    ends: (Point3<T>, Point3<T>),
     ended: bool,
     lo: InfSpeed<T>,
     hi: SupSpeed<T>,
@@ -89,16 +93,27 @@ pub enum SpanEnd {
 
 /// Where [`Span::place`] puts a point's foot against the span's ends.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Place<T> {
-    /// Inside the span at `t`, clear of both its ends.
-    Inside {
-        /// The parameter, on the branch about the span's middle.
-        t: T,
-    },
+pub enum Place {
+    /// Inside the span, clear of both its ends.
+    Inside,
     /// The point within the band of this end's point.
     End(SpanEnd),
     /// Past the span, clear of both its ends.
     Past,
+}
+
+/// Whether a run of the carrier about a point lies past the span
+/// ([`Span::past_by`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PastBy {
+    /// The point is not read past the span, or the span has no ends.
+    Not,
+    /// Past the span, and the whole run clear of both ends.
+    Clear,
+    /// Past the span, the run's reach to an end in the band's gap of the
+    /// chord to it (`curve_pair_span_past_reach_straddle`), or that reach
+    /// itself undecided.
+    Near(Indeterminate),
 }
 
 /// A point on a span, as [`Span::contact`] reads it: what a meeting holds
@@ -156,14 +171,16 @@ enum Side {
 }
 
 impl<'a, T: Decide> Span<'a, T> {
-    /// The span of `carrier` over `(t0, t1)`, its rate bounds read once
-    /// ([`geom::carrier_speed::speed_range`]).
+    /// The span of `carrier` over `(t0, t1)`, its rate bounds
+    /// ([`geom::carrier_speed::speed_range`]) and its end points read
+    /// once.
     pub fn new(carrier: &'a Curve3<T>, (t0, t1): (T, T)) -> Self {
         let (lo, hi) = geom::carrier_speed::speed_range(carrier);
         Self {
             carrier,
             t0,
             t1,
+            ends: (carrier.eval(t0), carrier.eval(t1)),
             ended: true,
             lo,
             hi,
@@ -190,16 +207,29 @@ impl<'a, T: Decide> Span<'a, T> {
         self.carrier
     }
 
-    /// The parameter interval.
+    /// **The parameter interval**: the span's one door to its first and
+    /// last parameters, which on an endless span are its seam and no end.
     pub fn params(&self) -> (T, T) {
         (self.t0, self.t1)
     }
 
-    /// The parameter of `which` end.
-    pub fn end(&self, which: SpanEnd) -> T {
+    /// **The span's ends**, each its parameter and its point, the start
+    /// first: both ends of an ended span, and none of an endless one,
+    /// whose first and last parameters are a seam in its interior. The
+    /// span's one door to its end points.
+    pub fn ends(&self) -> impl Iterator<Item = (T, Point3<T>)> {
+        let n = if self.ended { 2 } else { 0 };
+        [(self.t0, self.ends.0), (self.t1, self.ends.1)]
+            .into_iter()
+            .take(n)
+    }
+
+    /// `which` end's parameter and point, as [`Self::ends`] holds them,
+    /// read only where the span is known to have ends.
+    fn end(&self, which: SpanEnd) -> (T, Point3<T>) {
         match which {
-            SpanEnd::Start => self.t0,
-            SpanEnd::Stop => self.t1,
+            SpanEnd::Start => (self.t0, self.ends.0),
+            SpanEnd::Stop => (self.t1, self.ends.1),
         }
     }
 
@@ -208,7 +238,7 @@ impl<'a, T: Decide> Span<'a, T> {
     pub fn at(&self, hit: Hit<T>) -> T {
         match hit {
             Hit::On { t, .. } => t,
-            Hit::End(which) => self.end(which),
+            Hit::End(which) => self.end(which).0,
         }
     }
 
@@ -217,37 +247,47 @@ impl<'a, T: Decide> Span<'a, T> {
         (self.lo, self.hi)
     }
 
-    /// `t` on the branch within half a turn of the span's middle, on a
-    /// closed carrier; `t` itself on an open one.
+    /// **Where on the span a meeting with a member can lie**: an
+    /// interval of the span's parameters outside which no point of the
+    /// span stands within the band's escalation of `member`, the
+    /// member's cover. On a line, the cover's range along it
+    /// ([`Cover::range_along`]) widened by the escalation either way,
+    /// within the span; on any other carrier, or for a member with no
+    /// cover (`None`), the whole span.
+    pub fn window_near(&self, member: Option<&Cover<T>>, band: Band) -> (T, T) {
+        let (lo, hi) = (self.t0.min(self.t1), self.t0.max(self.t1));
+        let (Curve3::Line(geom::Line { origin, dir }), Some(cover)) = (self.carrier, member) else {
+            return (lo, hi);
+        };
+        let (near, far) = cover.range_along(*dir);
+        let base = (*origin - Point3::origin()).dot(*dir);
+        let reach = T::from_f64(band.escalate()) * dir.norm();
+        let per = dir.norm_squared();
+        let within = |t: T| t.max(lo).min(hi);
+        (
+            within((near - base - reach) / per),
+            within((far - base + reach) / per),
+        )
+    }
+
+    /// `t` within half a turn of the span's middle on a closed carrier,
+    /// `t` itself on an open one ([`Curve3::branch_near`]).
     pub fn branch(&self, t: T) -> T {
-        match self.carrier {
-            Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
-                let mid = geom::mid_param(self.t0, self.t1);
-                let d = t - mid;
-                let r = d.reduce_periodic_centred(T::tau());
-                // An enclosure of `t` about the antipode of the middle
-                // would wrap the whole turn: there either branch is as
-                // near, so it is read on the one whose cut lies at the
-                // middle instead.
-                let row = "curve_pair_span_branch";
-                let inside = super::compare(row, r, T::pi()) == Some(Sign::Negative)
-                    && super::compare(row, r, T::zero() - T::pi()) == Some(Sign::Positive);
-                if inside {
-                    mid + r
-                } else {
-                    mid + (d + T::pi()).reduce_periodic_centred(T::tau()) - T::pi()
-                }
-            }
-            Curve3::Line(_) | Curve3::Nurbs(_) => t,
-        }
+        self.carrier
+            .branch_near(t, geom::mid_param(self.t0, self.t1))
     }
 
     /// **The parameters a shared run of this span and another is read
     /// at**: this span's middle, and halfway between each of its ends and
     /// each of `feet`, the feet on this carrier of the other span's ends.
-    /// A positive-length overlap of the two spans holds one of them.
+    /// A positive-length overlap of the two spans holds one of them. An
+    /// endless span has no ends, so its middle alone: the overlap with an
+    /// ended span is that span, whose own middle holds it.
     pub fn witness_params(&self, feet: impl IntoIterator<Item = T>) -> Vec<T> {
         let mut ts = vec![geom::mid_param(self.t0, self.t1)];
+        if !self.ended {
+            return ts;
+        }
         for t in feet {
             let t = self.branch(t);
             ts.extend([geom::mid_param(self.t0, t), geom::mid_param(t, self.t1)]);
@@ -264,25 +304,22 @@ impl<'a, T: Decide> Span<'a, T> {
     /// The band's escalation when a decision the answer rests on falls in
     /// its gap (the chord to an end, the side of an end, or a `Past` the
     /// span walk does not certify), or the walk's own refusal.
-    pub fn place(&self, q: Point3<T>, near: T, band: Band) -> Result<Place<T>, CarrierRefusal> {
+    pub fn place(&self, q: Point3<T>, near: T, band: Band) -> Result<Place, CarrierRefusal> {
         self.place_at(&self.carrier.foot(q, near), band)
     }
 
     /// [`Self::place`] at a foot already found on this span's carrier.
-    fn place_at(&self, foot: &Foot<'_, T>, band: Band) -> Result<Place<T>, CarrierRefusal> {
-        let (q, t) = (foot.point(), self.branch(foot.t()));
+    fn place_at(&self, foot: &Foot<'_, T>, band: Band) -> Result<Place, CarrierRefusal> {
+        let (q, t) = (foot.point(), self.branch(foot.seed()));
         if !self.ended {
-            return Ok(Place::Inside { t });
+            return Ok(Place::Inside);
         }
-        let ends = [
-            (SpanEnd::Start, t - self.t0, self.t0),
-            (SpanEnd::Stop, self.t1 - t, self.t1),
-        ];
+        let ends = [(SpanEnd::Start, t - self.t0), (SpanEnd::Stop, self.t1 - t)];
         // An end at the point first, on its raw chord: no side matters
         // beside it.
         let mut chords = Vec::with_capacity(2);
-        for (which, _, end) in ends {
-            let chord = q - self.carrier.eval(end);
+        for (which, _) in ends {
+            let chord = q - self.end(which).1;
             let read = decide_reported("curve_pair_span_end_chord", Margin::norm3(chord), band);
             if let Ok(Decided {
                 sign: Sign::Zero, ..
@@ -294,7 +331,7 @@ impl<'a, T: Decide> Span<'a, T> {
         }
         let mut sides = [Side::Clear; 2];
         let mut past = None;
-        for (side, ((_, m, _), read)) in sides.iter_mut().zip(ends.into_iter().zip(chords)) {
+        for (side, ((_, m), read)) in sides.iter_mut().zip(ends.into_iter().zip(chords)) {
             let chord = read?;
             *side = self.side(m, chord, band)?;
             if *side == Side::Past {
@@ -302,9 +339,9 @@ impl<'a, T: Decide> Span<'a, T> {
             }
         }
         let Some(chord) = past else {
-            return Ok(Place::Inside { t });
+            return Ok(Place::Inside);
         };
-        if foot.is_nearest() {
+        if foot.nearest().is_some() {
             return Ok(Place::Past);
         }
         match self.carrier.clear_of(q, (self.t0, self.t1), band)? {
@@ -339,6 +376,83 @@ impl<'a, T: Decide> Span<'a, T> {
         }
     }
 
+    /// **Whether the window's run lies past the span**
+    /// (`curve_pair::pose`'s module docs, "The gap's lower bound" and "The
+    /// run"), `q` a point of the carrier at about `near`, the polished
+    /// pair's, and every pair of the window within the band's escalation
+    /// within `reach` metres of `q` along it. The span's own place reading
+    /// says `q` is past it ([`Self::place`]); then each end is one the run
+    /// cannot reach or cannot cross:
+    ///
+    /// - **out of reach**: its chord to `q` less `reach` reads positive
+    ///   (`curve_pair_span_past_reach`). A chord is at most the arc it
+    ///   spans, so the arc from `q` to the end is longer than `reach`;
+    /// - **the run arm**, where `run` names the other carrier and the
+    ///   window's bend, given only where the polished pair is itself in
+    ///   the run: the end's closed-form clearance from the other carrier
+    ///   less twice the bend reads past the band
+    ///   (`curve_pair_span_run_end`). Any pair of the run beyond the end
+    ///   would put the end within the escalation plus twice the bend of
+    ///   the other carrier.
+    pub fn past_by(
+        &self,
+        q: Point3<T>,
+        near: T,
+        (reach, run): (T, Option<(&Curve3<T>, T)>),
+        band: Band,
+    ) -> PastBy {
+        if !self.ended || self.place(q, near, band) != Ok(Place::Past) {
+            return PastBy::Not;
+        }
+        for (_, end) in self.ends() {
+            let chord = q - end;
+            let lower = decide_reported(
+                "curve_pair_span_past_reach",
+                Margin::of(chord.norm() - reach),
+                band,
+            );
+            if matches!(
+                lower,
+                Ok(Decided {
+                    sign: Sign::Positive,
+                    ..
+                })
+            ) {
+                continue;
+            }
+            if let Some((other, bend)) = run
+                && let Some(clear) = other.clearance(end)
+                && k_stats::decide(
+                    "curve_pair_span_run_end",
+                    Margin::of(clear - bend - bend),
+                    band,
+                ) == Ok(Sign::Positive)
+            {
+                continue;
+            }
+            return match lower {
+                Ok(lower) => {
+                    // `place` read `q`'s chord to each end from `q`'s foot
+                    // on this carrier, this chord from `q` itself: where
+                    // the two disagree on the band's side no straddle is
+                    // claimed, and the reach clears nothing.
+                    match decide_reported("curve_pair_span_end_chord", Margin::norm3(chord), band) {
+                        Ok(upper) if lower.sign < upper.sign => PastBy::Near(straddle(
+                            "curve_pair_span_past_reach_straddle",
+                            lower,
+                            upper,
+                            band,
+                        )),
+                        Ok(_) => PastBy::Not,
+                        Err(diag) => PastBy::Near(diag),
+                    }
+                }
+                Err(diag) => PastBy::Near(diag),
+            };
+        }
+        PastBy::Clear
+    }
+
     /// **What `q` is against the span**: the two readings at its foot
     /// found from `near`, composed (module docs), deciding nothing of its
     /// own. The carrier is read first, and a point it reads off is off
@@ -359,7 +473,7 @@ impl<'a, T: Decide> Span<'a, T> {
                 k_stats::splice(carrier);
                 return Ok(Reading::Off);
             }
-            Ok(OnCarrier::On { margin }) => Ok(margin),
+            Ok(OnCarrier::On { t, margin }) => Ok((t, margin)),
             Err(refused) => Err(refused),
         };
         let place = self.place_at(&foot, band);
@@ -373,7 +487,13 @@ impl<'a, T: Decide> Span<'a, T> {
         }
         Ok(match place {
             Ok(Place::End(which)) => Reading::End(which),
-            Ok(Place::Inside { t }) => Reading::On { t, margin: on? },
+            Ok(Place::Inside) => {
+                let (t, margin) = on?;
+                Reading::On {
+                    t: self.branch(t),
+                    margin,
+                }
+            }
             Ok(Place::Past) => match on {
                 Ok(_) => Reading::Carrier,
                 Err(_) => Reading::Off,

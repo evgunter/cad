@@ -168,14 +168,14 @@ pub(crate) fn torus_face_region<T: Decide>(
     face: FaceKey,
 ) -> Result<Option<TorusFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+    let f = body.proven_face(face);
     let &geom::Surface::Torus {
         center,
         axis,
         major_radius,
         minor_radius,
         u_ref,
-    } = body.face_surface_linked(face, f)
+    } = f.surface()
     else {
         return Err(corrupt());
     };
@@ -189,8 +189,8 @@ pub(crate) fn torus_face_region<T: Decide>(
         major: major_radius,
         minor: minor_radius,
         u_ref,
-        sense: f.sense,
-        outer: f.outer,
+        sense: f.sense(),
+        outer: f.record().outer,
         edges,
     }))
 }
@@ -243,13 +243,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         let e1 = off / off.norm();
         let normal = radial.cross(self.axis);
         let normal = if forward { normal } else { -normal };
-        Leg::whole(Round {
-            center,
-            normal,
-            radius: self.minor,
-            e1,
-            e2: normal.cross(e1),
-        })
+        Leg::whole(Round::new(center, normal, self.minor, e1))
     }
 
     /// The unit chart normal at `y`.
@@ -740,7 +734,7 @@ mod tests {
             cycle: 0,
             carrier: geom::Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

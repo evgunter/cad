@@ -277,9 +277,9 @@ pub(crate) fn boundary<T: Decide>(
     admits: &[geom::CurveKind],
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
+    let f = body.passed_face(face).ok_or_else(corrupt)?;
     let mut null = Vec::new();
-    for (_, members, role) in body.face_boundary_by_loop(face, f) {
+    for (_, members, role) in f.boundary_by_loop() {
         for member in members {
             // A lone ring vertex bounds no area; an outer loop must.
             if role.is_outer() && matches!(member, BoundaryMember::Isolated { .. }) {
@@ -725,24 +725,27 @@ fn offer<T: Decide, D: Legs<T>>(
     Ok(offered)
 }
 
-/// A leg round a circle: `center + radius·(e1 cos s + e2 sin s)` in the
-/// plane of unit normal `normal`, `e2 = normal × e1`, from its start at
-/// `s = 0` along increasing `s`.
+/// A leg round a circle, from its start at the circle's `θ = 0` (its
+/// seam `u_ref`) along increasing `θ`, the circle's own parameter.
 #[derive(Clone, Copy)]
 pub(crate) struct Round<T: geom_core::Real> {
-    pub(crate) center: Point3<T>,
-    pub(crate) normal: Vec3<T>,
-    pub(crate) radius: T,
-    pub(crate) e1: Vec3<T>,
-    pub(crate) e2: Vec3<T>,
+    pub(crate) circle: geom::Circle<T>,
 }
 
 impl<T: Decide> Round<T> {
+    /// The leg round the circle at `center` of `radius`, in the plane of
+    /// unit normal `normal`, starting along the unit `e1`.
+    pub(crate) fn new(center: Point3<T>, normal: Vec3<T>, radius: T, e1: Vec3<T>) -> Self {
+        Self {
+            circle: geom::Circle::new(geom::Frame::new(center, normal, e1), radius),
+        }
+    }
+
     /// The angle round the circle between the start and `y`, a point of
     /// the circle, the shorter way, in `[0, π]` ([`between`]).
     fn swept(&self, y: Point3<T>) -> T {
-        let w = y - self.center;
-        between(w / w.norm(), self.e1)
+        let w = y - self.circle.frame.origin;
+        between(w / w.norm(), self.circle.frame.u_ref)
     }
 
     /// The arc length from the start round to `y`, a point of the
@@ -750,8 +753,8 @@ impl<T: Decide> Round<T> {
     /// of the start's diameter, the longer way where it lies behind.
     pub(crate) fn arc(&self, y: Point3<T>) -> T {
         let s = self.swept(y);
-        let ahead = (y - self.center).dot(self.e2);
-        self.radius * (T::zero() - ahead).select_le_zero(s, T::tau() - s)
+        let ahead = (y - self.circle.frame.origin).dot(self.circle.frame.v_ref());
+        self.circle.radius * (T::zero() - ahead).select_le_zero(s, T::tau() - s)
     }
 }
 
@@ -762,7 +765,7 @@ impl<T: Decide> Course<T> for Round<T> {
     /// ahead.
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
         let s = self.swept(y);
-        ray_walk::apart(at, Margin::of((self.radius * s).abs()), band)
+        ray_walk::apart(at, Margin::of((self.circle.radius * s).abs()), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?;
         Ok(Some(self.arc(y)))
     }
@@ -776,21 +779,19 @@ impl<T: Decide> Course<T> for Round<T> {
     }
 
     fn heading(&self, y: Point3<T>) -> Vec3<T> {
-        let h = self.normal.cross(y - self.center);
+        let h = self.circle.frame.axis.cross(y - self.circle.frame.origin);
         h / h.norm()
     }
 
-    /// The circle from the start at angle `0`, `e2` its angle's quarter
-    /// turn.
     fn carrier(&self) -> geom::Curve3<T> {
-        geom::Curve3::circle(self.center, self.normal, self.radius, self.e1)
+        geom::Curve3::Circle(self.circle)
     }
 
     /// Places are arc lengths, so an angle is a place over the radius.
     fn span(&self, end: Option<T>, _: &RegionEdge<T>) -> ((T, T), bool) {
         match end {
             None => ((T::zero(), T::tau()), true),
-            Some(place) => ((T::zero(), place / self.radius), false),
+            Some(place) => ((T::zero(), place / self.circle.radius), false),
         }
     }
 }
@@ -837,9 +838,12 @@ impl<T: Decide> Course<T> for Line<T> {
 /// `a`'s distance from the axis through `base` along unit `axis`, its
 /// height from `base`, and the unit radial direction.
 pub(crate) fn polar<T: Decide>(base: Point3<T>, axis: Vec3<T>, a: Point3<T>) -> (T, T, Vec3<T>) {
-    let w = a - base;
-    let h = w.dot(axis);
-    let radial = w - axis * h;
+    let axis_line = geom::Line {
+        origin: base,
+        dir: axis,
+    };
+    let h = (a - base).dot(axis);
+    let radial = axis_line.offset(a);
     let rho = radial.norm();
     (rho, h, radial / rho)
 }
@@ -854,13 +858,7 @@ pub(crate) fn parallel<T: Decide>(
 ) -> Round<T> {
     let (rho, h, e1) = polar(base, axis, a);
     let normal = if forward { axis } else { -axis };
-    Round {
-        center: base + axis * h,
-        normal,
-        radius: rho,
-        e1,
-        e2: normal.cross(e1),
-    }
+    Round::new(base + axis * h, normal, rho, e1)
 }
 
 /// `face` with null scaffolding added to its outer loop: a null edge
@@ -970,13 +968,12 @@ mod tests {
 
     /// The unit circle about `z`, run from `x` toward `y`.
     fn unit_round() -> Round<f64> {
-        Round {
-            center: Point3::origin(),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            e1: Vec3::new(1.0, 0.0, 0.0),
-            e2: Vec3::new(0.0, 1.0, 0.0),
-        }
+        Round::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     }
 
     /// The arc of [`unit_round`]'s circle over `[t0, t1]`.

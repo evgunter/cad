@@ -11,7 +11,7 @@
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use crate::boolean::conic_oracle::{crossings, ellipse, extremes, unit};
+use geom_brep::curve_face::conic_oracle::{crossings, ellipse, extremes, unit};
 use geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;
 
@@ -462,7 +462,7 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
     for d in [1e-6, 1e-5] {
         let e = crossing(d);
         let geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, .. },
+            frame: geom::Frame { origin: center, .. },
             ..
         }) = e
         else {
@@ -526,7 +526,7 @@ fn certified_answers_hold_against_the_quadric_form() {
                     rng.range(-1.0, 1.0),
                     rng.range(-1.0, 1.0),
                 ],
-                unit(&mut rng).to_array(),
+                unit(|lo, hi| rng.range(lo, hi)).to_array(),
                 rng.range(0.05, 1.5),
             );
             let (tip, axis, a) = parts(&s);
@@ -539,8 +539,8 @@ fn certified_answers_hold_against_the_quadric_form() {
             let on = tip + (axis * (nappe * a.cos()) + radial * a.sin()) * l;
             let big = rng.range(1e-3, 1.0);
             let small = big / rng.range(1.0, 6.0);
-            let n = unit(&mut rng);
-            let w = unit(&mut rng);
+            let n = unit(|lo, hi| rng.range(lo, hi));
+            let w = unit(|lo, hi| rng.range(lo, hi));
             let uref = (w - n * w.dot(n)).normalize();
             let e = if i % 3 == 0 {
                 geom::Curve3::circle(on - uref * big, n, big, uref)
@@ -617,7 +617,7 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
         for i in 0..fuzz::scaled(300) {
             let s = cone(
                 [0.0, 0.0, 0.0],
-                unit(&mut rng).to_array(),
+                unit(|lo, hi| rng.range(lo, hi)).to_array(),
                 rng.range(0.1, 1.4),
             );
             let (tip, axis, a) = parts(&s);
@@ -838,7 +838,14 @@ fn a_small_carrier_through_the_apex_refuses_at_the_rung_that_cannot_read_it() {
     for (label, half, rad, want) in [
         ("clear of the apex", 0.2, 1e-3, Unsettled::AtApex),
         ("a definite side change", 1.2, 3e-4, Unsettled::Tangency),
-        ("the slack meter", 0.6, 1e-3, Unsettled::Meter),
+        (
+            "the slack meter",
+            0.6,
+            1e-3,
+            Unsettled::Meter {
+                row: "bool_conic_cone_root_slack",
+            },
+        ),
     ] {
         let s = cone([1.0, -0.7, 0.3], [0.0, 0.0, 1.0], half);
         let u = Vec3::new(1.0, 0.0, 0.0);

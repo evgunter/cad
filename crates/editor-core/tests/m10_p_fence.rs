@@ -333,6 +333,15 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
 
 /// The same fence at `Interval`, where every profile is elaborated at
 /// the lane (its second pass).
+///
+/// RE-TAKEN when angle reads moved onto `Period::near` and
+/// `Azimuth::near` (no rotation by the reference, the window's cut side
+/// and the rename's marks decided at the least band). Against its merge
+/// base, 628 enclosure bounds moved, each by at most `7.2e-16`, in
+/// `die_composed_tour`, `die_tool`, `die_composed`, `reshaped_rod` and
+/// `die_pips`; every node's outcome and kind held, and the `f64` fence
+/// above did not move. The pin it replaced was already stale on that
+/// base (it read `(0x14da…, 0xdf66…)`, not the pin).
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -351,7 +360,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xfe61_0929_b0d2_a2c2, 0x2175_05b9_a342_e9f6),
+        (0xe42f_30c8_1790_5fab, 0x303f_78a3_da5f_4a77),
         "the corpus's Interval evaluation moved"
     );
 }

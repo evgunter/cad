@@ -13,12 +13,12 @@ cost: M
 
 ## What
 
-`boolean::circle_torus::circle_torus_roots` returns a bare
+`geom_brep::curve_face::circle_torus::circle_torus_roots` returns a bare
 `Indeterminate` from every rung it asks: the plane-height depth
-(`bool_circle_torus_plane_height`, `depth − charge`, a length that
+(`circle_torus_plane_height`, `depth − charge`, a length that
 passes positive), the contour residuals and side (`ρ − R`, a length
 that passes either sign), the coaxial tilt and offset (lengths), and the
-quartic's own rows (`bool_circle_torus_disc`, `_shape`, `_depth`, `_odd`,
+quartic's own rows (`circle_torus_disc`, `_shape`, `_depth`, `_odd`,
 `_split`, the pole and root-slack rows), whose margins are no length the
 user chose. `reduce::wall_crossing` wraps it as
 `BooleanDecision::ArcTorusRoots` (`crates/topo/src/boolean/reduce.rs`),

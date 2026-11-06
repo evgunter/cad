@@ -35,7 +35,7 @@
 
 use geom::{ChartArm, ChartInverse, Surface};
 use geom_core::predicate::Band;
-use geom_core::{Decide, Point2, Point3, Real, Vec3};
+use geom_core::{Decide, Point2, Point3, Real};
 
 /// A curved surface's chart (everything but the plane, which takes the
 /// planar path): geom's inversion, and the kind data its levers and
@@ -98,24 +98,10 @@ impl<T: Real> Chart<T> {
         Some(Self { kind, inverse })
     }
 
-    /// The revolution/extrusion axis.
-    pub fn axis(&self) -> Vec3<T> {
-        self.inverse.axis()
-    }
-
-    /// The seam direction (u = 0).
-    pub fn u_ref(&self) -> Vec3<T> {
-        self.inverse.u_ref()
-    }
-
-    /// `axis × u_ref` (the frame convention).
-    pub fn v_ref(&self) -> Vec3<T> {
-        self.inverse.v_ref()
-    }
-
-    /// A point on the axis (apex/center/origin).
-    pub fn anchor(&self) -> Point3<T> {
-        self.inverse.anchor()
+    /// The surface's placement: its axis point (apex, centre or
+    /// origin), axis and seam ([`geom::Surface::frame`]).
+    pub fn frame(&self) -> &geom::Frame<T> {
+        self.inverse.frame()
     }
 
     /// Distance of a point from the chart axis — the lever arm that
@@ -128,8 +114,8 @@ impl<T: Real> Chart<T> {
     /// `v·sin α` rather than sitting in `ChartKind` — needs no special
     /// case, and a point on the axis correctly reports 0.
     pub fn radial(&self, p: Point3<T>) -> T {
-        let w = p - self.anchor();
-        (w.dot(self.u_ref()).powi(2) + w.dot(self.v_ref()).powi(2)).sqrt()
+        let (x, y) = self.frame().in_plane(p);
+        (x.powi(2) + y.powi(2)).sqrt()
     }
 
     /// The v counterpart of [`Self::radial`]: `|∂S/∂v|`, the length
@@ -195,16 +181,17 @@ impl<T: Decide> Chart<T> {
     /// [`crate::coherence`] measures the value that discards, and
     /// `mesh`'s walk is what discards it.
     pub fn rim_v(&self, center: Point3<T>, radius: T) -> T {
-        let h = (center - self.anchor()).dot(self.axis());
-        self.v_of(self.anchor() + self.axis() * h + self.u_ref() * radius)
+        let f = self.frame();
+        let h = f.height(center);
+        self.v_of(f.origin + f.axis * h + f.u_ref * radius)
     }
 }
 
 impl Chart<f64> {
     /// The chart's singular points with their v values: the list
     /// [`geom_brep::chart_singularity::singular_points`] states (sphere
-    /// poles, cone apex, a spindle sheet's apexes at `v = ±v*`; empty
-    /// otherwise).
+    /// poles, cone apex, a spindle sheet's apexes at `v = ±v*`, a
+    /// horn's one cusp once; empty otherwise).
     pub fn poles(&self) -> Vec<(Point3<f64>, f64)> {
         use geom_brep::chart_singularity::Singularity;
         let v_star = || match self.kind {
@@ -216,8 +203,19 @@ impl Chart<f64> {
                 unreachable!("Chart::poles: only a spindle sheet has sheet apexes")
             }
         };
+        // A horn (`geom::sheet_apex` closes its height at zero) has one
+        // cusp, both of its apexes: listed once, as the upper, at
+        // `v* = π`, where the sheet's latitude window reads it.
+        let horn = match self.kind {
+            ChartKind::Spindle { major, minor } => geom::sheet_apex(major, minor).height == 0.0,
+            ChartKind::Cylinder { .. }
+            | ChartKind::Cone { .. }
+            | ChartKind::Sphere { .. }
+            | ChartKind::Torus { .. } => false,
+        };
         geom_brep::chart_singularity::singular_points(&self.inverse)
             .into_iter()
+            .filter(|(which, _)| !(horn && *which == Singularity::SheetApexDown))
             .map(|(which, p)| {
                 let v = match which {
                     Singularity::North => core::f64::consts::FRAC_PI_2,
@@ -236,6 +234,7 @@ impl Chart<f64> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Vec3;
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(surface: impl FnOnce(Point3<f64>, Vec3<f64>, Vec3<f64>) -> Surface<f64>) -> Chart {
@@ -261,6 +260,47 @@ mod tests {
             (u - core::f64::consts::PI).abs() < 1e-12,
             "expected pi, got {u}"
         );
+    }
+
+    /// **A sheet's poles are its own apexes**: each pole's `v` evaluates,
+    /// at every `u`, to the pole's point, on the axis, for a lemon, an
+    /// apple and a horn. The other sheet of the same torus shares the
+    /// points but not the angles (`π − v*`), so a pole read off the other
+    /// sheet evaluates off the axis, and this goes red; a horn lists its
+    /// one cusp once.
+    #[test]
+    fn a_sheets_poles_are_its_own_apexes() {
+        for (major, minor, count) in [(-0.5, 1.0, 2), (0.4, 1.0, 2), (0.3, 0.7, 2), (1.0, 1.0, 1)] {
+            let sheet = z_chart(|center, axis, u_ref| Surface::Spindle {
+                center,
+                axis,
+                major_radius: major,
+                minor_radius: minor,
+                u_ref,
+            });
+            let surface = Surface::Spindle {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major_radius: major,
+                minor_radius: minor,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let poles = sheet.poles();
+            assert_eq!(poles.len(), count, "R {major}: {poles:?}");
+            for (p, v) in poles {
+                assert!(
+                    p.x.hypot(p.y) <= 1e-15,
+                    "R {major}: pole {p:?} off the axis"
+                );
+                for u in [0.0, 1.0, 2.5, -2.0] {
+                    let q = surface.eval(u, v);
+                    assert!(
+                        (q - p).norm() <= 1e-12,
+                        "R {major}: v {v} at u {u} is {q:?}, not the pole {p:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// The lever arm is the distance from the axis, and sliding a point

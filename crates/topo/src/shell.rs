@@ -2229,8 +2229,8 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // of the host — the invariant the validator states as check 9.
         // Refused HERE, naming the shape, rather than left to arrive
         // as a generic at-rest report on a body already built.
-        let guest_outer = proven(&out.faces, guest, EntityId::Face).outer;
-        let host_outer = proven(&out.faces, host, EntityId::Face).outer;
+        let (guest_outer, _) = out.proven_face(guest).outer();
+        let (host_outer, _) = out.proven_face(host).outer();
         //
         // An UNDECIDABLE separation refuses too, and does not proceed:
         // the glue is a write, and building on a gap the predicate
@@ -2300,7 +2300,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // the outer rim has.
         let mut holes = Vec::with_capacity(promoted.len());
         for &(face, host_ring) in &promoted {
-            let outer = proven(&out.faces, face, EntityId::Face).outer;
+            let (outer, _) = out.proven_face(face).outer();
             let (ring_edges, ring_vertices) = ring_rows(&out, outer, &rows);
             holes.push(HoleRim {
                 face,
@@ -2590,7 +2590,7 @@ fn canonicalize_chart<T: Decide>(
             half_edge_points(body, &side1),
             half_edge_points(body, &side2),
         );
-        let chart = body.proven_face_surface(anchor).clone();
+        let chart = body.proven_face(anchor).surface().clone();
         let escalated = |source| ShellError::Escalated { source };
         let ring_first = if encloses(&chart, &p1, &p2, band).map_err(escalated)? {
             true
@@ -2621,7 +2621,7 @@ fn canonicalize_chart<T: Decide>(
         // The role assignment is verified, not assumed: the ring must
         // be the enclosed side.
         let (ring_pts, outer_pts) = {
-            let outer = proven(&body.faces, anchor, EntityId::Face).outer;
+            let (outer, _) = body.proven_face(anchor).outer();
             (loop_points(body, made.ring), loop_points(body, outer))
         };
         if !encloses(&chart, &ring_pts, &outer_pts, band)
@@ -2724,7 +2724,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     faces: &[FaceKey],
     band: Band,
 ) -> Result<bool, ShellError<T>> {
-    let surface = body.proven_face_surface(faces[0]);
+    let surface = body.proven_face(faces[0]).surface();
     let (Some(_), Some(chart)) = (
         crate::pcurves::chart_period(surface, band),
         crate::chart::Chart::of(surface),
@@ -2734,13 +2734,15 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     let interior = interior_edges(body, faces);
     let mut boundary: Vec<HeKey> = faces
         .iter()
-        .flat_map(|&f| body.proven_face_cycles(f))
-        .flat_map(|(lk, cycle)| {
+        .map(|&f| body.proven_face(f))
+        .flat_map(|face| {
             debug_assert!(
-                !cycle.is_empty(),
-                "{lk:?} bounds a face of a finished wall, so it is a cycle"
+                face.loops()
+                    .all(|(_, l, _)| matches!(l.boundary, LoopBoundary::Cycle { .. })),
+                "every loop of {:?} bounds a face of a finished wall, so it is a cycle",
+                face.key()
             );
-            cycle
+            face.half_edges()
         })
         .filter(|&he| !interior.contains(&proven(&body.half_edges, he, EntityId::HalfEdge).edge))
         .collect();
@@ -2884,7 +2886,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     // The host face's corner at the pole: `into` arrives along one seam,
     // `out_of` leaves along the other (along the same seam, on a spur).
-    let host_cycle = cycle_of(body, proven(&body.faces, host, EntityId::Face).outer);
+    let host_cycle = cycle_of(body, body.proven_face(host).outer().0);
     let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
     let Some(&out_of) = host_cycle.iter().find(|&&he| at(body, he) == pole) else {
         return Err(not_expressible(
@@ -3284,8 +3286,8 @@ fn glue_ring<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
     dead: &mut ShellRetired,
 ) -> Result<crate::euler_ring::KfmrhResult, ShellError<T>> {
-    let guest_data = proven(&body.faces, guest, EntityId::Face);
-    let (guest_outer, guest_surface) = (guest_data.outer, guest_data.surface);
+    let guest_data = body.proven_face(guest);
+    let (guest_outer, guest_surface) = (guest_data.outer().0, guest_data.record().surface);
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     let mut carried: Vec<_> = Vec::new();
     for (edge, description) in loop_rekeyed(body, guest_outer, guest_surface, host_surface) {
@@ -3313,8 +3315,7 @@ fn guest_corner<T: Real>(
     twins: &TwinIndex,
     v: VertexKey,
 ) -> Option<VertexKey> {
-    let guest_outer = proven(&body.faces, guest, EntityId::Face).outer;
-    cycle_of(body, guest_outer)
+    cycle_of(body, body.proven_face(guest).outer().0)
         .into_iter()
         .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
         .find(|&g| twins.vertices.get(g) == Some(&v) || twins.vertices.get(v) == Some(&g))
@@ -3647,7 +3648,7 @@ fn pair_rings<T: Decide>(
     let source_rings = rings_of(source);
     let not_expressible =
         |what: &'static str| ShellError::OpenFaceRimNotExpressible { face: rim, what };
-    let chart = body.proven_face_surface(rim).clone();
+    let chart = body.proven_face(rim).surface().clone();
     let escalated = |source| ShellError::Escalated { source };
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
@@ -3698,8 +3699,8 @@ fn duplicate_in_loop<T: Real>(
     face: FaceKey,
     skip: &[EdgeKey],
 ) -> Option<(crate::entity::LoopKey, HeKey, HeKey)> {
-    let data = proven(&body.faces, face, EntityId::Face);
-    for (r#loop, members, _) in body.face_boundary_by_loop(face, data) {
+    let view = body.proven_face(face);
+    for (r#loop, members, _) in view.boundary_by_loop() {
         let mut cycle = Vec::new();
         for member in members {
             let BoundaryMember::Edge { he, ek, .. } = member else {
@@ -3988,9 +3989,9 @@ fn offset_door<T: Decide>(
     band: Band,
 ) -> Result<OffsetDoor, ReplaceFaceError<T>> {
     let all_planar = body
-        .faces()
-        .filter(|(k, _)| scope.holds_face(*k))
-        .all(|(k, f)| matches!(body.face_surface_linked(k, f), geom::Surface::Plane { .. }));
+        .face_views()
+        .filter(|f| scope.holds_face(f.key()))
+        .all(|f| matches!(f.surface(), geom::Surface::Plane { .. }));
     if all_planar {
         return Ok(OffsetDoor::Planar);
     }
@@ -4081,8 +4082,8 @@ fn lift_to<T: Decide>(
     band: Band,
 ) -> Result<T, ReplaceFaceError<T>> {
     let surface = |face: FaceKey| {
-        let data = proven(&body.faces, face, EntityId::Face);
-        body.face_surface_linked(face, data)
+        let view = body.proven_face(face);
+        view.surface()
     };
     let d = match geom_brep::offset_distance(surface(from[0]), surface(onto)) {
         Ok(d) => d,
@@ -4342,7 +4343,7 @@ fn cavity_embedded<T: Decide + crate::props::AtRestPolicy>(
     let report = lane.sweep(&sweep, &windows, &windows, true, |candidate| {
         let (face, other) = candidate.faces();
         let ask = candidate.ask();
-        let chart = |f: FaceKey| cavity.proven_face_surface(f).map_scalar(lift);
+        let chart = |f: FaceKey| cavity.proven_face(f).surface().map_scalar(lift);
         let (sa, sb) = (chart(face), chart(other));
         let (la, lb) = lane.on_face_stations(candidate);
         let at = |s: &geom::Surface<Interval>, (u, v): (f64, f64)| {
@@ -4409,16 +4410,17 @@ fn planar_faces<T: Decide>(
     partition: &crate::offset_together::Scope,
 ) -> Vec<PlanarFace<T>> {
     let mut out = Vec::new();
-    for (face, data) in body.faces() {
+    for view in body.face_views() {
+        let face = view.key();
         let geom::Surface::Plane {
             origin,
             normal,
             u_ref,
-        } = body.face_surface_linked(face, data)
+        } = view.surface()
         else {
             continue;
         };
-        let normal = plane_outward_normal(data, *normal).vec();
+        let normal = plane_outward_normal(view.record(), *normal).vec();
         let frame = InPlane {
             origin: *origin,
             u: *u_ref,
@@ -4479,7 +4481,7 @@ fn footprint<T: Decide>(
     frame: &InPlane<T>,
 ) -> Option<((T, T), (T, T))> {
     let mut points = Vec::new();
-    for he in body.proven_face_half_edges(face) {
+    for he in body.proven_face(face).half_edges() {
         let h = proven(&body.half_edges, he, EntityId::HalfEdge);
         let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
         points.push((start.x, start.y));
@@ -4536,7 +4538,7 @@ fn edge_box_in<T: Decide>(
 /// The `(u, v)` box of `frame` holding `cover`: its box in the frame's
 /// rows, about the frame's origin.
 fn cover_box_in<T: Decide>(cover: &geom::cover::Cover<T>, frame: &InPlane<T>) -> [(T, T); 2] {
-    let (lo, hi) = cover.box_in(&geom::cover::Frame::Rows([frame.u, frame.v, frame.n]));
+    let (lo, hi) = cover.box_in(&geom::cover::BoxAxes::Rows([frame.u, frame.v, frame.n]));
     let o = frame.origin - geom_core::Point3::origin();
     let (ou, ov) = (o.dot(frame.u), o.dot(frame.v));
     [(lo.x - ou, lo.y - ov), (hi.x - ou, hi.y - ov)]
@@ -5108,16 +5110,16 @@ fn moved_walls<T: Decide>(
     partition: &crate::offset_together::Scope,
 ) -> Vec<MovedWall<T>> {
     let mut out = Vec::new();
-    for (face, data) in cavity.faces() {
-        let geom::Surface::Plane { origin, normal, .. } = cavity.face_surface_linked(face, data)
-        else {
+    for view in cavity.face_views() {
+        let face = view.key();
+        let geom::Surface::Plane { origin, normal, .. } = view.surface() else {
             continue;
         };
         let (origin, normal) = (*origin, *normal);
         let mut edges = Vec::new();
         let mut vertices = Vec::new();
         let mut points = Vec::new();
-        for (_, cycle) in cavity.proven_face_cycles(face) {
+        for (_, cycle) in view.cycles() {
             let ends: Vec<(VertexKey, geom_core::Point3<T>)> = cycle
                 .iter()
                 .map(|&he| {
@@ -5172,7 +5174,7 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Circle(geom::Circle {
                                 frame:
                                     geom::Frame {
-                                        center,
+                                        origin: center,
                                         ref axis,
                                         u_ref,
                                     },
@@ -5181,7 +5183,7 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Ellipse(geom::Ellipse {
                                 frame:
                                     geom::Frame {
-                                        center,
+                                        origin: center,
                                         ref axis,
                                         u_ref,
                                     },
@@ -5215,7 +5217,7 @@ fn moved_walls<T: Decide>(
                             let p = geom_core::Point3::new(poison, poison, poison);
                             (p, p)
                         },
-                        |c| c.box_in(&geom::cover::Frame::World),
+                        |c| c.box_in(&geom::cover::BoxAxes::World),
                     );
                     points.extend([lo, hi]);
                 }
@@ -5384,7 +5386,7 @@ fn count_components<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> usize {
 #[track_caller]
 fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
     let mut out = Vec::new();
-    for he in body.proven_face_half_edges(face) {
+    for he in body.proven_face(face).half_edges() {
         let mate = body.proven_mate(he, crate::live::link(EntityId::Face(face), "cycle"));
         let parent = body.face_of_linked(mate.mate);
         if parent != face && !out.contains(&parent) {

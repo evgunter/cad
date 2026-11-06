@@ -66,7 +66,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey
 use crate::face_normal::face_plane;
 use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
-use geom_brep::ladder::{Answering, Ranked, Rung, climb_evidence};
+use geom_brep::ladder::{Answering, Rung, climb_evidence};
 
 /// What one witness read against the probed surfaces.
 #[derive(Debug)]
@@ -115,7 +115,7 @@ pub(crate) enum Reading<S> {
     /// The first decisive witness's side.
     Side(S),
     /// No witness decided.
-    Undecided(Tally),
+    Undecided(Box<Tally>),
 }
 
 /// The witnesses of a complex none of which decided.
@@ -242,11 +242,11 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
     });
     match climbed {
         Ok((_, answer)) => answer.map(Reading::Side),
-        Err(kept) => Ok(Reading::Undecided(Tally {
+        Err(kept) => Ok(Reading::Undecided(Box::new(Tally {
             on_boundary,
             in_band,
             kept,
-        })),
+        }))),
     }
 }
 
@@ -405,7 +405,7 @@ fn line_meetings<T: Decide>(
         geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -414,7 +414,7 @@ fn line_meetings<T: Decide>(
         geom::Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -426,22 +426,18 @@ fn line_meetings<T: Decide>(
 }
 
 /// Each walkable loop of `face` — its outer loop, then every ring — as
-/// its half-edge cycle ([`Body::face_cycles_by_loop`], every hop past
+/// its half-edge cycle ([`crate::live::FaceView::cycles`], every hop past
 /// the face a link). A loop with no cycle (a lone vertex) has no edge
 /// and bounds no area, so it is left out.
 fn face_loops<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, LadderRefusal> {
-    let f = body.get_face(face).ok_or(LadderRefusal::Desync {
+    let f = body.passed_face(face).ok_or(LadderRefusal::Desync {
         face,
         what: "face no longer resolves",
     })?;
-    Ok(body
-        .face_cycles_by_loop(face, f)
-        .map(|(_, cycle)| cycle)
-        .filter(|cycle| !cycle.is_empty())
-        .collect())
+    Ok(f.cycles().map(|(_, cycle)| cycle).collect())
 }
 
 /// [`face_loops`] as each half-edge's start point.
@@ -580,10 +576,7 @@ pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
     };
     match ladder(body, reads[i].sel.faces(), band, probe) {
         Ok(Reading::Side(inside)) => Insides::Read(inside),
-        Ok(Reading::Undecided(t)) => match t.kept.ranked() {
-            Ranked::Blocked(e) | Ranked::InBand(e) => Insides::Refused(e),
-            Ranked::Neither => Insides::Touching,
-        },
+        Ok(Reading::Undecided(t)) => t.kept.refusal().map_or(Insides::Touching, Insides::Refused),
         Err(e) => Insides::Refused(e),
     }
 }

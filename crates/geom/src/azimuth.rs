@@ -39,14 +39,17 @@
 //! below are its evidence. `.0` unwraps the vector where an arm's
 //! arithmetic needs it.
 
-use geom_core::k_stats::decide;
+use geom_core::k_stats::{decide, unlogged};
+use geom_core::period::Period;
 use geom_core::predicate::Band;
 use geom_core::{Decide, Margin, Real, Sign, Vec3};
 
+use crate::Frame;
+
 /// `((sin u, cos u), v_ref)` — the trig pair from **one** `sin_cos`
-/// call and the third frame vector `v_ref = axis × u_ref`.
-pub(crate) fn basis<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> ((T, T), Vec3<T>) {
-    ((u.sin_cos()), axis.cross(u_ref))
+/// call and the frame's [`Frame::v_ref`].
+pub(crate) fn basis<T: Real>(frame: &Frame<T>, u: T) -> ((T, T), Vec3<T>) {
+    ((u.sin_cos()), frame.v_ref())
 }
 
 /// The unit vector at an azimuth: `u_ref·c + v_ref·s`. A newtype
@@ -73,8 +76,9 @@ pub(crate) struct AzimuthFrame<T: Real> {
 /// The azimuthal frame at angle `u`, from one `sin_cos` call, with the
 /// associations exactly as written (D9); the two formulas are on
 /// [`AzimuthFrame`]'s fields.
-pub(crate) fn frame<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> AzimuthFrame<T> {
-    let ((s, c), v_ref) = basis(axis, u_ref, u);
+pub(crate) fn frame<T: Real>(frame: &Frame<T>, u: T) -> AzimuthFrame<T> {
+    let ((s, c), v_ref) = basis(frame, u);
+    let u_ref = frame.u_ref;
     AzimuthFrame {
         radial: Radial(u_ref * c + v_ref * s),
         tangential: Tangential(u_ref * (-s) + v_ref * c),
@@ -166,20 +170,19 @@ pub const LATITUDE_WINDOW_START: f64 = 1.0 - core::f64::consts::PI;
 
 /// **An angle read off the geometry**: the two frame components of a
 /// direction, as `atan2` would read them, with no arithmetic of its own.
-/// It leaves as an angle one way: read in a window
-/// ([`Azimuth::principal`] in the angle window, `principal_in` in any),
-/// the stable `atan2` read whose one jump is that window's cut, and whose
-/// copy a derivation then decides through the window's marks
-/// (`geom_brep`'s `Placement::phase`, a `Period::decide` about the
-/// window's centre).
-/// No whole-period integer is read off a value.
+/// It leaves as an angle two ways, neither rotating the direction:
+/// - read in a window ([`Azimuth::principal`] in the angle window,
+///   `principal_in` in any), the stable `atan2` read whose one jump is
+///   that window's cut, and whose copy a derivation then decides through
+///   the window's marks (`geom_brep`'s `Placement::phase`, a
+///   `Period::decide` about the window's centre);
+/// - near a stated reference ([`Azimuth::near`]): the same read, renamed
+///   by whole turns to within half a turn of the reference.
 ///
-/// An anchored `atan2` (the direction rotated back by a reference and
-/// read there) would name the copy with no decision, but it rotates
-/// every read, so a symbolic scalar no longer folds the read onto the
-/// carrier's own form: on the M10-10 plate the map-residual reads went
-/// from 36 theorems to 36 numeric decisions and the plate left the band
-/// below its ceiling. The principal read keeps `k = 0` bit-identical.
+/// No whole-period integer is read off a value. Neither exit rotates the
+/// direction by the reference, so a symbolic scalar still folds the read
+/// onto the carrier's own form, and `k = 0` is the window's read bit for
+/// bit.
 #[derive(Clone, Copy, Debug)]
 pub struct Azimuth<T> {
     y: T,
@@ -193,9 +196,68 @@ impl<T: Real> Azimuth<T> {
         Self { y, x }
     }
 
+    /// The direction with its `y` component times `y_by` and its `x`
+    /// times `x_by`: a frame's direction read in a conic's unit
+    /// coordinates, scaled by the product of its semi-axes so no division
+    /// enters ([`crate::Conic::azimuth`]).
+    pub(crate) fn scaled(self, y_by: T, x_by: T) -> Self {
+        Self::of(self.y * y_by, self.x * x_by)
+    }
+
+    /// **A point's direction in a torus's tube section**: the point at
+    /// `height` along the axis and `rho` from it, about the tube's centre
+    /// circle of `major_radius`, `(height, ρ − R)` in the meridian
+    /// half-plane. Its angle is the point's minor angle. The one spelling
+    /// of the section, for a spiric carrier, a torus or spindle chart and
+    /// a placed tube channel alike.
+    pub fn tube(height: T, rho: T, major_radius: T) -> Self {
+        Self::of(height, rho - major_radius)
+    }
+
     /// The direction's length: the radius its angle is read at.
     pub fn length(self) -> T {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
+    }
+
+    /// The angle named on the branch within half a turn of `centre`:
+    /// `θ + atan2(R(−θ)·(x, y))` with `θ = centre.angle()`. It decides
+    /// nothing; the caller has decided the branch (`geom_brep`'s
+    /// projected image decides each piece's centre at derivation, its
+    /// sector condition putting the piece in the open half-plane the
+    /// centre faces, so `atan2` is read clear of its cut). The rotation
+    /// is exact, so rotating back adds no width at a bracketed scalar.
+    ///
+    /// [`Azimuth::near`] answers a different question: it decides which
+    /// copy of the window's read lies near a reference that can be any
+    /// angle, renaming it by whole turns. `about` takes a branch already
+    /// decided, so it reads off any direction it is given, a direction
+    /// on the centre's antipode included, without a decision.
+    pub fn about(self, centre: Quarter) -> T {
+        let (x, y) = centre.rotate(self.x, self.y);
+        centre.angle::<T>() + y.atan2(x)
+    }
+}
+
+/// **A branch centre a whole number of quarter turns**, `m·π/2`: the
+/// centre [`Azimuth::about`] names an angle on, so that rotating a
+/// direction back by it is exact (a swap and sign flips).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Quarter(pub i32);
+
+impl Quarter {
+    /// `R(−m·π/2)·(x, y)`, exactly.
+    pub fn rotate<T: Real>(self, x: T, y: T) -> (T, T) {
+        match self.0.rem_euclid(4) {
+            0 => (x, y),
+            1 => (y, T::zero() - x),
+            2 => (T::zero() - x, T::zero() - y),
+            _ => (T::zero() - y, x),
+        }
+    }
+
+    /// `m·π/2`.
+    pub fn angle<T: Real>(self) -> T {
+        T::pi() * T::from_f64(0.5 * f64::from(self.0))
     }
 }
 
@@ -237,12 +299,78 @@ impl<T: Decide> Azimuth<T> {
         self.read_in(Window::Angle, row, band)
     }
 
+    /// **The angle's copy within half a turn of `reference`**: the
+    /// angle window's read, renamed by whole turns
+    /// ([`Period::near`]). The read is not rotated by `reference`, so
+    /// `reference` enters the answer only through the whole number of
+    /// turns, and a read already within half a turn of it is
+    /// [`Azimuth::principal`]'s bit for bit. A tie, half a turn from
+    /// `reference`, takes `reference + π`. Narrow at both of its jumps:
+    /// across the window's cut the read's two formulas are equal modulo
+    /// a turn and neither has its own cut there, and across `reference`'s
+    /// antipode the rename decides a mark rather than flooring the gap.
+    ///
+    /// Neither decision is a reading, since each picks between names of
+    /// one angle, so both are taken at [`Band::least`] outside the log
+    /// (`docs/predicate-dimension-audit.md` row F31).
+    ///
+    /// A point direction that is exactly zero names every angle alike,
+    /// and reads `reference` itself, the angle the caller asked about;
+    /// any other point direction reads its angle, however small its
+    /// length (one whose squares underflow included). An enclosure that
+    /// reaches zero length may hold a direction of any angle, so it reads
+    /// the whole window about `reference`, `[reference − π, reference + π]`,
+    /// never a narrow answer. A direction with a component that is not finite names
+    /// none, and reads NaN.
+    ///
+    /// An evaluation on a branch already decided, about a whole number of
+    /// quarter turns, is [`Azimuth::about`]'s, which decides nothing.
+    pub fn near(self, reference: T) -> T {
+        if !(geom_core::real::is_finite_length(self.y) && geom_core::real::is_finite_length(self.x))
+        {
+            return T::from_f64(f64::NAN);
+        }
+        match (self.y.point_value(), self.x.point_value()) {
+            // A point direction: no length only where it is exactly zero;
+            // any other reads its angle, however small its length.
+            (Some(y), Some(x)) if y == 0.0 && x == 0.0 => return reference,
+            (Some(_), Some(_)) => {}
+            // An enclosure that reaches zero length may hold any angle.
+            _ if !(T::one() / self.length()).is_bounded() => {
+                let window = (reference - T::pi()).enclosure_hull(reference + T::pi());
+                debug_assert!(!window.is_poison(), "an enclosure's window is no poison");
+                return window;
+            }
+            _ => {}
+        }
+        let read = unlogged("F31", || {
+            stable_azimuth(
+                "azimuth_near_cut_side",
+                self.y,
+                self.x,
+                Window::Angle.start(),
+                Band::least(),
+            )
+        });
+        Period::new(T::tau()).near(read, reference)
+    }
+
     fn read_in(self, window: Window, row: &'static str, band: Band) -> T {
         if !(T::one() / self.length()).is_bounded() {
             return T::zero();
         }
         stable_azimuth(row, self.y, self.x, window.start(), band)
     }
+}
+
+/// **How far round the turn `theta` lies from `at`**, in `[0, π]`:
+/// `atan2(|sin(θ − at)|, cos(θ − at))`. It takes no decision, and since
+/// its first argument is never negative its read stays clear of
+/// `atan2`'s cut, so an enclosure of `theta` about `at`'s antipode reads
+/// as narrow as `theta` itself, near `π`.
+pub fn separation<T: Real>(theta: T, at: T) -> T {
+    let (s, c) = (theta - at).sin_cos();
+    s.abs().atan2(c)
 }
 
 /// **The window a placed channel is named in**, and so the window its
@@ -366,12 +494,18 @@ mod tests {
             let (s, c) = Real::sin_cos(u);
             let v_ref = axis.cross(u_ref);
 
-            let ((bs, bc), bv) = basis(axis, u_ref, u);
+            let ((bs, bc), bv) = basis(
+                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
+                u,
+            );
             assert_eq!(bs.to_bits(), s.to_bits(), "basis sin at {u}");
             assert_eq!(bc.to_bits(), c.to_bits(), "basis cos at {u}");
             assert_eq!(bits(bv), bits(v_ref), "basis v_ref at {u}");
 
-            let f = frame(axis, u_ref, u);
+            let f = frame(
+                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
+                u,
+            );
             assert_eq!(
                 bits(f.radial.0),
                 bits(u_ref * c + v_ref * s),
@@ -383,6 +517,141 @@ mod tests {
                 "tangential at {u}"
             );
         }
+    }
+
+    /// **`near` is the window's read renamed, and narrow at both of its
+    /// jumps.** At `f64` a read within half a turn of the reference is
+    /// [`Azimuth::principal`]'s bit for bit, and a tie takes the upper
+    /// copy. At `Interval` a direction astride the window's cut (angle
+    /// `−1`), and one astride the reference's antipode, each read as
+    /// narrow as the direction's own angle, where `atan2` across its cut
+    /// or a floor of the gap reads a turn wide.
+    #[test]
+    fn near_is_the_windowed_read_renamed_and_narrow_at_both_jumps() {
+        use geom_core::{Bounds, Interval};
+        let band = Band::least();
+        for k in -40i32..40 {
+            let a = f64::from(k) * 0.157 + 0.01;
+            let az = Azimuth::of(a.sin(), a.cos());
+            let read = az.principal(band);
+            let r = read + 0.3;
+            assert_eq!(
+                az.near(r).to_bits(),
+                read.to_bits(),
+                "k = 0 keeps the read at {a}"
+            );
+            let n = az.near(r + 4.0 * core::f64::consts::PI);
+            assert!(
+                (n - read - 4.0 * core::f64::consts::PI).abs() < 1e-12,
+                "two turns up at {a}"
+            );
+        }
+        assert_eq!(
+            Azimuth::of(0.0, -1.0).near(0.0_f64),
+            core::f64::consts::PI,
+            "half a turn from 0 reads π, not −π"
+        );
+        assert_eq!(
+            Azimuth::of(0.0, 0.0).near(-7.0_f64),
+            -7.0,
+            "no length reads the reference"
+        );
+        assert!(
+            Azimuth::of(f64::NAN, 1.0).near(0.0).is_nan(),
+            "a NaN direction names no angle"
+        );
+        assert!(
+            Azimuth::of(1.0, f64::INFINITY).near(0.0).is_nan(),
+            "nor an infinite one"
+        );
+
+        let width = |x: Interval| x.hi() - x.lo();
+        let hair = Interval::from_bounds(-1e-9, 1e-9);
+        let direction = |a: Interval| Azimuth::of(a.sin(), a.cos());
+        for (angle, reference) in [
+            (-1.0, -1.0),
+            (-1.0, 2.0),
+            (2.0, 2.0 - core::f64::consts::PI),
+        ] {
+            let a = Interval::from_f64(angle) + hair;
+            let n = direction(a).near(Interval::from_f64(reference));
+            assert!(
+                width(n) < 1e-8,
+                "angle {angle} about {reference}: width {}",
+                width(n)
+            );
+            let want = angle
+                + ((reference - angle) / core::f64::consts::TAU + 0.5).floor()
+                    * core::f64::consts::TAU;
+            assert!(
+                n.lo() - 1e-8 <= want && want <= n.hi() + 1e-8,
+                "angle {angle} about {reference}: {n:?} misses {want}"
+            );
+        }
+    }
+
+    /// **A point direction whose length underflows still reads its
+    /// angle**: only an exact zero reads the reference. At `f64` and at
+    /// `Interval` point inputs, `(y, x)` of `(0, 1e-200)`, `(0, −1e-200)`
+    /// and `(1e-170, −1e-170)` read `0`, `π` and `3π/4` near `2`.
+    #[test]
+    fn an_underflowing_point_direction_reads_its_angle() {
+        use core::f64::consts::PI;
+        use geom_core::{Bounds, Interval};
+        for (y, x, want) in [
+            (0.0, 1e-200, 0.0),
+            (0.0, -1e-200, PI),
+            (1e-170, -1e-170, 0.75 * PI),
+        ] {
+            let got = Azimuth::of(y, x).near(2.0_f64);
+            assert!(
+                (got - want).abs() < 1e-12,
+                "f64 ({y}, {x}): {got}, not {want}"
+            );
+            let iv = Azimuth::of(Interval::from_f64(y), Interval::from_f64(x))
+                .near(Interval::from_f64(2.0));
+            assert!(
+                iv.lo() - 1e-12 <= want && want <= iv.hi() + 1e-12 && iv.hi() - iv.lo() < 1e-12,
+                "Interval ({y}, {x}): {iv:?}, not about {want}"
+            );
+        }
+        assert_eq!(
+            Azimuth::of(-0.0, 0.0).near(2.0_f64),
+            2.0,
+            "an exact zero reads the reference"
+        );
+    }
+
+    /// **`separation` is the distance round the turn, narrow at the
+    /// antipode.** At `f64` it is `|θ − at|` reduced into `[0, π]`; at
+    /// `Interval` an enclosure astride `at + π` (where `|sin|`'s lower end
+    /// is exactly `0` and the cosine negative) reads near `π`, not over
+    /// `[0, π]`.
+    #[test]
+    fn separation_is_the_distance_round_the_turn_and_narrow_at_the_antipode() {
+        use core::f64::consts::{PI, TAU};
+        use geom_core::{Bounds, Interval};
+        for (theta, at, want) in [
+            (0.3, 0.1, 0.2),
+            (0.1, 0.3, 0.2),
+            (3.0, -3.0, TAU - 6.0),
+            (7.0, 0.5, 6.5 - TAU),
+        ] {
+            let want: f64 = want;
+            let got = separation(theta, at);
+            assert!(
+                (got - want.abs()).abs() < 1e-12,
+                "separation({theta}, {at}) = {got}"
+            );
+        }
+        assert!((separation(PI, 0.0_f64) - PI).abs() < 1e-15, "the antipode");
+        let at = Interval::from_f64(0.4);
+        let theta = at + Interval::pi() + Interval::from_bounds(-1e-9, 1e-9);
+        let s = separation(theta, at);
+        assert!(
+            s.lo() > PI - 1e-8 && s.hi() <= PI + 1e-12,
+            "astride the antipode: {s:?}"
+        );
     }
 
     /// CERT-N2 R1 reviewer probe, adopted with its **expectation
@@ -401,12 +670,64 @@ mod tests {
     fn probe_the_renaming_destructure_is_the_residue_the_types_do_not_close() {
         let axis = Vec3::new(0.0, 0.0, 1.0);
         let u_ref = Vec3::new(1.0, 0.0, 0.0);
-        let f = frame(axis, u_ref, 0.3f64);
+        let f = frame(
+            &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
+            0.3f64,
+        );
         let AzimuthFrame {
             radial: tangential,
             tangential: radial,
-        } = frame(axis, u_ref, 0.3f64);
+        } = frame(
+            &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
+            0.3f64,
+        );
         assert_eq!(radial.0.x, f.tangential.0.x);
         assert_eq!(tangential.0.x, f.radial.0.x);
+    }
+
+    /// **A quarter turn rotates exactly, and `about` names the angle on
+    /// its branch**: `Quarter(m).rotate` is `R(−m·π/2)`, each output
+    /// component bit for bit an input component or its negation; `angle`
+    /// is `m·π/2`; and `about` answers the direction's angle (its `cos` and
+    /// `sin` recover the direction) within half a turn of the centre, for
+    /// every direction off the centre's antipode, at every centre in
+    /// `−4..8`.
+    #[test]
+    fn a_quarter_rotates_exactly_and_about_names_the_angle_on_its_branch() {
+        use core::f64::consts::{FRAC_PI_2, PI};
+        for m in -4..8 {
+            let q = Quarter(m);
+            let theta = f64::from(m) * FRAC_PI_2;
+            assert_eq!(q.angle::<f64>(), theta, "m {m}: the angle");
+            for i in 0..64 {
+                let a = -3.1 + 0.1 * f64::from(i);
+                let (x, y) = (1.3 * a.cos(), 1.3 * a.sin());
+                let (rx, ry) = q.rotate(x, y);
+                let (c, s) = (theta.cos(), theta.sin());
+                assert!(
+                    (rx - (c * x + s * y)).abs() < 1e-15 && (ry - (c * y - s * x)).abs() < 1e-15,
+                    "m {m}: R(−θ)·({x}, {y}) is ({rx}, {ry})"
+                );
+                let exact = |r: f64| [x, -x, y, -y].iter().any(|&v| v.to_bits() == r.to_bits());
+                assert!(
+                    exact(rx) && exact(ry),
+                    "m {m}: the rotation is a swap and sign flips"
+                );
+                // Off the antipode, where the branch's cut lies.
+                let off = (a - theta + PI).rem_euclid(core::f64::consts::TAU);
+                if !(1e-6..=core::f64::consts::TAU - 1e-6).contains(&off) {
+                    continue;
+                }
+                let u = Azimuth::of(y, x).about(q);
+                assert!(
+                    (u - theta).abs() < PI + 1e-12,
+                    "m {m}: {u} is not within half a turn of {theta}"
+                );
+                assert!(
+                    (1.3 * u.cos() - x).abs() < 1e-12 && (1.3 * u.sin() - y).abs() < 1e-12,
+                    "m {m}: {u} is not the angle of ({x}, {y})"
+                );
+            }
+        }
     }
 }

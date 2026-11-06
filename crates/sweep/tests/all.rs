@@ -64,6 +64,8 @@ mod a_carried_record_no_reading_covers;
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
+#[path = "a_conical_ended_football_revolves.rs"]
+mod a_conical_ended_football_revolves;
 #[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -124,6 +126,8 @@ mod a_pole_and_an_apex_join_nothing;
 mod a_ray_meets_a_curved_edge_once_for_both_faces;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
+#[path = "a_rim_arc_on_a_cylinder_beside_a_spline_wall.rs"]
+mod a_rim_arc_on_a_cylinder_beside_a_spline_wall;
 #[path = "a_rim_covering_part_of_its_row_re_mints_the_rows_arc.rs"]
 mod a_rim_covering_part_of_its_row_re_mints_the_rows_arc;
 #[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]
@@ -170,6 +174,8 @@ mod a_tube_ending_on_a_ball;
 mod a_vertex_on_a_grazing_plane;
 #[path = "a_vertex_piercing_a_lens_wall.rs"]
 mod a_vertex_piercing_a_lens_wall;
+#[path = "a_wall_row_read_in_band_takes_the_lane_a_miss_takes.rs"]
+mod a_wall_row_read_in_band_takes_the_lane_a_miss_takes;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "a_wrap_tip_reads_its_full_turn_in_the_boolean.rs"]
@@ -1235,6 +1241,8 @@ mod shell7_seam_corner;
 mod spiric_rim;
 #[path = "spline_spiric_operands.rs"]
 mod spline_spiric_operands;
+#[path = "spline_subtract_intersect_census.rs"]
+mod spline_subtract_intersect_census;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;
@@ -1292,6 +1300,9 @@ mod wire_loft_end_profile_lift;
 
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
+
+#[path = "a_knife_edge_fillet_builds_where_its_ball_is_defined.rs"]
+mod a_knife_edge_fillet_builds_where_its_ball_is_defined;
 
 #[path = "review_4831_probes.rs"]
 mod review_4831_probes;
@@ -1375,10 +1386,14 @@ mod a_cone_apex_on_a_plane_through_it;
 mod a_cone_apex_on_an_edge;
 #[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
 mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
+#[path = "a_join_on_one_description_records_nothing.rs"]
+mod a_join_on_one_description_records_nothing;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
 #[path = "a_saddle_cut_by_its_tangent_plane.rs"]
 mod a_saddle_cut_by_its_tangent_plane;
+#[path = "a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read.rs"]
+mod a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read;
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]
@@ -1391,3 +1406,5 @@ mod review_6002_needle_join;
 mod review_6020_seam_probes;
 #[path = "review_r1_roots_split.rs"]
 mod review_r1_roots_split;
+#[path = "the_football_revolves.rs"]
+mod the_football_revolves;

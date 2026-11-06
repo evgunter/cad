@@ -134,9 +134,9 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// Where the surface a resolved face names does not resolve (D2 row 4):
 /// a torn surface is not a non-planar one.
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
-    let f = body.get_face(face)?;
-    match body.face_surface_linked(face, f) {
-        geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f, *normal)),
+    let f = body.passed_face(face)?;
+    match f.surface() {
+        geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f.record(), *normal)),
         _ => None,
     }
 }
@@ -156,10 +156,10 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// Where `face` resolves and its surface does not (D2 row 4): a torn
 /// surface is not a non-planar one.
 pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(Point3<T>, Vec3<T>)> {
-    let f = body.get_face(face)?;
-    match body.face_surface_linked(face, f) {
+    let f = body.passed_face(face)?;
+    match f.surface() {
         geom::Surface::Plane { origin, normal, .. } => {
-            Some((*origin, plane_outward_normal(f, *normal).vec()))
+            Some((*origin, plane_outward_normal(f.record(), *normal).vec()))
         }
         _ => None,
     }
@@ -335,12 +335,12 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         return Ok(None);
     };
-    let surface = body.face_surface_linked(face, f);
+    let surface = f.surface();
     match surface {
-        geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f, *normal))),
+        geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f.record(), *normal))),
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
         | geom::Surface::Torus { .. } => {
@@ -372,7 +372,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             let grad = geom_brep::implicit_gradient(surface, p);
             let margin = Margin::levered(grad.norm() - T::one(), arm);
             match decide("bool_pierce_normal_on_chart", margin, band) {
-                Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense))),
+                Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense()))),
                 Ok(Sign::Positive | Sign::Negative) => Err(NormalAtError::OffSurface),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
@@ -394,7 +394,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
             cone_axis_clearance(*apex, *axis, p, band)?;
             match on {
-                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense))),
+                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense()))),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
                     diag,
@@ -443,19 +443,20 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, FootNormalError> {
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         return Ok(None);
     };
     let clear = |margin: Margin<T>| match decide("foot_off_locus", margin, band) {
         Ok(Sign::Positive | Sign::Negative) => Ok(()),
         Ok(Sign::Zero) | Err(_) => Err(FootNormalError::NoFoot { band }),
     };
-    let surface = body.face_surface_linked(face, f);
+    let surface = f.surface();
     match *surface {
-        geom::Surface::Plane { normal, .. } => return Ok(Some(plane_outward_normal(f, normal))),
+        geom::Surface::Plane { normal, .. } => {
+            return Ok(Some(plane_outward_normal(f.record(), normal)));
+        }
         geom::Surface::Cylinder { origin, axis, .. } => {
-            let q = p - origin;
-            clear(Margin::norm3(q - axis * q.dot(axis)))?;
+            clear(Margin::norm3(geom::Line { origin, dir: axis }.offset(p)))?;
         }
         geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
         geom::Surface::Cone { apex, axis, .. } => {
@@ -469,8 +470,11 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             major_radius,
             ..
         } => {
-            let q = p - center;
-            let radial = q - axis * q.dot(axis);
+            let radial = geom::Line {
+                origin: center,
+                dir: axis,
+            }
+            .offset(p);
             clear(Margin::norm3(radial))?;
             let core = center + radial * (major_radius / radial.norm());
             clear(Margin::norm3(p - core))?;
@@ -480,7 +484,9 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
         }
     }
     Ok(Some(geom_brep::implicit_outward_normal(
-        surface, f.sense, p,
+        surface,
+        f.sense(),
+        p,
     )))
 }
 
@@ -539,8 +545,8 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     band: Band,
 ) -> Result<OutwardNormal<T>, SplineNormalError> {
     use geom_brep::ChartPointRefusal;
-    let f = body.get_face(face).ok_or(SplineNormalError::StaleFace)?;
-    let surface = body.face_surface_linked(face, f);
+    let f = body.passed_face(face).ok_or(SplineNormalError::StaleFace)?;
+    let surface = f.surface();
     let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
     if surface.is_placeholder_chart() {
         return Err(SplineNormalError::PlaceholderChart);
@@ -549,7 +555,7 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), p).lever();
     geom_brep::chart_point_normal(
         chart,
-        f.sense,
+        f.sense(),
         uv,
         p,
         reach,
@@ -630,17 +636,22 @@ pub(crate) fn cone_point<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<ConePoint, geom_core::Indeterminate> {
-    let q = p - apex;
-    let radial = q - axis * q.dot(axis);
+    let radial = geom::Line {
+        origin: apex,
+        dir: axis,
+    }
+    .offset(p);
     // An off-axis reading in the band reads on: the apex test below
     // decides whether the point is the apex or only near the axis.
     if let Ok(Sign::Positive) = decide("cone_off_axis", Margin::norm3(radial), band) {
         return Ok(ConePoint::OffAxis);
     }
-    Ok(match decide("cone_at_apex", Margin::norm3(q), band)? {
-        Sign::Positive | Sign::Negative => ConePoint::NearAxis,
-        Sign::Zero => ConePoint::Apex,
-    })
+    Ok(
+        match decide("cone_at_apex", Margin::norm3(p - apex), band)? {
+            Sign::Positive | Sign::Negative => ConePoint::NearAxis,
+            Sign::Zero => ConePoint::Apex,
+        },
+    )
 }
 
 /// [`cone_point`] as the pierce door reads it: a point with no
@@ -1422,6 +1433,30 @@ mod tests {
             matches!(face_outward_normal_at(&body, face, p, band()), Ok(None)),
             "the point door has no spline arm: it reads a chart point"
         );
+    }
+
+    /// **A reverted body's spline face reads its outward normal
+    /// negated.** `Body::revert` leaves a spline face's chart as it is
+    /// and flips the face's `sense`, so the reading at the same chart
+    /// point is the original's negation: a door that read the chart's
+    /// normal without the face's bit would read the two alike.
+    #[test]
+    fn a_reverted_spline_face_reads_its_outward_normal_negated() {
+        let (body, face) = face_on(smooth_bump());
+        let reverted = body.revert().unwrap();
+        assert!(
+            !reverted.get_face(face).unwrap().sense,
+            "the reverted face is the sense-false one"
+        );
+        let uv = (0.25, 0.5);
+        let p = Point3::new(0.25, 0.5, 1.0 + 0.4 * 0.25 * 0.75);
+        let lean = Vec3::new(-0.2, 0.0, 1.0).normalize();
+        for (b, want, what) in [(&body, lean, "as built"), (&reverted, -lean, "reverted")] {
+            let n = super::spline_outward_normal_at(b, face, uv, p, band())
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+                .vec();
+            assert!((n - want).norm() < 1e-12, "{what}: {n:?}, want {want:?}");
+        }
     }
 
     /// **A chart point on a crease refuses by name, and one beside it

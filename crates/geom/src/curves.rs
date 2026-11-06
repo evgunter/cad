@@ -60,12 +60,14 @@ pub mod second_derivative;
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Circle, Conic, Ellipse, Frame, MajorFrame, on_span_branch};
+pub use conic::{Circle, Conic, Ellipse, MajorFrame};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
+use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
-use crate::azimuth;
+use crate::azimuth::{self, Azimuth};
+use crate::frame::Frame;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
     CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
@@ -225,12 +227,12 @@ impl<T: SpanLocate> Curve3<T> {
         let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
         let frame = |f: &Frame<T>, g: &Frame<T>| {
             let Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             } = *f;
             let Frame {
-                center: c,
+                origin: c,
                 axis: a,
                 u_ref: u,
             } = *g;
@@ -621,6 +623,23 @@ impl<T: Real> Line<T> {
     pub fn foot(&self, p: Point3<T>) -> Point3<T> {
         self.origin + self.dir * self.param(p)
     }
+
+    /// **`p`'s offset from its foot**, square to the line:
+    /// `(p − origin) − dir·((p − origin)·dir / (dir·dir))`, whose norm is
+    /// `p`'s distance from the line.
+    #[must_use]
+    pub fn offset(&self, p: Point3<T>) -> Vec3<T> {
+        let w = p - self.origin;
+        w - self.dir * (w.dot(self.dir) / self.dir.dot(self.dir))
+    }
+
+    /// **`p`'s foot on the plane through `origin` square to the line**:
+    /// `p − dir·((p − origin)·dir / (dir·dir))`, the line read as that
+    /// plane's normal.
+    #[must_use]
+    pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
+        p - self.dir * ((p - self.origin).dot(self.dir) / self.dir.dot(self.dir))
+    }
 }
 
 impl<T: Real> Curve3<T> {
@@ -658,6 +677,37 @@ impl<T: Real> Curve3<T> {
         }
     }
 
+    /// **The carrier read as a circle**: its own [`Circle`] (the sibling of
+    /// [`Self::as_line`]), `None` for
+    /// every other kind.
+    #[must_use]
+    pub fn as_circle(&self) -> Option<&Circle<T>> {
+        match self {
+            Self::Circle(c) => Some(c),
+            Self::Line(_) | Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+        }
+    }
+
+    /// **The carrier's placement**: a conic's own [`Frame`], and a
+    /// spiric's torus's (centre, axis and seam). `None` for a line and a
+    /// spline.
+    #[must_use]
+    pub fn frame(&self) -> Option<Frame<T>> {
+        match *self {
+            Self::Circle(c) => Some(c.frame),
+            Self::Ellipse(e) => Some(e.frame),
+            Self::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius: _,
+                minor_radius: _,
+                offset: _,
+            } => Some(Frame::new(center, axis, u_ref)),
+            Self::Line(_) | Self::Nurbs(_) => None,
+        }
+    }
+
     /// Whether the carrier bends: it does not read as a line
     /// ([`Self::as_line`]). A curved span's chord midpoint is off it, and
     /// its chord is not its extent.
@@ -690,7 +740,7 @@ impl<T: Real> Curve3<T> {
             Curve3::Circle(Circle {
                 frame:
                     Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -704,7 +754,7 @@ impl<T: Real> Curve3<T> {
             Curve3::Ellipse(Ellipse {
                 frame:
                     Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -810,7 +860,75 @@ impl<T: Real> Curve3<T> {
     }
 }
 
+/// **A point's direction in a spiric's tube section**: `(h, ρ − R)` in
+/// the meridian half-plane through `p`, `h = (p − center)·axis` and `ρ`
+/// its distance from the axis, whose angle is the point's minor angle.
+fn tube_section<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major_radius: T,
+    p: Point3<T>,
+) -> Azimuth<T> {
+    let (h, rho) = on_carrier::height_and_radius(p - center, axis);
+    Azimuth::tube(h, rho, major_radius)
+}
+
 impl<T: Decide> Curve3<T> {
+    /// **`t` renamed by whole turns to within half a turn of
+    /// `reference`** on a closed carrier ([`Period::near`]), `t` itself
+    /// on an open one.
+    #[must_use]
+    pub fn branch_near(&self, t: T, reference: T) -> T {
+        if self.is_periodic() {
+            Period::new(T::tau()).near(t, reference)
+        } else {
+            t
+        }
+    }
+
+    /// **The direction of `p` about a closed carrier's centre**, whose
+    /// angle ([`Azimuth::near`]) is the parameter of `p` for a point of
+    /// the carrier: a conic's [`Conic::azimuth`], and on a spiric the
+    /// tube's section, `(h, ρ − R)` in the meridian half-plane with
+    /// `h = (p − center)·axis` and `ρ` the distance from the axis. It
+    /// answers the point's minor angle on either oval: which oval the
+    /// carrier names is the mint's decision. `None` on a line and a
+    /// spline, whose parameter is not an angle.
+    #[must_use]
+    pub fn azimuth(&self, p: Point3<T>) -> Option<Azimuth<T>> {
+        match self {
+            Curve3::Circle(c) => Some(c.azimuth(p)),
+            Curve3::Ellipse(e) => Some(e.azimuth(p)),
+            Curve3::Spiric {
+                center,
+                axis,
+                major_radius,
+                ..
+            } => Some(tube_section(*center, *axis, *major_radius, p)),
+            Curve3::Line(_) | Curve3::Nurbs(_) => None,
+        }
+    }
+
+    /// **The parameter of a point on this carrier within half a turn of
+    /// `near`**: a line's projection ([`Line::param`], `near` unused), a
+    /// closed carrier's [direction](Self::azimuth) read [near](Azimuth::near)
+    /// `near`, and `None` on a spline, whose inversion is a solve
+    /// (`project`). Half a turn from `near`, the tie reads `near + π`.
+    ///
+    /// Off the carrier it answers about `p`'s radial projection (the
+    /// line's axial one), and at a closed carrier's centre, a direction
+    /// of no length, `near` itself: the caller owes the point on the
+    /// carrier. A point with a component that is not finite reads NaN. The answer depends on `near` only through
+    /// the whole number of turns, so two anchors within half a turn of
+    /// the point's parameter read it bit for bit alike.
+    #[must_use]
+    pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
+        match self {
+            Curve3::Line(line) => Some(line.param(p)),
+            _ => Some(self.azimuth(p)?.near(near)),
+        }
+    }
+
     /// The one deciding door into [`Curve3::Ellipse`]: refuses a
     /// non-finite semi-axis ([`EllipseInvalid::SemiAxisNotFinite`], a
     /// value-channel read, no band) and a non-positive minor semi-axis
@@ -1023,7 +1141,8 @@ impl<T: Real> Curve3<T> {
 }
 
 impl<T: Real> Curve3<T> {
-    /// **A circle carrier's point at parameter `t`**, from its fields:
+    /// **A circle carrier's point at parameter `t`**, from its frame and
+    /// radius:
     /// [`Conic::point_at`] on the circle they make, the very expression
     /// [`Curve3::eval`] and [`Curve3::ders1`] reach, so a caller that
     /// builds a point here builds the node either would. That is what
@@ -1036,14 +1155,8 @@ impl<T: Real> Curve3<T> {
     /// its `Nurbs` arm's sealed span selection, and evaluation-code
     /// discipline forbids a generic caller from carrying a second bound
     /// beside `Real` to reach it.
-    pub fn circle_at(
-        center: Point3<T>,
-        axis: Vec3<T>,
-        radius: T,
-        u_ref: Vec3<T>,
-        t: T,
-    ) -> Point3<T> {
-        Circle::new(Frame::new(center, axis, u_ref), radius).point_at(t)
+    pub fn circle_at(frame: &Frame<T>, radius: T, t: T) -> Point3<T> {
+        Circle::new(*frame, radius).point_at(t)
     }
 }
 
@@ -1253,7 +1366,7 @@ impl<T: SpanLocate> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let (_, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s)
             }
@@ -1294,14 +1407,14 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.derivative_at(t),
             Curve3::Ellipse(e) => e.derivative_at(t),
             Curve3::Spiric {
+                center,
                 axis,
                 u_ref,
                 major_radius,
                 minor_radius,
                 offset,
-                ..
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 m * f1 + *axis * (*minor_radius * c)
@@ -1352,7 +1465,7 @@ impl<T: SpanLocate> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 (
@@ -1383,14 +1496,14 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.second_derivative_at(t),
             Curve3::Ellipse(e) => e.second_derivative_at(t),
             Curve3::Spiric {
+                center,
                 axis,
                 u_ref,
                 major_radius,
                 minor_radius,
                 offset,
-                ..
             } => {
-                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
                 let r = *minor_radius;
                 let (rho, f) = spiric_radial(*major_radius, r, *offset, c);
                 let f2 = -(r
@@ -1398,173 +1511,6 @@ impl<T: SpanLocate> Curve3<T> {
                 m * f2 - *axis * (r * s)
             }
             Curve3::Nurbs(n) => n.deriv2(t),
-        }
-    }
-
-    /// The parameter of a point **on** this carrier, on the branch
-    /// nearest `near` — the one body for point-on-carrier parameter
-    /// recovery, and pure carrier arithmetic. `None` for the kinds
-    /// whose inversion is a solve rather than a closed form.
-    ///
-    /// - **`Line`**: the projection `t = (p − origin)·dir`. A line's
-    ///   parameterization is injective, so there is no branch to pick
-    ///   and `near` is unused — the argument belongs to the periodic
-    ///   kind and costs this arm nothing.
-    /// - **`Circle`**: `near + δ` with `δ = atan2(w·τ̂, w·r̂)`,
-    ///   `w = p − center`, and the frame at `near` read from the public
-    ///   evaluators (`r̂·radius = eval(near) − center`,
-    ///   `τ̂·radius = deriv(near)`). Both `atan2` arguments carry the
-    ///   factor `radius`, so no division enters and no frame is
-    ///   re-derived here. **The factor is not assumed positive.** A
-    ///   `Curve3::Circle` with a representable NEGATIVE `radius` is a
-    ///   circle traversed through the antipode of the `u_ref` seam, and
-    ///   there `atan2` does not quotient the factor away — it flips the
-    ///   angle by π, which is precisely the parameter that reproduces
-    ///   the point. So this arm inverts `eval` for either sign, which
-    ///   the retired seam spelling did NOT: reading the stored `u_ref`
-    ///   and `v_ref` directly, it answers about the point's angle in
-    ///   the frame rather than about its parameter, and at `radius =
-    ///   −1`, `near = 0`, `t = 0` it returns `π` where this arm returns
-    ///   `0` and `eval(0)` is the point. Not a claimed feature of the
-    ///   consolidation — a measured consequence of reading the frame
-    ///   from the evaluators, recorded so the sign is not later
-    ///   "simplified" back out.
-    /// - **`Spiric`**: the circle arm's anchored-difference form in the
-    ///   torus's meridian half-plane: `h = (p − center)·axis`,
-    ///   `ρ = |(p − center) − axis·h|`, `w = (ρ − R, h)`,
-    ///   `r̂ = (cos near, sin near)`, `τ̂ = (−sin near, cos near)`,
-    ///   `near + atan2(w·τ̂, w·r̂)`. Both `atan2` arguments are lengths,
-    ///   the quotient is scale-free, and the branch is the one within a
-    ///   half-turn of `near` — the circle arm's tie and midpoint-anchor
-    ///   preconditions verbatim. It answers the point's minor angle on
-    ///   EITHER oval: which oval the carrier names is the mint's
-    ///   decision, not this arithmetic's.
-    /// - **`Ellipse`**: the circle arm's anchored difference on the
-    ///   eccentric anomaly θ, which is the polar angle of the point
-    ///   AFTER each frame coordinate is divided by its semi-axis:
-    ///   `x = (w·u_ref)·minor`, `y = (w·v_ref)·major` are
-    ///   `major·minor·(cos θ, sin θ)` on the carrier, and
-    ///   `near + atan2(y·cos near − x·sin near, x·cos near + y·sin near)`
-    ///   is θ on the branch within half a turn of `near`. Scaling both
-    ///   coordinates by `major·minor` rather than dividing keeps a zero
-    ///   semi-axis from entering a quotient; the circle arm's tie and
-    ///   midpoint-anchor preconditions hold verbatim. Off the carrier it
-    ///   answers about the point's scaled polar angle, which is not its
-    ///   foot: the on-carrier precondition below is what makes it the
-    ///   point's parameter.
-    /// - **`Nurbs`**: `None`. A spline's inversion is Newton on the
-    ///   foot-point condition (`project`) — a different machine with a
-    ///   different refusal, not a branch policy.
-    ///
-    /// **Anchoring at `near` is what removes the branch cut.** `atan2`
-    /// returns its principal value in `(−π, π]`, so `near + δ` is by
-    /// construction the unique branch within half a turn of `near`:
-    /// there is no `k·2π` to select, hence no ordering decision and no
-    /// lane fork. A SEAM anchor would need that selection, which on a
-    /// bare `Real` costs either an ordering (not available) or a
-    /// `floor` whose interval answer widens across the integer. Here
-    /// the interval scalar's `atan2` encloses the same value, and a
-    /// `near` whose half-turn window straddles the cut widens the
-    /// enclosure rather than mis-selecting a branch — degradation the
-    /// consumer's own gate can see, never a silent turn.
-    ///
-    /// **Two preconditions, neither checked here**, because neither is
-    /// this arithmetic's to decide:
-    ///
-    /// - `p` must be ON the carrier. Off it, the circle arm answers
-    ///   about `p`'s radial projection and the line arm about its
-    ///   axial one. The degenerate violation `p == center` has no
-    ///   radial projection at all: `w` is the zero vector, both
-    ///   `atan2` arguments are zero, and the total `atan2(0, 0) = 0`
-    ///   makes the answer `near` itself. (The retired seam spellings
-    ///   answered the nearest multiple of `τ` to `near` instead. Both
-    ///   are arbitrary; this one is at least the anchor the caller
-    ///   already had.) The spiric arm reads `w = (ρ − R, h)` in the
-    ///   meridian half-plane, so `p == center` gives `w = (−R, 0)` and
-    ///   the answer `near + π` — equally arbitrary, and equally the
-    ///   caller's violation.
-    /// - The branch the caller wants must be the one nearest `near`.
-    ///   A caller recovering a parameter INSIDE a stored span
-    ///   `[t₀, t₁]` can get that by passing the span's MIDPOINT, and
-    ///   only while the span is at most one period: then `|t − mid|` is
-    ///   at most half a period for every `t` in the span, so the
-    ///   nearest branch to the midpoint IS the in-span one. Past a
-    ///   period the answer aliases by `2π` and nothing downstream can
-    ///   see it, so a caller with a span that long owes a period guard.
-    ///
-    /// **A THIRD PRECONDITION BELONGS TO SOME CALLERS AND NOT OTHERS,
-    /// and it is what decides the anchor**: whether the answer may
-    /// depend on the anchor the caller passed. It does, at the ulp
-    /// scale, and unavoidably — `near` enters both `atan2` arguments
-    /// through `eval(near)` and `deriv(near)`. So a caller whose anchor
-    /// is derived from a STORED SPAN gets an answer that moves when the
-    /// stored span moves, and a stored span is not a stable thing:
-    /// splitting an edge rewrites it. A caller that needs the recovered
-    /// parameter to be a function of the POINT and the CARRIER alone —
-    /// because two orderings of the same operations have to agree
-    /// bitwise — must anchor at something the CARRIER owns, and the
-    /// circle's own such anchor is its SEAM, `near = 0`.
-    /// `sweep::blend::surgery::seam_split_param` is that caller and
-    /// carries the measurement that made it one; its period guard is
-    /// what makes the principal branch the in-window one.
-    ///
-    /// # `|δ| = π` — the tie, and what it means at each posture
-    ///
-    /// At exactly half a turn the point has TWO parameters within half
-    /// a turn of the anchor, `near ± π`, and this body returns one of
-    /// them. Which one is not derivable: it is `atan2`'s cut, so the
-    /// SIGN BIT of `w·τ̂` decides it — `Real::atan2(0.0, −1.0) = π`
-    /// against `atan2(−0.0, −1.0) = −π`. Both answers are correct
-    /// parameters of `p`; no answer is "the" one.
-    ///
-    /// **Midpoint-anchored callers are unaffected.** `|δ| = π` from a
-    /// midpoint means the two ends of a full-period span, so whichever
-    /// the tie names is an ENDPOINT, and a consumer whose interiority
-    /// gate refuses a split at either end is unaffected by which.
-    ///
-    /// **ENDPOINT-anchored callers are NOT covered by that argument,
-    /// and this is the harder half.** An endpoint anchor has no span to
-    /// make the tie harmless: the two answers `t_old ± π` describe the
-    /// same point but produce stored spans differing by a full turn,
-    /// and a gate that checks only `eval(t_new) ≈ p` — which is the
-    /// natural gate, and the one
-    /// `topo::replace_face::plan_reanchors` writes — passes both,
-    /// because both ARE parameters of the point. Such a caller is
-    /// relying on never reaching `|δ| = π`: an endpoint that MOVES
-    /// along its carrier does not jump half a turn, so the pose is
-    /// sound, but it is a precondition on the caller's motion and not
-    /// a property of this arithmetic. A caller that cannot argue that
-    /// owes a `|δ| < π` refusal of its own; this body cannot make the
-    /// choice for it, because at `|δ| = π` there is nothing to choose
-    /// between.
-    ///
-    /// The size of the residue is measured rather than asserted:
-    /// `geom`'s `curves/param_near.rs` row
-    /// `at_the_half_turn_boundary_the_two_forms_disagree_by_a_turn_and_
-    /// both_are_right` puts 9 of 30 boundary cases a full `2π` from
-    /// what the retired seam-anchored longhand picks — close to a coin
-    /// flip, and decided by two unrelated last bits.
-    pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
-        match self {
-            Curve3::Line(line) => Some(line.param(p)),
-            Curve3::Circle(c) => Some(c.param_near(p, near)),
-            Curve3::Ellipse(e) => Some(e.param_near(p, near)),
-            Curve3::Spiric {
-                center,
-                axis,
-                major_radius,
-                ..
-            } => {
-                let q = p - *center;
-                let h = q.dot(*axis);
-                let rho = (q - *axis * h).norm();
-                let (w_rho, w_h) = (rho - *major_radius, h);
-                let (s, c) = near.sin_cos();
-                let along = w_rho * c + w_h * s;
-                let across = w_rho * (-s) + w_h * c;
-                Some(near + across.atan2(along))
-            }
-            Curve3::Nurbs(_) => None,
         }
     }
 }
@@ -1578,6 +1524,24 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    #[test]
+    fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {
+        let l = Line {
+            origin: Point3::new(1.0, 2.0, 3.0),
+            dir: Vec3::new(0.0, 0.0, 4.0),
+        };
+        let p = Point3::new(4.0, 6.0, 11.0);
+        let xyz = |v: Vec3<f64>| (v.x, v.y, v.z);
+        let pt = |q: Point3<f64>| (q.x, q.y, q.z);
+        assert_eq!(xyz(l.offset(p)), (3.0, 4.0, 0.0), "the offset");
+        assert_eq!(pt(l.square_foot(p)), (4.0, 6.0, 3.0), "the square foot");
+        assert_eq!(
+            pt(l.foot(p) + l.offset(p)),
+            pt(p),
+            "foot plus offset is the point"
+        );
+    }
 
     /// **A line's foot is square to it, whatever `dir`'s length**: the
     /// way from the foot to the point is perpendicular to `dir`. A
@@ -1734,7 +1698,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -1750,7 +1714,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2094,7 +2058,7 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { center, axis, u_ref }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, u_ref }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let v_ref = axis.cross(u_ref);
@@ -2112,7 +2076,7 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { center, axis, .. }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, .. }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let p = e.eval(theta);
@@ -2581,7 +2545,7 @@ mod tests {
             let Curve3::Ellipse(crate::Ellipse {
                 frame:
                     crate::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -2955,7 +2919,12 @@ mod tests {
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
                 Curve3::Circle(crate::Circle {
-                    frame: crate::Frame { center, axis, .. },
+                    frame:
+                        crate::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     radius,
                 }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),

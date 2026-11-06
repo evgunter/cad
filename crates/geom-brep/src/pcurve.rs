@@ -112,11 +112,12 @@ pub fn ellipse_pcurve_on_plane(
     t1: f64,
 ) -> Result<NurbsCurve2<f64>, PcurveError> {
     let &Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         semi_u,
         semi_v,
     }) = carrier
@@ -261,8 +262,7 @@ pub fn ellipse_pcurve_on_cylinder(
             })?
             .uv;
         if i > 0 {
-            let tau = core::f64::consts::TAU;
-            u += ((prev_u - u) / tau).round() * tau;
+            u = geom_core::period::Period::new(core::f64::consts::TAU).near(u, prev_u);
         }
         prev_u = u;
         points.push(Point2::new(u, v));

@@ -209,6 +209,8 @@ pub fn tangent_certificate_lane<T: Real>(
             Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Sphere { .. }
         )
     };
+    // A spindle sheet is left out: no door mints a tangent edge on one,
+    // its pair sections being `intersect::route`'s no-lane row.
     let round =
         |s: &Surface<T>| straight(s) || matches!(s, Surface::Torus { .. } | Surface::Cone { .. });
     match carrier {
@@ -232,11 +234,12 @@ pub fn tangent_span_bounds<T: Real>(
     }
     let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
     if let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = *carrier
     {

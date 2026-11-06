@@ -318,8 +318,8 @@ fn fixed_partners<T: Decide>(
         if halves.len() <= 2 {
             continue;
         }
-        let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-        let wall = body.face_surface_linked(face, face_data);
+        let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let wall = view.surface();
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
@@ -334,13 +334,7 @@ fn fixed_partners<T: Decide>(
                 // section leaves along the half's germ.
                 leave: match germ {
                     Some(germ) => germ,
-                    None => leave_on(
-                        body,
-                        red.plane.normal,
-                        above_set,
-                        h,
-                        (wall, face_data.sense),
-                    )?,
+                    None => leave_on(body, red.plane.normal, above_set, h, (wall, view.sense()))?,
                 },
                 germ,
             });
@@ -409,9 +403,9 @@ fn split_leave<T: Decide>(
     half: HalfEdgeKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let face = he_face(body, half)?;
-    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall = body.face_surface_linked(face, face_data);
-    leave_on(body, plane_normal, above_set, half, (wall, face_data.sense))
+    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let wall = view.surface();
+    leave_on(body, plane_normal, above_set, half, (wall, view.sense()))
 }
 
 /// [`split_leave`] past its face's lookup: `wall` and `sense` are the
@@ -1143,7 +1137,7 @@ impl<T: Decide> Sweep<T> {
                     });
                 }
             };
-            let (c_e, axis_e) = (conic.frame().center, conic.frame().axis);
+            let (c_e, axis_e) = (conic.frame().origin, conic.frame().axis);
             let ((sa, sb), reach) = (conic.semi_axes(), conic.speed_hi());
             let (t0, t1) = curve.params();
             let span = t1 - t0;

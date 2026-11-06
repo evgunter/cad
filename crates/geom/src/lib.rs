@@ -149,6 +149,7 @@ mod convention;
 pub mod cover;
 pub mod curves;
 mod datum;
+mod frame;
 mod memo;
 mod net;
 mod param;
@@ -163,34 +164,38 @@ pub mod surfaces;
 #[doc(hidden)]
 pub mod test_support;
 
-pub use azimuth::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Window};
-pub use chart_point::{ChartArm, ChartInverse, ChartPoint, NoClosedInverse};
-pub use convention::{
-    ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame, square_frame,
+pub use azimuth::{
+    ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Quarter, Window, separation,
 };
+pub use chart_point::{
+    ChannelRead, ChartAngle, ChartArm, ChartChannels, ChartInverse, ChartPoint, NoClosedInverse,
+};
+pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
     CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
-    FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Frame, Line, MajorFrame, NurbsCurve2,
-    NurbsCurve3, OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
+    FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, MajorFrame, NurbsCurve2, NurbsCurve3,
+    OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
     ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
-    ellipse_level_clearance, on_span_branch, spiric_curvature_sup, spiric_f_range,
-    spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_window_rate_bounds,
+    ellipse_level_clearance, spiric_curvature_sup, spiric_f_range, spiric_period_rate_bounds,
+    spiric_radial, spiric_rate_bounds, spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
+pub use frame::Frame;
 pub use param::mid_param;
 pub use periodic::periodic_window_may_hold;
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
-// public names both halves' callers have always used.
+// public names both halves' callers have always used, and its bracket
+// midpoint is the one a selection outside this crate reads.
 pub use projection_policy::{
-    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
+    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, bracket_mid,
 };
 pub use surfaces::{
     AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate,
     PLACEHOLDER_SURFACE, SheetApex, SpindleEnd, SpindleMiss, Surface, SurfaceData, SurfaceDatum,
     SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind, SurfacePairing, SurfaceProjection,
-    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, is_ring_torus, require_ring_torus,
-    ring_torus, sheet_apex, spindle_sheet, torus_tube,
+    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, is_ring_torus, meridian_side,
+    require_ring_torus, ring_torus, sheet_apex, spindle_sheet, torus_tube,
 };

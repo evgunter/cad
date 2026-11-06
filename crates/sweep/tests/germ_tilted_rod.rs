@@ -77,18 +77,25 @@ type Run = (
     bool,
     &'static str,
     Result<BooleanResult<f64>, BooleanError>,
+    Option<SurfaceKind>,
 );
 
 /// Every op, in both operand orders of ∖ and ∩; the flag says whether
-/// the rod is operand A.
+/// the rod is operand A. Each run carries the surface kind of the face
+/// its result gate refused a volume on, read right after it
+/// (`topo::boolean::refused_face_kind`).
 fn every_op(h: &AtRestBody<f64>, c: &AtRestBody<f64>) -> [Run; 5] {
     let t = Tol::witness();
+    let run = |op, rod_first, what, r: Result<BooleanResult<f64>, BooleanError>| {
+        let kind = r.as_ref().err().and_then(topo::boolean::refused_face_kind);
+        (op, rod_first, what, r, kind)
+    };
     [
-        (Op::Union, false, "h ∪ c", topo::union(h, c, t)),
-        (Op::Intersect, false, "h ∩ c", topo::intersect(h, c, t)),
-        (Op::Intersect, true, "c ∩ h", topo::intersect(c, h, t)),
-        (Op::Subtract, false, "h ∖ c", topo::subtract(h, c, t)),
-        (Op::Subtract, true, "c ∖ h", topo::subtract(c, h, t)),
+        run(Op::Union, false, "h ∪ c", topo::union(h, c, t)),
+        run(Op::Intersect, false, "h ∩ c", topo::intersect(h, c, t)),
+        run(Op::Intersect, true, "c ∩ h", topo::intersect(c, h, t)),
+        run(Op::Subtract, false, "h ∖ c", topo::subtract(h, c, t)),
+        run(Op::Subtract, true, "c ∖ h", topo::subtract(c, h, t)),
     ]
 }
 
@@ -122,7 +129,7 @@ fn torus_wall(h: &AtRestBody<f64>, c: &AtRestBody<f64>) -> Vec<String> {
 #[test]
 fn the_rod_that_pokes_the_lens_refuses_every_op_on_its_certified_loop() {
     let (h, c) = (half_donut(), rod(0.5, FRAC_PI_2));
-    for (op, rod_first, what, r) in every_op(&h, &c) {
+    for (op, rod_first, what, r, _) in every_op(&h, &c) {
         let (kind, other) = if rod_first {
             (SurfaceKind::Cylinder, SurfaceKind::Torus)
         } else {
@@ -178,7 +185,7 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
         let pose = format!("β {beta}, spin {spin:.4}");
         let axis = |t: f64| Point3::new(1.8, 0.0, 0.0) + dir(beta) * t;
         let probes = [axis(-0.15), axis(0.7), Point3::new(-2.0, 0.0, -0.1)];
-        for (op, rod_first, what, r) in every_op(&h, &c) {
+        for (op, rod_first, what, r, _) in every_op(&h, &c) {
             let (want, inside) = match (op, rod_first) {
                 (Op::Union, _) => (vh + vc - vo, [true, true, true]),
                 (Op::Intersect, _) => (vo, [false, true, false]),
@@ -221,10 +228,17 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
     }
 }
 
-/// Where one of the other spins' runs stops, by refusal variant.
-fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
+/// Where one of the other spins' runs stops, by refusal variant: a
+/// volume refusal by its cause and the refused face's surface `kind`,
+/// which every word names as the torus's but where another chart's face
+/// refused.
+fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>, kind: Option<SurfaceKind>) -> String {
     use geom_brep::PropsError;
     use topo::{MassPropsError, ValidationError};
+    let on = |word: &str| match kind {
+        Some(SurfaceKind::Torus) => word.to_owned(),
+        other => format!("{word} on a {other:?} face"),
+    };
     match r {
         Err(BooleanError::GermFrameUnsupported { .. }) => "frame".to_owned(),
         Err(BooleanError::EdgeInFace {
@@ -245,7 +259,7 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
                     source: MassPropsError::RingOnCurvedFace { .. },
                     ..
                 },
-            ] => "ring volume".to_owned(),
+            ] => on("ring volume"),
             [
                 ValidationError::VolumeUncomputable {
                     source:
@@ -256,14 +270,10 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
                     ..
                 },
             ] => {
-                if what
-                    .starts_with("curved-cut face half-edge carries a pcurve with no harmonic form")
-                {
-                    "projected volume".to_owned()
-                } else if what.starts_with("conic trim on a cone/sphere/torus chart") {
-                    "conic trim volume".to_owned()
+                if what.starts_with("a trimmed face with no volume lane on its chart") {
+                    on("torus trim volume")
                 } else if what.starts_with("a torus wall edge beside a spiric") {
-                    "spiric wall volume".to_owned()
+                    on("spiric wall volume")
                 } else {
                     format!("quadrature volume: {what}")
                 }
@@ -277,79 +287,92 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
 /// [`other_spins_and_steeper_tilts_refuse_at_their_germs`]' stops by pose
 /// and op ([`every_op`]'s order),
 /// measured alike at the compiled ε, 1e-6 and 1e-12: each at the result
-/// gate's volume, by the refusal's cause, but the steeper tilt's union,
-/// at the slit pass's rider reading.
+/// gate's volume on a torus face (the refused face's own surface read,
+/// `topo::boolean::refused_face_kind`; a face of another chart reads
+/// "… on a … face"), by the refusal's cause. The rod's chorded wall
+/// measures through the rotational lane, so no run stops on it. The
+/// steeper tilt's union is pinned by identity as well, at every ε row, in
+/// [`the_steeper_tilts_union_stops_by_identity`].
 // Pinned red at every ε row, each word on its owner's row:
-// "projected volume" (a cylinder wall the chords bound) on
-// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md;
-// "conic trim volume" and "ring volume" (a torus wall the chords trim,
+// "torus trim volume" and "ring volume" (a torus wall the chords trim,
 // or one left holding a ring) on
 // work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md;
 // "spiric wall volume" (a torus wall holding a spiric beside a chord) on
 // work/spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane.md.
-// "unread rider" (the steeper tilt's union, an unread carrier refused at
-// the slit pass's rider reading) on
-// work/splice/an-unread-rider-related-only-by-its-own-vertices-refuses.md.
 // As each lands, its words move on to the run's next stop or to a body
 // held to its volume, and the table is re-pinned there.
 const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
     [
         "ring volume",
-        "projected volume",
-        "conic trim volume",
+        "torus trim volume",
+        "torus trim volume",
         "ring volume",
-        "projected volume",
+        "torus trim volume",
     ],
     [
         "ring volume",
-        "projected volume",
-        "conic trim volume",
+        "torus trim volume",
+        "torus trim volume",
         "ring volume",
-        "projected volume",
-    ],
-    [
-        "ring volume",
-        "projected volume",
-        "conic trim volume",
-        "ring volume",
-        "projected volume",
+        "torus trim volume",
     ],
     [
         "ring volume",
-        "projected volume",
-        "projected volume",
+        "torus trim volume",
+        "torus trim volume",
         "ring volume",
-        "projected volume",
+        "torus trim volume",
+    ],
+    [
+        "ring volume",
+        "torus trim volume",
+        "torus trim volume",
+        "ring volume",
+        "torus trim volume",
     ],
     [
         "spiric wall volume",
-        "projected volume",
-        "projected volume",
         "spiric wall volume",
-        "projected volume",
+        "spiric wall volume",
+        "spiric wall volume",
+        "spiric wall volume",
     ],
     [
         "spiric wall volume",
-        "projected volume",
-        "projected volume",
         "spiric wall volume",
-        "projected volume",
+        "spiric wall volume",
+        "spiric wall volume",
+        "spiric wall volume",
     ],
     [
-        "unread rider",
-        "projected volume",
-        "projected volume",
         "spiric wall volume",
-        "projected volume",
+        "spiric wall volume",
+        "spiric wall volume",
+        "spiric wall volume",
+        "spiric wall volume",
     ],
     [
-        "unread rider",
-        "projected volume",
         "spiric wall volume",
         "spiric wall volume",
-        "projected volume",
+        "spiric wall volume",
+        "spiric wall volume",
+        "spiric wall volume",
     ],
 ];
+
+/// The steeper tilt, whose union `h ∪ c` [`STEEP_UNION_STOP`] pins.
+const STEEP_TILT: f64 = 0.7;
+
+/// **The steeper tilt's union stops by identity** at both spins: its cap
+/// chord, a spiric in the rod's cap plane, reads off the rod's wall by
+/// degree (`topo::boolean::slit`'s spiric × quadric arm), so the slit
+/// pass reads no rider there, and the union goes on to the result
+/// gate's volume on the half donut's torus wall, face `3v1` of the
+/// result.
+const STEEP_UNION_STOP: &str = "Some(ResultInvalid { errors: [VolumeUncomputable { \
+     solid: SolidKey(1v1), source: Face { face: FaceKey(3v1), source: \
+     QuadratureUnsupported { what: \"a torus wall edge beside a spiric whose lifted image is \
+     neither a spiric wall image nor a harmonic rim or meridian\" } } }] })";
 
 /// **The other spins, and the steeper tilts, refuse typed** before any
 /// body is built, on every op, each at its pinned door
@@ -357,9 +380,9 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
 /// carried section, which each op marches once, and the run passes the
 /// join, which leaves the wall's closed spline chord's vertex standing
 /// (the chord creases there, at its clamped ends), to the
-/// result gate's volume (a face the fitted chords bound, a conic trim, a
-/// spiric beside a chord, or a ring left on a curved face; each word's
-/// owner is beside [`OTHER_SPINS_STOPS`]).
+/// result gate's volume on the torus wall (a trim, a spiric beside a
+/// chord, or a ring left on it; each word's owner is beside
+/// [`OTHER_SPINS_STOPS`]).
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let h = half_donut();
@@ -370,8 +393,8 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         (0.5, 2.5),
         (0.6, 0.0),
         (0.6, FRAC_PI_2),
-        (0.7, 0.0),
-        (0.7, FRAC_PI_2),
+        (STEEP_TILT, 0.0),
+        (STEEP_TILT, FRAC_PI_2),
     ];
     let eps = Tol::witness().eps();
     let want = OTHER_SPINS_STOPS;
@@ -380,8 +403,8 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         let c = rod(beta, spin);
         let before = geom_brep::implicit_pair_marches();
         let mut row = Vec::new();
-        for (_, _, _, r) in every_op(&h, &c) {
-            row.push(stop_word(&r));
+        for (_, _, _, r, kind) in every_op(&h, &c) {
+            row.push(stop_word(&r, kind));
         }
         let marches = geom_brep::implicit_pair_marches() - before;
         if marches != 5 {
@@ -397,6 +420,28 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
         .map(|((g, _), (beta, spin))| format!("β {beta}, spin {spin}: {g:?}"))
         .collect();
     assert!(off.is_empty(), "at ε {eps:e}:\n{}", off.join("\n"));
+}
+
+/// **The steeper tilt's union stops at its pin by identity**
+/// ([`STEEP_UNION_STOP`]) at both spins and at every ε row. Only that
+/// op is run at the two poses, so the identity is measured where the
+/// whole table is too costly ([`OTHER_SPINS_STOPS`] names it by word).
+#[test]
+fn the_steeper_tilts_union_stops_by_identity() {
+    let h = half_donut();
+    let eps = Tol::witness().eps();
+    for spin in [0.0, FRAC_PI_2] {
+        let stop = format!(
+            "{:?}",
+            topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness())
+                .as_ref()
+                .err()
+        );
+        assert_eq!(
+            stop, STEEP_UNION_STOP,
+            "h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}"
+        );
+    }
 }
 
 /// **The lens is real.** At the rod axis's closest approach to the

@@ -1559,7 +1559,7 @@ impl EulerOpError {
             ),
             Self::SplitParamEscalated { diag, .. } => geom_brep::recourse::undecided_at(
                 diag,
-                crate::split::CROSSING_INTERIOR,
+                geom_brep::edge_crossing::CROSSING_INTERIOR,
                 at.map(|at| {
                     crate::split::split_param_ending(
                         geom_brep::recourse::RefusedArm::Undecided(diag),
@@ -2383,33 +2383,25 @@ impl<T: Decide> Body<T> {
     /// malformed body, loops whose keys or cycles do not resolve are
     /// skipped too (total, never panics), so `None` means "not found or
     /// not reachable".
+    ///
+    /// It reads the explicitly unchecked walk
+    /// ([`Body::unchecked_face_cycles`]) on purpose: no Euler operator
+    /// calls it, only tests and hand construction, whose bodies no door
+    /// has certified yet, so an unwalkable loop is an honest "not here"
+    /// rather than a kernel bug.
     pub fn find_half_edge(
         &self,
         face: FaceKey,
         from: VertexKey,
         to: VertexKey,
     ) -> Option<HalfEdgeKey> {
-        let face_data = self.get_face(face)?;
-        for loop_key in face_data.loop_keys() {
-            let Some(loop_data) = self.get_loop(loop_key) else {
-                continue;
-            };
-            let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            let Some(cycle) = self.loop_cycle(first) else {
-                continue;
-            };
-            for he in cycle {
-                let Some(he_data) = self.get_half_edge(he) else {
-                    continue;
-                };
-                if he_data.start == from && self.half_edge_end(he) == Some(to) {
-                    return Some(he);
-                }
-            }
-        }
-        None
+        self.unchecked_face_cycles(self.get_face(face)?)
+            .filter_map(Result::ok)
+            .flatten()
+            .find(|&he| {
+                self.get_half_edge(he).is_some_and(|h| h.start == from)
+                    && self.half_edge_end(he) == Some(to)
+            })
     }
 
     // ------------------------------------------------------------------
@@ -4194,8 +4186,8 @@ impl<T: Decide> Body<T> {
                 continue;
             }
             seen.push(face);
-            let face_data = proven(&self.faces, face, EntityId::Face);
-            let surface = self.face_surface_linked(face, face_data);
+            let view = self.proven_face(face);
+            let surface = view.surface();
             if let Some(from) = crate::pcurves::site_rows_from(self, face, surface) {
                 minted.push((face, from));
             }
@@ -4252,9 +4244,10 @@ impl<T: Decide> Body<T> {
         rewired: &[(LoopKey, Vec<SiteHalf>)],
         killed: Option<LoopKey>,
     ) -> SiteFace<T> {
-        let face_data = proven(&self.faces, face, EntityId::Face);
-        let surface = self.face_surface_linked(face, face_data).clone();
-        let loops = face_data
+        let view = self.proven_face(face);
+        let surface = view.surface().clone();
+        let loops = view
+            .record()
             .loop_keys()
             .filter(|&lk| Some(lk) != killed)
             .map(|lk| match rewired.iter().find(|(k, _)| *k == lk) {
@@ -4302,9 +4295,9 @@ impl<T: Decide> Body<T> {
         moved: bool,
         halves: Vec<SiteHalf>,
     ) -> Result<SiteFace<T>, EulerOpError> {
-        let from_data = proven(&self.faces, from, EntityId::Face);
+        let from_data = self.proven_face(from);
         let chart = match surface {
-            FaceSurface::Inherit => self.face_surface_linked(from, from_data).clone(),
+            FaceSurface::Inherit => from_data.surface().clone(),
             FaceSurface::Shared { key, .. } => self
                 .get_surface(*key)
                 .cloned()
@@ -5768,7 +5761,12 @@ mod tests {
         let plane_face = [created.he_plus, created.he_minus]
             .into_iter()
             .map(|he| body.face_of_half_edge(he).unwrap())
-            .find(|&f| matches!(body.face_surface(f), Some(geom::Surface::Plane { .. })))
+            .find(|&f| {
+                matches!(
+                    body.passed_face(f).map(|f| f.surface()),
+                    Some(geom::Surface::Plane { .. })
+                )
+            })
             .unwrap();
         // Both checks run before the pcurve pass (check 8). The pillow
         // reads its rowless spline face as unminted, an image derivable
@@ -5794,10 +5792,10 @@ mod tests {
                 crate::ValidationError::Pcurve {
                     finding: crate::PcurveMintError::Certify {
                         half_edge: spline_half,
-                        error: geom_brep::PcurveCertifyError::IsoUnsupported {
-                            what: "no boundary row of this chart, in either u direction, \
-                                   holds the circle at the probe — not an arc rim of this \
-                                   chart",
+                        error: geom_brep::PcurveCertifyError::NoGeneralLane {
+                            chart: geom::SurfaceKind::Nurbs,
+                            carrier: geom::CurveKind::Circle,
+                            gap: geom_brep::LaneGap::Unwritten,
                         },
                     },
                 },

@@ -76,25 +76,34 @@
 //! - **Two conics.** Each conic's height above the other's plane is a
 //!   first harmonic `c₀ + A·cos(θ − φ)` in its own angle, `A` its swing.
 //!   **The parallel argument runs first, whatever the swing reads**, as
-//!   the router's does: where `|c₀| − A`, less the rounding, decides
-//!   positive for either conic (`curve_pair_pose_parallel`), that conic
+//!   the router's does: where the height read with its swing and its
+//!   rounding as its spread, `c₀ ∓ (A + noise)`, decides one-signed for
+//!   either conic (`curve_pair_pose_parallel`), that conic
 //!   lies wholly on one side of the other's plane, past the band, and the
-//!   pair is [`Pose::Apart`]. Only then does the swing route
-//!   (`curve_pair_pose_swing`), the first conic's first. One read zero
-//!   lies in a plane parallel to the other's, its height constant to
-//!   within that swing: read zero (`curve_pair_pose_offset`), the conics
-//!   lie in one plane to within the slant `|c₀|` plus the swing, below;
-//!   in the gap, the pose escalates. Both definite: the height of one
-//!   conic above the other's plane, a first harmonic whose roots are
-//!   where it crosses that plane, places the candidates, each the closest
-//!   pair polished from one (below). **The conic read is the one that
-//!   crosses the other's plane the less obliquely**: the larger
+//!   pair is [`Pose::Apart`]. Only then are the two swings read
+//!   (`curve_pair_pose_swing`), both before either is acted on. One
+//!   read zero lies in a plane parallel to the other's, its height
+//!   constant to within that swing: the screen's one reading of that
+//!   height, acted on again, decides it. Zero all round, the conics lie
+//!   in one plane to within the slant `|c₀|` plus the swing (the larger
+//!   slant where both read zero), below; in the gap, its escalation is
+//!   the pair's. Only where neither
+//!   swing reads zero does one in the gap escalate. Both definite: the
+//!   height of one conic above the other's plane, a first harmonic whose
+//!   roots are where it crosses that plane, places the candidates, each
+//!   the closest pair polished from one (below). **The conic read is the
+//!   one that crosses the other's plane the less obliquely**: the larger
 //!   `(A² − c₀²)/r²`, `r` its larger semi-axis, which is the squared
-//!   sine of its crossing for a circle (`curve_pair_pose_across`, read
-//!   at [`Band::least`], a tie reading the first). The choice is
-//!   arithmetic on the two harmonics, made before any decision of the
-//!   meeting, so the pair read in either order reads one harmonic. In
-//!   one plane, **one reading decides
+//!   sine of its crossing for a circle. That is a choice between two
+//!   sound readings, not a reading: it is taken off the log
+//!   (`curve_pair_pose_across`, `k_stats::check_unlogged`, ledger row
+//!   F33, at [`Band::least`]), and a tie or an undecided difference
+//!   reads the first. **What is order-free**: the route (apart, level,
+//!   across, escalation) depends only on the pair, and across planes
+//!   the harmonic read is the same in either order wherever the choice
+//!   decides. In one plane the arms below parametrize the first conic
+//!   of their kinds' order (`closed`), so a coplanar pair of like kinds
+//!   is read from the first span. In one plane, **one reading decides
 //!   whether two conics are one curve**, whatever their kinds
 //!   (`curve_pair_pose_one_curve`, `one_curve_gap`): each conic is
 //!   `c + L·x` over the unit circle, `L = [a·û, b·v̂]`, and the centres'
@@ -181,26 +190,125 @@
 //! when they pass within the band without touching: the meeting lies
 //! `h/σ` along the curve, `h` their distance and `σ` the sine of the
 //! curve's angle to the plane. So a crossing (or a touch) of the other's
-//! plane only starts the candidate: it is polished by Gauss–Newton to the
-//! two carriers' closest pair, and that pair is read. Every point of the
-//! curve within the band's escalation `e` of the other carrier is within
-//! `e` of the other's plane, so it lies on the arc about a crossing or a
-//! touch where the height is within `e`: `ℓ`, read off the harmonic (or
-//! `e/σ` on a line). The pair the polish is after lies within
-//! `2(ℓ + e)` of where it starts, on either carrier. Three meters guard it,
-//! each refusing [`Unsettled::Meter`] unless definite:
+//! plane only starts the candidate: it is polished by Gauss–Newton
+//! ([`super::polish`], an `f64` structure search) toward the two
+//! carriers' closest pair, and that pair is read with what it states of
+//! its window. Every point of the curve within the band's escalation `e`
+//! of the other carrier is within `e` of the other's plane, so it lies on
+//! the arc about a crossing or a touch where the height is within `e`:
+//! `ℓ`, read off the harmonic (or `e/σ` on a line). The *window* is the
+//! pairs of the two carriers within `region = 2(ℓ + e)` of where the
+//! polish starts, on either carrier: every pair within `e` of each other
+//! is in it. Nothing reads whether the polish converged: the pair is a
+//! place, and what it says of the window is a bound.
 //!
-//! - **its basin** (`curve_pair_pose_basin`): over that reach each
-//!   tangent turns by at most its carrier's curvature times the reach, so
-//!   `sin φ − 2(κ₁ + κ₂)·2(ℓ + e)`, `φ` the angle between the tangents
-//!   where the polish starts, levered as the tilt is, must read positive:
-//!   the tangents then keep at least half the angle between them,
-//!   the closest pair is the one stationary pair there, and the polish
-//!   contracts toward it;
-//! - **its travel** (`curve_pair_pose_travel`): the polished pair lies
-//!   within twice the region of where it started, as the basin says;
-//! - **its convergence** (`curve_pair_pose_polish`): the polish's last
-//!   step moves the pair within the band's zero.
+//! # The gap's lower bound
+//!
+//! At the polished pair, `p` on the first carrier and `q` on the second,
+//! with unit tangents `u` and `v`, write `w = q − p`, `n̂ = u×v/|u×v|`, and
+//! the *slack* `σ_w = |w − n̂(n̂·w)|`, the part of the gap a move along the
+//! carriers could still take up. Two premises, stated where they are
+//! read:
+//!
+//! - **(P1) the span.** Every pair of the window lies within `span`
+//!   metres of `(p, q)`, along each carrier: `span = region + travel`,
+//!   `travel` the polish's parameter run at the carrier's greatest speed
+//!   (the larger of the two).
+//! - **(P2) the curvature.** `K = κ₁ + κ₂` bounds the carriers'
+//!   curvatures over every arc within `span` of the start
+//!   (`Side::curvature_near`).
+//!
+//! By arc length from the pair, a point of each carrier is `A = p + uα +
+//! r_A` and `B = q + vβ + r_B`, with `|r_A| ≤ κ₁α²/2` and `|r_B| ≤ κ₂β²/2`
+//! (a curve's departure from its tangent line). With `m = max(|α|, |β|)`,
+//! `A − B = −w + uα − vβ + r` and `|r| ≤ K·m²/2`:
+//!
+//! - **across**, `u` and `v` are square to `n̂`, so
+//!   `|A − B| ≥ |(A − B)·n̂| ≥ |w·n̂| − K·m²/2`;
+//! - **along**, the least of `|uα − vβ|` over `β` is `|α|·sin φ`, and over
+//!   `α` it is `|β|·sin φ`, so `|uα − vβ| ≥ sin φ·m` and
+//!   `|A − B| ≥ s·m − σ_w − K·m²/2` for any `s ≤ sin φ`.
+//!
+//! **The move.** A pair within `e` therefore has `f(m) < 0`, where
+//! `f(m) = s·m − K·m²/2 − (σ_w + e)`. Where `D = s² − 2K(σ_w + e)` is
+//! positive (`curve_pair_pose_move`, a proof's inequality), `f` is
+//! positive between its roots `m∓ = (s ∓ √D)/K`, so `m < m₋` or
+//! `m > m₊`. **The basin** (`curve_pair_pose_basin`) is the premise that
+//! puts the window below `m₊`: `s − K·span > 0`, since then
+//! `span < s/K ≤ m₊`, and by (P1) `m ≤ span`. Every pair of the window
+//! within `e` lies within `m₋ = 2(σ_w + e)/(s + √D)` of `(p, q)` along
+//! both carriers (written so a pair of lines, `K = 0`, reads
+//! `(σ_w + e)/s`). `s` is the sine's lower bound over the window,
+//! `sin φ − K·span`, so the basin reads `sin φ − 2K·span > 0`, the
+//! tangents keeping at least half their angle; the travel the polish
+//! made is folded into `span` rather than metered on its own.
+//!
+//! **The floor and the reach.** Such a pair is at least
+//! `floor = |w·n̂| − K·m₋²/2` apart, the gap across less the *bend* over
+//! the move. So:
+//!
+//! - **a floor past the band** (`curve_pair_pose_closest`) contradicts any
+//!   pair within `e`: the window holds no meeting;
+//! - **the reach** `m₋` places every such pair: on the first carrier
+//!   within `m₋` of `p`, on the second within `m₋` of `q`. Where `p` reads
+//!   past a span and its chord to each of the span's ends exceeds `m₋`
+//!   past the band (`curve_pair_span_past_reach`), the arc of `m₋` either
+//!   side of `p` reaches neither end (a chord is at most its arc), so no
+//!   pair of the window lies on that span ([`Span::past_by`]); `q` on the
+//!   second span alike.
+//!
+//! **The run.** The *run* is the pairs of the window within `e` of each
+//! other. Where the polished pair is itself one of them (its gap `|w|`
+//! in the zero band, `curve_pair_meet_run_pair`), an end of a span the
+//! run would cross can be read off the other carrier:
+//!
+//! - Every pair of the run lies within `m₋` of `(p, q)` along both
+//!   carriers (the move, above).
+//! - Take a pair of the run at arc parameters `(α, β)` from `(p, q)`, and
+//!   the pairs `(tα, tβ)`, `t ∈ [0, 1]`, between it and the polished
+//!   pair. Their difference is `L(t) + r(t)`, with
+//!   `L(t) = −w + t(uα − vβ)` affine in `t` and `|r(t)| ≤ K·m₋²/2`, the
+//!   *bend*, since `t·m ≤ m₋`.
+//! - A norm is convex, so `|L(t)| ≤ max(|L(0)|, |L(1)|)`. Here
+//!   `|L(0)| = |w| ≤ e` and `|L(1)| < e + bend`, since the pair at
+//!   `t = 1` is within `e` and its remainder is at most the bend.
+//! - So every point of the first carrier between `p` and the run's pair,
+//!   an end of the span among them, lies within `e + 2·bend` of the
+//!   second carrier.
+//!
+//! So where `p` is past a span and each of the span's ends is either out
+//! of the reach (its chord to `p` past `m₋`, `curve_pair_span_past_reach`)
+//! or has a closed-form clearance from the other carrier
+//! ([`geom::Curve3::clearance`]) past `e + 2·bend`
+//! (`curve_pair_span_run_end`), no pair of the run lies on the span, and
+//! the Off prunes ([`Span::past_by`]). `q` on the second span alike. This
+//! is main's argument, that the closest pair's run is read through the
+//! spans' ends: its premise, that the polish converged, is replaced by a
+//! decided one, the polished pair's own gap. It needs no premise past the
+//! basin's: no monotonicity of the gap along a carrier, only the move's
+//! bound and the bend. A spline end has no closed-form clearance, so its
+//! run arm does not read.
+//!
+//! Where `D` is not proved positive the bound is undecided: no floor, and
+//! no reach short of the carriers. **The composition is the reader's**
+//! (`Found::read`), on the candidate's [`WindowBound`]: a floor past the
+//! band is no meeting; otherwise the point is read on both spans, and On
+//! there is a meeting, with no premise on the polish. An Off prunes only
+//! where the reach or the run arm clears a span; otherwise it is a
+//! straddle of
+//! the floor against the gap at the pair (`curve_pair_meet_window`), or
+//! the reach's own (`curve_pair_span_past_reach_straddle`), and
+//! escalates. A location along the carriers enters only to prune, and is
+//! read in metres against the band; where it is ill-conditioned (a small
+//! `s`, a wide enclosure) the reach is long and the Off escalates, which
+//! is the safe direction. A candidate whose point speaks for its whole
+//! window, an end, a witness or an exact root, states no window, and its
+//! read is its point's alone, as before windows were stated.
+//!
+//! The basin and the move are proofs' inequalities, read exactly
+//! ([`geom_core::k_stats::prove`]); a basin not proved refuses
+//! [`Unsettled::Meter`] on its row. The floor, the reach and the gap are
+//! metres of gap, read against the band. All are logged.
 //!
 //! # The spans' ends, and deflation
 //!
@@ -211,7 +319,9 @@
 //! meet in the band at an end of one of them, which no isolated
 //! candidate reads. So each span's ends are read against the other
 //! first ([`end_candidates`]): a span end within the band of the other
-//! span is a meeting, and one in the band's gap escalates.
+//! span is a meeting, and one in the band's gap escalates. An endless
+//! span ([`Span::endless`]) has no end: no point lies past it, and its
+//! seam is a point of its interior like any other.
 //!
 //! **A meeting so found is a root the pose already holds where the
 //! arm's equation is the meeting's own**, and there the arm divides it
@@ -239,11 +349,11 @@
 //! A conic's plane root whose window holds a found meeting is read
 //! instead (`window`): where the window certainly holds no meeting but
 //! the found ones, the root is not polished. Every other plane root is
-//! polished and metered as it would be with no meeting found; a candidate
-//! it gives nearer a found meeting than the escalation is that meeting
-//! again (C5's ring rule), and a meter that cannot place one refuses. The coplanar subdivisions divide nothing
-//! out: their roots nearer a found meeting than the escalation are not
-//! read again.
+//! polished and bounded as it would be with no meeting found; a
+//! candidate it gives nearer a found meeting than the escalation is that
+//! meeting again (C5's ring rule), and a basin that is not proved
+//! refuses. The coplanar subdivisions divide nothing out: their roots
+//! nearer a found meeting than the escalation are not read again.
 //!
 //! # The band
 //!
@@ -255,13 +365,13 @@
 //! margin (`curve_pair_pose_parallel`), its gap (`curve_pair_pose_gap`)
 //! and its tilt over the overlap (`curve_pair_pose_tilt`), the polish's
 //! clearance (`curve_pair_pose_clear`), and the like in the window's
-//! readings and the branch compares. A meter's escalation refuses
+//! readings and the branch compares. A basin that is not proved refuses
 //! [`Unsettled::Meter`]. No escalation prunes a candidate.
 
 mod window;
 
 use geom::{Azimuth, Curve3, CurveKind};
-use geom_core::k_stats::{decide, straddle};
+use geom_core::k_stats::{check_unlogged, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
@@ -283,16 +393,45 @@ pub enum Sense {
     Opposite,
 }
 
-/// A candidate meeting: a point, and its parameter on each carrier (the
-/// carrier's own on the one it was placed on, its foot on the other).
+/// A candidate meeting: a point, and a seed on each carrier for reading
+/// it there. On the carrier it was placed on the seed is the point's own
+/// parameter; on the other it is its foot's [`geom::Foot::seed`], which
+/// certifies nothing. A reader that needs the point's parameter on a
+/// carrier reads that carrier's certificate at it.
+///
+/// `bound` is what the generator states of its window (module docs,
+/// "The gap's lower bound"): `None` where an Off at the point speaks for
+/// the whole window (an end, a witness, an exact root), which reads as
+/// the point alone; otherwise the window's floor and reach. The reader
+/// does the one composition (`Found::read`).
 #[derive(Clone, Copy, Debug)]
 pub struct Candidate<T: geom_core::Real> {
     /// The point.
     pub point: Point3<T>,
-    /// Its parameter on the first carrier.
+    /// Its seed on the first carrier.
     pub ta: T,
-    /// Its parameter on the second carrier.
+    /// Its seed on the second carrier.
     pub tb: T,
+    /// The window it stands for, `None` for a point that is its own.
+    pub bound: Option<WindowBound<T>>,
+}
+
+/// **What a polished pair states of its window** (module docs, "The
+/// gap's lower bound"), for the reader to compose with its point's
+/// reading (`Found::read`).
+#[derive(Clone, Copy, Debug)]
+pub struct WindowBound<T> {
+    /// A lower bound in metres on the gap between any two points of the
+    /// carriers in the window, `|w·n̂| − bend`; `−∞` where undecided.
+    pub floor: T,
+    /// The most metres along either carrier, from the candidate's own
+    /// parameters, at which two points of the window lie within the
+    /// band's escalation of each other, `m₋`; `+∞` where undecided.
+    pub reach: T,
+    /// The most metres either carrier departs from its tangent line at
+    /// the candidate over `reach`, together, `K·m₋²/2`; `+∞` where
+    /// undecided.
+    pub bend: T,
 }
 
 /// The pose of two spans' carriers (module docs).
@@ -349,9 +488,7 @@ mod row {
     pub(super) const EXTREME: &str = "curve_pair_pose_extreme";
     pub(super) const ROOT_GAP: &str = "curve_pair_pose_root_gap";
     pub(super) const CLEAR: &str = "curve_pair_pose_clear";
-    pub(super) const TRAVEL: &str = "curve_pair_pose_travel";
     pub(super) const BASIN: &str = "curve_pair_pose_basin";
-    pub(super) const POLISH: &str = "curve_pair_pose_polish";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
@@ -400,9 +537,10 @@ pub(super) fn closed<T: Decide>(
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
-    // Where one side is a circle and the other an ellipse, the ellipse is
-    // parametrized, so the reading against the circle is at its exact
-    // foot.
+    // Where one side is a circle and the other an ellipse, the ellipse
+    // comes first, so in one plane the reading against the circle is at
+    // its exact foot. Across planes the two-conic arm picks the conic it
+    // reads by its crossing, whatever the kinds (`conic_conic`).
     let flipped: Vec<_> = known.iter().copied().map(flip).collect();
     match arm {
         Arm::LineLine => line_line(a, b, band),
@@ -427,6 +565,7 @@ fn flip<T: geom_core::Real>(c: Candidate<T>) -> Candidate<T> {
         point: c.point,
         ta: c.tb,
         tb: c.ta,
+        bound: c.bound,
     }
 }
 
@@ -455,6 +594,20 @@ fn line_of<T: Decide>(c: &Curve3<T>) -> Result<(Point3<T>, Vec3<T>), MeetFault> 
     }
 }
 
+/// A line span's two end points, start first.
+type Ends<T> = (Point3<T>, Point3<T>);
+
+/// **A line span's two end points**, start first ([`Span::ends`]). A
+/// line is open, so a span of one always has ends: an endless one is a
+/// span read as the kind it is not, as a carrier of the wrong kind is.
+fn line_ends<T: Decide>(s: &Span<'_, T>) -> Result<Ends<T>, MeetFault> {
+    let mut ends = s.ends().map(|(_, q)| q);
+    match (ends.next(), ends.next()) {
+        (Some(p0), Some(p1)) => Ok((p0, p1)),
+        _ => Err(MeetFault::Desync),
+    }
+}
+
 /// A conic carrier's frame.
 fn conic_of<T: Decide>(c: &Curve3<T>) -> Result<&dyn Conic<T>, MeetFault> {
     c.conic().ok_or(MeetFault::Desync)
@@ -465,22 +618,6 @@ fn unit<T: Decide>(v: Vec3<T>) -> Vec3<T> {
     v * (T::one() / v.norm())
 }
 
-/// **How far round the turn `theta` lies from `at`**, in `[0, π]`, read
-/// clear of the reduction's cut: from `at` where it reads within a
-/// quarter turn of it, and otherwise as half a turn less how far it
-/// lies from `at + π`. An enclosure about the antipode then stays as
-/// narrow as `theta`, where the reduction about `at` would read the
-/// whole half turn.
-fn separation<T: Decide>(theta: T, at: T) -> T {
-    let from = |anchor: T| (theta - anchor).reduce_periodic_centred(T::tau()).abs();
-    let near = from(at);
-    if super::compare(row::BRANCH, near, T::pi() / T::from_f64(2.0)) == Some(Sign::Negative) {
-        near
-    } else {
-        T::pi() - from(at + T::pi())
-    }
-}
-
 /// The metres a span runs at most: its parameter run at the carrier's
 /// greatest speed.
 fn reach<T: Decide>(s: &Span<'_, T>) -> T {
@@ -488,11 +625,9 @@ fn reach<T: Decide>(s: &Span<'_, T>) -> T {
     Margin::metered_sup((t1 - t0).abs(), s.speeds().1).value()
 }
 
-/// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
+/// The parameter of `q`'s foot on the line ([`geom::Line::param`]).
 fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
-    Curve3::Line(geom::Line { origin, dir })
-        .foot(q, T::zero())
-        .t()
+    geom::Line { origin, dir }.param(q)
 }
 
 /// A lower bound on `q`'s distance from the carrier
@@ -502,11 +637,12 @@ fn clearance<T: Decide>(c: &Curve3<T>, q: Point3<T>) -> T {
     c.clearance(q).unwrap_or_else(T::zero)
 }
 
-/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]), seeded at the span's
-/// middle.
+/// `q`'s foot on `s`'s carrier ([`Curve3::foot`]) seeded at the span's
+/// middle, as a seed ([`geom::Foot::seed`]): a candidate the pose reads
+/// on, not a certified parameter.
 fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
     let (t0, t1) = s.params();
-    s.carrier().foot(q, geom::mid_param(t0, t1)).t()
+    s.carrier().foot(q, geom::mid_param(t0, t1)).seed()
 }
 
 /// **Each span's ends, read against the other** (module docs, "The
@@ -514,22 +650,20 @@ fn foot<T: Decide>(s: &Span<'_, T>, q: Point3<T>) -> T {
 /// the other's.
 pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec<Candidate<T>> {
     let mut out = Vec::with_capacity(4);
-    let (a0, a1) = a.params();
-    for ta in [a0, a1] {
-        let point = a.carrier().eval(ta);
+    for (ta, point) in a.ends() {
         out.push(Candidate {
             point,
             ta,
             tb: foot(b, point),
+            bound: None,
         });
     }
-    let (b0, b1) = b.params();
-    for tb in [b0, b1] {
-        let point = b.carrier().eval(tb);
+    for (tb, point) in b.ends() {
         out.push(Candidate {
             point,
             ta: foot(a, point),
             tb,
+            bound: None,
         });
     }
     out
@@ -566,20 +700,6 @@ fn definite<T: Decide>(
     })
 }
 
-/// Whether a meter's margin reads definitely `want`; any other reading,
-/// an escalation included, refuses [`Unsettled::Meter`].
-fn metered<T: Decide>(
-    row: &'static str,
-    margin: Margin<T>,
-    want: Sign,
-    band: Band,
-) -> Result<(), MeetFault> {
-    match decide(row, margin, band) {
-        Ok(sign) if sign == want => Ok(()),
-        Ok(_) | Err(_) => Err(MeetFault::Unsettled(Unsettled::Meter)),
-    }
-}
-
 /// The witnesses of a coincident pair ([`Span::witness_params`] on each
 /// span), each placed on the carrier of the span it came from and given
 /// its foot on the other by `foot_a`/`foot_b`.
@@ -590,8 +710,7 @@ fn witnesses<T: Decide>(
     foot_b: &impl Fn(Point3<T>) -> T,
 ) -> Vec<Candidate<T>> {
     let ends = |s: &Span<'_, T>, foot: &dyn Fn(Point3<T>) -> T| {
-        let (t0, t1) = s.params();
-        [foot(s.carrier().eval(t0)), foot(s.carrier().eval(t1))]
+        s.ends().map(|(_, q)| foot(q)).collect::<Vec<_>>()
     };
     let mut out = Vec::new();
     for ta in a.witness_params(ends(b, foot_a)) {
@@ -600,6 +719,7 @@ fn witnesses<T: Decide>(
             point,
             ta,
             tb: foot_b(point),
+            bound: None,
         });
     }
     for tb in b.witness_params(ends(a, foot_b)) {
@@ -608,6 +728,7 @@ fn witnesses<T: Decide>(
             point,
             ta: foot_a(point),
             tb,
+            bound: None,
         });
     }
     out
@@ -628,6 +749,16 @@ impl<T: Decide> Side<'_, T> {
             Self::Line((origin, dir)) => Curve3::Line(geom::Line { origin, dir }).ders1(t),
             Self::Conic(k) => k.jet_at(t),
         }
+    }
+
+    /// The most metres the carrier runs between the parameters `t0` and
+    /// `t1`: their difference at its greatest speed.
+    fn run(self, t0: T, t1: T) -> T {
+        let speed = match self {
+            Self::Line((_, dir)) => dir.norm(),
+            Self::Conic(k) => k.speed_hi(),
+        };
+        (t1 - t0).abs() * speed
     }
 
     /// A bound on the curvature within `reach` metres of `t`: zero on a
@@ -672,64 +803,58 @@ struct Polish<'k, T: geom_core::Real> {
 }
 
 impl<T: Decide> Polish<'_, T> {
-    /// The closest pair, metered, or `None` where no point of the arc is
-    /// within the band of the second carrier (module docs).
+    /// The closest pair's candidate, or `None` where no point of the
+    /// window is within the band of the second carrier (module docs,
+    /// "Across planes" and "The gap's lower bound").
+    ///
+    /// # Errors
+    ///
+    /// [`Unsettled::Meter`] on `curve_pair_pose_basin` where the basin's
+    /// inequality is not proved.
     fn closest(&self, band: Band) -> Result<Option<Candidate<T>>, MeetFault> {
         let (s0, t0) = self.start;
-        let ((p0, da), (q0, db)) = (self.a.ders(s0), self.b.ders(t0));
         if decide(row::CLEAR, Margin::of(self.clear - self.reach), band) == Ok(Sign::Positive) {
             return Ok(None);
         }
-        let sine = unit(da).cross(unit(db)).norm();
+        let two = T::from_f64(2.0);
         let e = T::from_f64(band.escalate());
-        let region = (self.reach + e) * T::from_f64(2.0);
-        let curvature = self.a.curvature_near(s0, region) + self.b.curvature_near(t0, region);
-        let turn = T::from_f64(2.0) * curvature * region;
-        metered(
-            row::BASIN,
-            Margin::levered(sine - turn, self.lever),
-            Sign::Positive,
-            band,
-        )?;
-        let (s, t, moved) =
+        let region = (self.reach + e) * two;
+        let (s, t) =
             super::polish::pair(|s| self.a.ders(s), |t| self.b.ders(t), self.start, |_| true);
-        let ((p, _), (q, _)) = (self.a.ders(s), self.b.ders(t));
-        // Within its basin the polish stays in the region; one that left
-        // it twice over is a polish the basin meter did not certify.
-        let travel = (p - p0).norm() + (q - q0).norm();
-        metered(
-            row::TRAVEL,
-            Margin::of(region + region - travel),
-            Sign::Positive,
-            band,
-        )?;
-        match decide(row::POLISH, Margin::of(moved), band) {
-            Ok(Sign::Zero | Sign::Negative) => {}
-            Ok(Sign::Positive) | Err(_) => return Err(MeetFault::Unsettled(Unsettled::Meter)),
-        }
+        let ((p, da), (q, db)) = (self.a.ders(s), self.b.ders(t));
+        // Every pair of the window lies within `region` of the start, and
+        // the polished pair within its travel of it: within `span` of the
+        // polished pair, along either carrier.
+        let span = region + self.a.run(s0, s).max(self.b.run(t0, t));
+        let curvature = self.a.curvature_near(s0, span) + self.b.curvature_near(t0, span);
+        let Some(bound) = super::polish::bound(
+            (row::BASIN, Some(self.lever)),
+            (p, da),
+            (q, db),
+            curvature,
+            (e, span),
+        ) else {
+            return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }));
+        };
         Ok(Some(Candidate {
             point: p,
             ta: s,
             tb: t,
+            bound: Some(bound),
         }))
     }
 }
 
-/// The metres `s`'s two ends lie from the origin, as evaluated.
-fn ends<T: Decide>(s: &Span<'_, T>) -> T {
-    let (t0, t1) = s.params();
-    let from = |t: T| (s.carrier().eval(t) - Point3::origin()).norm();
-    from(t0) + from(t1)
+/// The metres a line span's two ends ([`line_ends`]) lie from the
+/// origin, as evaluated.
+fn ends<T: Decide>((p0, p1): Ends<T>) -> T {
+    (p0 - Point3::origin()).norm() + (p1 - Point3::origin()).norm()
 }
 
-/// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
-/// distances along it from `o`.
-fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), s: &Span<'_, T>) -> (T, T) {
-    let (t0, t1) = s.params();
-    (
-        (s.carrier().eval(t0) - o).dot(u),
-        (s.carrier().eval(t1) - o).dot(u),
-    )
+/// The projection of a line span's two ends on the line `(o, u)`, `u` a
+/// unit: their distances along it from `o`.
+fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), (p0, p1): Ends<T>) -> (T, T) {
+    ((p0 - o).dot(u), (p1 - o).dot(u))
 }
 
 /// Where the router sends a line's pair (module docs, "The router").
@@ -798,7 +923,7 @@ fn route<T: Decide>(
         return Ok(Route::Crossing);
     }
     if definite(row::OFFSET, Margin::of(offset), band)? {
-        return Err(MeetFault::Unsettled(Unsettled::Meter));
+        return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::OFFSET }));
     }
     Ok(Route::Level)
 }
@@ -808,22 +933,17 @@ fn route<T: Decide>(
 /// of the other's carrier. A line's distance from another is affine in
 /// its parameter, so its ends bound it over the span.
 fn one_line<T: Decide>(
-    (a, la): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
-    (b, lb): (&Span<'_, T>, (Point3<T>, Vec3<T>)),
+    (a, la): (Ends<T>, (Point3<T>, Vec3<T>)),
+    (b, lb): (Ends<T>, (Point3<T>, Vec3<T>)),
     band: Band,
 ) -> Result<bool, MeetFault> {
     let off = |(o, u): (Point3<T>, Vec3<T>), q: Point3<T>| {
         let w = q - o;
         (w - u * w.dot(u)).norm()
     };
-    for (s, other) in [(a, lb), (b, la)] {
-        let (t0, t1) = s.params();
-        for t in [t0, t1] {
-            if definite(
-                row::OFFSET,
-                Margin::of(off(other, s.carrier().eval(t))),
-                band,
-            )? {
+    for ((p0, p1), other) in [(a, lb), (b, la)] {
+        for q in [p0, p1] {
+            if definite(row::OFFSET, Margin::of(off(other, q)), band)? {
                 return Ok(false);
             }
         }
@@ -847,16 +967,13 @@ fn line_line<T: Decide>(
     // `origin + dir·t` rounds at `|origin| + |dir|·|t|`, which a far
     // origin makes far larger than the end's own distance
     // (`geom_core::one_line`, "The charge").
-    let ends_of = |s: &Span<'_, T>| {
-        let (t0, t1) = s.params();
-        (s.carrier().eval(t0), s.carrier().eval(t1))
-    };
+    let (ends_a, ends_b) = (line_ends(a)?, line_ends(b)?);
     let produced = |(o, d): (Point3<T>, Vec3<T>), s: &Span<'_, T>| {
         let (t0, t1) = s.params();
         (o - Point3::origin()).norm() * T::from_f64(2.0) + d.norm() * (t0.abs() + t1.abs())
     };
-    let (a0, a1) = ends_of(a);
-    let at = on_one_line(u1, (a0, a1), ends_of(b), produced(la, a) + produced(lb, b));
+    let (a0, _) = ends_a;
+    let at = on_one_line(u1, ends_a, ends_b, produced(la, a) + produced(lb, b));
     let w = a0 + u1 * at.mid() - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
@@ -866,7 +983,7 @@ fn line_line<T: Decide>(
     let arm = geom_core::Lever::unsourced(lever);
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
-        (o1 - origin).norm() + (o2 - origin).norm() + ends(a) + ends(b) + lever + lever,
+        (o1 - origin).norm() + (o2 - origin).norm() + ends(ends_a) + ends(ends_b) + lever + lever,
     );
     let crossing = || {
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
@@ -875,21 +992,24 @@ fn line_line<T: Decide>(
             point,
             ta: line_foot(la, point),
             tb: line_foot(lb, point),
+            bound: None,
         }])
     };
     match route(s, s / u1.dot(u2).abs(), off, at, (arm, noise), band)? {
         Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
-        Route::Level if one_line((a, (o1, u1)), (b, (o2, u2)), band)? => Ok(Pose::Coincident {
-            sense: sense(u1.dot(u2), arm, band)?,
-            witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
-        }),
+        Route::Level if one_line((ends_a, (o1, u1)), (ends_b, (o2, u2)), band)? => {
+            Ok(Pose::Coincident {
+                sense: sense(u1.dot(u2), arm, band)?,
+                witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
+            })
+        }
         // Level where they can meet but apart past the band along a span:
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
         Route::Level if definite(row::TILT, Margin::levered(s, arm), band)? => Ok(crossing()),
-        Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter)),
+        Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter { row: row::TILT })),
     }
 }
 
@@ -908,7 +1028,7 @@ fn line_conic<T: Decide>(
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
-    let c = (k.frame().center - o).dot(u);
+    let c = (k.frame().origin - o).dot(u);
     let lever = reach(a).max(k.speed_hi());
     // Unsourced lever: the line's span metered through its sup speed
     // (`reach`), folded with the conic's size; the span's part fits no
@@ -916,20 +1036,21 @@ fn line_conic<T: Decide>(
     let arm = geom_core::Lever::unsourced(lever);
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
-        (o - origin).norm() + (k.frame().center - origin).norm() + lever + k.speed_hi(),
+        (o - origin).norm() + (k.frame().origin - origin).norm() + lever + k.speed_hi(),
     );
-    let screened = noise + geom_core::rounding_charge(ends(a));
+    let ends_a = line_ends(a)?;
+    let screened = noise + geom_core::rounding_charge(ends(ends_a));
     // A conic's extent is no second span: its projection is read from the
     // line's origin, charged as the router's screens are. That anchor
     // charges the carrier origin's metres once, where a read from the
     // span's start would charge both ends' evaluation, twice as many
     // (`work/cpair/the-line-conic-router-reads-its-projections-from-the-lines-carrier-origin`).
     let at = OnOneLine::of(
-        on_line((o, u), a),
+        on_line((o, u), ends_a),
         (c - k.speed_hi(), c + k.speed_hi()),
         screened,
     );
-    let height = (o + u * at.mid() - k.frame().center).dot(n);
+    let height = (o + u * at.mid() - k.frame().origin).dot(n);
     match route(den, den.abs(), height.abs(), at, (arm, screened), band)? {
         Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
@@ -937,7 +1058,7 @@ fn line_conic<T: Decide>(
             // The line's height above the plane runs `|d̂·n̂|` per metre,
             // so it is within the band's escalation `e/|d̂·n̂|` either side
             // of the crossing.
-            let point = o + u * ((k.frame().center - o).dot(n) / den);
+            let point = o + u * ((k.frame().origin - o).dot(n) / den);
             let e = T::from_f64(band.escalate()) + noise;
             let polish = Polish {
                 a: Side::Line(line),
@@ -954,7 +1075,7 @@ fn line_conic<T: Decide>(
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = unit(n.cross(u));
-    let c0 = (k.frame().center - o).dot(m);
+    let c0 = (k.frame().origin - o).dot(m);
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite(row::SWING, Margin::of(swing), band)? {
@@ -974,6 +1095,7 @@ fn line_conic<T: Decide>(
             point,
             ta: line_foot(line, point),
             tb: theta,
+            bound: None,
         }
     };
     let found: Vec<T> = known.iter().map(|c| c.tb).collect();
@@ -1000,7 +1122,7 @@ enum Coplanar {
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
 pub(super) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
-    ((k.frame().center - on).dot(n), cp, sp)
+    ((k.frame().origin - on).dot(n), cp, sp)
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).
@@ -1017,39 +1139,51 @@ fn conic_conic<T: Decide>(
     let lever = arm.length();
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
-        (ka.frame().center - origin).norm() + (kb.frame().center - origin).norm() + lever + lever,
+        (ka.frame().origin - origin).norm() + (kb.frame().origin - origin).norm() + lever + lever,
     );
-    let ha = height(&ka, kb.frame().center, kb.frame().axis);
-    let hb = height(&kb, ka.frame().center, ka.frame().axis);
+    let ha = height(&ka, kb.frame().origin, kb.frame().axis);
+    let hb = height(&kb, ka.frame().origin, ka.frame().axis);
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
-    for (swing, (c0, _, _)) in [(swing_a, ha), (swing_b, hb)] {
-        let clear = Margin::of(c0.abs() - swing - noise);
-        if decide(row::PARALLEL, clear, band) == Ok(Sign::Positive) {
+    let sides = [(swing_a, ha), (swing_b, hb)];
+    // The one reading of a conic's height against the other's plane:
+    // clear of it all round is apart, whatever the swing reads.
+    let mut heights = Vec::with_capacity(2);
+    for (swing, (c0, _, _)) in sides {
+        let height = constant(row::PARALLEL, c0, swing + noise, band);
+        if matches!(height, Ok(true)) {
             return Ok(Pose::Apart);
         }
+        heights.push(height);
     }
-    // A conic whose height above the other's plane is constant within
-    // the band lies in a plane parallel to it, in it to within the slant
-    // `|c₀|` plus its swing.
-    let mut slant = None;
-    for (swing, (c0, _, _)) in [(swing_a, ha), (swing_b, hb)] {
-        if definite(row::SWING, Margin::of(swing), band)? {
+    // Both swings are read before either is acted on, so the route does
+    // not depend on which conic comes first. A conic whose swing reads
+    // zero lies in a plane parallel to the other's, in it to within the
+    // slant `|c₀|` plus its swing (the larger of the two where both are
+    // level); its height in the gap escalates. Only where neither reads
+    // zero does a swing in the gap escalate.
+    let swings = sides.map(|(swing, _)| decide(row::SWING, Margin::of(swing), band));
+    let mut slant: Option<T> = None;
+    for ((read, height), (swing, (c0, _, _))) in swings.iter().zip(heights).zip(sides) {
+        if *read != Ok(Sign::Zero) {
             continue;
         }
-        if constant(row::OFFSET, c0, swing + noise, band)? {
-            return Ok(Pose::Apart);
-        }
-        slant = Some(c0.abs() + swing);
-        break;
+        // The screen's own reading: not clear, so in the zero band all
+        // round or escalated.
+        height?;
+        let level = c0.abs() + swing;
+        slant = Some(slant.map_or(level, |other| other.max(level)));
     }
     let Some(slant) = slant else {
+        for read in swings {
+            read?;
+        }
         let steep = |(c0, _, _): (T, T, T), swing: T, k: &dyn Conic<T>| {
             let (p, q) = k.semi_axes();
             (swing.powi(2) - c0.powi(2)) / p.abs().max(q.abs()).powi(2)
         };
-        let by_b = Margin::of(steep(hb, swing_b, &kb) - steep(ha, swing_a, &ka));
-        if decide(row::ACROSS, by_b, Band::least()) == Ok(Sign::Positive) {
+        let by_b = steep(hb, swing_b, &kb) - steep(ha, swing_a, &ka);
+        if check_unlogged(row::ACROSS, by_b, Band::least(), "F33") == Ok(Sign::Positive) {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
             let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
             return Ok(swapped(read?));
@@ -1070,6 +1204,7 @@ fn conic_conic<T: Decide>(
             point,
             ta: theta,
             tb: foot(b, point),
+            bound: None,
         }
     };
     match coplanar {
@@ -1119,7 +1254,7 @@ pub(super) fn one_curve<T: Decide>(
 /// is NaN: the reading escalates.
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
     let reach = |k: &dyn Conic<T>| k.speed_hi();
-    let gap = (e.frame().center - f.frame().center).norm() + frame_gap(e, f).max(frame_gap(f, e));
+    let gap = (e.frame().origin - f.frame().origin).norm() + frame_gap(e, f).max(frame_gap(f, e));
     gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }
 
@@ -1151,8 +1286,9 @@ fn frame_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read
 /// definite (module docs): its crossings and touch, each polished to the
-/// closest pair. `ka` is the conic that crosses the other's plane the
-/// less obliquely, chosen by the caller.
+/// closest pair. `ka` is the conic the caller's across choice reads: the
+/// one that crosses the other's plane the less obliquely where that
+/// choice decides, and the first of the pair at a tie.
 fn transverse<T: Decide>(
     (a, ka, kb, b): (&Span<'_, T>, &dyn Conic<T>, &dyn Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
@@ -1173,7 +1309,6 @@ fn transverse<T: Decide>(
         b: kb,
         carrier_b: b.carrier(),
         height: (c0, cp, sp),
-        noise,
     };
     let joints: Vec<_> = known
         .iter()
@@ -1246,7 +1381,7 @@ fn coplanar_circles<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.speed_hi(), kb.speed_hi());
-    let w = ka.frame().center - kb.frame().center;
+    let w = ka.frame().origin - kb.frame().origin;
     let w = w - ka.frame().axis * w.dot(ka.frame().axis);
     let d = w.norm();
     if !definite(row::CENTRES, Margin::norm3(w), band)? {
@@ -1296,7 +1431,7 @@ fn coplanar_ellipse_circle<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let r = kc.speed_hi();
-    let w = ke.frame().center - kc.frame().center;
+    let w = ke.frame().origin - kc.frame().origin;
     let (a, b) = ke.semi_axes();
     let two = T::from_f64(2.0);
     // `|E(θ) − c|² − r²` in the ellipse's angle.
@@ -1323,7 +1458,7 @@ fn coplanar_ellipse_circle<T: Decide>(
         residual_reach: Some(r),
         jet: None,
     };
-    let residual = |theta: T| (ke.point_at(theta) - kc.frame().center).norm() - r;
+    let residual = |theta: T| (ke.point_at(theta) - kc.frame().origin).norm() - r;
     subdivided(&poly, &residual, &frame, place, band)
 }
 
@@ -1389,7 +1524,7 @@ fn coplanar_ellipses<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
     let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
-    let (poly, terms) = level_on(ka, kb);
+    let (poly, terms) = coplanar_level(ka, kb);
     let small = big_a.abs().min(big_b.abs());
     let (t0, t1) = e.params();
     let (ceiling, reach) = level_ceiling(small);
@@ -1405,7 +1540,7 @@ fn coplanar_ellipses<T: Decide>(
         jet: None,
     };
     let residual = |theta: T| {
-        let d = ka.point_at(theta) - kb.frame().center;
+        let d = ka.point_at(theta) - kb.frame().origin;
         geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
     };
     subdivided(&poly, &residual, &frame, place, band)
@@ -1413,10 +1548,113 @@ fn coplanar_ellipses<T: Decide>(
 
 /// **`b`'s level along `a`**: `F(θ) = X²/A² + Y²/B² − 1` at the image of
 /// `a(θ)` in `b`'s plane, `(X, Y)` in `b`'s frame and `(A, B)` its
-/// semi-axes, of degree two in `a`'s angle (each of `X` and `Y` is a
-/// first harmonic); and the term bound its rounding is charged on. The
-/// height of `a(θ)` above `b`'s plane plays no part.
-pub(super) fn level_on<T: Decide>(
+/// semi-axes. The height of `a(θ)` above `b`'s plane plays no part.
+///
+/// **It is read locally**: at `θ`, from `a`'s point and derivatives there
+/// in `b`'s frame ([`Level::jet_at`]), never from its global harmonics.
+/// Posed about `b`'s centre those carry rounding of order `((|w| + R)/s)²`,
+/// `w` the centres' offset, `R` `a`'s size and `s` `b`'s smaller
+/// semi-axis, which at a far or thin pair reaches the band's zero; the
+/// local form's rounding is that of `F`'s own few terms. A reading over a
+/// piece takes the jet at its middle and [`Level::fourth`] for Taylor's
+/// remainder, a bound that needs no precision.
+pub(super) struct Level<'k, T: geom_core::Real> {
+    a: &'k dyn Conic<T>,
+    centre: Point3<T>,
+    axes: (Vec3<T>, Vec3<T>),
+    squares: (T, T),
+    fourth: T,
+}
+
+impl<T: Decide> Level<'_, T> {
+    /// `F` and its first three derivatives at `θ`. On a conic
+    /// `P″ = −(P − c)` and `P‴ = −P′`, `c` its centre.
+    pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
+        let (p, dp) = self.a.jet_at(theta);
+        let ddp = self.a.frame().origin - p;
+        let (ub, vb) = self.axes;
+        let q = p - self.centre;
+        let side = |axis: Vec3<T>, square: T| {
+            let (x, x1, x2) = (q.dot(axis), dp.dot(axis), ddp.dot(axis));
+            let x3 = T::zero() - x1;
+            let three = T::from_f64(3.0);
+            [
+                x.powi(2) / square,
+                x * x1 / square,
+                (x1.powi(2) + x * x2) / square,
+                (three * x1 * x2 + x * x3) / square,
+            ]
+        };
+        let (x, y) = (side(ub, self.squares.0), side(vb, self.squares.1));
+        let two = T::from_f64(2.0);
+        [
+            x[0] + y[0] - T::one(),
+            two * (x[1] + y[1]),
+            two * (x[2] + y[2]),
+            two * (x[3] + y[3]),
+        ]
+    }
+
+    /// `|∇F|` at the image of `a(θ)`: `2·√(X²/A⁴ + Y²/B⁴)`.
+    pub(super) fn gradient_at(&self, theta: T) -> T {
+        let q = self.a.point_at(theta) - self.centre;
+        let (ub, vb) = self.axes;
+        let (x, y) = (q.dot(ub) / self.squares.0, q.dot(vb) / self.squares.1);
+        T::from_f64(2.0) * (x.powi(2) + y.powi(2)).sqrt()
+    }
+
+    /// A bound on `|F⁗|` over every angle. Each of `X` and `Y` is
+    /// `x₀ + ρ·cos(θ − φ)`, so `X²`'s first and second harmonics have
+    /// amplitudes `2|x₀|ρ` and `ρ²/2`, and `|(X²)⁗| ≤ 2|x₀|ρ + 8ρ²`. A sum
+    /// of non-negative terms, raised past its roundings ([`up`]): a dot
+    /// product's five, `ρ`'s four more, and each side's six, summed.
+    pub(super) fn fourth(&self) -> T {
+        self.fourth
+    }
+}
+
+/// `x`, non-negative and computed in `N` roundings to nearest, raised to
+/// an upper bound on the real value it stands for. Each rounding is
+/// within `u = ε/2` relative, so `x̂ ≥ x·(1 − u)ᴺ`, and the factor
+/// `c = 1 + (N + 1)·2u`, a constant exact in `f64` for any `N` short of
+/// `2⁵¹`, lifts it past `x` in one more rounding:
+/// `x̂·c·(1 − u) ≥ x·(1 − (N + 1)·u)·(1 + 2(N + 1)·u) ≥ x` while
+/// `(N + 1)·u ≤ ½`. At an enclosure `c` is a point and the product is
+/// outward already, so this only widens it.
+pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
+    x * T::from_f64(1.0 + f64::EPSILON * (N + 1) as f64)
+}
+
+/// [`Level`] of `kb` along `ka`.
+pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -> Level<'k, T> {
+    let (big_a, big_b) = kb.semi_axes();
+    let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
+    let (ua, va) = (
+        ka.frame().u_ref * ka.semi_axes().0,
+        ka.frame().v_ref() * ka.semi_axes().1,
+    );
+    let w = ka.frame().origin - kb.frame().origin;
+    let squares = (big_a.powi(2), big_b.powi(2));
+    let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
+    let side = |axis: Vec3<T>, square: T| {
+        let rho = (ua.dot(axis).powi(2) + va.dot(axis).powi(2)).sqrt();
+        (two * w.dot(axis).abs() * rho + eight * rho.powi(2)) / square
+    };
+    Level {
+        a: ka,
+        centre: kb.frame().origin,
+        axes: (ub, vb),
+        squares,
+        fourth: up::<24, _>(side(ub, squares.0) + side(vb, squares.1)),
+    }
+}
+
+/// **The coplanar ellipses' level, read globally**: [`Level`]'s `F` as
+/// one trigonometric polynomial of degree two in `a`'s angle (each of `X`
+/// and `Y` a first harmonic), and the term bound its rounding is charged
+/// on. Only `coplanar_ellipses` reads it, through the certified
+/// subdivision; the window reads [`Level`].
+fn coplanar_level<T: Decide>(
     ka: &dyn Conic<T>,
     kb: &dyn Conic<T>,
 ) -> (crate::half_angle::TrigPoly<T>, T) {
@@ -1426,7 +1664,7 @@ pub(super) fn level_on<T: Decide>(
         ka.frame().u_ref * ka.semi_axes().0,
         ka.frame().v_ref() * ka.semi_axes().1,
     );
-    let w = ka.frame().center - kb.frame().center;
+    let w = ka.frame().origin - kb.frame().origin;
     // `X = x₀ + p cos θ + q sin θ`, `Y = y₀ + r cos θ + t sin θ`.
     let (x0, p, q) = (w.dot(ub), ua.dot(ub), va.dot(ub));
     let (y0, r, t) = (w.dot(vb), ua.dot(vb), va.dot(vb));
@@ -1493,7 +1731,7 @@ impl<T: Decide> Range<T> {
         let (c0, swing) = ((self.lo + self.hi) / two, (self.hi - self.lo) / two);
         let e = T::from_f64(band.escalate()) + self.noise;
         let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
-        let phi = separation(theta, self.at_hi);
+        let phi = geom::separation(theta, self.at_hi);
         let inner = unit_cos((e - c0) / swing).acos();
         let outer = unit_cos((T::zero() - e - c0) / swing).acos();
         (phi - inner).abs().max((outer - phi).abs())
@@ -1577,11 +1815,17 @@ fn harmonic_roots<T: Decide>(
 mod polish_rows {
     use super::*;
 
-    /// **A polish that has not converged refuses.** Two unit circles
-    /// crossing square at the origin, the polish started there and with
-    /// the first `0.3` rad round: the first is the crossing; the second,
-    /// inside its basin and its region, is still moving after its steps
-    /// and refuses (`Unsettled::Meter`).
+    /// **A polish its basin does not hold refuses, and one it holds
+    /// states its window.** Two unit circles crossing square at the
+    /// origin, the polish started there and with the first `0.3` rad
+    /// round. Started at the crossing, the candidate is the crossing,
+    /// with a window whose floor is the gap less its bend. Started `0.3`
+    /// rad off, the window's span (its region and the polish's travel)
+    /// turns the tangents past the basin's premise, and it refuses on the
+    /// basin (`Unsettled::Meter`): under the premise Gauss–Newton
+    /// contracts to rounding within its steps, so no premise-holding pose
+    /// is left unconverged; the window's escalation is pinned by
+    /// `curve_pair::meet_rows::a_window_read_off_short_of_its_reach_escalates`.
     #[test]
     fn an_unconverged_polish_refuses() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -1601,9 +1845,19 @@ mod polish_rows {
             got.point.to_array().iter().all(|c| c.abs() < 1e-15),
             "{got:?}"
         );
+        let Some(window) = got.bound else {
+            panic!("a polished candidate states its window: {got:?}")
+        };
+        assert!(
+            window.floor.abs() < 1e-15 && window.reach > 0.0 && window.reach < 2e-8,
+            "{window:?}"
+        );
         let got = polish(0.3).closest(band);
         assert!(
-            matches!(got, Err(MeetFault::Unsettled(Unsettled::Meter))),
+            matches!(
+                got,
+                Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }))
+            ),
             "{got:?}"
         );
     }

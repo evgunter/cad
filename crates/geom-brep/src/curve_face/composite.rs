@@ -58,6 +58,7 @@ use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_comp
 use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
 use crate::half_angle::SPLITS;
+use crate::ladder::{Answering, Rung, climb};
 use crate::pcurve_cache::projected::Meters;
 use crate::roots::{Unsettled, touch_or_tangency};
 
@@ -588,27 +589,29 @@ fn cut(
     if piece.b - piece.a <= floor {
         return Err(Unsettled::Floor.into());
     }
-    // The first share read in the band's gap, which a piece that reads in
-    // band at every share refuses on.
-    let mut gap = None;
-    let Some((c, s)) = SPLITS.iter().find_map(|&k| {
+    // The ladder over the shares ([`climb`]): the first share definitely
+    // past the band answers, and which one answers is where the piece is
+    // cut (`Answering::First`). A piece within the band at every share
+    // runs along the surface here, or crosses it twice within the band:
+    // it refuses on the kept share, ranked ([`crate::ladder::Evidence`]),
+    // and is a tangency where every share read zero.
+    let cut_at = climb(Answering::First, SPLITS, |k| {
         let c = piece.a + (piece.b - piece.a) * k;
         let s = share(&piece, c);
         if !(piece.a < c && c < piece.b) {
-            return None;
+            return Rung::Passes;
         }
         match read(value_at(&piece, s)) {
-            Reading::Past(_) => Some((c, s)),
-            Reading::Near(Some(diag)) => {
-                gap.get_or_insert(diag);
-                None
-            }
-            Reading::Near(None) => None,
+            Reading::Past(_) => Rung::Answers((c, s)),
+            Reading::Near(Some(diag)) => Rung::kept(diag),
+            Reading::Near(None) => Rung::Passes,
         }
-    }) else {
-        // Within the band at every share: the carrier runs along the
-        // surface here, or crosses it twice within the band.
-        return Err(touch_or_tangency(gap, CompositeRefusal::Escalated));
+    })
+    .into_reading();
+    let (c, s) = match cut_at {
+        Ok(Some(at)) => at,
+        Ok(None) => return Err(touch_or_tangency(None, CompositeRefusal::Escalated)),
+        Err(diag) => return Err(touch_or_tangency(Some(diag), CompositeRefusal::Escalated)),
     };
     let (num_l, num_r) = split_row(&piece.num, s);
     let (den_l, den_r) = split_row(&piece.den, s);
@@ -714,7 +717,10 @@ fn settle<T: Decide>(
         // Definitely off at the located crossing: the residual's step
         // between two adjacent scalars is past the band.
         if residual(t)? != Sign::Zero {
-            return Err(Unsettled::Meter.into());
+            return Err(Unsettled::Meter {
+                row: "spline_composite_root_on",
+            }
+            .into());
         }
         let mut at_end = false;
         for end in ends {

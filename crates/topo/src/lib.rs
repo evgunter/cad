@@ -1222,7 +1222,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.face_surface(face) else {
+        let Some(surface) = body.passed_face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(
@@ -1276,10 +1276,10 @@ pub mod test_support {
         band: geom_core::Band,
     ) -> Result<Option<bool>, crate::PointInSolidError> {
         let Some((_, normal)) = crate::face_normal::face_plane(body, face) else {
-            let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+            let f = body.proven_face(face);
             return Err(crate::PointInSolidError::KindUnsupported {
                 face,
-                kind: body.face_surface_linked(face, f).kind(),
+                kind: f.surface().kind(),
             });
         };
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
@@ -1362,7 +1362,7 @@ pub use sweep_trace::SweepPairs;
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
-pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
+pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth};
 pub use chart_region::{
     CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP,
     WITNESS_SEGMENT_CAP, chart_region_overlap, glued_pair_overlap,
@@ -1412,6 +1412,8 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
+pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
+pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{
@@ -1433,14 +1435,14 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation,
-    KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision, NullEdgeRecord, OffPlane,
-    OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge, SectionEndReading,
-    SectionError, SectionGermFault, SectionGermReading, SectionPinMiss, SectionPolygon,
-    SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitContacts, SplitError,
-    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
-    SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ApexSectionReading, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite, LoopContainment,
+    LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
+    SectionEdge, SectionEndReading, SectionError, SectionGermFault, SectionGermReading,
+    SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading,
+    SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
+    SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
+    UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
+    vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{

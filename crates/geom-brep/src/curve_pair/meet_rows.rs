@@ -70,7 +70,12 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             (w - u * w.dot(u)).norm()
         }
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             radius,
         }) => {
             let w = q - center;
@@ -209,6 +214,25 @@ fn a_line_meets_a_circle_through_its_plane_or_in_it() {
     assert!(matches!(got, Ok(Pose::Apart)), "{got:?}");
 }
 
+/// **Two circles cut from one sphere**, of radius `1.3` about
+/// `(3.7, −2.1, 0.4)`, by two planes through `centre + (0, 0.5, 0)`, the
+/// second turned by `theta` about the line there along `x`: the circles
+/// meet on that line.
+fn circles_on_one_sphere(theta: f64) -> (Curve3<f64>, Curve3<f64>) {
+    let (centre, radius, h) = (Point3::new(3.7, -2.1, 0.4), 1.3, 0.5);
+    let (s, c) = theta.sin_cos();
+    let foot = |n: Vec3<f64>| {
+        let d = Vec3::new(0.0, h, 0.0).dot(n);
+        (centre + n * d, (radius * radius - d * d).sqrt())
+    };
+    let (n1, n2) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, c, s));
+    let ((c1, r1), (c2, r2)) = (foot(n1), foot(n2));
+    (
+        circle(c1.to_array(), n1.to_array(), r1),
+        circle(c2.to_array(), n2.to_array(), r2),
+    )
+}
+
 /// **Two circles cut from one sphere**, their planes tilted by `θ`, built
 /// to meet: they cross at an angle of about `θ`. Above the basin floor
 /// (the basin meter's crossing angle, about `√(8κe)`, `2.4·10⁻⁴` here) every meeting
@@ -219,8 +243,6 @@ fn a_line_meets_a_circle_through_its_plane_or_in_it() {
 /// plane the coplanar arm decides.
 #[test]
 fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
-    let centre = Point3::new(3.7, -2.1, 0.4);
-    let radius = 1.3;
     for (theta, decided) in [
         (1e-2_f64, true),
         (1e-3, true),
@@ -230,23 +252,12 @@ fn circles_on_one_sphere_meet_on_both_at_any_tilt() {
         (1e-7, false),
         (1e-11, true),
     ] {
-        // Two planes through `centre + (0, h, 0)`, the second turned by
-        // `θ` about the line there along `x`: the circles meet on it.
-        let h = 0.5;
-        let (s, c) = theta.sin_cos();
-        let foot = |n: Vec3<f64>| {
-            let d = Vec3::new(0.0, h, 0.0).dot(n);
-            (centre + n * d, (radius * radius - d * d).sqrt())
-        };
-        let (n1, n2) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, c, s));
-        let ((c1, r1), (c2, r2)) = (foot(n1), foot(n2));
-        let a = circle(c1.to_array(), n1.to_array(), r1);
-        let b = circle(c2.to_array(), n2.to_array(), r2);
+        let (a, b) = circles_on_one_sphere(theta);
         let label = format!("tilt {theta:e}");
         let m = meets((&a, (0.05, TAU - 0.05)), (&b, (0.05, TAU - 0.05)));
         if !decided {
             assert!(
-                matches!(m, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter))),
+                matches!(m, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter { .. }))),
                 "{label}: below the basin floor, {m:?}"
             );
             continue;
@@ -838,7 +849,7 @@ fn an_in_band_miss_across_nearly_parallel_planes_meets() {
     let [(a, sa), (b, sb)] = shallow_circles(2e-8, 0.5 * ZERO);
     let got = meets((&a, sa), (&b, sb));
     assert!(
-        matches!(got, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter))),
+        matches!(got, Err(ref r) if matches!(r.fault, MeetFault::Unsettled(Unsettled::Meter { .. }))),
         "tilt 2e-8: {got:?}"
     );
     for tilt in [1e-7, 1e-5, 1e-3] {
@@ -1454,11 +1465,13 @@ fn a_candidate_in_a_found_meetings_ring_is_not_read_again() {
         point: Point3::origin(),
         ta: 0.0,
         tb: 0.0,
+        bound: None,
     };
     let ring = super::Candidate {
         point: Point3::new(5e-9, 0.0, 0.0),
         ta: 5e-9,
         tb: 0.0,
+        bound: None,
     };
     let mut alone = super::Found::default();
     alone.read(&a, &b, ring, band());
@@ -1699,7 +1712,17 @@ fn two_meetings_across_an_endless_spans_seam_escalate() {
     }
     let mut found = super::Found::default();
     for (point, ta, tb) in [(hi, 1e-3, (hi - lo).norm()), (lo, TAU - 1e-3, 0.0)] {
-        found.read(&whole, &seg, super::Candidate { point, ta, tb }, band());
+        found.read(
+            &whole,
+            &seg,
+            super::Candidate {
+                point,
+                ta,
+                tb,
+                bound: None,
+            },
+            band(),
+        );
     }
     assert_eq!(found.points.len(), 2, "both chord ends meet the circle");
     let got = found.finish(&whole, &seg, None, band());
@@ -1816,7 +1839,17 @@ fn meetings_are_neighbours_along_the_span_whatever_order_they_are_found_in() {
     for ta in [theta, PI - theta, -theta, PI + theta] {
         let point = c.eval(ta);
         let tb = e.param_near(point, 0.0).unwrap();
-        found.read(&sc, &se, super::Candidate { point, ta, tb }, band());
+        found.read(
+            &sc,
+            &se,
+            super::Candidate {
+                point,
+                ta,
+                tb,
+                bound: None,
+            },
+            band(),
+        );
     }
     assert_eq!(found.points.len(), 4, "four meetings: {:?}", found.points);
     let got = found.finish(&sc, &se, None, band());
@@ -2231,4 +2264,344 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
         m.points.len() == 1 && interiors_meet(&m),
         "one meeting, on both interiors: {m:?}"
     );
+}
+
+/// **Circles on one sphere meet at the certified scalar where they meet
+/// at `f64`**: the pair of [`circles_on_one_sphere_meet_on_both_at_any_tilt`]
+/// at every tilt `f64` decides above the basin floor (`1e-2`, `1e-3`,
+/// `3e-4`), lifted to point intervals, at the band `(1e-12, 1e-11)`. A
+/// polish stepped from a whole enclosure grows by the box's spread each
+/// step; and a meter that compares where along the carriers the pair
+/// sits with the zero band reads the data's spread over the sine between
+/// the tangents. Main refused tilt `1e-3` on its convergence meter
+/// (`curve_pair_pose_polish`, step `[0, 2e-12]`); the window's bound
+/// reads metres of gap, and decides every tilt here.
+#[test]
+fn circles_on_one_sphere_meet_at_the_certified_scalar() {
+    use geom_core::{Interval, Real};
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let i = Interval::from_f64;
+    let lift = |c: &Curve3<f64>| {
+        let Curve3::Circle(geom::Circle { frame, radius }) = *c else {
+            unreachable!("a circle")
+        };
+        let v = |v: Vec3<f64>| Vec3::new(i(v.x), i(v.y), i(v.z));
+        let o = frame.origin;
+        Curve3::circle(
+            Point3::new(i(o.x), i(o.y), i(o.z)),
+            v(frame.axis),
+            i(radius),
+            v(frame.u_ref),
+        )
+    };
+    let mid = |x: Interval| geom::bracket_mid((geom_core::Bounds::lo(x), geom_core::Bounds::hi(x)));
+    for tilt in [1e-2, 1e-3, 3e-4] {
+        let (a, b) = circles_on_one_sphere(tilt);
+        let span = (0.05, TAU - 0.05);
+        let at_f64 = meet(&Span::new(&a, span), &Span::new(&b, span), band).unwrap();
+        let (a, b) = (lift(&a), lift(&b));
+        let span = (i(span.0), i(span.1));
+        let m = meet(&Span::new(&a, span), &Span::new(&b, span), band)
+            .unwrap_or_else(|e| panic!("tilt {tilt:e} at Interval: {:?}", e.fault));
+        assert!(
+            !m.points.is_empty() && m.points.len() == at_f64.points.len(),
+            "tilt {tilt:e}: the meetings f64 reads, {at_f64:?}, at Interval: {m:?}"
+        );
+        // Each Interval meeting is one f64 reads: its middle within the
+        // band's escalation of an f64 meeting.
+        for p in &m.points {
+            let q = Point3::new(mid(p.point.x), mid(p.point.y), mid(p.point.z));
+            let near = at_f64
+                .points
+                .iter()
+                .map(|f| (f.point - q).norm())
+                .fold(f64::INFINITY, f64::min);
+            assert!(
+                near <= band.escalate(),
+                "tilt {tilt:e}: an Interval meeting at {q:?} lies {near:e} from every f64 \
+                 meeting: {at_f64:?}"
+            );
+        }
+    }
+}
+
+/// **The walk offers an endless span no end reads.** A whole circle read
+/// with no ends ([`Span::endless`]) has none to offer ([`Span::ends`]),
+/// and its seam is a point of its interior: a line crossing the circle
+/// square at the seam meets it once, on the circle's interior, by the
+/// walk as by the closed forms, and a line clear of the circle not at
+/// all. Read as ends, the seam's point would be offered as an end of
+/// the circle, which it is not.
+#[test]
+fn the_walk_offers_an_endless_span_no_end_reads() {
+    let c = circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+    let whole = Span::new(&c, (0.0, TAU)).endless();
+    assert_eq!(whole.ends().count(), 0, "an endless span has no ends");
+    let across = line([1.0, 0.0, -0.5], [0.0, 0.0, 1.0]);
+    let clear = line([2.0, 0.0, -0.5], [0.0, 0.0, 1.0]);
+    let (seg, far) = (
+        Span::new(&across, (0.0, 1.0)),
+        Span::new(&clear, (0.0, 1.0)),
+    );
+    for (order, walked, closed) in [
+        (
+            "circle first",
+            super::walk::meet(&whole, &seg, band()),
+            meet(&whole, &seg, band()),
+        ),
+        (
+            "line first",
+            super::walk::meet(&seg, &whole, band()),
+            meet(&seg, &whole, band()),
+        ),
+    ] {
+        let (Ok(walked), Ok(closed)) = (walked, closed) else {
+            panic!("{order}: both decide")
+        };
+        assert!(
+            walked.points.len() == 1 && closed.points.len() == 1 && interiors_meet(&walked),
+            "{order}: one meeting, on both interiors: walked {walked:?}, closed {closed:?}"
+        );
+    }
+    let walked = super::walk::meet(&whole, &far, band());
+    assert!(
+        matches!(&walked, Ok(m) if m.points.is_empty() && m.shared.is_none()),
+        "clear of the circle: {walked:?}"
+    );
+}
+
+/// **A window read off short of its reach escalates; its point read with
+/// no window, or past a span by more than its reach, does not.** The
+/// axes of `x` and `y` cross at the origin. A polished pair left `10⁻⁶`
+/// apart in their plane, `p = (10⁻⁶, 0, 0)` on the first and the origin
+/// on the second, states a window ([`super::polish::bound`]) whose floor
+/// is zero (the gap lies along the carriers) and whose reach is about
+/// `10⁻⁶`. Its point is on the first span and off the second by more
+/// than the band, so read as its point alone it is no meeting; read with
+/// its window it straddles the floor against the gap at the pair
+/// (`curve_pair_meet_window`) and escalates, never prunes. With the
+/// second span moved past the origin by far more than the reach, the
+/// window's whole run lies past that span and it prunes.
+#[test]
+fn a_window_read_off_short_of_its_reach_escalates() {
+    let (x, y) = (
+        line([0.0; 3], [1.0, 0.0, 0.0]),
+        line([0.0; 3], [0.0, 1.0, 0.0]),
+    );
+    let (p, q) = (Point3::new(1e-6, 0.0, 0.0), Point3::origin());
+    let Some(bound) = super::polish::bound(
+        ("test_basin", None),
+        (p, Vec3::new(1.0, 0.0, 0.0)),
+        (q, Vec3::new(0.0, 1.0, 0.0)),
+        0.0,
+        (band().escalate(), 0.1),
+    ) else {
+        panic!("square lines hold the basin")
+    };
+    assert!(
+        bound.floor == 0.0 && (bound.reach - (1e-6 + band().escalate())).abs() < 1e-15,
+        "{bound:?}"
+    );
+    let candidate = |bound| super::Candidate {
+        point: p,
+        ta: 1e-6,
+        tb: 0.0,
+        bound,
+    };
+    let read = |b: &Span<'_, f64>, bound| {
+        let a = Span::new(&x, (-1.0, 1.0));
+        let mut found = super::Found::default();
+        found.read(&a, b, candidate(bound), band());
+        found.finish(&a, b, None, band())
+    };
+    let across = Span::new(&y, (-1.0, 1.0));
+    let got = read(&across, None);
+    assert!(
+        matches!(&got, Ok(m) if m.points.is_empty()),
+        "its point alone: {got:?}"
+    );
+    let got = read(&across, Some(bound));
+    assert!(
+        matches!(&got, Err(r) if matches!(r.fault,
+            MeetFault::Escalated(diag) if diag.predicate == Some("curve_pair_meet_window"))),
+        "its window: {got:?}"
+    );
+    let past = Span::new(&y, (0.5, 1.0));
+    let got = read(&past, Some(bound));
+    assert!(
+        matches!(&got, Ok(m) if m.points.is_empty()),
+        "its window past the span: {got:?}"
+    );
+}
+
+/// **A candidate with no window reads as its point alone, bit for bit**:
+/// each end of two pairs (two segments, a circle's arc and a line), read
+/// through [`super::Found::read`], gives the meetings, the refusal and
+/// the logged decisions that reading its point on both spans gives, the
+/// read before windows were stated. Ends, witnesses and exact roots state
+/// no window, so this is their read.
+#[test]
+fn a_candidate_with_no_window_reads_as_its_point_alone() {
+    use geom_core::k_stats::detached;
+    let pairs = [
+        (
+            line([0.0; 3], [1.0, 0.0, 0.0]),
+            (-1.0, 1.0),
+            line([0.0; 3], [0.0, 1.0, 0.0]),
+            (0.0, 1.0),
+        ),
+        (
+            circle([0.0; 3], [0.0, 0.0, 1.0], 1.0),
+            (0.2, 2.0),
+            line([0.5, -2.0, 0.0], [0.0, 1.0, 0.0]),
+            (0.0, 4.0),
+        ),
+    ];
+    for (ca, ra, cb, rb) in &pairs {
+        let (a, b) = (Span::new(ca, *ra), Span::new(cb, *rb));
+        for c in super::pose::end_candidates(&a, &b) {
+            assert!(c.bound.is_none(), "an end states no window");
+            let (via, rec_via) = detached(|| {
+                let mut found = super::Found::default();
+                found.read(&a, &b, c, band());
+                format!("{:?}", found.finish(&a, &b, None, band()))
+            });
+            let (alone, rec_alone) = detached(|| {
+                let mut found = super::Found::default();
+                found.offer(
+                    c.point,
+                    || {
+                        super::both(
+                            a.contact(c.point, c.ta, band()),
+                            b.contact(c.point, c.tb, band()),
+                        )
+                    },
+                    band(),
+                );
+                format!("{:?}", found.finish(&a, &b, None, band()))
+            });
+            assert_eq!(via, alone, "{c:?}");
+            assert_eq!(
+                format!("{:?}", rec_via.recorded()),
+                format!("{:?}", rec_alone.recorded()),
+                "{c:?}"
+            );
+        }
+    }
+}
+
+/// **The run arm reads a keel's wall past a bore's rim with main's
+/// answer.** A line down the keel's wall crosses the plane of the bore's
+/// rim at the rim's own end, `2.2143` rad, and just past it
+/// (`a_keel_on_a_bores_ruling`'s near-tangent pose, as `meet` met it).
+/// The polished pair lies on the line, past the rim's arc; the window's
+/// reach is far longer than its distance past the end, so the reach
+/// cannot clear it. The polished pair's gap is in the zero band and the
+/// rim's end is clear of the line past the escalation and twice the
+/// bend, so no pair of the run lies on the arc (`pose`'s module docs,
+/// "The run"): no meeting, as main read it on its convergence meter.
+/// With no bend bounded, the same candidate escalates.
+#[test]
+fn the_run_arm_reads_a_keel_wall_past_a_bores_rim_with_mains_answer() {
+    let wall = Curve3::line(
+        Point3::new(1.0, -1.710_783_078_032_602_8e-8, 2.75),
+        Vec3::new(0.0, 0.0, -1.0),
+    );
+    let rim = Curve3::circle(
+        Point3::new(1.037_500_008_874_687_3, -1.774_937_458_641_49e-8, 2.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        0.037_500_008_874_691_515,
+        Vec3::new(0.599_999_621_346_698_8, 0.800_000_283_989_836, 0.0),
+    );
+    let (a, b) = (
+        Span::new(&wall, (-1.25, 0.75)),
+        Span::new(&rim, (0.0, 2.214_296_488_955_094_7)),
+    );
+    let got = meet(&a, &b, band());
+    assert!(
+        matches!(&got, Ok(m) if m.points.is_empty() && m.shared.is_none()),
+        "no meeting: {got:?}"
+    );
+    let Ok(Pose::Generic(cs)) = pose(&a, &b, band()) else {
+        panic!("a crossing of the rim's plane")
+    };
+    let Some(c) = cs.into_iter().find(|c| c.bound.is_some()) else {
+        panic!("a polished candidate")
+    };
+    let no_bend = super::Candidate {
+        bound: c.bound.map(|w| super::WindowBound {
+            bend: f64::INFINITY,
+            ..w
+        }),
+        ..c
+    };
+    let mut found = super::Found::default();
+    found.read(&a, &b, no_bend, band());
+    let got = found.finish(&a, &b, None, band());
+    assert!(
+        matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+        "with no bend bounded: {got:?}"
+    );
+}
+
+/// **The run arm needs the span's end decidedly off the other carrier.**
+/// A segment of `x` from the origin, and a line crossing `x` at
+/// `X = (−2·10⁻⁸, 0, 0)`, past the segment's start by twice the band's
+/// escalation, at an angle `θ`. The polished pair is `X`, on both
+/// carriers; the window's reach, `e/sin θ`, is longer than `X`'s chord to
+/// the start, so the reach clears nothing. At `sin θ = 0.25` the start
+/// lies `5·10⁻⁹` from the line, in the band's gap: the run may hold it,
+/// and the window escalates. At `θ = 60°` it lies `1.7·10⁻⁸` off, past
+/// the escalation and twice the bend (zero on lines), the run crosses no
+/// end, and the window is no meeting; with no bend bounded it escalates.
+#[test]
+fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
+    let x = line([0.0; 3], [1.0, 0.0, 0.0]);
+    let at = Point3::new(-2e-8, 0.0, 0.0);
+    let read = |sine: f64, bent: bool| {
+        let cosine = (1.0 - sine * sine).sqrt();
+        let dir = Vec3::new(cosine, sine, 0.0);
+        let other = Curve3::line(at, dir);
+        let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&other, (-1.0, 1.0)));
+        let Some(bound) = super::polish::bound(
+            ("test_basin", None),
+            (at, Vec3::new(1.0, 0.0, 0.0)),
+            (at, dir),
+            0.0,
+            (band().escalate(), 0.1),
+        ) else {
+            panic!("lines hold the basin")
+        };
+        let bound = if bent {
+            bound
+        } else {
+            super::WindowBound {
+                bend: f64::INFINITY,
+                ..bound
+            }
+        };
+        let mut found = super::Found::default();
+        found.read(
+            &a,
+            &b,
+            super::Candidate {
+                point: at,
+                ta: -2e-8,
+                tb: 0.0,
+                bound: Some(bound),
+            },
+            band(),
+        );
+        found.finish(&a, &b, None, band())
+    };
+    let escalated = |got: &Result<Meetings<f64>, super::MeetRefusal<f64>>| matches!(got, Err(r) if matches!(r.fault, MeetFault::Escalated(_)));
+    let got = read(0.25, true);
+    assert!(escalated(&got), "the start in the band's gap: {got:?}");
+    let got = read(0.75_f64.sqrt(), true);
+    assert!(
+        matches!(&got, Ok(m) if m.points.is_empty()),
+        "the start decidedly off: {got:?}"
+    );
+    let got = read(0.75_f64.sqrt(), false);
+    assert!(escalated(&got), "with no bend bounded: {got:?}");
 }

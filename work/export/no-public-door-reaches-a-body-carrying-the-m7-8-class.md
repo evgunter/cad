@@ -71,4 +71,15 @@ file the tree writes itself; whether that body passes the import gate's
 check 7, which this row's Python fixture needs, the row does not
 assert.
 
+## Evidence, 2026-11-04 (ONECOPY, the m7-8 plain-names re-pin)
+
+The in-crate probe's verdict is still one `EdgeCertification` per lane
+edge and nothing else beside them but the rowless wall's one derivation
+refusal. That refusal now ends as the chart's incidence read (the carrier
+read off the wall past the band, `CarrierOffChart`; the probe reads it
+through `geom_brep::IncidenceRead::of`), where it was the general
+image's `MapResidual`: the spline chart's incidence read (PR 6498) runs
+ahead of the general lane in `topo::pcurves`' NURBS derivation. A Python
+row on such a body would pin the same split.
+
 - 2026-11-02 — moved from REIMPORT to EXPORT by `git mv` when REIMPORT merged into EXPORT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and REIMPORT had fallen far under it).

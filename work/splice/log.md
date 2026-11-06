@@ -1269,6 +1269,20 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Dispatched** as `splice/nurbs-revert-roster` (`session_013QoYWUJw29zhMKEVRtVAc9`) from main `c89d725d`, with a required phase 0: why the roster exists, a ∖/∩ census over the union's spline fixtures with `Nurbs` admitted, and a staging proposal. Letter H, so DUAL, concurrent pair.
   - **PR 6441's state-sync head conflicted with main** on that re-band, and so got no CI run, silently (the known CONFLICTING-no-run shape). Resolved by keeping both sections. The demo-joins row's lint warning was its cue to re-measure: teapot wall 3's stops are now `HeldPierceUnbuilt` (default, 1e-12) and the 1e-6 bore-wall Floor, which is re-banded P0 as a blocker of that row.
   - Before that, the gate went red on time alone: `viewer sketch_on_face::a_boss_sketched_on_a_side_lands` ran 1.032 s against the fast set's 1.0 s. Filed on TCOST, `a-boss-sketched-on-a-side-runs-at-the-fast-sets-one-second-bound` (P4). The integration cannot re-run jobs (403).
+- 2026-11-03 13:50Z — **Friction (logged): the orchestrator's own tracker PR conflicted a unit in its merge window.** PR 6441 was green and ready. Merging tracker PR 6450, which appends to `work/splice/log.md`, made it conflicting on GitHub, whose merge ignores the union driver, and so cost a third full CI run (about 18 min). A unit's state-sync, and its log line, go on only at the merge, and the orchestrator holds its own log-touching tracker PRs while any unit is in its merge window. (PR 6441 also met a 1.03 s timing red and a conflict with another session's re-band today.)
+- 2026-11-03 14:10Z — **PR 6441 merged** (`b0164da8`) after its fourth CI run. Teapot wall 3 passes its seam split. The `held-pierce` lane re-pins it on its next stop.
+- 2026-11-03 14:38Z — **PR 6437 fix pass in** (head `21dd9210`, CI green). `Placed::{On, Off, Unread}` replaces `Option<bool>`. A spline reads `Off` only by its control hull, and is otherwise unread, refused as a new `EdgeInFaceGap::CarrierUnread`. M1 is fixed, and `closed_reach`'s refusal is restored. The lane kept the ends-plus-midpoint check, which is in the M2 class, because dropping it refused two builds that ship today. The whole-unit re-review, by the same reviewer (`session_013QoYWX1QfaL1rw1xRtJNsJ`) on `21dd9210`, judges that point first.
+  - Also found: `undescribed_ending` ends a user-geometry crease with KERNEL_DEFECT_ENDING. The evidence went onto `topo/merge-faces-undescribed-ending-is-a-typed-kernel-defect`, whose planned `unreachable!` repair would turn the refusal into a panic.
+  - Filed: `contacthold/a-tangent-locus-run-between-schedule-stations-is-read-through-no-face`.
+  - The row-3 trigger for a spline edge is `parting/the-plane-split-reads-no-crossing-of-a-spline-edge`. No open row retires the split's refusal of a spline face.
+- 2026-11-03 14:50Z — **PR 6437 re-review** (`21dd9210`): NOT-MERGEABLE-AS-IS, one MAJOR, demonstrated at all three ε (evidence `splice/review-6437` @ `42d76461`). The kept ends-plus-midpoint check reads a straight spline keel that crosses a U face's notch as "in no face", and it ships with no refusal. It ignores the crossing records that the line path cuts at. M1 and M2 are closed.
+  - **Ruled:** an unread carrier refuses wherever any record relates it to the face. The only exemption is a structural one (an end shared as a vertex of one body), shown sound and pinned. Without such an exemption, the two builds the check kept alive refuse, are re-pinned, and get a filed P1. The same reviewer reads the delta.
+  - **Class (again):** a sampled read kept to preserve a build is the M2 class under another name. "It broke two builds" is output stability, not soundness.
+- 2026-11-03 17:12Z — **Revert-roster phase 0 ruled.** With `Nurbs` admitted on a scratch tree, 40 cases × 6 runs at three ε built nothing, wrong or right, and every ∖/∩ refusal matched ∪'s exactly. Klein wall 4 moves to wall 3's crease stop. A read-only audit found that every spline sign path folds `Face::sense`.
+  - **Ruled:** admit every partner kind at once. Delete the second list (`revert_arm_exists`, `PairRefusalSite::RevertRoster`), re-wording any ratified clause that names it as a consequence and showing it. Owed:
+    - one kernel row per sign-reading spline path on a reverted face (`sense = false` reaches them for the first time under ∖);
+    - the probe as a ∖/∩ census guard.
+  - **Class (logged):** a second hand list of one fact. The revert roster was the union's roster less one kind, for a reason the code had outgrown.
 - 2026-11-03 — **Seam (ONEDOOR): `[topo.homes]` is now held per PR** by `scripts/gates/engine-leaves.sh`, merged in PR 6458. Ev ratified the rule on PR 6426; it is in `crates/topo/README.md`.
   - **What the gate refuses** in `crates/topo/src`, outside an engine directory:
     - naming an item declared under `boolean/` or `splitting/`, counted by name however it is reached;
@@ -1284,6 +1298,25 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Fix pass:** carrier content equality is `geom::Curve3::same_content`, which destructures every field. Both reviews' rows are adopted. The closed fixture is now C¹. The `join.rs` lead is filed as `a-germ-site-is-footed-on-its-section-again`.
   - **Slow sets** on the fix head: sweep 3537/3537 (98 min), geom 551/551, topo 3902 plus the two known main reds.
   - **Correction:** the 12:14Z dispatch entry names the protocol `18e21edce5`. That hash came from this shallow checkout's graft. The protocol in force is `24b76fff0e`, which the row records; its text did not change in between.
+- 2026-11-03 18:50Z — **Two rows arrived on SPLICE's slate from other programs** (main also retired `work/issues/` and moved `curved-demo-joins-build` onto SPLICE):
+  - `the-teapot-north-star-row-still-expects-the-point-split-refusal` (P1, E), filed by FRAME. pncad-py's teapot north-star row went red on main because of PR 6441: the python row runs only when its subject is touched. It rides PR 6435, which moves teapot again, and the `held-pierce` lane re-pins it. **Class (again):** a stop that moves needs every pin of it re-read, including the python suite's; the tour's `wall3_pinned` was not the only one.
+  - `a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce`, filed by FRAME's `turned_onto` lane. It is klein wall 3's new stop, where the loop's cap-rim arc lies on the bulb's neck cylinder (the REST mate's rim). Banded P0 as a blocker of the P0 demo-joins row, cost M. Dispatched as `splice/rim-arc-on-cylinder` (`session_013QoYWU9Aeu63rM1pUrPe3f`) from main `27205d77`, with a required phase 0. DESIGN [coincidence] already rules that a coincidence is a margined verdict and a mate makes it structural, so the open part is the reading, not the semantics, and no designers are needed. Single FULL review. The demo-joins row still names klein wall 3's old crease stop; it is updated when this lands.
+- 2026-11-03 20:06Z — **PR 6435 was green (`ea939a36`) but conflicts with main.** Main's face-loop-home refactor (`7c1c89b7`, `19c27a27`) re-spelt exactly the two sites the unit unified: `region::boundary`'s placeholder skip and `Trim::of`'s loop walk. Handed back to the `held-pierce` lane: keep main's loop walks, keep the one `null::is_placeholder` predicate, and adopt main's vertex-point door in it if that is the reading main now uses.
+  - Earlier on the same PR: the python teapot north-star row is re-pinned and FRAME's item closed (pncad-py had gone red on main from PR 6441); engine-leaves pins lowered after the placeholder predicate moved.
+  - **Friction:** this PR has met a main move at each merge attempt (three today). A unit that unifies two readers is exposed to any refactor of either.
+- 2026-11-03 20:15Z — **Rim-arc phase 0 accepted.** The circle-on-cylinder reading works. The gap is `parents_distinct_from` reading a NURBS parent as `OutsideInventory`. Ruled: a one-way "distinct", needing one certified point off the analytic surface on every Bézier piece (the identity theorem on a rational patch), confined to that branch. Klein wall 3's next stop is `GermFrameUnsupported { Cone, Nurbs }` (SECTARMS).
+- 2026-11-03 20:15Z — **PR 6437's second fix pass** (`593c3a91`): no exemption was proven, so four builds now refuse. Among them the lofted cylinder's far union with a disjoint brick (PR 6429 confirmed it correct today), refusing between one operand's own rim arc and its own other wall. Filed P1 by the lane as `an-unread-rider-related-only-by-its-own-vertices-refuses`. A disjoint far union refusing is P0 by the band definitions, so the delta read is asked to judge a same-operand exemption from each operand's at-rest validity BEFORE merge.
+- 2026-11-03 20:20Z — **PR 6437 delta read** (`593c3a91`): APPROVE-WITH-FIXES. The notch MAJOR is closed at three ε, and the four regressions are typed refusals.
+  - **The same-operand exemption** is judged sound in principle when read by lineage: both cells' split roots lie in one operand's input, the shared vertex is unfused, and no record names the pair. Shared-vertex topology alone is not enough, because fused vertices join the operands. It rests on each operand being at rest, which is unchecked for spline or spiric carriers: there is no entry validation, and the tier-3 check-9 arms are silent there.
+  - **Ruled:** soundness first. 6437 lands with the refusals. The exemption is its own unit (`an-unread-rider-related-only-by-its-own-vertices-refuses`, re-banded P0 because a disjoint far union refusing is a normal verb broken), owing both the lineage reading and the missing check. It is dispatched after 6437 lands.
+  - **Class (logged):** a sound refusal can regress a build another unit confirmed that same day (PR 6429's far union). The cost is real and is scheduled at the band it earns, never avoided by keeping the unsound read.
+- 2026-11-03 20:38Z — **PR 6476 (`nurbs-revert-roster`) dual review dispatched**: letter H, a CONCURRENT pair on the frozen head `1bcc5148a904c10b98ae7f35b7fd1cb83f757418`, with an identical brief (`briefs-1103/review-6476.md` and `review-common.md`). R1 is `session_013QoYWVuWAyCF8EZweeT5ae` (evidence `splice/review-6476-r1`); R2 is `session_013QoYWV4a6xpVA2SyVsF4Vo` (`splice/review-6476-r2`). The protocol is `24b76fff0e`, and neither reviewer received a relaxation.
+  - **The PR:** `Nurbs` is admitted to ∖/∩ for every partner kind. The second roster and `PairRefusalSite::RevertRoster` are deleted. There is a kernel row per sign-reading spline path on a reversed face, and the ∖/∩ census is committed as a guard. Klein wall 4 now equals wall 3's stop.
+  - **Main reds the lane met:** pncad-py's teapot north-star row (fixed in PR 6435), and `editor-core m10_p_fence` at Interval, filed on SCALAR as `main-red-the-m10-p-fence-interval-digest-moved` (P1).
+- 2026-11-03 21:03Z — **PR 6435 merges** (`1a20e372`, `held-pierce`), closing `a-spline-wall-cannot-say-whether-it-holds-a-pierce-point` (P0) and FRAME's `the-teapot-north-star-row-still-expects-the-point-split-refusal` (P1; pncad-py's python row is re-pinned on the join's germ frame, which clears main's python red).
+  - The conflict with main's face-loop-home refactor kept main's loop walks. The one `null::is_placeholder` now reads vertex points through main's `resolve_vertex_point_key` door, so region.rs's re-grown inline copy is gone.
+  - Main's new `a_faces_loops_are_walked_in_one_place` audit caught the adopted seam row walking loops by hand, and it is fixed.
+  - Teapot wall 3's default and 1e-12 stop is SECTARMS' NURBS × sphere arm.
 - 2026-11-03 — **PR 6435 merges** (`held-pierce`), closing `a-spline-wall-cannot-say-whether-it-holds-a-pierce-point` (P0).
   - The spline trim lifts past the sweep's placeholders through a crate-private door, with one `is_placeholder` predicate; the public `Body::loop_lift` is strict.
   - The orchestrator read the fix pass. Slow sets on `985e2f4c`: topo 3909 plus the two known main reds, sweep 3536/3536, the tour green at three ε.
@@ -1291,3 +1324,194 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
 - 2026-11-03 — **PR 6437 merges** (`kind-reads`). Closed: `a-spline-rider-reads-as-lying-in-no-plane-face`, `section-area-skips-a-spiric-or-nurbs-section-edge`, `the-curved-arm-reads-a-spline-faces-side-through-the-dihedral-side-door` (overtaken) and `main-red-certified-endpoint-census-drifted-in-geom-brep-after-6171`. `split-section-boundary-curved-arm-untested-past-the-edge-gate` is re-banded P3 and parked on PARTING's split-gate row.
   - **Three review rounds:** two MAJORs in the first (a sampled refutation; a record bypassed), one in the re-review (the kept midpoint check: the notch case). All are closed.
   - **Four builds now refuse instead of shipping on a sampled read.** Their way back is the P0 `an-unread-rider-related-only-by-its-own-vertices-refuses`: the same-operand lineage exemption, together with the missing operand at-rest check.
+- 2026-11-03 21:50Z — **PR 6437 merged** (`5f6aaf16`), the fifth unit of the sitting.
+  - **Dispatched** `splice/same-operand-rider` (`session_013QoYWV9rr7vjvRgLfvwNip`) from main `5f6aaf16`, for the P0 `an-unread-rider-related-only-by-its-own-vertices-refuses`. A phase 0 is required: are the four stops this case; what establishes each operand's at-rest guarantee for spline or spiric carriers, and whose it is to build; is `split_root` lineage reliable. The exemption and the guarantee ship together. Letter H, so DUAL, concurrent pair.
+- 2026-11-03 22:20Z — **PR 6476 dual review** (frozen at `1bcc5148`; R1 `session_013QoYWVuWAyCF8EZweeT5ae`, evidence `splice/review-6476-r1` @ `56a5be97`; R2 `session_013QoYWV4a6xpVA2SyVsF4Vo`, `splice/review-6476-r2` @ `61d02722`). Both APPROVE-WITH-FIXES, no MAJOR, tally 0. Neither built a wrong ∖/∩ body. Blinding byte 186.
+  - **Correspondence pre-note.** Bilateral, all MINOR and executed:
+    - the PR's "∖/∩ refuse where ∪ does" is false: op-dependent reclassification at shared caps and a flush slab;
+    - the census cannot go red on a `sense` bug: its build branch never runs, and its point oracle refuses NURBS;
+    - the census harness is a drifted copy (style).
+  - **Unilateral R1:**
+    - the reversal premise is wrong: ∖ classifies unreverted, and `revert` runs after classification (MINOR, by inspection);
+    - SPLITDOOR's spline-roster obligation fired unacknowledged (MINOR);
+    - `AtRestBody::validate` admits a cavity whose spline walls carry the wrong sense, at the true volume (executed, and filed via the fix pass).
+  - **Unilateral R2:**
+    - under a mutant skipping the NURBS flip in `revert`, `around ∖ prism` builds a mis-sensed void that every row but the unit rows passes (executed, within MINOR 2);
+    - `wall4_pinned` is a bare alias (style).
+  - **Tally candidates:** none.
+  - **Fix pass:** the union. The orchestrator reads it.
+  - **Class (logged):** a census whose build branch never runs, and whose oracles cannot see orientation, guards only its refusals; "matches ∪'s refusal" was standing in for a soundness argument that the op-dependent tables make false.
+- 2026-11-03 22:50Z — **Same-operand rider, phase 0 ruled: PARKED on CLEAR.**
+  - The three lofted-cylinder stops are exactly the same-operand case. The tilted rod's is not (its edge is minted by the join), and it is filed apart as `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on` (P1).
+  - The guarantee the exemption rests on is ratified in DESIGN [topology.tiers] (a finished body's boundary is embedded) but enforced by nothing yet. Its gate is `clear/the-at-rest-gate-certifies-embedding` (P0, H, parked). Check 9 would not give it, and `AtRestBody` promises tiers 1–3 only.
+  - Lineage is weaker than the brief assumed: `split_root` is edges only, and merges and joins can re-key geometry. So the unit resumes after CLEAR's gate, with lineage computed in `ops.rs`.
+  - **Ruled (a):** the exemption does not ship on an unenforced contract.
+  - **For Ev (at hand-back):** (b) would ship it now on the ratified clause and restore the three builds, the far union of a lofted cylinder with a disjoint brick among them. It is a soundness-posture choice, which is Ev's to make.
+- 2026-11-03 23:45Z — **PR 6476 (`nurbs-revert-roster`) landing.** The fix pass was read and accepted: the union of both reviews, with CI green at `29703189` (python included). The state sync is the last commit:
+  - closed `a-spline-face-has-no-subtract-or-intersect-lane`;
+  - added `docs/dual-review-log/rows/PR-6476.md` (concurrent, H, tally 0, byte 186);
+  - updated `curved-demo-joins-build`. Klein walls 3 and 4 now both stop at `CurvedPierceUnsupported` on the start-cap rim arc (the rim-arc row, PR 6481 in flight). Measured next: `GermFrameUnsupported { Cone, Nurbs }` (SECTARMS). blocked_on drops this row and the lathe crease row (no longer this join's stop) and adds the rim-arc row. The rim-arc row is banded P0 (it now blocks a P0 row) and marked dispatched to `splice/rim-arc-on-cylinder` (PR 6481).
+- 2026-11-03 — **Seam (ONECOPY):** your `925fa061a` (the seam row) read `Face::loop_keys` from `spline_region_rows.rs`. ONECOPY's PR 6460 had made that a defect-class pin (`live::tests::loop_keys_is_read_only_where_a_miss_is_reported`), so main went red. PR 6489 repoints the read to `Body::face_loops_linked`, with the same keys in the same order. A walk of a face's loops now reads `face_loops_linked` / `face_boundary_by_loop`. (ONECOPY orchestrator)
+- 2026-11-04 00:20Z — **PR 6476: merge-window friction, then a timing flake.** The merge on `241c3f34` (green) was refused 405, because main had moved into conflict on GitHub. I merged main locally, which was clean, and pushed `f8a4ecfd`. Its kernel job went red on time alone: `spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean` took 1.043 s against the 1.0 s bound. Filed `tcost/both-sphere-witnesses-under-every-boolean-run-at-the-fast-sets-one-second-bound` (P4), and re-rolling with that commit.
+- 2026-11-04 00:45Z — **PR 6476 merged** (`af9b9882`, head `48dd691a`, CI run 41745899188 green). Lane `session_013QoYWUJw29zhMKEVRtVAc9` archived; worktree removed. Rim-arc (PR 6481): the lane is finishing its slow sets. The review brief `briefs-1103/review-6481.md` is drafted against the PR body (single FULL), to be frozen at the lane's final head. Points added for the reviewer: whether "decided off" is off the whole algebraic carrier (the cone's `|h|` residual, one nappe), and the sweep row's `Crease` stop on the wall's `u = 0.5` double knot set against DESIGN [topology]'s C¹-in-cell.
+- 2026-11-04 02:32Z — **PR 6481 (`rim-arc-on-cylinder`) single FULL review dispatched** on the frozen head `6715510071c0a3cb0aac03e45c4af96b27355d32`. Reviewer `session_013QoYWVNgGyjWCxCWw5GS5N`, evidence `splice/review-6481`, brief `briefs-1103/review-6481.md` and `review-common.md`.
+  - The lane's final report: CI run 41759016469 green. Klein walls 3 and 4 stop at `GermFrameUnsupported { 6v1 Cone, 4v1 Nurbs }` at three ε (verified on the head). The slow sets show 4 reds, each also red with the change reverted (BOXES inventory, live loop_keys, the FLUSH needle cavity, sweep bisector_nodes). The tour's full 1e-6 and 1e-12 rows were lost to a container restart; the "stall" I asked about was that, not a hang.
+  - Also: tracker PR 6494 merged at `feefb941`. Weekly usage read 92% at 01:00Z on a lane's rate-limit event, so the rest of the sitting is kept to this review and the landing.
+- 2026-11-04 03:40Z — **PR 6481 single FULL review** (frozen `67155100`; reviewer `session_013QoYWVNgGyjWCxCWw5GS5N`, evidence `splice/review-6481` @ `d831247c`): APPROVE-WITH-FIXES.
+  - **MAJOR (test gap, executed).** The margin-dropped mutant (`Ok(false)` → `!Ok(true)`) survives every PR row. So does the cone residual read on one nappe, against the PR's own rows.
+  - **MINOR (soundness, executed), adjudicated a blocker.** `Surface::Spindle` passes the carrier gate, a deny-list of `Nurbs | Approx`. Its residual vanishes on one sheet, while the identity polynomial vanishes on both, so a NURBS patch across the apex reads Distinct while lying on the spindle. The row is red at three ε. A silent wrong Distinct is the defect class this unit exists to prevent, whether or not anything reaches it yet.
+  - **MINOR (executed).** The filed crease evidence misdescribes the wall: two semicircle faces, with the u=0.5 joint C¹ and inside the arc. So the `Crease` stop is the describer reading multiplicity alone, not a non-C¹ cell.
+  - **Style.** The deny-list should be an allow-list (Q7). The doc's carrier list is not the admitted set. No row touches the other kinds. Four `runs()` breakpoint copies. Two homes for the identity certificate (`slit::carrier_on_surface`). A magic `band.zero() > 1e-7` branch.
+  - **Fix pass sent to the lane.** An allow-list (Plane, Cylinder, Sphere, ring Torus, double Cone) with the doc matched; the reviewer's spindle, in-band and mirror-nappe rows; positive rows for plane, sphere and torus; the evidence and PR body corrected; the ε-keyed branch; the breakpoints and certificate-home rows filed at P3.
+  - **Class (logged):** a certificate argued over "the algebraic carriers" gates by deny-list, so a carrier whose decided residual is one sheet of its variety slips in. Gate an identity certificate on an allow-list of the kinds whose residual is the whole variety.
+- 2026-11-04 04:35Z — **PR 6481 (`rim-arc-on-cylinder`) landing.** The fix pass is read and accepted, at head `66d96e9e` with CI run 41771378724 green.
+  - The gate is an allow-list (Plane, Cylinder, Sphere, Cone, and Torus with `R − r` decided Positive), with `_ => false`, checked in the diff.
+  - Mutants, each red by name:
+    - margin → `a_sheet_in_band_of_the_cylinder_stays_unread`;
+    - one-nappe cone → `a_sheet_on_the_cones_mirror_nappe_stays_unread`;
+    - deny-list → `a_sheet_on_a_spindle_across_its_apex_stays_unread`.
+  - Evidence moved to `a-meeting-on-a-g1-arc-joint-of-a-spline-face-refuses-as-a-crease`.
+  - Two P3 rows filed on ONECOPY.
+  - State sync: closed `a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce` and dropped it from `curved-demo-joins-build`'s blocked_on. Klein walls 3 and 4 now wait on SECTARMS' cone stage, already listed.
+  - **Merge-window friction (a semantic conflict).** Main's FaceView refactor (`8afdb823`) deleted `Body::proven_face_surface`. The state-sync head merged main cleanly, but `topo` stopped compiling (CI run 41773492152, all red within two minutes). The orchestrator re-read both surfaces through `proven_face(..).surface()`, and the eight `spline_off_carrier` rows pass locally. This tracker entry is the last commit.
+- 2026-11-04 05:35Z — **PR 6481 merged** (`85b1b22e`, head `bc76bba2`, CI run 41777180974 green). Lane `session_013QoYWU9Aeu63rM1pUrPe3f` archived; worktree removed.
+- 2026-11-04 05:35Z — **Sitting ends; program set `ready`.**
+  - **Merged this sitting** (2026-11-03/04): PRs 6429 (far-union volume), 6437 (kind-reads bundle), 6441 (split parameter), 6435 (held pierce), 6434 (spline join), 6476 (∖/∩ admit NURBS), 6481 (rim arc on a cylinder), 6487 (same-operand rider parked), plus tracker PR 6494.
+  - **P0/P1 still live:**
+    - P0 open `teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`;
+    - P1 open `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on`;
+    - P0 parked `curved-demo-joins-build`, blocked on SECTARMS' NURBS×cone/sphere section (klein walls 3 and 4, teapot wall 3), SPIRICARM's volume lane (teapot wall 2), the C5 plane×torus arm (lily wall 8) and the teapot 1e-6 floor above;
+    - P0 parked `an-unread-rider-related-only-by-its-own-vertices-refuses`, blocked on CLEAR's embedding gate;
+    - P1 parked `a-creased-spline-gets-no-second-order-clearing`.
+  - **Not dispatched, on budget.** A lane's rate-limit event read weekly usage at 92% at 01:00Z, so no new unit was started after PR 6481.
+  - **For Ev:** the same-operand exemption's option (b). Ship the exemption on the ratified DESIGN [topology.tiers] embedding contract (a finished body's boundary is embedded) before CLEAR's gate certifies it. That would restore the lofted cylinder's far `O ∪ B` / `B ∪ O` and its around `B ∖ O`, which refuse since PR 6437. Option (a), waiting on CLEAR, is what stands.
+- 2026-11-04 05:50Z — **Ev, in chat:** "(a) is fine", so the same-operand exemption stays parked on CLEAR's embedding gate. Ev also said to keep dispatching despite the weekly usage: "there's nothing else happening here, so you won't block anything". The program is back to `active`.
+- 2026-11-04 05:50Z — **Two lanes dispatched** from main `7072c784`, each with a required Phase 0 and a single FULL tier:
+  - `splice/teapot-1e6-floor`: `session_013QoYWUf2kjmewb4ATE3QYd`, brief `briefs-1103/floor.md`, for `teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall` (P0). Phase 0 classifies the floor as depth exhaustion, a genuine near-graze, or a fixture offset that does not scale with ε.
+  - `splice/spiric-on-cap-plane`: `session_013QoYWVga4S7t6gZGFDzKrR`, brief `briefs-1103/spiric.md`, for `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on` (P1). It is a planar reading of a spiric against the wall's conic in the cap's plane; Phase 0 says how it relates to the two identity-certificate homes, so as not to add a third.
+- 2026-11-04 07:40Z — **Teapot 1e-6 floor, Phase 0 ruled: a walk fix.** Measured on main `7072c784` (notes in `phase0/teapot-1e6-floor.md` on the lane's branch @ `7acb4f64`).
+  - The floored box is 4.47 mm past the meridian piece's end, inside the walk's past-end reach. The reach is END_REACH·escalate/pace, 10.2 mm of arc at 1e-6.
+  - There the meridian crosses the bore wall's seam edge transversally: zero clearance, a steep crossing, belonging to the next piece.
+  - The floor fits none of the three classes as written. It is a reach-scaling defect: the reach scales with ε and the floor with √ε (reach/floor ≈ 173 at 1e-6, 5.5 at 1e-9, 0.17 at 1e-12), so only 1e-6's window holds the crossing.
+  - **Ruled:** a floor box settles only when its curve range lies wholly past an end and is decided farther than the band from that end's point; every other floor still refuses. The lane must show the next piece reads the transverse crossing at every ε, so the fix does not just hide it. Rows: the witness, an in-band negative, and the continuation's positive. The sibling end windows (`composite::crossings`, circle × torus, the plane crossing) get swept.
+  - **Class (logged):** a search window whose reach scales with ε, while its floor scales with √ε, meets geometry at coarse ε that the question never asked about. A box that cannot hold an answer must settle, not refuse.
+- 2026-11-04 09:50Z — **Spiric on a cap plane, Phase 0 ruled: a degree certificate.** Measured on main `7072c784`, notes on the lane's branch @ `c6cac452`.
+  - The β 0.7 chord is an exact spiric in the cap plane. Its open arc runs up to 0.046 m inside the rim, touching the wall only at its two ends.
+  - The item's plan was wrong: `curve_pair::meet` never reports an overlap, so it could only refuse there.
+  - The lane's replacement: a spiric with a decided nonzero offset is an irreducible quartic, and a sphere, cylinder or cone cuts its plane in a curve of degree ≤ 2. By Bézout they share at most 8 points, so the spiric lies along none of them: `Placed::Off`. A torus cuts its plane in a quartic that can be the spiric itself, so `(Spiric, Torus)` stays Unread. It is a degree certificate, not a third identity-certificate home.
+  - **Ruled:** approved, gated on the decided nonzero offset, with irreducibility argued at the site, the nodal and tangent offsets included. Required: a near-tangent row showing that within-band closeness reaches a margined crossing or touch reading, not a silent build, and the offset-0 negative.
+  - 1e-12: the germ_tilted_rod test ran over 2h18m single-threaded locally (2096 s at 1e-9), though the nightly passes it in parallel. Filed: `tcost/the-tilted-rods-other-spins-row-runs-past-two-hours-at-1e-12-locally` (P2).
+- 2026-11-04 12:05Z — **PR 6519 (`teapot-1e6-floor`) single FULL review dispatched** on the frozen head `9aba71aee14c162601b21b717866b4e6eb2d44ca` (`gate ok` green). Reviewer `session_013QoYWYXJ2kcKNKAQdZAB8q`, evidence `splice/review-6519`, brief `briefs-1103/review-6519.md`.
+  - The lane's report: teapot wall 3 at 1e-6 reaches `GermFrameUnsupported { 6v1 Sphere, 3v3 Nurbs }`, one pin across ε; the continuation piece reads the crossing (`Pierce { t: 0.343435, OnEdge(20v1) }`).
+  - Filed: the straddling residue at P3; evidence on HONEROOT's root-slack row and on SCALAR's span-reach row.
+  - Inherited slow-set reds named: sweep ×3, topo ×2, geom-brep ×1. The reviewer is to reproduce the `Floor` one on main.
+- 2026-11-04 12:55Z — **PR 6523 (`spiric-on-cap-plane`) single FULL review dispatched** on the frozen head `6d9a323f89268c082faa2ad784f05c32d0ac8f00` (CI run 41830799104 green). Reviewer `session_013QoYWXdnBJHpASo4cCKDTW`, evidence `splice/review-6523`, brief `briefs-1103/review-6523.md`.
+  - The lane's report: one arm, `(Spiric, Sphere | Cylinder | Cone) → Off`, gated on the re-decided two-oval regime, with irreducibility argued at the site. A band guard needs an interior sample decided off.
+  - The residue it names: a near touch between the samples still reads Off; `Door::Spiric` is unbuilt (evidence on REACHHOLD's row). The reviewer is asked to build that pose and find its stop.
+  - The β 0.7 union moves to `"spiric wall volume"` (SPIRICARM), pinned by identity in `STEEP_UNION_STOP`.
+- 2026-11-04 13:58Z — **PR 6519 single FULL review** (frozen `9aba71ae`; reviewer `session_013QoYWYXJ2kcKNKAQdZAB8q`, evidence `splice/review-6519` @ `6862bfbe`): APPROVE-WITH-FIXES, no MAJOR.
+  - Settling is sound, and the next piece reads the crossing. Among the teapot, lily and klein demos at 1e-6, the only built result moved is teapot wall 3. The inherited `Floor` red is mass-properties' `settle::Unmet`, a different class.
+  - **MINORs:**
+    - three mutants survive all 157 `curve_face` rows at three ε (always settle, compare raw, flip the end);
+    - `end_state`'s doc now sits on `past_an_end`;
+    - a stale module-doc sentence;
+    - the circle × torus side decision was filed onto HONEROOT's root-slack row, which is a different predicate.
+  - **Fix pass sent:**
+    - adopt the reviewer's six-cell unit row; make the negatives exercise the decision or rename them as regression records;
+    - restore the docs and fix the module sentence;
+    - refile the circle × torus case as its own HONEROOT row (P3);
+    - move the "why it became needed" comment to the PR body.
+- 2026-11-04 13:58Z — **PR 6523 single FULL review** (frozen `6d9a323f`; reviewer `session_013QoYWXdnBJHpASo4cCKDTW`, evidence `splice/review-6523` @ `89a20300`): APPROVE-WITH-FIXES, no MAJOR.
+  - Irreducibility was re-derived by hand; it holds for every d ≠ 0, so the R − r bound is conservative. Degree ≤ 2 holds for every admitted variant.
+  - The near touch reads Off. That is semantically right for the rider question, and the existing conic arms share the residue.
+  - **MINORs:**
+    - three mutants survive (admit Torus, `Err → Off`, midpoint only);
+    - `STEEP_UNION_STOP`'s keys were never measured at 1e-12, which the nightly runs.
+  - **Fix pass sent:**
+    - adopt the reviewer's three rows;
+    - measure the β 0.7 union cell alone at 1e-12, or pin per ε;
+    - say the regime bound is conservative;
+    - an undecided reading escalates like the neighbouring arms, not as a carrier gap;
+    - correct the ONECOPY evidence;
+    - file the triplicated two-oval regime predicate on ONECOPY (P3);
+    - a named pose/op key.
+- 2026-11-04 14:45Z — **PR 6519 (`teapot-1e6-floor`) landing.**
+  - Fix pass read and accepted: head `9714d441`, CI green. The adopted row `a_box_past_an_end_settles_only_past_the_band_of_that_ends_point` goes red under each of the three mutants at three ε; the two negatives are renamed as regression records; the docs are fixed; the circle × torus case is refiled as its own HONEROOT row (P3).
+  - Main merged, and `cargo check -p geom-brep -p topo --all-targets` is clean. Main had moved `edge_join.rs` and `ops.rs`, so I checked for a semantic conflict.
+  - State sync: closed `teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall` and dropped it from `curved-demo-joins-build`'s blocked_on.
+- 2026-11-04 15:20Z — **PR 6519 merged** (`c8b70909`, head `4b31eb8c`, CI green). Lane `session_013QoYWUf2kjmewb4ATE3QYd` archived; worktree removed.
+- 2026-11-04 15:20Z — **Filed** `onecopy/main-red-the-m7-8-plain-names-probe-fails-after-the-faceview-fix-pass` (P1). The spiric lane met `cert_m3r1_probes::m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else` red on clean main `7d3f0b73`. The file was last changed by ONECOPY's FaceView fix pass `e383ccfb`.
+- 2026-11-04 15:20Z — **A third P1 lane dispatched.** PCERT filed `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor` (P1) on SPLICE this morning, from PR 6498's review. `read_capped` decides Off on an f64 control-box floor whose cut rounding nothing charges, and PCERT measured false Offs at 1e-12. Lane `splice/spline-region-charge`: `session_013QoYWViQCDK7cyUP3Ktm28`, brief `briefs-1103/charge.md`, from main `2c73aabf`. Phase 0 is required, single FULL tier.
+- 2026-11-04 15:20Z — **PR 6523 (`spiric-on-cap-plane`) landing.**
+  - Fix pass read and accepted: head `3908e864`, CI run 41852929506 green.
+  - All eight mutants are named red. `spiric_on_quadric` returns `Result` and escalates the undecided case, which I checked in the diff. `the_steeper_tilts_union_stops_by_identity` passes with the same keys at three ε (680 s at 1e-12). The two-oval regime row is filed on ONECOPY.
+  - New inherited red the lane met: `cert_m3r1_probes::m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else` fails on clean main `7d3f0b73`; to be filed at the wrap.
+  - Main merged, and `cargo check -p topo -p sweep --all-targets` is clean.
+  - State sync: closed `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on`.
+- 2026-11-04 15:48Z — **PR 6523 merged** (`a0cd09c8`, head `6dbc0302`, CI run 41856334073 green). Lane `session_013QoYWVga4S7t6gZGFDzKrR` archived; worktree removed. Both of the open P0/P1 rows Ev asked to finish this sitting are now closed (teapot 1e-6 by PR 6519, spiric on a cap plane by PR 6523). The spline-region charge lane, the third P1, is in its Phase 0.
+- 2026-11-04 16:10Z — **Spline-region charge, Phase 0 ruled.** Measured on main `2c73aabf` (draft PR 6530, head `535b3b70`).
+  - At band 1e-12, `read_capped`'s carrier walk reads points on the sheet Off. Up to 133 of about 2000 samples (two seeds, knotted rational rows); worst, a point at distance 0 with a floor of 4.4e-11.
+  - Every hit is rational at size or placement ≥ 3.4e3. No demo reaches it.
+  - **Ruled:**
+    - one home for the tracked cut and charged floor, moved out of PCERT's `spline_incidence.rs` into a public geom-brep module that both walks read. Review rises to DUAL;
+    - guarded: if a live `pcert/*` branch edits that file, copy into topo instead, stay at FULL, and cite the P3 two-walks row;
+    - `Trim::copy` folded in. It is uncharged even at Interval, since its pieces collapse to their value channel;
+    - other sweep hits filed (spline_arc ball/cross, edge_nurbs edge_piece, projected frame_box_on), with `window_arms` folded in only if the one home makes it a call;
+    - a carrier-walk witness allowed if `read_capped` calls exactly it, plus one attempt at a far rational arc loft through a boolean.
+  - **Class (logged):** a floor read off a control box at f64 after an untracked cut is not a lower bound. Every cut box that decides needs the cut's rounding charged, and `Interval` alone does not do it where the net is collapsed to its value channel.
+- 2026-11-04 16:30Z — **Tracker PR 6529 merged** (`17fd9b4b`).
+- 2026-11-04 16:30Z — **Spline-region charge: the one-home guard tripped.** A live PCERT branch, `pcert/spline-certificate-door` (commits `bd84839a`, `995620ef`, `742c98b2`; last 16:05Z, +160/−8 on the file), edits `spline_incidence.rs`, and `line-incidence-bound` has a one-line edit there too. So the lane copies the tracked cut and charge into topo's `spline_region`, citing the P3 row `the-spline-chart-cell-walk-is-written-twice` with this as its second copy. The tier stays a single FULL review. `Trim::copy` is still folded in.
+- 2026-11-04 17:56Z — **PR 6530 (`spline-region-charge`) single FULL review dispatched** on the frozen head `e2185db6c914b338def8391c11b61fe35ffa4909` (CI run 41878682912 green). Reviewer `session_013QoYWWSS2CEuh85skE5JgS`, evidence `splice/review-6530`, brief `briefs-1103/review-6530.md`.
+  - The lane's report: the charge is copied into topo; `Patch::floor` replaces `hull_gap`; `Trim::copy` is charged at every scalar; the walk is split out as `carrier_walk`. The Phase 0 probe falls from 133 false Offs to 0.
+  - Three mutants are named red. There is no boolean witness: today's arc lofts' weights (0.71–1) never reach the defect.
+  - Filed at P2: charttail chart arms, hone spline_arc, isotail edge_piece, pcert frame_box.
+  - The brief presses on three things: the knotted-insertion bound checked against the topo copy itself, the trim's parity argument, and endings moved in sweep and the tour, which the lane did not run.
+- 2026-11-04 19:52Z — **PR 6530 single FULL review** (frozen `e2185db6`; reviewer `session_013QoYWWSS2CEuh85skE5JgS`, evidence `splice/review-6530` @ `09272fd5`): APPROVE-WITH-FIXES.
+  - **What held:**
+    - the bound holds against a double-double Boehm reference: worst drift/bound 0.95 for cells and 0.98 for pieces (first-order, a thin margin);
+    - the parity argument's shared ends hold in code;
+    - no ending moved: sweep `/spline/` and the spline-operand census are line-identical at 1e-6 and 1e-12, and teapot/lily/klein are unchanged;
+    - cost is about +1%.
+  - **MAJOR (test gap, executed):** six of nine charge sites survive every PR row: the read term alone, the cut term alone, the insertion-ratio charge, the Interval half-width, the shift, the iso ends. `u`-unwidening survives even the reviewer's rows.
+  - **MINORs:**
+    - a NaN bound is silently dropped by `f64::max`, narrowing instead of refusing (latent);
+    - the "verbatim" copy dropped `structure_positive`'s weight guard, and `refined` passes unit weights to `refine_plan`.
+  - **NOTEs:**
+    - the Fitted arm's Interval parameter bracket is uncharged;
+    - `close_gap`'s ulp sliver;
+    - the HONE spline-arc filing is a P1 candidate.
+  - **Fix pass sent:**
+    - a named row for every mutant, including the reviewer's three green rows;
+    - a NaN bound refuses (adopting the reviewer's two red rows);
+    - the weight guard restored and the copy's differences stated;
+    - the Fitted bracket charged or shown immaterial;
+    - the `close_gap` argument;
+    - doc fixes;
+    - one far-arc probe for the HONE row's band.
+  - **Class (logged):** a rounding charge built from several terms needs a row per term. A row that turns red only when the whole charge is dropped pins none of the terms.
+- 2026-11-04 20:52Z — **PR 6530 fix pass** (head `2ebbb704`, CI run 41907494060 green). Accepted except for one change.
+  - Every one of ten mutants is red by a named row: the reviewer's five rows adopted, plus a cut-and-read composition row, a transposed trim row for `u`, a shift row and an iso-end row.
+  - NaN and infinite bounds now refuse. The weight guard is restored at both scalars, and `bezier_cells` refuses a non-positive cut weight, which restores main's Interval refusal. The Fitted run's Interval ends are charged, and `close_gap` compares homogeneous forms.
+  - The HONE far-arc probe read 0 false clears in 2000, so that row stays P2.
+  - **Sent back:** unasked, the lane had narrowed the reviewed read charge `rounding_charge(2·(reach+|q−c|+|c|))` to `rounding_charge(|q−c| + gap)`. A soundness charge narrowed after review needs its own review, so it is reverted, with the narrowing to be filed P3 if wanted.
+  - Also asked for: topo's full slow set, sweep `/spline/` at 1e-6/1e-12, and the spline-operand census diffed against main, since `bezier_cells` now refuses more.
+- 2026-11-04 22:15Z — **PR 6530 (`spline-region-charge`) landing.**
+  - The revert is accepted: head `8eaf2fdf`, CI run 41911412907 green. The reviewed read term is back, which I checked in the diff at `spline_region.rs:512`, and the narrowing is filed P3, unbuilt.
+  - The reruns are clean: topo 3972/3975 (inherited reds only); sweep `/spline/` 43/43 at 1e-6 and 1e-12; the census stdout identical to main's at 1e-6.
+  - Main merged; `cargo check -p topo --all-targets` is clean, with no conflict markers.
+  - State sync: closed `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor`.
+- 2026-11-04 22:40Z — **PR 6530 merged** (`b2eb7192`, head `cc41fa90`, CI run 41923211393 green). Lane `session_013QoYWViQCDK7cyUP3Ktm28` archived; worktrees removed.
+- 2026-11-04 22:40Z — **Sitting ends; program set `ready`.** Every live P0/P1 row is now parked, but open P2/P3 rows remain to pick up.
+  - **Merged since the reopening:** PR 6519 (teapot wall 3's 1e-6 floor, P0), PR 6523 (a section spiric on a cap plane, P1), PR 6530 (the spline-region f64 charge, P1), and tracker PR 6529.
+  - **Earlier in the sitting:** 6429, 6437, 6441, 6435, 6434, 6476, 6481, 6487, 6494, 6499.
+  - **Parked:**
+    - P0 `curved-demo-joins-build`. Klein walls 3/4 and teapot wall 3 wait on SECTARMS' NURBS × cone/sphere section; teapot wall 2 on SPIRICARM; lily wall 8 on the C5 plane × torus arm.
+    - P0 `an-unread-rider-related-only-by-its-own-vertices-refuses`, on CLEAR's embedding gate (Ev: "(a) is fine").
+    - P1 `a-creased-spline-gets-no-second-order-clearing`.
+  - **Filed this stretch:**
+    - SPLICE: `a-meeting-on-the-charts-edge-nearer-a-spans-end-than-the-walks-floor-refuses` (P3), `the-spline-face-floors-read-charge-is-wider-than-its-read` (P3).
+    - ONECOPY: `main-red-the-m7-8-plain-names-probe-fails-after-the-faceview-fix-pass` (P1), `the-spiric-two-oval-regime-is-decided-in-three-places` (P3).
+    - HONEROOT: `a-circle-touching-a-torus-off-the-arc-escalates-the-arcs-side-decision` (P3).
+    - TCOST: `the-tilted-rods-other-spins-row-runs-past-two-hours-at-1e-12-locally` (P2).
+    - P2 uncharged-cut rows on CHARTTAIL, HONE, ISOTAIL and PCERT.
+  - **Inherited reds on main the lanes reproduced:** topo `every_door_that_reads_a_box_is_inventoried` and the `a_needle_cavity…` row; sweep `a_lofted_arc_wall_is_a_function_of_the_sections_bulge`, `the_seam_split_census_reads_no_side_inside_out` and `the_walk_matches_the_serial_golden_at_four_threads`. Their owners' rows already exist, except the new ONECOPY m7_8 row.

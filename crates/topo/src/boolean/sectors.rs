@@ -89,11 +89,12 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{ConeApex, SectorCarrier, SectorFaceError, VertexFace};
 
-use crate::sector_shape::{
-    ApexShape, CornerShape, FullTurn, SectorFault, SectorShape, SlitTips, TurnOrder,
-    apex_corner_shape, corner_shape,
-};
+use crate::sector_shape::{ApexShape, SlitTips, apex_corner_shape};
 use crate::validate::decide;
+use geom_brep::sector_shape::{
+    CornerBounds, CornerShape, FullTurn, SectorFault, SectorShape, TurnOrder, corner_shape,
+    metering_arm,
+};
 
 use crate::bound_side::Descent;
 use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
@@ -595,16 +596,6 @@ fn extreme_directions<T: Decide>(
     }
 }
 
-/// **A corner's metering arm** ([`crate::sector_shape`]'s, the shorter of
-/// its bounds' departure vectors' norms) as the lever its sectors read at.
-pub(crate) fn metering_arm<T: geom_core::Real>(arm: T) -> Lever<T> {
-    // Unsourced lever: the norm of a departure vector, a curved bound's
-    // read back from its extent times a unit tangent (or a line's chord),
-    // which differs from that extent by rounding: the edges' `Lever::min`
-    // would round differently.
-    Lever::unsourced(arm)
-}
-
 /// **A departure vector's norm as a lever**: the one bound's arm
 /// [`metering_arm`] reads, for a reading levered at a single departure.
 pub(crate) fn departure_arm_lever<T: geom_core::Real>(v: Vec3<T>) -> Lever<T> {
@@ -634,7 +625,7 @@ fn push_apex_corner<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     corner: OrbitCorner<T>,
     apex: &ConeApex<T>,
-    bounds: crate::sector_shape::CornerBounds,
+    bounds: CornerBounds,
     partners: &Partners<T>,
     band: Band,
 ) -> Result<(), SectorFault> {
@@ -672,7 +663,7 @@ fn push_apex_corner<T: Decide>(
     // spans a whole turn, and its two bounds' azimuth
     // ([`BoolSector::middle`]) reads its window.
     if !matches!(partners, Partners::Pierced(_)) {
-        rulings = crate::sector_shape::TurnOrder::FromOwn
+        rulings = TurnOrder::FromOwn
             .quarter_fractions()
             .into_iter()
             .map(|k| apex.ruling_from(unit_start, window * T::from_f64(k)))
@@ -814,10 +805,10 @@ pub(super) fn orbit_corners<T: Decide>(
         let (end, end_reach) = departure(he); // CCW-last
         let (start, start_reach) = departure(orbit[(i + 1) % n]); // CCW-first
         let (face, at_vertex) = sector_face(body, operand, vertex, he, band)?;
-        let face_data = proven(&body.faces, face, EntityId::Face);
+        let view = body.proven_face(face);
         let bend = FaceBend::at(
-            body.face_surface_linked(face, face_data),
-            face_data.sense,
+            view.surface(),
+            view.sense(),
             body.resolve_vertex_point(vertex, Proven),
         );
         Ok(OrbitCorner {

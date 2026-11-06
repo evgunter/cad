@@ -1,16 +1,14 @@
-//! **The nodes of an equal cylinder pair's section** (D2: a branch may
-//! end at a node). Two cylinder walls of one radius whose axes meet cut
-//! each other in the two bisector-plane ellipses, which cross at two
-//! points where the walls are tangent. Where such a node lies inside a
-//! face of each operand, the section crosses itself there with no
-//! operand edge to mark it: this pass reads it from the section table
-//! (`geom_brep::PairSection::nodes`) and mints it, a
-//! ring in each wall ([`super::vtxfac::mint_node`]), before the join
-//! matches any germ. The pair is read on its section value, from the
-//! operation's section table: the nodes its pose places, and the two
-//! bisector planes its ellipses lie in. The four arcs leaving it then
-//! join like any
-//! others, each on its own ellipse's bisector plane.
+//! **The nodes of a pair's section** (C5: a branch may end at a node).
+//! Two cylinder walls of one radius whose axes meet cut each other in
+//! the two bisector-plane ellipses, which cross at two points where the
+//! walls are tangent. Where such a node lies inside a face of each
+//! operand, the section crosses itself there with no operand edge to
+//! mark it: this pass reads it from the section value, as the value
+//! lists it (`geom_brep::PairSection::nodes`), and mints it, a ring in
+//! each wall ([`super::vtxfac::mint_node`]), before the join matches any
+//! germ. Its germs are minted from the arc ends the value lists there,
+//! one per end, each riding its arc's component; the arcs then join like
+//! any others, on the carried lane.
 
 use geom_core::{Band, Decide, Tol};
 
@@ -59,24 +57,24 @@ pub(super) fn is_wall<T: Decide>(s: &geom::Surface<T>) -> bool {
 
 /// **Every node of every equal cylinder pair of the two operands,
 /// built**: each of `walls`, the face pairs of A's and B's cylinder
-/// walls whose boxes overlap ([`is_wall`]), whose section is the two
-/// bisector-plane ellipses on the section table's value
-/// has its two nodes placed in its two faces of the unmutated operands.
-/// A node definitely outside either face is no point of the pair's
-/// section there. A node inside both is minted into the working bodies
-/// `a` and `b` (one ring in each wall, [`super::vtxfac::mint_node`]); its
-/// arcs leave it along `â₁ + â₂` (`e₁`) and `â₁ − â₂` (`e₂`), where the
-/// ellipses cross square, and the germs' order is metered at the walls'
-/// radius. Each ring comes back as its records.
+/// walls whose boxes overlap ([`is_wall`]), has each node its section's
+/// value lists placed in its two faces of the unmutated operands. A node
+/// definitely outside either face is no point of the pair's section
+/// there. A node inside both is minted into the working bodies `a` and
+/// `b` (one ring in each wall, [`super::vtxfac::mint_node`]), with one
+/// germ per arc end the value lists there, in the rays' turn, the
+/// germs' order metered at the section's scale. Each ring comes back as
+/// its records.
 ///
 /// # Errors
 ///
 /// [`BooleanError::NodeUnbuilt`] for a node on the boundary of a face
 /// that holds it, or that a face's trim cannot place, unless the other
-/// face holds it definitely outside; the containment door's refusals;
-/// [`super::vtxfac::mint_node`]'s. A pair whose reading refuses is
-/// skipped here, not silently: a germ riding one of its ellipses refuses
-/// the reading's refusal at the join's guard.
+/// face holds it definitely outside; a desync for a node whose arc ends
+/// are other than one along each of its four rays; the containment
+/// door's refusals; [`super::vtxfac::mint_node`]'s. A pair whose reading
+/// refuses is skipped here, not silently: a germ riding it refuses the
+/// reading's refusal at the join's guard.
 pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (a, b): (&mut Body<T>, &mut Body<T>),
@@ -85,6 +83,7 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<Vec<super::vtxfac::RingOut<T>>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
     let mut out = Vec::new();
     for &(fa, fb) in walls {
         // A refused section mints no node here and pre-empts nothing: the
@@ -100,39 +99,22 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
             Some(Err(_)) => continue,
             None if !sections.unheld_is_desync() => continue,
             None => {
-                return Err(BooleanError::JoinDesync {
-                    what: "two overlapping cylinder walls the section table does not hold",
-                });
+                return Err(desync(
+                    "two overlapping cylinder walls the section table does not hold",
+                ));
             }
         };
-        let geom_brep::PairPose::CylinderCylinder(pose) = held.pose() else {
+        if held.nodes().is_empty() {
             continue;
-        };
-        let Some((centre, [e1_normal, e2_normal])) = pose.bisector_planes() else {
-            continue;
-        };
-        let [n0, n1] = match held.nodes() {
-            &[n0, n1] => [n0, n1],
-            _ => {
-                return Err(BooleanError::JoinDesync {
-                    what: "a bisector cylinder pair's section holds other than two nodes",
-                });
-            }
-        };
-        // The pose was asked in A, B order (`SectionTable::held`), so its
-        // first radius and axis are A's wall's; the walls are of one
-        // radius here.
-        let [radius, _] = pose.radii();
-        let radius = radius.abs();
-        // Each ellipse's tangent at a node is the other plane's normal:
-        // `e₁`'s (in the `â₁ − â₂`-normal plane) runs along `â₁ + â₂`, and
-        // `e₂`'s along `â₁ − â₂`. The planes meet in the axes' meeting
-        // point, `centre`.
-        let tangents = [e2_normal, e1_normal];
-        for node in [n0, n1] {
+        }
+        let listed = held
+            .counted()
+            .ok_or(desync("a section listing nodes counts no components"))?;
+        for (n, node) in held.nodes().iter().enumerate() {
+            let arcs = node_arcs(listed, n)?;
             let here = (
-                placed((Operand::A, a_operand), fa, node, band)?,
-                placed((Operand::B, b_operand), fb, node, band)?,
+                placed((Operand::A, a_operand), fa, node.point, band)?,
+                placed((Operand::B, b_operand), fb, node.point, band)?,
             );
             match here {
                 (Placed::Out, _) | (_, Placed::Out) => continue,
@@ -148,15 +130,48 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
             out.push(super::vtxfac::mint_node(
                 (&mut *a, &mut *b),
                 (fa, fb),
-                (node, node - centre),
-                tangents,
-                geom_core::Lever::curvature_radius(radius),
+                node,
+                arcs,
+                held.lever(),
                 band,
                 tol,
             )?);
         }
     }
     Ok(out)
+}
+
+/// **The component leaving the node `n` along each of its rays**, in
+/// their turn ([`geom_brep::SectionNode::ray_index`]): the arc ends the
+/// value lists there, one per ray.
+///
+/// # Errors
+///
+/// A desync where a ray has no arc end, or two.
+fn node_arcs<T: geom_core::Real>(
+    listed: &[geom_brep::SectionComponent<T>],
+    n: usize,
+) -> Result<[usize; 4], BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let mut rays = [None; 4];
+    for (k, c) in listed.iter().enumerate() {
+        let geom_brep::ComponentShape::Open { ends } = c.shape else {
+            continue;
+        };
+        for end in ends.nodes.both().into_iter().flatten() {
+            if end.node != n {
+                continue;
+            }
+            let ray = geom_brep::SectionNode::<T>::ray_index(end.line, end.sense);
+            if rays[ray].replace(k).is_some() {
+                return Err(desync("two arcs leave a node along one ray"));
+            }
+        }
+    }
+    match rays {
+        [Some(r0), Some(r1), Some(r2), Some(r3)] => Ok([r0, r1, r2, r3]),
+        _ => Err(desync("a node is listed with other than four arc ends")),
+    }
 }
 
 /// One bisector plane of an equal cylinder pair with meeting axes:
@@ -174,7 +189,7 @@ pub(super) fn bisectors<T: Decide>(
     (x, x_is, wall): (&Body<T>, Operand, crate::entity::FaceKey),
     (y, face): (&Body<T>, crate::entity::FaceKey),
 ) -> Result<Option<[Bisector<T>; 2]>, BooleanError> {
-    let is_wall = |b: &Body<T>, f| is_wall(b.proven_face_surface(f));
+    let is_wall = |b: &Body<T>, f| is_wall(b.proven_face(f).surface());
     if !is_wall(x, wall) || !is_wall(y, face) {
         return Ok(None);
     }
@@ -204,29 +219,36 @@ pub(super) fn bisectors<T: Decide>(
     }
 }
 
-/// **A cylinder wall's sense at a point of it**: whether its outward
-/// normal `n` there points along `radial`, the point less its foot on
-/// the axis (`true`, the wall bounds a rod) or against it (a bore). The
-/// one reading of the fact for the node pass and the pierce.
+/// **A wall's sense at a point of it where it is tangent to its
+/// partner**: whether its outward normal `n` there points along `normal`
+/// (`true`) or against it, `normal` unit, the margin levered at `arm`.
+/// The one reading of the fact: at a node, `normal` is the node's common
+/// normal and `arm` the section's scale (the node pass); at a pierce,
+/// the radial, the point less its foot on the axis, at the wall's radius
+/// (the pierce: `true` where the wall bounds a rod, `false` a bore).
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] where the two read square:
-/// a wall of radius `r` read against its own radius is `±r`, which the
-/// section table decided definite on this band before it served the
-/// pair (`geom`'s `ellipse_minor_positive`, the minor semi-axis `r`). An
-/// undecided margin escalates [`super::Coincide::Sectors`].
+/// [`BooleanError::ClassificationInvariant`] where the two read square,
+/// which a wall tangent to its partner there never does (`n` is
+/// `±normal`, the margin `±arm`); an undecided margin escalates
+/// [`super::Coincide::Sectors`].
 pub(super) fn wall_sense<T: Decide>(
     n: geom_core::Vec3<T>,
-    radial: geom_core::Vec3<T>,
+    normal: geom_core::Vec3<T>,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     use geom_core::{Margin, Sign};
-    match crate::validate::decide("bool_node_wall_sense", Margin::of(n.dot(radial)), band) {
+    match crate::validate::decide(
+        "bool_node_wall_sense",
+        Margin::levered(n.dot(normal), arm),
+        band,
+    ) {
         Ok(Sign::Positive) => Ok(true),
         Ok(Sign::Negative) => Ok(false),
         Ok(Sign::Zero) => Err(BooleanError::ClassificationInvariant {
-            what: "a wall reads its outward normal square to its own radius",
+            what: "a wall reads its outward normal square to its partner's",
         }),
         Err(diag) => Err(BooleanError::coincidence(
             super::Coincide::Sectors,
@@ -237,20 +259,21 @@ pub(super) fn wall_sense<T: Decide>(
 }
 
 /// **The pierced wall's datum at a pierce point `p` on the bisector plane
-/// `branch` names**, for what lies on the piercing wall: that plane's unit
+/// `plane`** (its index in [`bisectors`]' order, the plane whose factor
+/// the sweep found the pierce a root of), for what lies on the piercing
+/// wall: that plane's unit
 /// normal, signed to point the way the pierced face's outward normal
 /// does. On the piercing wall the pierced wall's residual is `±c·d₀·d₁`
 /// (`c > 0`, `+` where A pierces), so at `p`, where the branch's
 /// distance `dᵢ` is zero, it grows along `±sign(dⱼ)·n̂ᵢ` across the
 /// plane: a product of decided signs. `faces` are A's and B's.
 ///
-/// `Ok(None)` keeps the tangent plane: a branch naming no plane, or a
-/// pair whose named plane `p` lies definitely off. The second is a sector
-/// on another wall of the piercing body than the one the sweep read the
-/// pierce against (three equal walls meeting at a vertex): `p`, on both
-/// of that pair's walls, lies on one of its planes, and a branch naming
-/// the other reads it off that one, so the record says nothing of that
-/// pair.
+/// `Ok(None)` keeps the tangent plane: a pair whose named plane `p` lies
+/// definitely off, a sector on another wall of the piercing body than
+/// the one the sweep read the pierce against (three equal walls meeting
+/// at a vertex): `p`, on both of that pair's walls, lies on one of its
+/// planes, and a record naming the other reads it off that one, so the
+/// record says nothing of that pair.
 ///
 /// # Errors
 ///
@@ -264,18 +287,20 @@ pub(super) fn wall_sense<T: Decide>(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn bisector_datum<T: Decide>(
     planes: [Bisector<T>; 2],
-    branch: super::Branch,
+    plane: usize,
     (piercing, faces): (Operand, (crate::entity::FaceKey, crate::entity::FaceKey)),
     p: geom_core::Point3<T>,
     (pierced, n_pierced): (&geom::Surface<T>, geom_brep::OutwardNormal<T>),
     band: Band,
 ) -> Result<Option<geom_brep::OutwardNormal<T>>, BooleanError> {
     use geom_core::{Margin, Sign};
-    let (on, other) = match branch {
-        super::Branch::Positive => (planes[0], planes[1]),
-        super::Branch::Negative => (planes[1], planes[0]),
-        super::Branch::Only | super::Branch::Component(_) | super::Branch::Line(_) => {
-            return Ok(None);
+    let (on, other) = match plane {
+        0 => (planes[0], planes[1]),
+        1 => (planes[1], planes[0]),
+        _ => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a pierce's recorded bisector plane is neither of its pair's two",
+            });
         }
     };
     let side = |(origin, normal): Bisector<T>| {
@@ -311,9 +336,14 @@ pub(super) fn bisector_datum<T: Decide>(
         });
     };
     // The pierced wall's residual grows radially, away from its axis.
-    let w = p - origin;
-    let radial = w - axis * (w.dot(axis) / axis.norm_squared());
-    let outward = wall_sense(n_pierced.vec(), radial, band)?;
+    let radial = geom::Line { origin, dir: axis }.offset(p);
+    let r = radial.norm();
+    let outward = wall_sense(
+        n_pierced.vec(),
+        radial / r,
+        geom_core::Lever::curvature_radius(r),
+        band,
+    )?;
     let grows = (other == Sign::Positive) == (piercing == Operand::A);
     Ok(Some(geom_brep::OutwardNormal::from_chart(
         on.1,
@@ -323,11 +353,10 @@ pub(super) fn bisector_datum<T: Decide>(
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used, clippy::panic)]
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{Operand, bisector_datum};
-    use crate::boolean::Branch;
     use crate::entity::FaceKey;
 
     /// Two unit walls, A's about `ẑ` and B's about `ŷ`, meeting at the
@@ -356,7 +385,7 @@ mod tests {
     /// The datum at `p`, a point of both walls, for `piercing`'s pierce
     /// of the other operand's wall, that wall bounding a rod or a bore.
     fn datum(
-        branch: Branch,
+        plane: usize,
         piercing: Operand,
         rod: bool,
         p: Point3<f64>,
@@ -373,7 +402,7 @@ mod tests {
         let radial = w - axis * w.dot(axis);
         let out = geom_brep::OutwardNormal::from_chart(radial, rod);
         let faces = (FaceKey::default(), FaceKey::default());
-        bisector_datum(planes, branch, (piercing, faces), p, (pierced, out), band())
+        bisector_datum(planes, plane, (piercing, faces), p, (pierced, out), band())
             .map(|d| d.map(|d| d.vec()))
     }
 
@@ -389,7 +418,7 @@ mod tests {
         let n0 = Vec3::new(0.0, -1.0, 1.0) / 2.0_f64.sqrt();
         for (piercing, grows) in [(Operand::A, 1.0), (Operand::B, -1.0)] {
             for (rod, sense) in [(true, 1.0), (false, -1.0)] {
-                let got = datum(Branch::Positive, piercing, rod, p).unwrap().unwrap();
+                let got = datum(0, piercing, rod, p).unwrap().unwrap();
                 assert!(
                     (got - n0 * (grows * sense)).norm() < 1e-12,
                     "{piercing:?} piercing a {}: got {got:?}",
@@ -400,26 +429,20 @@ mod tests {
     }
 
     /// **A pierce no plane of its pair names keeps the tangent plane**: a
-    /// branch naming no plane, and a branch naming the plane `p` lies off
-    /// (the record read against another pair) read nothing; at a node,
-    /// on both planes, the datum refuses as a node, never a guessed plane.
+    /// record naming the plane `p` lies off (the record read against
+    /// another pair) reads nothing; at a node, on both planes, the datum
+    /// refuses as a node, never a guessed plane.
     #[test]
     fn a_pierce_no_plane_names_keeps_the_tangent_plane() {
         let p = Point3::new(0.99_f64.sqrt(), 0.1, 0.1);
         assert!(
-            datum(Branch::Only, Operand::A, true, p).unwrap().is_none(),
-            "a branch naming no plane"
-        );
-        assert!(
-            datum(Branch::Negative, Operand::A, true, p)
-                .unwrap()
-                .is_none(),
-            "a branch naming the plane the pierce lies off"
+            datum(1, Operand::A, true, p).unwrap().is_none(),
+            "a record naming the plane the pierce lies off"
         );
         let node = Point3::new(1.0, 0.0, 0.0);
         assert!(
             matches!(
-                datum(Branch::Positive, Operand::A, true, node),
+                datum(0, Operand::A, true, node),
                 Err(crate::boolean::BooleanError::NodeUnbuilt {
                     why: crate::boolean::NodeWhy::GermOnNode,
                     ..
@@ -427,5 +450,99 @@ mod tests {
             ),
             "a pierce at a node, on both planes"
         );
+    }
+
+    /// **A node's germs leave along its arc ends, and its runs are B's
+    /// sectors inside A's material** (C5). Two unit walls whose axes meet
+    /// at three angles, in both orders, read on the value: at each node
+    /// each ray has exactly one arc end, the component a germ along it
+    /// rides, and the ray is the way that component's carrier leaves the
+    /// node (`+C′` at its span's first end, `−C′` at its last, the
+    /// derivative as the oracle). For each pair of face senses the two
+    /// runs are opposite sectors whose middle, stepped `h` along B's wall,
+    /// lies inside A's material (inside A's cylinder for a rod, outside it
+    /// for a bore), each starting at the bound counterclockwise of its end
+    /// about B's outward normal.
+    #[test]
+    fn a_node_mints_a_germ_at_each_arc_end_and_runs_through_bs_sectors_inside_a() {
+        let unit = |v: Vec3<f64>| v / v.norm();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let wall = |axis: Vec3<f64>| geom::Surface::Cylinder {
+            origin: o,
+            axis,
+            radius: 1.0,
+            u_ref: unit(axis.orthonormal_basis().0),
+        };
+        let axis_of = |s: &geom::Surface<f64>| match s {
+            geom::Surface::Cylinder { axis, .. } => unit(*axis),
+            _ => unreachable!(),
+        };
+        for angle in [0.5_f64, 1.2, 2.3] {
+            let (wa, wb) = (
+                wall(Vec3::new(0.0, 0.0, 1.0)),
+                wall(Vec3::new(angle.sin(), 0.0, angle.cos())),
+            );
+            for (label, x, y) in [("a, b", &wa, &wb), ("b, a", &wb, &wa)] {
+                let label = format!("{angle} rad, {label}");
+                let region = geom_brep::ExtentBall::of_sphere(o, 3.0);
+                let section = match geom_brep::pair_section(x, y, Some(region), None, band()) {
+                    Ok(geom_brep::SectionRead::Built(section)) => section,
+                    other => panic!("{label}: {other:?}"),
+                };
+                let listed = section.counted().unwrap();
+                assert_eq!(section.nodes().len(), 2, "{label}: two nodes");
+                for (n, node) in section.nodes().iter().enumerate() {
+                    let arcs = super::node_arcs(listed, n).unwrap();
+                    let rays = node.rays();
+                    for (i, &k) in arcs.iter().enumerate() {
+                        let geom_brep::ClassCarrier::Span { curve, span } = &listed[k].carrier
+                        else {
+                            panic!("{label}: an arc's carrier");
+                        };
+                        let leaves = [(span.0, 1.0), (span.1, -1.0)]
+                            .into_iter()
+                            .filter(|&(t, _)| (curve.eval(t) - node.point).norm() < 1e-9)
+                            .map(|(t, sign)| curve.deriv(t) * sign)
+                            .map(unit)
+                            .collect::<Vec<_>>();
+                        assert!(
+                            leaves.iter().any(|d| (*d - rays[i]).norm() < 1e-9),
+                            "{label}: node {n}, ray {i} leaves along arc {k}'s carrier"
+                        );
+                    }
+                    let (ax, ay) = (axis_of(x), axis_of(y));
+                    for (a_along, b_along) in
+                        [(true, true), (true, false), (false, true), (false, false)]
+                    {
+                        let runs = super::super::vtxfac::node_runs(node, a_along, b_along);
+                        assert_eq!(
+                            (runs[1].0, runs[1].1),
+                            ((runs[0].0 + 2) % 4, (runs[0].1 + 2) % 4),
+                            "{label}: opposite sectors"
+                        );
+                        let n_b = if b_along { node.normal } else { -node.normal };
+                        for (s0, e0) in runs {
+                            let m = unit(rays[s0] + rays[e0]);
+                            let h = 1e-2;
+                            let q = node.point + m * h
+                                - node.normal * ((1.0 - m.dot(ay).powi(2)) * h * h / 2.0);
+                            let w = q - o;
+                            let off_a = (w - ax * w.dot(ax)).norm() - 1.0;
+                            assert!(
+                                (off_a < 0.0) == a_along,
+                                "{label}: node {n}, run ({s0}, {e0}), senses \
+                                 ({a_along}, {b_along}): B's sector inside A's material, \
+                                 {off_a:e} off A's wall"
+                            );
+                            assert!(
+                                rays[e0].cross(rays[s0]).dot(n_b) > 0.1,
+                                "{label}: node {n}, run ({s0}, {e0}): it starts \
+                                 counterclockwise of its end about B's outward normal"
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }
