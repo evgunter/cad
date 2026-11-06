@@ -58,5 +58,7 @@ Moved from ROOTS to GERM on 2026-11-02, by `git mv`, when ROOTS merged into GERM
 
 ## Evidence (2026-11-03, ONECOPY `onecopy/meet-pose`)
 
-`sphere_region`'s copy is gone: the region landings read each leg against each arc through `geom_brep::curve_pair::meet`, and `circle_roots::first_harmonic_root_directions` went with it. The `apply_cut_ins` copy remains; ONECOPY's `loop-walks-read-a-ray-against-an-arc-by-hand-rows-beside-meet` proposes moving it onto `meet` as well, which would retire this row's last plane site.
+`sphere_region`'s copy is gone. The region landings read each arc against a leg's plane through the plane door (`geom_brep::curve_face::plane_crossing::span_plane_meet`, in `region::landings`), and `circle_roots::first_harmonic_root_directions` went with it.
+
+The `apply_cut_ins` copy remains. It reads two co-surface circles, an arc against the cut's half-meridian on one sphere. Per the 2026-11-06 landings decision, such a pair meets as a crossing of a plane section, never as a 3D gap. So its home is the plane door, or the co-surface arm `curve_pair` would grow (`work/onecopy/co-surface-carriers-have-no-home-of-their-own-in-curve-pair.md`), not `meet`. ONECOPY's `loop-walks-read-a-ray-against-an-arc-by-hand-rows-beside-meet` carries it.
 
