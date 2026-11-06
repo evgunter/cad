@@ -127,11 +127,13 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "ProfileProgramRefused(Transition)",
             EditError::ProfileProgramRefused {
                 node: s(4, "Profile"),
+                // The state that takes the most verbs: the longest
+                // recourse a lattice refusal draws.
                 refusal: Box::new(ProgramRefusal::Transition {
                     loop_: 0,
                     step: 2,
-                    state: profile::TipState::Closed,
-                    verb: None,
+                    state: profile::TipState::DirectedPoint,
+                    verb: Some(profile::Verb::CloseTo),
                 }),
             },
         ),
@@ -972,7 +974,6 @@ const LABELS: &[(&str, &str)] = &[
 const FILED_NO_RECOURSE: &[&str] = &[
     // work/profilerest/paths-refusals-short-of-the-shape-guard.md
     "Edit/ProfileProgramRefused(Resolve)",
-    "Edit/ProfileProgramRefused(Transition)",
     "Edit/ProfileProgramRefused(Validate)",
 ];
 

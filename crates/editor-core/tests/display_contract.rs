@@ -2772,9 +2772,9 @@ fn a_program_fault_states_its_lattice_coordinate() {
             verb: None,
         },
         vec![
-            "loop 0 step 2",
-            "not a legal chain-lattice walk",
-            "unclosed",
+            "at loop 0 step 2",
+            "tip state Entry",
+            "without closing the loop",
         ],
     )];
     assert_f6_every_variant(&cases, &PROGRAM_FAULT, &[]);

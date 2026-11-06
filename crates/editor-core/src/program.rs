@@ -224,6 +224,10 @@ pub enum ProgramTarget<S = crate::VarId> {
 /// break for the right reason: the verb has to arrive HERE, not merely
 /// be discharged in `from_recorded`'s error arm.
 ///
+/// Which step may follow which is the transition table's
+/// ([`profile::Verb::states`]), and a step out of place is refused
+/// naming the steps its tip state takes ([`ProgramRefusal::Transition`]).
+///
 /// Fields are public data (the node-slot pattern: dimensions are
 /// checked at the edit door via `ProfilePayload::rows` +
 /// [`StepArg::dimension`], and at the persistence doors' shared
@@ -269,16 +273,23 @@ pub enum ProgramStep<S = crate::VarId> {
     /// `arc_onto(target)` — the arc whose END tangent the following
     /// director names; `Start.arrives_tangent()` closes at the verb.
     ArcOnto(ProgramTarget<S>),
-    /// `.fillet(r)` — line incoming, line arrival.
+    /// `.fillet(r)` — the tangent arc at the corner between the
+    /// incoming line and the arrival line. The corner is never
+    /// authored: the incoming leg ends at a point on its line short of
+    /// the corner, and the arrival side's binders fix the other line.
+    /// The steps around it are [`profile::Step::Fillet`]'s rows.
     Fillet(S),
-    /// **§2c** `fillet_arc(r, spec)` — line incoming, arc arrival.
+    /// **§2c** `fillet_arc(r, spec)` — line incoming, arc arrival; the
+    /// corner is never authored, as for [`Self::Fillet`]
+    /// ([`profile::Step::FilletArc`]).
     FilletArc {
         /// The fillet radius.
         radius: S,
         /// The arc-arrival spec.
         spec: ProgramArcData<S>,
     },
-    /// **§2c** `arc_fillet(spec, r)` — fused arc incoming, line arrival.
+    /// **§2c** `arc_fillet(spec, r)` — fused arc incoming, line arrival
+    /// ([`profile::Step::ArcFillet`]).
     ArcFillet {
         /// The fused incoming-arc spec.
         spec: ProgramArcData<S>,
@@ -286,7 +297,7 @@ pub enum ProgramStep<S = crate::VarId> {
         radius: S,
     },
     /// **§2c** `arc_fillet_arc(spec, r, spec₂)` — fused arc incoming,
-    /// arc arrival.
+    /// arc arrival ([`profile::Step::ArcFilletArc`]).
     ArcFilletArc {
         /// The fused incoming-arc spec.
         spec: ProgramArcData<S>,
@@ -295,9 +306,11 @@ pub enum ProgramStep<S = crate::VarId> {
         /// The arc-arrival spec.
         spec2: ProgramArcData<S>,
     },
-    /// **G1** `.to(anchor)` — the far-end anchor.
+    /// **G1** `.to(anchor)` — the far-end anchor: ends a fillet's
+    /// arrival side at `anchor`.
     FarEndTo([S; 2]),
-    /// `.to(Start)` — the seam-fillet close (structural).
+    /// `.to(Start)` — the seam-fillet close (structural): the open
+    /// arrival side is the chain's first leg.
     CloseTo,
     /// **The heading along a face's trace** (D10, "Constructing a
     /// coincidence"): a director setting the departure to the tangent
@@ -841,7 +854,8 @@ pub enum ProgramRefusal {
 // prose — the geometry class the driver's rendered refusal, the
 // validate class `ProfileError`'s `Display`. `Resolve` states its
 // problem instead because `EvalError` has no `Display` to forward;
-// `Transition` holds a lattice state rather than a refusal.
+// `Transition` holds a lattice state rather than a refusal, and renders
+// through [`write_lattice`].
 impl core::fmt::Display for ProgramRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -852,10 +866,12 @@ impl core::fmt::Display for ProgramRefusal {
                     slot.label()
                 )
             }
-            Self::Transition { loop_, step, .. } => write!(
-                f,
-                "loop {loop_} step {step} is not a legal chain-lattice walk"
-            ),
+            Self::Transition {
+                loop_,
+                step,
+                state,
+                verb,
+            } => write_lattice(f, *loop_, *step, *state, *verb),
             Self::Geometry {
                 loop_,
                 step,
@@ -874,6 +890,29 @@ impl core::fmt::Display for ProgramRefusal {
 }
 
 impl core::error::Error for ProgramRefusal {}
+
+/// The sentence for a step order the chain lattice refuses, shared by
+/// [`ProgramRefusal::Transition`] and the persist door's
+/// [`crate::ProgramFault::Lattice`]: [`profile::Refused`]'s clause,
+/// where, and its recourse in the chain's vocabulary. The verb is the
+/// transition table's, which is the [`ProgramStep`] variant's name for
+/// every step but [`ProgramStep::AlongTrace`] (it lowers to `Toward`;
+/// a program holding one runs from the pen, so this door never checks
+/// it).
+pub(crate) fn write_lattice(
+    f: &mut core::fmt::Formatter<'_>,
+    loop_: u32,
+    step: u32,
+    state: profile::TipState,
+    verb: Option<profile::Verb>,
+) -> core::fmt::Result {
+    let refused = state.refused(verb, profile::Vocabulary::Chain);
+    write!(
+        f,
+        "{refused}, at loop {loop_} step {step}. {}",
+        crate::sentence::Recourse(refused.recourse())
+    )
+}
 
 /// One loop's program and replay record, checked against each other
 /// — what [`ProfileProgram::checked_records`] hands its two doors so
