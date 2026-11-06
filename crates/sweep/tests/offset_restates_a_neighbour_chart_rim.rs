@@ -123,7 +123,7 @@ fn offset_the_wall(body: &mut Body<f64>, wall: SurfaceKey) -> SurfaceKey {
     );
     let minted = body
         .faces()
-        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. })))
         .map(|(_, f)| f.surface)
         .unwrap();
     assert_ne!(minted, wall, "the wall moved onto a minted chart");

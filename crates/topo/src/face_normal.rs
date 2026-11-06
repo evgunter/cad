@@ -134,7 +134,7 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// Where the surface a resolved face names does not resolve (D2 row 4):
 /// a torn surface is not a non-planar one.
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     match f.surface() {
         geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f.record(), *normal)),
         _ => None,
@@ -156,7 +156,7 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// Where `face` resolves and its surface does not (D2 row 4): a torn
 /// surface is not a non-planar one.
 pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(Point3<T>, Vec3<T>)> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     match f.surface() {
         geom::Surface::Plane { origin, normal, .. } => {
             Some((*origin, plane_outward_normal(f.record(), *normal).vec()))
@@ -335,7 +335,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return Ok(None);
     };
     let surface = f.surface();
@@ -443,7 +443,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, FootNormalError> {
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return Ok(None);
     };
     let clear = |margin: Margin<T>| match decide("foot_off_locus", margin, band) {
@@ -545,7 +545,7 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     band: Band,
 ) -> Result<OutwardNormal<T>, SplineNormalError> {
     use geom_brep::ChartPointRefusal;
-    let f = body.passed_face(face).ok_or(SplineNormalError::StaleFace)?;
+    let f = body.face(face).ok_or(SplineNormalError::StaleFace)?;
     let surface = f.surface();
     let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
     if surface.is_placeholder_chart() {

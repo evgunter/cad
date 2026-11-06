@@ -86,7 +86,7 @@ fn assert_every_face_outward(body: &Body<f64>) {
     );
     for (fk, _) in body.faces() {
         let f = body.get_face(fk).expect("a face");
-        let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
             panic!("face {fk:?}: every face of these fixtures is a plane");
         };
         let outward = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
@@ -123,9 +123,8 @@ fn assert_chamfer_shape(body: &Body<f64>, census: (usize, usize, usize)) {
         "Euler–Poincaré: one closed shell, no rings, genus 0"
     );
     for (k, _) in body.faces() {
-        let fd = body.get_face(k).expect("a face");
         assert!(
-            matches!(body.get_surface(fd.surface), Some(Surface::Plane { .. })),
+            matches!(body.face_surface(k), Some(Surface::Plane { .. })),
             "face {k:?} is not a plane"
         );
     }

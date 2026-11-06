@@ -146,9 +146,7 @@ fn die_pip_subtract_is_green() {
     // The cavity wall keeps the reverted bit (mef inheritance, S12).
     let reversed = cut
         .faces()
-        .filter(|(_, f)| {
-            matches!(cut.get_surface(f.surface), Some(Surface::Sphere { .. })) && !f.sense
-        })
+        .filter(|(fk, f)| matches!(cut.face_surface(*fk), Some(Surface::Sphere { .. })) && !f.sense)
         .count();
     assert!(reversed > 0, "the pip wall must be sense: false");
 
@@ -269,7 +267,7 @@ fn two_pips_cut_under_the_group_arm() {
     assert_eq!(cut.shells().count(), 1);
     let sphere_surfaces: std::collections::BTreeSet<String> = cut
         .faces()
-        .filter_map(|(_, f)| match cut.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match cut.face_surface(fk) {
             Some(s @ Surface::Sphere { .. }) => Some(format!("{s:?}")),
             _ => None,
         })

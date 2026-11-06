@@ -52,13 +52,9 @@ fn pole<T: Real>(wall: &geom::NurbsSurface<T>, iu: usize, iv: usize) -> usize {
 
 /// The arc's wall: canonical segment 1, from `(1, −1)` to `(1, 1)`.
 fn arc_wall<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> geom::NurbsSurface<T> {
-    let face = lofted
-        .body
-        .get_face(lofted.side_faces[0][1][0])
-        .expect("a built face");
     match lofted
         .body
-        .get_surface(face.surface)
+        .face_surface(lofted.side_faces[0][1][0])
         .expect("a described face")
     {
         Surface::Nurbs(n) => n.as_ref().clone(),
@@ -425,11 +421,8 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
         if zs.len() > degree + 1 {
             // The case's hypothesis: the body's walls carry the computed
             // interior knot.
-            let face = nominal
-                .body
-                .get_face(nominal.side_faces[0][0][0])
-                .expect("a built face");
-            let Some(Surface::Nurbs(net)) = nominal.body.get_surface(face.surface) else {
+            let Some(Surface::Nurbs(net)) = nominal.body.face_surface(nominal.side_faces[0][0][0])
+            else {
                 panic!("{what}: a lofted wall is a NURBS surface")
             };
             let knots = net.knot_values_v();
@@ -568,13 +561,8 @@ fn wall_bits<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> Vec<u64> {
         .iter()
         .flatten()
         .flatten()
-        .flat_map(|f| {
-            let face = lofted.body.get_face(*f).expect("a built face");
-            match lofted
-                .body
-                .get_surface(face.surface)
-                .expect("a described face")
-            {
+        .flat_map(
+            |f| match lofted.body.face_surface(*f).expect("a described face") {
                 Surface::Nurbs(n) => n
                     .control()
                     .iter()
@@ -585,8 +573,8 @@ fn wall_bits<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> Vec<u64> {
                     .map(|x| x.value_channel().to_bits())
                     .collect::<Vec<_>>(),
                 other => panic!("a lofted wall is a NURBS surface, got {other:?}"),
-            }
-        })
+            },
+        )
         .collect()
 }
 

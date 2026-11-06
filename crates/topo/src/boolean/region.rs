@@ -289,7 +289,7 @@ pub(crate) fn boundary<T: Decide>(
     admits: &[geom::CurveKind],
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.passed_face(face).ok_or_else(corrupt)?;
+    let f = body.face(face).ok_or_else(corrupt)?;
     let mut null = Vec::new();
     for (_, members, role) in f.boundary_by_loop() {
         for member in members {

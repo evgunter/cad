@@ -39,9 +39,9 @@ fn is_spline_wall(walls: &[(FaceKey, impl Sized)], face: FaceKey) -> bool {
 /// The `z = 1` cap, whose chart normal points out of the body.
 fn top_cap<T: geom_core::Real + geom_core::Bounds>(body: &Body<T>) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.z.lo() > 0.5 && origin.z.lo() > 0.5
             )
@@ -487,7 +487,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     // The bottom cap, moved alone into the vase.
     let (cap, d) = body
         .faces()
-        .find_map(|(k, f)| match body.get_surface(f.surface) {
+        .find_map(|(k, _)| match body.face_surface(k) {
             Some(geom::Surface::Plane { origin, normal, .. }) if origin.z < 0.5 => {
                 Some((k, THICKNESS * normal.z.signum()))
             }
@@ -689,9 +689,9 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
     let body = tilted_top_prism();
     let cap = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, .. }) if origin.z > 0.5
             )
         })
@@ -825,9 +825,9 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
     let cap_key = body.get_face(cap).expect("the cap resolves").surface;
     let side = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal, origin, .. })
                     if normal.x.abs() > 0.5 && origin.x > 1.0
             )
@@ -920,9 +920,9 @@ fn a_moved_planes_section_with_a_held_fit_follows_the_plane() {
     let cap_key = body.get_face(cap).expect("the cap resolves").surface;
     let side = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal, origin, .. })
                     if normal.x.abs() > 0.5 && origin.x > 1.0
             )
@@ -1397,9 +1397,9 @@ fn a_spline_caps_row_beside_a_tilted_side_is_their_section() {
     let cap_key = body.get_face(cap).expect("the cap resolves").surface;
     let side = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal, origin, .. })
                     if normal.x.abs() > 0.5 && origin.x > 1.0
             )

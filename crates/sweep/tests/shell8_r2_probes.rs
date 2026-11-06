@@ -496,8 +496,7 @@ fn twin_of(naming: &ShellNaming, source: FaceKey) -> FaceKey {
 /// solid-scoped face query.
 fn wall(body: &Body<f64>, solid: SolidKey, axis: Vec3<f64>, value: f64) -> FaceKey {
     for face in faces_of(body, solid) {
-        let f = body.get_face(face).unwrap();
-        let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+        let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(face) else {
             continue;
         };
         if normal.cross(axis).norm() < 1e-9
@@ -745,7 +744,7 @@ fn plane_face_at_z(body: &Body<f64>, solid: SolidKey, z0: f64) -> Vec<FaceKey> {
         .into_iter()
         .filter(|&f| {
             matches!(
-                body.get_surface(body.get_face(f).unwrap().surface),
+                body.face_surface(f),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.z - z0).abs() < 1e-12 && normal.z.abs() > 0.5
             )
@@ -865,12 +864,7 @@ fn r2_point_in_solid_of_one_cap_answers_beside_a_shared_sphere_chart() {
     let body = b.body;
     assert_eq!(body.shells().count(), 2, "the subtract files two caps");
     assert_eq!(body.solids().count(), 2, "each cap a solid of its own");
-    let is_sphere = |f: FaceKey| {
-        matches!(
-            body.get_surface(body.get_face(f).unwrap().surface),
-            Some(geom::Surface::Sphere { .. })
-        )
-    };
+    let is_sphere = |f: FaceKey| matches!(body.face_surface(f), Some(geom::Surface::Sphere { .. }));
     let across = sharing(&body, &|fa, fb| {
         is_sphere(fa) && solid_of(&body, fa) != solid_of(&body, fb)
     });
@@ -914,7 +908,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
     let bottom_data = body.get_face(bottom).unwrap();
     let Some(geom::Surface::Plane {
         normal: n_bottom, ..
-    }) = body.get_surface(bottom_data.surface).cloned()
+    }) = body.face_surface(bottom).cloned()
     else {
         panic!("bottom is planar")
     };
@@ -1148,12 +1142,7 @@ fn r2_three_solids_on_one_sphere_chart_open_additively() {
     assert_eq!(topo::validate_geometric(&body, tol), Ok(()));
     let sphere_keys: std::collections::BTreeSet<topo::SurfaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Sphere { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
         .map(|(_, f)| f.surface)
         .collect();
     assert_eq!(sphere_keys.len(), 1, "one sphere chart across three solids");

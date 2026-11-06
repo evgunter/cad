@@ -153,8 +153,8 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
 /// built rather than what the document asked for.
 fn hole_circle(body: &Body<f64>) -> (f64, f64, f64) {
     let mut found = None;
-    for (_, face) in body.faces() {
-        if let Some(Surface::Cylinder { origin, radius, .. }) = body.get_surface(face.surface) {
+    for (fk, _) in body.faces() {
+        if let Some(Surface::Cylinder { origin, radius, .. }) = body.face_surface(fk) {
             let seen = (origin.x, origin.y, *radius);
             if let Some(prev) = found {
                 assert_eq!(

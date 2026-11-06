@@ -131,18 +131,8 @@ fn a_rod_crossing_its_bore_refuses_its_caps() {
         Vec3::new(0.0, 0.5, 0.0),
     );
     let errs = census(&pair).expect_err("the rod crosses the bore");
-    let plane = |f| {
-        matches!(
-            pair.get_face(f).and_then(|d| pair.get_surface(d.surface)),
-            Some(geom::Surface::Plane { .. })
-        )
-    };
-    let cylinder = |f| {
-        matches!(
-            pair.get_face(f).and_then(|d| pair.get_surface(d.surface)),
-            Some(geom::Surface::Cylinder { .. })
-        )
-    };
+    let plane = |f| matches!(pair.face_surface(f), Some(geom::Surface::Plane { .. }));
+    let cylinder = |f| matches!(pair.face_surface(f), Some(geom::Surface::Cylinder { .. }));
     let cap_on_wall = errs.iter().any(|e| match e {
         ValidationError::CensusUndecidable {
             a: EntityId::Face(a),
@@ -360,7 +350,7 @@ fn a_rod_wider_than_an_elliptical_rim_refuses_on_the_plate() {
     let errs = census(&pair).expect_err("the rod crosses the rim");
     let top = |f| {
         matches!(
-            pair.get_face(f).and_then(|d| pair.get_surface(d.surface)),
+            pair.face_surface(f),
             Some(geom::Surface::Plane { origin, normal, .. })
                 if (origin.z - 1.0).abs() < 1e-9 && normal.x == 0.0 && normal.y == 0.0
         )
@@ -812,18 +802,13 @@ fn refusals_on(
     on_plate: fn(Vec3<f64>) -> bool,
     on_block: fn(Vec3<f64>) -> bool,
 ) -> usize {
-    let normal = |f| match body.get_face(f).and_then(|d| body.get_surface(d.surface)) {
+    let normal = |f| match body.face_surface(f) {
         Some(geom::Surface::Plane { normal, .. }) => Some(*normal),
         _ => None,
     };
     let plate = body
         .faces()
-        .find(|(_, d)| {
-            matches!(
-                body.get_surface(d.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .and_then(|(f, _)| body.solid_of_face(f))
         .expect("the plate has a rounded wall");
     errs.iter()

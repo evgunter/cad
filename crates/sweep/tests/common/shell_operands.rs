@@ -120,8 +120,8 @@ pub fn hollow_capped_vessel() -> (Body<f64>, Vec<topo::FaceKey>, f64) {
     .body;
     let cap = hollow
         .faces()
-        .filter(|(_, f)| {
-            matches!(hollow.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(hollow.face_surface(*fk),
                 Some(geom::Surface::Sphere { radius, .. }) if (*radius - (rho - 0.2)).abs() < 1e-12)
         })
         .map(|(k, _)| k)

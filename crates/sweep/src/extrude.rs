@@ -1225,9 +1225,9 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let k_prev = face_surface_key(body, f_prev);
         let k_next = face_surface_key(body, f_next);
         let s_prev = body
-            .get_surface(k_prev)
+            .face_surface(f_prev)
             .cloned()
-            .unwrap_or_else(|| unreachable!("surface {k_prev:?} is held by live face {f_prev:?}"));
+            .unwrap_or_else(|| unreachable!("face {f_prev:?} was minted by this extrude"));
         if k_prev == k_next {
             // ONE surface on both sides: a conventional locus the
             // surfaces under-determine (a circle's canonical cut, or the
@@ -1254,9 +1254,9 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             continue;
         }
         let s_next = body
-            .get_surface(k_next)
+            .face_surface(f_next)
             .cloned()
-            .unwrap_or_else(|| unreachable!("surface {k_next:?} is held by live face {f_next:?}"));
+            .unwrap_or_else(|| unreachable!("face {f_next:?} was minted by this extrude"));
         let mid = qs[j] + w * T::from_f64(0.5);
         let reach = topo::edge_wedge_reach(body, strut.edge).unwrap_or_else(|| {
             unreachable!("strut {:?} was minted with a certified line", strut.edge)

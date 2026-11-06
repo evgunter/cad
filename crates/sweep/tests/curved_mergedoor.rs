@@ -114,8 +114,7 @@ fn union_honest(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Boolea
 }
 
 fn is_cylinder(body: &Body<f64>, face: topo::FaceKey) -> bool {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+    body.face_surface(face)
         .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
 }
 
@@ -233,10 +232,7 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
     let mut body = peg_at(0.0, 0.0, 1.0);
     let mut keys = Vec::new();
     for f in walls_at(&body, BORE_R) {
-        let described = body
-            .get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone();
+        let described = body.face_surface(f).unwrap().clone();
         keys.push(on_a_key_of_its_own(&mut body, f, described));
     }
     assert_eq!(keys.len(), 3);
@@ -387,7 +383,7 @@ fn d_prism_with_split_keys() -> (
     split_at_station(arc_run);
     let y0_walls: Vec<_> = body
         .faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
+        .filter(|(fk, _)| match body.face_surface(*fk) {
             Some(geom::Surface::Plane { origin, normal, .. }) => {
                 origin.y.abs() < 1e-12 && normal.y < -0.5
             }
@@ -620,7 +616,7 @@ fn axis_y() -> RevolveAxis<f64> {
 fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, topo::SurfaceKey) {
     let faces: Vec<_> = body
         .faces()
-        .filter(|(_, f)| body.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect();
     assert!(faces.len() >= 2, "{kind:?}: need two faces, got {faces:?}");
@@ -846,9 +842,10 @@ fn stacked_half_discs_merge_their_glued_arc_walls() {
 
 /// The cycle halves of `f`'s loops, outer first.
 fn face_halves(body: &Body<f64>, f: topo::FaceKey) -> Vec<topo::HalfEdgeKey> {
-    let face = body.get_face(f).unwrap();
-    core::iter::once(face.outer)
-        .chain(face.rings.iter().copied())
+    body.face(f)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
             topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
             topo::LoopBoundary::Empty { .. } => None,

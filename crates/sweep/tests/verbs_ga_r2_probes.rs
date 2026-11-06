@@ -288,10 +288,7 @@ fn r2_the_transient_chord_mev_certifies_on_a_wall() {
     // Find a cylinder wall face and its outer loop's anchor half-edge.
     let mut wall = None;
     for (fk, f) in body.faces() {
-        if matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Cylinder { .. })
-        ) {
+        if matches!(body.face_surface(fk), Some(geom::Surface::Cylinder { .. })) {
             wall = Some((fk, f.outer));
         }
     }
@@ -408,7 +405,7 @@ fn r2_an_off_centre_bar_unions_to_the_closed_form() {
 #[test]
 fn r2_fixture_face_inventory() {
     let pipe = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
-    for (k, f) in pipe.faces() {
-        eprintln!("pipe face {k:?}: {:?}", pipe.get_surface(f.surface));
+    for (k, _) in pipe.faces() {
+        eprintln!("pipe face {k:?}: {:?}", pipe.face_surface(k));
     }
 }

@@ -66,7 +66,7 @@ fn frustum_wall(r0: f64, r1: f64, h: f64) -> f64 {
 
 fn cone_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cone { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
 }
@@ -78,7 +78,7 @@ fn describe_cones(what: &str, body: &Body<f64>) {
             axis,
             half_angle,
             ..
-        }) = body.get_surface(f.surface)
+        }) = body.face_surface(k)
         {
             // Which nappe: the sum of the face's own corner stations.
             println!(
@@ -454,8 +454,8 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
     // The mouth opens, and the cup's plug is a zone slab.
     let mouth: Vec<topo::FaceKey> = pot
         .faces()
-        .filter(|(_, f)| {
-            matches!(pot.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(pot.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - y_mouth).abs() < 1e-15)
         })
         .map(|(k, _)| k)
@@ -507,8 +507,8 @@ fn r2_stepped_vase_lift_branch() {
     }
     let mouth: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - 8.0 / 64.0).abs() < 1e-15)
         })
         .map(|(k, _)| k)

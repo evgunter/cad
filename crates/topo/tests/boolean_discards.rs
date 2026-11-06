@@ -35,8 +35,7 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let face_of = |he| body.face_of_half_edge(he).unwrap();
     let mut by_ends: BTreeMap<(VertexKey, VertexKey), Stretch> = BTreeMap::new();
     for (k, e) in body.edges() {
-        let s = body.get_half_edge(e.he_plus).unwrap().start;
-        let t = body.half_edge_end(e.he_plus).unwrap();
+        let (s, t) = body.edge_vertices(k).unwrap();
         by_ends
             .entry((s.min(t), s.max(t)))
             .or_default()

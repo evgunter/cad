@@ -69,12 +69,7 @@ fn cone(theta: Option<f64>) -> Body<f64> {
 
 fn cone_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cone { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
 }

@@ -248,7 +248,7 @@ fn one_seam_cone() -> Body<f64> {
 /// `tessellate`'s fold answers for when several refuse.
 fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
+        .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
         .map(|(fk, _)| fk)
         .expect("the body carries a face of that kind")
 }
@@ -260,7 +260,7 @@ fn doors(body: &Body<f64>, kind: SurfaceKind) -> (bool, bool) {
     let band = Band::linear(Tol::witness()).unwrap();
     let (_, f) = body
         .faces()
-        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
+        .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
         .expect("the body carries a face of that kind");
     let surface = body.get_surface(f.surface).unwrap();
     let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();

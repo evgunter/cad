@@ -382,8 +382,8 @@ fn a_shelled_vessel_of_revolution_certifies_and_its_inverted_rim_does_not() {
     // The axis is `y`: the top cap is every planar face at `y = h`.
     let top: Vec<FaceKey> = vessel
         .faces()
-        .filter(|(_, f)| {
-            matches!(vessel.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(vessel.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, .. }) if (origin.y - h).abs() < 1e-9)
         })
         .map(|(k, _)| k)

@@ -162,8 +162,8 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
 
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -187,11 +187,10 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
             .body;
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
-        let plane_of =
-            |b: &Body<f64>, f: topo::FaceKey| match b.get_surface(b.get_face(f).unwrap().surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
-                other => panic!("non-planar cap {other:?}"),
-            };
+        let plane_of = |b: &Body<f64>, f: topo::FaceKey| match b.face_surface(f) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            other => panic!("non-planar cap {other:?}"),
+        };
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);

@@ -1155,10 +1155,10 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// **A face's surface, as this module refuses it**: [`Body::passed_face`]'s [`crate::live::FaceView::surface`],
+/// **A face's surface, as this module refuses it**: [`Body::face`]'s [`crate::live::FaceView::surface`],
 /// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    body.passed_face(face)
+    body.face(face)
         .map(|f| f.surface())
         .ok_or(ChartRegionError::Corrupt)
 }
@@ -1184,7 +1184,7 @@ fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
-    let view = body.passed_face(face).ok_or(ChartRegionError::Corrupt)?;
+    let view = body.face(face).ok_or(ChartRegionError::Corrupt)?;
     view.boundary()
         .map(|member| match member {
             BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
@@ -2415,12 +2415,8 @@ fn declared_chart<T: Decide + Bounds>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let fa = body_a
-        .passed_face(face_a)
-        .ok_or(ChartRegionError::Corrupt)?;
-    let fb = body_b
-        .passed_face(face_b)
-        .ok_or(ChartRegionError::Corrupt)?;
+    let fa = body_a.face(face_a).ok_or(ChartRegionError::Corrupt)?;
+    let fb = body_b.face(face_b).ok_or(ChartRegionError::Corrupt)?;
     let s_a = fa.surface();
     if std::ptr::eq(body_a, body_b) && fa.record().surface == fb.record().surface {
         return Ok(s_a.clone());

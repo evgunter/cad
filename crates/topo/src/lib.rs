@@ -730,9 +730,8 @@ pub mod test_support {
         };
         let mut spans: Vec<(f64, f64)> = body
             .edges()
-            .filter_map(|(_, edge)| {
-                let start = body.get_half_edge(edge.he_plus).expect("a half").start;
-                let end = body.half_edge_end(edge.he_plus).expect("an end");
+            .filter_map(|(k, _)| {
+                let (start, end) = crate::query::edge_ends(body, k);
                 let (a, b) = (at(start)?, at(end)?);
                 Some((a.min(b), a.max(b)))
             })
@@ -1222,7 +1221,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.passed_face(face).map(|f| f.surface()) else {
+        let Some(surface) = body.face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(
@@ -1353,10 +1352,11 @@ pub use contact::{
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
-    LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
+    LoopKey, LoopRole, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 pub use euler::{BadArgument, EulerOpError, RechartDoor};
 pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
+pub use live::FaceView;
 pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common

@@ -149,12 +149,12 @@ fn rel_close(got: f64, want: f64, rel: f64, what: &str) {
 
 fn tori(body: &Body<f64>) -> Vec<(f64, f64)> {
     let mut out = Vec::new();
-    for (_, face) in body.faces() {
+    for (fk, _) in body.faces() {
         if let Some(Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        }) = body.get_surface(face.surface)
+        }) = body.face_surface(fk)
         {
             out.push((*major_radius, *minor_radius));
         }
@@ -281,8 +281,8 @@ fn u_ref_caveat_is_honest_in_both_directions() {
         )
         .expect("builds");
         let mut out = Vec::new();
-        for (_, face) in t.body.faces() {
-            if let Some(Surface::Torus { u_ref, .. }) = t.body.get_surface(face.surface) {
+        for (fk, _) in t.body.faces() {
+            if let Some(Surface::Torus { u_ref, .. }) = t.body.face_surface(fk) {
                 out.push(*u_ref);
             }
         }
@@ -377,8 +377,7 @@ fn the_cavity_is_a_two_wall_torus_at_the_inner_bits() {
         assert_eq!(cavity.faces.len(), 2);
         let inner = outer - wall;
         for f in &cavity.faces {
-            let face = t.body.get_face(*f).unwrap();
-            match t.body.get_surface(face.surface) {
+            match t.body.face_surface(*f) {
                 Some(Surface::Torus { minor_radius, .. }) => {
                     assert_eq!(
                         minor_radius.to_bits(),

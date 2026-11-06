@@ -1018,32 +1018,12 @@ impl<T: Decide> Body<T> {
     /// `edge`'s two end vertices and their points, `he_plus` forward
     /// order. `edge` is one the caller resolved.
     fn edge_ends(&self, edge: EdgeKey) -> [(VertexKey, Point3<T>); 2] {
-        let he_plus = proven(&self.edges, edge, EntityId::Edge).he_plus;
-        let plus = linked(
-            &self.half_edges,
-            he_plus,
-            EntityId::HalfEdge,
-            EntityId::Edge(edge),
-            "he_plus",
-        );
-        let next = plus.next;
-        let end = linked(
-            &self.half_edges,
-            next,
-            EntityId::HalfEdge,
-            EntityId::HalfEdge(he_plus),
-            "next",
-        )
-        .start;
+        let (start, end) = crate::query::edge_ends(self, edge);
+        let halves = proven(&self.edges, edge, EntityId::Edge);
+        let point = |v, he| self.linked_vertex_point(v, EntityId::HalfEdge(he), "start");
         [
-            (
-                plus.start,
-                self.linked_vertex_point(plus.start, EntityId::HalfEdge(he_plus), "start"),
-            ),
-            (
-                end,
-                self.linked_vertex_point(end, EntityId::HalfEdge(next), "start"),
-            ),
+            (start, point(start, halves.he_plus)),
+            (end, point(end, halves.he_minus)),
         ]
     }
 

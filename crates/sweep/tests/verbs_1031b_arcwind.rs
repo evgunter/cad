@@ -64,8 +64,8 @@ fn teapot_pot(tol: Tol) -> Body<f64> {
 
 fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)

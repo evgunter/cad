@@ -1125,7 +1125,7 @@ impl<T: Real> Body<T> {
     #[must_use]
     #[track_caller]
     pub fn face_surface(&self, face: FaceKey) -> Option<&Surface<T>> {
-        Some(self.passed_face(face)?.surface())
+        Some(self.face(face)?.surface())
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is
@@ -1177,9 +1177,15 @@ impl<T: Real> Body<T> {
         Some(next.start)
     }
 
-    /// The two vertices of `edge`: the starts of its `he_plus` and
-    /// `he_minus` halves. `None` if the edge or either half is stale.
-    pub(crate) fn edge_vertices(&self, edge: EdgeKey) -> Option<(VertexKey, VertexKey)> {
+    /// **The two end vertices of `edge`**, in `he_plus`-forward order:
+    /// the starts of its `he_plus` and `he_minus` halves. `None` if the
+    /// edge or either half is stale; a foreign `edge`
+    /// [is not caught](self#key-validity-stale-vs-foreign).
+    ///
+    /// The refusing door, for a key a caller passed or a body the
+    /// validator has not certified. A key the kernel itself reached
+    /// reads [`crate::query::edge_ends`], whose miss panics.
+    pub fn edge_vertices(&self, edge: EdgeKey) -> Option<(VertexKey, VertexKey)> {
         let e = self.edges.get(edge)?;
         let start = |he| self.half_edges.get(he).map(|h| h.start);
         Some((start(e.he_plus)?, start(e.he_minus)?))

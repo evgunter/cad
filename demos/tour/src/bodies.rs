@@ -183,7 +183,7 @@ pub fn sheave<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     );
     let kind_count = |pred: fn(&pncad::topo::Surface<S>) -> bool| {
         body.faces()
-            .filter(|(_, f)| body.get_surface(f.surface).is_some_and(pred))
+            .filter(|(fk, _)| body.face_surface(*fk).is_some_and(pred))
             .count()
     };
     assert_eq!(

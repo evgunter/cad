@@ -5159,7 +5159,7 @@ pub fn loop_windings<T: AtRestPolicy>(
     chart: &Surface<T>,
     band: Band,
 ) -> Result<Vec<LoopWinding>, PcurveMintError> {
-    let view = body.passed_face(face).ok_or(PcurveMintError::Stale {
+    let view = body.face(face).ok_or(PcurveMintError::Stale {
         role: "face",
         key: EntityId::Face(face),
     })?;

@@ -165,10 +165,7 @@ fn stretches(out: &BooleanBody<f64>, rows: &[(topo::VertexKey, topo::VertexKey)]
         let p = topo::readback::vertex_point(body, v).expect("an edge's end is live");
         [p.x, p.y, p.z].map(|c| (c * 1000.0).round() as i64)
     };
-    let ends = |e: topo::EdgeKey| {
-        let d = body.get_edge(e).expect("a live edge");
-        [d.he_plus, d.he_minus].map(|h| body.get_half_edge(h).expect("a live half-edge").start)
-    };
+    let ends = |e: topo::EdgeKey| <[_; 2]>::from(body.edge_vertices(e).expect("a live edge"));
     let mut out: Vec<Ends> = rows
         .iter()
         .filter_map(|&(u, w)| {

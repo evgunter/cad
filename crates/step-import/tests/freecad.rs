@@ -605,8 +605,7 @@ fn solid_x_mm(body: &topo::Body<f64>) -> Vec<(f64, f64)> {
             let mut hi = f64::NEG_INFINITY;
             for shell in &solid.shells {
                 for &face in &body.get_shell(*shell).expect("a shell").faces {
-                    let f = body.get_face(face).expect("a face");
-                    for lk in std::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                    for (lk, _, _) in body.face(face).expect("a face").loops() {
                         let topo::LoopBoundary::Cycle { first } =
                             body.get_loop(lk).expect("a loop").boundary
                         else {

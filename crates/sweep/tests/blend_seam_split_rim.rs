@@ -217,10 +217,7 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn band_torus(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, f64) {
-    match body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-    {
+    match body.face_surface(face).unwrap() {
         &Surface::Torus {
             center,
             major_radius,

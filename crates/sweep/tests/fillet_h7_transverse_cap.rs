@@ -135,10 +135,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
     for (band, crease) in &rec.blends {
         // The band is the arm's exact cylinder: radius R about a spine
         // along z at the sheet crossing (x = flat − R, |y| = h).
-        let s = out
-            .body
-            .get_surface(out.body.get_face(*band).unwrap().surface)
-            .unwrap();
+        let s = out.body.face_surface(*band).unwrap();
         let geom::Surface::Cylinder {
             origin,
             axis,

@@ -39,7 +39,7 @@ fn loft() -> Body<f64> {
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Nurbs(p)) if !p.is_placeholder()))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Nurbs(p)) if !p.is_placeholder()))
         .map(|(k, _)| k)
         .expect("a loft has described NURBS walls")
 }
@@ -84,10 +84,7 @@ fn masqueraded(
 ) -> (Body<f64>, FaceKey, NurbsSurface<f64>) {
     let mut body = loft();
     let wall = nurbs_wall(&body);
-    let Some(Surface::Nurbs(payload)) = body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .cloned()
-    else {
+    let Some(Surface::Nurbs(payload)) = body.face_surface(wall).cloned() else {
         unreachable!()
     };
     let masq = corrupt(&payload, f);

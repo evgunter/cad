@@ -295,7 +295,7 @@ pub fn peg_walls<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
     cylinders(body)
         .into_iter()
         .filter(|&k| {
-            let surface = body.get_face(k).and_then(|f| body.get_surface(f.surface));
+            let surface = body.face_surface(k);
             matches!(
                 surface,
                 Some(pncad::geom::Surface::Cylinder { origin, .. })

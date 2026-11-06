@@ -36,8 +36,7 @@ fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
 fn shell_box(body: &Body<f64>, shell: ShellKey) -> [(f64, f64); 3] {
     let mut out = [(f64::INFINITY, f64::NEG_INFINITY); 3];
     for &face in &body.get_shell(shell).expect("a shell").faces {
-        let data = body.get_face(face).expect("a face");
-        for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+        for (lk, _, _) in body.face(face).expect("a face").loops() {
             let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a loop").boundary else {
                 continue;
             };
@@ -243,7 +242,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 
     let mut radii: Vec<f64> = out
         .faces()
-        .filter_map(|(_, f)| match out.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match out.face_surface(fk) {
             Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
             _ => None,
         })

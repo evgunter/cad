@@ -131,9 +131,11 @@ fn faces_where<T: Real + Bounds>(
         Point3::new(mid(p.x), mid(p.y), mid(p.z))
     };
     body.faces()
-        .filter(|(_, f)| {
-            core::iter::once(f.outer)
-                .chain(f.rings.iter().copied())
+        .filter(|(fk, _)| {
+            body.face(*fk)
+                .expect("a live face")
+                .loops()
+                .map(|(lk, _, _)| lk)
                 .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
                     topo::LoopBoundary::Empty { vertex } => sel(at(vertex)),
                     topo::LoopBoundary::Cycle { first } => body
@@ -343,12 +345,7 @@ fn a_bore_inside_the_planar_bands_sliver_goes_with_it_at_interval() {
 /// The faces of `body` on no plane: a bore's walls.
 fn curved_walls<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            !matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .collect()
 }

@@ -692,9 +692,9 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     let pt = |k: VertexKey| *x.get_point(x.get_vertex(k).unwrap().point).unwrap();
     let (edge_key, edge) = x
         .edges()
-        .find(|(_, e)| {
-            let ends = [e.he_plus, e.he_minus].map(|he| x.get_half_edge(he).unwrap().start);
-            ends == [u, v] || ends == [v, u]
+        .find(|&(k, _)| {
+            let ends = crate::query::edge_ends(&x, k);
+            ends == (u, v) || ends == (v, u)
         })
         .map(|(k, e)| (k, e.clone()))
         .unwrap();
@@ -770,8 +770,7 @@ fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
             )
         })
         .unwrap();
-    let start = |he| x.get_half_edge(he).unwrap().start;
-    let (a, c) = (start(edge.he_plus), start(edge.he_minus));
+    let (a, c) = crate::query::edge_ends(&x, edge_key);
     let pt = |k: VertexKey| *x.get_point(x.get_vertex(k).unwrap().point).unwrap();
     let mut acc = ContactAcc::default();
     curved_face_arm(

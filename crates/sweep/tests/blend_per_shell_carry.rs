@@ -71,11 +71,11 @@ fn snapshot(body: &Body<f64>, shell: ShellKey) -> String {
         writeln!(
             s,
             "face {f:?} {face:?} surf {:?} prov {:?}",
-            body.get_surface(face.surface),
+            body.face_surface(f),
             body.provenance(EntityId::Face(f))
         )
         .unwrap();
-        for lp in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lp, _, _) in body.face(f).unwrap().loops() {
             let l = body.get_loop(lp).unwrap();
             writeln!(s, " loop {lp:?} {l:?}").unwrap();
             let topo::LoopBoundary::Cycle { first: start } = l.boundary else {
@@ -218,7 +218,7 @@ fn a_shell_carved_in_place_matches_it_carved_alone_then_unioned() {
     let surfaces = |b: &Body<f64>| {
         let mut v: Vec<String> = b
             .faces()
-            .map(|(_, f)| format!("{:?}", b.get_surface(f.surface)))
+            .map(|(fk, _)| format!("{:?}", b.face_surface(fk)))
             .collect();
         v.sort();
         v

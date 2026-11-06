@@ -92,9 +92,9 @@ fn n_arc_torus(big: f64, small: f64, n: usize) -> Body<f64> {
 /// The planar faces whose plane is normal to `y` at height `y`.
 fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.y - y).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.z.abs() < 1e-9
             )
@@ -114,8 +114,7 @@ fn dump_rows(label: &str, body: &Body<f64>) {
         n += 1;
         let face = body.face_of_half_edge(he).unwrap();
         let kind = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
+            .face_surface(face)
             .map(|s| {
                 format!("{s:?}")
                     .split(['{', ' '])

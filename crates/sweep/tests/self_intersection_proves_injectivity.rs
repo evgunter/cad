@@ -137,9 +137,7 @@ struct Witness {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Surface<T> {
-    body.get_surface(body.get_face(f).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(f).unwrap().clone()
 }
 
 /// **The witness check**: the closest pair of the two cells' on-face
@@ -234,9 +232,10 @@ fn pairs(n: usize) -> usize {
 /// touch, and a touching pair is discharged only by a certificate.
 fn touching_pairs<T: Real>(body: &Body<T>) -> BTreeSet<(FaceKey, FaceKey)> {
     let vertices = |f: FaceKey| -> BTreeSet<VertexKey> {
-        let face = body.get_face(f).unwrap();
-        core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
+        body.face(f)
+            .unwrap()
+            .loops()
+            .map(|(lk, _, _)| lk)
             .flat_map(|l| match body.get_loop(l).unwrap().boundary {
                 LoopBoundary::Empty { vertex } => vec![vertex],
                 LoopBoundary::Cycle { first } => body

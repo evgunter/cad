@@ -74,7 +74,7 @@ fn unit_rim(z: f64) -> Curve3<f64> {
 /// `tessellate`'s fold answers for when several refuse.
 fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> FaceKey {
     body.faces()
-        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
+        .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
         .map(|(fk, _)| fk)
         .expect("the body carries a face of that kind")
 }

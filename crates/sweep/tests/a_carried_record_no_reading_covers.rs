@@ -83,7 +83,7 @@ fn rested() -> (topo::BooleanBody<f64>, ContactRecords) {
     let wall = u
         .body
         .faces()
-        .find(|(_, f)| u.body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Cylinder)
+        .find(|(fk, _)| u.body.face_surface(*fk).unwrap().kind() == SurfaceKind::Cylinder)
         .map(|(k, _)| k)
         .expect("the rod's wall");
     let one: ContactRecords = [topo::Cited::new(

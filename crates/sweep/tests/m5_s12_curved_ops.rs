@@ -202,12 +202,12 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
 
     let planar: Vec<_> = body
         .faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
         .map(|(k, f)| (k, f.sense, f.surface))
         .collect();
     let curved: Vec<_> = body
         .faces()
-        .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
         .map(|(k, f)| (k, f.sense, f.surface))
         .collect();
     assert_eq!(planar.len(), 2, "two caps");
@@ -444,7 +444,7 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
         // cylinder still bounds material on its INSIDE.
         let reversed_curved = out
             .faces()
-            .filter(|(_, f)| !matches!(out.get_surface(f.surface), Some(Surface::Plane { .. })))
+            .filter(|(fk, _)| !matches!(out.face_surface(*fk), Some(Surface::Plane { .. })))
             .filter(|(_, f)| !f.sense)
             .count();
         assert!(
@@ -499,9 +499,7 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     assert_eq!(cut.shells().count(), 1, "the barrel tunnel is one shell");
     let reversed_sphere = cut
         .faces()
-        .filter(|(_, f)| {
-            matches!(cut.get_surface(f.surface), Some(Surface::Sphere { .. })) && !f.sense
-        })
+        .filter(|(fk, f)| matches!(cut.face_surface(*fk), Some(Surface::Sphere { .. })) && !f.sense)
         .count();
     assert!(
         reversed_sphere > 0,

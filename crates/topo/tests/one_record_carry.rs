@@ -215,9 +215,9 @@ fn a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell() {
     let far = base
         .body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                base.body.get_surface(f.surface),
+                base.body.face_surface(*fk),
                 Some(topo::Surface::Plane { origin, normal, .. })
                     if normal.x.abs() == 1.0 && origin.x == 2.0
             )
@@ -368,9 +368,9 @@ fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
     let bottom = base
         .body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                base.body.get_surface(f.surface),
+                base.body.face_surface(*fk),
                 Some(topo::Surface::Plane { origin, normal, .. })
                     if normal.z.abs() == 1.0 && origin.z == 0.0
             )
@@ -614,9 +614,9 @@ fn a_notch_that_removes_a_recorded_overlap_consumes_it() {
 /// normal runs along that axis.
 fn face_on(body: &topo::Body<f64>, axis: usize, at: f64) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(topo::Surface::Plane { origin, normal, .. })
                     if [normal.x, normal.y, normal.z][axis].abs() == 1.0
                         && [origin.x, origin.y, origin.z][axis] == at

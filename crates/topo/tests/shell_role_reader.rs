@@ -564,8 +564,7 @@ enum Want {
 fn shell_points(body: &Body<f64>, shell: topo::ShellKey) -> Vec<[f64; 3]> {
     let mut out: Vec<[f64; 3]> = Vec::new();
     for &f in &body.get_shell(shell).expect("the shell resolves").faces {
-        let face = body.get_face(f).expect("its face resolves");
-        for l in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (l, _, _) in body.face(f).expect("its face resolves").loops() {
             let topo::LoopBoundary::Cycle { first } = body.get_loop(l).expect("a loop").boundary
             else {
                 continue;

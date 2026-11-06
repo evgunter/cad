@@ -18,10 +18,7 @@ use sweep::test_support::lofted_cylinder;
 fn walls<'m>(body: &topo::Body<f64>, mesh: &'m mesh::Mesh) -> Vec<&'m mesh::FacePatch> {
     mesh.patches
         .iter()
-        .filter(|p| {
-            let face = body.get_face(p.face).unwrap();
-            matches!(body.get_surface(face.surface), Some(Surface::Nurbs(_)))
-        })
+        .filter(|p| matches!(body.face_surface(p.face), Some(Surface::Nurbs(_))))
         .collect()
 }
 

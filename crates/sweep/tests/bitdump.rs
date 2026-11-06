@@ -333,8 +333,8 @@ fn bitdump_shell_open_box_corpus() {
     .body;
     let cap_at = |b: &Body<f64>, z: f64| -> Vec<topo::FaceKey> {
         b.faces()
-            .filter(|(_, f)| {
-                matches!(b.get_surface(f.surface),
+            .filter(|(fk, _)| {
+                matches!(b.face_surface(*fk),
                     Some(Surface::Plane { origin, normal, .. })
                         if (origin.z - z).abs() < 1e-12
                             && normal.x.abs() < 1e-9

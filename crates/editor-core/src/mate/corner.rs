@@ -225,12 +225,9 @@ pub fn corner_frame_in(
         .edges()
         .find(|(e, _)| {
             topo::readback::edge_carrier_ref(solid, *e).is_ok_and(|c| !c.is_curved())
-                && solid.get_edge(*e).is_some_and(|edge| {
-                    let start = solid.get_half_edge(edge.he_plus).map(|h| h.start);
-                    let end = solid.half_edge_end(edge.he_plus);
-                    matches!((start, end), (Some(a), Some(b))
-                        if (a == from && b == to) || (a == to && b == from))
-                })
+                && solid
+                    .edge_vertices(*e)
+                    .is_some_and(|(a, b)| (a == from && b == to) || (a == to && b == from))
         })
         .map(|(e, _)| e)
         .ok_or_else(no_frame)?;

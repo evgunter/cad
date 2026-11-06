@@ -110,8 +110,7 @@ fn hunt_chordal_violation(body: &Body<f64>, delta: f64) {
     let n = 8u32;
     let mut worst: f64 = 0.0;
     for patch in &mesh.patches {
-        let face = body.get_face(patch.face).expect("face key live");
-        let surface = body.get_surface(face.surface).expect("surface key live");
+        let surface = body.face_surface(patch.face).expect("surface key live");
         for tri in &patch.triangles {
             let [a, b, c] = [
                 mesh.positions[tri[0] as usize],

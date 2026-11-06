@@ -206,13 +206,13 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     // The file's own geometry, asserted band-independently: its
     // sphere face's undeclared north pole.
     let (mut pole, mut radius) = (None, 0.0f64);
-    for (_, f) in body.body().faces() {
+    for (fk, _) in body.body().faces() {
         if let Some(geom::Surface::Sphere {
             center,
             radius: r,
             axis,
             ..
-        }) = body.body().get_surface(f.surface)
+        }) = body.body().face_surface(fk)
         {
             pole = Some(*center + *axis * *r);
             radius = *r;

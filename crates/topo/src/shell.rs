@@ -3047,11 +3047,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         face: designated,
         error: error.from_driver(),
     };
-    let ends = |body: &Body<T>, edge: EdgeKey| {
-        let data = proven(&body.edges, edge, EntityId::Edge);
-        let start = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start;
-        (start, body.proven_half_edge_end(data.he_plus))
-    };
+    let ends = crate::query::edge_ends::<T>;
     // The pole: the one vertex every seam reaches and nothing else does.
     let pole = {
         let (a, b) = ends(body, seams[0]);

@@ -421,9 +421,8 @@ fn face_span(body: &pncad::topo::Body<f64>, face: pncad::topo::FaceKey) -> f64 {
 /// Every vertex position on a face, through its loops' cycles.
 fn face_points(body: &pncad::topo::Body<f64>, face: pncad::topo::FaceKey) -> Vec<Point3<f64>> {
     let mut out = Vec::new();
-    let f = body.get_face(face).expect("the face resolves");
-    for &lp in std::iter::once(&f.outer).chain(f.rings.iter()) {
-        let l = body.get_loop(lp).expect("the loop resolves");
+    let f = body.face(face).expect("the face resolves");
+    for (_, l, _) in f.loops() {
         let pncad::topo::LoopBoundary::Cycle { first } = l.boundary else {
             continue;
         };
@@ -506,12 +505,8 @@ fn struts(body: &pncad::topo::Body<f64>) -> Vec<[f64; 4]> {
     let at = |v| pncad::topo::readback::vertex_point(body, v).expect("a live vertex");
     let mut out: Vec<[f64; 4]> = body
         .edges()
-        .filter_map(|(_, e)| {
-            let a = body
-                .get_half_edge(e.he_plus)
-                .expect("a live half-edge")
-                .start;
-            let b = body.half_edge_end(e.he_plus).expect("a forward half");
+        .filter_map(|(k, _)| {
+            let (a, b) = body.edge_vertices(k).expect("a live edge");
             let (p, q) = (at(a), at(b));
             let (lo, hi) = if p.z < q.z { (p, q) } else { (q, p) };
             (lo.z == 0.0 && hi.z == 2.0).then_some([lo.x, lo.y, hi.x, hi.y])

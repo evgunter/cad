@@ -582,7 +582,7 @@ fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
     .body;
     let bowed = body
         .faces()
-        .find_map(|(_, f)| match body.get_surface(f.surface) {
+        .find_map(|(fk, f)| match body.face_surface(fk) {
             // The same wall of the same loft: its net is the f64 pick's.
             Some(Surface::Nurbs(n))
                 if !n.is_placeholder()

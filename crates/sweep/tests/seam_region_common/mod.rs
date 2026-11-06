@@ -36,17 +36,17 @@ pub(crate) fn unencoded(body: &Body<f64>, key: FaceKey, tol: Tol) -> bool {
 
 pub(crate) fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect()
 }
 
 /// The faces across `key`'s loops, with every half-edge on them.
 fn across(body: &Body<f64>, key: FaceKey) -> Vec<FaceKey> {
-    let f = face(body, key);
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
-        .flat_map(|lk| topo::props::loop_edges(body, lk).unwrap().1)
+    body.face(key)
+        .unwrap()
+        .loops()
+        .flat_map(|(lk, _, _)| topo::props::loop_edges(body, lk).unwrap().1)
         .map(|h| body.face_of_half_edge(body.mate(h).unwrap()).unwrap())
         .collect()
 }
