@@ -517,10 +517,11 @@ impl<T: geom_core::Real> PierceRead<T> {
     }
 }
 
-/// One Out run of a [`PierceRead`]: where its null edge lands, and its
-/// germs as the ring orders them.
+/// One Out run of a [`PierceRead`]: its arc of the bounds, and its germs
+/// as the ring orders them.
 struct ReadRun<T: geom_core::Real> {
     run: crate::star::Run,
+    /// The site the facing was checked at, before any run's mint.
     site: crate::star::Site,
     germs: (Germ<T>, Germ<T>),
     order: [(Leaned<T>, geom_core::Lever<T>); 2],
@@ -1221,24 +1222,27 @@ pub(super) fn mint_pierce<T: Decide>(
     }
     let mut planned = Vec::with_capacity(runs.len());
     for run in runs {
-        // No run's mint moves a half another run's site reads
-        // ([`read_vertex_on_face`]), so each site stands as read.
-        debug_assert_eq!(
+        // Another run's mint moves this one's fan end, so the site is
+        // read here; a strut's corner, and its tip, which the read checked
+        // the facing of, stand as read ([`read_vertex_on_face`]).
+        let site =
             crate::star::arc_site(&*piercing_body, contact.vertex, &entries, run.run, || {
                 format!("the run {:?}", run.run)
-            }),
-            run.site,
-            "an earlier run's mint moved the site a pierce run was read at"
+            });
+        debug_assert_eq!(
+            (site.strut_corner(), site.tip()),
+            (run.site.strut_corner(), run.site.tip()),
+            "an earlier run's mint moved the strut corner a pierce run's facing was read at"
         );
         // The piercing run is Out.
-        let mint = piercing_body.mev_null_run(run.site, NewVertexSide::Above)?;
+        let mint = piercing_body.mev_null_run(site, NewVertexSide::Above)?;
         let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
         let rec = BoolNullEdgeRecord {
             operand: piercing,
             at_vertex: mint.at,
             edge: created.edge,
             attr,
-            dangling: run.site.dangling(),
+            dangling: site.dangling(),
             germs: [
                 half_germ(start_he, run.germs.0),
                 half_germ(end_he, run.germs.1),
