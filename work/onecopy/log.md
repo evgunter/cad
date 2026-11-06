@@ -429,3 +429,9 @@
   FULL review sent to `session_013mPGJ3HVYqYAoquA4iThSZ`, with the edge-ends semantics as its first check. The three unfiled main reds it found (the needle cavity, seat7 digests, and the loop-boundary-discards selftest) went to the main-reds lane.
 
 - 2026-11-06 — Design fork dispatched on `the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes`: where a crate-internal reading of an engine's type lives under ratified `[topo.homes]`. Draw 127, 42: two designers, Opus as A. Recorded on `analysis/design-fork/onecopy-census-sort-home`. The outcome goes to Ev as `[ev]` if it changes `[topo.homes]` or the gates. The topo-handles lane takes `value-discards` (all 24 arms) and the loop doors.
+
+- 2026-11-06 — The census-sort fork converged on first reports, and both designers rejected the framing.
+  - The census's sort is in its home; the tangent-line reading it reads is arm-2 code misplaced in `boolean/`, a unit-5 move.
+  - `[topo.homes]` is unchanged, so no `[ev]` PR. The row becomes a move row (cost H): `contain`'s placement door, then `face_boundary`, then the reading, with `FaceUnread` reshaped by verdict kind.
+  - Filed `engine-leaves-passes-a-raised-pin-and-its-message-points-the-wrong-way` and `the-census-has-no-fault-arm-and-sorts-a-kernel-fault-as-unsupported`.
+  The stale local `main` (`9036ae9e5b`) misled both designers' clones; I fixed the ref.
