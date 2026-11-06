@@ -21,7 +21,6 @@ crates/geom-brep/src/props/curved.rs	solid_angle	2	chart
 crates/geom-brep/src/props/curved.rs	triangle_solid_angle	1	turn
 crates/geom-brep/src/props/curved.rs	sphere_loop	1	turn
 crates/geom-brep/src/props/curved.rs	pole_turning	2	turn
-crates/geom-brep/src/props/curved.rs	torus_angle	2	harmonic-cut
 crates/geom-brep/src/props/curved.rs	torus_chart_loop	2	turn
 crates/mesh/src/trimmed.rs	harmonic_range	1	harmonic
 crates/profile/src/lift.rs	carrier_form	1	user
@@ -56,4 +55,3 @@ crates/topo/src/sector_face.rs	azimuth_from	1	turn
 crates/topo/src/shell.rs	winds_once	1	turn
 crates/topo/src/shell.rs	chart_read	1	turn
 crates/topo/src/shell.rs	cut_counting	1	harmonic
-crates/geom-brep/src/curve_face/plane_crossing.rs	conic_plane_candidates	2	harmonic-cut

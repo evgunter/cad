@@ -26,10 +26,9 @@
 # `Curve3::azimuth`'s or `Azimuth::of(..)`'s question, and a row naming
 # `in-frame` is refused.
 #   turn          the angle between two directions, atan2(cross, dot)
-#   harmonic      the phase of a harmonic's coefficients, `a cos + b sin`
-#   harmonic-cut  a harmonic phase read clear of `atan2`'s cut by a
-#                 hand-written two-formula choice (filed:
-#                 work/onecopy/harmonic-phases-pick-their-cut-side-by-hand.md)
+#   harmonic      the phase of a harmonic's coefficients, `a cos + b sin`,
+#                 read once; a phase read clear of the cut by a choice
+#                 between two formulas is `Azimuth::near`'s, and has no class
 #   chart         a chart's own closed form (a latitude, a projected
 #                 chart, a pcurve's closed form, a torus window's bound)
 #   upper-half    a read whose `y` is never negative (a square root, an
@@ -93,7 +92,7 @@ EXEMPT = {
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/sym.rs",
 }
-CLASSES = {"turn", "harmonic", "harmonic-cut", "chart", "upper-half", "past-at-real", "user", "awaits-6443"}
+CLASSES = {"turn", "harmonic", "chart", "upper-half", "past-at-real", "user", "awaits-6443"}
 TEST_NAME = re.compile(r"(?:_rows|_fuzz)\.rs$|^test_support")
 
 
