@@ -177,10 +177,10 @@
 use core::borrow::Borrow;
 use core::fmt;
 
-use geom_core::k_stats::decide;
+use crate::gate::{Escalation, Gate, decide};
 use geom_core::{
-    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, EndingKind, Indeterminate,
-    KERNEL_DEFECT_ENDING, Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
+    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
+    Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
 };
 
 /// The recourse of [`ProfileError::ArcBelowSceneResolution`], and of
@@ -293,9 +293,9 @@ impl ArcCheck {
     #[must_use]
     pub fn predicate(self) -> &'static str {
         match self {
-            Self::OnCarrier => "arc_start_on_carrier",
-            Self::Landing => "arc_landing",
-            Self::SweepRange => "arc_sweep_range",
+            Self::OnCarrier => Gate::ArcStartOnCarrier.predicate(),
+            Self::Landing => Gate::ArcLanding.predicate(),
+            Self::SweepRange => Gate::ArcSweepRange.predicate(),
         }
     }
 }
@@ -442,860 +442,6 @@ impl fmt::Display for NoCornerReason {
     }
 }
 
-/// The recourse for an in-band corner **turn**.
-///
-/// **The margin is LEVERED, and that is what the sentence has to be
-/// true of.** `fillet_corner_turn` classifies `sin φ · arm` — the sine
-/// of the angle between the legs times the shorter leg's own extent
-/// (`Margin::levered`, `sugar::arc_fillet_corner`'s gate (2)) — so the
-/// band admits two different user situations, and a sentence that
-/// named only the first would be false at the second:
-///
-/// - **the angle is degenerate**: the legs run smoothly into each other
-///   (recourse: construct the tangency) or reverse into a cusp (which the
-///   kernel refuses; #131 is the tabled front door), and which of the
-///   two is itself below the tolerance;
-/// - **the angle is real and the LEG is short**: a leg whose extent is a
-///   few ε carries a 64° turn into the band while the angle is nothing
-///   like degenerate. The lever there is the leg's extent, and the same
-///   corner with a leg long enough to take the setback builds.
-///
-/// Both are reachable through the public door and both are pinned
-/// (`profile/tests/fillet_recourse_followability.rs`'s
-/// `the_turn_in_band_recourse_names_both_of_its_situations`, and the two
-/// reviewer rows it cites), so the sentence names both levers and the
-/// tolerance, which is true at either.
-///
-/// Reaches the caller through [`crate::PathError::Escalated`]'s fillet
-/// arm, which selects it with [`fillet_recourse_for`]; that is where all
-/// six `FILLET_*_RECOURSE` sentences are rendered. The gate's definite
-/// arm, `PathNoCornerReason::TurnWithinTolerance` on the shorter leg,
-/// ends in it too.
-/// Gates: `fillet_corner_turn`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the angle is real, give the shorter leg a longer extent; if the legs \
-     continue smoothly, construct the tangency (.tangent()); if they exactly double back, the \
-     cusp is refused; otherwise move the geometry";
-
-/// The recourse for a corner that admits no tangent circle of the
-/// requested radius — one sentence for the definite refusal and for the
-/// in-band escalation alike (the two-tolerance discipline, D4 ¶1
-/// addendum: one message and one recourse per user situation).
-/// Also carries `fillet_leg_reach`, whose situation is the same one:
-/// whether a corner of this radius exists on the corner side at all
-/// (review MINOR-1).
-///
-/// Selected by [`fillet_recourse_for`] and rendered by
-/// [`crate::PathError::Escalated`]'s fillet arm. Followed to a build by
-/// the rows named `the_no_corner_recourse_reduces_to_a_radius_that_builds`
-/// and `the_offset_clearance_recourse_reaches_the_caller_and_reduces`.
-/// Gates: `fillet_offset_line_circle`, `fillet_offset_circles_external`, `fillet_offset_circles_internal`, `fillet_leg_reach`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const FILLET_NO_CORNER_RECOURSE: &str =
-    "use a smaller radius, or move the legs so a circle of that radius can sit in the corner";
-
-/// The recourse for a corner whose offset lever is too short to place a
-/// tangent point within ε — one sentence for the definite refusal
-/// ([`crate::PathError::FilletOffsetLeverTooShort`]) and for the in-band
-/// escalation of `fillet_offset_lever` alike (D4 ¶1's clause (iv): a new
-/// definite arm inherits its in-band sibling's one story).
-///
-/// It names the lever the user can actually move, **and the direction
-/// and bound of it**. ρ = R − σ·τ·r collapses when the fillet radius
-/// approaches the leg's own carrier radius on the side the corner turns
-/// toward, so moving the radius away from that carrier radius is the
-/// direction. The threshold is `C·u·R₂·scale²/(d·ε)`
-/// (`sugar::ArcCarrier::offset_circles`) and its `scale²` carries ρ², so
-/// where the offset radius itself dominates the corner's magnitude the
-/// threshold grows faster than the lever does and the window closes:
-/// past it a larger move refuses again, definitely. The sentence says
-/// so rather than promising a direction without a bound.
-///
-/// Selected by [`fillet_recourse_for`] and rendered by
-/// [`crate::PathError::Escalated`]'s fillet arm. **The gate IS reachable
-/// in band through the public door, at every tolerance the run can be
-/// given** — two independent fixtures reach it, a mixed-winding lens
-/// whose centres sit `d = R + r` apart and a two-lobe scene whose
-/// carrier radius is solved from ε — and the rows are
-/// `the_offset_lever_recourse_reaches_the_caller_at_its_own_site` here
-/// plus the two reviewer rows it cites. At the lens site the sentence's
-/// request builds and validates; at the ε-solved scene the lens is so
-/// shallow that what the door emits has an `arc_span` of its own in the
-/// band, so there the request builds and does not validate — recorded at
-/// the row rather than smoothed over.
-/// Gates: `fillet_offset_lever`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "move the fillet radius away from that leg's carrier radius (a large move can \
-     refuse again), or bring the corner's carriers closer together, or lower the tolerance";
-
-/// The recourse for a fillet radius sitting within the band of a leg's
-/// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
-/// whether the requested fillet would SWALLOW that carrier, the
-/// permanently refused enclosing class
-/// (`crates/profile/README.md`) — is below the tolerance.
-///
-/// One sentence for the in-band escalation of `fillet_enclosing_carrier`
-/// and for its definite sibling
-/// [`crate::path::CornerReason::EnclosesLegCarrier`] alike
-/// (D4 ¶1 clause (iv)). It names the same lever the author can
-/// move as the conditioning gate's recourse does, because at ρ ≈ 0 the
-/// two situations are the same degenerate one: a fillet radius equal to
-/// the leg's carrier radius.
-///
-/// Selected by [`fillet_recourse_for`] and rendered by
-/// [`crate::PathError::Escalated`]'s fillet arm; the bound it endorses is
-/// followed to a build by the row named
-/// `the_enclosing_recourse_endorses_a_bound_that_builds`.
-/// Gates: `fillet_enclosing_carrier`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const FILLET_ENCLOSING_RECOURSE: &str = "the fillet radius is too close to the leg's own carrier radius to tell whether the \
-     fillet would swallow that carrier: move the radius well below the carrier radius";
-
-/// The recourse for a radius whose tangent points fall outside their
-/// legs — shared by the definite refusal and the in-band escalation.
-///
-/// Selected by [`fillet_recourse_for`] and rendered by
-/// [`crate::PathError::Escalated`]'s fillet arm; both its clauses are
-/// followed by the row named
-/// `the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs`.
-/// Gates: `fillet_leg_fit`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const FILLET_FIT_RECOURSE: &str =
-    "the arc would never approach the requested corner; use a smaller radius or longer legs";
-
-/// **The recourse for a fillet arc too shallow to be STORED as an arc.**
-///
-/// A profile stores an arc as its vertices plus a carrier and sweep,
-/// and validation classifies the segment through
-/// `segment_straightness`, whose margin is the sagitta
-/// `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε the stored arc is
-/// read as a line and the carrier the door computed is simply not in
-/// the validated loop, so the tangency the fillet constructs has
-/// nothing to be about.
-///
-/// Both levers move the sagitta, and the sentence says which way each
-/// runs — a larger turn, or a larger radius. The radius lever has a
-/// ceiling the other recourse names ([`FILLET_SCENE_RESOLUTION_RECOURSE`]),
-/// and at a tight ε and a tiny turn the two bounds cross and NO radius
-/// works: the sentence therefore offers the radius conditionally and
-/// always offers the third lever, which is unconditional.
-///
-/// Followed at its own door by
-/// `profile/tests/fillet_recourse_followability.rs`'s row named
-/// `the_flattened_recourse_is_followed_by_a_larger_turn_and_a_larger_radius`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a LARGER radius while the scene still resolves \
-     one; if the corner is too shallow for both, drop the fillet and leave the corner sharp";
-
-/// **The recourse for a fillet whose carrier the scene cannot resolve.**
-///
-/// The stored form here IS an arc — the sagitta is metres — but a
-/// joint's turn is read off its legs' headings, each a DIFFERENCE of
-/// coordinates at the scene's own magnitude `M` (the larger of the
-/// coordinates and the radii) over the length it is taken across (an
-/// arc's radius `ρ`, a line's length), and such a difference cancels
-/// first-order: levered by the joint's arm, the turn resolves only to
-/// about `M·2⁻⁵²·arm/ρ`. The arm is the shorter leg's, never longer
-/// than the fillet's own `min(ρ, chord)`, so the floor is at most about
-/// `M·2⁻⁵²`, and when it is coarser than ε the joint cannot be
-/// classified at all, whatever the turn is.
-///
-/// So the lever is the magnitude: the geometry nearer the origin, or a
-/// radius no larger than the scene's own distance from it (a radius
-/// below that changes nothing). Or drop the fillet.
-///
-/// Followed at its own door by the row named
-/// `the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_scene`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "move the geometry nearer the origin, keep the radius no larger than its distance from the \
-     origin, or leave the corner sharp";
-
-/// **The recourse when the stored form's own classification is in
-/// band** — the undecided twin of the two above.
-///
-/// One situation, not two: the run has declined to say which way the
-/// stored form reads, so the sentence names the two things that can be
-/// true of it and the one lever that works for either. D4 ¶1's addendum
-/// asks for one message and one recourse per user situation, and
-/// "undecided" is a situation of its own — the alternative would be to
-/// render one mechanism's levers over a reading that may be the other's.
-///
-/// Followed by the row named
-/// `the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "the arc may be too shallow to store (turn the corner further, or use a larger \
-     radius) or too fine for the scene (move nearer the origin); dropping the fillet, \
-     or lowering the tolerance, settles either";
-
-/// The recourse for a fillet leg with no extent to round against.
-///
-/// Selected by [`fillet_recourse_for`] and rendered by
-/// [`crate::PathError::Escalated`]'s fillet arm; followed to a build by
-/// the row named
-/// `the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent`.
-/// Gates: `fillet_corner_arm`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const FILLET_LEG_EXTENT_RECOURSE: &str = "give the leg a real extent (a non-degenerate chord, or an arc carrier with a positive \
-     radius and a non-zero sweep) — a leg with no extent has no direction to be tangent to";
-
-/// **The one map from a fillet gate's name to the sentence it owes its
-/// caller.** `Some` exactly on the nine `fillet_*` predicate names the
-/// construction sugar decides; `None` on every other name, including
-/// the stored-form read's own classifications and the junction keys,
-/// which have their own recourses.
-///
-/// Several names share a sentence, and the sharing is the D4 ¶1
-/// addendum at work — one message and one recourse per user SITUATION,
-/// not per predicate. The three offset-carrier clearances and the
-/// corner-side reach gate are all one situation ("no corner of this
-/// radius exists here"), and the two fit gates are the other ("the
-/// radius does not fit the legs it was asked to round").
-///
-/// This function is the only place the mapping is spelled. The door's
-/// `Display` ([`crate::PathError::Escalated`]) reads it; nothing copies
-/// it.
-#[must_use]
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub fn fillet_recourse_for(predicate: &str) -> Option<&'static str> {
-    Some(match predicate {
-        "fillet_corner_turn" => FILLET_TURN_INBAND_RECOURSE,
-        "fillet_corner_arm" => FILLET_LEG_EXTENT_RECOURSE,
-        "fillet_offset_line_circle"
-        | "fillet_offset_circles_external"
-        | "fillet_offset_circles_internal"
-        | "fillet_leg_reach" => FILLET_NO_CORNER_RECOURSE,
-        "fillet_leg_fit" => FILLET_FIT_RECOURSE,
-        "fillet_offset_lever" => FILLET_OFFSET_LEVER_RECOURSE,
-        "fillet_enclosing_carrier" => FILLET_ENCLOSING_RECOURSE,
-        _ => return None,
-    })
-}
-
-/// One decision this crate decides, and how its undecided refusal ends.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-#[derive(Clone, Copy, Debug)]
-pub struct DecisionEnding {
-    /// The predicate's name.
-    pub name: &'static str,
-    /// How its undecided refusal ends.
-    pub kind: EndingKind,
-}
-
-/// **Every predicate this crate decides, with how its undecided refusal
-/// ends** — except the fillet constructor's gates, which
-/// [`fillet_recourse_for`] answers and validation never decides. A door
-/// that routes a name to a sentence of its own still finds its kind
-/// here for the doors that do not. A name with no row renders
-/// [`geom_core::MissingRecourse`] at both doors.
-/// `recourse_roster` holds the table against the names `src` decides,
-/// both ways.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const DECISION_ENDINGS: &[DecisionEnding] = &[
-    // two arc apexes told apart by their separation
-    DecisionEnding {
-        name: "arc_apex_identity",
-        kind: EndingKind::Sized,
-    },
-    // the magnitude an arc's consistency difference was read at, against the one where its f64
-    // rounding reaches the band
-    DecisionEnding {
-        name: "arc_carrier_resolution",
-        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
-    },
-    // how far an arc stops short of a full circle
-    DecisionEnding {
-        name: "arc_diameter_clearance",
-        kind: EndingKind::Sized,
-    },
-    // how far a table arc's start, turned by its sweep, lands from its end
-    DecisionEnding {
-        name: "arc_landing",
-        kind: EndingKind::Sized,
-    },
-    // an arc's span, as the clearance between its chord's reach and its apex
-    DecisionEnding {
-        name: "arc_span",
-        kind: EndingKind::Sized,
-    },
-    // how far a table arc's start lies off its carrier circle
-    DecisionEnding {
-        name: "arc_start_on_carrier",
-        kind: EndingKind::Sized,
-    },
-    // a table arc's arc length at its radius, against zero
-    DecisionEnding {
-        name: "arc_sweep_length",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // a table arc's gap to a full turn, at its radius
-    DecisionEnding {
-        name: "arc_sweep_range",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // two points ordered by their x difference, at the exact-order band
-    DecisionEnding {
-        name: "canonical_order_x",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // two points ordered by their y difference, at the exact-order band
-    DecisionEnding {
-        name: "canonical_order_y",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // two circles' centre separation less the sum of their radii
-    DecisionEnding {
-        name: "carrier_circles_external",
-        kind: EndingKind::Sized,
-    },
-    // the depth of the chord two nearly internally tangent circles cut, at its midpoint
-    DecisionEnding {
-        name: "carrier_circles_chord",
-        kind: EndingKind::Sized,
-    },
-    // two circles told apart by their centre separation plus their radius difference
-    DecisionEnding {
-        name: "carrier_circles_identity",
-        kind: EndingKind::Sized,
-    },
-    // two circles' centre separation less the difference of their radii
-    DecisionEnding {
-        name: "carrier_circles_internal",
-        kind: EndingKind::Sized,
-    },
-    // a line's clearance from a circle: the radius against the line's distance from the centre
-    DecisionEnding {
-        name: "carrier_line_circle",
-        kind: EndingKind::Sized,
-    },
-    // a point's lateral distance from a chord's line
-    DecisionEnding {
-        name: "chord_side",
-        kind: EndingKind::Sized,
-    },
-    // a segment end's distance from a circle's centre less its radius, charged
-    DecisionEnding {
-        name: "circle_end_clear",
-        kind: EndingKind::Sized,
-    },
-    // how far a computed extreme of an arc's circle lies off its span, charged
-    DecisionEnding {
-        name: "circle_extreme_past_arc",
-        kind: EndingKind::Sized,
-    },
-    // how far a circle centre's computed foot lies off a segment's span, charged
-    DecisionEnding {
-        name: "circle_foot_past_segment",
-        kind: EndingKind::Sized,
-    },
-    // which side of an arc's carrier circle a point lies on, as its distance from the centre
-    // less the radius
-    DecisionEnding {
-        name: "circle_side",
-        kind: EndingKind::Sized,
-    },
-    // the overlap of two collinear segments along their shared carrier
-    DecisionEnding {
-        name: "collinear_overlap",
-        kind: EndingKind::Sized,
-    },
-    // a contact point told apart from a loop vertex by their separation
-    DecisionEnding {
-        name: "contact_at_shared_vertex",
-        kind: EndingKind::Sized,
-    },
-    // how far a full turn reaches from its vertex, levered by its diameter
-    DecisionEnding {
-        name: "full_turn_reach",
-        kind: EndingKind::Sized,
-    },
-    // a full turn's signed reach from its vertex, whose sign is its turn
-    DecisionEnding {
-        name: "full_turn_sense",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // how far inside a segment a point falls, from whichever end is nearer
-    DecisionEnding {
-        name: "line_span",
-        kind: EndingKind::Sized,
-    },
-    // a loop's signed area, levered by its perimeter
-    DecisionEnding {
-        name: "loop_orientation",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // which end of a segment a point projects nearer, as its offset along the chord from the
-    // chord's bisector
-    DecisionEnding {
-        name: "nearer_end",
-        kind: EndingKind::Sized,
-    },
-    // how much nearer a segment end lies to the candidate contact it settles than to the
-    // carriers' other candidate
-    DecisionEnding {
-        name: "own_candidate",
-        kind: EndingKind::Sized,
-    },
-    // an authored bulge told apart from zero
-    DecisionEnding {
-        name: "path_arc_bulge",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // an authored centre's two radii told apart
-    DecisionEnding {
-        name: "path_arc_center_equidistant",
-        kind: EndingKind::Sized,
-    },
-    // an authored radius metered against zero
-    DecisionEnding {
-        name: "path_arc_center_radius",
-        kind: EndingKind::Sized,
-    },
-    // an authored chord metered against zero
-    DecisionEnding {
-        name: "path_arc_chord",
-        kind: EndingKind::Sized,
-    },
-    // how far a constructed arc's start, turned by its sweep, lands from its end vertex (for an
-    // arc decided inline, from that vertex moved onto its circle), read back at a point scalar
-    DecisionEnding {
-        name: "path_arc_landing",
-        kind: EndingKind::Lever(ARC_READ_BACK_UNDECIDED_RECOURSE),
-    },
-    // the lesser of the authored data's headroom below the magnitude whose rounding reaches the
-    // band and the miss's clearance of the read's own rounding: a read-back miss's defect gate
-    DecisionEnding {
-        name: "path_arc_landing_resolution",
-        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
-    },
-    // a constructed arc's length, signed by the turn sense it was authored to: negative is the
-    // other arc between its ends, read back at a point scalar
-    DecisionEnding {
-        name: "path_arc_branch",
-        kind: EndingKind::Lever(ARC_READ_BACK_UNDECIDED_RECOURSE),
-    },
-    // the lesser of the authored data's headroom below the magnitude whose rounding reaches the
-    // band and the miss's clearance of the read's own rounding: a read-back miss's defect gate
-    DecisionEnding {
-        name: "path_arc_branch_resolution",
-        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
-    },
-    // an authored sweep's arc length at its radius, against zero
-    DecisionEnding {
-        name: "path_arc_sweep",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // an authored sweep's arc length short of a full turn
-    DecisionEnding {
-        name: "path_arc_sweep_full",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // how far a constructed arc's start vertex lies off its stored carrier, read back at a point
-    // scalar
-    DecisionEnding {
-        name: "path_arc_start_on_carrier",
-        kind: EndingKind::Lever(ARC_READ_BACK_UNDECIDED_RECOURSE),
-    },
-    // the lesser of the authored data's headroom below the magnitude whose rounding reaches the
-    // band and the miss's clearance of the read's own rounding: a read-back miss's defect gate
-    DecisionEnding {
-        name: "path_arc_start_on_carrier_resolution",
-        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
-    },
-    // how far a constructed Via arc's carrier lies off the through-point it was authored by,
-    // read back at a point scalar
-    DecisionEnding {
-        name: "path_arc_through_point",
-        kind: EndingKind::Lever(ARC_READ_BACK_UNDECIDED_RECOURSE),
-    },
-    // the lesser of the authored data's headroom below the magnitude whose rounding reaches the
-    // band and the miss's clearance of the read's own rounding: a read-back miss's defect gate
-    DecisionEnding {
-        name: "path_arc_through_point_resolution",
-        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
-    },
-    // a via point's lateral offset from the chord it bulges
-    DecisionEnding {
-        name: "path_arc_via_offset",
-        kind: EndingKind::Sized,
-    },
-    // two arc carriers told apart by their centre separation plus their radius difference
-    DecisionEnding {
-        name: "path_carrier_identity",
-        kind: EndingKind::Sized,
-    },
-    // whether a ray and a circle meet at all: the circle's radius against the ray's
-    // perpendicular distance from its centre
-    DecisionEnding {
-        name: "path_carrier_meet",
-        kind: EndingKind::Sized,
-    },
-    // a circle's radius metered against zero
-    DecisionEnding {
-        name: "path_circle_radius",
-        kind: EndingKind::Sized,
-    },
-    // a declared target's lateral miss from the tip's direction
-    DecisionEnding {
-        name: "path_collinear_target",
-        kind: EndingKind::Sized,
-    },
-    // a declared continuation target's lateral miss from its run's line
-    DecisionEnding {
-        name: "path_continuation_target_offset",
-        kind: EndingKind::Sized,
-    },
-    // where the corner sits along a STRAIGHT side's carrier — forward of the incoming anchor,
-    // or back from the arrival's
-    DecisionEnding {
-        name: "path_corner_advance",
-        kind: EndingKind::Sized,
-    },
-    // the same window on a CIRCULAR carrier: the swept extent from the anchor forward to the
-    // corner, levered to metres
-    DecisionEnding {
-        name: "path_corner_advance_arc",
-        kind: EndingKind::Sized,
-    },
-    // the swept extent from the corner forward to a circular arrival's anchor, levered to
-    // metres
-    DecisionEnding {
-        name: "path_corner_reach_arc",
-        kind: EndingKind::Sized,
-    },
-    // the turn BETWEEN the two carriers at the corner, levered by the anchor separation
-    DecisionEnding {
-        name: "path_corner_turn",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // a director's length metered against zero
-    DecisionEnding {
-        name: "path_director_norm",
-        kind: EndingKind::Sized,
-    },
-    // an authored fillet radius metered against zero
-    DecisionEnding {
-        name: "path_fillet_radius",
-        kind: EndingKind::Sized,
-    },
-    // the cosine of a junction's turn, levered by the arriving arm; one question at both
-    // doors (`seg::junction_reverses`), asked of a junction already tangent, so neither
-    // outcome is something `.tangent()` would change, and a raw-authored loop has no path verbs
-    DecisionEnding {
-        name: "path_junction_side",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // the sine of a junction's turn at the shorter leg's arm: the path door's, and validation's
-    // joint pass's (`seg::joint_tangency`)
-    DecisionEnding {
-        name: "path_junction_turn",
-        kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
-    },
-    // the same turn read off a fillet's STORED joints by the door's stored-form re-read
-    // (`seg::joint_tangency` under this name): its levers are the stored form's, not `.tangent()`
-    DecisionEnding {
-        name: "path_fillet_joint_turn",
-        kind: EndingKind::Lever(FILLET_STORED_FORM_INBAND_RECOURSE),
-    },
-    // an authored leg's extent metered against zero
-    DecisionEnding {
-        name: "path_leg_length",
-        kind: EndingKind::Sized,
-    },
-    // a rectangle's width or height metered against zero
-    DecisionEnding {
-        name: "path_rectangle_side",
-        kind: EndingKind::Sized,
-    },
-    // an emitted segment told apart from a fillet's arrival carrier: its end's lateral miss
-    // from the arrival ray and its advance along it, or its end's and arc midpoint's radial
-    // misses from the arrival circle
-    DecisionEnding {
-        name: "path_run_out_carrier",
-        kind: EndingKind::Sized,
-    },
-    // the lever arm the seam arrival's own turn and side gates are metered through
-    DecisionEnding {
-        name: "path_seam_arrival_lever",
-        kind: EndingKind::Sized,
-    },
-    // the cosine of the seam arrival's turn, levered by its arm; this row and the next are
-    // rendered through no door's table: the path door answers both with its own seam-arrival
-    // sentence, and validation never decides them
-    DecisionEnding {
-        name: "path_seam_arrival_side",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // the sine of the seam arrival's turn, levered by its arm
-    DecisionEnding {
-        name: "path_seam_arrival_turn",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // how far along a containment ray a crossing falls
-    DecisionEnding {
-        name: "ray_advance",
-        kind: EndingKind::Sized,
-    },
-    // which side of a containment ray a point falls on
-    DecisionEnding {
-        name: "ray_side",
-        kind: EndingKind::Sized,
-    },
-    // how far apart two straight segments' projections lie along the first one's line
-    DecisionEnding {
-        name: "segment_gap",
-        kind: EndingKind::Sized,
-    },
-    // a segment's bow: its quarter-angle tangent, levered by its length
-    DecisionEnding {
-        name: "segment_straightness",
-        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-    },
-    // a segment's length
-    DecisionEnding {
-        name: "vertex_separation",
-        kind: EndingKind::Sized,
-    },
-];
-
-/// The row of [`DECISION_ENDINGS`] for `predicate`, if it has one.
-#[must_use]
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub fn decision_ending(predicate: &str) -> Option<&'static DecisionEnding> {
-    DECISION_ENDINGS.iter().find(|row| row.name == predicate)
-}
-
-/// The ending both generic doors give an undecided decision of this
-/// crate, by its row's kind; a name with no row ends as a sized one and
-/// names the hole ([`geom_core::MissingRecourse`]).
-pub(crate) struct EscalationEnding<'a>(pub(crate) &'a Indeterminate);
-
-impl fmt::Display for EscalationEnding<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let source = self.0;
-        let kind = source
-            .predicate
-            .and_then(decision_ending)
-            .map(|row| row.kind);
-        f.write_str(&source.ending_by(kind, source.predicate))
-    }
-}
-
-/// The subject a door states for an escalation whose name has no words
-/// in [`decision_subject`]: `geom_core::UNNAMED_DECISION`.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-pub const UNNAMED_DECISION: &str = geom_core::UNNAMED_DECISION;
-
-/// What an escalated decision of this crate was deciding, in the words
-/// a refusal states before the margin it could not call: each a clause
-/// that stands alone, with no colon or dash of its own, so the door can
-/// follow it with the undecided verdict. The one home of these words,
-/// read by [`ProfileError::Escalated`] and [`crate::PathError::Escalated`]'s
-/// fall-through; the comment on each [`DECISION_ENDINGS`] row, saying
-/// what its margin measures, is for the table's readers, not for the
-/// screen. `None` only for the fillet
-/// constructor's gates, which the path door routes to a sentence of
-/// their own and which validation never decides;
-/// `recourse_roster::every_decided_name_has_a_subject_or_a_sentence`
-/// holds that against the names `src` decides. A flip report states
-/// these words too, through `editor-core`'s one lookup over every
-/// owner's words.
-#[must_use]
-pub fn decision_subject(predicate: &str) -> Option<&'static str> {
-    Some(match predicate {
-        "arc_apex_identity" => "whether two arc apexes are one point",
-        "arc_carrier_resolution" => {
-            "whether the scene can read an arc's difference from its vertices at its magnitude"
-        }
-        "arc_span" => "whether a point falls inside an arc's span",
-        "arc_diameter_clearance" => "whether an arc stops short of a full circle",
-        "arc_landing" => "whether an arc's sweep carries its start onto its end",
-        "arc_start_on_carrier" => "whether an arc's start lies on its carrier circle",
-        "arc_sweep_length" => "whether an arc sweeps any length",
-        "arc_sweep_range" => "whether an arc's sweep stops short of a full turn, or makes one",
-        "canonical_order_x" => "which of two points comes first along x",
-        "full_turn_reach" => "whether a full turn reaches round its carrier",
-        "full_turn_sense" => "which way a full turn runs",
-        "canonical_order_y" => "which of two points comes first along y",
-        "carrier_circles_chord" => "whether two circles touching from inside cut a chord",
-        "carrier_circles_external" => "whether two circles touch from outside",
-        "carrier_circles_identity" => "whether two circles are one circle",
-        "carrier_circles_internal" => "whether two circles touch from inside",
-        "carrier_line_circle" => "whether a line and a circle cross, touch or miss",
-        "chord_side" => "which side of a chord a point lies on",
-        "circle_end_clear" => "whether a segment's end lies definitely off a circle",
-        "circle_extreme_past_arc" => {
-            "whether an arc's point nearest or farthest from another circle's centre lies off it"
-        }
-        "circle_foot_past_segment" => {
-            "whether a circle's centre's foot on a line lies off the line's segment"
-        }
-        "circle_side" => "which side of an arc's circle a point lies on",
-        "collinear_overlap" => "whether two segments on one line overlap",
-        "contact_at_shared_vertex" => "whether a contact point is a loop vertex",
-        "line_span" => "whether a point falls inside a segment",
-        "loop_orientation" => "which way round a loop runs",
-        "nearer_end" => "which end of a segment a point lies nearer",
-        "own_candidate" => "which of two candidate contacts a segment end lies nearer",
-        "path_arc_bulge" => "whether an authored bulge is zero",
-        "path_arc_center_equidistant" => {
-            "whether an authored centre is as far from one end of its arc as from the other"
-        }
-        "path_arc_center_radius" => "whether an authored radius is zero",
-        "path_arc_chord" => "whether an authored chord has any length",
-        "path_arc_branch" => "whether an arc the path built turns the way it was authored to",
-        "path_arc_branch_resolution" => {
-            "whether an arc's wrong branch is a defect the scene resolves"
-        }
-        "path_arc_landing" => "whether an arc the path built lands on its end vertex",
-        "path_arc_landing_resolution" => {
-            "whether an arc's miss of its end vertex is a defect the scene resolves"
-        }
-        "path_arc_sweep" => "whether an authored sweep's arc length is zero",
-        "path_arc_sweep_full" => "whether an authored sweep is short of a full turn",
-        "path_arc_start_on_carrier" => "whether an arc the path built starts on its own carrier",
-        "path_arc_start_on_carrier_resolution" => {
-            "whether an arc's start off its carrier is a defect the scene resolves"
-        }
-        "path_arc_through_point" => {
-            "whether an arc the path built passes through the point it was authored through"
-        }
-        "path_arc_through_point_resolution" => {
-            "whether an arc's miss of its through-point is a defect the scene resolves"
-        }
-        "path_arc_via_offset" => "whether a via point lies off the chord it bulges",
-        "path_carrier_identity" => "whether two arc carriers are one circle",
-        "path_carrier_meet" => "whether a ray meets a circle",
-        "path_circle_radius" => "whether a circle's radius is zero",
-        "path_collinear_target" => "whether a declared target lies on the tip's line",
-        "path_continuation_target_offset" => {
-            "whether a declared straight continuation's target lies on its run's line"
-        }
-        "path_corner_advance" => "whether the corner lies ahead of its anchor on a straight side",
-        "path_corner_advance_arc" => "whether the corner lies ahead of its anchor on an arc side",
-        "path_corner_reach_arc" => "whether the corner lies short of an arc arrival's anchor",
-        "path_corner_turn" => "whether the two carriers turn at the corner",
-        "path_director_norm" => geom_core::DIRECTION_LENGTH_SUBJECT,
-        "path_fillet_radius" => "whether an authored fillet radius is zero",
-        "path_junction_side" => {
-            "whether the path carries straight on at this junction or doubles back into a cusp"
-        }
-        "path_junction_turn" => "whether the path turns at this junction",
-        "path_fillet_joint_turn" => "whether a fillet's stored joint turns",
-        "path_leg_length" => "whether an authored leg has any length",
-        "path_rectangle_side" => "whether a rectangle's side is zero or negative",
-        "path_run_out_carrier" => "whether an emitted segment lands on a fillet's arrival carrier",
-        "path_seam_arrival_lever" => "whether the seam arrival has a leg long enough to measure",
-        "path_seam_arrival_side" => {
-            "whether the seam arrival carries straight on or doubles back into a cusp"
-        }
-        "path_seam_arrival_turn" => "whether the seam arrival turns",
-        "ray_advance" => "whether a crossing lies ahead on a containment ray",
-        "ray_side" => "which side of a containment ray a point lies on",
-        "segment_gap" => "whether two straight segments lie apart along one of them",
-        "segment_straightness" => "whether a segment is straight or an arc",
-        "vertex_separation" => "whether a segment has any length",
-        _ => return None,
-    })
-}
-
 /// Typed validation failure — the closed error enum of
 /// [`Profile::validate`] (D4 ¶3: every failure is typed and actionable;
 /// D9: never a panic). All indices reference the *input* profile.
@@ -1432,12 +578,14 @@ pub enum ProfileError {
         /// The loop tested against.
         against_loop: usize,
     },
-    /// A predicate could not decide: the margin landed in the ambiguity
+    /// A gate could not decide: the margin landed in the ambiguity
     /// band (a genuine sliver configuration) or was poisoned (NaN
-    /// coordinates). Carries the named predicate's escalation verbatim.
+    /// coordinates). Its subject and ending are the gate's.
     Escalated {
         /// Where in the profile the decision was being made.
         site: EscalationSite,
+        /// The gate that escalated.
+        gate: Gate,
         /// The predicate-layer escalation (name, margin diagnostic,
         /// band).
         source: Indeterminate,
@@ -1550,45 +698,25 @@ impl fmt::Display for ProfileError {
                 "containment of loop {loop_index} in loop {against_loop}: every \
                  candidate ray grazed — escalating rather than guessing"
             ),
-            Self::Escalated { site, source } => {
-                let what = source
-                    .predicate
-                    .and_then(decision_subject)
-                    .unwrap_or(UNNAMED_DECISION);
+            Self::Escalated { site, gate, source } => {
                 write!(
                     f,
                     "{}",
-                    source.undecided(format_args!("{site}, {what}"), EscalationEnding(source))
+                    source.undecided(
+                        format_args!("{site}, {}", gate.subject()),
+                        gate.kind().end(source)
+                    )
                 )?;
                 // The near-tangency site note: the levers ride the
-                // ending (`EscalationEnding`); this addendum adds only
-                // the site-specific mechanics of the construct lever.
-                //
-                // IT IS KEYED ON A (SITE, NAME) PAIR, and it appends
-                // nothing for every other pair. That default is honest
-                // because the note is not a recourse: the ending already
-                // carries the levers, and a name without a row names its
-                // hole there.
-                //
-                // The four names below ALSO carry a sentence at
-                // `PathError::Escalated`'s stored-form arm, and the two
-                // deliberately differ: here the segment pair is one the
-                // CALLER authored, so the construct lever is theirs to
-                // pull and this note says how; there the loop is one the
-                // fillet door is about to store, so constructing is
-                // advice about a tangency the caller never wrote, and the
-                // arm names the stored form's own two levers instead.
-                // `review_recourse_roster_r2_probes` pins this key;
-                // `fillet_recourse_followability` pins the other.
+                // ending; this adds only the mechanics of the construct
+                // lever where the segment pair is the caller's own.
                 let near_tangency = matches!(site, EscalationSite::SegmentPair(_, _))
                     && matches!(
-                        source.predicate,
-                        Some(
-                            "carrier_line_circle"
-                                | "carrier_circles_external"
-                                | "carrier_circles_internal"
-                                | "carrier_circles_chord"
-                        )
+                        gate,
+                        Gate::CarrierLineCircle
+                            | Gate::CarrierCirclesExternal
+                            | Gate::CarrierCirclesInternal
+                            | Gate::CarrierCirclesChord
                     );
                 if near_tangency {
                     f.write_str(
@@ -1600,6 +728,14 @@ impl fmt::Display for ProfileError {
             }
             Self::Structure(r) => write!(f, "{r}"),
         }
+    }
+}
+
+impl ProfileError {
+    /// An escalation at `site`.
+    pub(crate) fn escalated(site: EscalationSite, e: Escalation) -> Self {
+        let (gate, source) = e.parts();
+        Self::Escalated { site, gate, source }
     }
 }
 
@@ -2431,12 +1567,13 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
                     // predicate went unclassified — and it already
                     // names both loops in its own vocabulary.
                     match (guide.loop_at(i), &e) {
-                        (Some(_), ProfileError::Escalated { source, .. }) => {
+                        (Some(_), ProfileError::Escalated { gate, source, .. }) => {
                             ProfileError::Structure(StructureRefusal::indeterminate(
                                 Decision::Containment {
                                     loop_: i,
                                     against: j,
                                 },
+                                *gate,
                                 *source,
                             ))
                         }
@@ -2683,8 +1820,11 @@ impl<T: Decide> ConstructedProfile<T> {
 /// a lane scalar (`lex_min_index`, `loop_orientation`). Each is decided
 /// at that site and nowhere else, so where the guided pass decides what
 /// the recording one did, its log is the recording's less these.
-pub const PINNED_UNDER_GUIDANCE: [&str; 3] =
-    ["canonical_order_x", "canonical_order_y", "loop_orientation"];
+pub const PINNED_UNDER_GUIDANCE: [&str; 3] = [
+    Gate::CanonicalOrderX.predicate(),
+    Gate::CanonicalOrderY.predicate(),
+    Gate::LoopOrientation.predicate(),
+];
 
 /// How a validation treats its own discrete decisions: selecting
 /// freely and writing them down, or consuming a prior pass's and
@@ -2736,9 +1876,8 @@ pub(crate) fn build_loop_segs<T: Decide>(
                     loop_index,
                     segment_index: k,
                 };
-                seg_refusal(issue, at, |source| ProfileError::Escalated {
-                    site: EscalationSite::Segment(at),
-                    source,
+                seg_refusal(issue, at, |source| {
+                    ProfileError::escalated(EscalationSite::Segment(at), source)
                 })
             })?,
         );
@@ -2752,7 +1891,7 @@ pub(crate) fn build_loop_segs<T: Decide>(
 fn seg_refusal<T: Real>(
     issue: SegIssue<T>,
     at: SegmentRef,
-    escalated: impl FnOnce(Indeterminate) -> ProfileError,
+    escalated: impl FnOnce(Escalation) -> ProfileError,
 ) -> ProfileError {
     match issue {
         SegIssue::Shape(ShapeIssue::Degenerate { .. } | ShapeIssue::DegenerateTurn { .. }) => {
@@ -2813,7 +1952,7 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
         _ => None,
     };
     let outcome = seg::pair_contacts(&loop_segs[li][si], &loop_segs[lj][sj], shared_end, band)
-        .map_err(|source| ProfileError::Escalated { site, source })?;
+        .map_err(|source| ProfileError::escalated(site, source))?;
     let contacts = match outcome {
         PairOutcome::Overlap => {
             return Err(ProfileError::NonSimple {
@@ -2839,8 +1978,8 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
             CKind::Touch => {
                 let mut discounted = false;
                 for &v in &shared {
-                    match seg::coincident("contact_at_shared_vertex", contact.point, v, band)
-                        .map_err(|source| ProfileError::Escalated { site, source })?
+                    match seg::coincident(Gate::ContactAtSharedVertex, contact.point, v, band)
+                        .map_err(|source| ProfileError::escalated(site, source))?
                     {
                         Sign::Zero => {
                             discounted = true;
@@ -2937,11 +2076,9 @@ fn judge_joints<T: Decide>(
             loop_index,
             segment_index: joint,
         };
-        let escalated = |source| ProfileError::Escalated {
-            site: EscalationSite::SegmentPair(first, second),
-            source,
-        };
-        let reading = seg::joint_tangency(&segs[prev], &segs[joint], "path_junction_turn", band)
+        let escalated =
+            |source| ProfileError::escalated(EscalationSite::SegmentPair(first, second), source);
+        let reading = seg::joint_tangency(&segs[prev], &segs[joint], Gate::PathJunctionTurn, band)
             .map_err(escalated)?;
         let carriers = match reading.class {
             seg::JointClass::Transversal if constructed.contains(&joint) => {
@@ -3014,12 +2151,12 @@ fn point_in_loop<T: Decide>(
 /// Compares two points in the canonical lexicographic order (least x,
 /// then least y) through the exact-order band (module docs) — the
 /// **`canonical_order_x`** / **`canonical_order_y`** predicates.
-fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, Indeterminate> {
-    match decide("canonical_order_x", Margin::of(p.x - q.x), exact)? {
+fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, Escalation> {
+    match decide(Gate::CanonicalOrderX, Margin::of(p.x - q.x), exact)? {
         Sign::Negative => Ok(true),
         Sign::Positive => Ok(false),
         Sign::Zero => {
-            Ok(decide("canonical_order_y", Margin::of(p.y - q.y), exact)? == Sign::Negative)
+            Ok(decide(Gate::CanonicalOrderY, Margin::of(p.y - q.y), exact)? == Sign::Negative)
         }
     }
 }
@@ -3034,10 +2171,7 @@ fn lex_min_index<T: Decide>(
     let mut best = 0;
     for i in 1..vertices.len() {
         if lex_less(vertices[i], vertices[best], exact).map_err(|source| {
-            ProfileError::Escalated {
-                site: EscalationSite::Loop { loop_index },
-                source,
-            }
+            ProfileError::escalated(EscalationSite::Loop { loop_index }, source)
         })? {
             best = i;
         }
@@ -3083,11 +2217,9 @@ fn canonicalize_loop<T: Decide>(
     let reversed = match recorded {
         Some(rec) => rec.reversed,
         None => {
-            let orientation =
-                loop_orientation(segs, band).map_err(|source| ProfileError::Escalated {
-                    site: EscalationSite::Loop { loop_index },
-                    source,
-                })?;
+            let orientation = loop_orientation(segs, band).map_err(|source| {
+                ProfileError::escalated(EscalationSite::Loop { loop_index }, source)
+            })?;
             let want_ccw = matches!(role, LoopRole::Outer);
             match orientation {
                 Sign::Zero => return Err(ProfileError::SliverLoop { loop_index }),
@@ -3148,17 +2280,14 @@ fn canonicalize_loop<T: Decide>(
             // pass names the segment whose classification went
             // unconfirmed instead of the bare segment site.
             seg_refusal(issue, at, |source| match recorded {
-                Some(_) => ProfileError::Structure(StructureRefusal::indeterminate(
+                Some(_) => ProfileError::Structure(StructureRefusal::escalated(
                     Decision::SegmentShape {
                         loop_: loop_index,
                         segment: k,
                     },
                     source,
                 )),
-                None => ProfileError::Escalated {
-                    site: EscalationSite::Segment(at),
-                    source,
-                },
+                None => ProfileError::escalated(EscalationSite::Segment(at), source),
             })
         })?;
         let kind = match &s.kind {
@@ -3246,7 +2375,7 @@ struct LoopPermutation {
 
 /// The `loop_orientation` margin and classification (see
 /// [`canonicalize_loop`] for the formula and lever-arm story).
-fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Indeterminate> {
+fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Escalation> {
     let origin = segs[0].a;
     let half = T::from_f64(0.5);
     let mut twice_area = T::zero();
@@ -3276,7 +2405,7 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
     }
     let area = twice_area * half;
     decide(
-        "loop_orientation",
+        Gate::LoopOrientation,
         Margin::over_lever(area + area, perimeter),
         band,
     )

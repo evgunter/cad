@@ -47,7 +47,7 @@ fn lookup<V: Copy>(table: &[(&str, V)], predicate: &str) -> Option<V> {
 
 /// A size the user may have chosen: the levers, with the tolerance arm
 /// a value gives.
-const SIZED: EndingKind = EndingKind::Sized;
+const SIZED: EndingKind = EndingKind::Sized(COINCIDENCE_RECOURSE);
 /// No size the user chose (an angle, a direction's gauge, a curve
 /// parameter): the coincidence lever alone.
 const LEVER: EndingKind = EndingKind::Lever(COINCIDENCE_RECOURSE);

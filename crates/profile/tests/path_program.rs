@@ -591,7 +591,7 @@ fn rectangle_refuses_a_nonpositive_side() {
         }
     }
     match profile::rectangle(o, 5.0 * eps, 1.0, Tol::witness()) {
-        Err(PathError::Escalated { source }) => assert_eq!(
+        Err(PathError::Escalated { source, .. }) => assert_eq!(
             source.predicate,
             Some("path_rectangle_side"),
             "an f64 width inside the band escalates on the rectangle's row"
@@ -609,7 +609,7 @@ fn rectangle_refuses_a_nonpositive_side() {
         straddle,
         Tol::witness(),
     ) {
-        Err(PathError::Escalated { source }) => assert_eq!(
+        Err(PathError::Escalated { source, .. }) => assert_eq!(
             source.predicate,
             Some("path_rectangle_side"),
             "a height straddling zero escalates on the rectangle's row"

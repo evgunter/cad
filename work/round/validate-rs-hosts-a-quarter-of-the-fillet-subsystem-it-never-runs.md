@@ -2,13 +2,13 @@
 id: validate-rs-hosts-a-quarter-of-the-fillet-subsystem-it-never-runs
 kind: issue
 title: profile/src/validate.rs carries six FILLET_*_RECOURSE consts whose own docs say no caller reads them, plus a render arm, for a subsystem the module's inventory says never fires in validation
-status: parked
+status: closed
 opened: 2026-09-12
 refs: [2409]
 priority: P1
 cost: E
-blocked_on: [the-path-doors-escalation-carries-its-gate]
 rides_with: the-path-doors-escalation-carries-its-gate
+closed: 2026-11-06
 ---
 
 
@@ -85,3 +85,7 @@ is touched — this is S-BOOL's slate.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to BLEND (the sweep crate and the profile fillet door are BLEND's charter; crates/sweep/src/loft.rs passes to BLEND at this exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (2026-11-06)
+
+PR 6546: one closed `profile::Gate` routes every in-band ending at the path door, validation and the guided door, derived from (gate, verdict) per D4 ¶1 (i)–(ii); see the carrier `the-path-doors-escalation-carries-its-gate` and the PR body for what this row's part became.
