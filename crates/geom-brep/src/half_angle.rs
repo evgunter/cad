@@ -165,7 +165,8 @@ impl<T: geom_core::Real> TrigPoly<T> {
         let value = self.harmonics().fold(self.cos[0], |acc, (k, _)| {
             acc + self.cos[k] * sc[k].1 + self.sin[k] * sc[k].0
         });
-        let deg = T::from_f64(f64::from(self.degree.min(4)));
+        let top = self.degree.min(4);
+        let deg = T::from_f64(f64::from(top));
         [
             (value, noise),
             (derivative(1), deg * noise),
