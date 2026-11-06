@@ -20,3 +20,13 @@ Option (a) was taken: merge as is. "we can revisit this if too many bugs are get
 ## The revisit, if it comes
 
 Option (b): the slow-set step also runs the slow sets of the closure's dependent crates, or of a chosen subset, e.g. sweep for a topo seed. Measure its cost on a kernel PR first. The trigger is nightly reds traced to a moved test that a PR's closure reached and its seeds did not. Count them when triaging the nightly.
+
+## Count (2026-11-06, `onecopy/main-reds-k-and-m10`, PR 6560)
+
+Nightly reds traced to a moved test that a PR's closure reached and its seeds did not, bisected first-parent over main:
+- PR 6504 (`143d99ec29`) and PR 6527 (`3fef8d7ade`): geom-brep pcurve-incidence changes that moved `editor-core`'s slow-set `m10_sym_profile_interval` plate ledger (two rows).
+- PR 6562 (`5ff0801009`, `onecopy/feet-and-params`): moved the same plate ledger again (+2 forms on three lines), the day PR 6560 re-pinned it.
+
+Two more counts beside them that are not this trigger's shape, because the moved rows are `probe`-gated and no PR runs them at all, fast or slow: `sweep`'s `ray_wall_margin_twins` (PRs 5781, 6349, 6482, 6491, 6559) and `editor-core`'s `m4_pr8_k_probe` corpus dump (PRs 6341, 6376).
+
+Three in this trigger's shape over 2026-11-04 to 11-06 is a count, not a revisit; it is recorded here for whoever triages next.

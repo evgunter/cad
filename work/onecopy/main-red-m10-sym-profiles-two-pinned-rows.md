@@ -25,4 +25,4 @@ Found by `onecopy/polish-meters` (PR 6537). Head's walk ledger is byte-identical
 2. Re-pin it with the reason, or restore it.
 3. Say why the move reached main red. It is likely the slow set again: these rows are outside the per-PR gate.
 
-**Closed by PR 6560.** Bisected to PR 6504 (`143d99ec29`) and PR 6527 (`3fef8d7ade`); re-pinned at main's ledger (blocked residuals 66 → 94). The slab's ledger is now a fast ungated row; the class goes to `work/ciw/a-whole-kernel-ledger-pin-is-moved-by-any-pr-and-seen-only-nightly.md`.
+**Closed by PR 6560.** Bisected to PR 6504 (`143d99ec29`) and PR 6527 (`3fef8d7ade`), then PR 6562 (`5ff0801009`, +2 forms on three lines) while it was open; re-pinned at main's ledger (blocked residuals 66 → 94). The slab's ledger is now a fast ungated row; the movers are counted on `work/ciw/dependents-slow-sets-skip-a-kernel-pr.md` (Ev's revisit trigger) and the sentinel on `work/ciw/a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins.md`.

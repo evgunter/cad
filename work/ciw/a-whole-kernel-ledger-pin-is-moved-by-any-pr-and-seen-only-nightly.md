@@ -2,10 +2,12 @@
 id: a-whole-kernel-ledger-pin-is-moved-by-any-pr-and-seen-only-nightly
 kind: issue
 title: A whole-kernel ledger pin in the slow set is moved by PRs that never run it, and the nightly that does is red in five jobs, so the move lands on main unseen
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: M
+closed: 2026-11-06
+pr: 6560
 ---
 
 
@@ -21,7 +23,8 @@ A test that pins what the whole kernel builds or decides on a document — a wal
 |---|---|---|
 | `m10_sym_profile_interval` plate ledger + `Plain/Report` | PR 6504 (`143d99ec29`) | every plate line; `Early/Decision` 396 → 412 calls; blocked residuals 66 → 94 |
 | same | PR 6527 (`3fef8d7ade`) | `Plain/Decision` and `Early/Decision` 9581 forms fewer each |
-| `ray_wall_margin_twins` (probe) | PR 5781 (`4e0ef4858b`), PR 6349 (`096817df51`), PR 6482 (`a6f0b5e99c`) | 62 → 32 pairs; then the pin passed; then two new non-scaling predicates |
+| same | PR 6562 (`5ff0801009`) | both `*/Assertion` lines and `Door/Decision` +2 forms, their digests |
+| `ray_wall_margin_twins` (probe) | PR 5781 (`4e0ef4858b`), PR 6349 (`096817df51`), PR 6482 (`a6f0b5e99c`), PR 6491 (`0cd3e0444e`), PR 6559 (`d811c097c0`) | 62 → 32 pairs; then the pin passed; then two new non-scaling predicates; then their counts 56/208 → 32/156 and back |
 | `m4_pr8_k_probe` corpus dump (probe) | PR 6341 (`449f6f6097`), PR 6376 (`47b0763a4a`) | probe/f64 key splits off their pin; 116 (now 138) `<unnamed>` samples |
 
 Neither of the m10 movers touched a path the suite's `gated_to!` named (both are geom-brep pcurve incidence), and all three probe rows ran only in `k-lint (dev-probe)`, whose compile step had itself been red since `72f10792` (2026-11-02).
@@ -43,3 +46,5 @@ Neither of the m10 movers touched a path the suite's `gated_to!` named (both are
 - **E. A nightly that is green**: the slow set's reds are only invisible because the nightly is red elsewhere. A nightly that reports each *new* red against the previous night's set (and pings) would make B work.
 
 The question for CIW: which of A/D/E is the rule for a ledger pin, and does it go in `.config/nextest.toml`'s header beside the 0.5 s rule.
+
+**Closed as a duplicate (PR 6560's review).** The class is `work/ciw/a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins.md`; option D above is its owed option 2, and the slab sentinel is recorded there. The policy question is `work/ciw/dependents-slow-sets-skip-a-kernel-pr.md`, which Ev ruled (2026-10-16); the instances above are counted there per its revisit trigger. The three reds another lane reported (`m10_bulge_interval` ×2, `sym11_…past_the_ceiling`, the loop-boundary-discards self-test case) are carried onto the corpus-ids row, unbisected.
