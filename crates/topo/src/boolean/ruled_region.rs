@@ -26,10 +26,11 @@
 //! 2. Every edge meets a leg where it crosses the leg's plane
 //!    ([`region::landings`], through the plane door): a parallel's plane
 //!    cuts the surface in the parallel alone; a ruling's, through the
-//!    axis, in its ruling and the opposite one (and a cone's in their
-//!    continuations on the other nappe), so a root counts where it lies on
-//!    the leg's own half-plane and nappe, read through the chart's
-//!    channels. A cone's apex lies on every generator, and a generator
+//!    axis, cuts a cylinder in two rulings, the leg's and the opposite
+//!    one, and a cone in two lines through the apex, each a generator on
+//!    either nappe: four half-generators, of which the leg runs on one.
+//!    So a root counts where it lies on the leg's own half-plane and
+//!    nappe, read through the chart's channels. A cone's apex lies on every generator, and a generator
 //!    toward it ends there ([`region::End::open`]), so a root at the apex
 //!    is no crossing of it. A root within the band of an edge's end reads
 //!    no side there. The legs start at `p`'s foot ([`region::QueryFoot`]).
@@ -408,22 +409,21 @@ impl<T: Decide> RuledFaceRegion<T> {
     /// or an arc that bounds nothing.
     pub(crate) fn contains(&self, p: Point3<T>, band: Band) -> Result<Option<bool>, RegionRefusal> {
         let esc = RegionRefusal::Escalated;
-        let surface = Legs::surface(self);
-        let foot = QueryFoot::read(&surface, p, band);
+        // A point on a cylinder's axis has no foot of its own: every
+        // azimuth names one, so it is refused before any foot is read.
+        if let Ruled::Cylinder { .. } = self.surface {
+            let (x, y, _) = self.frame().local(p);
+            let rho = (x.powi(2) + y.powi(2)).sqrt();
+            crate::validate::decide_positive("bool_ruled_region_frame", Margin::of(rho), band)
+                .map_err(esc)?;
+        }
+        let foot = QueryFoot::read(&Legs::surface(self), p, band);
         if self.on_boundary(foot.at(), band)? {
             return Ok(None);
         }
         let exhausted = || RegionRefusal::RayExhausted { outer: self.outer };
         let at_apex = match self.surface {
-            // A point on the axis has no foot of its own: every azimuth
-            // names one.
-            Ruled::Cylinder { .. } => {
-                let (x, y, _) = self.frame().local(p);
-                let rho = (x.powi(2) + y.powi(2)).sqrt();
-                crate::validate::decide_positive("bool_ruled_region_frame", Margin::of(rho), band)
-                    .map_err(esc)?;
-                false
-            }
+            Ruled::Cylinder { .. } => false,
             Ruled::Cone { apex, .. } => {
                 decide(
                     "bool_ruled_region_frame",
@@ -551,25 +551,23 @@ impl<T: Decide> RuledFaceRegion<T> {
     /// The parallel through `p`, run `forward` (right-handed about the
     /// axis) or back: at the surface's own radius at `p`'s height.
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let (u, v) = (p.uv().x, p.uv().y);
+        let v = p.uv().y;
         let axis = self.surface.axis();
-        let (center, radius, e1) = match self.surface {
-            Ruled::Cylinder { origin, radius, .. } => (origin + axis * v, radius, self.radial(u)),
+        let (center, radius) = match self.surface {
+            Ruled::Cylinder { origin, radius, .. } => (origin + axis * v, radius),
             Ruled::Cone {
                 apex, half_angle, ..
             } => {
                 let (sin, cos) = half_angle.sin_cos();
-                let center = apex + axis * (v * cos);
-                let w = p.at() - center;
-                ((center), (v * sin).abs(), w / w.norm())
+                (apex + axis * (v * cos), (v * sin).abs())
             }
         };
         let normal = if forward { axis } else { -axis };
-        Leg::whole(LegShape::Parallel(Round::new(
+        Leg::whole(LegShape::Parallel(Round::through(
+            p,
             center,
             normal,
             radius,
-            e1,
             LegSection::Whole,
         )))
     }
@@ -578,7 +576,6 @@ impl<T: Decide> RuledFaceRegion<T> {
     /// nappe `opening`, run `outward` or back; back toward a cone's apex
     /// it ends there.
     fn ruling(&self, p: QueryFoot<T>, opening: bool, outward: bool) -> Leg<T> {
-        let u = p.uv().x;
         let (dir, end) = match self.surface {
             Ruled::Cylinder { axis, .. } => (if outward { axis } else { -axis }, None),
             Ruled::Cone { apex, .. } => {
@@ -593,7 +590,7 @@ impl<T: Decide> RuledFaceRegion<T> {
             }
         };
         Leg {
-            course: LegShape::Ruling(self.line(p.at(), dir, u, opening)),
+            course: LegShape::Ruling(self.line(p, dir, opening)),
             end: end.map(|place| End {
                 place,
                 row: END,
@@ -602,40 +599,43 @@ impl<T: Decide> RuledFaceRegion<T> {
         }
     }
 
-    /// The ruling's line from `start` along `dir`, at azimuth `u` on the
-    /// nappe `opening`: in the plane through the axis at that azimuth,
-    /// on that half-plane's ruling.
-    fn line(&self, start: Point3<T>, dir: Vec3<T>, u: T, opening: bool) -> Line<T> {
+    /// The ruling's line from `start` along `dir`, at its azimuth on the
+    /// nappe `opening`: in the plane through the axis at that azimuth, on
+    /// that half-plane's ruling.
+    fn line(&self, start: QueryFoot<T>, dir: Vec3<T>, opening: bool) -> Line<T> {
+        let u = start.uv().x;
         let (sin, cos) = u.sin_cos();
         let normal = self.surface.axis().cross(self.radial(u));
         let opening = match self.surface {
             Ruled::Cylinder { .. } => None,
             Ruled::Cone { .. } => Some(opening),
         };
-        Line {
+        Line::from(
             start,
             dir,
-            normal: normal / normal.norm(),
-            section: LegSection::HalfPlane {
+            normal / normal.norm(),
+            LegSection::HalfPlane {
                 toward: geom::Azimuth::of(sin, cos),
                 opening,
             },
-        }
+        )
     }
 
-    /// From a `p` at the cone's apex, the generator through `target`.
+    /// From a `p` at the cone's apex, the generator through `target`: it
+    /// starts at the apex, the foot at the target's azimuth and no slant.
     fn apex_generator(&self, target: Point3<T>, band: Band) -> Result<Leg<T>, Fault> {
         let Ruled::Cone { apex, .. } = self.surface else {
             unreachable!("only a cone has an apex")
         };
         // A target at the apex's level gives no generator to run.
         let opening = self.nappe(target, band).map_err(|_| RayFault::Unread)?;
-        let target = QueryFoot::read(&self.surface.surface(), target, band);
+        let surface = self.surface.surface();
+        let target = QueryFoot::read(&surface, target, band);
+        let start = QueryFoot::of_chart(&surface, geom_core::Point2::new(target.uv().x, T::zero()));
         let g = target.at() - apex;
         Ok(Leg::whole(LegShape::Ruling(self.line(
-            apex,
+            start,
             g / g.norm(),
-            target.uv().x,
             opening,
         ))))
     }

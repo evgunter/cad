@@ -271,7 +271,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                     );
                     match decide("bool_sphere_region_arm", arm, band) {
                         Ok(Sign::Positive) => {
-                            region::read_leg(self, &self.ray(a, tangent(a, raw)), band)
+                            region::read_leg(self, &self.ray(foot, tangent(a, raw)), band)
                         }
                         // Along the normal, or aimed at `p` or its antipode:
                         // no tangent direction to cast.
@@ -355,12 +355,12 @@ impl<T: Decide> SphereFaceRegion<T> {
 
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
-    fn ray(&self, a: Vec3<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        Leg::whole(Round::new(
+    fn ray(&self, foot: QueryFoot<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
+        Leg::whole(Round::through(
+            foot,
             self.center,
-            a.cross(t),
+            self.unit(foot).cross(t),
             self.radius,
-            a,
             LegSection::Whole,
         ))
     }
@@ -438,7 +438,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         let side = across / sin;
         let side = if first_forward { side } else { -side };
         let cos = a.dot(b);
-        let first = self.ray(a, side).course;
+        let first = self.ray(p, side).course;
         let corner = self.center + (a * cos + side * sin) * self.radius;
         let end = End {
             place: first.arc(corner),
@@ -449,7 +449,17 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         // the centre, of radius `R sin θ`, starting along `side`.
         let (center, radius) = (self.center + a * (self.radius * cos), self.radius * sin);
         let normal = if then_forward { a } else { -a };
-        let then = move || Leg::whole(Round::new(center, normal, radius, side, LegSection::Whole));
+        // The corner is a foot of its own, read on the sphere.
+        let corner = QueryFoot::read(&Legs::surface(self), corner, band);
+        let then = move || {
+            Leg::whole(Round::through(
+                corner,
+                center,
+                normal,
+                radius,
+                LegSection::Whole,
+            ))
+        };
         Ok((first, end, then))
     }
 }
@@ -1122,7 +1132,11 @@ mod tests {
             let rim = 1f64.sin();
             for (az, end) in [(1.25 * pi, false), (pi, true)] {
                 let toward = Vec3::new(lift(az.cos()), lift(az.sin()), lift(0.0));
-                let leg = region.ray(pole, toward);
+                let at_pole = Point3::origin() + pole * region.radius;
+                let leg = region.ray(
+                    QueryFoot::read(&Legs::surface(&region), at_pole, band),
+                    toward,
+                );
                 let got = region::landings(&region, &region.edges[1], &leg, band);
                 let Ok(landings) = got else {
                     panic!("azimuth {az}: the leg lands at {scalar}, got {got:?}")

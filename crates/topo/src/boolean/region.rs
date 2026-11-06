@@ -14,9 +14,11 @@
 //! A leg and an edge of one face lie on one surface, so their gap is
 //! zero in the model, and a reading of it reads only the construction's
 //! rounding. Where they meet is instead a crossing of a plane: the
-//! leg's plane cuts the surface in the leg and at most one other curve,
-//! so a root of the edge against it is a meeting where it lies on the
-//! leg's own curve ([`LegSection`]). That holds for a leg built on the
+//! leg's plane cuts the surface in the leg and a few other curves (a
+//! cylinder's meridian plane in two rulings, a cone's in four
+//! half-generators, a torus's planes in two circles), so a root of the
+//! edge against it is a meeting where it lies on the leg's own curve
+//! ([`LegSection`]). That holds for a leg built on the
 //! surface, and the query is read onto it first ([`QueryFoot`]): every leg
 //! and corner is built from the query's chart coordinates, never from a
 //! point off the surface.
@@ -997,15 +999,29 @@ fn offer<T: Decide, D: Legs<T>>(
 /// which curve of its plane's section of the surface it is.
 #[derive(Clone, Copy)]
 pub(crate) struct Round<T: geom_core::Real> {
-    pub(crate) circle: geom::Circle<T>,
-    pub(in crate::boolean) section: LegSection<T>,
+    circle: geom::Circle<T>,
+    section: LegSection<T>,
 }
 
 impl<T: Decide> Round<T> {
+    /// **The leg round the circle at `center` of `radius` through `foot`**,
+    /// in the plane of unit normal `normal`, starting at the foot: the
+    /// section curve `section` of its plane. A round leg is built from a
+    /// foot and from nothing else ([`QueryFoot`]).
+    pub(in crate::boolean) fn through(
+        foot: QueryFoot<T>,
+        center: Point3<T>,
+        normal: Vec3<T>,
+        radius: T,
+        section: LegSection<T>,
+    ) -> Self {
+        let w = foot.at() - center;
+        Self::new(center, normal, radius, w / w.norm(), section)
+    }
+
     /// The leg round the circle at `center` of `radius`, in the plane of
-    /// unit normal `normal`, starting along the unit `e1`, the section
-    /// curve `section` of its plane.
-    pub(in crate::boolean) fn new(
+    /// unit normal `normal`, starting along the unit `e1`.
+    fn new(
         center: Point3<T>,
         normal: Vec3<T>,
         radius: T,
@@ -1086,10 +1102,30 @@ impl<T: Decide> Course<T> for Round<T> {
 /// that plane's section curve `section`.
 #[derive(Clone, Copy)]
 pub(crate) struct Line<T: geom_core::Real> {
-    pub(crate) start: Point3<T>,
-    pub(crate) dir: Vec3<T>,
-    pub(in crate::boolean) normal: Vec3<T>,
-    pub(in crate::boolean) section: LegSection<T>,
+    start: Point3<T>,
+    dir: Vec3<T>,
+    normal: Vec3<T>,
+    section: LegSection<T>,
+}
+
+impl<T: Decide> Line<T> {
+    /// **The ruling from `foot` in unit direction `dir`**, in the plane of
+    /// unit normal `normal` through the axis, its section curve
+    /// `section`. A ruling leg starts at a foot and nowhere else
+    /// ([`QueryFoot`]).
+    pub(in crate::boolean) fn from(
+        foot: QueryFoot<T>,
+        dir: Vec3<T>,
+        normal: Vec3<T>,
+        section: LegSection<T>,
+    ) -> Self {
+        Self {
+            start: foot.at(),
+            dir,
+            normal,
+            section,
+        }
+    }
 }
 
 impl<T: Decide> Course<T> for Line<T> {
@@ -1119,16 +1155,10 @@ impl<T: Decide> Course<T> for Line<T> {
         self.section
     }
 
-    /// Unbounded, out to twice the edge's farthest reach from the start
-    /// ([`geom_brep::ExtentBall::of_edge_from`]), so every meeting with
-    /// the edge lies inside the span, clear of its far end.
-    fn span(&self, end: Option<T>, edge: &RegionEdge<T>) -> ((T, T), bool) {
-        let far = || {
-            let ball =
-                geom_brep::ExtentBall::of_edge_from(&edge.carrier, (edge.t0, edge.t1), self.start);
-            ball.radius() * T::from_f64(2.0)
-        };
-        ((T::zero(), end.unwrap_or_else(far)), false)
+    /// No door reads a ruling across an edge's plane: an edge is read
+    /// across the ruling's own plane, through the axis ([`Legs::across`]).
+    fn span(&self, _: Option<T>, _: &RegionEdge<T>) -> ((T, T), bool) {
+        unreachable!("a ruling is read only across its own plane")
     }
 }
 

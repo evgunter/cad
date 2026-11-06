@@ -415,7 +415,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_region_arc_span"
         | "bool_sphere_region_arc_straddle"
         | "bool_torus_region_component"
-        | "bool_torus_region_family"
         | "bool_torus_region_at"
         | "bool_torus_region_corner"
         | "bool_torus_region_order"

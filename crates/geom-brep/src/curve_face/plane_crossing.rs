@@ -115,7 +115,9 @@ impl ConicRootFault {
 /// crossing detection is **root-based, endpoint-verdict-free**:
 ///
 /// 1. `plane_crossing_belly_graze` — margin `R − |D|` (meters): Negative
-///    ⇒ the carrier never meets the plane — no crossing;
+///    ⇒ the carrier never meets the plane — no crossing, read before the
+///    parallel gate, so a conic wholly on one side misses whatever its
+///    tilt reads;
 ///    Positive ⇒ two distinct roots `φ ± acos(−D/R)`; Zero ⇒ the
 ///    plane grazes the carrier's extremum — ONE (double) root, `φ` or
 ///    `φ + π` as `plane_crossing_graze_side` decides D's sign, whose
@@ -175,7 +177,7 @@ fn conic_plane_meet<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> ConicPlaneMeet<T> {
-    let candidates = match conic_plane_candidates(conic, plane_origin, plane_normal, false, band) {
+    let candidates = match conic_plane_candidates(conic, plane_origin, plane_normal, band) {
         Ok((candidates, _)) => candidates,
         Err(meet) => return meet,
     };
@@ -187,14 +189,13 @@ fn conic_plane_meet<T: Decide>(
 /// meets the plane, as carrier parameters (one for a graze, two for a
 /// crossing), before any span is read, and whether it is a graze. `Err`
 /// carries the answer that needs no span — parallel, a miss, or the
-/// fault a rung escalated. With `miss_first`, the belly graze is read
-/// before the parallel gate, and a conic wholly on one side of the plane
-/// is a miss whatever its tilt reads ([`span_plane_meet`]).
+/// fault a rung escalated. The belly graze is read before the parallel
+/// gate: a conic wholly on one side of the plane is a miss whatever its
+/// tilt reads, the parallel argument before the swing.
 fn conic_plane_candidates<T: Decide>(
     conic: &dyn geom::Conic<T>,
     plane_origin: geom_core::Point3<T>,
     plane_normal: geom_core::Vec3<T>,
-    miss_first: bool,
     band: Band,
 ) -> Result<([Option<T>; 2], bool), ConicPlaneMeet<T>> {
     let geom::Frame {
@@ -212,9 +213,11 @@ fn conic_plane_candidates<T: Decide>(
     // plain interval product's spurious negative low end makes the
     // sqrt refuse (the interval-square class).
     let r = (a.powi(2) + b.powi(2)).sqrt();
-    let belly = || decide("plane_crossing_belly_graze", Margin::of(r - d0.abs()), band);
-    let early = miss_first.then(belly);
-    if let Some(Ok(Sign::Negative)) = early {
+    // The miss first: a conic wholly on one side of the plane never meets
+    // it, whatever its tilt reads (the parallel argument before the
+    // swing). Its other arms are read at step 1.
+    let belly = decide("plane_crossing_belly_graze", Margin::of(r - d0.abs()), band);
+    if let Ok(Sign::Negative) = belly {
         return Err(ConicPlaneMeet::Miss);
     }
     // 0. The PARALLEL-frame gate: a conic whose plane is parallel to
@@ -231,8 +234,8 @@ fn conic_plane_candidates<T: Decide>(
             ))));
         }
     }
-    // 1. Does the sinusoid reach zero at all — and how many roots?
-    let both_roots = match early.unwrap_or_else(belly) {
+    // 1. How many roots, where the sinusoid reaches zero?
+    let both_roots = match belly {
         Ok(Sign::Negative) => return Err(ConicPlaneMeet::Miss),
         Ok(Sign::Positive) => true,
         // Graze: the double root, processed once (processing both
@@ -293,44 +296,16 @@ fn span_roots<T: Decide>(
     s_v: T,
     band: Band,
 ) -> ConicPlaneMeet<T> {
-    let tau = T::tau();
-    // The conservative meter (radians → meters): the smaller semi-axis,
-    // in either stored order. An INF bound on the speed by being the
-    // smaller principal rate, which is what the interiority claim below
-    // needs — a root this meter proves clear of an endpoint is clear of
-    // it in metres.
-    let meter = geom_core::InfSpeed::new(s_u.min(s_v));
+    let meter = conic_meter(s_u, s_v);
     let mut roots: Vec<T> = Vec::with_capacity(2);
-    let mid = geom::mid_param(t0, t1);
-    let verdict_at = |t: T| -> Result<(bool, T), Indeterminate> {
-        for margin in [
-            Margin::metered(t - t0, meter),
-            Margin::metered(t1 - t, meter),
-        ] {
-            match decide("plane_crossing_root_in_span", margin, band) {
-                Ok(Sign::Positive) => {}
-                // At an endpoint vertex (already swept) or outside
-                // the span: nothing to insert for this root.
-                Ok(Sign::Zero | Sign::Negative) => return Ok((false, t)),
-                Err(diag) => return Err(diag),
-            }
-        }
-        Ok((true, t))
-    };
-    // Each candidate within half a turn of the span's middle, by
-    // `Period::near`'s span argument: `verdict_at` decides a root at
-    // either end of a closed edge's full-period span alike (not
-    // interior), and reads it only against the span's ends. The rename
-    // keeps an enclosure at its input's width everywhere, the middle's
-    // antipode included, so an undecided verdict is the root's own and
+    // A root at an endpoint vertex (already swept) or outside the span
+    // has nothing to insert; an undecided one is the root's own and
     // escalates (F6).
-    for c in candidates.into_iter().flatten() {
-        let (interior, t) = match verdict_at(Period::new(tau).near(c, mid)) {
-            Ok(v) => v,
+    for t in near_span(candidates, (t0, t1)) {
+        match span_place(t, (t0, t1), meter, band) {
+            Ok(Some(false)) => roots.push(t),
+            Ok(Some(true) | None) => {}
             Err(diag) => return ConicPlaneMeet::Roots(Err(ConicRootFault::CrossingInterior(diag))),
-        };
-        if interior {
-            roots.push(t);
         }
     }
     // Ascending insertion order, decided through the trilean door
@@ -411,7 +386,9 @@ pub enum SpanPlaneMeet<T> {
 
 /// **Where a span crosses a plane, ends included**: the door's lane
 /// ([`plane_crossing_lane`]) read for a caller that places what it finds
-/// itself. It differs from the lane in three ways and nowhere else:
+/// itself. It shares the lane's carrier half (the belly graze, the
+/// parallel gate and the phase) and its span read ([`span_place`]), and
+/// differs from it in four ways:
 ///
 /// - a root within the band of an end of an [`SpanEnds::Ended`] span is
 ///   reported [`RootPlace::AtEnd`], where the lane drops it (its callers'
@@ -425,12 +402,7 @@ pub enum SpanPlaneMeet<T> {
 ///   (`plane_crossing_line_parallel`), and otherwise the root
 ///   `−d(0)/(d̂·n̂)` is read against the span as a conic's is, at the
 ///   line's speed;
-///
-/// and a graze is [`SpanPlaneMeet::Touch`] where it touches the span. The
-/// carrier half (the parallel gate, the belly graze and the phase) is the
-/// lane's own, read once, with the belly graze first: a conic wholly on
-/// one side of the plane misses it whatever its tilt reads, the parallel
-/// argument before the swing.
+/// - a graze is [`SpanPlaneMeet::Touch`] where it touches the span.
 ///
 /// # Errors
 ///
@@ -447,7 +419,7 @@ pub fn span_plane_meet<T: Decide>(
     let found = match (carrier.conic(), carrier) {
         (Some(conic), _) => {
             let (candidates, graze) =
-                match conic_plane_candidates(conic, plane_origin, plane_normal, true, band) {
+                match conic_plane_candidates(conic, plane_origin, plane_normal, band) {
                     Ok(found) => found,
                     Err(ConicPlaneMeet::Parallel { offset }) => {
                         return Ok(Some(SpanPlaneMeet::Parallel { offset }));
@@ -459,12 +431,9 @@ pub fn span_plane_meet<T: Decide>(
                     }
                 };
             let (s_u, s_v) = conic.semi_axes();
-            let meter = geom_core::InfSpeed::new(s_u.min(s_v));
-            let tau = T::tau();
-            let mid = geom::mid_param(t0, t1);
+            let meter = conic_meter(s_u, s_v);
             let mut roots = Vec::with_capacity(2);
-            for c in candidates.into_iter().flatten() {
-                let t = Period::new(tau).near(c, mid);
+            for t in near_span(candidates, (t0, t1)) {
                 let place = match ends {
                     SpanEnds::Endless => Some(RootPlace::Inside),
                     SpanEnds::Ended => root_place(t, (t0, t1), meter, band),
@@ -509,6 +478,27 @@ pub fn span_plane_meet<T: Decide>(
     Ok(Some(SpanPlaneMeet::Roots(found)))
 }
 
+/// **A conic's span meter** (radians → metres): the smaller semi-axis,
+/// in either stored order. An INF bound on the speed by being the
+/// smaller principal rate, which is what an interiority claim needs: a
+/// root this meter proves clear of an end is clear of it in metres.
+fn conic_meter<T: Decide>(s_u: T, s_v: T) -> geom_core::InfSpeed<T> {
+    geom_core::InfSpeed::new(s_u.min(s_v))
+}
+
+/// **The carrier's roots named on the span**: each within half a turn
+/// of its middle, by `Period::near`'s span argument, so a root at either
+/// end of a closed edge's full-period span reads alike against both
+/// ends. The rename keeps an enclosure at its input's width everywhere,
+/// the middle's antipode included.
+fn near_span<T: Decide>(candidates: [Option<T>; 2], (t0, t1): (T, T)) -> impl Iterator<Item = T> {
+    let mid = geom::mid_param(t0, t1);
+    candidates
+        .into_iter()
+        .flatten()
+        .map(move |c| Period::new(T::tau()).near(c, mid))
+}
+
 /// [`span_place`] as a [`RootPlace`], `None` past an end.
 fn root_place<T: Decide>(
     t: T,
@@ -526,8 +516,9 @@ fn root_place<T: Decide>(
 
 /// **A parameter against a span's ends**, on the lane's own row
 /// (`plane_crossing_root_in_span`, the two margins `(t − t₀)·meter` and
-/// `(t₁ − t)·meter`): `Some(false)` inside, `Some(true)` within the band
-/// of an end, `None` past one.
+/// `(t₁ − t)·meter`, read in that order and no further than the first
+/// that is not positive): `Some(false)` inside, `Some(true)` within the
+/// band of an end, `None` past one.
 ///
 /// # Errors
 ///
@@ -538,18 +529,17 @@ pub fn span_place<T: Decide>(
     meter: geom_core::InfSpeed<T>,
     band: Band,
 ) -> Result<Option<bool>, Indeterminate> {
-    let mut at_end = false;
     for margin in [
         Margin::metered(t - t0, meter),
         Margin::metered(t1 - t, meter),
     ] {
         match decide("plane_crossing_root_in_span", margin, band)? {
             Sign::Positive => {}
-            Sign::Zero => at_end = true,
+            Sign::Zero => return Ok(Some(true)),
             Sign::Negative => return Ok(None),
         }
     }
-    Ok(Some(at_end))
+    Ok(Some(false))
 }
 
 #[cfg(test)]
@@ -728,20 +718,27 @@ mod tests {
     }
 
     /// `plane_crossing_plane_parallel`'s `Zero` arm hands back the conic's
-    /// offset, so a caller can tell a circle IN the plane from one in a
-    /// parallel plane; a non-parallel miss is `Miss`, never this arm.
+    /// offset for a circle in the plane, where the belly graze cannot
+    /// decide a miss; a circle in a parallel plane clear of it is `Miss`,
+    /// read before the gate.
     #[test]
     fn a_parallel_frame_reports_its_offset() {
         let c = circle();
         let plane_z = |z: f64| (Point3::new(0.3, -0.2, z), Vec3::unit_z());
-        for (z, want) in [(0.0, 0.0), (2.0, -2.0)] {
-            match on_plane(&c, 0.1, 6.0, &plane_z(z), band()) {
-                PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => {
-                    assert!((offset - want).abs() < 1e-12, "offset at z = {z}: {offset}");
-                }
-                other => panic!("z = {z}: expected the parallel arm, got {other:?}"),
+        match on_plane(&c, 0.1, 6.0, &plane_z(0.0), band()) {
+            PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => {
+                assert!(offset.abs() < 1e-12, "offset in the plane: {offset}");
             }
+            other => panic!("in the plane: expected the parallel arm, got {other:?}"),
         }
+        // Wholly on one side, the conic misses before its tilt is read.
+        assert!(
+            matches!(
+                on_plane(&c, 0.1, 6.0, &plane_z(2.0), band()),
+                PlaneCrossingLane::Conic(ConicPlaneMeet::Miss)
+            ),
+            "a parallel conic off the plane misses"
+        );
     }
 
     /// **Each carrier kind lands on its own lane**: a line on the

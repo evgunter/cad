@@ -21,13 +21,13 @@
 //!    at a point of the boundary. Each leg is a circle in a plane: a
 //!    parallel's is normal to the axis, a meridian's holds it.
 //! 2. Every edge meets a leg at a root of one across the other's plane
-//!    ([`region::landings`], through the plane door): a circle edge
+//!    ([`region::landings`], through the plane door): every circle edge
 //!    across a meridian leg's plane, which is normal to the torus
-//!    everywhere, except a parallel off the top and bottom circles, which
-//!    the leg crosses at the tube's radius (`bool_torus_region_family`);
-//!    a parallel leg across every edge's plane, whose own plane is
-//!    tangent to the torus by its top and bottom circles; and an oval's
-//!    plane, which has no closed form across a leg's, by every leg. A
+//!    everywhere (a parallel by the top or bottom circle among them, whose
+//!    own plane is tangent to the tube there); a parallel leg across every
+//!    edge's plane, since its own is tangent to the torus by its top and
+//!    bottom circles; and an oval's plane, which has no closed form
+//!    across a leg's, by every leg. A
 //!    plane meets the torus in two curves, so each root is then asked
 //!    which one it lies on: a leg's through the chart's channels (its
 //!    half-plane, its tube side), an edge's against its mirror or its
@@ -74,9 +74,6 @@
 //! - `bool_torus_region_order`: two crossings' places along the path.
 //! - `bool_torus_region_cross`: the sine between the leg and the edge's
 //!   face side at the closest crossing, at the tube's radius.
-//! - `bool_torus_region_family`: whether a circle edge is a parallel off
-//!   the top and bottom circles, which a meridian leg crosses: a choice
-//!   between two sound readings, never a verdict.
 //! - `bool_torus_region_component`: which of a plane's two curves a root
 //!   lies on, and an edge's offset from a leg's plane it is parallel to.
 //! - `plane_crossing_*`: the roots, the plane door's own rows.
@@ -113,21 +110,6 @@ use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
-
-/// Which reading a circle edge takes on a meridian leg
-/// (`bool_torus_region_family`).
-#[derive(Clone, Copy)]
-enum CircleFamily {
-    /// A parallel whose plane is transversal to the torus (`r·cos v`
-    /// definitely nonzero): the leg across its plane.
-    Parallel,
-    /// A parallel on the top or bottom circle, where its plane is tangent
-    /// to the torus, or one whose `r·cos v` is in band: across the leg's.
-    Rim,
-    /// Any other circle (a meridian, a Villarceau circle), or one whose
-    /// tilt from the axis is in band: across the leg's.
-    Other,
-}
 
 /// The row a place is read against a first leg's corner on.
 const CORNER: &str = "bool_torus_region_corner";
@@ -264,16 +246,17 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// The parallel through `p`, run `forward` (the major angle
     /// increasing) or back: the tube's circle at `p`'s tube angle.
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let (u, v) = (p.uv().x, p.uv().y);
-        let (sin, cos) = v.sin_cos();
+        let (sin, cos) = p.uv().y.sin_cos();
         let normal = if forward { self.axis } else { -self.axis };
-        Leg::whole(Round::new(
+        Leg::whole(Round::through(
+            p,
             self.center + self.axis * (self.minor * sin),
             normal,
             self.major + self.minor * cos,
-            self.radial(u),
+            // The tube side `p` lies on, as a unit: a root's `ρ − R` is
+            // read along it in metres.
             LegSection::TubeSide {
-                toward: geom::Azimuth::of(T::zero(), cos),
+                toward: geom::Azimuth::of(T::zero(), cos.select_le_zero(-T::one(), T::one())),
             },
         ))
     }
@@ -281,46 +264,21 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// The meridian through `p`, run `forward` (the minor angle
     /// increasing) or back: the tube's circle at `p`'s azimuth.
     fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let (u, v) = (p.uv().x, p.uv().y);
+        let u = p.uv().x;
         let radial = self.radial(u);
-        let (sin_v, cos_v) = v.sin_cos();
         let normal = radial.cross(self.axis);
         let normal = if forward { normal } else { -normal };
         let (sin_u, cos_u) = u.sin_cos();
-        Leg::whole(Round::new(
+        Leg::whole(Round::through(
+            p,
             self.center + radial * self.major,
             normal,
             self.minor,
-            radial * cos_v + self.axis * sin_v,
             LegSection::HalfPlane {
                 toward: geom::Azimuth::of(sin_u, cos_u),
                 opening: None,
             },
         ))
-    }
-
-    /// Which reading a circle edge `(axis, radius)` takes on a meridian
-    /// leg ([`CircleFamily`]). A margin in band of either question reads
-    /// the circle across the leg's plane, which serves every circle.
-    fn circle_family(&self, axis: Vec3<T>, radius: T, band: Band) -> CircleFamily {
-        let tilt = Margin::levered(
-            axis.cross(self.axis).norm(),
-            geom_core::Lever::curvature_radius(radius),
-        );
-        if !matches!(
-            decide("bool_torus_region_family", tilt, band),
-            Ok(Sign::Zero)
-        ) {
-            return CircleFamily::Other;
-        }
-        match decide(
-            "bool_torus_region_family",
-            Margin::of(radius - self.major),
-            band,
-        ) {
-            Ok(Sign::Positive | Sign::Negative) => CircleFamily::Parallel,
-            Ok(Sign::Zero) | Err(_) => CircleFamily::Rim,
-        }
     }
 
     /// Where `y`, a point of the torus on the edge arc's plane, lies on
@@ -496,14 +454,12 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
         }
     }
 
-    /// An oval across the leg's plane has no closed form, nor has a
-    /// parallel by the tube's top or bottom circle across a parallel's
-    /// tangent plane: each is read the other way, the leg across the
-    /// edge's plane. A parallel leg reads every edge that way; a meridian
-    /// leg reads a parallel off the top and bottom circles that way, at
-    /// the tube's radius (`bool_torus_region_family`), and every other
-    /// circle across its own plane, which is normal to the torus.
-    fn across(&self, leg: &Leg<T>, edge: &Edge<T>, band: Band) -> Result<ReadAcross<T>, Fault> {
+    /// An oval across a leg's plane has no closed form, and a parallel
+    /// leg's plane is tangent to the torus by its top and bottom circles:
+    /// each is read the other way, the leg across the edge's plane. A
+    /// meridian leg's plane is normal to the torus everywhere, so every
+    /// circle edge is read across it.
+    fn across(&self, leg: &Leg<T>, edge: &Edge<T>, _: Band) -> Result<ReadAcross<T>, Fault> {
         match edge.carrier {
             geom::Curve3::Spiric {
                 center,
@@ -516,36 +472,25 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
             }),
             geom::Curve3::Circle(geom::Circle {
                 frame: geom::Frame { origin, axis, .. },
-                radius,
-            }) => {
-                let over_edge = match leg.course.section {
-                    LegSection::TubeSide { .. } => true,
-                    _ => matches!(
-                        self.circle_family(axis, radius, band),
-                        CircleFamily::Parallel
-                    ),
-                };
-                Ok(if over_edge {
-                    ReadAcross::LegOverEdge {
-                        on: origin,
-                        normal: axis,
-                    }
-                } else {
-                    ReadAcross::EdgeOverLeg
-                })
-            }
+                ..
+            }) => Ok(match region::Course::section(&leg.course) {
+                LegSection::TubeSide { .. } => ReadAcross::LegOverEdge {
+                    on: origin,
+                    normal: axis,
+                },
+                _ => ReadAcross::EdgeOverLeg,
+            }),
             _ => unreachable!("torus_face_region admits circles and spirics only"),
         }
     }
 
-    /// The edge's plane meets the torus in two curves: a parallel's in
-    /// two parallels (its tube side, on a meridian leg), a meridian's or
-    /// a Villarceau circle's in it and its mirror through the centre, an
+    /// The edge's plane meets the torus in two curves: a meridian's or a
+    /// Villarceau circle's in it and its mirror through the centre, an
     /// oval's in two ovals across its trace. A root on the edge's own is
     /// placed on its span.
     fn on_edge_plane(
         &self,
-        leg: &Leg<T>,
+        _: &Leg<T>,
         edge: &Edge<T>,
         y: Point3<T>,
         band: Band,
@@ -580,27 +525,17 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 radius,
             }) => {
                 let w = y - center;
-                let own = match leg.course.section {
-                    // A meridian leg across a parallel's plane.
-                    LegSection::HalfPlane { .. } => region::on_leg_section(
-                        self,
-                        LegSection::TubeSide {
-                            toward: geom::Azimuth::of(T::zero(), radius - self.major),
-                        },
-                        y,
-                        band,
-                    )?,
-                    _ => {
-                        let mirror = self.center + (self.center - center);
-                        match row((y - mirror).norm() - radius)? {
-                            Sign::Positive | Sign::Negative => true,
-                            // On the mirror, or where the two cross.
-                            Sign::Zero => match row(w.norm() - radius)? {
-                                Sign::Positive | Sign::Negative => false,
-                                Sign::Zero => return Err(RayFault::Graze),
-                            },
-                        }
-                    }
+                // A parallel leg across a meridian's or a Villarceau
+                // circle's plane, which meets the torus in it and its
+                // mirror through the centre.
+                let mirror = self.center + (self.center - center);
+                let own = match row((y - mirror).norm() - radius)? {
+                    Sign::Positive | Sign::Negative => true,
+                    // On the mirror, or where the two cross.
+                    Sign::Zero => match row(w.norm() - radius)? {
+                        Sign::Positive | Sign::Negative => false,
+                        Sign::Zero => return Err(RayFault::Graze),
+                    },
                 };
                 if !own {
                     return Ok(None);
@@ -1041,6 +976,38 @@ mod tests {
                 (got[0].0 - at(u, FRAC_PI_2)).norm() < 1e-12,
                 "u {u}: {got:?}"
             );
+        }
+    }
+
+    /// **A meridian meets a parallel by the tube's top circle once, and
+    /// decides.** Parallels `3e-5` either side of the top circle
+    /// (`v = π/2 ± 3e-5`): their planes are within `r·(3e-5)²/2` of
+    /// tangent to the meridian, so the meridian is read across nothing
+    /// but its own plane, which every parallel crosses square. Each
+    /// meridian leg meets each such parallel once, at its own azimuth,
+    /// and the path reads the band between them.
+    #[test]
+    fn a_meridian_meets_a_parallel_by_the_top_circle_once() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        for v in [FRAC_PI_2 - 3e-5, FRAC_PI_2 + 3e-5] {
+            let edge = parallel(v, true, 1);
+            let region = holding(edge.clone());
+            for (u, from) in [(0.3, 2.0), (2.0, 0.4), (4.4, -2.5)] {
+                let leg = region.meridian(foot(&region, at(u, from)), true);
+                let got = region::landings(&region, &edge, &leg, b);
+                let Ok(got) = got else {
+                    panic!("v {v}, u {u}: the meridian reads the parallel: {got:?}")
+                };
+                assert_eq!(got.len(), 1, "v {v}, u {u}: {got:?}");
+                assert!(
+                    (got[0].0 - at(u, v)).norm() < 1e-12,
+                    "v {v}, u {u}: {got:?}"
+                );
+            }
+        }
+        let fillet = band(FRAC_PI_2 + 3e-5, PI);
+        for (u, v, inside) in [(0.3, 2.0, true), (1.0, 1.0, false), (5.0, 3.0, true)] {
+            assert_eq!(fillet.contains(at(u, v), b), Ok(Some(inside)), "({u}, {v})");
         }
     }
 
