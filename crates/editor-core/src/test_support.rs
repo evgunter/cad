@@ -6,8 +6,9 @@
 //! determinant the review rows read the certified one against, the
 //! recipe walks' pass-through classification a row holds against the
 //! evaluator, and the load door's nesting limit a row holds against
-//! what a save writes, the recipes more than one suite builds, and the
-//! spelling a content key writes for a slot.
+//! what a save writes, the recipes more than one suite builds, the
+//! spelling a content key writes for a slot, and a family of bodies read
+//! as its bodies.
 //!
 //! One home for every reader in this crate and the crates that test
 //! against it: the unit-test modules reach it as `crate::test_support`,
@@ -74,6 +75,25 @@ pub fn len2(v: [f64; 2]) -> [Formula; 2] {
 }
 
 // --- the stored form ------------------------------------------------
+
+/// **Every member's body of a family of bodies**, in member order: the
+/// `Instances` payload of a family no member of which is empty.
+///
+/// # Panics
+///
+/// At a member that is a boolean's empty result.
+pub fn every_body<T: geom_core::Decide>(
+    members: &[Option<crate::Framed<T>>],
+) -> Vec<&crate::Framed<T>> {
+    members
+        .iter()
+        .enumerate()
+        .map(|(i, body)| {
+            body.as_ref()
+                .unwrap_or_else(|| panic!("member {i} is the empty result"))
+        })
+        .collect()
+}
 
 /// **A document to lower into and throw away**, for a row that asks a
 /// stored form something its variables' values do not answer.
