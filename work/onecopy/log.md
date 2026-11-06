@@ -297,3 +297,9 @@
   - Two small notes are filed as P3 `polish-bound-spells-unit-and-normalises-n-by-hand`. The gate is running on `d4cfba9fdd`.
 
 - 2026-11-06 — PR 6537 merged as `0025d65e28`, gated on `d4cfba9fdd`. The polish-meters decision is landed: meet certifies at Interval from its window, basin, reach and run arms. Next is unblocking draft PR 6491 (landings).
+
+- 2026-11-06 — Dispatched cloud lane `session_013mPGJ4BHWTqt3QU2NKLLBa` to take over draft PR 6491 (`onecopy/meet-pose`, the region landings through `meet`), now that `meet` reads at Interval. The brief:
+  - merge main (about 700 commits), taking main's pose and across choice: F33 is the bare difference, so the branch's tie-reads-first must not return;
+  - re-measure the Interval cost (the rounded bump at 2.4 s, the cone row at 126 s against 47 s) and the hair-pin caveat, and hide nothing in the slow set;
+  - the lane stops on any design misfit.
+  The polish-meters census worktrees and logs are reclaimed: disk is at 24G free.
