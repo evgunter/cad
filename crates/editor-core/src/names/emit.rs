@@ -2598,7 +2598,9 @@ mod walk_tests {
 
     /// The half-edge's edge is gone: it has no mate.
     #[test]
-    #[should_panic(expected = "rim walk: unmated half-edge")]
+    // The face walk reads each member's edge as a link
+    // (`topo::FaceView::half_edges`), so the removed edge panics there.
+    #[should_panic(expected = "'s edge names edge")]
     fn the_rim_walk_panics_on_an_unmated_half_edge() {
         let r = rim1();
         rim_between(&r.without(EntityId::Edge(r.edge)), r.top, r.wall);
@@ -2639,7 +2641,8 @@ mod walk_tests {
     }
 
     #[test]
-    #[should_panic(expected = "chord mate missing")]
+    // As the rim walk's row: the face walk reads the removed edge first.
+    #[should_panic(expected = "'s edge names edge")]
     fn the_chord_walk_panics_on_an_unmated_half_edge() {
         let r = rim1();
         chord_walk(&r, &r.without(EntityId::Edge(r.edge)));

@@ -7289,7 +7289,8 @@ mod torn_hop_rows {
     }
 
     /// `along_edge_spec`'s circle arm, on a cylinder sheet's rim: the
-    /// segment edge's `he_plus` and that half-edge's `next` are links.
+    /// segment edge's `he_plus` and `he_minus` are links
+    /// ([`crate::query::edge_ends`]).
     #[test]
     fn the_along_edge_arc_panics_on_a_torn_half_edge() {
         let (body, face) = cyl_sheet();
@@ -7328,12 +7329,12 @@ mod torn_hop_rows {
         );
 
         let mut torn = body.clone();
-        let next = torn.get_half_edge(he).unwrap().next;
-        torn.half_edges.remove(next);
+        let minus = torn.get_edge(edge).unwrap().he_minus;
+        torn.half_edges.remove(minus);
         let named = format!(
-            "{}'s next names {}",
-            EntityId::HalfEdge(he),
-            EntityId::HalfEdge(next)
+            "{}'s he_minus names {}",
+            EntityId::Edge(edge),
+            EntityId::HalfEdge(minus)
         );
         assert_torn_op_panics(
             "along_edge_spec (end)",
