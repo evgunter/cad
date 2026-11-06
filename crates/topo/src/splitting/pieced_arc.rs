@@ -15,7 +15,7 @@
 //! band: the walk names it as the edge it could not cross
 //! ([`super::containment::Uncrossable`]).
 
-use geom_brep::ladder::Evidence;
+use geom_brep::ladder::{Answering, Climb, Evidence, Refusal, Rung, climb};
 use geom_core::bisect::{Step, bisect};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
@@ -95,20 +95,38 @@ pub(crate) trait PiecedArc<T: Decide> {
     ///
     /// # Errors
     ///
-    /// [`ArcRefusal::Escalated`]: an in-band distance to an end; or,
-    /// where a piece whose ball is within the band's coincidence
-    /// threshold is settled neither way and no other piece puts `q` on
-    /// the arc, the in-band margin it was read on.
+    /// Where neither end nor any piece places `q` definitely, the kept
+    /// reading the ladder ranks first ([`Evidence`]):
+    /// [`ArcRefusal::Escalated`] for a distance to an end in band, or a
+    /// piece whose ball is within the band's coincidence threshold
+    /// settled neither way, carrying the margin it was read on (a
+    /// poisoned one a limit, ahead of every margin in band); else
     /// [`ArcRefusal::Unsettled`] where a piece outlasts the depth or the
     /// piece budget before its ball is within the band.
     fn contact(&self, q: Point3<T>, rows: ArcRows, band: Band) -> Result<ArcHit, ArcRefusal> {
-        for end in self.ends() {
-            if decide(rows.end, Margin::norm3(q - end), band)? == Sign::Zero {
-                return Ok(ArcHit::End);
-            }
+        // Each end, then the pieces: every definite contact places `q`
+        // on the arc alike, so any of them answers ([`Answering::Any`]).
+        let [a, b] = self.ends();
+        let climbed = climb(Answering::Any, [Some(a), Some(b), None], |end| match end {
+            Some(end) => match decide(rows.end, Margin::norm3(q - end), band) {
+                Ok(Sign::Zero) => Rung::Answers(ArcHit::End),
+                Ok(_) => Rung::Passes,
+                Err(diag) => Rung::kept(diag).map_kept(ArcRefusal::Escalated),
+            },
+            None => self.pieces_contact(q, rows, band),
+        });
+        match climbed {
+            Climb::Answered { answer, .. } => Ok(answer),
+            Climb::Passed => Ok(ArcHit::Off),
+            Climb::Undecided(why) => Err(why),
         }
-        // What the leaves no reading settled kept ([`Evidence`]): a
-        // margin in band ahead of a piece that outlasted the walk.
+    }
+
+    /// The piece walk of [`Self::contact`], as one rung: a point of the
+    /// arc within the band of `q` answers, every piece clear passes, and
+    /// otherwise what the leaves no reading settled kept, ranked
+    /// ([`Evidence`]).
+    fn pieces_contact(&self, q: Point3<T>, rows: ArcRows, band: Band) -> Rung<ArcHit, ArcRefusal> {
         let mut kept = Evidence::default();
         let walk = bisect(self.roots(), |p| {
             let b = self.ball(&p);
@@ -133,7 +151,7 @@ pub(crate) trait PiecedArc<T: Decide> {
             }
             if matches!(decide(rows.leaf, Margin::of(b.reach), band), Ok(Sign::Zero)) {
                 match read {
-                    Some(diag) => kept.in_band(ArcRefusal::Escalated(diag)),
+                    Some(diag) => kept.keep(Refusal::Margin(diag), ArcRefusal::Escalated(diag)),
                     None => kept.unsettled(ArcRefusal::Unsettled),
                 }
                 return Step::Settled;
@@ -145,11 +163,11 @@ pub(crate) trait PiecedArc<T: Decide> {
             Step::Halve(self.halves(p))
         });
         match walk {
-            Ok(Some(margin)) => return Ok(ArcHit::On(margin)),
+            Ok(Some(margin)) => return Rung::Answers(ArcHit::On(margin)),
             Ok(None) => {}
             Err(_) => kept.unsettled(ArcRefusal::Unsettled),
         }
-        kept.refusal().map_or(Ok(ArcHit::Off), Err)
+        kept.rung()
     }
 
     /// **How many times the ray `q + d·t`, `t > 0`, crosses the arc**,
@@ -182,8 +200,8 @@ pub(crate) trait PiecedArc<T: Decide> {
 pub(crate) enum ArcHit {
     /// Definitely off the arc.
     Off,
-    /// Within the band of a point of the arc, clear of its ends, by the
-    /// margin that decided it.
+    /// Within the band of a point of the arc, at no end decided within
+    /// the band, by the margin that decided it.
     On(geom_core::MarginDiag),
     /// Within the band of one of the arc's two ends.
     End,
@@ -202,5 +220,116 @@ pub(crate) enum ArcRefusal {
 impl From<Indeterminate> for ArcRefusal {
     fn from(diag: Indeterminate) -> Self {
         Self::Escalated(diag)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::{Band, MarginDiag, Point3};
+
+    use super::{ArcHit, ArcRefusal, ArcRows, PieceBall, PiecedArc, Ray};
+
+    const ROWS: ArcRows = ArcRows {
+        end: "point_in_arc_loop_spline_end",
+        clear: "point_in_arc_loop_spline_clear",
+        on: "point_in_arc_loop_spline_on",
+        leaf: "point_in_arc_loop_spline_leaf",
+    };
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).expect("a valid band")
+    }
+
+    fn at(x: f64) -> Point3<f64> {
+        Point3::new(x, 0.0, 0.0)
+    }
+
+    /// An arc read as hand-placed leaves: each piece a ball of no
+    /// reach, so every piece is a leaf and none is halved.
+    struct Placed {
+        ends: [Point3<f64>; 2],
+        leaves: Vec<Point3<f64>>,
+    }
+
+    impl PiecedArc<f64> for Placed {
+        type Piece = usize;
+        fn ends(&self) -> [Point3<f64>; 2] {
+            self.ends
+        }
+        fn roots(&self) -> Vec<usize> {
+            (0..self.leaves.len()).collect()
+        }
+        fn depth(_: &usize) -> u32 {
+            0
+        }
+        fn halves(&self, _: usize) -> [usize; 2] {
+            panic!("every placed piece is a leaf")
+        }
+        fn ball(&self, piece: &usize) -> PieceBall<f64> {
+            let c = self.leaves[*piece];
+            PieceBall {
+                center: c,
+                reach: 0.0,
+                on: c,
+            }
+        }
+        fn cross(&self, _: &usize, _: Ray<f64>, _: Band) -> Option<usize> {
+            panic!("contact reads no crossing")
+        }
+    }
+
+    /// **A definite contact answers past an end read in band**: the
+    /// ends and the pieces are one ladder under `Any`, so an end in band
+    /// refuses only where no later reading places the point.
+    #[test]
+    fn a_definite_contact_answers_past_an_end_in_band() {
+        let q = at(0.0);
+        let piece_on = Placed {
+            ends: [at(5e-9), at(10.0)],
+            leaves: vec![at(0.0)],
+        };
+        assert!(
+            matches!(piece_on.contact(q, ROWS, band()), Ok(ArcHit::On(_))),
+            "a piece through the point answers past the first end in band"
+        );
+        let end_at = Placed {
+            ends: [at(5e-9), at(0.0)],
+            leaves: vec![at(10.0)],
+        };
+        assert!(
+            matches!(end_at.contact(q, ROWS, band()), Ok(ArcHit::End)),
+            "the second end at the point answers past the first in band"
+        );
+        let neither = Placed {
+            ends: [at(5e-9), at(10.0)],
+            leaves: vec![at(10.0)],
+        };
+        assert!(
+            matches!(
+                neither.contact(q, ROWS, band()),
+                Err(ArcRefusal::Escalated(_))
+            ),
+            "with nothing definite, the end in band refuses"
+        );
+    }
+
+    /// **A poisoned leaf is a limit, ranked ahead of a leaf in band read
+    /// before it** (the ladder's rule for a margin, `Kept::of`): the walk
+    /// refuses with the poisoned reading.
+    #[test]
+    fn a_poisoned_leaf_outranks_an_earlier_leaf_in_band() {
+        let arc = Placed {
+            ends: [at(10.0), at(20.0)],
+            leaves: vec![at(5e-9), at(f64::NAN)],
+        };
+        match arc.contact(at(0.0), ROWS, band()) {
+            Err(ArcRefusal::Escalated(diag)) => assert_eq!(
+                diag.margin,
+                MarginDiag::INVALID,
+                "the poisoned leaf's reading refuses, not the in-band one's"
+            ),
+            other => panic!("the leaves refuse in band, not {other:?}"),
+        }
     }
 }

@@ -556,6 +556,19 @@ impl<E> Evidence<E> {
         }
     }
 
+    /// This evidence as one rung of an outer ladder: a run of readings
+    /// that found no answer (a sub-search) kept as its ranked refusal,
+    /// of the kind it is, or passing where nothing was kept.
+    #[must_use]
+    pub fn rung<A>(self) -> Rung<A, E> {
+        match self.ranked() {
+            Ranked::Blocked(e) => Rung::Blocked(e),
+            Ranked::InBand(e) => Rung::InBand(e),
+            Ranked::Unsettled(e) => Rung::Unsettled(e),
+            Ranked::Neither => Rung::Passes,
+        }
+    }
+
     /// The one ranking (the type's docs).
     #[must_use]
     pub fn ranked(self) -> Ranked<E> {
