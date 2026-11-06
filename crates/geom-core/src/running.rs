@@ -175,12 +175,19 @@ impl<T: Decide> Rounded<T> {
     /// enclosure's sign is ([`Band::enclosure_sign`]). `None` where it
     /// does not, since there the exact value may be zero and a quotient
     /// by it bounds nothing.
+    ///
+    /// A `None` picks the caller's answer, so the read is a logged
+    /// decision under the caller's `name` ([`crate::k_stats::decide`]),
+    /// and an undecided room at `Interval` escalates.
     #[must_use]
-    pub fn divisor(self) -> Option<Divisor<T>> {
+    pub fn divisor(self, name: &'static str) -> Option<Divisor<T>> {
         let room = self.room();
-        let clear = room
-            .sign_within(Band::enclosure_sign())
-            .is_ok_and(|d| d.sign == Sign::Positive);
+        let clear = crate::k_stats::decide(
+            name,
+            crate::Margin::sign_of(room),
+            Band::enclosure_sign(),
+        )
+        .is_ok_and(|sign| sign == Sign::Positive);
         clear.then_some(Divisor { d: self, room })
     }
 }
@@ -330,16 +337,16 @@ mod tests {
             (at(0.0, 0.0), "an exact zero"),
             (at(-0.25, 0.25), "exactly at its bound"),
         ] {
-            assert!(d.divisor().is_none(), "{label}: {d:?} is no divisor");
+            assert!(d.divisor("running_test_divisor").is_none(), "{label}: {d:?} is no divisor");
         }
-        let q = at(1.0, 0.0).quotient(at(2.0, 1.0).divisor().unwrap());
+        let q = at(1.0, 0.0).quotient(at(2.0, 1.0).divisor("running_test_divisor").unwrap());
         assert_eq!(q.value, 0.5, "the value is the plain quotient's");
         assert!(
             (q.error - (0.5 + 0.5 * UNIT_ROUNDOFF)).abs() <= f64::EPSILON,
             "the bound is the operands' share over the room: {q:?}"
         );
         assert!(
-            at(-3.0, 1.0).divisor().is_some(),
+            at(-3.0, 1.0).divisor("running_test_divisor").is_some(),
             "a negative divisor clear of its bound"
         );
     }

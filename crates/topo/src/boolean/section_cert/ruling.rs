@@ -358,14 +358,14 @@ impl<T: Real> Quadric<T> {
                     value: reach.value.abs(),
                     ..reach
                 };
-                let across = running::dot(m, m).sqrt().divisor()?;
+                let across = running::dot(m, m).sqrt().divisor("ruling_clearance_across")?;
                 Some(Rounded::exact(r) - reach.quotient(across))
             }
             Self::Cone { .. } => {
                 let along = running::dot(u, w);
                 let perp = [0, 1, 2].map(|i| u[i] - w[i] * along);
                 let apart = running::dot(perp, perp).sqrt();
-                Some(e.quotient((apart * Rounded::exact(T::from_f64(16.0))).divisor()?))
+                Some(e.quotient((apart * Rounded::exact(T::from_f64(16.0))).divisor("ruling_clearance_across")?))
             }
         }
     }
