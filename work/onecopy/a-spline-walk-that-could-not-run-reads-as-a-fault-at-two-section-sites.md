@@ -2,12 +2,13 @@
 id: a-spline-walk-that-could-not-run-reads-as-a-fault-at-two-section-sites
 kind: issue
 title: pair_section::reads and chord_join's carried_chord_spec read a spline walk that could not run (geom::Unwalked) as a kernel fault
-status: dispatched
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
-refs: [carrier-refusal-to-error-mapping-is-spelled-at-seven-sites]
-branch: onecopy/spline-walks
+refs: [carrier-refusal-to-error-mapping-is-spelled-at-seven-sites, a-point-against-a-pieced-curve-is-read-by-three-walks-and-sorted-twice, section-unbuilt-arms-state-no-recourse]
+closed: 2026-11-06
+pr: 6548
 ---
 
 Found while putting the escalation-vs-walk sort on `geom::CarrierRefusal::escalation`.
