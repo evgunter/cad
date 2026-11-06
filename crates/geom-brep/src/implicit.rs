@@ -101,17 +101,18 @@ fn poison_vec<T: Real>() -> Vec3<T> {
 /// The axial/radial decomposition `(h, w)` of `p` relative to an anchor
 /// point and unit axis: `q = p − anchor`, `h = q·axis`,
 /// `w = q − axis·h`. Shared by every axisymmetric form below (fixed
-/// order, D9).
+/// order, D9). The forms' running twins ([`conic_cone_residual`] and
+/// its siblings) repeat this order term for term to stay bit-identical
+/// to it, so it is not [`geom::Line::param_and_offset`], whose division
+/// by `|axis|²` the twins do not carry.
 pub(crate) fn axial_radial<T: Real>(
     p: Point3<T>,
     anchor: Point3<T>,
     axis: Vec3<T>,
 ) -> (T, Vec3<T>) {
-    geom::Line {
-        origin: anchor,
-        dir: axis,
-    }
-    .param_and_offset(p)
+    let q = p - anchor;
+    let h = q.dot(axis);
+    (h, q - axis * h)
 }
 
 /// **A point's elevation off a cone, in metres** — the cone's residual

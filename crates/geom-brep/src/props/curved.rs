@@ -5932,12 +5932,14 @@ fn torus_classify<'a, T: Decide>(
                 )?));
             }
             Sign::Zero => {
-                let axis_line = geom::Line {
-                    origin: center,
-                    dir: axis,
-                };
-                let (h, off) = axis_line.param_and_offset(c_c);
-                let rho = axis_line.distance(c_c);
+                // The axis is not yet decided nonzero here (the orient
+                // that follows the classification decides it), so it is
+                // read unit by convention, not through `geom::Line`,
+                // whose readings divide by its length.
+                let w = c_c - center;
+                let h = w.dot(axis);
+                let off = w - axis * h;
+                let rho = off.norm();
                 require_zero(
                     "props_meridian_fit",
                     Margin::of(

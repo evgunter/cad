@@ -23,3 +23,20 @@ Some of these, for example `ruled_region.rs`'s `mean` and `section_cert.rs`'s `d
 Why not ported in that unit: the pair is its own reading, and its home is the open question. That unit's ~45 radial ports already decided that `Line::offset`'s `/ |a|²` is acceptable: a last-place f64 move on a unit axis, which moved no test outcome at either ε. So the bits are no reason to keep the pair apart. What remains is that splitting it into `Line::param(p)` and `Line::offset(p)` computes `w` twice, and writing the radial half as `w − a·h` with a shared `h` is a third spelling of the offset.
 
 Before you fix it, decide the home. One option is a pair reading on `geom::Line`, e.g. `Line::split(p) -> (T, Vec3<T>)`, beside `param` and `offset`, which `on_carrier`'s `height_and_radius` and `depth_gap::split` would then read through. Its radial half should read `Line::offset`'s expression, so the two cannot drift.
+
+## Closed (`onecopy/feet-and-params`, third unit)
+
+`geom::Line` reads the pair in two forms, both built from the same coefficient `w·dir / |dir|²` that `Line::param` reads:
+- `param_and_offset(p)` gives `(t, w − dir·t)`, for readers that need the vector;
+- `param_and_distance(p)` gives `(t, |w × dir| / |dir|)`, for readers that need the radius.
+
+The sweep's 30 hits are disposed as follows:
+- Ported onto `param_and_distance`: 21 radius readers. These include `on_carrier`'s `height_and_radius`, which is retired, and `tube_section`.
+- Ported onto `param_and_offset`: 4 vector readers. These are `ring_path`'s `axial` (now a one-line delegation), `carrier_touch`, `solid_contain`'s `split`, and `circle_torus`.
+- Kept in their own unit-axis order, each with its reason in the code:
+  - `implicit::axial_radial`. The implicit forms' running twins repeat its order term for term to stay bit-identical (D9). Reading it through `Line` broke `implicit::conic_tests::the_running_residuals_are_the_plain_chain` by one ulp.
+  - `props/curved.rs` `torus_classify`'s meridian fit. It reads the torus axis before `torus_meridian_orient` decides it nonzero, and `Line` requires a nonzero `dir`. On a zero axis the division turned `torus_meridian_radial::a_torus_without_an_axis_refuses_under_the_axis_name`'s `props_torus_axis` refusal into a `props_meridian_fit` escalation.
+- Not ported:
+  - `ruled_region.rs`'s `mean`, `section_cert.rs`'s `delta` and `census/depth_gap.rs`'s `split`, which reject a free vector;
+  - `props/curved.rs`'s `tube` closure, which takes a vector, not a point;
+  - `cr_r1_probes.rs`, a `#[cfg(test)]` probe and an oracle.
