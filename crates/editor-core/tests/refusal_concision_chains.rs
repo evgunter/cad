@@ -1839,28 +1839,24 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "Escalated",
             NodeErrorKind::Escalated {
-                predicate: "revolve_full_vs_partial",
                 source: named("revolve_full_vs_partial"),
             },
         ),
         row(
             "MeasureEscalated",
             NodeErrorKind::MeasureEscalated {
-                predicate: "bool_plane_parallel",
                 source: named("bool_plane_parallel"),
             },
         ),
         row(
             "PlacementAxisEscalated",
             NodeErrorKind::PlacementAxisEscalated {
-                predicate: "eval_direction_norm",
                 source: named("eval_direction_norm"),
             },
         ),
         row(
             "PoseDirectionEscalated",
             NodeErrorKind::PoseDirectionEscalated {
-                predicate: topo::POSE_UNIT_NORM,
                 source: named(topo::POSE_UNIT_NORM),
             },
         ),
@@ -4876,7 +4872,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             NamingError::Escalated {
-                predicate: "name_frag_on_member_edge",
                 source: named("name_frag_on_member_edge"),
             },
         ),

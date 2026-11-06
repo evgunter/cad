@@ -115,7 +115,7 @@ fn dump_corpus_k_samples() {
         let samples = run_doc(&d);
         total += samples.len();
         for s in &samples {
-            if s.predicate == "<unnamed>" {
+            if s.predicate == geom_core::UNNAMED_PREDICATE {
                 unnamed += 1;
             }
             csv.push_str(&format!(

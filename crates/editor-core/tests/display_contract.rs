@@ -2661,11 +2661,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::Escalated {
-                predicate: "name_frag_on_member_edge",
                 source: geom_core::Indeterminate {
                     margin: geom_core::predicate::MarginDiag::INVALID,
                     band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
-                    predicate: Some("side_of_plane"),
+                    predicate: Some("name_frag_on_member_edge"),
                     terminal_sliver: false,
                 },
             },

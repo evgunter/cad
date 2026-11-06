@@ -467,13 +467,9 @@ pub(crate) enum PrimitiveRefusal {
     },
     /// A parallelism or coaxiality trilean landed in the band: the
     /// measurement's MEANING depends on a fact the run cannot decide,
-    /// so no number is reported.
-    Escalated {
-        /// The existing funnel predicate that escalated.
-        predicate: &'static str,
-        /// The escalation, unaltered.
-        source: geom_core::Indeterminate,
-    },
+    /// so no number is reported. The escalation rides unaltered, and
+    /// names the funnel predicate that escalated.
+    Escalated(geom_core::Indeterminate),
     /// The measured value is not finite. The SAME ruled door
     /// [`crate::expr::eval`] applies to a document expression, applied
     /// here for the same reason and by the same function: a measure is
@@ -567,7 +563,7 @@ fn parallel<T: Decide>(
     ) {
         Ok(Sign::Zero) => Ok(true),
         Ok(Sign::Positive | Sign::Negative) => Ok(false),
-        Err(source) => Err(PrimitiveRefusal::Escalated { predicate, source }),
+        Err(source) => Err(PrimitiveRefusal::Escalated(source)),
     }
 }
 
@@ -1163,10 +1159,7 @@ fn beyond<T: Decide>(
         Ok(Sign::Positive) => Ok(true),
         Ok(Sign::Negative) => Ok(false),
         Ok(Sign::Zero) => unsupported_as("gap", outer.class(), ON_THE_CARRIER),
-        Err(source) => Err(PrimitiveRefusal::Escalated {
-            predicate: GAP_ROUND_SIDE,
-            source,
-        }),
+        Err(source) => Err(PrimitiveRefusal::Escalated(source)),
     }
 }
 
@@ -1211,10 +1204,7 @@ fn round_pair<T: Decide>(
             Ok(Sign::Negative) => false,
             Ok(Sign::Zero) => inner.convex() || !outer.convex(),
             Err(source) => {
-                return Err(PrimitiveRefusal::Escalated {
-                    predicate: GAP_ROUND_LARGER,
-                    source,
-                });
+                return Err(PrimitiveRefusal::Escalated(source));
             }
         };
         if inner_inside { d + r_in } else { r_in - d }
@@ -1264,10 +1254,7 @@ fn plane_round<T: Decide>(
                 Ok(Sign::Zero) => {}
                 Ok(_) => return not_parallel("gap", GAP_AXIS_PARALLEL_TO_PLANE, plane, round),
                 Err(source) => {
-                    return Err(PrimitiveRefusal::Escalated {
-                        predicate: GAP_AXIS_PARALLEL_TO_PLANE,
-                        source,
-                    });
+                    return Err(PrimitiveRefusal::Escalated(source));
                 }
             }
             (*on, r.radius(), r.convex())
@@ -1414,10 +1401,7 @@ fn link_reads<T: Decide>(
     got.or_else(|why| {
         let class = match why {
             LinkRefusal::Undecided(source) => {
-                return Err(PrimitiveRefusal::Escalated {
-                    predicate: source.predicate.unwrap_or(GAP_LINK),
-                    source,
-                });
+                return Err(PrimitiveRefusal::Escalated(source));
             }
             LinkRefusal::Unread(TouchUnread::Unreadable) => match reading {
                 Cell::Vertex(..) => NO_CORNER,
@@ -1443,9 +1427,6 @@ fn link_reads<T: Decide>(
         unsupported_as("gap", class, read.class())
     })
 }
-
-/// The predicate a link's escalation names where its reading named none.
-const GAP_LINK: &str = "gap_link_reading";
 
 /// **How far `at` stands out of a face's material**, along its outward
 /// normal: the signed offset from a plane, and from a sphere or a
