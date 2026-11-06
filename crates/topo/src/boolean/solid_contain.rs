@@ -2066,11 +2066,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
             Err(other) => return rung_or_abort(other.refusal(), other, Err),
         };
         geos.push((face, geo));
-        match face_holds(body, face, &geos[geos.len() - 1].1, q, band) {
-            Ok(true) => Rung::Answers(Ok(SolidContainment::OnBoundary)),
-            Ok(false) => Rung::Passes,
-            Err(e) => rung_or_abort(e.refusal(), e, Err),
-        }
+        face_rung(face_holds(body, face, &geos[geos.len() - 1].1, q, band))
     });
     match climbed {
         Climb::Answered { answer, .. } => return answer,
@@ -2094,6 +2090,19 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
         },
         || PointInSolidError::RayExhausted,
     )
+}
+
+/// One face's reading as a rung of [`point_in_faces`]'s pre-pass: a face
+/// holding the point answers `OnBoundary`, one off it passes, and a
+/// refusal is kept by its standing ([`PointInSolidError::refusal`]).
+fn face_rung(
+    reading: Result<bool, PointInSolidError>,
+) -> Rung<Result<SolidContainment, PointInSolidError>, PointInSolidError> {
+    match reading {
+        Ok(true) => Rung::Answers(Ok(SolidContainment::OnBoundary)),
+        Ok(false) => Rung::Passes,
+        Err(e) => rung_or_abort(e.refusal(), e, Err),
+    }
 }
 
 /// **Whether `face` holds `q` on the boundary**, read off its query
@@ -5196,6 +5205,73 @@ const AT_INFINITY: crate::props::RoleNames =
 /// The side-at-infinity decision's name on the interval re-derivation.
 const AT_INFINITY_ENCLOSURE: crate::props::RoleNames =
     crate::props::RoleNames::one("bool_point_in_solid_infinity_enclosure");
+
+/// **A face holding the point answers past a face read in band**
+/// ([`point_in_faces`]'s pre-pass climbs its faces, each through
+/// [`face_rung`]): `OnBoundary` is the one answer of every face holding
+/// the point, so an earlier face's escalation does not refuse it. Fed the
+/// readings directly: no solid a constructor builds puts a point definitely
+/// inside one face and in band of another's plane over its region (a slab
+/// a band thick does not certify), though three topo rows reach it
+/// (`two_copies_filling_one_volume`, `census::tests::a_wall_rest_off_by_a_band_width_never_rests`,
+/// `shell_role_reader`'s leaning fill face).
+#[cfg(test)]
+mod boundary_pre_pass_climbs {
+    use geom_brep::ladder::{Answering, Climb, climb};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{PointInSolidError, SolidContainment, face_rung};
+    use crate::entity::FaceKey;
+
+    fn escalated() -> PointInSolidError {
+        PointInSolidError::Escalated {
+            face: FaceKey::default(),
+            diag: Indeterminate {
+                margin: MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("bool_point_in_solid_plane"),
+                terminal_sliver: false,
+            },
+        }
+    }
+
+    fn read(
+        faces: Vec<Result<bool, PointInSolidError>>,
+    ) -> Climb<Result<SolidContainment, PointInSolidError>, PointInSolidError> {
+        climb(Answering::Any, faces, face_rung)
+    }
+
+    #[test]
+    fn a_face_holding_the_point_answers_past_a_face_in_band() {
+        assert!(
+            matches!(
+                read(vec![Err(escalated()), Ok(true)]),
+                Climb::Answered {
+                    answer: Ok(SolidContainment::OnBoundary),
+                    ..
+                }
+            ),
+            "a later face holding the point answers past an earlier one in band"
+        );
+        assert!(
+            matches!(
+                read(vec![Err(escalated()), Ok(false)]),
+                Climb::Undecided(PointInSolidError::Escalated { .. })
+            ),
+            "with no face holding it, the face in band refuses"
+        );
+        assert!(
+            matches!(
+                read(vec![
+                    Err(PointInSolidError::ZeroVolumeBody),
+                    Err(escalated())
+                ]),
+                Climb::Undecided(PointInSolidError::ZeroVolumeBody)
+            ),
+            "a limit outranks an in-band refusal read after it"
+        );
+    }
+}
 
 /// **The census's material probe ranks this door's refusals by their
 /// standing** ([`PointInSolidError::refusal`], read through
