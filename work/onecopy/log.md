@@ -332,3 +332,8 @@
   - **PR 6539** (refusal-standing, `1a607018`): C implemented, with no design text found to describe it and no outcome moved. Five P2 rows filed.
   - **PR 6540** (feet-and-params, `a8836515`): segment feet onto `Line::param_within`, `foot_within` and `foot_from`, where a ray is `foot_from` because Interval ∞ is NaI; `nearest` is a certificate over `param_near`. No outcome moved, but bits move slightly.
   FULL reviews: 6539 to `session_013mPGJ3HVYqYAoquA4iThSZ`, 6540 to a new reviewer `session_013mPGJ5U1sALaLAPBzTAy6S`.
+
+- 2026-11-06 — Dispatched two more lanes:
+  - `onecopy/topo-handles` (`session_013mPGJ41WtMZGxxhdgCBrqz`): a face's loops, an edge's ends, and a face's surface, all onto topo's queries;
+  - `onecopy/spline-walks` (`session_013mPGJ2b3x82WoPQQ3Ro3gw`): the Interval piece budget, and the misfiled fault.
+  The geom small-reads bundle (`three-line-offsets…` and the others) waits for 6540, which touches `Line`.
