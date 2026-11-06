@@ -62,3 +62,5 @@ INTENT stage 6 A then added four corpus documents (`axis_projection`,
 `blocks_on_one_floor`, `pin_in_bore`, `revolves_on_one_axis`). They
 split the same way and are pinned too: 30 documents, with the other
 26 entries unchanged.
+
+**Moved again (bisected 2026-11-06, `onecopy/main-reds-k-and-m10`).** The pin held at `90f5db7a7e`; the splits left `PINNED_KEY_SPLITS` at PR 6341's merge (`449f6f6097`, `reads/loft-section-ids`), first-parent over main at ε 1e-6. The split set on main now covers every corpus document (the full list is the row's own panic message, `CAD_TOLERANCE_EPS=1e-6 cargo test -p editor-core --features probe --test all -- --ignored m4_pr8_k_probe::`). It stops `scripts/k_probe_sweep.sh` at its first corpus dump, so the K roster cannot be revalued until it is re-pinned or fixed.
