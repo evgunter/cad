@@ -296,7 +296,9 @@ residual, distance, foot and chart coordinates); of a carrier pair's
 parallel axes, point touch, line tangent, generic, in band), whose
 trileans are its parts and are decided once; or of a pair *outcome*
 (the section's carrier, C5; the section's components and their
-witnesses; two spans' meetings; a curve's crossings of a surface).
+witnesses; two spans' meetings; a curve's crossings of a surface;
+where two curves on one surface meet, which is a crossing of a plane
+section and never a 3D gap).
 **Total**: a reading is one exhaustive match over its kind or kind
 pair. An unlisted arm refuses typed, naming what it lacks; no arm
 answers a default value; one method is fixed per arm at write time, and
