@@ -26,7 +26,7 @@ use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
 use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
-use crate::common::differential::{VOLUME_CLAIM, judged_at_resolution, resolution_pad};
+use crate::common::differential::{Budget, VOLUME_CLAIM, Verdict, judged_at_resolution};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
@@ -35,10 +35,19 @@ use topo::{Body, BooleanError, BooleanOp, SweepStrategy};
 
 /// **A regression guard, not a soundness claim**: four times the widest
 /// volume half-width the tilted rod's ∖, ∩ and ∪ measured at ε `1e-9`
-/// (`1.89e-7`, PR 6478), which the resolution's sound ceiling ([`judged_at_resolution`])
-/// (`1.28e-5` here) would let loosen fifty-fold unseen. Read at that ε
-/// only; the other ε rows are held by the ceiling alone.
+/// (`1.89e-7`, PR 6478), which the resolution's sound ceiling
+/// ([`judged_at_resolution`], `1.28e-5` there) would let loosen
+/// fifty-fold unseen. Read at that ε only.
 const TILTED_ROD_PAD_GUARD: f64 = 7.6e-7;
+
+/// **The tilted rod's stopped-short ceiling, a regression guard**: four
+/// times the widest volume half-width its ∖, ∩ and ∪ measured at ε
+/// `1e-12` (`1.49e-6`, ∖ and ∩; ∪ `1.26e-7`). Every op stops at the work
+/// wall there, short of the pinned resolution
+/// (`work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`).
+/// The resolution's ceiling (`1.28e-8` at 1e-12) does not bound a
+/// measurement that stopped short; this does ([`judged_at_resolution`]).
+const TILTED_ROD_WALL_GUARD: f64 = 6.0e-6;
 
 /// The cylinder of radius `r` about `(cx, cy)`, `z ∈ [z0, z1]`, through
 /// the public circle and extrude doors.
@@ -245,6 +254,49 @@ fn parallel_cylinders_that_pierce_build_at_the_closed_form() {
     }
 }
 
+/// **A measurement short of the resolution is held to its row's guard.**
+/// Under a resolution's budget (`met` 1e-8, `stopped_short` 1e-7), a wall
+/// stop whose enclosure holds the closed form reads UNMET within the
+/// guard and BAD past it, however much easier a wide enclosure makes
+/// holding it (a pad of 1e-3 holds any volume near 1). A met measurement
+/// is held to `met`; a failed check or a closed form outside the
+/// enclosure is BAD at any stop.
+#[test]
+fn a_stop_short_of_the_resolution_is_held_to_its_guard() {
+    let budget = Budget::Resolution {
+        met: 1e-8,
+        stopped_short: 1e-7,
+    };
+    let (wall, met) = (topo::Stop::Wall, topo::Stop::Met);
+    let at = |checks, v, pad, stop| budget.verdict(checks, (v, pad, stop), Some(1.0));
+    assert_eq!(
+        at(true, 1.0 + 4e-8, 5e-8, wall),
+        Verdict::Unmet,
+        "within the guard"
+    );
+    assert_eq!(
+        at(true, 1.0 + 1e-4, 1e-3, wall),
+        Verdict::Bad,
+        "a widened enclosure"
+    );
+    assert_eq!(
+        at(true, 1.0 + 1e-6, 5e-8, wall),
+        Verdict::Bad,
+        "outside the enclosure"
+    );
+    assert_eq!(at(false, 1.0, 5e-8, wall), Verdict::Bad, "a failed check");
+    assert_eq!(
+        at(true, 1.0, 5e-9, met),
+        Verdict::Sound,
+        "met, within its ceiling"
+    );
+    assert_eq!(
+        at(true, 1.0, 5e-8, met),
+        Verdict::Bad,
+        "met, past its ceiling"
+    );
+}
+
 /// **A tilted rod through a rim takes the half-angle arm and builds at
 /// its sliced volume.** A thin rod tilted 30° off the cylinder's axis
 /// passes through its top rim: the rim circle against the rod's wall is
@@ -253,7 +305,9 @@ fn parallel_cylinders_that_pierce_build_at_the_closed_form() {
 /// its section value and carries, marched; every operation builds, its
 /// spline-chorded walls measured by the rotational lane, at the crossed
 /// cylinders' sliced volume (`common::crossed_cylinders`). ∖ and ∩ are
-/// SOUND; ∪'s tier 3′ refuses at the census, whose edge-in-curved-face
+/// SOUND, or UNMET off the witness ε where the measurement stops at the
+/// work wall (every op at 1e-12, under `TILTED_ROD_WALL_GUARD`); ∪'s
+/// tier 3′ refuses at the census, whose edge-in-curved-face
 /// lane reads the rod's ruling inside a chorded cylinder face through a
 /// containment door that does not read its trim
 /// (`work/inside/the-census-reads-no-ruling-inside-a-chorded-cylinder-face.md`),
@@ -305,13 +359,14 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
     let area = 6.0 * PI + 2.0 * PI * (0.9 + 0.09);
     // Off ε 1e-9 the chorded walls may reach the work wall short of the
     // pinned resolution (at 1e-12, every op): the enclosure still holds
-    // the closed form ([`judged_at_resolution`]).
+    // the closed form, under `TILTED_ROD_WALL_GUARD`
+    // ([`judged_at_resolution`]).
     let off_witness = tol.eps() != 1e-9;
     for (label, op, r) in [
         ("∖", Op::Subtract, topo::subtract(&a, &rod, tol)),
         ("∩", Op::Intersect, topo::intersect(&a, &rod, tol)),
     ] {
-        let read = judged_at_resolution(r, Some(truth(op)), tol, area);
+        let read = judged_at_resolution(r, Some(truth(op)), tol, area, TILTED_ROD_WALL_GUARD);
         assert!(
             read.line.starts_with("OK SOUND") || off_witness && read.line.starts_with("OK UNMET"),
             "{label}: {}",
@@ -337,13 +392,25 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
             }]) if what.starts_with("a line edge on a curved face's ruling")
         )
     });
-    let read = judged_at_resolution(union, Some(truth(Op::Union)), tol, area);
-    let held = read.volume.zip(read.pad).is_some_and(|(v, pad)| {
-        (v - truth(Op::Union)).abs() <= VOLUME_CLAIM + pad
-            && (pad <= resolution_pad(tol, area)
-                || off_witness && read.stop != Some(topo::Stop::Met))
-            && (tol.eps() != 1e-9 || pad <= TILTED_ROD_PAD_GUARD)
-    });
+    let read = judged_at_resolution(
+        union,
+        Some(truth(Op::Union)),
+        tol,
+        area,
+        TILTED_ROD_WALL_GUARD,
+    );
+    // Tier 3′ refuses the union at the census, so its line reads `BAD`;
+    // the volume is held to the budget's ceiling at its stop all the same.
+    let held = read
+        .volume
+        .zip(read.pad)
+        .zip(read.ceiling)
+        .is_some_and(|((v, pad), ceiling)| {
+            (v - truth(Op::Union)).abs() <= VOLUME_CLAIM + pad
+                && pad <= ceiling
+                && (off_witness || read.stop == Some(topo::Stop::Met))
+                && (tol.eps() != 1e-9 || pad <= TILTED_ROD_PAD_GUARD)
+        });
     assert!(
         census == Some(true)
             && held
