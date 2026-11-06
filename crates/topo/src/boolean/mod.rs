@@ -4749,7 +4749,7 @@ fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
              crosses: it may touch the face, run along it, or cross it more than once"
         }
         U::Crease => "it meets the face at a corner of the spline",
-        U::Meter => {
+        U::Meter { .. } => {
             "a crossing it located cannot be placed on the face, or inside the edge, to \
              within the tolerance"
         }

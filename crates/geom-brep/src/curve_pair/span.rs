@@ -102,6 +102,20 @@ pub enum Place {
     Past,
 }
 
+/// Whether a run of the carrier about a point lies past the span
+/// ([`Span::past_by`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PastBy {
+    /// The point is not read past the span, or the span has no ends.
+    Not,
+    /// Past the span, and the whole run clear of both ends.
+    Clear,
+    /// Past the span, the run's reach to an end in the band's gap of the
+    /// chord to it (`curve_pair_span_past_reach_straddle`), or that reach
+    /// itself undecided.
+    Near(Indeterminate),
+}
+
 /// A point on a span, as [`Span::contact`] reads it: what a meeting holds
 /// on each side.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -360,6 +374,83 @@ impl<'a, T: Decide> Span<'a, T> {
             Sign::Negative => Ok(Side::Past),
             Sign::Zero => Err(straddle("curve_pair_span_end_straddle", side, chord, band)),
         }
+    }
+
+    /// **Whether the window's run lies past the span**
+    /// (`curve_pair::pose`'s module docs, "The gap's lower bound" and "The
+    /// run"), `q` a point of the carrier at about `near`, the polished
+    /// pair's, and every pair of the window within the band's escalation
+    /// within `reach` metres of `q` along it. The span's own place reading
+    /// says `q` is past it ([`Self::place`]); then each end is one the run
+    /// cannot reach or cannot cross:
+    ///
+    /// - **out of reach**: its chord to `q` less `reach` reads positive
+    ///   (`curve_pair_span_past_reach`). A chord is at most the arc it
+    ///   spans, so the arc from `q` to the end is longer than `reach`;
+    /// - **the run arm**, where `run` names the other carrier and the
+    ///   window's bend, given only where the polished pair is itself in
+    ///   the run: the end's closed-form clearance from the other carrier
+    ///   less twice the bend reads past the band
+    ///   (`curve_pair_span_run_end`). Any pair of the run beyond the end
+    ///   would put the end within the escalation plus twice the bend of
+    ///   the other carrier.
+    pub fn past_by(
+        &self,
+        q: Point3<T>,
+        near: T,
+        (reach, run): (T, Option<(&Curve3<T>, T)>),
+        band: Band,
+    ) -> PastBy {
+        if !self.ended || self.place(q, near, band) != Ok(Place::Past) {
+            return PastBy::Not;
+        }
+        for (_, end) in self.ends() {
+            let chord = q - end;
+            let lower = decide_reported(
+                "curve_pair_span_past_reach",
+                Margin::of(chord.norm() - reach),
+                band,
+            );
+            if matches!(
+                lower,
+                Ok(Decided {
+                    sign: Sign::Positive,
+                    ..
+                })
+            ) {
+                continue;
+            }
+            if let Some((other, bend)) = run
+                && let Some(clear) = other.clearance(end)
+                && k_stats::decide(
+                    "curve_pair_span_run_end",
+                    Margin::of(clear - bend - bend),
+                    band,
+                ) == Ok(Sign::Positive)
+            {
+                continue;
+            }
+            return match lower {
+                Ok(lower) => {
+                    // `place` read `q`'s chord to each end from `q`'s foot
+                    // on this carrier, this chord from `q` itself: where
+                    // the two disagree on the band's side no straddle is
+                    // claimed, and the reach clears nothing.
+                    match decide_reported("curve_pair_span_end_chord", Margin::norm3(chord), band) {
+                        Ok(upper) if lower.sign < upper.sign => PastBy::Near(straddle(
+                            "curve_pair_span_past_reach_straddle",
+                            lower,
+                            upper,
+                            band,
+                        )),
+                        Ok(_) => PastBy::Not,
+                        Err(diag) => PastBy::Near(diag),
+                    }
+                }
+                Err(diag) => PastBy::Near(diag),
+            };
+        }
+        PastBy::Clear
     }
 
     /// **What `q` is against the span**: the two readings at its foot

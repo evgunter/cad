@@ -2,7 +2,9 @@
 id: meet-at-interval-refuses-on-its-basin-meter-and-reads-an-ends-distance-at-rounding
 kind: issue
 title: curve_pair::meet at Interval refuses on its basin meter where the region rows decided, reads an end's distance at rounding, and costs 3-6x the rows
-status: dispatched
+status: closed
+closed: 2026-11-05
+pr: 6537
 opened: 2026-11-04
 priority: P1
 cost: M
@@ -201,3 +203,17 @@ The census of `reach` (A) moved no test outcome. But a polished pair past a span
 Then `|d|` grows from `p` through the end and into the span for as far as the basin reaches, so nothing in the span within the basin meets. This is a decided reading of the pose, not a premise about the polish. Otherwise the reach test serves, then escalation. Straddles apply the test at each end.
 
 Census gate: sweep re-run at three ε; decided → escalated against main is 0, or each one is explained as outside the basin.
+
+## Closed by PR 6537 (`onecopy/polish-meters`, 2026-11-05)
+
+The decision is implemented with its amendments: `k_stats::prove`, the exact bend with `m₋`, and the run arm (C). The cost gate passes at every ε: no test outcome moves. One pose that main decides now escalates, `contfp_reads_arcs_on_their_carriers::the_census_reads_a_corner_near_a_steep_ellipses_end`. It is a crossing at both spans' ends, where only the spans' orientation separates them, and the test passes either way.
+
+Three departures, disclosed in the PR:
+- item 6's fixture cannot exist under the basin premise;
+- the `Dual` disposition is `bounds_census`'s blind-spot item 5, not a roster line;
+- a polish step whose value is a point is taken at `T`, because `editor-core`'s coincidence door reads the pair's symbols at `Sym`.
+
+Owed elsewhere: the K roster, which `scripts/k_probe_sweep.sh` cannot run on main (geom-brep's tests need `test-support`), and `m10_sym_profile`'s two pinned rows, red on main with the same ledger at head (`main-red-m10-sym-profiles-two-pinned-rows`). Tubewall r2 is measured on PR 6491's route.
+
+**The review's fix pass (2026-11-06).** The run arm is now derived, not asserted (NOTE-4), and needs no monotone gap. The polished pair's gap reads in the zero band; any pair of the run lies within `m₋` of it; and the gap's affine part is convex between the two. So any span end the run would cross lies within `e + 2·bend` of the other carrier, and an end whose closed-form clearance is past that bounds the run. It is read in `Span::past_by` beside the reach. The basin has one home, `polish::bound`. On the `ci` set at all three ε, the census is unchanged: the same near miss, 1.5e-8 apart at the spans' ends, escalates, and no test outcome moves.
+

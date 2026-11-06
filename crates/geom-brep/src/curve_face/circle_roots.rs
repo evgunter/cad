@@ -430,7 +430,7 @@ fn harmonic_crossing<T: Decide>(
     let noise = lo_noise.max(hi_noise);
     match decide(rows.noise, Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter.into()),
+        Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter { row: rows.noise }.into()),
     }
     let (c0, a1) = ((lo_value + hi_value) / two, (hi_value - lo_value) / two);
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
@@ -464,7 +464,12 @@ fn harmonic_crossing<T: Decide>(
     let slack = speed * (at_root / slope + phase + geom_core::rounding_charge(T::tau()));
     match decide(rows.root_slack, Margin::of(slack), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter.into()),
+        Ok(Sign::Positive) | Err(_) => {
+            return Err(Unsettled::Meter {
+                row: rows.root_slack,
+            }
+            .into());
+        }
     }
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
     // zero (module docs).

@@ -295,3 +295,5 @@
   - Oracle at head: 3 run-arm poses and 46 reach poses, 0 wrong. No outcome moved against 71936f1c.
   - The previous report's "run arm about 6,700" was the attribution order; the reach clears all but 4 calls.
   - Two small notes are filed as P3 `polish-bound-spells-unit-and-normalises-n-by-hand`. The gate is running on `d4cfba9fdd`.
+
+- 2026-11-06 — PR 6537 merged as `0025d65e28`, gated on `d4cfba9fdd`. The polish-meters decision is landed: meet certifies at Interval from its window, basin, reach and run arms. Next is unblocking draft PR 6491 (landings).

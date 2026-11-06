@@ -20,22 +20,7 @@ Fix: give such choices their own door, for example `k_stats::choose(name, margin
 
 **A third instance landed while this row was open (2026-11-04):** ledger row F33 (`curve_pair_pose_across`, `geom-brep` `curve_pair::pose`'s `conic_conic`, which picks which of two conics to read across the other's plane) took the same route. It is a choice decided at `Band::least`, argued out of the log with its own row.
 
-<<<<<<< HEAD
-**Class sweep from PR 6483's review (2026-11-04).** These are more `decide(.., Band::least())` sites of this shape, each still on the logged door. Each needs its disposition (a choice or a verdict) before it moves:
-- `geom-brep` `curve_pair::compare` ("a parameter is no distance the band resolves") and its callers:
-  - `curve_pair_meet_order`
-  - `curve_pair_pose_branch`
-  - the span's branch window
-  - `curve_pair_walk_same_foot`
-- `geom-brep` `curve_pair::walk`'s `step_taken`
-
-**A sibling door was decided on the meet-interval row (2026-11-04): "a proof's inequality, read exactly".** It is a named `geom_core` door that takes no `Band`, and it stays logged, because a `Meter` refusal is something a narrower box can answer. `compare`, `step_taken`, `curve_foot_polish` and the pose basin all sit on `Band::least()` today. So the sweep above sorts each site into one of three doors:
-- **a heuristic's choice**: this row's door, unlogged, with a ledger row required;
-- **a proof's inequality**: exact and logged, with no band;
-- **a reading**: the logged `decide` against the model's band.
-
-Design both doors in one place, so `Band::least()` stops being spelled at call sites at all. Then the next site has to pick a door by name.
-=======
 **F33's tie (from PR 6525, 2026-11-04):** when F33 moves onto the heuristic-choice door, give that door a `Tie` variant. F33 reads the first conic at a tie. Two conics tangent at a point tie but for rounding, each tangent to the other's plane, and there the bare difference picks by rounding. That is order-free, because the difference is antisymmetric bit for bit, and since PR 6525 either reading certifies the touch (the window reads its height and level locally). A charged tie band reading the first, PR 6525's first head, made `meet` order-dependent on tangent pairs: the review measured 123 of 400. A door with `Tie` should keep the choice antisymmetric, not fall back to argument order.
 
->>>>>>> origin/main
+
+**The proof door beside it, and the next site (`onecopy/polish-meters`, 2026-11-04).** That unit built the door for a proof's inequality: `geom_core::k_stats::prove(name, margin)`. It is exact (the least band), takes no `Band`, and is logged. `curve_pair::compare`'s callers and the closest-pair basin (`curve_pair_pose_basin`, with its move `curve_pair_pose_move` and the walk's `curve_pair_walk_basin`) read it. The choice door is still owed. Name it beside `prove`, for example `k_stats::choose(name, margin, ledger_row)`. F32 (`curve_foot_polish`) and F33 (`curve_pair_pose_across`) stay unlogged under their rows until it exists. The next site it takes is `geom_brep::curve_pair::walk`'s `step_taken` (`curve_pair_walk_polish_step`). That is a polish step kept or dropped, which "can lose a meeting's foot but never invent one", a choice in F32's class. It is still on the logged `decide` at `Band::least()`, with no ledger row (ONECOPY orchestrator's ruling, 2026-11-04).

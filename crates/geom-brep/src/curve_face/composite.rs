@@ -717,7 +717,10 @@ fn settle<T: Decide>(
         // Definitely off at the located crossing: the residual's step
         // between two adjacent scalars is past the band.
         if residual(t)? != Sign::Zero {
-            return Err(Unsettled::Meter.into());
+            return Err(Unsettled::Meter {
+                row: "spline_composite_root_on",
+            }
+            .into());
         }
         let mut at_end = false;
         for end in ends {

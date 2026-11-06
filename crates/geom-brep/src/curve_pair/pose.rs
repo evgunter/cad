@@ -190,33 +190,125 @@
 //! when they pass within the band without touching: the meeting lies
 //! `h/σ` along the curve, `h` their distance and `σ` the sine of the
 //! curve's angle to the plane. So a crossing (or a touch) of the other's
-//! plane only starts the candidate: it is polished by Gauss–Newton to the
-//! two carriers' closest pair, and that pair is read. Every point of the
-//! curve within the band's escalation `e` of the other carrier is within
-//! `e` of the other's plane, so it lies on the arc about a crossing or a
-//! touch where the height is within `e`: `ℓ`, read off the harmonic (or
-//! `e/σ` on a line). The pair the polish is after lies within
-//! `2(ℓ + e)` of where it starts, on either carrier. Three meters guard it,
-//! each refusing [`Unsettled::Meter`] unless definite:
+//! plane only starts the candidate: it is polished by Gauss–Newton
+//! ([`super::polish`], an `f64` structure search) toward the two
+//! carriers' closest pair, and that pair is read with what it states of
+//! its window. Every point of the curve within the band's escalation `e`
+//! of the other carrier is within `e` of the other's plane, so it lies on
+//! the arc about a crossing or a touch where the height is within `e`:
+//! `ℓ`, read off the harmonic (or `e/σ` on a line). The *window* is the
+//! pairs of the two carriers within `region = 2(ℓ + e)` of where the
+//! polish starts, on either carrier: every pair within `e` of each other
+//! is in it. Nothing reads whether the polish converged: the pair is a
+//! place, and what it says of the window is a bound.
 //!
-//! - **its basin** (`curve_pair_pose_basin`): over that reach each
-//!   tangent turns by at most its carrier's curvature times the reach, so
-//!   `sin φ − 2(κ₁ + κ₂)·2(ℓ + e)`, `φ` the angle between the tangents
-//!   where the polish starts, levered as the tilt is, must read positive:
-//!   the tangents then keep at least half the angle between them,
-//!   the closest pair is the one stationary pair there, and the polish
-//!   contracts toward it;
-//! - **its travel** (`curve_pair_pose_travel`): the polished pair lies
-//!   within twice the region of where it started, as the basin says;
-//! - **its convergence** (`curve_pair_pose_polish`): the polish's last
-//!   step moves the pair within the band's zero.
+//! # The gap's lower bound
 //!
-//! **Each step is read from a point** ([`super::polish`]): at an
-//! enclosing scalar the iterate's middle, entered as a point, so the
-//! step and the metres it moves are that point's, not a step from every
-//! point of the iterate's box. The basin is read where the polish
-//! starts, and the travel and convergence meters at the pair the last
-//! step ends on, as every polished pair is then read on both spans.
+//! At the polished pair, `p` on the first carrier and `q` on the second,
+//! with unit tangents `u` and `v`, write `w = q − p`, `n̂ = u×v/|u×v|`, and
+//! the *slack* `σ_w = |w − n̂(n̂·w)|`, the part of the gap a move along the
+//! carriers could still take up. Two premises, stated where they are
+//! read:
+//!
+//! - **(P1) the span.** Every pair of the window lies within `span`
+//!   metres of `(p, q)`, along each carrier: `span = region + travel`,
+//!   `travel` the polish's parameter run at the carrier's greatest speed
+//!   (the larger of the two).
+//! - **(P2) the curvature.** `K = κ₁ + κ₂` bounds the carriers'
+//!   curvatures over every arc within `span` of the start
+//!   (`Side::curvature_near`).
+//!
+//! By arc length from the pair, a point of each carrier is `A = p + uα +
+//! r_A` and `B = q + vβ + r_B`, with `|r_A| ≤ κ₁α²/2` and `|r_B| ≤ κ₂β²/2`
+//! (a curve's departure from its tangent line). With `m = max(|α|, |β|)`,
+//! `A − B = −w + uα − vβ + r` and `|r| ≤ K·m²/2`:
+//!
+//! - **across**, `u` and `v` are square to `n̂`, so
+//!   `|A − B| ≥ |(A − B)·n̂| ≥ |w·n̂| − K·m²/2`;
+//! - **along**, the least of `|uα − vβ|` over `β` is `|α|·sin φ`, and over
+//!   `α` it is `|β|·sin φ`, so `|uα − vβ| ≥ sin φ·m` and
+//!   `|A − B| ≥ s·m − σ_w − K·m²/2` for any `s ≤ sin φ`.
+//!
+//! **The move.** A pair within `e` therefore has `f(m) < 0`, where
+//! `f(m) = s·m − K·m²/2 − (σ_w + e)`. Where `D = s² − 2K(σ_w + e)` is
+//! positive (`curve_pair_pose_move`, a proof's inequality), `f` is
+//! positive between its roots `m∓ = (s ∓ √D)/K`, so `m < m₋` or
+//! `m > m₊`. **The basin** (`curve_pair_pose_basin`) is the premise that
+//! puts the window below `m₊`: `s − K·span > 0`, since then
+//! `span < s/K ≤ m₊`, and by (P1) `m ≤ span`. Every pair of the window
+//! within `e` lies within `m₋ = 2(σ_w + e)/(s + √D)` of `(p, q)` along
+//! both carriers (written so a pair of lines, `K = 0`, reads
+//! `(σ_w + e)/s`). `s` is the sine's lower bound over the window,
+//! `sin φ − K·span`, so the basin reads `sin φ − 2K·span > 0`, the
+//! tangents keeping at least half their angle; the travel the polish
+//! made is folded into `span` rather than metered on its own.
+//!
+//! **The floor and the reach.** Such a pair is at least
+//! `floor = |w·n̂| − K·m₋²/2` apart, the gap across less the *bend* over
+//! the move. So:
+//!
+//! - **a floor past the band** (`curve_pair_pose_closest`) contradicts any
+//!   pair within `e`: the window holds no meeting;
+//! - **the reach** `m₋` places every such pair: on the first carrier
+//!   within `m₋` of `p`, on the second within `m₋` of `q`. Where `p` reads
+//!   past a span and its chord to each of the span's ends exceeds `m₋`
+//!   past the band (`curve_pair_span_past_reach`), the arc of `m₋` either
+//!   side of `p` reaches neither end (a chord is at most its arc), so no
+//!   pair of the window lies on that span ([`Span::past_by`]); `q` on the
+//!   second span alike.
+//!
+//! **The run.** The *run* is the pairs of the window within `e` of each
+//! other. Where the polished pair is itself one of them (its gap `|w|`
+//! in the zero band, `curve_pair_meet_run_pair`), an end of a span the
+//! run would cross can be read off the other carrier:
+//!
+//! - Every pair of the run lies within `m₋` of `(p, q)` along both
+//!   carriers (the move, above).
+//! - Take a pair of the run at arc parameters `(α, β)` from `(p, q)`, and
+//!   the pairs `(tα, tβ)`, `t ∈ [0, 1]`, between it and the polished
+//!   pair. Their difference is `L(t) + r(t)`, with
+//!   `L(t) = −w + t(uα − vβ)` affine in `t` and `|r(t)| ≤ K·m₋²/2`, the
+//!   *bend*, since `t·m ≤ m₋`.
+//! - A norm is convex, so `|L(t)| ≤ max(|L(0)|, |L(1)|)`. Here
+//!   `|L(0)| = |w| ≤ e` and `|L(1)| < e + bend`, since the pair at
+//!   `t = 1` is within `e` and its remainder is at most the bend.
+//! - So every point of the first carrier between `p` and the run's pair,
+//!   an end of the span among them, lies within `e + 2·bend` of the
+//!   second carrier.
+//!
+//! So where `p` is past a span and each of the span's ends is either out
+//! of the reach (its chord to `p` past `m₋`, `curve_pair_span_past_reach`)
+//! or has a closed-form clearance from the other carrier
+//! ([`geom::Curve3::clearance`]) past `e + 2·bend`
+//! (`curve_pair_span_run_end`), no pair of the run lies on the span, and
+//! the Off prunes ([`Span::past_by`]). `q` on the second span alike. This
+//! is main's argument, that the closest pair's run is read through the
+//! spans' ends: its premise, that the polish converged, is replaced by a
+//! decided one, the polished pair's own gap. It needs no premise past the
+//! basin's: no monotonicity of the gap along a carrier, only the move's
+//! bound and the bend. A spline end has no closed-form clearance, so its
+//! run arm does not read.
+//!
+//! Where `D` is not proved positive the bound is undecided: no floor, and
+//! no reach short of the carriers. **The composition is the reader's**
+//! (`Found::read`), on the candidate's [`WindowBound`]: a floor past the
+//! band is no meeting; otherwise the point is read on both spans, and On
+//! there is a meeting, with no premise on the polish. An Off prunes only
+//! where the reach or the run arm clears a span; otherwise it is a
+//! straddle of
+//! the floor against the gap at the pair (`curve_pair_meet_window`), or
+//! the reach's own (`curve_pair_span_past_reach_straddle`), and
+//! escalates. A location along the carriers enters only to prune, and is
+//! read in metres against the band; where it is ill-conditioned (a small
+//! `s`, a wide enclosure) the reach is long and the Off escalates, which
+//! is the safe direction. A candidate whose point speaks for its whole
+//! window, an end, a witness or an exact root, states no window, and its
+//! read is its point's alone, as before windows were stated.
+//!
+//! The basin and the move are proofs' inequalities, read exactly
+//! ([`geom_core::k_stats::prove`]); a basin not proved refuses
+//! [`Unsettled::Meter`] on its row. The floor, the reach and the gap are
+//! metres of gap, read against the band. All are logged.
 //!
 //! # The spans' ends, and deflation
 //!
@@ -257,11 +349,11 @@
 //! A conic's plane root whose window holds a found meeting is read
 //! instead (`window`): where the window certainly holds no meeting but
 //! the found ones, the root is not polished. Every other plane root is
-//! polished and metered as it would be with no meeting found; a candidate
-//! it gives nearer a found meeting than the escalation is that meeting
-//! again (C5's ring rule), and a meter that cannot place one refuses. The coplanar subdivisions divide nothing
-//! out: their roots nearer a found meeting than the escalation are not
-//! read again.
+//! polished and bounded as it would be with no meeting found; a
+//! candidate it gives nearer a found meeting than the escalation is that
+//! meeting again (C5's ring rule), and a basin that is not proved
+//! refuses. The coplanar subdivisions divide nothing out: their roots
+//! nearer a found meeting than the escalation are not read again.
 //!
 //! # The band
 //!
@@ -273,7 +365,7 @@
 //! margin (`curve_pair_pose_parallel`), its gap (`curve_pair_pose_gap`)
 //! and its tilt over the overlap (`curve_pair_pose_tilt`), the polish's
 //! clearance (`curve_pair_pose_clear`), and the like in the window's
-//! readings and the branch compares. A meter's escalation refuses
+//! readings and the branch compares. A basin that is not proved refuses
 //! [`Unsettled::Meter`]. No escalation prunes a candidate.
 
 mod window;
@@ -306,6 +398,12 @@ pub enum Sense {
 /// parameter; on the other it is its foot's [`geom::Foot::seed`], which
 /// certifies nothing. A reader that needs the point's parameter on a
 /// carrier reads that carrier's certificate at it.
+///
+/// `bound` is what the generator states of its window (module docs,
+/// "The gap's lower bound"): `None` where an Off at the point speaks for
+/// the whole window (an end, a witness, an exact root), which reads as
+/// the point alone; otherwise the window's floor and reach. The reader
+/// does the one composition (`Found::read`).
 #[derive(Clone, Copy, Debug)]
 pub struct Candidate<T: geom_core::Real> {
     /// The point.
@@ -314,6 +412,26 @@ pub struct Candidate<T: geom_core::Real> {
     pub ta: T,
     /// Its seed on the second carrier.
     pub tb: T,
+    /// The window it stands for, `None` for a point that is its own.
+    pub bound: Option<WindowBound<T>>,
+}
+
+/// **What a polished pair states of its window** (module docs, "The
+/// gap's lower bound"), for the reader to compose with its point's
+/// reading (`Found::read`).
+#[derive(Clone, Copy, Debug)]
+pub struct WindowBound<T> {
+    /// A lower bound in metres on the gap between any two points of the
+    /// carriers in the window, `|w·n̂| − bend`; `−∞` where undecided.
+    pub floor: T,
+    /// The most metres along either carrier, from the candidate's own
+    /// parameters, at which two points of the window lie within the
+    /// band's escalation of each other, `m₋`; `+∞` where undecided.
+    pub reach: T,
+    /// The most metres either carrier departs from its tangent line at
+    /// the candidate over `reach`, together, `K·m₋²/2`; `+∞` where
+    /// undecided.
+    pub bend: T,
 }
 
 /// The pose of two spans' carriers (module docs).
@@ -370,9 +488,7 @@ mod row {
     pub(super) const EXTREME: &str = "curve_pair_pose_extreme";
     pub(super) const ROOT_GAP: &str = "curve_pair_pose_root_gap";
     pub(super) const CLEAR: &str = "curve_pair_pose_clear";
-    pub(super) const TRAVEL: &str = "curve_pair_pose_travel";
     pub(super) const BASIN: &str = "curve_pair_pose_basin";
-    pub(super) const POLISH: &str = "curve_pair_pose_polish";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
@@ -449,6 +565,7 @@ fn flip<T: geom_core::Real>(c: Candidate<T>) -> Candidate<T> {
         point: c.point,
         ta: c.tb,
         tb: c.ta,
+        bound: c.bound,
     }
 }
 
@@ -538,6 +655,7 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
             point,
             ta,
             tb: foot(b, point),
+            bound: None,
         });
     }
     for (tb, point) in b.ends() {
@@ -545,6 +663,7 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
             point,
             ta: foot(a, point),
             tb,
+            bound: None,
         });
     }
     out
@@ -581,20 +700,6 @@ fn definite<T: Decide>(
     })
 }
 
-/// Whether a meter's margin reads definitely `want`; any other reading,
-/// an escalation included, refuses [`Unsettled::Meter`].
-fn metered<T: Decide>(
-    row: &'static str,
-    margin: Margin<T>,
-    want: Sign,
-    band: Band,
-) -> Result<(), MeetFault> {
-    match decide(row, margin, band) {
-        Ok(sign) if sign == want => Ok(()),
-        Ok(_) | Err(_) => Err(MeetFault::Unsettled(Unsettled::Meter)),
-    }
-}
-
 /// The witnesses of a coincident pair ([`Span::witness_params`] on each
 /// span), each placed on the carrier of the span it came from and given
 /// its foot on the other by `foot_a`/`foot_b`.
@@ -614,6 +719,7 @@ fn witnesses<T: Decide>(
             point,
             ta,
             tb: foot_b(point),
+            bound: None,
         });
     }
     for tb in b.witness_params(ends(a, foot_b)) {
@@ -622,6 +728,7 @@ fn witnesses<T: Decide>(
             point,
             ta: foot_a(point),
             tb,
+            bound: None,
         });
     }
     out
@@ -642,6 +749,16 @@ impl<T: Decide> Side<'_, T> {
             Self::Line((origin, dir)) => Curve3::Line(geom::Line { origin, dir }).ders1(t),
             Self::Conic(k) => k.jet_at(t),
         }
+    }
+
+    /// The most metres the carrier runs between the parameters `t0` and
+    /// `t1`: their difference at its greatest speed.
+    fn run(self, t0: T, t1: T) -> T {
+        let speed = match self {
+            Self::Line((_, dir)) => dir.norm(),
+            Self::Conic(k) => k.speed_hi(),
+        };
+        (t1 - t0).abs() * speed
     }
 
     /// A bound on the curvature within `reach` metres of `t`: zero on a
@@ -686,45 +803,44 @@ struct Polish<'k, T: geom_core::Real> {
 }
 
 impl<T: Decide> Polish<'_, T> {
-    /// The closest pair, metered, or `None` where no point of the arc is
-    /// within the band of the second carrier (module docs).
+    /// The closest pair's candidate, or `None` where no point of the
+    /// window is within the band of the second carrier (module docs,
+    /// "Across planes" and "The gap's lower bound").
+    ///
+    /// # Errors
+    ///
+    /// [`Unsettled::Meter`] on `curve_pair_pose_basin` where the basin's
+    /// inequality is not proved.
     fn closest(&self, band: Band) -> Result<Option<Candidate<T>>, MeetFault> {
         let (s0, t0) = self.start;
-        let ((p0, da), (q0, db)) = (self.a.ders(s0), self.b.ders(t0));
         if decide(row::CLEAR, Margin::of(self.clear - self.reach), band) == Ok(Sign::Positive) {
             return Ok(None);
         }
-        let sine = unit(da).cross(unit(db)).norm();
+        let two = T::from_f64(2.0);
         let e = T::from_f64(band.escalate());
-        let region = (self.reach + e) * T::from_f64(2.0);
-        let curvature = self.a.curvature_near(s0, region) + self.b.curvature_near(t0, region);
-        let turn = T::from_f64(2.0) * curvature * region;
-        metered(
-            row::BASIN,
-            Margin::levered(sine - turn, self.lever),
-            Sign::Positive,
-            band,
-        )?;
-        let (s, t, moved) =
+        let region = (self.reach + e) * two;
+        let (s, t) =
             super::polish::pair(|s| self.a.ders(s), |t| self.b.ders(t), self.start, |_| true);
-        let ((p, _), (q, _)) = (self.a.ders(s), self.b.ders(t));
-        // Within its basin the polish stays in the region; one that left
-        // it twice over is a polish the basin meter did not certify.
-        let travel = (p - p0).norm() + (q - q0).norm();
-        metered(
-            row::TRAVEL,
-            Margin::of(region + region - travel),
-            Sign::Positive,
-            band,
-        )?;
-        match decide(row::POLISH, Margin::of(moved), band) {
-            Ok(Sign::Zero | Sign::Negative) => {}
-            Ok(Sign::Positive) | Err(_) => return Err(MeetFault::Unsettled(Unsettled::Meter)),
-        }
+        let ((p, da), (q, db)) = (self.a.ders(s), self.b.ders(t));
+        // Every pair of the window lies within `region` of the start, and
+        // the polished pair within its travel of it: within `span` of the
+        // polished pair, along either carrier.
+        let span = region + self.a.run(s0, s).max(self.b.run(t0, t));
+        let curvature = self.a.curvature_near(s0, span) + self.b.curvature_near(t0, span);
+        let Some(bound) = super::polish::bound(
+            (row::BASIN, Some(self.lever)),
+            (p, da),
+            (q, db),
+            curvature,
+            (e, span),
+        ) else {
+            return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }));
+        };
         Ok(Some(Candidate {
             point: p,
             ta: s,
             tb: t,
+            bound: Some(bound),
         }))
     }
 }
@@ -807,7 +923,7 @@ fn route<T: Decide>(
         return Ok(Route::Crossing);
     }
     if definite(row::OFFSET, Margin::of(offset), band)? {
-        return Err(MeetFault::Unsettled(Unsettled::Meter));
+        return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::OFFSET }));
     }
     Ok(Route::Level)
 }
@@ -876,6 +992,7 @@ fn line_line<T: Decide>(
             point,
             ta: line_foot(la, point),
             tb: line_foot(lb, point),
+            bound: None,
         }])
     };
     match route(s, s / u1.dot(u2).abs(), off, at, (arm, noise), band)? {
@@ -892,7 +1009,7 @@ fn line_line<T: Decide>(
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
         Route::Level if definite(row::TILT, Margin::levered(s, arm), band)? => Ok(crossing()),
-        Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter)),
+        Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter { row: row::TILT })),
     }
 }
 
@@ -978,6 +1095,7 @@ fn line_conic<T: Decide>(
             point,
             ta: line_foot(line, point),
             tb: theta,
+            bound: None,
         }
     };
     let found: Vec<T> = known.iter().map(|c| c.tb).collect();
@@ -1086,6 +1204,7 @@ fn conic_conic<T: Decide>(
             point,
             ta: theta,
             tb: foot(b, point),
+            bound: None,
         }
     };
     match coplanar {
@@ -1696,11 +1815,17 @@ fn harmonic_roots<T: Decide>(
 mod polish_rows {
     use super::*;
 
-    /// **A polish that has not converged refuses.** Two unit circles
-    /// crossing square at the origin, the polish started there and with
-    /// the first `0.3` rad round: the first is the crossing; the second,
-    /// inside its basin and its region, is still moving after its steps
-    /// and refuses (`Unsettled::Meter`).
+    /// **A polish its basin does not hold refuses, and one it holds
+    /// states its window.** Two unit circles crossing square at the
+    /// origin, the polish started there and with the first `0.3` rad
+    /// round. Started at the crossing, the candidate is the crossing,
+    /// with a window whose floor is the gap less its bend. Started `0.3`
+    /// rad off, the window's span (its region and the polish's travel)
+    /// turns the tangents past the basin's premise, and it refuses on the
+    /// basin (`Unsettled::Meter`): under the premise Gauss–Newton
+    /// contracts to rounding within its steps, so no premise-holding pose
+    /// is left unconverged; the window's escalation is pinned by
+    /// `curve_pair::meet_rows::a_window_read_off_short_of_its_reach_escalates`.
     #[test]
     fn an_unconverged_polish_refuses() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -1720,9 +1845,19 @@ mod polish_rows {
             got.point.to_array().iter().all(|c| c.abs() < 1e-15),
             "{got:?}"
         );
+        let Some(window) = got.bound else {
+            panic!("a polished candidate states its window: {got:?}")
+        };
+        assert!(
+            window.floor.abs() < 1e-15 && window.reach > 0.0 && window.reach < 2e-8,
+            "{window:?}"
+        );
         let got = polish(0.3).closest(band);
         assert!(
-            matches!(got, Err(MeetFault::Unsettled(Unsettled::Meter))),
+            matches!(
+                got,
+                Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN }))
+            ),
             "{got:?}"
         );
     }
