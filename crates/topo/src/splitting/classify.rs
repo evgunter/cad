@@ -12,11 +12,11 @@ use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::boolean::boxes::BoxFrame;
 use crate::entity::{EdgeKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 use crate::vertex_section::VertexRefusal;
+use geom::cover::BoxAxes;
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -36,7 +36,7 @@ use crate::vertex_section::VertexRefusal;
 /// the approximation, not the surface the modeller described.
 ///
 /// The reach is read in the plane's own frame
-/// ([`crate::boolean::boxes::BoxFrame::aimed`]), never in the world's
+/// ([`geom::cover::BoxAxes::aimed`]), never in the world's
 /// axes, so whether a cut clears a face is a fact about the two of
 /// them and not about how the body is turned.
 ///
@@ -52,7 +52,7 @@ pub(super) fn carrier_gate<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let frame = BoxFrame::aimed(plane.normal);
+    let frame = BoxAxes::aimed(plane.normal);
     for face in body.face_views() {
         let face_key = face.key();
         let surface = face.surface();
@@ -102,7 +102,7 @@ pub(super) fn carrier_gate<T: Decide>(
 /// bounds, since an edge lies on both its faces. A spline edge's own
 /// reach is its control net's hull (its cover), which its faces'
 /// reaches may beat. `frame` is the plane's
-/// ([`BoxFrame::aimed`] at its normal).
+/// ([`BoxAxes::aimed`] at its normal).
 ///
 /// `edge` is one this call's caller read out of the body: the gate's
 /// arena walk over the at-rest operand, or `insert_crossings`' snapshot
@@ -115,7 +115,7 @@ fn edge_clears<T: Decide>(
     edge: EdgeKey,
     plane: &SplitPlane<T>,
     band: Band,
-    frame: &BoxFrame<T>,
+    frame: &BoxAxes<T>,
 ) -> bool {
     let e = crate::live::proven(&body.edges, edge, crate::entity::EntityId::Edge);
     reach_clears(crate::census::edge_reach_in(body, edge, frame), plane, band)
@@ -134,7 +134,7 @@ fn edge_clears<T: Decide>(
 const SPLIT_GATE_BOX_SIDE: &str = "split_gate_box_side";
 
 /// Whether the plane certainly misses a reach read in the plane's
-/// frame ([`BoxFrame::aimed`]), whose first coordinate is the
+/// frame ([`BoxAxes::aimed`]), whose first coordinate is the
 /// component along the plane's normal: the reach's gap from the
 /// plane's own offset along that normal, less the boolean sweep's pad,
 /// decided definitely positive. No reach (an entity the reach lane
@@ -151,7 +151,7 @@ fn reach_clears<T: Decide>(
     // The frame turns about the world origin, so a reach's first
     // coordinate is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
-    let origin = geom_brep::sector_shape::plane_offset(
+    let origin = geom::plane_offset(
         plane.origin,
         plane.normal.get(),
         Point3::new(T::zero(), T::zero(), T::zero()),
@@ -205,8 +205,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
     let mut offsets = SecondaryMap::new();
     let mut zero = Vec::new();
     for (vertex_key, p) in body.vertex_points() {
-        let offset =
-            geom_brep::sector_shape::plane_offset_rounded(plane.origin, plane.normal.get(), p);
+        let offset = geom::plane_offset_rounded(plane.origin, plane.normal.get(), p);
         let decided = crate::validate::decide_reported(
             "split_vertex_side",
             geom_core::Margin::of(offset.value),
@@ -367,7 +366,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             // It passes only behind a box the plane cannot meet, read
             // here as at the gate, so its whole locus is on one side.
             PlaneCrossingLane::Unlaned => {
-                if edge_clears(body, edge_key, plane, band, &BoxFrame::aimed(plane.normal)) {
+                if edge_clears(body, edge_key, plane, band, &BoxAxes::aimed(plane.normal)) {
                     continue;
                 }
                 return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
@@ -384,7 +383,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 }
                 let dist = |vk: VertexKey| {
                     let p = body.resolve_vertex_point(vk, crate::live::Proven);
-                    (p - plane.origin).dot(plane.normal.get())
+                    geom::plane_offset(plane.origin, plane.normal.get(), p)
                 };
                 let (d1, d2) = (dist(u), dist(v));
                 vec![t0 + (t1 - t0) * (d1 / (d1 - d2))]
@@ -553,8 +552,8 @@ mod torn_rows {
     /// would answer the census's box.
     #[test]
     fn the_gate_panics_on_a_torn_face_of_an_edge_and_a_torn_surface() {
-        use crate::boolean::boxes::BoxFrame;
         use crate::live::OPERATORS_KEEP_LINKS;
+        use geom::cover::BoxAxes;
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let fresh = || crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
@@ -563,7 +562,7 @@ mod torn_rows {
             Vec3::unit_z(),
             tol,
         );
-        let frame = BoxFrame::aimed(plane.normal);
+        let frame = BoxAxes::aimed(plane.normal);
 
         let mut body = fresh();
         let crosses = |b: &crate::body::Body<f64>, e| {

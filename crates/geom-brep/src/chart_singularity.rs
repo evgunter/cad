@@ -1108,8 +1108,12 @@ impl<T: Decide> Shape<T> {
 
     /// A point's distance from the axis.
     fn rho(&self, p: Point3<T>) -> T {
-        let w = p - self.anchor;
-        (w - self.axis * w.dot(self.axis)).norm()
+        geom::Line {
+            origin: self.anchor,
+            dir: self.axis,
+        }
+        .offset(p)
+        .norm()
     }
 }
 

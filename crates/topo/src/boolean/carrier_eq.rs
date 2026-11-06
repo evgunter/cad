@@ -646,7 +646,7 @@ fn at_consumed_extent<T: geom_core::Real>(
                 outward,
             },
         ) if matches!(c1, CarrierDesc::Cylinder { .. }) => {
-            let foot = reach.foot_on(origin, axis);
+            let foot = reach.foot_on(geom::Line { origin, dir: axis });
             (
                 c1,
                 CarrierDesc::Cylinder {
@@ -779,7 +779,10 @@ fn reading<T: Decide>(
                 ..
             },
         ) => {
-            let pivot = reach.foot_on(o2, a2);
+            let pivot = reach.foot_on(geom::Line {
+                origin: o2,
+                dir: a2,
+            });
             let apart = perpendicular(pivot - o1, a1).norm();
             let arm = reach.lever_from_within(pivot, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
