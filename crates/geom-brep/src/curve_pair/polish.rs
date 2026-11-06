@@ -114,15 +114,13 @@ pub(super) fn bound<T: Decide>(
     curvature: T,
     (e, span): (T, T),
 ) -> Option<WindowBound<T>> {
-    let unit = |v: Vec3<T>| v * (T::one() / v.norm());
-    let sine = unit(da).cross(unit(db)).norm() - curvature * span;
+    let sine = da.normalize().cross(db.normalize()).norm() - curvature * span;
     let basin = sine - curvature * span;
     let basin = lever.map_or_else(|| Margin::of(basin), |lever| Margin::levered(basin, lever));
     if prove(row, basin) != Ok(Sign::Positive) {
         return None;
     }
-    let n = da.cross(db);
-    let n = n * (T::one() / n.norm());
+    let n = da.cross(db).normalize();
     let w = q - p;
     let along = w.dot(n);
     let slack = (w - n * along).norm();

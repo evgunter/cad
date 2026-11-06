@@ -199,7 +199,7 @@ impl<T: Decide> Window<'_, T> {
         // Interval reading encloses them.
         let z0 = T::zero();
         let h = taylor(self.height_jet(m), [z0; 4], self.height_fourth(), w);
-        let f = taylor(level.jet_at(m), [z0; 4], level.fourth(), w);
+        let f = taylor(level.jet_at(m).map(|r| r.value), [z0; 4], level.fourth(), w);
         let (big, small) = (self.b.speed_hi(), self.b.speed_lo());
         let height_recedes = positive(row, h.lo)
             && positive(row, h.slope_lo)
