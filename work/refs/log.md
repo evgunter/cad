@@ -179,3 +179,4 @@
   - **Tests:** the `named` assertion now pins positions.
   - **Rows filed:** `a-family-of-bodies-has-two-payloads` (REFS P1 H, the unification) and `editor-core-cites-a-spec-d3-no-document-numbers` (REFS P4 C, about 40 sites). The Python row moved to BIND.
   - `a-family-of-boolean-results-cannot-be-read-whole-or-by-index` is closed.
+- 2026-11-06 — **PR 6557 merged** (a family of boolean results reads whole and by index; `EmptyMember` names the empty member). Next REFS P1, serially: `a-family-of-bodies-has-two-payloads` (H), unit branch `reads/family-one-payload`. It follows on from the context just built, and it is the root of three of 6557's residue rows. The lane picks the one representation by final state and stops if a user-visible fork appears. Tier **single, FULL** (a public payload type and its readers across three crates). After it: `slot-forms-want-one-trait`. Then the viewer's boolean tool, whose indexed half waits on Ev's answer on 6555.
