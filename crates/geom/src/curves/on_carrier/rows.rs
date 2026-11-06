@@ -464,7 +464,7 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
     const READERS: &[(&str, usize, &str)] = &[
         (
             "geom/src/curves/on_carrier/rows.rs",
-            6,
+            5,
             "the foot's own rows",
         ),
         (
