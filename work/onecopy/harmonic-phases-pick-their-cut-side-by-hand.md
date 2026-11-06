@@ -35,3 +35,9 @@ Repoint the three at `Azimuth::near`, which decides its cut side outside
 the log at `Band::least()` (F31). `plane_crossing`'s logged row
 `plane_crossing_phase_frame` goes, which moves K-stat populations: measure
 and re-baseline. Lower the gate's table as each goes.
+
+## Since PR 6491 (2026-11-06)
+
+The second site is retired: `first_harmonic_root_directions` and `HarmonicRoot` went with the sphere door's landings, so `circle_roots.rs` holds no hand phase now. Two sites remain:
+- `plane_crossing.rs`'s `conic_plane_candidates` phase, now read by the region landings too (`span_plane_meet`) as well as the lane;
+- `props/curved.rs`'s torus chart lift.
