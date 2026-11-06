@@ -136,7 +136,7 @@ impl<T: Real> ShapeIssue<T> {
             Self::Degenerate { .. } => "vertex_separation",
             Self::DegenerateTurn { .. } => "full_turn_reach",
             Self::NearFull { .. } => "arc_diameter_clearance",
-            Self::Escalated(source) => source.predicate.unwrap_or("<unnamed>"),
+            Self::Escalated(source) => source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
         }
     }
 }

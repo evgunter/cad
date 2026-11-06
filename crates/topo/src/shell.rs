@@ -1109,11 +1109,12 @@ impl<T: Real> Shelled<T> {
     /// opening removed, the rings' edges and vertices minted in it; a
     /// divided seam ([`RimNaming::seam_pieces`]) into its pieces and the
     /// ring corners its pieces end on, its span across the opening
-    /// removed; and a seam, slit or apex the chart reduction retired
-    /// ([`ShellNaming::dead`]) into the rims, the rest removed. On a
-    /// void, the designated faces are removed, the rim being their
+    /// removed; and an operand seam, slit or apex the chart reduction
+    /// retired ([`ShellNaming::dead`]) into the rims, the rest removed.
+    /// On a void, the designated faces are removed, the rim being their
     /// cavity twin's. The cavity twins are new cells and no operand
-    /// record names one. Any other operand cell whose geometry the shell
+    /// record names one, so a twin the reduction or the glue retired has
+    /// no fate here. Any other operand cell whose geometry the shell
     /// changed under its key is read, not kept: the lineage carries the
     /// operand's geometry ([`crate::Lineage::from_source`]).
     #[must_use]
@@ -1162,14 +1163,28 @@ impl<T: Real> Shelled<T> {
                 .unwrap_or_else(|e| unreachable!("the shell states only removals: {e:?}"))
         };
         let mut lineage = crate::Lineage::new().through_joins(&naming.edge_joins);
-        for &e in &naming.dead.edges {
+        // `dead` is in result keys, and the reductions and the glue kill
+        // cavity twins too, cells the operand never had: a fate is stated
+        // only for a retired key the operand carried.
+        let (minted_edges, minted_vertices) = naming.row_mints();
+        for &e in naming
+            .dead
+            .edges
+            .iter()
+            .filter(|e| !minted_edges.contains(e))
+        {
             lineage = remove(
                 lineage,
                 Cell::Edge(e),
                 opened(every_rim.clone(), Vec::new()),
             );
         }
-        for &v in &naming.dead.vertices {
+        for &v in naming
+            .dead
+            .vertices
+            .iter()
+            .filter(|v| !minted_vertices.contains(v))
+        {
             lineage = remove(
                 lineage,
                 Cell::Vertex(v),
@@ -1292,6 +1307,44 @@ impl ShellNaming {
     #[must_use]
     pub fn rim_of(&self, designated: FaceKey) -> Option<&RimNaming> {
         self.rims.iter().find(|r| r.sources.contains(&designated))
+    }
+
+    /// The edges and vertices a row MINTS: the result half of every row
+    /// whose two columns differ. Survivors keep their operand keys, so a
+    /// row naming a key other than its source names a cell the
+    /// construction made (a cavity twin, a divided seam's later piece);
+    /// a row with equal columns names one the operand carried.
+    #[must_use]
+    pub(crate) fn row_mints(
+        &self,
+    ) -> (
+        std::collections::BTreeSet<EdgeKey>,
+        std::collections::BTreeSet<VertexKey>,
+    ) {
+        let edges = self
+            .inner_edges
+            .iter()
+            .chain(self.rims.iter().flat_map(|rim| {
+                rim.ring_edges
+                    .iter()
+                    .chain(&rim.seam_pieces)
+                    .chain(rim.holes.iter().flat_map(|h| &h.ring_edges))
+            }))
+            .filter(|(result, source)| result != source)
+            .map(|&(result, _)| result)
+            .collect();
+        let vertices = self
+            .inner_vertices
+            .iter()
+            .chain(self.rims.iter().flat_map(|rim| {
+                rim.ring_vertices
+                    .iter()
+                    .chain(rim.holes.iter().flat_map(|h| &h.ring_vertices))
+            }))
+            .filter(|(result, source)| result != source)
+            .map(|&(result, _)| result)
+            .collect();
+        (edges, vertices)
     }
 
     /// The cavity twin of a source edge, in result keys.
@@ -2353,7 +2406,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
     #[cfg(debug_assertions)]
-    record_rooted(body, &naming);
+    record_rooted(body, &out_body, &naming);
     naming.source = crate::SourceGeometry::of(body);
     Ok(Shelled {
         body: out_body,
@@ -2361,20 +2414,34 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     })
 }
 
-/// **Every key the record names is rooted**: a row's source half is a
-/// key the operand carries, and a retirement is a key the operand
-/// carries or a row's result half ([`ShellRetired`]: scaffolding is in
-/// no row and not listed). A key this call minted and then killed is
-/// absent from the result, so no output-side walk sees a row naming
-/// one; only the operand and the record together do, and this is the
-/// one place that holds both.
+/// **Every key the record names is rooted, and every retired key is
+/// gone**: a row's source half is a key the operand carries; a
+/// retirement is a key the operand carries or a row's result half
+/// ([`ShellRetired`]: scaffolding is in no row and not listed); and no
+/// retired key resolves in the result. A key this call minted and then
+/// killed is absent from the result, so no output-side walk sees a row
+/// naming one, and `emit_shell` consults the retired set only for a key
+/// no row mints, so a retired key that is a row's result half and still
+/// live passes it too. Only the operand, the result and the record
+/// together see both, and this is the one place that holds all three.
 #[cfg(debug_assertions)]
-fn record_rooted<T: Real>(operand: &Body<T>, naming: &ShellNaming) {
+fn record_rooted<T: Real>(operand: &Body<T>, result: &Body<T>, naming: &ShellNaming) {
     use std::collections::BTreeSet;
+    /// Every key in `keys` holds `holds`, else the postcondition names
+    /// the key and what it `breaks`: one message shape for every walk.
     #[track_caller]
-    fn check(rooted: bool, what: core::fmt::Arguments<'_>) {
-        assert!(rooted, "shell postcondition: {what} (kernel bug)");
+    fn every<K: Copy + core::fmt::Debug>(
+        keys: impl IntoIterator<Item = K>,
+        holds: impl Fn(K) -> bool,
+        breaks: &str,
+    ) {
+        for k in keys {
+            assert!(holds(k), "shell postcondition: {k:?} {breaks} (kernel bug)");
+        }
     }
+    const SOURCE: &str = "is a row's source half, and the operand does not carry it";
+    const ROOTED: &str = "is retired, and neither the operand carries it nor a row mints it";
+    const GONE: &str = "is retired, and the result still carries it";
     // Exhaustive, so a new row kind cannot join the record without
     // saying here where its two halves are.
     let ShellNaming {
@@ -2389,12 +2456,14 @@ fn record_rooted<T: Real>(operand: &Body<T>, naming: &ShellNaming) {
                 faces: dead_faces,
                 edges: dead_edges,
                 vertices: dead_vertices,
-                // A cavity twin's loops, surfaces and shell are minted
-                // with no row of their own.
-                loops: _,
-                surfaces: _,
-                shells: _,
+                loops: dead_loops,
+                surfaces: dead_surfaces,
+                shells: dead_shells,
             },
+        // The closing join's rows are in the result's key space at both
+        // halves, and what it kills is listed there, never in `dead`
+        // (`ShellRetired`): no half of one names an operand key, and the
+        // join is checked by its own door.
         edge_joins: _,
         source: _,
     } = naming;
@@ -2404,6 +2473,11 @@ fn record_rooted<T: Real>(operand: &Body<T>, naming: &ShellNaming) {
     let mut designated: Vec<FaceKey> = Vec::new();
     // A rim face stands for a whole chart, so it has no source half.
     let mut rim_faces: Vec<FaceKey> = Vec::new();
+    // Loops, surfaces and shells are rooted neither way: a rim's `ring`
+    // (`RimNaming::ring`, `HoleRim::ring`) is a result loop with no
+    // source half, and a cavity twin's loops, surface and shell are
+    // minted with no row at all. Their retirements are checked against
+    // the result alone.
     for RimNaming {
         sources,
         side: _,
@@ -2431,52 +2505,74 @@ fn record_rooted<T: Real>(operand: &Body<T>, naming: &ShellNaming) {
             vertices.extend(ring_vertices);
         }
     }
-    for (_, s) in thickened {
-        check(
-            operand.get_shell(*s).is_some(),
-            format_args!("a row names {s:?} as its source, which the operand does not carry"),
-        );
-    }
-    for s in faces.iter().map(|(_, s)| s).chain(&designated) {
-        check(
-            operand.get_face(*s).is_some(),
-            format_args!("a row names {s:?} as its source, which the operand does not carry"),
-        );
-    }
-    for (_, s) in &edges {
-        check(
-            operand.get_edge(*s).is_some(),
-            format_args!("a row names {s:?} as its source, which the operand does not carry"),
-        );
-    }
-    for (_, s) in &vertices {
-        check(
-            operand.get_vertex(*s).is_some(),
-            format_args!("a row names {s:?} as its source, which the operand does not carry"),
-        );
-    }
+    every(
+        thickened.iter().map(|&(_, s)| s),
+        |s| operand.get_shell(s).is_some(),
+        SOURCE,
+    );
+    every(
+        faces.iter().map(|&(_, s)| s).chain(designated),
+        |s| operand.get_face(s).is_some(),
+        SOURCE,
+    );
+    every(
+        edges.iter().map(|&(_, s)| s),
+        |s| operand.get_edge(s).is_some(),
+        SOURCE,
+    );
+    every(
+        vertices.iter().map(|&(_, s)| s),
+        |s| operand.get_vertex(s).is_some(),
+        SOURCE,
+    );
     let minted_f: BTreeSet<FaceKey> = faces.iter().map(|&(r, _)| r).chain(rim_faces).collect();
     let minted_e: BTreeSet<EdgeKey> = edges.iter().map(|&(r, _)| r).collect();
     let minted_v: BTreeSet<VertexKey> = vertices.iter().map(|&(r, _)| r).collect();
-    let unrooted = "a retirement names a key that neither the operand carries nor a row mints";
-    for f in dead_faces {
-        check(
-            minted_f.contains(f) || operand.get_face(*f).is_some(),
-            format_args!("{unrooted}: {f:?}"),
-        );
-    }
-    for e in dead_edges {
-        check(
-            minted_e.contains(e) || operand.get_edge(*e).is_some(),
-            format_args!("{unrooted}: {e:?}"),
-        );
-    }
-    for v in dead_vertices {
-        check(
-            minted_v.contains(v) || operand.get_vertex(*v).is_some(),
-            format_args!("{unrooted}: {v:?}"),
-        );
-    }
+    every(
+        dead_faces.iter().copied(),
+        |f| minted_f.contains(&f) || operand.get_face(f).is_some(),
+        ROOTED,
+    );
+    every(
+        dead_edges.iter().copied(),
+        |e| minted_e.contains(&e) || operand.get_edge(e).is_some(),
+        ROOTED,
+    );
+    every(
+        dead_vertices.iter().copied(),
+        |v| minted_v.contains(&v) || operand.get_vertex(v).is_some(),
+        ROOTED,
+    );
+    every(
+        dead_faces.iter().copied(),
+        |f| result.get_face(f).is_none(),
+        GONE,
+    );
+    every(
+        dead_edges.iter().copied(),
+        |e| result.get_edge(e).is_none(),
+        GONE,
+    );
+    every(
+        dead_vertices.iter().copied(),
+        |v| result.get_vertex(v).is_none(),
+        GONE,
+    );
+    every(
+        dead_loops.iter().copied(),
+        |l| result.get_loop(l).is_none(),
+        GONE,
+    );
+    every(
+        dead_surfaces.iter().copied(),
+        |g| result.get_surface(g).is_none(),
+        GONE,
+    );
+    every(
+        dead_shells.iter().copied(),
+        |s| result.get_shell(s).is_none(),
+        GONE,
+    );
 }
 
 /// A rim ring's two row lists: its edge rows and its vertex rows.
@@ -5526,6 +5622,80 @@ mod tests {
     mod footprint_fuzz;
     #[allow(clippy::panic)]
     mod speed_fuzz;
+
+    /// **The closing postcondition goes red in each of its three
+    /// directions** (`record_rooted`). Its inputs are the operand, the
+    /// result and a record with public fields, so each row hands it a
+    /// record no construction writes: a key of a second body stands for
+    /// one this call minted, which the operand does not carry.
+    #[cfg(debug_assertions)]
+    mod record_rooted {
+        use super::super::{Body, EdgeKey, ShellNaming, ShellRetired, record_rooted};
+
+        fn prism() -> Body<f64> {
+            crate::splitting::reassembly::quad_prism(
+                &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+                1.0,
+                geom_core::Tol::witness(),
+            )
+        }
+
+        fn an_edge(body: &Body<f64>) -> EdgeKey {
+            body.edges().next().expect("a prism has edges").0
+        }
+
+        /// A retirement of a key the operand never carried and no row
+        /// mints: BLEND unit 8's defect, on the shell.
+        #[test]
+        #[should_panic(
+            expected = "is retired, and neither the operand carries it nor a row mints it"
+        )]
+        fn a_retirement_no_row_mints_is_red() {
+            let operand = Body::<f64>::new();
+            let naming = ShellNaming {
+                dead: ShellRetired {
+                    edges: vec![an_edge(&prism())],
+                    ..ShellRetired::default()
+                },
+                ..ShellNaming::default()
+            };
+            record_rooted(&operand, &operand, &naming);
+        }
+
+        /// A row whose source half is a key the operand never carried.
+        #[test]
+        #[should_panic(expected = "is a row's source half, and the operand does not carry it")]
+        fn a_row_rooted_at_a_minted_key_is_red() {
+            let operand = Body::<f64>::new();
+            let minted = an_edge(&prism());
+            let naming = ShellNaming {
+                inner_edges: vec![(minted, minted)],
+                ..ShellNaming::default()
+            };
+            record_rooted(&operand, &operand, &naming);
+        }
+
+        /// A retirement that is a row's result half, rooted both ways,
+        /// and still live in the result: the case `emit_shell`'s guard
+        /// passes, since it consults the retired set only for a key no
+        /// row mints.
+        #[test]
+        #[should_panic(expected = "is retired, and the result still carries it")]
+        fn a_retired_key_the_result_still_carries_is_red() {
+            let operand = prism();
+            let result = operand.clone();
+            let kept = an_edge(&operand);
+            let naming = ShellNaming {
+                inner_edges: vec![(kept, kept)],
+                dead: ShellRetired {
+                    edges: vec![kept],
+                    ..ShellRetired::default()
+                },
+                ..ShellNaming::default()
+            };
+            record_rooted(&operand, &result, &naming);
+        }
+    }
 
     /// **The wall wrapper words the curvature-headroom meter in the
     /// meter's own idiom**: the zero arm is "not shown below", never

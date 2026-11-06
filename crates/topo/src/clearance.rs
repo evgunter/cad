@@ -881,13 +881,9 @@ pub enum CellBudget {
 /// so does the parameter-box driver that hands the engine its leaves,
 /// so the two cannot drift apart on what a sliver is.
 pub fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
-    source.terminal_sliver.then(|| named(source))
-}
-
-/// An escalation's predicate name as a refusal carries it, a nameless
-/// one marked so rather than credited to some decision.
-fn named(source: &geom_core::Indeterminate) -> &'static str {
-    source.predicate.unwrap_or("<unnamed>")
+    source
+        .terminal_sliver
+        .then(|| source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
 }
 
 /// The counting receipt of one clearance query.
@@ -1548,7 +1544,7 @@ impl Sweep {
                 // distance topology fixed at 0.
                 let sliver = |r: &Reading| match r {
                     Reading::Undecided(source) => Some(EngineRefusal::Sliver {
-                        predicate: named(source),
+                        predicate: source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
                     }),
                     _ => None,
                 };

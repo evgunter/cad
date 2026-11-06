@@ -2384,6 +2384,14 @@ pub struct Indeterminate {
     pub predicate: Option<&'static str>,
 }
 
+/// **The mark a `&'static str` name slot carries for an escalation that
+/// named no predicate** ([`Indeterminate::predicate`] `None`): one
+/// spelling, so a nameless escalation reads as nameless wherever a
+/// payload or a recorder slot must hold a name, rather than being
+/// credited to some decision. It is a mark, never a funnel name: no
+/// decision is made under it.
+pub const UNNAMED_PREDICATE: &str = "<unnamed>";
+
 /// The unified sub-ε_input recourse sentence (the two-tolerance
 /// principle, D4 ¶1 addendum, #129): below ε_input, "exactly on the
 /// coincidence" and "in the ambiguity band" are ONE user situation —

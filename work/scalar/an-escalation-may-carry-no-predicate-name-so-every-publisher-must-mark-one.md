@@ -33,22 +33,32 @@ one layer up). More than a handful, and the type is geom-core's.
 The refs lane that closed
 `work/refs/flush-invents-a-predicate-name-for-a-nameless-escalation.md`
 found these publishers of a name in a `&'static str` slot, each forced
-to say something for `None`:
+to say something for `None`. The mark now has one home,
+`geom_core::UNNAMED_PREDICATE` (`"<unnamed>"`), beside
+`Indeterminate` in `predicate.rs`, and every non-test site spells it
+through that const:
 
-- `topo::clearance::named` (behind `sliver` and the exact-margin
-  `EngineRefusal::Sliver`) and `topo::boolean::section_cert`'s
-  `UNNAMED` (two `Section::Tangent` sites) mark it `"<unnamed>"`;
+- `topo::clearance::sliver` and the exact-margin
+  `EngineRefusal::Sliver` (`topo/src/clearance.rs`), and the two
+  `Section::Tangent` sites of `topo::boolean::section_cert`;
 - `profile::seg::ShapeIssue::predicate` and
-  `geom_core::k_stats::Escalation::predicate` return `"<unnamed>"`;
+  `geom_core::k_stats::Escalation::predicate`, and `k_stats`'s
+  recorder slot `CURRENT`, whose idle value is the same mark (read by
+  `demos/tour/src/probe.rs` and three K-probe test rows, which count a
+  sample recorded under it);
 - `geom_brep::pair_section::torus_arms::first_pinch` and
   `geom_brep::ssi::SsiError::tangency` fall back to the row the verdict
-  was decided under, which is the leaf;
-- `editor_core::eval::measure::PrimitiveRefusal::Escalated` and
-  `NodeErrorKind::MeasureEscalated` now carry the `Option` through.
+  was decided under, which is the leaf, and need no mark.
 
 Each is honest, and each exists only because the field is optional;
 `k_stats::Escalation::predicate`'s own doc says its fallback "exists
-only because the field is an `Option`".
+only because the field is an `Option`". The editor's escalation
+payloads (`NodeErrorKind::{Escalated, MeasureEscalated,
+PlacementAxisEscalated, PoseDirectionEscalated}`, `NamingError::Escalated`)
+no longer carry a name beside their `source`, so they read
+`source.predicate` and render a `None` as `UNNAMED_DECISION`: they
+need no mark either. Were the field made total, the const and the
+fallbacks above go.
 
 ## Possible shape (SCALAR's call)
 

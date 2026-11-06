@@ -48,7 +48,8 @@
 //! output. A retirement naming a key the carve minted and killed is in
 //! neither arena this pass walks; the surgery's epilogue
 //! (`sweep::blend::surgery::blend_surgery`), which still holds the
-//! source body, is that direction's check.
+//! source body, is that direction's check, a `debug_assertions` one
+//! (which the release profile keeps on, `Cargo.toml`).
 //!
 //! # An upstream tie PROPAGATES (B1)
 //!

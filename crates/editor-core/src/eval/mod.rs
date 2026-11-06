@@ -1755,18 +1755,16 @@ pub enum NodeErrorKind {
     },
     /// A decided predicate escalated (in-band indeterminacy).
     Escalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered: the decision's name is the one
+        /// its funnel recorded ([`Indeterminate::predicate`]).
         source: Indeterminate,
     },
     /// **A measurement's parallelism read escalated** (D10's Measure
     /// ground): the measure door's own sentence, which [`Self::Escalated`]'s
     /// does not speak for. Its class is [`NodeErrorClass::Escalated`].
     MeasureEscalated {
-        /// The named predicate, `None` where the escalation named none.
-        predicate: Option<&'static str>,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered, naming its decision as
+        /// [`Self::Escalated`]'s does.
         source: Indeterminate,
     },
     /// **A placement frame's rotation axis escalated** (D10's placement
@@ -1774,9 +1772,8 @@ pub enum NodeErrorKind {
     /// [`Self::Escalated`]'s does not speak for. Its class is
     /// [`NodeErrorClass::Escalated`].
     PlacementAxisEscalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered, naming its decision as
+        /// [`Self::Escalated`]'s does.
         source: Indeterminate,
     },
     /// **A pose's direction escalated** (D10's pose ground): a pose's
@@ -1785,9 +1782,8 @@ pub enum NodeErrorKind {
     /// which [`Self::Escalated`]'s does not speak for. Its class is
     /// [`NodeErrorClass::Escalated`].
     PoseDirectionEscalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered, naming its decision as
+        /// [`Self::Escalated`]'s does.
         source: Indeterminate,
     },
     /// **A pose read off geometry found none of its kind** (D10): a
@@ -2361,25 +2357,22 @@ impl crate::spoken::Say for NodeErrorKind {
                     geom_core::KERNEL_DEFECT_ENDING
                 )
             }
-            Self::Escalated { predicate, source } => {
+            Self::Escalated { source } => {
                 // What the decision was deciding, in words; the name is
                 // routing and rides `Debug`.
-                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(
                     f,
                     "{}",
-                    source.undecided(what, crate::decision::ending(predicate, source))
+                    source.undecided(
+                        crate::decision::subject(source),
+                        crate::decision::ending(source.predicate, source)
+                    )
                 )
             }
-            Self::MeasureEscalated { predicate, source } => {
-                let what = predicate
-                    .and_then(crate::decision::words)
-                    .unwrap_or(geom_core::UNNAMED_DECISION);
-                write!(f, "{what} is too close to call: {source}")
-            }
-            Self::PlacementAxisEscalated { predicate, source }
-            | Self::PoseDirectionEscalated { predicate, source } => {
-                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+            Self::MeasureEscalated { source }
+            | Self::PlacementAxisEscalated { source }
+            | Self::PoseDirectionEscalated { source } => {
+                let what = crate::decision::subject(source);
                 write!(f, "{what} is too close to call: {source}")
             }
             Self::PoseRead { pose, fault } => write!(
