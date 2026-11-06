@@ -1276,6 +1276,11 @@ pub(crate) fn coverage(
     let roots = (0..COVERAGE_START)
         .rev()
         .map(|k| (cut(k), cut(k + 1), 0u32));
+    // `COVERAGE_CELLS` is a wall in cells read, but it stays in the visit
+    // (`read.cells`) rather than being the walk's `Budget`: its refusal
+    // names the cell it stopped in (`[lo, hi]`), which an `Exhausted`
+    // cannot. The walk halves only while it has cells left, so the reads
+    // that implies never bind first.
     let mut reads = Budget::implied_by_halvings(COVERAGE_START as usize, COVERAGE_CELLS);
     let walked = bisect_within(roots, &mut reads, |(lo, hi, depth)| {
         read.cells += 1;

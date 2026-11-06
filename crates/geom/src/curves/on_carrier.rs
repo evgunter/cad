@@ -256,7 +256,7 @@ impl CarrierEscalation {
 }
 
 /// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
 pub enum PieceWalkRefusal {
     /// The walk ran past its budget.
     Exhausted,
@@ -290,11 +290,13 @@ impl PieceWalkRefusal {
         }
     }
 
-    /// The refusal [`Self::sentence`] renders, where it is one.
+    /// The refusal [`Self::sentence`] renders, where it is one, over every
+    /// variant ([`strum::VariantArray`]).
     #[must_use]
     pub fn of_sentence(sentence: &str) -> Option<Self> {
-        [Self::Exhausted, Self::Unbounded]
-            .into_iter()
+        <Self as strum::VariantArray>::VARIANTS
+            .iter()
+            .copied()
             .find(|why| why.sentence() == sentence)
     }
 }

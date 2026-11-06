@@ -599,6 +599,11 @@ pub(crate) fn critical_gap<T: Decide>(
     });
     let mut spent = 0;
     let mut held: Option<Indeterminate> = None;
+    // `GAP_CELLS` is a wall in cells read, but it stays in the visit
+    // (`spent`) rather than being the walk's `Budget`: its refusal carries
+    // the cell's own reading (`floor_refusal(r, ..)`), which an
+    // `Exhausted` cannot. The walk halves only while it has cells left, so
+    // the reads that implies never bind first.
     let mut reads = Budget::implied_by_halvings(GAP_START, GAP_CELLS);
     let walked = bisect_within(cells, &mut reads, |(lo, hi)| {
         spent += 1;

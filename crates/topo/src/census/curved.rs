@@ -517,18 +517,38 @@ mod tests {
     use crate::EdgeCurveSpec;
 
     /// **A spline walk the census could not run reads back as itself**: the
-    /// refusal it pushes carries the walk's own sentence
-    /// ([`geom::PieceWalkRefusal::sentence`]), and the edge-tangent reading
-    /// of that refusal is the same walk refusal, at both of its kinds.
+    /// refusal it pushes names the walk by its own sentence
+    /// ([`geom::PieceWalkRefusal::sentence`]), pinned here as text, and the
+    /// edge-tangent reading of that refusal is the same walk refusal, at
+    /// both of its kinds. The census's rendered message does not show
+    /// that name: `ContactRefusal::NotCertifiable` renders no `what`.
     #[test]
     fn an_unwalked_edge_reads_back_as_its_walk_refusal() {
         use crate::link::{EdgeTangentUnread, TouchUnread};
-        for why in [
-            geom::PieceWalkRefusal::Exhausted,
-            geom::PieceWalkRefusal::Unbounded,
+        for (why, sentence) in [
+            (
+                geom::PieceWalkRefusal::Exhausted,
+                "a spline's piece walk ran past its budget",
+            ),
+            (
+                geom::PieceWalkRefusal::Unbounded,
+                "a spline's speed bound is zero or poison",
+            ),
         ] {
             let mut errors = Vec::new();
             super::refuse(EdgeKey::default(), why.sentence(), &mut errors);
+            assert!(
+                matches!(
+                    &errors[..],
+                    [crate::ValidationError::CensusUnsupported {
+                        cause: crate::CensusUnsupportedCause::ContactLane(
+                            crate::contact::ContactRefusal::NotCertifiable { what },
+                        ),
+                        ..
+                    }] if *what == sentence
+                ),
+                "{why:?}: the census names the walk by its sentence: {errors:?}"
+            );
             assert_eq!(
                 super::edge_tangent_refusal(&errors),
                 TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(why)),
