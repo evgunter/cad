@@ -198,16 +198,10 @@ fn conic_plane_candidates<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> Result<([Option<T>; 2], bool), ConicPlaneMeet<T>> {
-    let geom::Frame {
-        origin: center,
-        axis,
-        u_ref,
-    } = *conic.frame();
-    let (s_u, s_v) = conic.semi_axes();
-    let v_ref = axis.cross(u_ref);
-    let d0 = (center - plane_origin).dot(plane_normal);
-    let a = u_ref.dot(plane_normal) * s_u;
-    let b = v_ref.dot(plane_normal) * s_v;
+    // The conic's height above the plane, `d0 + a·cos θ + b·sin θ`: the
+    // first harmonic a curve pair's transverse reading is built on
+    // ([`crate::curve_pair::pose`]), one generator for both.
+    let (d0, a, b) = crate::curve_pair::pose::height(conic, plane_origin, plane_normal);
     // powi, NEVER a*a: both amplitudes straddle zero on near-parallel
     // frames (a rim circle against a perpendicular side plane), and a
     // plain interval product's spurious negative low end makes the

@@ -47,6 +47,7 @@
 //! **The walk is the closed forms' differential test oracle** (the rows),
 //! never a runtime fallback.
 
+pub mod on_surface;
 mod polish;
 pub mod pose;
 pub mod span;
