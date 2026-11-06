@@ -169,3 +169,4 @@ box holds; a third build lane belongs in its own cloud session
 which is how `fillet-step-discoverability-six-door-refusals` will run.
 - 2026-11-06 — `fillet-step-discoverability-six-door-refusals` dispatched to its own cloud session (session_013mPGJ4pin8WZZttgvZtpq7), branch `round/fillet-step-discoverable`: a Transition refusal names what its state accepts, derived from the transition data; `ProgramStep::Fillet` documents its legs; the reviewer's pad rebuilt from a naive attempt as the acceptance. Review tier: single, STYLE (docs and refusal text over one derived set).
 - 2026-11-06 — PR 6544 merges: the P0 turn-gate row closes (single FULL review APPROVE-WITH-FIXES; the fix pass found the straight lever's first wording unfollowable and replaced it with one followed to a valid loop).
+- 2026-11-06 — PR 6545 merges: the P0 cusp-fillet row closes (single FULL review APPROVE; fix pass took its one-home predicate, doc and coverage points).
