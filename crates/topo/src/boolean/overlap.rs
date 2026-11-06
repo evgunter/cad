@@ -41,7 +41,7 @@ use std::sync::Arc;
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::Span;
-use geom_brep::ladder::Evidence;
+use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb, rung_or_abort};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
@@ -565,12 +565,21 @@ fn piece_witness<T: Decide>(
     }
     let n = turned(normal_at(x, q, band)?, x_rev);
     let mine = as_read(half_plane(x.0, he, q)?, x_rev);
-    for cy in ys {
-        if corners_meet(mine, as_read(cy, y_rev), n, band)? {
-            return Ok(true);
+    // A ladder over `y`'s corners at `q` ([`climb`], [`Answering::Any`]:
+    // every corner meeting the piece says the same "a witness"), so a
+    // corner read in band refuses only where no later one meets it.
+    let climbed = climb(Answering::Any, ys, |cy| {
+        match corners_meet(mine, as_read(cy, y_rev), n, band) {
+            Ok(true) => Rung::Answers(Ok(true)),
+            Ok(false) => Rung::Passes,
+            Err(r) => rung_or_abort(r.refusal(), r, Err),
         }
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed => Ok(false),
+        Climb::Undecided(r) => Err(r),
     }
-    Ok(false)
 }
 
 /// Keeps a piece's refusal `r` in `kept` by its standing
