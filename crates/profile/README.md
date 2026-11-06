@@ -463,7 +463,7 @@ largest_tangent_radius }`.
 Two refusals stay outside the envelope because they are not about a
 corner. `NoCornerForFillet { reason, radius }` carries the pair-level
 conditions that name no corner (`PathNoCornerReason`:
-`CarriersParallel` and `CarriersDoNotMeet`, read on the carriers' own
+`CarriersTangent` and `CarriersDoNotMeet`, read on the carriers' own
 metre margins, and `TurnWithinTolerance`, the corner's turn levered by
 the shorter leg's arm or the anchors' separation, carrying both
 factors and ending in its turn gate's recourse). `FilletOffsetLeverTooShort`

@@ -60,6 +60,20 @@ fn builds_and_validates(lp: Built, what: &str) {
         .unwrap_or_else(|e| panic!("{what}: must validate, got {e:?}"));
 }
 
+/// The number the sentence renders right after `label`, parsed back.
+fn rendered_after(shown: &str, label: &str) -> f64 {
+    let rest = &shown[shown
+        .find(label)
+        .unwrap_or_else(|| panic!("no {label:?} in: {shown}"))
+        + label.len()..];
+    let end = rest
+        .find(|ch: char| !(ch.is_ascii_digit() || matches!(ch, '.' | '-' | 'e' | '+')))
+        .unwrap_or(rest.len());
+    rest[..end]
+        .parse()
+        .unwrap_or_else(|_| panic!("{label:?} renders no number in: {shown}"))
+}
+
 // ------------------------------------------------------------ fixtures
 
 /// **line × circle**, radius-3 carrier: the offset line `y = r` and the
@@ -274,8 +288,11 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
     // At y = 2 − δ on the radius-2 circle the tangent leans off the
     // reversed ray by sin θ = √(4δ − δ²) / 2.
     let sin_theta = (4.0e-4_f64 - 1.0e-8).sqrt() / 2.0;
+    // The incoming leg runs +x and the outgoing tangent heads −x leaning
+    // to −y: a clockwise turn, so the sine is negative — it is the turn
+    // SIDE, not only its size.
     assert!(
-        (sin_turn.abs() - sin_theta).abs() < 1e-9,
+        (sin_turn + sin_theta).abs() < 1e-9,
         "the payload's sine is the corner's, not the margin: {sin_turn:e}"
     );
     assert!(align < -0.99, "the legs double back: align {align}");
@@ -284,6 +301,17 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
         "the lever is the 50ε leg: {lever:e}"
     );
     let shown = zero.to_string();
+    for (label, want) in [
+        ("sin φ = ", sin_turn),
+        ("(cos φ = ", align),
+        (" of ", lever),
+    ] {
+        let got = rendered_after(&shown, label);
+        assert!(
+            (got - want).abs() <= 1e-8 * want.abs(),
+            "{label:?} renders {got:e}, the payload holds {want:e}: {shown}"
+        );
+    }
     assert!(
         shown.contains(FILLET_TURN_INBAND_RECOURSE),
         "the definite arm ends in its in-band sibling's recourse: {shown}"

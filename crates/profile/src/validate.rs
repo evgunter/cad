@@ -480,9 +480,9 @@ impl fmt::Display for NoCornerReason {
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the legs run smoothly into each other, construct the tangency (.tangent()); \
-     if they double back, the cusp is refused; if the angle is real, give the shorter \
-     leg a longer extent; otherwise move the geometry";
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the angle is real, give the shorter leg a longer extent; if the legs \
+     continue smoothly, construct the tangency (.tangent()); if they exactly double back, the \
+     cusp is refused; otherwise move the geometry";
 
 /// The recourse for a corner that admits no tangent circle of the
 /// requested radius — one sentence for the definite refusal and for the

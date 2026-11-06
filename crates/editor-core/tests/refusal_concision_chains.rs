@@ -4111,7 +4111,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         (
             "NoCornerForFillet",
             P::NoCornerForFillet {
-                reason: PathNoCornerReason::CarriersParallel,
+                reason: PathNoCornerReason::CarriersTangent,
                 radius: 0.1,
             },
         ),

@@ -557,7 +557,7 @@ impl sealed::Sealed for ArrivesTangent {}
 // ------------------------------------------------------------------
 
 /// Why a fillet's virtual corner does not exist (PATHS-DESIGN §2's
-/// DOF check: parallel/non-intersecting carriers, a turn the tolerance
+/// DOF check: tangent/non-intersecting carriers, a turn the tolerance
 /// cannot state, or an intersection behind the ray start, refuse
 /// typed). Named `Path…` to keep it distinct from the crate-root
 /// [`crate::NoCornerReason`] (the verify layer's fillet-constructor
@@ -568,11 +568,11 @@ pub enum PathNoCornerReason<T: Real> {
     /// to its circle, or two circles tangent to each other — read on an
     /// unlevered metre margin. There is no corner to cut; PATHS routes
     /// the declaration through `.tangent()`/the seam fillet instead.
-    CarriersParallel,
+    CarriersTangent,
     /// **G2**: the two carriers do not meet at all — a ray that misses
     /// its circle, or circles that are disjoint, concentric, or one
     /// inside the other. Distinct from
-    /// [`CarriersParallel`](Self::CarriersParallel), which is the
+    /// [`CarriersTangent`](Self::CarriersTangent), which is the
     /// tangency knife edge: there they touch, and there is still no
     /// corner to cut.
     CarriersDoNotMeet,
@@ -607,10 +607,14 @@ pub enum TurnLever {
 }
 
 /// The recourse for a straight pair's corner turn that is zero at
-/// tolerance: the lever there is the anchors' separation, not a leg.
-pub const FILLET_ANCHOR_TURN_RECOURSE: &str = "if the rays run smoothly into each other, construct \
-     the tangency (.tangent()); if they double back, the cusp is refused; if the angle is real, \
-     move the arrival anchor farther from the ray's start";
+/// tolerance. The lever is the anchors' separation, and at a real angle
+/// it is short only when the corner sits close to BOTH anchors: the
+/// corner has to lie definitely ahead of the ray's start and behind the
+/// arrival anchor, so moving one anchor alone leaves the other window
+/// refusing.
+pub(crate) const FILLET_ANCHOR_TURN_RECOURSE: &str = "if the angle is real, move both anchors away \
+     from the corner; if the rays continue smoothly, construct the tangency (.tangent()); if \
+     they exactly double back, the cusp is refused; otherwise move the geometry";
 
 /// Which of the two anchor windows a derived corner falls outside.
 ///
@@ -1819,7 +1823,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::NoCornerForFillet { reason, radius } => {
                 let what = match reason {
-                    PathNoCornerReason::CarriersParallel => String::from(
+                    PathNoCornerReason::CarriersTangent => String::from(
                         "the two carriers touch tangentially at tolerance — no corner exists (if \
                          they are meant to run tangentially, author the tangency: .tangent(), or \
                          the seam fillet at the seam)",

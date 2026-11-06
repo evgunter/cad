@@ -487,9 +487,9 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
         reason:
             profile::path::PathNoCornerReason::TurnWithinTolerance {
                 sin_turn,
+                align,
                 lever,
                 lever_of,
-                ..
             },
         ..
     } = err
@@ -497,16 +497,49 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
         panic!("expected TurnWithinTolerance, got {err:?}")
     };
     assert_eq!(lever_of, profile::path::TurnLever::AnchorSeparation);
+    // A counter-clockwise turn: the sine is positive, the turn side.
     assert!((sin_turn - phi.sin()).abs() < 1e-12, "sin φ {sin_turn}");
+    assert!((align - phi.cos()).abs() < 1e-12, "cos φ {align}");
     assert!(
         (lever - (anchor - Point2::new(0.0, 0.0)).norm()).abs() < 1e-24,
         "lever {lever:e}"
     );
     let shown = err.to_string();
     assert!(
-        shown.contains(profile::path::FILLET_ANCHOR_TURN_RECOURSE),
-        "the straight pair's recourse moves the anchor: {shown}"
+        shown.contains("if the angle is real, move both anchors away from the corner"),
+        "the straight pair's recourse names the corner's distance from both anchors: {shown}"
     );
+    for (label, want) in [
+        ("sin φ = ", sin_turn),
+        ("(cos φ = ", align),
+        (" of ", lever),
+    ] {
+        let got = rendered_after(&shown, label);
+        assert!(
+            (got - want).abs() <= 1e-8 * want.abs(),
+            "{label:?} renders {got:e}, the payload holds {want:e}: {shown}"
+        );
+    }
+    // The recourse followed: the same carriers, with both anchors — the
+    // ray's start and the arrival anchor — a metre from the corner, build.
+    let far = Point2::new(c + phi.cos(), phi.sin());
+    let closed = Open
+        .at(Point2::new(c - 1.0, 0.0))
+        .toward(1.0, 0.0, tol)
+        .expect("the incoming ray runs +x")
+        .fillet(0.05, tol)
+        .expect("positive radius")
+        .toward(phi.cos(), phi.sin(), tol)
+        .expect("the arrival side leans 64°")
+        .to(far, tol)
+        .expect("the corner now lies a metre from both anchors")
+        .line_to(Point2::new(c - 1.0, far.y), tol)
+        .expect("across the top")
+        .line_to(Start, tol)
+        .expect("the loop closes");
+    profile::Profile::new(SketchPlane::xy(), vec![closed.loop_.into_loop()])
+        .validate(tol)
+        .expect("the followed recourse validates");
     assert!(
         shown.contains("over the anchors' separation of") && shown.contains("cos φ = "),
         "the sentence names both factors: {shown}"
@@ -668,4 +701,18 @@ fn an_arc_extension_leaves_no_joint_to_decide() {
         "every tangent joint of the boss chain is constructed: {:?}",
         decided(&vp)
     );
+}
+
+/// The number the sentence renders right after `label`, parsed back.
+fn rendered_after(shown: &str, label: &str) -> f64 {
+    let rest = &shown[shown
+        .find(label)
+        .unwrap_or_else(|| panic!("no {label:?} in: {shown}"))
+        + label.len()..];
+    let end = rest
+        .find(|ch: char| !(ch.is_ascii_digit() || matches!(ch, '.' | '-' | 'e' | '+')))
+        .unwrap_or(rest.len());
+    rest[..end]
+        .parse()
+        .unwrap_or_else(|_| panic!("{label:?} renders no number in: {shown}"))
 }

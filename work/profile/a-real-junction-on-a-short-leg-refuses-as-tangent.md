@@ -4,13 +4,13 @@ kind: issue
 title: JunctionTangent and SeamTangent name tangency at a real angle on a short leg: their levered turn margin cannot tell a short arm from a small turn
 status: open
 opened: 2026-11-06
-priority: P2
+priority: P1
 cost: M
 ---
 
 ## Finding
 
-`seg::junction_turn` (`crates/profile/src/seg.rs`, `path_junction_turn`)
+`seg::junction_turn` (`crates/profile/src/seg.rs:1230`, `path_junction_turn`)
 classifies `Margin::levered(sin φ, arm)`, with arm being the shorter leg's arm. That is
 the same product the fillet turn gate had
 (`work/round/the-levered-turn-margin-conflates-a-short-arm-with-a-small-turn.md`,
@@ -36,12 +36,12 @@ leg of `k·ε`:
 
 Both definite arms carry the margin (and `JunctionTangent` the arm),
 so the payload already holds both factors. The class name and the sentence
-are what assert the tangency. The recourse, `JUNCTION_TANGENT_LEVER`
-in `crates/profile/src/validate.rs`, is shared with the in-band ending of
+are what assert the tangency (`PathError::JunctionTangent`'s Display, `crates/profile/src/path.rs:1769`; `SeamTangent`'s producer, `crates/profile/src/path.rs:3621`). The recourse, `JUNCTION_TANGENT_LEVER`
+in `crates/profile/src/validate.rs:217`, is shared with the in-band ending of
 `path_junction_turn` (D4 ¶1 (iv)), so a repair changes both arms
 together. The kind name `junction_tangent` is also a Python tag
-(`crates/pncad-py/src/tags.rs` `path_error_tag`;
-`crates/pncad-py/tests/test_paths.py::test_the_junction_checks`).
+(`crates/pncad-py/src/tags.rs:179` `path_error_tag`;
+`crates/pncad-py/tests/test_paths.py:320` `test_the_junction_checks`).
 
 ## Shape question
 
@@ -53,3 +53,10 @@ the shared recourse constant, so it is a decision for the owner. The neighbourin
 covers the zero-length case, which is a different defect: there the stand-in ray is the problem.
 The driving probe is in the ROUND PR that filed this row (the
 sibling sweep of `round/turn-gate-names-its-factors`).
+
+## Re-banded P2 → P1 (2026-11-06, ROUND orchestrator)
+
+PR 6544's review drove `JunctionTangent` to refuse "tangent at any
+precision" at a 64° junction on legs of 1.05ε and 1.1ε. So legs of at least ε
+reach it without any leg-length gate answering first. That is the property that
+made the fillet turn-gate row P0.
