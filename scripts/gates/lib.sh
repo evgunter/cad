@@ -140,7 +140,10 @@ gate_require_file() {
 # holds it, written to `$GATE_BASE_FILE`: what a pin that only falls is
 # compared against. `GATE_BASE` names the base, a commit or tree in the root's
 # repository; ci.yml's `lint` job sets it to the change filter's base and
-# fetches that commit, since its own checkout is one commit deep. Unset,
+# fetches that commit, since its own checkout is one commit deep. Run
+# locally with `GATE_BASE=$(git merge-base HEAD origin/main)`, not
+# `origin/main`: once main lowers a pin past the branch's, a tip of main
+# reads as a rise the branch never made. Unset,
 # this returns 1 and the caller says in its green line that it compared
 # nothing. Set but unreadable is not a pass.
 gate_base_file() {
