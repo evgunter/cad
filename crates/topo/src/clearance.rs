@@ -3811,8 +3811,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
             pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
-            let ends = [e.he_plus, e.he_minus]
-                .map(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start);
+            let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
                 .map(|he| {

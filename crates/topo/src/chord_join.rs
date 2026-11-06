@@ -2572,9 +2572,8 @@ pub(crate) fn cone_apex_plane_section<T: Decide>(
     at: VertexKey,
 ) -> Result<geom_brep::PlaneConeSection<T>, SplitJoinError> {
     let wall = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .cloned()
+        .face(face)
+        .map(|f| f.surface().clone())
         .ok_or_else(|| corrupt_face(face))?;
     let SectionReach::Cone(reach) = section_reach(body, at, face, (&wall, None), band)? else {
         return Err(SplitJoinError::SectionInvariant {

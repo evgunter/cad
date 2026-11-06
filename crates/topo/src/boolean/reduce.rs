@@ -6817,10 +6817,9 @@ mod declaration_order_rows {
         };
         let (edge_key, edge) = x
             .edges()
-            .find(|(_, e)| {
-                let ends = [e.he_plus, e.he_minus]
-                    .map(|he| x.get_half_edge(he).expect("a live half-edge").start);
-                ends == [u, v] || ends == [v, u]
+            .find(|&(k, _)| {
+                let ends = crate::query::edge_ends(&x, k);
+                ends == (u, v) || ends == (v, u)
             })
             .map(|(k, e)| (k, e.clone()))
             .expect("the bottom edge");

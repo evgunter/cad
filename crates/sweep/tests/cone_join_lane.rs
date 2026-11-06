@@ -498,10 +498,10 @@ fn lune_loops(
                     all_lune = false;
                     break;
                 }
-                let start = |h: topo::HalfEdgeKey| points[&body.get_half_edge(h).unwrap().start];
+                let (a, b) = body.edge_vertices(half.edge).unwrap();
                 let (t0, t1) = (
-                    ellipse_param(carrier, start(edge.he_plus)),
-                    ellipse_param(carrier, start(edge.he_minus)),
+                    ellipse_param(carrier, points[&a]),
+                    ellipse_param(carrier, points[&b]),
                 );
                 let sweep = (t1 - t0).rem_euclid(std::f64::consts::TAU);
                 polygon.push(points[&half.start]);
