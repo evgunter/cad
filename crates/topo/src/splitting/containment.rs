@@ -2239,10 +2239,22 @@ mod tests {
             Ok(Ok(_)) => panic!("the point is on the second edge, not off the loop"),
             Err(e) => panic!("the second edge answers past the first in band, not {e:?}"),
         }
-        assert!(
-            square().place_off(p(0.5, 5e-9), WALK_ROWS, band).is_err(),
-            "with no edge placing it, the edge in band refuses"
-        );
+        match square().place_off(p(0.5, 5e-9), WALK_ROWS, band) {
+            Err(e) => assert!(
+                !e.diag.margin.is_invalid(),
+                "with no edge placing it, the edge in band refuses"
+            ),
+            Ok(_) => panic!("the first edge reads the point in band"),
+        }
+        let mut poisoned = square();
+        poisoned.verts[2] = p(1.0, f64::NAN);
+        match poisoned.place_off(p(0.5, 5e-9), WALK_ROWS, band) {
+            Err(e) => assert!(
+                e.diag.margin.is_invalid(),
+                "a poisoned edge is a limit, ranked ahead of the earlier edge in band"
+            ),
+            Ok(_) => panic!("no edge places the point"),
+        }
     }
 
     /// [`ConicArc::of`] over a fixture span, its extent decided forward
