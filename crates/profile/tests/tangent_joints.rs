@@ -508,7 +508,7 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
         "the straight pair's recourse moves the anchor: {shown}"
     );
     assert!(
-        shown.contains("over the anchors' separation of") && shown.contains("φ = 64"),
+        shown.contains("over the anchors' separation of") && shown.contains("cos φ = "),
         "the sentence names both factors: {shown}"
     );
     assert!(!shown.contains("parallel"), "no carrier tangency: {shown}");

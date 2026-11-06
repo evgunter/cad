@@ -1843,12 +1843,11 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                                 ("the anchors' separation", FILLET_ANCHOR_TURN_RECOURSE)
                             }
                         };
-                        let degrees = sin_turn.atan2(*align) * T::from_f64(180.0) / T::pi();
                         format!(
-                            "its turn, sin φ = {sin} (φ = {degrees}°) over {lever_name} of \
+                            "its turn, sin φ = {sin} (cos φ = {cos}) over {lever_name} of \
                              {lever} m, is zero at tolerance. Recourse: {recourse}",
                             sin = num(sin_turn),
-                            degrees = num(&degrees),
+                            cos = num(align),
                             lever = num(lever),
                         )
                     }
