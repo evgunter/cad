@@ -12,7 +12,7 @@
 //! - `a_construction_stage_refusal_about_the_bracketed_corner_is_not_hidden_behind_a_window_entry`
 //!   — C1 across the two stages: the bracketed corner reaches the
 //!   construction and refuses there with a PAIR-level reason
-//!   (`TurnInBand` → `CarriersParallel`, a collapsed turn lever),
+//!   (`TurnInBand` → `TurnWithinTolerance`, a collapsed turn lever),
 //!   the other corner is window-discarded. The row asserts that the
 //!   refusal is either about the pair or names the bracketed corner.
 //!   It is RED on the frozen head: the envelope names only the
@@ -28,7 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
-use profile::path::{CornerReason, CornerWindow, PathNoCornerReason};
+use profile::path::{CornerReason, CornerWindow, PathNoCornerReason, TurnLever};
 use profile::{ArcSweep, Center, Open, PathError, ProfileLoop, Start};
 
 use crate::common;
@@ -254,7 +254,7 @@ fn grid_a_every_two_entry_envelope_is_ordered_by_the_anchors() {
 /// construction's `fillet_corner_turn` margin `t * sin(phi)` classifies
 /// Zero while every window and meet gate is definite — the construction
 /// refuses `TurnInBand`, which `map_refusal` maps to the PAIR-level
-/// `NoCornerForFillet { CarriersParallel }`.
+/// `NoCornerForFillet { TurnWithinTolerance }`.
 ///
 /// The merge base reported that construction refusal (its build channel
 /// outranked its gate channel whatever the refusal's shape). The head
@@ -304,7 +304,11 @@ fn a_construction_stage_refusal_about_the_bracketed_corner_is_not_hidden_behind_
     match &err {
         // The pair-level answer the merge base gave.
         PathError::NoCornerForFillet {
-            reason: PathNoCornerReason::CarriersParallel,
+            reason:
+                PathNoCornerReason::TurnWithinTolerance {
+                    lever_of: TurnLever::ShorterLeg,
+                    ..
+                },
             ..
         } => {}
         PathError::NoCornerOfPair { corners, .. } => {
