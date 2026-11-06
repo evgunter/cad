@@ -2,11 +2,12 @@
 id: touch-unread-has-no-standing-and-two-loops-rank-it-by-hand
 kind: issue
 title: TouchUnread states no standing, so census's germ gather and link::judge each rank its refusals by hand
-status: dispatched
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: M
-branch: onecopy/refusal-standing
+closed: 2026-11-06
+pr: 6553
 ---
 
 

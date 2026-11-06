@@ -104,9 +104,9 @@ use pncad::document::{
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
     FreeVar, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
     Orientation, PartResolver, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, Severity,
-    SitedFace, Subject, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply,
-    content_pin, evaluate, flatten, inline, load, mixed_pins, parse_formula, product_named,
-    product_recorded, run_checks, run_checks_on, save, solve_document, split, stand,
+    SitedFace, Subject, TargetAxis, UNPINNED_RECOURSE, VarId, VarName, apply, content_pin,
+    evaluate, flatten, inline, load, mixed_pins, parse_formula, product_named, product_recorded,
+    run_checks, run_checks_on, save, solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -596,9 +596,13 @@ fn bundle(doc: &ProfileDoc, placement: RecipeNodeId) -> Vec<Constraint> {
 
 /// The one body an instance defines: a copy of its part's product.
 fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str, tol: Tol) -> Body<f64> {
-    match &ev.value(instance).expect("the instance evaluates").payload {
-        ValuePayload::Body(body) => crate::world::in_its_space(body, tol),
-        other => panic!("{what} is a {}, not an instance's copy", other.kind_name()),
+    let payload = &ev.value(instance).expect("the instance evaluates").payload;
+    match payload.one_body() {
+        Some(Some(body)) => crate::world::in_its_space(body, tol),
+        _ => panic!(
+            "{what} is a {}, not an instance's copy",
+            payload.kind_name()
+        ),
     }
 }
 
@@ -1428,9 +1432,13 @@ fn shelf_stays_on_the_pivot(ev: &Evaluation<f64>, stand: &Stand, degrees: f64, t
 /// A part document's product body: its one placement's value.
 fn part_product_body(ev: &Evaluation<f64>, part: &ProfileDoc, tol: Tol) -> Body<f64> {
     let (placement, _) = placed_body(part);
-    match &ev.value(placement).expect("the part evaluates").payload {
-        ValuePayload::Body(body) => crate::world::in_its_space(body, tol),
-        other => panic!("a part's placement is a {}, not a body", other.kind_name()),
+    let payload = &ev.value(placement).expect("the part evaluates").payload;
+    match payload.one_body() {
+        Some(Some(body)) => crate::world::in_its_space(body, tol),
+        _ => panic!(
+            "a part's placement is a {}, not a body",
+            payload.kind_name()
+        ),
     }
 }
 

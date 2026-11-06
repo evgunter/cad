@@ -362,8 +362,8 @@ pub(crate) fn body_of<T: geom_core::Decide + topo::AtRestPolicy>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Arc<Body<T>> {
-    let one = |bodies: &[editor_core::Framed<T>]| {
-        let [b] = bodies else {
+    let one = |bodies: &[Option<editor_core::Framed<T>>]| {
+        let [Some(b)] = bodies else {
             panic!("{id:?} holds {} bodies, not one", bodies.len());
         };
         Arc::new(crate::fixture::in_space(b))

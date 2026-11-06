@@ -1166,10 +1166,8 @@ impl Value {
     fn recorded_body(&self, py: Python<'_>, body: &d::Framed<f64>) -> PyResult<Body> {
         let body = pncad::export::body_in_space(body, Tol::witness())
             .map_err(|err| compose_err(py, self.node, &err))?;
-        Ok(match &self.payload {
-            d::ValuePayload::Body(_) | d::ValuePayload::Boolean(d::BooleanValue::Body { .. }) => {
-                Body::recorded(body, Arc::clone(&self.contacts))
-            }
+        Ok(match self.payload.one_body() {
+            Some(Some(_)) => Body::recorded(body, Arc::clone(&self.contacts)),
             _ => Body::plain(body),
         })
     }
@@ -1200,39 +1198,37 @@ impl Value {
     /// among them) and a non-empty `Boolean`; raises for every other
     /// kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
-        match &self.payload {
-            d::ValuePayload::Body(body) => self.recorded_body(py, body),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => {
-                self.recorded_body(py, body)
-            }
-            d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
+        match self.payload.one_body() {
+            Some(Some(body)) => self.recorded_body(py, body),
+            Some(None) => Err(eval_err(
                 py,
                 "the Boolean produced an empty result",
                 EvalReason::EmptyBoolean,
                 self.node,
             )),
-            other => Err(eval_err(
+            None => Err(eval_err(
                 py,
-                format!("a `{}` value is not a body", other.kind_name()),
+                format!("a `{}` value is not a body", self.payload.kind_name()),
                 EvalReason::WrongKind,
                 self.node,
             )),
         }
     }
 
-    /// Every body this value denotes: one for `Body`/`Boolean`, the
-    /// whole list for `Instances`, both sides for a
-    /// `Split`.
+    /// Every body this value denotes: one for `Body`/`Boolean`, each
+    /// member's for `Instances`, each side's for a `Split`. An empty
+    /// boolean, an empty member and an empty side denote none.
     fn bodies(&self, py: Python<'_>) -> PyResult<Vec<Body>> {
         let wrap = |body: &d::Framed<f64>| self.recorded_body(py, body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
         };
+        if let Some(body) = self.payload.one_body() {
+            return body.map(wrap).into_iter().collect();
+        }
         match &self.payload {
-            d::ValuePayload::Body(body) => Ok(vec![wrap(body)?]),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => Ok(vec![wrap(body)?]),
-            d::ValuePayload::Instances(bodies) => bodies.iter().map(wrap).collect(),
+            d::ValuePayload::Instances(bodies) => bodies.iter().flatten().map(wrap).collect(),
             d::ValuePayload::Split { above, below } => {
                 [side(above), side(below)].into_iter().flatten().collect()
             }

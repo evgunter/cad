@@ -1349,6 +1349,11 @@ impl<T: Decide> CarrierLoop<T> {
     /// edge in turn, under `rows`, to the first that places it on the
     /// edge or at an end.
     ///
+    /// Which edge holds `q` is the answer (its key is what the face door
+    /// reports, `FaceContainment::OnEdge`), so an edge read in band may be
+    /// the true holder and no later edge answers past it: the first
+    /// escalation refuses.
+    ///
     /// # Errors
     ///
     /// The first edge's escalation.
@@ -2198,6 +2203,31 @@ fn conic_crossings<T: Decide>(
 mod tests {
     use super::*;
     use geom_brep::recourse::Reading;
+
+    /// **An edge read in band refuses ahead of a later edge that places
+    /// the point** ([`CarrierLoop::place_off`]): which edge holds the
+    /// point is the face door's answer, and the edge in band may be it. A
+    /// point at the band's distance past a square's corner along its
+    /// second edge lies in band of the first edge and on the second.
+    #[test]
+    fn an_edge_in_band_refuses_ahead_of_a_later_edge_that_places_the_point() {
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let square = || CarrierLoop {
+            verts: vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)],
+            keys: vec![EdgeKey::default(); 4],
+            edges: (0..4).map(|_| LoopEdge::Chord).collect(),
+            covers: Vec::new(),
+        };
+        assert!(
+            square().place_off(p(1.0, 5e-9), WALK_ROWS, band).is_err(),
+            "the first edge in band refuses: it may be the edge that holds the point"
+        );
+        match square().place_off(p(1.0, 0.5), WALK_ROWS, band) {
+            Ok(Err(OnLoop { edge, .. })) => assert_eq!(edge, 1, "the second edge holds the point"),
+            _ => panic!("a point on the second edge, clear of the first, is on it"),
+        }
+    }
 
     /// [`ConicArc::of`] over a fixture span, its extent decided forward
     /// as certification decides it.
