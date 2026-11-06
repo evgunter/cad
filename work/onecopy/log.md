@@ -355,3 +355,5 @@
   - Four flagged decisions: miss-first, the skip of an Undecided end past the leg's end, `End::open`, and visibility.
   FULL review sent to a new reviewer, `session_013mPGJ4JScywfx3zssA8yRc`, with an independent oracle for each door's counts and sides.
   The lane found an unfiled main red at 1e-12 (`parallel_cylinder_join::seams_lying_on_the_walls…`). Filed as P1 `main-red-seams-lying-on-the-walls-read-the-axes-at-1e-12` and given to the same lane as a separate PR.
+
+- 2026-11-06 — PR 6539 delta review: MERGE. The table is spelled once (`Refusal::kept`), and no ranking moved. The gate is running on `e0f5b8e3`.
