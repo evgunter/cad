@@ -146,7 +146,9 @@
 // Double-double residuals for the test oracles.
 #[cfg(test)]
 mod dd;
+mod fillet_recourse;
 mod fillet_select;
+mod gate;
 pub mod lift;
 pub mod path;
 mod seg;
@@ -165,6 +167,17 @@ mod validate;
 use geom_core::spline::SpanLocate;
 use geom_core::{Affine3, Arc2, Point2, Point3, Real, RigidMotion, Tol, UnitVec3};
 
+/// The fillet gates' levers, under `test-support` only: prose a caller
+/// reads, so a suite that pins what a caller reads names them rather
+/// than restating the strings.
+#[cfg(any(test, feature = "test-support"))]
+pub use fillet_recourse::{
+    CORNER_ANCHOR_SEPARATION_LEVER, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
+    FILLET_FLATTENED_RECOURSE, FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE,
+    FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
+};
+pub use gate::{Ending, Gate, decision_subject};
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
     ArcData, ArcMode, ClosedLoop, ConstructedLoop, Pen, ReplayError, ReplayErrorKind, SpecForms,
@@ -177,6 +190,7 @@ pub use path::{
     PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via,
     circle, circle_split, rectangle,
 };
+pub use seg::ArcRead;
 /// The path door's read-back rounding bounds and its magnitude
 /// headroom (`seg::read_back_arc`), for the suites that hold a scene's
 /// answer against them rather than restating them.
@@ -189,37 +203,13 @@ pub use structure::{
     StructureRefusalKind, carrier_pieces,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
-/// The fillet recourse sentences and the map that selects one, under
-/// `test-support` only.
-///
-/// They are prose a caller reads, so a suite that pins what a caller
-/// reads has to spell them — and spelling them by restating the string
-/// makes the assertion agree with itself instead of with the code.
-/// This export is what lets `tests/fillet_recourse_followability.rs`
-/// name them; it is off in every build that is not this crate's own
-/// tests, so these are not part of the production surface, and
-/// pncad's facade completeness guard does not see them.
-///
-/// [`validate::fillet_recourse_for`] rides the same export for the same
-/// reason: the census row asserts that every `fillet_*` predicate name
-/// the construction sugar decides has a sentence, and a census that
-/// restated the mapping would be checking its own copy. So do
-/// [`validate::DECISION_ENDINGS`] and [`validate::decision_ending`]: the
-/// roster row holds that table against the names the crate's `src`
-/// decides, both ways, and a restated copy would hold against itself.
 #[cfg(any(test, feature = "test-support"))]
-pub use validate::{
-    ARC_SCENE_RESOLUTION_RECOURSE, DECISION_ENDINGS, DecisionEnding, FILLET_ENCLOSING_RECOURSE,
-    FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE, FILLET_LEG_EXTENT_RECOURSE,
-    FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
-    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE, UNNAMED_DECISION,
-    decision_ending, fillet_recourse_for,
-};
+pub use validate::ARC_SCENE_RESOLUTION_RECOURSE;
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, DecidedJoint, EscalationSite, FilletLeg,
     FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, PINNED_UNDER_GUIDANCE, ProfileError,
     SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment, ValueNotAPoint,
-    decision_subject, is_full_turn,
+    is_full_turn,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed

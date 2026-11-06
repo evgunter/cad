@@ -43,6 +43,8 @@
 
 use geom_core::{Indeterminate, Real, Sign};
 
+use crate::gate::{Escalation, Gate};
+
 use crate::validate::LoopRole;
 
 /// What the corner gates made of one derived corner.
@@ -818,11 +820,16 @@ pub enum DecisionValue {
 /// Why a guided pass could not reproduce the recorded structure.
 #[derive(Clone, Debug, PartialEq)]
 pub enum StructureRefusalKind {
-    /// The lane cannot classify the decision's own predicate at all.
-    /// The parameter box is too wide to answer the question — the
-    /// driver's cue to bisect it, and never grounds to assume the
-    /// nominal answer.
-    Indeterminate(Indeterminate),
+    /// The lane cannot classify the decision's own gate at all. The
+    /// parameter box is too wide to answer the question — the driver's
+    /// cue to bisect it, and never grounds to assume the nominal
+    /// answer.
+    Indeterminate {
+        /// The gate that escalated.
+        gate: Gate,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
     /// The lane classifies the decision DEFINITELY otherwise: this
     /// binding provably leaves the nominal elaboration's structure.
     Flipped {
@@ -843,12 +850,19 @@ pub struct StructureRefusal {
 }
 
 impl StructureRefusal {
-    /// The indeterminate arm.
-    pub(crate) fn indeterminate(decision: Decision, source: Indeterminate) -> Self {
+    /// The indeterminate arm, for an escalation already carried as a
+    /// public error's fields.
+    pub(crate) fn indeterminate(decision: Decision, gate: Gate, source: Indeterminate) -> Self {
         Self {
             decision,
-            kind: StructureRefusalKind::Indeterminate(source),
+            kind: StructureRefusalKind::Indeterminate { gate, source },
         }
+    }
+
+    /// The indeterminate arm, for an escalation in hand.
+    pub(crate) fn escalated(decision: Decision, e: Escalation) -> Self {
+        let (gate, source) = e.parts();
+        Self::indeterminate(decision, gate, source)
     }
 
     /// The definite-disagreement arm.
@@ -974,13 +988,21 @@ const NARROW_THE_BOX: &str = "narrow the parameter box";
 impl core::fmt::Display for StructureRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.kind {
-            StructureRefusalKind::Indeterminate(source) => {
-                let levers = format!("{NARROW_THE_BOX} and try again, or move the geometry");
+            // The box is the lane's first lever; the gate's own lever
+            // follows it, whatever site raised it. No tolerance arm: a
+            // guided pass replays the run's ε, and an enclosure the box
+            // leaves undecided names no tolerance that decides it.
+            StructureRefusalKind::Indeterminate { gate, source } => {
+                let levers = format!(
+                    "{NARROW_THE_BOX} and try again, or {}",
+                    gate.ending().lever()
+                );
                 write!(
                     f,
-                    "{} cannot be re-verified at this scalar: {}",
+                    "{} cannot be re-verified at this scalar: {}. {}",
                     self.decision,
-                    source.under(&levers)
+                    source.payload(),
+                    source.lever_ending(&levers)
                 )
             }
             StructureRefusalKind::Flipped { recorded, found } => write!(

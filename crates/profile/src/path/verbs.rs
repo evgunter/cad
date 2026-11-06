@@ -66,7 +66,7 @@
 //! is documented at each impl; the wire records the one unified
 //! [`ArcData`](super::program::ArcData) enum.
 
-use geom_core::k_stats::decide;
+use crate::gate::{Gate, decide};
 use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
 use geom_core::{Band, Decide, InfSpeed, Margin, Point2, Real, Sign, Tol, Vec2};
 
@@ -326,15 +326,15 @@ pub struct ArcLen<T> {
 
 /// Gates a kernel length/radius definitely positive through the funnel.
 pub(crate) fn gate_positive<T: Decide>(
-    name: &'static str,
+    gate: Gate,
     value: T,
     band: Band,
     err: impl FnOnce(T) -> PathError<T>,
 ) -> Result<(), PathError<T>> {
-    match decide(name, Margin::of(value), band) {
+    match decide(gate, Margin::of(value), band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(_) => Err(err(value)),
-        Err(source) => Err(PathError::Escalated { source }),
+        Err(source) => Err(PathError::escalated(source)),
     }
 }
 
@@ -348,7 +348,7 @@ pub(crate) fn radius_carrier<T: Decide>(
     spec: Radius<T>,
     band: Band,
 ) -> Result<(Point2<T>, ArcSweep), PathError<T>> {
-    gate_positive("path_arc_center_radius", spec.r, band, |radius| {
+    gate_positive(Gate::PathArcCenterRadius, spec.r, band, |radius| {
         PathError::DegenerateArcCenter { radius }
     })?;
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
@@ -370,18 +370,18 @@ pub(crate) fn via_carrier<T: Decide>(
 ) -> Result<(Point2<T>, ArcSweep), PathError<T>> {
     let d = q - dp.at;
     let chord = d.norm_squared().sqrt();
-    gate_positive("path_arc_chord", chord, band, |c| {
+    gate_positive(Gate::PathArcChord, chord, band, |c| {
         PathError::DegenerateArcChord { chord: c }
     })?;
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
     let across = d.dot(n);
     // The signed offset of q from the tangent LINE, meters — zero means
     // no tangent circle reaches q (the collinear class).
-    let winding = match decide("path_arc_via_offset", Margin::of(across), band) {
+    let winding = match decide(Gate::PathArcViaOffset, Margin::of(across), band) {
         Ok(Sign::Zero) => return Err(PathError::ArcViaCollinear { offset: across }),
         Ok(Sign::Positive) => ArcSweep::Ccw,
         Ok(Sign::Negative) => ArcSweep::Cw,
-        Err(source) => return Err(PathError::Escalated { source }),
+        Err(source) => return Err(PathError::escalated(source)),
     };
     let t = d.norm_squared() / (T::from_f64(2.0) * across);
     let centre = dp.at + n * t;
@@ -424,20 +424,24 @@ pub struct TangentArcLeg<T: Real> {
 /// start's angle at the radius) and definitely short of a full turn
 /// (`path_arc_sweep_full`, the turn rule at `r`).
 pub(crate) fn sweep_gates<T: Decide>(r: T, angle: T, band: Band) -> Result<(), PathError<T>> {
-    let sweep = Extent::forward("path_arc_sweep", T::zero(), angle, InfSpeed::new(r), band)
-        .map_err(|refused| match refused {
-            NotForward::Undecided(source) => PathError::Escalated { source },
-            NotForward::Zero(_) | NotForward::Reversed(_) => {
-                PathError::DegenerateArcSpec { value: angle }
-            }
-        })?;
-    let rows = TurnRows::exact("path_arc_sweep_full");
-    match Period::new(T::tau()).strictly_partial(rows, sweep, Exact::new(r), band) {
-        Ok(true) => Ok(()),
-        Ok(false) => Err(PathError::ArcSweepNotShortOfFullTurn { angle }),
-        Err(undecided) => Err(PathError::Escalated {
-            source: undecided.diag,
-        }),
+    let sweep = Gate::PathArcSweep
+        .read(
+            |name| match Extent::forward(name, T::zero(), angle, InfSpeed::new(r), band) {
+                Ok(sweep) => Ok(Some(sweep)),
+                Err(NotForward::Undecided(source)) => Err(source),
+                Err(NotForward::Zero(_) | NotForward::Reversed(_)) => Ok(None),
+            },
+        )?
+        .ok_or(PathError::DegenerateArcSpec { value: angle })?;
+    let short = Gate::PathArcSweepFull.read(|name| {
+        Period::new(T::tau())
+            .strictly_partial(TurnRows::exact(name), sweep, Exact::new(r), band)
+            .map_err(|undecided| undecided.diag)
+    })?;
+    if short {
+        Ok(())
+    } else {
+        Err(PathError::ArcSweepNotShortOfFullTurn { angle })
     }
 }
 
@@ -448,7 +452,7 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
     angle: T,
     band: Band,
 ) -> Result<TangentArcLeg<T>, PathError<T>> {
-    gate_positive("path_arc_center_radius", r, band, |radius| {
+    gate_positive(Gate::PathArcCenterRadius, r, band, |radius| {
         PathError::DegenerateArcCenter { radius }
     })?;
     sweep_gates(r, angle, band)?;
