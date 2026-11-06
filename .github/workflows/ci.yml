@@ -273,9 +273,15 @@ jobs:
             | tar zxf - -C "$HOME/actionlint-bin" actionlint
           "$HOME/actionlint-bin/actionlint" -shellcheck=shellcheck
           find .github -name '*.sh' -exec shellcheck {} +
+      # A pin that only falls is compared with the merge base's
+      # (`gate_base_file`), and this checkout is one commit deep, so the
+      # base is fetched here. An unscoped run has no base and says so.
       - name: gates (scripts/gates)
+        env:
+          GATE_BASE: ${{ needs.filter.outputs.base }}
         run: |
           rc=0
+          if [ -n "$GATE_BASE" ]; then git fetch -q --no-tags --depth=1 origin "$GATE_BASE"; fi
           scripts/run-gates.sh || rc=1
           python3 scripts/payload-rung-sweep.py --check || rc=1
           exit $rc
