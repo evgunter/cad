@@ -5,9 +5,9 @@
 //! margin on the body's geometry, so every such check takes "in the box"
 //! as its premise.
 //!
-//! An edge's reach is read from below, over its own sampled points
-//! ([`geom_brep::edge_reach_below`]), so a body is refused only where
-//! points of it lie past the box.
+//! An edge's reach is the edge's one reading, its cover
+//! (`Body::edge_cover`), read from below ([`geom_brep::edge_reach_bounds`]),
+//! so a body is refused only where points of it lie past the box.
 
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign};
 
@@ -16,20 +16,27 @@ use crate::validate::ValidationError;
 
 /// **How far `body` reaches from the origin, bounded from below**: each
 /// vertex's point and each certified edge's reach over its own span
-/// ([`geom_brep::edge_reach_below`]), every one a distance of a point of
-/// the body.
+/// (its cover's `edge_reach_bounds`, `below`), every one a distance of a
+/// point of the body.
 pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
     let origin = Point3::origin();
     let vertices = body
         .vertices()
         .map(|(v, data)| (body.point_of(v, data) - origin).norm());
+    // The edge's one reading (`[one-way.places]`): its cover, through
+    // the body's door (`Body::edge_cover`), and its reach from below
+    // (`geom_brep::edge_reach_bounds`), as every lever reads it. An edge
+    // with no cover reads its far distance as poison, which no sign
+    // decides, so the box does not refuse on it.
     let edges = body.edges().filter_map(|(e, data)| {
         let curve = body.edge_curve_linked(e, data).certified()?;
-        Some(geom_brep::edge_reach_below(
-            curve.carrier(),
-            curve.params(),
-            origin,
-        ))
+        let cover = body.edge_cover(e).ok();
+        let above = geom_brep::ExtentBall::of_cover_from(cover.as_ref(), origin).lever_from(origin);
+        Some(
+            geom_brep::edge_reach_bounds(curve.carrier(), curve.params(), origin, above)
+                .below()
+                .length(),
+        )
     });
     vertices.chain(edges).fold(T::zero(), T::max)
 }
