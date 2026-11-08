@@ -4,6 +4,8 @@ kind: issue
 title: A mate can move its placement into another space (the 'move the copy into the target's space' checkbox); a mate belongs to an existing placement and never changes its target
 status: open
 opened: 2026-11-01
+priority: P1
+cost: M
 ---
 
 

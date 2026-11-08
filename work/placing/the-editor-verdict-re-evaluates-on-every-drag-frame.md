@@ -4,6 +4,8 @@ kind: issue
 title: The placement editor derives its draft's bundle every frame and solves each change twice
 status: open
 opened: 2026-11-02
+priority: P3
+cost: E
 ---
 
 

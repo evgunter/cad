@@ -356,3 +356,7 @@ Newest entries at the bottom; the tail is the program's live status.
   - `MemberAtSeat` narrowing filed (P3).
   - A pin citation was repointed after main moved a row from onehome to boxfinish.
 - **6581 now waits only on Ev:** 6580 (every placement is a copy) and the alias question at its top. The dual-review row and the closing state sync ride as its last commit after the answers. (PLACING orchestrator)
+- 2026-11-08 — **Five unbanded rows given priorities.**
+  - `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space`: P1 M. It is Ev's 2026-11-01 direction, and since 6578 Place targets the body's own space, so it bites every cross-space mate. It is the next unit after 6581, because both touch `matetool.rs` and `session.rs`.
+  - The preview row: P2.
+  - The pick-starts-a-mate, per-frame and parse-wording rows: P3. (PLACING orchestrator)

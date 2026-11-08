@@ -4,6 +4,8 @@ kind: issue
 title: Opening the Edit door by a pick appends a fresh mate row, so the loaded bundle alone has no Apply until it is struck
 status: open
 opened: 2026-11-02
+priority: P3
+cost: E
 ---
 
 

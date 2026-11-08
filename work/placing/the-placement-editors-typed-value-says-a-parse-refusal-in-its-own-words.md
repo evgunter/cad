@@ -4,6 +4,8 @@ kind: issue
 title: The placement editor's typed value says a parse refusal in its own words, not the slot door's
 status: open
 opened: 2026-11-02
+priority: P3
+cost: E
 ---
 
 

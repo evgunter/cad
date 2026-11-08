@@ -4,6 +4,8 @@ kind: issue
 title: The placement editor draws no held draft; the profile editor draws its held draft in place of the committed shape
 status: open
 opened: 2026-11-02
+priority: P2
+cost: M
 ---
 
 
