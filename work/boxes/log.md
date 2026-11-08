@@ -488,3 +488,20 @@ Correspondence pre-note (to be confirmed by the blind coding at merge):
 - C7 is not a question for Ev. Both reviewers read the ratified text as already deciding it, and the level piece is its faithful elaboration.
 
 **Class finding, again.** The unit minted five spellings of one support-difference and two meet balls, despite the brief naming the trap. Q1 caught it in both reviews. The structural answer is still `cover-kind-match-gate`. A rule-of-thumb grep for "support either way" shapes belongs in that gate's design.
+
+## 2026-11-08 — `cover-topo-faces` lands (PR 6579)
+
+(BOXES orchestrator) The fix pass took every adjudicated item. `gate ok` is green at `1fd16037`.
+
+Accepted on my read. The slab and frustum removal rests on the rulings argument: the ruling through a cylinder face point leaves the face at boundary points on both sides; a cone's ruling runs through the apex, so the cone face lies in hull(boundary + apex). `face_nearest`'s plane stage is sound because the plane distance is convex.
+
+The dual row is `PR-6579.md`, with tally 0. The pair was coded blind and agrees with the pre-note.
+
+Unparked:
+- `cover-levers`, the next unit (H);
+- `cover-app-readers` (M);
+- `cover-carrier-level-piece` (M).
+
+`cover-kind-match-gate` waits on levers and app-readers.
+
+The lane survived a weekly usage-limit stop and a five-day gap: resumed, not restarted, with main merged twice. Its first merge dropped main's door bullets for three doors, which the inventory re-homing caught and restored. Class note: a large merge can silently drop the other side's prose, so read the merge's "missing from main's side" list.
