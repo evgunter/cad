@@ -600,7 +600,7 @@ pub(crate) fn read_off_cell<T: crate::mate::SolveScalar>(
     let pose = crate::eval::measure::Pose::of(&value)
         .unwrap_or_else(|| unreachable!("a cell reads a point, an axis or a plane off it"));
     let reach = names::EntityKey::face(ent.key)
-        .and_then(|face| crate::eval::measure::reach_of(body, face, pose.at()));
+        .and_then(|face| crate::eval::measure::reach_of(body, face, pose.at(), band));
     Ok(crate::eval::measure::Carrier::Pose { pose, reach })
 }
 

@@ -1843,7 +1843,8 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// could not be read along the piece says how
 /// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
 /// no region, a grazing or
-/// on-carrier piece, a sign in the band, an uncertified root count.
+/// on-carrier piece, a sign in the band, an uncertified root count; or
+/// the face has no cover to lever the piece over.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
     use pncad::topo::boolean::trace::TraceFault as C;
@@ -1866,6 +1867,7 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::Carrier(C::OnCarrier) => "on_carrier",
         F::Carrier(C::Escalated(_)) => "escalated",
         F::Carrier(C::Unsettled(_)) => "unsettled",
+        F::Uncovered(_) => "uncovered",
     }
 }
 

@@ -33,6 +33,11 @@ use geom_core::{Point3, Tol};
 /// **`doc` with `body` placed in its world**, as
 /// [`PartStore::insert_part`] places it — so [`in_part`] spells the
 /// part's caps through that placement wherever the part is stored.
+/// The witness band, which every face's cover is read under.
+fn band() -> geom_core::Band {
+    geom_core::Band::linear(Tol::witness()).expect("the witness band")
+}
+
 fn placed_part(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
     let mut scratch = PartStore::new();
     let (doc_ref, _) = scratch.insert_part((doc, body), Tol::witness());
@@ -120,7 +125,7 @@ fn body_node(part: &ProfileDoc) -> RecipeNodeId {
 /// A part's reach, read off its own body the way the fold reads a
 /// copy's.
 fn reach(part: &ProfileDoc) -> f64 {
-    editor_core::mate::part_reach(&body_of(part)).expect("the part's body is bounded")
+    editor_core::mate::part_reach(&body_of(part), band()).expect("the part's body is bounded")
 }
 
 /// `n` instances of `part` — the first pinned to the world at the
@@ -287,18 +292,18 @@ fn a2_a_cylinder_parts_reach_is_at_least_its_far_rim() {
 
 /// **A body with a face whose reach cannot be bounded refuses typed,
 /// naming the face and its kind.** No document door builds such a
-/// face — every surface kind a validated body can hold is bounded
-/// (`mate::reach`'s per-kind table) — so the arm is pinned at the
-/// unit level on a hand-built body: the Euler `mvfs` seed, whose one
-/// face stands on the all-poison NURBS placeholder, which has no
-/// finite hull to bound.
+/// face — every face a validated body can hold has a cover — so the
+/// arm is pinned at the unit level on a hand-built body: the Euler
+/// `mvfs` seed, whose one face stands on the all-poison NURBS
+/// placeholder, which has no cover.
 #[test]
 fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
     let mut body = topo::Body::<f64>::new();
     let made = body
         .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("the seed vertex-face-shell");
-    let refusal = editor_core::mate::body_reach(&body).expect_err("the placeholder has no bound");
+    let refusal =
+        editor_core::mate::body_reach(&body, band()).expect_err("the placeholder has no bound");
     assert_eq!(
         refusal,
         ReachRefusal::FaceUnbounded {
@@ -308,7 +313,7 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
     );
     // The same answer through the door the solve reads.
     assert_eq!(
-        editor_core::mate::part_reach(&body).err(),
+        editor_core::mate::part_reach(&body, band()).err(),
         Some(refusal.clone())
     );
 }
@@ -716,7 +721,7 @@ fn a5_at_interval_the_reach_brackets_the_f64_lanes() {
         Tol::witness(),
     );
     let body = editor_core::product(&part, &evi, Tol::witness()).expect("the interval product");
-    let bracket = editor_core::mate::part_reach(&body).expect("bounded");
+    let bracket = editor_core::mate::part_reach(&body, band()).expect("bounded");
     let ri = bracket.hi();
     assert!(
         ri >= r64 && ri.is_finite(),
@@ -840,7 +845,7 @@ fn a2_the_reach_bounds_the_true_maximum_over_every_fixture_part() {
     for (name, part, analytic) in cases {
         let body = body_of(&part);
         let (truth, circles) = true_reach(&body);
-        let bound = editor_core::mate::part_reach(&body).expect("bounded");
+        let bound = editor_core::mate::part_reach(&body, band()).expect("bounded");
         assert!(bound >= truth, "{name}: bound {bound} < true reach {truth}");
         assert!(
             bound >= analytic - 1e-15,

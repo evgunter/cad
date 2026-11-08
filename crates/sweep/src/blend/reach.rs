@@ -1677,261 +1677,33 @@ fn inside_bound<T: Bounds>(
     most
 }
 
-/// A face's image in the sheet, along its own trace: an axial range for
-/// a sphere, a cylinder or a cone, a radial one for a plane.
-enum Clip<T: Real> {
-    Z(T, T),
-    Rho(T, T),
-}
+/// K name: the band's axis as the aim a face's cover is read along
+/// ([`sheet_clip`]), its length decided against the band.
+pub(in crate::blend) const BLEND_SHEET_AIM: &str = "blend_sheet_aim";
 
-/// **The extent of a face's image along its trace**, read from its
-/// boundary (`None` where it cannot be): a sphere and a cone coaxial
-/// with the trace, a cylinder and a plane at any pose.
-///
-/// The image of a connected face is an arc of the trace whose ends are
-/// images of its boundary or a singular point on the axis (a pole, an
-/// apex, a plane's axis point) the face contains. Over latitude and
-/// meridian boundary edges the azimuth winding `W` counts those points;
-/// on a sphere, where `W = 0` leaves none or both poles, the sign of
-/// `∮ (z − z_c) dθ = 2πR·k − A/R` (`k` the poles inside) decides. Any
-/// other boundary leaves the box alone; a torus is not clipped.
-///
-/// A cylinder and a plane need no shared axis. Along a cylinder's
-/// ruling `z` is affine, so the ruling through any point of a face
-/// leaves it at a boundary point no lower, and one no higher: the
-/// boundary's span is the face's, at every pose of the cylinder. On a
-/// plane `ρ` is convex, so its maximum over a face is on the boundary;
-/// a plane the axis crosses has its one minimum `0` there, inside the
-/// face exactly when the boundary winds once about the axis, and on a
-/// plane parallel to the axis `ρ` is constant along the axis's
-/// direction, so the boundary holds the minimum too.
-fn sheet_clip<T: Decide + Bounds>(
+/// **The face's image in the sheet about the unit axis `a` through
+/// `o`**, read off topo's cover of the face along that axis
+/// ([`topo::face_cover_toward`]): its range along the axis, the nearest
+/// it stands from the axis line ([`topo::face_nearest`]) and the
+/// farthest. `None` where the face has no cover.
+fn sheet_clip<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    surface: &Surface<T>,
     o: Point3<T>,
     a: Vec3<T>,
     band: Band,
-) -> Option<Clip<T>> {
-    let tilt = |b: Vec3<T>| tilt(b, a);
-    let off = |p: Point3<T>| sheet_of(o, a, p).0;
-    let near = |x: T| x.hi() <= band.zero();
-    // The surface, read about the band's axis.
-    enum Kind<T: Real> {
-        Sphere { zc: T, r: T, center: Point3<T> },
-        Cylinder,
-        Cone { z_apex: T },
-        Plane,
+) -> Option<Rect<T>> {
+    let cover = match geom_core::UnitVec3::new(a, BLEND_SHEET_AIM, band) {
+        Ok(aim) => topo::face_cover_toward(body, face, band, aim),
+        Err(_) => topo::face_cover(body, face, band),
     }
-    let kind = match surface {
-        Surface::Sphere { center, radius, .. } if near(off(*center)) => Kind::Sphere {
-            zc: sheet_of(o, a, *center).1,
-            r: *radius,
-            center: *center,
-        },
-        Surface::Cylinder { .. } => Kind::Cylinder,
-        Surface::Cone { apex, axis, .. } if near(off(*apex)) && near(tilt(*axis)) => Kind::Cone {
-            z_apex: sheet_of(o, a, *apex).1,
-        },
-        Surface::Plane { .. } => Kind::Plane,
-        _ => return None,
-    };
-    let pad = T::from_f64(band.escalate());
-    let f = body.get_face(face)?;
-    let mut range: Option<[T; 4]> = None;
-    let mut grow = |b: [T; 4]| {
-        range = Some(range.map_or(b, |r: [T; 4]| {
-            [
-                r[0].min(b[0]),
-                r[1].max(b[1]),
-                r[2].min(b[2]),
-                r[3].max(b[3]),
-            ]
-        }));
-    };
-    // The azimuth the boundary turns through and `∮ (z − z_c) dθ`, each
-    // with a bound on its error (module docs of [`sheet_clip`]).
-    let mut turn = [T::zero(); 4];
-    let zc = match kind {
-        Kind::Sphere { zc, .. } => zc,
-        _ => T::zero(),
-    };
-    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let first = match body.get_loop(lp)?.boundary {
-            topo::LoopBoundary::Cycle { first } => first,
-            topo::LoopBoundary::Empty { vertex } => {
-                let (r, z) = sheet_of(o, a, super::surgery::point_of(body, vertex)?);
-                grow([r - pad, r + pad, z - pad, z + pad]);
-                continue;
-            }
-        };
-        for he in body.loop_cycle(first)? {
-            let h = body.get_half_edge(he)?;
-            let e = body.get_edge(h.edge)?;
-            let forward = e.he_plus == he;
-            let cert = body.stored_curve(h.edge).ok()?;
-            let (t0, t1) = cert.params();
-            let carrier = cert.carrier();
-            let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-            // The edge's world box, from topo's reading of the edge: its
-            // cover, the carrier's over its span hulled with its ends.
-            let b = body.edge_cover(h.edge).ok()?.aabb(0.0);
-            let aabb = [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]];
-            if aabb.iter().flatten().any(|v| !v.is_finite()) {
-                return None;
-            }
-            let [r0, r1, z0, z1] = sheet_box(o, a, &Cell::<T>::new(aabb[0], aabb[1]));
-            // The edge's sheet image: its box's, narrowed below for a
-            // latitude circle, whose box holds the axis it rings.
-            let mut image = [r0, r1, z0, z1];
-            let dt = if forward { t1 - t0 } else { t0 - t1 };
-            let pi = T::pi();
-            let (z0e, z1e) = (sheet_of(o, a, p0).1 - zc, sheet_of(o, a, p1).1 - zc);
-            let z_far = z0e
-                .abs()
-                .max(z1e.abs())
-                .max((z0 - zc).abs())
-                .max((z1 - zc).abs());
-            let (d_theta, e_theta, e_j, z_e) = match *carrier {
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
-                    radius,
-                }) => {
-                    let ax = axis.normalize();
-                    let dot = ax.dot(a);
-                    let d_lat = off(center) + tilt(ax) * radius;
-                    // The chord to the nearest ⊥ direction,
-                    // `√(2 − 2·cos φ)` with `sin φ = |dot|`, spelt
-                    // without the cancellation near ⊥.
-                    let lean = dot.abs() * T::from_f64(2.0).sqrt()
-                        / (T::one() + (T::one() - dot.powi(2)).max(T::zero()).sqrt()).sqrt();
-                    let d_mer = off(center) + lean * radius;
-                    if d_lat.hi() <= d_mer.lo() {
-                        // A latitude circle: the azimuth turns with the
-                        // parameter; a circle displaced by `D` from the
-                        // coaxial one sees each point's azimuth move by
-                        // at most `π/2·D/ρ_min`.
-                        let e = pi * d_lat / (radius - d_lat).max(T::zero());
-                        let z = sheet_of(o, a, center).1 - zc;
-                        // Every point lies within `d_lat` of the
-                        // coaxial circle's one sheet point.
-                        let zs = z + zc;
-                        image = [
-                            image[0].max(radius - d_lat),
-                            image[1].min(radius + d_lat),
-                            image[2].max(zs - d_lat),
-                            image[3].min(zs + d_lat),
-                        ];
-                        // `|dot| ≥ 1/√2` on this arm, so its sign is
-                        // decided; were it not, no clip is read.
-                        let along = if dot.lo() > 0.0 {
-                            dt
-                        } else if dot.hi() < 0.0 {
-                            -dt
-                        } else {
-                            return None;
-                        };
-                        (along, e, (z.abs() + d_lat) * e + d_lat * dt.abs(), z)
-                    } else {
-                        // A meridian edge clear of the axis: no turn,
-                        // within the same bound about the meridian it
-                        // is displaced from.
-                        let e = pi * d_mer / (r0 - d_mer).max(T::zero());
-                        (T::zero(), e, (z_far + d_mer) * e, T::zero())
-                    }
-                }
-                Curve3::Line(_) => {
-                    // A segment clear of the axis turns through the
-                    // angle between its ends' radial directions.
-                    let (v0, v1) = (p0 - o, p1 - o);
-                    let (u0, u1) = (v0 - a * v0.dot(a), v1 - a * v1.dot(a));
-                    let turn = u0.cross(u1).dot(a).atan2(u0.dot(u1));
-                    let turn = if forward { turn } else { -turn };
-                    let span = (z0e - z1e).abs() / T::from_f64(2.0);
-                    // Its sheet image: no nearer the axis than its line
-                    // (an axial segment's reads `0`), no farther than an
-                    // end, and between its ends' heights.
-                    let d = u1 - u0;
-                    let near_axis =
-                        u0.cross(d).norm() / d.norm().max(T::from_f64(f64::MIN_POSITIVE));
-                    image = [
-                        image[0].max(near_axis),
-                        image[1].min(u0.norm().max(u1.norm())),
-                        image[2].max((z0e + zc).min(z1e + zc)),
-                        image[3].min((z0e + zc).max(z1e + zc)),
-                    ];
-                    let clear = if image[0].lo() > 0.0 {
-                        T::zero()
-                    } else {
-                        T::from_f64(f64::NAN)
-                    };
-                    (
-                        turn,
-                        clear,
-                        span * turn.abs(),
-                        (z0e + z1e) / T::from_f64(2.0),
-                    )
-                }
-                _ => {
-                    let nan = T::from_f64(f64::NAN);
-                    (nan, nan, nan, nan)
-                }
-            };
-            grow([
-                image[0] - pad,
-                image[1] + pad,
-                image[2] - pad,
-                image[3] + pad,
-            ]);
-            turn = [
-                turn[0] + d_theta,
-                turn[1] + e_theta,
-                turn[2] + z_e * d_theta,
-                turn[3] + e_j,
-            ];
-        }
-    }
-    let [r_lo, r_hi, z_lo, z_hi] = range?;
-    let tau = T::tau();
-    let (w, ew) = (turn[0] / tau, turn[1] / tau);
-    let none = (w.abs() + ew).hi() < 0.25;
-    let one = ((w.abs() - T::one()).abs() + ew).hi() < 0.25;
-    Some(match kind {
-        Kind::Cylinder => Clip::Z(z_lo, z_hi),
-        Kind::Plane => match (none, one) {
-            (true, _) => Clip::Rho(r_lo, r_hi),
-            (_, true) => Clip::Rho(T::zero(), r_hi),
-            _ => return None,
-        },
-        Kind::Cone { z_apex } => match (none, one) {
-            (true, _) => Clip::Z(z_lo, z_hi),
-            (_, true) => Clip::Z(z_lo.min(z_apex), z_hi.max(z_apex)),
-            _ => return None,
-        },
-        Kind::Sphere { zc, r, center } => {
-            // Orient by the face's own outward normal against the radial.
-            let sigma = outward(body, face, center + a * r)?.dot(a);
-            let (w, j, ej) = (w * sigma, turn[2] * sigma, turn[3]);
-            let (north, south) = (zc + r, zc - r);
-            let zero = T::from_f64(band.zero());
-            if ((w - T::one()).abs() + ew).hi() < 0.25 {
-                Clip::Z(z_lo, north)
-            } else if ((w + T::one()).abs() + ew).hi() < 0.25 {
-                Clip::Z(south, z_hi)
-            } else if none && (j + ej + zero).hi() < 0.0 {
-                Clip::Z(z_lo, z_hi)
-            } else if none && (j - ej - zero).lo() > 0.0 {
-                Clip::Z(south, north)
-            } else {
-                return None;
-            }
-        }
-    })
+    .ok()?;
+    let axis = geom::cover::Site::Line(geom::Line { origin: o, dir: a });
+    let base = (o - Point3::origin()).dot(a);
+    let (z0, z1) = cover.range_along(a);
+    let near = topo::face_nearest(body, face, &cover, &axis, band);
+    let (_, far) = cover.distance_range(&axis);
+    Some([near, far, z0 - base, z1 - base])
 }
 
 /// **The least cell bound of one face against a circular reach, in the
@@ -1952,16 +1724,13 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
     let (f, slack) = sheet_fn(surface, o, a, (reach.lo, reach.hi))?;
     let mut rect = sheet_box(o, a, &Cell::<T>::new(lo, hi));
     // The face's own extent along its trace, where its boundary says it.
-    match face.and_then(|face| sheet_clip(body, face, surface, o, a, band)) {
-        Some(Clip::Z(z0, z1)) => {
-            rect[2] = rect[2].max(z0);
-            rect[3] = rect[3].min(z1);
-        }
-        Some(Clip::Rho(r0, r1)) => {
-            rect[0] = rect[0].max(r0);
-            rect[1] = rect[1].min(r1);
-        }
-        None => {}
+    if let Some([r0, r1, z0, z1]) = face.and_then(|face| sheet_clip(body, face, o, a, band)) {
+        rect = [
+            rect[0].max(r0),
+            rect[1].min(r1),
+            rect[2].max(z0),
+            rect[3].min(z1),
+        ];
     }
     if (rect[1] - rect[0]).hi() < 0.0 || (rect[3] - rect[2]).hi() < 0.0 {
         // The face's image misses the reach's box: nothing to meter.
@@ -3202,48 +2971,39 @@ mod tests {
         }
     }
 
-    /// **A cylinder's clip does not move with where its origin is
-    /// stored**: the rod's wall read about an axis leaning half the zero
-    /// band off its own, with its origin stored at the base and up to
-    /// 1e5 m along, clips to its boundary's span at every storage, at
-    /// `f64` and at `Interval`. Stored 3 m along, the origin stood
-    /// `1.5·zero` off the axis and the face's clip was lost.
+    /// **A wall's clip is its boundary's span along the axis**: the rod's
+    /// wall read about an axis leaning half the zero band off its own
+    /// clips to `[0, 1]` along it and to the rod's radius off it, at
+    /// `f64` and at `Interval`. Red where the clip reads the wall's whole
+    /// box rather than its cover's range along the axis.
     #[test]
     #[allow(clippy::panic)]
-    fn the_clip_reads_one_span_at_every_stored_origin() {
-        use super::{Clip, sheet_clip};
+    fn the_clip_reads_the_walls_span() {
+        use super::sheet_clip;
         use geom_core::Bounds;
         let band = band();
-        let storages = [0.0, -3.0, 1.0e3, 1.0e5];
-        macro_rules! spans {
+        macro_rules! clip {
             ($t:ty) => {{
-                let (body, wall, stored) = rod::<$t>();
+                let (body, wall, _) = rod::<$t>();
                 let (o, a) = leaning::<$t>(0.5 * band.zero());
-                storages.map(|along| {
-                    match sheet_clip(&body, wall, &stored_at(&stored, along), o, a, band) {
-                        Some(Clip::Z(z0, z1)) => (z0.lo(), z1.hi()),
-                        Some(Clip::Rho(..)) => {
-                            panic!("stored {along} m along: an axial clip, not a radial one")
-                        }
-                        None => panic!("stored {along} m along: the wall clips"),
-                    }
-                })
+                let Some([r0, r1, z0, z1]) = sheet_clip(&body, wall, o, a, band) else {
+                    panic!("the wall clips")
+                };
+                [r0.lo(), r1.hi(), z0.lo(), z1.hi()]
             }};
         }
-        for (scalar, spans) in [
-            ("f64", spans!(f64)),
-            ("Interval", spans!(geom_core::interval::Interval)),
+        let tol = 1e-9;
+        for (scalar, [r0, r1, z0, z1]) in [
+            ("f64", clip!(f64)),
+            ("Interval", clip!(geom_core::interval::Interval)),
         ] {
-            for (along, span) in storages.into_iter().zip(spans) {
-                assert_eq!(
-                    span, spans[0],
-                    "{scalar}, stored {along} m along: the base storage's span"
-                );
-            }
-            let (z0, z1) = spans[0];
             assert!(
-                z0 <= 0.0 && z1 >= 1.0 && z1 - z0 < 1.0 + 4.0 * band.escalate(),
+                z0 <= 0.0 && z1 >= 1.0 && z1 - z0 < 1.0 + tol,
                 "{scalar}: the span holds the wall's [0, 1] and little else: {z0}..{z1}"
+            );
+            assert!(
+                r0 >= 0.0 && r1 >= 0.5 && r1 < 0.5 + tol,
+                "{scalar}: the radial clip reaches the radius and little past it: {r0}..{r1}"
             );
         }
     }
@@ -3431,7 +3191,7 @@ mod tests {
     #[allow(clippy::expect_used)]
     #[test]
     fn a_clip_holds_its_face_at_every_pose() {
-        use super::{Clip, sheet_clip};
+        use super::sheet_clip;
         use geom_core::interval::Interval;
         use geom_core::{Bounds, Real};
         let band = band();
@@ -3446,10 +3206,7 @@ mod tests {
         ];
         macro_rules! read {
             ($c:expr) => {
-                $c.map(|c| match c {
-                    Clip::Z(lo, hi) => ("Z", lo.lo(), hi.hi()),
-                    Clip::Rho(lo, hi) => ("Rho", lo.lo(), hi.hi()),
-                })
+                $c.map(|[r0, r1, z0, z1]| [r0.lo(), r1.hi(), z0.lo(), z1.hi()])
             };
         }
         #[allow(clippy::expect_used)]
@@ -3470,7 +3227,7 @@ mod tests {
             ifaces.sort_unstable();
             assert_eq!(faces.len(), ifaces.len(), "{name}: the twin bodies' faces");
             for (&f, &fi) in faces.iter().zip(&ifaces) {
-                let (s, si) = (surface(&body, f), surface(&ibody, fi));
+                let s = surface(&body, f);
                 if !matches!(
                     s,
                     geom::Surface::Cylinder { .. } | geom::Surface::Plane { .. }
@@ -3486,29 +3243,34 @@ mod tests {
                         for o in origins {
                             let oi = Point3::new(iv(o.x), iv(o.y), iv(o.z));
                             for (scalar, clip) in [
-                                ("f64", read!(sheet_clip(&body, f, &s, o, a, band))),
-                                ("Interval", read!(sheet_clip(&ibody, fi, &si, oi, ai, band))),
+                                ("f64", read!(sheet_clip(&body, f, o, a, band))),
+                                ("Interval", read!(sheet_clip(&ibody, fi, oi, ai, band))),
                             ] {
-                                let Some((kind, lo, hi)) = clip else {
+                                let Some([r0, r1, z0, z1]) = clip else {
                                     continue;
                                 };
                                 clipped += 1;
                                 let wall = matches!(s, geom::Surface::Cylinder { .. });
                                 perpendicular_walls +=
                                     usize::from(wall && t == core::f64::consts::FRAC_PI_2);
+                                // The samples are `f64` evaluations, so a
+                                // point is held to their rounding.
+                                let tol =
+                                    64.0 * f64::EPSILON * (8.0 + (o - Point3::origin()).norm());
                                 let worst = pts
                                     .iter()
                                     .map(|p| {
                                         let v = *p - o;
                                         let z = v.dot(a);
-                                        let x = if kind == "Z" { z } else { (v - a * z).norm() };
-                                        (lo - x).max(x - hi)
+                                        let rho = (v - a * z).norm();
+                                        (r0 - rho).max(rho - r1).max(z0 - z).max(z - z1)
                                     })
                                     .fold(f64::NEG_INFINITY, f64::max);
-                                if worst > 0.0 {
+                                if worst > tol {
                                     bad.push(format!(
                                         "{name} {f:?} {scalar} lean {t} phi {phi} o {o:?}: \
-                                         its {kind} clip {lo}..{hi} misses a face point by {worst}"
+                                         its clip [{r0}, {r1}] × [{z0}, {z1}] misses a face \
+                                         point by {worst}"
                                     ));
                                 }
                             }
