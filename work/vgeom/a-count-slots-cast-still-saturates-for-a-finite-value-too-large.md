@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-21
 priority: P2
 cost: E
-refs: [need-count-spells-every-failure-as-a-pattern-count, a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it]
+refs: [a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it]
 ---
 
 

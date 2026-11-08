@@ -83,8 +83,9 @@ pub enum AtRestEvidence {
     Carried(Box<CarriedAtRestFinding>),
 }
 
-// The kernel's own verdict, forwarded verbatim through its `Display`:
-// its tier-3′ messages end in their own recourse.
+// The kernel's own verdict, forwarded verbatim and ended at rest, the
+// door the check reads it at: its tier-3′ messages end in their own
+// recourse.
 impl crate::spoken::Say for AtRestEvidence {
     fn say(
         &self,
@@ -93,7 +94,7 @@ impl crate::spoken::Say for AtRestEvidence {
     ) -> core::fmt::Result {
         match self {
             Self::NoLane(error) | Self::Malformed(error) | Self::InsideArrival(error) => {
-                write!(f, "{error}")
+                write!(f, "{}", error.render(geom_brep::recourse::Reading::AtRest))
             }
             Self::NotGathered(refusal) => write!(
                 f,
@@ -1380,6 +1381,8 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::ApproxLaneUnsupported { .. }
         | E::DegenerateTorus { .. }
         | E::DegenerateTorusEscalated { .. }
+        | E::DegenerateSpindle { .. }
+        | E::SheetApexReached { .. }
         | E::PoisonedSurfaceDatum { .. }
         | E::UnrepresentableSurfaceDatum { .. }
         | E::PoisonedCurveDatum { .. }
@@ -1590,7 +1593,7 @@ fn intersection(
         Ok(topo::BooleanResult::Body(result)) => Ok(Some(result)),
         Ok(topo::BooleanResult::Empty) => Ok(None),
         Err(refusal) => Err(Unlocalized::Refused {
-            refusal: refusal.to_string(),
+            refusal: refusal.render(geom_brep::recourse::Reading::Build),
         }),
     }
 }
@@ -1889,7 +1892,7 @@ fn crossing(
     let kept = match topo::intersect(&result.body, &beyond, tol) {
         Ok(topo::BooleanResult::Empty) => return Ok(BTreeSet::new()),
         Ok(topo::BooleanResult::Body(kept)) => kept,
-        Err(refusal) => return Err(refusal.to_string()),
+        Err(refusal) => return Err(refusal.render(geom_brep::recourse::Reading::Build)),
     };
     let descent = topo::FaceDescent::of(&kept.naming);
     let of_solid: BTreeMap<SolidKey, usize> = components
@@ -2039,6 +2042,6 @@ fn beyond(
         },
         tol,
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))?;
     Ok(swept.body)
 }

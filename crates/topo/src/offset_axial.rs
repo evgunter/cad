@@ -294,6 +294,7 @@ use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::ExtentBall;
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::k_stats::decide;
 use geom_core::{
     Arc2, Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, SpanLocate,
@@ -316,26 +317,25 @@ use slotmap::SecondaryMap;
 /// being judged.
 #[derive(Clone, Copy)]
 struct Frame<T: Real> {
-    origin: Point3<T>,
-    dir: Vec3<T>,
+    /// The axis, its `dir` unit.
+    axis: geom::Line<T>,
     extent: Lever<T>,
 }
 
 impl<T: Real> Frame<T> {
     /// `p`'s station along the axis.
     fn station(&self, p: Point3<T>) -> T {
-        (p - self.origin).dot(self.dir)
+        self.axis.param(p)
     }
 
     /// `p`'s radial offset vector from the axis.
     fn radial(&self, p: Point3<T>) -> Vec3<T> {
-        let v = p - self.origin;
-        v - self.dir * v.dot(self.dir)
+        self.axis.offset(p)
     }
 
     /// `p` rebuilt from axial coordinates and an azimuth direction.
     fn place(&self, rho: T, h: T, e: Vec3<T>) -> Point3<T> {
-        self.origin + self.dir * h + e * rho
+        self.axis.at(h) + e * rho
     }
 }
 
@@ -532,8 +532,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         // turn is the identity and a corner walk would answer a
         // question the surface already settles.
         let first = *m.faces.first().ok_or(ReplaceFaceError::EmptyGroup)?;
-        let first_data = proven(&body.faces, first, EntityId::Face);
-        let d = match body.face_surface_linked(first, first_data) {
+        let first_data = body.proven_face(first);
+        let d = match first_data.surface() {
             Surface::Cone { .. } => {
                 crate::offset_nappe::group_nappe(body, &m.faces, band)?.turn(m.distance)
             }
@@ -541,16 +541,16 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         };
         for &face in &m.faces {
             let data = body
-                .get_face(face)
+                .passed_face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let old = body.face_surface_linked(face, data).clone();
+            let old = data.surface().clone();
             let new = geom_brep::offset_surface(&old, d, band)
                 .map_err(|error| ReplaceFaceError::Offset { face, error })?;
             let constraint = classify(face, &new, &frame, band)?;
             charts.push((
                 face,
                 MovedChart {
-                    old_key: data.surface,
+                    old_key: data.record().surface,
                     rigid: rigid_shift(&old, &new),
                     old,
                     new,
@@ -995,11 +995,12 @@ pub(crate) fn is_axial_in<T: Decide>(
         }
         Err(source) => return Err(source),
     };
-    for (face, f) in body.faces() {
+    for f in body.face_views() {
+        let face = f.key();
         if !scope.holds_face(face) {
             continue;
         }
-        let surface = body.face_surface_linked(face, f);
+        let surface = f.surface();
         match classify(face, surface, &frame, band) {
             Ok(_) => {}
             // The gate's own definite verdicts: this body is not
@@ -1027,11 +1028,12 @@ fn axial_frame<T: Real>(
         .map(|(k, _)| k)
         .ok_or(ReplaceFaceError::EmptyGroup)?;
     let mut seed: Option<(Point3<T>, Vec3<T>)> = None;
-    for (face, f) in body.faces() {
+    for f in body.face_views() {
+        let face = f.key();
         if !scope.holds_face(face) {
             continue;
         }
-        let found = match body.face_surface_linked(face, f) {
+        let found = match f.surface() {
             Surface::Cylinder { origin, axis, .. } => Some((*origin, axis.normalize())),
             Surface::Cone { apex, axis, .. } => Some((*apex, axis.normalize())),
             Surface::Sphere { center, axis, .. } => Some((*center, axis.normalize())),
@@ -1065,7 +1067,11 @@ fn axial_frame<T: Real>(
     // station of `0.2` came back `0.19999999999999996` purely from
     // subtracting and re-adding `2.0`. Measured on the byte-dump
     // harness, which now reports the curved fixtures unchanged.
-    let origin = seed_origin - dir * (vec_of(seed_origin)).dot(dir);
+    let origin = geom::Line {
+        origin: seed_origin,
+        dir,
+    }
+    .foot(Point3::origin());
     // The extent is the SCOPE's own furthest vertex from the axis
     // point: the length a direction error would move a corner by, which
     // is the geometry every alignment verdict here is about. A box
@@ -1094,8 +1100,7 @@ fn axial_frame<T: Real>(
             far.max(ExtentBall::point(origin).lever_from(body.point_of(key, vertex)))
         });
     Ok(Frame {
-        origin,
-        dir,
+        axis: geom::Line { origin, dir },
         extent,
     })
 }
@@ -1130,7 +1135,7 @@ fn classify<T: Decide>(
     let on_axis = |p: Point3<T>| {
         centre_on_axis(frame, p, band).map_err(|source| ReplaceFaceError::Escalated { source })
     };
-    let parallel = |v: Vec3<T>| v.normalize().cross(frame.dir).norm();
+    let parallel = |v: Vec3<T>| v.normalize().cross(frame.axis.dir).norm();
     Ok(match surface {
         Surface::Plane { origin, normal, .. } => {
             let n = normal.normalize();
@@ -1142,7 +1147,7 @@ fn classify<T: Decide>(
                 // else cuts the body obliquely to its own axis of
                 // revolution — a corner this reduction has no
                 // coordinates for.
-                if !sine(n.dot(frame.dir).abs(), "offset_axial_axis_parallel")? {
+                if !sine(n.dot(frame.axis.dir).abs(), "offset_axial_axis_parallel")? {
                     return Err(not_axial(
                         "a plane neither normal to the axis nor parallel to it",
                     ));
@@ -1534,7 +1539,7 @@ fn solve_corner<T: Decide>(
                     )? * r
                 }
             };
-            return Ok(frame.origin + frame.dir * h);
+            return Ok(frame.axis.at(h));
         }
     }
 
@@ -1551,46 +1556,13 @@ fn solve_corner<T: Decide>(
     // foot itself — names its foot ([`tangent_foot`]), the answer only
     // when no pair resolves; a tangency the band cannot decide escalates
     // only then too, so the outcome does not hang on the order the fan
-    // is walked. ----
-    let mut solved: Option<(T, T)> = carried;
-    if solved.is_none() {
-        let mut tangent: Option<Result<(T, T), ReplaceFaceError<T>>> = None;
-        'pairs: for (i, a) in profiles.iter().enumerate() {
-            for b in profiles.iter().skip(i + 1) {
-                let Some(det) = transversality(a, b) else {
-                    continue;
-                };
-                let mut resolvable = true;
-                for &arm in arms {
-                    match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
-                        Ok(Sign::Positive) => {}
-                        Ok(_) => {
-                            resolvable = false;
-                            break;
-                        }
-                        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-                    }
-                }
-                if resolvable && let Some(root) = branch(a, b, det, rho_old, h_old, band)? {
-                    solved = Some(root);
-                    break 'pairs;
-                }
-                match tangent_foot(a, b, band) {
-                    Ok(Some(foot)) => {
-                        tangent.get_or_insert(Ok(foot));
-                    }
-                    Ok(None) if resolvable => return Err(tie(vertex)),
-                    Ok(None) => {}
-                    Err(e) => {
-                        tangent.get_or_insert(Err(e));
-                    }
-                }
-            }
-        }
-        if solved.is_none() {
-            solved = tangent.transpose()?;
-        }
-    }
+    // is walked. A conditioning the band cannot decide is kept the same
+    // way, and refuses ahead of any foot: a tighter band may resolve its
+    // pair to a root. ----
+    let solved = match carried {
+        Some(corner) => Some(corner),
+        None => solve_pairs(&profiles, arms, (rho_old, h_old), vertex, band)?,
+    };
     let (rho, h) = solved.ok_or_else(|| {
         refuse(
             "no pair of the surfaces here meets transversally enough to resolve this corner \
@@ -1645,10 +1617,10 @@ fn solve_corner<T: Decide>(
         // to a line's `t = 0` anchor.
         [] => Ok(frame.place(rho, h, e_old)),
         [(m, c)] => {
-            let w = frame.dir.cross(e_old);
+            let w = frame.axis.dir.cross(e_old);
             let a_co = rho * m.dot(e_old);
             let b_co = rho * m.dot(w);
-            let rhs = c - m.dot(vec_of(frame.origin)) - m.dot(frame.dir) * h;
+            let rhs = c - m.dot(vec_of(frame.axis.origin)) - m.dot(frame.axis.dir) * h;
             let amp = Vec3::new(a_co, b_co, T::zero()).norm();
             // The two azimuths are `φ₀ ± Δ`, and the points they name are
             // `2ρ·sin Δ` apart — a LENGTH, which dies exactly as the
@@ -1772,8 +1744,8 @@ fn cap_pair_corner<T: Decide>(
     // pair's transversality is the sine between their cross-section
     // normals, levered by the corner's own arms exactly as the profile
     // pairs' is: the solve divides by it, so it is decided first.
-    let mp0 = m0 - frame.dir * m0.dot(frame.dir);
-    let mp1 = m1 - frame.dir * m1.dot(frame.dir);
+    let mp0 = m0 - frame.axis.dir * m0.dot(frame.axis.dir);
+    let mp1 = m1 - frame.axis.dir * m1.dot(frame.axis.dir);
     let (n0, n1) = (mp0.norm(), mp1.norm());
     // The divisors are certified UPSTREAM, not here: `m0`/`m1` are unit
     // meridian normals whose axial component `classify` decided Zero at
@@ -1781,7 +1753,7 @@ fn cap_pair_corner<T: Decide>(
     // each cross-section projection keeps norm ~1 — a certified
     // distance from zero this division stands on, cited rather than
     // re-decided (one derivation, the module's own law).
-    let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.dir);
+    let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.axis.dir);
     for &arm in arms {
         match decide(
             "offset_axial_cap_pair",
@@ -1799,9 +1771,9 @@ fn cap_pair_corner<T: Decide>(
         }
     }
     let e1 = mp0 / n0;
-    let e2 = frame.dir.cross(e1);
-    let rhs0 = c0 - m0.dot(vec_of(frame.origin));
-    let rhs1 = c1 - m1.dot(vec_of(frame.origin));
+    let e2 = frame.axis.dir.cross(e1);
+    let rhs0 = c0 - m0.dot(vec_of(frame.axis.origin));
+    let rhs1 = c1 - m1.dot(vec_of(frame.axis.origin));
     let alpha = rhs0 / n0;
     let beta = (rhs1 - alpha * mp1.dot(e1)) / (n1 * sine);
     let rho_line = Vec3::new(alpha, beta, T::zero()).norm();
@@ -1970,6 +1942,81 @@ fn tangent_foot<T: Decide>(
     }
 }
 
+/// **The profile solve over pairs of the corner's profiles**
+/// ([`solve_corner`]), in the order the vertex's fan is walked: two
+/// ladders ([`climb`], [`Answering::First`]).
+///
+/// 1. The pairs: the first well-conditioned pair whose branch is
+///    determined ([`branch`]) answers. A conditioning in band is kept,
+///    and refuses where no pair resolves.
+/// 2. Where no pair resolved and none was kept, the tangent feet of the
+///    pairs that could not resolve ([`tangent_foot`]): the first answers,
+///    and a tangency in band refuses where no later foot answers.
+///
+/// `None` where neither answers.
+///
+/// # Errors
+///
+/// [`ReplaceFaceError::Escalated`] on a reading in band as above;
+/// [`branch`]'s own, and [`tie`] for a resolvable pair whose roots tie
+/// off any foot.
+fn solve_pairs<T: Decide>(
+    profiles: &[Profile<T>],
+    arms: &[Lever<T>],
+    (rho_old, h_old): (T, T),
+    vertex: VertexKey,
+    band: Band,
+) -> Result<Option<(T, T)>, ReplaceFaceError<T>> {
+    // Each unresolvable pair's tangent reading, for ladder 2.
+    let mut tangents: Vec<Result<(T, T), Indeterminate>> = Vec::new();
+    let pairs = profiles
+        .iter()
+        .enumerate()
+        .flat_map(|(i, a)| profiles.iter().skip(i + 1).map(move |b| (a, b)));
+    let resolving = climb(Answering::First, pairs, |(a, b)| {
+        let Some(det) = transversality(a, b) else {
+            return Rung::Passes;
+        };
+        let mut resolvable = true;
+        for &arm in arms {
+            match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
+                Ok(Sign::Positive) => {}
+                Ok(_) => {
+                    resolvable = false;
+                    break;
+                }
+                Err(source) => return Rung::kept(source),
+            }
+        }
+        if resolvable {
+            match branch(a, b, det, rho_old, h_old, band) {
+                Ok(Some(root)) => return Rung::Answers(Ok(root)),
+                Ok(None) => {}
+                Err(e) => return Rung::Aborts(Err(e)),
+            }
+        }
+        match tangent_foot(a, b, band) {
+            Ok(Some(foot)) => tangents.push(Ok(foot)),
+            Ok(None) if resolvable => return Rung::Aborts(Err(tie(vertex))),
+            Ok(None) => {}
+            Err(ReplaceFaceError::Escalated { source }) => tangents.push(Err(source)),
+            Err(e) => return Rung::Aborts(Err(e)),
+        }
+        Rung::Passes
+    });
+    let solved = match resolving {
+        Climb::Answered { answer, .. } => Some(answer?),
+        Climb::Undecided(source) => return Err(ReplaceFaceError::Escalated { source }),
+        Climb::Passed => climb(Answering::First, tangents, |tangent| match tangent {
+            Ok(foot) => Rung::Answers(foot),
+            Err(source) => Rung::kept(source),
+        })
+        .into_reading()
+        .map_err(|source| ReplaceFaceError::Escalated { source })?,
+    };
+    Ok(solved)
+}
+
 /// The meeting points of two profile curves whose transversality the
 /// caller has already certified positive.
 fn roots<T: Real>(a: &Profile<T>, b: &Profile<T>, det: T) -> Vec<(T, T)> {
@@ -2117,7 +2164,7 @@ fn mint_carrier<T: Decide>(
         if let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: cc,
+                    origin: cc,
                     axis,
                     u_ref,
                 },
@@ -2152,7 +2199,7 @@ fn mint_carrier<T: Decide>(
                     }
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-                translate(e / n * ca.distance)
+                translate(e.normalize() * ca.distance)
             }
             // A sphere's seam is a GREAT circle about the sphere's own
             // centre, and the offset is concentric: same centre, same
@@ -2163,7 +2210,7 @@ fn mint_carrier<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: cc,
+                            origin: cc,
                             axis,
                             u_ref,
                         },
@@ -2197,7 +2244,7 @@ fn mint_carrier<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: cc,
+                            origin: cc,
                             axis,
                             u_ref,
                         },
@@ -2279,12 +2326,10 @@ fn mint_carrier<T: Decide>(
         let old_dir = old.eval(old_span.1) - old.eval(old_span.0);
         let q_mid = old.mid_point(old_span.0, old_span.1);
         let off = |l: &Curve3<T>| {
-            let Some(geom::Line { origin, dir }) = l.as_line() else {
+            let Some(line) = l.as_line() else {
                 unreachable!("{edge:?}: a generator pair is two lines")
             };
-            let d = dir.normalize();
-            let v = q_mid - origin;
-            (v - d * v.dot(d)).norm()
+            line.distance(q_mid)
         };
         let chosen = match decide(
             "offset_axial_generator_side",
@@ -2462,14 +2507,17 @@ fn mint_carrier<T: Decide>(
             // carries no line. A cone and a plane parallel to its axis,
             // the pair whose section leaves the line, take their own
             // section above.
-            let shift = p_start - old.eval(t0_old);
-            let delta = shift - *dir * shift.dot(*dir);
+            let delta = geom::Line {
+                origin: old.eval(t0_old),
+                dir: *dir,
+            }
+            .offset(p_start);
             Ok(Curve3::line(*origin + delta, *dir))
         }
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2644,7 +2692,7 @@ fn latitude_posture<T: Decide>(
             "a circular edge between two charts whose centre is off the axis",
         ));
     }
-    let tilt = axis.normalize().cross(frame.dir).norm();
+    let tilt = axis.normalize().cross(frame.axis.dir).norm();
     match decide(
         "offset_axial_latitude_tilt",
         Margin::levered(tilt, frame.extent),
@@ -2670,7 +2718,7 @@ fn latitude_circle<T: Real>(
     u_ref: Vec3<T>,
 ) -> Curve3<T> {
     Curve3::circle(
-        frame.origin + frame.dir * frame.station(p_start),
+        frame.axis.foot(p_start),
         axis,
         frame.radial(p_start).norm(),
         u_ref,
@@ -2765,14 +2813,20 @@ fn param_on<T: Decide>(
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         }) => {
             let n = axis.normalize();
-            let ray = |x: Point3<T>| {
-                let v = x - *center;
-                v - n * v.dot(n)
+            let axis_line = geom::Line {
+                origin: *center,
+                dir: n,
             };
+            let ray = |x: Point3<T>| axis_line.offset(x);
             let (a, b) = (ray(q), ray(p));
             anchor + a.cross(b).dot(n).atan2(a.dot(b))
         }
@@ -2924,15 +2978,15 @@ fn keep_turn<T: Decide>(
 /// norm minus a radius.
 fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T>) -> T {
     match surface {
-        Surface::Plane { origin, normal, .. } => normal.dot(p - *origin),
+        Surface::Plane { origin, normal, .. } => geom::plane_offset(*origin, *normal, p),
         Surface::Cylinder { radius, .. } => frame.radial(p).norm() - *radius,
         Surface::Sphere { center, radius, .. } => p.distance(*center) - *radius,
         // The double cone's elevation about the frame's own axis line
-        // (`frame.dir` is the cone's axis up to sign, and the
+        // (`frame.axis.dir` is the cone's axis up to sign, and the
         // double-cone reading is symmetric in it).
         Surface::Cone {
             apex, half_angle, ..
-        } => geom_brep::cone_elevation(*apex, frame.dir, *half_angle, None, p),
+        } => geom_brep::cone_elevation(*apex, frame.axis.dir, *half_angle, None, p),
         // The torus's own meridian distance, in the same `(ρ, h)`
         // half-plane the corner solve works in. Without it the
         // edge-on-surface meter would read `zero` on every torus chart
@@ -2947,6 +3001,10 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
             let h = frame.station(p) - frame.station(*center);
             Vec3::new(rho - *major_radius, h, T::zero()).norm() - *minor_radius
         }
+        // No edge is moved with a spindle sheet (the offset door mints
+        // none), and the meter answers poison rather than a zero that
+        // would certify an edge it never measured.
+        Surface::Spindle { .. } => geom_core::poison(),
         _ => T::zero(),
     }
 }
@@ -3002,7 +3060,7 @@ fn reauthor<T: Decide>(
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
                         let Curve3::Circle(geom::Circle {
-                            frame: geom::Frame { center, .. },
+                            frame: geom::Frame { origin: center, .. },
                             radius,
                         }) = carrier
                         else {
@@ -3186,10 +3244,8 @@ fn azimuth_turn<T: Decide>(
         Ok(Sign::Zero) => Ok(None),
         Ok(_) => {
             let a = dir.normalize();
-            let radial = |p: Point3<T>| {
-                let v = p - origin;
-                v - a * v.dot(a)
-            };
+            let axis_line = geom::Line { origin, dir: a };
+            let radial = |p: Point3<T>| axis_line.offset(p);
             let (from, to) = (radial(old), radial(moved));
             Ok(Some(a.dot(from.cross(to)).atan2(from.dot(to))))
         }
@@ -3259,6 +3315,72 @@ mod tests {
             body.get_face_mut(side).expect("a cube wall").surface = wall;
         }
         body
+    }
+
+    /// [`solve_pairs`] over synthetic profiles about a circle of radius 1
+    /// centred at `(ρ, h) = (10, 0)`, one arm of `arm`.
+    fn pairs(
+        profiles: &[Profile<f64>],
+        arm: f64,
+    ) -> Result<Option<(f64, f64)>, ReplaceFaceError<f64>> {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let arms = [geom_core::test_support::fixture_lever(arm)];
+        solve_pairs(profiles, &arms, (10.0, 0.0), VertexKey::default(), band)
+    }
+
+    const CIRCLE: Profile<f64> = Profile::Circle {
+        rho_c: 10.0,
+        h_c: 0.0,
+        r: 1.0,
+    };
+
+    /// A station line `ρ = c`.
+    const fn station(c: f64) -> Profile<f64> {
+        Profile::Line { n: (1.0, 0.0), c }
+    }
+
+    /// **The pair ladders' order** (the ladder's rule over the fan):
+    /// - a tangent foot later in the fan answers past an earlier tangency
+    ///   in band (red under a rule that kept the first of either);
+    /// - a pair whose conditioning is in band refuses ahead of any foot;
+    /// - and a later pair that resolves answers past it (red under a
+    ///   rule that returned on the first conditioning in band).
+    #[test]
+    fn the_corner_pairs_climb_the_ladder() {
+        // `ρ = 11 − 5e-9` grazes the circle in band, `ρ = 11` touches it.
+        let grazing = [station(11.0 - 5e-9), CIRCLE, station(11.0)];
+        assert_eq!(
+            pairs(&grazing, 1e-6).map_err(|e| format!("{e:?}")),
+            Ok(Some((11.0, 0.0))),
+            "the later foot answers past the tangency in band"
+        );
+        // `ρ = 10` crosses the circle square, its conditioning in band at
+        // an arm of 5e-9; `ρ = 11` touches it.
+        let kept = [station(10.0), CIRCLE, station(11.0)];
+        assert!(
+            matches!(pairs(&kept, 5e-9), Err(ReplaceFaceError::Escalated { .. })),
+            "a conditioning in band refuses ahead of the foot: {:?}",
+            pairs(&kept, 5e-9)
+        );
+        // `ρ = 10` against a line crossing it at a sine of 0.05 is in band
+        // at an arm of 1e-7; against `h = 0`, square, it resolves.
+        let (s, c) = (0.05_f64, (1.0 - 0.05_f64 * 0.05).sqrt());
+        let resolving = [
+            station(10.0),
+            Profile::Line {
+                n: (c, s),
+                c: 10.0 * c,
+            },
+            Profile::Line {
+                n: (0.0, 1.0),
+                c: 0.0,
+            },
+        ];
+        assert_eq!(
+            pairs(&resolving, 1e-7).map_err(|e| format!("{e:?}")),
+            Ok(Some((10.0, 0.0))),
+            "a later pair resolves past the conditioning in band"
+        );
     }
 
     /// A torn record is not a verdict: a dangling point or surface on a

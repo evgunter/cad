@@ -590,15 +590,14 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
     );
 }
 
-/// **A member face another member holds is linked into its parent in
-/// every order** (N2): `b` inside `a` (`r5covered`) is a constituent of
-/// both caps and both y-walls; `b` out of `a`'s top (`r5poke`) of the
+/// **A member face is a constituent of exactly the faces holding its
+/// area, in every order** (N2): `b` inside `a` (`r5covered`) of both
+/// caps and both y-walls; `b` out of `a`'s top (`r5poke`) of the
 /// bottom, whose region `a` holds, and of the y-walls, where it adds
 /// surface; `b` merged with `a` and then swallowed by `c` (`xmerge`) of
-/// each face of `a`'s rest that it merged with, though no surface of it
-/// is left. Counted are the published faces `Merged` of a face of `a`
-/// and a face of `b`, in each fused order; the orders that fold `b`
-/// last discard it whole, and those that fold it first merge it.
+/// none, since no face holds area of it. Counted are the published
+/// faces `Merged` of a face of `a` and a face of `b`, in each fused
+/// order.
 #[test]
 fn a_member_face_another_holds_is_a_constituent_in_every_order() {
     for (label, want) in [
@@ -606,7 +605,7 @@ fn a_member_face_another_holds_is_a_constituent_in_every_order() {
         ("r5coveredids", 4),
         ("r5poke", 3),
         ("r5pokehi", 3),
-        ("xmerge", 4),
+        ("xmerge", 0),
     ] {
         let case = cases().into_iter().find(|c| c.label == label).unwrap();
         let mut fused = 0;

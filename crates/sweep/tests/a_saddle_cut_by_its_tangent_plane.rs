@@ -5,8 +5,8 @@
 //! `x = 0` and `z = 0`, a straight section of two lines crossing at a
 //! point. Two smooth carriers meet in two crossing lines only at a
 //! tangency, so the pair is a spline × plane tangent section, which no
-//! lane builds yet: each op refuses typed at the spline × plane pair,
-//! long before the join pairs germs across the crossing. Its closed
+//! lane builds yet: each op refuses typed at the spline × plane pair, in
+//! the join, where no frame names the wall × plane germ pair's section. Its closed
 //! forms (the block `8`, its part above the plane `1/2`) are the row
 //! `work/splice/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
 //! asks for.
@@ -16,7 +16,7 @@ use geom::SurfaceKind::{Nurbs, Plane};
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{finished, stacked_at};
-use topo::{AtRestBody, BooleanError, PairRefusalSite, intersect, subtract, union};
+use topo::{AtRestBody, BooleanError, intersect, subtract, union};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -52,44 +52,80 @@ fn above() -> AtRestBody<f64> {
     )
 }
 
+/// The saddle's top wall: the NURBS face whose net lies on `y = x·z`.
+fn saddle_wall(s: &AtRestBody<f64>) -> topo::FaceKey {
+    let walls: Vec<_> = s
+        .faces()
+        .filter(|(_, fd)| match s.get_surface(fd.surface) {
+            Some(geom::Surface::Nurbs(n)) => {
+                n.control().iter().all(|p| (p.y - p.x * p.z).abs() < 1e-12)
+            }
+            _ => false,
+        })
+        .map(|(f, _)| f)
+        .collect();
+    assert_eq!(walls.len(), 1, "one saddle wall: {walls:?}");
+    walls[0]
+}
+
+/// The half-space's face on `y = 0`.
+fn cut_face(h: &AtRestBody<f64>) -> topo::FaceKey {
+    let faces: Vec<_> = h
+        .faces()
+        .filter(|(_, fd)| {
+            matches!(
+                h.get_surface(fd.surface),
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if origin.y.abs() < 1e-12 && normal.y.abs() > 1.0 - 1e-12
+            )
+        })
+        .map(|(f, _)| f)
+        .collect();
+    assert_eq!(faces.len(), 1, "one face on y = 0: {faces:?}");
+    faces[0]
+}
+
 /// **Every op, either way round, refuses at the spline × plane pair**:
-/// intersect and subtract at the revert roster, union at the held
-/// pierce of the saddle's wall on the plane.
+/// in the join, at the germ frame of the saddle's wall against the
+/// half-space's face `y = 0`
+/// (`work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame.md`),
+/// the two faces named by identity in the operands' order.
+/// Its held pierce reads first: the block's corner edges pierce the
+/// plane at `(±1, 0, ±1)`, a unit off the wall, which reads them off
+/// its carrier.
 #[test]
-fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_spline_plane_pair() {
+fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_germ_frame_under_every_op() {
     let (s, h) = (saddle_block(), above());
-    let roster = |r: &Result<topo::BooleanResult<f64>, BooleanError>| {
+    let (wall, cut) = (saddle_wall(&s), cut_face(&h));
+    // The A face first: the saddle's wall in `s ∪ h`, the cut face in
+    // `h ∪ s`.
+    let frame = |r: &Result<topo::BooleanResult<f64>, BooleanError>, saddle_first: bool| {
+        let (a, b) = if saddle_first {
+            (wall, cut)
+        } else {
+            (cut, wall)
+        };
+        let (a_kind, b_kind) = if saddle_first {
+            (Nurbs, Plane)
+        } else {
+            (Plane, Nurbs)
+        };
         matches!(
             r,
-            Err(BooleanError::CurvedPairUnsupported {
-                site: PairRefusalSite::RevertRoster,
-                kind: Nurbs,
-                other_kind: Plane,
-                ..
-            })
+            Err(BooleanError::GermFrameUnsupported { a_face, a_kind: ak, b_face, b_kind: bk })
+                if (*a_face, *ak, *b_face, *bk) == (a, a_kind, b, b_kind)
         )
     };
-    let pierce = |r: &Result<topo::BooleanResult<f64>, BooleanError>| {
-        matches!(
-            r,
-            Err(BooleanError::HeldPierceUnbuilt {
-                kind: Nurbs,
-                pierced_kind: Plane,
-                ..
-            })
-        )
-    };
-    for (op, r, at_pierce) in [
-        ("s ∩ h", intersect(&s, &h, tol()), false),
+    for (op, r, saddle_first) in [
+        ("s ∩ h", intersect(&s, &h, tol()), true),
         ("h ∩ s", intersect(&h, &s, tol()), false),
-        ("s ∖ h", subtract(&s, &h, tol()), false),
+        ("s ∖ h", subtract(&s, &h, tol()), true),
         ("h ∖ s", subtract(&h, &s, tol()), false),
         ("s ∪ h", union(&s, &h, tol()), true),
-        ("h ∪ s", union(&h, &s, tol()), true),
+        ("h ∪ s", union(&h, &s, tol()), false),
     ] {
-        let refused = if at_pierce { pierce(&r) } else { roster(&r) };
         assert!(
-            refused,
+            frame(&r, saddle_first),
             "{op}: refuses typed at the spline × plane pair, not {r:?}"
         );
     }

@@ -238,7 +238,7 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
                     ..
                 },
                 ..
-            }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+            }] if what.starts_with("a trimmed face with no volume lane on its chart")
         ),
         "the spline's Intersection reading adopts, and check 7 meets a torus wall trimmed by a \
          spline, got {errors:?}"

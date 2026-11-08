@@ -209,7 +209,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     for c in &carriers {
         match c {
             Curve3::Circle(pncad::geom::Circle {
-                frame: pncad::geom::Frame { center, .. },
+                frame: pncad::geom::Frame { origin: center, .. },
                 radius,
             }) => {
                 assert!(
@@ -350,7 +350,12 @@ fn p2_the_oblique_class_hollows_outside_the_enumeration() {
             t,
             tol,
         )
-        .unwrap_or_else(|e| panic!("{what}: an oblique all-plane junction hollows now: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: an oblique all-plane junction hollows now: {e_at}",
+                e_at = e.render(pncad::geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
         assert_eq!(
             pncad::topo::validate_geometric(&hollow, tol),

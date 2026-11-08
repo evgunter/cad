@@ -49,3 +49,9 @@ geom, geom-brep and topo found it. (SPLICE orchestrator)
 ## Evidence (2026-10-26, ATREST orchestrator)
 
 Another instance, this time for verdicts rather than ids. PR 5745 changed what the topo census reports for aligned face pairs (`crates/topo/src/census.rs`). Its PR gate was green and selected no slow census golden. `editor-core` `perf12_census_goldens` had moved at all three ε rows: heat_sink went from 105 findings to 5 at every size. The lane found the move only because the orchestrator asked it to run the slow census goldens by hand before merging. So a diff to `census.rs` should select the `perf12_census_*` rows, by the same mechanism this row asks for ids.
+
+## An instance of the owed option 2, delivered (2026-11-06, PR 6560)
+
+`editor-core`'s `m10_sym_profile_interval` has a fast row, `the_forms_the_slabs_walks_build_are_pinned_per_eps_row` (0.32 s locally). It pins the slab's walk ledger, and the suite carries no `gated_to!` marker, so the row runs on every PR whose closure reaches editor-core. The plate's slow rows refine it. Its limit is stated in its doc: the slab has no curved wall, so it would not have caught PR 6504 or PR 6527, which moved only the plate.
+
+Three more slow-set reds of this class on main (~`c80a1e8c`), reported by another ONECOPY lane and not bisected: `editor-core` `m10_bulge_interval` ×2 (`pcurve_chart_radial_moving` reads `[22, 20]` → `[18, 24]`); `editor-core` `sym11_the_exact_channel_never_contradicts_past_the_ceiling` (`r2_filleted_bracket` 1325 vs 1313, `r2_link` 4104 vs 5161); and `scripts/gates/loop-boundary-discards.sh --selftest`, which fails on case `plant_extra_site census.rs face_cycles wrapped-return`.

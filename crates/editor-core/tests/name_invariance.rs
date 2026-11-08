@@ -637,7 +637,7 @@ const Z: [f64; 3] = [0.0, 0.0, 1.0];
 
 /// Two prisms whose coincident faces at `z = 1` and `y = 0` meet along
 /// one line, a chord between two merged faces
-/// (`work/wire/a-chord-between-two-merged-faces-within-no-rim-refuses.md`,
+/// (`a-chord-between-two-merged-faces-within-no-rim-refuses` (closed with WIRE: `docs/doc-ledger/wire-leaves-the-tracker.md`),
 /// witness 1, which no other test builds).
 fn two_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let ell = [

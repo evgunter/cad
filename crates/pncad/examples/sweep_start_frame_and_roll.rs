@@ -1,20 +1,19 @@
 //! **Sweeping and rolling through the façade**: a section carried
-//! along a path from the start frame the kernel hands out, then the
-//! same section lofted with a roll composed about the tangent — the
-//! answer to "is a caller wanting a different roll owed a second
-//! door", written as a program rather than as prose.
+//! along a path from a written start frame turned onto the path's
+//! start tangent, then the same section lofted through the frames the
+//! sweep carries, with a roll composed about the tangent — the answer
+//! to "is a caller wanting a different roll owed a second door",
+//! written as a program rather than as prose.
 //!
-//! It also walks the door's refusals, and the band around the
-//! reference ladder's first rung, which is where the frame's roll
-//! flips by half a turn.
+//! It also walks the turn's refusals, and tangents a few band-widths
+//! off the world +z, where the roll does not jump.
 //!
 //! Run: `cargo run -p pncad --example sweep_start_frame_and_roll`
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::polygon;
-use pncad::geom_core::linalg::frame::path_start_frame;
-use pncad::geom_core::{Point3, RigidMotion, Tol, UnitVec3, Vec3};
+use pncad::geom_core::{Band, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 use pncad::profile::SketchPlane;
 
 const TURNS: f64 = 0.4;
@@ -35,9 +34,16 @@ fn main() {
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("path");
     let (t0, t1) = path.domain();
 
-    // 1. The door, as a user reaches it.
+    // 1. The start frame, as a user writes it: the world frame at the
+    // path's start, turned onto its start tangent by the least turn.
+    let band = Band::linear(tol).expect("band");
+    let unit = |v: Vec3<f64>| UnitVec3::new(v, "example_tangent", band);
     let (p, tau) = path.ders1(t0);
-    let place = SketchPlane::from_frame(path_start_frame(p, tau, tol).expect("start frame"));
+    let place = SketchPlane::from_frame(
+        RigidMotion::axes_xy(p)
+            .turned_onto(unit(tau).expect("a tangent"), "example_start", band)
+            .expect("start frame"),
+    );
     println!("start frame: {place:?}");
     let section =
         vec![polygon(&[(-0.1, -0.1), (0.1, -0.1), (0.1, 0.1), (-0.1, 0.1)], tol).expect("square")];
@@ -64,20 +70,31 @@ fn main() {
         }
     }
 
-    // 2. What happens if a user hands the door a zero tangent, or a pole tangent?
-    println!(
-        "zero tangent: {:?}",
-        path_start_frame(Point3::<f64>::origin(), Vec3::new(0.0, 0.0, 0.0), tol).err()
-    );
+    // 2. What happens if a user hands it a zero tangent, or the pole?
+    let world = RigidMotion::axes_xy(Point3::<f64>::origin());
+    println!("zero tangent: {:?}", unit(Vec3::new(0.0, 0.0, 0.0)).err());
     println!(
         "pole tangent: {:?}",
-        path_start_frame(Point3::<f64>::origin(), Vec3::unit_z(), tol).map(RigidMotion::linear)
+        world
+            .turned_onto(-UnitVec3::exact_z(), "example_start", band)
+            .err()
     );
-    // A tangent a few band-widths off the pole: decided or refused?
+    // The recourse at the pole is to write a different frame.
+    println!(
+        "pole tangent, frame written upside down: {:?}",
+        RigidMotion::turned(
+            Point3::<f64>::origin(),
+            UnitVec3::exact_x(),
+            pncad::geom_core::Turns::quarters(2)
+        )
+        .turned_onto(-UnitVec3::exact_z(), "example_start", band)
+        .map(RigidMotion::linear)
+    );
+    // Tangents a few band-widths off +z: the roll moves with them.
     let eps = tol.eps();
     for k in [0.5, 1.0, 5.0, 10.0, 20.0] {
         let t = Vec3::new(k * eps, 0.0, 1.0);
-        let r = path_start_frame(Point3::<f64>::origin(), t, tol);
+        let r = world.turned_onto(unit(t).expect("a tangent"), "example_start", band);
         println!(
             "tangent ({k}·eps, 0, 1): {}",
             match &r {
@@ -87,20 +104,27 @@ fn main() {
         );
     }
 
-    // 3. Composed roll, the way the narration says: rotation about the tangent * the frame.
+    // 3. Composed roll, the way the narration says: the start frame
+    // carried to each station by the sweep's own carry, then a
+    // rotation about the tangent.
     let stations: u32 = 6;
+    let carried = pncad::sweep::sweep_places(
+        place,
+        &path,
+        usize::try_from(stations).expect("a count"),
+        tol,
+    )
+    .expect("the path carries its start frame");
     let places: Vec<SketchPlane<f64>> = (0..stations)
-        .map(|i| {
+        .zip(carried)
+        .map(|(i, plane)| {
             let u = f64::from(i) / f64::from(stations - 1);
-            let t = (t1 - t0).mul_add(u, t0);
-            let (p, d) = path.ders1(t);
-            let frame = path_start_frame(p, d, tol).expect("station frame");
             // The roll turns the AXES about the frame's own tangent
             // axis and leaves the origin the station point: a world
             // rotation about the tangent line would rebuild the
             // translation and drift off the spine.
             let roll = RigidMotion::rotation(UnitVec3::exact_z(), 0.8 * u).expect("roll");
-            SketchPlane::from_frame(frame.compose(roll).expect("rolled frame"))
+            SketchPlane::from_frame(plane.frame().compose(roll).expect("rolled frame"))
         })
         .collect();
     let sections: Vec<_> = (0..stations).map(|_| section.clone()).collect();

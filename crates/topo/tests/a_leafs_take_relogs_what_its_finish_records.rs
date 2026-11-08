@@ -1,6 +1,6 @@
 //! **A leaf's take relogs exactly what its finish records** (the raw
 //! logs `geom_core::k_stats::relog`'s contract asks a row to compare;
-//! `docs/predicate-dimension-audit.md` F31).
+//! `docs/predicate-dimension-audit.md` F34).
 //!
 //! At `f64` the leaf runs its finish under a bracket and keeps the
 //! record on the body (`topo::AtRestPolicy::leaf`); the one taker door

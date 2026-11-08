@@ -40,7 +40,7 @@ use geom_core::Decide;
 use topo::readback::{self, Pose, ReadbackError};
 use topo::{Body, CurveKind};
 
-use crate::eval::{BooleanValue, Evaluation, NodeStanding, SplitSide, ValuePayload};
+use crate::eval::{Evaluation, NodeStanding, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityKind, Entry, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 
@@ -648,22 +648,16 @@ pub(crate) fn output_body<T: topo::AtRestPolicy + Decide>(
 ) -> Result<&crate::eval::Framed<T>, InterrogateError> {
     let missing = || InterrogateError::NoSuchBody { index };
     let none = |payload| Err(InterrogateError::NoBodies { payload });
+    match payload.one_body() {
+        Some(Some(body)) if index == 0 => return Ok(body),
+        Some(Some(_)) => return Err(missing()),
+        Some(None) => return none("empty boolean"),
+        None => {}
+    }
     match payload {
-        ValuePayload::Body(b) => {
-            if index == 0 {
-                Ok(b)
-            } else {
-                Err(missing())
-            }
+        ValuePayload::Body(_) | ValuePayload::Boolean(_) => {
+            unreachable!("`one_body` answers every one-body value")
         }
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            if index == 0 {
-                Ok(body)
-            } else {
-                Err(missing())
-            }
-        }
-        ValuePayload::Boolean(BooleanValue::Empty) => none("empty boolean"),
         // The half that owns `index` by `SplitHalf::output_body` (the
         // one definition of that mapping), if either does.
         ValuePayload::Split { above, below } => {
@@ -677,7 +671,12 @@ pub(crate) fn output_body<T: topo::AtRestPolicy + Decide>(
                 SplitSide::Empty => Err(missing()),
             }
         }
-        ValuePayload::Instances(v) => v.get(index as usize).ok_or_else(missing),
+        // An empty member holds no body at its place, as an empty half
+        // holds none at its port.
+        ValuePayload::Instances(v) => v
+            .get(index as usize)
+            .and_then(Option::as_ref)
+            .ok_or_else(missing),
         // The families that denote no body at all. A mate denotes
         // none, and interrogating one for geometry is the same category
         // error as interrogating a declaration — as is interrogating a

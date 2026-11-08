@@ -148,7 +148,13 @@ impl ContainDecision {
     /// The one ending an escalation of this decision carries, read at
     /// `reading` (D4 ¶1 (i)), from the shared table.
     #[must_use]
-    pub fn ending(self, escalation: Escalation, diag: &Indeterminate, reading: Reading) -> String {
+    pub fn ending(
+        self,
+        escalation: Escalation,
+        diag: &Indeterminate,
+        reading: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        let reading: geom_brep::recourse::ReadAt = reading.into();
         let arm = escalation.arm(diag);
         let lever = placement_lever(Some(self));
         match self {
@@ -179,8 +185,9 @@ pub fn placement_ending(
     decision: Option<ContainDecision>,
     escalation: Escalation,
     diag: &Indeterminate,
-    reading: Reading,
+    reading: impl Into<geom_brep::recourse::ReadAt>,
 ) -> String {
+    let reading: geom_brep::recourse::ReadAt = reading.into();
     match decision {
         Some(decision) => decision.ending(escalation, diag, reading),
         None => unnamed_placement_ending(escalation.arm(diag), reading),
@@ -192,7 +199,11 @@ pub fn placement_ending(
 /// `None` arm of [`placement_ending`], for a refusal that holds its
 /// readings in a shape of its own rather than as one escalation.
 #[must_use]
-pub fn unnamed_placement_ending(arm: RefusedArm<'_>, reading: Reading) -> String {
+pub fn unnamed_placement_ending(
+    arm: RefusedArm<'_>,
+    reading: impl Into<geom_brep::recourse::ReadAt>,
+) -> String {
+    let reading: geom_brep::recourse::ReadAt = reading.into();
     LeverOnly {
         lever: placement_lever(None),
     }
@@ -249,6 +260,30 @@ pub enum ContainError {
     /// definite readings that disagree, carried with the arc's ends
     /// read against those corners.
     ArcEndClearOfCorners(Box<ArcEndGaps>),
+}
+
+impl ContainError {
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]), beside the variants it reads:
+    /// an escalation by its margin; a schedule no ray settled in band; a
+    /// loop the door cannot read a limit; a curved face's refusal as the
+    /// solid door states it; a face that does not resolve, or two
+    /// definite readings of an arc's end that disagree, a refusal of the
+    /// whole query ([`geom_brep::ladder::Aborts`]).
+    pub(in crate::boolean) fn refusal(
+        &self,
+    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted => Ok(Refusal::InBand),
+            Self::EmptyLoop(_) | Self::LoopUnreadable(_) | Self::Uncrossable(_) => {
+                Ok(Refusal::Limit)
+            }
+            Self::Curved(e) => e.refusal(),
+            Self::StaleFace(_) | Self::ArcEndClearOfCorners(_) => Err(Aborts),
+        }
+    }
 }
 
 /// **An arc's two carrier ends read against its edge's two stored
@@ -348,8 +383,12 @@ impl From<PointInLoopError> for ContainError {
 // `Escalated` renders its margin's payload and its decision's one ending
 // at a build ([`placement_ending`]); `Curved` delegates to the carried
 // refusal's own `Display`.
-impl core::fmt::Display for ContainError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl ContainError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Escalated {
                 decision,
@@ -358,9 +397,10 @@ impl core::fmt::Display for ContainError {
             } => write!(
                 f,
                 "contfp: {}",
-                diag.undecided(
+                geom_brep::recourse::undecided_at(
+                    diag,
                     placement_subject(*decision),
-                    placement_ending(*decision, *escalation, diag, Reading::Build),
+                    at.map(|at| placement_ending(*decision, *escalation, diag, at)),
                 )
             ),
             Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::NoRaySettled),
@@ -376,7 +416,7 @@ impl core::fmt::Display for ContainError {
                 f,
                 "contfp: the in-plane walk could not read loop {lp:?} of the face"
             ),
-            Self::Curved(e) => write!(f, "contfp: {e}"),
+            Self::Curved(e) => write!(f, "contfp: {}", geom_brep::recourse::read_at(e, at)),
             Self::Uncrossable(u) => write!(
                 f,
                 "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
@@ -389,6 +429,8 @@ impl core::fmt::Display for ContainError {
         }
     }
 }
+
+geom_brep::ended_by_write!(ContainError);
 
 impl std::error::Error for ContainError {}
 
@@ -416,12 +458,13 @@ pub(crate) fn driver_face_stale(face: FaceKey) -> ! {
     )
 }
 
-/// `face`'s outer loop and rings, the face the caller's key.
+/// `face`'s outer loop and rings ([`crate::live::FaceView::loops`]), the face
+/// the caller's key.
 fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, ContainError> {
-    let face_data = body.get_face(face).ok_or(ContainError::StaleFace(face))?;
-    Ok(core::iter::once(face_data.outer)
-        .chain(face_data.rings.iter().copied())
-        .collect())
+    let face_data = body
+        .passed_face(face)
+        .ok_or(ContainError::StaleFace(face))?;
+    Ok(face_data.loops().map(|(lk, _, _)| lk).collect())
 }
 
 /// **`contfp`** — classifies point `q` (already on the plane of `face`,
@@ -484,30 +527,16 @@ pub(crate) fn contfp_decided<T: Decide>(
     Ok((FaceContainment::In, None))
 }
 
-/// The circle a disc-class loop bounds — its own type, because three
-/// components of one datum read better named than positional.
-///
-/// Its centre and radius are readable crate-wide: tier 3's check 9
-/// decides two disc-class loops against each other from them (the
-/// centre distance against the radii's sum and difference), a question
-/// about a PAIR of loops that no one point's walk can ask.
-#[derive(Clone, Copy)]
-pub(crate) struct LoopCircle<T: geom_core::Real> {
-    /// The circle's centre.
-    pub(crate) center: Point3<T>,
-    /// Its plane normal (sign-free: only `cross` reads it).
-    axis: Vec3<T>,
-    /// Its radius, in metres.
-    pub(crate) radius: T,
-}
-
 /// **The circle this loop bounds, if it bounds one**: `Some` when every
 /// edge is an arc of ONE circle, so the loop's region is that circle's
 /// disc exactly — the planar analog of the curved door's iso-bounded
 /// class ([`curved_face_containment`]) — and `None` for a loop with a
 /// line, a non-circular conic, a null edge, or arcs of two circles.
 ///
-/// The circle is read from the first edge; every later edge must agree
+/// The circle is the first edge's carrier, its seam unread: tier 3's
+/// check 9 decides two disc-class loops against each other from their
+/// centres and radii, a question about a PAIR of loops that no one
+/// point's walk can ask. Every later edge must agree
 /// with it on one metre-valued row folding centre offset, radius
 /// difference and axis tilt (levered at the radius). The axis enters
 /// only through `cross`, which is blind to its sign — two arcs of one
@@ -529,10 +558,10 @@ pub(crate) fn loop_circle<T: Decide>(
     body: &Body<T>,
     r#loop: crate::entity::LoopKey,
     band: Band,
-) -> Result<Option<LoopCircle<T>>, ContainError> {
+) -> Result<Option<geom::Circle<T>>, ContainError> {
     // The WHOLE cycle is walked: an escalation on a later edge pair
     // escalates even after an earlier edge has ruled the class out.
-    let mut circle: Option<LoopCircle<T>> = None;
+    let mut circle: Option<geom::Circle<T>> = None;
     let mut one_circle = true;
     for (_, he, _) in loop_cycle_points(body, r#loop)? {
         let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
@@ -548,20 +577,13 @@ pub(crate) fn loop_circle<T: Decide>(
             .certified()
             .map(|c| c.carrier().clone());
         match carrier {
-            Some(geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
-                radius,
-            })) => match circle {
-                None => {
-                    circle = Some(LoopCircle {
-                        center,
-                        axis,
-                        radius,
-                    });
-                }
+            Some(geom::Curve3::Circle(arc)) => match circle {
+                None => circle = Some(arc),
                 Some(c) => {
-                    let (c0, a0, r0) = (c.center, c.axis, c.radius);
-                    let d = (center - c0).norm() + (radius - r0).abs() + axis.cross(a0).norm() * r0;
+                    let (c0, a0, r0) = (c.frame.origin, c.frame.axis, c.radius);
+                    let d = (arc.frame.origin - c0).norm()
+                        + (arc.radius - r0).abs()
+                        + arc.frame.axis.cross(a0).norm() * r0;
                     match decide("bool_face_disc_carrier", Margin::of(d), band) {
                         Ok(Sign::Zero) => {}
                         Ok(Sign::Positive | Sign::Negative) => one_circle = false,
@@ -826,10 +848,14 @@ pub(crate) fn face_placement<T: Decide>(
     band: Band,
     on_plane: &'static str,
 ) -> Result<CurvedPlacement, PlacementError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    match *body.face_surface_linked(face, f) {
+    let f = body.proven_face(face);
+    match *f.surface() {
         geom::Surface::Plane { origin, normal, .. } => {
-            match decide(on_plane, Margin::of((q - origin).dot(normal)), band) {
+            match decide(
+                on_plane,
+                Margin::of(geom::plane_offset(origin, normal, q)),
+                band,
+            ) {
                 Ok(Sign::Zero) => contfp(body, face, normal, q, band)
                     .map(|at| CurvedPlacement::Trim(Some(at)))
                     .map_err(PlacementError::Door),
@@ -904,16 +930,15 @@ fn curved_interior_placement<T: Decide>(
     band: Band,
     cut: Option<&[usize]>,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
-    let analytic = match *body.face_surface_linked(face, face_data) {
+    let view = body.proven_face(face);
+    let analytic = match *view.surface() {
         geom::Surface::Cylinder {
             origin,
             axis,
             radius,
             ..
         } => {
-            let w = q - origin;
-            let radial = w - axis * w.dot(axis);
+            let radial = geom::Line { origin, dir: axis }.offset(q);
             ruled_face_containment(body, face, radial.norm() - radius, q, band, cut)
         }
         // The whole DOUBLE cone ([`geom_brep::cone_elevation`] with no
@@ -957,7 +982,9 @@ fn curved_interior_placement<T: Decide>(
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
             return super::spline_region::spline_face_placement(body, face, q, band);
         }
-        geom::Surface::Plane { .. } => Ok(CurvedPlacement::Trim(None)),
+        geom::Surface::Plane { .. } | geom::Surface::Spindle { .. } => {
+            Ok(CurvedPlacement::Trim(None))
+        }
     };
     analytic.map(|at| (at, None))
 }
@@ -1349,7 +1376,7 @@ mod tests {
                 diag: cause,
             };
             assert_eq!(
-                refusal.to_string(),
+                refusal.render(geom_brep::recourse::Reading::Build),
                 format!(
                     "contfp: {} is undecided: {}. {ending}",
                     placement_subject(decision),
@@ -1364,7 +1391,7 @@ mod tests {
                     escalation,
                     diag: cause,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(walk.ends_with(&format!(". {ending}")), "{row}: {walk}");
             }
             let at_rest = crate::ValidationError::RingNestingUndecided {
@@ -1372,7 +1399,7 @@ mod tests {
                 ring: LoopKey::default(),
                 source: refusal,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::AtRest);
             assert!(
                 at_rest.ends_with(&format!(
                     "{} is undecided at this tolerance. {stored}",
@@ -1490,8 +1517,8 @@ mod tests {
         let body = holed.body;
         let band = Band::linear(Tol::witness()).unwrap();
         let mut loops = 0;
-        for (_, f) in body.faces() {
-            for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        for f in body.face_views() {
+            for (lk, ..) in f.loops() {
                 loops += 1;
                 assert!(
                     loop_circle(&body, lk, band)
@@ -1560,14 +1587,17 @@ mod tests {
                 4,
                 "{what}: each end decided once against each corner"
             );
-            let built = got.as_ref().unwrap_err().to_string();
+            let built = got
+                .as_ref()
+                .unwrap_err()
+                .render(geom_brep::recourse::Reading::Build);
             assert!(built.ends_with(lever), "{what}: {built}");
             let boolean = BooleanError::PointInFaceRefused {
                 operand: Operand::A,
                 face,
                 refusal: got.as_ref().unwrap_err().clone(),
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(boolean.ends_with(lever), "{what}: {boolean}");
             **gaps
         };

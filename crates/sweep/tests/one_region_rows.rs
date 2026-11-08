@@ -845,14 +845,10 @@ fn a_torus_cycle_missing_a_joint_element_is_not_read_as_contractible() {
 /// span and disjoint tube spans, `(-1, -0.1)` and `(0.1, 1)` about the
 /// donut face's middle, validate; so does every point of the face on a
 /// window's meridian line off the window, which the uncut door places in
-/// the face. At `Interval` both were once unread: a parallel leg from a
-/// point on a meridian edge's plane has a root at its own start, and the
-/// torus door unwound its roots onto the branch of a whole turn about
-/// `π`, whose cut that root straddles, so the root's enclosure was the
-/// whole turn and every parallel path from the point was set aside
-/// (`bool_torus_region_span` over about `[-1.5, 1.4]`). A leg whose start
-/// lies on the plane now has its roots unwound onto no branch
-/// (`first_harmonic_leg_roots`); every other leg reads them as before.
+/// the face. A parallel leg from a point on a meridian edge's plane meets
+/// that edge at its own start, and the leg is a whole turn, endless, so
+/// its start is no end of it (`region::landings`): at `Interval` the
+/// meeting is no cut's hull.
 fn windows_on_an_azimuth_grid<T: Scalar>(scalar: &str) {
     let at_f64 = donut::<f64>();
     let (face64, frame) = wall(&at_f64, is_torus);
@@ -1127,16 +1123,26 @@ fn points_of_the_other_half_read_off_a_face_holding_a_window_at_the_certified_sc
     }
 }
 
-/// **A point a band's width off a lune's pole vertex reads as it did
-/// before the sphere door read roots as directions**: on the 90° lune of
-/// a revolved ball (poles on `y`) and its 270° complement, at the band
-/// `(1e-12, 1e-11)`, points `1e-11` off the north pole decide out of the
-/// one face and in the other. A root's place against its arc's end read
-/// as the half-width less its angle from the middle loses the end's
-/// relative precision there, and `(0, 1, 1e-11)` escalated on
-/// `bool_sphere_region_span` at `9.99956e-12`.
+/// **A point clear of a lune's pole vertex by more than the band reads
+/// on its own side of the face**: on the 90° lune of a revolved ball
+/// (poles on `y`) and its 270° complement, at the band `(1e-12, 1e-11)`,
+/// points `2e-11` off the north pole decide out of the one face and in
+/// the other ([`lune_pole_rows`]). Every leg from such a point meets the
+/// meridian edge again at its antipode, as far from the south pole, so
+/// each end's distance is read twice the escalation off it, past any
+/// rounding of the end's point: any reading of the end decides it. A
+/// point at exactly the escalation width is no row: the meridian's span
+/// ends at `π` as an `f64`, whose point lies `1.2e-16` short of the
+/// pole, and a reading there is decided by that rounding.
 #[test]
-fn points_a_band_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
+fn points_two_escalations_off_a_lunes_pole_vertex_read_on_their_side() {
+    lune_pole_rows(2e-11);
+}
+
+/// The 90° lune of a revolved unit ball (poles on `y`) and its 270°
+/// complement, at the band `(1e-12, 1e-11)`: points `d` off the north
+/// pole read out of the one face and in the other.
+fn lune_pole_rows(d: f64) {
     let disc = [(0.0, -1.0, 1.0), (0.0, 1.0, 0.0)];
     let meridian = bulge_loop(
         disc.iter()
@@ -1159,16 +1165,16 @@ fn points_a_band_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
         (
             90.0_f64,
             vec![
-                (Point3::new(0.0, 1.0, 1e-11), out),
-                (Point3::new(0.0, -1.0, 1e-11), out),
-                (Point3::new(-1e-11, 1.0, 0.0), out),
+                (Point3::new(0.0, 1.0, d), out),
+                (Point3::new(0.0, -1.0, d), out),
+                (Point3::new(-d, 1.0, 0.0), out),
             ],
         ),
         (
             270.0,
             vec![
-                (Point3::new(-1e-11, 1.0, 0.0), inside),
-                (Point3::new(0.0, 1.0, -1e-11), inside),
+                (Point3::new(-d, 1.0, 0.0), inside),
+                (Point3::new(0.0, 1.0, -d), inside),
             ],
         ),
     ] {
@@ -1185,7 +1191,7 @@ fn points_a_band_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
             assert_eq!(
                 topo::curved_face_containment(&lune, face, q, band),
                 Ok(want),
-                "{q:?} on the {deg}° lune"
+                "{q:?} on the {deg}° lune, {d:e} off its pole"
             );
         }
     }

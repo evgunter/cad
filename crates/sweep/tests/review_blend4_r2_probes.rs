@@ -243,7 +243,7 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
                 let Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: ac,
+                            origin: ac,
                             axis: aa,
                             u_ref: au,
                         },
@@ -457,7 +457,7 @@ fn r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path() {
                 }
                 Err(err) => {
                     refused += 1;
-                    let text = err.error.to_string();
+                    let text = err.error.render(geom_brep::recourse::Reading::Build);
                     assert!(
                         !text.is_empty(),
                         "{pose}: a refusal names its door in words"

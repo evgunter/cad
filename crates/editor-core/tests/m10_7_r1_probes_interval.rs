@@ -103,6 +103,7 @@ fn r1_slab_ceiling_and_first_refusal() {
                 max_leaves: 1,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .unwrap();
@@ -222,7 +223,7 @@ fn r1_tier_off_dump() {
     ];
     for (name, doc, cfg) in docs {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let v = drive(&doc, &analyzed, &cfg, tol).unwrap();
+        let v = drive(&doc, &analyzed, &cfg, &editor_core::Stop::default(), tol).unwrap();
         s.push_str(&format!("== {name}\n{}", v.serialize()));
         s.push_str(&format!("key {:?}\n", v.content_key()));
         s.push_str(&MassBudget::of(v.accounting(), &analyzed).serialize());
@@ -249,6 +250,7 @@ fn r1_max_leaves_zero_with_the_tier_on() {
                 max_leaves: leaves,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         );
         match v {
@@ -425,6 +427,7 @@ fn r1_e2e_bracket_study() {
                     symbolic: dials,
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .unwrap();
@@ -454,14 +457,32 @@ fn r1_e2e_bracket_study() {
                     println!("   whole-box replay: {f}");
                 }
             }
-            match stackup(&doc, measure, &analyzed, &v, None, true, None, tol) {
+            match stackup(
+                &doc,
+                measure,
+                &analyzed,
+                &v,
+                None,
+                true,
+                None,
+                &editor_core::Stop::default(),
+                tol,
+            ) {
                 Ok(report) => println!("{}", report.render(&doc, &analyzed)),
                 Err(e) => println!("   stackup refused: {e}"),
             }
             let mut holds = (0, 0, 0);
             for leaf in v.certified() {
-                match assertion_at(&doc, assertion, &leaf.box_, v.symbolic(), tol)
-                    .and_then(|a| a.holds())
+                match assertion_at(
+                    &doc,
+                    assertion,
+                    &leaf.box_,
+                    v.symbolic(),
+                    &editor_core::Stop::default(),
+                    tol,
+                )
+                .expect("the replay is not stopped")
+                .and_then(|a| a.holds())
                 {
                     Some(true) => holds.0 += 1,
                     Some(false) => holds.1 += 1,

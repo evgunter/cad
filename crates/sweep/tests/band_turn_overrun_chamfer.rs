@@ -249,8 +249,12 @@ pub(crate) fn overrun_cells(out: &Blended<f64>, p_k: V, q: V, what: &str) {
 /// Chamfer `edges` of `body`, asserting tiers 3 and 3′ and the naming's
 /// totality.
 fn chamfer(body: &Body<f64>, edges: &[EdgeKey], what: &str) -> Blended<f64> {
-    let out = chamfer_edges(&at_rest(body, tol()), edges, D, tol())
-        .unwrap_or_else(|e| panic!("{what}: the overrun builds, got {}", e.error));
+    let out = chamfer_edges(&at_rest(body, tol()), edges, D, tol()).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the overrun builds, got {}",
+            e.error.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
     validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
         .unwrap_or_else(|e| panic!("{what}: tier 3′, {e:?}"));
@@ -753,14 +757,14 @@ fn a_later_chamfer_of_l_builds_where_its_foot_lands_on_the_overrun_edge() {
                     sweep::blend::BlendError::FaceClearanceUncertified { .. }
                 ),
                 "{what}: L at the first setback refuses at the clearance screen, got {}",
-                e.error
+                e.error.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!("{what}: L at the first setback must refuse"),
         }
         let later = chamfer_edges(&at_rest(b, tol()), &[l], 0.1 * D, tol()).unwrap_or_else(|e| {
             panic!(
                 "{what}: L at a tenth of the setback builds, got {}",
-                e.error
+                e.error.render(geom_brep::recourse::Reading::Build)
             )
         });
         validate_geometric(&later.body, tol())

@@ -404,7 +404,10 @@ fn an_offset_wedge_cap_refuses_naming_the_hyperbola() {
                 ..
             } = e
             else {
-                panic!("cap {cap:?}, d {d}: expected the section refusal, got {e}");
+                panic!(
+                    "cap {cap:?}, d {d}: expected the section refusal, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
             };
             assert_eq!(
                 (kind, other_kind),
@@ -417,7 +420,8 @@ fn an_offset_wedge_cap_refuses_naming_the_hyperbola() {
                         conic: geom_brep::OpenConic::Hyperbola
                     }
                 ),
-                "{verdict}"
+                "{verdict_at}",
+                verdict_at = verdict.render(geom_brep::recourse::Reading::Build)
             );
             assert_eq!(before, format!("{work:?}"), "body moved across an Err");
         }
@@ -448,8 +452,12 @@ fn an_offset_axis_normal_cap_passes_the_pose_gate() {
     };
     for d in [0.05, -0.05] {
         let mut work = body.clone();
-        topo::replace_face_offset(&mut work, disc, d, Tol::witness())
-            .unwrap_or_else(|e| panic!("d {d}: the disc moves along the cone, got {e}"));
+        topo::replace_face_offset(&mut work, disc, d, Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "d {d}: the disc moves along the cone, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         // Every corner of the moved disc lies on the moved plane and on
         // the untouched cone.
         let cone = faces_where(&work, |s| matches!(s, geom::Surface::Cone { .. }))[0];

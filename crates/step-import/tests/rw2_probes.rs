@@ -242,7 +242,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
 
     let carrier = geom::Curve3::Circle(geom::Circle {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },

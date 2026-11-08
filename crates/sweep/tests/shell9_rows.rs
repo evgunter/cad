@@ -36,7 +36,12 @@ fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[topo::FaceKey]) {
         open,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("{label}: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{label}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     print_rows(label, &out.body);
 }
 

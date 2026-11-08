@@ -231,6 +231,7 @@ fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_th
             DocumentId::derive("recourse-split-forward-part"),
             Tol::witness(),
             None,
+            &editor_core::Stop::default(),
         )
     };
     let err = split(&doc).expect_err("the part cannot be rebuilt in order");
@@ -268,14 +269,16 @@ fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_th
 const WORDLESS: &[(&str, &[&str])] = &[
     (
         // Tier 3 at the boolean door: the finish the door runs on its
-        // result (`AtRestPolicy::finish`), and its +V
-        // reading (check 7) with its interval re-derivation. The kernel
-        // checking its own bodies through tier 3's rules, so no model
-        // question to put in words.
+        // result (`AtRestPolicy::finish`), its flat faces' corners and
+        // edges read on their planes by the mint's incidence decider
+        // (`geom_brep::read_point_incidence`, `read_incidence`), and its
+        // +V reading (check 7) with its interval re-derivation. The
+        // kernel checking its own bodies through tier 3's rules, so no
+        // model question to put in words.
         "tier 3, at the boolean door",
         &[
-            "planar_boundary_residual",
-            "planar_face_residual",
+            "pcurve_line_chart_incident",
+            "pcurve_point_chart_incident",
             "positive_volume_exact",
         ],
     ),
@@ -326,6 +329,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "carrier_on_surface_1",
             "carrier_on_surface_2",
             "dihedral_arm",
+            "dihedral_sign",
             "dihedral_wedge",
             "enters_material",
             "enters_material_arm",

@@ -133,7 +133,10 @@ fn report(what: &str, r: Result<Body<f64>, topo::ShellError<f64>>) -> Option<Bod
             Some(b)
         }
         Err(e) => {
-            println!("[r1] {what}: REFUSES {e}");
+            println!(
+                "[r1] {what}: REFUSES {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             None
         }
     }
@@ -254,7 +257,10 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
                     got - want
                 );
             }
-            Err(e) => println!("[r1b] {what}: REFUSES {e}"),
+            Err(e) => println!(
+                "[r1b] {what}: REFUSES {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -452,7 +458,7 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                 // IN-BAND ARM. The corner is a genuine sliver at this
                 // ε: the fixture cannot be built, and the door must say
                 // so by name rather than build something arbitrary.
-                let Some(ProfileError::Escalated { site, source }) = refusal else {
+                let Some(ProfileError::Escalated { site, source, .. }) = refusal else {
                     panic!(
                         "delta={delta:e}: chord_side margin {margin:e} is in band \
                          ({:e}, {:e}) — the profile door must escalate, got {refusal:?}",
@@ -524,7 +530,10 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                         (got - want).abs() / want.abs()
                     );
                 }
-                Err(e) => println!("[r1e] delta={delta:e} t={t:e}: REFUSES {e}"),
+                Err(e) => println!(
+                    "[r1e] delta={delta:e} t={t:e}: REFUSES {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             }
         }
     }

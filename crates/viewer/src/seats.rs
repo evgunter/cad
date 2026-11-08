@@ -196,6 +196,9 @@ impl Seat {
 pub enum FaceRole {
     /// The face whose plane a mirror reflects across.
     MirrorPlane,
+    /// The plane a split cuts along: a face, or a plane the document
+    /// defines.
+    SplitPlane,
     /// A clearance requirement's first seat, held as a face — the
     /// seat [`Seat::ClearedFirst`] holds as a body, and named as it is.
     ClearedFirst,
@@ -208,6 +211,7 @@ impl FaceRole {
     pub fn name(self) -> &'static str {
         match self {
             Self::MirrorPlane => "mirror plane",
+            Self::SplitPlane => "split plane",
             Self::ClearedFirst => "first seat",
             Self::ClearedSecond => "second seat",
         }

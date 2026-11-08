@@ -209,7 +209,7 @@ fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     );
     let pipe = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
     let err = topo::union(&pipe, &bar, tol).expect_err("a tangency keeps the pierce door");
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
         panic!("not the pierce door: {err:?}");
     };

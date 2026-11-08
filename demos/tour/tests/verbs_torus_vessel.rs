@@ -225,7 +225,12 @@ fn sense_row(centre_rho: f64, winding: ArcSweep, scale: f64, what: &str) {
             t,
             tol,
         )
-        .unwrap_or_else(|e| panic!("{what} at t = {k}/128 x {scale}: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what} at t = {k}/128 x {scale}: {e_at}",
+                e_at = e.render(pncad::geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
         assert_eq!(
             pncad::topo::validate_geometric(&hollow, tol),

@@ -72,6 +72,6 @@ skin's own integrated volume (`patch_quadrature`), and holds the
 frustum to that at the fit's scale. The scene's and README's docs no
 longer say that 1e-12 refuses. The bindings' copy of the same oracle
 is filed as
-`work/lib/the-python-teapot-spout-holds-the-frustum-not-the-skin-to-the-enclosure.md`,
+`work/pydoor/the-python-teapot-spout-holds-the-frustum-not-the-skin-to-the-enclosure.md`,
 and the latent siblings as
 `work/isotail/idealised-sweep-closed-forms-held-inside-certified-enclosures.md`.

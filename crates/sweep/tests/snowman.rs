@@ -1438,7 +1438,7 @@ fn carried_edges(
 /// The lens is a boolean's own result, and the seam meridian it took
 /// from its B ball carries a certificate a fresh run does not
 /// reproduce
-/// (`work/cleave/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`):
+/// (`work/cleavetail/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`):
 /// the assembly carries that one too.
 #[test]
 fn the_fallback_assembly_carries_the_kept_operands_certificates() {
@@ -1538,7 +1538,11 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
         .expect("a cap circle's conventional vertex");
     let at_vertex = *caps.get_point(caps.get_vertex(x).unwrap().point).unwrap();
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center, axis, .. },
+        frame: geom::Frame {
+            origin: center,
+            axis,
+            ..
+        },
         ..
     }) = *caps
         .get_curve_geom(caps.get_edge(circle).unwrap().curve)
@@ -1696,7 +1700,11 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
         .expect("the cap circle's conventional vertex");
     let at_vertex = *cap.get_point(cap.get_vertex(x).unwrap().point).unwrap();
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center, axis, .. },
+        frame: geom::Frame {
+            origin: center,
+            axis,
+            ..
+        },
         ..
     }) = *cap
         .get_curve_geom(cap.get_edge(circle).unwrap().curve)

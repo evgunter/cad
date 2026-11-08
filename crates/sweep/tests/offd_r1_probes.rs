@@ -204,8 +204,12 @@ fn opening_nappe_small_d_passes_the_apex_predicate() {
     for d in [-0.05_f64, 0.05] {
         let mut body = cone_up_tube();
         let face = cone_face(&body);
-        topo::replace_face_offset(&mut body, face, d, Tol::witness())
-            .unwrap_or_else(|e| panic!("d = {d}: the cone moves between its cylinders, got {e}"));
+        topo::replace_face_offset(&mut body, face, d, Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "d = {d}: the cone moves between its cylinders, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_rims_on_cylinders(&body, face);
     }
 }
@@ -231,7 +235,8 @@ fn opening_nappe_apex_crossing_refuses_typed() {
         .expect_err("the shifted window crosses the apex");
     assert!(
         matches!(e, ReplaceFaceError::ApexWindow { face: f, .. } if f == face),
-        "expected ApexWindow ahead of the route gate, got {e}"
+        "expected ApexWindow ahead of the route gate, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -245,8 +250,12 @@ fn opening_nappe_apex_crossing_refuses_typed() {
 fn a_large_d_away_from_the_apex_is_not_an_apex_crossing() {
     let mut body = cone_up_tube();
     let face = cone_face(&body);
-    topo::replace_face_offset(&mut body, face, 5.0, Tol::witness())
-        .unwrap_or_else(|e| panic!("a shift away from the apex is no crossing; got {e}"));
+    topo::replace_face_offset(&mut body, face, 5.0, Tol::witness()).unwrap_or_else(|e| {
+        panic!(
+            "a shift away from the apex is no crossing; got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let geom::Surface::Cone {
         apex,
         axis,
@@ -507,7 +516,10 @@ fn fitted_obstruction_holds(name: &str, mut body: Body<f64>, curved: bool) {
             ref verdict,
             ..
         } => assert_refused_rim_verdict(name, verdict),
-        other => panic!("{name}: expected a refused section, got {other}"),
+        other => panic!(
+            "{name}: expected a refused section, got {other_at}",
+            other_at = other.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -547,7 +559,10 @@ fn moved_together_outward_every_edge_leaves_the_fits_windows() {
             ..
         } = e
         else {
-            panic!("{name}: expected a rim to leave the fits' window, got {e}");
+            panic!(
+                "{name}: expected a rim to leave the fits' window, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         };
         let data = body.get_edge(edge).expect("the rim resolves");
         let kinds: Vec<geom::SurfaceKind> = [data.he_plus, data.he_minus]
@@ -684,7 +699,7 @@ fn an_offset_as_deep_as_the_walls_collapses_their_seams() {
             matches!(e, ReplaceFaceError::ReanchorCollapse { offset, .. } if offset == d),
             "{d}: {e:?}"
         );
-        let text = e.to_string();
+        let text = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(&format!("{d:?} m")) && !text.contains("kernel defect"),
             "{d}: {text}"
@@ -719,7 +734,10 @@ fn a_derived_rim_past_the_moved_apex_refuses_the_apex_window() {
             ..
         } = e
         else {
-            panic!("{what}: expected the apex window, got {e}");
+            panic!(
+                "{what}: expected the apex window, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         };
         let (near, sense) = if v_min > 0.0 {
             (v_min, 1.0)

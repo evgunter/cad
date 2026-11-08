@@ -106,11 +106,17 @@ fn a_hole_in_the_end_face_sliver_crosses_the_arc_and_the_chamfer_takes_the_conve
                     }),
                 ) if chain == convexity => {}
                 (Verb::Chamfer, Err(other)) => {
-                    panic!("{what} (Chamfer): a bound at the hole's wall, got {other}")
+                    panic!(
+                        "{what} (Chamfer): a bound at the hole's wall, got {other_at}",
+                        other_at = other.render(geom_brep::recourse::Reading::Build)
+                    )
                 }
                 (Verb::Fillet, Err(BlendError::RingClearance { bounded: false, .. })) => {}
                 (_, Err(other)) => {
-                    panic!("{what} ({verb:?}): refuses at the sliver, got {other}")
+                    panic!(
+                        "{what} ({verb:?}): refuses at the sliver, got {other_at}",
+                        other_at = other.render(geom_brep::recourse::Reading::Build)
+                    )
                 }
                 (_, Ok(out)) => panic!(
                     "{what} ({verb:?}): a hole in the sliver must refuse, built one whose tier 3 \
@@ -683,7 +689,12 @@ fn a_ruled_links_strip_on_a_planar_support_refuses_a_feature_inside_it() {
         Verb::Fillet.run(body, &[mouth, tip])
     };
     let built = |what: &str, out: Result<sweep::blend::build::Blended<f64>, BlendError>| {
-        let out = out.unwrap_or_else(|e| panic!("{what}: builds, got {e}"));
+        let out = out.unwrap_or_else(|e| {
+            panic!(
+                "{what}: builds, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
         validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())

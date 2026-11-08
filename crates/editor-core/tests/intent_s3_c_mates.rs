@@ -338,7 +338,12 @@ fn number(coord: Coord, v: f64) -> Formula {
 
 /// `placement`'s copy where its bundle solved it, in its space.
 fn solved(doc: &ProfileDoc, placement: RecipeNodeId) -> Affine3<f64> {
-    let poses = editor_core::solve_document(doc, &EvalOptions::default(), Tol::witness());
+    let poses = editor_core::solve_document(
+        doc,
+        &EvalOptions::default(),
+        &editor_core::CancelToken::new(),
+        Tol::witness(),
+    );
     if let Some(fault) = poses.fault(placement) {
         panic!("placement {placement:?} refused: {fault}");
     }

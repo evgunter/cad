@@ -108,7 +108,12 @@ fn r1_a_square_vent_carves_past_the_ring_gate_and_both_convexity_doors() {
         D,
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("a square vent's ring is clear of the carve: {}", e.error));
+    .unwrap_or_else(|e| {
+        panic!(
+            "a square vent's ring is clear of the carve: {}",
+            e.error.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         validate_closed(&out.body),
         Ok(()),
@@ -215,7 +220,12 @@ fn r1_an_unvented_cavity_chamfers_inside_its_own_shell() {
         D,
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("the sealed cavity chamfers: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the sealed cavity chamfers: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(out.shells.len(), 1, "only the void's shell is carved");
     assert_eq!(
         out.body.shells().count(),

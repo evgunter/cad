@@ -115,6 +115,8 @@ Read against origin/main `2f10bc9a4d` (2026-10-09). Read-only lane.
 |---|---|---|---|---|---|
 | 1 | `validate.rs:5591` | `MaterialStations::after_positive` | `material_cusp_side`. `decide` gives `Ok(Zero)` on the signed sagitta, although the same magnitude decided positive one step earlier | P(c), unreachable guard | `Stopped` → `SliverDihedral{MaterialSide}` → DEFECT, which is followable. The rim path also reaches it (PR 4433 moved it here). Already on RESTFRONT's row `validate-material-side-zero-mints-an-indeterminate`, whose fix is `decide_nonzero` so the Zero carries its tag |
 | 2 | `validate.rs:5691` | `material_arm_error` | `MaterialArmOutcome::Split`: the stations disagree on pairing or end | P(s) | DEFECT. Whether the geometry can reach a split is on RESTFRONT's `ring-contact-and-sliver-split-endings-want-their-decisions` |
+
+2026-11-03 (ONEDOOR wedge fold, PR 6443): row 2 is retired, not routed. The split is now `geom_brep::WedgeVerdict::Mixed(MixedStations::Pairing | MixedStations::End)`, naming the two stations that disagree; `topo::validate::wedge_reading` raises it as `ValidationError::MixedDihedral`, which ends DEFECT, and no margin is minted. `material_arm_error` and `MaterialArmOutcome` are gone. Row 1's mint went the same way earlier (the end read decides through `decide_nonzero` in `geom_brep::edge_wedge`), and row 5 is now `RimRouting::SplineFace`.
 | 3 | `boolean/rim_wedge.rs:498` | `contains` (`seam_cover_unread`) | Missing face or surface, curved read `None`, **and every non-`Escalated` `ContainError`** (`Curved(PointInSolidError)`, `RayExhausted`, `Uncrossable`, …) lifted via `_ => unread` | U — throws away a typed refusal; it is not a sign verdict | D10 (seam / tangent-rim declaration verify only). Settled by carrying the `ContainError` |
 | 4 | `rim_wedge.rs:562` | `reach` | `seam_traversal_unread`: `decide` gives `Zero` on a cos that `rides` already makes ±1 | P(c) | D10 |
 | 5 | `rim_wedge.rs:1005` | `classify_shared_rim` | Spline chart on either side: the question cannot be posed | P(k) | D10. The caller swallows it (`Err(_) => claim.unsupported()`) |
@@ -151,7 +153,7 @@ Read against origin/main `2f10bc9a4d` (2026-10-09). Read-only lane.
 | 27 | `rules.rs:319` | `enters_material` | `Tangent` after the parallelism gate | P(c) | `SliverSector` ending is not a defect ending. On the same CLEAVE row |
 | 28 | `rules.rs:488` | `wall_bend_order2` | `Exits` or `Tangent` where rule (a) read "enters" | P(c) | Same |
 | 29 | `rules.rs:500` | `wall_bend_order2` | Sectors disagree | P(c) | Same |
-| 30 | `splitting/classify.rs:608` | `split_conic_graze_side` | `decide` gives `Zero`. This is reachable at K ≤ 2 according to its own comment | **D** | → `BellyGraze`. `decide_nonzero` keeps the tag |
+| 30 | `geom-brep/src/curve_face/plane_crossing.rs` (`conic_plane_candidates`) | `plane_crossing_graze_side` | `decide` gives `Zero`. This is reachable at K ≤ 2 according to its own comment | **D** | → `BellyGraze`. `decide_nonzero` keeps the tag |
 | 31 | `census.rs:2583` | `material_wedge_side` | `classify_dihedral` gives a definite **Transverse** after the edge screen | P(c) | `CensusEscalated` → `too_close` poison arm "check the inputs, then declare/move". The declare arm is not followable for a contradiction. On CLEAVE's parked row |
 | 32 | `boolean/sphere_region.rs:384` | (retired) | `CircleRoots::CountDisagrees` | P(c) | Retired (PR 4607): the variant is gone; the first-harmonic doors answer `FirstHarmonicRoots` |
 | 33 | `solid_contain.rs:5401` | (retired) | `TorusRoots::CountDisagrees` | P(c) | Retired (PR 4607): `PointInSolidError::RootCountDisagrees`, blocking the ray; the cause (rung 1's uncharged `Δ` rounding) is INSIDE's `ray-torus-count-certifies-on-an-uncharged-discriminant` |
@@ -216,7 +218,7 @@ That is 38 arms over 35 production mint sites (22 direct, 13 through the helper)
      exists now).
    - Ground: CLEAVE, HONE, INSIDE.
 3. **Splitting definite verdicts** (#26 `split_sector_extent` Zero → a collapsed-face verdict; #30
-   `split_conic_graze_side` → `decide_nonzero`). Cost E.
+   `plane_crossing_graze_side` → `decide_nonzero`). Cost E.
    - Ground: CLEAVE / GAUGE / HONE.
    - #26 sits on CLEAVE's **parked** `topo-mints-indeterminates-outside-the-funnel` (blocked_on
      `intent-stage4-is-built`, `design: true`). Confirm with CLEAVE, or take that row's rules.rs
@@ -268,3 +270,11 @@ None of the open PRs edits a mint line itself; these are conflict risks only.
 | `boolean/*` | cleave + hone (`solid_contain`: + inside; `carrier_eq`, `chord_join`: + tang; `contain`: + inside, reachtail; `sphere_region`: + orbit) |
 | `splitting/*` | cleave, gauge, hone |
 | `flush`, `invalid_margin`, `dihedral` | not listed by territory |
+
+## The D10 hold has lifted (2026-11-03)
+
+INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`), so the sites listed
+above as blocked by the D10 hold (#3–#7, #15–#19, #21, #22) no longer
+wait on it. Stage 4 has retired declared pairs, so a unit re-reads
+those sites against main before it fixes them; some may be gone.

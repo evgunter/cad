@@ -90,8 +90,22 @@ fn the_counterclockwise_wedge_blends_outward_at_both_doors() {
     let dual = topo::finish(wedge::<Dual64>(true), tol).expect("tier 2 passes the wedge");
     let at_dual = both_doors(&dual);
     for ((verb, f), (_, d)) in at_f64.into_iter().zip(at_dual) {
-        let f = f.unwrap_or_else(|r| panic!("{verb} at f64: {r}")).body;
-        let d = d.unwrap_or_else(|r| panic!("{verb} at the dual: {r}")).body;
+        let f = f
+            .unwrap_or_else(|r| {
+                panic!(
+                    "{verb} at f64: {r_at}",
+                    r_at = r.render(geom_brep::recourse::Reading::Build)
+                )
+            })
+            .body;
+        let d = d
+            .unwrap_or_else(|r| {
+                panic!(
+                    "{verb} at the dual: {r_at}",
+                    r_at = r.render(geom_brep::recourse::Reading::Build)
+                )
+            })
+            .body;
         validate_geometric(&f, tol)
             .unwrap_or_else(|e| panic!("{verb}: the result is finished: {e:?}"));
         let volume = topo::test_support::pinned_volume("the measured body", &f, tol).volume;

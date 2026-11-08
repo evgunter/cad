@@ -282,13 +282,23 @@ impl<'a> IntoIterator for &'a NotFinished {
     }
 }
 
-impl fmt::Display for NotFinished {
+impl NotFinished {
     /// Each family once, its text, then each of its findings, which ends
-    /// in the family's recourse. A lone finding is written alone: its
-    /// own sentence already says what its family's text would.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    /// in the family's recourse; each finding read at rest where the
+    /// holder is read at a door (`at` is `Some`: a finding of the gate
+    /// reported inside an operation's refusal,
+    /// [`geom_brep::recourse::at_rest`]), its payload alone otherwise. A
+    /// lone finding is written alone: its own sentence already says what
+    /// its family's text would.
+    fn write(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> fmt::Result {
+        use geom_brep::recourse::{at_rest, read_at};
+        let at = at_rest(at);
         if let [only] = self.as_slice() {
-            return write!(f, "{only}");
+            return write!(f, "{}", read_at(only, at));
         }
         for (i, (family, members)) in self.by_family().into_iter().enumerate() {
             if i > 0 {
@@ -299,12 +309,14 @@ impl fmt::Display for NotFinished {
                 if j > 0 {
                     f.write_str(" | ")?;
                 }
-                write!(f, "{finding}")?;
+                write!(f, "{}", read_at(finding, at))?;
             }
         }
         Ok(())
     }
 }
+
+geom_brep::ended_by_write!(NotFinished);
 
 impl std::error::Error for NotFinished {}
 
@@ -475,6 +487,7 @@ impl ValidationError {
             | Self::TangentNotIntrinsic { .. } => F::Description,
             Self::UnrepresentableSurfaceDatum { .. }
             | Self::DegenerateTorus { .. }
+            | Self::DegenerateSpindle { .. }
             | Self::DegenerateTorusEscalated { .. } => F::Convention,
             Self::ApproxCertification { .. }
             | Self::ApproxLaneUnsupported { .. }
@@ -495,6 +508,7 @@ impl ValidationError {
             | Self::SeamRegionOvercovered { .. }
             | Self::SeamRegionCoverUnresolved { .. }
             | Self::ChartSingularityNotAVertex { .. }
+            | Self::SheetApexReached { .. }
             | Self::ChartSingularityUndecided { .. }
             | Self::WrapTipOffChartSingularity { .. }
             | Self::WrapTipWithoutChartSingularity { .. }

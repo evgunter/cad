@@ -74,7 +74,12 @@ fn a_disc_declared_on_its_hosts_plane_merges_across_the_circle() {
     let circle_vertex = body.get_half_edge(first).unwrap().start;
     let outcome = body
         .merge_coplanar_faces(Tol::witness())
-        .unwrap_or_else(|err| panic!("the pair glues: {err:?}\n{err}"));
+        .unwrap_or_else(|err| {
+            panic!(
+                "the pair glues: {err:?}\n{err_at}",
+                err_at = err.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     let [group] = &outcome.groups[..] else {
         panic!("one group: {outcome:?}");
     };
@@ -169,7 +174,10 @@ fn a_disc_on_its_hosts_plane_refuses_as_not_maximal() {
         )
         .expect_err("the gate refuses the operand");
         let BooleanError::NonMaximalFaces { operand, edge } = err else {
-            panic!("at scale {s}, the gate decides the pair coplanar: {err:?}\n{err}");
+            panic!(
+                "at scale {s}, the gate decides the pair coplanar: {err:?}\n{err_at}",
+                err_at = err.render(geom_brep::recourse::Reading::Build)
+            );
         };
         assert_eq!(
             operand,
@@ -203,9 +211,12 @@ fn an_edge_spanning_less_than_the_band_still_refuses_undecided() {
         ..
     } = err
     else {
-        panic!("the gate's orientation rung is undecided: {err:?}\n{err}");
+        panic!(
+            "the gate's orientation rung is undecided: {err:?}\n{err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     };
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains("along an edge spanning clearly more than the tolerance")
             && !text.contains("tighten"),
@@ -260,7 +271,12 @@ fn two_faces_sharing_one_closed_outline_refuse_before_the_kef() {
     let equator = body.edges().map(|(e, _)| e).collect::<Vec<_>>();
     let outcome = body
         .merge_coplanar_faces(Tol::witness())
-        .unwrap_or_else(|err| panic!("the run records a skip: {err:?}\n{err}"));
+        .unwrap_or_else(|err| {
+            panic!(
+                "the run records a skip: {err:?}\n{err_at}",
+                err_at = err.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     assert!(outcome.groups.is_empty(), "nothing merges: {outcome:?}");
     let [skip] = &outcome.skipped[..] else {
         panic!("one skip: {outcome:?}");

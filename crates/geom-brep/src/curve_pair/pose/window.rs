@@ -1,7 +1,7 @@
-//! **A plane root's window beside a found meeting** (the parent
-//! module's docs, "A crossing of the other's plane"): whether the arc of a
-//! conic `a` where its height `H(θ)` above conic `b`'s plane is within the
-//! band's escalation `e` holds no meeting but those already found. Past
+//! **A plane root's window** (the parent module's docs, "A crossing of
+//! the other's plane"): whether the arc of a conic `a` where its height
+//! `H(θ)` above conic `b`'s plane is within the band's escalation `e`
+//! holds no meeting but those already found, none included. Past
 //! that window `a` is off `b`. Each found meeting `J` claims its ring, the
 //! arc within `e` of it (C5's ring rule). The window, read modulo `a`'s
 //! period over the part of it on `a`'s span, is the found meetings' own
@@ -17,11 +17,15 @@
 //! - **(ii) receding** (`curve_pair_window_recedes`): `d` strictly growing
 //!   away from the ring.
 //!
-//! An arc bounded by no ring must read off throughout.
+//! An arc bounded by no ring must read off throughout, past the band's
+//! escalation rather than its zero: it answers to no found meeting, so a
+//! point within the gap there is a near-miss the band leaves undecided,
+//! and the root goes to the polish, which escalates on it (the parent
+//! module's docs).
 //!
 //! **(ii).** `b` is planar, so `d² = H² + D²`, `D` the distance of `a(θ)`'s
 //! image `Q` in `b`'s plane to `b`. With `F` `b`'s level at `Q`
-//! (`level_on`), `s ≤ L` `b`'s semi-axes, `q*` a foot of `Q` and
+//! ([`Level`]), `s ≤ L` `b`'s semi-axes, `q*` a foot of `Q` and
 //! `Q − q* = D·ν`: `F` has Hessian `2M`, `M = diag(1/A², 1/B²)`, so
 //! `∇F(Q) = ∇F(q*) + 2D·Mν` with `∇F(q*)` along `±ν`, of length in
 //! `[2/L, 2/s]`; hence `(D²)′ = 2D·ν·Q′`,
@@ -30,21 +34,35 @@
 //! the point of `b` along `Q`'s unit-coordinate direction lies
 //! `≤ L·|√(F + 1) − 1| ≤ L·|F|` from `Q`, and the lower bound is
 //! [`geom::ellipse_level_clearance`]'s, held to the coplanar ellipse
-//! pair's ceiling. A piece recedes (for every foot) where `H` and `H′`
-//! keep the sign away from the ring and either `F` and `F′` do too with
-//! `|F′| > 2L·|F|·|Q′|/s²`, or `2|H|·|H′|` exceeds the level's drift
-//! `D·L·(|F′| + 2D·|Q′|/s²)`; or where `F` and `F′` keep that sign and
-//! `D·s·(|F′| − 2L·|F|·|Q′|/s²)` exceeds `2|H|·|H′|`. `H`, `F` and their
-//! slopes are bounded over a piece by Taylor's theorem as
-//! [`crate::half_angle::certified_subdivision`] bounds its harmonic.
-//!
+//! pair's ceiling. **Read locally**, both are loose by the aspect ratio,
+//! and tighter: `F` is quadratic, so `F(Q) = ∇F(q*)·Dν + D²·νᵀMν` and
+//! `|∇F(q*)| ≤ |∇F(Q)| + 2D/s²`, whence `|F| ≤ g·D + 3D²/s²` and, on `D`'s
+//! smaller branch, `|F| ≥ g·D − 3D²/s²`, `g` bounding `|∇F(Q)|` over the
+//! piece (it moves `2/s²` per metre of `Q`, and `Q` by the piece's reach):
+//! `D ≥ 2|F|/(g + √(g² + 12|F|/s²))`, and `D ≤ 2|F|/(g + √(g² − 12|F|/s²))`
+//! where `L·|F|` lies under the larger branch `(g + √(g² − 12|F|/s²))·s²/6`.
+//! The larger lower bound and the smaller upper bound are read. A piece
+//! recedes (for every foot) where `H` and `H′` keep the sign away from the
+//! ring and either `F` and `F′` do too with `|F′| > 2D·|Q′|/s²`, or
+//! `2|H|·|H′|` exceeds the level's drift `D·L·(|F′| + 2D·|Q′|/s²)`; or
+//! where `F` and `F′` keep that sign and
+//! `2D·(|F′| − 2D·|Q′|/s²)/|∇F(q*)|` exceeds `2|H|·|H′|`, `|∇F(q*)|` at
+//! most the lesser of `2/s` and `g + 2D/s²`. `H`, `F` and their slopes
+//! are bounded over a piece by Taylor's theorem about its middle, as
+//! [`crate::half_angle::certified_subdivision`] bounds its harmonic, from
+//! their jets read locally there ([`Level`] for `F`, the same for `H`),
+//! uncharged at `f64`, with fourth-derivative bounds that need no
+//! precision. Posed about `b`'s centre their harmonics carry rounding of
+//! order `((|w| + R)/s)²` for `F` and the carriers' distance from the
+//! origin for `H`, which at a far, thin or large pair reaches the band's
+//! zero; read about the piece, each rounds as its few local terms do.
+
 //! **On, along `b`.** Where `a` touches `b`, tangent to it, `d` stays
 //! within the zero band `z` over a run about `√(2z/κ)` long, `κ` their
 //! relative bend, far past the ring's `e`. The two first-order bounds
 //! need pieces of reach under `z` to read it, about `1/√(zκ)` of them,
-//! and the level's is floored by its harmonics' rounding at `L` times
-//! their charge, so at a fine band no piece reads on and the window runs
-//! out of pieces. Carried along `b` instead: with `φ` the middle's foot
+//! so at a fine band no piece reads on and the window runs out of
+//! pieces. Carried along `b` instead: with `φ` the middle's foot
 //! on `b`'s carrier and `g(δ) = a(m + δ) − b(φ + kδ)` for any slope `k`,
 //! `d(a(m + δ)) ≤ |g(δ)|`, and Taylor's theorem gives
 //! `|g(δ)| ≤ |g(0)| + |δ|·|g′(0)| + δ²/2·sup|g″|`. A conic's `|C″|` is
@@ -66,24 +84,23 @@
 mod oracle;
 
 use geom::Curve3;
+use geom_core::bisect::Step;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 
-use super::{Conic, level_on};
-use crate::half_angle::TrigPoly;
+use super::{Conic, Level, level_on, up};
 
 /// The most turns of a window or a ring a span is read over.
 const MAX_TURNS: usize = 64;
 
 /// What one window reads: the two conics, `a`'s span, `b`'s carrier,
-/// `a`'s height above `b`'s plane as `(c₀, c₁, s₁)` and its rounding.
+/// and `a`'s height above `b`'s plane as `(c₀, c₁, s₁)`.
 pub(super) struct Window<'w, T: geom_core::Real> {
     pub(super) a: &'w dyn Conic<T>,
     pub(super) span_a: (T, T),
     pub(super) b: &'w dyn Conic<T>,
     pub(super) carrier_b: &'w Curve3<T>,
     pub(super) height: (T, T, T),
-    pub(super) noise: T,
 }
 
 /// A found meeting: its point and its parameter on `a`.
@@ -101,30 +118,6 @@ enum Read {
     Recedes = 2,
 }
 
-/// `p` and its first three derivatives at `t`, and the bound on its
-/// fourth over the whole turn (`Σ k⁴·A_k`), each widened by its share of
-/// `noise` (Bernstein's inequality for degree `N`).
-fn jet<T: Decide>(p: &TrigPoly<T>, t: T, noise: T) -> ([T; 4], [T; 4], T) {
-    let n = usize::from(p.degree.min(4));
-    let mut d = [p.cos[0], T::zero(), T::zero(), T::zero()];
-    let mut top = T::zero();
-    let mut kf = T::zero();
-    for k in 1..=n {
-        kf = kf + T::one();
-        let (s, c) = (kf * t).sin_cos();
-        let (ck, sk) = (p.cos[k], p.sin[k]);
-        let (even, odd) = (ck * c + sk * s, sk * c - ck * s);
-        d[0] = d[0] + even;
-        d[1] = d[1] + kf * odd;
-        d[2] = d[2] - kf.powi(2) * even;
-        d[3] = d[3] - kf.powi(3) * odd;
-        top = top + kf.powi(4) * (ck.powi(2) + sk.powi(2)).sqrt();
-    }
-    let deg = kf;
-    let err = [noise, deg * noise, deg.powi(2) * noise, deg.powi(3) * noise];
-    (d, err, top + deg.powi(4) * noise)
-}
-
 /// `p` over a piece: lower and upper bounds on `|p|` and on `|p′|`, and
 /// `p` and `p′` at the middle.
 struct Bounds<T> {
@@ -136,13 +129,10 @@ struct Bounds<T> {
     slope_at: T,
 }
 
-/// [`Bounds`] of `p` over the piece of half-width `w` about `m`: Taylor's
-/// theorem about `m` with the turn's top-derivative bound, as
-/// [`crate::half_angle::certified_subdivision`] reads its clear and
-/// monotone tests. That walk keeps its own arithmetic, in the order its
-/// rows and three topo doors were measured on, rather than share this.
-fn bounds<T: Decide>(p: &TrigPoly<T>, m: T, w: T, noise: T) -> Bounds<T> {
-    let ([v, d1, d2, d3], [e0, e1, e2, e3], top) = jet(p, m, noise);
+/// [`Bounds`] over the piece of half-width `w` about a middle where the
+/// value and its first three derivatives are `d`, each within `err`, and
+/// the fourth is at most `top` throughout.
+fn taylor<T: Decide>([v, d1, d2, d3]: [T; 4], [e0, e1, e2, e3]: [T; 4], top: T, w: T) -> Bounds<T> {
     let (two, six, tf) = (T::from_f64(2.0), T::from_f64(6.0), T::from_f64(24.0));
     let (a1, a2, a3) = (d1.abs() + e1, d2.abs() + e2, d3.abs() + e3);
     let fall = a1 * w + a2 * w.powi(2) / two + a3 * w.powi(3) / six + top * w.powi(4) / tf;
@@ -155,18 +145,6 @@ fn bounds<T: Decide>(p: &TrigPoly<T>, m: T, w: T, noise: T) -> Bounds<T> {
         at: v,
         slope_at: d1,
     }
-}
-
-/// `x`, non-negative and computed in `N` roundings to nearest, raised to
-/// an upper bound on the real value it stands for. Each rounding is
-/// within `u = ε/2` relative, so `x̂ ≥ x·(1 − u)ᴺ`, and the factor
-/// `c = 1 + (N + 1)·2u`, a constant exact in `f64` for any `N` short of
-/// `2⁵¹`, lifts it past `x` in one more rounding:
-/// `x̂·c·(1 − u) ≥ x·(1 − (N + 1)·u)·(1 + 2(N + 1)·u) ≥ x` while
-/// `(N + 1)·u ≤ ½`. At an enclosure `c` is a point and the product is
-/// outward already, so this only widens it.
-fn up<const N: u32, T: Decide>(x: T) -> T {
-    x * T::from_f64(1.0 + f64::EPSILON * (N + 1) as f64)
 }
 
 /// **The bend term** `(A + k²·B)·w²/2` of the on reading along `b`
@@ -192,24 +170,34 @@ fn same_way<T: Decide>(row: &'static str, x: T, y: T, away: bool) -> bool {
 }
 
 impl<T: Decide> Window<'_, T> {
-    /// `a`'s height above `b`'s plane, a first harmonic.
-    fn height_poly(&self) -> TrigPoly<T> {
-        let (c0, c1, s1) = self.height;
-        let z = T::zero();
-        TrigPoly {
-            cos: [c0, c1, z, z, z],
-            sin: [z, s1, z, z, z],
-            degree: 1,
-        }
+    /// `a`'s height above `b`'s plane and its first three derivatives at
+    /// `θ`, read locally as the level is ([`Level`]): on a conic
+    /// `P″ = −(P − c)` and `P‴ = −P′`.
+    fn height_jet(&self, theta: T) -> [T; 4] {
+        let (n, centre) = (self.b.frame().axis, self.b.frame().origin);
+        let (p, dp) = self.a.jet_at(theta);
+        let slope = dp.dot(n);
+        let bend = (self.a.frame().origin - p).dot(n);
+        [(p - centre).dot(n), slope, bend, T::zero() - slope]
+    }
+
+    /// A bound on the height's fourth derivative, `(P − c)·n̂`, at every
+    /// angle: its swing `√(c₁² + s₁²)`, raised past its four roundings and
+    /// the twelve of `c₁` and `s₁` (`k.along`).
+    fn height_fourth(&self) -> T {
+        let (_, c1, s1) = self.height;
+        up::<16, _>((c1.powi(2) + s1.powi(2)).sqrt())
     }
 
     /// **How the piece `(l, r)` reads**, `away` whether `θ` increasing
-    /// leaves the found meeting (module docs).
+    /// leaves the found meeting, or `None` on an arc no ring bounds, where
+    /// off reads past the band's escalation rather than its zero (module
+    /// docs).
     fn read(
         &self,
         (l, r): (T, T),
-        away: bool,
-        level: &(TrigPoly<T>, T),
+        away: Option<bool>,
+        level: &Level<'_, T>,
         band: Band,
     ) -> Option<Read> {
         let two = T::from_f64(2.0);
@@ -219,34 +207,53 @@ impl<T: Decide> Window<'_, T> {
         let q = self.a.point_at(m);
         let lower = self.carrier_b.clearance(q).unwrap_or_else(T::zero) - reach;
         let row = "curve_pair_window_recedes";
-        let h = bounds(&self.height_poly(), m, w, self.noise);
-        let (poly, terms) = level;
-        // The charge covers the f64 harmonics' distance from the true
-        // level, below what an f64 reading can resolve, so no row pins it:
-        // it rests on `rounding_charge`'s estimate, as the subdivision's
-        // does, and an Interval reading carries its own enclosure.
-        let f = bounds(poly, m, w, geom_core::rounding_charge(*terms));
+        // The height and the level are read locally at the middle,
+        // uncharged: their few terms round far below the band, and an
+        // Interval reading encloses them.
+        let z0 = T::zero();
+        let h = taylor(self.height_jet(m), [z0; 4], self.height_fourth(), w);
+        let f = taylor(level.jet_at(m), [z0; 4], level.fourth(), w);
         let (big, small) = (self.b.speed_hi(), self.b.speed_lo());
         let height_recedes = positive(row, h.lo)
             && positive(row, h.slope_lo)
-            && same_way(row, h.at, h.slope_at, away);
-        // `|(D²)′| ≤ D·L·(|F′| + 2D·|Q′|/s²)`, `D ≤ L·|F|`.
-        let d_hi = big * f.hi;
-        let level_drift = d_hi * big * (f.slope_hi + two * d_hi * speed / small.powi(2));
+            && same_way(row, h.at, h.slope_at, away.unwrap_or(true));
+        // `D` from the level, read locally (module docs, (ii)).
+        let s2 = small.powi(2);
+        let (six, twelve) = (T::from_f64(6.0), T::from_f64(12.0));
+        let grad = level.gradient_at(m);
+        let (g_lo, g_hi) = (grad - two * reach / s2, grad + two * reach / s2);
+        let f_lo = f.lo.max(T::zero());
+        let four = T::from_f64(4.0);
+        let d_lo = (two * f_lo / (g_hi + (g_hi.powi(2) + twelve * f_lo / s2).sqrt()))
+            .max((small / four).min(f_lo * small / four));
+        let disc = g_lo.powi(2) - twelve * f.hi / s2;
+        let d_hi = if positive(row, g_lo)
+            && positive(row, disc)
+            && positive(row, (g_lo + disc.sqrt()) * s2 / six - big * f.hi)
+        {
+            (two * f.hi / (g_lo + disc.sqrt())).min(big * f.hi)
+        } else {
+            big * f.hi
+        };
+        // `|(D²)′| ≤ D·L·(|F′| + 2D·|Q′|/s²)`.
+        let level_drift = d_hi * big * (f.slope_hi + two * d_hi * speed / s2);
         let level_negligible = positive(row, two * h.lo * h.slope_lo - level_drift);
         let level_recedes = positive(row, f.lo)
             && positive(row, f.slope_lo)
-            && same_way(row, f.at, f.slope_at, away)
-            && positive(row, f.slope_lo - two * big * f.hi * speed / small.powi(2));
-        // `(D²)′ ≥ D·s·(|F′| − 2L·|F|·|Q′|/s²)`, `D ≥ min(s/4, |F|·s/4)`.
-        let level_way = positive(row, f.lo) && same_way(row, f.at, f.slope_at, away);
-        let four = T::from_f64(4.0);
-        let d_lo = (small / four).min(f.lo * small / four);
-        let level_growth = d_lo * small * (f.slope_lo - two * big * f.hi * speed / small.powi(2));
+            && same_way(row, f.at, f.slope_at, away.unwrap_or(true))
+            && positive(row, f.slope_lo - two * d_hi * speed / s2);
+        // `(D²)′ ≥ 2D·(|F′| − 2D·|Q′|/s²)/|∇F(q*)|`.
+        let level_way =
+            positive(row, f.lo) && same_way(row, f.at, f.slope_at, away.unwrap_or(true));
+        let foot_grad = (two / small).min(g_hi + two * d_hi / s2);
+        let level_growth = two * d_lo * (f.slope_lo - two * d_hi * speed / s2) / foot_grad;
         let level_dominates = level_way
             && positive(row, f.slope_lo)
             && positive(row, level_growth - two * h.hi * h.slope_hi);
-        let z = T::from_f64(band.zero());
+        let z = match away {
+            Some(_) => T::from_f64(band.zero()),
+            None => T::from_f64(band.escalate()),
+        };
         if positive("curve_pair_window_off", h.lo.max(lower) - z) {
             return Some(Read::Off);
         }
@@ -274,7 +281,7 @@ impl<T: Decide> Window<'_, T> {
     fn along_b(&self, m: T, w: T, foot: &geom::Foot<'_, T>) -> T {
         let eps = T::from_f64(f64::EPSILON);
         let (_, va) = self.a.jet_at(m);
-        let (_, vb) = self.carrier_b.ders1(foot.t());
+        let (_, vb) = self.carrier_b.ders1(foot.seed());
         let k = va.dot(vb) / vb.dot(vb);
         let (sa, sb) = (self.a.speed_hi(), self.b.speed_hi());
         // `m` and `w` are each within two roundings of `(l ± r)/2`, so
@@ -290,7 +297,7 @@ impl<T: Decide> Window<'_, T> {
     /// `b`'s unit coordinates.
     fn foot_seed(&self, q: Point3<T>) -> T {
         let (x, y) = self.b.unit_in_plane(q);
-        super::angle(y, x)
+        geom::Azimuth::of(y, x).principal_as(super::row::BRANCH, Band::least())
     }
 
     /// **The pieces of `(l, r)`, each read**, halved until each reads or
@@ -299,31 +306,27 @@ impl<T: Decide> Window<'_, T> {
     fn pieces(
         &self,
         (l, r): (T, T),
-        away: bool,
-        level: &(TrigPoly<T>, T),
+        away: Option<bool>,
+        level: &Level<'_, T>,
         band: Band,
     ) -> Option<Vec<Read>> {
         let speed = self.a.speed_hi();
         let mut out = Vec::new();
-        let mut stack = vec![(l, r)];
-        let mut budget = geom_core::bisect::PIECE_BUDGET;
-        while let Some((pl, pr)) = stack.pop() {
-            budget = budget.checked_sub(1)?;
+        let walked = geom_core::bisect::bisect([(l, r)], |(pl, pr)| {
             if let Some(read) = self.read((pl, pr), away, level, band) {
                 out.push(read);
-                continue;
+                return Step::Settled;
             }
             if !positive(
                 "curve_pair_window_width",
                 speed * (pr - pl) - T::from_f64(band.zero()),
             ) {
-                return None;
+                return Step::Stop(());
             }
             let mid = (pl + pr) / T::from_f64(2.0);
-            stack.push((mid, pr));
-            stack.push((pl, mid));
-        }
-        Some(out)
+            Step::Halve([(pl, mid), (mid, pr)])
+        });
+        matches!(walked, Ok(None)).then_some(out)
     }
 
     /// **The half-width of `j`'s ring on `a`, in `a`'s parameter**: the arc
@@ -339,8 +342,9 @@ impl<T: Decide> Window<'_, T> {
     }
 
     /// **Whether the window `(lo, hi)` holds no meeting but the found
-    /// `joints`** (module docs). `false` where a reading cannot certify it:
-    /// the root is then polished as with no meeting found.
+    /// `joints`**, none among them included (module docs). `false` where a
+    /// reading cannot certify it: the root is then polished as with no
+    /// meeting found.
     ///
     /// The window is read modulo `a`'s period: each of its turns that
     /// meets `a`'s span is read over that part, so a window across the
@@ -376,7 +380,6 @@ impl<T: Decide> Window<'_, T> {
         let Some(centres) = copies((lo + hi) / two, half) else {
             return false;
         };
-        let mut anchored = false;
         for centre in centres {
             let (l, h) = ((centre - half).max(t0), (centre + half).min(t1));
             if !positive("curve_pair_window_width", h - l) {
@@ -403,7 +406,6 @@ impl<T: Decide> Window<'_, T> {
                     }
                 }
             }
-            anchored |= !rings.is_empty();
             // The arcs between the rings and the part's ends, each read
             // outward from the rings that bound it; one no ring bounds
             // anchors no meeting, and must read off throughout.
@@ -419,7 +421,7 @@ impl<T: Decide> Window<'_, T> {
                 sides.extend(outward((from.0, h), from.1, false));
             }
             for (arc, away) in sides {
-                let Some(reads) = self.pieces(arc, away.unwrap_or(true), &level, band) else {
+                let Some(reads) = self.pieces(arc, away, &level, band) else {
                     return false;
                 };
                 if away.is_none() && reads.iter().any(|&x| x != Read::Off) {
@@ -427,7 +429,7 @@ impl<T: Decide> Window<'_, T> {
                 }
             }
         }
-        anchored
+        true
     }
 }
 
@@ -482,18 +484,12 @@ mod rows {
         joint: f64,
     ) -> bool {
         let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
-        let lever = ka.speed_hi().max(kb.speed_hi());
-        let o = Point3::origin();
-        let noise = geom_core::rounding_charge(
-            (ka.frame().center - o).norm() + (kb.frame().center - o).norm() + lever + lever,
-        );
         let w = Window {
             a: &ka,
             span_a,
             b: &kb,
             carrier_b: b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
-            noise,
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let j = Joint {
             point: a.eval(joint),
@@ -678,6 +674,69 @@ mod rows {
         }
     }
 
+    /// **An arc no ring bounds, in a window that holds a ring, reads off
+    /// only past the escalation.** The unit circle's window `±2·10⁻⁶`
+    /// about its span's seam. A circle in the plane of the chord between
+    /// `θ = ±10⁻⁶` meets it at `10⁻⁶`, the found meeting, whose ring bounds
+    /// the part past the seam's start; near `−10⁻⁶`, in the part before the
+    /// seam's end, which no ring bounds, it passes the first at the least
+    /// gap the closed-form distance to it reads, sampled densely. Within the zero
+    /// band the window is not the joint's (a second meeting), and past the
+    /// escalation it is. In the band's gap the arc's pieces all read off
+    /// past the zero, as a ring-bounded arc's would, so the window read the
+    /// pair apart there; now it does not certify, and the root goes to the
+    /// polish. Red where an arc no ring bounds reads off past the zero.
+    #[test]
+    fn a_free_arc_in_the_gap_beside_a_ring_is_not_the_joints() {
+        let (tau, w) = (core::f64::consts::TAU, 2e-6_f64);
+        let (z, e) = (band().zero(), band().escalate());
+        let (c, s) = ((w / 2.0).cos(), (w / 2.0).sin());
+        let a = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+        let mut gap_seen = 0;
+        let mut bad = Vec::new();
+        for pass in [5e-10, 8e-9, 3e-8, 1e-7] {
+            let r = 2.0 * s * s / pass;
+            let centre = Point3::new(c, s, r);
+            let b = Curve3::circle(centre, Vec3::unit_x(), r, Vec3::new(0.0, 0.0, -1.0));
+            let gap = (0..=20_000)
+                .map(|i| {
+                    let q = a.eval(-w + w * f64::from(i) / 20_000.0) - centre;
+                    let h = q.x;
+                    let rho = (q - Vec3::unit_x() * h).norm();
+                    (h * h + (rho - r).powi(2)).sqrt()
+                })
+                .fold(f64::INFINITY, f64::min);
+            let got = holds((&a, (0.0, tau)), &b, (-w, w), w / 2.0);
+            let label = format!("least gap {gap:e}");
+            if gap <= z || gap > e {
+                if got != (gap > e) {
+                    bad.push(format!("{label}: holds {got}"));
+                }
+                continue;
+            }
+            gap_seen += 1;
+            let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
+            let window = Window {
+                a: &ka,
+                span_a: (0.0, tau),
+                b: &kb,
+                carrier_b: &b,
+                height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
+            };
+            let level = super::super::level_on(&ka, &kb);
+            let past_zero = window
+                .pieces((tau - w, tau), Some(true), &level, band())
+                .is_some_and(|reads| reads.iter().all(|&x| x == super::Read::Off));
+            if !past_zero || got {
+                bad.push(format!(
+                    "{label}: off past the zero {past_zero}, holds {got}"
+                ));
+            }
+        }
+        assert_eq!(gap_seen, 2, "two passes in the band's gap");
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
+    }
+
     /// **A ring lies within the band's escalation of its meeting.** A
     /// circle of radius `2`, its speed its greatest everywhere, and a found
     /// meeting `g` off its point at `θ = 0`, square to it, for `g` from
@@ -706,8 +765,7 @@ mod rows {
             span_a: (-1.0, 1.0),
             b: &kb,
             carrier_b: &b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
-            noise: 0.0,
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
             let joint = Joint {
@@ -729,18 +787,33 @@ mod rows {
         }
     }
 
-    /// **A harmonic's bounds over a piece hold at its extremes.** Three
+    /// `p`'s jet at `m` and `Σ k⁴·|c_k|`, read over `±w` by
+    /// [`super::taylor`].
+    fn bounds(p: &TrigPoly<f64>, m: f64, w: f64) -> super::Bounds<f64> {
+        let mut d = [p.cos[0], 0.0, 0.0, 0.0];
+        let mut top = 0.0;
+        for k in 1..=usize::from(p.degree) {
+            let kf = k as f64;
+            let (sn, cs) = (kf * m).sin_cos();
+            let (even, odd) = (p.cos[k] * cs + p.sin[k] * sn, p.sin[k] * cs - p.cos[k] * sn);
+            d[0] += even;
+            d[1] += kf * odd;
+            d[2] -= kf.powi(2) * even;
+            d[3] -= kf.powi(3) * odd;
+            top += kf.powi(4) * p.cos[k].hypot(p.sin[k]);
+        }
+        super::taylor(d, [0.0; 4], top, w)
+    }
+
+    /// **A jet's bounds over a piece hold at its extremes.** Three
     /// polynomials of degree two, one of them flat to third order at `0`,
-    /// and one of degree one, over pieces of
-    /// half-width `10⁻³` to `1.5` about 64 middles round the turn: the
-    /// lower and upper bounds on `|p|` and `|p′|` enclose the least and
-    /// greatest sampled. And a polynomial read from harmonics rounded by
-    /// `0.9` of its charge, at a middle where it is flat: its lower bound
-    /// stays at or under the true polynomial's value. Red where the Taylor
-    /// remainder drops its fourth-order term, or the rounding goes
-    /// uncharged.
+    /// and one of degree one, over pieces of half-width `10⁻³` to `1.5`
+    /// about 64 middles round the turn, read by [`super::taylor`] from
+    /// their jet and `Σ k⁴·|c_k|`: the lower and upper bounds on `|p|`
+    /// and `|p′|` enclose the least and greatest sampled. Red where the
+    /// Taylor remainder drops its fourth-order term.
     #[test]
-    fn a_harmonics_bounds_over_a_piece_hold_at_its_extremes() {
+    fn a_jets_bounds_over_a_piece_hold_at_its_extremes() {
         let poly = |c: [f64; 3], s: [f64; 3], degree: u8| TrigPoly {
             cos: [c[0], c[1], c[2], 0.0, 0.0],
             sin: [0.0, s[1], s[2], 0.0, 0.0],
@@ -769,7 +842,7 @@ mod rows {
             for i in 0..64 {
                 let m = core::f64::consts::TAU * f64::from(i) / 64.0;
                 for w in [1e-3, 0.1, 0.5, 1.0, 1.5] {
-                    let b = super::bounds(p, m, w, 0.0);
+                    let b = bounds(p, m, w);
                     let (mut lo, mut hi, mut slo, mut shi) =
                         (f64::INFINITY, 0.0_f64, f64::INFINITY, 0.0_f64);
                     for j in 0..=400 {
@@ -793,16 +866,6 @@ mod rows {
                 }
             }
         }
-        let noise = 1e-9;
-        let truth = poly([1.0, 0.5, 0.0], [0.0; 3], 1);
-        let rounded = poly([1.0 + 0.9 * noise, 0.5, 0.0], [0.0; 3], 1);
-        let b = super::bounds(&rounded, 0.0, 1e-6, noise);
-        let (v, _) = at(&truth, 0.0);
-        assert!(
-            b.lo <= v,
-            "the rounded harmonics' lower bound {} under the true value {v}",
-            b.lo
-        );
     }
 
     /// The fine band, `ε = 10⁻¹²`, where a touch's run outlasts the
@@ -847,18 +910,12 @@ mod rows {
     /// past `J`'s ring reads in, outward.
     fn touch(a: &Curve3<f64>, b: &Curve3<f64>, reach: f64) -> (bool, Option<usize>) {
         let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
-        let lever = ka.speed_hi().max(kb.speed_hi());
-        let o = Point3::origin();
-        let noise = geom_core::rounding_charge(
-            (ka.frame().center - o).norm() + (kb.frame().center - o).norm() + lever + lever,
-        );
         let w = Window {
             a: &ka,
             span_a: (-0.5, 0.5),
             b: &kb,
             carrier_b: b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
-            noise,
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let j = Joint {
             point: a.eval(0.0),
@@ -867,7 +924,7 @@ mod rows {
         let ring = w.ring(&j, 0.0, fine()).unwrap();
         let level = super::level_on(&ka, &kb);
         let past = w
-            .pieces((ring, reach), true, &level, fine())
+            .pieces((ring, reach), Some(true), &level, fine())
             .map(|r| r.len());
         (w.holds_only((-reach, reach), &[j], fine()), past)
     }
@@ -917,8 +974,7 @@ mod rows {
             span_a: (-0.5, 0.5),
             b: &kb,
             carrier_b: &b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
-            noise: 0.0,
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
         let along = w.along_b(5e-6, 5e-6, &foot);
@@ -928,7 +984,7 @@ mod rows {
         );
         let level = super::level_on(&ka, &kb);
         assert_ne!(
-            w.read((0.0, 1e-5), true, &level, fine()),
+            w.read((0.0, 1e-5), Some(true), &level, fine()),
             Some(super::Read::On),
             "the piece reads on"
         );
@@ -974,8 +1030,7 @@ mod rows {
             span_a: (399.0, 401.0),
             b: &kb,
             carrier_b: &b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
-            noise: 0.0,
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let mut l = 400.0_f64;
         for _ in 0..64 {

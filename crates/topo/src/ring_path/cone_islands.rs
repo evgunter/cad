@@ -152,7 +152,7 @@ pub(crate) fn section(
 
 /// The conic parameter of `p`, a point of `c`.
 fn conic_param(c: &geom::Curve3<f64>, p: Point3<f64>) -> f64 {
-    c.conic().unwrap().angle_of(p)
+    c.conic().unwrap().azimuth(p).near(0.0)
 }
 
 /// One edge of an [`Island`], travelled from its corner to the next:

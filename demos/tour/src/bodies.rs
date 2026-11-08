@@ -113,9 +113,9 @@ pub fn vase<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
 /// revolve of a polyline + arc profile — stepped hub, recessed web,
 /// rim with TAPERED (conical) shoulders flanking a SEMICIRCULAR rope
 /// groove. The groove arc's carrier center sits OFF the revolve axis,
-/// so its wall is a ring-torus zone (`WallKind::Torus` — only
-/// horn/spindle tori refuse typed); the shoulders are cone zones. One
-/// stop carries all four analytic surface kinds (plane, cylinder,
+/// so its wall is a ring-torus zone (an arc whose circle reaches the
+/// axis sweeps a spindle sheet instead); the shoulders are cone zones.
+/// One stop carries all four analytic surface kinds (plane, cylinder,
 /// cone, torus), which is why the pulley (plane/cylinder/cone only)
 /// retired into it at the #91 revision pass. Center bore → genus 1.
 pub fn sheave<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {

@@ -83,7 +83,8 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     let cert = certify_offset_at(&base, &warped, d, tol, band()).unwrap_or_else(|e| {
         panic!(
             "certify_offset refused a rational fit it can now bound \
-             (true residual {true_residual}): {e}"
+             (true residual {true_residual}): {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         )
     });
     // Containment is the sound direction, and it is the direction that
@@ -142,7 +143,10 @@ fn r1_a_fit_for_the_wrong_sign_refuses() {
                 "the unproved sign witness must answer +inf, not {bound}"
             );
         }
-        Err(e) => panic!("refused, but not at the certifying limb: {e}"),
+        Err(e) => panic!(
+            "refused, but not at the certifying limb: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -197,8 +201,12 @@ fn r1_extreme_d_near_the_collapse_bound_certifies_and_contains() {
     assert!(reach > 0.0 && reach.is_finite());
     for d in [-0.9 * reach, 5.0] {
         let tol = 2e-3;
-        let (fit, cert) = fit_offset_at(&base, d, tol, band())
-            .unwrap_or_else(|e| panic!("fit_offset refused at d = {d} (reach {reach}): {e}"));
+        let (fit, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
+            panic!(
+                "fit_offset refused at d = {d} (reach {reach}): {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let mut worst = 0.0f64;
         for (u, v) in grid(41, 37) {
             let p = base.eval(u, v);
@@ -238,7 +246,10 @@ fn r1_an_extreme_weight_rational_base_refuses_or_contains() {
     let base = NurbsSurface::new(kv2(), kv2(), control, weights).unwrap();
     let d = 0.05;
     match fit_offset_at(&base, d, 5e-4, band()) {
-        Err(e) => eprintln!("extreme-weight base refused (sound): {e}"),
+        Err(e) => eprintln!(
+            "extreme-weight base refused (sound): {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok((fit, cert)) => {
             let worst = sampled_residual(&base, &fit, d);
             assert!(

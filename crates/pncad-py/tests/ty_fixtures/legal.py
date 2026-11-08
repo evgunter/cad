@@ -482,7 +482,6 @@ declared_stadium: ClosedLoop = (
 here: Frame = Frame.translation((0 * m, 0 * m, 0 * m))
 turned: Frame = Frame.rotate_then_translate((0.0, 0.0, 1.0), 90 * deg, (1 * m, 0 * m, 0 * m))
 aimed: Frame = Frame.point_at((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m), (0.0, 1.0, 0.0))
-swept: Frame = Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
 frame_origin: tuple[Length, Length, Length] = here.origin
 frame_det: float = here.determinant
 
@@ -952,7 +951,7 @@ except PersistError as persist_refusal:
         line_number: int = at_line
 
 try:
-    Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+    Frame.point_at((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0))
 except FrameError as frame_refusal:
     which_input: str = frame_refusal.variant
     which_band_arm: str | None = frame_refusal.inner_variant

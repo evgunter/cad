@@ -291,12 +291,16 @@ pub enum SceneError {
     },
 }
 
-impl core::fmt::Display for SceneError {
-    /// The payload-carrying arms forward to their payload's own
-    /// `Display` — [`ProductError`] and `mesh`'s `TessellateError`
-    /// each name their own failure, and this layer does not restate
-    /// it.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SceneError {
+    /// The payload-carrying arms forward to their payload's own text —
+    /// [`ProductError`]'s `Display` and `mesh`'s `TessellateError` read
+    /// at `at` — each naming its own failure, which this layer does not
+    /// restate.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::InvalidDisplayTolerance { delta, unit } => write!(
                 f,
@@ -320,7 +324,8 @@ impl core::fmt::Display for SceneError {
             Self::NotTessellated(error) => {
                 write!(
                     f,
-                    "the body did not tessellate at this display tolerance: {error}"
+                    "the body did not tessellate at this display tolerance: {}",
+                    pncad::geom_brep::recourse::read_at(error, at)
                 )
             }
             Self::EmptyMesh => {
@@ -348,6 +353,8 @@ impl core::fmt::Display for SceneError {
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(SceneError);
 
 impl core::error::Error for SceneError {}
 

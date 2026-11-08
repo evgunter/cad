@@ -107,7 +107,7 @@ use pncad::document::Operand;
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
     CancelToken, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
-    PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, apply, evaluate,
+    PI as HALF_TURN, ProfileProgram, RecipeNodeId, apply, evaluate,
 };
 // The prefix data lives with the unit TABLE, one hop away from the
 // prelude — the scene converts its own constants with the same factor
@@ -168,9 +168,10 @@ fn through_the_document(tol: Tol) -> Body<f64> {
         &EvalOptions::default(),
         tol,
     );
-    match &ev.value(revolved).expect("the revolve evaluated").payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        other => panic!("expected a body, got {other:?}"),
+    let payload = &ev.value(revolved).expect("the revolve evaluated").payload;
+    match payload.one_body() {
+        Some(Some(b)) => crate::world::in_its_space(b, tol),
+        _ => panic!("expected a body, got {payload:?}"),
     }
 }
 

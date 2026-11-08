@@ -315,7 +315,7 @@ before on `main` `0fdbf00755`, after on the branch:
 The next wall is SHELF's
 `transform-rigid-recertifies-images-enclosed-apart`, as Phase 1
 predicted. Its refusal ends "this is a kernel defect; report it", which
-is `work/issues/an-undecided-margin-over-an-interval-box-ends-as-a-kernel-defect.md`.
+is `work/scalar/an-undecided-margin-over-an-interval-box-ends-as-a-kernel-defect.md`.
 The mate solve's representatives and inverses are INTENT's
 `the-mate-solve-s-representatives-and-inverses-mint-the-rigid-motion`
 (the stop rule applied: stage 3 B is rewriting `mate/`).

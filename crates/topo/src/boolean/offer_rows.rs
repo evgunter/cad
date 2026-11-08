@@ -75,7 +75,7 @@ fn outcome(got: Result<(), BooleanError>) -> Outcome {
             Outcome::Refused {
                 key,
                 defect,
-                text: err.to_string(),
+                text: err.render(geom_brep::recourse::Reading::Build),
             }
         }
     }
@@ -553,11 +553,12 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
         BoundSupport::Conic {
             extent: geom_core::test_support::fixture_lever(extent),
             bend,
+            arc: None,
         },
         n,
         crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
-        band(),
+        crate::link::metric::Reading::plain(band()),
     )
     .map(|_| ())
 }
@@ -1123,7 +1124,7 @@ fn at_degrees(degrees: f64, len: f64) -> Vec3<f64> {
 /// A corner between chords `own` and `next` about `z`, read as the
 /// vertex neighbourhood walk reads it.
 fn corner(own: Vec3<f64>, next: Vec3<f64>, full_circle: bool) -> Result<(), BooleanError> {
-    use crate::sector_shape::{SectorFault, sector_shape};
+    use geom_brep::sector_shape::{SectorFault, sector_shape};
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     sector_shape(own, next, n, full_circle, band())
         .map(|_| ())
@@ -1186,7 +1187,7 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
 
 /// **The germ mint's reading of the site `site` on the section of `c`
 /// and `s`**: the pair classified, carried through the march's lane,
-/// and the site's foot on it ([`geom_brep::CarriedSection::foot`]).
+/// and the site's foot on it ([`geom_brep::CarriedSection::site`]).
 fn section_site(
     c: &geom::Surface<f64>,
     s: &geom::Surface<f64>,
@@ -1206,7 +1207,7 @@ fn section_site(
         .carry(Some(geom_brep::SsiLane::marched()), band())
         .map_err(|e| unbuilt(super::super::section_table::Uncarried::Carry(&e)))?;
     carried
-        .foot(site, band())
+        .site(site, band())
         .map(|_| ())
         .map_err(super::super::join::site_refusal)
 }
@@ -1278,8 +1279,8 @@ fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
 /// `carrier` over `span` against the plane `x = x0`, as the conic root
 /// lane reads it.
 fn conic_roots(carrier: &geom::Curve3<f64>, span: (f64, f64), x0: f64) -> Result<(), BooleanError> {
-    use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
-    match crate::splitting::plane_crossing_lane(
+    use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
+    match geom_brep::curve_face::plane_crossing::plane_crossing_lane(
         carrier,
         span.0,
         span.1,
@@ -2102,7 +2103,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             reading: crate::JoinReading::Regularity(diag),
         })]
         .into_iter()
-        .filter(|e| quoted_margin(&e.to_string()).is_some_and(|m| m >= 0.0))
+        .filter(|e| quoted_margin(&e.render(geom_brep::recourse::Reading::Build)).is_some_and(|m| m >= 0.0))
         .collect(),
         BooleanErrorKind::CurvedSectorSideUnsupported => refused()
             .into_iter()
@@ -2220,7 +2221,11 @@ fn offering_arms() -> std::collections::BTreeSet<(String, bool)> {
                 terminal_sliver: false,
             };
             for err in quoting(kind, diag) {
-                if test_utils::offer::offered_below(&err.to_string()).is_some() {
+                if test_utils::offer::offered_below(
+                    &err.render(geom_brep::recourse::Reading::Build),
+                )
+                .is_some()
+                {
                     out.insert((crate::test_support::offer_key(&err).0, m > 0.0));
                 }
             }
@@ -2465,13 +2470,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
-    ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
-    (
-        "circle_torus.rs",
-        "escalated",
-        "BooleanDecision::ArcTorusRoots",
-        1,
-    ),
     (
         "conic_quadric/mod.rs",
         "cone_roots",
@@ -2494,12 +2492,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "conic_quadric/mod.rs",
         "quadric_ladder",
         "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
-    (
-        "ellipse_torus.rs",
-        "torus_walk",
-        "BooleanDecision::ArcTorusRoots",
         1,
     ),
     (
@@ -2526,6 +2518,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::VertexOnCurvedFace",
         1,
     ),
+    ("fan.rs", "face_side_code", "Coincide::Sectors", 1),
+    ("fan.rs", "fan_within_signs", "Coincide::Sectors", 1),
+    ("fan.rs", "fans_overlap", "Coincide::Sectors", 1),
+    ("fan.rs", "meeting", "Coincide::Sectors", 1),
+    ("fan.rs", "nappe_classes", "Coincide::Sectors", 1),
+    ("fan.rs", "one_cone", "Coincide::Sectors", 1),
+    ("fan.rs", "plane_fan", "Coincide::Sectors", 1),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
     ("fate.rs", "normal_at", "BooleanDecision::of_normal", 1),
@@ -2541,6 +2540,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
+    ("insert.rs", "walk_faces_first", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     (
@@ -2549,6 +2549,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CylinderAxes",
         1,
     ),
+    ("join.rs", "cone_apex_plane", "Coincide::Section", 1),
     ("join.rs", "section_unbuilt", "BooleanDecision::Radius", 1),
     (
         "join.rs",
@@ -2576,6 +2577,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "section", "BooleanDecision::Coincidence", 1),
     ("join.rs", "section", "Coincide::Section", 1),
     ("join.rs", "section_refusal", "BooleanDecision::Torus", 1),
+    ("join.rs", "segment_arm", "Coincide::Section", 1),
     ("join.rs", "stands_on", "Coincide::Sectors", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
@@ -2857,10 +2859,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "ruled_region.rs",
-        "-",
-        "BooleanDecision::CONTAINMENT_UNNAMED",
-        1,
+        "reduce.rs",
+        "wall_crossing",
+        "BooleanDecision::ArcTorusRoots",
+        2,
     ),
     (
         "sectors.rs",
@@ -2874,6 +2876,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::BisectorSide",
         1,
     ),
+    ("sectors.rs", "extreme_directions", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
@@ -2884,7 +2887,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "on_planar_face", "Coincide::EdgeOnPlane", 1),
-    ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "bound_refusal",
@@ -2918,7 +2920,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::EdgeOnCurvedFace",
         2,
     ),
-    ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 2),
+    ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 3),
     ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
     (
         "slit.rs",
@@ -2926,26 +2928,20 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PartingOrder",
         1,
     ),
+    (
+        "slit.rs",
+        "spiric_on_quadric",
+        "Coincide::EdgeOnCurvedFace",
+        1,
+    ),
     ("slit.rs", "spline_floor", "BooleanDecision::Containment", 1),
     ("slit.rs", "spline_floor", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
-        "sphere_region.rs",
-        "-",
-        "BooleanDecision::CONTAINMENT_UNNAMED",
-        1,
-    ),
-    (
         "torus_frame_rows.rs",
         "a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it",
         "BooleanDecision::Torus",
-        1,
-    ),
-    (
-        "torus_region.rs",
-        "-",
-        "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
     (
@@ -2976,7 +2972,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
-    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 1),
     ("node.rs", "wall_sense", "Coincide::Sectors", 1),
     (
         "node.rs",

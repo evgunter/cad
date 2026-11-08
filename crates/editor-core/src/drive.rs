@@ -108,8 +108,7 @@ use crate::analysis::BoxAxis;
 use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::eval::{
-    CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
-    evaluate,
+    ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult, evaluate,
 };
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
@@ -508,10 +507,10 @@ impl Default for DriveConfig {
 /// the witness build, and that difference stays in the comparison.
 ///
 /// No row this returns carries [`crate::resolve::RunStatus::Absent`].
-/// Every `evaluate` in this module runs on a fresh [`CancelToken`], so
-/// no run here has a canceled prefix, and [`drive`] refuses
-/// [`DriveRefusal::WitnessDoesNotBuild`] unless every node of the
-/// witness's `order` is `Ok`. A consumer that takes
+/// [`drive`] refuses [`DriveRefusal::Stopped`] for any run of its that
+/// stopped short, and [`DriveRefusal::WitnessDoesNotBuild`] unless every
+/// node of the witness's `order` is `Ok`, so no row it reads this from
+/// is of a prefix. A consumer that takes
 /// [`VerdictVector::of`] over some other evaluation can see `Absent`.
 pub fn certifying_vector<T: topo::AtRestPolicy + geom_core::Decide, P>(
     doc: &Doc<P>,
@@ -1186,6 +1185,11 @@ pub enum DriveRefusal {
     /// answers this document completely, and saying so is more useful
     /// than returning a one-leaf verdict that looks like an analysis.
     NothingVaries,
+    /// An evaluation the drive ran stopped short: its caller canceled,
+    /// or it ran out of its member budget ([`crate::Stop`]). A leaf
+    /// whose replay holds a prefix decided nothing, so the drive has no
+    /// verdict to report.
+    Stopped(crate::Stopped),
 }
 
 impl core::fmt::Display for DriveRefusal {
@@ -1200,6 +1204,7 @@ impl core::fmt::Display for DriveRefusal {
                 "no parameter of this document declares a distribution, so the analyzed box has \
                  no varying axis — the nominal build is the whole answer",
             ),
+            Self::Stopped(stopped) => write!(f, "the drive stopped: {stopped}"),
         }
     }
 }
@@ -1213,10 +1218,10 @@ impl core::error::Error for DriveRefusal {}
 /// (`ProfileLane`), so the two verdict vectors compare. [`drive`]
 /// evaluates its witness at f64 under exactly these.
 #[must_use]
-pub fn witness_options(analyzed: &AnalyzedBox) -> EvalOptions {
+pub fn witness_options(analyzed: &AnalyzedBox, stop: &crate::Stop) -> EvalOptions {
     EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
-        ..lane_opts()
+        ..lane_opts(stop)
     }
 }
 
@@ -1237,6 +1242,7 @@ pub fn drive(
     doc: &Doc<ProfileProgram>,
     analyzed: &AnalyzedBox,
     config: &DriveConfig,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> Result<ParamBoxVerdict, DriveRefusal> {
     let root = ParamBox::of(analyzed);
@@ -1250,10 +1256,13 @@ pub fn drive(
     let witness: Evaluation<f64> = evaluate(
         doc,
         None,
-        &CancelToken::new(),
-        &witness_options(analyzed),
+        &stop.cancel,
+        &witness_options(analyzed, stop),
         tol,
     );
+    if let Some(stopped) = crate::Stopped::of(witness.outcome) {
+        return Err(DriveRefusal::Stopped(stopped));
+    }
     if let Some(standing) = witness
         .order
         .iter()
@@ -1335,15 +1344,17 @@ pub fn drive(
                 witness_key,
                 config.symbolic,
                 &memo,
+                stop,
                 tol,
             )
         };
-        let verdicts: Vec<(LeafVerdict, SymCounts)> = if config.parallel {
+        let verdicts: Result<Vec<(LeafVerdict, SymCounts)>, crate::Stopped> = if config.parallel {
             use rayon::prelude::*;
             frontier.par_iter().map(leaf).collect()
         } else {
             frontier.iter().map(leaf).collect()
         };
+        let verdicts = verdicts.map_err(DriveRefusal::Stopped)?;
         let mut next = Vec::new();
         let level = frontier.len();
         for (i, (b, (v, counts))) in frontier.drain(..).zip(verdicts).enumerate() {
@@ -1404,7 +1415,7 @@ pub fn drive(
     #[cfg(feature = "probe")]
     if config.k_probe == KProbe::CertifiedMidpoints {
         for leaf in &certified {
-            probe_midpoint(doc, &leaf.box_, config.symbolic, tol);
+            probe_midpoint(doc, &leaf.box_, config.symbolic, stop, tol);
         }
     }
 
@@ -1466,14 +1477,14 @@ pub fn drive(
 /// and it does not ride here: it rides on the verdict
 /// ([`ParamBoxVerdict::symbolic`]) and reaches a consumer through
 /// `crate::eval::replay_leaf`.
-pub(crate) fn lane_opts() -> EvalOptions {
+pub(crate) fn lane_opts(stop: &crate::Stop) -> EvalOptions {
     // `EvalOptions::default()` already mints an epoch; minting a second
     // one to overwrite it burnt a process-global counter per leaf, and
     // a drive is tens of thousands of leaves. The epoch is a
     // stale-result discrimination token for a caller holding several
     // in-flight evaluations, which a drive is not: each leaf's result
     // is consumed before the next is asked for.
-    EvalOptions::default()
+    stop.options(EvalOptions::default())
 }
 
 /// A frontier entry: a box and how many times each axis has been split
@@ -1531,11 +1542,12 @@ fn classify(
     witness_key: VerdictVectorKey,
     symbolic: SymbolicDials,
     memo: &Arc<sym::DriveMemo>,
+    stop: &crate::Stop,
     tol: Tol,
-) -> (LeafVerdict, SymCounts) {
+) -> Result<(LeafVerdict, SymCounts), crate::Stopped> {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
-        ..lane_opts()
+        ..lane_opts(stop)
     };
     if symbolic.enabled {
         let (leaf, counts) = sym::with_session_memo_retry(
@@ -1544,12 +1556,14 @@ fn classify(
             symbolic.retry,
             memo,
             || {
-                let leaf: Evaluation<Sym<Interval>> =
-                    evaluate(doc, None, &CancelToken::new(), &opts, tol);
+                let leaf: Evaluation<Sym<Interval>> = evaluate(doc, None, &stop.cancel, &opts, tol);
                 leaf
             },
         );
-        return (
+        if let Some(stopped) = crate::Stopped::of(leaf.outcome) {
+            return Err(stopped);
+        }
+        return Ok((
             classify_replay(
                 doc,
                 box_,
@@ -1560,11 +1574,14 @@ fn classify(
                 counts,
             ),
             counts,
-        );
+        ));
     }
-    let leaf: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
+    let leaf: Evaluation<Interval> = evaluate(doc, None, &stop.cancel, &opts, tol);
+    if let Some(stopped) = crate::Stopped::of(leaf.outcome) {
+        return Err(stopped);
+    }
     let counts = SymCounts::default();
-    (
+    Ok((
         classify_replay(
             doc,
             box_,
@@ -1575,7 +1592,7 @@ fn classify(
             counts,
         ),
         counts,
-    )
+    ))
 }
 
 /// The classification itself, over an already-replayed leaf — generic
@@ -1672,7 +1689,7 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
                 structure: Some(refusal),
                 ..
             } => match &refusal.kind {
-                profile::StructureRefusalKind::Indeterminate(source) => {
+                profile::StructureRefusalKind::Indeterminate { source, .. } => {
                     return indeterminate(source);
                 }
                 profile::StructureRefusalKind::Flipped { .. } => {
@@ -1881,7 +1898,13 @@ fn contained(root: &ParamBox, certified: &[CertifiedLeaf], refused: &[RefusedLea
 /// existing scalar, the existing sink — the driver only decides WHICH
 /// parameter points get sampled.
 #[cfg(feature = "probe")]
-fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: SymbolicDials, tol: Tol) {
+fn probe_midpoint(
+    doc: &Doc<ProfileProgram>,
+    box_: &ParamBox,
+    symbolic: SymbolicDials,
+    stop: &crate::Stop,
+    tol: Tol,
+) {
     // THE SAME MIDPOINT THE SPLIT RULE USES, through the same door
     // (`BoxAxis::midpoint`). Writing `0.5 * (lo + hi)` here as well
     // would let a change to the split rule silently detach the K
@@ -1898,7 +1921,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
         .collect();
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes_in(mid, box_.order()))),
-        ..lane_opts()
+        ..lane_opts(stop)
     };
     // The replay runs at the SAME TIER the drive did (E12): with the
     // tier on the recording scalar is `Sym<Probe>`, so a margin that is
@@ -1913,13 +1936,13 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
             symbolic.retry,
             || {
                 let ev: Evaluation<Sym<geom_core::Probe>> =
-                    evaluate(doc, None, &CancelToken::new(), &opts, tol);
+                    evaluate(doc, None, &stop.cancel, &opts, tol);
                 ev
             },
         );
         return;
     }
-    let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
+    let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &stop.cancel, &opts, tol);
 }
 
 /// A box's goldening rendering: `id=[lo_bits,hi_bits]` per axis, in
@@ -2036,8 +2059,13 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
 /// the leaf's box, each pair verified at the box's midpoint
 /// ([`AssertionVerdict::Clearance`](crate::AssertionVerdict::Clearance)).
 ///
-/// `None` when `assertion` is not an `Assertion` node, or the
+/// `Ok(None)` when `assertion` is not an `Assertion` node, or the
 /// evaluation over `box_` did not produce a verdict for it.
+///
+/// # Errors
+///
+/// [`crate::Stopped`] when `stop` stopped the replay: its token was
+/// canceled, or the run ran out of its member budget.
 ///
 /// The scalar is the interval one, not a choice: a verdict over a BOX
 /// is only meaningful from an enclosure, and the point scalars cannot
@@ -2047,27 +2075,32 @@ pub fn assertion_at(
     assertion: RecipeNodeId,
     box_: &ParamBox,
     symbolic: SymbolicDials,
+    stop: &crate::Stop,
     tol: Tol,
-) -> Option<crate::measure::AssertionVerdict<geom_core::Interval>> {
+) -> Result<Option<crate::measure::AssertionVerdict<geom_core::Interval>>, crate::Stopped> {
     if !matches!(doc.node(assertion), Some(Node::Assertion(_))) {
-        return None;
+        return Ok(None);
     }
     // The SAME LANE the leaf was certified on ([`ParamBoxVerdict::symbolic`]).
-    crate::eval::replay_leaf(
+    let readback = crate::eval::replay_leaf(
         doc,
         &EvalOptions {
             param_box: Some(Arc::new(box_.clone())),
-            ..lane_opts()
+            ..lane_opts(stop)
         },
         symbolic.lane(),
         &crate::eval::LeafPrior::None,
+        &stop.cancel,
         crate::eval::LeafRequest {
             assertion: Some(assertion),
             ..crate::eval::LeafRequest::default()
         },
         tol,
-    )
-    .assertion
+    );
+    match readback.stopped {
+        Some(stopped) => Err(stopped),
+        None => Ok(readback.assertion),
+    }
 }
 
 #[cfg(test)]

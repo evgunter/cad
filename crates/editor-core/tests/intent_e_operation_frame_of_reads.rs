@@ -269,7 +269,7 @@ fn reading(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<Reading> {
         ValuePayload::Body(b) | ValuePayload::Boolean(BooleanValue::Body { body: b, .. }) => {
             vec![b]
         }
-        ValuePayload::Instances(v) => v.iter().collect(),
+        ValuePayload::Instances(v) => v.iter().flatten().collect(),
         ValuePayload::Split { above, below } => [above, below]
             .into_iter()
             .filter_map(|s| match s {

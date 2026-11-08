@@ -95,6 +95,7 @@ fn boolean_refusal_surface_kind(e: &BooleanError) -> Option<&'static str> {
                 SurfaceKind::Sphere => "sphere",
                 SurfaceKind::Cone => "cone",
                 SurfaceKind::Torus => "torus",
+                SurfaceKind::Spindle => "spindle",
                 SurfaceKind::Nurbs => "nurbs",
                 SurfaceKind::Approx => "approx",
             })
@@ -380,6 +381,8 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ChainArm => "chain_arm",
         BlendDecision::ConvexitySign => "convexity_sign",
         BlendDecision::MaterialSide => "material_side",
+        BlendDecision::KnifeEnd => "knife_end",
+        BlendDecision::KnifeRoom => "knife_room",
         BlendDecision::RingClearance => "ring_clearance",
         BlendDecision::SupportCoaxiality => "support_coaxiality",
         BlendDecision::ContactArm => "contact_arm",
@@ -763,8 +766,12 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             "offset_carriers_disjoint"
         )
     );
-    match PathNoCornerReason::CarriersParallel {
-        PathNoCornerReason::CarriersParallel | PathNoCornerReason::CarriersDoNotMeet => {}
+    match PathNoCornerReason::<f64>::CarriersTangent {
+        PathNoCornerReason::CarriersTangent | PathNoCornerReason::CarriersDoNotMeet => {}
+        PathNoCornerReason::TurnWithinTolerance {
+            lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+            ..
+        } => {}
     }
 
     assert_eq!(
@@ -4148,7 +4155,12 @@ fn asm_r2a_child_mated_probe() {
         resolver: Some(std::sync::Arc::new(ws.clone())),
         ..pncad::document::EvalOptions::default()
     };
-    let poses = pncad::document::solve_document(&doc, &opts, Tol::witness());
+    let poses = pncad::document::solve_document(
+        &doc,
+        &opts,
+        &pncad::document::CancelToken::new(),
+        Tol::witness(),
+    );
     let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
@@ -4249,6 +4261,7 @@ fn asm_r2b_child_crossing_probe() {
         pncad::document::DocumentId::derive("asm-r2b-probe-split"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("a whole-group cut splits");
     let text =
@@ -4597,6 +4610,7 @@ fn asm4_split_and_inline_through_the_real_store() {
         d::DocumentId::derive("asm4-e2e-new"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("legal");
     ws_mut
@@ -4670,6 +4684,7 @@ fn asm4_child_split_probe() {
         d::DocumentId::derive("asm4-probe-new"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("legal");
     let text = format!(
@@ -5141,7 +5156,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   build" — the proof the sampling probe stands in for — and the
 ///   Python door for it is FILED and not built, which is the whole of
 ///   why these are here rather than in `crate::analysis`. The row is
-///   `work/lib/certified-range-has-no-python-door`, and carrying this
+///   `work/pydoor/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
 /// - **The mint** (`Mint` and its log's `Minted` entries): the chain
@@ -6860,7 +6875,7 @@ mod unit_vector_witness_through_the_facade {
     /// decide the same direction a second time to the same bits.
     #[test]
     fn a_users_witnesses_reach_the_doors() {
-        use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
+        use pncad::geom_core::linalg::frame::{mirror_across_plane, point_at};
         let band = Band::linear(Tol::witness()).unwrap();
         let origin = Point3::new(1.0, 2.0, 3.0);
         let normal = UnitVec3::new(Vec3::new(0.0, 0.0, 2.5), POSE_UNIT_NORM, band).unwrap();
@@ -6887,8 +6902,12 @@ mod unit_vector_witness_through_the_facade {
         )
         .unwrap();
         assert_eq!(bits(frame.linear() * Vec3::unit_z()), bits(normal.get()));
-        let start = path_start_frame(ao, dir.get(), Tol::witness()).unwrap();
-        assert_eq!(bits(start.linear() * Vec3::unit_z()), bits(dir.get()));
+        // The least turn takes the witness itself, with no second
+        // decision of the direction.
+        let start = pncad::geom_core::RigidMotion::axes_xy(ao)
+            .turned_onto(dir, "facade_turned_onto", band)
+            .unwrap();
+        assert!((start.w().get() - dir.get()).norm() < 1e-15);
         let mirror = mirror_across_plane(origin, normal.get(), Tol::witness()).unwrap();
         let p = mirror.transform_point(Point3::new(1.0, 2.0, 4.0));
         assert!((p.z - 2.0).abs() < 1e-12, "{p:?}");
@@ -7144,8 +7163,8 @@ fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
     let tol = Tol::witness();
     if 0.25 * landing_reach(tol) < d_shape_reach() {
         match d_shape(1.0, tol) {
-            Err(PathError::ArcMissBelowSceneResolution { predicate, .. }) => {
-                assert_eq!(predicate, "path_arc_landing");
+            Err(PathError::ArcMissBelowSceneResolution { read, .. }) => {
+                assert_eq!(read.gate().predicate(), "path_arc_landing");
             }
             other => panic!("the 40 km D past the scene's resolution: {other:?}"),
         }
@@ -7768,8 +7787,8 @@ fn a_clearance_refusal_names_each_side_as_the_document_says_it() {
 /// the third state), drops an assertion, or ignores the token.
 #[test]
 fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
-    use pncad::analysis::{Canceled, ClearanceOutcome, clearances_at_nominal};
-    use pncad::document::{ClearanceBounds, Node, Operand};
+    use pncad::analysis::{ClearanceOutcome, clearances_at_nominal};
+    use pncad::document::{ClearanceBounds, Node, Operand, Stop, Stopped};
     let (doc, solid) = plate_param_facade_only();
     let (doc, below) = insert(
         doc,
@@ -7787,7 +7806,7 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
             ClearanceBounds::AtMost(len(0.001)),
         ),
     );
-    let answers = clearances_at_nominal(&doc, None, &CancelToken::new(), Tol::witness())
+    let answers = clearances_at_nominal(&doc, None, &Stop::default(), Tol::witness())
         .expect("an uncanceled run answers");
     let ids: Vec<_> = answers.iter().map(|a| a.assertion).collect();
     assert_eq!(
@@ -7807,7 +7826,41 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
     let cancel = CancelToken::new();
     cancel.cancel();
     assert_eq!(
-        clearances_at_nominal(&doc, None, &cancel, Tol::witness()),
-        Err(Canceled)
+        clearances_at_nominal(&doc, None, &Stop::canceled_by(&cancel), Tol::witness()),
+        Err(Stopped::Canceled)
+    );
+    // A four-member row beside the clearances, under a budget of 2: the
+    // door refuses as out of the caller's budget, not with answers read
+    // off a prefix.
+    let doc = applied(
+        &doc,
+        pncad::pattern::index_decl(
+            pncad::document::VarName::from_static("k"),
+            Formula::count(4),
+            None,
+        ),
+    )
+    .doc;
+    let space = Operand::Var(doc.node_space(solid).expect("the plate stands in a space"));
+    let row = pncad::pattern::linear_pattern(
+        &pncad::document::VarName::from_static("k"),
+        pncad::document::BodyRead::plain(Operand::Node(solid)),
+        space,
+        &[(
+            pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::X),
+            len(3.0),
+        )],
+        None,
+    )
+    .expect("a length pitch");
+    let (doc, _row) = insert(doc, row);
+    let lowered = Stop {
+        member_budget: 2,
+        ..Stop::default()
+    };
+    assert_eq!(
+        clearances_at_nominal(&doc, None, &lowered, Tol::witness()),
+        Err(Stopped::Exhausted { budget: 2 }),
+        "a run out of the caller's budget answers no clearance"
     );
 }

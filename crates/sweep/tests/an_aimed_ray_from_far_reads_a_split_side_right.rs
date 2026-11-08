@@ -83,7 +83,12 @@ fn read(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> Read {
                     "{pose}: the {word} side"
                 );
                 volume += mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
-                    .unwrap_or_else(|e| panic!("{pose}: {word} measures: {e}"))
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "{pose}: {word} measures: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                        )
+                    })
                     .met()
                     .expect("the pinned resolution is met")
                     .volume;

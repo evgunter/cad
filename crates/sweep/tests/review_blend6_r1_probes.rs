@@ -23,6 +23,7 @@ use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign, Tol};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{
     BlendError, BlendKind, BlendRefusal, BlendSite, ClassifiedMargin, Convexity, CornerConfig,
+    KnifeRefusal,
 };
 use sweep::test_support::cube;
 use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -67,7 +68,13 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::KnifeEdge {
             edge: EdgeKey::default(),
-            margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
+            margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
+            refusal: KnifeRefusal::NeverOpens,
+        },
+        BlendError::KnifeEdge {
+            edge: EdgeKey::default(),
+            margin: decided("fillet3_knife_room", -1e-3, Sign::Negative),
+            refusal: KnifeRefusal::NoRoom { radius: 1.2 },
         },
         BlendError::SpineIrregular {
             margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),
@@ -197,9 +204,10 @@ fn seeds() -> Vec<BlendError> {
 
 /// Whether a seeded arm is allowed to speak a verb's word mid-text —
 /// the PR's own dispositions: ball facts keep ball language
-/// (`RadiusHeadroom`, `SpineIrregular`, and an escalation routed to a
-/// ball predicate's recourse), the chamfer's own arm speaks as the
-/// chamfer, and three recourse constants carry deliberately
+/// (`RadiusHeadroom`, `SpineIrregular`, a knife with no room for the
+/// ball, and an escalation routed to a ball predicate's recourse), the
+/// chamfer's own arm speaks as the chamfer (`ChamferArmUnsupported`),
+/// and three recourse constants carry deliberately
 /// CONDITIONED per-verb clauses ("for a fillet, …", "a chamfer has no
 /// closed-chain band") on `UnsupportedChain`, `UnsupportedGeometry`
 /// and the seam-vertex corner tag.
@@ -207,6 +215,7 @@ fn verb_words_allowed(err: &BlendError) -> bool {
     match err {
         BlendError::RadiusHeadroom { .. }
         | BlendError::SpineIrregular { .. }
+        | BlendError::KnifeEdge { .. }
         | BlendError::ChamferArmUnsupported { .. }
         | BlendError::UnsupportedChain { .. }
         | BlendError::UnsupportedGeometry { .. } => true,
@@ -215,7 +224,7 @@ fn verb_words_allowed(err: &BlendError) -> bool {
         }
         BlendError::Escalated { source, .. } => matches!(
             source.predicate,
-            Some("fillet3_radius_headroom" | "fillet3_spine_regularity")
+            Some("fillet3_radius_headroom" | "fillet3_spine_regularity" | "fillet3_knife_room")
         ),
         _ => false,
     }
@@ -233,7 +242,7 @@ fn verb_words_allowed(err: &BlendError) -> bool {
 #[test]
 fn no_arm_renders_a_verb_prefix_over_the_whole_battery() {
     for seed in seeds() {
-        let inner = seed.to_string();
+        let inner = seed.render(geom_brep::recourse::Reading::Build);
         assert!(
             !inner.starts_with("fillet") && !inner.starts_with("chamfer"),
             "an inner Display must not open with a verb (the door supplies it): {inner}"
@@ -243,7 +252,7 @@ fn no_arm_renders_a_verb_prefix_over_the_whole_battery() {
                 verb,
                 error: seed.clone(),
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             let prefix = format!("{verb}: ");
             assert!(
                 composed.starts_with(&prefix),
@@ -271,7 +280,9 @@ fn verb_words_appear_only_where_a_disposition_covers_them() {
         if verb_words_allowed(&seed) {
             continue;
         }
-        let text = seed.to_string().replace("fillet3_", "");
+        let text = seed
+            .render(geom_brep::recourse::Reading::Build)
+            .replace("fillet3_", "");
         assert!(
             !text.contains("fillet") && !text.contains("chamfer"),
             "a shared arm with no per-verb disposition must be verb-free: {seed:?} — {text}"
@@ -301,7 +312,7 @@ fn a_nonpositive_radius_fillet_refuses_as_invalid_input() {
             matches!(err.error, BlendError::NonpositiveSize { .. }),
             "a nonpositive radius names the request, not the geometry, at r = {radius}: {err:?}"
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !text.contains("curvature headroom") && !text.contains("reduce the fillet radius"),
             "the refusal must not assert a headroom fact about the body: {text}"

@@ -57,3 +57,13 @@ possibly this row's drift.
 ## 2026-11-01 (SPLITDOOR, `splitdoor/prism-tilt-reach`)
 
 The seed was kept this time. At 1e-12, `CAD_FUZZ_SEED=0xa41aea6672750390` makes `section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` disagree, at the "R-tan at Degeneracy … Tangent" case. It reproduces on main too (the SPLITDOOR review of PR 6212), so it is not that PR's.
+
+## 2026-11-02 (SPLITDOOR, `splitdoor/cone-apex-vertex-pairs` dual review)
+
+A second seed reds the same row at 1e-12:
+`CAD_FUZZ_SEED=0xfce84d8f8954f2a6` makes
+`section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`
+fail. The DUAL review of PR 6345 found it, and it reproduces on main
+too, so it is not that PR's.
+
+— SPLITDOOR

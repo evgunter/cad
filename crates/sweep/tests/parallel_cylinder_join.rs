@@ -15,11 +15,27 @@
 
 use core::f64::consts::PI;
 
-use crate::common::differential::outcome;
+use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
+use crate::common::differential::{judged_at_resolution, outcome};
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, drum_lower};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::finished;
 use topo::{AtRestBody, BooleanError, BooleanErrorKind, BooleanResult};
+
+/// **A regression guard, not a soundness claim**: four times the widest
+/// volume half-width the turned pose's six runs measured at ε `1e-9`
+/// (`2.26e-6`, PR 6478), under the resolution's sound ceiling
+/// (`1.61e-5` there, [`judged_at_resolution`]). Read at that ε only.
+const TURNED_PAD_GUARD: f64 = 9.1e-6;
+
+/// **The turned pose's stopped-short ceiling, a regression guard**: four
+/// times the widest volume half-width its six runs measured at ε `1e-12`
+/// (`4.02e-8`; every run stops at the work wall there, short of the
+/// pinned resolution,
+/// `work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`).
+/// The resolution's ceiling (`1.6e-8` at 1e-12) does not bound a
+/// measurement that stopped short; this does ([`judged_at_resolution`]).
+const TURNED_WALL_GUARD: f64 = 1.7e-7;
 
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z1]`.
 fn rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> AtRestBody<f64> {
@@ -210,6 +226,83 @@ fn equal_wider_and_nested_rods_join_along_their_rulings() {
 #[test]
 fn an_island_and_a_turned_pose_join_along_their_rulings() {
     let bad = unsound(&(6..8).map(pose).collect::<Vec<_>>());
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// **The walls join along their carried rulings**: in every op and
+/// order of the rod with its caps inside the drum, upright and turned
+/// off the coordinate axes, the result's edges between the two walls
+/// are the section value's two rulings, each a straight carrier
+/// described as the two walls' own intersection, citing the two faces
+/// it lies between, both cylinders, and no plane: the chords are cut
+/// from the pair's carried components, not from a plane both walls are
+/// cut by.
+#[test]
+fn the_walls_join_along_their_carried_rulings() {
+    for pose in [
+        upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
+        turned(
+            upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
+            Vec3::new(1.0, 2.0, 0.5),
+            0.7,
+        ),
+    ] {
+        for (op, got, _) in pose.runs() {
+            let what = format!("{} | {op}", pose.label);
+            let out = got.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let Some(body) = out.body() else {
+                continue;
+            };
+            let body = &body.body;
+            let mut rulings = 0;
+            for (_, e) in body.edges() {
+                let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                    continue;
+                };
+                let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
+                    continue;
+                };
+                let cylinders = pair
+                    .keys()
+                    .iter()
+                    .all(|&k| matches!(body.get_surface(k), Some(geom::Surface::Cylinder { .. })));
+                if !cylinders {
+                    continue;
+                }
+                assert!(
+                    matches!(c.carrier(), geom::Curve3::Line(_)),
+                    "{what}: an edge between the walls is a ruling, not {:?}",
+                    c.carrier()
+                );
+                rulings += 1;
+            }
+            assert_eq!(rulings, 2, "{what}: the two rulings, between the walls");
+        }
+    }
+}
+
+/// **A rod's seam lying on the other rod's wall joins along the pair's
+/// carried ruling**: the unit rod about the origin, its seams at
+/// `(±1, 0)`, against a radius-0.3 rod about `(1, 0.3)` over
+/// `z ∈ [−0.5, 0.5]`, whose wall holds the unit rod's seam at `(1, 0)`.
+/// The germ there runs along that seam, an edge of one solid inside the
+/// other's wall, which is one of the pair's two rulings; it rides the
+/// carried lane on that ruling as the germs inside both walls do, and
+/// every op and order builds SOUND at its closed-form volume. (The
+/// rulings lane served this germ until it retired; a reviewer's probe.)
+#[test]
+fn a_seam_lying_on_the_other_wall_joins_along_the_carried_ruling() {
+    let (c, r) = ((1.0, 0.3), 0.3);
+    let (area, _) = lens((0.0, 0.0), 1.0, c, r);
+    let pose = Pose {
+        label: format!("unit rod × rod r {r} at {c:?} on its seam"),
+        a: rod(1.0, (0.0, 0.0), (-1.0, 1.0)),
+        b: rod(r, c, (-0.5, 0.5)),
+        va: PI * 2.0,
+        vb: PI * r * r,
+        shared: area,
+    };
+    let bad = unsound(&[pose]);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
@@ -516,9 +609,12 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// SOUND, as at `0.5·zero / 3.2`. Turned clearly apart, a fifth of a radian, every op
 /// ends at a frontier at the witness band (elsewhere an escalation may
 /// come first, which the row admits): about `x` the join
-/// carries the skew walls' marched section and the result gate refuses
-/// the body, whose spline-chorded walls have no volume lane
-/// (`ResultInvalid`), and about `y` an edge pierces a curved face the
+/// carries the skew walls' marched section and every op builds SOUND
+/// against the crossed cylinders' sliced volume
+/// (`common::crossed_cylinders`), its spline-chorded walls measured by
+/// the rotational lane (off the witness band UNMET where the measurement
+/// stops at the work wall, every run at 1e-12, under
+/// [`TURNED_WALL_GUARD`]), and about `y` an edge pierces a curved face the
 /// Boolean cannot yet read (`CurvedPierceUnsupported`).
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
@@ -535,10 +631,10 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
     // pose about `y` the corners' overlap: each row there escalates or
     // meets its frontier, and never builds or desyncs.
     let witness = (zero - 1e-9).abs() < 1e-12;
-    for (axis, frontier) in axes.into_iter().zip([
-        BooleanErrorKind::ResultInvalid,
-        BooleanErrorKind::CurvedPierceUnsupported,
-    ]) {
+    for (axis, frontier) in axes
+        .into_iter()
+        .zip([None, Some(BooleanErrorKind::CurvedPierceUnsupported)])
+    {
         let tipped = seams_on_the_walls(axis, 2.15 * zero / 3.2);
         for (op, r, _) in tipped.runs() {
             let axes_angle = matches!(
@@ -547,24 +643,71 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
                     decision: topo::BooleanDecision::CylinderAxes,
                     diag,
                 }) if diag.predicate == Some("cc_axes_parallel")
-                    && e.to_string().ends_with(AXES_LEVER)
+                    && e.render(geom_brep::recourse::Reading::Build).ends_with(AXES_LEVER)
             );
             assert!(
                 axes_angle || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
                 "{} | {op}: {:?}",
                 tipped.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
         let turned = seams_on_the_walls(axis, 0.2);
+        let (ca, cb) = (
+            Cylinder::upright(0.0, 0.0, 1.0, (-1.0, 1.0)),
+            Cylinder::upright(1.0, 1.0, 1.0, (-0.5, 0.5)).under(Affine3::rotation_about_axis(
+                Point3::new(1.0, 1.0, 0.0),
+                axis,
+                0.2,
+            )),
+        );
         for (op, r, _) in turned.runs() {
-            assert!(
-                matches!(&r, Err(e) if e.kind() == frontier)
-                    || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
-                "{} | {op}: want {frontier:?}, got {:?}",
-                turned.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
-            );
+            let escalated = !witness && matches!(&r, Err(BooleanError::Escalated { .. }));
+            match frontier {
+                Some(frontier) => assert!(
+                    matches!(&r, Err(e) if e.kind() == frontier) || escalated,
+                    "{} | {op}: want {frontier:?}, got {:?}",
+                    turned.label,
+                    r.map(|_| "a body")
+                        .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
+                ),
+                None => {
+                    let want = match op {
+                        "U ab" | "U ba" => crossed::volume(ca, cb, Op::Union),
+                        "I ab" | "I ba" => crossed::volume(ca, cb, Op::Intersect),
+                        "S ab" => crossed::volume(ca, cb, Op::Subtract),
+                        _ => crossed::volume(cb, ca, Op::Subtract),
+                    };
+                    // The two rods' area together, `6π + 4π`: their chorded
+                    // walls accept a round that only just meets the
+                    // resolution ([`judged_at_resolution`]).
+                    let line = if escalated {
+                        String::from("escalated")
+                    } else {
+                        let read =
+                            judged_at_resolution(r, Some(want), tol, 10.0 * PI, TURNED_WALL_GUARD);
+                        assert!(
+                            tol.eps() != 1e-9 || read.pad.is_none_or(|pad| pad <= TURNED_PAD_GUARD),
+                            "{} | {op}: the half-width {:?} past the regression guard",
+                            turned.label,
+                            read.pad
+                        );
+                        read.line
+                    };
+                    // Off the witness band the chorded walls may reach the
+                    // work wall short of the pinned resolution (at 1e-12,
+                    // all six runs), as an escalation may come first: the
+                    // enclosure still holds the closed form, under
+                    // `TURNED_WALL_GUARD`.
+                    let unmet = !witness && line.starts_with("OK UNMET");
+                    assert!(
+                        escalated || unmet || line.starts_with("OK SOUND"),
+                        "{} | {op}: {line}",
+                        turned.label
+                    );
+                }
+            }
         }
     }
 }
@@ -649,11 +792,12 @@ fn one_face_walls_read_their_axes_as_an_angle() {
                         decision: topo::BooleanDecision::CylinderAxes,
                         diag,
                     }) if diag.predicate == Some("cc_axes_parallel")
-                        && e.to_string().ends_with(AXES_LEVER)
+                        && e.render(geom_brep::recourse::Reading::Build).ends_with(AXES_LEVER)
                 ),
                 "{} | {op}: {:?}",
                 tipped.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
     }

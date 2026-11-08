@@ -89,6 +89,9 @@
 //!   reader its rows check with, as [`cone_nappe`];
 //! - [`oblique`] — the oblique clip, a body cut by a turned cube so
 //!   its corners are oblique trihedra (body authoring, same routing);
+//! - [`op_census`] — every op of an operand and a partner held to a
+//!   typed refusal or a measured body, and the ops that build to one
+//!   `V(O ∩ B)`: a check of a body, so beside [`solid_truth`];
 //! - [`pinch_cones`] — a boolean's cones at a point from the operands'
 //!   convex pieces, and the vertices a built body holds there: a truth
 //!   derived without the kernel plus the check against it, so beside
@@ -103,6 +106,9 @@
 //! - [`enclosure`] — the box an `Interval` loft row lofts over, and
 //!   the check of the enclosing body against one member's `f64` loft:
 //!   a check of a body, so beside [`orient`];
+//! - [`crossing`] — which recorded predicates are the Boolean's
+//!   crossing pipeline: what a suite checks of a `k_stats` bracket, so
+//!   beside [`census`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -213,6 +219,8 @@ pub mod membership;
 /// evaluate no surface, so it routes here.
 pub mod latitude_seam;
 
+pub mod semicircle_wall;
+
 /// The `Interval` literals — a scalar, and points and vectors from
 /// exact `f64` coordinates. What an interval-lane
 /// suite authors its profile and placements with, so it routes here.
@@ -296,6 +304,10 @@ pub mod touch_union;
 /// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
 pub mod quadrature;
 
+/// The volume of a boolean of two crossed finite cylinders, sliced
+/// parallel to both axes: a truth that reads no kernel code.
+pub mod crossed_cylinders;
+
 /// Whether a loft at `Interval` encloses one member of its family: a
 /// check of a body, so beside [`orient`].
 pub mod enclosure;
@@ -310,9 +322,18 @@ pub mod stations;
 /// oblique trihedra. Body authoring, so it routes here.
 pub mod oblique;
 
+/// Which recorded predicates the Boolean's crossing pipeline decides:
+/// what a "no intersection machinery" row checks of a bracket, so it
+/// routes beside [`census`].
+pub mod crossing;
+
+/// Every op of an operand and a partner held to a typed refusal or a
+/// measured body, and the ops that build to one `V(O ∩ B)`: a check of a
+/// body, so beside [`solid_truth`].
+pub mod op_census;
+
 use geom::NurbsCurve3;
-use geom_core::linalg::frame::path_start_frame;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Band, Mat3, Point2, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -354,25 +375,31 @@ pub fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
         .collect()
 }
 
-/// The placement a path sweep starts from, read off the path's start:
-/// `geom_core::linalg::frame::path_start_frame`, the kernel's own
-/// door for it. The frame's local +Z is the start TANGENT, so the
-/// local XY plane is the plane the profile is drawn in, and the roll
-/// comes from the door's reference ladder (world +Z, then world +X)
-/// under the tolerance band. `sweep::sweep_places` carries this frame
-/// along the path by the rotation-minimizing frame
-/// (`crates/sweep/README.md` `[sweep.frame]`), so a section placed here
-/// stays normal to the path.
+/// **The frame a path sweep starts from at `point`, along `tangent`**:
+/// the world frame there turned onto the tangent by the least turn
+/// (`RigidMotion::turned_onto`). Its local +Z is the tangent, so its
+/// local XY plane is the plane the profile is drawn in, and its roll is
+/// the world frame's, carried.
 ///
-/// The door returns a typed refusal for a path whose start tangent
-/// fixes no frame; a fixture whose path is that degenerate is a fixture
-/// bug, so this unwraps with the refusal in the message.
+/// A fixture whose tangent has no direction, or is the world −z, is a
+/// fixture bug, so this unwraps with the refusal in the message.
+pub fn start_frame(point: Point3<f64>, tangent: Vec3<f64>) -> RigidMotion<f64> {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let tangent = UnitVec3::new(tangent, "test_start_tangent", band)
+        .unwrap_or_else(|e| panic!("the start tangent must have a direction: {e:?}"));
+    RigidMotion::axes_xy(point)
+        .turned_onto(tangent, "test_start_turn", band)
+        .unwrap_or_else(|e| panic!("the start tangent must be off the world -z: {e:?}"))
+}
+
+/// The placement a path sweep starts from, read off the path's start:
+/// [`start_frame`] at its start point and start tangent.
+/// `sweep::sweep_places` carries this frame along the path by the
+/// rotation-minimizing frame (`crates/sweep/README.md`
+/// `[sweep.frame]`), so a section placed here stays normal to the path.
 pub fn normal_start_place(path: &NurbsCurve3<f64>) -> SketchPlane<f64> {
     let (lo, _) = path.domain();
-    SketchPlane::from_frame(
-        path_start_frame(path.eval(lo), path.deriv(lo), Tol::witness())
-            .unwrap_or_else(|e| panic!("the path's start tangent must fix a frame: {e:?}")),
-    )
+    SketchPlane::from_frame(start_frame(path.eval(lo), path.deriv(lo)))
 }
 
 /// A closed four-line quad section (one loop, four vertices) — the

@@ -93,6 +93,8 @@ pub enum NodeErrorClass {
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
     EmptyOperand,
+    /// [`NodeErrorKind::EmptyMember`].
+    EmptyMember,
     /// [`NodeErrorKind::NotFinished`].
     NotFinished,
     /// [`NodeErrorKind::UnfinishedLeaf`].
@@ -246,6 +248,7 @@ impl NodeErrorKind {
             Self::Seed { .. } => C::Seed,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
+            Self::EmptyMember { .. } => C::EmptyMember,
             Self::NotFinished { .. } => C::NotFinished,
             Self::UnfinishedLeaf { .. } => C::UnfinishedLeaf,
             Self::EmptyHalf { .. } => C::EmptyHalf,
@@ -389,6 +392,7 @@ mod tests {
         Seed,
         WrongOperand,
         EmptyOperand,
+        EmptyMember,
         NotFinished,
         UnfinishedLeaf,
         EmptyHalf,
@@ -600,6 +604,10 @@ mod tests {
                 found: "profile",
             },
             C::EmptyOperand => K::EmptyOperand { input: n(3) },
+            C::EmptyMember => K::EmptyMember {
+                input: n(3),
+                at: vec![(crate::VarId::new(2, 0), 1)],
+            },
             C::NotFinished => K::NotFinished {
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::ScaffoldAtRest {
@@ -660,10 +668,7 @@ mod tests {
             C::MissingSlot => K::MissingSlot {
                 slot: SlotId::Distance,
             },
-            C::Escalated => K::Escalated {
-                predicate: "side_of_plane",
-                source: diag(),
-            },
+            C::Escalated => K::Escalated { source: diag() },
             C::PoseRead => K::PoseRead {
                 pose: crate::VarKind::Axis,
                 fault: crate::pose::PoseReadFault::NoAxis {

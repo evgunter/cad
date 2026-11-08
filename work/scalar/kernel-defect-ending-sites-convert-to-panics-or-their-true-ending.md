@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-20
 priority: P2
 cost: H
-refs: [a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which]
 ---
 
 

@@ -232,7 +232,7 @@ fn split_meridian<T: Real + SpanLocate + AtRestPolicy + Bounds>(
             let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 return None;
             };
-            matches!(curve.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z.hi().abs() < 1e-12)
+            matches!(curve.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z.hi().abs() < 1e-12)
                 .then_some(key)
         })
         .expect("the half cap's meridian arc");

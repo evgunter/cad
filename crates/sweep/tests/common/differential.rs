@@ -206,6 +206,12 @@ pub enum Verdict {
     Bad,
     /// A body whose volume could not be measured.
     Unmeasured,
+    /// A body passing every check whose measurement stopped short of the
+    /// resolution ([`judged_at_resolution`]): its enclosure holds the
+    /// closed form (or none is given) and is no wider than the row's
+    /// stopped-short ceiling. A row reads it only off the witness ε, where
+    /// each pins a measurement that met its resolution.
+    Unmet,
 }
 
 /// One pose as [`judged`] read it: its line, the volume the result
@@ -221,6 +227,11 @@ pub struct Judgement {
     pub pad: Option<f64>,
     /// The verdict the line prints.
     pub verdict: Verdict,
+    /// Why the measurement stopped, where a volume was measured.
+    pub stop: Option<topo::Stop>,
+    /// The widest half-width the verdict admitted at that stop
+    /// ([`Budget::ceiling`]), where a volume was measured.
+    pub ceiling: Option<f64>,
 }
 
 /// [`outcome`] where a pose may have no closed form (`want` `None`),
@@ -234,7 +245,7 @@ pub fn judged(
     want: Option<f64>,
     tol: Tol,
 ) -> Judgement {
-    judge(r, want, tol, true, VOLUME_PAD_BUDGET)
+    judge(r, want, tol, true, Budget::Fixed(VOLUME_PAD_BUDGET))
 }
 
 /// [`judged`] against an enclosure no wider than `pad_budget` in
@@ -247,17 +258,122 @@ pub fn judged_within(
     tol: Tol,
     pad_budget: f64,
 ) -> Judgement {
-    judge(r, want, tol, true, pad_budget)
+    judge(r, want, tol, true, Budget::Fixed(pad_budget))
+}
+
+/// [`judged`] for a body of surface area at most `area` whose faces
+/// accept a round that only just meets the pinned resolution:
+/// - an enclosure that met it is held to [`resolution_pad`], the widest
+///   the resolution admits;
+/// - one that stopped short of it (at the work wall on a fine ε,
+///   `work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`)
+///   has no ceiling of that kind, whose premise is that every face met
+///   the resolution. It reads [`Verdict::Unmet`] where the checks pass,
+///   the enclosure holds the closed form and it is no wider than
+///   `stopped_short`, the row's own measured guard, and `BAD` otherwise.
+///
+/// The line names a stop short of the resolution.
+pub fn judged_at_resolution(
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: Option<f64>,
+    tol: Tol,
+    area: f64,
+    stopped_short: f64,
+) -> Judgement {
+    judge(
+        r,
+        want,
+        tol,
+        true,
+        Budget::Resolution {
+            met: resolution_pad(tol, area),
+            stopped_short,
+        },
+    )
+}
+
+/// **The widest enclosure a volume verdict accepts**, and the one verdict
+/// over it ([`Budget::verdict`]).
+#[derive(Clone, Copy, Debug)]
+pub enum Budget {
+    /// This half-width, whatever the measurement's stop.
+    Fixed(f64),
+    /// `met` where every face met the resolution; `stopped_short` where
+    /// the measurement stopped short of it, which reads
+    /// [`Verdict::Unmet`] in place of `SOUND`.
+    Resolution {
+        /// The resolution's own ceiling ([`resolution_pad`]).
+        met: f64,
+        /// The row's measured guard for a measurement that stopped short.
+        stopped_short: f64,
+    },
+}
+
+impl Budget {
+    /// Whether a measurement at `stop` stopped short of the resolution
+    /// this budget reads it against.
+    pub fn unmet(self, stop: topo::Stop) -> bool {
+        matches!(self, Self::Resolution { .. }) && stop != topo::Stop::Met
+    }
+
+    /// The widest half-width admitted at `stop`.
+    pub fn ceiling(self, stop: topo::Stop) -> f64 {
+        match self {
+            Self::Fixed(ceiling) => ceiling,
+            Self::Resolution { met, stopped_short } => {
+                if self.unmet(stop) {
+                    stopped_short
+                } else {
+                    met
+                }
+            }
+        }
+    }
+
+    /// **The verdict on a measured body**: `checks` its four checks and
+    /// the caller's extra condition, `(v, pad, stop)` its measurement.
+    /// Any check failing, or an enclosure wider than [`Budget::ceiling`]
+    /// at its stop, is `BAD`. Past that, a measurement short of the
+    /// resolution reads `UNMET` where its enclosure holds `want`; one that
+    /// met it reads `SOUND`, or `UNJUDGED` with no closed form.
+    pub fn verdict(
+        self,
+        checks: bool,
+        (v, pad, stop): (f64, f64, topo::Stop),
+        want: Option<f64>,
+    ) -> Verdict {
+        let holds = want.is_none_or(|w| (v - w).abs() <= VOLUME_CLAIM + pad);
+        match want {
+            _ if !checks || pad > self.ceiling(stop) || !holds => Verdict::Bad,
+            _ if self.unmet(stop) => Verdict::Unmet,
+            None => Verdict::Unjudged,
+            Some(_) => Verdict::Sound,
+        }
+    }
+}
+
+/// **The widest volume half-width the pinned resolution admits** on a
+/// body of surface area at most `area` (m²): every face meets the
+/// resolution as a mean boundary displacement, `width(flux)/(3·area)`,
+/// so its flux width is at most `3·res·area_f`, and the volume, a third
+/// of the faces' flux, is at most `res·area/2` either side. It bounds a
+/// measurement that met the resolution and nothing else
+/// ([`judged_at_resolution`] reads it so): the ceiling for a body whose
+/// faces accept a round that only just meets the resolution (a
+/// spline-chorded wall's rule at round 0), naming `area` from its
+/// operands.
+pub fn resolution_pad(tol: Tol, area: f64) -> f64 {
+    topo::test_support::pinned_len(tol) * area / 2.0
 }
 
 /// [`judged`], with `extra` one more condition a `SOUND` line needs and
-/// `pad_budget` the widest enclosure it accepts.
+/// `budget` the enclosure it accepts ([`Budget::verdict`]).
 fn judge(
     r: Result<BooleanResult<f64>, BooleanError>,
     want: Option<f64>,
     tol: Tol,
     extra: bool,
-    pad_budget: f64,
+    budget: Budget,
 ) -> Judgement {
     let want_col = want.map_or("want=none".to_string(), |w| format!("want={w:.9}"));
     let of = |line: String, volume, verdict| Judgement {
@@ -265,6 +381,8 @@ fn judge(
         volume,
         pad: None,
         verdict,
+        stop: None,
+        ceiling: None,
     };
     match r {
         Err(e) => {
@@ -302,19 +420,15 @@ fn judge(
                     tol,
                     topo::test_support::pinned_resolution(tol),
                 )
-                .map(|m| (m.enclosure.volume, m.enclosure.volume_pad))
+                .map(|m| (m.enclosure.volume, m.enclosure.volume_pad, m.stop))
                 {
-                    Ok((v, pad)) => {
-                        let verdict = match want {
-                            _ if !(t2 && t3 && cert && operand && extra) => Verdict::Bad,
-                            _ if pad > pad_budget => Verdict::Bad,
-                            None => Verdict::Unjudged,
-                            Some(w) if (v - w).abs() <= VOLUME_CLAIM + pad => Verdict::Sound,
-                            Some(_) => Verdict::Bad,
-                        };
+                    Ok((v, pad, stop)) => {
+                        let checks = t2 && t3 && cert && operand && extra;
+                        let verdict = budget.verdict(checks, (v, pad, stop), want);
                         let word = match verdict {
                             Verdict::Sound => "SOUND",
                             Verdict::Unjudged => "UNJUDGED",
+                            Verdict::Unmet => "UNMET",
                             _ => "BAD",
                         };
                         let pad_col = if pad > 0.0 {
@@ -322,12 +436,19 @@ fn judge(
                         } else {
                             String::new()
                         };
+                        let stop_col = if budget.unmet(stop) {
+                            format!(" stop={}", stop.word())
+                        } else {
+                            String::new()
+                        };
                         Judgement {
                             pad: Some(pad),
+                            stop: Some(stop),
+                            ceiling: Some(budget.ceiling(stop)),
                             ..of(
                                 format!(
                                     "OK {word} t2={t2} t3p={t3} cert={cert} operand={operand} \
-                                     v={v:.9}{pad_col} {want_col}"
+                                     v={v:.9}{pad_col}{stop_col} {want_col}"
                                 ),
                                 Some(v),
                                 verdict,
@@ -407,7 +528,7 @@ pub fn judged_with_seams(
         .and_then(BooleanResult::body)
         .map(|bb| seams(&bb.body));
     let clean = seams.is_none_or(|(sk, _, z)| sk == 0 && z == 0);
-    let mut j = judge(r, want, tol, clean, VOLUME_PAD_BUDGET);
+    let mut j = judge(r, want, tol, clean, Budget::Fixed(VOLUME_PAD_BUDGET));
     if let Some((sk, cp, z)) = seams {
         j.line = format!("{} samekey={sk} coplanar={cp} zero={z}", j.line);
     }
@@ -957,8 +1078,8 @@ pub fn body_volume(body: &Body<f64>) -> f64 {
 
 /// **The mesh's geometry, against the body's.** Its volume within the
 /// chordal deficit of the body's, both read off the B-rep
-/// (`mesh::validate::check_volume`), and every sphere- and
-/// cylinder-face triangle wound outward ([`assert_outward`]).
+/// (`mesh::validate::check_volume`), and every sphere-, cylinder-,
+/// torus- and sheet-face triangle wound outward ([`assert_outward`]).
 pub fn assert_meshed_geometry(label: &str, body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) {
     let p = body_props(body);
     mesh::validate::check_volume(mesh, p.volume, p.surface_area, delta)
@@ -966,10 +1087,12 @@ pub fn assert_meshed_geometry(label: &str, body: &Body<f64>, mesh: &mesh::Mesh, 
     assert_outward(label, body, mesh);
 }
 
-/// **Every sphere- and cylinder-face triangle of `mesh` winds outward.**
-/// A triangle's normal, as the mesh winds it, must point the way its
-/// face's outward normal does at its centroid: off the sphere's centre,
-/// or off the cylinder's axis, reversed on a `sense: false` face. A
+/// **Every sphere-, cylinder-, torus- and sheet-face triangle of `mesh`
+/// winds outward.** A triangle's normal, as the mesh winds it, must
+/// point the way its face's outward normal does at its centroid: off the
+/// sphere's centre, off the cylinder's axis, or off the centre of the
+/// meridian circle through it on a torus or a spindle sheet (across the
+/// axis on a lemon), reversed on a `sense: false` face. A
 /// triangle folded over the chord beside it, or a face meshed inside
 /// out, is a closed manifold mesh that [`mesh::validate::check_mesh`]
 /// passes; this is the geometry it does not read. Faces on other
@@ -985,6 +1108,25 @@ pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
             geom::Surface::Cylinder { origin, axis, .. } => {
                 let d = p - origin;
                 Some(d - axis * d.dot(axis))
+            }
+            // Out from the point's meridian circle's centre, `R` along
+            // the point's own radial direction: across the axis on a
+            // lemon sheet, where `R < 0`.
+            geom::Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                ..
+            }
+            | geom::Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                ..
+            } => {
+                let w = p - center;
+                let radial = w - axis * w.dot(axis);
+                Some(p - (center + radial * (major_radius / radial.norm())))
             }
             _ => None,
         };

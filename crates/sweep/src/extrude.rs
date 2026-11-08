@@ -36,7 +36,7 @@
 //!    the swept face becomes the top cap.
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
 //!    sharing) keep the conventional description structurally;
-//!    otherwise `classify_dihedral` at the strut midpoint decides —
+//!    otherwise `dihedral_class` at the strut midpoint decides —
 //!    Transverse upgrades to `Intersection` via `restate_stored_edge`,
 //!    Smooth descends one order through the must-carry rule over the
 //!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
@@ -52,7 +52,7 @@
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
 //!    `Intersection { cap plane, side surface, witness }` through the
-//!    same `classify_dihedral` → `restate_stored_edge` pattern as the corner
+//!    same `dihedral_class` → `restate_stored_edge` pattern as the corner
 //!    joins (the ratified rim decision — M2-LOG, 2026-07-19). The
 //!    witness is the **carrier's mid-parameter point** (the S2 witness
 //!    contract: for arc rims the chord midpoint lies off the carrier by
@@ -94,14 +94,13 @@
 //! per segment, bottom before top. Two calls with identical inputs
 //! replay byte-identically.
 
-use core::fmt;
 use topo::construction::Construct;
 
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError,
-    SurfacePair, classify_dihedral, newell_plane,
+    SurfacePair, dihedral_class, newell_plane,
 };
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
@@ -502,8 +501,12 @@ pub enum ExtrudeError {
     Pcurve(topo::PcurveMintError),
 }
 
-impl fmt::Display for ExtrudeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ExtrudeError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::NotFinished { findings } => {
@@ -596,11 +599,19 @@ impl fmt::Display for ExtrudeError {
                 f,
                 "the wall of loop {loop_index} segment {segment_index} is not planar: {source}"
             ),
-            Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
-            Self::Pcurve(source) => write!(f, "{source}"),
+            Self::Op { source } => {
+                write!(
+                    f,
+                    "an Euler operation refused: {}",
+                    geom_brep::recourse::read_at(source, at)
+                )
+            }
+            Self::Pcurve(source) => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
         }
     }
 }
+
+geom_brep::ended_by_write!(ExtrudeError);
 
 impl std::error::Error for ExtrudeError {}
 
@@ -1245,7 +1256,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let reach = topo::edge_wedge_reach(body, strut.edge).unwrap_or_else(|| {
             unreachable!("strut {:?} was minted with a certified line", strut.edge)
         });
-        match classify_dihedral(&s_prev, &s_next, mid, reach, band) {
+        match dihedral_class(&s_prev, &s_next, mid, reach, band) {
             Ok(DihedralClass::Transverse) => {
                 // The prefer-intrinsic upgrade: mint-time Intersection
                 // was impossible (the side surfaces did not exist);
@@ -1551,7 +1562,7 @@ fn side_surface<T: Decide>(
 /// is the only honest mint (for line rims it coincides with the chord
 /// midpoint to rounding). The certified carrier and parameter interval
 /// are kept verbatim: the stored edge is re-described
-/// ([`Body::restate_stored_edge`]). `classify_dihedral` at the witness
+/// ([`Body::restate_stored_edge`]). `dihedral_class` at the witness
 /// decides, levered at the cap's and wall's extent
 /// ([`topo::wedge_reach`]): Transverse upgrades; Smooth
 /// descends through [`geom_brep::must_carry_over_edge`] (the arm
@@ -1584,7 +1595,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     let s_wall = body.get_surface(wall).cloned().unwrap_or_else(|| {
         unreachable!("wall surface {wall:?} is held by a live wall face of this driver")
     });
-    match classify_dihedral(&s_cap, &s_wall, witness, reach, band) {
+    match dihedral_class(&s_cap, &s_wall, witness, reach, band) {
         Ok(DihedralClass::Transverse) => {
             body.restate_stored_edge(
                 edge,
@@ -1676,7 +1687,8 @@ mod tests {
                 SIZED,
             )) {
                 assert_eq!(
-                    ExtrudeError::ExtrusionEscalated { source }.to_string(),
+                    ExtrudeError::ExtrusionEscalated { source }
+                        .render(geom_brep::recourse::Reading::Build),
                     text
                 );
             }
@@ -1690,7 +1702,7 @@ mod tests {
                 vertex_index: 4,
                 source,
             };
-            assert_eq!(err.to_string(), text);
+            assert_eq!(err.render(geom_brep::recourse::Reading::Build), text);
         }
     }
 
@@ -1712,14 +1724,14 @@ mod tests {
                     reading,
                     source,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
                 ExtrudeError::SliverRim {
                     loop_index: 0,
                     segment_index: 1,
                     reading,
                     source,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
             ] {
                 assert_eq!(
                     text.contains("curve apart there or share their curvature is undecided: "),
@@ -1741,7 +1753,7 @@ mod tests {
     /// the shared recourse fragment.
     #[test]
     fn extrusion_pair_carries_the_shared_recourse() {
-        let msg = ExtrudeError::DegenerateExtrusion.to_string();
+        let msg = ExtrudeError::DegenerateExtrusion.render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
             1,
@@ -1756,7 +1768,7 @@ mod tests {
                 terminal_sliver: false,
             },
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
             1,

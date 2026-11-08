@@ -91,7 +91,7 @@ fn a_ring_half_in_band_reads_as_at_rest() {
         .iter()
         .find(|e| matches!(e, topo::ValidationError::DegenerateTorusEscalated { .. }))
         .expect("tier 3's ring-half escalation")
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
     let err = topo::replace_face_offset(&mut body, cap, 0.1, tol)
         .expect_err("the door's section refuses the wall's ring half");
     let ReplaceFaceError::DegenerateTorus {
@@ -106,7 +106,7 @@ fn a_ring_half_in_band_reads_as_at_rest() {
         panic!("the ring half undecided, typed: {err:?}");
     };
     assert_eq!(diag.predicate, Some("ring_torus_convention"));
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     let ending = |t: &str| t.split_once("Recourse: ").map(|(_, end)| end.to_owned());
     assert!(
         text.starts_with(

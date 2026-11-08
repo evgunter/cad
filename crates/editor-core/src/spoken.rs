@@ -1313,8 +1313,8 @@ impl<'a> Speaker<'a> {
 
     /// **A formula, its readers said**: `expr` unparsed with each
     /// reader written by the name this speaker's document holds for it,
-    /// and `#<16 hex>` where it holds none (or the speaker has no
-    /// document). A refusal kept by an evaluation memo holds the
+    /// and `#<ordinal>:<hex>` where it holds none (or the speaker has
+    /// no document). A refusal kept by an evaluation memo holds the
     /// formula as an [`crate::Expr`], so a rename — which recomputes
     /// nothing — still reads in the sentence.
     #[must_use]
@@ -1374,7 +1374,8 @@ impl<'a> Speaker<'a> {
 
     /// **A slot's variable, said as written**: what an anonymous one
     /// holds, its readers said ([`Self::formula`]); a named one by its
-    /// name; `#<16 hex>` where the speaker's document does not hold it.
+    /// name; `#<ordinal>:<hex>` where the speaker's document does not
+    /// hold it.
     #[must_use]
     pub fn slot_var(self, var: crate::var::VarId, dim: crate::expr::Dimension) -> String {
         let written = self

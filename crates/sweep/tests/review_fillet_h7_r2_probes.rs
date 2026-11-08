@@ -91,7 +91,12 @@ fn r2_the_prism_closed_form_scales_with_the_rod_length() {
         R,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("the long rod's creases carve, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the long rod's creases carve, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         census(&out.body),
         (v0 + 4, e0 + 6, f0 + 2),
@@ -163,11 +168,12 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
         .unwrap()
         .clone();
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = *c.carrier()
     else {

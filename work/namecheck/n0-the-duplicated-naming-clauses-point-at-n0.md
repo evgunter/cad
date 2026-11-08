@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-20
 priority: P3
 cost: M
-refs: [naming-has-no-single-strategy-and-each-fork-patches-one-entity]
 ---
 
 

@@ -81,7 +81,10 @@ fn run(tag: &str, operand: &AtRestBody<f64>, origin: V3, normal: V3) -> bool {
                 SplitError::Pcurves(_) => "pcurves",
                 _ => "other",
             };
-            format!("REFUSED {kind} | {e:?} | {e}")
+            format!(
+                "REFUSED {kind} | {e:?} | {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
         }
     };
     println!("SPLIT {tag}: {line}");

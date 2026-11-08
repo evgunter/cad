@@ -152,7 +152,7 @@ fn mirror_smuggling_and_rigid_roundtrip() {
                 "no silent skew: {v0} vs {v}"
             );
         }
-        Err(e) => println!("sloppy dirs refuse typed: {e}"),
+        Err(e) => println!("sloppy dirs refuse typed: {e_at}", e_at = e.render()),
         other => panic!("unexpected: {other:?}"),
     }
 }

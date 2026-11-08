@@ -332,7 +332,10 @@ fn r1_a_part_inside_another_solids_void() {
                 topo::validate_geometric(&s.body, tol())
             );
         }
-        Err(e) => println!("[r1] nested refused: {e}"),
+        Err(e) => println!(
+            "[r1] nested refused: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -496,7 +499,10 @@ fn r1_e2e_two_parts_one_body() {
         tol(),
     )
     .expect_err("the same thickness twice does not fit the wall it just built");
-    println!("[r1] e2e friction: a second hollow at the same t refuses — {e}");
+    println!(
+        "[r1] e2e friction: a second hollow at the same t refuses — {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
     let t2 = 0.02;
     let opened = topo::shell_open(
         &finished("the operand", hollow.clone(), tol()),

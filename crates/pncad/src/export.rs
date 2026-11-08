@@ -33,8 +33,7 @@
 //! host-language read-out that never re-enters a document.
 
 use editor_core::{
-    BooleanValue, Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say,
-    Speaker, ValuePayload,
+    Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say, Speaker,
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
@@ -52,16 +51,27 @@ pub enum ComposeError {
     NotFinished(topo::NotFinished),
 }
 
-impl core::fmt::Display for ComposeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl ComposeError {
+    /// This refusal's text, its nested refusal ended at the door `at`
+    /// where it is `Some`; `None` writes the payload alone.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
-            Self::Transform(e) => write!(f, "{e}"),
-            Self::NotFinished(findings) => {
-                write!(f, "the mapped body is not a finished body: {findings}")
-            }
+            Self::Transform(e) => write!(f, "{}", read_at(e, at)),
+            Self::NotFinished(findings) => write!(
+                f,
+                "the mapped body is not a finished body: {}",
+                read_at(findings, at)
+            ),
         }
     }
 }
+
+geom_brep::ended_by_write!(ComposeError);
 
 impl core::error::Error for ComposeError {}
 
@@ -80,7 +90,7 @@ pub enum ExportError {
         /// The node whose value was refused.
         node: RecipeNodeId,
         /// The value's kind, from the kernel's own
-        /// [`ValuePayload::kind_name`].
+        /// [`editor_core::ValuePayload::kind_name`].
         kind: &'static str,
     },
     /// The node's Boolean produced an empty result — nothing to
@@ -118,11 +128,17 @@ impl Say for ExportError {
                     by.node(*node)
                 )
             }
+            // The composition is a map the export runs: a build.
             ExportError::Compose(e) => write!(
                 f,
-                "export: the body could not be composed into its space's coordinates: {e}"
+                "export: the body could not be composed into its space's coordinates: {}",
+                e.render(geom_brep::recourse::Reading::Build)
             ),
-            ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
+            ExportError::Step(e) => write!(
+                f,
+                "export: the STEP writer refused: {}",
+                e.render(geom_brep::recourse::Reading::AtRest)
+            ),
             ExportError::Product(e) => write!(f, "export: {}", Said(e, by)),
         }
     }
@@ -171,16 +187,13 @@ pub fn step_for_node(
     tol: Tol,
 ) -> Result<String, ExportError> {
     let value = evaluation.usable(node).map_err(ExportError::Standing)?;
-    let body = match &value.payload {
-        ValuePayload::Body(body) => body,
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        ValuePayload::Boolean(BooleanValue::Empty) => {
-            return Err(ExportError::EmptyBoolean { node });
-        }
-        other => {
+    let body = match value.payload.one_body() {
+        Some(Some(body)) => body,
+        Some(None) => return Err(ExportError::EmptyBoolean { node }),
+        None => {
             return Err(ExportError::NotABody {
                 node,
-                kind: other.kind_name(),
+                kind: value.payload.kind_name(),
             });
         }
     };

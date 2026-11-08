@@ -139,7 +139,9 @@ use geom_core::{Band, Indeterminate, Margin, Readable, SupSpeed};
 
 use crate::dihedral::decide_reported;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
-use crate::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+#[cfg(test)]
+use crate::recourse::Reading;
+use crate::recourse::{ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::shape_operator::FundamentalForms;
 
 /// The refinement ladder the door walks, coarsest first (D9: a fixed
@@ -213,7 +215,7 @@ impl Meter {
     /// The one ending this meter's refusal carries on `arm`, read at
     /// `reading` ([`SizedDecision::recourse`]).
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+    pub fn recourse(self, arm: RefusedArm<'_>, reading: impl Into<ReadAt>) -> String {
         self.decision().recourse(arm, reading)
     }
 }
@@ -349,7 +351,7 @@ impl MeterError {
     /// The ending this refusal's meter gives its verdict, read at
     /// `reading` ([`Meter::recourse`]).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> String {
+    pub fn ending(&self, reading: impl Into<ReadAt>) -> String {
         self.meter().recourse(self.arm(), reading)
     }
 
@@ -357,7 +359,7 @@ impl MeterError {
     /// size under another name: the same decision and the same arm,
     /// with `lever` in place of the decision's own.
     #[must_use]
-    pub fn ending_with_lever(&self, lever: &'static str, reading: Reading) -> String {
+    pub fn ending_with_lever(&self, lever: &'static str, reading: impl Into<ReadAt>) -> String {
         SizedDecision {
             lever,
             ..self.meter().decision()
@@ -368,7 +370,7 @@ impl MeterError {
     /// [`MeterError::render`] with [`MeterError::ending_with_lever`]'s
     /// ending.
     #[must_use]
-    pub fn render_with_lever(&self, lever: &'static str, reading: Reading) -> String {
+    pub fn render_with_lever(&self, lever: &'static str, reading: impl Into<ReadAt>) -> String {
         format!("{self}. {}", self.ending_with_lever(lever, reading))
     }
 
@@ -383,8 +385,14 @@ impl MeterError {
 
     /// The payload and the ending read at `reading`.
     #[must_use]
-    pub fn render(&self, reading: Reading) -> String {
+    pub fn render(&self, reading: impl Into<ReadAt>) -> String {
         format!("{self}. {}", self.ending(reading))
+    }
+}
+
+impl crate::recourse::Ended for MeterError {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
     }
 }
 

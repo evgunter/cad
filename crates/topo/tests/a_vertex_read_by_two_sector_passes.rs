@@ -157,7 +157,7 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// along a line where one holds a slit or zero-area ring (the plate less
 /// a void lying under the top, or a groove the pyramid under the ray cuts
 /// below it) and the other an edge, which the touch analysis does not
-/// read (`work/cleave/a-boolean-places-two-germs-along-a-slit-line.md`).
+/// read (`a-boolean-places-two-germs-along-a-slit-line` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
 const SLIT_TOUCH: &str = "they touch where a face of one meets it along an edge and again";
 
 /// Every refusal of tier 3′ is at [`MEET`]: a contact there no record
@@ -1778,7 +1778,7 @@ fn builds_or_refuses(
 /// refuses (`PartnerAlongFace`, or `VertexReadTwice` where its pierce
 /// crosses the top), or, a pyramid inside the lifted one, the
 /// pierce germ that no sector holds alone
-/// (`work/cleave/near-tangent-pierce-poses-reach-three-classification-invariants.md`).
+/// (`near-tangent-pierce-poses-reach-three-classification-invariants` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
 #[test]
 fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
     let eps = t().eps();

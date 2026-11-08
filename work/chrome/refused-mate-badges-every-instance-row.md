@@ -62,7 +62,7 @@ dropped the message — strictly worse than shipped. Blame is therefore
 corroborated against the evaluation: the first blamed mate the run
 agrees is `Failed`, else the row keeps its own. That guard is a
 viewer-side workaround for a kernel inconsistency, filed as
-`work/issues/mate-memo-key-does-not-carry-the-solve`.
+`work/msolve/mate-memo-key-does-not-carry-the-solve`.
 
 Three rows, each verified RED with the attribution disabled, including
 a windmill story stage where the user clocks the hub and the tree sends

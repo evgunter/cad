@@ -496,7 +496,12 @@ fn the_model_reads_the_box_corner_by_hand_and_every_witness() {
         let mine = removed(&halves_of(&body), edges.map(|e| edge_points(&body, e)), D);
         for order in [[0, 1], [1, 0]] {
             let ord = [edges[order[0]], edges[order[1]]];
-            let out = build(&body, &ord, D, what).unwrap_or_else(|e| panic!("{what}: {e}"));
+            let out = build(&body, &ord, D, what).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             assert_eq!(
                 non_trivalent(&out.body),
                 0,
@@ -537,7 +542,12 @@ fn the_built_body_is_the_model_point_by_point() {
         let halves = halves_of(&body);
         let pts = edges.map(|e| edge_points(&body, e));
         let bands: Vec<Band> = pts.iter().map(|(a, b)| band(&halves, *a, *b, D)).collect();
-        let out = build(&body, &edges, D, what).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let out = build(&body, &edges, D, what).unwrap_or_else(|e| {
+            panic!(
+                "{what}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let (n, w) = sample(&out.body, shared(pts), |x| kept(&halves, &bands, x));
         assert!(n > 500, "{what}: the grid reads {n} points clear");
         checked += n;
@@ -654,7 +664,10 @@ fn features_about_the_arc_build_clear_and_refuse_where_they_straddle() {
                 (Ok(_), false) => {
                     bad.push(format!("{kind} {what}: built where the fillet cuts it"))
                 }
-                (Err(e), _) => bad.push(format!("{kind} {what}: refused {e}")),
+                (Err(e), _) => bad.push(format!(
+                    "{kind} {what}: refused {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )),
             }
         }
     }

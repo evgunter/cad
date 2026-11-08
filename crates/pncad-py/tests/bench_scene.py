@@ -31,7 +31,7 @@ its stand on a TURNTABLE — the near post's world mate turns by a
 document parameter's swing — and sets a crate on the shelf. `stand`
 here pins the near post to the world where the turntable puts it at
 the tour's authored swing of zero, and authors no crate
-(`work/lib/the-turntable-bench-has-no-python-row.md`).
+(`work/pydoor/the-turntable-bench-has-no-python-row.md`).
 
 The layout's placed family is NOT such a difference: `layout` spells
 the posts as the tour does, a row under the index `k = index(2)`

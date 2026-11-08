@@ -156,7 +156,12 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // number is the one the fixed schedule can honestly refuse.
     let got = gated
         .measure(topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap_or_else(|e| panic!("the arc prism measures: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the arc prism measures: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            )
+        });
     let posture = body_posture("arc prism", &got);
     eprintln!(
         "EPS-ROW arc prism @ eps={:e}: {posture:?} volume {} ± {}",

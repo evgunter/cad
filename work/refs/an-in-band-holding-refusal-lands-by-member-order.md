@@ -4,6 +4,8 @@ kind: issue
 title: Where an n-ary union's in-band holdings refusal lands depends on member order: which pieces the fold makes does
 status: open
 opened: 2026-11-02
+priority: P2
+cost: M
 ---
 
 

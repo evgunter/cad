@@ -3,7 +3,7 @@
 //! touch beyond them, and which way it stacks ([`stacking_door`]). It
 //! refuses contact it verified, never contact it could not rule out: an
 //! arc pair the curve-pair reader cannot settle is left to the embedding
-//! certificate (`work/carve/self-overlapping-spines-build-and-validate.md`).
+//! certificate (`work/lathe/self-overlapping-spines-build-and-validate.md`).
 
 use geom::Curve3;
 use geom_brep::curve_pair::{self, Hit, MeetFault, Span, SpanEnd};
@@ -313,7 +313,7 @@ fn pieces<T: Decide>(
 /// band, a budget, a pose it has no closed form for) decides nothing
 /// here, as before the door: whether such a pair is embedded is the
 /// embedding certificate's
-/// (`work/carve/self-overlapping-spines-build-and-validate.md`). The
+/// (`work/lathe/self-overlapping-spines-build-and-validate.md`). The
 /// reader poses the arcs' whole carriers, so a near-tangency off both
 /// spans is one such pair.
 ///

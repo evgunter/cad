@@ -20,7 +20,7 @@ this final state, but … keep it disabled/selectively disabled for now".
   `crates/topo/src/finish.rs`): `T::Leaf` reads as `T::Finished`,
   `T::leaf` as `T::finish`, and a taker takes the finished body as it is;
 - `AtRestBody`'s held finish record, `AtRestBody::holding` and
-  `relog_held` (`crates/topo/src/validate.rs`), and F31 with its audit
+  `relog_held` (`crates/topo/src/validate.rs`), and F34 with its audit
   row (`docs/predicate-dimension-audit.md`);
 - `topo::Replay`'s second role: it stays a dual's finished body;
 - the `B` parameter on `Lofted` and `Revolved` and their `leaf`

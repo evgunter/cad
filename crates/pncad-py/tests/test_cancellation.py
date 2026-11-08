@@ -41,6 +41,7 @@ import unittest
 
 from pncad import (
     CancelToken,
+    ChecksError,
     Doc,
     EvaluationError,
     Formula,
@@ -267,6 +268,37 @@ class TestCanceledEvaluation(unittest.TestCase):
         self.assertEqual(complete.recomputed, len(complete.order()))
         for node in complete.order():
             self.assertTrue(complete.succeeded(node))
+
+
+class TestADoorAfterTheRunKeepsItsToken(unittest.TestCase):
+    """The coincidence door `Evaluation.coincidences` replays on the
+    token the run was evaluated with, so canceling that token after the
+    run finished stops the door: it raises `ChecksError` `canceled`, as
+    `run_checks` does, rather than answering no coincidences."""
+
+    def setUp(self):
+        self.doc = Doc()
+        lower = slab(self.doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        upper = slab(
+            self.doc,
+            (0.25 * m, 0.75 * m),
+            (0.25 * m, 0.75 * m),
+            (1 * m, 1.5 * m),
+            on=lower,
+        )
+        self.fused = self.doc.insert(Node.union([lower, upper]))
+        self.token = CancelToken()
+        self.ev = evaluate(self.doc, cancel=self.token)
+
+    def test_a_live_token_answers_the_rows(self):
+        self.assertTrue(self.ev.coincidences(self.fused), "the contact is recorded")
+
+    def test_a_token_canceled_after_the_run_stops_the_door(self):
+        self.assertFalse(self.ev.canceled, "the run itself finished")
+        self.token.cancel()
+        with self.assertRaises(ChecksError) as caught:
+            self.ev.coincidences(self.fused)
+        self.assertEqual(caught.exception.variant, "canceled")
 
 
 class TestCancelingARunUnderWay(unittest.TestCase):

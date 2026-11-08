@@ -226,18 +226,17 @@ impl From<CarrierAbsence> for ReadbackError {
 }
 
 /// **A face's carrier surface, as the read-back doors refuse it**:
-/// [`Body::face_surface`], its one refusal (a stale face key) spelled
+/// [`Body::passed_face`]'s [`crate::live::FaceView::surface`], its one refusal (a stale face key) spelled
 /// [`ReadbackError::Dangling`], with the surface's key and the face's
 /// orientation sense read off the record beside it.
 pub(crate) fn carrier_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(SurfaceKey, &Surface<T>, bool), ReadbackError> {
-    let surface = body.face_surface(face).ok_or(ReadbackError::Dangling {
+    let f = body.passed_face(face).ok_or(ReadbackError::Dangling {
         what: EntityId::Face(face),
     })?;
-    let f = crate::live::proven(&body.faces, face, EntityId::Face);
-    Ok((f.surface, surface, f.sense))
+    Ok((f.record().surface, f.surface(), f.sense()))
 }
 
 /// **A face's carrier frame** — the stored plane/axis data of the
@@ -328,6 +327,12 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
             ..
         } => Ok(frame(*center, *axis, *u_ref)),
         Surface::Torus {
+            center,
+            axis,
+            u_ref,
+            ..
+        }
+        | Surface::Spindle {
             center,
             axis,
             u_ref,
@@ -560,13 +565,13 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: None,
             sense: true,
         }),
-        ellipse @ Curve3::Ellipse(geom::Ellipse { frame: geom::Frame { center, axis, .. }, .. }) => Ok(Pose {
+        ellipse @ Curve3::Ellipse(geom::Ellipse { frame: geom::Frame { origin: center, axis, .. }, .. }) => Ok(Pose {
             origin: *center,
             axis: *axis,
             u_ref: ellipse.major_frame().map(|f| f.major_dir),
             sense: true,
         }),
-        Curve3::Circle(geom::Circle { frame: geom::Frame { center, axis, u_ref }, .. })
+        Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, axis, u_ref }, .. })
         // The spiric's six fields ARE a canonical frame: the torus
         // centre, its axis and the cutting plane's normal — the frame
         // the model holds, answered as the pose.

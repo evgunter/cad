@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: pcurve_cache's param_rate_gate refuses a collapsed or undecided carrier meter under PcurveCheck::ParamSpan, the decision it guards
 status: open
 opened: 2026-09-29
+priority: P3
+cost: E
 ---
 
 ## What

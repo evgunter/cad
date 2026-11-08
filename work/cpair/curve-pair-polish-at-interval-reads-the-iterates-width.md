@@ -2,12 +2,13 @@
 id: curve-pair-polish-at-interval-reads-the-iterates-width
 kind: issue
 title: The curve-pair polish at Interval meters its iterate's accumulated width, not its last step, so fine bands refuse Meter on clean crossings
-status: open
+status: closed
 priority: P2
 cost: M
-design: true
 refs: [5227, curve-pair-polish-meters-refuse-shallow-meetings]
 opened: 2026-10-20
+closed: 2026-11-04
+pr: 6516
 ---
 
 
@@ -76,3 +77,28 @@ at 1e-12 on that text, citing this row; the pin goes red the day the row
 passes.
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.
+
+## 2026-11-04 — closed by PR 6516 (`onecopy/meet-interval`)
+
+The same finding as ONECOPY's
+`meet-at-interval-refuses-on-its-basin-meter-and-reads-an-ends-distance-at-rounding`,
+found again from the region landings' side; PR 6516 fixes it there,
+by this row's first route. `polish::pair` reads each step from an
+enclosure's middle (`geom::bracket_mid`), entered as a point, and
+solves it in the cross-product form. No `Bounds` seam was needed: the
+bracket is read through `SpanLocate::structure_bracket`, which every
+`Decide` scalar carries. The design question this row held was decided
+on the ONECOPY row; what the meters certify at an enclosing scalar is
+that row's Question 1, which stays open there.
+
+Re-measured at head and at base `354f9b3f` (main):
+- `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`
+  passes at 1e-12, so its pin is lifted. Nothing ran after the pin's
+  stop that the row's own assertions do not now reach.
+- `band_planar_cut_off_interval::a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar`:
+  at 1e-10 the `tier_3_prime` admission fired on four rows at base
+  (shear ±0.6, both convexities) and on none at head, so it is removed.
+  At 1e-12 it fired on ten rows at base and on none at head. There the
+  row stops, at base and at head alike, on its last row (`shear 0.6,
+  convex false`), a pcurve envelope escalation that is not this meter's.
+

@@ -44,7 +44,7 @@ pub(in crate::boolean) fn split_sheet() -> (Body<f64>, VertexKey) {
             let curve = body.get_edge(e).unwrap().curve;
             match body.get_curve_geom(curve).unwrap() {
                 crate::CurveGeom::Certified(c) => {
-                    matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z > 0.5)
+                    matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z > 0.5)
                 }
                 _ => false,
             }
@@ -85,7 +85,7 @@ pub(in crate::boolean) fn brick_under(top: f64) -> (Body<f64>, FaceKey) {
         .faces()
         .map(|(k, _)| k)
         .find(|&f| {
-            super::face_plane(&b, f)
+            super::plane_desc(&b, f)
                 .is_some_and(|p| p.normal.z > 0.5 && (p.origin.z - top).abs() < 1e-12)
         })
         .expect("the brick has a top face");

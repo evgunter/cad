@@ -1,0 +1,125 @@
+{
+ "benchmarks": {
+  "kernel/boolean/two_bricks": {
+   "mean_ns": 1668160.630428684,
+   "median_abs_dev_ns": 5580.029847207327,
+   "median_ci_ns": [
+    1664446.8,
+    1668409.8235294118
+   ],
+   "median_ns": 1666686.1339285714,
+   "samples": 50
+  },
+  "kernel/build/extrude": {
+   "mean_ns": 154556.5071233343,
+   "median_abs_dev_ns": 673.4586128448394,
+   "median_ci_ns": [
+    153678.53472222222,
+    154159.0641025641
+   ],
+   "median_ns": 153939.53819444444,
+   "samples": 50
+  },
+  "kernel/mass_props/washer": {
+   "mean_ns": 19063.959699492272,
+   "median_abs_dev_ns": 220.72667275130928,
+   "median_ci_ns": [
+    18221.859830508474,
+    18804.74581520427
+   ],
+   "median_ns": 18303.785310734464,
+   "samples": 50
+  },
+  "kernel/mass_props/washer/t4": {
+   "mean_ns": 13892.936845248221,
+   "median_abs_dev_ns": 46.639476753891934,
+   "median_ci_ns": [
+    13831.470096371882,
+    13864.716931216932
+   ],
+   "median_ns": 13846.616185897436,
+   "samples": 50
+  },
+  "kernel/validate/tier23_washer": {
+   "mean_ns": 358625.4844672879,
+   "median_abs_dev_ns": 3548.882054078107,
+   "median_ci_ns": [
+    356877.24147058825,
+    365597.66571969696
+   ],
+   "median_ns": 365120.28330721,
+   "samples": 50
+  },
+  "kernel/validate/tier23_washer/t4": {
+   "mean_ns": 410106.3321060866,
+   "median_abs_dev_ns": 2899.605194355041,
+   "median_ci_ns": [
+    395004.797979798,
+    396958.1296296296
+   ],
+   "median_ns": 395470.2948717949,
+   "samples": 50
+  },
+  "tessellate/torus/1e-3": {
+   "mean_ns": 2279485.0016142856,
+   "median_abs_dev_ns": 12830.578316211733,
+   "median_ci_ns": [
+    2263099.56,
+    2281961.64
+   ],
+   "median_ns": 2270770.256666667,
+   "samples": 10
+  },
+  "tessellate/torus/1e-4": {
+   "mean_ns": 27463352.549021162,
+   "median_abs_dev_ns": 658443.3086158494,
+   "median_ci_ns": [
+    26896769.994444445,
+    28009487.791666668
+   ],
+   "median_ns": 27543584.85714286,
+   "samples": 10
+  },
+  "tessellate/washer/1e-4": {
+   "mean_ns": 3471487.189745565,
+   "median_abs_dev_ns": 220343.54235307127,
+   "median_ci_ns": [
+    3139403.267973856,
+    3851211.7352941176
+   ],
+   "median_ns": 3271831.8970588236,
+   "samples": 10
+  },
+  "tessellate/washer/1e-6": {
+   "mean_ns": 187906496.47777778,
+   "median_abs_dev_ns": 1131779.4419135835,
+   "median_ci_ns": [
+    186449263.25,
+    190214614.0
+   ],
+   "median_ns": 186923953.2888889,
+   "samples": 10
+  }
+ },
+ "commit": "45cae9d7a4d0be0cfce7f61c31d398325c944639",
+ "environment": {
+  "arch": "x86_64",
+  "cargo_profile_overrides": [],
+  "cpu_flags": [
+   "avx2",
+   "avx512f"
+  ],
+  "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+  "debug_assertions": false,
+  "mem_total_kb": 16367528,
+  "nproc": 4,
+  "os": "linux",
+  "rayon_num_threads": "",
+  "rayon_threads": 4,
+  "runner": "Linux/X64 ubuntu-latest",
+  "rustflags": "",
+  "rustup_toolchain": "1.97.0-x86_64-unknown-linux-gnu"
+ },
+ "measured_at_epoch_s": 1794029682,
+ "method": "criterion 0.8.2 over benches/benches/kernel.rs; per-row sample counts set in that file; bench profile (release, debug-assertions OFF \u2014 the manifest says why); times in nanoseconds, `median` is the figure to read and `median_ci` the interval criterion resolved WITHIN this run. Cross-run spread is wider than that interval: treat a move under ~10% as noise unless consecutive entries agree."
+}

@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-18
 priority: P2
 cost: M
-refs: [a-union-fold-publishes-no-pinch-row]
 ---
 
 

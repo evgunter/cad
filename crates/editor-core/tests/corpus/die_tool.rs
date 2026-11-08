@@ -21,7 +21,7 @@
 //!
 //! # It crosses to Python, byte for byte
 //!
-//! `work/lib/log.md` carried "die_tool's Python re-authoring (banked
+//! LIB's log (recoverable by `docs/doc-ledger/lib-leaves-the-tracker.md`) carried "die_tool's Python re-authoring (banked
 //! behind its Revolve/datum half)" from LIB-PYPU on: that unit bound
 //! the placement vocabulary and authored the LINEAR twin
 //! (`heat_sink_fins`, extrude-only), while this document's prototype is

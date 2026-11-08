@@ -163,7 +163,12 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                 split(&cyl, &plane, tol())
             };
             let parts = |d: f64, label: &str| {
-                let r = cut(d).unwrap_or_else(|err| panic!("{label}: refused: {err}"));
+                let r = cut(d).unwrap_or_else(|err| {
+                    panic!(
+                        "{label}: refused: {err_at}",
+                        err_at = err.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
                 // Each half's volume, and the pad its certificate gives:
                 // a half whose wall pieces merged across the seam is
                 // integrated by quadrature.
@@ -232,7 +237,7 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                         assert!(
                             cut(d)
                                 .unwrap_err()
-                                .to_string()
+                                .render(geom_brep::recourse::Reading::Build)
                                 .contains("move the split plane"),
                             "{label}: the refusal names its lever"
                         );
@@ -311,7 +316,12 @@ fn the_boolean_reads_a_grazing_vertex_against_its_section() {
         let slab = |d: f64| seam_slab((phi, psi), (3.0, 3.0), 1.0, n * d);
         let cut = |d: f64| topo::subtract(&cyl, &slab(d), tol());
         let kept = |d: f64, label: &str| {
-            let r = cut(d).unwrap_or_else(|err| panic!("{label}: refused: {err}"));
+            let r = cut(d).unwrap_or_else(|err| {
+                panic!(
+                    "{label}: refused: {err_at}",
+                    err_at = err.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             r.body().map_or(0.0, |b| volume(&b.body))
         };
         let below = {

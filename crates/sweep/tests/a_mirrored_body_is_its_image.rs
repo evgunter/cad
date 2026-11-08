@@ -253,7 +253,8 @@ fn chart_map(s: &Surface<f64>, (u, v): (f64, f64)) -> (f64, f64) {
         Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => (-u, v),
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => (-u, v),
         Surface::Nurbs(_) | Surface::Approx(_) => (u, v),
     }
 }
@@ -270,9 +271,10 @@ fn chart_gap(s: &Surface<f64>, p: (f64, f64), q: (f64, f64)) -> f64 {
         let (du, dv) = (q.0 - a, q.1 - b);
         match s {
             Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => du.hypot(dv),
-            Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
-                unwound(du).hypot(dv)
-            }
+            Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Spindle { .. } => unwound(du).hypot(dv),
             Surface::Torus { .. } => unwound(du).hypot(unwound(dv)),
         }
     };
@@ -359,8 +361,12 @@ fn mirrors_to_its_image(what: &str, body: Body<f64>) {
     let v = volume(&body);
     for (plane, reflection) in planes() {
         let label = format!("{what} across {plane}");
-        let image = mirror_body(&body, &reflection, tol())
-            .unwrap_or_else(|e| panic!("{label}: the mirror refused: {e}"));
+        let image = mirror_body(&body, &reflection, tol()).unwrap_or_else(|e| {
+            panic!(
+                "{label}: the mirror refused: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let image = finished(&label, image);
         same_volume(&label, &v, &image);
         charts_are_the_convention(&label, &body, &image, &reflection);
@@ -377,8 +383,12 @@ fn mirrors_to_its_image(what: &str, body: Body<f64>) {
                 "{label}: point {k:?} is the reflection of the source's"
             );
         }
-        let back = mirror_body(&image, &reflection, tol())
-            .unwrap_or_else(|e| panic!("{label}: mirroring back refused: {e}"));
+        let back = mirror_body(&image, &reflection, tol()).unwrap_or_else(|e| {
+            panic!(
+                "{label}: mirroring back refused: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let back = finished(&format!("{label}, mirrored back"), back);
         for (k, p) in body.points() {
             let q = back

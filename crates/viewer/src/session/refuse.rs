@@ -15,9 +15,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanValue, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand,
-    ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, ValuePayload, VarId,
-    VarName,
+    Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, VarId, VarName,
 };
 use std::path::{Path, PathBuf};
 
@@ -861,7 +860,7 @@ impl Refusal {
     }
 }
 
-impl core::fmt::Display for Refusal {
+impl Refusal {
     /// Renders each arm through its payload's OWN `Display` wherever
     /// the payload has one — `EditError`, `DimensionError` and
     /// `PersistError` (inside [`DocIoError`]) all do, and using them is
@@ -872,7 +871,11 @@ impl core::fmt::Display for Refusal {
     /// wording is this layer's own sentence, so it is
     /// composed here (and here only — [`Refusal::affordance`] is its
     /// single home).
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::DrivenByExpression {
                 slot,
@@ -928,7 +931,9 @@ impl core::fmt::Display for Refusal {
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
-            Self::Duplicate(fault) => write!(f, "{fault}"),
+            Self::Duplicate(fault) => {
+                write!(f, "{}", pncad::geom_brep::recourse::read_at(fault, at))
+            }
             Self::Frame(fault) => write!(f, "{fault}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
@@ -994,6 +999,8 @@ impl core::fmt::Display for Refusal {
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(Refusal);
 
 impl core::error::Error for Refusal {}
 
@@ -1076,44 +1083,10 @@ impl VersionOffer {
     }
 }
 
-/// **Why a gesture's frame could not be made** — a split's cutting
-/// plane, a pattern's direction or axis. Each is made of numbers the gesture carries, taken at their
-/// nominal values in the document, and read off a body's own geometry
-/// (spec §5, the restate ladder).
+/// **Why a gesture's frame could not be made**: a traced profile's
+/// frame, or a pattern's picked direction or axis.
 #[derive(Debug, Clone)]
 pub enum GestureFrameFault {
-    /// A number is not of the dimension its field takes.
-    Dimension {
-        /// The field, as the form names it.
-        field: &'static str,
-        /// The dimension it takes.
-        wanted: Dimension,
-        /// The dimension it was written in.
-        found: Dimension,
-    },
-    /// A number reads a name the document does not hold at its kind.
-    Unresolved {
-        /// The field, as the form names it.
-        field: &'static str,
-        /// The lowering door's refusal.
-        fault: pncad::document::LowerFault,
-    },
-    /// A number did not evaluate in the document.
-    Unevaluated {
-        /// The field, as the form names it.
-        field: &'static str,
-        /// The evaluator's refusal.
-        error: EvalError,
-    },
-    /// A direction names no direction (the direction door's refusal).
-    Direction {
-        /// The field, as the form names it.
-        field: &'static str,
-        /// The door's refusal.
-        refusal: pncad::document::AxisRefusal,
-    },
-    /// The body offers no geometry to read the frame off.
-    Geometry(pncad::document::PinRefusal),
     /// No frame reads off a traced face and a plane face
     /// ([`pncad::trace::traced_frame`]).
     Traced(std::sync::Arc<pncad::trace::TracedFrameFault>),
@@ -1128,17 +1101,6 @@ pub enum GestureFrameFault {
 impl core::fmt::Display for GestureFrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Dimension {
-                field,
-                wanted,
-                found,
-            } => write!(f, "the {field} takes a {wanted}, not a {found}"),
-            Self::Unresolved { field, fault } => write!(f, "the {field} does not resolve: {fault}"),
-            Self::Unevaluated { field, error } => {
-                write!(f, "the {field} does not evaluate: {error}")
-            }
-            Self::Direction { field, refusal } => write!(f, "the {field} {refusal}"),
-            Self::Geometry(refusal) => write!(f, "{refusal}"),
             Self::Traced(fault) => write!(f, "{fault}"),
             Self::NoHeading { field } => write!(
                 f,
@@ -1150,37 +1112,6 @@ impl core::fmt::Display for GestureFrameFault {
 }
 
 impl core::error::Error for GestureFrameFault {}
-
-/// **The one body an evaluated value IS, if it is one** — the
-/// evaluator's single-body operand door (`eval::wire::read_body`)
-/// asked of a value the viewer is holding.
-///
-/// The same two shapes that door takes: a `Body` payload, or a
-/// boolean's non-empty result. Everything else — a split's two sides,
-/// a pattern's or a placer's instances, a profile — is a
-/// value it refuses `WrongOperand`.
-///
-/// **Not [`crate::combine::denotes_body`]**, which answers the
-/// narrower question a body SEAT asks, off the node vocabulary alone,
-/// before any value exists. A seat that has an evaluation in hand can
-/// ask the door's own question instead of a predicate that tracks it.
-///
-/// Its reader is the duplicate door (`crate::combine::duplicate_step`),
-/// which measures the body it hands back.
-pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::Framed<f64>> {
-    match payload {
-        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            Some(body)
-        }
-        ValuePayload::Boolean(BooleanValue::Empty)
-        | ValuePayload::Profile(_)
-        | ValuePayload::Split { .. }
-        | ValuePayload::Instances(_)
-        | ValuePayload::Family
-        | ValuePayload::Measure { .. }
-        | ValuePayload::Assertion(_) => None,
-    }
-}
 
 #[cfg(test)]
 mod version_offer {

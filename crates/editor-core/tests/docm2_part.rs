@@ -126,7 +126,10 @@ fn instances(ev: &Evaluation<f64>, pattern: RecipeNodeId) -> Vec<Arc<topo::AtRes
     let ValuePayload::Instances(v) = &ev.value(pattern).expect("the pattern").payload else {
         panic!("a family of bodies");
     };
-    v.iter().map(|b| Arc::clone(b.holding().arc())).collect()
+    crate::fixture::every_body(v)
+        .into_iter()
+        .map(|b| Arc::clone(b.holding().arc()))
+        .collect()
 }
 
 fn error_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKind {

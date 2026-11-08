@@ -186,7 +186,10 @@ fn r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate() {
         needed,
     } = e
     else {
-        panic!("expected the wall-clearance gate, got {e}");
+        panic!(
+            "expected the wall-clearance gate, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!(
         (gap - 0.2).abs() < 1e-9,
@@ -242,7 +245,10 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
         face, other, gap, ..
     } = e
     else {
-        panic!("expected the wall-clearance gate, got {e}");
+        panic!(
+            "expected the wall-clearance gate, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!(
         (gap - 0.2).abs() < 1e-9,
@@ -295,7 +301,10 @@ fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
             ),
             None => println!("[measured] the boolean returned no body for box − cylinder"),
         },
-        Err(e) => println!("[measured] the boolean refuses box − cylinder: {e}"),
+        Err(e) => println!(
+            "[measured] the boolean refuses box − cylinder: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     let hollow = with_void(cube.into_body(), cavity.into_body());
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()));
@@ -386,7 +395,10 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
             }
         },
         Err(e) => {
-            println!("[measured] the boolean refuses box − holed box: {e}");
+            println!(
+                "[measured] the boolean refuses box − holed box: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             return;
         }
     };
@@ -404,7 +416,10 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
     println!("[measured] the void's ceiling {ceiling:?} carries {rings} ring(s)");
     let t = 0.1;
     match topo::shell_open(&body, t, &[ceiling], tol()) {
-        Err(e) => println!("[measured] open the holed void ceiling at t={t}: refuses {e}"),
+        Err(e) => println!(
+            "[measured] open the holed void ceiling at t={t}: refuses {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(s) => {
             let out = topo::test_support::finished("out", topo::Body::clone(&s.body), tol());
             let tier3 = topo::validate_geometric(&out, tol());
@@ -629,7 +644,10 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
             s.len(),
             s.matches("MANIFOLD_SOLID_BREP").count()
         ),
-        Err(e) => println!("[e2e] STEP refuses: {e}"),
+        Err(e) => println!(
+            "[e2e] STEP refuses: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     match step_export::step_string(
         &topo::test_support::finished("the exported body", first.body.clone(), tol()),
@@ -643,7 +661,10 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
             "[e2e] STEP (hollow once, pre-existing shape): {} bytes",
             s.len()
         ),
-        Err(e) => println!("[e2e] STEP (hollow once, pre-existing shape) refuses: {e}"),
+        Err(e) => println!(
+            "[e2e] STEP (hollow once, pre-existing shape) refuses: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     match step_export::step_string(
         &topo::test_support::finished("the exported body", twice.body.clone(), tol()),
@@ -658,6 +679,9 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
             s.len(),
             s.matches("MANIFOLD_SOLID_BREP").count()
         ),
-        Err(e) => println!("[e2e] STEP (sealed, 2 solids) refuses: {e}"),
+        Err(e) => println!(
+            "[e2e] STEP (sealed, 2 solids) refuses: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }

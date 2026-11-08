@@ -1,6 +1,6 @@
 //! **The box-scalar switch keeps the drive's two lanes logging alike**
 //! (`topo::AtRestPolicy::leaf`, `docs/predicate-dimension-audit.md`
-//! F31; PR 6371's first review, M1 and M2).
+//! F34; PR 6371's first review, M1 and M2).
 //!
 //! At the box scalars a sweep door's leaf is tier 2 alone, and the
 //! consumer that takes a finished body runs tier 3 there, logged. At
@@ -65,6 +65,7 @@ fn certified(doc: &ProfileDoc) -> usize {
             max_leaves: 32,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the drive runs");
@@ -158,8 +159,14 @@ fn a_placement_that_does_not_finish_is_its_outputs_finding() {
         unused: editor_core::Advisory::Off,
         ..ChecksConfig::default()
     };
-    let report = run_checks(&doc, &ev, &cfg, Tol::witness())
-        .expect("the walk does not abort on a placement that does not finish");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &cfg,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the walk does not abort on a placement that does not finish");
     for placement in [first, second] {
         let findings: Vec<_> = report
             .findings

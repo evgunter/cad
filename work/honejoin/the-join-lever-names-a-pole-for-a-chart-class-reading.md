@@ -87,6 +87,8 @@ calls were not followed further.
 - Move `Image` out of `JoinReading` (or out of "undecided") so that
   every door gives it one verdict, ending it through
   `PcurveCertifyError::ending` where it is a decision's arm.
-- Re-baseline `undecided_text::a_chart_image_that_did_not_derive_ends_without_a_recourse_today`.
+- Re-baseline `undecided_text::a_chart_image_that_did_not_derive_ends_by_its_own_decision`.
 - Re-baseline, with literal text, `edge_join.rs`'s `undecided_text`
   tests and `validate.rs`'s `JoinUndecidedAtRest` fixtures.
+
+- 2026-11-03 — (PCERT, `pcert/certify-arms-end`, PR 6448) The `Image` arm's "ending it through `PcurveCertifyError::ending`" is done: every `PcurveCertifyError` arm now has an ending, and the join's image arm renders it through `read_at` at every door, the build's defect fallback removed. The test cited above was renamed from `…_ends_without_a_recourse_today` and re-baselined to the lane choice's "not yet". Moving `Image` out of `JoinReading` is still open.

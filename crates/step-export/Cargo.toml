@@ -26,6 +26,9 @@ probe = ["topo/probe"]
 # tolerance (STEP uncertainty) from geom-core.
 geom-core = { path = "../geom-core" }
 geom = { path = "../geom" }
+# A refusal's ending is read at the door that reports it
+# (`geom_brep::recourse`).
+geom-brep = { path = "../geom-brep" }
 topo = { path = "../topo" }
 
 [dev-dependencies]

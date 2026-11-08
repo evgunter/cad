@@ -113,7 +113,10 @@ fn tilted_plane_interval_agrees_or_refuses_typed() {
             assert_eq!(validate_closed(body_of(&r.above)), Ok(()));
             assert_eq!(validate_closed(body_of(&r.below)), Ok(()));
         }
-        Err(e) => eprintln!("tilted interval split refused typed: {e}"),
+        Err(e) => eprintln!(
+            "tilted interval split refused typed: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 

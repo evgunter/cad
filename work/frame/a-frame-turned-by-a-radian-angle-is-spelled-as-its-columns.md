@@ -4,6 +4,8 @@ kind: issue
 title: A frame that is a world frame turned by an authored angle is spelled as its columns and decided, where a rotation mint needs no decision
 status: open
 opened: 2026-10-21
+priority: P4
+cost: M
 ---
 
 ## What

@@ -56,3 +56,10 @@ which this row rides with; the section door escalates.
 transverse frame retired; the pose escalates an offset in the band
 (`cs_coaxial`, `SectionError::Escalated`), which the join refuses as
 the section undecided, as the parallel-cylinder arm does.
+
+## The D10 hold has lifted (2026-11-03)
+
+INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`), so the hold named above
+no longer stands. What is left is the reach: no public pose reaches the
+case yet, as the row says.

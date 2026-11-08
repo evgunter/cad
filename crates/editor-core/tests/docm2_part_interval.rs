@@ -104,7 +104,7 @@ fn assert_parts_are_their_bodies(ev: &Evaluation<Interval>, doc: &ProfileDoc, la
             panic!("{label}: a body value");
         };
         let read: &editor_core::Held<Interval> = match &ev.value(of).expect("the input").payload {
-            ValuePayload::Instances(v) => v[1].holding(),
+            ValuePayload::Instances(v) => crate::fixture::every_body(v)[1].holding(),
             other => panic!("{label}: {}", other.kind_name()),
         };
         assert!(part.holding().same(read), "{label}: node {}'s Arc", id.0);

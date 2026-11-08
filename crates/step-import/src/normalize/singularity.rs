@@ -451,16 +451,6 @@ fn use_edges(solid: &SolidSpec, uses: &[EdgeUse]) -> Vec<LoopEdge<f64>> {
         .collect()
 }
 
-/// **The parameter at which `carrier` passes nearest `x`**, where a
-/// minted meridian meets the boundary: a line's projection, or a
-/// circle's angle about its centre in its own frame (the convention
-/// [`crate::geometry::endpoint_params`] derives edge intervals in),
-/// brought to the representative at or past `from` and short of a turn
-/// beyond it. `None` for any other carrier.
-fn param_at(carrier: &Curve3<f64>, x: Point3<f64>, from: f64) -> Option<f64> {
-    home::foot(carrier, x, from)
-}
-
 /// The two uses of the single edge at `vertex` in face `fi`'s loop: the
 /// one arriving at the vertex and the one leaving it, when the face
 /// uses that edge once each way (a seam ending at a strut tip).
@@ -701,7 +691,7 @@ fn first_hit(
         // crosses it nowhere, and meets it at its ends).
         for v in [spec.start, spec.end] {
             let p = solid.vertices[&v];
-            if let Some(t) = foot(&ray.carrier, p, read) {
+            if let Some(t) = param_on(&ray.carrier, p, read) {
                 offer(walked(t), Hit::Vertex(v), p, &mut best);
             }
         }
@@ -709,7 +699,9 @@ fn first_hit(
             crossings(&ray.carrier, &spec.carrier, read).ok_or(foreign_carrier(face.id))?
         {
             let delta = walked(t_ray);
-            let te = param_at(&spec.carrier, p, spec.t0).ok_or(foreign_carrier(face.id))?;
+            // On the edge's own turn, at or past its start, the convention
+            // `crate::geometry::endpoint_params` derives edge intervals in.
+            let te = home::foot(&spec.carrier, p, spec.t0).ok_or(foreign_carrier(face.id))?;
             // At one of the edge's ends, decided at the pass's band as
             // the singular point itself is: within it, the landing is
             // that vertex; past it, the edge is split there; between,
@@ -732,7 +724,7 @@ fn first_hit(
         }
     }
     for &s in singular {
-        if let Some(t) = foot(&ray.carrier, s, read) {
+        if let Some(t) = param_on(&ray.carrier, s, read) {
             let delta = walked(t);
             if best.as_ref().is_none_or(|(b, ..)| delta < *b - lead) {
                 offer(delta, Hit::Singular(s), s, &mut best);
@@ -750,9 +742,10 @@ fn first_hit(
     }
 }
 
-/// The parameter of `carrier` at `x`, when `x` lies on it within ε_in.
-fn foot(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
-    let t = param_at(carrier, x, 0.0)?;
+/// The parameter of `carrier` at `x`, when `x` lies on it within ε_in:
+/// its [`home::foot`] on the turn at or past `0`.
+fn param_on(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
+    let t = home::foot(carrier, x, 0.0)?;
     ((carrier.eval(t) - x).norm() <= read.eps).then_some(t)
 }
 
@@ -773,7 +766,7 @@ fn crossings(
             &Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: c,
+                        origin: c,
                         axis: n,
                         u_ref: u,
                     },
@@ -782,7 +775,7 @@ fn crossings(
             &Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: ce,
+                        origin: ce,
                         axis: ne,
                         ..
                     },
@@ -816,7 +809,7 @@ fn crossings(
             &Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: ce,
+                        origin: ce,
                         axis: ne,
                         ..
                     },
@@ -862,7 +855,7 @@ fn crossings(
         (
             &Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center: c, axis: n, ..
+                    origin: c, axis: n, ..
                 },
                 radius: r,
             }),
@@ -880,7 +873,7 @@ fn crossings(
             if ((p - c).norm() - r).abs() > read.escalate {
                 return Some(Vec::new());
             }
-            let t = foot(
+            let t = param_on(
                 ray,
                 p,
                 &Read {
@@ -1039,9 +1032,8 @@ fn interior(
     {
         let lp = &solid.faces[fi].loops[0];
         let radial = |p: Point3<f64>| {
-            let w = p - origin;
-            let r = w - axis * w.dot(axis);
-            (r.norm() > read.escalate).then(|| r / r.norm())
+            let r = geom::Line { origin, dir: axis }.offset(p);
+            (r.norm() > read.escalate).then(|| r.normalize())
         };
         let mut sum = Vec3::new(0.0, 0.0, 0.0);
         let mut count = 0.0;
@@ -1335,12 +1327,16 @@ mod review_on_boundary {
                             assert!(
                                 (d > zero(run) && d < esc(run))
                                     || (d > zero(file) && d < esc(file)),
-                                "eps {eps} eps_in {eps_in}: refused at d = {d}: {e}"
+                                "eps {eps} eps_in {eps_in}: refused at d = {d}: {e_at}",
+                                e_at = e.render()
                             );
                             // The file's band is named where it, too,
                             // reads the distance in band.
                             let StepImportError::SingularityUndecided { band, .. } = e else {
-                                panic!("eps {eps} eps_in {eps_in}: refused at d = {d}: {e}")
+                                panic!(
+                                    "eps {eps} eps_in {eps_in}: refused at d = {d}: {e_at}",
+                                    e_at = e.render()
+                                )
                             };
                             let in_file = d > zero(file) && d < esc(file);
                             assert_eq!(
@@ -1453,6 +1449,154 @@ mod side_through_a_pole {
                 holds(&solid, 0, chart, 1, &read).unwrap(),
                 south_inside,
                 "sense {sense}: the south pole's side, read through a loop over the north pole"
+            );
+        }
+    }
+}
+
+/// **The pass reports a distance in band ahead of an edge that does not
+/// settle**, the order `geom_brep::chart_singularity::place_on_boundary`
+/// ranks them in, in either loop order: the north pole of a unit sphere
+/// lies `5ε` inside a circle's edge (the plane `x = 5ε`) and `3ε` from a
+/// grazing ellipse whose refinement does not settle. At the default band
+/// the pass refuses the distance (`SingularityUndecided`) in both
+/// orders; at a coarser one the first edge places the pole. Refusing the ellipse as a
+/// foreign carrier at the default band would hide a placement a coarser
+/// band reads definite.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod an_undecided_distance_ahead_of_an_unsettled_edge {
+    use std::collections::BTreeMap;
+
+    use geom::{Curve3, Surface};
+    use geom_core::{Point3, Vec3};
+
+    use super::{Action, Read, scan};
+    use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+    use crate::error::StepImportError;
+
+    fn read(eps: f64, escalate: f64) -> Read {
+        Read {
+            eps,
+            escalate,
+            band: geom_core::Band::new(eps, escalate).ok(),
+            file: geom_core::FileCoincidence::new(eps),
+            coarser: Read::coarser(eps, escalate),
+        }
+    }
+
+    fn solid(rim_first: bool) -> SolidSpec {
+        let d = 5e-9_f64;
+        let rim = Curve3::circle(
+            Point3::new(d, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            (1.0 - d * d).sqrt(),
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+        let (delta, major) = (3e-9, 1e7);
+        let graze = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0 + delta - major),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
+            major,
+            1.0,
+        ));
+        let edges = BTreeMap::from([
+            (
+                11,
+                EdgeSpec {
+                    start: 1,
+                    end: 1,
+                    carrier: rim.clone(),
+                    t0: 0.0,
+                    t1: core::f64::consts::TAU,
+                    reversed: false,
+                },
+            ),
+            (
+                12,
+                EdgeSpec {
+                    start: 2,
+                    end: 3,
+                    carrier: graze.clone(),
+                    t0: -0.5,
+                    t1: 0.5,
+                    reversed: false,
+                },
+            ),
+        ]);
+        let vertices = BTreeMap::from([
+            (1, rim.eval(0.0)),
+            (2, graze.eval(-0.5)),
+            (3, graze.eval(0.5)),
+        ]);
+        let lp = |edge| LoopSpec {
+            outer: false,
+            uses: vec![EdgeUse {
+                edge,
+                forward: true,
+            }],
+        };
+        let loops = if rim_first {
+            vec![lp(11), lp(12)]
+        } else {
+            vec![lp(12), lp(11)]
+        };
+        SolidSpec {
+            id: 100,
+            faces: vec![FaceSpec {
+                id: 101,
+                surface: Surface::Sphere {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    radius: 1.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+                loops,
+                band: false,
+            }],
+            edges,
+            vertices,
+            band_seams: Default::default(),
+        }
+    }
+
+    /// What the pass did, for a message.
+    fn shown(got: &Result<Option<Action>, StepImportError>) -> String {
+        match got {
+            Ok(Some(Action::InsideEdge { edge, t, .. })) => format!("inside edge {edge} at {t}"),
+            Ok(Some(_)) => "another disposition".to_owned(),
+            Ok(None) => "none".to_owned(),
+            Err(e) => format!("{e:?}"),
+        }
+    }
+
+    #[test]
+    fn the_pass_refuses_the_distance_and_a_coarser_band_cuts_the_edge() {
+        for rim_first in [true, false] {
+            let got = scan(&solid(rim_first), 0, &read(1e-9, 1e-8));
+            assert!(
+                matches!(got, Err(StepImportError::SingularityUndecided { .. })),
+                "rim first {rim_first}, default band: {}",
+                shown(&got)
+            );
+            // At the coarser band the first edge to place the pole is
+            // its answer: the circle, cut there; or the ellipse, which
+            // settles on the pole and whose carrier the pass reads no
+            // crossing of.
+            let got = scan(&solid(rim_first), 0, &read(1e-8, 1e-7));
+            let placed = if rim_first {
+                matches!(got, Ok(Some(Action::InsideEdge { edge: 11, .. })))
+            } else {
+                matches!(got, Err(StepImportError::Topology { id: 101, .. }))
+            };
+            assert!(
+                placed,
+                "rim first {rim_first}, coarser band: {}",
+                shown(&got)
             );
         }
     }

@@ -46,7 +46,7 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
 /// carriers shared by both verbs deliberately (they meter the same
 /// margins) and are therefore stripped before the check.
 fn assert_speaks_as_the_chamfer(refusal: &BlendRefusal, label: &str) {
-    let text = format!("{refusal}");
+    let text = refusal.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.starts_with("chamfer: "),
         "the {label} refusal must open with the chamfer's verb: {text}"
@@ -66,7 +66,7 @@ fn assert_speaks_as_the_chamfer(refusal: &BlendRefusal, label: &str) {
 /// The fillet-side single-prefix claim: the verb opens the text and
 /// is not rendered twice by the door-plus-inner composition.
 fn assert_speaks_once_as_the_fillet(refusal: &BlendRefusal, label: &str) {
-    let text = format!("{refusal}");
+    let text = refusal.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.starts_with("fillet: "),
         "the {label} refusal must open with the fillet's verb: {text}"
@@ -103,7 +103,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
         "the shared run-out arm is what refused: {err:?}"
     );
     assert_speaks_as_the_chamfer(&err, "run-out");
-    let text = format!("{err}");
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains("end the blend at a flat-faced corner"),
         "the recourse speaks of the band, not the other verb: {text}"
@@ -280,8 +280,10 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 /// chamfer**: the dihedral sign is metered during link RESOLUTION,
 /// before the arm table, so a co-surface seam meridian (one sphere on
 /// both sides, sine exactly zero) is a smooth seam `chamfer_edges`
-/// leaves as it is, and a declared cusp's kiss refuses `KnifeEdge`
-/// through it — not the arm-table refusal.
+/// leaves as it is, and a declared cusp's kiss reads as a knife there
+/// and then meets the chamfer's one refusal for a pair its plane–plane
+/// arm does not cover, `ChamferArmUnsupported` — the chamfer's own arm,
+/// speaking as the chamfer.
 #[test]
 fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
     let ball = sweep::test_support::revolved_about_y(
@@ -329,13 +331,11 @@ fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
         Tol::witness(),
     )
     .expect_err("a cusp's strip is not built");
-    match err.error {
-        BlendError::KnifeEdge { margin, .. } => {
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
-            assert_eq!(margin.sign, geom_core::Sign::Zero);
-        }
-        ref other => panic!("expected the shared knife arm, got {other:?}"),
-    }
+    assert!(
+        matches!(err.error, BlendError::ChamferArmUnsupported { edge, .. } if edge == kiss),
+        "expected the chamfer's arm refusal on the kiss, got {:?}",
+        err.error
+    );
     assert_speaks_as_the_chamfer(&err, "knife");
 }
 

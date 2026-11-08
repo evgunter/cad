@@ -125,3 +125,11 @@ on the whole cycle after it, so the walk stays hand-spelled.
 ## Re-homed at TOPO's cut (2026-10-11)
 
 Moved from TOPO to WALKS: one relation spelled by hand at several walks is WALKS' charter.
+
+## The D10 hold has lifted (2026-11-03)
+
+INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`), so the HOLD above no
+longer stands. Its one site went with the REST zip: `boolean/rest.rs`
+is gone from main, `patch_faces` with it. Nothing in this row waits on
+D10.

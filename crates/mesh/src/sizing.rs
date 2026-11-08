@@ -595,7 +595,7 @@ pub(crate) fn sphere_face_widest_cos(
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
         let geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center: cc, .. },
+            frame: geom::Frame { origin: cc, .. },
             ..
         }) = *curve.carrier()
         else {
@@ -797,6 +797,11 @@ pub(crate) fn grid_boundary_step(
             major_radius,
             minor_radius,
             ..
+        }
+        | geom::Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
         } => torus_grid_steps(target, major_radius, minor_radius),
         geom::Surface::Sphere { radius, .. } => {
             sphere_grid_steps(target, radius, sphere_face_widest_cos(body, fk, surface)?)
@@ -811,7 +816,9 @@ pub(crate) fn grid_boundary_step(
         _ => return Ok(None),
     };
     let Some(chart) = topo::chart::Chart::of(surface) else {
-        unreachable!("Chart::of answers every torus and sphere, and this is one: {surface:?}")
+        unreachable!(
+            "Chart::of answers every torus, sheet and sphere, and this is one: {surface:?}"
+        )
     };
     match topo::chart_iso::classify_kind(&chart, curve) {
         Some(topo::chart_iso::TravKind::Rim { .. }) => Ok(Some(steps.0)),

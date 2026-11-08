@@ -35,6 +35,7 @@ fn probe_the_tier_on_the_slab() {
                     symbolic: dials,
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 Tol::witness(),
             )
             .unwrap();
@@ -195,7 +196,7 @@ fn m10_7_what_the_tier_costs() {
                 ..DriveConfig::default()
             };
             let t0 = Instant::now();
-            let v = drive(doc, &analyzed, &cfg, tol);
+            let v = drive(doc, &analyzed, &cfg, &editor_core::Stop::default(), tol);
             let dt = t0.elapsed();
             match v {
                 Ok(v) => println!(
@@ -232,7 +233,13 @@ fn m10_7_what_the_tier_costs() {
                 },
                 ..DriveConfig::default()
             };
-            match drive(&bracket, &analyzed, &cfg, tol) {
+            match drive(
+                &bracket,
+                &analyzed,
+                &cfg,
+                &editor_core::Stop::default(),
+                tol,
+            ) {
                 Ok(v) => println!(
                     "FREEZE bracket/curved terms={max_terms} degree=4096: decisions={:?}",
                     v.decisions()

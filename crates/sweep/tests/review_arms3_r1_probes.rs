@@ -338,7 +338,7 @@ fn an_oversized_ball_on_the_lentil_refuses_typed() {
 /// goes negative and the centre is NaN, never a fabricated point.
 #[test]
 fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
-    use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
+    use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
     let sheet = Meridian {
         origin: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 1.0, 0.0),
@@ -357,6 +357,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         trace(-0.6, Inner),
         trace(0.6, Inner),
         0.4,
+        Branch::Rim,
     );
     // The half-chord square is an EXACT zero only in real arithmetic;
     // in floats it is a ± ulp residue, so the honest outcomes are "on
@@ -373,6 +374,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         trace(-0.6, Inner),
         trace(0.6, Inner),
         0.45,
+        Branch::Rim,
     );
     assert!(
         past.x.is_nan() || past.y.is_nan(),
@@ -395,6 +397,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
             side: SurfaceSide::Outer,
         },
         0.125,
+        Branch::Rim,
     );
     assert!(
         (internal.x.abs() < 1e-6 && internal.z.abs() < 1e-6) || internal.x.is_nan(),
@@ -578,7 +581,7 @@ fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
                 ..
             },
         ) => {
-            let text = e.to_string();
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains("request the rim whole"),
                 "the recourse names the request: {text}"

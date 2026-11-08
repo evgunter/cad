@@ -208,10 +208,14 @@ impl<T: Real> From<SplitError> for SectionError<T> {
     }
 }
 
-impl<T: Real> core::fmt::Display for SectionError<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: Real> SectionError<T> {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
-            Self::Split(e) => write!(f, "{e}"),
+            Self::Split(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::KnifeEdge(_) => write!(
                 f,
                 "the section plane is tangent to a curved face from inside the material, so \
@@ -255,6 +259,8 @@ impl<T: Real> core::fmt::Display for SectionError<T> {
         }
     }
 }
+
+geom_brep::ended_by_write!([T: Real] SectionError<T>);
 
 impl<T: Real> std::error::Error for SectionError<T> {}
 
@@ -344,7 +350,7 @@ where
                     let conic = carrier
                         .conic()
                         .unwrap_or_else(|| unreachable!("a conic half's carrier is a conic"));
-                    let c = chart(conic.frame().center - plane.origin);
+                    let c = chart(conic.frame().origin - plane.origin);
                     let (a, b) = conic.semi_axis_vectors();
                     SectionEdge::Arc {
                         center: Point2::new(c.x, c.y),
@@ -526,7 +532,7 @@ mod winding_ending {
             corner: Point3::origin(),
             diag: Some(read),
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             text,
             format!(
@@ -543,7 +549,7 @@ mod winding_ending {
             corner: Point3::origin(),
             diag: Some(poisoned),
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(". Recourse: move the section plane; "),
             "the lever and the note, got {text}"

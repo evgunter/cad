@@ -1,7 +1,7 @@
 ---
 id: frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut
 kind: issue
-title: Four frame lanes still pick their atan2 formula across a cut on a landmark axis (split_conic_phase_frame, props_torus_lift_branch, curve_pair_pose_branch, editor-core's solve_atan2), with two reference-relative cousins
+title: Four frame lanes still pick their atan2 formula across a cut on a landmark axis (plane_crossing_phase_frame, props_torus_lift_branch, curve_pair_pose_branch, editor-core's solve_atan2), with two reference-relative cousins
 status: open
 opened: 2026-10-18
 priority: P1
@@ -16,7 +16,7 @@ PCERT B1 moved geom-brep's chart azimuth frame lane (`stable_azimuth`) off `x`'s
 
 Four more copies of the old lane remain. Each chooses between `atan2(y, x)` and `atan2(−y, −x) + π` across a cut on a landmark axis: the first three by one component's decided sign, `solve_atan2` by raw bounds on both components:
 
-- **`split_conic_phase_frame`**, `crates/topo/src/splitting/classify.rs:625`, decides on `a`'s sign (cleave territory). The phase `φ` feeds the roots `φ ± δ`, which later decisions read. So a direction exactly on `a = 0` gives two expressions under one name across a move: the revalue hazard class B1 closed in geom-brep.
+- **`plane_crossing_phase_frame`**, `crates/geom-brep/src/curve_face/plane_crossing.rs` (`conic_plane_candidates`), decides on `a`'s sign (cleave territory). The phase `φ` feeds the roots `φ ± δ`, which later decisions read. So a direction exactly on `a = 0` gives two expressions under one name across a move: the revalue hazard class B1 closed in geom-brep.
 - **`props_torus_lift_branch`**, `crates/geom-brep/src/props/curved.rs:4099`, decides on `cos v`'s sign (flux territory). The audit reads it as verdict-neutral, since any branch serves the Green form (`torus_angle`'s doc). The same second cut on a landmark axis is still there.
 - **`curve_pair_pose_branch`**, `crates/geom-brep/src/curve_pair/pose.rs:408` `angle` (from #5268), decides on `x`'s sign through `compare`. It reads the first harmonic's phase for `Range::first_harmonic`, which later root decisions read.
 - **`solve_atan2`**, `crates/editor-core/src/eval/mod.rs:3405-3411`, branches on raw bounds, with no decision: `x.hi() < 0` and `y` straddling zero take `π + atan2(−y, −x)`. Its doc says the solve reads an angle only through its sine and cosine.
@@ -40,7 +40,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 **Mechanical ×3, unsure ×3** (cluster D).
 - The canonical helper is `geom::Azimuth::principal` / `principal_in(Window)`, which now lives in geom, not geom-brep.
-- Repoint `split_conic_phase_frame`, `torus_angle` and `pose.rs` `angle`.
+- Repoint `plane_crossing_phase_frame`, `torus_angle` and `pose.rs` `angle`.
 - Unsure: editor-core `solve_atan2` (its own `Atan2Branch`, no Band), `angle_near` and `separation`. What decides them is whether `principal_in(Window)` fits a solver-lane or reference-relative read. A misfit would be the design signal.
 
 **Cluster D, carrier readings re-spelled outside their named home.** DESIGN names the home. Ev (2026-10-26): the first fix is making the canonical reading the path of least resistance (the API consumers need), with a gate only as a backstop. 
@@ -49,3 +49,11 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: four copies of the azimuth frame lane B1 retired in geom-brep: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to CHARTTAIL (`work/charttail/`) by `git mv`, id and body unchanged: which holds CHART's rows since CHART folded in today: chart readings and the region doors. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## The pose site is retired (ONECOPY, 2026-11-03)
+
+`onecopy/foot-and-angle` (ONECOPY row `interval-safe-point-angle-read-two-ways`) deleted `geom_brep::curve_pair::pose`'s `angle` and its callers (the two first-harmonic phases, the coplanar circles' `toward`, and `pose::window`'s foot seed) read `geom::Azimuth::of(y, x).principal(band)`: the cut moves from the landmark `−π/2` to the angle window's start, and the decision from `curve_pair_pose_branch` at the least band to `pcurve_chart_cut_side` at the pose's band. `pose.rs`'s `separation` (a reference-relative cousin, still on `curve_pair_pose_branch`), `plane_crossing_phase_frame`, `props_torus_lift_branch` and editor-core's `solve_atan2` are unchanged and remain this row's.
+
+## Two more lanes retired (ONECOPY, 2026-11-06)
+
+ONECOPY's `harmonic-phases-pick-their-cut-side-by-hand` read `plane_crossing_phase_frame` (`conic_plane_candidates`, now near the span's middle) and `props_torus_lift_branch` (`torus_angle`, now near `0`) through `geom::Azimuth::near` (F31). Both rows are gone from the log. Still this row's: editor-core's `solve_atan2`, and the reference-relative cousins.

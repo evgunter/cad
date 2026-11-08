@@ -214,7 +214,7 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
         Err(e) => e,
         Ok(_) => panic!("the cut-loft boolean cannot succeed before the edge×NURBS-face layer"),
     };
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     println!("cut-loft refusal: {text}");
     assert!(
         text.contains("spline (NURBS) face") && text.contains("Recourse: reshape the parts"),

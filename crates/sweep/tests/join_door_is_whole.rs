@@ -3,11 +3,13 @@
 //! that only the kill meets, after an earlier join was made, is the
 //! staging's to undo. A disc whose top rim holds two joinable vertices
 //! in arena order: an ordinary arc split first, then an arc restated as
-//! the exact rational quadratic of itself and split. The predicate reads
-//! the second along the cylinder and cap's locus like the first, but the
-//! join cannot run a kept edge on along a spline
-//! (`work/splice/joining-a-spline-carrier-is-unbuilt`), so it refuses
-//! inside its kill, after the first join, and the body is as found.
+//! the exact rational quadratic of itself, split, and its second child
+//! restated on its own clamped piece of that carrier. The predicate
+//! reads the second vertex along the cylinder and cap's locus like the
+//! first, but the kept child's spline carrier is not the piece's, so no
+//! far parameter carries over and a spline has no inverse to read one:
+//! the join refuses inside its kill, after the first join, and the body
+//! is as found.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -85,6 +87,29 @@ fn a_join_refused_after_an_earlier_kill_leaves_the_body_as_found() {
     )
     .unwrap();
     let second = body.split_edge(spline, 0.5, tol).unwrap();
+    let child = body
+        .get_curve_geom(body.get_edge(second.new_edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .clone();
+    let geom::Curve3::Nurbs(net) = child.carrier() else {
+        panic!("a spline child");
+    };
+    let (_, piece) = net.split_at(0.5).unwrap();
+    body.set_edge_curve(
+        second.new_edge,
+        topo::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair,
+                selector: geom_brep::CurveSelector::Witness(piece.eval(0.75)),
+            },
+            carrier: geom::Curve3::Nurbs(Arc::new(piece)),
+            param_start: 0.5,
+            param_end: 1.0,
+        },
+        tol,
+    )
+    .unwrap();
     assert_eq!(
         topo::joinable_vertices(&body, band).unwrap(),
         vec![first.vertex, second.vertex],
@@ -97,10 +122,10 @@ fn a_join_refused_after_an_earlier_kill_leaves_the_body_as_found() {
         matches!(
             refusal,
             topo::BooleanError::JoinCarrierUnsupported {
+                edge,
                 carrier: geom::CurveKind::Nurbs,
                 closed: false,
-                ..
-            }
+            } if edge == spline
         ),
         "{refusal:?}"
     );

@@ -107,6 +107,7 @@ fn sweep_every_cut((doc, o): &(ProfileDoc, EvalOptions), label: &str) -> Sweep {
             DocumentId::derive(&format!("{label}-part-{mask}")),
             Tol::witness(),
             o.resolver.as_ref(),
+            &editor_core::Stop::default(),
         ) else {
             seen.refused += 1;
             continue;

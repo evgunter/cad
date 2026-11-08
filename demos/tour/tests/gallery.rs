@@ -237,14 +237,20 @@ mod tests {
                     shape.why
                 );
             }
-            let report = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol)
-                .unwrap_or_else(|error| {
-                    panic!(
-                        "{}: the registry refused: {}",
-                        shape.name,
-                        error.spoken(&shape.doc)
-                    )
-                });
+            let report = run_checks(
+                &shape.doc,
+                &evaluation,
+                &ChecksConfig::default(),
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{}: the registry refused: {}",
+                    shape.name,
+                    error.spoken(&shape.doc)
+                )
+            });
             let at_rest = report
                 .findings
                 .iter()
