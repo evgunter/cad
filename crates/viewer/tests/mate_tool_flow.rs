@@ -33,7 +33,8 @@ fn two_picks_one_choice_one_committed_edit() {
     assert!(tool.door().is_none(), "no pick, no door");
     assert!(tool.pick(session.doc(), post_top.clone()).is_none());
     assert!(
-        tool.door().is_some_and(|door| door.placement == bench.post_b),
+        tool.door()
+            .is_some_and(|door| door.placement == bench.post_b),
         "a pick on a copy opens its placement"
     );
     assert!(tool.pick(session.doc(), shelf_bottom.clone()).is_none());
@@ -319,7 +320,10 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     );
 
     // A reconcile against an unchanged pair is quiet.
-    assert!(tool.reconcile(session.committed_doc(), (doc, eval)).is_empty());
+    assert!(
+        tool.reconcile(session.committed_doc(), (doc, eval))
+            .is_empty()
+    );
 
     // The copy the editor is on goes too: it holds nothing,
     // said.
@@ -447,8 +451,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     asm::unpin(&mut session, bench.shelf_i);
     let proposal = shelf_on(&session, &shelf_bottom, &copy_one);
     assert_eq!(
-        proposal.placement,
-        bench.shelf_i,
+        proposal.placement, bench.shelf_i,
         "the mate places the shelf"
     );
 

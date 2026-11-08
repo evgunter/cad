@@ -411,11 +411,7 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
         choice(VarKind::Axis, false),
     )
     .expect("a rim and a cylinder mate as axes");
-    assert_eq!(
-        proposal.placement,
-        small_copy,
-        "the rim's copy is placed"
-    );
+    assert_eq!(proposal.placement, small_copy, "the rim's copy is placed");
     common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(rim);

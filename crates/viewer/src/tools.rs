@@ -166,7 +166,9 @@ impl ToolKind {
             Self::Blend => PickKinds::EdgesOnly,
             // Their seats read bodies, picked through a face or an
             // edge; none reads a profile, so none is offered one.
-            Self::Boolean | Self::Transform | Self::Pattern | Self::Part => PickKinds::FacesAndEdges,
+            Self::Boolean | Self::Transform | Self::Pattern | Self::Part => {
+                PickKinds::FacesAndEdges
+            }
         }
     }
 
@@ -700,7 +702,6 @@ impl Tools {
             _ => None,
         }
     }
-
 
     /// The open mirror tool, by reference (the read-door rule on
     /// [`Tools`]).

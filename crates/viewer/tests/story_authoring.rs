@@ -95,18 +95,22 @@ const MERLON_SINK: f64 = 0.001;
 const MERLON_OFF: f64 = 0.009;
 
 /// History states from `NewDocument` to the carved rook: the root
-/// plus twenty-three committed actions. Five of those are the Transform
-/// tool's: four LIFTS, since every profile is drawn on its own plane, so
-/// each body the rook stacks above the plinth is moved up its axis
-/// before it is combined, and the second cutter's turn and lift.
-const CARVED_STATES: usize = 24;
+/// plus twenty-eight committed actions. Ten of those are the Transform
+/// tool's, a Place and the editor's change for each of five bodies: four
+/// LIFTS, since every profile is drawn on its own plane, so each body
+/// the rook stacks above the plinth is moved up its axis before it is
+/// combined, and the second cutter's turn and lift.
+const CARVED_STATES: usize = 29;
+/// The Transform tool's editor changes among them, one per body moved:
+/// each writes a placement's bundle and makes no feature.
+const TRANSFORM_EDITS: usize = 5;
 /// The placing edits among the carving actions (D10), each riding in
 /// the action that caused it: five booleans each re-targeting its moved
 /// second operand into the plinth's space, its values as written (5).
 /// Every body lands unplaced, so no action writes or re-points a world
 /// placement.
 const PLACING_EDITS: usize = 5;
-/// Edits on the session's FINAL path: the twenty-three carving actions'
+/// Edits on the session's FINAL path: the twenty-eight carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`
 /// counts states.
@@ -305,7 +309,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         ang(FRAC_PI_2),
     ));
     let op = common::transformed(&mut session, second, &values);
-    let SessionOp::SetBundle { placement: cutter2, .. } = op else {
+    let SessionOp::SetBundle {
+        placement: cutter2, ..
+    } = op
+    else {
         panic!("the editor on the placement Place made: {op:?}")
     };
     let outcome = session.perform(op);
@@ -522,7 +529,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         doc.node(block_profile).is_some(),
         "nodes that only FED the target survive"
     );
-    assert_eq!(session.history().len(), CARVED_STATES + 7);
+    assert_eq!(session.history().len(), CARVED_STATES + 8);
 
     // One undo brings the WHOLE cone back — the cascade was one
     // action, so it is one step.
@@ -551,14 +558,14 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
 
     // ── The undo/redo walk: back to the carved rook, part-way
     //    forward, back again — the tree keeps every state ────────────
-    // Six: the branch is profile, extrude, pattern, fused group, the
-    // move into the corners, union.
-    for _ in 0..6 {
+    // Seven: the branch is profile, extrude, pattern, fused group, the
+    // Place and the move into the corners, union.
+    for _ in 0..7 {
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
     }
     assert!(
         session.committed_doc().bit_eq(&carved_doc),
-        "six undos land exactly on the carved rook"
+        "seven undos land exactly on the carved rook"
     );
     for _ in 0..3 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
@@ -575,7 +582,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert!(session.committed_doc().bit_eq(&carved_doc));
     assert_eq!(
         session.history().len(),
-        CARVED_STATES + 7,
+        CARVED_STATES + 8,
         "the walk destroyed nothing"
     );
 
@@ -597,7 +604,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let history = session.history();
     assert_eq!(
         history.len(),
-        CARVED_STATES + 8,
+        CARVED_STATES + 9,
         "a sibling, not a truncation"
     );
     assert_eq!(
@@ -627,7 +634,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         let rows = session.tree_rows();
         assert_eq!(
             rows.len(),
-            CARVED_STATES - 1,
+            CARVED_STATES - 1 - TRANSFORM_EDITS,
             "one row per feature: the rook lands unplaced"
         );
         assert!(

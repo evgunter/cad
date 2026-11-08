@@ -1324,11 +1324,7 @@ fn to_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
 /// a constant as written (the `0` a bundle door fills in). A value
 /// reading a named variable or an expression is the person's, and no
 /// snap writes over it.
-fn written_constant(
-    doc: &Doc<ProfileProgram>,
-    placement: RecipeNodeId,
-    id: ConstraintId,
-) -> bool {
+fn written_constant(doc: &Doc<ProfileProgram>, placement: RecipeNodeId, id: ConstraintId) -> bool {
     let Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) =
         doc.node(placement)
     else {
@@ -2206,7 +2202,9 @@ impl MateTool {
             self.changed();
         }
         // A change landing is judged when it has landed (`Self::landed`).
-        if let Some(PlaceDoor { placement, base }) = self.door().filter(|_| self.landing().is_none()) {
+        if let Some(PlaceDoor { placement, base }) =
+            self.door().filter(|_| self.landing().is_none())
+        {
             let placement = *placement;
             let doc = committed;
             let held = match doc.node(placement) {

@@ -353,13 +353,18 @@ fn r2_a_placed_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     assert_eq!(top_small.node, small, "premise: the small box's top");
     let mut tool = MateTool::new();
     assert!(tool.pick(session.doc(), top_small).is_none());
-    let place = tool.take_place().expect("a pick on the body asks for Place");
+    let place = tool
+        .take_place()
+        .expect("a pick on the body asks for Place");
     let copy = common::placed_by(&mut session, place);
     tool.placed(session.committed_doc(), copy);
     let index = common::index_of(&session, asm::delta());
     let top_copy = common::displayed_face_at(&session, &index, &common::down_at(0.0, 0.0));
     let top_wide = common::displayed_face_at(&session, &index, &common::down_at(0.015, 0.02));
-    assert_eq!(top_copy.node, copy, "premise: the copy is drawn in the body's place");
+    assert_eq!(
+        top_copy.node, copy,
+        "premise: the copy is drawn in the body's place"
+    );
     assert!(tool.pick(session.doc(), top_copy).is_none());
     assert!(tool.pick(session.doc(), top_wide).is_none());
     tool.set_into_target_space(true);

@@ -558,7 +558,10 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         ),
         other => panic!("the face stays selected, got {other:?}"),
     }
-    match mate_tool.reconcile(session.committed_doc(), (doc, ev)).as_slice() {
+    match mate_tool
+        .reconcile(session.committed_doc(), (doc, ev))
+        .as_slice()
+    {
         [
             MateToolEvent::PickLost { resolution, .. },
             MateToolEvent::Reloaded { .. },

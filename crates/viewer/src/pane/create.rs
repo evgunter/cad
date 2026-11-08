@@ -13,9 +13,7 @@ use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
-use crate::combine::{
-    BooleanTool, ClearanceBoundChoice, PatternOutputChoice,
-};
+use crate::combine::{BooleanTool, ClearanceBoundChoice, PatternOutputChoice};
 use crate::drafts::{CommitFault, Drafts};
 use crate::forms::{COUNT_DRAG_SPEED, PatternLayoutChoice, boolean_op_label, split_half_label};
 use crate::frame::{self, Tone};
@@ -1673,9 +1671,7 @@ mod tests {
     use pncad::geom_core::Tol;
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
-    use super::{
-        Picked, clear_picks_button, mate_picks_row, part_selector_rows, seats_row,
-    };
+    use super::{Picked, clear_picks_button, mate_picks_row, part_selector_rows, seats_row};
     use crate::combine::BooleanTool;
     use crate::frame::Tone;
     use crate::matetool::MateTool;
@@ -1694,7 +1690,8 @@ mod tests {
     fn the_mate_panel_says_its_picks_in_the_seated_panels_line() {
         let tol = Tol::witness();
         let doc = Doc::<ProfileProgram>::empty_derived("mate-row", tol);
-        let (doc, profile) = crate::test_support::inserted(&doc, crate::test_support::square(0.02), tol);
+        let (doc, profile) =
+            crate::test_support::inserted(&doc, crate::test_support::square(0.02), tol);
         let (doc, extrude) = crate::test_support::inserted(
             &doc,
             pncad::document::Node::Extrude {
@@ -1739,7 +1736,8 @@ mod tests {
         tool.pick(&doc, cap(extrude));
         let both = painted(&tool);
         assert!(
-            both.starts_with(&on[..on.len() - "none picked".len()]) && !both.ends_with("none picked"),
+            both.starts_with(&on[..on.len() - "none picked".len()])
+                && !both.ends_with("none picked"),
             "the body picked as itself is `to`: {both}"
         );
     }
@@ -2571,7 +2569,9 @@ mod tools_respeak {
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         let mut tools = Tools::new();
-        tools.open_mate(crate::matetool::MateTool::edit(session.committed_doc(), copy).expect("a placement"));
+        tools.open_mate(
+            crate::matetool::MateTool::edit(session.committed_doc(), copy).expect("a placement"),
+        );
         let on_copy = FaceSelection {
             node: copy,
             ..face(boss)

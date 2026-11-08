@@ -29,8 +29,8 @@ use editor_core::mate::{
 use editor_core::{Coord, Formula, Orientation, SlideAxes};
 use pncad::document::pose::{PoseValue, RoleRead};
 use pncad::document::{
-    ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, OperandSlot,
-    Placed, ProfileProgram, RecipeNodeId, Recording,
+    ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, OperandSlot, Placed,
+    ProfileProgram, RecipeNodeId, Recording,
 };
 use pncad::geom_core::Tol;
 use pncad::geom_core::linalg::{Mat3, Point3, Vec3};

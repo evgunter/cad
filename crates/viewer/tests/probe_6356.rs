@@ -95,7 +95,9 @@ fn p3_transform_on_a_patterned_body() {
     let edit = MateTool::moving(doc, body, None).ok();
     eprintln!(
         "P3 body door == family's Edit: {}",
-        edit.as_ref().and_then(|t| t.door()).is_some_and(|door| door.placement == family)
+        edit.as_ref()
+            .and_then(|t| t.door())
+            .is_some_and(|door| door.placement == family)
     );
 }
 

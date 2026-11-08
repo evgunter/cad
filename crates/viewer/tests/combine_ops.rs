@@ -34,8 +34,8 @@ use pncad::document::Speaker;
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula, LoopProgram, Node,
-    NodeError, NodeErrorKind, NodeResult, Operand, OperandSlot, ProfileProgram,
-    RecipeNodeId, SlotId,
+    NodeError, NodeErrorKind, NodeResult, Operand, OperandSlot, ProfileProgram, RecipeNodeId,
+    SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -3261,10 +3261,9 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
                 PickKinds::FacesOnly
             }
             ToolKind::Blend => PickKinds::EdgesOnly,
-            ToolKind::Boolean
-            | ToolKind::Transform
-            | ToolKind::Pattern
-            | ToolKind::Part => PickKinds::FacesAndEdges,
+            ToolKind::Boolean | ToolKind::Transform | ToolKind::Pattern | ToolKind::Part => {
+                PickKinds::FacesAndEdges
+            }
         };
         assert_eq!(tools.pick_kinds(), want, "{kind:?}");
     }
@@ -3348,7 +3347,10 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
         Some(u32::from(SplitHalf::Below.port())),
         &[],
     );
-    let SessionOp::SetBundle { placement: moved, .. } = op else {
+    let SessionOp::SetBundle {
+        placement: moved, ..
+    } = op
+    else {
         panic!("the editor on the placement Place made: {op:?}")
     };
     let doc = session.committed_doc();

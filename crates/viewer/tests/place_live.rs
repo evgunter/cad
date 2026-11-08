@@ -14,7 +14,9 @@
 
 use crate::common;
 
-use pncad::document::{Constraint, Coord, Doc, Formula, Node, ProfileProgram, RecipeNodeId, TargetAxis};
+use pncad::document::{
+    Constraint, Coord, Doc, Formula, Node, ProfileProgram, RecipeNodeId, TargetAxis,
+};
 use pncad::geom_core::Tol;
 use viewer::matetool::MateTool;
 use viewer::session::{DocSession, Refusal, Selection, SessionOp};
@@ -153,7 +155,10 @@ fn a_body_shown_again_and_picked_is_placed_a_second_time() {
     let place = fed(&session, &mut tools, picked).expect("the body picked as itself is Place");
     assert_eq!(place, SessionOp::Place { body: body.into() });
     let states = session.history().len();
-    assert!(landed(&mut session, &mut tools, place), "the second Place lands");
+    assert!(
+        landed(&mut session, &mut tools, place),
+        "the second Place lands"
+    );
     assert_eq!(session.history().len(), states + 1, "one undo step");
     let second = tools
         .mate()
@@ -173,7 +178,10 @@ fn a_body_shown_again_and_picked_is_placed_a_second_time() {
     let on_copy = face_at(&session, [0.1, 0.0]);
     assert!(fed(&session, &mut tools, on_copy).is_none(), "no Place");
     assert_eq!(
-        tools.mate().and_then(|editor| editor.door()).map(|door| door.placement),
+        tools
+            .mate()
+            .and_then(|editor| editor.door())
+            .map(|door| door.placement),
         Some(first),
         "a pick on the moved copy edits its placement"
     );
@@ -203,7 +211,10 @@ fn flushed_across_spaces(session: &DocSession, mut tool: MateTool) -> MateTool {
         unreachable!("a face pick")
     };
     assert!(tool.pick(session.doc(), top).is_none());
-    assert!(offered(session, &mut tool).is_none(), "half a mate lands nothing");
+    assert!(
+        offered(session, &mut tool).is_none(),
+        "half a mate lands nothing"
+    );
     assert!(
         matches!(tool.pending(), Some(Refusal::Draft(_))),
         "a mate with an empty seat is held, said: {:?}",
@@ -237,7 +248,10 @@ fn a_refused_edit_is_held_and_commits_whole_once_a_later_edit_passes() {
     let states = session.history().len();
     let mut tool = flushed_across_spaces(&session, tool);
     assert_eq!(session.history().len(), states, "nothing held lands");
-    assert!(session.committed_doc().bit_eq(&before), "the document is untouched");
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "the document is untouched"
+    );
 
     tool.set_into_target_space(true);
     let op = offered(&session, &mut tool).expect("the whole draft passes");
@@ -277,7 +291,11 @@ fn each_passing_change_is_one_undo_step() {
     *tools.mate_mut().expect("open") = tool;
     let slide = |axis| Coord::slide(axis);
     let at = |session: &DocSession, axis| slide_of(session.committed_doc(), copy, axis);
-    assert_eq!(at(&session, TargetAxis::X), 0.0, "premise: Place wrote zeros");
+    assert_eq!(
+        at(&session, TargetAxis::X),
+        0.0,
+        "premise: Place wrote zeros"
+    );
     let states = session.history().len();
     for (step, axis) in [(1, TargetAxis::X), (2, TargetAxis::Y)] {
         let editor = tools.mate_mut().expect("open");
@@ -294,12 +312,20 @@ fn each_passing_change_is_one_undo_step() {
             "change {step} is one undo step"
         );
     }
-    assert_eq!(at(&session, TargetAxis::X), 0.01, "the first change wrote x");
+    assert_eq!(
+        at(&session, TargetAxis::X),
+        0.01,
+        "the first change wrote x"
+    );
     assert_eq!(at(&session, TargetAxis::Y), 0.01, "the second wrote y");
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    assert_eq!(at(&session, TargetAxis::Y), 0.0, "undo takes the second back");
+    assert_eq!(
+        at(&session, TargetAxis::Y),
+        0.0,
+        "undo takes the second back"
+    );
     assert_eq!(at(&session, TargetAxis::X), 0.01, "and leaves the first");
 }
 
@@ -312,7 +338,10 @@ fn discard_drops_the_held_draft() {
     let (session, tool, copy) = small_placed_beside_wide("place-live-discard", tol);
     let states = session.history().len();
     let mut tool = flushed_across_spaces(&session, tool);
-    assert!(!tool.rows().is_empty(), "premise: the draft holds a mate row");
+    assert!(
+        !tool.rows().is_empty(),
+        "premise: the draft holds a mate row"
+    );
     tool.discard(session.committed_doc());
     assert!(tool.pending().is_none(), "nothing held");
     assert!(tool.rows().is_empty(), "the bundle holds no mate");

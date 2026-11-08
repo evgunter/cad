@@ -586,7 +586,11 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
     let (mut session, block) = unplaced_block(tol);
     let stand_in = common::placed_by(&mut session, SessionOp::Place { body: block.into() });
     let copy = common::placed_by(&mut session, SessionOp::Place { body: block.into() });
-    let op = common::transformed(&mut session, copy, &common::slides([8.0 * HALF_X, 0.0, 0.0]));
+    let op = common::transformed(
+        &mut session,
+        copy,
+        &common::slides([8.0 * HALF_X, 0.0, 0.0]),
+    );
     let stepped = session.perform(op);
     assert!(stepped.refusal.is_none(), "{:?}", stepped.refusal);
     session.pump();

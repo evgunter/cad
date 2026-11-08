@@ -421,7 +421,11 @@ fn place_lands_where_the_body_stands_with_zero_values() {
     let at = pncad::document::SolvedPoses::of(doc, ev)
         .relative(copy)
         .expect("the copy is solved");
-    assert_eq!(at, pncad::document::Frame::IDENTITY, "where the body stands");
+    assert_eq!(
+        at,
+        pncad::document::Frame::IDENTITY,
+        "where the body stands"
+    );
     let mut tool = MateTool::new();
     tool.placed(doc, copy);
     assert_eq!(
@@ -429,7 +433,10 @@ fn place_lands_where_the_body_stands_with_zero_values() {
         Some(copy),
         "the editor opens on the placement Place made"
     );
-    assert!(tool.rows().is_empty(), "with no mate row: each is added there");
+    assert!(
+        tool.rows().is_empty(),
+        "with no mate row: each is added there"
+    );
 }
 
 /// **A kept chart keeps its slides**: post_b rested under the shelf, the

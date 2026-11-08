@@ -4638,7 +4638,13 @@ impl DocSession {
         if let Err(refusal) = self.bundle_fresh(placement, base) {
             return OpOutcome::refused(refusal);
         }
-        if writes_nothing(self.committed_doc(), placement, base, &constraints, into_target_space) {
+        if writes_nothing(
+            self.committed_doc(),
+            placement,
+            base,
+            &constraints,
+            into_target_space,
+        ) {
             return OpOutcome::default();
         }
         self.commit_run(|run| bundle_run(run, placement, constraints, into_target_space))
