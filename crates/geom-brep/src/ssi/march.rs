@@ -512,7 +512,7 @@ impl StepperMode {
 /// What is wrong with a step the stepper minted
 /// ([`SsiError::StepUnusable`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StepClearFault {
+pub enum StepFault {
     /// The march speed is not positive and finite, so it converts no
     /// step into metres.
     SpeedUnusable,
@@ -1181,7 +1181,7 @@ where
             // or poison the step divides to `0` and the meters it
             // claims are indeterminate, which `ssi_step_progress` would
             // escalate in the speed's place.
-            return Err(unusable(StepClearFault::SpeedUnusable));
+            return Err(unusable(StepFault::SpeedUnusable));
         }
 
         // ---- 4.–6. the step ----
@@ -1348,10 +1348,10 @@ where
             *v += dx[i];
         }
         if !dx.iter().all(|d| d.is_finite()) {
-            return Err(unusable(StepClearFault::NotFinite));
+            return Err(unusable(StepFault::NotFinite));
         }
         if next == x {
-            return Err(unusable(StepClearFault::DoesNotMove));
+            return Err(unusable(StepFault::DoesNotMove));
         }
 
         // ---- 7. Newton refinement to the surface pair ----
@@ -1782,7 +1782,7 @@ where
 pub(crate) mod tests {
     use super::{
         Box3, LocalSystem, MarchContext, MarchTol, NormalPair, ReachBound, Readout, SSI_NEWTON_TOL,
-        SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SsiError, StepClearFault, StepperMode, TraceDecision,
+        SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SsiError, StepFault, StepperMode, TraceDecision,
         TransversalityData, march,
     };
     use crate::ssi::ExhaustLane;
@@ -2155,14 +2155,14 @@ pub(crate) mod tests {
                 Err(SsiError::StepUnusable {
                     mode,
                     speed: named,
-                    fault: StepClearFault::SpeedUnusable,
+                    fault: StepFault::SpeedUnusable,
                 }) => {
                     assert_eq!(mode, StepperMode::Idealized.name());
                     assert_eq!(named.to_bits(), speed.to_bits(), "the speed it names");
                     let ending = SsiError::StepUnusable {
                         mode,
                         speed,
-                        fault: StepClearFault::SpeedUnusable,
+                        fault: StepFault::SpeedUnusable,
                     }
                     .ending(crate::recourse::Reading::Build);
                     assert_eq!(ending, geom_core::KERNEL_DEFECT_ENDING);
@@ -2216,14 +2216,14 @@ pub(crate) mod tests {
                 StepperMode::Realized,
                 wide,
                 0.0,
-                Some(StepClearFault::NotFinite),
+                Some(StepFault::NotFinite),
             ),
             (
                 1.0e300,
                 StepperMode::Idealized,
                 unit_ctx(band),
                 0.5,
-                Some(StepClearFault::DoesNotMove),
+                Some(StepFault::DoesNotMove),
             ),
         ];
         for (speed, mode, ctx, x0, fault) in rows {
