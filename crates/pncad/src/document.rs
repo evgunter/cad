@@ -102,10 +102,6 @@ pub use editor_core::{
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
-// The delete gesture's plan (DM6): each reader of a deleted node handed
-// to the body that node continues, as explicit edits in one action
-// (`Recording::delete_by_continuation` applies it).
-pub use editor_core::continuation::{Splice, carried_back, continues, splice};
 // "Sketch on this face" (DM1): the profile, its extrude, the copy placed
 // on the face and the union, as one action (`Recording::sketch_on_face`
 // composes it into a longer one).

@@ -609,7 +609,11 @@ fn a_gesture_reads_a_copy_through_one_door() {
     let (doc, row) = row_of(doc, w, "k", 2);
     let w_out = doc.output(w, 0).expect("a copy");
     assert_eq!(world::original_of(&doc, row), w, "the row's original is W");
-    assert_eq!(world::seat_read(&doc, row, None).0, row, "a pick on the row seats it");
+    assert_eq!(
+        world::seat_read(&doc, row, None).0,
+        row,
+        "a pick on the row seats it"
+    );
     assert_eq!(world::placed_var(&doc, row), Some(w_out));
     assert_eq!(world::placements_of_var(&doc, w_out), vec![row]);
 

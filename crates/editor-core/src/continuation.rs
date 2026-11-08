@@ -111,7 +111,10 @@ fn live<P: crate::ProfilePayload>(doc: &Doc<P>, dead: &Dead, mut var: VarId) -> 
 /// the body it continues (`[From { read, of }]`), the name it carried.
 /// Any other name is answered as it is: one a deleted node minted
 /// strands.
-pub fn carried_back(name: &StableName, continued: impl Fn(RecipeNodeId) -> Option<VarId>) -> StableName {
+pub fn carried_back(
+    name: &StableName,
+    continued: impl Fn(RecipeNodeId) -> Option<VarId>,
+) -> StableName {
     let mut name = name.clone();
     let mut steps = 0usize;
     while let Some(read) = continued(name.node) {
@@ -138,7 +141,11 @@ fn back(dead: &Dead, name: &StableName) -> StableName {
 /// nothing, or is a named read (shared, so not this reader's to
 /// rewrite) that reaches a deleted operation.
 fn handed<P: crate::ProfilePayload>(doc: &Doc<P>, dead: &Dead, read: &Operand) -> Option<Operand> {
-    let touches = |var: VarId| doc.read_ports(var).iter().any(|(at, _)| dead.contains_key(at));
+    let touches = |var: VarId| {
+        doc.read_ports(var)
+            .iter()
+            .any(|(at, _)| dead.contains_key(at))
+    };
     let var_read = |var: VarId| -> Option<Operand> {
         match doc.var(var).map(crate::Var::def) {
             Some(VarDef::Output { node, .. }) if dead.contains_key(node) => {
@@ -197,7 +204,12 @@ struct Handed {
 }
 
 /// [`Handed`] for `n`, which reads some deleted operation.
-fn hand<P: crate::ProfilePayload>(doc: &Doc<P>, dead: &Dead, n: RecipeNodeId, node: &Node<P>) -> Handed {
+fn hand<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    dead: &Dead,
+    n: RecipeNodeId,
+    node: &Node<P>,
+) -> Handed {
     let mut seats = Vec::new();
     let mut lost = BTreeSet::new();
     let mut reached = BTreeSet::new();
@@ -224,7 +236,10 @@ fn hand<P: crate::ProfilePayload>(doc: &Doc<P>, dead: &Dead, n: RecipeNodeId, no
             }
         }
     }
-    let otherwise = doc.spaces_read(node).iter().any(|(_, at)| dead.contains_key(at))
+    let otherwise = doc
+        .spaces_read(node)
+        .iter()
+        .any(|(_, at)| dead.contains_key(at))
         || doc
             .upstream(n)
             .into_iter()
@@ -269,7 +284,10 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
         }
         let Some(node) = doc.node(n) else { continue };
         let depends = doc.upstream(n).iter().any(|at| dead.contains_key(at))
-            || doc.spaces_read(node).iter().any(|(_, at)| dead.contains_key(at));
+            || doc
+                .spaces_read(node)
+                .iter()
+                .any(|(_, at)| dead.contains_key(at));
         if !depends {
             continue;
         }
@@ -293,14 +311,16 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
             _ => None,
         };
         if let Some(reads) = list {
-            if lost.iter().any(|seat| !matches!(seat, OperandSlot::Member(_))) {
+            if lost
+                .iter()
+                .any(|seat| !matches!(seat, OperandSlot::Member(_)))
+            {
                 dead.insert(n, None);
                 continue;
             }
             let (Node::Union { members: written }
             | Node::Intersect { members: written }
-            | Node::Assemble { members: written }) =
-                node.authored(doc)
+            | Node::Assemble { members: written }) = node.authored(doc)
             else {
                 unreachable!("an operator re-authors as itself")
             };
@@ -312,10 +332,12 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
                 .zip(written)
                 .enumerate()
                 .filter(|(i, _)| !lost.contains(&OperandSlot::Member(*i)))
-                .map(|(i, (stored, authored))| match rewritten(OperandSlot::Member(i)) {
-                    Some(Operand::Var(var)) => (*var, BodyRead::plain(Operand::Var(*var))),
-                    _ => (stored.read, authored),
-                })
+                .map(
+                    |(i, (stored, authored))| match rewritten(OperandSlot::Member(i)) {
+                        Some(Operand::Var(var)) => (*var, BodyRead::plain(Operand::Var(*var))),
+                        _ => (stored.read, authored),
+                    },
+                )
                 .collect();
             match kept.as_slice() {
                 [] => {
@@ -360,7 +382,9 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
         }
     }
     if let Some(product) = doc.product()
-        && doc.operation_of(product).is_some_and(|op| dead.contains_key(&op))
+        && doc
+            .operation_of(product)
+            .is_some_and(|op| dead.contains_key(&op))
         && let Some(now) = live(doc, &dead, product)
     {
         edits.push(DocEdit::SetProduct {
@@ -395,7 +419,10 @@ fn rebinds<P: crate::ProfilePayload>(
             .placements()
             .into_iter()
             .filter(|&p| !dead.contains_key(&p))
-            .filter(|&p| doc.copied_read(p).is_some_and(|read| bodies.contains(&read)))
+            .filter(|&p| {
+                doc.copied_read(p)
+                    .is_some_and(|read| bodies.contains(&read))
+            })
             .flat_map(|p| doc.outputs(p))
             .filter(|var| !bodies.contains(var))
             .collect();
@@ -435,7 +462,10 @@ impl<P: crate::ProfilePayload + Clone> Recording<'_, P> {
     ///
     /// The first door that refuses; [`EditError`]'s own refusal of a
     /// delete of a node the document does not hold.
-    pub fn delete_by_continuation(&mut self, id: RecipeNodeId) -> Result<Vec<RecipeNodeId>, EditError> {
+    pub fn delete_by_continuation(
+        &mut self,
+        id: RecipeNodeId,
+    ) -> Result<Vec<RecipeNodeId>, EditError> {
         let Some(Splice { deleted, edits }) = splice(self.doc(), id) else {
             self.apply(DocEdit::DeleteNode { id })?;
             return Ok(vec![id]);

@@ -8,14 +8,15 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, ProfileProgram, RecipeNodeId, splice};
+use editor_core::continuation::splice;
+use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
 
 /// **What the delete button says, and the list it says it about.**
 ///
 /// A destructive action that understates itself is worse than one that
 /// refuses: [`super::SessionOp::DeleteNode`] hands each reader of the
 /// target to the body it continues and takes the rest of its downstream
-/// cone (`pncad::document::splice`), which can be most of the document,
+/// cone (`editor_core::continuation::splice`), which can be most of the document,
 /// so the count belongs on the button and not only in a tooltip.
 ///
 /// The wording lives here rather than in the chrome for the reason

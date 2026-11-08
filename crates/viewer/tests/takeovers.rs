@@ -226,10 +226,7 @@ fn taken_over(
 /// carries it: the same face, picked where the View pane shows the body
 /// again.
 fn on_the_body(face: FaceSelection, body: RecipeNodeId) -> FaceSelection {
-    FaceSelection {
-        node: body,
-        ..face
-    }
+    FaceSelection { node: body, ..face }
 }
 
 /// **The small block rested on the block's top stays seated through a
@@ -432,11 +429,14 @@ fn a_face_of_a_union_of_the_copy_is_rebound() {
     );
     let seated_at = drawn::extent(&mut session, small_copy);
     let lateral = a_lateral_edge(&session, block);
-    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
-        target: block,
-        radius: len(0.002),
-        selection: vec![lateral],
-    });
+    let (_, outcome) = taken_over(
+        &mut session,
+        SessionOp::AddFillet {
+            target: block,
+            radius: len(0.002),
+            selection: vec![lateral],
+        },
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let rebound: Vec<_> = rebinds(&outcome.committed)
@@ -524,11 +524,14 @@ fn a_gesture_on_a_held_pick_before_the_landing_reads_it_moved() {
     } = seated(top);
     session.perform(SessionOp::Select(Selection::Face(top(&session))));
     let lateral = a_lateral_edge(&session, block);
-    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
-        target: block,
-        radius: len(0.002),
-        selection: vec![lateral],
-    });
+    let (_, outcome) = taken_over(
+        &mut session,
+        SessionOp::AddFillet {
+            target: block,
+            radius: len(0.002),
+            selection: vec![lateral],
+        },
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     // No pump: the fillet's run has not landed.
     let Selection::Face(held) = session.selection().clone() else {
@@ -555,11 +558,14 @@ fn undoing_a_later_edit_keeps_the_held_pick_followed() {
     let held = top(&session);
     session.perform(SessionOp::Select(Selection::Face(held.clone())));
     let lateral = a_lateral_edge(&session, block);
-    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
-        target: block,
-        radius: len(0.002),
-        selection: vec![lateral],
-    });
+    let (_, outcome) = taken_over(
+        &mut session,
+        SessionOp::AddFillet {
+            target: block,
+            radius: len(0.002),
+            selection: vec![lateral],
+        },
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let later = session.perform(SessionOp::SetLabel {
         node: block,
@@ -639,11 +645,14 @@ fn rv2_a_followed_selection_stands_live_before_the_landing() {
     let live_before = session.standing().live();
     let rows_before = session.slot_rows().len();
     let lateral = a_lateral_edge(&session, block);
-    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
-        target: block,
-        radius: len(0.002),
-        selection: vec![lateral],
-    });
+    let (_, outcome) = taken_over(
+        &mut session,
+        SessionOp::AddFillet {
+            target: block,
+            radius: len(0.002),
+            selection: vec![lateral],
+        },
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(session.busy(), "not landed");
     let standing = session.standing();
@@ -670,11 +679,14 @@ fn rv2_a_pick_made_after_undo_through_a_redo() {
         mut session, block, ..
     } = seated(top);
     let lateral = a_lateral_edge(&session, block);
-    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
-        target: block,
-        radius: len(0.002),
-        selection: vec![lateral],
-    });
+    let (_, outcome) = taken_over(
+        &mut session,
+        SessionOp::AddFillet {
+            target: block,
+            radius: len(0.002),
+            selection: vec![lateral],
+        },
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     session.perform(SessionOp::Undo);
@@ -707,11 +719,14 @@ fn rv2_a_fresh_pick_off_the_older_picture() {
         mut session, block, ..
     } = seated(top);
     let lateral = a_lateral_edge(&session, block);
-    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
-        target: block,
-        radius: len(0.002),
-        selection: vec![lateral],
-    });
+    let (_, outcome) = taken_over(
+        &mut session,
+        SessionOp::AddFillet {
+            target: block,
+            radius: len(0.002),
+            selection: vec![lateral],
+        },
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(session.busy());
     let fresh = top(&session);
@@ -744,11 +759,14 @@ fn rv3_a_fresh_pick_after_undoing_an_unlanded_takeover() {
         mut session, block, ..
     } = seated(top);
     let lateral = a_lateral_edge(&session, block);
-    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
-        target: block,
-        radius: len(0.002),
-        selection: vec![lateral],
-    });
+    let (_, outcome) = taken_over(
+        &mut session,
+        SessionOp::AddFillet {
+            target: block,
+            radius: len(0.002),
+            selection: vec![lateral],
+        },
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     for _ in 0..2 {
         let undone = session.perform(SessionOp::Undo);
@@ -849,11 +867,14 @@ fn rv4_a_pick_downstream_of_a_rebound_reader_while_seeded() {
         &[SessionOp::Select(Selection::Face(small_top.clone()))],
     );
     let lateral = a_lateral_edge(&session, block);
-    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
-        target: block,
-        radius: len(0.002),
-        selection: vec![lateral],
-    });
+    let (_, outcome) = taken_over(
+        &mut session,
+        SessionOp::AddFillet {
+            target: block,
+            radius: len(0.002),
+            selection: vec![lateral],
+        },
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(session.busy());
     let dropped = tools.reconcile(session.doc(), session.name_run());
@@ -1057,7 +1078,11 @@ fn a_split_of_a_copy_the_product_reads_leaves_the_product_reading_the_halves() {
     let doc = session.committed_doc();
     let slot = doc.product().expect("the slot reads a body");
     assert_reads_the_halves(doc, slot, split, "the product slot");
-    assert_eq!(source_of(doc, copy), source, "the copy places the block still");
+    assert_eq!(
+        source_of(doc, copy),
+        source,
+        "the copy places the block still"
+    );
     let eval = session.evaluation().expect("landed");
     let at = doc.operation_of(slot).expect("the slot's `⊔`");
     assert!(

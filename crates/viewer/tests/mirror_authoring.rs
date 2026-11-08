@@ -177,7 +177,11 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     let wall = face_toward(&session, 1.0);
     let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
     let tool = tools.mirror().expect("open");
-    assert_eq!(tool.input(), Some(copy), "a pick on the copy seats the copy");
+    assert_eq!(
+        tool.input(),
+        Some(copy),
+        "a pick on the copy seats the copy"
+    );
     assert_eq!(tool.plane(), Some(&wall), "and its face is the plane");
 
     let outcome = session.perform(mirror_op(&tools));
@@ -193,7 +197,11 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     let [Node::Mirror { body, plane }, Node::Union { .. }] = inserted[..] else {
         panic!("the image and the symmetric part, no placement: {inserted:?}")
     };
-    assert_eq!(body.read, Operand::Node(copy), "the image reflects the copy");
+    assert_eq!(
+        body.read,
+        Operand::Node(copy),
+        "the image reflects the copy"
+    );
     assert!(plane.role.is_none(), "the plane is read plainly");
     let Operand::Pose(pose) = &plane.read else {
         panic!("the plane is a pose read, not {:?}", plane.read)
@@ -217,8 +225,15 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     };
     let doc = session.committed_doc();
     assert!(
-        outcome.committed.iter().all(|edit| matches!(edit, DocEdit::InsertNode { .. }
-            | DocEdit::SetProduct { .. } | DocEdit::SetParam { slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Member(_)), .. })),
+        outcome.committed.iter().all(|edit| matches!(
+            edit,
+            DocEdit::InsertNode { .. }
+                | DocEdit::SetProduct { .. }
+                | DocEdit::SetParam {
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Member(_)),
+                    ..
+                }
+        )),
         "no placement is written: {:?}",
         outcome.committed
     );
@@ -389,7 +404,10 @@ fn a_body_drawn_twice_is_its_symmetric_part_at_both_copies() {
     drawn.sort_unstable();
     let mut want = vec![second, part];
     want.sort_unstable();
-    assert_eq!(drawn, want, "the second copy and the first's part are drawn");
+    assert_eq!(
+        drawn, want,
+        "the second copy and the first's part are drawn"
+    );
     let (y, z) = (BLOCK[1] / 2.0, BLOCK[2]);
     assert_drawn(
         &mut session,

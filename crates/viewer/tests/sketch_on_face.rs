@@ -247,7 +247,10 @@ fn a_face_on_a_splits_lower_half_is_sketched_on_that_half() {
     let (mut session, _, split) = common::drawn::split_box(size, tol);
     let below = pncad::select::SplitHalf::Below;
     let underside = common::asm::pick_face(&session, &common::up_at(0.0, 0.0));
-    assert_eq!(underside.node, split, "the ray met the split drawn as itself");
+    assert_eq!(
+        underside.node, split,
+        "the ray met the split drawn as itself"
+    );
     let out = session.perform(boss_on(underside));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();

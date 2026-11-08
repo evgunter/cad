@@ -3400,7 +3400,7 @@ impl DocSession {
             )?;
             // The made node is the added piece's root (the profile), so
             // deleting it collapses the union back to the body
-            // (`pncad::document::splice`); the union replaces the body.
+            // (`editor_core::continuation::splice`); the union replaces the body.
             Ok(Wrote {
                 made: sketched.profile,
                 replacement: sketched.union,
@@ -4054,7 +4054,7 @@ impl DocSession {
         }
         takeover.stranded_pick(doc)?;
         let copies = takeover.copies.clone();
-        let reads = (takeover.reads.resolver.clone(), takeover.reads.prior.clone());
+        let reads = takeover.reads.clone();
         let tol = self.tol();
         Ok(Box::new(move |run, held| {
             let wrote = Wrote::one(onto);
@@ -4416,7 +4416,7 @@ impl DocSession {
     }
 
     /// **Delete a node by continuation**, as one action and therefore
-    /// one undo (DM6, `pncad::document::splice`): each reader of the
+    /// one undo (DM6, `editor_core::continuation::splice`): each reader of the
     /// node is handed to the body it continues — a fillet's input, the
     /// one operand an operator is left with, a cut's target once its
     /// tool goes — through explicit edits, and the readers of a node
@@ -5364,7 +5364,7 @@ fn on_sides_follow(
     run: &mut Recording<'_, ProfileProgram>,
     copies: &[RecipeNodeId],
     (was, onto): (VarId, &Operand),
-    (resolver, prior): &(Option<Arc<dyn PartResolver>>, Option<Arc<Evaluation<f64>>>),
+    TakeoverReads { resolver, prior }: &TakeoverReads,
     tol: Tol,
 ) -> Result<(), EditError> {
     let Some(was_at) = run.doc().operation_of(was) else {
@@ -5490,7 +5490,10 @@ fn drop_seats(run: &mut Recording<'_, ProfileProgram>, var: VarId) -> Result<(),
             else {
                 return None;
             };
-            if !stored.iter().any(|read| read.read == var && !read.is_indexed()) {
+            if !stored
+                .iter()
+                .any(|read| read.read == var && !read.is_indexed())
+            {
                 return None;
             }
             let Node::Assemble {
@@ -5521,7 +5524,7 @@ fn drop_seats(run: &mut Recording<'_, ProfileProgram>, var: VarId) -> Result<(),
 /// evaluation options, and its landed run as the memo
 /// ([`DocSession::takeover`]). The default (no resolver, no memo) is a
 /// [`Takeover`]'s until the session gives it its own.
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct TakeoverReads {
     /// The resolver the door's evaluation runs under: its options are
     /// this resolver's ([`crate::evalseam::options`]), and its seed

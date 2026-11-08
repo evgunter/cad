@@ -3515,7 +3515,11 @@ fn a_pattern_takes_its_body_over_and_a_member_read_places_nothing() {
         [pattern],
         "the family is drawn in the world, the copy it repeats is not"
     );
-    assert_eq!(at_rest_findings(session), 0, "and its members do not overlap");
+    assert_eq!(
+        at_rest_findings(session),
+        0,
+        "and its members do not overlap"
+    );
 }
 
 /// Box `A` added to the product, so placed into the world: the session,

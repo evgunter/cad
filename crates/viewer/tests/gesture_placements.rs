@@ -12,7 +12,7 @@
 //! - A placement Place makes in the body's own space is a copy like any
 //!   other: badged, listed, and the way to its body.
 //! - A delete hands each reader of the deleted node to the body it
-//!   continues (`pncad::document::splice`), so adding a feature and
+//!   continues (`editor_core::continuation::splice`), so adding a feature and
 //!   deleting it leaves the document as it was.
 //!
 //! The delete rows keep PR 6280's review probes, re-spelled to the
@@ -120,11 +120,7 @@ fn top(body: RecipeNodeId, on: RecipeNodeId) -> FaceSelection {
 /// `body`'s `+x` wall picked on `on`, as a ray toward `−x` meets it.
 fn plus_x_wall(session: &DocSession, y: f64) -> FaceSelection {
     let index = plate_index(session);
-    displayed_face_at(
-        session,
-        &index,
-        &common::along_x(-1.0, y, SIZE[2] / 2.0),
-    )
+    displayed_face_at(session, &index, &common::along_x(-1.0, y, SIZE[2] / 2.0))
 }
 
 /// The gestures a copy is picked for, each named, with whether deleting
@@ -342,7 +338,10 @@ fn a_feature_on_a_body_picked_as_itself_offers_the_re_point() {
         panic!("one offer: {offers:?}")
     };
     assert_eq!(*op, repoint, "the offer is the re-point");
-    assert!(label.starts_with("Re-point the 2 placements of "), "{label}");
+    assert!(
+        label.starts_with("Re-point the 2 placements of "),
+        "{label}"
+    );
 
     let steps = session.history().len();
     let done = session.perform(repoint);
@@ -356,7 +355,11 @@ fn a_feature_on_a_body_picked_as_itself_offers_the_re_point() {
         [filleted; 2],
         "both copies place the fillet"
     );
-    assert_eq!(doc.product(), doc.output(first, 0), "the product reads the copy");
+    assert_eq!(
+        doc.product(),
+        doc.output(first, 0),
+        "the product reads the copy"
+    );
     assert_eq!(
         viewer::world::repoint_offer(doc, fillet),
         None,
@@ -399,7 +402,11 @@ fn a_place_into_the_bodys_own_space_is_a_copy() {
     let first = place(&mut session);
     let second = place(&mut session);
     let doc = session.committed_doc();
-    assert_eq!(doc.node_space(first), doc.node_space(body), "in its own space");
+    assert_eq!(
+        doc.node_space(first),
+        doc.node_space(body),
+        "in its own space"
+    );
     assert!(viewer::world::is_placed(doc, body), "badged placed");
     assert_eq!(viewer::world::placements_of(doc, body), [first, second]);
     for copy in [first, second] {
@@ -425,7 +432,10 @@ fn a_place_into_the_bodys_own_space_is_a_copy() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     let (lo, _) = drawn::extent(&mut session, second);
-    assert!((lo[2] - SIZE[2]).abs() < 1e-12, "the second stands on the first: {lo:?}");
+    assert!(
+        (lo[2] - SIZE[2]).abs() < 1e-12,
+        "the second stands on the first: {lo:?}"
+    );
 }
 
 /// **Designer A's worked example** (PR 6580): bracket `B`, Placed twice
@@ -476,8 +486,15 @@ fn designer_as_worked_example() {
     assert!(!writes_a_source(&out.committed));
     let on_c1 = out.made.expect("fillet(C1)");
     let doc = session.committed_doc();
-    assert_eq!(doc.node_space(on_c1), doc.node_space(bracket), "in B's space");
-    assert_eq!(viewer::world::built_on_copy(doc, on_c1), Some((c1, bracket)));
+    assert_eq!(
+        doc.node_space(on_c1),
+        doc.node_space(bracket),
+        "in B's space"
+    );
+    assert_eq!(
+        viewer::world::built_on_copy(doc, on_c1),
+        Some((c1, bracket))
+    );
     let (said, offers) = viewer::frame::placement_offers(doc, on_c1);
     assert!(said.is_some_and(|text| text.contains("placed copy")));
     assert!(
@@ -589,7 +606,11 @@ fn delete_splices_by_continuation() {
     session.pump();
     let doc = session.committed_doc();
     assert!(doc.node(chamfer).is_some(), "the chamfer is handed over");
-    assert_eq!(doc.product(), doc.output(chamfer, 0), "the product reads it");
+    assert_eq!(
+        doc.product(),
+        doc.output(chamfer, 0),
+        "the product reads it"
+    );
     let Some(Node::Chamfer { selection, .. }) = doc.node(chamfer) else {
         panic!("a chamfer")
     };
@@ -663,5 +684,9 @@ fn delete_splices_by_continuation() {
     let out = session.perform(SessionOp::DeleteNode { node: second });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let doc = session.committed_doc();
-    assert_eq!(doc.product(), doc.output(first, 0), "the product reads the first");
+    assert_eq!(
+        doc.product(),
+        doc.output(first, 0),
+        "the product reads the first"
+    );
 }

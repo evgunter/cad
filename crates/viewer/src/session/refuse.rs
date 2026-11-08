@@ -963,7 +963,10 @@ impl Refusal {
                  by a copy of it"
             ),
             Self::NothingPlaced { body } => {
-                write!(f, "nothing places {body}, so there is no placement to re-point")
+                write!(
+                    f,
+                    "nothing places {body}, so there is no placement to re-point"
+                )
             }
             Self::ValueNotRemoved { node } => write!(
                 f,
