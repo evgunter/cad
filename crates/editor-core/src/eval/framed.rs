@@ -278,8 +278,8 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     }
 
     /// **A heading stated in its space, in the body's coordinates**: what
-    /// a reader measuring the body along a direction of the space (a
-    /// duplicate's step) measures it along, computing in the body's
+    /// a reader measuring the body along a direction of the space (the
+    /// step that clears it) measures it along, computing in the body's
     /// frame.
     ///
     /// # Errors
