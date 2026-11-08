@@ -2429,8 +2429,12 @@ pub fn plane_cone_section<T: Decide>(
     // `t = −δ/c` from the apex (`c` is ±1 within the band here).
     let t = (T::zero() - apex_gap) / c;
     let rim_r = t.abs() * (sin_a / cos_a);
+    // A circle with no cover (the plane along the axis puts it at no
+    // finite point) is no candidate section, and adds no reach.
     let rim = Curve3::circle(apex + a * t, a, rim_r, cone_u);
-    let arm = ExtentBall::of_covered(&rim.cover()).lever().max(extent);
+    let arm = rim
+        .cover()
+        .map_or(extent, |c| ExtentBall::of_cover(&c).lever().max(extent));
     match decide("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
