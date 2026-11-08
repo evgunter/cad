@@ -3369,7 +3369,8 @@ impl DocSession {
     /// **"Sketch on this face"** ([`SessionOp::SketchOnFace`]): the
     /// kernel's one gesture (`Recording::sketch_on_face`) over the body
     /// the face is on, and the union taking over what read that body
-    /// ([`Takeover`]), in one action.
+    /// ([`Takeover`]), in one action. The node made is the profile, the
+    /// piece the gesture adds.
     fn sketch_on_face(
         &self,
         face: &FaceSelection,
@@ -3397,7 +3398,15 @@ impl DocSession {
                 &opts,
                 &pncad::document::CancelToken::new(),
             )?;
-            Ok(Wrote::one(sketched.union))
+            // The made node is the added piece's root (the profile), so
+            // deleting it collapses the union back to the body
+            // (`pncad::document::splice`); the union replaces the body.
+            Ok(Wrote {
+                made: sketched.profile,
+                replacement: sketched.union,
+                whole: None,
+                intact: Vec::new(),
+            })
         }))
     }
 

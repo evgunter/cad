@@ -250,9 +250,13 @@ fn a_face_on_a_splits_lower_half_is_sketched_on_that_half() {
     assert_eq!(underside.node, split, "the ray met the split drawn as itself");
     let out = session.perform(boss_on(underside));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    let union = out.made.expect("the union");
     session.pump();
     let doc = session.committed_doc();
+    let union = doc
+        .ids()
+        .into_iter()
+        .find(|&id| matches!(doc.node(id), Some(Node::Union { .. })))
+        .expect("the union landed");
     let Some(Node::Union { members }) = doc.node(union) else {
         panic!("the sketch fuses the half, not {:?}", doc.node(union));
     };
