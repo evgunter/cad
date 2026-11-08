@@ -610,16 +610,31 @@ def polygonal_loft():
     return stacked_loft(Doc(), 3, 0.125, square)
 
 
-def oversized_round_loft():
-    """A tapered round tube 64 km long, past the 1 km session box."""
-    return stacked_loft(
-        Doc(),
-        2,
-        64000.0,
-        lambda t: circle_split(
+def oversized_round_loft_refusal():
+    """The loft door's refusal of a tapered round tube 64 km long, past
+    the 1 km session box: the evaluation's typed error for the node."""
+    doc = Doc()
+
+    def radius(t):
+        return circle_split(
             (0.0 * m, 0.0 * m), (11980.8 * (1 - t) + 5990.4 * t) * m, 2, 0.0 * rad
-        ),
-    )
+        )
+
+    first = doc.insert(Node.profile(radius(0.0)))
+    then = [
+        (
+            doc.insert(Node.profile(radius(1.0))),
+            [StationMove.slide("z", Formula.length_in(64000.0, m))],
+        )
+    ]
+    node = doc.insert(Node.loft(first, then, Formula.count(1)))
+    run = evaluate(doc)
+    assert not run.succeeded(node), "the 64 km loft is refused at its door"
+    try:
+        run.value(node)
+    except pncad.EvaluationError as refusal:
+        return refusal
+    raise AssertionError("a failed node's value raises")
 
 
 # The unmet-resolution row's child: a 64 m tapered round loft at the
@@ -771,18 +786,16 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         self.assertGreater(rhi, frustum)
 
     def test_a_body_past_the_session_box_is_refused_by_the_box(self):
-        """A body past the session box is refused at the gate, by the box.
+        """A body past the session box is refused at its operation's
+        finished-body gate, by the box.
 
-        The 64 km tube's measurement is refused before any check reads a
-        margin on it, its one finding the box's, and the message says
-        so.
+        The 64 km tube is refused at the loft door before any check reads
+        a margin on it, and the message says the box and its recourse.
         """
-        body = oversized_round_loft()
-        with self.assertRaises(ValidationError) as refused:
-            body.mass_properties(PINNED)
-        r = refused.exception
-        self.assertEqual([f.variant for f in r.findings], ["outside_session_box"])
-        self.assertIn("session box", str(r))
+        refusal = oversized_round_loft_refusal()
+        said = str(refusal)
+        self.assertIn("session box", said)
+        self.assertIn("place the geometry nearer the origin", said)
 
 
 class TestSettle(unittest.TestCase):
