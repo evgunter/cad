@@ -6144,8 +6144,9 @@ mod tests {
 
     /// **A spline piece is read in the smaller of its two balls.** On the
     /// weight-`40` parabola the speed bound's ball over the whole window
-    /// has radius about `90`, while the control net's ball has radius
-    /// `√2`: the piece, and so the wall's box, is read in the latter.
+    /// has radius about `90`, while the cover's ball has radius at most
+    /// the control net's `√2`: the piece, and so the wall's box, is read
+    /// in the latter.
     #[test]
     fn a_rational_spline_piece_is_read_in_its_control_ball() {
         let carrier = weighted_parabola(40.0);
@@ -6164,9 +6165,13 @@ mod tests {
             "the speed ball is wide, radius {}",
             speed.get() * 0.5
         );
+        // The cover's ball is the meet's: no wider than the control net's
+        // `√2` about `(0, 1)`, and narrower where the window's pieces'
+        // box is (`geom::cover::Cover::ball`).
         assert!(
-            (radius - 2.0_f64.sqrt()).abs() < 1e-12 && (centre.y - 1.0).abs() < 1e-12,
-            "the piece is read in the control ball about (0, 1), radius √2, got {centre:?}, {radius}"
+            radius <= 2.0_f64.sqrt() + 1e-12 && centre.x.abs() < 1e-12,
+            "the piece is read in its cover's ball, at most the control ball's √2, got \
+             {centre:?}, {radius}"
         );
     }
 

@@ -493,9 +493,9 @@ mod region_rows {
 
     /// **The operation's region is the ball about the operands' box
     /// overlap**: two unit-high bricks overlapping in `[0.5, 1]` along
-    /// `x` read a ball about the padded overlap's centre, out to its
-    /// half-diagonal, which holds the overlap and is far short of either
-    /// brick's own ball; bricks apart read none.
+    /// `x` read the ball of their covers' meet, about the overlap's centre
+    /// out to its half-diagonal, which holds the overlap and is far short
+    /// of either brick's own ball; bricks apart read none.
     #[test]
     fn the_region_is_the_ball_about_the_operands_box_overlap() {
         let tol = Tol::witness();
@@ -512,16 +512,14 @@ mod region_rows {
         };
         let got = region(&brick::<f64>((0.5, 3.0), (0.0, 1.0), (0.0, 1.0), tol))
             .expect("the boxes overlap");
-        // Each face box is padded by the sweep's pad, so the overlap is
-        // `[0.5 − p, 1 + p] × [−p, 1 + p]²`.
-        let pad = super::boxes::sweep_pad(band);
+        // The meet of the two hulls is the overlap `[0.5, 1] × [0, 1]²`,
+        // whose ball is the meet's own (`geom::cover::Cover::ball`).
         let centre = Point3::new(0.75, 0.5, 0.5);
         assert!((got.center() - centre).norm() < 1e-12, "{got:?}");
-        let half = |w: f64| 0.5 * (w + 2.0 * pad);
-        let radius = (half(0.5).powi(2) + 2.0 * half(1.0).powi(2)).sqrt();
+        let radius = (0.25f64.powi(2) + 2.0 * 0.5f64.powi(2)).sqrt();
         assert!(
             (got.radius() - radius).abs() < 1e-12,
-            "{got:?} against the padded overlap's half-diagonal {radius}"
+            "{got:?} against the overlap's half-diagonal {radius}"
         );
         let far = brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
         assert!(region(&far).is_none(), "apart: no region");
