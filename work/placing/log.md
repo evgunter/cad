@@ -281,3 +281,15 @@ Newest entries at the bottom; the tail is the program's live status.
   - Two designers (arm byte 233, label byte 163; the mapping is on `analysis/design-fork/placing-own-space-copy`).
   - Brief: `~/.local/share/cad-work/placing-fork-ownspace-brief.md`. It states the problem only; the row's "Owed" sketch was not handed over.
   - **The 6353 build waits on this fork**, because how a pick on a placed copy is seated is exactly what this fork decides. (PLACING orchestrator)
+- 2026-11-08 — **Own-space copy fork: the two designers agree on first reports.** Every placement is a copy wherever it stands; `copy_spaces` retires; Place stays in the body's own space; it is built inside the 6353 unit.
+  - **`[ev]` PR 6580** carries one README sentence and fork row 253. Built on its recommendation, not waiting for the answer: both designers agree, and it is D10 applied (no ratified text changes).
+  - **Designer-flagged errors** in the row and brief:
+    - the done-when's "a pick seats the body it places" contradicts 6353;
+    - the empty product is correct, because of the one product door;
+    - the carve-out excludes every construction's space, not only the own space.
+- 2026-11-08 — **Dispatched the 6353 build plus the 6580 ruling**, on `placing/copy-reads` (one unit, per both designers' sequencing):
+  - a feature on a copy reads the copy;
+  - a body feature offers the shared-variable re-point;
+  - every placement is a copy;
+  - delete splices by continuation, with 6280's probe rows brought in.
+  - **Review tier: dual is likely.** It changes the gesture vocabulary's seat rule across every feature gesture, which is broad and hard to reverse. The letter is decided at review dispatch. (PLACING orchestrator)
