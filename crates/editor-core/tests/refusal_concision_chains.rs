@@ -77,7 +77,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/BodyNotIntact/Unwalked",
     "Blend/BodyNotIntact/Disagrees",
     "Blend/BodyNotIntact/Scaffolding",
-    "Blend/BodyNotIntact/Degenerate",
     "Blend/SurgeryInvariant",
     "Blend/Certify",
     "Naming/SplitLineage",
