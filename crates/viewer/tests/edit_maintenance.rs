@@ -626,15 +626,15 @@ fn retyping_a_toleranced_slot_says_its_tolerance_went() {
     }
 }
 
-/// **The values a mate fixes leave the draft before Apply, not after
+/// **The values a mate fixes leave the draft before it lands, not after
 /// it.** Seating post_b on the shelf fixes freedoms its bundle wrote
 /// values on: the placement editor's value rows are the freedoms the
 /// seat leaves, so the slide along the seat's normal and the chain of
-/// spins are not among them, and Apply writes the bundle the panel
+/// spins are not among them, and the change writes the bundle the panel
 /// showed — no value is dropped behind the person's back, so none is
 /// reported dropped.
 ///
-/// *Breaks if* a value row lists a freedom the seat fixes, or Apply
+/// *Breaks if* a value row lists a freedom the seat fixes, or the bundle
 /// drops a value the draft did not show going.
 #[test]
 fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
@@ -673,7 +673,7 @@ fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
             .maintenance
             .iter()
             .any(|m| matches!(m, Maintenance::ValueDropped { .. })),
-        "Apply drops nothing the draft did not show: {:?}",
+        "the bundle drops nothing the draft did not show: {:?}",
         outcome.maintenance
     );
 }

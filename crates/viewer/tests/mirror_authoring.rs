@@ -575,7 +575,7 @@ fn the_mirrors_label_lands_on_the_mirror_whether_its_body_is_placed_or_not() {
 }
 
 /// **A body mirrored across a face of another body in its space**: the
-/// unplaced block duplicated is a stand-in and a stepped copy, both in
+/// unplaced block placed twice is a stand-in and a stepped copy, both in
 /// the block's own space. The first face pick (the stand-in's) seats
 /// the stand-in; the second (the stepped copy's far `+x` wall) re-picks
 /// the plane alone; the image is the stand-in reflected across that
@@ -584,14 +584,15 @@ fn the_mirrors_label_lands_on_the_mirror_whether_its_body_is_placed_or_not() {
 fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
     let tol = Tol::witness();
     let (mut session, block) = unplaced_block(tol);
-    let duplicated = session.perform(SessionOp::Duplicate {
-        input: block.into(),
-        beside: None,
-    });
-    assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
-    let [stand_in, copy] = duplicated.minted[..] else {
-        panic!("a stand-in and a stepped copy: {:?}", duplicated.minted);
-    };
+    let stand_in = common::placed_by(&mut session, SessionOp::Place { body: block.into() });
+    let copy = common::placed_by(&mut session, SessionOp::Place { body: block.into() });
+    let op = common::transformed(
+        &mut session,
+        copy,
+        &common::slides([8.0 * HALF_X, 0.0, 0.0]),
+    );
+    let stepped = session.perform(op);
+    assert!(stepped.refusal.is_none(), "{:?}", stepped.refusal);
     session.pump();
 
     let own = face_toward(&session, 1.0);
@@ -611,7 +612,7 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
         .fold(f64::NEG_INFINITY, f64::max);
     assert!(
         at > HALF_X,
-        "the duplicate's far wall is clear of the block: {at}"
+        "the stepped copy's far wall is clear of the block: {at}"
     );
     let (image, part) = mirror_in(&mut session, mirror_op(&tools));
     let source = corners(&mut session, stand_in);

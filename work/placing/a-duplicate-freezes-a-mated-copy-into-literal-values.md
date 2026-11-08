@@ -2,12 +2,14 @@
 id: a-duplicate-freezes-a-mated-copy-into-literal-values
 kind: issue
 title: Duplicate writes a copy's solved motion back as literal values and drops its mates; it retires in favour of a second placement of the body
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 rides_with: the-placement-editor-commits-on-apply-not-live
 branch: placing/place-live
+pr: 6578
+closed: 2026-11-08
 ---
 
 

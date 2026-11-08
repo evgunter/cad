@@ -1,9 +1,8 @@
-//! **The placement editor**: a draft of one placement's whole bundle,
-//! applied as one edit through one of two doors — Create on a body not
-//! yet placed, Edit on a placement, keeping its ids — with the verdict
-//! judged before Apply, a stale draft reloaded, no value reading a
-//! variable re-written as a measured number, and a mate struck out
-//! through the tree's `remove` measured where the copy stands.
+//! **The placement editor**: Place on a body not yet placed, then a
+//! draft of one placement's whole bundle written as one edit keeping its
+//! ids, judged by the door before it lands, a stale draft reloaded, no
+//! value reading a variable re-written as a measured number, and a mate
+//! struck out through the tree's `remove` measured where the copy stands.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -17,8 +16,8 @@ use pncad::document::{
     VarName,
 };
 use pncad::geom_core::Tol;
-use viewer::matetool::{MateChoice, MateTool, MateToolEvent, PlaceDoor, ValueFrom};
-use viewer::session::{BundleVerdict, DocSession, Refusal, SessionOp};
+use viewer::matetool::{MateChoice, MateTool, MateToolEvent, ValueFrom};
+use viewer::session::{DocSession, Refusal, SessionOp};
 
 /// post_b's bundle as authored.
 fn authored(
@@ -68,7 +67,7 @@ fn rest() -> MateChoice {
 }
 
 /// **A value reading a variable survives a mate committed beside it**,
-/// and Apply is one undo step that keeps every id it loaded. post_b's
+/// and the change is one undo step that keeps every id it loaded. post_b's
 /// slide along `x` reads `px`; the seat's rest leaves that slide, so the
 /// value keeps reading `px` — never the number it measures — while the
 /// constants on the freedoms the rest changes the meaning of are
@@ -109,7 +108,7 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
     common::commit_mate(&mut session, proposal.op());
 
     let (id, by) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
-    assert_eq!(id, slide_x, "Apply keeps the loaded value's id");
+    assert_eq!(id, slide_x, "the bundle keeps the loaded value's id");
     assert_eq!(by, px, "the value still reads px");
     assert_eq!(session.history().len(), states + 1, "one history state");
     let outcome = session.perform(SessionOp::Undo);
@@ -122,10 +121,10 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
 }
 
 /// **A draft over a bundle the document has since changed is stale**:
-/// the survival step loads it again, said, and an Apply of the old one
+/// the survival step loads it again, said, and a `SetBundle` of the old one
 /// is refused rather than written over the bundle the placement holds.
 #[test]
-fn a_stale_draft_reloads_and_its_apply_is_refused() {
+fn a_stale_draft_reloads_and_its_bundle_is_refused() {
     let tol = Tol::witness();
     let bench = asm::bench("bundle-stale", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -148,7 +147,7 @@ fn a_stale_draft_reloads_and_its_apply_is_refused() {
         refused.refusal
     );
     let (doc, ev) = session.landed_pair().expect("landed");
-    let events = tool.reconcile(doc, ev);
+    let events = tool.reconcile(session.committed_doc(), (doc, ev));
     assert!(
         matches!(&events[..], [MateToolEvent::Reloaded { placement }] if placement.id() == bench.post_b),
         "the draft reloads, said: {events:?}"
@@ -160,12 +159,12 @@ fn a_stale_draft_reloads_and_its_apply_is_refused() {
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 
-/// **The verdict comes before Apply**: a draft whose second mate rests
-/// the same faces again repeats the first's equations, and the scratch
-/// recording says so without a history state; the draft with one rest
-/// stands its copy.
+/// **The door judges a draft before it lands**: a draft whose second
+/// mate rests the same faces again repeats the first's equations, and
+/// the scratch recording says so without a history state; the draft with
+/// one rest stands its copy.
 #[test]
-fn the_verdict_names_a_repeated_equation_before_apply() {
+fn the_door_names_a_repeated_equation_before_it_lands() {
     let tol = Tol::witness();
     let bench = asm::bench("bundle-verdict", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -173,7 +172,7 @@ fn the_verdict_names_a_repeated_equation_before_apply() {
     let tool = seated(&session, &bench);
     let one = common::proposed(&session, &tool, rest()).expect("one rest proposes");
     assert!(
-        matches!(session.bundle_verdict(&one.op()), BundleVerdict::Stands(_)),
+        session.bundle_door(&one.op()).is_ok(),
         "one rest stands its copy"
     );
     let mut two = tool.chosen(rest()).expect("a rest");
@@ -183,8 +182,8 @@ fn the_verdict_names_a_repeated_equation_before_apply() {
     let twice = common::proposed(&session, &two, rest()).expect("two rests propose");
     assert_eq!(twice.mates.len(), 2);
     let states = session.history().len();
-    let verdict = session.bundle_verdict(&twice.op());
-    let BundleVerdict::Refused(Refusal::Edit(said)) = &verdict else {
+    let verdict = session.bundle_door(&twice.op());
+    let Err(Refusal::Edit(said)) = &verdict else {
         panic!("a second rest of the same faces is the door's refusal: {verdict:?}")
     };
     assert!(
@@ -200,24 +199,24 @@ fn the_verdict_names_a_repeated_equation_before_apply() {
         states,
         "the verdict records nothing"
     );
-    // Apply does what the verdict said: the same refusal, nothing recorded.
+    // The op lands as the door said: the same refusal, nothing recorded.
     let before = session.committed_doc().clone();
     let outcome = session.perform(twice.op());
     assert_eq!(
         outcome.refusal.as_ref().map(ToString::to_string),
-        Some(Refusal::Edit(said.clone()).to_string()),
-        "Apply refuses as the verdict said"
+        verdict.err().map(|refusal| refusal.to_string()),
+        "the op refuses as the door said"
     );
     assert!(session.committed_doc().bit_eq(&before), "nothing changed");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 
-/// **A copy that would not stand is not applied from the editor**: a
-/// point mate read off two flat faces does not evaluate
-/// (`SideUnevaluated`), so the verdict is the placement's fault, and
-/// Apply is withheld with it, nothing recorded.
+/// **A copy that would not stand is not committed**: a point mate read
+/// off two flat faces does not evaluate (`SideUnevaluated`), so the door
+/// refuses with the placement's fault, and the op with it, nothing
+/// recorded.
 #[test]
-fn an_apply_whose_copy_would_not_stand_is_withheld() {
+fn a_bundle_whose_copy_would_not_stand_is_refused() {
     let tol = Tol::witness();
     let bench = asm::bench("bundle-withheld", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -228,9 +227,9 @@ fn an_apply_whose_copy_would_not_stand_is_withheld() {
         values: Vec::new(),
     };
     let proposal = common::proposed(&session, &tool, point).expect("two faces propose as points");
-    let verdict = session.bundle_verdict(&proposal.op());
+    let verdict = session.bundle_door(&proposal.op());
     assert!(
-        matches!(&verdict, BundleVerdict::Faults(fault)
+        matches!(&verdict, Err(Refusal::PlacementFails { fault: Some(fault) })
             if matches!(**fault, pncad::document::MateFault::SideUnevaluated { .. })),
         "a point read off a flat face does not evaluate: {verdict:?}"
     );
@@ -239,7 +238,7 @@ fn an_apply_whose_copy_would_not_stand_is_withheld() {
     assert!(
         matches!(&outcome.refusal, Some(Refusal::PlacementFails { fault: Some(fault) })
             if matches!(**fault, pncad::document::MateFault::SideUnevaluated { .. })),
-        "Apply is withheld with the verdict's fault: {:?}",
+        "the op is refused with the door's fault: {:?}",
         outcome.refusal
     );
     assert_eq!(session.history().len(), states, "nothing is recorded");
@@ -358,11 +357,12 @@ fn removing_a_mate_from_a_turned_copy_keeps_it_where_it_stands() {
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 
-/// **The Create door on a body not yet placed**: no mate, its copy where
-/// the body stands, in the body's own space — one placement inserted,
-/// one undo step.
+/// **Place on a body not yet placed lands where the body stands, with
+/// zero values**: one placement inserted into the body's own space, no
+/// mate, the constant `0` on every slide and spin — one undo step — and
+/// the editor opens on it.
 #[test]
-fn the_create_door_places_a_body_where_it_stands() {
+fn place_lands_where_the_body_stands_with_zero_values() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(
         pncad::document::Doc::empty_derived("bundle-create", tol),
@@ -374,27 +374,11 @@ fn the_create_door_places_a_body_where_it_stands() {
         viewer::world::placements_of(session.committed_doc(), body).is_empty(),
         "the premise: the body lands unplaced"
     );
-    let tool = MateTool::create(Operand::Node(body));
-    assert!(matches!(tool.door(), Some(PlaceDoor::Create { .. })));
-    let (doc, ev) = session.landed_pair().expect("landed");
-    let proposal = tool.proposal(doc, ev, tol).expect("no mate proposes");
-    assert!(proposal.mates.is_empty());
-    assert_eq!(
-        proposal.target,
-        doc.operand_space(&Operand::Node(body)),
-        "into the body's own space"
-    );
-    assert!(
-        proposal
-            .values
-            .iter()
-            .all(|row| row.by.literal_value() == Some(0.0) || row.by.to_string() == "0"),
-        "the copy stands where the body stands: {:?}",
-        proposal.values
-    );
     let states = session.history().len();
     let placed = session.committed_doc().placements();
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(SessionOp::Place {
+        body: Operand::Node(body),
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert_eq!(session.history().len(), states + 1, "one history state");
@@ -407,6 +391,7 @@ fn the_create_door_places_a_body_where_it_stands() {
     let [copy] = new[..] else {
         panic!("one placement inserted: {new:?}")
     };
+    assert_eq!(outcome.made, Some(copy), "Place makes the placement");
     assert!(
         matches!(doc.node(copy), Some(Node::Place { source, .. })
             if doc.operand_space(&Operand::Node(body)) == doc.node_space(copy)
@@ -414,13 +399,51 @@ fn the_create_door_places_a_body_where_it_stands() {
         "a copy of the body in its own space: {:?}",
         doc.node(copy)
     );
+    let bundle = match doc.node(copy).map(|node| node.written(doc)) {
+        Some(Node::Place { constraints, .. }) => constraints,
+        other => panic!("{copy:?} is a placement: {other:?}"),
+    };
+    assert!(
+        bundle.iter().all(|c| c.mate().is_none()),
+        "no mate: {bundle:?}"
+    );
+    let zeros: Vec<_> = bundle
+        .iter()
+        .filter_map(|c| c.value())
+        .map(|v| v.by.clone())
+        .collect();
+    assert_eq!(zeros.len(), 6, "three slides and three spins: {zeros:?}");
+    assert!(
+        zeros.iter().all(|written| written.is_zero()),
+        "every slide and spin at zero: {zeros:?}"
+    );
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let at = pncad::document::SolvedPoses::of(doc, ev)
+        .relative(copy)
+        .expect("the copy is solved");
+    assert_eq!(
+        at,
+        pncad::document::Frame::IDENTITY,
+        "where the body stands"
+    );
+    let mut tool = MateTool::new();
+    tool.placed(doc, copy);
+    assert_eq!(
+        tool.door().map(|door| door.placement),
+        Some(copy),
+        "the editor opens on the placement Place made"
+    );
+    assert!(
+        tool.rows().is_empty(),
+        "with no mate row: each is added there"
+    );
 }
 
 /// **A kept chart keeps its slides**: post_b rested under the shelf, the
 /// shelf then turned 60° about `x`, so the rest's target leans past the
 /// diagonal and the orientation nearest where post_b now stands is no
-/// longer the loaded one. The Edit door opened untouched still lists the
-/// loaded slides — the chart is the bundle's — and its Apply writes
+/// longer the loaded one. The editor opened untouched still lists the
+/// loaded slides — the chart is the bundle's — and its bundle writes
 /// nothing.
 #[test]
 fn an_untouched_draft_over_a_tilted_target_keeps_its_slides() {
@@ -467,33 +490,32 @@ fn an_untouched_draft_over_a_tilted_target_keeps_its_slides() {
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 
-/// **A Create draft over a body placed since is stale**: its Apply,
-/// sent again once the body has its copy, is refused rather than
-/// placing the body a second time.
+/// **A second Place of a placed body is a second placement**: the body
+/// keeps its first copy, and gets one more, the way it got the first.
 #[test]
-fn a_create_draft_over_a_body_placed_since_is_refused() {
+fn a_second_place_of_a_placed_body_is_a_second_placement() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(
-        pncad::document::Doc::empty_derived("bundle-create-stale", tol),
+        pncad::document::Doc::empty_derived("bundle-create-again", tol),
         tol,
     );
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
-    let (doc, ev) = session.landed_pair().expect("landed");
-    let proposal = MateTool::create(Operand::Node(body))
-        .proposal(doc, ev, tol)
-        .expect("no mate proposes");
-    let outcome = session.perform(proposal.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
+    let place = SessionOp::Place {
+        body: Operand::Node(body),
+    };
+    let first = common::placed_by(&mut session, place.clone());
     let states = session.history().len();
-    let again = session.perform(proposal.op());
-    assert!(
-        matches!(&again.refusal, Some(Refusal::BodyPlaced { body: placed, .. }) if placed.id() == body),
-        "a second Create of the body names its copy: {:?}",
-        again.refusal
-    );
-    assert_eq!(session.history().len(), states, "nothing is recorded");
+    let second = common::placed_by(&mut session, place);
+    assert_eq!(session.history().len(), states + 1, "one history state");
+    assert_ne!(first, second);
+    let doc = session.committed_doc();
+    let copies: Vec<_> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| doc.copied_read(p) == doc.read_of_node(body))
+        .collect();
+    assert_eq!(copies, [first, second], "both copies place the body");
 }
 
 /// Declare the angle `name` at `at` and let `post_b`'s value `coord`
