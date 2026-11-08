@@ -76,6 +76,7 @@ pub mod layout;
 pub mod marks;
 pub mod matetool;
 pub mod narrowing;
+pub mod offer;
 pub mod parts;
 pub mod pickcache;
 pub mod pickindex;
