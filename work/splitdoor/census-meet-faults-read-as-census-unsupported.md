@@ -2,10 +2,11 @@
 id: census-meet-faults-read-as-census-unsupported
 kind: issue
 title: census: a meeting reading's fault (a root finder's contradiction, a carrier misread) is reported as CensusUnsupported, the census's frontier
-status: open
+status: closed
 opened: 2026-10-29
 priority: P2
 cost: E
+closed: 2026-11-06
 ---
 
 
@@ -30,3 +31,7 @@ only the fault fold is left.
 
 The repair is a kernel-defect ending for `Desync` and `Contradiction` at
 both sites, and a row that drives each through the census.
+
+## Closed (2026-11-06, onecopy/engine-leaves-pins)
+
+Both sites now panic on `Desync` and `Contradiction` (`census.rs` `meet_fault`, through `census_fault`). This row's repair, a kernel-defect ending, is the typed arm that `[failure]` says "launders a bug into a supported outcome". The census reads a body tiers 1–3-local passed, so a meeting reading's fault there is row 4 of `[failure.taxonomy]`, not a refusal. `census::tests::a_meetings_desync_in_the_census_panics` and `…_contradiction_…` pin the door. The two sites themselves are reached by no fixture.

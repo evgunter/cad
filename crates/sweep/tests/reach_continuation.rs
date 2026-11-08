@@ -572,9 +572,9 @@ fn the_settle_stage_writes_the_accepted_trace() {
     assert_eq!(fillets.len(), 4, "the rounded plate's four fillets");
     for f in fillets {
         assert!(
-            ab.accepted.iter().any(|&(_, g)| g == f),
+            ab.accepted().iter().any(|&(_, g)| g == f),
             "fillet {f:?} is accepted in A → B: {:?}",
-            ab.accepted
+            ab.accepted()
         );
     }
 }

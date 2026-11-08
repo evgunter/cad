@@ -3473,3 +3473,134 @@ in the band's gap, its sample is an escalation on the log under the
 reading's name (`bool_chord_side`, `enters_material`,
 `bool_pierce_sector_side_curved`), while the reading is no refusal: the
 bound is the slack's tie (`bound_side::TiedBy::Slack`).
+
+## ONEREAD addendum (2026-11-02): the cone sites read every bound's side through the one reading
+
+**Roster: no name joins or leaves.** recl's edge-edge line cone
+(`recl::sheet_side`) and `vtxfac::cone_classes` (each partner corner)
+hand the cone each face's side of the bound a probe stands for, read by
+`sectors::given_side` (`bound_side::read`, `Tie::descend`) on the
+cone's reading over its tie (`link::Cone::reading`), and
+`vtxfac::partner_side` reads a partner's bounds over the pair's tie
+(`link::metric::Reading::tied`). So `bool_chord_side`,
+`enters_material`, `tangent_sector_order2` and
+`bool_pierce_sector_side_curved` gain samples at those three sites,
+each a definite sign read twice there (the band, then moved by the
+slack), as the held face's already is; the touched face's side at
+`cone_classes` is read on the band alone, one sample, as the pierce
+reads it. `link_plane` keeps every sample it had: the cone still reads
+the probe's point against each sector's plane, which a given side is
+compared with (`link::Cone::reads_given`), so no reading moved from it.
+`link_wedge` and `link_ahead` gain samples: where a sector's given side
+is taken, the cone places the probe on that sector's plane
+(`Sector::place`) to read it off a face's interior, or to certify it off
+the sector, a place it did not read there before.
+
+## Census note (2026-11-03): the chart-window walk takes its module's prefix
+
+Not a sweep and not a threshold change — a **rename**, recorded here
+because the census is the thing it changes. `[topo.homes]` arm 2 moved
+a face's azimuth-window walk out of `chord_join.rs`, whose chords no
+longer read it, into `topo::chart_window`, and a K name's prefix is the
+module that decides the margin. Each name below is one site and one
+population, so each is renamed and nothing pools: margins, bands,
+outcomes and order are untouched, only the `predicate` column moves,
+and the census count is the same on both sides.
+
+| old | new |
+|---|---|
+| `split_sphere_window_pole` | `chart_window_sphere_pole` |
+| `split_sphere_window_pole_side` | `chart_window_sphere_pole_side` |
+| `split_window_branch` | `chart_window_branch` |
+| `split_sphere_pole_branch` | `chart_window_pole_branch` |
+| `bool_cone_apex_visit` | `chart_window_cone_apex` |
+
+Two of the old spellings are in committed snapshots, as the sweeps
+wrote them: `split_sphere_window_pole` (14 rows in each
+`m5-eps-*.csv.gz`, 28 in each `m7-eps-*.csv.gz`) and
+`split_sphere_window_pole_side` (4 and 8). The other three appear in
+no committed CSV, and no addendum above names any of the five.
+
+## Census note (2026-11-03): the curve × face doors take their own modules' prefixes
+
+Not a sweep and not a threshold change — a **rename**, recorded here
+because the census is the thing it changes. `[topo.homes]` arm 1 moved
+the Body-free curve × face doors out of `topo` and beside
+`geom_brep::curve_face::route`, and a K name's prefix is the module that
+decides the margin. Each name below is one site and one population, so
+each is renamed and nothing pools: margins, bands, outcomes and order
+are untouched, only the `predicate` column moves, and the census count
+is the same on both sides: the tables below map 33 names one to one,
+and none of the 33 new spellings was decided anywhere at the merge base.
+Re-measure the second half with `git grep -ohE
+'"(plane_crossing|circle_torus|ellipse_torus)_[a-z0-9_]+"' <base> --
+crates`, which at the base finds only `circle_torus_shallow_sweep`, a
+fuzz seed and not a K name.
+
+The plane-crossing door (`geom_brep::curve_face::plane_crossing`, until
+now `topo::splitting::classify::plane_crossing_lane`, decided for the
+split and the Boolean alike under a split prefix):
+
+| old | new |
+|---|---|
+| `split_conic_plane_parallel` | `plane_crossing_plane_parallel` |
+| `split_conic_belly_graze` | `plane_crossing_belly_graze` |
+| `split_conic_phase_frame` | `plane_crossing_phase_frame` |
+| `split_conic_graze_side` | `plane_crossing_graze_side` |
+| `split_conic_crossing_root` | `plane_crossing_root_in_span` |
+| `split_conic_root_order` | `plane_crossing_root_order` |
+
+The circle × torus door (`geom_brep::curve_face::circle_torus`, until
+now `topo::boolean::circle_torus`): each `bool_circle_torus_X` is
+`circle_torus_X`, for X in `coaxial_tilt`, `coaxial_offset`,
+`coaxial_residual`, `meridian`, `plane_height`, `contour_residual`,
+`contour_side`, `root_slack`, `pole`, `pole_conditioning`, `noise`,
+`disc`, `shape`, `depth`, `odd`, `split`, `split_lead`, `sub_clear`,
+`sub_monotone`, `sub_side`, `sub_width` and `sub_root_slack` (22 names).
+
+The ellipse × torus door (`geom_brep::curve_face::ellipse_torus`): each
+`bool_ellipse_torus_X` is `ellipse_torus_X`, for X in `sub_clear`,
+`sub_monotone`, `sub_side`, `sub_width` and `root_slack` (5 names).
+
+Not renamed: the rows a door hands the shared root cores
+(`geom_brep::curve_face::circle_roots`) — `bool_conic_quadric_*`,
+`bool_sphere_region_roots_*`, `bool_ruled_region_roots_*`,
+`bool_torus_region_roots_*`, `bool_sphere_cut_roots_*` — are named by
+the door that reads them, which has not moved; and the sector rungs
+(`sector_arm`, `sector_reflex`, `sector_straight`, now decided in
+`geom_brep::sector_shape`) already carry their module's prefix. The
+committed CSVs under `docs/k-report-data/` and the addenda above keep
+the old spellings, as the sweeps wrote them.
+
+## ONECOPY addendum (2026-11-06): the region landings read the plane door
+
+**Roster change: seventeen names leave, and two join.** The sphere, torus
+and ruled region doors (`topo/src/boolean/{sphere,torus,ruled}_region.rs`)
+read where a leg meets a boundary edge in one place, `region::landings`:
+one curve across the other's plane through the plane door
+(`geom_brep::curve_face::plane_crossing::span_plane_meet`), whose own
+`plane_crossing_*` rows now carry those roots, and the root then on its
+plane's section curve. These leave the roster:
+- `bool_sphere_region_span`, `bool_torus_region_span`,
+  `bool_ruled_region_span` and `bool_ruled_region_collinear`;
+- `bool_torus_region_family`: its three arms each read a circle edge
+  across a meridian leg's plane (a parallel off the rims by its point on
+  the leg's half-plane, the root of that same reading), so on the plane
+  door there is no choice left to make;
+- each door's four `FirstHarmonicRows` names
+  (`bool_{sphere,torus,ruled}_region_roots_{noise,coaxial,extreme,slack}`).
+
+These stay, read now by the shared landing:
+`bool_torus_region_component` and `bool_ruled_region_component` (a root's
+section, read through the chart's channels, and an edge's offset from a
+plane it is parallel to). `bool_ruled_region_nappe` stays, read by the
+cone's apex reach and its generators' targets.
+
+These join:
+- `bool_sphere_region_component`: an arc's offset from a leg's plane it
+  is parallel to;
+- `plane_crossing_line_parallel`: a line's slope across a plane times
+  the span's length, the plane door's line rung.
+
+`plane_crossing_root_in_span` and `plane_crossing_belly_graze` gain the
+region doors' populations.

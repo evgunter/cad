@@ -106,7 +106,8 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
 
 fn checks(doc: &editor_core::ProfileDoc, cfg: &ChecksConfig) -> ChecksReport {
     let ev = run(doc);
-    run_checks(doc, &ev, cfg, Tol::witness()).expect("checks run over a completed evaluation")
+    run_checks(doc, &ev, cfg, &editor_core::Stop::default(), Tol::witness())
+        .expect("checks run over a completed evaluation")
 }
 
 #[test]
@@ -379,8 +380,14 @@ fn a_findings_attribution_resolves_to_its_subject() {
     // enumeration run_checks walks.
     let (doc, _root) = disjoint_union();
     let ev = run(&doc);
-    let report =
-        run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("checks run");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("checks run");
     let finding = &report.findings[0];
     let editor_core::FindingSubject::Output {
         placement: at,
@@ -615,8 +622,14 @@ fn at_rest_off_is_visibly_skipped_and_independent() {
         at_rest: Severity::Off,
         ..ChecksConfig::default()
     };
-    let report = run_checks(&doc, &ev, &off, Tol::witness())
-        .expect("with the subject-reading residents off, no gather is attempted");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &off,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("with the subject-reading residents off, no gather is attempted");
     assert_eq!(
         report.skipped,
         vec![
@@ -634,7 +647,13 @@ fn at_rest_off_is_visibly_skipped_and_independent() {
     };
     assert!(
         matches!(
-            run_checks(&doc, &ev, &on, Tol::witness()),
+            run_checks(
+                &doc,
+                &ev,
+                &on,
+                &editor_core::Stop::default(),
+                Tol::witness()
+            ),
             Err(ChecksError::Product { .. })
         ),
         "the control: the resident that reads the subject is what needs one"
@@ -782,8 +801,14 @@ fn coherence_only(knob: Advisory) -> ChecksConfig {
 fn the_chart_coherence_resident_carries_the_whole_kernel_report() {
     let (doc, placement) = washer();
     let ev = run(&doc);
-    let report = run_checks(&doc, &ev, &coherence_only(Advisory::Warn), Tol::witness())
-        .expect("the examination reads the evaluation and needs no product");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &coherence_only(Advisory::Warn),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the examination reads the evaluation and needs no product");
 
     let (body, _) = subject_body(&ev, placement, 0).expect("the revolve denotes one body");
     let door = topo::examine_chart_coherence(body.body(), Tol::witness());
@@ -831,8 +856,14 @@ fn the_chart_coherence_resident_carries_the_whole_kernel_report() {
 fn chart_coherence_off_is_a_skipped_check_and_nothing_else() {
     let (doc, _) = washer();
     let ev = run(&doc);
-    let report = run_checks(&doc, &ev, &coherence_only(Advisory::Off), Tol::witness())
-        .expect("nothing runs, nothing refuses");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &coherence_only(Advisory::Off),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("nothing runs, nothing refuses");
     assert_eq!(
         report.skipped,
         vec![
@@ -990,7 +1021,14 @@ fn a_placement_tier_3_refuses_is_reported_not_at_rest() {
         at_rest: Severity::Off,
         ..ChecksConfig::default()
     };
-    let report = run_checks(&doc, &ev, &cfg, Tol::witness()).expect("the checks run");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &cfg,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run");
     assert_eq!(
         report.findings,
         vec![CheckFinding {
@@ -1006,7 +1044,10 @@ fn a_placement_tier_3_refuses_is_reported_not_at_rest() {
         }]
     );
     let rendered = report.findings[0].to_string();
-    assert!(rendered.contains(&errors[0].to_string()), "{rendered}");
+    assert!(
+        rendered.contains(&errors[0].render(geom_brep::recourse::Reading::AtRest)),
+        "{rendered}"
+    );
     let refusal = enforce_checks(&report, &cfg).unwrap_err();
     assert_eq!(refusal.findings, report.findings);
 }

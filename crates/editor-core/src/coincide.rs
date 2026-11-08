@@ -705,6 +705,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
             "a blend's two supports read as sharing the axis its band is minted on"
         }
         topo::DecisionSite::VertexFusion => "a vertex its margin read on another operand's cell",
+        topo::DecisionSite::IsoJoin => "two edges read on one iso family of one chart and joined",
         topo::DecisionSite::CensusAtRest => "two cells at rest the census read as one",
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
     }
@@ -722,14 +723,14 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
 ///
 /// # Errors
 ///
-/// [`Canceled`] once `cancel` is canceled, which the replay checks
+/// [`Canceled`] once `stop`'s token is canceled, which the replay checks
 /// between nodes and the door between the margins it discharges.
 pub fn prove<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
     resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: geom_core::Tol,
-    cancel: &crate::CancelToken,
+    stop: &crate::Stop,
 ) -> Result<Vec<Vec<Proof>>, Canceled> {
     let walked: Vec<Vec<Walked>> = nodes
         .iter()
@@ -777,7 +778,7 @@ pub fn prove<P: crate::ProfilePayload>(
         .collect();
     let replayed = match P::evaluable(doc) {
         Some(doc) if left.iter().flatten().any(|&l| l) => {
-            replay::rungs(doc, nodes, (&left, &axes_one), resolver, tol, cancel)?
+            replay::rungs(doc, nodes, (&left, &axes_one), resolver, tol, stop)?
         }
         _ => left
             .iter()

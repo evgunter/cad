@@ -126,7 +126,7 @@ use pncad::analysis::{
 };
 use pncad::document::LabelFault;
 use pncad::document::{
-    AtRestEvidence, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, DimensionError,
+    AtRestEvidence, AttrKind, Axis3, BoundEnd, CheckEvidence, ChecksError, Coord, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, FlattenError,
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
@@ -134,7 +134,7 @@ use pncad::document::{
     RecordedProgramError, ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError,
     SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
 };
-use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
+use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::profile::{
     CornerReason, CornerWindow, NoCornerReason, PathError, PathErrorKind, ProfileError,
@@ -272,7 +272,7 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 /// the enum and a word that appears the day the door does is better
 /// than a build break then; they become live the day a Python path
 /// builder threads a notation, which is
-/// `work/lib/path-legs-erase-the-authored-notation-one-layer-down`'s
+/// `work/pydoor/path-legs-erase-the-authored-notation-one-layer-down`'s
 /// work and not this crate's.
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
@@ -518,6 +518,8 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::ValueSpin { .. } => "value_spin",
         SlotId::StationSlide { .. } => "station_slide",
         SlotId::StationSpin { .. } => "station_spin",
+        SlotId::ClearanceBound(BoundEnd::Low) => "clearance_low",
+        SlotId::ClearanceBound(BoundEnd::High) => "clearance_high",
     }
 }
 
@@ -781,6 +783,7 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
         McRefusal::BandHasNoMeasure(err) => measure_unavailable_tag(err),
         McRefusal::NoSamples => "no_samples",
         McRefusal::NominalDoesNotBuild { .. } => "nominal_does_not_build",
+        McRefusal::Stopped(_) => "stopped",
     }
 }
 
@@ -797,7 +800,7 @@ pub fn analysis_policy_error_tag(err: &AnalysisPolicyError) -> &'static str {
 /// `FrameError` implements `Display`, so the human message is the
 /// kernel's own prose and the tag is the branchable discriminant. The
 /// degenerate arm tags per INPUT: which direction was unusable is what
-/// a caller branches on, and the wrapper arm alone would collapse four
+/// a caller branches on, and the wrapper arm alone would collapse three
 /// distinct refusals into one. The two FORMAT arms tag per input for
 /// the same reason, and both stay separate from the degenerate one
 /// because the three carry different recourses — a degenerate
@@ -807,25 +810,21 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
     match err {
         FrameError::Degenerate { input, .. } => match input {
             FrameInput::Aim => "degenerate_aim",
-            FrameInput::Tangent => "degenerate_tangent",
             FrameInput::RollReference => "degenerate_roll_reference",
-            FrameInput::ReferenceLadder => "degenerate_reference_ladder",
             // The mirror normal is the kernel's reflection door's
             // (`topo::Reflection::across`), which no binding reaches: a
             // mirror is `Node.mirror`, its plane a pose.
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
         },
         FrameError::NonFiniteLength { input } => match input {
-            FrameVector::Aim => "non_finite_aim",
-            FrameVector::Tangent => "non_finite_tangent",
-            FrameVector::RollReference => "non_finite_roll_reference",
-            FrameVector::MirrorNormal => "non_finite_mirror_normal",
+            FrameInput::Aim => "non_finite_aim",
+            FrameInput::RollReference => "non_finite_roll_reference",
+            FrameInput::MirrorNormal => "non_finite_mirror_normal",
         },
         FrameError::UnderflowedLength { input } => match input {
-            FrameVector::Aim => "underflowed_aim",
-            FrameVector::Tangent => "underflowed_tangent",
-            FrameVector::RollReference => "underflowed_roll_reference",
-            FrameVector::MirrorNormal => "underflowed_mirror_normal",
+            FrameInput::Aim => "underflowed_aim",
+            FrameInput::RollReference => "underflowed_roll_reference",
+            FrameInput::MirrorNormal => "underflowed_mirror_normal",
         },
         FrameError::Band(_) => "band",
     }
@@ -915,6 +914,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // A selection a node reads: a name the ladder refused.
         C::SelectResolve => "select_resolve",
         C::EmptyOperand => "empty_operand",
+        C::EmptyMember => "empty_member",
         C::UnfinishedOperand => "unfinished_operand",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
@@ -1056,6 +1056,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::EmptyOperand { .. } => None,
+        NodeErrorKind::EmptyMember { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
@@ -1299,7 +1300,7 @@ pub fn replay_error_tag(kind: &ReplayErrorKind<f64>) -> &'static str {
 /// structure).
 pub fn structure_refusal_tag(kind: &StructureRefusalKind) -> &'static str {
     match kind {
-        StructureRefusalKind::Indeterminate(_) => "indeterminate",
+        StructureRefusalKind::Indeterminate { .. } => "indeterminate",
         StructureRefusalKind::Flipped { .. } => "flipped",
     }
 }
@@ -1344,7 +1345,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverRadius { .. } => "sliver_radius",
         RevolveError::ArcCrossesAxis { .. } => "arc_crosses_axis",
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
-        RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
+        RevolveError::ApexEndOffSheet { .. } => "apex_end_off_sheet",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
         RevolveError::AxisGapEscalated { .. } => "axis_gap_escalated",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
@@ -1781,7 +1782,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::UnsupportedSeamSides { shape, .. } => seam_sides_shape_tag(shape),
         NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
         NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
-        NamingError::UnsupportedUnjudgedGlue { .. } => "unsupported_unjudged_glue",
+        NamingError::HoldingsUnread { .. } => "holdings_unread",
         NamingError::UnsupportedTurnedCell { .. } => "unsupported_turned_cell",
         // The PRECISION-LIMIT arms: a lever the model holds, neither a
         // kernel bug nor a missing rule.
@@ -2126,9 +2127,9 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
 
 /// The stable tag for a STEP IMPORT refusal.
 ///
-/// `StepImportError` implements `Display`, so the human message is the
-/// importer's own prose naming the entity id and line; this is the
-/// branchable discriminant. Every arm is reachable through
+/// The human message is the importer's own prose naming the entity id
+/// and line, rendered at the import door (`StepImportError::render`);
+/// this is the branchable discriminant. Every arm is reachable through
 /// `import_step` on some input, unlike [`workspace_error_tag`]'s door
 /// — a caller distinguishing a malformed file from an unsupported
 /// entity from a tier refusal has no other way to do it, because the
@@ -2545,6 +2546,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
+        SplitError::Stopped(_) => "stopped",
     }
 }
 
@@ -2921,6 +2923,7 @@ pub fn checks_error_tag(err: &ChecksError) -> &'static str {
         // registry's refusal of a foreign evaluation or subject.
         ChecksError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         ChecksError::Product { .. } => "product_unavailable",
+        ChecksError::Canceled(_) => "canceled",
     }
 }
 
@@ -2989,6 +2992,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::BatteryJoint => "battery_joint",
         S::BatterySupportAxis => "battery_support_axis",
         S::VertexFusion => "vertex_fusion",
+        S::IsoJoin => "iso_join",
         S::CensusAtRest => "census_at_rest",
         S::ProfileJunction => "profile_junction",
     }
@@ -3095,6 +3099,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
         ValidationError::DegenerateTorus { .. } => "degenerate_torus",
         ValidationError::DegenerateTorusEscalated { .. } => "degenerate_torus_escalated",
+        ValidationError::DegenerateSpindle { .. } => "degenerate_spindle",
+        ValidationError::SheetApexReached { .. } => "sheet_apex_reached",
         ValidationError::PoisonedSurfaceDatum { .. } => "poisoned_surface_datum",
         ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
         ValidationError::PoisonedCurveDatum { .. } => "poisoned_curve_datum",

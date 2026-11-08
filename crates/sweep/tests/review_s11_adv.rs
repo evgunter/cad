@@ -462,7 +462,10 @@ fn adv_union_with_reversed_faces_answers_exactly() {
         finished("the box", boxb, Tol::witness()),
     );
     match topo::boolean::union(&washer, &boxb, Tol::witness()) {
-        Err(e) => panic!("the washer's full-turn walls are served at both doors: {e}"),
+        Err(e) => panic!(
+            "the washer's full-turn walls are served at both doors: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(r) => {
             let out = r.body().expect("non-empty");
             println!(

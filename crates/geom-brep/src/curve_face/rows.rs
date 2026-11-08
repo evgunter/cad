@@ -10,8 +10,8 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, PI};
 use geom::{Curve3, CurveKind, SurfaceKind};
 use geom_core::{Band, Point3, Vec3};
 
-use super::{Boundary, BoundaryRefusal, Door, boundary, route};
-use crate::curve_pair::Span;
+use super::{Boundary, BoundaryRefusal, Door, OnBoundary, boundary, route};
+use crate::curve_pair::{Hit, Span};
 
 const ZERO: f64 = 1e-9;
 
@@ -51,7 +51,7 @@ fn read(carrier: &Curve3<f64>, params: (f64, f64)) -> Result<Boundary<f64>, Boun
         .zip(spans)
         .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
         .collect();
-    boundary(&Span::new(carrier, params), &edges, band())
+    boundary(&Span::new(carrier, params), &edges, &[], band())
 }
 
 /// **Every kind pair has a door**, and the ones not built say so. The
@@ -59,20 +59,13 @@ fn read(carrier: &Curve3<f64>, params: (f64, f64)) -> Result<Boundary<f64>, Boun
 #[test]
 fn every_kind_pair_routes_to_its_door() {
     use CurveKind::{Circle, Ellipse, Line, Nurbs, Spiric};
-    use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Spindle, Torus};
     let curves = [Line, Circle, Ellipse, Spiric, Nurbs];
-    let surfaces = [
-        Plane,
-        Cylinder,
-        Cone,
-        Sphere,
-        Torus,
-        SurfaceKind::Nurbs,
-        Approx,
-    ];
+    let surfaces = SurfaceKind::ALL;
     for c in curves {
         for s in surfaces {
             let want = match (c, s) {
+                (_, Spindle) => (Door::Sheet, false),
                 (Spiric, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, false),
                 (_, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, true),
                 (Spiric, _) => (Door::Spiric, false),
@@ -118,8 +111,11 @@ fn the_rest_of_the_rims_circle_does_not_lie_along_it() {
 #[test]
 fn a_run_shorter_than_the_span_meets_at_its_vertex() {
     match read(&unit_circle(Vec3::unit_z()), (0.0, PI)).unwrap() {
-        Boundary::Meets { t, point, edge } => {
-            assert_eq!(edge, 2, "the vertex is the third edge's start");
+        Boundary::Meets { t, point, at } => {
+            assert!(
+                matches!(at, OnBoundary::Vertex(2)),
+                "the vertex is the third edge's start, which splits no boundary edge: {at:?}"
+            );
             assert!((t - FRAC_PI_2).abs() < 1e-12, "at the corner: {t}");
             assert!((point - Point3::new(0.0, 1.0, 0.0)).norm() < 1e-12);
         }
@@ -132,12 +128,48 @@ fn a_run_shorter_than_the_span_meets_at_its_vertex() {
 fn a_line_across_the_rim_meets_it() {
     let x = 0.75_f64.sqrt();
     match read(&line([0.5, 0.5, 0.0], [1.0, 0.0, 0.0]), (0.0, 1.5)).unwrap() {
-        Boundary::Meets { t, edge, .. } => {
-            assert_eq!(edge, 1, "the arc");
+        Boundary::Meets { t, at, .. } => {
+            let OnBoundary::Edge(1, on_edge) = at else {
+                panic!("the arc: {at:?}")
+            };
             assert!((t - (x - 0.5)).abs() < 1e-12, "at the arc: {t}");
+            // `(√0.75, 0.5)` is the arc's azimuth π/6: the meeting names
+            // where on the boundary edge it put the point.
+            let Hit::On { t: s, .. } = on_edge else {
+                panic!("a meeting inside the arc holds its parameter there: {on_edge:?}")
+            };
+            assert!((s - PI / 6.0).abs() < 1e-12, "on the arc: {s}");
         }
         other => panic!("a line across the arc: {other:?}"),
     }
+}
+
+/// **A lone vertex is boundary too**: a span through one meets the
+/// boundary there, and one past it is clear.
+#[test]
+fn a_span_through_a_lone_vertex_meets_it() {
+    let rim = rim();
+    let edges: Vec<_> = rim
+        .iter()
+        .zip([(0.0, 1.0), (0.0, FRAC_PI_2), (0.0, 1.0)])
+        .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
+        .collect();
+    let lone = [Point3::new(0.25, 0.5, 0.0)];
+    let across = line([0.0, 0.5, 0.0], [1.0, 0.0, 0.0]);
+    match boundary(&Span::new(&across, (0.1, 0.5)), &edges, &lone, band()) {
+        Ok(Boundary::Meets {
+            t,
+            at: OnBoundary::Lone(0),
+            ..
+        }) => assert!((t - 0.25).abs() < 1e-12, "at the lone vertex: {t}"),
+        other => panic!("a span through a lone vertex: {other:?}"),
+    }
+    let past = line([0.0, 0.25, 0.0], [1.0, 0.0, 0.0]);
+    let got = boundary(&Span::new(&past, (0.1, 0.5)), &edges, &lone, band());
+    assert!(
+        matches!(got, Ok(Boundary::Clear)),
+        "a span past it: {got:?}"
+    );
 }
 
 /// **An end on the rim is no meeting inside the span**: the boundary
@@ -173,6 +205,53 @@ fn a_corner_in_the_gap_escalates() {
     }
 }
 
+/// **The located pass locates what [`read`] refuses**: the line grazing
+/// the corner `(0, 1)` leaves each member it cannot read undecided over
+/// a window of the span that holds the corner's foot, the vertex's
+/// within the escalation of it; and [`super::read`] refuses with the
+/// first of them. Red where a window misses the foot (a meeting outside
+/// it would be lost) or the vertex's spans the whole line.
+#[test]
+fn a_corner_in_the_gap_is_undecided_over_a_window_holding_it() {
+    let off = 3.0 * ZERO * FRAC_1_SQRT_2;
+    let grazing = line([-off, 1.0 + off, 0.0], [1.0, 1.0, 0.0]);
+    let rim = rim();
+    let edges: Vec<_> = rim
+        .iter()
+        .zip([(0.0, 1.0), (0.0, FRAC_PI_2), (0.0, 1.0)])
+        .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
+        .collect();
+    let span = Span::new(&grazing, (-1.0, 1.0));
+    let located = super::located(&span, &edges, &[], band());
+    let foot = grazing.nearest(Point3::new(0.0, 1.0, 0.0), 0.0).unwrap();
+    assert!(!located.undecided.is_empty(), "the corner is refused");
+    for u in &located.undecided {
+        let (lo, hi) = u.window;
+        assert!(
+            -1.0 <= lo && lo <= foot && foot <= hi && hi <= 1.0,
+            "{u:?} holds the corner's foot {foot}"
+        );
+    }
+    let corner = located
+        .undecided
+        .iter()
+        .map(|u| u.window.1 - u.window.0)
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        corner <= 2.0 * band().escalate() + 1e-15,
+        "the narrowest window is the vertex's: {corner}"
+    );
+    match super::read(&span, &edges, &[], band()) {
+        Err(BoundaryRefusal::Meeting(diag)) => {
+            assert!(matches!(
+                located.undecided[0].why,
+                BoundaryRefusal::Meeting(first) if first.predicate == diag.predicate
+            ));
+        }
+        other => panic!("read refuses with the first: {other:?}"),
+    }
+}
+
 /// **A boundary vertex within the band of a thin ellipse meets it.** An
 /// ellipse of semi-axes `a/b` from 100 to 1000, and a boundary edge
 /// starting half the band's zero off it along its in-plane normal, at
@@ -202,8 +281,12 @@ fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
                 dir: normal,
             });
             let edges = [(vertex, Span::new(&leaving, (0.0, 1.0)))];
-            match boundary(&swept, &edges, band) {
-                Ok(Boundary::Meets { t: at, edge: 0, .. }) => {
+            match boundary(&swept, &edges, &[], band) {
+                Ok(Boundary::Meets {
+                    t: at,
+                    at: OnBoundary::Vertex(0) | OnBoundary::Edge(0, _),
+                    ..
+                }) => {
                     assert!((at - t).abs() < 1e-6, "{ratio} at {t}: {at}");
                 }
                 other => panic!("{ratio} at {t}: {other:?}"),
@@ -241,7 +324,7 @@ mod review_r2 {
         if endless {
             s = s.endless();
         }
-        boundary(&s, &edges, band())
+        boundary(&s, &edges, &[], band())
     }
 
     #[test]
@@ -273,7 +356,13 @@ mod review_r2 {
     fn a_closed_ellipse_through_the_rim_meets_at_its_far_vertex() {
         let got = read_ellipse(&ellipse(Vec3::unit_z()), (2.0, 2.0 + 2.0 * PI), false);
         assert!(
-            matches!(got, Ok(Boundary::Meets { edge: 0, .. })),
+            matches!(
+                got,
+                Ok(Boundary::Meets {
+                    at: OnBoundary::Vertex(0) | OnBoundary::Edge(0, _),
+                    ..
+                })
+            ),
             "{got:?}"
         );
         let got = read_ellipse(&ellipse(Vec3::unit_z()), (2.0, 2.0 + 2.0 * PI), true);
@@ -306,7 +395,12 @@ mod review_r2 {
             .zip(spans)
             .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
             .collect();
-        let got = boundary(&Span::new(&c, (0.0, 2.0 * PI)).endless(), &edges, band());
+        let got = boundary(
+            &Span::new(&c, (0.0, 2.0 * PI)).endless(),
+            &edges,
+            &[],
+            band(),
+        );
         assert!(
             matches!(got, Ok(Boundary::Meets { .. })),
             "endless: {got:?}"
@@ -354,10 +448,106 @@ fn a_joint_between_two_runs_meets_the_span() {
         (circle.eval(0.5), Span::new(&circle, (0.5, FRAC_PI_2))),
         (y_axis.eval(0.0), Span::new(&y_axis, (0.0, 1.0))),
     ];
-    match boundary(&Span::new(&circle, (0.0, FRAC_PI_2)), &edges, band()) {
-        Ok(Boundary::Meets { t, edge: 2, .. }) => {
+    match boundary(&Span::new(&circle, (0.0, FRAC_PI_2)), &edges, &[], band()) {
+        Ok(Boundary::Meets {
+            t,
+            at: OnBoundary::Vertex(2) | OnBoundary::Edge(2, _),
+            ..
+        }) => {
             assert!((t - 0.5).abs() < 1e-12, "at the joint: {t}");
         }
         other => panic!("two runs and their joint: {other:?}"),
+    }
+}
+
+/// **Every K name decided in `curve_face.rs` or under `curve_face/`
+/// carries a listed prefix, and every listed prefix is decided there**
+/// ([`super::TABLE_K_PREFIX`], [`super::DOOR_K_PREFIXES`]). A door renamed, or a name added under a
+/// prefix the list does not hold, reds the first half; a prefix whose
+/// door moved away or was renamed reds the second. The census reader is
+/// `test_utils::source::predicate_census`; a name the doors hand in from
+/// a caller (`circle_roots`' rows) is an indirect site, listed here so a
+/// new one reds.
+#[test]
+fn every_door_name_carries_a_listed_prefix() {
+    use test_utils::source::{NameCarrier, predicate_census};
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let carriers = [
+        NameCarrier::Call("HalfAngleRows"),
+        NameCarrier::Call("QuarticRows"),
+        NameCarrier::Call("SubdivisionRows"),
+        NameCarrier::Const("ROOT_SLACK"),
+        NameCarrier::Const("TORUS_ROOT_SLACK"),
+        NameCarrier::Const("PAST_THE_BAND"),
+        NameCarrier::Const("AT_THE_END"),
+        NameCarrier::Const("PAST_THE_END"),
+        NameCarrier::Call("spread_signs"),
+        NameCarrier::Call("constant_residual_roots"),
+        NameCarrier::Call("gap"),
+        NameCarrier::Call("apart"),
+    ];
+    let (table, doors) = (
+        predicate_census(&src.join("curve_face.rs"), &carriers),
+        predicate_census(&src.join("curve_face"), &carriers),
+    );
+    assert!(
+        table.indirect.is_empty() && table.unreadable.is_empty() && table.unwalked.is_empty(),
+        "curve_face.rs holds a site the census could not read: {table:?}"
+    );
+    assert!(
+        table
+            .names
+            .iter()
+            .any(|n| n.starts_with(super::TABLE_K_PREFIX)),
+        "the table's prefix is decided nowhere in curve_face.rs: {:?}",
+        table.names
+    );
+    let mut census = doors;
+    census.names.extend(table.names);
+    assert!(
+        census.unreadable.is_empty() && census.unwalked.is_empty(),
+        "sites the census could not read: {:?} {:?}",
+        census.unreadable,
+        census.unwalked
+    );
+    // The sites whose name is not a literal there: `circle_roots`' rows,
+    // which its callers name; the carriers' own bodies (`row`, a
+    // declared const read as such); and `gap(…)` calls that are not the
+    // spline door's gap reading. A new one is a name this row cannot
+    // see, so it reds until it is read or listed.
+    let indirect: Vec<&str> = census.indirect.iter().map(String::as_str).collect();
+    assert_eq!(
+        indirect,
+        [
+            "circle_roots.rs: (c0, a1 + noise, rows.extreme, band)",
+            "circle_roots.rs: (row, value, spread, band)",
+            "circle_roots.rs: rows.coaxial",
+            "circle_roots.rs: rows.noise",
+            "circle_roots.rs: rows.root_slack",
+            "composite.rs: PAST_THE_BAND",
+            "composite.rs: row",
+            "spline_face.rs: (exact(m[0]), w)",
+            "spline_face.rs: (x.interval(0), w)",
+            "spline_face.rs: AT_THE_END",
+            "spline_face.rs: PAST_THE_BAND",
+            "spline_face.rs: PAST_THE_END",
+            "spline_face.rs: row",
+        ],
+        "the census's indirect sites"
+    );
+    let outside: Vec<&String> = census
+        .names
+        .iter()
+        .filter(|n| !super::decided_by_curve_face(n))
+        .collect();
+    assert!(
+        outside.is_empty(),
+        "names decided in curve_face outside every listed prefix: {outside:?}"
+    );
+    for (door, prefix) in super::DOOR_K_PREFIXES {
+        assert!(
+            census.names.iter().any(|n| n.starts_with(prefix)),
+            "{door:?}'s prefix {prefix} is decided nowhere under curve_face/"
+        );
     }
 }

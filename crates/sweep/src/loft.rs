@@ -349,7 +349,7 @@ pub enum LoftError {
     /// cannot settle decides nothing here: the door refuses only contact
     /// it verified, and an unsettled arc pair is the embedding
     /// certificate's
-    /// (`work/carve/self-overlapping-spines-build-and-validate.md`).
+    /// (`work/lathe/self-overlapping-spines-build-and-validate.md`).
     ClearanceUndecided {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
@@ -385,7 +385,7 @@ pub enum LoftError {
     /// oriented lofts: a 10×10 square base under a 4×4 top turned 100°
     /// about `y` (its normal leaning back across the stack) is one. It
     /// retires when the loft door certifies embedding
-    /// (`work/carve/self-overlapping-spines-build-and-validate.md`).
+    /// (`work/lathe/self-overlapping-spines-build-and-validate.md`).
     FarSectionNotForward {
         /// The slab — the pair [`SlabPair`] names; the far section is
         /// its second.
@@ -475,14 +475,22 @@ impl fmt::Display for SlabPair {
     }
 }
 
-impl fmt::Display for LoftError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl LoftError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::Skin(e) => write!(f, "{e}"),
-            Self::Euler(e) => write!(f, "an Euler operation of the assembly refused: {e}"),
+            Self::Euler(e) => write!(
+                f,
+                "an Euler operation of the assembly refused: {}",
+                geom_brep::recourse::read_at(e, at)
+            ),
             Self::CapPlane(e) => write!(f, "{e}"),
-            Self::Pcurve(e) => write!(f, "{e}"),
+            Self::Pcurve(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::SeamStructure { source } => write!(
                 f,
                 "a wall's boundary curve failed to re-wrap (kernel bug, not an input \
@@ -667,6 +675,8 @@ impl fmt::Display for LoftError {
         }
     }
 }
+
+geom_brep::ended_by_write!(LoftError);
 
 impl std::error::Error for LoftError {}
 
@@ -1654,10 +1664,10 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 /// starting vertex, or rolled about its own normal by one of its own
 /// symmetries, builds the same body.
 ///
-/// `places[i]` is the caller's. For the plane normal to a curve at a
-/// point, `geom_core::linalg::frame::path_start_frame(point, tangent,
-/// tol)` is the door that hands one out, and a different roll is a
-/// rotation composed about the tangent onto it.
+/// `places[i]` is the caller's. For the planes normal to a path at
+/// uniform shares of its parameter, [`crate::sweep_places`] carries a
+/// start frame along it, and a different roll is a rotation composed
+/// about the tangent onto each.
 ///
 /// # Errors
 ///
@@ -1777,13 +1787,14 @@ fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) 
 /// # The starting frame
 ///
 /// `place` — the frame every station is carried from — is the
-/// caller's, and `geom_core::linalg::frame::path_start_frame(path
-/// start, start tangent, tol)` is where a caller gets it: the plane
-/// through the start point whose local +Z is the start tangent, its
-/// roll off a reference ladder decided under the tolerance band, with
-/// a typed refusal when no rung decides. A caller wanting a different
-/// roll composes a rotation about the tangent onto that frame; there
-/// is no second door.
+/// caller's. With no roll in mind, a caller writes the world frame at
+/// the path's start and turns it onto the start tangent,
+/// `RigidMotion::axes_xy(start).turned_onto(tangent, …)`: its local +Z
+/// is the start tangent and its roll the written frame's, carried by
+/// the least turn, refused typed across the band around that frame's
+/// −z, where the least turn is not decided (`−z` itself included). A
+/// caller wanting a different roll composes a rotation about the
+/// tangent onto that frame; there is no second door.
 ///
 /// # Errors
 ///
@@ -1845,11 +1856,13 @@ mod undecided_tests {
         );
         for ((source, near), far) in readings("loft_stacking").into_iter().zip(near).zip(far) {
             assert_eq!(
-                LoftError::StackingEscalated { slab: 1, source }.to_string(),
+                LoftError::StackingEscalated { slab: 1, source }
+                    .render(geom_brep::recourse::Reading::Build),
                 near
             );
             assert_eq!(
-                LoftError::FarStackingEscalated { slab: 1, source }.to_string(),
+                LoftError::FarStackingEscalated { slab: 1, source }
+                    .render(geom_brep::recourse::Reading::Build),
                 far
             );
         }
@@ -1886,7 +1899,7 @@ mod undecided_tests {
                     slab: 1,
                     source
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
                 corner
             );
             assert_eq!(
@@ -1895,7 +1908,7 @@ mod undecided_tests {
                     segments: [at(0, 2), at(1, 0)],
                     source
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
                 apart
             );
         }

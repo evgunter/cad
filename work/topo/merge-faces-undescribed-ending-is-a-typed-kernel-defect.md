@@ -37,3 +37,28 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 
 - `crates/topo/src/merge_faces.rs` `MergeDecision::ending`, `PairReach` (~1114), through `Unsized::Defect.recourse(_, Reading::Build)`. Door: `merge_coplanar_faces`. **Class 2, unsure**: the merge reads a caller's body under a build reading. An extent that does not read over stored geometry is the file's at rest, so the reading may be mislabelled rather than the state bug-only. Settle that before converting.
 - `MergeDecision::ending`, `DeclaredPlanes(Parallel | Norm)` and `DeclaredOffset` (~1108). **Class 2, likely**. **HELD** (declared pairs, D10): it is listed so the census is whole, and it is not this row's to repair.
+
+## 2026-11-03: two of its failures are the geometry's, not the kernel's (SPLICE `splice/kind-reads`, PR 6437)
+
+`undescribed_ending(None, false)` ends every `EdgeDescribeFailure` that
+carries no cause in `KERNEL_DEFECT_ENDING`, and two of them are reached by
+user geometry rather than a broken walk:
+
+- `EdgeDescribeFailure::Crease`: the seam's witness lies on a crease of a
+  spline face's chart (a knot of multiplicity `p`, a closed chart's seam, a
+  collapsed row), where the face has no one normal
+  (`geom_brep::SeamEscalation::Crease`). A creased loft or a STEP net with a
+  C0 knot puts it there. Its recourse is the geometry's lever (move the
+  seam off the crease, or smooth the chart), not "a kernel defect".
+- `EdgeDescribeFailure::Unplaced`: a spline face with no image of the edge
+  in its chart (`pcurves::pcurve_of` derives none), or a null edge. The
+  first is a lane not built for that image, a frontier, not a defect.
+
+Both reach the constant at the Boolean's `EdgeUndescribed` (`boolean::ops`
+describe pass, `DescribeRefusal::failed`) and, since PR 6437, at the
+split's `SplitFinishError::Undescribed` (`splitting::finish`, which words
+its ending through the same `undescribed_ending`, so the two stay one
+spelling). So this site is class 1 for these two failures: the repair
+shape above (`unreachable!` / `#[should_panic]`) would turn a refusal of
+user geometry into a panic. The class row that wants it is the ending per
+failure: `EdgeDescribeFailure` gaining its own ending beside `clause()`.

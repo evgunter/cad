@@ -42,8 +42,65 @@ A carried chord on a closed-form component:
 - its evidence of lying on both surfaces (an exact carrier needs no
   certificate);
 - a site at a node read as the node (C5), with the germ's arc named by
-  its branch at mint (`vtxfac::mint_node`'s plane branch), not by a
-  positional foot.
+  the arc end it is minted from, not by a positional foot. (Corrected
+  2026-11-03: the earlier text said "by its branch at mint", but the
+  plane branch names an ellipse, not an arc.)
 
 After that, the rulings and bisector lanes, and the plane-lane rows that
 pin them, retire into the carried lane.
+
+## 2026-11-02: split into 3b-i (landing) and 3b-ii (waits on F1)
+
+**3b-i**, branch `sectarms/cylinder-carried-closed-form`:
+- `chord_join::carried_chord_spec` gains a closed-form arm. The chord on
+  a line, circle or ellipse component is the carrier itself, over the
+  two sites' parameters, run back by `Curve3::reversed` where it leaves
+  back. It has no spline arc, since an exact carrier is its own
+  evidence, and the ring lane reads its arc as the curve it is.
+- `PairSection::seat` seats a closed circle or ellipse by its span.
+- Which pairs ride the carried lane has one home, `join::rides_carried`:
+  every held pose but the cylinder pair's bisector pose, named pose by
+  pose. A torus pair's coaxial parallels ride it too: the coaxial
+  torus × torus pair of `germ_circle_torus` builds both unions and both
+  differences, and its intersection escalates at the merge, typed.
+- A germ along an edge of one solid inside the other's face, on a pair
+  the join carries, rides the component its site's foot names (a rod's
+  seam lying on a parallel wall is one of the pair's rulings).
+- The parallel pose's rulings lane retires: `GermLane::Rulings`,
+  `KindArm::Cylinders`, `rulings_are_straight`, `rulings_normal` and
+  `CylinderCylinderPose::rulings_plane`.
+- Cylinder × sphere's coaxial circles now build every op. Before, they
+  refused at the join (`CurvedBooleanUnsupported`); the correction to
+  the paragraph above is that the frame lane never read them.
+- The probe the plan named reads: a cylinder island closed by a ruling
+  winds by a path (`chord_join::wall_ring_rows`), so no new reading was
+  needed.
+
+**3b-ii**, the bisector lane's retirement, waits on the node-germ fork
+F1. That fork decides how a germ at a node names its arc once the
+bisector planes no longer do. The orchestrator is running it through the
+design-fork procedure. Until then the bisector pose keeps
+`GermLane::Bisector` exactly as before.
+
+## 2026-11-03: 3b-ii, the nodes listed on the value
+
+Branch `sectarms/cylinder-node-listing`, after fork F1 (row 248; Ev
+approved in PR 6398):
+- The value lists each bisector node as a `SectionNode`: its point, the
+  walls' common normal (their outward radial), its two tangent lines
+  and the side bit, all closed form. Each arc end names
+  `NodeEnd { node, line, sense }` on `NodeEnds { start, end }`, by span
+  end. A node is listed only where the region holds it.
+- `CarriedSection::site` reads `AtNode(n) | OnArc(foot)`, testing the
+  node first; a foot on an open conic arc must lie within its span.
+- The node pass mints one germ per arc end (the ray, `Component(k)`).
+  The bisector lane retires (`GermLane::Bisector`, `KindArm::Bisector`,
+  `bisector_planes`, `bisector_loops`, `LoopSplit::Bisector`,
+  `AuxDatum::Bisector`, `bool_node_run_turn`), and `rides_carried`
+  names every cylinder pose as riding.
+- **Left for spline 3b:** an arc with both ends at one node is read at
+  that node by the end its germ leaves along, and no germ names that end
+  yet: `CarriedComponent::end_at` desyncs, naming it. The spline node's
+  arcs must name the end on the germ, or refuse typed.
+- The pinch's node is not listed:
+  `the-cylinder-pinchs-node-is-not-listed` (P2).

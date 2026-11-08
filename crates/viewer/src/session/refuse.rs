@@ -15,9 +15,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand,
-    ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, VarId,
-    VarName,
+    Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, VarId, VarName,
 };
 use std::path::{Path, PathBuf};
 
@@ -304,6 +303,10 @@ pub enum Refusal {
         /// The read, as the session op held it.
         read: Box<Operand>,
     },
+    /// The step that clears a body could not be measured — its input's
+    /// landed value is not one body with a width
+    /// ([`combine::ClearingFault`]).
+    Clearing(combine::ClearingFault),
     /// A gesture's frame could not be made: one of its numbers is not
     /// of its dimension or does not evaluate, its direction is none, or
     /// the body it reads the frame off offers no geometry to read
@@ -514,6 +517,7 @@ impl Refusal {
                 current,
                 notation,
             },
+            Self::Clearing(fault) => Self::Clearing(fault.respoken(doc)),
             unspoken @ (Self::NoSuchVariable(_)
             | Self::NotABodyRead { .. }
             | Self::EmptyName
@@ -549,6 +553,7 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::NotABodyRead { .. }
+            | Self::Clearing(_)
             | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -600,6 +605,7 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::NotABodyRead { .. }
+            | Self::Clearing(_)
             | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -840,7 +846,7 @@ impl Refusal {
     }
 }
 
-impl core::fmt::Display for Refusal {
+impl Refusal {
     /// Renders each arm through its payload's OWN `Display` wherever
     /// the payload has one — `EditError`, `DimensionError` and
     /// `PersistError` (inside [`DocIoError`]) all do, and using them is
@@ -851,7 +857,11 @@ impl core::fmt::Display for Refusal {
     /// wording is this layer's own sentence, so it is
     /// composed here (and here only — [`Refusal::affordance`] is its
     /// single home).
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::DrivenByExpression {
                 slot,
@@ -907,6 +917,9 @@ impl core::fmt::Display for Refusal {
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
+            Self::Clearing(fault) => {
+                write!(f, "{}", pncad::geom_brep::recourse::read_at(fault, at))
+            }
             Self::Frame(fault) => write!(f, "{fault}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
@@ -967,6 +980,8 @@ impl core::fmt::Display for Refusal {
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(Refusal);
 
 impl core::error::Error for Refusal {}
 
@@ -1049,44 +1064,10 @@ impl VersionOffer {
     }
 }
 
-/// **Why a gesture's frame could not be made** — a split's cutting
-/// plane, a pattern's direction or axis. Each is made of numbers the gesture carries, taken at their
-/// nominal values in the document, and read off a body's own geometry
-/// (spec §5, the restate ladder).
+/// **Why a gesture's frame could not be made**: a traced profile's
+/// frame, or a pattern's picked direction or axis.
 #[derive(Debug, Clone)]
 pub enum GestureFrameFault {
-    /// A number is not of the dimension its field takes.
-    Dimension {
-        /// The field, as the form names it.
-        field: &'static str,
-        /// The dimension it takes.
-        wanted: Dimension,
-        /// The dimension it was written in.
-        found: Dimension,
-    },
-    /// A number reads a name the document does not hold at its kind.
-    Unresolved {
-        /// The field, as the form names it.
-        field: &'static str,
-        /// The lowering door's refusal.
-        fault: pncad::document::LowerFault,
-    },
-    /// A number did not evaluate in the document.
-    Unevaluated {
-        /// The field, as the form names it.
-        field: &'static str,
-        /// The evaluator's refusal.
-        error: EvalError,
-    },
-    /// A direction names no direction (the direction door's refusal).
-    Direction {
-        /// The field, as the form names it.
-        field: &'static str,
-        /// The door's refusal.
-        refusal: pncad::document::AxisRefusal,
-    },
-    /// The body offers no geometry to read the frame off.
-    Geometry(pncad::document::PinRefusal),
     /// No frame reads off a traced face and a plane face
     /// ([`pncad::trace::traced_frame`]).
     Traced(std::sync::Arc<pncad::trace::TracedFrameFault>),
@@ -1101,17 +1082,6 @@ pub enum GestureFrameFault {
 impl core::fmt::Display for GestureFrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Dimension {
-                field,
-                wanted,
-                found,
-            } => write!(f, "the {field} takes a {wanted}, not a {found}"),
-            Self::Unresolved { field, fault } => write!(f, "the {field} does not resolve: {fault}"),
-            Self::Unevaluated { field, error } => {
-                write!(f, "the {field} does not evaluate: {error}")
-            }
-            Self::Direction { field, refusal } => write!(f, "the {field} {refusal}"),
-            Self::Geometry(refusal) => write!(f, "{refusal}"),
             Self::Traced(fault) => write!(f, "{fault}"),
             Self::NoHeading { field } => write!(
                 f,

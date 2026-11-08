@@ -87,7 +87,7 @@ impl PlaneRung {
 /// **outward** normal — outward for the FACE the description came
 /// from, which is the surface's chart normal with that face's
 /// `sense` folded in, not the chart normal itself
-/// (`boolean::reduce::face_plane` is the door that folds the bit in).
+/// (`face_normal::face_plane` is the door that folds the bit in).
 /// The Same±-orientation verdict is a statement about material sides,
 /// so a description built from a raw chart normal would make it a
 /// statement about nothing.
@@ -419,8 +419,8 @@ mod tests {
                 ] {
                     let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, door, d);
                     assert_eq!(
-                        text(diag).to_string(),
-                        text(untagged).to_string(),
+                        text(diag).render(geom_brep::recourse::Reading::Build),
+                        text(untagged).render(geom_brep::recourse::Reading::Build),
                         "{what}, {door:?}: the ending reads the margin, not the gate's tag"
                     );
                 }

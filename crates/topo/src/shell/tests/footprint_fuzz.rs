@@ -31,12 +31,12 @@ fn pair(rng: &mut Rng) -> (Vec3<f64>, Vec3<f64>) {
         if a.norm() < 0.2 {
             continue;
         }
-        let a = a * (1.0 / a.norm());
+        let a = a.normalize();
         let b = b - a * b.dot(a);
         if b.norm() < 0.2 {
             continue;
         }
-        return (a, b * (1.0 / b.norm()));
+        return (a, b.normalize());
     }
 }
 

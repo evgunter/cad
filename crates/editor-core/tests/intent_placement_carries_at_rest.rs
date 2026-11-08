@@ -147,6 +147,7 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> usize {
         doc,
         ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the checks run")

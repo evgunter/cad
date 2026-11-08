@@ -100,7 +100,12 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
         R,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{what}: both creases carve, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
     assert!(
         out.corner_faces.is_empty() && out.band_faces.is_empty(),
@@ -170,9 +175,12 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 .and_then(|g| g.certified())
                 .expect("a certified arc");
             let Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    center, axis: ax, ..
-                },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis: ax,
+                        ..
+                    },
                 radius: rr,
             }) = *c.carrier()
             else {
@@ -472,7 +480,12 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                 R,
                 tol(),
             )
-            .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the oblique cap cuts off, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
             assert_naming_totality(below, &out, &request, &what);
@@ -504,7 +517,7 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                     .expect("a certified end curve");
                 match *c.carrier() {
                     Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { center, .. },
+                        frame: geom::Frame { origin: center, .. },
                         ..
                     }) => {
                         assert!(center.z.abs() < 1e-12, "{what}: the circle is the bottom's");
@@ -650,11 +663,12 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         .unwrap()
         .clone();
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = *c.carrier()
     else {

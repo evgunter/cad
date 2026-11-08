@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-12
 priority: P2
 cost: H
-parent: a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join
 ---
 
 Part 2 of the design on

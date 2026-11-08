@@ -152,6 +152,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::decide;
@@ -242,6 +243,20 @@ pub enum ChartRegionError {
         half_edge: HalfEdgeKey,
         /// The inventory statement violated.
         what: &'static str,
+    },
+    /// A plane face's trim edge, imaged on demand, refused on its
+    /// incidence on the plane: decided off it, read at a pose, or
+    /// undecided. It carries that read, which each reader ends at its own
+    /// door by the one map (`geom_brep::IncidenceRead::ending`; at rest,
+    /// the validator's classifier); its `Display` is the payload alone,
+    /// and `render(at)` ends it at the reader's door.
+    TrimOffFace {
+        /// The face whose loop refused.
+        face: FaceKey,
+        /// The half-edge whose carrier was read.
+        half_edge: HalfEdgeKey,
+        /// The image's incidence read.
+        read: geom_brep::IncidenceRead,
     },
     /// A minting chart's stored cache is absent — the body must
     /// re-mint before region queries (the `props.rs` posture); only
@@ -367,8 +382,12 @@ pub(crate) const EDGE_SCALE_RECOURSE: &str =
 /// What [`ChartRegionError::Escalated`] leaves undecided.
 const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
 
-impl core::fmt::Display for ChartRegionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl ChartRegionError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::ChartDivergence { detail } => write!(
                 f,
@@ -393,6 +412,23 @@ impl core::fmt::Display for ChartRegionError {
                  is the named exclusion and has neither, so it waits on the curved \
                  region lane"
             ),
+            // The read is the payload; the region query's caller ends it
+            // at its own door (`IncidenceRead::ending`).
+            Self::TrimOffFace { read, .. } => {
+                write!(
+                    f,
+                    "chart-region: an edge of a plane face {}",
+                    if read.is_definite() {
+                        "does not lie on the face's plane"
+                    } else {
+                        "is not shown on the face's plane"
+                    }
+                )?;
+                match at {
+                    Some(at) => write!(f, ". {}", read.ending(at)),
+                    None => Ok(()),
+                }
+            }
             Self::MissingCache { half_edge } => write!(
                 f,
                 "chart-region: half-edge {half_edge:?} has no stored pcurve cache on \
@@ -453,9 +489,11 @@ impl core::fmt::Display for ChartRegionError {
             Self::Escalated(diag) if diag.margin.is_invalid() => write!(
                 f,
                 "chart-region: {}",
-                diag.undecided(
+                geom_brep::recourse::undecided_at(
+                    diag,
                     OVERLAP_SUBJECT,
-                    geom_brep::recourse::defect_ending(geom_brep::recourse::Reading::Build),
+                    geom_brep::recourse::at_build(at)
+                        .map(|at| geom_brep::recourse::defect_ending(at).to_owned()),
                 )
             ),
             Self::Escalated(diag) => write!(
@@ -494,6 +532,8 @@ impl core::fmt::Display for ChartRegionError {
         }
     }
 }
+
+geom_brep::ended_by_write!(ChartRegionError);
 
 impl std::error::Error for ChartRegionError {}
 
@@ -1115,10 +1155,12 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// **A face's surface, as this module refuses it**: [`Body::face_surface`],
+/// **A face's surface, as this module refuses it**: [`Body::passed_face`]'s [`crate::live::FaceView::surface`],
 /// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    body.face_surface(face).ok_or(ChartRegionError::Corrupt)
+    body.passed_face(face)
+        .map(|f| f.surface())
+        .ok_or(ChartRegionError::Corrupt)
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART
@@ -1135,28 +1177,20 @@ fn plane_frame<T: Decide>(
 }
 
 /// Every boundary vertex of a face, outer loop then rings, cycle order
-/// (fixed schedule, D9).
+/// (fixed schedule, D9): [`crate::live::FaceView::boundary`], every hop past
+/// the face a link. A lone-vertex loop is refused, as a face that does
+/// not resolve is.
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
-    let face_data = body.get_face(face).ok_or(ChartRegionError::Corrupt)?;
-    let mut out = Vec::new();
-    for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-        let loop_data = body.get_loop(lk).ok_or(ChartRegionError::Corrupt)?;
-        let LoopBoundary::Cycle { first } = loop_data.boundary else {
-            return Err(ChartRegionError::Corrupt);
-        };
-        for he in body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)? {
-            let v = body
-                .get_half_edge(he)
-                .ok_or(ChartRegionError::Corrupt)?
-                .start;
-            let pk = body.get_vertex(v).ok_or(ChartRegionError::Corrupt)?.point;
-            out.push(*body.get_point(pk).ok_or(ChartRegionError::Corrupt)?);
-        }
-    }
-    Ok(out)
+    let view = body.passed_face(face).ok_or(ChartRegionError::Corrupt)?;
+    view.boundary()
+        .map(|member| match member {
+            BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
+            BoundaryMember::Edge { .. } => Ok(body.member_point(&member)),
+        })
+        .collect()
 }
 
 /// **`chart_region_carrier_tilt`** — the metered gate that turns
@@ -1239,27 +1273,14 @@ fn carrier_agreement<T: Decide + Bounds>(
     }
 }
 
-/// One cylinder description's frame, destructured.
-struct CylFrame<T: Decide> {
-    origin: geom_core::Point3<T>,
-    axis: geom_core::Vec3<T>,
-    radius: T,
-    u_ref: geom_core::Vec3<T>,
-}
-
-fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, ChartRegionError> {
-    match face_surface(body, face)? {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => Ok(CylFrame {
-            origin: *origin,
-            axis: *axis,
-            radius: *radius,
-            u_ref: *u_ref,
-        }),
+/// One cylinder description's frame and radius.
+fn cyl_frame<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<(geom::Frame<T>, T), ChartRegionError> {
+    let surface = face_surface(body, face)?;
+    match (surface.frame(), surface) {
+        (Some(frame), Surface::Cylinder { radius, .. }) => Ok((frame, *radius)),
         _ => Err(ChartRegionError::Corrupt),
     }
 }
@@ -1488,8 +1509,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     premise: CarrierPremise,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
-    let a = cyl_frame(body_a, face_a)?;
-    let b = cyl_frame(body_b, face_b)?;
+    let (a, a_radius) = cyl_frame(body_a, face_a)?;
+    let (b, b_radius) = cyl_frame(body_b, face_b)?;
 
     // --- Door 1's premise, CONSUMED (doc above).
     let gate_band = premise.band(band);
@@ -1505,12 +1526,10 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     let mut reach = T::zero();
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
         for p in face_boundary_points(body, face)? {
-            reach = reach
-                .max((p - a.origin).dot(a.axis).abs())
-                .max((p - b.origin).dot(b.axis).abs());
+            reach = reach.max(a.height(p).abs()).max(b.height(p).abs());
         }
     }
-    let r_max = a.radius.max(b.radius);
+    let r_max = a_radius.max(b_radius);
     let hyp = (reach.powi(2) + r_max.powi(2)).sqrt();
     // A gate over a SIGNED margin (the radius difference): either
     // definite sign is a genuine "definitely apart".
@@ -1530,7 +1549,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };
-    signed_gate("chart_region_cyl_radius", Margin::of(a.radius - b.radius))?;
+    signed_gate("chart_region_cyl_radius", Margin::of(a_radius - b_radius))?;
     norm_gate(
         "chart_region_cyl_tilt",
         Margin::levered(
@@ -1540,10 +1559,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             geom_core::Lever::unsourced(hyp),
         ),
     )?;
-    let d_ab = b.origin - a.origin;
-    let d_ba = a.origin - b.origin;
-    let perp_a = (d_ab - a.axis * d_ab.dot(a.axis)).norm();
-    let perp_b = (d_ba - b.axis * d_ba.dot(b.axis)).norm();
+    let perp_a = a.axis_line().distance(b.origin);
+    let perp_b = b.axis_line().distance(a.origin);
     norm_gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
 
     // --- The transfer parameters (doc above). The sense margin is the
@@ -1574,9 +1591,9 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         }
         Err(diag) => return Err(ChartRegionError::Escalated(diag)),
     };
-    let w_a = a.axis.cross(a.u_ref);
+    let w_a = a.v_ref();
     let delta = b.u_ref.dot(w_a).atan2(b.u_ref.dot(a.u_ref));
-    let c = (b.origin - a.origin).dot(a.axis);
+    let c = a.height(b.origin);
 
     // --- Extraction (each face read in its OWN minted chart). ---
     let surface_a = face_surface(body_a, face_a)?.clone();
@@ -1599,10 +1616,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     trims actually are, through A's own chart map. Face A's term
     //     is its identity transfer (its minted images against its own
     //     world points); face B's carries the full affine transfer.
-    let phi_a = |q: &Point2<T>| -> geom_core::Point3<T> {
-        let (s, cu) = q.x.sin_cos();
-        a.origin + (a.u_ref * cu + w_a * s) * a.radius + a.axis * q.y
-    };
+    let phi_a = |q: &Point2<T>| -> geom_core::Point3<T> { surface_a.eval(q.x, q.y) };
     let mut residual = T::zero();
     for (body, face, uv) in [(body_a, face_a, &uv_a), (body_b, face_b, &uv_b)] {
         residual = residual.max(transfer_residual(body, face, uv, &phi_a)?);
@@ -1612,10 +1626,10 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     // --- The full-wrap band fast path (doc above; asked BEFORE the
     //     fold, which cannot serve two misaligned full-period walls).
     if let (Some(band_a), Some(band_b)) = (
-        wrap_band(&uv_a.outer, a.radius, band)?,
-        wrap_band(&uv_b.outer, a.radius, band)?,
+        wrap_band(&uv_a.outer, a_radius, band)?,
+        wrap_band(&uv_b.outer, a_radius, band)?,
     ) {
-        return band_overlap(&uv_a, &uv_b, band_a, band_b, a.radius, band);
+        return band_overlap(&uv_a, &uv_b, band_a, band_b, a_radius, band);
     }
 
     // --- The fold: one whole period, pinned per pair as structure
@@ -1637,7 +1651,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             body_a, face_a, body_b, face_b, &surface_a, &uv_a, &folded, band,
         )
     };
-    match period_fold(window_mid(&uv_a) - window_mid(&uv_b), a.radius, band)? {
+    match period_fold(window_mid(&uv_a) - window_mid(&uv_b), a_radius, band)? {
         Fold::One(shift) => overlap_at(shift),
         Fold::Astride([lo, hi], decline) => {
             let (below, above) = (overlap_at(lo), overlap_at(hi));
@@ -2322,7 +2336,7 @@ fn boundary_segments<T: Decide + Bounds>(
 ) -> Option<Vec<NominalSeg>> {
     let mut out = Vec::new();
     for uv in [uv_a, uv_b] {
-        for poly in core::iter::once(&uv.outer).chain(uv.rings.iter()) {
+        for poly in uv.polygons() {
             if poly.len() < 3 {
                 continue;
             }
@@ -2401,13 +2415,17 @@ fn declared_chart<T: Decide + Bounds>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let fa = body_a.get_face(face_a).ok_or(ChartRegionError::Corrupt)?;
-    let fb = body_b.get_face(face_b).ok_or(ChartRegionError::Corrupt)?;
-    let s_a = body_a.face_surface_linked(face_a, fa);
-    if std::ptr::eq(body_a, body_b) && fa.surface == fb.surface {
+    let fa = body_a
+        .passed_face(face_a)
+        .ok_or(ChartRegionError::Corrupt)?;
+    let fb = body_b
+        .passed_face(face_b)
+        .ok_or(ChartRegionError::Corrupt)?;
+    let s_a = fa.surface();
+    if std::ptr::eq(body_a, body_b) && fa.record().surface == fb.record().surface {
         return Ok(s_a.clone());
     }
-    let s_b = body_b.face_surface_linked(face_b, fb);
+    let s_b = fb.surface();
     if surface_bits_equal(s_a, s_b) {
         Ok(s_a.clone())
     } else {
@@ -2449,6 +2467,13 @@ pub(crate) fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface
 struct FaceUv<T: Decide> {
     outer: Vec<Point2<T>>,
     rings: Vec<Vec<Point2<T>>>,
+}
+
+impl<T: Decide> FaceUv<T> {
+    /// The polygons, the outer first, in the face's loop order.
+    fn polygons(&self) -> impl Iterator<Item = &Vec<Point2<T>>> {
+        core::iter::once(&self.outer).chain(&self.rings)
+    }
 }
 
 /// Exact-`f64`-structure read of a `T` scalar being EXACTLY zero: a
@@ -2591,7 +2616,18 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             };
             let (t0, t1) = curve.params();
             let pcurve = geom_brep::chart_pcurve_over(curve.carrier(), t0, t1, surface, band)
-                .map_err(|_| refuse("no closed-form chart image for this carrier kind"))?;
+                .map_err(|refusal| {
+                    // An incidence refusal ends by its read (D3); any
+                    // other is a carrier the affine chart has no image of.
+                    match geom_brep::IncidenceRead::of(&refusal) {
+                        Some(read) => ChartRegionError::TrimOffFace {
+                            face,
+                            half_edge: he,
+                            read,
+                        },
+                        None => refuse("no closed-form chart image for this carrier kind"),
+                    }
+                })?;
             pcurve_entry(&pcurve, t0, t1, forward).map_err(refuse)?
         } else {
             return Err(ChartRegionError::MissingCache { half_edge: he });
@@ -2716,6 +2752,24 @@ fn certified_arms<T: Decide + Bounds>(
             gate(major_radius - minor_radius, "torus")?,
             gate(minor_radius, "torus")?,
         ),
+        // `R + r·cos v` at the window's largest `|v|`, as the sphere's
+        // latitude arm, on the range `[0, π]` where `cos` is monotone;
+        // a window reaching an apex reads zero there and the gate
+        // refuses it.
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let v_abs = v_lo.abs().max(v_hi.abs());
+            if v_abs.hi() > core::f64::consts::PI || v_abs.hi().is_nan() {
+                return Err(ChartRegionError::ArmUnbounded { chart: "spindle" });
+            }
+            (
+                gate(major_radius + minor_radius * v_abs.cos(), "spindle")?,
+                gate(minor_radius, "spindle")?,
+            )
+        }
         Surface::Cone { half_angle, .. } => {
             // Branch-free `min |v|` over the window, zero exactly when
             // the window straddles the apex.
@@ -2864,7 +2918,7 @@ fn arm_values<T: geom_core::Real, E>(
 fn v_window<T: Decide + Bounds>(a: &FaceUv<T>, b: &FaceUv<T>) -> Option<(T, T)> {
     let mut reach: Option<(T, T)> = None;
     for face in [a, b] {
-        for poly in core::iter::once(&face.outer).chain(&face.rings) {
+        for poly in face.polygons() {
             for p in poly {
                 reach = Some(match reach {
                     None => (p.y, p.y),
@@ -2890,9 +2944,7 @@ fn seam_gate<T: Decide + Bounds>(
     let Surface::Cylinder { radius, .. } = *surface else {
         return Ok(()); // plane charts do not wrap; other kinds refused at the arm gate
     };
-    let loops = [a, b]
-        .into_iter()
-        .flat_map(|uv| core::iter::once(&uv.outer).chain(&uv.rings));
+    let loops = [a, b].into_iter().flat_map(FaceUv::polygons);
     let Some(span) = Extent::hull(loops.flatten().map(|p| p.x)) else {
         return Err(ChartRegionError::Corrupt);
     };
@@ -3743,6 +3795,35 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// **A trim off its plane ends by the door that reads it**: a
+    /// definite miss names the kernel at a build and the kernel or the
+    /// file at rest, and its `Display` names neither. Red if the region
+    /// query's refusal ends at one door for every reader.
+    #[test]
+    fn a_trim_off_its_face_ends_by_the_readers_door() {
+        use geom_brep::recourse::Reading;
+        let off = ChartRegionError::TrimOffFace {
+            face: FaceKey::default(),
+            half_edge: HalfEdgeKey::default(),
+            read: geom_brep::IncidenceRead::Off(None),
+        };
+        let (build, rest) = (off.render(Reading::Build), off.render(Reading::AtRest));
+        assert!(
+            build.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+            "a build names the kernel: {build}"
+        );
+        assert!(
+            rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            "at rest the kernel or the file: {rest}"
+        );
+        let payload = off.to_string();
+        assert!(
+            !payload.contains(geom_core::KERNEL_DEFECT_ENDING)
+                && !payload.contains(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            "the payload names no culprit: {payload}"
+        );
+    }
+
     /// **A poisoned overlap decision ends in the build's defect ending**
     /// (D4 ¶1 (i)): no declaration or move makes an unreadable margin
     /// readable. A margin that was read keeps the coincidence menu.
@@ -3755,7 +3836,7 @@ mod tests {
             terminal_sliver: false,
         };
         let poisoned = ChartRegionError::Escalated(diag(geom_core::MarginDiag::INVALID));
-        let text = poisoned.to_string();
+        let text = poisoned.render(geom_brep::recourse::Reading::AtRest);
         assert!(
             text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
             "{text}"
@@ -3764,9 +3845,10 @@ mod tests {
         let in_band = ChartRegionError::Escalated(diag(geom_core::MarginDiag::value(5e-9)));
         assert!(
             in_band
-                .to_string()
+                .render(geom_brep::recourse::Reading::AtRest)
                 .contains(geom_core::COINCIDENCE_RECOURSE),
-            "{in_band}"
+            "{in_band_at}",
+            in_band_at = in_band.render(geom_brep::recourse::Reading::AtRest)
         );
     }
 
@@ -3859,6 +3941,11 @@ mod tests {
                 half_edge: HalfEdgeKey::default(),
                 what: "a Harmonic image",
             },
+            ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                read: geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
+            },
             ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
                 half_edge: HalfEdgeKey::default(),
             },
@@ -3891,7 +3978,7 @@ mod tests {
             .map(sample)
             .collect();
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(geom_brep::recourse::Reading::AtRest);
             // `Escalated` delegates to `Indeterminate`, whose Display
             // ends in the shared coincidence recourse — it is covered
             // by the carrier and not by a clause of its own.
@@ -3917,12 +4004,12 @@ mod tests {
         let segment = ChartRegionError::WitnessSegmentCapExceeded {
             segments: WITNESS_SEGMENT_CAP + 1,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         let cell = ChartRegionError::WitnessCellCapExceeded {
             segments: WITNESS_SEGMENT_CAP,
             cells: WITNESS_CELL_CAP,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         let names = |msg: &str, cap: &str, n: usize| msg.contains(&format!("{cap} cap of {n}"));
         assert!(
             names(&segment, "segment", WITNESS_SEGMENT_CAP)
@@ -6140,10 +6227,12 @@ mod from_computed_rows {
         // contact probes (`bool_contact_edge`, `_vertex`, `_edge_length`
         // each) and 29 fewer opaque `point_in_loop_*` steps than one
         // picked in a chart off the world axes (1189 kept, 186 opaque).
+        // The plane mint reads each trim's incidence before it images it,
+        // and those reads re-value with the scale too: 12 kept.
         assert_eq!(
             found,
             Revalued {
-                kept: 1169,
+                kept: 1181,
                 opaque: 117,
                 laundered: 0,
             },

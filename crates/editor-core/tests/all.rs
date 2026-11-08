@@ -225,12 +225,16 @@ mod eval9_nominal_in_the_key;
 mod f64_lane_validates_once;
 #[path = "face_face_touch_carry.rs"]
 mod face_face_touch_carry;
+#[path = "fillet_step_walk.rs"]
+mod fillet_step_walk;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "g_family_of_booleans.rs"]
+mod g_family_of_booleans;
 #[path = "g_family_review_rows.rs"]
 mod g_family_review_rows;
 #[path = "g_index_families.rs"]
@@ -716,6 +720,8 @@ mod m10_9_pins_interval;
 #[path = "m10_9_r2_probes_interval.rs"]
 mod m10_9_r2_probes_interval;
 
+#[path = "kernel_runs_take_the_callers_stop.rs"]
+mod kernel_runs_take_the_callers_stop;
 #[path = "kstats_bracket_rows.rs"]
 mod kstats_bracket_rows;
 
@@ -788,6 +794,8 @@ mod emit_edge_piece_locality;
 mod emit_nested_union_flat;
 #[path = "emit_pair_cut_and_merged.rs"]
 mod emit_pair_cut_and_merged;
+#[path = "emit_per_face_parent.rs"]
+mod emit_per_face_parent;
 #[path = "emit_seam_edge_merged.rs"]
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]

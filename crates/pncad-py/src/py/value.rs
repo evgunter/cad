@@ -401,7 +401,7 @@ fn measurement_err(py: Python<'_>, err: &topo::MassPropsError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Validation(ValidationRefusal::MassProperties),
-        err.to_string(),
+        err.render(pncad::geom_brep::recourse::Reading::AtRest),
         &fields,
     )
 }
@@ -824,7 +824,7 @@ impl Body {
                 failures.len(),
                 failures
                     .iter()
-                    .map(ToString::to_string)
+                    .map(|e| e.render(pncad::geom_brep::recourse::Reading::AtRest))
                     .collect::<Vec<_>>()
                     .join("; ")
             ),
@@ -1166,10 +1166,8 @@ impl Value {
     fn recorded_body(&self, py: Python<'_>, body: &d::Framed<f64>) -> PyResult<Body> {
         let body = pncad::export::body_in_space(body, Tol::witness())
             .map_err(|err| compose_err(py, self.node, &err))?;
-        Ok(match &self.payload {
-            d::ValuePayload::Body(_) | d::ValuePayload::Boolean(d::BooleanValue::Body { .. }) => {
-                Body::recorded(body, Arc::clone(&self.contacts))
-            }
+        Ok(match self.payload.one_body() {
+            Some(Some(_)) => Body::recorded(body, Arc::clone(&self.contacts)),
             _ => Body::plain(body),
         })
     }
@@ -1200,39 +1198,37 @@ impl Value {
     /// among them) and a non-empty `Boolean`; raises for every other
     /// kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
-        match &self.payload {
-            d::ValuePayload::Body(body) => self.recorded_body(py, body),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => {
-                self.recorded_body(py, body)
-            }
-            d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
+        match self.payload.one_body() {
+            Some(Some(body)) => self.recorded_body(py, body),
+            Some(None) => Err(eval_err(
                 py,
                 "the Boolean produced an empty result",
                 EvalReason::EmptyBoolean,
                 self.node,
             )),
-            other => Err(eval_err(
+            None => Err(eval_err(
                 py,
-                format!("a `{}` value is not a body", other.kind_name()),
+                format!("a `{}` value is not a body", self.payload.kind_name()),
                 EvalReason::WrongKind,
                 self.node,
             )),
         }
     }
 
-    /// Every body this value denotes: one for `Body`/`Boolean`, the
-    /// whole list for `Instances`, both sides for a
-    /// `Split`.
+    /// Every body this value denotes: one for `Body`/`Boolean`, each
+    /// member's for `Instances`, each side's for a `Split`. An empty
+    /// boolean, an empty member and an empty side denote none.
     fn bodies(&self, py: Python<'_>) -> PyResult<Vec<Body>> {
         let wrap = |body: &d::Framed<f64>| self.recorded_body(py, body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
         };
+        if let Some(body) = self.payload.one_body() {
+            return body.map(wrap).into_iter().collect();
+        }
         match &self.payload {
-            d::ValuePayload::Body(body) => Ok(vec![wrap(body)?]),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => Ok(vec![wrap(body)?]),
-            d::ValuePayload::Instances(bodies) => bodies.iter().map(wrap).collect(),
+            d::ValuePayload::Instances(bodies) => bodies.iter().flatten().map(wrap).collect(),
             d::ValuePayload::Split { above, below } => {
                 [side(above), side(below)].into_iter().flatten().collect()
             }
@@ -1293,9 +1289,13 @@ impl Value {
             | d::AssertionVerdict::Violated { measured, bound } => {
                 (Some(*measured), Some(*bound), None, None, None)
             }
-            d::AssertionVerdict::Unevaluated { reason } => {
-                (None, None, Some(reason.to_string()), None, None)
-            }
+            d::AssertionVerdict::Unevaluated { reason } => (
+                None,
+                None,
+                Some(reason.render(pncad::geom_brep::recourse::Reading::AtRest)),
+                None,
+                None,
+            ),
             d::AssertionVerdict::Clearance(report) => match report.verdict() {
                 a::ClearanceVerdict::Holds | a::ClearanceVerdict::Exceeded => {
                     (None, None, None, None, None)
@@ -1363,9 +1363,19 @@ pub(crate) struct Evaluation {
     /// that want a product — `run_checks`, `product`, `product_named` —
     /// share one gather.
     product: crate::product_memo::ProductMemo,
+    /// **What stopped the run**: `evaluate`'s `cancel=` token and
+    /// `member_budget=`, captured at `evaluate`: every evaluation a door
+    /// reading this one runs on its behalf (the coincidence door's
+    /// replay) is held to it.
+    stop: d::Stop,
 }
 
 impl Evaluation {
+    /// The stop the run was evaluated under ([`Self::stop`]).
+    pub(crate) fn stop(&self) -> &d::Stop {
+        &self.stop
+    }
+
     /// The document this evaluation is of: the one a refusal raised
     /// from it speaks its nodes from.
     pub(crate) fn doc(&self) -> &d::ProfileDoc {
@@ -1513,21 +1523,22 @@ impl Evaluation {
 
     /// **The coincidences `node` decided from values** (D10), in
     /// decision order, each with what the coincidence door decided
-    /// about it. A node with no value raises as [`Self::value`] does.
+    /// about it. A node with no value raises as [`Self::value`] does;
+    /// a door the run's `cancel=` token stopped raises `ChecksError`
+    /// `canceled`, as `run_checks` does.
     fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
         self.value(py, node)?;
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
-        let Ok(proofs) = d::coincide::prove(
+        let proofs = d::coincide::prove(
             &self.doc,
             &[(node.0, &*value.coincidences)],
             self.inner.resolver(),
             Tol::witness(),
-            &d::CancelToken::new(),
-        ) else {
-            unreachable!("a token no one else holds is never canceled")
-        };
+            &self.stop,
+        )
+        .map_err(|canceled| super::checks::checks_err(py, &d::ChecksError::Canceled(canceled)))?;
         value
             .coincidences
             .iter()
@@ -2059,7 +2070,10 @@ pub(crate) fn compose_err(py: Python<'_>, node: NodeId, err: &topo::TransformErr
     typed_err(
         py,
         ErrorClass::Export,
-        format!("the body could not be composed into its space: {err}"),
+        format!(
+            "the body could not be composed into its space: {}",
+            err.render(pncad::geom_brep::recourse::Reading::Build)
+        ),
         &fields,
     )
 }
@@ -2564,7 +2578,7 @@ pub(crate) fn import_step(
         Err(err) => Err(typed_err(
             py,
             ErrorClass::StepImport,
-            err.to_string(),
+            err.render(),
             &[
                 (
                     "variant",
@@ -2786,6 +2800,7 @@ pub(crate) fn evaluate(
         params: doc.inner.var_env::<f64>(),
         doc: Arc::new(doc.inner.clone()),
         product: crate::product_memo::ProductMemo::default(),
+        stop: d::Stop::of(&token, &opts),
     }
 }
 
@@ -2920,7 +2935,7 @@ impl Coincidence {
     /// `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
     /// `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`,
     /// `split_on`, `battery_turn`, `battery_joint`, `battery_support_axis`,
-    /// `profile_junction`, `vertex_fusion` or `census_at_rest`.
+    /// `profile_junction`, `vertex_fusion`, `iso_join` or `census_at_rest`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

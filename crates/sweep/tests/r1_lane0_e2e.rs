@@ -266,8 +266,11 @@ fn the_interval_seam_refuses_at_every_public_door() {
             panic!("{door}: the face must be reported, naming the interval scalar: {errors:?}")
         });
         assert!(
-            found.to_string().contains("no offset-fit door"),
-            "{door}: the text says which absence this is; got {found}"
+            found
+                .render(geom_brep::recourse::Reading::AtRest)
+                .contains("no offset-fit door"),
+            "{door}: the text says which absence this is; got {found_at}",
+            found_at = found.render(geom_brep::recourse::Reading::AtRest)
         );
     }
 

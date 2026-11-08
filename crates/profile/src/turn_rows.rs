@@ -13,6 +13,7 @@ use core::f64::consts::{PI, TAU};
 use geom_core::k_stats::decide;
 use geom_core::{Arc2, Band, Decide, InfSpeed, Margin, Point2, Sign, Tol};
 
+use crate::Gate;
 use crate::path::PathError;
 use crate::path::verbs::sweep_gates;
 use crate::seg::{Range, SegIssue, ShapeIssue, sweep_range};
@@ -54,13 +55,13 @@ fn multiples(band: Band) -> Vec<f64> {
 /// bare against the band, then the arc length short of a turn, each
 /// through `Margin::of`.
 fn old_gates<T: Decide>(r: T, angle: T, band: Band) -> Outcome {
-    match decide("path_arc_sweep", Margin::of(angle), band) {
+    match decide(Gate::PathArcSweep.predicate(), Margin::of(angle), band) {
         Err(cause) => return Outcome::Escalated(cause.predicate),
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) => return Outcome::Refused,
     }
     match decide(
-        "path_arc_sweep_full",
+        Gate::PathArcSweepFull.predicate(),
         Margin::of(r * (T::tau() - angle)),
         band,
     ) {
@@ -75,7 +76,7 @@ fn new_gates(r: f64, angle: f64, band: Band) -> Outcome {
         Ok(()) => Outcome::Admitted,
         Err(PathError::DegenerateArcSpec { .. }) => Outcome::Refused,
         Err(PathError::ArcSweepNotShortOfFullTurn { .. }) => Outcome::FullTurn,
-        Err(PathError::Escalated { source }) => Outcome::Escalated(source.predicate),
+        Err(PathError::Escalated { source, .. }) => Outcome::Escalated(source.predicate),
         Err(other) => panic!("the gates refuse only as gates: {other:?}"),
     }
 }
@@ -135,7 +136,7 @@ fn old_range<T: Decide>(arc: Arc2<T>, range: Range, band: Band) -> Outcome {
         Range::FullTurn => (tau - span, Sign::Zero),
     };
     match decide(
-        "arc_sweep_range",
+        Gate::ArcSweepRange.predicate(),
         Margin::metered(ratio, InfSpeed::new(arc.radius)),
         band,
     ) {
@@ -151,7 +152,9 @@ fn new_range(arc: Arc2<f64>, range: Range, band: Band) -> Outcome {
         Err(SegIssue::Inconsistent {
             check: ArcCheck::SweepRange,
         }) => Outcome::Refused,
-        Err(SegIssue::Shape(ShapeIssue::Escalated(source))) => Outcome::Escalated(source.predicate),
+        Err(SegIssue::Shape(ShapeIssue::Escalated(source))) => {
+            Outcome::Escalated(source.source().predicate)
+        }
         Err(_) => panic!("the range check refuses only as itself"),
     }
 }

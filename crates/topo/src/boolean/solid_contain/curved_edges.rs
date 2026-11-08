@@ -93,7 +93,7 @@ pub(super) fn read<T: Decide>(
     rows: RayRows,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
-    let far = q + d * (reach * T::from_f64(2.0));
+    let top = reach * T::from_f64(2.0);
     // A face's own carrier crossings on this ray, where it reads them:
     // `None` for a face read whole or not at all (a closed sphere or torus
     // group, an untrimmable face, a plane the ray runs beside).
@@ -120,7 +120,7 @@ pub(super) fn read<T: Decide>(
     };
     let mut seen = std::collections::BTreeSet::new();
     for &(face, _) in geos {
-        for fe in body.proven_face_edges(face) {
+        for fe in body.proven_face(face).edges() {
             let (e, other) = (fe.edge, fe.across);
             if meets.lines.contains(&e) || !seen.insert(e) {
                 continue;
@@ -149,7 +149,7 @@ pub(super) fn read<T: Decide>(
             let faces = [face, other];
             for v in fe.ends {
                 if !crate::boolean::is_conventional_vertex(body, v) {
-                    meets.vertex(body, v, faces, (q, far), d, band, rows)?;
+                    meets.vertex(body, v, faces, (q, top), d, band, rows)?;
                 }
             }
             let mut found: Vec<(T, Gap)> = Vec::new();
@@ -242,7 +242,7 @@ fn narrow<T: Decide>(
     let met = meets.met.clone();
     for m in &met {
         for &face in &m.faces {
-            for fe in body.proven_face_edges(face) {
+            for fe in body.proven_face(face).edges() {
                 let e = fe.edge;
                 // A line edge between two crossed planes is read exactly
                 // ([`super::edge_meets`]), and one met is marked where it
@@ -308,21 +308,24 @@ fn passes<T: Decide>(
     let ray = geom::Line { origin: q, dir: d };
     let mut r = seed;
     for _ in 0..FEET {
-        near = carrier.foot(r, near).t();
+        near = carrier.foot(r, near).seed();
         r = ray.foot(carrier.eval(near));
     }
     let s = ray.param(r);
     let gap = match carrier.foot(r, near).on_carrier(band) {
         Ok(geom::OnCarrier::Off) => return Passes::Clear,
         Ok(geom::OnCarrier::On { .. }) => Gap::Zero,
-        Err(geom::CarrierRefusal::Escalated(diag)) => Gap::InBand(diag),
-        Err(_) => return Passes::Undecided,
+        Err(refusal) => match refusal.escalation() {
+            Ok(diag) => Gap::InBand(diag),
+            Err(_) => return Passes::Undecided,
+        },
     };
     match span.span().place(r, near, band) {
-        Ok(geom_brep::curve_pair::Place::Inside { .. }) => Passes::Met(s, gap),
+        Ok(geom_brep::curve_pair::Place::Inside) => Passes::Met(s, gap),
         Ok(geom_brep::curve_pair::Place::Past) => Passes::Clear,
-        // In band of an end, or undecided against one: the ray passes
-        // within reach of its vertex.
+        // In band of an end, or undecided against one, a walk that could
+        // not run included: the ray passes within reach of its vertex, a
+        // graze, which refuses the ray rather than answering it.
         Ok(geom_brep::curve_pair::Place::End(_)) | Err(_) => Passes::End(s),
     }
 }
@@ -352,4 +355,61 @@ fn nearest<T: Decide>(
             })
         })
         .map(|(_, &(c, _))| c)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod straddle_rows {
+    use super::{Gap, Passes, passes};
+    use crate::census::EdgeSpan;
+    use geom_core::{Band, Point3, Vec3};
+
+    const ZERO: f64 = 1e-9;
+
+    /// **A straddle is in band, and past the span it is clear.** An
+    /// ellipse bending tighter than the band (`b²/a = ε/100`) and a ray
+    /// across its major axis `20ε` beyond the vertex, where the gap is
+    /// past the band and the lower bound inside it (`geom`'s
+    /// `a_gap_past_the_band_with_the_bound_inside_it_straddles`). An arc
+    /// through the vertex meets the ray in band, a wedge's gap; an arc
+    /// whose span lies past the closest approach is clear of it, a
+    /// placement decided on the span's own ends. Red when a straddle
+    /// reads undecided, or its `Past` is read anything but clear.
+    #[test]
+    fn a_straddle_is_in_band_and_past_the_span_is_clear() {
+        let band = Band::new(ZERO, 10.0 * ZERO).unwrap();
+        let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            1.0,
+            (ZERO / 100.0).sqrt(),
+        ));
+        let at = Point3::new(1.0 + 20.0 * ZERO, 0.0, 0.0);
+        let (q, d) = (at - Vec3::unit_y(), Vec3::unit_y());
+        let through = EdgeSpan::of(ellipse.clone(), (-0.5, 0.5));
+        assert!(
+            matches!(
+                passes(&through, q, d, at, band),
+                Passes::Met(_, Gap::InBand(_))
+            ),
+            "an arc through the vertex"
+        );
+        // An arc from just past the vertex: its middle's foot of the
+        // closest approach is the vertex, read a straddle, so the span's
+        // `Past` is what clears it.
+        let (t0, t1) = (0.01, 0.5);
+        assert!(
+            matches!(
+                ellipse.on_carrier(at, geom::mid_param(t0, t1), band),
+                Err(geom::CarrierRefusal::Escalated(
+                    geom::CarrierEscalation::Straddle(_)
+                ))
+            ),
+            "the closest approach straddles from the arc's middle"
+        );
+        let past = EdgeSpan::of(ellipse, (t0, t1));
+        assert!(
+            matches!(passes(&past, q, d, at, band), Passes::Clear),
+            "an arc past the closest approach"
+        );
+    }
 }

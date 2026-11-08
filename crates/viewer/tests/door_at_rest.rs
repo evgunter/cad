@@ -121,7 +121,7 @@ fn a_landings_door_reads_pending_until_its_own_answer_settles() {
     assert_ne!(second.generation, first.generation);
     let stale = first
         .job
-        .run(&first.doc, &CancelToken::new())
+        .run(&first.doc, &pncad::document::Stop::default())
         .expect("an uncanceled door");
     held.seen().answers.push(DoorDone {
         generation: first.generation,
@@ -150,7 +150,7 @@ fn a_landings_door_reads_pending_until_its_own_answer_settles() {
     // is in the report.
     let found = second
         .job
-        .run(&second.doc, &CancelToken::new())
+        .run(&second.doc, &pncad::document::Stop::default())
         .expect("an uncanceled door");
     held.seen().answers.push(DoorDone {
         generation: second.generation,
@@ -170,7 +170,7 @@ fn a_landings_door_reads_pending_until_its_own_answer_settles() {
     // twice.
     let again = second
         .job
-        .run(&second.doc, &CancelToken::new())
+        .run(&second.doc, &pncad::document::Stop::default())
         .expect("an uncanceled door");
     held.seen().answers.push(DoorDone {
         generation: second.generation,

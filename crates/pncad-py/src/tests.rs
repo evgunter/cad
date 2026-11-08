@@ -2033,6 +2033,7 @@ fn node_error_tags_are_the_published_words() {
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
         EmptyOperand => "empty_operand",
+        EmptyMember => "empty_member",
         UnfinishedOperand => "unfinished_operand",
         EmptyHalf => "empty_half",
         MemberOutOfRange => "member_out_of_range",
@@ -3103,6 +3104,8 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ChainArm,
         BlendDecision::ConvexitySign,
         BlendDecision::MaterialSide,
+        BlendDecision::KnifeEnd,
+        BlendDecision::KnifeRoom,
         BlendDecision::RingClearance,
         BlendDecision::SupportCoaxiality,
         BlendDecision::ContactArm,
@@ -3128,7 +3131,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
                 terminal_sliver: false,
             },
         };
-        let text = refused.to_string();
+        let text = refused.render(pncad::geom_brep::recourse::Reading::Build);
         assert!(
             reads_as_prose(&text) && !text.contains("Key("),
             "a {decision:?} escalation panics the binding rather than raising: {text}"
@@ -3549,7 +3552,11 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         );
         assert_eq!(
             words.reason.as_deref(),
-            Some(negative.to_string().as_str()),
+            Some(
+                negative
+                    .render(pncad::geom_brep::recourse::Reading::AtRest)
+                    .as_str()
+            ),
             "the validator's own sentence for {word}"
         );
     }
@@ -3619,7 +3626,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     };
 
     for finding in [&census, &stale] {
-        let message = finding.to_string();
+        let message = finding.render(pncad::geom_brep::recourse::Reading::AtRest);
         assert!(
             reads_as_prose(&message),
             "a tier-3′ census finding must read as prose: it is raised \
@@ -3637,7 +3644,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     // The prose names what touched and where, in words — the keys
     // ride in the typed payload a caller resolves against — and ends
     // on the recourse.
-    let message = census.to_string();
+    let message = census.render(pncad::geom_brep::recourse::Reading::AtRest);
     assert!(
         message.contains("a vertex lying on a face at (0.0, 0.0, 0.0)"),
         "the finding still names its entities and its witness: {message}"
@@ -4523,6 +4530,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "checks_error_tag",
         values: &[
             "band",
+            "canceled",
             "evaluation_of_another_document",
             "placement_without_value",
             "product_unavailable",
@@ -4614,6 +4622,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "coaxial_sphere",
             "coaxial_tori",
             "crossing_cylinders",
+            "iso_join",
             "plane_ladder",
             "profile_junction",
             "sphere_on_torus_axis",
@@ -4886,17 +4895,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_aim",
             "degenerate_mirror_normal",
-            "degenerate_reference_ladder",
             "degenerate_roll_reference",
-            "degenerate_tangent",
             "non_finite_aim",
             "non_finite_mirror_normal",
             "non_finite_roll_reference",
-            "non_finite_tangent",
             "underflowed_aim",
             "underflowed_mirror_normal",
             "underflowed_roll_reference",
-            "underflowed_tangent",
         ],
         delegates: &[],
     },
@@ -5069,7 +5074,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "mc_refusal_tag",
-        values: &["no_samples", "nominal_does_not_build"],
+        values: &["no_samples", "nominal_does_not_build", "stopped"],
         delegates: &["measure_unavailable_tag"],
     },
     TagEntry {
@@ -5108,6 +5113,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "entity_named",
             "escalated",
+            "holdings_unread",
             "joined_piece_off_root",
             "kind_mismatch",
             "member_edge_tied",
@@ -5120,7 +5126,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unnamed",
             "unsettled_vertex",
             "unsupported_turned_cell",
-            "unsupported_unjudged_glue",
         ],
         delegates: &[
             "band_error_tag",
@@ -5156,6 +5161,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_solid_frontier",
             "degenerate_direction",
             "empty_half",
+            "empty_member",
             "empty_operand",
             "escalated",
             "expr",
@@ -5572,6 +5578,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "revolve_error_tag",
         values: &[
             "angle_escalated",
+            "apex_end_off_sheet",
             "arc_crosses_axis",
             "axis_escalated",
             "axis_gap_escalated",
@@ -5595,7 +5602,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "smooth_join_refuted",
             "turn",
             "underflowed_axis",
-            "unsupported_toroid",
             "vertex_crosses_axis",
             "void_insertion",
         ],
@@ -5776,6 +5782,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "axis_heading",
             "chamfer_distance",
+            "clearance_high",
+            "clearance_low",
             "distance",
             "index",
             "origin_x",
@@ -5869,6 +5877,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "severed_edge",
             "space_straddles_cut",
             "split_pin",
+            "stopped",
             "uncut_var_reference",
             "unknown_cut_node",
             "unresolved_var_crosses_cut",
@@ -6114,6 +6123,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "dangling_description",
             "dangling_geometry",
             "dangling_topology",
+            "degenerate_spindle",
             "degenerate_torus",
             "degenerate_torus_escalated",
             "description_not_adjacent",
@@ -6175,6 +6185,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffolding_strut_vertex",
             "seam_region_cover_unresolved",
             "seam_region_overcovered",
+            "sheet_apex_reached",
             "shell_disconnected",
             "shell_role_undecided",
             "shell_winding",
@@ -6459,6 +6470,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `a_split_lineage_cycle_has_one_word_wherever_it_is_met` pins it.
     ("split_lineage_cycle", 2),
     ("step_ids", 3),
+    // One fact: an evaluation a door ran stopped short
+    // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
+    ("stopped", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
     // One fact at the edit door and in the skin: a loft through fewer
@@ -7658,7 +7672,8 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `editor-core` and `topo`, not here, and the arm is not
 /// constructible from this crate (see
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
-/// them. `work/lib/` carries that as its own row.
+/// them. BIND carries that as its own row
+/// (`work/bind/select-refusal-predicate-names-are-unpinned.md`).
 ///
 /// **The `reason` and `door` words are a second family, and no raise
 /// site under `src/py/` MINTS one any more.** Such an attribute is as
@@ -8032,7 +8047,7 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
             "nothing: it is a `#[doc(hidden)]` anchor whose whole content is a \
              six-row prose table, and the count that table fixes was written \
              three ways with two different numbers before it existed, which is \
-             `work/lib/the-dimension-door-table-is-prose-nothing-re-derives.md`",
+             `work/bind/the-dimension-door-table-is-prose-nothing-re-derives.md`",
         )],
     },
     MintingItem {
@@ -10401,7 +10416,15 @@ mod product_memo_rows {
 
         let memo = ProductMemo::default();
         let checks_then_product = gathers(|| {
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
         });
         assert_eq!(checks_then_product, 1);
@@ -10409,8 +10432,24 @@ mod product_memo_rows {
         let memo = ProductMemo::default();
         let product_then_checks = gathers(|| {
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("and runs again");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("and runs again");
         });
         assert_eq!(product_then_checks, 1);
     }
@@ -10428,7 +10467,15 @@ mod product_memo_rows {
         let count = gathers(|| {
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
             product_memo::body_and_names(&memo, &doc, &ev, tol).expect("and names its entities");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
         });
         assert_eq!(count, 1);
     }
@@ -10451,7 +10498,15 @@ mod product_memo_rows {
         let tol = Tol::witness();
         let memo = ProductMemo::default();
         let none = gathers(|| {
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
         });
         assert_eq!(none, 0);
         let first = gathers(|| {
@@ -10497,6 +10552,7 @@ mod product_memo_rows {
             &doc,
             &ev,
             &d::ChecksConfig::default(),
+            &pncad::document::Stop::default(),
             Tol::witness(),
         )
         .expect("an empty world is a subject, not a refusal");
@@ -10586,6 +10642,7 @@ fn a_split_node_map_reaches_python_in_target_id_order() {
         DocumentId::derive("place-node-map-part"),
         Tol::witness(),
         None,
+        &pncad::document::Stop::default(),
     )
     .expect("a cut of free profiles splits");
     let listed = crate::node_map::in_target_id_order(&out.node_map, &out.part);

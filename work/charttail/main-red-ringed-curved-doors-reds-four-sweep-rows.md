@@ -67,5 +67,7 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the review_4781 r1 pin: this row's `RayExhausted`.
 
 The base six ray-wall pairs are owned by
-`work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
+`work/cpair/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
 since 2026-10-28 (PR 5966), which also pins the row at today's 62.
+
+**The ray-wall twins row is no longer this row's (2026-11-06).** `curve_foot_branch` scales since PR 6349 and is not recorded since PR 6482; the row is re-pinned on `work/onecopy/ray-wall-twins-read-f31-angle-renames-as-margins-that-must-scale.md` and `work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`.

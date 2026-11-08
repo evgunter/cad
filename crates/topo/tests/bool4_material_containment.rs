@@ -280,7 +280,7 @@ fn the_embedded_cube_is_a_decided_interference() {
         "the first strictly-inside corner"
     );
     // The Display is the kernel's own sentence, not a struct dump.
-    let text = finding.to_string();
+    let text = finding.render(geom_brep::recourse::Reading::AtRest);
     assert!(text.contains("interference fit"), "{text}");
     assert!(
         text.contains("two instances overlap: a corner of one lies inside the other"),

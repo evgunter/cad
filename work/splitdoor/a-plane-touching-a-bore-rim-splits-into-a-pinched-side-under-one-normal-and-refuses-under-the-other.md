@@ -5,7 +5,6 @@ title: a plane touching a tube's bore rim at one point splits into a pinched sid
 status: closed
 opened: 2026-10-07
 priority: P1
-refs: [a-rim-touching-split-escalates-on-the-side-of-plane-band, split-sides-are-not-finished-bodies]
 cost: M
 pr: 5951
 branch: splitdoor/hole-rim-tangent-germs

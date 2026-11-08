@@ -13,10 +13,10 @@ cost: M
 
 ## What
 
-`splitting/classify.rs` `conic_plane_candidates` reads three things in
-order: the conic's reach `R` (`split_conic_plane_parallel`), the graze
-`R − |D|` (`split_conic_belly_graze`), and the graze's side `D`
-(`split_conic_graze_side`, through `decide_nonzero`). Where the side
+`crates/geom-brep/src/curve_face/plane_crossing.rs` `conic_plane_candidates` reads three things in
+order: the conic's reach `R` (`plane_crossing_plane_parallel`), the graze
+`R − |D|` (`plane_crossing_belly_graze`), and the graze's side `D`
+(`plane_crossing_graze_side`, through `decide_nonzero`). Where the side
 decides zero, the gate's rejection carries `D`. The Boolean
 (`EdgeOnPlane`, sized `AnySign`) then offers "tighten the tolerance below
 |D|/K".

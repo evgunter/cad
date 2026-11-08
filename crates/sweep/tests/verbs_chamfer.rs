@@ -271,7 +271,7 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
         "the arm table is what refused: {err:?}"
     );
-    let text = format!("{err}");
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.starts_with("chamfer:") && text.contains("both planes"),
         "the refusal speaks as the chamfer: {text}"

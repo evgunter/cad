@@ -45,6 +45,29 @@ history, and undo reaches it. The full statement is in
 4. **The seated tools**, cut per tool from the census once the profile
    unit has set the pattern.
 
+**Where it stands (2026-11-03, second hand-back).** All four steps are
+done:
+- steps 1–3: #6388, #6393, #6401, #6403;
+- step 4: #6414 and, after Ev's answers on `[ev]` 6406, #6431, which
+  covered split and pattern.
+
+The census row is closed: every create form on this track's ground
+asks only for the kind and the reads. What is left is all P2 or P3:
+- P2: `a-clearance-bound-shape-is-a-row`;
+- P2: `a-plane-other-than-a-face-cannot-be-authored-in-the-viewer`;
+- P2: `no-viewer-row-re-points-a-live-nodes-read`, which re-picks a
+  live node's read, such as a split's plane;
+- P2: `an-anonymous-index-cannot-be-written-into-a-value-row`, which
+  blocks VR2's anonymous index;
+- P3: `the-profile-editors-naming-and-offer-doors-wait-on-held-edits`.
+
+The next sitting can take the P2s as small units. The plane-authoring
+and live-read rows may want a designer pass first, since both add a
+viewer door.
+- **Never merge an `[ev]` branch into forms/orchestrator.** Units are
+  cut from that branch, so they would carry the unratified text (#6414
+  did, and its review caught it).
+
 **Not this track's to build.** The placement editor's Create door
 (PLACING, `crates/viewer/src/matetool.rs`) and the transform and
 duplicate tools, which PLACING is retiring into it. The add-variable

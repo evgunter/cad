@@ -162,7 +162,10 @@ fn h1_valence_four_concurring_corners_must_solve() {
                 "a concurring valence-4 corner is off one of its own planes"
             );
         }
-        Err(e) => panic!("[h1] a concurring valence-4 corner was REFUSED: {e}"),
+        Err(e) => panic!(
+            "[h1] a concurring valence-4 corner was REFUSED: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -191,10 +194,14 @@ fn h2_valence_four_non_concurring_corners_must_refuse_typed() {
     match r {
         Ok(_) => panic!("[h2] a NON-concurring valence-4 corner BUILT"),
         Err(e) => {
-            println!("[h2] REFUSES: {e}");
+            println!(
+                "[h2] REFUSES: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             assert!(
                 matches!(e, ReplaceFaceError::TogetherCorner { .. }),
-                "[h2] the refusal must be the corner gate, got {e}"
+                "[h2] the refusal must be the corner gate, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
             );
             assert_eq!(sorted_points(&body), before, "[h2] the operand moved");
         }
@@ -225,7 +232,10 @@ fn h3_the_conditioning_meter_is_a_function_of_the_offset() {
             .collect();
         match topo::offset_planes_together(&mut body, &moves, band(), Tol::witness()) {
             Ok(_) => println!("[h3] CUBE, inward {d:e}: solves"),
-            Err(e) => println!("[h3] CUBE, inward {d:e}: REFUSES {e}"),
+            Err(e) => println!(
+                "[h3] CUBE, inward {d:e}: REFUSES {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -285,6 +295,9 @@ fn h4_a_face_named_twice() {
                 topo::validate_geometric(&body, Tol::witness()).is_ok()
             );
         }
-        Err(e) => println!("[h4] a face named TWICE refuses: {e}"),
+        Err(e) => println!(
+            "[h4] a face named TWICE refuses: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }

@@ -132,7 +132,11 @@ fn every_op_but(scene: &Scene<'_>, skip: Option<&str>) -> Vec<String> {
                 continue;
             }
             Err(e) => {
-                wrong.push(format!("{what}: refuses {:?}: {e}", e.kind()));
+                wrong.push(format!(
+                    "{what}: refuses {:?}: {e_at}",
+                    e.kind(),
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ));
                 continue;
             }
         };
@@ -608,7 +612,7 @@ fn turned_v(pts: &[(f64, f64)], turn: f64) -> AtRestBody<f64> {
 /// **An arc resting in a bore's wall, or in a spherical floor, refuses
 /// typed in every op**, `CurvedPierceUnsupported` at the reduction, which
 /// places no arc lying in a curved face's interior
-/// (`work/cleave/an-arc-lying-in-a-curved-faces-interior-refuses-at-the-reduction.md`).
+/// (`an-arc-lying-in-a-curved-faces-interior-refuses-at-the-reduction` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
 /// This pins a refusal main gives too: the parting is never reached
 /// here, and past the reduction it refuses `Curved`. The slab is a 270°
 /// revolve about `y` whose inner wall is the cylinder `r = .5` or the

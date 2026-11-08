@@ -1509,10 +1509,18 @@ fn in_id_order<V>(mut found: Vec<(RecipeNodeId, V)>) -> Vec<(RecipeNodeId, V)> {
 /// lane's (a structural parameter, a recipe edit) or another rung's (a
 /// group resized). The mirror of the `name_frag_*` rung, which puts a
 /// family first.
+///
+/// It passes over a corner's sign ([`geom_brep::DIHEDRAL_SIGN`]) on the
+/// same terms: tier 3 and the shared-rim routing read it off a body
+/// already built, and its population moves across signs whenever an edit
+/// trades convex corners for concave ones, with no corner turning, so a
+/// flip there changes whether a body is accepted, never which body a
+/// name was read off.
 fn first_cause(found: Vec<(RecipeNodeId, VerdictFlip)>) -> Option<(RecipeNodeId, VerdictFlip)> {
-    in_id_order(found)
-        .into_iter()
-        .find(|(_, f)| !f.predicate.starts_with(topo::SIDE_READER_FAMILY))
+    in_id_order(found).into_iter().find(|(_, f)| {
+        !f.predicate.starts_with(topo::SIDE_READER_FAMILY)
+            && f.predicate != geom_brep::DIHEDRAL_SIGN
+    })
 }
 
 /// One lane's find ([`Prior::lanes`]), before a scope wraps it in the
@@ -3498,5 +3506,18 @@ mod flip_lane_rows {
             "a reader flip alone leaves the cause to the next lane"
         );
         assert_eq!(first_cause(Vec::new()), None);
+    }
+
+    /// A corner's sign ranks after any other flip, and alone is no cause.
+    #[test]
+    fn a_corner_sign_flip_ranks_after_any_other_flip() {
+        let node = RecipeNodeId::new(0, 7);
+        let sign = geom_brep::DIHEDRAL_SIGN;
+        let found = vec![(node, flip(sign)), (node, flip("split_vertex_side"))];
+        assert_eq!(
+            first_cause(found).map(|(_, f)| f.predicate),
+            Some("split_vertex_side")
+        );
+        assert_eq!(first_cause(vec![(node, flip(sign))]), None);
     }
 }

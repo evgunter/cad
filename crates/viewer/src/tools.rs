@@ -42,8 +42,8 @@ use pncad::select::SplitHalf;
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{
-    BooleanTool, ClearanceEvent, ClearanceTool, MirrorEvent, MirrorTool, PartTool,
-    PatternTool, SplitTool, TransformTool,
+    BooleanTool, ClearanceEvent, ClearanceTool, MirrorTool, PartTool, PatternTool, PlaneEvent,
+    SplitTool, TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickcache::NotIndexed;
@@ -158,19 +158,35 @@ impl ToolKind {
     /// so a body tool is never handed a node it cannot seat.
     pub fn pick_kinds(self) -> PickKinds {
         match self {
-            // The mirror tool's plane is a face, and its body is picked
-            // by a face or in the tree.
+            // The mirror's and the split's plane is a face, and their
+            // body is picked by a face or in the tree.
             // The clearance tool's face seats are faces, and its body
             // seats are picked in the tree.
-            Self::Mate | Self::Mirror | Self::Clearance => PickKinds::FacesOnly,
+            Self::Mate | Self::Mirror | Self::Split | Self::Clearance => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
             // Their seats read bodies, picked through a face or an
             // edge; none reads a profile, so none is offered one.
-            Self::Boolean
+            Self::Boolean | Self::Transform | Self::Pattern | Self::Part => PickKinds::FacesAndEdges,
+        }
+    }
+
+    /// **Whether this tool's form holds a label field.** A tool under
+    /// the create rule's "a creation proposes no label"
+    /// (`crates/viewer/README.md`, "A create gesture commits the
+    /// node") holds none: its insert stores `Kind N` on the node its
+    /// noun names, and the node's label row renames it. A tool brought
+    /// under the rule joins the list here.
+    pub fn offers_label(self) -> bool {
+        match self {
+            Self::Mirror => false,
+            Self::Mate
+            | Self::Boolean
             | Self::Split
             | Self::Transform
             | Self::Pattern
-            | Self::Part => PickKinds::FacesAndEdges,
+            | Self::Blend
+            | Self::Part
+            | Self::Clearance => true,
         }
     }
 
@@ -232,7 +248,6 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
-        | SessionOp::Stage { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetVariable { .. }
@@ -294,7 +309,9 @@ pub enum ToolNotice {
     Blend(BlendEvent),
     /// The mirror tool lost its plane — a face, which survives by
     /// resolving rather than by seat.
-    Mirror(MirrorEvent),
+    Mirror(PlaneEvent),
+    /// The split tool lost its plane, a face or a variable.
+    Split(PlaneEvent),
     /// The clearance tool lost a face seat.
     Clearance(ClearanceEvent),
     /// A seated tool lost a pick.
@@ -325,6 +342,7 @@ impl Say for ToolNotice {
             Self::Mate(event) => ToolKind::Mate.says(&Said(event, by)),
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
             Self::Mirror(event) => ToolKind::Mirror.says(&Said(event, by)),
+            Self::Split(event) => ToolKind::Split.says(&Said(event, by)),
             Self::Clearance(event) => ToolKind::Clearance.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
             Self::Missed { tool, kinds } => tool.says(&format_args!(
@@ -628,9 +646,9 @@ impl Tools {
     }
 
     /// The open split tool.
-    pub fn split(&self) -> Option<SplitTool> {
+    pub fn split(&self) -> Option<&SplitTool> {
         match &self.open {
-            Some(OpenTool::Split(tool)) => Some(tool.clone()),
+            Some(OpenTool::Split(tool)) => Some(tool),
             _ => None,
         }
     }
@@ -869,9 +887,11 @@ impl Tools {
                 Some(OpenTool::Boolean(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
-                Some(OpenTool::Split(tool)) => {
-                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
-                }
+                Some(OpenTool::Split(tool)) => match selection {
+                    Selection::Face(face) => tool.pick_plane(doc, face.clone()),
+                    Selection::Variable(var) => tool.pick_defined(doc, *var),
+                    _ => on_node_pick(selection, |node| tool.pick(doc, node)),
+                },
                 Some(OpenTool::Transform(tool)) => {
                     let opened = match selection {
                         Selection::Face(face) => Some(MateTool::moving_picked(doc, face.clone())),
@@ -892,13 +912,7 @@ impl Tools {
                     }
                 }
                 Some(OpenTool::Pattern(tool)) => {
-                    match selection {
-                        Selection::Edge(edge) => tool
-                            .pick_direction(doc, crate::combine::DirectionPick::Edge(edge.clone())),
-                        Selection::Face(face) => tool
-                            .pick_direction(doc, crate::combine::DirectionPick::Face(face.clone())),
-                        _ => on_body_pick(selection, |node, body| tool.pick_at(doc, node, body)),
-                    }
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
                 Some(OpenTool::Part(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
@@ -946,11 +960,11 @@ impl Tools {
             Some(OpenTool::Mate(tool)) => tool.held(),
             Some(OpenTool::Blend(tool)) => tool.held(),
             Some(OpenTool::Mirror(tool)) => tool.held(),
+            Some(OpenTool::Split(tool)) => tool.held(),
             Some(OpenTool::Clearance(tool)) => tool.held(),
             None
             | Some(
                 OpenTool::Boolean(_)
-                | OpenTool::Split(_)
                 | OpenTool::Transform(_)
                 | OpenTool::Pattern(_)
                 | OpenTool::Part(_),
@@ -1016,7 +1030,21 @@ impl Tools {
                 };
             }
             OpenTool::Boolean(tool) => tool.reconcile(doc),
-            OpenTool::Split(tool) => tool.reconcile(doc),
+            // The target seat answers from the document; the plane from
+            // the landed pair, as the mirror's does.
+            OpenTool::Split(tool) => {
+                let seat = tool
+                    .reconcile(doc)
+                    .into_iter()
+                    .map(|event| ToolNotice::Seated {
+                        tool: ToolKind::Split,
+                        event,
+                    });
+                let plane = landed
+                    .and_then(|(landed_doc, eval)| tool.reconcile_plane(landed_doc, eval))
+                    .map(ToolNotice::Split);
+                return seat.chain(plane).collect();
+            }
             OpenTool::Transform(tool) => {
                 tool.reconcile(doc);
                 Vec::new()

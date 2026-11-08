@@ -92,4 +92,4 @@ torus — refuses `NeighborPairUnroutable` first, because
 
 The four readers OUTSIDE the offset lane are not this unit's and are
 filed as their own class:
-`work/issues/cone-nappe-is-decided-in-five-places.md`.
+`work/honeone/cone-nappe-is-decided-in-five-places.md`.

@@ -32,6 +32,31 @@ whose build of FORK-ORIENT (nothing is ranked) retires `OrderAlong`.
 
 ## Review posture
 
-Inherits WIRE's (`work/wire/plan.md`): protocol v7, single reviews.
+Inherits WIRE's (WIRE's plan, recoverable by `docs/doc-ledger/wire-leaves-the-tracker.md`): protocol v7, single reviews.
 
 **Class note from WIRE's 2026-10-20 sitting:** a row-4 (`unreachable!`) argument must hold for every K > 1 and every ε that `Tolerance` accepts. It must not rest on two independent tolerance decisions agreeing. Review probes with `CAD_AMBIGUITY_K=1.5` and `CAD_TOLERANCE_EPS=1e-6`.
+
+## WIRE's remainder, moved in 2026-11-03
+
+WIRE closed with eleven P3 rows and nothing above them
+(`docs/doc-ledger/wire-leaves-the-tracker.md`); they moved here by
+`git mv`, ids and bodies unchanged, with WIRE's `paths`. None counts
+towards the load, which only weighs P0, P1 and unbanded rows.
+
+| item | cost |
+|---|---|
+| `a-boolean-records-a-face-pair-decision-only-where-the-two-faces-meet` | E +design |
+| `a-boolean-zero-decided-and-consumed-in-place-reaches-no-row` | M |
+| `a-split-records-an-on-vertex-only-where-it-leaves-two-runs` | E +design |
+| `a-split-lineage-lists-a-joined-edge-over-chords-and-an-operand-rim-as-minted` | M |
+| `a-splits-joined-seam-and-set-piece-keys-have-no-tie-witness` | E |
+| `a-joined-set-over-two-tied-operand-edges-loses-its-operand` | M |
+| `a-flush-pairs-rim-point-is-spelled-two-ways-by-fold-order` | M |
+| `a-unions-tied-fold-rows-at-a-member-corner-bypass-the-corner-rule` | M |
+| `union-pairwise-verdicts-that-disagree-through-lineage-refuse-as-a-kernel-defect` | M |
+| `an-assembles-contact-carry-raises-emission-for-a-bridge-the-graft-keeps-total` | M |
+| `a-crossings-sense-residue-left-in-the-emitters-and-the-remap` | E |
+
+The two `+design` rows are one question: whether a decision a boolean
+or split takes and uses in place is a published row. Weigh them
+together before building either.

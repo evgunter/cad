@@ -208,7 +208,7 @@ fn side_seats(doc: &ProfileDoc, members: &[RecipeNodeId]) -> (Vec<Seat>, f64) {
             &[(node, &rows[..])],
             None,
             Tol::witness(),
-            &editor_core::CancelToken::new(),
+            &editor_core::Stop::default(),
         )
         .expect("door");
         let (x, y) = (at(a.var), at(b.var));

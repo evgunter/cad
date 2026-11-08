@@ -106,8 +106,12 @@ fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joints: usiz
     let (body, _) = joined(body, t);
     let body = sweep::test_support::finished("body", body, t);
     let req: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let f = sweep::fillet::fillet_edges(&body, &req, r, t)
-        .unwrap_or_else(|e| panic!("{label}: fillet: {e}"));
+    let f = sweep::fillet::fillet_edges(&body, &req, r, t).unwrap_or_else(|e| {
+        panic!(
+            "{label}: fillet: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         topo::validate_geometric(&f.body, t),
         Ok(()),
@@ -122,8 +126,12 @@ fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joints: usiz
         "{label}: fillet volume"
     );
     sweep::test_support::assert_naming_totality(&body, &f, &req, label);
-    let c = sweep::chamfer::chamfer_edges(&body, &req, r, t)
-        .unwrap_or_else(|e| panic!("{label}: chamfer: {e}"));
+    let c = sweep::chamfer::chamfer_edges(&body, &req, r, t).unwrap_or_else(|e| {
+        panic!(
+            "{label}: chamfer: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         topo::validate_geometric(&c.body, t),
         Ok(()),

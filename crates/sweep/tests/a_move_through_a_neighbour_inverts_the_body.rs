@@ -106,8 +106,12 @@ fn the_door_builds_the_inverted_body_and_the_gate_refuses_it() {
         AtRestBody::validate(operand.clone(), tol).expect("the operand is finished");
         let face = face_where(&operand, pick);
         let mut moved = operand;
-        topo::replace_face_offset(&mut moved, face, d, tol)
-            .unwrap_or_else(|e| panic!("{what}: the door builds through the neighbour, got {e}"));
+        topo::replace_face_offset(&mut moved, face, d, tol).unwrap_or_else(|e| {
+            panic!(
+                "{what}: the door builds through the neighbour, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         topo::validate_closed(&moved)
             .unwrap_or_else(|e| panic!("{what}: the result is tier 2, got {e:?}"));
         // Raw door: the move through the neighbour inverts the body, which tier 3 refuses (RingOutsideOuter), and its signed volume is the subject.
@@ -142,8 +146,12 @@ fn the_shell_verb_refuses_the_crossing_at_its_closing_gate() {
     ];
     for (what, operand, finishes, crosses, rings) in rows {
         let operand = AtRestBody::validate(operand, tol).expect("the operand is finished");
-        let shelled = topo::shell(&operand, finishes, tol)
-            .unwrap_or_else(|e| panic!("{what}: a {finishes} wall shells, got {e}"));
+        let shelled = topo::shell(&operand, finishes, tol).unwrap_or_else(|e| {
+            panic!(
+                "{what}: a {finishes} wall shells, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         AtRestBody::validate(shelled.body, tol)
             .unwrap_or_else(|e| panic!("{what}: the {finishes} shell is finished, got {e:?}"));
         match topo::shell(&operand, crosses, tol) {

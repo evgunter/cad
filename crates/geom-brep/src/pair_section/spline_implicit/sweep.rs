@@ -3,24 +3,21 @@
 //! the height of the wall's point over it, `φ = n·(S − o)`, and
 //! `∇φ = n·[S_u S_v]`, so `∇φ` bounded off zero is the wall's normal
 //! bounded off `±n`; against a cylinder, sphere or torus `φ` is its
-//! canonical form along the wall ([`Curved`]), and `∇φ = ∇f(S)·[S_u S_v]`.
+//! canonical form along the wall ([`ImplicitForm`]), and `∇φ = ∇f(S)·[S_u S_v]`.
 //!
 //! The wall's knot rectangle is swept by the chart lane's one
 //! recursion ([`sweep_chart_regular`], shared with seeding and C3's
 //! accounting), to the accounting floor. A cell is:
 //!
 //! - **excluded** where `φ` over it is decided past the band
-//!   (`spline_sweep_excluded`): on the plane its height on the
-//!   accounting's own enclosure
-//!   ([`crate::ssi::exhaust::chart_plane_height`]), over the normal's
-//!   length; on a curved partner `f` over the cell's box, a floor in
-//!   metres ([`Curved::floor_metres`]). So is `φ − c` for every `c`
+//!   (`spline_sweep_excluded`): the partner's form `f` over the cell's
+//!   box, a floor in metres ([`ImplicitForm::floor_metres`]), the
+//!   plane's `f = z` in its frame among them. So is `φ − c` for every `c`
 //!   within the band, the band read in metres;
 //! - **regular** where the wall's slope off the partner along `u` or
 //!   `v`, `∇f·S_d / (sup‖∇f‖·sup‖S_d‖)` on the closed cell's derivative
 //!   boxes ([`NurbsBoxes::deriv_box_closed`], [`NurbsBoxes::speed_sup`])
-//!   and, on a curved partner, `∇f` over the cell's box (`n` and its
-//!   length on the plane), levered by the feature extent, is decided off
+//!   and `∇f` over the cell's box (the plane's unit normal), levered by the feature extent, is decided off
 //!   zero (`spline_sweep_regular`), as the march decides
 //!   transversality;
 //! - neither, and halved down to the floor, where it is a critical
@@ -80,29 +77,23 @@
 
 use std::cell::RefCell;
 
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Interval, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Interval, Margin, Sign, Vec3};
 
 use crate::ssi::SsiError;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
-use crate::ssi::exhaust::{
-    REGULAR_SURVIVORS, SweepFloor, UvRect, chart_plane_height, sweep_chart_regular,
-};
-use crate::ssi::residual::Curved;
+use crate::ssi::exhaust::{REGULAR_SURVIVORS, SweepFloor, UvRect, sweep_chart_regular};
+use crate::ssi::residual::ImplicitForm;
 
 mod critical;
 
 use critical::Jets;
 pub(in crate::pair_section) use critical::{Critical, Kind};
 
-/// **The partner the sweep reads `φ` of.**
-#[derive(Clone, Copy)]
-pub(super) enum Phi<'a> {
-    /// A plane, read at its pivot: its origin and its normal as stored.
-    Plane(Point3<f64>, Vec3<f64>),
-    /// A cylinder, sphere or torus.
-    Curved(&'a Curved),
-}
+/// **The partner the sweep reads `φ` of**: its form, a plane's read at
+/// its pivot.
+pub(super) type Phi<'a> = &'a ImplicitForm;
 
 /// What the sweep answers.
 #[derive(Clone, Debug, PartialEq)]
@@ -162,7 +153,7 @@ pub(super) fn sweep(
     let (ud, vd) = (net.knot_values_u().domain(), net.knot_values_v().domain());
     let root = UvRect { u: ud, v: vd };
     // Both callers mint the floor over the wall's own knot rectangle
-    // (`PlaneSection::of`, `ImplicitWall::of`).
+    // (`ImplicitWall::of`, through `ImplicitSection::of`).
     debug_assert_eq!(
         floor.root(),
         root,
@@ -178,19 +169,12 @@ pub(super) fn sweep(
         )
     };
     // `∇f` over a window, and an upper bound on its length there.
-    let gradient = |w: UvWindow| match phi {
-        Phi::Plane(_, normal) => {
-            let n = normal.map(Interval::from_certified);
-            let length = (n.x.powi(2) + n.y.powi(2) + n.z.powi(2)).sqrt();
-            (n, length)
-        }
-        Phi::Curved(curved) => {
-            let q = curved.framed(boxes.rect_box(w));
-            (
-                curved.gradient(q),
-                Interval::from_certified(curved.gradient_sup(q)),
-            )
-        }
+    let gradient = |w: UvWindow| {
+        let q = phi.framed(boxes.rect_box(w));
+        (
+            phi.gradient(q),
+            Interval::from_certified(phi.gradient_sup(q)),
+        )
     };
     // The wall's slope off the partner along `u` (`along_u`) or `v` over
     // a window, decided off zero.
@@ -217,25 +201,18 @@ pub(super) fn sweep(
         })
     };
     // `φ` over a cell, in metres: a floor on its distance, signed.
-    let value = |cell: UvRect| match phi {
-        Phi::Plane(origin, normal) => {
-            let n = normal.map(Interval::from_certified);
-            let length = (n.x.powi(2) + n.y.powi(2) + n.z.powi(2)).sqrt();
-            chart_plane_height(boxes, origin, normal, cell).map(|height| height / length)
-        }
-        Phi::Curved(curved) => {
-            let b = cell
-                .window()
-                .map_or_else(crate::ssi::enclose::refused_box, |w| boxes.rect_box(w));
-            let q = curved.framed(b);
-            let metres = curved.floor_metres(curved.value(q), q);
-            if metres.is_certified() {
-                Ok(metres)
-            } else {
-                Err(SsiError::UnsupportedCertificate {
-                    what: "a curved partner's form over a cell of the wall does not certify",
-                })
-            }
+    let value = |cell: UvRect| {
+        let b = cell
+            .window()
+            .map_or_else(crate::ssi::enclose::refused_box, |w| boxes.rect_box(w));
+        let q = phi.framed(b);
+        let metres = phi.floor_metres(phi.value(q), q);
+        if metres.is_certified() {
+            Ok(metres)
+        } else {
+            Err(SsiError::UnsupportedCertificate {
+                what: "a partner's form over a cell of the wall does not certify",
+            })
         }
     };
     // The side of the partner a cell is decided on (`true` above), or
@@ -318,62 +295,63 @@ pub(super) fn sweep(
     );
     for (line, along_u) in lines {
         let cuts = if along_u { &ku } else { &kv };
-        let mut stack: Vec<UvRect> = pieces(
+        let roots = pieces(
             line,
             if along_u { cuts } else { &[] },
             if along_u { &[] } else { cuts },
         );
-        stack.reverse();
-        let mut read = 0usize;
-        while let Some(piece) = stack.pop() {
-            read += 1;
-            if read > crate::ssi::exhaust::SSI_MAX_CELLS {
-                return Sweep::Declined(Declined::Budget);
-            }
-            let Some(jets) = &jets else {
-                return Sweep::Declined(Declined::Unread);
-            };
-            let open = |(a, b): (f64, f64)| {
-                let a = if cuts.contains(&a) { a.next_up() } else { a };
-                let b = if cuts.contains(&b) { b.next_down() } else { b };
-                Interval::from_bounds(a, b.max(a))
-            };
-            let at = if along_u {
-                (open(piece.u), iv(piece.v))
-            } else {
-                (iv(piece.u), open(piece.v))
-            };
-            let (metres, slope) = critical::along_line(jets, phi, at, along_u);
-            // A reading that does not certify is halved as an undecided
-            // one is, down to the floor.
-            let read = metres.is_certified() && slope.is_certified();
-            let along = read && off("spline_sweep_regular", Margin::levered(slope, extent));
-            if let Some(above) = side(piece, metres).filter(|_| read) {
-                excluded.borrow_mut().push(Excluded {
-                    cell: piece,
-                    above,
-                    regular: along,
-                });
-                continue;
-            }
-            if along {
-                continue;
-            }
-            let (a, b) = if along_u { piece.u } else { piece.v };
-            if b - a <= floor.width() {
-                return Sweep::Declined(Declined::Floor((
-                    0.5 * (piece.u.0 + piece.u.1),
-                    0.5 * (piece.v.0 + piece.v.1),
-                )));
-            }
-            let m = 0.5 * (a + b);
-            let (lo, hi) = if along_u {
-                (UvRect { u: (a, m), ..piece }, UvRect { u: (m, b), ..piece })
-            } else {
-                (UvRect { v: (a, m), ..piece }, UvRect { v: (m, b), ..piece })
-            };
-            stack.push(hi);
-            stack.push(lo);
+        let walked = bisect_within(
+            roots,
+            &mut Budget::new(crate::ssi::exhaust::SSI_MAX_CELLS),
+            |piece| {
+                let Some(jets) = &jets else {
+                    return Step::Stop(Sweep::Declined(Declined::Unread));
+                };
+                let open = |(a, b): (f64, f64)| {
+                    let a = if cuts.contains(&a) { a.next_up() } else { a };
+                    let b = if cuts.contains(&b) { b.next_down() } else { b };
+                    Interval::from_bounds(a, b.max(a))
+                };
+                let at = if along_u {
+                    (open(piece.u), iv(piece.v))
+                } else {
+                    (iv(piece.u), open(piece.v))
+                };
+                let (metres, slope) = critical::along_line(jets, phi, at, along_u);
+                // A reading that does not certify is halved as an undecided
+                // one is, down to the floor.
+                let read = metres.is_certified() && slope.is_certified();
+                let along = read && off("spline_sweep_regular", Margin::levered(slope, extent));
+                if let Some(above) = side(piece, metres).filter(|_| read) {
+                    excluded.borrow_mut().push(Excluded {
+                        cell: piece,
+                        above,
+                        regular: along,
+                    });
+                    return Step::Settled;
+                }
+                if along {
+                    return Step::Settled;
+                }
+                let (a, b) = if along_u { piece.u } else { piece.v };
+                if b - a <= floor.width() {
+                    return Step::Stop(Sweep::Declined(Declined::Floor((
+                        0.5 * (piece.u.0 + piece.u.1),
+                        0.5 * (piece.v.0 + piece.v.1),
+                    ))));
+                }
+                let m = 0.5 * (a + b);
+                Step::Halve(if along_u {
+                    [UvRect { u: (a, m), ..piece }, UvRect { u: (m, b), ..piece }]
+                } else {
+                    [UvRect { v: (a, m), ..piece }, UvRect { v: (m, b), ..piece }]
+                })
+            },
+        );
+        match walked {
+            Ok(None) => {}
+            Ok(Some(declined)) => return declined,
+            Err(Exhausted) => return Sweep::Declined(Declined::Budget),
         }
     }
     for &ku in &cu {
@@ -574,11 +552,11 @@ fn swept(p: &geom::Surface<f64>, w: &geom::Surface<f64>, band: Band) -> Sweep {
     let pose = super::SplineImplicitPose::of(p, w).expect("a plane and a spline");
     let pivot = pose.pivot();
     let band = pivot.band(band).expect("the shift pads the band");
-    let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), band)
+    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), band)
         .expect("the pair is read");
     sweep(
         reading.boxes(),
-        pivot.phi(),
+        reading.form(),
         reading.account_floor(),
         band,
         pose.ball().certified_diameter(),

@@ -67,7 +67,7 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
             ),
             "{what}: {err:?}"
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         for (part, words) in [
             ("the decision that ran", "'chord_arc_leave_section'"),
             ("the lever", "farther from its apex"),
@@ -101,8 +101,10 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
         "{what}: the crossing angle's margin {margin:e} is in the band"
     );
     assert!(
-        err.to_string().contains("tighten the tolerance"),
-        "{what}: {err}"
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains("tighten the tolerance"),
+        "{what}: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
 }
 

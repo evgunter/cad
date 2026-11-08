@@ -235,9 +235,11 @@ pub use ::profile::{
 //   orientation. All three are facts about the authored geometry, and
 //   a caller that cannot name the site cannot act on the refusal. The
 //   fillet construction is NOT among them: its gates leave through
-//   `PathError::Escalated`, whose Display selects the gate's own
-//   recourse from the predicate name rather than from a site
-//   discriminant.
+//   `PathError::Escalated`, whose site is `EscalatedAt`.
+// - `Gate` is what every escalation arm carries: the closed decision
+//   whose subject and ending the refusal states, and `EscalatedAt` the
+//   path door's site for one. `ArcRead` is which read of a constructed
+//   arc missed, in `PathError`'s two read-back arms.
 // - `SegmentRef` is the rung under that one, and under six arms
 //   besides: `DegenerateSegment`, `NearFullArc`, `InconsistentArc` and
 //   `ArcBelowSceneResolution` carry one, `NonSimple` and
@@ -266,6 +268,9 @@ pub use ::profile::{
 //   along; this is the fillet constructor's, one door over, with the
 //   same shape and different conditions. Carrying one of the two and
 //   not the other is the inconsistency, not the reach.
+// - `TurnLever` is `PathNoCornerReason::TurnWithinTolerance`'s: which
+//   length the corner's turn was levered by — the shorter leg's arm or
+//   the anchors' separation — and so which length the caller moves.
 //
 // **`Step` is NOT here, and that is measured — the `MappedCurve`
 // argument in group 4 read on a value rather than on a refusal.** It
@@ -292,7 +297,8 @@ pub use ::profile::{
 // first. Stated so the next curation pass re-measures rather than
 // re-derives.
 pub use ::profile::{
-    ArcCheck, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
+    ArcCheck, ArcRead, ContactKind, EscalatedAt, EscalationSite, FilletLeg, FilletLegCarrier, Gate,
+    NoCornerReason, SegmentRef, TurnLever,
 };
 
 // --- 3. The four body operations ------------------------------

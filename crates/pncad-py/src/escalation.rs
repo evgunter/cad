@@ -4,7 +4,7 @@
 //! A predicate that could not certify a sign refuses with an
 //! [`Indeterminate`]: the margin it saw, the band it was classified
 //! against, and the predicate's own name. The frame door raises it
-//! from two refusals — the ladder constructors' degenerate arm
+//! from two refusals — the frame constructors' degenerate arm
 //! (`FrameError::Degenerate`) and a frame witness mint's escalation
 //! (`UnitVec3Error::Escalated`) — and both publish it as one
 //! `FrameError` under the SAME attribute words.

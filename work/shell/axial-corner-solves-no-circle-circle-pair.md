@@ -28,7 +28,7 @@ The item: a door-built body with a circle–circle corner (the C5 table
 or the teapot corpus may hold one), measured; then the pair's
 transversal solve (the radical line against either circle) and its
 tangency arm (the contact point on the line of centres — compare
-`work/issues/decided-tangent-point-is-the-radical-foot.md` for where
+`work/tang/decided-tangent-point-is-the-radical-foot.md` for where
 that point should sit when the tangency is decided inside the band).
 
 - 2026-11-02 — moved from SHELF to SHELL by `git mv` when SHELF merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SHELF had fallen far under it).

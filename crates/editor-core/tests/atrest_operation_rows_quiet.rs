@@ -225,8 +225,14 @@ fn checks(doc: &ProfileDoc, holding: Option<RecipeNodeId>) -> editor_core::Check
             ev.nodes.get(&assertion)
         );
     }
-    editor_core::run_checks(doc, &ev, &ChecksConfig::default(), Tol::witness())
-        .unwrap_or_else(|e| panic!("the checks run: {e}"))
+    editor_core::run_checks(
+        doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the checks run: {e}"))
 }
 
 /// The lint's finding over `row`, decided at `node`.

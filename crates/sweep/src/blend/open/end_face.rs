@@ -46,6 +46,7 @@ use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
+use crate::blend::arms::perp_unit;
 use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
@@ -100,9 +101,8 @@ impl<T: Decide + Bounds> EndCut<T> {
     /// **Plan one cut-off end** of the band over `crease` between
     /// `face_a` and `face_b`, whose trimlines on those faces pass
     /// through `q_a` and `q_b` along `along`; `section` is what the
-    /// battery read the band's section to be, and `spine` a cylinder
-    /// band's spine point (still to be carried to the end face) and
-    /// radius.
+    /// battery read the band's section to be, and `band` the band's
+    /// surface, whose spine a round section is placed about.
     ///
     /// Every point is a stored trimline or spine point carried along
     /// `along` to the stored end plane; nothing is sampled. `along` is
@@ -130,7 +130,7 @@ impl<T: Decide + Bounds> EndCut<T> {
         (q_a, q_b): (Point3<T>, Point3<T>),
         along: Vec3<T>,
         section: EndSection<T>,
-        spine: Option<(Point3<T>, T)>,
+        band: &Surface<T>,
     ) -> Result<Self, BlendError> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
@@ -187,15 +187,32 @@ impl<T: Decide + Bounds> EndCut<T> {
                 placed
             }))
         };
+        let spine = match *band {
+            Surface::Cylinder {
+                origin,
+                radius,
+                u_ref,
+                ..
+            } => Some((origin, radius, u_ref)),
+            _ => None,
+        };
         let curve = match (section, spine) {
             (EndSection::Chord, _) => EndCurve::Chord,
-            (EndSection::Circle, Some((spine, radius))) => {
+            (EndSection::Circle, Some((spine, radius, u_ref))) => {
                 let center = carry(spine);
-                let circle =
-                    Curve3::circle(center, n.normalize(), radius, (foot_a - center).normalize());
+                // The band's own seam reference points at `face_a`'s
+                // trimline (`arms`), so laid into the cap it points at
+                // `foot_a`.
+                let n = n.normalize();
+                let u_ref = perp_unit(u_ref, n);
+                debug_assert!(
+                    (foot_a - center).dot(u_ref).lo() > 0.0,
+                    "the band's seam reference points at face_a's foot"
+                );
+                let circle = Curve3::circle(center, n, radius, u_ref);
                 round(Some(circle), center)?
             }
-            (EndSection::Ellipse(ellipse), Some((spine, _))) => {
+            (EndSection::Ellipse(ellipse), Some((spine, ..))) => {
                 let center = carry(spine);
                 let origin = Point3::new(T::zero(), T::zero(), T::zero());
                 round(ellipse.translated(center - origin), center)?
@@ -401,7 +418,7 @@ impl<T: Bounds> SectionFrame<T> {
                 .scaled(origin + dir * ta - center)
                 .max(self.scaled(origin + dir * tb - center)),
             Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
-                Some(k) => self.scaled(k.frame().center - center) + k.speed_hi() / self.minor(),
+                Some(k) => self.scaled(k.frame().origin - center) + k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
             },
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
@@ -429,7 +446,7 @@ impl<T: Bounds> SectionFrame<T> {
                 ((a.0 + ex * s).powi(2) + (a.1 + ey * s).powi(2)).sqrt()
             }
             Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
-                Some(k) => self.scaled(k.frame().center - center) - k.speed_hi() / self.minor(),
+                Some(k) => self.scaled(k.frame().origin - center) - k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
             },
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
@@ -438,7 +455,7 @@ impl<T: Bounds> SectionFrame<T> {
     }
 }
 
-impl<T: Bounds> CapSliver<T> {
+impl<T: Decide + Bounds> CapSliver<T> {
     /// **How clear one end-face edge is of the sliver**: the `carrier`
     /// over `window` misses `Ω` when this is positive. `None` for a
     /// carrier with no closed form ([`piece_distance`]).
@@ -521,8 +538,12 @@ impl<T: Bounds> CapSliver<T> {
         // `‖q‖² = (s + b)² + d2`, `d2` read off the foot's own offset
         // as [`piece_distance`] reads it, which does not cancel far
         // from `center` as `q0·q0 − b²` does.
-        let b = q0.dot(e);
-        let d2 = (q0 - e * b).norm().powi(2);
+        let (b, rho) = geom::Line {
+            origin: self.center,
+            dir: e,
+        }
+        .height_and_distance(pa);
+        let d2 = rho.powi(2);
         let minor = self.inside.map(|s| s.minor());
         // Each floor as `a + k·s`.
         let affine = || {
@@ -609,10 +630,10 @@ impl<T: Bounds> CapSliver<T> {
 /// semi-axis, which holds it, and the disc of its minor, which it holds.
 /// Two segments are read by each one's line: two segments that do not
 /// meet always leave one of them wholly on one side of the other's line.
-fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
+fn apart<T: Decide + Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
     let round = |c: &Curve3<T>| {
         c.conic()
-            .map(|k| (k.frame().center, k.speed_hi(), k.speed_lo()))
+            .map(|k| (k.frame().origin, k.speed_hi(), k.speed_lo()))
     };
     let about = |(o, outer, inner): (Point3<T>, T, T), (carrier, window): Piece<'_, T>| {
         let (near, far) = piece_distance(carrier, window, o)?;
@@ -844,14 +865,19 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     Curve3::Circle(geom::Circle {
                         frame:
                             geom::Frame {
-                                center,
+                                origin: center,
                                 axis,
                                 u_ref,
                             },
                         radius,
                     }) => (center, axis, radius, radius, u_ref),
                     ref ellipse @ Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { center, axis, .. },
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis,
+                                ..
+                            },
                         ..
                     }) => {
                         let Some(f) = ellipse.major_frame() else {

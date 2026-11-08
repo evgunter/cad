@@ -116,7 +116,7 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
             panic!("{d:e}: the nesting question escalates: {err:?}");
         };
         let m = diag.margin.diagnostic_f64_for_error_text().value().unwrap();
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             text.ends_with(&offer(m)),
             offered,
@@ -148,7 +148,12 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
             refused: geom_core::RefusedReading::AsShown,
         },
     );
-    assert!(err.to_string().ends_with(&ending), "{err}");
+    assert!(
+        err.render(geom_brep::recourse::Reading::Build)
+            .ends_with(&ending),
+        "{err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
+    );
     assert_sound_and_meshed(
         "crossing boundaries build",
         topo::union(

@@ -43,7 +43,7 @@ fn probe_extrusion_pair_e2e() {
     )
     .unwrap_err();
     assert_eq!(err, ExtrudeError::DegenerateExtrusion);
-    let msg = err.to_string();
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     eprintln!("[probe] extrude definite:\n  {msg}\n");
     assert_unified(&msg);
 
@@ -58,7 +58,7 @@ fn probe_extrusion_pair_e2e() {
         Tol::witness(),
     )
     .unwrap_err();
-    let msg = err.to_string();
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     eprintln!("[probe] extrude in-band:\n  {msg}\n");
     assert!(
         matches!(err, ExtrudeError::ExtrusionEscalated { .. }),

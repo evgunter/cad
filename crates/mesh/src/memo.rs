@@ -1040,6 +1040,7 @@ impl KeyWriter {
             Surface::Torus { .. } => 4,
             Surface::Nurbs(_) => 5,
             Surface::Approx(_) => 6,
+            Surface::Spindle { .. } => 7,
         });
     }
 
@@ -1241,12 +1242,27 @@ impl KeyWriter {
                         self.f64(*origin);
                         self.f64(*span);
                     }
+                    FramedCarrier::Line {
+                        point,
+                        dir,
+                        origin,
+                        span,
+                    } => {
+                        self.u8(2);
+                        for v in [point, dir] {
+                            self.f64(v.x);
+                            self.f64(v.y);
+                            self.f64(v.z);
+                        }
+                        self.f64(*origin);
+                        self.f64(*span);
+                    }
                 }
                 self.knots(image.breaks());
                 for quarters in [image.azimuth(), image.tube()] {
                     self.len(quarters.len());
                     for &q in quarters {
-                        self.f64(f64::from(q));
+                        self.f64(f64::from(q.0));
                     }
                 }
                 let (u_off, v_off, v_sign) = image.deck();

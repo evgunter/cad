@@ -37,8 +37,8 @@
 //!      [`SSI_STEP_RELATIVE`] of its linear one, read twice, on the
 //!      carrier `C = P(x)` in metres ([`LocalSystem::carrier_jet`]),
 //!      `H ≤ 2ρ/κ` with `κ = ‖C″⊥‖/‖C′‖²` and the cubic rung on `‖C‴⊥‖`,
-//!      and on the state, whose bending on the ℝ⁴ lane holds the wall
-//!      chart's.
+//!      and on the state, whose bending on a chart lane holds the wall
+//!      pcurve's.
 //!    - The eventual cubic fit's between-sample error within
 //!      [`SSI_STEP_DEVIATION`]·ε on the carrier (`H ≤ (24δε/κ³)^¼`).
 //!    - The domain's diagonal.
@@ -208,6 +208,10 @@ pub enum ReachBound {
     Geometry,
     /// The caller's domain: no operand box bounds the states nearer.
     Domain,
+    /// A curved partner's frame: its residual is read at the wall's
+    /// points written about the partner's centre or axis, and they stand
+    /// this far from it, whatever the domain.
+    Partner,
 }
 
 impl Readout {
@@ -228,6 +232,44 @@ impl Readout {
             gap,
             bound,
             noise: ulps * gap,
+        }
+    }
+
+    /// The residual read at the operands' own points, which lie in the
+    /// box `operands` wherever the caller's domain reaches (the 1×2
+    /// trace's states are the wall's points), with `ulps` of their
+    /// spacing as noise.
+    pub(crate) fn on_operands(operands: Box3, ulps: f64) -> Self {
+        let (reach, gap) = exhaust::coordinate_gap(operands);
+        Self {
+            lane: ExhaustLane::R3,
+            reach,
+            gap,
+            bound: ReachBound::Geometry,
+            noise: ulps * gap,
+        }
+    }
+
+    /// The residual read at coordinates written about a curved partner's
+    /// centre or axis, `framed` the wall's box in that frame, with `ulps`
+    /// of their spacing as noise.
+    pub(crate) fn about_partner(framed: Box3, ulps: f64) -> Self {
+        let (reach, gap) = exhaust::coordinate_gap(framed);
+        Self {
+            lane: ExhaustLane::R3,
+            reach,
+            gap,
+            bound: ReachBound::Partner,
+            noise: ulps * gap,
+        }
+    }
+
+    /// The louder of two readouts: the one whose noise is larger.
+    pub(crate) fn louder(self, other: Self) -> Self {
+        if other.noise > self.noise {
+            other
+        } else {
+            self
         }
     }
 
@@ -661,8 +703,8 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
 
 /// A chart lane's exit: the knot rectangles of the state's chart
 /// coordinates from `first` on, left by a structure test (module docs).
-/// The plane × NURBS lane bounds the wall's two ([`RectExit::WALL`]),
-/// the NURBS × NURBS lane all four ([`RectExit::PAIR`]).
+/// The NURBS × NURBS lane bounds all four ([`RectExit::PAIR`]), the 1×2
+/// lane the wall's two that are its whole state ([`RectExit::CHART`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RectExit {
     /// The first bounded coordinate.
@@ -685,11 +727,11 @@ pub(crate) enum RectEnd<const N: usize> {
 }
 
 impl RectExit {
-    /// The plane × NURBS lane's: the wall's rectangle, coordinates 2
-    /// and 3.
-    pub(crate) const WALL: Self = Self { first: 2 };
     /// The NURBS × NURBS lane's: both rectangles.
     pub(crate) const PAIR: Self = Self { first: 0 };
+    /// The 1×2 residual × chart lane's: the wall's rectangle, the
+    /// state's only two coordinates.
+    pub(crate) const CHART: Self = Self { first: 0 };
 
     /// Whether a state's bounded coordinates lie in their rectangles
     /// (a structure test on the raw coordinates, C6's lane). An exit
@@ -2533,29 +2575,34 @@ pub(crate) mod tests {
 
     /// **The step rungs read the carrier's curvature, not the state
     /// curve's.** The plane `y = −1/8` cuts the dome
-    /// `y = −4·s(1−s)·t(1−t)` (a quadratic 3×3 net, `x = s`, `z = t`) in
-    /// a loop of 3-D curvature 1.4–4.7/m. The wall's pcurve bends in its
-    /// chart as much as the plane's, so the ℝ⁴ state curve's curvature
-    /// over speed² is √2 times the carrier's. At ε = 1e-9 the fit rung
-    /// holds every step, so each chord is `(24·δ·ε/κ³)^¼` at the
-    /// carrier's own curvature κ, read here off the circle through three
-    /// consecutive marched points rather than off the stepper. Every
-    /// chord lies within 5% of it, and the loop takes about 1030 steps.
-    /// A rung read on the state curve makes every chord 2^(−3/8) ≈ 0.77
-    /// of it.
+    /// `y = −4·s(1−s)·t(1−t)`, a quadratic 3×3 net whose chart stretches
+    /// threefold across `s` (`x = (s + s²)/2`, `z = t`), in a loop traced
+    /// on the 1×2 system with the plane as its partner, whose state curve
+    /// is the wall's pcurve, bending in its chart unlike the carrier. At
+    /// ε = 1e-9 the fit rung `(24·δ·ε/κ³)^¼` at the carrier's own
+    /// curvature κ, read here off the circle through three consecutive
+    /// marched points rather than off the stepper, bounds every chord
+    /// (none past it by 5%; the last, which closes the loop onto its
+    /// seed, is the closure's) and holds at least nine in ten within 5%
+    /// (measured 993 of 1051: the rest are halved by the residual test
+    /// near the seed). The loop takes about 1112 steps. A rung read on
+    /// the state curve moves the chords off it: 405 chords past it, 155
+    /// within 5%, measured.
     #[test]
     fn the_fit_rung_reads_the_carriers_curvature_on_a_curved_wall() {
         use super::{RectEnd, RectExit, SSI_STEP_DEVIATION};
-        use crate::ssi::system::{Chart, ParametricPairR4};
+        use crate::ssi::system::ImplicitChartR2;
         use geom::{NurbsSurface, Surface};
         use geom_core::spline::KnotVector;
 
         let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let control = (0..9)
             .map(|n| {
-                let (i, j) = (f64::from(n / 3), f64::from(n % 3));
+                let (i, j) = (n / 3, f64::from(n % 3));
                 let y = if n == 4 { -1.0 } else { 0.0 };
-                Point3::new(i / 2.0, y, j / 2.0)
+                // `x = (s + s²)/2`: the chart stretches threefold across
+                // `s`, so the wall's pcurve bends unlike the carrier.
+                Point3::new([0.0, 0.25, 1.0][i as usize], y, j / 2.0)
             })
             .collect();
         let wall = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap();
@@ -2564,14 +2611,14 @@ pub(crate) mod tests {
             normal: Vec3::new(0.0, 1.0, 0.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let sys = ParametricPairR4 {
-            a: Chart::plane_of(&level, (-2.0, 2.0), (-2.0, 2.0)).unwrap(),
-            b: Chart::Nurbs(&wall),
+        let sys = ImplicitChartR2 {
+            partner: &level,
+            wall: &wall,
         };
         let eps = 1.0e-9;
         let band = Band::new(eps, 10.0 * eps).unwrap();
-        let ctx = MarchContext::<4> {
-            domain: [[-2.0, 2.0], [-2.0, 2.0], [0.0, 1.0], [0.0, 1.0]],
+        let ctx = MarchContext::<2> {
+            domain: [[0.0, 1.0], [0.0, 1.0]],
             extent: 1.0,
             tol: MarchTol::from_band(band, reaching(2.0)).unwrap(),
             max_steps: 4096,
@@ -2579,10 +2626,10 @@ pub(crate) mod tests {
         };
         // On the loop at t = ½: s(1 − s) = ⅛.
         let s = 0.5 * (1.0 - std::f64::consts::FRAC_1_SQRT_2);
-        let seed = [s - 0.5, 0.0, s, 0.5];
+        let seed = [s, 0.5];
         let trace = march(
             &sys,
-            &RectExit::WALL,
+            &RectExit::CHART,
             seed,
             ctx,
             StepperMode::Realized,
@@ -2600,18 +2647,30 @@ pub(crate) mod tests {
             .map(|x| sys.point(x) - Point3::origin())
             .collect();
         let target = 24.0 * SSI_STEP_DEVIATION * eps;
-        for i in 1..p.len() - 1 {
+        // The last chord closes the loop onto the seed, a step the
+        // closure ends, not one the rung sized.
+        let mut held = 0usize;
+        let chords = 1..p.len() - 2;
+        let count = chords.len();
+        for i in chords {
             let (a, b) = (p[i] - p[i - 1], p[i + 1] - p[i - 1]);
             let kappa = 2.0 * a.cross(b).norm() / (a.norm() * b.norm() * (b - a).norm());
             let chord = (p[i + 1] - p[i]).norm();
             let rung = (target / (kappa * kappa * kappa)).sqrt().sqrt();
             assert!(
-                (chord / rung - 1.0).abs() < 0.05,
-                "step {i}: chord {chord:e} m against the fit rung {rung:e} m at κ = {kappa:.3}/m"
+                chord / rung < 1.05,
+                "step {i}: chord {chord:e} m past the fit rung {rung:e} m at κ = {kappa:.3}/m"
             );
+            if (chord / rung - 1.0).abs() < 0.05 {
+                held += 1;
+            }
         }
         assert!(
-            (1000..1060).contains(&trace.steps),
+            10 * held >= 9 * count,
+            "the fit rung holds {held} of {count} chords"
+        );
+        assert!(
+            (1080..1140).contains(&trace.steps),
             "the loop takes {} steps",
             trace.steps
         );

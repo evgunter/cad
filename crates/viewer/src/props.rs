@@ -142,6 +142,59 @@ use pncad::quantity::{
     self, AngleUnit, LengthUnit, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength,
 };
 
+/// **Which way [`one_figure_length`] rounds.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rounding {
+    /// To the nearest figure.
+    Nearest,
+    /// To the least figure whose length is at least the one measured.
+    Up,
+}
+
+/// **`metres` written in `unit` at one significant figure**, rounded
+/// as `rounding` says, so a default a form inserts reads as a round
+/// number in the unit the person works in (`1 mm`, `0.04 in`). The one
+/// home of that rounding: a blend's size and a pattern row's spacing
+/// are written through it.
+///
+/// [`Rounding::Up`] holds exactly: the figure is the least whose length,
+/// read back in metres, is at least `metres`, so a measure already
+/// round to within float noise stays as it is and none comes out
+/// below.
+///
+/// # Errors
+///
+/// A value whose figure is not finite (the literal door's refusal).
+pub fn one_figure_length(
+    metres: f64,
+    unit: LengthUnit,
+    rounding: Rounding,
+) -> Result<Formula, DimensionError> {
+    let at = metres / WrittenLength::in_unit(1.0, unit).meters();
+    // `digit · 10^-places`, divided rather than multiplied so `0.04` is
+    // the double nearest four hundredths.
+    let places = -at.log10().floor();
+    let figure = |digit: f64| {
+        if places >= 0.0 {
+            digit / 10f64.powf(places)
+        } else {
+            digit * 10f64.powf(-places)
+        }
+    };
+    let scaled = at * 10f64.powf(places);
+    let value = match rounding {
+        Rounding::Nearest => figure(scaled.round()),
+        Rounding::Up => {
+            let mut digit = scaled.floor().max(1.0);
+            while WrittenLength::in_unit(figure(digit), unit).meters() < metres {
+                digit += 1.0;
+            }
+            figure(digit)
+        }
+    };
+    Formula::written_length(WrittenLength::in_unit(value, unit))
+}
+
 /// What is in a slot right now.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SlotValue {
@@ -1326,6 +1379,32 @@ pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
             })
         })
         .collect()
+}
+
+/// **An index's count, as its row reads it** (D10 `[repetition]`): the
+/// index, its count's formula and what that reads — `None` where `doc`
+/// holds no index `var`. A [`DefinedRow`], since a count is edited as a
+/// defined variable's formula is, through the variable's doors, which
+/// write it by [`index_count_edit`].
+pub fn index_count_row(doc: &Doc<ProfileProgram>, var: VarId) -> Option<DefinedRow> {
+    let count = &doc.var(var)?.def().index()?.count;
+    Some(DefinedRow {
+        var,
+        label: doc.spoken_var(var),
+        dimension: Dimension::Count,
+        formula: doc.unparse(count),
+        value: reading(doc, count, Dimension::Count),
+    })
+}
+
+/// **The indices `node`'s own rows read**, outermost first: a pattern's
+/// placement reads its index through its values. Empty where it reads
+/// none, or two unrelated ones, which the edit door refuses.
+pub fn indices_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId> {
+    doc.node_reach(node)
+        .chain()
+        .map(<[VarId]>::to_vec)
+        .unwrap_or_default()
 }
 
 /// **The edit a value GESTURE writes into `slot` on `node`**: a slot

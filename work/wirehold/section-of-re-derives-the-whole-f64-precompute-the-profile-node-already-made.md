@@ -88,7 +88,7 @@ carries the naming; the structure is on `ProfilePre`, which is
   `crates/editor-core/tests/edit_step_segments.rs`;
 - `work/view/focus-marking-is-per-node-not-per-segment` (VIEW) cannot
   consume the door from the viewer;
-- `work/lib/python-has-no-step-to-profile-edge-door` (LIB) cannot bind
+- `work/pydoor/python-has-no-step-to-profile-edge-door` (LIB) cannot bind
   it from Python.
 
 None of the three is a reason to decide this row's PP1/PP2 question one

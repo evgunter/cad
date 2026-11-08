@@ -25,7 +25,7 @@ fn fixture(name: &str) -> String {
 fn a_line_kept_over_a_straight_spline_joins_either_way_round() {
     for name in ["mixed_lower.step", "mixed_upper.step"] {
         let imported = import_step(&fixture(name), &ImportOptions::default(), Tol::witness())
-            .unwrap_or_else(|e| panic!("{name} imports: {e}"));
+            .unwrap_or_else(|e| panic!("{name} imports: {e_at}", e_at = e.render()));
         let StepImport::Solid {
             body,
             normalizations,

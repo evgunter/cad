@@ -37,6 +37,14 @@ pub(super) fn lo_or_refuse(x: Interval) -> f64 {
     if !x.is_certified() { f64::NAN } else { x.lo() }
 }
 
+/// **A bracket read as an exact `f64`**: `Some` only for a point bracket
+/// that certifies — the exact structure (a parameter, a coefficient, a
+/// sign) the lanes read off their inputs, and refuse without.
+#[must_use]
+pub fn exact_point(x: Interval) -> Option<f64> {
+    (x.is_certified() && x.lo() == x.hi()).then_some(x.lo())
+}
+
 /// Midpoint of a bracket (structure selection for integration limits;
 /// the bracket's width is repaid by the endpoint pad). A refused
 /// bracket has no midpoint, and says so.

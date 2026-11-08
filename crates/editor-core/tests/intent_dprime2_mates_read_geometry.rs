@@ -499,6 +499,7 @@ fn a_slide_value_sets_its_translation_with_no_width() {
     let poses = editor_core::mate::solve_document_at::<Interval>(
         &doc,
         &EvalOptions::default(),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     );
     let map = poses.relative_map(placement).expect("the box is placed");

@@ -116,7 +116,7 @@ fn a_split_vertex_a_hair_off_the_pole_refuses_at_the_default_band() {
             else {
                 panic!("{name}: the pole's reading refuses at the default band, got {refused:?}");
             };
-            let msg = e.to_string();
+            let msg = e.render();
             assert!(
                 msg.ends_with(&format!(
                     "if this distance is intended, tighten the tolerance below {below}"

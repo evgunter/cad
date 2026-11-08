@@ -36,7 +36,7 @@ where, so a reader cannot tell a deliberate asymmetry from a drift.
 ## Why it matters now
 
 DOCM-9 added seven `interval`-gated root exports to `editor-core`
-(`work/lib/certified-range-has-no-python-door`) and the guard red the
+(`work/pydoor/certified-range-has-no-python-door`) and the guard red the
 build until they were listed — correctly, on the document-layer rule.
 Had those same names landed one layer over, the sibling guard would
 have said nothing. The next lane to add a gated export to the profile

@@ -164,7 +164,7 @@ pub fn own_import_options(examine: bool) -> step_import::ImportOptions {
 pub fn import_fixture(name: &str) -> step_import::StepImport {
     let text = fixture(name, "step");
     step_import::import_step(&text, &own_import_options(false), Tol::witness())
-        .unwrap_or_else(|e| panic!("importing {name}: {e}"))
+        .unwrap_or_else(|e| panic!("importing {name}: {e_at}", e_at = e.render()))
 }
 
 /// A committed half-cap fixture's text — issue 723's π-rad witness,

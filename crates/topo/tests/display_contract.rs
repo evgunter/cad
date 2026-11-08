@@ -162,7 +162,7 @@ fn together_edge_disagreement_display_is_true_at_all_three_meters() {
         // sentence covers the endpoint AND the carrier-off-surface
         // mechanisms.
         assert_f6(
-            &err,
+            &err.render(geom_brep::recourse::Reading::Build),
             &["curve", "moved surface", "endpoint", "midpoint", gap],
             // Deliberately ONE identifier, not an enum mirror: this row
             // is about one variant's sentence being true at three
@@ -174,7 +174,7 @@ fn together_edge_disagreement_display_is_true_at_all_three_meters() {
         // The wrong mechanism stays gone: a sentence that asserts the
         // endpoint story unconditionally is false at the midpoint
         // meter, one of this variant's own raising sites.
-        let shown = err.to_string();
+        let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !shown.contains("two ends") && !shown.contains("far corner"),
             "the Display asserts the endpoint mechanism for every site again: {shown:?}"

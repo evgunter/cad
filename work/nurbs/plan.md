@@ -19,7 +19,7 @@ sitting that files more splits along the P2/P3 seam.
 
 | pri | item | cost | what it is |
 |---|---|---|---|
-| P1 | `parametric-polygon-loop-certifies-nothing` | H | parked on the D10 hold (`d10-one-way-to-say-intent-is-unbuilt`) |
+| P1 | `parametric-polygon-loop-certifies-nothing` | H | a document parameter in a polygon vertex certifies nothing; first step is to re-take its measurements on stage 1's representation |
 | P2 | `nurbs-interval-ders-at-a-wide-parameter-grows-with-translation` | M | `NurbsSurface::ders` at a wide `Interval` parameter carries the net's translation in its width |
 | P2 | `project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry` | M | `PROJECT_EPS_POINT` is absolute, below ulp(2048) |
 | P3 | `net-state-reads-an-infinite-net-as-described` | M, design | `NetState` reads a net of `±∞` as `Described` |
@@ -64,8 +64,9 @@ sitting that files more splits along the P2/P3 seam.
   rows are one short lane.
 - The corner row waits on a consumer; no current row reaches a corner
   end.
-- The polygon row stays parked until the D10 hold lifts. Its fix site
-  is `editor-core/src/drive.rs`, not the spline layer, and its
+- The polygon row is dispatchable: the D10 hold it was parked on
+  lifted when INTENT closed (2026-10-30, #6103). Its fix site is
+  `editor-core/src/drive.rs`, not the spline layer, and its
   measurements were taken on `Expr::param`, which stage 1 retired: the
   first step is to re-take them, and to re-home the row with them.
 

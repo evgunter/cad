@@ -218,9 +218,12 @@ fn a_fillet_turn_whose_feet_stand_apart_builds_its_overrun_on_its_far_band() {
             far,
             "fillet at {s}: the closed forms' far band"
         );
-        let out = Verb::Fillet
-            .run(&body, &turn)
-            .unwrap_or_else(|e| panic!("fillet at {s}: the overrun builds, got {e}"));
+        let out = Verb::Fillet.run(&body, &turn).unwrap_or_else(|e| {
+            panic!(
+                "fillet at {s}: the overrun builds, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("fillet at {s}: tier 3, {e:?}"));
         assert_naming_totality(&body, &out, &turn, "leaning");
@@ -266,9 +269,11 @@ fn a_turn_foot_refuses_a_later_blend_of_its_edge_and_names_the_same_call() {
             "{verb:?}: the turn foot refuses as a valence-4 vertex, got {err:?}"
         );
         assert!(
-            err.to_string().contains(FILLET3_CORNER_RECOURSE)
+            err.render(geom_brep::recourse::Reading::Build)
+                .contains(FILLET3_CORNER_RECOURSE)
                 && FILLET3_CORNER_RECOURSE.ends_with("in one operation"),
-            "{verb:?}: the recourse names the same call: {err}"
+            "{verb:?}: the recourse names the same call: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         );
         carve(
             &body,
@@ -524,9 +529,12 @@ fn a_frustum_top_rim_mitres_at_leaning_walls() {
     };
     let v0 = volume(&body);
     for verb in [Verb::Chamfer, Verb::Fillet] {
-        let out = verb
-            .run(&body, &rim)
-            .unwrap_or_else(|e| panic!("{verb:?}: the frustum's rim mitres, got {e}"));
+        let out = verb.run(&body, &rim).unwrap_or_else(|e| {
+            panic!(
+                "{verb:?}: the frustum's rim mitres, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
         assert_naming_totality(&body, &out, &rim, "the frustum's top rim");
         assert_eq!(
@@ -691,9 +699,12 @@ pub(crate) fn half_space(q: Point3<f64>, n: Vec3<f64>) -> Body<f64> {
 /// closed form — on a body with a feature the bands leave alone, which
 /// may be a second shell.
 fn carve_beside(body: &AtRestBody<f64>, edges: &[EdgeKey], verb: Verb, removed: f64, what: &str) {
-    let out = verb
-        .run_finished(body, edges)
-        .unwrap_or_else(|e| panic!("{what} ({verb:?}): builds, got {e}"));
+    let out = verb.run_finished(body, edges).unwrap_or_else(|e| {
+        panic!(
+            "{what} ({verb:?}): builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what} ({verb:?}): tier 3, got {e:?}"));
     assert_naming_totality(body, &out, edges, what);
@@ -720,7 +731,10 @@ fn fuse(what: &str, a: &AtRestBody<f64>, b: &Body<f64>) -> AtRestBody<f64> {
 fn refuses_on_reach(body: &AtRestBody<f64>, edges: &[EdgeKey], verb: Verb, what: &str) {
     match verb.run_finished(body, edges) {
         Err(BlendError::FaceClearance { bounded: false, .. }) => {}
-        Err(e) => panic!("{what} ({verb:?}): refuses FaceClearance, got {e}"),
+        Err(e) => panic!(
+            "{what} ({verb:?}): refuses FaceClearance, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(out) => panic!(
             "{what} ({verb:?}): refuses FaceClearance, built (tier 3 {:?})",
             validate_geometric(&out.body, tol())
@@ -821,7 +835,7 @@ fn an_l_void_inside_only_a_mitres_union_refuses_as_a_crossing() {
             matches!(got, Some(BlendError::FaceClearance { bounded: false, .. })),
             "{verb:?}: the L void refuses as a crossing, got {got:?}"
         );
-        let shown = got.unwrap().to_string();
+        let shown = got.unwrap().render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.contains(sweep::blend::FILLET3_CLEARANCE_RECOURSE),
             "{verb:?}: the refusal carries the clearance recourse: {shown}"
@@ -926,9 +940,12 @@ fn a_sheared_box_chamfer_mitres_both_corners_and_its_fillet_overruns_the_supplem
                 tol(),
             )
         });
-        let out = Verb::Chamfer
-            .run(&body, &edges)
-            .unwrap_or_else(|e| panic!("chamfer at the {what} corner: mitres, got {e}"));
+        let out = Verb::Chamfer.run(&body, &edges).unwrap_or_else(|e| {
+            panic!(
+                "chamfer at the {what} corner: mitres, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("chamfer at the {what} corner: tier 3, {e:?}"));
         assert_naming_totality(&body, &out, &edges, what);
@@ -1109,8 +1126,12 @@ fn the_turn_foot_lies_on_both_trimlines_within_the_band() {
                 edges: edges.clone(),
                 size: D,
             };
-            let verdict = run_battery_for(&request, band, kind)
-                .unwrap_or_else(|e| panic!("{what} ({kind:?}): the battery admits, got {e}"));
+            let verdict = run_battery_for(&request, band, kind).unwrap_or_else(|e| {
+                panic!(
+                    "{what} ({kind:?}): the battery admits, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             assert!(!verdict.turns.is_empty(), "{what} ({kind:?}): a turn");
             for turn in &verdict.turns {
                 for (edge, face) in turn.requested.iter().zip(turn.others) {
@@ -1177,9 +1198,12 @@ fn an_acute_turn_symmetric_only_by_its_angles_escalates() {
         (body, edges)
     };
     let (body, edges) = spike(0.0);
-    let out = Verb::Chamfer
-        .run(&body, &edges)
-        .unwrap_or_else(|e| panic!("the symmetric spike mitres, got {e}"));
+    let out = Verb::Chamfer.run(&body, &edges).unwrap_or_else(|e| {
+        panic!(
+            "the symmetric spike mitres, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).expect("the symmetric spike's mitre is tier-3 valid");
     let lever = 0.6 / alpha.cos();
     let eps = band.zero() / (2.0 * lever * alpha.sin() * beta.cos());

@@ -1,9 +1,9 @@
 //! **The boundary pass of a spline wall against an implicit partner**:
 //! the wall's knot rectangle decided against the partner before any
-//! march (C3), a plane on the plane × NURBS lane and a cylinder, sphere
-//! or torus in the NURBS × implicit pair's classification (C5). `φ` is
-//! the partner's distance on the plane and its canonical form `f` on a
-//! curved partner ([`super::residual`]); the pass reads `φ` along each
+//! march (C3): a plane, cylinder, sphere or ring torus, on the 1×2 trace
+//! and in the NURBS × implicit pair's classification (C5). `φ` is the
+//! partner's canonical form `f` ([`super::residual`]), the plane's
+//! distance `z` in its frame; the pass reads `φ` along each
 //! side, its partials over cells, and its value at a corner through a
 //! [`Partner`], and is otherwise the one pass.
 //!
@@ -51,18 +51,16 @@ use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, div_up, max_bound};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Bounds, CertifiedBounds, Interval, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Bounds, CertifiedBounds, Interval, Margin, Point3, Sign};
 
 use super::enclose::{ChartSpeeds, NurbsBoxes, UvWindow};
 use super::exhaust::UvRect;
 use super::march::MarchTol;
-use super::residual::Curved;
+use super::residual::ImplicitForm;
 use super::section::{
-    BoundarySection, SIDE_SIGN_HALVINGS, SectionRoot, band_verdict, boundary_roots,
-    boundary_section, implicit_roots, implicit_section, magnitude, one_signed,
-    settle_implicit_root, settle_root, sign,
+    BoundarySection, SIDE_SIGN_HALVINGS, SectionRoot, band_verdict, implicit_roots,
+    implicit_section, magnitude, one_signed, settle_implicit_root, sign,
 };
-use super::system::{LocalSystem, ParametricPairR4};
 use super::{ChartAxis, SsiError, TraceDecision};
 
 /// How finely a side's strip is cut along the side to bound its reach:
@@ -192,9 +190,9 @@ impl core::fmt::Display for SsiBoundaryContact {
 }
 
 /// A branch end the boundary pass certified: where on the boundary, and
-/// the state settled onto both surfaces there: on the plane the ℝ⁴
-/// state `(plane u, plane v, wall u, wall v)`, on a curved partner the
-/// wall's `(u, v)`.
+/// the state settled onto both surfaces there: on the NURBS × NURBS
+/// lane the ℝ⁴ state `(a u, a v, b u, b v)`, against an implicit
+/// partner the wall's `(u, v)`.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Crossing<S = [f64; 4]> {
     /// The boundary point.
@@ -217,32 +215,15 @@ pub(crate) struct BoundaryPass<S = [f64; 4]> {
     pub crossings: Vec<Crossing<S>>,
 }
 
-/// The plane, as the pass reads it.
-#[derive(Clone, Copy)]
-pub(crate) struct PassPlane {
-    /// A point on it.
-    pub origin: Point3<f64>,
-    /// Its unit normal.
-    pub normal: Vec3<f64>,
-    /// Its chart's `u` axis.
-    pub u_ref: Vec3<f64>,
-}
-
-impl PassPlane {
-    /// Its normal, as point intervals.
-    fn normal_interval(&self) -> [Interval; 3] {
-        [self.normal.x, self.normal.y, self.normal.z].map(Interval::point)
-    }
-}
-
 /// **The partner as the pass reads it**: `φ` along a side, its partial
 /// over a window, its value at a corner, and a crossing settled.
 pub(crate) trait Partner {
     /// The state a crossing is settled to.
     type State: Copy;
 
-    /// `φ` along `curve` ([`crate::boundary_section`] on the plane); with
-    /// `roots`, its roots whatever its sup ([`boundary_roots`]).
+    /// `φ` along `curve` ([`super::section::implicit_section`]); with
+    /// `roots`, its roots whatever its sup
+    /// ([`super::section::implicit_roots`]).
     ///
     /// # Errors
     ///
@@ -292,11 +273,12 @@ pub(crate) trait Partner {
     fn uv(state: &Self::State) -> (f64, f64);
 }
 
-/// The plane distance's partial along `u` (`along_u`) or `v` over the
-/// window `w`, on the wall's derivative box there: `n·S_d`, `n` the
-/// plane's unit normal. The plane partner's and the side arm's one
-/// reading of it.
-fn plane_partial<T: CertifiedBounds>(
+/// `φ`'s partial along `u` (`along_u`) or `v` over the window `w`, on
+/// the wall's derivative box there: `n·S_d`, `n` the partner's gradient
+/// over the window (the plane's unit normal).
+/// The pass's, the side arm's and the chart tube's one reading of it
+/// ([`super::enclose::ChartPhi::partial`]).
+pub(crate) fn plane_partial<T: CertifiedBounds>(
     n: [Interval; 3],
     boxes: &NurbsBoxes<'_, T>,
     w: UvWindow,
@@ -306,102 +288,16 @@ fn plane_partial<T: CertifiedBounds>(
     n[0] * b.x + n[1] * b.y + n[2] * b.z
 }
 
-/// **The plane, as the plane × NURBS lane's pass reads it**: its
-/// distance, and the ℝ⁴ system its crossings are settled on.
-pub(crate) struct PlanePartner<'a> {
-    /// The plane.
-    pub plane: PassPlane,
-    /// The ℝ⁴ system the crossings are settled on.
-    pub sys: &'a ParametricPairR4<'a>,
-}
-
-impl Partner for PlanePartner<'_> {
-    type State = [f64; 4];
-
-    fn side(
-        &self,
-        curve: &geom::NurbsCurve3<f64>,
-        speed: geom_core::SupSpeed<f64>,
-        floor: f64,
-        arm: f64,
-        band: Band,
-        roots: bool,
-    ) -> Result<BoundarySection, SsiError> {
-        let door = if roots {
-            boundary_roots
-        } else {
-            boundary_section
-        };
-        door(
-            curve,
-            self.plane.origin,
-            self.plane.normal,
-            speed,
-            floor,
-            arm,
-            band,
-        )
-    }
-
-    fn partial(&self, boxes: &NurbsBoxes<'_, f64>, w: UvWindow, along_u: bool) -> Interval {
-        plane_partial(self.plane.normal_interval(), boxes, w, along_u)
-    }
-
-    fn at_point(&self, p: Point3<f64>) -> (Interval, f64) {
-        let n = self.plane.normal;
-        let o = self.plane.origin;
-        let phi = Interval::point(n.x) * (Interval::point(p.x) - Interval::point(o.x))
-            + Interval::point(n.y) * (Interval::point(p.y) - Interval::point(o.y))
-            + Interval::point(n.z) * (Interval::point(p.z) - Interval::point(o.z));
-        (phi, magnitude(phi))
-    }
-
-    fn sine(&self, _: &NurbsBoxes<'_, f64>, _: UvRect, inf: f64, speed: f64) -> f64 {
-        div_down(inf, speed)
-    }
-
-    fn settle(
-        &self,
-        (wall, curve): (&NurbsSurface<f64>, &geom::NurbsCurve3<f64>),
-        bracket: (f64, f64),
-        uv: impl Fn(f64) -> (f64, f64),
-        tol: f64,
-    ) -> Result<Option<(f64, [f64; 4])>, SsiError> {
-        let Some(t) = settle_root(curve, self.plane.origin, self.plane.normal, bracket, tol) else {
-            return Ok(None);
-        };
-        if t.is_nan() {
-            return Err(SsiError::UnsupportedCertificate {
-                what: super::exhaust::SIDE_ENCLOSURE_REFUSED,
-            });
-        }
-        let (u, v) = uv(t);
-        let q = wall.eval(u, v) - self.plane.origin;
-        let v_ref = self.plane.normal.cross(self.plane.u_ref);
-        let state = [q.dot(self.plane.u_ref), q.dot(v_ref), u, v];
-        Ok(self
-            .sys
-            .residual(&state)
-            .iter()
-            .all(|r| r.abs() <= tol)
-            .then_some((t, state)))
-    }
-
-    fn uv(state: &[f64; 4]) -> (f64, f64) {
-        (state[2], state[3])
-    }
-}
-
-/// How many pieces a side of a window is cut into where a curved
-/// partner's partial is read over it ([`Partner::partial`]): a fixed
+/// How many pieces a side of a window is cut into where the partner's
+/// partial is read over it ([`Partner::partial`]): a fixed
 /// rule (D9).
 const CURVED_PARTIAL_PIECES: u32 = 8;
 
-/// **A curved partner, as the classification's pass reads it**: its
+/// **An implicit partner, as the pass reads it**: its
 /// canonical form `f` along a side ([`implicit_section`]), its partials
 /// `∇f(S)·S_d` over the wall's boxes, its value at a corner with a
 /// ceiling in metres, and a crossing settled on the wall alone.
-impl Partner for &Curved {
+impl Partner for &ImplicitForm {
     type State = [f64; 2];
 
     fn side(
@@ -1241,7 +1137,7 @@ fn nth_piece(along: (f64, f64), count: u32, k: u32) -> (f64, f64) {
     (t(k), t(k + 1))
 }
 
-/// A stretch of a side as the boundary pass reads it ([`read_stretch`]).
+/// A stretch of a side as the boundary pass reads it ([`read_stretch_by`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Reading {
     /// A piece of it [`clears`]: no zero lies along it or beside it.
@@ -1256,6 +1152,23 @@ pub(crate) enum Reading {
     Within(f64),
 }
 
+/// [`read_stretch_by`] against the partner's form.
+#[cfg(test)]
+pub(crate) fn read_stretch<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    form: &ImplicitForm,
+    reader: &super::section::SectionReader,
+    (side, r): (ChartSide, UvRect),
+    eps: f64,
+) -> Reading {
+    stretch_within(boxes, form, reader, (side, r), (eps, SIDE_SIGN_HALVINGS))
+}
+
+/// A partner's partial of `φ` along `u` (`true`) or `v` over a window of
+/// the wall, refused where the window names no region: the partner's
+/// `∇f·S_d` ([`super::enclose::ChartPhi::partial`]).
+pub(crate) type Across<'f> = &'f dyn Fn(Option<UvWindow>, bool) -> Interval;
+
 /// **A stretch of a side, read as the boundary pass reads a side.** `r`
 /// is a window with an edge on `side`, and `reader` reads `φ` along that
 /// side ([`super::section::SectionReader`], the boundary section's own
@@ -1266,21 +1179,42 @@ pub(crate) enum Reading {
 /// across `r` beside it too, and a piece that [`clears`] (the side's own
 /// test) makes the stretch [`Reading::Clear`]. The pieces' signs share
 /// one side's halvings ([`SIDE_SIGN_HALVINGS`]), as the boundary
-/// section's whole side does.
-pub(crate) fn read_stretch<T: CertifiedBounds>(
-    boxes: &NurbsBoxes<'_, T>,
-    normal: [Interval; 3],
+/// section's whole side does. `across` reads the partner's slope across
+/// the side ([`Across`]).
+pub(crate) fn read_stretch_by(
+    across: Across<'_>,
     reader: &super::section::SectionReader,
     (side, r): (ChartSide, UvRect),
     eps: f64,
 ) -> Reading {
-    stretch_within(boxes, normal, reader, (side, r), (eps, SIDE_SIGN_HALVINGS))
+    stretch_by(across, reader, (side, r), (eps, SIDE_SIGN_HALVINGS))
 }
 
 /// [`read_stretch`], its pieces' signs read within `halvings`.
+#[cfg(test)]
 pub(super) fn stretch_within<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    normal: [Interval; 3],
+    form: &ImplicitForm,
+    reader: &super::section::SectionReader,
+    (side, r): (ChartSide, UvRect),
+    (eps, halvings): (f64, usize),
+) -> Reading {
+    stretch_by(
+        &|w, along_u| super::enclose::ChartPhi(form).partial(boxes, w, along_u),
+        reader,
+        (side, r),
+        (eps, halvings),
+    )
+}
+
+/// A stretch read against any partner, its partial `across`, its pieces' signs
+/// read within `halvings`. `|φ|`
+/// along the stretch is read against `eps` in metres
+/// ([`super::section::SectionReader::metres`]); the bound it answers
+/// ([`Reading::Within`]) is in `φ`'s own units, the units `across` reads
+/// its slope in.
+fn stretch_by(
+    across: Across<'_>,
     reader: &super::section::SectionReader,
     (side, r): (ChartSide, UvRect),
     (eps, mut halvings): (f64, usize),
@@ -1300,7 +1234,7 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
         sup = max_bound(sup, m);
         pieces.push((piece, stretch));
     }
-    if sup > eps {
+    if reader.metres(sup) > eps {
         return Reading::Beyond;
     }
     for (piece, stretch) in pieces {
@@ -1309,10 +1243,7 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
         };
         if side_of_plane.is_some() {
             let q = cut_along(side, r, piece);
-            let d = q.window().map_or_else(super::enclose::refused_box, |w| {
-                boxes.deriv_box(w, across_u)
-            });
-            let across = normal[0] * d.x + normal[1] * d.y + normal[2] * d.z;
+            let across = across(q.window(), across_u);
             if clears(side, side_of_plane, across) {
                 return Reading::Clear;
             }
@@ -1324,14 +1255,14 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
 /// Whether the side's cover over `r` cannot come within `eps`, read
 /// cheaply ahead of the stretch and the cover ([`side_stretch`]): a zero
 /// reached across from a point of the side where `|φ| ≥ m` lies at least
-/// `m / s` from it, `s` the steepest the wall rises off the plane per
-/// metre across `r` (`|n·S⊥| / ‖S⊥‖`, never above 1). So where that
-/// bound exceeds `eps` at the stretch's two ends or its middle, no cover
-/// over `r` is within `eps`. It only skips work: a stretch it passes is
-/// read in full.
+/// `m / s` from it, `s` the steepest `φ` changes per metre across `r`
+/// (`|∇f·S⊥| / ‖S⊥‖`, never above 1 where `φ` is a plane distance). So
+/// where that bound exceeds `eps` at the stretch's two ends or its
+/// middle, no cover over `r` is within `eps`. It only skips work: a
+/// stretch it passes is read in full.
 fn beyond_reach<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    n: [Interval; 3],
+    across: Across<'_>,
     reader: &super::section::SectionReader,
     (side, r): (ChartSide, UvRect),
     eps: f64,
@@ -1343,7 +1274,7 @@ fn beyond_reach<T: CertifiedBounds>(
     if ![d.x, d.y, d.z].iter().all(|i| i.is_certified()) {
         return false;
     }
-    let rise = magnitude(n[0] * d.x + n[1] * d.y + n[2] * d.z);
+    let rise = magnitude(across(Some(w), side.fixed == ChartAxis::U));
     let mig = |i: Interval| {
         Certification::powi(Interval::point(super::enclose::zero_free_lower_bound(i)), 2)
     };
@@ -1352,7 +1283,11 @@ fn beyond_reach<T: CertifiedBounds>(
     if !(rise.is_finite() && run > 0.0) {
         return false;
     }
-    let steepest = (rise / run).next_up().min(1.0);
+    let steepest = if reader.is_distance() {
+        (rise / run).next_up().min(1.0)
+    } else {
+        (rise / run).next_up()
+    };
     let (a, b) = along(side, r);
     [a, 0.5 * (a + b), b].into_iter().any(|t| {
         let least = super::enclose::zero_free_lower_bound(reader.over((t, t)));
@@ -1367,20 +1302,20 @@ fn beyond_reach<T: CertifiedBounds>(
 /// in it within ε of the side ([`side_cover`]).
 pub(crate) fn side_stretch<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    normal: [Interval; 3],
+    across: Across<'_>,
     reader: &super::section::SectionReader,
     (side, domain): (ChartSide, UvRect),
     r: UvRect,
     band: Band,
 ) -> bool {
-    if beyond_reach(boxes, normal, reader, (side, r), band.zero()) {
+    if beyond_reach(boxes, across, reader, (side, r), band.zero()) {
         return false;
     }
-    match read_stretch(boxes, normal, reader, (side, r), band.zero()) {
+    match read_stretch_by(across, reader, (side, r), band.zero()) {
         Reading::Within(sup) => matches!(
             side_cover(
                 boxes,
-                &|w, along_u| plane_partial(normal, boxes, w, along_u),
+                &|w, along_u| across(Some(w), along_u),
                 (side, domain),
                 r,
                 sup,
@@ -1412,7 +1347,9 @@ pub(crate) enum SideCover {
 }
 
 /// **The side cover.** `strip` has one edge on `side` of `domain`, and
-/// `|φ| ≤ sup` along that edge, in metres. A zero of the strip lies at
+/// `|φ| ≤ sup` along that edge, in `φ`'s own units (the form's: metres
+/// on a plane), the units `across` reads its slope
+/// in. A zero of the strip lies at
 /// most `depth` in from the side and `distance` from it
 /// ([`strip_reach`]). The cover lies inside the strip where `depth` is
 /// short of the strip's far face, or that face is the domain's opposite
@@ -1528,44 +1465,5 @@ fn graze(side: ChartSide, bracket: (f64, f64), arm: f64, band: Band) -> SsiError
             "a zero slope decided positive at {side}: the crossing decision passes only a \
              margin clear of the band"
         ),
-    }
-}
-
-/// The plane chart's window holds the wall: every state the ℝ⁴ trace
-/// settles lies on the wall, inside its control hull (positive weights),
-/// and on the plane, so its plane coordinates lie in the hull's
-/// projection. A window that holds that projection never bounds a
-/// march, which ends only at the wall's own boundary.
-///
-/// # Errors
-///
-/// [`SsiError::WindowShortOfWall`] when it does not.
-pub(crate) fn window_holds_wall(
-    plane: (Point3<f64>, Vec3<f64>, Vec3<f64>),
-    wall: &NurbsSurface<f64>,
-    half: f64,
-) -> Result<(), SsiError> {
-    let (p0, u_ref, v_ref) = plane;
-    let lift = |v: Vec3<f64>| [v.x, v.y, v.z].map(Interval::point);
-    let (u, v) = (lift(u_ref), lift(v_ref));
-    let reach = wall
-        .control()
-        .iter()
-        .flat_map(|p| {
-            let q = [(p.x, p0.x), (p.y, p0.y), (p.z, p0.z)]
-                .map(|(a, b)| Interval::point(a) - Interval::point(b));
-            [u, v].map(|axis| {
-                let c = axis[0] * q[0] + axis[1] * q[1] + axis[2] * q[2];
-                magnitude(c)
-            })
-        })
-        .fold(0.0, max_bound);
-    if reach <= half {
-        Ok(())
-    } else {
-        Err(SsiError::WindowShortOfWall {
-            half_extent: half,
-            reach,
-        })
     }
 }

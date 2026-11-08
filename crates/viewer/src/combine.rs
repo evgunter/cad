@@ -23,8 +23,8 @@
 
 use pncad::document::AuthoredNode;
 use pncad::document::{
-    Doc, Evaluation, Formula, HeldNodes, Node, Operand, ProfileProgram, RecipeNodeId, Said, Say,
-    Speaker, SpokenNode,
+    Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand, ProfileProgram, RecipeNodeId,
+    Said, Say, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
@@ -36,7 +36,7 @@ use crate::seats::{
 };
 use crate::session::{
     BooleanSpec, ClearedSeat, FaceSelection, PartSelectSpec, PatternDirection, PatternRuleSpec,
-    SessionOp,
+    SessionOp, SplitPlane,
 };
 use crate::tree::HeldPick;
 use crate::vocab::vocabulary;
@@ -295,13 +295,178 @@ impl BooleanTool {
     }
 }
 
-/// **The split tool**: a body pick plus the cutting plane's fields,
-/// committing one [`SessionOp::AddSplit`]. The plane is a point and a
-/// normal in the target's own coordinates, read off its geometry by the
-/// session door.
+/// **A body seat and the plane read beside it** — what the split and
+/// the mirror tools hold, one value for both.
+///
+/// The plane is a FACE pick, held as the mate tool holds its picks and
+/// marked as they are (`crate::marks::Held`): a face is a name, so it
+/// survives by resolving against the landed evaluation
+/// ([`Self::reconcile_plane`]) and is re-seated by a rename, where the
+/// body seat survives as every seat does ([`Seats::reconcile`]). A plane
+/// variable the document defines survives while the document holds it.
+///
+/// **The first face pick fills both**: the body it is on and its own
+/// plane. A later face pick re-picks the plane alone; a tree pick
+/// re-picks the body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaneSeats {
+    seats: Seats,
+    /// The body seat's role, which names it in the line.
+    seat: Seat,
+    /// The plane's role, which names it in the line and in a drop.
+    role: FaceRole,
+    /// The plane, said as it was picked ([`HeldPick::new`]), its nodes
+    /// as the document last spoke them ([`Self::respeak`]), so a drop
+    /// says what the line said.
+    plane: Option<HeldPlane>,
+}
+
+/// **A held plane**.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HeldPlane {
+    /// A face, read as its plane.
+    Face(HeldPick),
+    /// A plane variable the document defines, read as it is, or a
+    /// frame's, read through its `xy`.
+    Defined {
+        /// The variable, by the name the document last gave it.
+        var: pncad::document::SpokenVar,
+        /// The role it is read through: `xy` for a frame.
+        through: Option<pncad::document::pose::PoseRole>,
+    },
+}
+
+impl PlaneSeats {
+    /// A body seat `seat` and no plane, the plane named `role`.
+    const fn new(seat: Seat, role: FaceRole) -> Self {
+        Self {
+            seats: Seats::one(seat),
+            seat,
+            role,
+            plane: None,
+        }
+    }
+
+    /// The held plane's face, where the plane is a face.
+    fn face(&self) -> Option<&FaceSelection> {
+        match &self.plane {
+            Some(HeldPlane::Face(held)) => Some(held.face()),
+            Some(HeldPlane::Defined { .. }) | None => None,
+        }
+    }
+
+    /// **Feed one face pick**: the plane, and the body it is on while
+    /// no body is held.
+    fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+        if self.seats.is_empty() {
+            self.seats.pick_at(doc, face.node, Some(face.body));
+        }
+        self.plane = Some(HeldPlane::Face(HeldPick::new(doc, face)));
+    }
+
+    /// **Feed one variable pick**: the plane, where `var` is one — a
+    /// `Plane` variable read as it is, a `Frame` read through its
+    /// `xy`. A variable of any other kind is no plane, and the pick is
+    /// not taken.
+    fn pick_defined(&mut self, doc: &Doc<ProfileProgram>, var: pncad::document::VarId) {
+        let through = match doc.var(var).map(pncad::document::Var::kind) {
+            Some(pncad::document::VarKind::Plane) => None,
+            Some(pncad::document::VarKind::Frame) => Some(pncad::document::pose::PoseRole::Xy),
+            _ => return,
+        };
+        self.plane = Some(HeldPlane::Defined {
+            var: doc.spoken_var(var),
+            through,
+        });
+    }
+
+    /// Empty the seat and the plane.
+    fn clear(&mut self) {
+        self.seats.clear();
+        self.plane = None;
+    }
+
+    /// **The plane's survival step**: a held face re-read against the
+    /// landed pair, as the mate tool re-reads its picks, and a held
+    /// variable looked up in the landed document; each dropped when it
+    /// no longer resolves.
+    fn reconcile_plane(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+    ) -> Option<PlaneEvent> {
+        let role = self.role;
+        // Each arm hands the plane back where it still resolves, or
+        // turns it into its drop: the plane goes nowhere else. A lost
+        // face is said by the words kept at the pick, not read again,
+        // since a deleted copy would answer its own node, which the
+        // line never said.
+        match self.plane.take()? {
+            HeldPlane::Face(plane) => {
+                let face = plane.face();
+                let verdict =
+                    crate::tree::pick_resolution(doc, eval, face.node, face.body, &face.name);
+                if crate::session::select::resolves(&verdict) {
+                    self.plane = Some(HeldPlane::Face(plane));
+                    return None;
+                }
+                Some(PlaneEvent::PlaneLost {
+                    role,
+                    plane,
+                    resolution: Box::new(verdict),
+                })
+            }
+            HeldPlane::Defined { var, through } => {
+                if doc.var(var.id()).is_some() {
+                    self.plane = Some(HeldPlane::Defined { var, through });
+                    return None;
+                }
+                Some(PlaneEvent::DefinedLost { role, var })
+            }
+        }
+    }
+
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+        match &mut self.plane {
+            Some(HeldPlane::Face(plane)) => *plane = plane.respoken(doc),
+            Some(HeldPlane::Defined { var, .. }) => *var = var.respoken(doc),
+            None => {}
+        }
+    }
+
+    /// **The face held** ([`crate::session::Holds`]).
+    fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        match &mut self.plane {
+            Some(HeldPlane::Face(held)) => vec![crate::session::select::Held::One(held)],
+            Some(HeldPlane::Defined { .. }) | None => Vec::new(),
+        }
+    }
+
+    /// **The panel's held-picks line**: the body seat and the plane,
+    /// each said by `by` — the body seat's node (the body a click on a
+    /// copy seats), the plane on the copy it was clicked on, or as the
+    /// variable it is. A node `by` does not hold is said as the tool
+    /// kept it.
+    fn line(&self, by: Speaker<'_>) -> String {
+        let body = self.seats.said(by, 0);
+        let plane = self.plane.as_ref().map(|plane| match plane {
+            HeldPlane::Face(held) => Said(held, by).to_string(),
+            HeldPlane::Defined { var, .. } => var.to_string(),
+        });
+        picks_line([(self.seat.name(), body), (self.role.name(), plane)])
+    }
+}
+
+/// **The split tool**: a target seat and the plane it is cut along
+/// ([`PlaneSeats`]), committing one [`SessionOp::AddSplit`]. A plane
+/// the document already defines, a `Plane` variable or a `Frame` read
+/// through its `xy`, is taken when the selection names the variable
+/// (`Selection::Variable`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitTool {
-    seats: Seats,
+    held: PlaneSeats,
 }
 
 impl Default for SplitTool {
@@ -314,92 +479,124 @@ impl SplitTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::one(Seat::SplitTarget),
+            held: PlaneSeats::new(Seat::SplitTarget, FaceRole::SplitPlane),
         }
     }
 
     /// The seats, roles and picks together — what the panel's line is
     /// composed from ([`crate::seats::seat_line`]).
     pub fn seats(&self) -> &Seats {
-        &self.seats
+        &self.held.seats
     }
 
     /// The held target body.
     pub fn target(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
+        self.held.seats.held(0)
     }
 
-    /// Feed one node pick — a second pick REPLACES the first, this tool
-    /// having only the one seat. `doc` routes it, and does not judge it.
-    /// A pick on a copy seats the body it places.
+    /// The held plane.
+    pub fn plane(&self) -> Option<&HeldPlane> {
+        self.held.plane.as_ref()
+    }
+
+    /// The held plane's face, where the plane is a face.
+    pub fn face(&self) -> Option<&FaceSelection> {
+        self.held.face()
+    }
+
+    /// Feed one node pick: it REPLACES the target. A pick on a copy
+    /// seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.seats.pick(doc, node);
+        self.held.seats.pick(doc, node);
     }
 
-    /// [`Self::pick`] of the output `body` a viewport pick hit.
-    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
-        self.seats.pick_at(doc, node, body);
+    /// **Feed one face pick** ([`PlaneSeats`]).
+    pub fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+        self.held.pick_plane(doc, face);
+    }
+
+    /// **Feed one variable pick** ([`PlaneSeats`]).
+    pub fn pick_defined(&mut self, doc: &Doc<ProfileProgram>, var: pncad::document::VarId) {
+        self.held.pick_defined(doc, var);
     }
 
     /// The half seat `i` reads, when it holds a split picked alone
     /// ([`Seats::choose_half`]).
     pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.seats.choose_half(i, half);
+        self.held.seats.choose_half(i, half);
     }
 
-    /// Empty the seat.
+    /// Empty the seat and the plane.
     pub fn clear(&mut self) {
-        self.seats.clear();
+        self.held.clear();
     }
 
-    /// The survival step ([`crate::seats`]).
+    /// The target seat's survival step ([`crate::seats`]).
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        self.seats.reconcile(doc)
+        self.held.seats.reconcile(doc)
+    }
+
+    /// The plane's survival step ([`PlaneSeats`]).
+    pub fn reconcile_plane(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+    ) -> Option<PlaneEvent> {
+        self.held.reconcile_plane(doc, eval)
     }
 
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.seats.respeak(doc);
+        self.held.respeak(doc);
     }
 
-    /// **The one committed edit**: the split by the plane through
-    /// `origin` with normal `normal`.
+    /// **The face the tool holds** ([`crate::session::Holds`]).
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        self.held.held()
+    }
+
+    /// **The panel's held-picks line** ([`PlaneSeats`]).
+    pub fn line(&self, by: Speaker<'_>) -> String {
+        self.held.line(by)
+    }
+
+    /// **The one committed edit**: the target split along the held
+    /// plane.
     ///
     /// # Errors
     ///
-    /// [`SeatError::Empty`] until a body is picked.
-    pub fn op(&self, origin: [Formula; 3], normal: [Formula; 3]) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddSplit {
-            target: self.seats.require_read(0)?,
-            origin,
-            normal,
-        })
+    /// [`SeatError::Empty`] until a target is picked, and naming the
+    /// plane until one is.
+    pub fn op(&self) -> Result<SessionOp, SeatError> {
+        let target = self.held.seats.require_read(0)?;
+        let plane = match &self.held.plane {
+            Some(HeldPlane::Face(held)) => SplitPlane::Face(held.face().clone()),
+            Some(HeldPlane::Defined { var, through }) => {
+                let read = Operand::Var(var.id());
+                SplitPlane::Read(match through {
+                    Some(role) => pncad::document::pose::RoleRead::through(read, *role),
+                    None => pncad::document::pose::RoleRead::plain(read),
+                })
+            }
+            None => {
+                return Err(SeatError::NoFace {
+                    role: FaceRole::SplitPlane,
+                });
+            }
+        };
+        Ok(SessionOp::AddSplit { target, plane })
     }
 }
 
 /// **The mirror tool**: a body seat and the face whose plane the body
-/// is reflected across, committing one [`SessionOp::AddMirror`].
-///
-/// The plane is a FACE pick, held as the mate tool holds its picks and
-/// marked as they are (`crate::marks::Held`): a face is a name, so it
-/// survives by resolving against the landed evaluation
-/// ([`Self::reconcile_plane`]) and is re-seated by a rename, where the
-/// body seat survives as every seat does ([`Seats::reconcile`]).
-///
-/// **The first face pick fills both**: the body it is on and its own
-/// plane — a body mirrored across one of its own faces is the
-/// symmetric part's case. A later face pick re-picks the plane alone, so
-/// a body is mirrored across another body's face by picking that face
-/// second; a tree pick re-picks the body.
+/// is reflected across ([`PlaneSeats`]), committing one
+/// [`SessionOp::AddMirror`]. The first face pick fills both: a body
+/// mirrored across one of its own faces is the symmetric part's case,
+/// and a body is mirrored across another body's face by picking that
+/// face second.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MirrorTool {
-    seats: Seats,
-    /// The plane: the face, said on the copy it was clicked on
-    /// ([`HeldPick::new`]), with the nodes its words name
-    /// as the document last spoke them ([`Self::respeak`]). The line and
-    /// the drop both say the plane from it, so a drop after the copy it
-    /// was clicked on is deleted says what the line said.
-    plane: Option<HeldPick>,
+    held: PlaneSeats,
 }
 
 impl Default for MirrorTool {
@@ -412,107 +609,73 @@ impl MirrorTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::one(Seat::MirrorBody),
-            plane: None,
+            held: PlaneSeats::new(Seat::MirrorBody, FaceRole::MirrorPlane),
         }
     }
 
     /// The body seat.
     pub fn seats(&self) -> &Seats {
-        &self.seats
+        &self.held.seats
     }
 
     /// The held body.
     pub fn input(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
+        self.held.seats.held(0)
     }
 
     /// The held plane face.
     pub fn plane(&self) -> Option<&FaceSelection> {
-        self.plane.as_ref().map(HeldPick::face)
+        self.held.face()
     }
 
     /// Feed one node pick: it REPLACES the body.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.seats.pick(doc, node);
+        self.held.seats.pick(doc, node);
     }
 
-    /// **Feed one face pick**: the plane, and the body it is on while
-    /// no body is held (the type's docs).
+    /// **Feed one face pick** ([`PlaneSeats`]).
     pub fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
-        if self.seats.is_empty() {
-            self.seats.pick_at(doc, face.node, Some(face.body));
-        }
-        self.plane = Some(HeldPick::new(doc, face));
+        self.held.pick_plane(doc, face);
     }
 
     /// The half the body seat reads, when it holds a split picked
     /// alone ([`Seats::choose_half`]).
     pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.seats.choose_half(i, half);
+        self.held.seats.choose_half(i, half);
     }
 
     /// Empty the seat and the plane.
     pub fn clear(&mut self) {
-        self.seats.clear();
-        self.plane = None;
+        self.held.clear();
     }
 
     /// The body seat's survival step ([`crate::seats`]).
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        self.seats.reconcile(doc)
+        self.held.seats.reconcile(doc)
     }
 
-    /// **The plane's survival step**: the held face re-read against the
-    /// landed pair, as the mate tool re-reads its picks, and dropped
-    /// when it no longer resolves.
+    /// The plane's survival step ([`PlaneSeats`]).
     pub fn reconcile_plane(
         &mut self,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-    ) -> Option<MirrorEvent> {
-        let face = self.plane.as_ref()?.face();
-        let verdict = crate::tree::pick_resolution(doc, eval, face.node, face.body, &face.name);
-        if crate::session::select::resolves(&verdict) {
-            return None;
-        }
-        // Said on the body kept at the pick: read again here, a deleted
-        // copy would answer its own node, which the line never said.
-        Some(MirrorEvent::PlaneLost {
-            plane: self.plane.take()?,
-            resolution: Box::new(verdict),
-        })
+    ) -> Option<PlaneEvent> {
+        self.held.reconcile_plane(doc, eval)
     }
 
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.seats.respeak(doc);
-        if let Some(plane) = &mut self.plane {
-            *plane = plane.respoken(doc);
-        }
+        self.held.respeak(doc);
     }
 
     /// **The plane the tool holds** ([`crate::session::Holds`]).
     pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
-        self.plane
-            .iter_mut()
-            .map(|held| crate::session::select::Held::One(held))
-            .collect()
+        self.held.held()
     }
 
-    /// **The panel's held-picks line**: the body seat and the plane,
-    /// each said by `by` — the body seat's node (the body a click on a
-    /// copy seats), and the plane as the chrome says a held pick
-    /// ([`HeldPick`]), on the copy it was clicked on, since the plane
-    /// was taken there. A node `by` does not hold is said as the tool
-    /// kept it.
+    /// **The panel's held-picks line** ([`PlaneSeats`]).
     pub fn line(&self, by: Speaker<'_>) -> String {
-        let body = self.seats.said(by, 0);
-        let plane = self.plane.as_ref().map(|plane| Said(plane, by).to_string());
-        picks_line([
-            (Seat::MirrorBody.name(), body),
-            (FaceRole::MirrorPlane.name(), plane),
-        ])
+        self.held.line(by)
     }
 
     /// **The one committed edit**: the body mirrored across the held
@@ -523,7 +686,7 @@ impl MirrorTool {
     /// [`SeatError::Empty`] until a body is picked, and naming the
     /// plane until a face is.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
-        let body = self.seats.require_read(0)?;
+        let body = self.held.seats.require_read(0)?;
         let plane = self.plane().cloned().ok_or(SeatError::NoFace {
             role: FaceRole::MirrorPlane,
         })?;
@@ -531,38 +694,53 @@ impl MirrorTool {
     }
 }
 
-/// A typed mirror-tool event the chrome renders: the plane's drop. The
-/// body seat's drop is a [`SeatEvent`].
+/// A typed event of a held plane ([`PlaneSeats`]) the chrome renders:
+/// the plane's drop. The body seat's drop is a [`SeatEvent`].
 #[derive(Debug)]
-pub enum MirrorEvent {
+pub enum PlaneEvent {
     /// The held plane face no longer resolves against the landed
     /// evaluation; the tool dropped it.
     PlaneLost {
-        /// The plane that was held, said on the body the panel line said
-        /// it on, by the last labels the tool kept for its nodes.
+        /// The plane's role.
+        role: FaceRole,
+        /// The plane that was held, said as the panel line said it.
         plane: HeldPick,
         /// The resolution machinery's own verdict.
         resolution: Box<pncad::select::Resolution>,
     },
+    /// The held plane variable is no longer in the document; the tool
+    /// dropped it.
+    DefinedLost {
+        /// The plane's role.
+        role: FaceRole,
+        /// The variable, by the last name the document gave it.
+        var: pncad::document::SpokenVar,
+    },
 }
 
 /// A node `by` does not hold is said as the tool kept it.
-impl Say for MirrorEvent {
+impl Say for PlaneEvent {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost { plane, .. } => {
-                crate::matetool::pick_lost(f, FaceRole::MirrorPlane.name(), plane, by)
+            Self::PlaneLost { role, plane, .. } => {
+                crate::matetool::pick_lost(f, role.name(), plane, by)
             }
+            Self::DefinedLost { role, var } => write!(
+                f,
+                "the {} pick ({var}) is no longer in the document; the tool dropped it",
+                role.name()
+            ),
         }
     }
 }
 
 /// The sentence where no document is at hand: each node as the tool
 /// kept it.
-impl core::fmt::Display for MirrorEvent {
+impl core::fmt::Display for PlaneEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::PlaneLost { plane, .. } => self.say(f, Speaker::held(plane.said())),
+            Self::DefinedLost { .. } => self.say(f, Speaker::TAG),
         }
     }
 }
@@ -592,28 +770,20 @@ vocabulary! {
 }
 
 impl ClearanceBoundChoice {
-    /// **The bounds this choice writes**, from the form's two lengths:
-    /// `lo` is the one bound of a one-sided or exact requirement, and a
-    /// band's lower end; `hi` is a band's upper end, asked for by a band
-    /// alone. A reversed band and a negative bound are written as typed:
-    /// the evaluation refuses them (`EmptyBand`, `NotADistance`), on
-    /// the requirement's own row.
-    ///
-    /// # Errors
-    ///
-    /// `hi`'s, for a band.
-    pub fn bounds<S, E>(
-        self,
-        lo: S,
-        hi: impl FnOnce() -> Result<S, E>,
-    ) -> Result<pncad::document::ClearanceBounds<S>, E> {
+    /// **The bounds this choice writes**: its shape, with every end at
+    /// `at`. The insert writes contact (`0`); each end is then a slot
+    /// row of the requirement (`SlotId::ClearanceBound`).
+    pub fn bounds<S: Clone>(self, at: S) -> pncad::document::ClearanceBounds<S> {
         use pncad::document::ClearanceBounds as B;
-        Ok(match self {
-            Self::AtLeast => B::AtLeast(lo),
-            Self::AtMost => B::AtMost(lo),
-            Self::Equal => B::Equal(lo),
-            Self::Between => B::Within { lo, hi: hi()? },
-        })
+        match self {
+            Self::AtLeast => B::AtLeast(at),
+            Self::AtMost => B::AtMost(at),
+            Self::Equal => B::Equal(at),
+            Self::Between => B::Within {
+                lo: at.clone(),
+                hi: at,
+            },
+        }
     }
 }
 
@@ -971,43 +1141,83 @@ vocabulary! {
 
 /// **The pattern tool**: a body pick, committing one
 /// [`SessionOp::AddPattern`] or one [`SessionOp::AddFusedPattern`] (a
-/// family, or the union of one). Its direction, or its ring's axis, is
-/// one of the space's axes or an edge or a face picked once the body is
-/// held ([`PatternDirection`]), read by the pattern where it stands.
+/// family, or the union of one).
 ///
 /// **One tool, two ops**: the output choice ([`PatternOutputChoice`])
-/// picks which op each door mints, because everything the tool holds is
-/// the same either way — the same prototype seat, the same count and
-/// the same rule fields.
+/// picks which op each door mints, because everything the tool holds,
+/// its one prototype seat, is the same either way.
 ///
 /// **Two commit doors rather than one taking a rule value**: each rule
-/// has fields the other lacks. The chrome's rule choice picks the door,
-/// which is the same decision it was already making.
+/// has values the other lacks. The chrome's rule choice picks the door,
+/// and the panel hands it the defaults below; the pattern's rows edit
+/// them afterwards.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatternTool {
     seats: Seats,
-    picked: Option<DirectionPick>,
 }
 
-/// **The geometry a pattern's direction is picked on**: an edge or a
-/// face, which the rule reads as its line, its normal or its axis.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DirectionPick {
-    /// An edge.
-    Edge(crate::session::EdgeSelection),
-    /// A face.
-    Face(FaceSelection),
+/// **How many copies a pattern inserts with**, either rule: a ring of
+/// four at [`RING_STEP`] closes the circle. The index's count row edits
+/// it afterwards.
+pub const PATTERN_COUNT: i64 = 4;
+
+/// **The spacing a row inserts with**: `clears` metres, the step that
+/// clears the body ([`clearing_step`]), rounded UP to one significant
+/// figure in `unit` ([`crate::props::one_figure_length`]), so the copies
+/// still clear and the row's slide reads a round number in the unit the
+/// person works in (`60 mm` for a 51.8 mm step).
+///
+/// # Errors
+///
+/// [`RowSpacingFault::NotPositive`] for a step that is not a positive
+/// finite length, and the literal door's refusal for a figure that is
+/// not finite.
+pub fn row_spacing(
+    clears: f64,
+    unit: pncad::quantity::LengthUnit,
+) -> Result<Formula, RowSpacingFault> {
+    if !(clears.is_finite() && clears > 0.0) {
+        return Err(RowSpacingFault::NotPositive { clears });
+    }
+    crate::props::one_figure_length(clears, unit, crate::props::Rounding::Up)
+        .map_err(RowSpacingFault::Dimension)
 }
 
-impl DirectionPick {
-    /// The rule's direction this pick names.
-    pub fn direction(&self) -> PatternDirection {
+/// **Why a row has no default spacing** ([`row_spacing`]).
+#[derive(Debug)]
+pub enum RowSpacingFault {
+    /// The step that clears the body is no positive finite length.
+    NotPositive {
+        /// The step, metres.
+        clears: f64,
+    },
+    /// The literal door refused the figure.
+    Dimension(pncad::document::DimensionError),
+}
+
+impl core::fmt::Display for RowSpacingFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Edge(edge) => PatternDirection::Edge(edge.clone()),
-            Self::Face(face) => PatternDirection::Face(face.clone()),
+            Self::NotPositive { clears } => write!(
+                f,
+                "the step that clears the body is {clears} m, not a positive length to space a \
+                 row by"
+            ),
+            Self::Dimension(error) => write!(f, "{error}"),
         }
     }
 }
+
+impl core::error::Error for RowSpacingFault {}
+
+/// **The axis a ring inserts about**: the target's `z`.
+pub const RING_ABOUT: pncad::document::TargetAxis = pncad::document::TargetAxis::Z;
+
+/// **The angle a ring steps by**, radians: a quarter turn.
+pub const RING_STEP: f64 = core::f64::consts::FRAC_PI_2;
+
+// The ring a pattern inserts closes: its count of steps is one turn.
+const _: () = assert!(PATTERN_COUNT as f64 * RING_STEP == core::f64::consts::TAU);
 
 impl Default for PatternTool {
     fn default() -> Self {
@@ -1020,27 +1230,17 @@ impl PatternTool {
     pub const fn new() -> Self {
         Self {
             seats: Seats::one(Seat::PatternBody),
-            picked: None,
         }
     }
 
-    /// **Feed one edge or face pick**: the direction, once a body is
-    /// held; while none is, the body it is on.
-    pub fn pick_direction(&mut self, doc: &Doc<ProfileProgram>, pick: DirectionPick) {
-        if self.seats.is_empty() {
-            let (node, body) = match &pick {
-                DirectionPick::Edge(edge) => (edge.node, edge.body),
-                DirectionPick::Face(face) => (face.node, face.body),
-            };
-            self.seats.pick_at(doc, node, Some(body));
-        } else {
-            self.picked = Some(pick);
-        }
-    }
-
-    /// The edge or face the direction is picked on, where one is.
-    pub fn picked(&self) -> Option<&DirectionPick> {
-        self.picked.as_ref()
+    /// **The body read the seat holds**, what the panel measures the
+    /// row's spacing off.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::Empty`] with no body picked.
+    pub fn read(&self) -> Result<Operand, SeatError> {
+        self.seats.require_read(0)
     }
 
     /// The seats, roles and picks together — what the panel's line is
@@ -1071,10 +1271,9 @@ impl PatternTool {
         self.seats.choose_half(i, half);
     }
 
-    /// Empty the seat and the direction.
+    /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
-        self.picked = None;
     }
 
     /// The survival step ([`crate::seats`]).
@@ -1236,31 +1435,42 @@ impl PartTool {
     }
 }
 
-/// **Which way an inserted part is stepped clear of what is drawn**: +x
-/// of the space it is drawn against
+/// **The axis a step clear goes along by default**: the `x` of the
+/// space the body is in. A pattern's row inserts along it, spaced by the
+/// step that clears the body ([`clearing_step`]), so the copies clear,
+/// and an inserted part is drawn clear of what is drawn along it
 /// ([`crate::pickindex::clear_of_drawn`]).
-pub const STEP_DIRECTION: [f64; 3] = [1.0, 0.0, 0.0];
+pub const STEP_ALONG: pncad::document::TargetAxis = pncad::document::TargetAxis::X;
+
+/// [`STEP_ALONG`] as components, unnormalized as every direction slot
+/// in this vocabulary is: what [`clearing_step`] measures along.
+pub const STEP_DIRECTION: [f64; 3] = match STEP_ALONG {
+    pncad::document::TargetAxis::X => [1.0, 0.0, 0.0],
+    pncad::document::TargetAxis::Y => [0.0, 1.0, 0.0],
+    pncad::document::TargetAxis::Z => [0.0, 0.0, 1.0],
+};
 
 /// **How much clear space a step clear leaves AT LEAST**, as a fraction
 /// of the stepped body's own width along [`STEP_DIRECTION`]: its near
 /// side lands at least this far past the far side of what it clears,
-/// and further for a body thin along the step ([`clearance`] says why).
+/// and further for a body thin along the step ([`clearing_step`] says
+/// why).
 ///
 /// A fraction rather than a length, so the gap scales with the part —
 /// a millimetre gap beside a metre-long beam is invisible, and beside
 /// a millimetre pin it is the whole view.
 pub const CLEARANCE_GAP: f64 = 0.25;
 
-/// The measuring tessellation's chord, as a fraction of the measured
+/// The measuring tessellation's chord, as a fraction of the body's
 /// FLOOR-mesh extent (`crate::scene::SCALE_PROBE_DELTA`'s mesh).
 ///
 /// Fine enough that the conservative inflation it costs — twice the
 /// chord, on the width — stays well under [`CLEARANCE_GAP`] for a body
 /// about as wide along the step as it is across; coarse enough that
-/// measuring is one cheap tessellation rather than a picture's worth.
-/// For a body thin along the step the inflation is NOT small against
-/// the width, and the step lands further off than the gap alone would
-/// put it ([`clearance`]).
+/// measuring a body is one cheap tessellation rather than a picture's
+/// worth. For a body thin along the step the inflation is NOT small
+/// against the width, and the step is longer than the gap alone would
+/// make it ([`clearing_step`]).
 ///
 /// Public for [`crate::scene::SCALE_PROBE_DELTA`]'s reason: a row that
 /// asserts a landed step against a body's closed form has to run the
@@ -1268,13 +1478,211 @@ pub const CLEARANCE_GAP: f64 = 0.25;
 /// without the build noticing.
 pub const MEASURE_CHORD: f64 = 1.0 / 64.0;
 
+/// **Why the step that clears a body could not be measured** — every
+/// way the landed body can fail to be one thing with a width.
+#[derive(Debug)]
+pub enum ClearingFault {
+    /// Nothing has landed, so there is no body to measure yet.
+    NotLanded,
+    /// The picture on screen answers an OLDER document than the one
+    /// the step would be committed to — an edit has not landed
+    /// yet ([`crate::session::DocSession::busy`]). The landed value of
+    /// an edited node is its value BEFORE the edit, so a step measured
+    /// off it could be the old width, and after a document replacement
+    /// the same id may name a different node altogether (issue #1384).
+    Stale,
+    /// The picture on screen — which answers the current document —
+    /// holds no value for the input, and the input's standing, as the
+    /// feature tree draws it ([`crate::tree::standing_as_drawn`]), says
+    /// why and where the repair is.
+    ///
+    /// Its `through` may be a mate, which is not the DAG ancestor
+    /// `NodeStanding` documents
+    /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
+    NoValue {
+        /// The input's standing, as the tree draws it.
+        standing: NodeStanding,
+        /// The nodes `standing` names, as the landed document held them
+        /// ([`held_by`]).
+        held: HeldNodes,
+    },
+    /// The input's VALUE is several bodies, and a step clears one.
+    ///
+    /// The body seat refuses a read of several bodies by its kind, so
+    /// this is the value's own answer behind it: the door asks the
+    /// value, which is the evaluator's own question.
+    NotOneBody {
+        /// The node picked, as the landed document held it.
+        input: SpokenNode,
+    },
+    /// The input reads a split's half that holds no material: the
+    /// split's plane misses the body on that side.
+    EmptyHalf {
+        /// The split, as the landed document held it.
+        input: SpokenNode,
+        /// The half read.
+        half: SplitHalf,
+    },
+    /// The measuring tessellation refused.
+    Unmeasured {
+        /// The node picked, as the landed document held it.
+        input: SpokenNode,
+        /// The tessellator's own refusal.
+        error: pncad::mesh::TessellateError,
+    },
+    /// The body's mesh has no extent to step by.
+    NoExtent {
+        /// The node picked, as the landed document held it.
+        input: SpokenNode,
+    },
+}
+
+impl ClearingFault {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::NotLanded => f.write_str(
+                "the document has not evaluated yet, so there is no body to measure a copy's \
+                 step off",
+            ),
+            Self::Stale => f.write_str(
+                "the picture is older than the document — wait for the latest edit to evaluate, \
+                 so the copy's step is measured off the body as it now is",
+            ),
+            Self::NoValue { standing, held } => write!(
+                f,
+                "there is no body to copy: {}",
+                Said(standing, Speaker::held(held))
+            ),
+            Self::NotOneBody { input } => write!(
+                f,
+                "{input}'s value is several bodies; a step clears ONE — project the one you \
+                 mean first"
+            ),
+            Self::EmptyHalf { input, half } => write!(
+                f,
+                "{input}'s {} half holds no material: its plane misses the body on that side",
+                half.name()
+            ),
+            Self::Unmeasured { input, error } => write!(
+                f,
+                "{input}'s body could not be measured for the copy's step: {}",
+                pncad::geom_brep::recourse::read_at(error, at)
+            ),
+            Self::NoExtent { input } => {
+                write!(f, "{input}'s body has no width to step a copy by")
+            }
+        }
+    }
+}
+
+pncad::geom_brep::ended_by_write!(ClearingFault);
+
+impl core::error::Error for ClearingFault {}
+
+/// **The step that clears a body**: in metres along [`STEP_DIRECTION`],
+/// the step that puts a copy's near side AT LEAST [`CLEARANCE_GAP`] of
+/// the body's width past the body's far side — so the two never touch,
+/// whatever the body's size. A pattern's row is spaced by it
+/// ([`row_spacing`]).
+///
+/// **Read off `eval`, which the caller must hand in CURRENT** — an
+/// evaluation of the document the step will be committed to. The
+/// session door refuses [`ClearingFault::NotLanded`] and
+/// [`ClearingFault::Stale`] before calling this; a stale evaluation
+/// would hand back an edited node's OLD value, and nothing here could
+/// tell.
+///
+/// **Conservative, and why.** The width is measured on a tessellation
+/// at chord δ. The step needs every point of the exact surfaces to lie
+/// within a known distance of the mesh, and `pncad::mesh`'s crate docs
+/// state the promise the other way round — each triangle within δ of
+/// the surface — with an honest bound of δ + ε (+ rounding), ε being
+/// the kernel tolerance its boundary vertices sit within. The direction
+/// this needs holds too, and rests on the same facts: the mesh vertices
+/// lie on the surfaces (within ε), and each face kind's certificate
+/// bounds the gap between the surface and the linear interpolant
+/// through them over the triangle's own parameter cell, which runs both
+/// ways, while the cells cover the face. So the true width is at most
+/// the mesh's plus 2(δ + ε), and the step adds that before the gap;
+/// rounding is left to the gap, which exceeds it by many orders.
+///
+/// **So the gap is a floor, not the step's exact share.** δ is
+/// [`MEASURE_CHORD`] of the body's floor-mesh DIAGONAL, which sets the
+/// scale before any width is known; for a body thin along
+/// [`STEP_DIRECTION`] the 2(δ + ε) margin can be several times the
+/// width, and the step is longer than a quarter-width past it. Never
+/// shorter.
+///
+/// # Errors
+///
+/// [`ClearingFault::NoValue`], [`ClearingFault::NotOneBody`],
+/// [`ClearingFault::Unmeasured`], [`ClearingFault::NoExtent`].
+pub fn clearing_step(
+    doc: &Doc<ProfileProgram>,
+    eval: &Evaluation<f64>,
+    input: &Operand,
+    tol: Tol,
+) -> Result<f64, ClearingFault> {
+    // The session door's kind gate ran first and refused a read naming
+    // no output.
+    let (node, port) = crate::world::read_output(doc, input)
+        .unwrap_or_else(|| unreachable!("a body read the session admitted names an output"));
+    let value = eval.usable(node).map_err(|standing| {
+        let standing = crate::tree::standing_as_drawn(standing, eval);
+        let held = held_by(&standing, doc);
+        ClearingFault::NoValue { standing, held }
+    })?;
+    let spoken = || doc.spoken(node);
+    let body = match port {
+        Some(port) => match value.payload.output_body(u32::from(port)) {
+            Ok(body) => Some(body),
+            // A port the value holds no body at is a split's empty half.
+            Err(_) => match (&value.payload, SplitHalf::of_output_body(u32::from(port))) {
+                (pncad::document::ValuePayload::Split { .. }, Some(half)) => {
+                    return Err(ClearingFault::EmptyHalf {
+                        input: spoken(),
+                        half,
+                    });
+                }
+                _ => None,
+            },
+        },
+        None => value.payload.one_body().flatten(),
+    }
+    .ok_or_else(|| ClearingFault::NotOneBody { input: spoken() })?;
+    let measured = |chord: f64| {
+        pncad::mesh::tessellate(body.body(), chord, tol).map_err(|error| {
+            ClearingFault::Unmeasured {
+                input: spoken(),
+                error,
+            }
+        })
+    };
+    let (mesh, chord) = measured_at_scale(measured, |mesh| mesh.positions.clone())?
+        .ok_or_else(|| ClearingFault::NoExtent { input: spoken() })?;
+    // The step is stated in the body's space; the body is measured in
+    // its own frame, along that heading read into it.
+    let heading = body
+        .heading_in_own(Vec3::from_array(STEP_DIRECTION))
+        .map_err(|_| ClearingFault::NoExtent { input: spoken() })?
+        .to_array();
+    let width = width_along(&mesh.positions, heading)
+        .filter(|w| w.is_finite() && *w > 0.0)
+        .ok_or_else(|| ClearingFault::NoExtent { input: spoken() })?;
+    Ok(clearance(width, width, chord, tol))
+}
+
 /// **Something measured off meshes cut fine for its own size**: `at`
 /// at [`crate::scene::SCALE_PROBE_DELTA`] reads its size — the diagonal
 /// of the box around the probe's `points` — and `at` again at
 /// [`MEASURE_CHORD`] of that size is the measure, answered with the
 /// chord it was cut at. `Ok(None)` where the probe has no extent. The
-/// measurement an inserted part's frame takes
-/// ([`crate::pickindex::clear_of_drawn`]).
+/// one measurement the step that clears a body ([`clearing_step`]) and
+/// an inserted part's frame ([`crate::pickindex::clear_of_drawn`]) take.
 ///
 /// # Errors
 ///
@@ -1298,30 +1706,46 @@ pub fn measured_at_scale<M, E>(
 
 /// **How far to step a body whose near side is `span` behind the far
 /// side of what it must clear**, measured off meshes at `chord`: `span`
-/// widened by the meshes' sag on both sides, 2(δ + ε), then
-/// [`CLEARANCE_GAP`] of the stepped body's own `width`, widened the same
-/// way, on top. An inserted part clears everything drawn
+/// widened by the meshes' sag on both sides, 2(δ + ε) — the true extent
+/// is at most the mesh's plus that ([`clearing_step`] carries the
+/// argument) — then [`CLEARANCE_GAP`] of the stepped body's own `width`,
+/// widened the same way, on top. A row's step clears its body
+/// (`span` = `width`); an inserted part clears everything drawn
 /// ([`crate::pickindex::clear_of_drawn`]).
-///
-/// **Conservative, and why.** The extents are measured on
-/// tessellations at chord δ. The step needs every point of the exact
-/// surfaces to lie within a known distance of the mesh, and
-/// `pncad::mesh`'s crate docs state the promise the other way round —
-/// each triangle within δ of the surface — with an honest bound of
-/// δ + ε (+ rounding), ε being the kernel tolerance its boundary
-/// vertices sit within. The direction this needs holds too, and rests
-/// on the same facts: the mesh vertices lie on the surfaces (within ε),
-/// and each face kind's certificate bounds the gap between the surface
-/// and the linear interpolant through them over the triangle's own
-/// parameter cell, which runs both ways, while the cells cover the
-/// face. So a true extent is at most the mesh's plus 2(δ + ε); rounding
-/// is left to the gap, which exceeds it by many orders. **So the gap is
-/// a floor, not the step's exact share**: δ is [`MEASURE_CHORD`] of the
-/// measured DIAGONAL, so for a body thin along [`STEP_DIRECTION`] the
-/// margin can be several times its width. Never nearer.
 pub fn clearance(span: f64, width: f64, chord: f64, tol: Tol) -> f64 {
     let sag = 2.0 * (chord + tol.eps());
     span + sag + (width + sag) * CLEARANCE_GAP
+}
+
+impl ClearingFault {
+    /// This fault with its nodes spoken from `doc`, a later version of
+    /// the document it was raised in
+    /// ([`crate::session::Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| node.respoken(doc);
+        match self {
+            Self::NoValue { standing, held } => Self::NoValue {
+                standing,
+                held: held.respoken(doc),
+            },
+            Self::NotOneBody { input } => Self::NotOneBody {
+                input: again(input),
+            },
+            Self::EmptyHalf { input, half } => Self::EmptyHalf {
+                input: again(input),
+                half,
+            },
+            Self::Unmeasured { input, error } => Self::Unmeasured {
+                input: again(input),
+                error,
+            },
+            Self::NoExtent { input } => Self::NoExtent {
+                input: again(input),
+            },
+            unspoken @ (Self::NotLanded | Self::Stale) => unspoken,
+        }
+    }
 }
 
 /// How far `points` spread along `direction` (normalized here): the

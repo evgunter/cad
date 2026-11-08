@@ -21,18 +21,18 @@
 //!   reaching this routing has no tangent-locus arm for its two
 //!   surface kinds, which is what its refusal names.
 //! - **anything the samples cannot settle** — escalates, naming the
-//!   predicate that failed to decide. Never a silent verdict.
+//!   predicate that failed to decide, or, where they settle on
+//!   disagreeing, is routed as the disagreement it is. Never a silent
+//!   verdict.
 //!
 //! **This is the tier-3 verdict table's own machinery, consumed one
-//! stage earlier.** `validate`'s check-4 material arm asks the same
-//! question of an EDGE of a finished body; the answer there is a fold
-//! over per-sample `classify_material_pairing` and `tangent_jet`
-//! readings, and both are functions of two SURFACES, two face senses,
-//! a point and a direction — no topology at all. So the classification
-//! ports to a cross-operand rim by supplying the rim's stations in place
-//! of the edge's, and the per-station reads, the walk and the fold are
-//! all imported rather than restated: one table, two callers, and a new
-//! wedge row cannot reach one and miss the other.
+//! stage earlier.** `validate`'s check 4 asks the same question of an
+//! EDGE of a finished body through the whole-edge fold
+//! (`geom_brep::edge_wedge_over`), whose reads are functions of two
+//! SURFACES, two face senses, a point and a direction — no topology at
+//! all. So the classification ports to a cross-operand rim by handing
+//! the fold the rim's stations in place of the edge's: one fold, two
+//! callers.
 //!
 //! What does NOT port is the rim's own identification. A body's edge
 //! IS its two faces' shared locus; two operands share nothing, so the
@@ -41,10 +41,8 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
-use crate::validate::{MaterialArmOutcome, MaterialStations};
 use crate::{Body, FaceKey};
-use geom_brep::MaterialWedge;
-use geom_brep::ladder::{Answering, Climb, IdentityLadder, Rung, climb, read_identity};
+use geom_brep::ladder::{Answering, IdentityLadder, Rung, climb, read_identity};
 
 /// A rim circle, in the data the curve carries: centre, unit axis,
 /// radius and the seam reference the sampling phase starts from.
@@ -69,15 +67,22 @@ pub(crate) enum RimRouting {
     Seam,
     /// Wedge 0 or 2π: outward normals opposed along the rim
     /// ([`super::BooleanError::RimCuspArmUnbuilt`]).
-    Cusp(MaterialWedge),
+    Cusp(geom_brep::WedgeEnd),
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.
     Lamina,
     /// Tangent planes definitely DISTINCT at every station: a genuine
     /// corner, which is the ordinary crossing lanes' business and not a
-    /// rim contact at all. A first-order verdict, decided by the screen
-    /// and never by the material arm.
+    /// rim contact at all.
     Transverse,
+    /// Neighbouring stations disagree about the class, the sign, the
+    /// material pairing or, over opposed faces, which end of the wedge
+    /// they make, named by their phases (`0..CERT_SAMPLES`): the rim is
+    /// not one contact, and no single routing is honest for it.
+    Mixed(geom_brep::MixedStations),
+    /// A spline-chart face on either side: exempt by kind, the implicit
+    /// gradients the routing reads being poison on a fit.
+    SplineFace,
 }
 
 /// The circle two faces' boundaries share — the rim the routing is
@@ -92,25 +97,20 @@ pub(crate) enum RimRouting {
 /// wins; a face pair riding two common circles at once is not a rim
 /// contact and is outside what this door claims to see.
 ///
-/// **Why the comparison is written here rather than consumed from
-/// `carrier_eq`, stated so the next reader does not have to re-derive
-/// it.** The resemblance is real and it is now exact in POSTURE as well
-/// as in data: both compare a centre, an axis line and a radius; both
-/// meter the angular datum at a consumption extent rather than at unit
-/// arm; both treat an in-band datum as an escalation rather than as a
-/// separation. What differs is the subject. `carrier_eq` is a ladder
-/// over SURFACE carriers — its inventory is plane, sphere, cylinder,
-/// torus, its verdict is a material-side relation (`SameOriented` /
-/// `SameOpposite` / `Distinct`), and its rungs consult declared
-/// intent. A rim is a CURVE, it has no material side, and
-/// no declaration is being verified here: the question is only "are
-/// these two boundary edges the same circle". Consuming the ladder
-/// would mean giving it a curve-carrier variant with no orientation and
-/// no identity rungs — a fifth `CarrierDesc` arm that answers a
-/// different kind of question — which is a design move on the C4 table,
-/// not a de-duplication. Until someone wants that variant for its own
-/// sake, one small comparison stated plainly beats a ladder bent to
-/// cover two subjects.
+/// **Which question the caller asks** ([`Answering`]). A caller
+/// that reads WHICH rim answered asks this door ([`Answering::First`]): that it is
+/// THE shared rim rests on no earlier pair being one too, so an
+/// undecided pair ahead of the answer stays live. A caller that asks
+/// only whether a rim exists asks [`rim_exists`] ([`Answering::Any`]): every pair decided
+/// one answers it alike, so an undecided pair ahead is superseded.
+///
+/// **The comparison is the identity ladder's** ([`same_circle`] reads
+/// [`read_identity`], as `carrier_eq`'s curved rungs do); only the
+/// subject is local. `carrier_eq` compares SURFACE carriers for a
+/// material-side relation (`SameOriented` / `SameOpposite` /
+/// `Distinct`); a rim is a CURVE with no material side, so the
+/// question here is only "are these two boundary edges the same
+/// circle", and its data are the circle's own.
 ///
 /// **The angular margin is metered at the candidate's own extent**, not
 /// at unit arm. A dimensionless sine says nothing until it is priced as
@@ -143,27 +143,44 @@ pub(crate) fn shared_rim<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
+    rims(a, fa, b, fb, Answering::First, band)
+}
+
+/// Whether `fa` and `fb` end on a common circle: [`shared_rim`]'s ladder
+/// asked only whether a rim exists ([`Answering::Any`]).
+///
+/// # Errors
+///
+/// As [`shared_rim`].
+pub(in crate::boolean) fn rim_exists<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    rims(a, fa, b, fb, Answering::Any, band).map(|rim| rim.is_some())
+}
+
+/// The rim ladder under the caller's `answering` ([`shared_rim`]'s docs).
+fn rims<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    answering: Answering,
+    band: Band,
+) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
     // A pair decided one answers whatever another pair read: the ladder
-    // whose answer is a pair decided one. Which pair answers names the
-    // rim, and that it is THE shared rim rests on no earlier pair being
-    // one too (a face pair riding two circles is outside this door), so
-    // an undecided pair ahead of the answer stays live
-    // (`Answering::First`).
+    // whose answer is a pair decided one.
     let bs = face_boundary_circles(b, fb);
     let pairs = face_boundary_circles(a, fa)
         .into_iter()
         .flat_map(|ra| bs.iter().map(move |&rb| (ra, rb)));
-    match climb(Answering::First, pairs, |(ra, rb)| {
-        match same_circle(ra, rb, band) {
-            Ok(Some(margin)) => Rung::Answers((ra, margin)),
-            Ok(None) => Rung::Passes,
-            Err(diag) => Rung::kept(diag),
-        }
-    }) {
-        Climb::Answered { answer, .. } => Ok(Some(answer)),
-        Climb::Passed => Ok(None),
-        Climb::Undecided(diag) => Err(diag),
-    }
+    climb(answering, pairs, |(ra, rb)| {
+        Rung::of_reading(same_circle(ra, rb, band).map(|one| one.map(|margin| (ra, margin))))
+    })
+    .into_reading()
 }
 
 /// Whether two circles are one, on their own data at `band`: the
@@ -206,13 +223,8 @@ fn same_circle<T: Decide>(
 pub(crate) enum Locus<T: Real> {
     /// A rim circle both faces' boundaries ride.
     Rim(Rim<T>),
-    /// A tangent line.
-    Line {
-        /// A point on the line.
-        origin: Point3<T>,
-        /// The unit direction.
-        dir: Vec3<T>,
-    },
+    /// A tangent line, its direction unit.
+    Line(geom::Line<T>),
 }
 
 /// Which way two faces leave a locus they are tangent along, over the
@@ -319,12 +331,12 @@ pub(crate) fn departures<T: Decide>(
     }
     let scale = match locus {
         Locus::Rim(rim) => rim.radius,
-        Locus::Line { .. } => T::one(),
+        Locus::Line(_) => T::one(),
     };
     // Ascending, by decided differences: the scalars carry no order.
     sort_params(&mut cuts, scale, band)?;
     let pieces: Vec<(T, T)> = match locus {
-        Locus::Line { .. } => cuts.windows(2).map(|w| (w[0], w[1])).collect(),
+        Locus::Line(_) => cuts.windows(2).map(|w| (w[0], w[1])).collect(),
         Locus::Rim(_) => {
             let mut out: Vec<(T, T)> = cuts.windows(2).map(|w| (w[0], w[1])).collect();
             if let (Some(&first), Some(&last)) = (cuts.first(), cuts.last()) {
@@ -472,7 +484,7 @@ impl<T: Decide> FaceOnLocus<T> {
         let tau = T::from_f64(core::f64::consts::TAU);
         let wraps: &[f64] = match locus {
             Locus::Rim(_) => &[-1.0, 0.0, 1.0],
-            Locus::Line { .. } => &[0.0],
+            Locus::Line(_) => &[0.0],
         };
         let inside = |m: T| -> Result<bool, Indeterminate> {
             Ok(
@@ -505,7 +517,7 @@ impl<T: Decide> FaceOnLocus<T> {
 /// The locus point at parameter `s`.
 fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     match locus {
-        Locus::Line { origin, dir } => origin + dir * s,
+        Locus::Line(line) => line.at(s),
         Locus::Rim(rim) => {
             let (sin, cos) = s.sin_cos();
             rim.center + (rim.u_ref * cos + rim.axis.cross(rim.u_ref) * sin) * rim.radius
@@ -523,7 +535,7 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
 /// its own parameter span `t1 − t0`, carried as the ride's length.
 fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     match locus {
-        Locus::Line { origin, dir } => (p - origin).dot(dir),
+        Locus::Line(line) => line.param(p),
         Locus::Rim(rim) => {
             let d = p - rim.center;
             let th = d.dot(rim.axis.cross(rim.u_ref)).atan2(d.dot(rim.u_ref));
@@ -563,7 +575,7 @@ fn contains<T: Decide>(
         super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
-    let read = match body.proven_face_surface(face) {
+    let read = match body.proven_face(face).surface() {
         geom::Surface::Plane { normal, .. } => {
             super::contain::contfp(body, face, *normal, p, band).map(Some)
         }
@@ -617,12 +629,12 @@ fn reach<T: Decide>(
             let along = curve.carrier().deriv(mid) * if he { T::one() } else { -T::one() };
             let tangent = match locus {
                 Locus::Rim(rim) => rim.axis.cross(p - rim.center),
-                Locus::Line { dir, .. } => dir,
+                Locus::Line(line) => line.dir,
             };
             let cos = along.dot(tangent) / (along.norm() * tangent.norm());
             let name = match locus {
                 Locus::Rim(_) => "seam_rim_traversal",
-                Locus::Line { .. } => "seam_line_traversal",
+                Locus::Line(_) => "seam_line_traversal",
             };
             let sign = crate::validate::decide(name, Margin::of(cos), band)?;
             if sign == geom_core::Sign::Zero {
@@ -634,7 +646,7 @@ fn reach<T: Decide>(
                 });
             }
             let span = match locus {
-                Locus::Line { .. } => {
+                Locus::Line(_) => {
                     let (u, w) = (locus_param(locus, p0), locus_param(locus, p1));
                     (u.min(w), u.max(w))
                 }
@@ -688,14 +700,14 @@ fn curve_sense<T: Decide>(
 /// Whether `p` lies on the locus.
 fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
     let off = match locus {
-        Locus::Line { origin, dir } => {
-            let d = p - origin;
-            (d - dir * d.dot(dir)).norm()
-        }
+        Locus::Line(line) => line.distance(p),
         Locus::Rim(rim) => {
-            let d = p - rim.center;
-            let h = d.dot(rim.axis);
-            let radial = (d - rim.axis * h).norm() - rim.radius;
+            let (h, rho) = geom::Line {
+                origin: rim.center,
+                dir: rim.axis,
+            }
+            .height_and_distance(p);
+            let radial = rho - rim.radius;
             (h.powi(2) + radial.powi(2)).sqrt()
         }
     };
@@ -745,7 +757,7 @@ fn crossings<T: Decide>(
             let p1 = curve.carrier().eval(t1);
             let w = p1 - p0;
             match locus {
-                Locus::Line { origin, dir } => {
+                Locus::Line(geom::Line { origin, dir }) => {
                     // The closest approach of the segment's line to the
                     // locus.
                     if maybe_nonzero(w.cross(dir).norm()) {
@@ -798,7 +810,12 @@ fn crossings<T: Decide>(
         }
         (
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 radius,
             }),
             _,
@@ -806,7 +823,7 @@ fn crossings<T: Decide>(
             let (ce, ae, re) = (*center, *axis, *radius);
             let e1 = {
                 let d = p0 - ce;
-                d / d.norm()
+                d.normalize()
             };
             let e2 = ae.cross(e1);
             let at = |phi: T| {
@@ -814,13 +831,13 @@ fn crossings<T: Decide>(
                 ce + (e1 * cs + e2 * sn) * re
             };
             match locus {
-                Locus::Line { origin, dir } => {
+                Locus::Line(line @ geom::Line { origin, dir }) => {
                     let ad = ae.dot(dir);
                     if maybe_nonzero(ad) {
                         candidates.push(origin + dir * (ae.dot(ce - origin) / ad));
                     }
                     if maybe_zero(ad) && maybe_zero(ae.dot(origin - ce)) {
-                        let foot = geom::Line { origin, dir }.foot(ce);
+                        let foot = line.foot(ce);
                         let h = (foot - ce).norm();
                         if maybe_not_positive(h - re) {
                             let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
@@ -894,7 +911,7 @@ fn rides<T: Decide>(
             geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -911,11 +928,10 @@ fn rides<T: Decide>(
             band,
         )
         .map(|one| one.is_some()),
-        (Locus::Line { origin, dir }, geom::Curve3::Line(_)) => {
+        (Locus::Line(line), geom::Curve3::Line(_)) => {
             let (t0, t1) = curve.params();
             for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {
-                let d = p - origin;
-                let off = (d - dir * d.dot(dir)).norm();
+                let off = line.distance(p);
                 if crate::validate::decide("seam_line_collinear", Margin::of(off), band)?
                     != geom_core::Sign::Zero
                 {
@@ -944,10 +960,10 @@ pub(crate) fn face_boundary_arcs<T: Real>(
     face: FaceKey,
 ) -> Vec<(bool, &geom_brep::EdgeCurve<T>)> {
     let mut out = Vec::new();
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         return out;
     };
-    for member in body.face_boundary_linked(face, f) {
+    for member in f.boundary() {
         let crate::live::BoundaryMember::Edge { he, ek, edge, .. } = member else {
             continue;
         };
@@ -966,7 +982,7 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
             geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -982,65 +998,56 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
         .collect()
 }
 
+/// The rim's schedule: the certification schedule's sample count, as
+/// phases round the closed circle (checked non-zero when compiled).
+const RIM_PHASES: core::num::NonZeroU32 = match core::num::NonZeroU32::new(geom_brep::CERT_SAMPLES)
+{
+    Some(n) => n,
+    None => panic!("the certification schedule has samples"),
+};
+
 /// **The routing itself**: the wedge the two faces' material subtends
-/// across the rim, sampled around the circle.
+/// across the rim, read by the whole-edge fold
+/// ([`geom_brep::edge_wedge_over`]) at stations around the circle — the
+/// same fold tier 3's check 4 reads an edge by, so a new wedge row cannot
+/// reach one and miss the other.
 ///
-/// **The first-order screen runs FIRST, and it is the precondition the
-/// imported fold is only valid behind.** Check 4's material arm reads
-/// `sign(n̂₊ · n̂₋)`, which distinguishes one material side from two —
-/// and NOTHING else. On a pair whose tangent planes are definitely
-/// distinct that sign is still perfectly well defined and perfectly
-/// meaningless: a sphere cut by a plane at 53° has aligned normals at
-/// its rim and would read "seam", which is a false statement about the
-/// geometry rather than a missing verdict. Tier 3 never asks the
-/// question there because it reaches the material arm only after every
-/// interior sample classified definitely `Smooth`; this door owes the
-/// same screen, so `classify_dihedral` runs per sample before anything
-/// second-order is computed. Importing a fold means importing what it
-/// is defined over.
+/// The fold reads the class at every station before anything material:
+/// a sphere cut by a plane at 53° has aligned normals at its rim, and a
+/// pairing read there would call a corner a seam. Its verdicts route one
+/// for one:
 ///
-/// The five outcomes are the validator's own, one for one:
-///
-/// - every sample `Transverse` ⇒ [`RimRouting::Transverse`], set
-///   DIRECTLY and never through the fold (which cannot produce it —
-///   the material arm is not consulted on a genuine corner);
-/// - every sample `Smooth` ⇒ the material arm, whose verdicts are the
-///   seam, the two cusp ends and the lamina;
-/// - samples that DISAGREE ⇒ escalated, naming `dihedral_wedge`: a rim
-///   that is a corner in one place and a tangency in another is not
-///   one contact, and no single routing is honest for it;
-/// - a `classify_dihedral` escalation ⇒ passed through verbatim;
-/// - a spline-chart face on either side ⇒ escalated: the implicit
-///   gradient is poison on a fit, so neither the screen nor the arm can
-///   run, and answering from a poisoned normal is worse than declining.
+/// - a crease ⇒ [`RimRouting::Transverse`], whatever its sign. The walk
+///   is the circle's ([`geom_brep::WedgeWalk::around_circle`]), which is
+///   neither face's: a skew direction would escalate, but this one runs
+///   along the rim, so the sign decides, and decides the circle's
+///   orientation rather than the faces'. It is never read as convex or
+///   concave here; what the rim reads of it is only whether it holds all
+///   the way round, which reversing the circle cannot change;
+/// - the π seam, either bend ⇒ [`RimRouting::Seam`]; the two ends ⇒
+///   [`RimRouting::Cusp`]; the lamina ⇒ [`RimRouting::Lamina`];
+/// - stations that disagree, about the class, the sign, the pairing or
+///   the end ⇒ [`RimRouting::Mixed`], naming them by phase: a rim that
+///   is a corner in one place and a tangency in another is not one
+///   contact;
+/// - an escalation ⇒ its diagnostics, verbatim;
+/// - a spline-chart face on either side ⇒ [`RimRouting::SplineFace`],
+///   exempt by kind: the implicit gradients the fold reads are poison
+///   on a fit.
 ///
 /// The samples are the certification schedule's
 /// (`geom_brep::CERT_SAMPLES`), taken at uniform phase around the CLOSED
-/// rim starting at its own `u_ref`. **That schedule differs from tier
-/// 3's on purpose**: an edge is an open arc whose endpoints are vertices
+/// rim from its own `u_ref`. **That schedule differs from tier 3's on
+/// purpose**: an edge is an open arc whose endpoints are vertices
 /// already classified by other rules, so the validator samples its
-/// interior (`geom_brep::interior_stations`); a rim is a closed circle
-/// with no endpoint to exclude, so every sample is interior to it and
-/// the phase-zero sample is an ordinary point of the contact, not a
-/// boundary site. Sampling `1..n-1` here would drop two of nine
-/// readings for a reason that does not apply. The schedule is the only
-/// difference: the material arm is tier 3's own per-station reads
-/// (`validate::MaterialStations`) walked through the one
-/// `geom_brep::second_order_walk`, and every sample must agree — a rim
-/// whose own samples disagree escalates rather than being decided by
-/// majority, which is the fold's rule.
+/// interior (`geom_brep::WedgeWalk::along_edge`); a rim is a closed circle
+/// with no endpoint to exclude, so every sample is interior to it.
 ///
 /// `reach` is the lever arm the wedge's margins are metered at — the
 /// two faces' extent ([`fn@crate::wedge_reach`]), as every reader of the
-/// wedge between an edge's faces levers it.
-///
-/// `sense_plus`/`sense_minus` are the two faces' `Face::sense` BITS,
-/// passed through to the `geom_brep` doors that mint the outward
-/// normals themselves; a bit rather than a `T` ±1 for the reason
-/// [`geom_brep::OutwardNormal`]'s doc gives at its one constructor.
-/// (Named that way round on purpose: the constructor's own spelling in
-/// a file under `topo/src` reds `face_normal.rs`'s anti-re-fork row,
-/// which reads raw text.)
+/// wedge between an edge's faces levers it. `sense_plus`/`sense_minus`
+/// are the two faces' `Face::sense` BITS, which the fold turns the
+/// normals by itself.
 ///
 /// # Errors
 ///
@@ -1054,99 +1061,25 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<RimRouting, Indeterminate> {
-    let Rim {
-        center,
-        axis,
-        radius,
-        u_ref: u,
-    } = rim;
-    let v = axis.cross(u);
-    let n = geom_brep::CERT_SAMPLES;
-    let phase = |i: u32| core::f64::consts::TAU * (f64::from(i) / f64::from(n));
-    // The sample points and their rim tangents, derived once: the
-    // first-order screen and the material arm must read the SAME
-    // stations, or the screen certifies a rim the arm did not judge.
-    let station = |i: u32| {
-        let theta = T::from_f64(phase(i));
-        let (s, c) = (theta.sin(), theta.cos());
-        (center + (u * c + v * s) * radius, (v * c - u * s) * radius)
-    };
-
-    // ---- The first-order screen (docs above): the precondition the
-    // material arm is only defined behind. ----
-    //
-    // A spline chart on either side is exempt by KIND and says so: the
-    // implicit gradient both stages read is poison on a fit, so this is
-    // "the question cannot be posed here", not "the answer is no".
     if s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some() {
-        return Err(Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some("dihedral_wedge"),
-            terminal_sliver: false,
-        });
+        return Ok(RimRouting::SplineFace);
     }
-    let mut all_transverse = true;
-    let mut all_smooth = true;
-    for i in 0..n {
-        let (p, _) = station(i);
-        match geom_brep::classify_dihedral(s_plus, s_minus, p, reach, band)
-            .map_err(|escalation| escalation.diag())?
-        {
-            geom_brep::DihedralClass::Transverse => all_smooth = false,
-            geom_brep::DihedralClass::Smooth => all_transverse = false,
-        }
-    }
-    if all_transverse {
-        // Set DIRECTLY, exactly as the validator does: a genuine corner
-        // is a first-order verdict and the material arm has no say in
-        // it. This is also why the fold below can never return
-        // `Transverse` — nothing routes to it there.
-        return Ok(RimRouting::Transverse);
-    }
-    if !all_smooth {
-        // Corner at one station, tangency at another: not one contact,
-        // and no single routing is honest for it.
-        return Err(Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some("dihedral_wedge"),
-            terminal_sliver: false,
-        });
-    }
-
-    // ---- The material arm, now validly posed: check 4's own reads,
-    // walked over the rim's stations. ----
-    let mut stations = MaterialStations::new(s_plus, sense_plus, s_minus, sense_minus, band);
-    let jet_determinate = match geom_brep::second_order_walk(
-        s_plus,
-        s_minus,
-        (0..n).map(station),
-        reach,
-        band,
-        &mut stations,
-    ) {
-        geom_brep::SecondOrderWalk::Determinate => true,
-        geom_brep::SecondOrderWalk::UnderDetermined => false,
-        geom_brep::SecondOrderWalk::InBand(cause) => return Err(cause),
-        geom_brep::SecondOrderWalk::Stopped(stop) => return Err(stop.cause),
-    };
-    match stations.outcome(jet_determinate) {
-        MaterialArmOutcome::Wedge(MaterialWedge::Seam) => Ok(RimRouting::Seam),
-        // `Transverse` is unreachable from the fold BY CONSTRUCTION —
-        // the validator sets it directly off the first-order screen and
-        // so does the screen above, so nothing routes to it here. Kept
-        // total rather than `unreachable!`: a verdict this door cannot
-        // account for is reported, never assumed away.
-        MaterialArmOutcome::Wedge(MaterialWedge::Transverse) => Ok(RimRouting::Transverse),
-        MaterialArmOutcome::Wedge(w) => Ok(RimRouting::Cusp(w)),
-        MaterialArmOutcome::Lamina => Ok(RimRouting::Lamina),
-        MaterialArmOutcome::Split { predicate } => Err(Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some(predicate),
-            terminal_sliver: false,
-        }),
+    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let face = |surface, sense| geom_brep::SideFace { surface, sense };
+    let walk = geom_brep::WedgeWalk::around_circle(
+        face(s_plus, sense_plus),
+        face(s_minus, sense_minus),
+        &circle,
+        RIM_PHASES,
+    );
+    use geom_brep::WedgeVerdict as V;
+    match geom_brep::edge_wedge_over(&walk, reach, band) {
+        V::Crease(_) => Ok(RimRouting::Transverse),
+        V::Seam { .. } => Ok(RimRouting::Seam),
+        V::End(end) => Ok(RimRouting::Cusp(end)),
+        V::Lamina => Ok(RimRouting::Lamina),
+        V::Mixed(stations) => Ok(RimRouting::Mixed(stations)),
+        V::InBand(escalation) => Err(escalation.diag()),
     }
 }
 
@@ -1176,10 +1109,10 @@ mod cover_rows {
         let body: Body<f64> =
             crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
         let face = body.faces().next().map(|(k, _)| k).unwrap();
-        let line = Locus::Line {
+        let line = Locus::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: Vec3::new(1.0, 0.0, 0.0),
-        };
+        });
         let at = |rides: Vec<(f64, f64, geom_core::Sign)>| {
             FaceOnLocus {
                 rides,
@@ -1382,7 +1315,7 @@ mod redfirst {
         );
         assert_eq!(
             opposed,
-            RimRouting::Cusp(geom_brep::MaterialWedge::Slit),
+            RimRouting::Cusp(geom_brep::WedgeEnd::Slit),
             "the crescent between the sheets is the void, so the material is the slit"
         );
         assert_ne!(
@@ -1619,10 +1552,10 @@ mod arc_end_rows {
             0.0,
             tol,
         );
-        let locus = Locus::Line {
+        let locus = Locus::Line(geom::Line {
             origin: q,
             dir: Vec3::unit_x(),
-        };
+        });
         let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
         assert!(
             matches!(got, Err(ref d) if straddle(d)),
@@ -1652,9 +1585,10 @@ mod boundary_midpoint_rows {
         let p = Point3::new(theta.cos(), theta.sin(), 0.0);
         let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
         let t = Vec3::new(theta.sin(), -theta.cos(), 0.0);
-        (Locus::Line { origin: p, dir: t }, move |u, v| {
-            p + t * u + n * v
-        })
+        (
+            Locus::Line(geom::Line { origin: p, dir: t }),
+            move |u, v| p + t * u + n * v,
+        )
     }
 
     /// The tangent line's poses, as angles on the unit circle.

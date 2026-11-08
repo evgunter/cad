@@ -1026,6 +1026,7 @@ fn a_boss_is_authored_on_a_picked_face() {
     let poses = pncad::document::solve_document(
         session.committed_doc(),
         &pncad::document::EvalOptions::default(),
+        &pncad::document::CancelToken::new(),
         tol,
     );
     let at = poses
@@ -1072,15 +1073,15 @@ fn an_add_profile_mints_only_the_profile() {
 
 /// **A viewport pick on a revolve's body is that body, not a half**: a
 /// revolve defines a body and an axis, so the pick seats its body's
-/// port; the seat line says no half, and the split lands.
+/// port; the seat line says no half, and the pattern of it lands.
 #[test]
 fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
-    use viewer::combine::SplitTool;
+    use viewer::combine::{PatternOutputChoice, PatternTool};
     let tol = Tol::witness();
     let (mut session, revolve) = authored_ring(tol);
     session.pump();
     let doc = session.committed_doc().clone();
-    let mut tool = SplitTool::new();
+    let mut tool = PatternTool::new();
     tool.pick_at(&doc, revolve, Some(0));
     let line = viewer::seats::seat_line(tool.seats(), pncad::document::Speaker::of(&doc));
     assert!(
@@ -1088,8 +1089,13 @@ fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
         "a revolve is said as a split half: {line}"
     );
     let outcome = session.perform(
-        tool.op([len(0.0), len(0.0), len(0.0)], [scl(0.0), scl(0.0), scl(1.0)])
-            .expect("seated"),
+        tool.linear_op(
+            PatternOutputChoice::Instances,
+            2,
+            viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
+            len(0.1),
+        )
+        .expect("seated"),
     );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }

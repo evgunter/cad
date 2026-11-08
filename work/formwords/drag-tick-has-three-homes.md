@@ -198,3 +198,5 @@ the defect it exists to close:
   the `FieldWriting` mention is a `//` line comment, and the other line
   names the `forms` MODULE, not the type. Replaced with the grep and
   what its three lines are.
+
+**FORMS, PR 6431 (2026-11-03).** `widgets::vec3_row`, which this row cites, is deleted with the split form's point and normal fields; `unit_vec3_row` with it.

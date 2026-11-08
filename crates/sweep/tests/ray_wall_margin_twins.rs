@@ -86,19 +86,29 @@ fn margins_at(
 
 #[test]
 fn the_wall_arms_margins_scale_linearly_with_the_model() {
-    // Pinned red: `curve_foot_branch`'s decisive margins read a million to
-    // one between the twins, where every other predicate's read a
-    // thousand. Six pairs were off before PR 5664 and 62 since
-    // (`work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
-    // owns the six, `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`
-    // the widening). `k-lint (dev-probe)` runs this row once, at ε 1e-9,
-    // and the nightly's `--all-features` suite at the default ε, the same
-    // row; it reads the same at 1e-6 and 1e-12.
+    // Pinned red at what main measures, per ε. At 1e-9 and 1e-12 the F31
+    // angle renames, sign-only reads at `Band::least()`, do not scale
+    // (`work/onecopy/ray-wall-twins-read-f31-angle-renames-as-margins-that-must-scale.md`);
+    // at 1e-6 the millimetre twin fires predicates the metre twin does not
+    // (`work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`).
+    // `k-lint (dev-probe)` runs this row once, at ε 1e-9, and the
+    // nightly's `--all-features` suite at the default ε.
+    let eps = Tol::witness().eps();
+    let says: &[&str] = if test_utils::kernel_limit::at_row(eps, &[1e-6]) {
+        &[
+            "the twins must fire the same predicate set",
+            "side_at_infinity_met_edge_represents",
+        ]
+    } else {
+        &[
+            "[\"azimuth_near_cut_side: 56 pairs off, e.g. 6.811e2\", \"period_near_mark: 208 pairs off, e.g. 9.990e-1\"]",
+        ]
+    };
     test_utils::pinned_red::row(
-        Tol::witness().eps(),
+        eps,
         &test_utils::pinned_red::EVERY_ROW,
         "the ray-wall twins",
-        &["[\"curve_foot_branch: 62 pairs off, e.g. 9.990e2\"]"],
+        says,
         the_wall_arms_margins_scale_linearly_with_the_model_row,
     );
 }

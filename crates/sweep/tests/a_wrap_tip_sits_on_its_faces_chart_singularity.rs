@@ -98,8 +98,12 @@ fn equator_only() -> (Body<f64>, FaceKey) {
 fn measured(body: &Body<f64>, what: &str) -> (f64, f64) {
     body.faces()
         .map(|(face, _)| {
-            let r = topo::test_support::face_reading(body, face, tol(), 1e-6)
-                .unwrap_or_else(|e| panic!("{what}: face {face:?} reads: {e}"));
+            let r = topo::test_support::face_reading(body, face, tol(), 1e-6).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: face {face:?} reads: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                )
+            });
             (r.flux, r.area)
         })
         .fold((0.0, 0.0), |(f, a), (g, b)| (f + g, a + b))
@@ -453,7 +457,7 @@ fn the_mint_and_tier_3_read_one_incidence_at_the_tip() {
         "in band: the subjects"
     );
     assert_eq!(at_vertex, cause, "in band: one escalation");
-    let ending = got[1].to_string();
+    let ending = got[1].render(geom_brep::recourse::Reading::AtRest);
     assert!(
         !ending.contains("clear of it") && !ending.contains("tighten"),
         "in band: the tip's ending offers only the lever: {ending}"

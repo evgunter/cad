@@ -354,7 +354,11 @@ impl core::fmt::Display for Unmet {
                 "stopped at its {:?} after {} round(s), narrowest at round {}",
                 run.end, run.rounds, run.round
             ),
-            Self::Refused(e) => write!(f, "{e}"),
+            Self::Refused(e) => write!(
+                f,
+                "{e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            ),
         }
     }
 }

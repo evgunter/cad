@@ -279,11 +279,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // ── The crown: two crossing slots, the second the first cutter
     //    quarter-turned about the axis: a second cutter body, turned
     //    and lifted by the Transform tool. The first cutter's body cannot
-    //    be shared: the Transform tool on it opens the first copy's Edit
-    //    door, the Create door refuses a placed body, and a duplicate of
-    //    the cutter (its one copy is consumed by the cut, so nothing
-    //    draws it) lands as two copies, a stand-in by the identity and
-    //    the stepped one, leaving the stand-in in the picture ──────────
+    //    be shared: a second placement of it is a second copy of the
+    //    body the first cut consumed, and would carry what the cut
+    //    reads of it ───────────────────────────────────────────────────
     let (_, cutter) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
     let cutter1 = lifted(&mut session, cutter, [0.0, 0.0, CUT_Z]);
     let cut1 = session_insert(
@@ -307,7 +305,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         ang(FRAC_PI_2),
     ));
     let op = common::transformed(&mut session, second, &values);
-    let cutter2 = session_insert(&mut session, op);
+    let SessionOp::SetBundle { placement: cutter2, .. } = op else {
+        panic!("the editor on the placement Place made: {op:?}")
+    };
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let carved = session_insert(
         &mut session,
         SessionOp::AddBoolean {

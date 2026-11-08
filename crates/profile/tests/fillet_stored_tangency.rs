@@ -155,7 +155,7 @@ fn is_stored_form_refusal(err: &PathError<f64>) -> bool {
     match err {
         PathError::FilletArcFlattenedInStorage { .. }
         | PathError::FilletCarrierBelowSceneResolution { .. } => true,
-        PathError::Escalated { source } => matches!(
+        PathError::Escalated { source, .. } => matches!(
             source.predicate,
             Some(
                 "vertex_separation"
@@ -363,6 +363,7 @@ fn a_shallow_arc_x_arc_corner_validates_wherever_its_legs_stand_apart() {
                 Err(ProfileError::Escalated {
                     site: EscalationSite::SegmentPair(..),
                     source,
+                    ..
                 }) if source.predicate == Some("carrier_line_circle") => pair_escalated += 1,
                 Err(e) => panic!(
                     "r = {radius}, theta = {theta:e}: legs {:.2}Kε apart validate, got {e}",

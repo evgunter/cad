@@ -13,7 +13,7 @@ Found by TANG's circle × cylinder crossing cell (branch
 ## The finding
 
 `sweep_direction` (`crates/topo/src/boolean/reduce.rs`) pushes
-`(edge, face)` onto `SweepTrace::accepted` whenever `curved_face_arm`
+`(edge, face)` onto `SweepPairs::accepted` whenever `curved_face_arm`
 returns anything but `CurvedEvent::None`. One way an arm returns
 `Recorded` is face-free: `vertex_on_curved_face`, finding the endpoint
 definitely outside this face's trim, still looks the point up among

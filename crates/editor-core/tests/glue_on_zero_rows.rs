@@ -72,7 +72,7 @@ fn a_flush_rest_glues_and_records_its_unproven_rows() {
         &[(union, &rows[..])],
         None,
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door")
     .remove(0);

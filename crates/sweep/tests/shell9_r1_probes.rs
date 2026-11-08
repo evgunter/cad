@@ -149,7 +149,10 @@ fn dump_shelled(label: &str, body: &Body<f64>, t: f64, open: &[FaceKey]) -> Opti
             Some(s.body)
         }
         Err(e) => {
-            println!("[r1rows] {label}: Err {e}");
+            println!(
+                "[r1rows] {label}: Err {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             None
         }
     }
@@ -445,7 +448,11 @@ fn r1_hunt_the_pcurve_arm() {
                 s.body.pcurves().count(),
                 topo::validate_geometric(&s.body, tol()).is_ok()
             ),
-            Err(e) => println!("[r1hunt] {name}: operand tier3 {} -> Err {e}", v.is_ok()),
+            Err(e) => println!(
+                "[r1hunt] {name}: operand tier3 {} -> Err {e_at}",
+                v.is_ok(),
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
         assert!(
             !matches!(out, Err(ShellError::Pcurve { .. })),

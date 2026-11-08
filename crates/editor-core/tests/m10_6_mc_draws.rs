@@ -98,7 +98,8 @@ fn sample_offsets_enumerates_the_population_monte_carlo_summarizes() {
         parallel: false,
         ..McConfig::default()
     };
-    let report = monte_carlo(&doc, &analyzed, &config, tol).expect("the nominal builds");
+    let report = monte_carlo(&doc, &analyzed, &config, &editor_core::Stop::default(), tol)
+        .expect("the nominal builds");
     let row = report
         .measures
         .iter()
@@ -173,7 +174,13 @@ fn a_band_refuses_at_the_draw_door_as_it_does_at_the_run() {
     );
     assert!(
         matches!(
-            monte_carlo(&doc, &analyzed, &config, Tol::witness()),
+            monte_carlo(
+                &doc,
+                &analyzed,
+                &config,
+                &editor_core::Stop::default(),
+                Tol::witness()
+            ),
             Err(McRefusal::BandHasNoMeasure(_))
         ),
         "and the whole run says the same thing"
