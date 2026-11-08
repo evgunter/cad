@@ -160,7 +160,7 @@ impl BooleanTool {
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// pick on a copy seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.pick_at(doc, node, None);
     }
@@ -170,7 +170,7 @@ impl BooleanTool {
     /// waits for its half ([`Self::choose_half`]).
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
         match &mut self.held {
-            // A pick on a copy is a pick of the body it places
+            // A pick is read as the drawn body it lands on
             // ([`crate::world::seat_read`]), as in the two seats.
             BooleanPicks::Members(members) => {
                 let (node, port) = crate::world::seat_read(doc, node, body);
@@ -505,7 +505,7 @@ impl SplitTool {
     }
 
     /// Feed one node pick: it REPLACES the target. A pick on a copy
-    /// seats the body it places.
+    /// seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.held.seats.pick(doc, node);
     }
@@ -793,8 +793,8 @@ impl ClearanceBoundChoice {
 ///
 /// **Held where it is drawn, not where it is built.** A requirement
 /// between two parts is about the parts as they stand, so a seat is
-/// never re-read on the body a copy places, which every other seated
-/// tool does ([`Seats::pick`]); the commit door reads a tree pick of a
+/// read where it is drawn, as every seated tool reads a pick
+/// ([`Seats::pick`]); the commit door also reads a tree pick of a
 /// construction on its world copy (`DocSession`'s `AddClearance` arm).
 ///
 /// That redirect is why the seat is not a [`Seats`]: for a construction
@@ -1255,7 +1255,7 @@ impl PatternTool {
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// pick on a copy seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -1394,7 +1394,7 @@ impl PartTool {
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// pick on a copy seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }

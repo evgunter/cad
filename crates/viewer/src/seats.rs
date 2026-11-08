@@ -308,10 +308,9 @@ pub struct Seats {
     /// Which output of its node each seat reads.
     ports: [Port; 2],
     /// **The drawn part each viewport pick hit**: the node whose drawn
-    /// part was under the pointer — a placement's copy, which the seat
-    /// reads past to the body it places ([`crate::world::seat_read`]),
-    /// or a body drawn as itself. `None` for a tree pick, which hit no
-    /// part. Where the person aimed, for a preview drawn where they
+    /// part was under the pointer, a copy or a body drawn as itself,
+    /// which the seat reads as it is ([`crate::world::seat_read`]).
+    /// `None` for a tree pick, which hit no part. Where the person aimed, for a preview drawn where they
     /// aimed.
     through: [Option<RecipeNodeId>; 2],
 }
@@ -496,9 +495,9 @@ impl Seats {
     /// ever refuse — a pick clicked into a seat of another kind — where
     /// the other seat is the only thing the click can have meant.
     ///
-    /// **A pick on a copy seats its body** ([`crate::world::seat_read`]):
-    /// a world placement's row, or the copy it draws, is a pick of the
-    /// body it places, which is what a tool authors against — a split's
+    /// **A pick on a copy seats the copy** ([`crate::world::seat_read`];
+    /// Ev, PR 6353): a placement's row, or the copy it draws, is a pick
+    /// of that copy, which is what a tool authors against — a split's
     /// half by its port. `body` is the output a viewport pick hit; a
     /// tree pick names none, and a split picked so waits for its half
     /// ([`Seats::choose_half`]).
@@ -567,9 +566,8 @@ impl Seats {
     }
 
     /// **A drawn part that no longer draws its seat's pick is forgotten**:
-    /// gone from the document, or now drawing another body (a takeover
-    /// re-pointed the copy). The pick stands; where it was aimed is no
-    /// longer drawn.
+    /// gone from the document, or no longer the node the seat holds. The
+    /// pick stands; where it was aimed is no longer drawn.
     fn drop_stale_through(&mut self, doc: &Doc<ProfileProgram>) {
         for i in 0..2 {
             let held = self.held(i);

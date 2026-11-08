@@ -3636,8 +3636,8 @@ impl DocSession {
     /// its tool the plane it is handed, a picked face read as its plane
     /// on the body it was picked on, as the mirror reads its plane.
     /// Where something reads the target along a seen path, `above ⊔
-    /// below` takes it over there ([`Takeover`]), so each copy shows the
-    /// two halves where it showed the body.
+    /// below` takes it over there ([`Takeover`]), so each `⊔` and the
+    /// product show the two halves where they showed the body.
     fn add_split(&self, target: Operand, plane: &SplitPlane) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
         let target = as_body(doc, target);
@@ -5284,16 +5284,15 @@ impl Takeover {
         Ok(())
     }
 
-    /// **Re-point every reader to what the action `wrote`** (A10, Ev's
-    /// residue 1), in the action that authored it: a `⊔` reads it as its
-    /// operand and the product slot reads it, through the slot door, the
-    /// `whole` where there is one; a copy of the body copies
-    /// `replacement` in its place through the kernel's takeover
-    /// (`Recording::take_over`), asked about the `intact` reads beside
-    /// the body,
-    /// which rebinds what read the copy where the result carries its
-    /// names, and answers where they moved for the picks `held` says are
-    /// held outside the document.
+    /// **Re-point every reader to what the action `wrote`** (A10), in the
+    /// action that authored it: a `⊔` reads it as its operand and the
+    /// product slot reads it, through the slot door, the `whole` where
+    /// there is one; and, for the accepted re-point alone, each placement
+    /// of the body copies `replacement` in its place through the kernel's
+    /// takeover (`Recording::take_over`), asked about the `intact` reads
+    /// beside the body, which rebinds what read the copy where the
+    /// result carries its names, and answers where they moved for the
+    /// picks `held` says are held outside the document.
     ///
     /// The `⊔` and product re-points come first, so the takeover reads
     /// the document as the action leaves it.
