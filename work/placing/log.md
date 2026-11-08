@@ -292,4 +292,4 @@ Newest entries at the bottom; the tail is the program's live status.
   - a body feature offers the shared-variable re-point;
   - every placement is a copy;
   - delete splices by continuation, with 6280's probe rows brought in.
-  - **Review tier: dual is likely.** It changes the gesture vocabulary's seat rule across every feature gesture, which is broad and hard to reverse. The letter is decided at review dispatch. (PLACING orchestrator)
+  - **Review tier: dual, letter H** (ARCHITECTURE; concurrent arm). It changes the gesture vocabulary's seat rule across every feature gesture, which is broad and hard to reverse. (PLACING orchestrator)
