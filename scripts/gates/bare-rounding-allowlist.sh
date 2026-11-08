@@ -34,7 +34,7 @@
 # for a file whose sites are of more than one kind, its words joined by
 # commas (`re-pose,far-centre`). Every `prod` row other than
 # `exact-arith` and `fixture` is scheduled by
-# `work/onehome/site-rounding-charges-owed-a-re-posing.md`, which lists
+# `work/oneround/site-rounding-charges-owed-a-re-posing.md`, which lists
 # its file (a `far-centre` site there points on to the far-centre conic
 # row); `oracle` rows are a test's own reading of the unit roundoff,
 # not a charge, and are not expected to shrink.
@@ -48,7 +48,7 @@
 #               (a sign of an exact value), owed a decision at the band;
 #   far-centre  a production charge for a conic stored far from the arc
 #               it serves, which waits on
-#               `work/onehome/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`;
+#               `work/oneround/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`;
 #   exact-arith an error-free transformation (a compensated sum or
 #               product), which reads the unit roundoff to compute
 #               exactly, not to charge;
