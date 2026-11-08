@@ -27,12 +27,9 @@
 //! face lies at its carrier's own level, which is read off the carrier
 //! (a carrier datum, not a region): exactly, where the face is on it.
 //!
-//! A least value has one more source, on a plane: the axis and centre
-//! depths restricted to a plane are strictly convex with their least at
-//! one point (the axis's pierce, the centre's foot), so where the
-//! boolean's point placement puts that point `Out` of the face, the
-//! least depth on the face is the least on its boundary
-//! ([`boundary_cover`]), which is not convex.
+//! A least axis or centre depth is topo's reading of the face's nearest
+//! distance from that line or point ([`face_nearest`]), which on a
+//! plane face reads its boundary where the least point lies `Out`.
 //!
 //! The margin is the gap less both faces' [`sweep_pad`], the pad the
 //! reach boxes' gap takes, a tolerance: a placement misread within the
@@ -53,8 +50,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
 
 use crate::body::Body;
 use crate::boolean::boxes::sweep_pad;
-use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
-use crate::cover::{boundary_cover, edge_end_point, face_cover};
+use crate::cover::{edge_end_point, face_cover, face_nearest};
 use crate::entity::FaceKey;
 use crate::geometry::SurfaceKey;
 use crate::live::BoundaryMember;
@@ -63,10 +59,6 @@ use crate::validate::decide;
 /// K name: the gap between one face's least depth and the other's
 /// greatest, less both faces' pads (metres).
 pub(crate) const DEPTH_GAP: &str = "census_backstop_depth_gap";
-
-/// K name: the pierce or foot point's offset from a planar face's plane,
-/// read by the point placement before it places the point.
-pub(crate) const DEPTH_FOOT: &str = "census_backstop_depth_foot";
 
 /// K name: the offset from a depth's axis or centre to the other face's
 /// nearest boundary segment point (metres), before it is read as a unit
@@ -113,16 +105,11 @@ pub(super) enum Source<T: geom_core::Real> {
     Arc(Point3<T>, Point3<T>),
 }
 
-/// A plane, as a point on it and a normal.
-type Plane<T> = (Point3<T>, Vec3<T>);
-
 /// A face as the depth gap reads it ([`face_read`]).
 pub(super) struct Read<T: geom_core::Real> {
     pub(super) surface: SurfaceKey,
     /// The face's cover.
     pub(super) cover: Cover<T>,
-    /// The face's plane and its boundary's cover, where it lies on one.
-    pub(super) plane: Option<(Plane<T>, Cover<T>)>,
     /// The boundary's straight edges by their ends, and its isolated
     /// vertices as points.
     pub(super) segments: Vec<(Point3<T>, Point3<T>)>,
@@ -203,11 +190,9 @@ pub(super) fn carrier_depth<T: Decide>(
     })
 }
 
-/// **`f` read for the depth gap** (module docs): its cover, its plane
-/// and boundary where it is planar, its straight edges, and the depths
-/// it proposes — its carrier's and the axis of every conic on its
-/// boundary. `None` for a face with no cover, or a plane face whose
-/// boundary has none.
+/// **`f` read for the depth gap** (module docs): its cover, its
+/// straight edges, and the depths it proposes — its carrier's and the
+/// axis of every conic on its boundary. `None` for a face with no cover.
 ///
 /// # Panics
 ///
@@ -217,12 +202,6 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
     let face = body.proven_face(f);
     let surface = face.surface();
     let cover = face_cover(body, f, band).ok()?;
-    let plane = match surface {
-        Surface::Plane { origin, normal, .. } => {
-            Some(((*origin, *normal), boundary_cover(body, face).ok()?))
-        }
-        _ => None,
-    };
     let mut depths: Vec<Proposed<T>> = carrier_depth(surface, face.record().surface, band)
         .into_iter()
         .collect();
@@ -259,7 +238,6 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
     Some(Read {
         surface: face.record().surface,
         cover,
-        plane,
         segments,
         depths,
     })
@@ -320,19 +298,6 @@ pub(super) fn greatest<T: Decide>(bounds: impl Iterator<Item = Option<T>>) -> Op
     acc
 }
 
-/// The point where a plane's depth is least: the axis's pierce of it,
-/// or the centre's foot on it. `None` for a core depth.
-fn least_point<T: Decide>(depth: Depth<T>, (o, n): (Point3<T>, Vec3<T>)) -> Option<Point3<T>> {
-    match depth {
-        Depth::Axis(geom::Line { origin, dir: axis }) => {
-            let s = (o - origin).dot(n) / axis.dot(n);
-            Some(origin + axis * s)
-        }
-        Depth::Center { center } => Some(geom::Line { origin: o, dir: n }.square_foot(center)),
-        Depth::Core { .. } => None,
-    }
-}
-
 /// Whether `lo − hi`, less both faces' pads, is definitely positive.
 pub(super) fn clears<T: Decide>(hi: T, lo: T, band: Band) -> bool {
     let pad = T::from_f64(2.0 * sweep_pad(band));
@@ -369,22 +334,12 @@ fn least_on<T: Decide>(
     if let Some(level) = level_on(read, proposed) {
         return Some(level);
     }
-    let depth = proposed.depth;
-    let held = range_on(depth, &read.cover).0;
-    // On a plane whose least point lies off the face, the boundary's
-    // least is the face's.
-    let on_boundary = read.plane.as_ref().and_then(|(plane, boundary)| {
-        least_point(depth, *plane)
-            .filter(|q| [q.x, q.y, q.z].into_iter().all(is_finite_length))
-            .filter(|q| {
-                matches!(
-                    face_placement(body, f, *q, band, DEPTH_FOOT),
-                    Ok(CurvedPlacement::Trim(Some(FaceContainment::Out)))
-                )
-            })
-            .map(|_| range_on(depth, boundary).0)
-    });
-    greatest([Some(held)].into_iter().chain(on_boundary.map(Some)))
+    let near = match proposed.depth {
+        Depth::Axis(line) => face_nearest(body, f, &read.cover, &Site::Line(line), band),
+        Depth::Center { center } => face_nearest(body, f, &read.cover, &Site::Point(center), band),
+        Depth::Core { .. } => range_on(proposed.depth, &read.cover).0,
+    };
+    greatest([Some(near)].into_iter())
 }
 
 /// **Whether the faces `a`, `b`, read as `ra`, `rb` ([`face_read`]),
@@ -794,7 +749,6 @@ mod tests {
         Read {
             surface: SurfaceKey::default(),
             cover: Cover::points(vec![p(0.0, 0.0, 0.0)]).unwrap(),
-            plane: None,
             segments: Vec::new(),
             depths,
         }

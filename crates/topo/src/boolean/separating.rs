@@ -312,7 +312,7 @@ fn span_by<T: Decide>(
     let mut span: Option<(T, T)> = None;
     for item in items {
         let cover = cover(body, item, dir, face_cover)?;
-        let (lo, hi) = (T::zero() - cover.support(-d), cover.support(d));
+        let (lo, hi) = cover.range_along(d);
         span = Some(span.map_or((lo, hi), |(l, h)| (l.min(lo), h.max(hi))));
     }
     span

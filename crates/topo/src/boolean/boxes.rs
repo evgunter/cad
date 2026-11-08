@@ -211,8 +211,9 @@ pub(crate) fn sweep_pad(band: Band) -> f64 {
 }
 
 /// The face's padded box: its cover's bracketed world box
-/// ([`face_cover`], [`Cover::aabb`]), or the poison box where it has no
-/// cover, which every door reads in its own fail-loud direction.
+/// ([`face_cover`], [`Cover::aabb`](geom::cover::Cover::aabb)), or the
+/// poison box where it has no cover, which every door reads in its own
+/// fail-loud direction ([`face_box_of`]).
 ///
 /// # Panics
 ///
@@ -223,7 +224,18 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     pad: f64,
     band: Band,
 ) -> Aabb {
-    face_cover(body, face, band).map_or_else(|_| Aabb::poison(), |c| c.aabb(pad))
+    face_box_of(&face_cover(body, face, band), pad)
+}
+
+/// A face's padded box read off a cover a caller already holds: the
+/// cover's bracketed box, or the poison box where there is none.
+pub(in crate::boolean) fn face_box_of<T: Bounds>(
+    cover: &crate::cover::FaceCovered<T>,
+    pad: f64,
+) -> Aabb {
+    cover
+        .as_ref()
+        .map_or_else(|_| Aabb::poison(), |c| c.aabb(pad))
 }
 
 /// A vector's three brackets: the key the narrow phase's axis set
@@ -1073,16 +1085,13 @@ pub(crate) mod tests {
         );
     }
 
-    /// **A radius the band does not read as positive leaves the slab
-    /// out of the meet, never refuses.** Tier 3 admits any cylinder
-    /// whose radius is exactly positive, and the slab's levered axis
-    /// decision refuses one the band reads as zero or in band. Walls of
-    /// radius 1 whose arcs bulge past their own vertices (an azimuth
-    /// extremum strictly inside the arc, a near-full turn) are read
-    /// under a band that puts 1 in band, then under one that decides it
-    /// zero: the cover is the boundary's convex hull, its box holds the
-    /// wall, and the lever's escalation, which the cover does not rest
-    /// on, is not left on the log.
+    /// **A cylinder face's box is its boundary's convex hull under any
+    /// band, and never refuses.** Walls of radius 1 whose arcs bulge past
+    /// their own vertices (an azimuth extremum strictly inside the arc, a
+    /// near-full turn) are read under a band that puts 1 in band, then
+    /// under one that decides it zero: the cover is the boundary's convex
+    /// hull, its box holds the wall, and no read leaves an escalation on
+    /// the log.
     #[test]
     fn a_cylinder_whose_radius_the_band_does_not_decide_boxes_by_its_boundary() {
         use geom_core::k_stats::{Bracket, Escalation};
@@ -1095,24 +1104,15 @@ pub(crate) mod tests {
         ] {
             let (body, face) = cyl_wall(1.0, u0, u1, z0, z1);
             let f = body.proven_face(face);
-            let Surface::Cylinder { axis, radius, .. } = f.surface() else {
-                panic!("the fixture's face carries a cylinder");
-            };
+            assert!(
+                matches!(f.surface(), Surface::Cylinder { .. }),
+                "the fixture's face carries a cylinder"
+            );
             for (what, band) in [
                 ("in band", Band::new(0.5, 5.0).unwrap()),
                 ("decided zero", Band::new(2.0, 20.0).unwrap()),
             ] {
                 let what = format!("[{u0}, {u1}] {what}");
-                assert!(
-                    UnitVec3::levered(
-                        *axis,
-                        BOX_CYLINDER_AXIS,
-                        band,
-                        geom_core::Lever::curvature_radius(*radius)
-                    )
-                    .is_err(),
-                    "{what}: the levered axis must not decide, or the row reads the slab"
-                );
                 // Not the band's sweep pad: at these bands it is wider
                 // than the bulge a vertex-only hull would miss.
                 let pad = 1e-9;
@@ -1443,19 +1443,21 @@ pub(crate) mod tests {
     /// - `splitting/classify.rs` — the split gate's edge read: an
     ///   unarmed edge's cover in the plane's frame. **Refuses**: a
     ///   looser box reaches the plane and refuses the cut by kind.
-    /// - `splitting/rules.rs` — `cone_axial_window`, a face's cover's
-    ///   window along a cone's axis, a lever. **Refuses**: a wider window
-    ///   lengthens the lever, which decides less readily.
+    /// - `boolean/glue.rs` and `boolean/ops.rs` — the operation's region
+    ///   and a face pair's section reach, each where two covers meet
+    ///   within the band (`cover::meet_within`), a lever. **Refuses**: a
+    ///   wider ball lengthens the lever, which decides a tilt less
+    ///   readily; a ball narrower than the meet could miss the section.
     /// - `shell.rs`, `boolean/ruled_region.rs`,
     ///   `splitting/containment.rs` — an edge's cover read in a frame,
     ///   as a ruled region's or a containment walk's bound.
     ///   **Refuses**: a looser cover reads a nearer edge, which only
     ///   withholds a clear.
     ///
-    /// `boolean/boxes.rs` is excluded by path: it is the definition
-    /// site, every call in it is this suite's own or one arm calling
-    /// another, and its count would churn on each row added here
-    /// while pinning nothing.
+    /// `boolean/boxes.rs` and `cover.rs` are excluded by path: they are
+    /// the definition sites, every call in them is this suite's own or
+    /// one arm calling another, and their counts would churn on each row
+    /// added here while pinning nothing.
     ///
     /// **This row is a member of S117's population** — a
     /// source-text guard over `.rs` in this workspace. It reuses the
@@ -1508,8 +1510,12 @@ pub(crate) mod tests {
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         //
-        // `boolean/glue.rs`'s two are one door, the sweep its pair scan
-        // and its coaxial scan share, boxing both operands' faces. One of
+        // `boolean/glue.rs`'s five are two doors: the sweep its pair scan
+        // and its coaxial scan share, boxing both operands' faces, and the
+        // section door's region, which reads every face's cover once, boxes
+        // it, and meets the two operands' hulls (`cover::meet_within`).
+        // `boolean/ops.rs`'s face rows read each face's cover and box it,
+        // and the pair reach meets two of them. One of
         // `boolean/ops.rs`'s four and `pieces.rs`'s one are one door:
         // the boolean's exit builds the face-box closure the piece
         // sort's screen calls. Another of `ops.rs`'s four is not a door:
@@ -1523,18 +1529,18 @@ pub(crate) mod tests {
         // `boolean/carrier_touch_rows.rs`' one: a spiric-edge witness
         // calls `edge_box` to show its ball lies inside the edge's box,
         // so that only the edge's own floor can clear it.
-        const PINNED: [(&str, usize); 20] = [
+        const PINNED: [(&str, usize); 19] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/carrier_touch_rows.rs", 1),
-            ("boolean/glue.rs", 2),
+            ("boolean/glue.rs", 5),
             ("boolean/mod.rs", 1),
-            ("boolean/ops.rs", 4),
+            ("boolean/ops.rs", 6),
             ("boolean/reduce.rs", 6),
             ("boolean/ruled_region.rs", 1),
             ("boolean/separating.rs", 4),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 12),
-            ("census/depth_gap.rs", 2),
+            ("census/depth_gap.rs", 3),
             ("census/in_plane.rs", 1),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
@@ -1542,14 +1548,17 @@ pub(crate) mod tests {
             ("shell.rs", 2),
             ("splitting/classify.rs", 1),
             ("splitting/containment.rs", 1),
-            ("splitting/rules.rs", 1),
             ("validate.rs", 1),
         ];
-        const HOME: &str = "boolean/boxes.rs";
-        const DOORS: [&str; 8] = [
+        const HOMES: [&str; 2] = ["boolean/boxes.rs", "cover.rs"];
+        const DOORS: [&str; 12] = [
             "face_box",
+            "face_box_of",
             "face_cover",
             "face_cover_toward",
+            "face_nearest",
+            "meet_within",
+            "hull_of_covers",
             "boundary_cover",
             "edge_box",
             "edge_cover",
@@ -1564,7 +1573,7 @@ pub(crate) mod tests {
                 .expect("a walked file lies under topo/src")
                 .to_string_lossy()
                 .replace('\\', "/");
-            if rel == HOME {
+            if HOMES.contains(&rel.as_str()) {
                 continue;
             }
             let text = std::fs::read_to_string(&path).expect("a readable source file");
@@ -1928,6 +1937,25 @@ pub(crate) mod tests {
             .face;
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, face)
+    }
+    /// **A cone cap's box holds its apex**: the cap bounded by its one
+    /// circle at `z = 1` holds the apex inside though none of its
+    /// boundary reaches it, its rim winding a whole turn about the axis.
+    /// Its box runs from the apex to the rim. Red where the apex rule
+    /// reads only an unread walk as winding (`cover::cone_may_hold_apex`).
+    #[test]
+    fn a_cone_caps_box_holds_its_apex() {
+        let alpha = 0.5_f64;
+        let (body, face) = crate::test_support_fixtures::cone_cap(alpha, 1.0);
+        let b = face_box(&body, face, 0.0, witness_band());
+        assert!(
+            holds(&b, Point3::origin()),
+            "the cap's box holds its apex: {b:?}"
+        );
+        assert!(
+            (b.max_z - 1.0).abs() < 1e-12 && b.max_x >= alpha.tan() - 1e-12,
+            "the cap's box reaches its rim: {b:?}"
+        );
     }
 
     /// A CONE wall face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
@@ -2983,107 +3011,6 @@ pub(crate) mod tests {
         );
     }
 
-    /// **The face box and the census reach are one cover's**, on every
-    /// arm: the sweep's bracketed box ([`face_box`]) and the census's
-    /// box at its own scalar (`census::face_reach`) both read
-    /// [`face_cover`], so at `f64`, where the bracket is the identity,
-    /// they differ by [`Aabb::padded`]'s outward ulp and nothing else.
-    /// What that catches: a door that reads a face's box past its cover
-    /// (a second walk of the boundary, a second construction), which is
-    /// exactly the shape that produces a wrong census verdict with both
-    /// halves looking correct on their own.
-    ///
-    /// Compared at `pad = 0`.
-    #[test]
-    fn the_two_box_lanes_agree_face_for_face() {
-        let sphere = Surface::Sphere {
-            center: Point3::new(0.45, -0.3, 0.15),
-            radius: 1.5,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-        };
-        let tilt = Vec3::new(1.0, 2.0, 3.0).normalize();
-        let torus = Surface::Torus {
-            center: Point3::new(0.4, -0.3, 0.2),
-            axis: tilt,
-            major_radius: 2.0,
-            minor_radius: 0.5,
-            u_ref: tilt.orthonormal_basis().0,
-        };
-        let relabelled = |s: Surface<f64>| {
-            let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            relabel(&mut body, face, s);
-            (body, face)
-        };
-        let (nurbs_body, nurbs_face, _) = nurbs_bulge_face();
-        // Each case carries its largest radius: a crest `c ± A` rounds at
-        // the scale of its terms, `|c| + A ≤ |coordinate| + 2A`, whatever
-        // the coordinate itself is. The NURBS net has no crest; its terms
-        // are its control points, within a unit of the origin.
-        type Case = (&'static str, f64, (Body<f64>, FaceKey));
-        let cases: Vec<Case> = vec![
-            ("plane", 2.0, arc_sector(2.0, 2.3)),
-            ("cylinder", 1.5, cyl_wall(1.5, 0.0, 2.4, -0.5, 1.25)),
-            // The top rim, `z = 1`, is the widest.
-            ("cone", 0.5_f64.tan(), cone_wall(0.5, 0.0, 2.4, 0.4, 1.0)),
-            ("sphere", 1.5, relabelled(sphere)),
-            ("torus", 2.5, relabelled(torus)),
-            // A face whose boundary DOES store certified pcurves: the
-            // window read is a per-lane arena walk, so this case is
-            // what holds the census's walk of it against this module's.
-            (
-                "torus window",
-                2.5,
-                torus_wall(
-                    Point3::new(0.4, -0.3, 0.2),
-                    tilt,
-                    tilt.orthonormal_basis().0,
-                    2.0,
-                    0.5,
-                    (0.3, 1.9),
-                    (-0.7, 0.8),
-                ),
-            ),
-            // `R − r` inside the band: both lanes must take the same
-            // arm, the whole tube, though the window reads.
-            (
-                "near-horn torus window",
-                2.5,
-                torus_wall(
-                    Point3::new(0.4, -0.3, 0.2),
-                    tilt,
-                    tilt.orthonormal_basis().0,
-                    0.5 + 0.25 * witness_band().zero(),
-                    0.5,
-                    (0.3, 1.9),
-                    (-0.7, 0.8),
-                ),
-            ),
-            ("nurbs", 1.0, (nurbs_body, nurbs_face)),
-        ];
-        for (what, radius, (body, face)) in cases {
-            let boxed = face_box(&body, face, 0.0, witness_band());
-            let (lo, hi) = crate::census::face_reach(&body, face, witness_band())
-                .unwrap_or_else(|| panic!("{what}: the census reads no cover"));
-            assert!(radius > 0.0, "{what}: the case's scale");
-            // One cover: the bracket at `f64` is the identity, and the
-            // padded box stands one ulp outside the census's per side.
-            for (name, got, census) in [
-                ("min_x", boxed.min_x, lo.x.next_down()),
-                ("min_y", boxed.min_y, lo.y.next_down()),
-                ("min_z", boxed.min_z, lo.z.next_down()),
-                ("max_x", boxed.max_x, hi.x.next_up()),
-                ("max_y", boxed.max_y, hi.y.next_up()),
-                ("max_z", boxed.max_z, hi.z.next_up()),
-            ] {
-                assert_eq!(
-                    got, census,
-                    "{what}: the face box and the census reach differ at {name}"
-                );
-            }
-        }
-    }
-
     /// **A slab face with an unclaimable boundary edge has no census
     /// reach**: a cylinder or cone wall one of whose side generators is
     /// null scaffolding (no sound box) answers `None` from
@@ -3930,7 +3857,7 @@ pub(crate) mod tests {
         let turn = || ParamWindow::new(0.0, core::f64::consts::TAU);
         for t in [1e-12f64, 1e-9, 1e-8, 1e-7, 1e-4, 1e-2] {
             let tilted = Vec3::new(t.sin(), 0.0, t.cos());
-            let unit = UnitVec3::new(tilted, BOX_CYLINDER_AXIS, band).unwrap();
+            let unit = UnitVec3::new(tilted, "boxes_test_axis", band).unwrap();
             let (u_ref, _) = tilted.orthonormal_basis();
             let room = r * t.sin();
             let z = Vec3::unit_z();
@@ -3979,7 +3906,7 @@ pub(crate) mod tests {
             Vec3::new(-0.8, 0.2, 0.55),
             Vec3::new(0.6, 0.7, -0.4),
         ] {
-            let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
+            let n = UnitVec3::new(aim, "boxes_test_axis", band).unwrap();
             let (lo, hi) = edge_cover(&body, edge).unwrap().box_in(&BoxAxes::aimed(n));
             let (t0, t1) = curve.params();
             for i in 0..=20_000 {
@@ -4021,7 +3948,7 @@ pub(crate) mod tests {
                 Vec3::new(0.6, 0.7, -0.4),
                 Vec3::new(1.0, 0.0, 0.0),
             ] {
-                let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
+                let n = UnitVec3::new(aim, "boxes_test_axis", band).unwrap();
                 let frame = BoxAxes::aimed(n);
                 let rows = frame.rows();
                 let (lo, hi) = edge_cover(&body, edge).unwrap().box_in(&frame);

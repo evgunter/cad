@@ -240,9 +240,10 @@ fn standing<T: Decide>(
         let Ok(cover) = edge_cover(body, e) else {
             return false;
         };
+        let (lo, hi) = cover.range_along(n.get());
         let gap = match sense {
-            Sign::Positive => T::zero() - cover.support(-n.get()) - level,
-            _ => level - cover.support(n.get()),
+            Sign::Positive => lo - level,
+            _ => level - hi,
         };
         matches!(
             decide(REGION_ARC_SIDE, Margin::of(gap), band),

@@ -159,11 +159,15 @@ fn four_ops_pinching(
                 // Parts touching at the apex or along a ruling are curved
                 // faces of two shells the census cannot yet clear
                 // (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-                // Parts that touch nowhere (no contact recorded) may clear
-                // on their faces' covers.
+                // Parts that touch nowhere, no contact recorded between
+                // them, clear on their faces' covers.
                 let census = topo::validate_pseudomanifold(&body.body, &body.contacts, tol());
-                if body.body.shells().count() == 1 || (body.contacts.is_empty() && census.is_ok()) {
+                let shells = body.body.shells().count();
+                if shells == 1 {
                     assert_eq!(census, Ok(()), "{what}: tier 3′ over the result's contacts");
+                } else if body.contacts.is_empty() {
+                    assert_eq!(shells, 2, "{what}: two shells apart");
+                    assert_eq!(census, Ok(()), "{what}: two shells apart pass tier 3′");
                 } else {
                     assert!(
                         census

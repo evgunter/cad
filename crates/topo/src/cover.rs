@@ -21,13 +21,6 @@ use crate::body::Body;
 use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, FaceView, linked, proven};
 
-/// The K funnel name of a cylinder face's axis read as a unit
-/// direction, taken where [`face_cover`]'s cylinder arm reads the
-/// carrier: the slab reads the axis as a unit direction. Its comparand is the axis's norm, a
-/// pure number, levered by the cylinder's radius
-/// ([`UnitVec3::levered`]).
-pub(crate) const BOX_CYLINDER_AXIS: &str = "bool_box_cylinder_axis";
-
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
 /// refusal (a plane, a cylinder and a cone are unbounded whole; a net
 /// can carry poison), and each boundary entity whose refusal left the
@@ -137,9 +130,102 @@ fn constraint<X, E>(read: impl FnOnce() -> Result<X, E>) -> Option<X> {
     }
 }
 
-/// The K funnel name of a cone face's axis read as a unit direction,
-/// before the frustum reads its window along it.
-pub(crate) const BOX_CONE_AXIS: &str = "bool_box_cone_axis";
+/// K name: the point where a plane face's distance from a site is least
+/// (a line's pierce, a point's foot) against the face's plane, the
+/// point placement's on-plane read before it places the point
+/// ([`face_nearest`]).
+pub(crate) const NEAREST_FOOT: &str = "cover_face_nearest_foot";
+
+/// **The nearest a face stands from `site`**: a lower bound on the
+/// distance of any of its points, topo's reading of it.
+///
+/// The cover's ([`Cover::distance_range`]) holds on every face. On a
+/// plane face the reading proves one more constraint: the distance from
+/// a point or a line, restricted to a plane, is strictly convex with its
+/// least at one point (the point's foot, the line's pierce), so where
+/// the face places that point definitely `Out` the face's least is its
+/// boundary's ([`boundary_cover`]), which a convex hull does not bound.
+/// A placement that is not a definite `Out` adds nothing.
+///
+/// # Panics
+///
+/// As [`face_cover`]: `cover` is `face`'s.
+pub(crate) fn face_nearest<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    cover: &Cover<T>,
+    site: &geom::cover::Site<T>,
+    band: Band,
+) -> T {
+    let near = cover.distance_range(site).0;
+    let f = body.proven_face(face);
+    let Surface::Plane { origin, normal, .. } = *f.surface() else {
+        return near;
+    };
+    let least = match *site {
+        geom::cover::Site::Point(q) => geom::Line {
+            origin,
+            dir: normal,
+        }
+        .square_foot(q),
+        geom::cover::Site::Line(geom::Line { origin: o, dir }) => {
+            o + dir * ((origin - o).dot(normal) / dir.dot(normal))
+        }
+    };
+    let finite = [least.x, least.y, least.z]
+        .into_iter()
+        .all(geom_core::is_finite_length);
+    let out = finite
+        && constraint(|| {
+            match crate::boolean::face_placement(body, face, least, band, NEAREST_FOOT) {
+                Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                    crate::boolean::FaceContainment::Out,
+                ))) => Ok(()),
+                _ => Err(()),
+            }
+        })
+        .is_some();
+    match boundary_cover(body, f) {
+        Ok(boundary) if out => near.max(boundary.distance_range(site).0),
+        _ => near,
+    }
+}
+
+/// **The ball where two faces' covers meet, within `tolerance`**: the
+/// ball of their meet ([`geom::cover::Cover::ball`], which reads the
+/// meet's box) widened by a geometric tolerance, the band a section
+/// point of the two is read within: such a point lies within the band
+/// of both faces, not on their covers' meet. A refusal is the meet's
+/// identity, so one side with no cover leaves the other's ball; with
+/// neither, the ball is poison, which every lever reading it escalates.
+/// The one construction of where two regions meet: a face pair's
+/// section reach, and an operation's region over its operands' covers.
+pub(crate) fn meet_within<T: Real>(
+    a: &FaceCovered<T>,
+    b: &FaceCovered<T>,
+    tolerance: f64,
+) -> geom_brep::ExtentBall<T> {
+    let within = |c: &Cover<T>| geom_brep::ExtentBall::of_cover_within(c, T::from_f64(tolerance));
+    match (a, b) {
+        (Ok(a), Ok(b)) => within(&a.clone().meet(b.clone())),
+        (Ok(one), Err(_)) | (Err(_), Ok(one)) => within(one),
+        (Err(_), Err(_)) => {
+            let poison = geom_core::poison();
+            geom_brep::ExtentBall::of_cover_from(None, Point3::new(poison, poison, poison))
+        }
+    }
+}
+
+/// The region any of `covers` occupies: their hull, a refusal
+/// absorbing it. `None` for no cover.
+pub(crate) fn hull_of_covers<T: Real>(
+    covers: impl IntoIterator<Item = FaceCovered<T>>,
+) -> Option<FaceCovered<T>> {
+    covers.into_iter().reduce(|h, c| match (h, c) {
+        (Ok(h), Ok(c)) => Ok(h.hull(c)),
+        (Err(e), _) | (_, Err(e)) => Err(e),
+    })
+}
 
 /// **Topo's reading of the region a face can occupy** (DESIGN
 /// `[one-way.places]`, "The region a carrier, an edge or a face can
@@ -149,13 +235,12 @@ pub(crate) const BOX_CONE_AXIS: &str = "bool_box_cone_axis";
 ///
 /// - **Plane**: the convex hull of its boundary (each edge's cover,
 ///   [`edge_cover`], and each isolated vertex).
-/// - **Cylinder**: the axial slab of its radius over the boundary's
-///   window along the axis, met with the boundary's convex hull. The
-///   axial coordinate has no interior extreme on the chart, and the
-///   carrier is ruled along a direction, so a face lies in its
-///   boundary's convex hull, which needs only that the axis be one.
-/// - **Cone**: the frustum over the boundary's window along the axis,
-///   met with the convex hull of the boundary and, where the face may
+/// - **Cylinder**: the boundary's convex hull. The carrier is ruled
+///   along its axis, so the ruling through any point of the face leaves
+///   it at the boundary both ways; that needs only that the axis be a
+///   direction. (The slab of the radius over the boundary's axial
+///   window holds that hull already, so it would tighten no bound.)
+/// - **Cone**: the convex hull of the boundary and, where the face may
 ///   hold the apex, the apex: the rulings run through it. A face holds
 ///   the apex only where a loop winds round the axis
 ///   ([`cone_may_hold_apex`]).
@@ -168,9 +253,8 @@ pub(crate) const BOX_CONE_AXIS: &str = "bool_box_cone_axis";
 ///   torus, so a spindle reads none.
 /// - **Spline**: its control net (the fit's, for an approximation).
 ///
-/// **A constraint the reading does not prove adds nothing**: an axis
-/// the band does not decide, a window the walk gives up on, a pole it
-/// does not place `Out`. No arm then tries a second construction. A
+/// **A constraint the reading does not prove adds nothing**: a window
+/// the walk gives up on, a pole it does not place `Out`. No arm then tries a second construction. A
 /// face whose meet is still the whole carrier refuses.
 ///
 /// # Errors
@@ -230,33 +314,13 @@ fn face_cover_in<T: Decide>(
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
     match surface {
         Surface::Plane { .. } => and_trim(carrier, boundary_cover(body, f).map(Cover::convex)),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { axis, .. } => {
             if !crate::validate::is_direction(axis) {
                 return carrier;
             }
-            let hull = boundary_cover(body, f).map(Cover::convex);
-            let slab = constraint(|| {
-                UnitVec3::levered(
-                    *axis,
-                    BOX_CYLINDER_AXIS,
-                    band,
-                    geom_core::Lever::curvature_radius(*radius),
-                )
-            })
-            .and_then(|unit| {
-                let window = axial(hull.as_ref().ok()?, *origin, unit);
-                Cover::slab(*origin, unit, *radius, window)
-            });
-            and_proven(and_trim(carrier, hull), slab)
+            and_trim(carrier, boundary_cover(body, f).map(Cover::convex))
         }
-        Surface::Cone {
-            apex, half_angle, ..
-        } => {
+        Surface::Cone { apex, .. } => {
             let Some(at_apex) = Cover::points(vec![*apex]) else {
                 return carrier;
             };
@@ -265,13 +329,8 @@ fn face_cover_in<T: Decide>(
                 boundary.map(|b| b.hull(at_apex))
             } else {
                 boundary
-            }
-            .map(Cover::convex);
-            let frustum = cone_axis(surface, band).and_then(|unit| {
-                let window = axial(hull.as_ref().ok()?, *apex, unit);
-                Cover::frustum(*apex, unit, half_angle.tan(), window)
-            });
-            and_proven(and_trim(carrier, hull), frustum)
+            };
+            and_trim(carrier, hull.map(Cover::convex))
         }
         Surface::Sphere { center, radius, .. } => {
             let zone = sphere_window(body, f, surface, band);
@@ -310,29 +369,9 @@ fn face_cover_in<T: Decide>(
     }
 }
 
-/// A cone carrier's axis as a unit direction, where the band decides it
-/// one ([`BOX_CONE_AXIS`]).
-fn cone_axis<T: Decide>(cone: &Surface<T>, band: Band) -> Option<UnitVec3<T>> {
-    let Surface::Cone { axis, .. } = cone else {
-        unreachable!("a cone's axis is read of a cone")
-    };
-    constraint(|| UnitVec3::new(*axis, BOX_CONE_AXIS, band))
-}
-
-/// `cover`'s window along the unit `axis` about `origin`: its support
-/// either way, less the origin's.
-fn axial<T: Real>(cover: &Cover<T>, origin: Point3<T>, axis: UnitVec3<T>) -> ParamWindow<T> {
-    let a = axis.get();
-    let base = (origin - Point3::origin()).dot(a);
-    ParamWindow::new(
-        T::zero() - cover.support(-a) - base,
-        cover.support(a) - base,
-    )
-}
-
 /// **Whether a face on `cone` may hold its apex**: unless every loop is
-/// decided to close in the chart, its net azimuth travel within half a
-/// turn of zero (`chord_join::face_loop_azimuth_travels`). The apex is
+/// decided to close in the chart ([`closes_in_chart`], over
+/// `chart_window::face_loop_azimuth_travels`). The apex is
 /// the chart's pole, and a bounded face holding it has a loop that
 /// winds round it a whole turn, where a loop that closes in the chart
 /// leaves it outside. Every loop, not the outer alone: a file's
@@ -348,10 +387,19 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     let travels = constraint(|| {
         crate::chart_window::face_loop_azimuth_travels(body, cone, face, band).map_err(|_| ())
     });
-    let closes = |travel: Option<T>| {
-        travel.is_some_and(|travel| (T::pi() - travel.abs()).structure_positive())
-    };
-    travels.is_none_or(|loops| !loops.into_iter().all(closes))
+    travels.is_none_or(|loops| !loops.into_iter().all(|t| t.is_some_and(closes_in_chart)))
+}
+
+/// **Whether a loop whose net travel round a chart's period is `travel`
+/// closes in the chart**: decided within half a turn of zero for every
+/// value the scalar stands for. A loop that closes returns to where it
+/// entered (net zero); one that winds round the period travels a whole
+/// turn, so half a turn separates the two and the test needs no band.
+/// The one reading of it for the face cover's walks: the torus chart
+/// window's wrap guard and the cone's apex rule. (`pcurves::loop_windings`
+/// asks it of a loop's stored certified rows, for W2's certificate.)
+pub(crate) fn closes_in_chart<T: SpanLocate>(travel: T) -> bool {
+    travel.is_bounded() && (T::pi() - travel.abs()).structure_positive()
 }
 
 /// **The boundary's cover**: each boundary edge's cover
@@ -406,6 +454,7 @@ fn pole_side<T: Decide>(
     let boundary = boundary_cover(body, f).ok()?;
     let (d, r) = (aim.get(), radius.abs());
     let c = (center - Point3::origin()).dot(d);
+    let (below, above) = boundary.range_along(d);
     let out = |s: T| {
         constraint(|| {
             match crate::boolean::curved_face_placement(body, f.key(), center + d * (r * s), band) {
@@ -417,8 +466,8 @@ fn pole_side<T: Decide>(
         })
         .is_some()
     };
-    let lo = out(T::zero() - T::one()).then(|| T::zero() - boundary.support(-d) - c);
-    let hi = out(T::one()).then(|| boundary.support(d) - c);
+    let lo = out(T::zero() - T::one()).then(|| below - c);
+    let hi = out(T::one()).then(|| above - c);
     if lo.is_none() && hi.is_none() {
         return None;
     }
@@ -428,17 +477,17 @@ fn pole_side<T: Decide>(
 
 /// The K funnel name of a sphere's polar axis read as a unit direction,
 /// before its chart window is read ([`sphere_window`]).
-pub(crate) const BOX_SPHERE_AXIS: &str = "bool_box_sphere_axis";
+pub(crate) const SPHERE_AXIS: &str = "cover_sphere_axis";
 
 /// The K funnel name of a sphere's seam direction against its polar
 /// axis: their cosine, levered by the radius, decided zero before the
 /// azimuth window is read in the frame they span ([`sphere_window`]).
-pub(crate) const BOX_SPHERE_SEAM: &str = "bool_box_sphere_seam";
+pub(crate) const SPHERE_SEAM: &str = "cover_sphere_seam";
 
 /// The K funnel name of a sphere's seam direction read as a unit
 /// direction, before the azimuth window is read in the frame it spans
 /// ([`sphere_window`]).
-pub(crate) const BOX_SPHERE_SEAM_UNIT: &str = "bool_box_sphere_seam_unit";
+pub(crate) const SPHERE_SEAM_UNIT: &str = "cover_sphere_seam_unit";
 
 /// **A sphere face's chart window**, from the window
 /// `solid_contain::sphere_chart_trim` pins: its latitude extremes and
@@ -526,7 +575,7 @@ fn sphere_window<T: Decide>(
             Ok(None) | Err(PointInSolidError::Escalated { .. }) => return Err(()),
             Err(refusal) => torn_outer_loop(body, f, refusal),
         };
-        let unit = UnitVec3::new(*axis, BOX_SPHERE_AXIS, band).map_err(|_| ())?;
+        let unit = UnitVec3::new(*axis, SPHERE_AXIS, band).map_err(|_| ())?;
         Ok((trim, unit))
     })?;
     let pole = |sign: T| (sign * *radius, T::zero());
@@ -536,9 +585,9 @@ fn sphere_window<T: Decide>(
         latitude(trim.north.unwrap_or_else(|| pole(T::one()))),
     );
     let seam = constraint(|| {
-        let seam = UnitVec3::new(*u_ref, BOX_SPHERE_SEAM_UNIT, band).map_err(|_| ())?;
+        let seam = UnitVec3::new(*u_ref, SPHERE_SEAM_UNIT, band).map_err(|_| ())?;
         let square = crate::validate::decide(
-            BOX_SPHERE_SEAM,
+            SPHERE_SEAM,
             Margin::levered(
                 seam.get().dot(unit.get()),
                 geom_brep::ExtentBall::of_sphere(*center, *radius).lever(),
@@ -707,7 +756,7 @@ fn not_finite<T: Real>(x: T) -> bool {
     !x.is_bounded()
 }
 
-impl<T: Real> TorusChartWindow<T> {
+impl<T: SpanLocate> TorusChartWindow<T> {
     /// An empty accumulator.
     pub(crate) fn new() -> Self {
         Self {
@@ -762,14 +811,8 @@ impl<T: Real> TorusChartWindow<T> {
             self.ok = false;
             return;
         };
-        // Half a period separates a loop that closed (net zero) from
-        // one that wrapped (net `± τ`), and the test is the same
-        // poison spelling [`torus_window_slack`] uses — no ordering,
-        // no `Band`, no `decide`.
-        for n in [nu, nv] {
-            if not_finite(n) || (T::pi() - n.abs()).sqrt().is_poison() {
-                self.ok = false;
-            }
+        if !(closes_in_chart(nu) && closes_in_chart(nv)) {
+            self.ok = false;
         }
         self.net = None;
     }
@@ -878,7 +921,7 @@ pub(crate) fn face_window_steps<T: Decide>(
 /// [`TorusChartWindow`]. A loop that yields NO half-edge (a lone
 /// vertex) abandons the window: it carries no chart image, so the walk
 /// cannot see what bounds the face's chart region.
-pub(crate) fn torus_chart_window<T: Real>(
+pub(crate) fn torus_chart_window<T: SpanLocate>(
     loops: &[Vec<WindowStep<'_, T>>],
     major: T,
     minor: T,

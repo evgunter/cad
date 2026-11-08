@@ -175,27 +175,6 @@ fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
     )
 }
 
-/// **The ball about where two faces' covers meet**: the meet's own ball
-/// ([`geom::cover::Cover::ball`]). A refusal is the meet's identity, so
-/// one side with no cover leaves the other's ball; with neither, the
-/// ball is poison, which every lever reading it escalates.
-pub(super) fn overlap_ball<T: geom_core::Real>(
-    a: &crate::cover::FaceCovered<T>,
-    b: &crate::cover::FaceCovered<T>,
-) -> geom_brep::ExtentBall<T> {
-    match (a, b) {
-        (Ok(a), Ok(b)) => geom_brep::ExtentBall::of_cover(&a.clone().meet(b.clone())),
-        (Ok(one), Err(_)) | (Err(_), Ok(one)) => geom_brep::ExtentBall::of_cover(one),
-        (Err(_), Err(_)) => {
-            let poison = geom_core::poison();
-            geom_brep::ExtentBall::of_cover_from(
-                None,
-                geom_core::Point3::new(poison, poison, poison),
-            )
-        }
-    }
-}
-
 /// **The cross pairs whose face boxes overlap**: each face of `a` against
 /// each face of `b` that `keep` admits, in `a`'s face order and `b`'s
 /// within each — the candidates both of this door's scans read.
@@ -294,27 +273,36 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         margin,
         discharge: crate::Discharge::of(margin),
     };
-    // The operation's region (C5): the ball about the overlap of the two
-    // operands' boxes, each the hull of its faces' boxes (their covers'
-    // at the sweep's pad), which holds every section point the operation
-    // can use. The pad is the band's tolerance: a section point lies
-    // within the band of both faces, not on their covers' meet, and a
-    // region cut at the meet reads a tangent pair's section on its rim.
-    // None where the boxes do not overlap, so that no face pair does.
+    // The operation's region (C5): where the two operands' covers meet,
+    // each the hull of its faces' covers, within the band's sweep
+    // tolerance ([`crate::cover::meet_within`]), which holds every section
+    // point the operation can use; none where their boxes do not
+    // overlap, so that no face pair does. Each face's cover once: every
+    // face's for the region, the served faces' boxes for the pairs.
     let pad = boxes::sweep_pad(band);
-    let boxed = |body: &Body<T>| -> Vec<(FaceKey, bvh::Aabb)> {
+    let covered = |body: &Body<T>| -> Vec<(FaceKey, crate::cover::FaceCovered<T>)> {
         body.face_views()
-            .map(|face| (face.key(), boxes::face_box(body, face.key(), pad, band)))
+            .map(|face| (face.key(), crate::cover::face_cover(body, face.key(), band)))
             .collect()
     };
-    let (a_boxes, b_boxes) = (boxed(a), boxed(b));
-    let hull = |boxed: &[(FaceKey, bvh::Aabb)]| {
+    let (a_covers, b_covers) = (covered(a), covered(b));
+    let boxed = |covers: &[(FaceKey, crate::cover::FaceCovered<T>)]| -> Vec<(FaceKey, bvh::Aabb)> {
+        covers
+            .iter()
+            .map(|(k, c)| (*k, boxes::face_box_of(c, pad)))
+            .collect()
+    };
+    let (a_boxes, b_boxes) = (boxed(&a_covers), boxed(&b_covers));
+    let box_hull = |boxed: &[(FaceKey, bvh::Aabb)]| {
         boxed.iter().map(|&(_, bx)| bx).reduce(|h, bx| h.hull(&bx))
     };
-    let region = match (hull(&a_boxes), hull(&b_boxes)) {
-        (Some(ha), Some(hb)) if ha.overlaps(&hb) => {
-            Some(geom_brep::ExtentBall::of_overlap(&ha, &hb))
-        }
+    let hull = |covers: Vec<(FaceKey, crate::cover::FaceCovered<T>)>| {
+        crate::cover::hull_of_covers(covers.into_iter().map(|(_, c)| c))
+    };
+    let region = match (box_hull(&a_boxes), box_hull(&b_boxes)) {
+        (Some(ha), Some(hb)) if ha.overlaps(&hb) => hull(a_covers)
+            .zip(hull(b_covers))
+            .map(|(ca, cb)| crate::cover::meet_within(&ca, &cb, pad)),
         _ => None,
     };
     let served = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
@@ -470,11 +458,12 @@ mod region_rows {
 
     use crate::test_support_fixtures::brick;
 
-    /// **The operation's region is the ball about the operands' box
-    /// overlap**: two unit-high bricks overlapping in `[0.5, 1]` along
-    /// `x` read a ball about the padded overlap's centre, out to its
-    /// half-diagonal, which holds the overlap and is far short of either
-    /// brick's own ball; bricks apart read none.
+    /// **The operation's region is where the operands' covers meet,
+    /// within the band**: two unit-high bricks overlapping in `[0.5, 1]`
+    /// along `x` read the ball about the overlap's centre, out to its
+    /// half-diagonal widened by the sweep's pad, which holds the overlap
+    /// and is far short of either brick's own ball; bricks apart read
+    /// none. Red where one operand's hull stands in for the meet.
     #[test]
     fn the_region_is_the_ball_about_the_operands_box_overlap() {
         let tol = Tol::witness();
@@ -491,16 +480,14 @@ mod region_rows {
         };
         let got = region(&brick::<f64>((0.5, 3.0), (0.0, 1.0), (0.0, 1.0), tol))
             .expect("the boxes overlap");
-        // Each face box is padded by the sweep's pad, so the overlap is
-        // `[0.5 − p, 1 + p] × [−p, 1 + p]²`.
+        // The meet of the two hulls is the overlap `[0.5, 1] × [0, 1]²`.
         let pad = super::boxes::sweep_pad(band);
         let centre = Point3::new(0.75, 0.5, 0.5);
         assert!((got.center() - centre).norm() < 1e-12, "{got:?}");
-        let half = |w: f64| 0.5 * (w + 2.0 * pad);
-        let radius = (half(0.5).powi(2) + 2.0 * half(1.0).powi(2)).sqrt();
+        let radius = (0.25f64.powi(2) + 2.0 * 0.5f64.powi(2)).sqrt() + pad;
         assert!(
             (got.radius() - radius).abs() < 1e-12,
-            "{got:?} against the padded overlap's half-diagonal {radius}"
+            "{got:?} against the overlap's half-diagonal within the band, {radius}"
         );
         let far = brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
         assert!(region(&far).is_none(), "apart: no region");

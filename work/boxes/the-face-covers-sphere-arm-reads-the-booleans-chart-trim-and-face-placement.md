@@ -1,11 +1,11 @@
 ---
 id: the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 kind: issue
-title: topo::cover's sphere arm reads boolean's sphere_chart_trim and curved_face_placement: two body readings the [topo.homes] gate wants at the root
+title: topo::cover reads the boolean's curved containment door (sphere_chart_trim, curved_face_placement, face_placement), which [topo.homes] wants at the root
 status: open
 opened: 2026-11-08
 priority: P2
-cost: M
+cost: H
 ---
 
 
@@ -24,10 +24,16 @@ engine hosts, so `cover.rs` carries a cited `names-boolean` pin
   `boolean::contain::curved_face_placement`, `CurvedPlacement` and
   `FaceContainment`.
 
-Both are readings over a `Body` that name no engine type in their
-answer (a latitude/azimuth window, a point's place on a face), so by
-the signature test they belong at the crate root, not in `boolean/`.
+They answer in engine types (`PointInSolidError`, `CurvedPlacement`,
+`FaceContainment`, `ContainError`, all declared under `boolean/`), so
+this is not a two-function move: it is the curved containment door's
+move to the root (`boolean/contain.rs`, the sphere chart trim in
+`boolean/solid_contain.rs`, and the region readers they read, with
+their refusal types), after which the face cover reads it from there.
+The face's nearest-distance reading (`cover.rs` `face_nearest`) reads
+the planar `face_placement` through the same door, and is in the same
+pin.
 
-**Fix**: move `sphere_chart_trim` (with the refusal it answers in, as a
-root type) and the curved face placement to root modules, repoint the
-boolean's own readers, and drop `cover.rs`'s `names-boolean` line.
+**Fix**: move the curved containment door and its types to root
+modules, repoint the boolean's readers, and drop `cover.rs`'s
+`names-boolean` line.

@@ -6186,6 +6186,13 @@ mod tests {
             "the piece is read in its cover's ball, at most the control ball's √2, got \
              {centre:?}, {radius}"
         );
+        for k in 0..=2_000 {
+            let p = carrier.eval(f64::from(k) / 2_000.0);
+            assert!(
+                (p - centre).norm() <= radius + 1e-12,
+                "the piece's point {p:?} lies outside its ball about {centre:?}, radius {radius}"
+            );
+        }
     }
 
     /// **A contact on `L` is read whichever side the face lies on, and

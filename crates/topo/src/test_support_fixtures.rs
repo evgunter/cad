@@ -142,6 +142,81 @@ pub struct CubeOps<T: Real> {
     pub mefs: [MefCreated; 5],
 }
 
+/// **A cone cap**: the face on the cone of half-angle `alpha` about
+/// `+z` from the origin bounded by its one circle at height `z`, two
+/// half-circle edges with no seam, so it holds the apex inside and none
+/// of its boundary reaches it.
+///
+/// # Panics
+///
+/// Where the fixture's own construction refuses (a kernel bug).
+pub fn cone_cap(alpha: f64, z: f64) -> (Body<f64>, FaceKey) {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    use geom_brep::CurveSelector;
+    let cone = || Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_z(),
+        half_angle: alpha,
+        u_ref: Vec3::unit_x(),
+    };
+    let r = z * alpha.tan();
+    let on = |u: f64| Point3::new(r * u.cos(), r * u.sin(), z);
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(on(0.0), true).unwrap();
+    let plane = body.add_surface(Surface::Plane {
+        origin: Point3::new(0.0, 0.0, z),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    });
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::Shared {
+            key: plane,
+            sense: true,
+        },
+    )
+    .unwrap();
+    let carrier = body.add_surface(cone());
+    let half = |u0: f64| EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(carrier, plane),
+            selector: CurveSelector::Witness(on(u0 + FRAC_PI_2)),
+        },
+        carrier: Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), r, Vec3::unit_x()),
+        param_start: u0,
+        param_end: u0 + PI,
+    };
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            on(PI),
+            half(0.0),
+            Tol::witness(),
+        )
+        .unwrap();
+    let face = body
+        .lifting_rechart_refusals_for_tests(|body| {
+            body.mef(
+                MefSite::Chords {
+                    he1: e.he_minus,
+                    he2: e.he_plus,
+                },
+                half(PI),
+                FaceSurface::Shared {
+                    key: carrier,
+                    sense: true,
+                },
+                Tol::witness(),
+            )
+        })
+        .unwrap()
+        .face;
+    crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+    (body, face)
+}
+
 /// The chord-line spec between two points, with the extrude-flavored
 /// pushforward description (the sweep's own form for side struts).
 pub fn line<T: Real>(p0: Point3<T>, p1: Point3<T>) -> EdgeCurveSpec<T> {

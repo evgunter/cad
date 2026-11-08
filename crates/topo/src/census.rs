@@ -6367,12 +6367,11 @@ fn curved_same_side_pairs<T: Decide>(
     // first face's axis; a second face on another axis is a pair Door 1
     // does not read as one carrier, so dropping it loses nothing.
     let axial = |f, origin: Point3<T>, axis: Vec3<T>| {
-        let cover = crate::cover::face_cover(body, f, band).ok()?;
+        let (lo, hi) = crate::cover::face_cover(body, f, band)
+            .ok()?
+            .range_along(axis);
         let base = (origin - Point3::origin()).dot(axis);
-        Some((
-            T::zero() - cover.support(-axis) - base,
-            cover.support(axis) - base,
-        ))
+        Some((lo - base, hi - base))
     };
     let mut out = CurvedSameSide::default();
     for (i, &fa) in cands.every_face.iter().enumerate() {

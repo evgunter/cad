@@ -3851,14 +3851,6 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "BodyNotIntact/Degenerate",
-            E::BodyNotIntact {
-                at: EntityId::Face(face),
-                breach: Breach::Degenerate,
-                detail: "a face's stored surface, which its box reads",
-            },
-        ),
-        (
             "SurgeryInvariant",
             E::SurgeryInvariant {
                 at: EntityId::Face(face),
@@ -6434,11 +6426,6 @@ fn every_blend_detail_renders_within_the_budget() {
                 breach: Breach::Scaffolding,
                 detail,
             },
-            "degenerate" => E::BodyNotIntact {
-                at,
-                breach: Breach::Degenerate,
-                detail,
-            },
             other => panic!("no arm for {other}"),
         };
         for verb in [BlendKind::Fillet, BlendKind::Chamfer] {
@@ -6628,7 +6615,6 @@ fn longest_breach() -> &'static str {
         Breach::Unwalked => "unwalked",
         Breach::Disagrees => "disagrees",
         Breach::Scaffolding => "scaffolding",
-        Breach::Degenerate => "degenerate",
     };
     let at = topo::EntityId::Face(topo::FaceKey::default());
     [
@@ -6636,7 +6622,6 @@ fn longest_breach() -> &'static str {
         Breach::Unwalked,
         Breach::Disagrees,
         Breach::Scaffolding,
-        Breach::Degenerate,
     ]
     .into_iter()
     .max_by_key(|&breach| {
