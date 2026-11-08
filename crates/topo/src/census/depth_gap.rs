@@ -111,14 +111,16 @@ pub(super) enum Source<T: geom_core::Real> {
     Arc(Point3<T>, Point3<T>),
 }
 
+/// A plane, as a point on it and a normal.
+type Plane<T> = (Point3<T>, Vec3<T>);
+
 /// A face as the depth gap reads it ([`face_read`]).
 pub(super) struct Read<T: geom_core::Real> {
     pub(super) surface: SurfaceKey,
     /// The face's cover.
     pub(super) cover: Cover<T>,
-    /// The face's plane (a point and a normal) and its boundary's cover,
-    /// where it lies on one.
-    pub(super) plane: Option<((Point3<T>, Vec3<T>), Cover<T>)>,
+    /// The face's plane and its boundary's cover, where it lies on one.
+    pub(super) plane: Option<(Plane<T>, Cover<T>)>,
     /// The boundary's straight edges by their ends, and its isolated
     /// vertices as points.
     pub(super) segments: Vec<(Point3<T>, Point3<T>)>,
