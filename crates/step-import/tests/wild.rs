@@ -468,7 +468,7 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         };
         assert_eq!(
             arena_census(&body),
-            arena_census(&*again),
+            arena_census(&again),
             "{name}: census across the wire"
         );
         // Volume across the wire: the same per-face contributions,
@@ -507,7 +507,7 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             "{name}: volume across the wire, to summation order: {v1} vs {v2}"
         );
         let second =
-            step_export::step_string(&crate::common::at_rest(&*again), &options, Tol::witness())
+            step_export::step_string(&crate::common::at_rest(&again), &options, Tol::witness())
                 .unwrap();
         assert_eq!(
             first, second,

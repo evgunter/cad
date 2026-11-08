@@ -98,7 +98,7 @@ fn r1_seams_at_rest_on_both_fixtures() {
         else {
             panic!("{name}: imports first-class");
         };
-        let seams = seam_edges(&*body);
+        let seams = seam_edges(&body);
         assert_eq!(seams.len(), n, "{name}: seam edge count");
         for (fp, fm, pts) in &seams {
             assert_eq!(fp, fm, "{name}: both seam half-edges on ONE face");
@@ -168,7 +168,7 @@ fn r1_torus_region_selection_is_real() {
                 import_step(&text, &ImportOptions::default(), Tol::witness()).err()
             );
         };
-        assert_eq!(arena_census(&*body), cens, "{tag}: census");
+        assert_eq!(arena_census(&body), cens, "{tag}: census");
         let v = topo::test_support::pinned_volume(
             "the measured body",
             &topo::test_support::finished(
@@ -184,7 +184,7 @@ fn r1_torus_region_selection_is_real() {
             rel < 1e-12,
             "{tag}: volume {v:e} vs closed form {v_want:e} (rel {rel:e})"
         );
-        assert_eq!(seam_edges(&*body).len(), n_seams, "{tag}: seam count");
+        assert_eq!(seam_edges(&body).len(), n_seams, "{tag}: seam count");
     }
 }
 
@@ -266,7 +266,7 @@ fn r1_shared_rim_split_order_does_not_starve_the_second_band() {
     };
     // Two fewer edges and vertices than the re-mint leaves: the join
     // the import ends with takes the file's valence-2 rim vertices.
-    assert_eq!(arena_census(&*body), (1, 1, 2, 4, 2), "band_a census");
+    assert_eq!(arena_census(&body), (1, 1, 2, 4, 2), "band_a census");
     let v = topo::test_support::pinned_volume(
         "the measured body",
         &topo::test_support::finished(
@@ -281,7 +281,7 @@ fn r1_shared_rim_split_order_does_not_starve_the_second_band() {
         ((v - v_want) / v_want).abs() < 1e-12,
         "band_a volume {v:e} vs closed form {v_want:e}"
     );
-    assert_eq!(seam_edges(&*body).len(), 2, "band_a seam count");
+    assert_eq!(seam_edges(&body).len(), 2, "band_a seam count");
 }
 
 /// DEFECT PROBE 2, now the fix's pin (R1 fix pass, MAJ-2): the washer
@@ -310,7 +310,7 @@ fn r1_washer90_imports_the_true_region() {
         );
     };
     // The rim vertices the re-mint leaves at valence 2 are joined.
-    assert_eq!(arena_census(&*body), (1, 1, 3, 3, 2), "washer90 census");
+    assert_eq!(arena_census(&body), (1, 1, 3, 3, 2), "washer90 census");
     assert_eq!(
         topo::validate_geometric(&*body, Tol::witness()),
         Ok(()),
@@ -330,7 +330,7 @@ fn r1_washer90_imports_the_true_region() {
         ((v - v_true) / v_true).abs() < 1e-12,
         "washer90 volume {v:e} vs true {v_true:e} — the winding read regressed"
     );
-    assert_eq!(seam_edges(&*body).len(), 1, "washer90 seam count");
+    assert_eq!(seam_edges(&body).len(), 1, "washer90 seam count");
 }
 
 /// C2 attack, now a wrap-edge row: a band whose surface `u_ref` is
@@ -350,7 +350,7 @@ fn r1_off_uref_band_adopts_every_generator_as_a_wrap_edge() {
     ) else {
         panic!("the off-u_ref band imports");
     };
-    let wraps = seam_edges(&*body);
+    let wraps = seam_edges(&body);
     assert_eq!(wraps.len(), 4, "one generator per band wall: {wraps:?}");
     for (f_plus, f_minus, _) in &wraps {
         assert_eq!(f_plus, f_minus, "a wrap edge's halves bound one face");

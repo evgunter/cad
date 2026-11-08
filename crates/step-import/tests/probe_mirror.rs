@@ -145,7 +145,7 @@ fn mirror_smuggling_and_rigid_roundtrip() {
         Ok(StepImport::Solid { body, .. }) => {
             // If it imports, the composed map must have been rigid:
             // volume is the witness.
-            let v = vol(&*body);
+            let v = vol(&body);
             println!("sloppy dirs imported: vol={v}");
             assert!(
                 (v0 - v).abs() <= 1e-9 * v0.abs(),

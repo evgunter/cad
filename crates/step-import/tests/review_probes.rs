@@ -320,7 +320,7 @@ fn f6_face_sense_flip_is_not_healed() {
         Err(e) => println!("f6 .T.->.F.: typed refusal: {e_at}", e_at = e.render()),
         Ok(StepImport::Solid { body, .. }) => {
             let tier3 = topo::validate_geometric(&*body, Tol::witness());
-            let out = export(&*body, "cube");
+            let out = export(&body, "cube");
             let kept = out.contains("ADVANCED_FACE('', (#39), #5, .F.)")
                 || out.matches(", .F.);").count() > 0;
             println!("f6 .T.->.F.: imported; tier3 = {tier3:?}; re-export keeps .F.: {kept}");
@@ -356,7 +356,7 @@ fn f6_reversed_face_unflip_is_not_healed() {
         }
         Ok(StepImport::Solid { body, .. }) => {
             let tier3 = topo::validate_geometric(&*body, Tol::witness());
-            let out = export(&*body, "washer");
+            let out = export(&body, "washer");
             let flipped_back = out.contains(", #5, .F.);");
             let v = topo::test_support::pinned_volume(
                 "the measured body",

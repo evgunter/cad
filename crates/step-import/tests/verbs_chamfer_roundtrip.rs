@@ -80,7 +80,7 @@ fn the_chamfered_cube_round_trips_through_step() {
     };
 
     assert_eq!(
-        arena_census(&*back),
+        arena_census(&back),
         arena_census(&native),
         "census across the trip"
     );

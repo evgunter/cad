@@ -32,7 +32,7 @@ fn probe(tag: &str, text: &str, base_vol: f64) {
             .map(|m| m.enclosure.volume);
             println!(
                 "{tag}: IMPORTED census={:?} t1={t1:?} t2={t2:?} t3ok={} vol={v:?}",
-                arena_census(&*body),
+                arena_census(&body),
                 t3.is_ok()
             );
             // Silent misgeometry = imports, all tiers green, volume moved.

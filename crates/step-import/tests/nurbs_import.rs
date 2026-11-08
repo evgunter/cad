@@ -337,7 +337,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // * the import's gate enclosure IS the imported body's own
             //   measurement, bit for bit (same body, same order);
             let (imported, imported_terms) = topo::test_support::mass_properties_with_face_terms(
-                &*body,
+                &body,
                 Tol::witness(),
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
@@ -469,8 +469,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 })
             };
             assert_eq!(
-                rewrite(&*again, "reversed-DATA"),
-                rewrite(&*body, "as-written"),
+                rewrite(&again, "reversed-DATA"),
+                rewrite(&body, "as-written"),
                 "a reordered file must import to the SAME BODY, and it re-exports \
                  differently — entity order became information somewhere in the reader"
             );
@@ -487,8 +487,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 all
             };
             assert_eq!(
-                descriptions(&*again),
-                descriptions(&*body),
+                descriptions(&again),
+                descriptions(&body),
                 "a reordered file must mint the SAME edge descriptions — this is the \
                  half the re-export cannot see, and the arc rim's IsoArc lives in it"
             );
@@ -738,7 +738,7 @@ fn promoted_ruling_seams_reexport_as_line() {
         panic!("the prism is a solid");
     };
     let text2 = step_export::step_string(
-        &crate::common::at_rest(&*body),
+        &crate::common::at_rest(&body),
         &step_export::StepOptions::default(),
         tol,
     )

@@ -49,7 +49,7 @@ fn a_placed_m7_8_instance_imports() {
         );
     }
     re_mints_the_class(placed.clone().into_body(), m7_8);
-    offsets_beside_the_wall(&*placed, m7_8);
+    offsets_beside_the_wall(&placed, m7_8);
 }
 
 /// How many M7-8 edges `body` holds.

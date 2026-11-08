@@ -475,7 +475,7 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
                     .met()
                     .expect("the pinned resolution is met");
                 (
-                    common::arena_census(&*body),
+                    common::arena_census(&body),
                     [
                         enclosure.volume,
                         enclosure.surface_area,

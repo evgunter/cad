@@ -228,13 +228,13 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        mesh::tessellate(&*body, 1.0e-3, Tol::witness())
+        mesh::tessellate(&body, 1.0e-3, Tol::witness())
     }));
     std::panic::set_hook(hook);
     let out = out.unwrap_or_else(|_| {
         panic!("at eps {eps:e} the witness must not panic — nothing here asserts")
     });
-    let report = topo::examine_chart_coherence(&*body, Tol::witness());
+    let report = topo::examine_chart_coherence(&body, Tol::witness());
     assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
     if (0.99e-6..=1.01e-6).contains(&eps) {
         assert!(normalizations.is_empty(), "nothing is joined at this band");

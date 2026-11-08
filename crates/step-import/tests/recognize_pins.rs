@@ -283,7 +283,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     // With OUR bytes the bitwise rung answers, so declare-and-check is
     // never reached — the measurement behind the finding above.
     assert!(
-        plane_nurbs_seams(&**own_body).is_empty(),
+        plane_nurbs_seams(own_body).is_empty(),
         "our own writer's carriers are bit-identical to the walls' columns, \
          so every seam takes the IsoCurve rung"
     );
@@ -291,7 +291,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     // NURBS certificate takes their line carrier: they adopt at the
     // `Intersection` rung, which the ladder offers before the
     // conventional one.
-    let rims = plane_nurbs_intersections(&**own_body);
+    let rims = plane_nurbs_intersections(own_body);
     assert!(
         rims.len() == 4 && rims.iter().all(|(_, plane, _)| is_cap(plane)),
         "the plane × NURBS Intersections with our own bytes are the bowed walls' four \
@@ -315,14 +315,14 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
             );
             topo::validate_geometric(&*body, Tol::witness())
                 .expect("the foreign restatement is tier-valid at rest, exactly like our own");
-            let seams = plane_nurbs_seams(&*body);
+            let seams = plane_nurbs_seams(&body);
             assert_eq!(
                 seams.len(),
                 1,
                 "exactly the restated seam takes the declare-and-check rung: {seams:?}"
             );
             assert_eq!(
-                plane_nurbs_intersections(&*body).len(),
+                plane_nurbs_intersections(&body).len(),
                 5,
                 "beside the restated seam, the same four cap rims as our own bytes"
             );
@@ -439,7 +439,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         }) => {
             topo::validate_geometric(&*body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
-            let taken = plane_nurbs_intersections(&*body);
+            let taken = plane_nurbs_intersections(&body);
             assert!(
                 taken.is_empty(),
                 "both seams are the arc wall's own columns, bit for bit; the \

@@ -2265,22 +2265,17 @@ pub(crate) struct KeptSign<T: Decide> {
     runs: Vec<FaceRun<T>>,
 }
 
-impl<T: Decide + geom_core::Bounds> KeptSign<T> {
-    /// **`body` measured under `settle` through this certificate**:
-    /// [`SignCertificate::measure`] continued from the rounds the gate
-    /// took, the certificate left as it was.
-    pub(crate) fn measure(
-        &self,
-        body: &Body<T>,
-        settle: Settle<T>,
-    ) -> Result<MassMeasurement<T>, MassPropsError> {
+impl<T: Decide> KeptSign<T> {
+    /// **This certificate over `body`**, the one body it was derived
+    /// over, its rounds as the gate left them.
+    pub(crate) fn of<'b>(&self, body: &'b Body<T>) -> SignCertificate<'b, T> {
         let Self {
             band,
             tol,
             quad,
             runs,
         } = self;
-        SignCertificate::of_runs(body, *band, *tol, *quad, runs.clone()).measure(settle)
+        SignCertificate::of_runs(body, *band, *tol, *quad, runs.clone())
     }
 }
 

@@ -20,7 +20,7 @@ fn report(tag: &str, text: &str) {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "{tag}: SOLID census (solids,shells,faces,edges,verts)={:?} tier3={:?}",
-                arena_census(&*body),
+                arena_census(&body),
                 topo::validate_geometric(&*body, Tol::witness()).map(|()| "ok")
             );
         }

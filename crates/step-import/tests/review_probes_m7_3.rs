@@ -140,7 +140,7 @@ fn probe_refit_seam_refuses_typed() {
                 PLANT < eps,
                 "MISADOPTION: refit seam displaced {PLANT:e} m — past ε_in {eps:e} — \
                  imported as a solid (census {:?})",
-                arena_census(&*body)
+                arena_census(&body)
             );
             topo::validate_geometric(&*body, Tol::witness())
                 .expect("a seam adopted inside ε_in leaves a body that is valid at rest");
@@ -253,7 +253,7 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
             let t3 = topo::validate_geometric(&*body, Tol::witness());
             panic!(
                 "LAUNDERED: weight-snapped rational wall imported; t3 = {t3:?}, census {:?}",
-                arena_census(&*body)
+                arena_census(&body)
             );
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
@@ -485,7 +485,7 @@ fn probe_rim_same_sense_flip_is_honest() {
             // If accepted, it must be the SAME body (flag interpretive).
             let base = solid(&orig, "committed fixture");
             assert_eq!(
-                arena_census(&*body),
+                arena_census(&body),
                 arena_census(&base),
                 "census must match"
             );
@@ -556,7 +556,7 @@ fn probe_reexport_promotion_divergence() {
         product_name: "loft_prism".to_owned(),
         ..step_export::StepOptions::default()
     };
-    let out = step_export::step_string(&crate::common::at_rest(&*body), &options, Tol::witness())
+    let out = step_export::step_string(&crate::common::at_rest(&body), &options, Tol::witness())
         .expect("re-export");
     let count = |s: &str, pat: &str| s.matches(pat).count();
     assert_eq!(
@@ -607,7 +607,7 @@ fn probe_reexport_promotion_divergence() {
         line_promos, expected_line_promos,
         "the re-import's Line promotions are loft_prism's own straight seams"
     );
-    let out2 = step_export::step_string(&crate::common::at_rest(&*body2), &options, Tol::witness())
+    let out2 = step_export::step_string(&crate::common::at_rest(&body2), &options, Tol::witness())
         .expect("second re-export");
     if line_promos == 0 {
         assert_eq!(out, out2, "fixed point from the first re-export on");

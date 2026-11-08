@@ -10520,7 +10520,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     where
         T: geom_core::Bounds,
     {
-        self.sign.measure(&self.body, settle)
+        self.sign.of(&self.body).measure(settle)
     }
 
     /// **[`validate_pseudomanifold`] over this body**, the same pass with
