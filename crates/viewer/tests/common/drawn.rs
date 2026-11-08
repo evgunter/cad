@@ -41,19 +41,35 @@ pub fn moved_copy(
     (session, copy)
 }
 
-/// `node`'s evaluated body's points, sorted.
+/// `node`'s evaluated bodies' points, sorted: a body's, a boolean's, or
+/// both halves' of a split.
 pub fn corners(session: &mut DocSession, node: RecipeNodeId) -> Vec<[f64; 3]> {
     session.pump();
     let eval = session.evaluation().expect("the inline seam landed");
     let value = eval
         .value(node)
         .unwrap_or_else(|| panic!("{node:?} evaluated: {:?}", eval.node_error(node)));
-    let ValuePayload::Body(body) = &value.payload else {
-        panic!("{node:?} is a body, not {:?}", value.payload)
+    let bodies: Vec<_> = match &value.payload {
+        ValuePayload::Body(_) | ValuePayload::Boolean(_) => value
+            .payload
+            .one_body()
+            .flatten()
+            .into_iter()
+            .collect(),
+        ValuePayload::Split { .. } => (0..2)
+            .filter_map(|half| value.payload.output_body(half).ok())
+            .collect(),
+        other => panic!("{node:?} is a body, not {other:?}"),
     };
-    let mut points: Vec<[f64; 3]> = crate::fixture::in_space(body)
-        .points()
-        .map(|(_, p)| p.to_array())
+    assert!(!bodies.is_empty(), "{node:?} holds a body");
+    let mut points: Vec<[f64; 3]> = bodies
+        .into_iter()
+        .flat_map(|body| {
+            crate::fixture::in_space(body)
+                .points()
+                .map(|(_, p)| p.to_array())
+                .collect::<Vec<_>>()
+        })
         .collect();
     points.sort_by(|a, b| a.partial_cmp(b).expect("finite points"));
     points

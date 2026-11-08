@@ -718,6 +718,7 @@ test_utils::f6_variants! {
         ProfileEditStale,
         BundleStale,
         PlaceOnACopy,
+        NothingPlaced,
         ValueNotRemoved,
         Draft,
         PlacementFails,

@@ -612,11 +612,12 @@ pub fn built_on_copy(
 /// **What re-pointing a body's placements onto `node` would re-point**
 /// (Ev, PR 6353: a feature on a body picked as itself offers, as one
 /// explicit step, to re-point the variable the body's placements share
-/// onto the result): the first body `node` reads as a body, where it is
-/// no copy and some placement reads it, and those placements — every
-/// one but a placement `node` itself reads, which a re-point would
-/// close into a cycle. `None` for a placement, for a node with no one
-/// body output, and where nothing is left to re-point.
+/// onto the result): the first body `node` reads as a body that some
+/// placement reads, and those placements — every one
+/// but a placement `node` itself reads, which a re-point would close
+/// into a cycle. `None` for a placement, for a node the picture does not
+/// draw (an intermediate body: a mirror's image its union reads), for a
+/// node with no one body output, and where nothing is left to re-point.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepointOffer {
     /// The body whose placements are offered: the variable they share.
@@ -630,26 +631,24 @@ pub fn repoint_offer(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<Re
     if matches!(
         doc.node(node)?,
         Node::Place { .. } | Node::InstantiatePart { .. }
-    ) {
+    ) || !is_drawn(doc, node)
+    {
         return None;
     }
     let onto = doc.read_of_node(node)?;
     if doc.var(onto)?.kind() != VarKind::Body {
         return None;
     }
-    let (taken, _) = takes(doc, node).into_iter().next()?;
-    if matches!(
-        doc.node(taken)?,
-        Node::Place { .. } | Node::InstantiatePart { .. }
-    ) {
-        return None;
-    }
-    let body = doc.read_of_node(taken)?;
-    let placements: Vec<RecipeNodeId> = placements_of_var(doc, body)
-        .into_iter()
-        .filter(|&placement| !pncad::document::cascade_delete_order(doc, placement).contains(&node))
-        .collect();
-    (!placements.is_empty()).then_some(RepointOffer { body, placements })
+    takes(doc, node).into_iter().find_map(|(taken, _)| {
+        let body = doc.read_of_node(taken)?;
+        let placements: Vec<RecipeNodeId> = placements_of_var(doc, body)
+            .into_iter()
+            .filter(|&placement| {
+                !pncad::document::cascade_delete_order(doc, placement).contains(&node)
+            })
+            .collect();
+        (!placements.is_empty()).then_some(RepointOffer { body, placements })
+    })
 }
 
 /// **The drawn body a read is**: the operation defining `var`, and its

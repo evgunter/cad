@@ -73,9 +73,9 @@ fn boss_on(face: FaceSelection) -> SessionOp {
 
 /// **One action, one undo, and the body it makes is the box with the
 /// boss on it.** The gesture writes the profile, the extrude, the
-/// placement on the face and the union in one recorded action; the
-/// box's world placement is re-pointed to the union, so the world is
-/// that one body; its volume is the two blocks' sum (the boss stands
+/// placement on the face and the union in one recorded action, and no
+/// placement of the box (Ev, PR 6353: it offers the re-point instead);
+/// the union's volume is the two blocks' sum (the boss stands
 /// on the face, flush, meeting it in a face and no volume); and one
 /// undo takes the whole action back.
 #[test]
@@ -110,8 +110,13 @@ fn a_sketch_on_a_face_is_one_action_and_one_body() {
         .expect("the union landed");
     assert_eq!(
         common::world(doc),
-        [union],
-        "the box's placement now places the union"
+        [cube],
+        "a sketch on the box picked as itself writes no placement"
+    );
+    assert_eq!(
+        viewer::world::repoint_offer(doc, union).map(|offer| offer.body),
+        doc.output(cube, 0),
+        "and offers to re-point the box's placement onto the union"
     );
     let got = common::body_volume(&mut session, union, tol);
     let want = SIDE * SIDE * HEIGHT + BOSS[0] * BOSS[1] * BOSS[2];
@@ -231,43 +236,36 @@ fn a_face_on_no_body_is_refused_at_the_door() {
 }
 
 /// **A face on a split's second half is sketched on that half**: a box
-/// split at mid-height, its lower half placed 0.1 m along x, and its
-/// underside picked there. The boss is fused onto the split's LOWER
-/// output, read by its port, and the half's copy draws the half with
-/// the boss on it.
+/// split at mid-height, the split drawn in the box's place, and its
+/// lower half's underside picked there. The boss is fused onto the
+/// split's LOWER output, read by its port, and the union is the half
+/// with the boss on it.
 #[test]
 fn a_face_on_a_splits_lower_half_is_sketched_on_that_half() {
     let tol = Tol::witness();
     let size = [SIDE, SIDE, HEIGHT];
-    let (session, _, split) = common::drawn::split_box(size, tol);
+    let (mut session, _, split) = common::drawn::split_box(size, tol);
     let below = pncad::select::SplitHalf::Below;
-    let at = common::drawn::translated([0.1, 0.0, 0.0]);
-    let (mut session, half) = common::drawn::half_placed(&session, split, below, &at, tol);
-    let underside = common::asm::pick_face(&session, &common::up_at(0.1, 0.0));
-    assert_eq!(underside.node, half, "the ray met the lower half's copy");
+    let underside = common::asm::pick_face(&session, &common::up_at(0.0, 0.0));
+    assert_eq!(underside.node, split, "the ray met the split drawn as itself");
     let out = session.perform(boss_on(underside));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let union = out.made.expect("the union");
     session.pump();
     let doc = session.committed_doc();
-    let Some(Node::Place { source, .. }) = doc.node(half) else {
-        panic!("the half's copy is a placement");
-    };
-    let union = doc
-        .operation_of(source.read)
-        .expect("the copy reads an operation");
     let Some(Node::Union { members }) = doc.node(union) else {
-        panic!("the copy draws the fused half, not {:?}", doc.node(union));
+        panic!("the sketch fuses the half, not {:?}", doc.node(union));
     };
     let lower = doc.output(split, below.port());
     assert!(
         members.rows().iter().any(|(_, m)| Some(m.read) == lower),
         "the union reads the split's lower half by its port: {members:?}"
     );
-    let fused = common::body_volume(&mut session, half, tol);
+    let fused = common::body_volume(&mut session, union, tol);
     let want = SIDE * SIDE * HEIGHT / 2.0 + BOSS.iter().product::<f64>();
     assert!(
         common::near(fused, want),
-        "the half and its boss drawn: {fused} vs {want}"
+        "the half and its boss: {fused} vs {want}"
     );
 }
 

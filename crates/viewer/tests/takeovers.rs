@@ -1,10 +1,14 @@
-//! **A takeover re-seats what read the copy it takes over**: a small
+//! **A re-point re-seats what read the copies it re-points**: a small
 //! block's copy rested on a face of a block's drawn copy, then the
-//! block filleted, mirrored, sketched on or split — each re-points the drawn
-//! copy to its result, which carries the face under a name of its own.
-//! The mate is re-seated on that name in the same action, so the small
-//! block stays where it stood; a face the result consumes leaves its
-//! mate stale; one undo restores the document.
+//! block, picked as itself, filleted, mirrored, sketched on or unioned —
+//! each makes a new body and offers to re-point the block's placements
+//! onto it (Ev, PR 6353), and the offer is accepted
+//! (`SessionOp::RepointPlacements`). The re-point carries the face
+//! under the result's own name, so the mate is re-seated on that name in
+//! the same action and the small block stays where it stood; a face the
+//! result consumes leaves its mate stale; one undo restores the
+//! document. A gesture picked on the copy reads the copy, and re-points
+//! nothing.
 //!
 //! The block's copy stands off the identity, and every position is
 //! read off the drawn copies.
@@ -135,7 +139,8 @@ fn boss_on(face: FaceSelection) -> SessionOp {
     }
 }
 
-/// The ops this suite takes the block over by, each named.
+/// The ops on the block picked as itself this suite re-points by, each
+/// named.
 fn takeovers(session: &DocSession, block: RecipeNodeId) -> Vec<(&'static str, SessionOp)> {
     vec![
         (
@@ -146,9 +151,17 @@ fn takeovers(session: &DocSession, block: RecipeNodeId) -> Vec<(&'static str, Se
                 selection: vec![a_lateral_edge(session, block)],
             },
         ),
-        ("mirror", mirror_across(session, &minus_x_wall(session))),
-        ("sketch on face", boss_on(top(session))),
-        ("split", split_at_half_height(session, block)),
+        (
+            "mirror",
+            mirror_across(session, &on_the_body(minus_x_wall(session), block)),
+        ),
+        ("sketch on face", boss_on(on_the_body(top(session), block))),
+        (
+            "union",
+            SessionOp::AddBoolean {
+                spec: viewer::session::BooleanSpec::Union(vec![block.into(), block.into()]),
+            },
+        ),
     ]
 }
 
@@ -170,14 +183,63 @@ fn rebinds(edits: &[DocEdit<ProfileProgram>]) -> Vec<&DocEdit<ProfileProgram>> {
         .collect()
 }
 
+/// **`op` on the block picked as itself, and the re-point it offers
+/// accepted** (Ev, PR 6353): the gesture makes a new body and writes no
+/// placement; the node it made, or the union it wrote, offers to
+/// re-point the block's placements onto it
+/// ([`viewer::world::repoint_offer`]), and that one explicit step is
+/// taken. Answers the document the gesture left, and the re-point's
+/// outcome.
+fn taken_over(
+    session: &mut DocSession,
+    op: SessionOp,
+) -> (Doc<ProfileProgram>, viewer::session::OpOutcome) {
+    let made = session.perform(op);
+    assert!(made.refusal.is_none(), "the gesture: {:?}", made.refusal);
+    for edit in &made.committed {
+        assert!(
+            !matches!(
+                edit,
+                DocEdit::SetParam {
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Source),
+                    ..
+                }
+            ),
+            "the gesture writes no placement's source: {edit:?}"
+        );
+    }
+    let doc = session.committed_doc();
+    let (onto, offer) = made
+        .minted
+        .iter()
+        .find_map(|&node| Some((node, viewer::world::repoint_offer(doc, node)?)))
+        .expect("the gesture's result offers the re-point");
+    let made = doc.clone();
+    let outcome = session.perform(SessionOp::RepointPlacements {
+        body: Operand::Var(offer.body),
+        onto,
+    });
+    (made, outcome)
+}
+
+/// **`face` as a pick on `body` itself**, the face's name as the copy
+/// carries it: the same face, picked where the View pane shows the body
+/// again.
+fn on_the_body(face: FaceSelection, body: RecipeNodeId) -> FaceSelection {
+    FaceSelection {
+        node: body,
+        ..face
+    }
+}
+
 /// **The small block rested on the block's top stays seated through a
-/// fillet, a mirror, a sketch on the face and a split**: each commit
-/// re-points the block's drawn copy to its result and rebinds the mate's
-/// face to the result's name for the top, so the small block is drawn
-/// where it stood and every row is well. One undo restores the
-/// document. Goes red if the takeover stops writing the rebind, or
-/// reads no successor through a split's half: the mate's face then no
-/// longer resolves and the small block's placement fails.
+/// fillet, a mirror, a sketch on the face and a union of the block, each
+/// re-pointed**: each re-point moves the block's drawn copy to the
+/// result and rebinds the mate's face to the result's name for the top,
+/// so the small block is drawn where it stood and every row is well.
+/// One undo restores the document the gesture left. Goes red if the
+/// re-point stops writing the rebind: the mate's face then no longer
+/// resolves and the small block's placement fails.
 #[test]
 fn a_mate_on_the_taken_copys_face_stays_seated() {
     for at in 0..4 {
@@ -190,9 +252,25 @@ fn a_mate_on_the_taken_copys_face_stays_seated() {
         let (name, op) = takeovers(&session, block).swap_remove(at);
         let held = top(&session);
         session.perform(SessionOp::Select(Selection::Face(held.clone())));
-        let before = session.committed_doc().clone();
         let seated_at = drawn::extent(&mut session, small_copy);
-        let outcome = session.perform(op);
+        let made = session.perform(op);
+        assert!(made.refusal.is_none(), "{name}: {:?}", made.refusal);
+        session.pump();
+        assert!(
+            rebinds(&made.committed).is_empty(),
+            "{name}: the gesture moves no copy, so rebinds nothing"
+        );
+        assert_eq!(
+            drawn::extent(&mut session, small_copy),
+            seated_at,
+            "{name}: the small block stands where it stood"
+        );
+        let undone = session.perform(SessionOp::Undo);
+        assert!(undone.refusal.is_none(), "{name}: {:?}", undone.refusal);
+        session.pump();
+        let (_, op) = takeovers(&session, block).swap_remove(at);
+
+        let (before, outcome) = taken_over(&mut session, op);
         assert!(outcome.refusal.is_none(), "{name}: {:?}", outcome.refusal);
         session.pump();
         assert_eq!(
@@ -223,32 +301,34 @@ fn a_mate_on_the_taken_copys_face_stays_seated() {
         session.pump();
         assert!(
             *session.committed_doc() == before,
-            "{name}: one undo restores the document"
+            "{name}: one undo takes the re-point back"
         );
         assert_eq!(
             drawn::extent(&mut session, small_copy),
             seated_at,
-            "{name}: and the small block with it"
+            "{name}: and the small block stands where it stood"
         );
     }
 }
 
 /// **A face the result consumes leaves its mate stale**: the small
 /// block rested on the block's `−x` wall, then the block mirrored across
-/// that wall. The symmetric part glues its halves there, so the wall is
-/// no face of the result: no rebind is written, and the small block's
-/// placement fails in the result's own words. Goes red if the takeover
-/// re-seats a name the result holds no carrier for.
+/// that wall and its placements re-pointed onto the symmetric part. The
+/// part glues its halves there, so the wall is no face of the result:
+/// no rebind is written, and the small block's placement fails in the
+/// result's own words. Goes red if the re-point re-seats a name the
+/// result holds no carrier for.
 #[test]
 fn a_face_the_result_consumes_stays_stale() {
     let Seated {
         mut session,
+        block,
         small_copy,
         ..
     } = seated(minus_x_wall);
     let wall = minus_x_wall(&session);
-    let op = mirror_across(&session, &wall);
-    let outcome = session.perform(op);
+    let op = mirror_across(&session, &on_the_body(wall.clone(), block));
+    let (_, outcome) = taken_over(&mut session, op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert!(
@@ -267,10 +347,11 @@ fn a_face_the_result_consumes_stays_stale() {
 /// **A face of `C ∪ D` read through the copy `C` is re-seated too**: the
 /// block's drawn copy and a second copy of it, apart, unioned, and the
 /// small block rested on the union's face that is the first copy's top.
-/// The fillet takes both copies over; the union's face for the first
-/// copy's top is rebound to its name under the result, so the small
-/// block stays seated. Goes red if the takeover re-seats only the
-/// selections of the copy itself.
+/// The block filleted and its placements re-pointed onto the fillet
+/// moves both copies; the union's face for the first copy's top is
+/// rebound to its name under the result, so the small block stays
+/// seated. Goes red if the re-point re-seats only the selections of the
+/// copy itself.
 #[test]
 fn a_face_of_a_union_of_the_copy_is_rebound() {
     let tol = Tol::witness();
@@ -351,7 +432,7 @@ fn a_face_of_a_union_of_the_copy_is_rebound() {
     );
     let seated_at = drawn::extent(&mut session, small_copy);
     let lateral = a_lateral_edge(&session, block);
-    let outcome = session.perform(SessionOp::AddFillet {
+    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
         target: block,
         radius: len(0.002),
         selection: vec![lateral],
@@ -379,7 +460,8 @@ fn a_face_of_a_union_of_the_copy_is_rebound() {
 }
 
 /// **The mirror's merged top keeps the old top's frame**, which is why
-/// the small block mated on it stands where it stood: the symmetric
+/// the small block mated on it stands where it stood once the block's
+/// placements are re-pointed onto the symmetric part: the symmetric
 /// part is `Union[body, image]` (`DocSession::add_mirror`), and a union
 /// keeps its FIRST member's carrier for a face it merges, so the merged
 /// top's frame is the body's top's. The order is load-bearing: a part
@@ -390,7 +472,10 @@ fn a_face_of_a_union_of_the_copy_is_rebound() {
 #[test]
 fn the_mirrors_merged_top_keeps_the_old_tops_frame() {
     let Seated {
-        mut session, copy, ..
+        mut session,
+        block,
+        copy,
+        ..
     } = seated(top);
     let held = top(&session);
     let var = session.committed_doc().output(copy, 0).expect("copy body");
@@ -398,9 +483,9 @@ fn the_mirrors_merged_top_keeps_the_old_tops_frame() {
         let eval = session.evaluation().expect("landed");
         pncad::select::face_frame(eval, var, &held.name).expect("frame before")
     };
-    let op = mirror_across(&session, &minus_x_wall(&session));
+    let op = mirror_across(&session, &on_the_body(minus_x_wall(&session), block));
     session.perform(SessionOp::Select(Selection::Face(held.clone())));
-    let outcome = session.perform(op);
+    let (_, outcome) = taken_over(&mut session, op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let Selection::Face(now) = session.selection().clone() else {
@@ -439,7 +524,7 @@ fn a_gesture_on_a_held_pick_before_the_landing_reads_it_moved() {
     } = seated(top);
     session.perform(SessionOp::Select(Selection::Face(top(&session))));
     let lateral = a_lateral_edge(&session, block);
-    let outcome = session.perform(SessionOp::AddFillet {
+    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
         target: block,
         radius: len(0.002),
         selection: vec![lateral],
@@ -470,7 +555,7 @@ fn undoing_a_later_edit_keeps_the_held_pick_followed() {
     let held = top(&session);
     session.perform(SessionOp::Select(Selection::Face(held.clone())));
     let lateral = a_lateral_edge(&session, block);
-    let outcome = session.perform(SessionOp::AddFillet {
+    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
         target: block,
         radius: len(0.002),
         selection: vec![lateral],
@@ -553,10 +638,11 @@ fn rv2_a_followed_selection_stands_live_before_the_landing() {
     session.perform(SessionOp::Select(Selection::Face(top(&session))));
     let live_before = session.standing().live();
     let rows_before = session.slot_rows().len();
-    let outcome = session.perform(SessionOp::AddFillet {
+    let lateral = a_lateral_edge(&session, block);
+    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
         target: block,
         radius: len(0.002),
-        selection: vec![a_lateral_edge(&session, block)],
+        selection: vec![lateral],
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(session.busy(), "not landed");
@@ -583,10 +669,11 @@ fn rv2_a_pick_made_after_undo_through_a_redo() {
     let Seated {
         mut session, block, ..
     } = seated(top);
-    let outcome = session.perform(SessionOp::AddFillet {
+    let lateral = a_lateral_edge(&session, block);
+    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
         target: block,
         radius: len(0.002),
-        selection: vec![a_lateral_edge(&session, block)],
+        selection: vec![lateral],
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
@@ -619,10 +706,11 @@ fn rv2_a_fresh_pick_off_the_older_picture() {
     let Seated {
         mut session, block, ..
     } = seated(top);
-    let outcome = session.perform(SessionOp::AddFillet {
+    let lateral = a_lateral_edge(&session, block);
+    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
         target: block,
         radius: len(0.002),
-        selection: vec![a_lateral_edge(&session, block)],
+        selection: vec![lateral],
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(session.busy());
@@ -642,9 +730,10 @@ fn rv2_a_fresh_pick_off_the_older_picture() {
 }
 
 /// **A pick made after an unlanded takeover is undone is judged by the
-/// undone document's run, and stands**: a fillet committed (its door
-/// evaluated, so a run of the fillet's document is in hand), undone
-/// before it lands, and the top picked afresh. The shown document is the
+/// undone document's run, and stands**: a fillet committed and its
+/// re-point accepted (the re-point's door evaluated, so a run of its
+/// document is in hand), both undone before they land, and the top
+/// picked afresh. The shown document is the
 /// one the landed run answers again, so that run judges the pick: an
 /// open mate tool keeps it, and the selection stands live. Goes red if a
 /// name is judged by a run of a document that is no longer shown (the
@@ -654,14 +743,17 @@ fn rv3_a_fresh_pick_after_undoing_an_unlanded_takeover() {
     let Seated {
         mut session, block, ..
     } = seated(top);
-    let outcome = session.perform(SessionOp::AddFillet {
+    let lateral = a_lateral_edge(&session, block);
+    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
         target: block,
         radius: len(0.002),
-        selection: vec![a_lateral_edge(&session, block)],
+        selection: vec![lateral],
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let undone = session.perform(SessionOp::Undo);
-    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    for _ in 0..2 {
+        let undone = session.perform(SessionOp::Undo);
+        assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    }
     assert!(session.busy(), "the undo's run is owed");
     let fresh = top(&session);
     let shown = viewer::tree::pick_resolution(
@@ -756,10 +848,11 @@ fn rv4_a_pick_downstream_of_a_rebound_reader_while_seeded() {
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(Selection::Face(small_top.clone()))],
     );
-    let outcome = session.perform(SessionOp::AddFillet {
+    let lateral = a_lateral_edge(&session, block);
+    let (_, outcome) = taken_over(&mut session, SessionOp::AddFillet {
         target: block,
         radius: len(0.002),
-        selection: vec![a_lateral_edge(&session, block)],
+        selection: vec![lateral],
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(session.busy());
@@ -786,35 +879,43 @@ fn rv4_a_pick_downstream_of_a_rebound_reader_while_seeded() {
     );
 }
 
-/// **A face the split cuts leaves its mate stale**: the small block
-/// rested on the block's `−x` wall, then the block split at half its
-/// height. Each half holds a fragment of the wall and neither is the
-/// wall, so no rebind is written, the mate never seats on a piece of
-/// it, and the small block's placement fails naming the wall. Goes red
-/// if the takeover re-seats a name onto one fragment.
+/// **A split picked on a copy leaves the copy's mate where it stood**:
+/// the small block rested on the block copy's `−x` wall, then the copy
+/// split at half its height. The split reads the copy (Ev, PR 6353), so
+/// the copy keeps its body and no rebind is written; the small block's
+/// mate still reads the wall and stands where it stood, every row well.
+/// Goes red if a split picked on a copy re-points the copy's source.
 #[test]
-fn a_face_the_split_cuts_stays_stale() {
+fn a_split_picked_on_a_copy_leaves_its_mate_seated() {
     let Seated {
         mut session,
-        block,
+        copy,
         small_copy,
         ..
     } = seated(minus_x_wall);
-    let wall = minus_x_wall(&session);
-    let outcome = session.perform(split_at_half_height(&session, block));
+    let seated_at = drawn::extent(&mut session, small_copy);
+    let source = source_of(session.committed_doc(), copy);
+    let outcome = session.perform(split_at_half_height(&session, copy));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert!(
         rebinds(&outcome.committed).is_empty(),
-        "no half carries the wall whole: {:?}",
+        "nothing is rebound: {:?}",
         outcome.committed
     );
-    let eval = session.evaluation().expect("landed");
-    let failed = format!("{:?}", eval.node_error(small_copy));
-    assert!(
-        failed.contains("Vanished") && failed.contains(&format!("{:?}", wall.name)),
-        "the small block's mate reads the wall, which the split cut: {failed}"
+    assert_eq!(
+        source_of(session.committed_doc(), copy),
+        source,
+        "the copy places the block still"
     );
+    assert_eq!(
+        drawn::extent(&mut session, small_copy),
+        seated_at,
+        "the small block stands where it stood"
+    );
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
 }
 
 /// The block alone, its one world copy placed by hand at the identity,
@@ -866,14 +967,14 @@ fn source_of(doc: &Doc<ProfileProgram>, copy: RecipeNodeId) -> pncad::document::
     }
 }
 
-/// **A split of a world copy draws its halves where the copy stood**:
-/// the block's copy stands at the identity, so the split's halves in
-/// the block's space coincide with it. The split takes the copy over by
-/// `above ⊔ below`: the copy alone is drawn, where it stood, and a ray
-/// from above or below meets one face of it, not two coincident bodies.
-/// One undo restores the copy whole. Goes red if the split takes
-/// nothing over: the copy stays drawn unsplit beside the split, and
-/// both picks answer `Ambiguous`.
+/// **A split picked on a world copy draws its halves where the copy
+/// stood**: the block's copy stands at the identity, and the split reads
+/// the copy (Ev, PR 6353), so its halves stand in the world where the
+/// copy stood and the copy, read, is no longer drawn: the split alone is
+/// drawn, and a ray from above or below meets one face of it, not two
+/// coincident bodies. No placement's source is written. One undo
+/// restores the copy whole. Goes red if the split reads through the
+/// copy to the block, or writes the copy's source.
 #[test]
 fn a_split_of_a_world_copy_draws_its_halves_where_the_copy_stood() {
     let tol = Tol::witness();
@@ -881,19 +982,23 @@ fn a_split_of_a_world_copy_draws_its_halves_where_the_copy_stood() {
     let before = session.committed_doc().clone();
     let stood = drawn::extent(&mut session, copy);
     let split = {
-        let op = split_at_half_height(&session, block);
+        let op = split_at_half_height(&session, copy);
         common::session_insert(&mut session, op)
     };
     session.pump();
     assert_eq!(
         viewer::world::drawn_nodes(session.committed_doc()),
-        [copy],
-        "the copy alone is drawn: neither the unsplit block nor the split's own halves"
+        [split],
+        "the split alone is drawn: neither the copy nor the block"
     );
     let doc = session.committed_doc();
-    assert_reads_the_halves(doc, source_of(doc, copy), split, "the copy");
     assert_eq!(
-        drawn::extent(&mut session, copy),
+        source_of(doc, copy),
+        doc.output(block, 0).expect("the block's body"),
+        "the copy still places the block"
+    );
+    assert_eq!(
+        drawn::extent(&mut session, split),
         stood,
         "the halves stand where the copy stood"
     );
@@ -904,7 +1009,7 @@ fn a_split_of_a_world_copy_draws_its_halves_where_the_copy_stood() {
         ("below", common::up_at(0.0, 0.0)),
     ] {
         match index.face_at_for(eval, &ray, &session.display_view()) {
-            Ok(Some(face)) => assert_eq!(face.node, copy, "from {from}: a face of the copy"),
+            Ok(Some(face)) => assert_eq!(face.node, split, "from {from}: a face of the split"),
             other => panic!("from {from}: one drawn face answers, not {other:?}"),
         }
     }
@@ -914,7 +1019,7 @@ fn a_split_of_a_world_copy_draws_its_halves_where_the_copy_stood() {
     session.pump();
     assert!(
         *session.committed_doc() == before,
-        "one undo takes the split and the re-point back"
+        "one undo takes the split back"
     );
     assert_eq!(
         drawn::extent(&mut session, copy),
@@ -923,12 +1028,12 @@ fn a_split_of_a_world_copy_draws_its_halves_where_the_copy_stood() {
     );
 }
 
-/// **A split of a copy the product reads leaves the product reading
+/// **A split picked on the copy the product reads hands the product
 /// the halves**: the block added to the product (the door places its
-/// world copy by the identity and the slot reads it), then split. The
-/// slot still reads the copy, which copies `above ⊔ below`, and the
-/// product evaluates. Goes red if the copy keeps copying the unsplit
-/// block.
+/// world copy by the identity and the slot reads it), then the copy
+/// split. The slot reads `above ⊔ below` of the split, the copy keeps
+/// its source, and the product evaluates. Goes red if the slot is left
+/// reading the copy, or the copy's source is written.
 #[test]
 fn a_split_of_a_copy_the_product_reads_leaves_the_product_reading_the_halves() {
     let tol = Tol::witness();
@@ -943,23 +1048,22 @@ fn a_split_of_a_copy_the_product_reads_leaves_the_product_reading_the_halves() {
     let doc = session.committed_doc();
     let product = doc.product().expect("the slot reads the block's copy");
     let copy = doc.operation_of(product).expect("the copy's placement");
+    let source = source_of(doc, copy);
     let split = {
-        let op = split_at_half_height(&session, block);
+        let op = split_at_half_height(&session, copy);
         common::session_insert(&mut session, op)
     };
     session.pump();
     let doc = session.committed_doc();
-    assert_eq!(
-        doc.product(),
-        Some(product),
-        "the slot still reads the copy"
-    );
-    assert_reads_the_halves(doc, source_of(doc, copy), split, "the copy");
+    let slot = doc.product().expect("the slot reads a body");
+    assert_reads_the_halves(doc, slot, split, "the product slot");
+    assert_eq!(source_of(doc, copy), source, "the copy places the block still");
     let eval = session.evaluation().expect("landed");
+    let at = doc.operation_of(slot).expect("the slot's `⊔`");
     assert!(
-        eval.node_error(copy).is_none(),
+        eval.node_error(at).is_none(),
         "the product evaluates: {:?}",
-        eval.node_error(copy)
+        eval.node_error(at)
     );
 }
 
@@ -1074,12 +1178,13 @@ fn a_split_of_a_body_a_union_operand_reads_re_points_the_operand() {
 /// on the copy's top**: the block split while unplaced (that split takes
 /// nothing over), the block's copy placed by hand and the small block
 /// rested on the copy's top, then the block unioned with the earlier
-/// split's upper half. The union carries the top once from the block
-/// and once from the half, merged into one face; the takeover asks
-/// about the block alone (that half is not the action's), so the top
-/// has one carry and the mate is re-seated. Goes red if the takeover
-/// counts every split of the block's halves beside it: the top is
-/// counted twice and the mate goes stale.
+/// split's upper half and its placements re-pointed onto the union. The
+/// union carries the top once from the block and once from the half,
+/// merged into one face; the re-point asks about the block alone (that
+/// half is not the action's), so the top has one carry and the mate is
+/// re-seated. Goes red if the re-point counts every split of the
+/// block's halves beside it: the top is counted twice and the mate goes
+/// stale.
 #[test]
 fn a_combine_with_its_own_earlier_half_keeps_the_mate() {
     let tol = Tol::witness();
@@ -1109,9 +1214,12 @@ fn a_combine_with_its_own_earlier_half_keeps_the_mate() {
     drawn::rest_on(&mut session, underside, to);
     let seated_at = drawn::extent(&mut session, small_copy);
     let above = Operand::output(earlier, pncad::select::SplitHalf::Above.port());
-    let outcome = session.perform(SessionOp::AddBoolean {
-        spec: viewer::session::BooleanSpec::Union(vec![block.into(), above]),
-    });
+    let (_, outcome) = taken_over(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: viewer::session::BooleanSpec::Union(vec![block.into(), above]),
+        },
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert_eq!(

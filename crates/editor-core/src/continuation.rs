@@ -333,7 +333,7 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
             continue;
         }
         if let Node::Subtract { from, .. } = node
-            && lost.iter().all(|seat| *seat == OperandSlot::Tool)
+            && lost.iter().all(|seat| *seat == OperandSlot::Cut)
             && !lost.is_empty()
         {
             let target = match rewritten(OperandSlot::From) {

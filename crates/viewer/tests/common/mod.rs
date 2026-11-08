@@ -824,7 +824,7 @@ pub fn drawn_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     drawn_copies(doc)
         .into_iter()
-        .map(|placement| viewer::world::seat_of(doc, placement))
+        .map(|placement| viewer::world::original_of(doc, placement))
         .collect()
 }
 
@@ -837,16 +837,25 @@ pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 ///
 /// # Panics
 ///
-/// Unless exactly one placement places `body`.
+/// Unless exactly one world placement places `body`.
 pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
     // An instance is a placement: its copies are drawn on it.
     if matches!(doc.node(body), Some(Node::InstantiatePart { .. })) {
         return body;
     }
-    let [copy] = viewer::world::placements_of(doc, body)[..] else {
-        panic!("{body:?} is placed once")
+    let [copy] = world_placements(doc, body)[..] else {
+        panic!("{body:?} is placed into the world once")
     };
     copy
+}
+
+/// **The placements of `body` into the world**, in document order: the
+/// copies of it ([`viewer::world::placements_of`]) that stand there.
+pub fn world_placements(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> Vec<RecipeNodeId> {
+    viewer::world::placements_of(doc, body)
+        .into_iter()
+        .filter(|&copy| doc.node_space(copy) == Some(pncad::document::VarId::WORLD))
+        .collect()
 }
 
 /// **`body`'s one world copy, placed by hand where nothing copies it**:
@@ -859,7 +868,7 @@ pub fn world_copy(
     body: RecipeNodeId,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    match viewer::world::placements_of(doc, body)[..] {
+    match world_placements(doc, body)[..] {
         [] if !matches!(doc.node(body), Some(Node::InstantiatePart { .. })) => {
             inserted(doc, world_place(pncad::document::Operand::Node(body)), tol)
         }
@@ -896,7 +905,7 @@ pub fn world_copy_in(
     session.pump();
     let doc = session.committed_doc();
     let placed = matches!(doc.node(body), Some(Node::InstantiatePart { .. }))
-        || !viewer::world::placements_of(doc, body).is_empty();
+        || !world_placements(doc, body).is_empty();
     if !placed {
         let outcome = session.perform(SessionOp::AddToProduct {
             node: body,
@@ -939,7 +948,7 @@ pub fn world_copy_by_hand_in(
 ///
 /// Where several placements copy `node`: the row has to say which.
 pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
-    match viewer::world::placements_of(doc, node)[..] {
+    match world_placements(doc, node)[..] {
         [] => node,
         [copy] => copy,
         _ => panic!("{node:?} is copied more than once: say which copy"),
