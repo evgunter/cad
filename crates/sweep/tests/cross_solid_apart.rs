@@ -216,10 +216,10 @@ fn a_rod_crossed_by_a_thinner_rod_refuses() {
 
 /// **Far from the origin, a flush rod still refuses** at every ε
 /// row: the rod-in-bore pair of `a_rod_touching_its_bore_still_refuses`
-/// moved 1e3 and 1e4 along each axis.
+/// moved 1e2 and 5e2 along each axis, inside the session box.
 #[test]
 fn a_flush_rod_far_from_the_origin_still_refuses() {
-    for far in [1.0e3, 1.0e4] {
+    for far in [1.0e2, 5.0e2] {
         let pair = nested(
             revolved(0.6, 1.0, 2.0),
             &revolved(0.0, 0.6, 1.0),

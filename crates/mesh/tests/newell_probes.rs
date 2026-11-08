@@ -123,6 +123,7 @@ fn probe_b_far_tie_determinism() {
 #[test]
 fn probe_c_needle_extent_ratio() {
     for (label, len) in [
+        ("long-5e2", 5.0e2),
         ("long-1e3", 1.0e3),
         ("long-1e6", 1.0e6),
         ("long-1e9", 1.0e9),
@@ -136,16 +137,24 @@ fn probe_c_needle_extent_ratio() {
             eprintln!("{label}: profile validation refuses (typed, upstream)");
             continue;
         };
-        let body = extrude(
+        let body = match extrude(
             &vp,
             Extrusion::Distance {
                 depth: 1.0,
                 side: ExtrudeSide::Along,
             },
             Tol::witness(),
-        )
-        .expect("extrude")
-        .body;
+        ) {
+            Ok(built) => built.body,
+            // A needle reaching past the 1 km session box is refused
+            // there, typed (D4 ¶4).
+            Err(e) if format!("{e:?}").contains("OutsideSessionBox") => {
+                assert!(len >= 1e3, "{label}: refused by the box in it: {e:?}");
+                eprintln!("{label}: refused typed by the session box");
+                continue;
+            }
+            Err(e) => panic!("{label}: extrude: {e:?}"),
+        };
         if let Some(m) = tessellate_or_typed(&body, 1e-2, label) {
             let v = signed_volume(&m);
             assert!(((v - len) / len).abs() < 1e-9, "{label}: volume {v}");
@@ -154,30 +163,30 @@ fn probe_c_needle_extent_ratio() {
 }
 
 /// (d) Huge ambient coordinates (1e8 m offset on all axes), tiny face
-/// (1e-3): chart coordinates are differences of input floats, so the
-/// offset must cancel. Volume must survive at the relative precision
-/// the coordinates themselves allow.
+/// (1e-3): the body lies past the 1 km session box, so the extrude's
+/// finished-body gate refuses it there, typed, and no mesh is made (D4
+/// ¶4). No door builds a body at that offset any more, so the fold's
+/// cancellation there is not reached through one: the huge-offset row of
+/// `issue303_signed_volume_recentring.rs` meets the same refusal and
+/// stands down typed.
 #[test]
 fn probe_d_huge_offset_tiny_face() {
     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(1.0e8, 1.0e8, 1.0e8)));
     let poly = [(0.0, 0.0), (1.0e-3, 0.0), (1.0e-3, 1.0e-3), (0.0, 1.0e-3)];
-    let body = prism_on(plane, corners(&poly), 1.0e-3, Tol::witness());
-    let m = tessellate_or_typed(&body, 1e-6, "huge-offset").expect("must tessellate");
-    // `signed_volume` recentres on the mesh's bbox centre, so its
-    // fold operands scale with the body, not the placement — it is
-    // the honest oracle here directly. Diagnostic locality: a
-    // signed_volume regression therefore reds this chart-frame-named
-    // probe too. Near-duplicate of the huge-offset row in
-    // `issue303_signed_volume_recentring.rs` (same fixture, oracle,
-    // bar), kept deliberately: this probe reads the value inside the
-    // newell-probe family's tessellate-or-typed harness; that row is
-    // the defect's dedicated gate.
-    let v = signed_volume(&m);
-    // Positions are ~1e8 with ulp ~1.5e-8 against 1e-3 edges: ~1.5e-5
-    // relative slop per coordinate — accept 1e-4.
+    let vp = Profile::new(plane, vec![lp(&poly)])
+        .validate(Tol::witness())
+        .expect("a valid square");
+    let got = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0e-3,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    );
     assert!(
-        ((v - 1.0e-9) / 1.0e-9).abs() < 1e-4,
-        "huge-offset: volume {v}"
+        matches!(&got, Err(e) if format!("{e:?}").contains("OutsideSessionBox")),
+        "huge-offset: the session box refuses it: {got:?}"
     );
 }
 

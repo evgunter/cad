@@ -1401,12 +1401,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["picks no piece", "step 1 of its path names no one operand"],
         ),
         (
-            SnapshotError::EpsilonInvalid { value: 0.0 },
-            vec![
-                "recorded ε",
-                "is not admissible",
-                "at least 2.220446049250313e-13 m",
-            ],
+            SnapshotError::EpsilonInvalid {
+                value: 0.0,
+                k: geom_core::tolerance::DEFAULT_K,
+            },
+            vec!["recorded ε", "is not admissible", "at least 1.97e-13 m"],
         ),
         (
             SnapshotError::ConstraintNotMinted {

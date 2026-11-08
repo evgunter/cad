@@ -3403,10 +3403,9 @@ impl<T: Decide> EdgeMeets<T> {
     /// **Reads vertex `v`** of an edge between `faces` against the ray
     /// segment `ray` along `d`, once per vertex: within the band of the
     /// ray it is a corner, on it a graze, marked where the ray comes
-    /// closest to it. Its distance from the ray is enclosed by its
-    /// rounding charge ([`geom_core::rounding_charge`] over the lengths
-    /// it is read from), and the enclosure's lower end is decided, as an
-    /// edge's gap is.
+    /// closest to it. Its distance from the ray, a short chain on in-box
+    /// coordinates, is decided as read: its rounding is the run's
+    /// (`geom_core::tolerance::admissible`), not charged here.
     #[allow(clippy::too_many_arguments)] // the vertex, its faces, the ray and the rows
     fn vertex(
         &mut self,
@@ -3431,14 +3430,10 @@ impl<T: Decide> EdgeMeets<T> {
             }))?;
         let ray = geom::Line { origin: q, dir: d };
         let along = ray.param(at);
-        let gap = (at - ray.foot_within(at, (T::zero(), top))).norm();
-        // The distance is a short chain (differences, a projection, a
-        // norm), each rounding under half an ulp of the lengths it is
-        // read from: the kernel's one charge for such a chain.
-        let low = gap - geom_core::rounding_charge((at - q).norm() + gap);
+        let distance = (at - ray.foot_within(at, (T::zero(), top))).norm();
         match geom_core::k_stats::decide_magnitude(
             rows.vertex,
-            Margin::of(low.max(T::zero())),
+            Margin::of(distance.max(T::zero())),
             band,
         ) {
             Ok(geom_core::k_stats::Magnitude::Positive) => {}

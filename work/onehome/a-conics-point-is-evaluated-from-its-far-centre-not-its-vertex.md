@@ -33,3 +33,43 @@ This is the principle Ev is ruling on in PR 6329 ("make operations well-conditio
 ## Ev on PR 6329 (2026-11-02)
 
 The margin-scale designers split on the far-centre ellipse: (A) mint a fitted spline once the conic's terms leave the box, or (B) re-mint it in a well-conditioned form relative to the arc. Ev: "seems worth measuring if B is necessary. it's not that bad to add another form of under-the-hood storage since our convention of having a shared api over a family of representations should make it simple". So this row measures first. Over the section tables' far-centre conics and the near-gap families above, does the vertex-relative evaluation alone (no new stored form) recover what is lost? If not, add the vertex-anchored stored form behind the `Conic` trait (Ev accepts another representation under the shared API). Report both measurements.
+
+- 2026-11-02 — PR 6380 (`onehome/run-owns-rounding`), a sweep of the
+  production readings that evaluate a conic point or margin from its
+  stored centre and semi-axes, classified by reading the code (not yet
+  probed one by one; `ring_path`'s
+  `a_graze_against_a_far_centred_sections_plane_is_read_wrong_nowhere`
+  pose is the probe to reuse). Charged, through `rounding_charge` on
+  `|offset| + speed_hi`, `carrier_resolution`, `Rounded` or Interval:
+  `implicit::sample_rounding`, `ring_path` (`path_resolution`),
+  `chord_join` (section pins), `curve_pair::pose` (`one_curve_gap`,
+  `line_conic`, the window terms), `splitting::containment::conic_arc_ball`
+  (since retired on main by the edge-cover refactor),
+  `circle_roots::conic_off_plane` (so `ruled_region`'s leg roots),
+  `ellipse_torus`, `section_loops::conics_clear` (a relative pad, lean),
+  `curve_face::spline_face`, `carrier_net::harmonic`. Bounds only (an
+  extent or a lever, which rounding loosens): `extent::conic_arc_reach`,
+  `Reach::lever_from`, `ruled_region::reach_bound`, `splitting::section`'s
+  reported chart. **Decided margins reading the far terms uncharged:**
+  - `topo::splitting::section_loops::line_clears_conic` (`m·(c − p)`
+    less the reach, `split_nest_line_conic`);
+  - `topo::census::depth_gap` (`conic_ring`'s minor `speed_hi − speed_lo`,
+    and its depth origin at the centre; the band-only `sweep_pad`);
+  - `topo::splitting::join` (the conic excess of `split_section_area`);
+  - `geom_brep::pcurve_cache::carrier_harmonic`'s plane arm (no `terms`;
+    lean, its difference mostly widens the envelope);
+  - `geom_brep::pair_section::cylinders::conic_ball` (a listing filter);
+  - `topo::boolean::conic_quadric::off_the_apex` (`CONE_APEX`);
+  - `geom_brep::curve_pair::pose::harmonic_roots` (`ROOT_GAP`, a point
+    gap);
+  - `geom_brep::curve_pair::pose::window` (`Window::read`'s clearance,
+    `ring`);
+  - `topo::census` (`axial_carrier`, `edge_reach_of`,
+    `pm_census_arc_piece`), `topo::boolean::factored_crossing`
+    (`bool_factored_crossings_apart`);
+  - fail-closed only (a misread refuses): `topo::pcurves::row_interval`,
+    `geom_brep::certify`'s endpoint residuals.
+  A reading on a conic whose stored terms stay in the box is unaffected;
+  each of these misreads only past the box's terms, which this row's
+  vertex evaluation removes at the source.
+

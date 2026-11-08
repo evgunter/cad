@@ -325,6 +325,9 @@ impl std::error::Error for NotFinished {}
 /// margin rides the finding as data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FindingFamily {
+    /// The body reaches past the session box (D4 ¶4), so nothing
+    /// geometric is read on it.
+    SessionBox,
     /// The run's tolerance forms no band, so nothing geometric is read.
     Tolerance,
     /// Tier 1: the topology's own structure (links, orbits, ownership,
@@ -373,6 +376,7 @@ impl FindingFamily {
     #[must_use]
     pub const fn text(self) -> &'static str {
         match self {
+            Self::SessionBox => "the body reaches past the session box",
             Self::Tolerance => "the tolerance forms no band",
             Self::Structure => "the topology is broken",
             Self::Scaffolding => "construction scaffolding is left at rest",
@@ -397,6 +401,7 @@ impl FindingFamily {
     #[must_use]
     pub const fn recourse(self) -> Option<&'static str> {
         match self {
+            Self::SessionBox => Some(crate::validate::SESSION_BOX),
             Self::Tolerance => Some(crate::validate::TOLERANCE),
             Self::Structure | Self::Scaffolding | Self::Description => {
                 Some(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
@@ -423,6 +428,7 @@ impl ValidationError {
     pub const fn family(&self) -> FindingFamily {
         use FindingFamily as F;
         match self {
+            Self::OutsideSessionBox { .. } => F::SessionBox,
             Self::Band { .. } => F::Tolerance,
             Self::DanglingTopology { .. }
             | Self::DanglingGeometry { .. }
