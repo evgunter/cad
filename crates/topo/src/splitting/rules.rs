@@ -782,12 +782,18 @@ pub(crate) fn face_axial_range<T: Decide>(
 }
 
 /// **How far along a cone's axis a face reaches**: bounds `(lo, hi)` on
-/// `(x − apex)·axis` over `face`, its cover's support either way along
-/// the axis ([`crate::cover::face_cover`]). A face on the cone
-/// itself holds the apex in that window where its boundary may wind
-/// round the axis (the cone arm's `cone_may_hold_apex`); a face with no
-/// cover reads the poison window, which every lever reading it
-/// escalates.
+/// `(x − apex)·axis` over `face`, read off its boundary as
+/// [`face_axial_range`] reads it, each edge over the span it holds, so
+/// a working body's null scaffolding is read as its chord.
+///
+/// A face on the cone itself can hold the apex inside its boundary (a
+/// tip bounded by its rim alone), where its range is not its
+/// boundary's: the axis coordinate peaks on a smooth surface only at
+/// the boundary, and the apex is not smooth. So a face on a cone keeps
+/// its boundary's range only where the face cover's apex rule
+/// (`cover::cone_may_hold_apex`: every loop closes in the chart) says
+/// it holds no apex; anywhere else the range is widened to hold it. A
+/// face on any other surface keeps its boundary's range.
 ///
 /// # Errors
 ///
@@ -801,16 +807,36 @@ pub(crate) fn cone_axial_window<T: Decide>(
     let &geom::Surface::Cone { apex, axis, .. } = cone else {
         unreachable!("a window along a cone's axis is asked of a cone")
     };
-    face_reach_from(body, face, apex)?;
-    let Ok(cover) = crate::cover::face_cover(body, face, band) else {
-        let poison = geom_core::poison();
-        return Ok((poison, poison));
+    // A floor under every boundary reading, so the folds below start
+    // past nothing the boundary holds.
+    let floor = T::zero() - face_reach_from(body, face, apex)?.length();
+    let along = |p: Point3<T>| (p - apex).dot(axis);
+    let hi = boundary_fold(
+        body,
+        face,
+        floor,
+        (along, |curve| span_of(curve).range_along(apex, axis).1),
+        Real::max,
+    )?;
+    let lo = T::zero()
+        - boundary_fold(
+            body,
+            face,
+            floor,
+            (
+                |p| T::zero() - along(p),
+                |curve| T::zero() - span_of(curve).range_along(apex, axis).0,
+            ),
+            Real::max,
+        )?;
+    let own @ geom::Surface::Cone { .. } = body.proven_face(face).surface() else {
+        return Ok((lo, hi));
     };
-    let base = (apex - Point3::origin()).dot(axis);
-    Ok((
-        T::zero() - cover.support(-axis) - base,
-        cover.support(axis) - base,
-    ))
+    if crate::cover::cone_may_hold_apex(body, face, own, band) {
+        Ok((lo.min(T::zero()), hi.max(T::zero())))
+    } else {
+        Ok((lo, hi))
+    }
 }
 
 /// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),
