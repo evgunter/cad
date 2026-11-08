@@ -594,21 +594,19 @@ pub enum StepImport {
         /// state its native twin does not occupy — and nothing imports
         /// into a state the kernel will not certify.
         ///
-        /// **It arrives with the at-rest gate's own certificate of it,
-        /// as one value** ([`topo::CertifiedBody`]): the certificate the
-        /// aggregate gate's check 7 decided the +V invariant on, kept
-        /// rather than dropped, and of this body by construction. The
+        /// **It arrives finished** ([`topo::AtRestBody`], the scalar's
+        /// one finished type): the certificate the aggregate gate's
+        /// check 7 decided the +V invariant on is kept on it rather
+        /// than dropped, and is of this body by construction. The
         /// import has no purpose to state, so it measures nothing: a
         /// reader that wants the imported body's volume measures through
-        /// it ([`topo::CertifiedBody::measure`]) under its own predicate,
+        /// it ([`topo::AtRestBody::measure`]) under its own predicate,
         /// which reuses every round the gate ran and pays only the rest,
-        /// instead of calling [`topo::mass_properties`] again; the body
-        /// itself is [`topo::CertifiedBody::body`].
+        /// instead of calling [`topo::mass_properties`] again.
         ///
         /// The certificate's band is `Band::linear` of the import's
-        /// `tol`, and its lane is the tier-3′ door's — the `f64`
-        /// quadrature lane, which is the certified one at this scalar.
-        body: topo::CertifiedBody,
+        /// `tol`, and its lane the `f64` certified quadrature.
+        body: topo::AtRestBody<f64>,
         /// The import's input tolerance ε_in (meters): the override if
         /// given, else the file's declared uncertainty.
         eps_in: f64,
@@ -925,9 +923,9 @@ pub fn import_step(
             // the placement — and it costs nothing in honesty.
             //
             // **The 3′ form, recording what it decides** (D7 step 4,
-            // D1 (iii)): the aggregate body is held to
-            // `validate_pseudomanifold` — the SAME gate a native body's
-            // contact records run — through the census's recording
+            // D1 (iii)): the aggregate body is finished, then held to
+            // the census against its records — the SAME gate a native
+            // product's aggregate runs — through the census's recording
             // door, each solid its own group: the file's instance
             // structure is not recoverable from its solids, so a solid
             // is the unit a touch is between. A touch between two solids
@@ -949,7 +947,7 @@ pub fn import_step(
             // scalar for which the examination could be absent.
             let coherence = options
                 .examine_chart_coherence
-                .then(|| topo::examine_chart_coherence(body.body(), tol));
+                .then(|| topo::examine_chart_coherence(&body, tol));
             Ok(StepImport::Solid {
                 body,
                 eps_in,
@@ -996,11 +994,14 @@ fn gate(
 /// same no-opinion contract as [`gate`] — followed by the measurement
 /// the reader ships.
 ///
-/// The gate returns the certificate its check 7 decided on: each
-/// solid's SIGN, certified per solid and assembled over the whole face
-/// arena, one read of each face, and `StepImport::Solid` carries it
-/// with the body as one value ([`topo::CertifiedBody`]), for its
-/// reader to measure through. The verdicts are the gate's, verbatim.
+/// The body is finished first ([`gate`], the scalar's one finish), so
+/// what ships is the finished body, holding the certificate its check 7
+/// decided on: each solid's SIGN, certified per solid and assembled over
+/// the whole face arena, one read of each face, for its reader to
+/// measure through ([`topo::AtRestBody::measure`]). The census then runs
+/// over the finished body alone ([`topo::AtRestPolicy::census_at_rest`]),
+/// as the product's does over its aggregate. The verdicts are the
+/// gate's, verbatim.
 ///
 /// **What the import as a whole pays is more than this gate.** Where
 /// [`topo::per_part_gate_owed`] asks for it, each placed solid is gated
@@ -1008,44 +1009,32 @@ fn gate(
 /// read once there and once again here: a two-instance assembly of
 /// certifying solids records twice one measurement's quadrature
 /// verdicts through `import_step`. Where it does not, the import pays
-/// this gate only, once, or twice where its solids touch: the second
-/// pass confirms the records the first one's touches minted.
+/// this gate only, once; the census runs twice where its solids touch:
+/// the second pass confirms the records the first one's touches minted.
 #[allow(clippy::type_complexity)] // the gate's three products, read once at its one caller
 fn gate3(
     body: topo::Body<f64>,
     tol: Tol,
 ) -> Result<
     (
-        topo::CertifiedBody,
+        topo::AtRestBody<f64>,
         topo::ContactRecords,
         Vec<topo::Coincidence>,
     ),
     StepImportError,
 > {
-    let (certified, gated) = topo::CertifiedBody::certify(body, |certifier| {
-        let body = certifier.body();
-        let instance: std::collections::BTreeMap<topo::SolidKey, u32> =
-            body.solids().map(|(solid, _)| solid).zip(0..).collect();
-        let recorded = topo::record_at_rest(
-            body,
-            &topo::ContactRecords::default(),
-            |records| match certifier.validate_pseudomanifold(records, tol) {
-                Ok(()) => Vec::new(),
-                Err(errors) => errors,
-            },
-            &|solid| instance.get(&solid).copied(),
-            0,
-        );
-        gate3_findings(body, tol, &instance, recorded)
-    });
-    match (certified, gated) {
-        (Ok(certified), Ok((records, rows))) => Ok((certified, records, rows)),
-        (_, Err(error)) => Err(error),
-        (Err(_), Ok(_)) => Err(StepImportError::TierInvalid {
-            solid: None,
-            errors: Vec::new(),
-        }),
-    }
+    let finished = gate(body, None, tol)?;
+    let instance: std::collections::BTreeMap<topo::SolidKey, u32> =
+        finished.solids().map(|(solid, _)| solid).zip(0..).collect();
+    let recorded = topo::record_at_rest(
+        &finished,
+        &topo::ContactRecords::default(),
+        |records| <f64 as topo::AtRestPolicy>::census_at_rest(&finished, records, tol),
+        &|solid| instance.get(&solid).copied(),
+        0,
+    );
+    let (records, rows) = gate3_findings(&finished, tol, &instance, recorded)?;
+    Ok((finished, records, rows))
 }
 
 /// The aggregate gate's findings over `recorded`, the flush pairs between

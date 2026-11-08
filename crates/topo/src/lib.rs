@@ -1475,11 +1475,11 @@ pub use pcurves::{
     pcurve_of,
 };
 pub use props::{
-    AtRestPolicy, CertifiedBody, Certifier, MassMeasurement, MassProperties, MassPropsError,
-    QuadLane, RoleNames, Settle, SettleVerdict, ShellClassification, ShellClassifyError,
-    ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit, SignNames, Stop, Unmet,
-    VolumeEnclosure, classify_shells, classify_shells_of, classify_shells_structural,
-    mass_properties, mass_properties_structural,
+    AtRestPolicy, MassMeasurement, MassProperties, MassPropsError, QuadLane, RoleNames, Settle,
+    SettleVerdict, ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor,
+    ShellRole, SignCertificate, SignLimit, SignNames, Stop, Unmet, VolumeEnclosure,
+    classify_shells, classify_shells_of, classify_shells_structural, mass_properties,
+    mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;

@@ -140,9 +140,9 @@ fn probe_refit_seam_refuses_typed() {
                 PLANT < eps,
                 "MISADOPTION: refit seam displaced {PLANT:e} m — past ε_in {eps:e} — \
                  imported as a solid (census {:?})",
-                arena_census(body.body())
+                arena_census(&*body)
             );
-            topo::validate_geometric(body.body(), Tol::witness())
+            topo::validate_geometric(&*body, Tol::witness())
                 .expect("a seam adopted inside ε_in leaves a body that is valid at rest");
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
@@ -250,10 +250,10 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
             e_at = e.render()
         ),
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(body.body(), Tol::witness());
+            let t3 = topo::validate_geometric(&*body, Tol::witness());
             panic!(
                 "LAUNDERED: weight-snapped rational wall imported; t3 = {t3:?}, census {:?}",
-                arena_census(body.body())
+                arena_census(&*body)
             );
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
@@ -360,9 +360,9 @@ fn probe_arm_b_rim_off_wall_arc() {
             )
         }
         Ok(StepImport::Solid { body, .. }) => {
-            let t1 = topo::validate(body.body());
-            let t2 = topo::validate_closed(body.body());
-            let t3 = topo::validate_geometric(body.body(), Tol::witness()).map(|_| "t3 GREEN");
+            let t1 = topo::validate(&*body);
+            let t2 = topo::validate_closed(&*body);
+            let t3 = topo::validate_geometric(&*body, Tol::witness()).map(|_| "t3 GREEN");
             panic!(
                 "LAUNDERED (the F1 hole is back): rim-off-wall arc imported as a solid; \
                  t1 = {t1:?}, t2 = {t2:?}, t3 = {t3:?}"
@@ -443,8 +443,8 @@ fn probe_subunit_x_direction_rim_frame_rigidity() {
         ),
         Ok(StepImport::Solid { body, .. }) => {
             let mut bad = Vec::new();
-            for (ek, e) in body.body().edges() {
-                if let Some(topo::CurveGeom::Certified(c)) = body.body().get_curve_geom(e.curve)
+            for (ek, e) in body.edges() {
+                if let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve)
                     && let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
                         source: geom_brep::MappedSource::PlacedSegment { place, .. },
                         ..
@@ -485,14 +485,14 @@ fn probe_rim_same_sense_flip_is_honest() {
             // If accepted, it must be the SAME body (flag interpretive).
             let base = solid(&orig, "committed fixture");
             assert_eq!(
-                arena_census(body.body()),
+                arena_census(&*body),
                 arena_census(&base),
                 "census must match"
             );
-            assert_eq!(topo::validate(body.body()), Ok(()), "t1");
-            assert_eq!(topo::validate_closed(body.body()), Ok(()), "t2");
+            assert_eq!(topo::validate(&*body), Ok(()), "t1");
+            assert_eq!(topo::validate_closed(&*body), Ok(()), "t2");
             assert_eq!(
-                topo::validate_geometric(body.body(), Tol::witness()),
+                topo::validate_geometric(&*body, Tol::witness()),
                 Ok(()),
                 "t3"
             );
@@ -556,12 +556,8 @@ fn probe_reexport_promotion_divergence() {
         product_name: "loft_prism".to_owned(),
         ..step_export::StepOptions::default()
     };
-    let out = step_export::step_string(
-        &crate::common::at_rest(body.body()),
-        &options,
-        Tol::witness(),
-    )
-    .expect("re-export");
+    let out = step_export::step_string(&crate::common::at_rest(&*body), &options, Tol::witness())
+        .expect("re-export");
     let count = |s: &str, pat: &str| s.matches(pat).count();
     assert_eq!(
         (
@@ -611,12 +607,8 @@ fn probe_reexport_promotion_divergence() {
         line_promos, expected_line_promos,
         "the re-import's Line promotions are loft_prism's own straight seams"
     );
-    let out2 = step_export::step_string(
-        &crate::common::at_rest(body2.body()),
-        &options,
-        Tol::witness(),
-    )
-    .expect("second re-export");
+    let out2 = step_export::step_string(&crate::common::at_rest(&*body2), &options, Tol::witness())
+        .expect("second re-export");
     if line_promos == 0 {
         assert_eq!(out, out2, "fixed point from the first re-export on");
     } else {

@@ -196,7 +196,7 @@ fn fixed_point() {
         };
         assert_eq!(
             arena_census(&body1),
-            arena_census(body2.body()),
+            arena_census(&*body2),
             "{name}: census identical across the adoption pass"
         );
         let v1 = topo::test_support::pinned_volume(
@@ -209,7 +209,7 @@ fn fixed_point() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                body2.body().clone(),
+                body2.clone().into_body(),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -220,7 +220,7 @@ fn fixed_point() {
             v2.to_bits(),
             "{name}: certified volume bit-identical across the adoption pass"
         );
-        let export2 = step_export::step_string(&at_rest(body2.body()), &options, Tol::witness())
+        let export2 = step_export::step_string(&at_rest(&*body2), &options, Tol::witness())
             .unwrap_or_else(|e| {
                 panic!(
                     "{name}: re-export 2: {e_at}",
@@ -259,14 +259,13 @@ fn fixed_point() {
             .unwrap_or_else(|e| panic!("{name}: re-import 2: {e_at}", e_at = e.render())) else {
                 panic!("{name}: re-import 2 lost the solid");
             };
-            let export3 =
-                step_export::step_string(&at_rest(body3.body()), &options, Tol::witness())
-                    .unwrap_or_else(|e| {
-                        panic!(
-                            "{name}: re-export 3: {e_at}",
-                            e_at = e.render(geom_brep::recourse::Reading::Build)
-                        )
-                    });
+            let export3 = step_export::step_string(&at_rest(&*body3), &options, Tol::witness())
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{name}: re-export 3: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             assert_eq!(
                 export2, export3,
                 "{name}: fixed point from the second cycle on"

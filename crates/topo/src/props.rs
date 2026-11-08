@@ -2094,9 +2094,9 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         }
     }
 
-    /// The certificate's parts without its borrow of the body, for
-    /// [`Certifier`] to keep beside the body it certified.
-    fn into_parts(self) -> Held<T> {
+    /// The certificate's parts without its borrow of the body, for the
+    /// finished body to keep beside the body it certified.
+    pub(crate) fn into_parts(self) -> KeptSign<T> {
         let Self {
             body: _,
             band,
@@ -2104,7 +2104,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
             quad,
             runs,
         } = self;
-        Held {
+        KeptSign {
             band,
             tol,
             quad,
@@ -2253,151 +2253,48 @@ impl<T: Decide + geom_core::Bounds> SignCertificate<'_, T> {
     }
 }
 
-/// A [`SignCertificate`]'s parts without its borrow: what
-/// [`CertifiedBody`] keeps beside the one body they were derived over.
+/// **Check 7's certificate without its borrow of the body**: what a
+/// finished body ([`crate::AtRestBody`]) keeps of its finish, beside the
+/// one body it was derived over, so a reader measures through the rounds
+/// the gate already ran ([`crate::AtRestBody::measure`]).
 #[derive(Clone)]
-struct Held<T: Decide> {
+pub(crate) struct KeptSign<T: Decide> {
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
     runs: Vec<FaceRun<T>>,
 }
 
-/// **A body held together with the at-rest gate's certificate of it**:
-/// what an import hands out, so a reader measures the body through the
-/// rounds the gate already ran ([`CertifiedBody::measure`]) instead of
-/// running its quadrature again.
-///
-/// **The pair is one value, and the certificate is of this body by
-/// construction.** It is minted only by [`CertifiedBody::certify`], whose
-/// gate certifies the very body the value then owns ([`Certifier`]); the
-/// body is reached by shared borrow ([`CertifiedBody::body`]) and leaves
-/// only by [`CertifiedBody::into_body`], which drops the certificate. So
-/// no certificate is ever measured against a body it was not derived
-/// over: not a twin built the same way, whose face keys are the same, and
-/// not this body changed after it was certified. Neither has a spelling.
-/// A measurement names no body to measure against:
-///
-/// ```compile_fail,E0061
-/// fn cross(a: &topo::CertifiedBody, b: &topo::Body<f64>, s: topo::Settle<f64>) {
-///     let _ = a.measure(b, s);
-/// }
-/// ```
-///
-/// and the body held is never reached mutably:
-///
-/// ```compile_fail,E0308
-/// fn change(a: &topo::CertifiedBody) -> &mut topo::Body<f64> {
-///     a.body()
-/// }
-/// ```
-#[derive(Clone)]
-pub struct CertifiedBody {
-    body: Body<f64>,
-    held: Held<f64>,
-}
-
-/// **The gate's handle on the body [`CertifiedBody::certify`] is
-/// certifying**: it certifies that body and no other, and keeps the
-/// certificate of the last validation that passed.
-pub struct Certifier<'a> {
-    body: &'a Body<f64>,
-    kept: Option<Held<f64>>,
-}
-
-impl<'a> Certifier<'a> {
-    /// The body being certified.
-    #[must_use]
-    pub fn body(&self) -> &'a Body<f64> {
-        self.body
-    }
-
-    /// **Tier 3′ over the body being certified**
-    /// ([`crate::validate_pseudomanifold_certificate`] under `contacts`),
-    /// keeping its certificate where it passes.
-    ///
-    /// # Errors
-    ///
-    /// The validator's findings, as that door returns them; a refusal
-    /// keeps nothing and leaves an earlier pass's certificate kept.
-    pub fn validate_pseudomanifold(
-        &mut self,
-        contacts: &crate::boolean::ContactRecords,
-        tol: Tol,
-    ) -> Result<(), Vec<crate::ValidationError>> {
-        let certificate = crate::validate_pseudomanifold_certificate(self.body, contacts, tol)?;
-        self.kept = Some(certificate.into_parts());
-        Ok(())
-    }
-}
-
-impl CertifiedBody {
-    /// **`body`, certified by `gate`**: `gate` runs over a [`Certifier`]
-    /// of `body`, and where it kept a certificate the body and that
-    /// certificate come back as one value. Where it kept none, the body
-    /// comes back alone. Either way `gate`'s own answer comes back beside
-    /// it.
-    pub fn certify<R>(
-        body: Body<f64>,
-        gate: impl FnOnce(&mut Certifier<'_>) -> R,
-    ) -> (Result<Self, Body<f64>>, R) {
-        let (kept, answer) = {
-            let mut certifier = Certifier {
-                body: &body,
-                kept: None,
-            };
-            let answer = gate(&mut certifier);
-            (certifier.kept, answer)
-        };
-        match kept {
-            Some(held) => (Ok(Self { body, held }), answer),
-            None => (Err(body), answer),
-        }
-    }
-
-    /// The certified body.
-    #[must_use]
-    pub fn body(&self) -> &Body<f64> {
-        &self.body
-    }
-
-    /// The body, with the certificate dropped.
-    #[must_use]
-    pub fn into_body(self) -> Body<f64> {
-        self.body
-    }
-
-    /// **The body measured under `settle` through its certificate**:
+impl<T: Decide + geom_core::Bounds> KeptSign<T> {
+    /// **`body` measured under `settle` through this certificate**:
     /// [`SignCertificate::measure`] continued from the rounds the gate
-    /// took. It leaves the certificate as it was, so each call continues
-    /// from the gate's rounds.
-    ///
-    /// # Errors
-    ///
-    /// As [`SignCertificate::measure`].
-    pub fn measure(&self, settle: Settle<f64>) -> Result<MassMeasurement<f64>, MassPropsError> {
-        let Held {
+    /// took, the certificate left as it was.
+    pub(crate) fn measure(
+        &self,
+        body: &Body<T>,
+        settle: Settle<T>,
+    ) -> Result<MassMeasurement<T>, MassPropsError> {
+        let Self {
             band,
             tol,
             quad,
             runs,
-        } = &self.held;
-        SignCertificate::of_runs(&self.body, *band, *tol, *quad, runs.clone()).measure(settle)
+        } = self;
+        SignCertificate::of_runs(body, *band, *tol, *quad, runs.clone()).measure(settle)
     }
 }
 
-impl fmt::Debug for CertifiedBody {
+impl<T: Decide> fmt::Debug for KeptSign<T> {
     /// The certificate as [`SignCertificate`]'s render reads it.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { body: _, held } = self;
-        let e = fold_runs(&held.runs).enclosure();
+        let e = fold_runs(&self.runs).enclosure();
         write!(
             f,
-            "CertifiedBody: volume in [{:?}, {:?}], surface area {:?}, {} faces",
+            "KeptSign: volume in [{:?}, {:?}], surface area {:?}, {} faces",
             e.volume_lo,
             e.volume_hi,
             e.surface_area,
-            held.runs.len()
+            self.runs.len()
         )
     }
 }

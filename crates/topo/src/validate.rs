@@ -10427,7 +10427,9 @@ macro_rules! scaffolding_recourse {
 
 /// **A finished body at a scalar with certification rights**, and tier
 /// 3's verdict on it kept beside it — so a tier-3′ pass over the same
-/// body pays the census alone.
+/// body pays the census alone — with the certificate its check 7
+/// decided on, so a reader measures it through the rounds the gate ran
+/// ([`AtRestBody::measure`]).
 ///
 /// Its one constructor is the certifying scalars' [`AtRestPolicy::finish`]
 /// (`[topology.tiers]`), which runs [`validate_geometric`] and keeps its
@@ -10457,12 +10459,13 @@ macro_rules! scaffolding_recourse {
 /// alone and its taker runs tier 3 there, logged, so both lanes log the
 /// finish at the taker (`docs/predicate-dimension-audit.md` F34).
 #[derive(Clone, Debug)]
-pub struct AtRestBody<T: Real> {
+pub struct AtRestBody<T: geom_core::Decide> {
     body: Body<T>,
+    sign: std::sync::Arc<crate::props::KeptSign<T>>,
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
 
-impl<T: Real> AtRestBody<T> {
+impl<T: geom_core::Decide> AtRestBody<T> {
     /// **[`validate_geometric`] over `body`, keeping the verdict** — the
     /// certifying scalars' [`crate::AtRestPolicy::finish`].
     ///
@@ -10475,8 +10478,12 @@ impl<T: Real> AtRestBody<T> {
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         crate::finish::count_finish();
-        validate_geometric_certificate(&body, tol)?;
-        Ok(Self { body, held: None })
+        let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
+        Ok(Self {
+            body,
+            sign,
+            held: None,
+        })
     }
 
     /// **This finished body holding its finish's record** for the taker
@@ -10484,8 +10491,8 @@ impl<T: Real> AtRestBody<T> {
     /// point scalars (F34).
     pub(crate) fn holding(self, record: geom_core::k_stats::Recorded) -> Self {
         Self {
-            body: self.body,
             held: Some(std::sync::Arc::new(record)),
+            ..self
         }
     }
 
@@ -10502,6 +10509,26 @@ impl<T: Real> AtRestBody<T> {
     #[must_use]
     pub fn into_body(self) -> Body<T> {
         self.body
+    }
+
+    /// **The body measured under `settle` through its finish's
+    /// certificate**: [`crate::SignCertificate::measure`] continued from
+    /// the rounds check 7 took, so it pays only the rounds the gate did
+    /// not run. The certificate is left as it was, so each call continues
+    /// from the gate's rounds; its band is `Band::linear` of the finish's
+    /// `tol`, and its lane the certified quadrature.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::SignCertificate::measure`].
+    pub fn measure(
+        &self,
+        settle: crate::Settle<T>,
+    ) -> Result<crate::MassMeasurement<T>, crate::MassPropsError>
+    where
+        T: geom_core::Bounds,
+    {
+        self.sign.measure(&self.body, settle)
     }
 
     /// **[`validate_pseudomanifold`] over this body**, the same pass with
@@ -10578,7 +10605,7 @@ pub(crate) fn operand_scaffolding<T: Real>(
     scaffolding
 }
 
-impl<T: Real> core::ops::Deref for AtRestBody<T> {
+impl<T: geom_core::Decide> core::ops::Deref for AtRestBody<T> {
     type Target = Body<T>;
 
     fn deref(&self) -> &Body<T> {

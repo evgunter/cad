@@ -1,14 +1,13 @@
 //! **An imported body measures through its own certificate and no
 //! other** (PR 5741's review, M1).
 //!
-//! The import hands out the body and the gate's certificate of it as one
-//! value ([`topo::CertifiedBody`]), so the review's probe — the
+//! The import hands out the finished body, which holds the gate's
+//! certificate of it ([`topo::AtRestBody`]), so the review's probe — the
 //! certificate of `box.step` measured against the same file scaled ×2,
 //! whose face keys are the same because the two are built the same way,
 //! answering the small box's volume for the big one — has no spelling:
 //! `measure` takes no body, and the body comes out only by shared borrow
-//! or with the certificate dropped (`topo::CertifiedBody`'s
-//! `compile_fail` rows). What is left to run is that each of the twins
+//! or with the certificate dropped. What is left to run is that each of the twins
 //! measures its own volume, that changing a copy of the body changes
 //! nothing about the measurement, and that the door's own refusals reach
 //! through it.
@@ -18,7 +17,7 @@
 use geom_core::Tol;
 use quantity::Length;
 use step_import::{ImportOptions, StepImport, import_step};
-use topo::{CertifiedBody, MassPropsError, Settle};
+use topo::{AtRestBody, MassPropsError, Settle};
 
 /// `box.step`, the review's subject.
 fn box_step() -> String {
@@ -49,7 +48,7 @@ fn scaled(text: &str, k: f64) -> String {
         .join("\n")
 }
 
-fn imported(text: &str, tol: Tol) -> CertifiedBody {
+fn imported(text: &str, tol: Tol) -> AtRestBody<f64> {
     match import_step(text, &ImportOptions::default(), tol) {
         Ok(StepImport::Solid { body, .. }) => body,
         other => panic!("the box must import as a solid: {other:?}"),
@@ -66,16 +65,16 @@ fn twins_built_alike_each_measure_their_own_volume() {
     let text = box_step();
     let small = imported(&text, tol);
     let big = imported(&scaled(&text, 2.0), tol);
-    let keys = |b: &CertifiedBody| b.body().faces().map(|(f, _)| f).collect::<Vec<_>>();
+    let keys = |b: &AtRestBody<f64>| b.faces().map(|(f, _)| f).collect::<Vec<_>>();
     assert_eq!(
         keys(&small),
         keys(&big),
         "the probe's premise: twins built alike share their face keys"
     );
     let settle = || topo::test_support::pinned_resolution::<f64>(tol);
-    let own = |b: &CertifiedBody| b.measure(settle()).expect("a box measures").enclosure;
-    let fresh = |b: &CertifiedBody| {
-        let finished = topo::test_support::finished("the box", b.body().clone(), tol);
+    let own = |b: &AtRestBody<f64>| b.measure(settle()).expect("a box measures").enclosure;
+    let fresh = |b: &AtRestBody<f64>| {
+        let finished = topo::test_support::finished("the box", topo::Body::clone(b), tol);
         topo::mass_properties(&finished, tol, settle())
             .expect("a box measures fresh")
             .enclosure
@@ -104,7 +103,7 @@ fn a_copy_changed_after_import_leaves_the_measurement_as_it_was() {
     let certified = imported(&box_step(), tol);
     let settle = || topo::test_support::pinned_resolution::<f64>(tol);
     let before = certified.measure(settle()).unwrap().enclosure;
-    let mut copy = certified.body().clone();
+    let mut copy = topo::Body::clone(&certified);
     let face = copy.faces().next().map(|(f, _)| f).expect("a face");
     topo::replace_face_offset(&mut copy, face, -0.25 * 1e-3, tol).expect("a box face moves");
     let moved = topo::test_support::pinned_volume(

@@ -227,16 +227,16 @@ fn assert_sub_tolerance_obligation(row: &str) {
         ) {
             Ok(StepImport::Solid { body, .. }) => {
                 assert_eq!(
-                    topo::validate(body.body()),
+                    topo::validate(&*body),
                     Ok(()),
                     "{row}/{name}: tier 1 at ε {eps:e}"
                 );
                 assert_eq!(
-                    topo::validate_closed(body.body()),
+                    topo::validate_closed(&*body),
                     Ok(()),
                     "{row}/{name}: tier 2 at ε {eps:e}"
                 );
-                if let Err(errs) = topo::validate_geometric(body.body(), Tol::witness()) {
+                if let Err(errs) = topo::validate_geometric(&*body, Tol::witness()) {
                     assert!(
                         errs.iter().all(is_escalation),
                         "{row}/{name}: tier 3 at ε {eps:e} reports a definite geometric \
@@ -510,20 +510,17 @@ fn cross_dialect_fixed_point() {
         };
         assert_eq!(
             arena_census(&body1),
-            arena_census(body2.body()),
+            arena_census(&*body2),
             "{name}: census identical across the adoption pass"
         );
-        let export2 = step_export::step_string(
-            &crate::common::at_rest(body2.body()),
-            &options,
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| {
-            panic!(
-                "{name}: re-export 2: {e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            )
-        });
+        let export2 =
+            step_export::step_string(&crate::common::at_rest(&*body2), &options, Tol::witness())
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{name}: re-export 2: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
         assert_eq!(
             export1, export2,
             "{name}: the second export must be byte-identical to the first"
@@ -538,7 +535,7 @@ fn cross_dialect_fixed_point() {
             "the measured body",
             &topo::test_support::finished(
                 "the measured body",
-                body2.body().clone(),
+                body2.clone().into_body(),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -948,13 +945,13 @@ fn refusals_survive_the_dialect_relaxations() {
         panic!("both are solids");
     };
     assert_eq!(
-        arena_census(a.body()),
-        arena_census(b.body()),
+        arena_census(&**a),
+        arena_census(&**b),
         "the same edge said the other way round is the same edge"
     );
     assert_eq!(
-        volume_mm3(a.body()),
-        volume_mm3(b.body()),
+        volume_mm3(&**a),
+        volume_mm3(&**b),
         "and the same solid, to the bit"
     );
 
@@ -976,15 +973,11 @@ fn refusals_survive_the_dialect_relaxations() {
         panic!("a solid");
     };
     assert_eq!(
-        arena_census(a.body()),
-        arena_census(c.body()),
+        arena_census(&**a),
+        arena_census(&**c),
         "the magnitude changes no topology"
     );
-    assert_eq!(
-        volume_mm3(a.body()),
-        volume_mm3(c.body()),
-        "and moves no geometry"
-    );
+    assert_eq!(volume_mm3(&**a), volume_mm3(&**c), "and moves no geometry");
     // What still refuses: a magnitude that is not a positive scale.
     for bad in ["0.", "-1.", "1.E400"] {
         let probe = mutated(
@@ -1055,20 +1048,19 @@ fn refusals_survive_the_dialect_relaxations() {
         panic!("a solid");
     };
     assert_eq!(
-        arena_census(base.body()),
-        arena_census(moved.body()),
+        arena_census(&**base),
+        arena_census(&**moved),
         "a rigid placement moves a body, it does not re-shape one"
     );
     assert!(
-        (volume_mm3(base.body()) - volume_mm3(moved.body())).abs()
-            <= 1e-9 * volume_mm3(base.body()).abs(),
+        (volume_mm3(&**base) - volume_mm3(&**moved)).abs() <= 1e-9 * volume_mm3(&**base).abs(),
         "and volume is a rigid invariant"
     );
     assert!(
-        min_x_mm(moved.body()) - min_x_mm(base.body()) > 4.9,
+        min_x_mm(&**moved) - min_x_mm(&**base) > 4.9,
         "the body actually moved: {} → {}",
-        min_x_mm(base.body()),
-        min_x_mm(moved.body())
+        min_x_mm(&**base),
+        min_x_mm(&**moved)
     );
     // **FLIPPED AGAIN (M8 instancing).** Only ONE component placed
     // used to refuse here — one map had to cover all of a file's
@@ -1089,13 +1081,13 @@ fn refusals_survive_the_dialect_relaxations() {
         panic!("a solid");
     };
     assert_eq!(
-        arena_census(base.body()),
-        arena_census(split.body()),
+        arena_census(&**base),
+        arena_census(&**split),
         "placing one component of two re-shapes neither"
     );
     // The evidence that the frames landed on the RIGHT components:
     // per-solid x extents, against the unplaced import's own.
-    let want: Vec<(f64, f64)> = solid_x_mm(base.body())
+    let want: Vec<(f64, f64)> = solid_x_mm(&**base)
         .into_iter()
         .enumerate()
         .map(|(i, (lo, hi))| {
@@ -1106,7 +1098,7 @@ fn refusals_survive_the_dialect_relaxations() {
             }
         })
         .collect();
-    let got = solid_x_mm(split.body());
+    let got = solid_x_mm(&**split);
     assert_eq!(got.len(), 2, "two components, two solids");
     for (i, ((glo, ghi), (wlo, whi))) in got.iter().zip(want.iter()).enumerate() {
         assert!(
@@ -1136,11 +1128,11 @@ fn refusals_survive_the_dialect_relaxations() {
         panic!("a solid");
     };
     assert_eq!(
-        arena_census(base.body()),
-        arena_census(instanced.body()),
+        arena_census(&**base),
+        arena_census(&**instanced),
         "still the same two bodies"
     );
-    let want: Vec<(f64, f64)> = solid_x_mm(base.body())
+    let want: Vec<(f64, f64)> = solid_x_mm(&**base)
         .into_iter()
         .enumerate()
         .map(|(i, (lo, hi))| {
@@ -1148,10 +1140,8 @@ fn refusals_survive_the_dialect_relaxations() {
             (lo + d, hi + d)
         })
         .collect();
-    for (i, ((glo, ghi), (wlo, whi))) in solid_x_mm(instanced.body())
-        .iter()
-        .zip(want.iter())
-        .enumerate()
+    for (i, ((glo, ghi), (wlo, whi))) in
+        solid_x_mm(&**instanced).iter().zip(want.iter()).enumerate()
     {
         assert!(
             (glo - wlo).abs() <= 1e-9 && (ghi - whi).abs() <= 1e-9,
@@ -1199,7 +1189,7 @@ fn refusals_survive_the_dialect_relaxations() {
     let StepImport::Solid { body: big, .. } = &scaled else {
         panic!("a solid");
     };
-    let ratio = volume_mm3(big.body()) / volume_mm3(a.body());
+    let ratio = volume_mm3(&**big) / volume_mm3(&**a);
     assert!(
         (ratio - 25.4_f64.powi(3)).abs() <= 1e-6 * 25.4_f64.powi(3),
         "the file's own 25.4 scaled every length: volume ratio {ratio}"
@@ -1303,11 +1293,7 @@ fn the_assembly_record_retains_the_occurrence_structure() {
     let record = imported.instances();
 
     // One record per shipped solid, indexing them in order.
-    assert_eq!(
-        body.body().solids().count(),
-        3,
-        "three occurrences, three solids"
-    );
+    assert_eq!(body.solids().count(), 3, "three occurrences, three solids");
     assert_eq!(record.len(), 3, "one record per materialized instance");
     for (i, r) in record.iter().enumerate() {
         assert_eq!(r.index, i, "the record indexes the shipped solids in order");
@@ -1348,8 +1334,8 @@ fn the_assembly_record_retains_the_occurrence_structure() {
     let StepImport::Solid { body: base, .. } = &base else {
         panic!("a solid");
     };
-    let unplaced = solid_x_mm(base.body());
-    let placed = solid_x_mm(body.body());
+    let unplaced = solid_x_mm(&**base);
+    let placed = solid_x_mm(&**body);
     // Which unplaced solid each record's `solid` id refers to: the
     // record's own component order is the resolution order.
     let source_of = [0_usize, 1, 0];
@@ -1386,11 +1372,7 @@ fn the_assembly_record_covers_a_file_that_places_nothing() {
         panic!("a solid");
     };
     let record = imported.instances();
-    assert_eq!(
-        record.len(),
-        body.body().solids().count(),
-        "one per shipped solid"
-    );
+    assert_eq!(record.len(), body.solids().count(), "one per shipped solid");
     assert_eq!(record.len(), 2, "compound_two ships two");
     for (i, r) in record.iter().enumerate() {
         assert_eq!(r.index, i);
