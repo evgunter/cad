@@ -1144,10 +1144,13 @@ impl<T: topo::AtRestPolicy + Decide> Carried<T> {
 }
 
 impl<T: topo::AtRestPolicy + Decide> core::fmt::Debug for Carried<T> {
+    /// The carried rows' document references; the charges are not
+    /// dumped.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { rows, costs: _ } = self;
         f.debug_set()
-            .entries(self.rows.keys().map(|(r, _)| r))
-            .finish()
+            .entries(rows.keys().map(|(r, _)| r))
+            .finish_non_exhaustive()
     }
 }
 
