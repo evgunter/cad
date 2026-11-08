@@ -3147,7 +3147,9 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
         Some(u32::from(SplitHalf::Below.port())),
         &[],
     );
-    let moved = session_insert(&mut session, op);
+    let SessionOp::SetBundle { placement: moved, .. } = op else {
+        panic!("the editor on the placement Place made: {op:?}")
+    };
     let doc = session.committed_doc();
     assert!(
         matches!(

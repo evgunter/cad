@@ -4438,8 +4438,8 @@ mod properties_pane_tests {
     /// **The placement editor's value rows are fields**: the editor on
     /// the startup copy, its identity bundle loaded. Each row is drawn as
     /// its freedom's word and, next after it, a field showing the number
-    /// the bundle holds — never a variable's raw id — and typing into one
-    /// replaces that value in the draft.
+    /// the bundle holds — never a variable's raw id — and a value typed
+    /// into one lands in the bundle as the field commits.
     #[test]
     fn the_placement_editors_value_rows_are_editable_number_fields() {
         let key = |key| egui::Event::Key {
@@ -4500,15 +4500,17 @@ mod properties_pane_tests {
         driven.frame(vec![egui::Event::Text("5 mm".to_owned())]);
         driven.frame(vec![key(egui::Key::Enter)]);
         driven.quiet();
-        let typed = driven.app.tools.mate().map(|tool| tool.typed().to_vec());
+        let doc = driven.app.session.committed_doc();
+        let written = match doc.node(placement()).map(|node| node.written(doc)) {
+            Some(Node::Place { constraints, .. }) => constraints,
+            other => panic!("the startup copy is a placement: {other:?}"),
+        };
         assert!(
-            typed
-                .as_ref()
-                .is_some_and(|typed| typed.iter().any(|(coord, by)| {
-                    *coord == pncad::document::Coord::slide(pncad::document::TargetAxis::X)
-                        && by.literal_value() == Some(0.005)
-                })),
-            "typing replaces the slide along x in the draft: {typed:?}"
+            written.iter().filter_map(|c| c.value()).any(|v| {
+                v.coord == pncad::document::Coord::slide(pncad::document::TargetAxis::X)
+                    && v.by.literal_value() == Some(0.005)
+            }),
+            "the typed value lands live on the slide along x: {written:?}"
         );
     }
 

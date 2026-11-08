@@ -822,9 +822,10 @@ impl ViewerBehavior<'_> {
                     ));
                 }
             }
-            // A draft that writes no bundle yet says why as it is held
-            // (below).
-            Some(Err(_)) | None => {}
+            Some(Err(error)) => {
+                crate::widgets::message(ui, ToolKind::Mate.refuses(error).to_string());
+            }
+            None => {}
         }
         // **Each change is offered as it is made**, once the picture
         // answers the committed document: the draft's bundle is derived
@@ -838,7 +839,11 @@ impl ViewerBehavior<'_> {
         {
             self.ops.push(op);
         }
-        if let Some(refusal) = edited.pending() {
+        // A draft that writes no bundle is said above, as it is derived.
+        if let Some(refusal) = edited
+            .pending()
+            .filter(|refusal| !matches!(refusal, crate::session::Refusal::Draft(_)))
+        {
             let sentence = format!("{} {refusal}", crate::pane::profile::PENDING);
             crate::widgets::message_toned(ui, sentence, &self.theme, Tone::Actionable);
         }
@@ -2895,23 +2900,53 @@ mod tools_respeak {
 
     /// The instance-pick refusal is `app`'s
     /// `the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed`,
-    /// where the survival step has not dropped the pick.
+    /// where the survival step has not dropped the pick. The editor is
+    /// open on a copy of the boss, and the block, picked as itself, is
+    /// the mate's `to`.
     #[test]
     fn the_mate_tool_says_its_lost_pick_by_its_last_label() {
-        let (session, mut tools, last) = picked_renamed_deleted(ToolKind::Mate, |block, boss| {
-            vec![Selection::Face(face(block)), Selection::Face(face(boss))]
-        });
+        let tol = pncad::tolerance::witness();
+        let (doc, block, boss) = crate::test_support::boss_on_block("tools-respeak-mate", tol);
+        let (doc, copy) = crate::test_support::placed(&doc, boss, tol);
+        let t = test_utils::refusal::tag(block.0.digest());
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let mut tools = Tools::new();
+        tools.open_mate(crate::matetool::MateTool::edit(session.committed_doc(), copy).expect("a placement"));
+        let on_copy = FaceSelection {
+            node: copy,
+            ..face(boss)
+        };
+        let picks = [Selection::Face(on_copy), Selection::Face(face(block))].map(SessionOp::Select);
+        let declined = tools.feed(
+            session.doc(),
+            Err(crate::pickcache::NotIndexed::Absent),
+            &picks,
+        );
+        assert!(declined.is_empty(), "every pick is taken: {declined:?}");
+        for op in [
+            SessionOp::SetLabel {
+                node: block,
+                label: Some(Label::new("plinth").expect("a label")),
+            },
+            SessionOp::DeleteNode { node: block },
+        ] {
+            let outcome = session.perform(op);
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            tools.respeak(session.doc());
+        }
+        session.pump();
         let said = read(&session, &mut tools);
         assert_eq!(
             said.first().map(String::as_str),
             Some(
                 format!(
-                    "mate tool: the mate 1 on pick (the end cap of {last}) no longer resolves; \
-                     the tool dropped it"
+                    "mate tool: the mate 1 to pick (the end cap of Extrude \"plinth\" ({t})) no \
+                     longer resolves; the tool dropped it"
                 )
                 .as_str()
             ),
-            "the on pick's drop names the block by its last label: {said:?}"
+            "the to pick's drop names the block by its last label: {said:?}"
         );
     }
 }
