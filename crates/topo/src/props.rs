@@ -6966,11 +6966,11 @@ pub trait AtRestPolicy: Decide {
     ///
     /// It retires when the box scalars' tier 3 reads what the box
     /// studies build: the rows
-    /// `work/onehome/the-side-reader-cannot-read-a-solids-orientation-over-a-box.md`,
-    /// `work/onehome/tier-3-at-every-box-replay-leaf-multiplies-the-decisions.md`
+    /// `work/boxfinish/the-side-reader-cannot-read-a-solids-orientation-over-a-box.md`,
+    /// `work/boxfinish/tier-3-at-every-box-replay-leaf-multiplies-the-decisions.md`
     /// and
-    /// `work/onehome/check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends.md`.
-    /// Deleting it (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`
+    /// `work/boxfinish/check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends.md`.
+    /// Deleting it (`work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`
     /// lists everything that goes) is `Leaf`, `leaf` and `take` going,
     /// every `T::Leaf` read as `T::Finished` and every `T::leaf` as
     /// `T::finish`.
