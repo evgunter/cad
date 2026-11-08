@@ -130,6 +130,8 @@ mod mate_tool_flow;
 mod mirror_authoring;
 #[path = "review_bundle_editor_r2.rs"]
 mod review_bundle_editor_r2;
+#[path = "review_place_live_6578.rs"]
+mod review_place_live_6578;
 #[path = "review_intent_e_r1.rs"]
 mod review_intent_e_r1;
 
