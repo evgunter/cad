@@ -122,7 +122,7 @@ fn a_slab_placed_then_unioned_certifies_in_one_leaf() {
 /// the walk goes on** (M2). At `Interval` a loft over NURBS walls is a
 /// tier-2 leaf, and the shell door's take runs tier 3 on it, where check
 /// 7's quadrature refuses a wall whose pcurve ends are not exact
-/// (`work/onehome/check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends.md`):
+/// (`work/boxfinish/check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends.md`):
 /// `NotAtRest`, at each of the two placements of it, so the walk did not
 /// stop at the first. (The slab's orientation leaf cannot carry this
 /// row: plain `Interval` does not build the slab over a box at all, and

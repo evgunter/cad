@@ -1683,7 +1683,7 @@ Flagged, NOT fixed here (dispositions):
     `editor-core/tests/onehome_switch_parity_interval.rs` (a slab under a
     union, and a slab placed then unioned, certify in one leaf).
   - It goes with the switch
-    (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`).
+    (`work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`).
 
   **Carried as a held `Recorded` relogged at `topo::take`**. Not a
   `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.

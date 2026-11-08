@@ -77,4 +77,4 @@ the sweep doors' instance of it. (CARVE orchestrator)
 
 - 2026-11-03 — moved from CARVE to LATHE by `git mv` when CARVE closed, id and body unchanged (CARVE had no dispatchable row left, and LATHE holds the loft and sweep path these two rows wait to gate; Ev, in chat).
 
-**Closed (2026-11-03, PR 6371, ONEHOME orchestrator).** Each sweep door now finishes its own result through the scalar's leaf. At `f64` that is the full finish. At the box scalars it is a tier-2 `Replay` behind one switch, and a taker finishes it, per Ev's ruling on PR 6371. The switch's own rows retire it (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`).
+**Closed (2026-11-03, PR 6371, ONEHOME orchestrator).** Each sweep door now finishes its own result through the scalar's leaf. At `f64` that is the full finish. At the box scalars it is a tier-2 `Replay` behind one switch, and a taker finishes it, per Ev's ruling on PR 6371. The switch's own rows retire it (`work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`).
