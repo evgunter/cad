@@ -59,3 +59,70 @@ fn a_bar_cutting_a_large_torus_inside_the_box_builds() {
         "the cut passes the finished-body gate"
     );
 }
+
+/// A cylinder of radius `r` about the origin, its circle four quarter
+/// arcs (bulge `tan(π/8)`), extruded 1 m: the extrude's own result.
+fn quarter_arc_cylinder(r: f64) -> Result<topo::Body<f64>, sweep::ExtrudeError> {
+    let b = (core::f64::consts::PI / 8.0).tan();
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(r, 0.0), b),
+        (Point2::new(0.0, r), b),
+        (Point2::new(-r, 0.0), b),
+        (Point2::new(0.0, -r), b),
+    ]);
+    let pf = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("a valid circle");
+    sweep::extrude(
+        &pf,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: sweep::ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|built| built.body.into_body())
+}
+
+/// **An in-box body of line and arc edges builds, however a box would
+/// bound its edges.** A cylinder of radius 990 about the origin, its
+/// circle four quarter arcs, reaches 990 m: each arc's own reach (its
+/// cover's far distance, the crest its window holds) is exact, and a box
+/// about a quarter arc would put a corner at `990·√2` ≈ 1.4 km, past the
+/// box. A brick whose far corner is 990 m out reads its line edges at
+/// their farther ends, exactly. Both pass the finished-body gate; the
+/// cylinder at 1010 m does not. Red against a session box that read
+/// either kind's edge reach above its exact value.
+///
+/// A pinned red at ε = 1e-12 for the 990 m cylinder,
+/// `work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`:
+/// there limb 2 refuses its cylinder wall as the kernel limit before
+/// the box reads it.
+#[test]
+fn line_and_arc_edges_in_the_box_read_their_exact_reach() {
+    let tol = Tol::witness();
+    let box_refusal = |e: &dyn std::fmt::Debug| format!("{e:?}").contains("OutsideSessionBox");
+    if let Some(near) = test_utils::kernel_limit::pinned(
+        quarter_arc_cylinder(990.0),
+        tol.eps(),
+        &[1e-12],
+        "the 990 m cylinder",
+    ) {
+        assert!(
+            topo::validate_geometric(&near, tol).is_ok(),
+            "the 990 m cylinder of quarter arcs lies in the box"
+        );
+    }
+    let corner = 990.0 / 2f64.sqrt() - 1e-6;
+    let brick = finished(
+        "the brick whose corner is 990 m out",
+        brick::<f64>((0.0, corner), (0.0, corner), (0.0, 1e-3), tol),
+        tol,
+    );
+    assert!(topo::validate_geometric(&brick, tol).is_ok());
+    match quarter_arc_cylinder(1010.0) {
+        Err(e) if box_refusal(&e) => {}
+        Err(e) if tol.eps() <= 1e-12 && test_utils::kernel_limit::is_kernel_limit(&e) => {}
+        other => panic!("the 1010 m cylinder is past the box: {other:?}"),
+    }
+}

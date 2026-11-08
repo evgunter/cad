@@ -25,9 +25,11 @@ pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
         .map(|(v, data)| (body.point_of(v, data) - origin).norm());
     // The edge's one reading (`[one-way.places]`): its cover, through
     // the body's door (`Body::edge_cover`), and its reach from below
-    // (`geom_brep::edge_reach_bounds`), as every lever reads it. An edge
-    // with no cover reads its far distance as poison, which no sign
-    // decides, so the box does not refuse on it.
+    // (`geom_brep::edge_reach_bounds`), as every lever reads it. That
+    // bound is a true lower bound: a line's or a circle arc's cover reads
+    // the edge's exact far distance, and every other kind reads its own
+    // sampled points. An edge with no cover reads its far distance as
+    // poison, which no sign decides, so the box does not refuse on it.
     let edges = body.edges().filter_map(|(e, data)| {
         let curve = body.edge_curve_linked(e, data).certified()?;
         let cover = body.edge_cover(e).ok();
