@@ -293,3 +293,10 @@ Newest entries at the bottom; the tail is the program's live status.
   - every placement is a copy;
   - delete splices by continuation, with 6280's probe rows brought in.
   - **Review tier: dual, letter H** (ARCHITECTURE; concurrent arm). It changes the gesture vocabulary's seat rule across every feature gesture, which is broad and hard to reverse. (PLACING orchestrator)
+- 2026-11-08 — **PR 6581 is open** (the 6353 build plus the 6580 ruling), green at `a18cc51459`.
+  - **Dual review, concurrent arm (letter H).** R1 = `placing-dual-6581-r1`, R2 = `placing-dual-6581-r2`, frozen head `a18cc51459`, identical brief (`~/.local/share/cad-work/placing-dual-6581-brief.md`).
+  - **`[ev]` added to 6581.** The question at the top asks whether the one-action per-placement re-point is what Ev meant by "change x = unfilleted_body to x = filleted_body". The alternative is a named alias variable, a kernel change that would go to designers.
+  - **Filed by the lane:**
+    - `a-takeover-leaves-a-re-pointed-copys-own-on-sides-on-the-old-source`: the kernel gap, worked around in the viewer;
+    - `a-labelled-creation-has-no-maintenance-witness`;
+    - evidence on DOCTAIL's `no-docedit-splices-a-deleted-node`. (PLACING orchestrator)
