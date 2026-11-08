@@ -9,7 +9,8 @@
 //! `2π·r·h + π·r² + π·r²/cos θ`, `h` the roof's height on the axis.
 //!
 //! The poses run in four frames — the world's, one off its origin, and
-//! two with tilted axes, one a kilometre out (review R1 of PR 4839) —
+//! two with tilted axes, one near the session box's edge (review R1 of
+//! PR 4839) —
 //! and every tolerance is derived, not chosen:
 //!
 //! - **The pads** are bounded by the reporting target the wall
@@ -243,7 +244,7 @@ const FRAMES: [([f64; 3], [f64; 3]); 4] = [
     ([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     ([3.0, -2.0, 5.0], [0.0, 0.0, 1.0]),
     ([1.5, 2.5, -0.5], [1.0, 2.0, 3.0]),
-    ([1e3, -7e2, 4e2], [0.3, -0.2, 0.9]),
+    ([6e2, -4.2e2, 2.4e2], [0.3, -0.2, 0.9]),
 ];
 
 const POSES: [Pose; 5] = [

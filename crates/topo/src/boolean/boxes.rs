@@ -174,6 +174,19 @@
 //!   edge's [`edge_cover`]) sizes the lever of a ruled face's crossings
 //!   in the same direction: a bigger cover lengthens it and can only
 //!   REFUSE more, never place a crossing wrongly.
+//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`]
+//!   read from below through `geom_brep::edge_reach_bounds`) reads NO
+//!   looseness: on a line the cover's far distance is its segment's
+//!   farther end, and on a circle arc its crest where the window holds it
+//!   or its farther end (`Arc::point_far`, exact for a circle in an
+//!   orthonormal frame), each hulled only with the edge's own end
+//!   vertices, so it is the edge's exact reach; on any other carrier the
+//!   bound from below is the edge's own sampled points, which the cover
+//!   does not move. So the box refuses (`OutsideSessionBox`) only on a
+//!   true lower bound of the body's reach
+//!   (`line_and_arc_edges_in_the_box_read_their_exact_reach`, sweep). A
+//!   line or arc arm made looser than exact would be the unsound
+//!   direction: it could refuse a body that lies in the box.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
 //! about a door, and the door has to be named. The doors are not
@@ -3532,7 +3545,7 @@ pub(crate) mod tests {
         // `boolean/carrier_touch_rows.rs`' one: a spiric-edge witness
         // calls `edge_box` to show its ball lies inside the edge's box,
         // so that only the edge's own floor can clear it.
-        const PINNED: [(&str, usize); 16] = [
+        const PINNED: [(&str, usize); 17] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/carrier_touch_rows.rs", 1),
             ("boolean/glue.rs", 2),
@@ -3546,6 +3559,7 @@ pub(crate) mod tests {
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
+            ("session_box.rs", 1),
             ("shell.rs", 2),
             ("splitting/containment.rs", 1),
             ("validate.rs", 1),
