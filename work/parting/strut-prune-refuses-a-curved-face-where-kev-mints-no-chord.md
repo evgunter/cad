@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-27
 priority: P3
 cost: E
-refs: [a-ring-partner-inside-the-ring-unions-result-invalid]
 ---
 
 Found by PR 5812's narrow re-review (`cleave/flush-partners-at-a-slit-build`).

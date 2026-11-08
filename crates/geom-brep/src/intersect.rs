@@ -111,7 +111,7 @@
 //! them (the split/boolean lanes do, typed).
 
 use geom::Surface;
-use geom::{Curve3, EllipseInvalid, SpiricInvalid, SquareFrame, SurfaceKind, square_frame};
+use geom::{Curve3, EllipseInvalid, Frame, SpiricInvalid, SquareFrame, SurfaceKind};
 use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use crate::ExtentBall;
@@ -119,7 +119,7 @@ use crate::dihedral::{
     decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
 };
 use crate::extent::{LeverBounds, Reach};
-use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
 
@@ -200,7 +200,7 @@ impl PairRoute {
 /// no-wildcard grep row in `tests/pcurve_conic.rs` keeps the property
 /// pinned in CI.
 pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
-    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
     match (a, b) {
         // ---- Rung 1, implemented: the M2 pair, executed by the
         // existing splitting/boolean seam bit-identically. ----
@@ -382,11 +382,11 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         (Plane, Nurbs) | (Nurbs, Plane) => PairRoute {
             rung: Rung::General,
             implemented: true,
-            note: "traced in ℝ⁴ on the PARAMETRIC PAIR (3×4 SVD, Hoffmann §6.3.2) by \
-                   geom_brep::ssi::PlaneSection, read at a seed or whole, which \
+            note: "traced on the IMPLICIT × CHART pair (1×2 SVD, C3: f∘S = 0 on the wall's \
+                   chart) by geom_brep::ssi::ImplicitSection, read at a seed or whole, which \
                    certifies the whole chain: \
-                   the trace, the shared-parameter fit of the carrier and BOTH \
-                   pcurves, the certified foot points, the chart uniqueness tube, \
+                   the trace, the shared-parameter fit of the carrier and the \
+                   wall's pcurve, the certified foot points, the chart uniqueness tube, \
                    the UV-domain exhaustiveness, and the between-samples SUP bound \
                    against the NURBS operand. That last bound is the \
                    tensor-product Bernstein composition of the surface with the \
@@ -421,13 +421,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             PairRoute {
                 rung: Rung::General,
                 implemented: false,
-                note: "a NURBS operand routes to the general rung with the ℝ⁴ \
-                       PARAMETRIC-PAIR trace shape; the general-rung marcher traces \
-                       it and the tensor-composite sup bound that certifies \
-                       plane×NURBS is the substrate these arms reuse. What is \
-                       missing is the rest of the CERTIFICATE: the analytic partner \
-                       needs its chart-form uniqueness tube (written for the plane) \
-                       — arms retire one at a time, each with its proof",
+                note: "a NURBS operand routes to the general rung with the 1×2 \
+                       IMPLICIT × CHART trace shape, the plane×NURBS arm's: its \
+                       section is read whole, certified by the chart uniqueness tube \
+                       read against the partner's form, through the section value \
+                       (pair_section). What is missing is this table's door onto \
+                       that reading — arms retire one at a time, each with its proof",
             }
         }
         // ---- Approx: an intersection operand is its fit, as it is for
@@ -440,6 +439,13 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         (Approx, Approx) => route(Nurbs, Nurbs),
         (Approx, other @ (Cylinder | Cone | Sphere | Torus | Nurbs))
         | (other @ (Cylinder | Cone | Sphere | Torus | Nurbs), Approx) => route(Nurbs, other),
+        // ---- A spindle sheet: no section lane yet. ----
+        (Spindle, Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx)
+        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx, Spindle) => PairRoute {
+            rung: Rung::General,
+            implemented: false,
+            note: "a spindle sheet operand has no section lane yet",
+        },
     }
 }
 
@@ -521,14 +527,15 @@ pub fn route_pose<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<PairRoute, SectionError> {
-    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
     let extent = || {
         [a, b]
             .into_iter()
             .filter_map(|s| match *s {
                 Surface::Cone { apex: anchor, .. }
                 | Surface::Sphere { center: anchor, .. }
-                | Surface::Torus { center: anchor, .. } => Some(reach.lever_from(anchor)),
+                | Surface::Torus { center: anchor, .. }
+                | Surface::Spindle { center: anchor, .. } => Some(reach.lever_from(anchor)),
                 Surface::Plane { .. }
                 | Surface::Cylinder { .. }
                 | Surface::Nurbs(_)
@@ -577,7 +584,9 @@ pub fn route_pose<T: Decide>(
         | (Sphere, Cone | Nurbs)
         | (Nurbs, Cylinder | Cone | Sphere | Torus)
         | (Approx, Cylinder | Cone | Sphere | Torus)
-        | (Cylinder | Cone | Sphere | Torus, Approx) => Ok(()),
+        | (Cylinder | Cone | Sphere | Torus, Approx)
+        | (Spindle, Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx)
+        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx, Spindle) => Ok(()),
     };
     let refused = |note| {
         Ok(PairRoute {
@@ -742,8 +751,15 @@ impl From<EllipseInvalid> for SectionError {
     }
 }
 
-impl core::fmt::Display for SectionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// `at` ends a sized escalation at the door that reads it; `None` writes
+/// its payload alone, as `Display` does. Every other arm carries its
+/// own recourse.
+impl SectionError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<crate::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::WrongLane { expected } => write!(
                 f,
@@ -756,14 +772,15 @@ impl core::fmt::Display for SectionError {
                 f,
                 "the two surfaces' configuration is ill-conditioned at this tolerance: {diag}"
             ),
-            Self::RadiusEscalated { radius, diag } => diag
-                .undecided(
+            Self::RadiusEscalated { radius, diag } => write!(
+                f,
+                "{}",
+                crate::recourse::undecided_at(
+                    diag,
                     radius.subject(),
-                    radius
-                        .sized()
-                        .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                    at.map(|at| radius.sized().recourse(RefusedArm::Undecided(diag), at)),
                 )
-                .fmt(f),
+            ),
             Self::RoutesToGeneralRung { pair, why } => write!(f, "the {pair} section: {why}"),
             Self::NoRegion { pair } => write!(
                 f,
@@ -791,7 +808,9 @@ impl core::fmt::Display for SectionError {
                  they share a surface rather than meet along a curve. Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
-            Self::DegenerateTorus(refusal) => refusal.fmt(f),
+            Self::DegenerateTorus(refusal) => {
+                write!(f, "{}", crate::recourse::read_at(refusal, at))
+            }
             Self::Carrier(e) => write!(f, "the section's curve refused: {e}"),
             Self::Spiric(e) => write!(f, "the section's spiric refused: {e}"),
             Self::Pinched { predicate } => write!(
@@ -818,6 +837,8 @@ impl core::fmt::Display for SectionError {
         }
     }
 }
+
+crate::ended_by_write!(SectionError);
 
 impl std::error::Error for SectionError {}
 
@@ -966,8 +987,8 @@ pub fn plane_cylinder_section_read<T: Decide>(
                 RuledSection::ParallelLines { l1, l2 } => {
                     PlaneCylinderSection::ParallelLines { l1, l2 }
                 }
-                RuledSection::TangentLine { origin, dir, .. } => {
-                    PlaneCylinderSection::TangentLine(Curve3::Line(geom::Line { origin, dir }))
+                RuledSection::TangentLine { line, .. } => {
+                    PlaneCylinderSection::TangentLine(Curve3::Line(line))
                 }
                 RuledSection::Empty => PlaneCylinderSection::Empty,
             },
@@ -1031,8 +1052,7 @@ pub(crate) enum RuledSection<T: Real> {
     /// `origin + t·dir`, `origin` the axis' foot on the plane, with the
     /// margin that decided the gap Zero.
     TangentLine {
-        origin: Point3<T>,
-        dir: Vec3<T>,
+        line: geom::Line<T>,
         gap: MarginDiag,
     },
     /// The gap is definitely over `r`.
@@ -1098,8 +1118,10 @@ pub(crate) fn ruled_section<T: Decide>(
             }
         }
         (Sign::Zero, gap) => RuledSection::TangentLine {
-            origin: o - n * gap_signed,
-            dir: a,
+            line: geom::Line {
+                origin: o - n * gap_signed,
+                dir: a,
+            },
             gap: gap.jointly(parallel.margin),
         },
         (Sign::Negative, _) => RuledSection::Empty,
@@ -1119,7 +1141,7 @@ pub(crate) struct RuledFrame<T: Real> {
 /// [`RuledFrame`] of the pair at `reach`.
 pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
     let &PlaneCylinder { q, n, o, a, .. } = pc;
-    let o = reach.foot_on(o, a);
+    let o = reach.foot_on(geom::Line { origin: o, dir: a });
     let c = a.dot(n);
     let gap_signed = (o - q).dot(n);
     // The rulings this lane mints stand on the hinge through `o − n·gap`,
@@ -1316,10 +1338,10 @@ pub fn plane_sphere_section<T: Decide>(
         ),
         band,
     ) {
-        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Positive) => seam_cand.normalize(),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {
             let polar_cand = n.cross(sph_axis);
-            polar_cand / polar_cand.norm()
+            polar_cand.normalize()
         }
     };
     match decide("ps_center_gap", Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)? {
@@ -1532,10 +1554,10 @@ fn ss_frame_seam<T: Decide>(
         Margin::levered(seam_cand.norm() - T::from_f64(0.5), lever),
         band,
     ) {
-        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Positive) => seam_cand.normalize(),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {
             let polar_cand = n.cross(axis);
-            polar_cand / polar_cand.norm()
+            polar_cand.normalize()
         }
     }
 }
@@ -1689,7 +1711,7 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
         "cc_axes_parallel",
         Margin::levered(
             line1.1.cross(line2.1).norm(),
-            reach.lever_between(line1, line2),
+            reach.lever_between(axis_line(line1), axis_line(line2)),
         ),
         band,
     )
@@ -1717,7 +1739,7 @@ pub(crate) fn parallel_swing<T: geom_core::spline::SpanLocate>(
     d: T,
 ) -> T {
     let from = |this: (Point3<T>, Vec3<T>), other: (Point3<T>, Vec3<T>)| {
-        let (foot, lever) = reach.foot_lever(this);
+        let (foot, lever) = reach.foot_lever(axis_line(this));
         let (dmin, dmax) = separation_range((foot, this.1), other, lever.length());
         (dmax - d).abs().max((d - dmin).abs())
     };
@@ -1796,8 +1818,14 @@ fn axes_feet<T: geom_core::spline::SpanLocate>(
     (o1, a1): (Point3<T>, Vec3<T>),
     (o2, a2): (Point3<T>, Vec3<T>),
 ) -> (Point3<T>, Vec3<T>) {
-    let foot1 = reach.foot_on(o1, a1);
-    (foot1, reach.foot_on(o2, a2) - foot1)
+    let foot1 = reach.foot_on(axis_line((o1, a1)));
+    (foot1, reach.foot_on(axis_line((o2, a2))) - foot1)
+}
+
+/// An axis as this module's rows carry it, `(origin, axis)`, read as
+/// its [`geom::Line`].
+pub(crate) fn axis_line<T: Real>((origin, dir): (Point3<T>, Vec3<T>)) -> geom::Line<T> {
+    geom::Line { origin, dir }
 }
 
 /// Two parallel axes read at their feet ([`axes_feet`]). Decisions read
@@ -1993,10 +2021,10 @@ struct ApexFan<T: Real> {
 
 impl<T: Real> ApexFan<T> {
     /// The fan of `cone`'s rulings on the nappe of its axis.
-    fn of(axis: Vec3<T>, u_ref: Vec3<T>, half_angle: T) -> Self {
+    fn of(frame: &Frame<T>, half_angle: T) -> Self {
         let SquareFrame {
             axis: a, u_ref: u, ..
-        } = square_frame(axis, u_ref);
+        } = frame.square();
         let (sin_a, cos_a) = half_angle.sin_cos();
         Self {
             a,
@@ -2037,18 +2065,99 @@ pub fn plane_cone_apex_extrema<T: Real>(
     cone: &Surface<T>,
     normal: Vec3<T>,
 ) -> Option<[Vec3<T>; 2]> {
-    let &Surface::Cone {
-        axis,
-        half_angle,
-        u_ref,
-        ..
-    } = cone
-    else {
+    let &Surface::Cone { half_angle, .. } = cone else {
         return None;
     };
-    let fan = ApexFan::of(axis, u_ref, half_angle);
+    let fan = ApexFan::of(&cone.frame()?, half_angle);
     let phi = fan.azimuth(normal);
     Some([fan.ruling(phi), fan.ruling(phi + T::pi())])
+}
+
+/// **The directions in a plane through a cone's apex that read its
+/// extremes against the cone**: `[p, −p]`, `p` the cone's axis's part in
+/// the plane, unit. A direction `d` of the plane reads `d·axis` greatest
+/// along `p` and least along `−p`, so its side of the cone (`d·axis`
+/// against `cos α`) is monotone between them: a reader that subdivides a
+/// sector of the plane at these and reads the side between them reads
+/// one crossing at most per piece. The dual of
+/// [`plane_cone_apex_extrema`], which reads a plane's side along the
+/// cone's rulings. A normal along the axis has no `p`: every direction of
+/// the plane reads the axis alike, and the caller decides that before
+/// asking.
+///
+/// `None` for a surface that is not a cone.
+#[must_use]
+pub fn cone_plane_apex_extrema<T: Real>(
+    cone: &Surface<T>,
+    normal: Vec3<T>,
+) -> Option<[Vec3<T>; 2]> {
+    let &Surface::Cone { axis, .. } = cone else {
+        return None;
+    };
+    let n = normal.normalize();
+    let p = (axis - n * axis.dot(n)).normalize();
+    Some([p, -p])
+}
+
+/// **Where two cones' fans of rulings meet at a shared apex**, each fan
+/// its unit axis turned toward the nappe it holds and the cosine of its
+/// half-angle: a ruling of both is a unit `d` with `d·a₁ = c₁` and
+/// `d·a₂ = c₂`, two planes meeting the unit sphere at most twice. The
+/// line of the two planes is `base + t·across`, read in the axes'
+/// bisector frame: `m̂ = (a₁ + a₂)/‖a₁ + a₂‖` and
+/// `n̂ = (a₁ − a₂)/‖a₁ − a₂‖`, orthonormal, with `d·m̂ = (c₁ + c₂)/‖a₁ + a₂‖`
+/// and `d·n̂ = (c₁ − c₂)/‖a₁ − a₂‖`, so `base = (d·m̂)m̂ + (d·n̂)n̂`,
+/// `across = (a₁×a₂)/‖a₁×a₂‖`, and it meets the sphere at `t = ±√disc`,
+/// `disc = 1 − ‖base‖²`. Both differences are taken directly, so nothing
+/// cancels as the axes close: the textbook `x = (c₁ − k·c₂)/(1 − k²)`,
+/// `k = a₁·a₂`, loses `1 − k²` to rounding at a tilt of `√u` and returns
+/// rulings off both cones.
+///
+/// The caller decides, each in its own band: that the axes are not
+/// parallel (`s` positive; parallel axes are one fan or none at the
+/// apex), and `disc`'s sign — negative, the fans meet only at the apex;
+/// zero, they touch along one ruling; positive, they cross along the two
+/// [`ApexFansMeeting::rulings`].
+#[must_use]
+pub fn cone_cone_apex_meeting<T: Real>(
+    (a1, c1): (Vec3<T>, T),
+    (a2, c2): (Vec3<T>, T),
+) -> ApexFansMeeting<T> {
+    let (sum, diff) = (a1 + a2, a1 - a2);
+    let (sum_n, diff_n) = (sum.norm(), diff.norm());
+    let along_m = (c1 + c2) / sum_n;
+    let along_n = (c1 - c2) / diff_n;
+    let base = sum * (along_m / sum_n) + diff * (along_n / diff_n);
+    let cross = a1.cross(a2);
+    ApexFansMeeting {
+        base,
+        across: cross.normalize(),
+        disc: T::one() - along_m.powi(2) - along_n.powi(2),
+    }
+}
+
+/// [`cone_cone_apex_meeting`]'s answer: the line the two fans' planes
+/// meet in, and where it meets the unit sphere.
+#[derive(Clone, Copy, Debug)]
+pub struct ApexFansMeeting<T: Real> {
+    /// The line's point nearest the apex, at unit scale.
+    pub base: Vec3<T>,
+    /// Its unit direction, along `a₁ × a₂`.
+    pub across: Vec3<T>,
+    /// `1 − ‖base‖²`: the square of how far along `across` the line meets
+    /// the unit sphere; dimensionless.
+    pub disc: T,
+}
+
+impl<T: Real> ApexFansMeeting<T> {
+    /// The two rulings the fans share, `base ∓ across·√disc`, unit; one
+    /// ruling twice where `disc` is zero. Read only once the caller has
+    /// decided `disc` is not negative: a negative one is clamped to zero.
+    #[must_use]
+    pub fn rulings(&self) -> [Vec3<T>; 2] {
+        let t = self.disc.max(T::zero()).sqrt();
+        [self.base - self.across * t, self.base + self.across * t]
+    }
 }
 
 /// Classifies and constructs the plane×cone section (spec §3.3): the
@@ -2141,12 +2250,12 @@ pub fn plane_cone_section<T: Decide>(
             expected: "plane×cone",
         });
     };
-    let &Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        u_ref,
-    } = cone
+    let (
+        &Surface::Cone {
+            apex, half_angle, ..
+        },
+        Some(frame),
+    ) = (cone, cone.frame())
     else {
         return Err(SectionError::WrongLane {
             expected: "plane×cone",
@@ -2155,12 +2264,12 @@ pub fn plane_cone_section<T: Decide>(
     // The cone's frame, squared once: nothing holds a stored cone's axis
     // unit or its seam square to it, and the arm reads the axis and
     // half-angle as the geometric cone, so the seam only places azimuth
-    // zero ([`square_frame`]).
+    // zero ([`Frame::square`]).
     let SquareFrame {
         axis: a,
         u_ref: cone_u,
         width: seam_width,
-    } = square_frame(axis, u_ref);
+    } = frame.square();
 
     let extent = reach.lever_from(apex);
     let (sin_a, cos_a) = half_angle.sin_cos();
@@ -2422,7 +2531,7 @@ pub fn plane_cone_section<T: Decide>(
 ///    (`D ≤ M`), and step 3 holds for any `t₀` past the true start.
 /// 5. *The lines' own rounding*, which near tangency amplifies, read
 ///    with `u` per operation on unit vectors. The frame is the stored
-///    one squared ([`square_frame`]): its unit axis stands `u` off the
+///    one squared ([`Frame::square`]): its unit axis stands `u` off the
 ///    stored axis' direction, and its seam `τ` off square to it, `τ < 6u`
 ///    where the seam's `width ≥ 16u` and charged whole (`τ = 1`) below.
 ///    `ĉ` is `3u` off and `s` `4u` off, each a further `u` for the axis,
@@ -2815,7 +2924,7 @@ pub enum ConeCylinderSection<T: Real> {
     /// radius `R`, both centred on the shared axis at
     /// `apex ± axis·(R·cot α)`, carrier axis the CONE's axis and
     /// `u_ref` the cone's own seam direction, squared to the axis
-    /// ([`geom::square_frame`]). Zero-residual-by-construction against
+    /// ([`geom::Frame::square`]). Zero-residual-by-construction against
     /// both implicit forms in ℝ.
     ///
     /// The `+`/`−` assignment is the cone's own nappe convention, not a
@@ -2913,21 +3022,21 @@ pub fn cone_cylinder_section<T: Decide>(
     let wrong = || SectionError::WrongLane {
         expected: "cone×cylinder (cone first)",
     };
-    let &Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        u_ref,
-    } = cone
+    let (
+        &Surface::Cone {
+            apex, half_angle, ..
+        },
+        Some(frame),
+    ) = (cone, cone.frame())
     else {
         return Err(wrong());
     };
-    // The cone's frame, squared once ([`square_frame`]).
+    // The cone's frame, squared once ([`Frame::square`]).
     let SquareFrame {
         axis: a,
         u_ref: cone_u,
         width: seam_width,
-    } = square_frame(axis, u_ref);
+    } = frame.square();
     let &Surface::Cylinder {
         origin: o,
         axis: b,
@@ -3019,7 +3128,7 @@ pub fn cone_cylinder_section<T: Decide>(
     // `|s| ≤ extent`), plus the circle's own turn off the cylinder's
     // cross-section, `R·(1 − cos θ) ≤ R·sin²θ`. The swing is that range's
     // reach from `d`, plus the turn.
-    let d = (apex - o).reject_from(b).norm();
+    let d = geom::Line { origin: o, dir: b }.distance(apex);
     let (near, far) = separation_range((apex, a), (o, b), above.length());
     let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b).norm().powi(2);
     match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, swing, band)
@@ -3071,5 +3180,113 @@ pub fn cone_cylinder_section<T: Decide>(
                   cone's composite has no meters conversion (arms retire one at a time, \
                   each with its proof)",
         }),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod apex_fan_rows {
+    use super::*;
+    use geom_core::Point3;
+
+    fn cone(axis: Vec3<f64>, half: f64) -> Surface<f64> {
+        let u = if axis.x.abs() < 0.9 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
+        Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis,
+            half_angle: half,
+            u_ref: (u - axis * u.dot(axis)).normalize(),
+        }
+    }
+
+    /// **A plane's directions read the cone's axis greatest along its part
+    /// in the plane**: sampled round the plane's circle, no direction
+    /// reads `d·axis` beyond the two extremes, which lie in the plane.
+    #[test]
+    fn a_planes_extremes_against_a_cone_bound_every_direction_of_it() {
+        let axis = Vec3::new(0.3, -1.0, 0.2).normalize();
+        let n = Vec3::new(1.0, 0.4, -0.5).normalize();
+        let [hi, lo] = cone_plane_apex_extrema(&cone(axis, 0.5), n).unwrap();
+        assert!(hi.dot(n).abs() < 1e-15 && lo.dot(n).abs() < 1e-15);
+        let e1 = hi;
+        let e2 = n.cross(e1);
+        for k in 0..360 {
+            let t = f64::from(k).to_radians();
+            let d = e1 * t.cos() + e2 * t.sin();
+            assert!(d.dot(axis) <= hi.dot(axis) + 1e-15, "{k}°");
+            assert!(d.dot(axis) >= lo.dot(axis) - 1e-15, "{k}°");
+        }
+    }
+
+    /// **Near-coaxial fans stay on both cones**: axes `δ` apart, `δ` from
+    /// `1e-4` down to `1e-10`. Fans of one aperture cross along two
+    /// rulings square to the tilt plane, each on both cones to the
+    /// inputs' own floor `~u/δ` (where the textbook
+    /// `(c₁ − k·c₂)/(1 − k²)` lost `1 − k²` and missed by `1.7e-4` at
+    /// `1e-6`). Fans of apertures `0.01` rad apart meet only
+    /// at the apex, `disc` negative well past the tilt.
+    #[test]
+    fn near_coaxial_fans_stay_on_both_cones() {
+        let a1 = Vec3::new(0.2, 1.0, -0.4).normalize();
+        let off = Vec3::new(1.0, 0.0, 0.0);
+        let off = (off - a1 * off.dot(a1)).normalize();
+        for k in 4..=10 {
+            let tilt = 10f64.powi(-k);
+            let a2 = (a1 * tilt.cos() + off * tilt.sin()).normalize();
+            let c = 0.6f64.cos();
+            let m = cone_cone_apex_meeting((a1, c), (a2, c));
+            assert!(m.disc > 0.0, "tilt {tilt}: {m:?}");
+            // The inputs fix the tilt's direction only to `u/δ`, and the
+            // rulings' azimuth with it: that is the floor, which the
+            // callers' conditioning rung reads (`bool_fans_meet`'s).
+            let floor = 8.0 * f64::EPSILON / tilt;
+            for d in m.rulings() {
+                assert!((d.norm() - 1.0).abs() <= floor, "tilt {tilt}: {d:?}");
+                assert!(
+                    (d.dot(a1) - c).abs() <= floor,
+                    "tilt {tilt}: {d:?} off the first"
+                );
+                assert!(
+                    (d.dot(a2) - c).abs() <= floor,
+                    "tilt {tilt}: {d:?} off the second"
+                );
+                assert!(
+                    d.dot(off).abs() <= tilt,
+                    "tilt {tilt}: {d:?} not square to the tilt"
+                );
+            }
+            let wider = cone_cone_apex_meeting((a1, c), (a2, 0.61f64.cos()));
+            assert!(wider.disc < -1.0, "tilt {tilt}: {wider:?}");
+        }
+    }
+
+    /// **Two fans at one apex share the rulings the closed form names**:
+    /// each lies on both cones; fans tilted apart past their half-angles'
+    /// sum read a negative `disc`, and fans touching read it zero.
+    #[test]
+    fn two_fans_at_one_apex_meet_where_the_closed_form_says() {
+        let a1 = Vec3::new(0.0, -1.0, 0.0);
+        let tilt = |t: f64| Vec3::new(t.sin(), -t.cos(), 0.0);
+        let (h1, h2) = (0.5f64, 0.3f64);
+        // Crossing: axes 0.6 apart, under h1 + h2 = 0.8.
+        let m = cone_cone_apex_meeting((a1, h1.cos()), (tilt(0.6), h2.cos()));
+        assert!(m.disc > 0.0, "{m:?}");
+        for d in m.rulings() {
+            assert!((d.norm() - 1.0).abs() < 1e-14, "{d:?}");
+            assert!((d.dot(a1) - h1.cos()).abs() < 1e-14, "{d:?} off the first");
+            assert!(
+                (d.dot(tilt(0.6)) - h2.cos()).abs() < 1e-14,
+                "{d:?} off the second"
+            );
+        }
+        // Apart: axes 1.0 apart, past 0.8.
+        assert!(cone_cone_apex_meeting((a1, h1.cos()), (tilt(1.0), h2.cos())).disc < 0.0);
+        // Touching: axes exactly 0.8 apart.
+        let touch = cone_cone_apex_meeting((a1, h1.cos()), (tilt(0.8), h2.cos()));
+        assert!(touch.disc.abs() < 1e-14, "{touch:?}");
     }
 }

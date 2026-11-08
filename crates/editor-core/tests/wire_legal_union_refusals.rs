@@ -23,8 +23,8 @@ use crate::docm8_flat_merged::split_fixture;
 
 use crate::fixture::{insert, len, point, step, table, value_slot};
 use editor_core::{
-    Bodies, Coord, DocEdit, EntityKey, Entry, NamingError, Node, NodeErrorKind, ProfileDoc,
-    Qualifier, RecipeNodeId, RoleSeg, StableName, TargetAxis,
+    Bodies, Coord, DocEdit, EntityKey, EntityKind, Entry, Node, ProfileDoc, Qualifier,
+    RecipeNodeId, RoleSeg, StableName, TargetAxis,
 };
 use geom_core::{Point3, Tol};
 use std::collections::BTreeSet;
@@ -127,7 +127,7 @@ impl SunkBossCut {
     /// is charted on the plane its copy's start cap is mated to, its `y`
     /// the world's.
     fn moved(&self, k: usize, y: f64) -> Self {
-        let slot = value_slot(&self.doc, self.placements[k], Coord::Slide(TargetAxis::Y));
+        let slot = value_slot(&self.doc, self.placements[k], Coord::slide(TargetAxis::Y));
         let (doc, _) = step(
             self.doc.clone(),
             DocEdit::SetParam {
@@ -332,44 +332,53 @@ fn volume(body: &topo::Body<f64>) -> f64 {
     .volume
 }
 
-/// `members`' union refuses, in each order of `orders`, as the missing
-/// rule for faces the members glued only together, naming both boss wall
-/// pieces among the member faces it lists, and listing the same faces
-/// in every order.
-fn refuses_as_unjudged_glue(
+/// `members`' union names, in each order of `orders`, one table, and
+/// a face of it holds both boss wall pieces: the fold glued them, and a
+/// face is named for exactly the member faces whose area it holds (N2),
+/// whichever members brought them together.
+fn names_the_glue_in_every_order(
     label: &str,
     doc: &ProfileDoc,
     boss: RecipeNodeId,
     orders: &[Vec<RecipeNodeId>],
 ) {
-    let mut lists: Vec<Vec<String>> = Vec::new();
+    let mut tables = Vec::with_capacity(orders.len());
     for order in orders {
         let (docx, union) = crate::fixture::union_over(doc.clone(), order);
         let ev = run(&docx);
-        let Some(NodeErrorKind::Naming(NamingError::UnsupportedUnjudgedGlue { faces, .. })) =
-            failure(&ev, union)
-        else {
-            panic!(
-                "{label} {order:?}: the union refuses as an unjudged glue: {:?}",
-                failure(&ev, union)
-            );
-        };
-        let listed: Vec<String> = faces.iter().map(|(_, name)| name.to_string()).collect();
-        for piece in crate::emit_union_borders::wall_pieces(&ev, boss) {
-            assert!(
-                listed.iter().any(|n| n.contains(&piece)),
-                "{label} {order:?}: the refusal lists boss wall piece {piece}: {listed:?}"
-            );
+        if let Some(refusal) = failure(&ev, union) {
+            panic!("{label} {order:?}: the union names, got {refusal:?}");
         }
-        lists.push(listed);
-    }
-    for (order, listed) in orders.iter().zip(&lists).skip(1) {
-        assert_eq!(
-            listed, &lists[0],
-            "{label}: order {order:?} lists other faces than {:?}",
-            orders[0]
+        let pieces = crate::emit_union_borders::wall_pieces(&ev, boss);
+        let names = crate::emit_union_borders::names_modulo(&ev, union);
+        // The member faces a face's base cites: each constituent of a
+        // `Merged` set, or its one member face, by each name along its
+        // chain of reads (a nested union's member cites its own
+        // member's face through one more read).
+        let held = |name: &StableName| -> Vec<String> {
+            let cited: Vec<&StableName> = match name.path.first() {
+                Some(RoleSeg::Merged(set)) => set.iter().collect(),
+                _ => vec![name],
+            };
+            let mut out = Vec::new();
+            for mut c in cited {
+                while let Some(RoleSeg::From { of, .. }) = c.path.first() {
+                    out.push(of.name().to_string());
+                    c = of.name();
+                }
+            }
+            out
+        };
+        assert!(
+            table(&ev, union).iter().any(|(name, _)| {
+                let held = held(name);
+                name.kind == EntityKind::Face && pieces.iter().all(|p| held.contains(p))
+            }),
+            "{label} {order:?}: a face holds both boss wall pieces {pieces:?}: {names:?}"
         );
+        tables.push(names);
     }
+    crate::emit_union_borders::one_table(label, orders, &tables);
 }
 
 /// Every order of `members`.
@@ -386,14 +395,13 @@ fn orders_of(members: &[RecipeNodeId]) -> Vec<Vec<RecipeNodeId>> {
 /// as one three-member union: the plate covers the boss wall below
 /// z = 1 and the bar above z = 0.8, so only the two together open the
 /// wall's ring, and no pairwise judgement merges its two pieces. The
-/// fold glues them, which N2's third clause links by the area each
-/// holds, so every order refuses as that missing rule.
+/// fold glues them, and the face over both holds both, in every order.
 #[test]
-fn a_flat_union_of_plate_boss_and_bar_refuses_as_unjudged_glue() {
+fn a_flat_union_of_plate_boss_and_bar_names_the_glue() {
     let doc = ProfileDoc::empty_derived("unjudged-glue-flat", Tol::witness());
     let (doc, [plate, boss]) = plate_and_boss(doc);
     let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
-    refuses_as_unjudged_glue("flat", &doc, boss, &orders_of(&[plate, boss, bar]));
+    names_the_glue_in_every_order("flat", &doc, boss, &orders_of(&[plate, boss, bar]));
 }
 
 /// **Two blocks that open the boss wall only together.** The plate and
@@ -404,7 +412,7 @@ fn a_flat_union_of_plate_boss_and_bar_refuses_as_unjudged_glue() {
 /// two together do, and the fold glues the two wall pieces no pair
 /// glued, in every order.
 #[test]
-fn two_blocks_that_open_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue() {
+fn two_blocks_that_open_a_sunk_boss_wall_only_together_name_the_glue() {
     let doc = ProfileDoc::empty_derived("unjudged-glue-lo-hi", Tol::witness());
     let (doc, [plate, boss]) = plate_and_boss(doc);
     let (doc, joined) = insert(
@@ -415,7 +423,7 @@ fn two_blocks_that_open_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue()
     );
     let (doc, lo) = block_on(doc, plate, (1.35, 1.65), (1.6, 2.0), 0.9, 0.4);
     let (doc, hi) = block_on(doc, plate, (1.4, 1.6), (1.65, 2.1), 1.2, 0.4);
-    refuses_as_unjudged_glue("lo, hi", &doc, boss, &orders_of(&[joined, lo, hi]));
+    names_the_glue_in_every_order("lo, hi", &doc, boss, &orders_of(&[joined, lo, hi]));
 }
 
 /// **Two bars that sever the boss wall only together.** The plate and
@@ -425,7 +433,7 @@ fn two_blocks_that_open_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue()
 /// together cut it from the plate to the boss's top, so only the fold
 /// opens the wall's ring, in every order.
 #[test]
-fn two_bars_that_sever_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue() {
+fn two_bars_that_sever_a_sunk_boss_wall_only_together_name_the_glue() {
     let doc = ProfileDoc::empty_derived("unjudged-glue-bars", Tol::witness());
     let (doc, [plate, boss]) = plate_and_boss(doc);
     let (doc, joined) = insert(
@@ -436,7 +444,7 @@ fn two_bars_that_sever_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue() 
     );
     let (doc, low) = block_on(doc, plate, (1.4, 1.6), (1.5, 2.5), 0.8, 0.45);
     let (doc, high) = block_on(doc, plate, (1.4, 1.6), (1.5, 2.5), 1.2, 0.8);
-    refuses_as_unjudged_glue("bars", &doc, boss, &orders_of(&[joined, low, high]));
+    names_the_glue_in_every_order("bars", &doc, boss, &orders_of(&[joined, low, high]));
 }
 
 /// **Two half bosses and a bar glue the wall only together.** The
@@ -444,10 +452,9 @@ fn two_bars_that_sever_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue() 
 /// its north half (y 1.5 to 2), each a member, and a bar x 1.4 to 1.6,
 /// y 0.5 to 2.5, z 0.4 to 1.6 through both: no two of the three merge
 /// the halves' walls into one, and the fold glues faces of two
-/// members, so every order refuses as N2's third clause's missing
-/// rule.
+/// members, and the face over both holds both, in every order.
 #[test]
-fn two_half_bosses_and_a_bar_refuse_as_unjudged_glue() {
+fn two_half_bosses_and_a_bar_name_the_glue() {
     let doc = ProfileDoc::empty_derived("unjudged-glue-halves", Tol::witness());
     let (doc, [plate, boss]) = plate_and_boss(doc);
     let (doc, south) = block_on(doc, plate, (1.0, 2.0), (1.0, 1.5), 0.4, 1.2);
@@ -465,7 +472,7 @@ fn two_half_bosses_and_a_bar_refuse_as_unjudged_glue() {
         },
     );
     let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.4, 1.2);
-    refuses_as_unjudged_glue("halves", &doc, boss, &orders_of(&[h0, h1, bar]));
+    names_the_glue_in_every_order("halves", &doc, boss, &orders_of(&[h0, h1, bar]));
 }
 
 /// **A split piece the fold's kills cut off is a piece, not a chord.**

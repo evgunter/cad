@@ -258,6 +258,7 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
                     symbolic: dials(rules),
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .map(|v| v.serialize())
@@ -394,7 +395,7 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
         core::f64::consts::PI,
         4.0 * (2.5_f64).atan(),
     ] {
-        let a = Curve3::circle_at(center, axis, 0.8e-3, u_ref, t);
+        let a = Curve3::circle_at(&geom::Frame::new(center, axis, u_ref), 0.8e-3, t);
         let b = old_arm(center, axis, 0.8e-3, u_ref, t);
         assert_eq!(
             [a.x.to_bits(), a.y.to_bits(), a.z.to_bits()],
@@ -415,7 +416,7 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
     let bits = |v: Interval| (v.lo().to_bits(), v.hi().to_bits());
     for t in [0.0_f64, 0.7, 1.9, 4.0 * (2.5_f64).atan()] {
         let t = iv(t);
-        let a = Curve3::circle_at(center, axis, iv(0.8e-3), u_ref, t);
+        let a = Curve3::circle_at(&geom::Frame::new(center, axis, u_ref), iv(0.8e-3), t);
         let b = old_arm(center, axis, iv(0.8e-3), u_ref, t);
         assert_eq!(
             [bits(a.x), bits(a.y), bits(a.z)],
@@ -462,6 +463,7 @@ fn r2_link_end_to_end_with_and_without_the_door() {
                 symbolic: dials(rules),
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .expect("the link builds");

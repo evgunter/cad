@@ -16,7 +16,7 @@
 //! sliver. A control beside each poses the same dip under 1 m edges,
 //! where both readings agree. A dip inside the band still reads On, and
 //! the pose is a touch. The splitting lane's twin reads a line edge the
-//! same way, through the same reader (`sector_shape::plane_offset`).
+//! same way, through the same reader (`geom::plane_offset`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -81,7 +81,12 @@ fn face_with_normal(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
 
 /// `r`'s body, which passes tier 3.
 fn body_of(r: Result<BooleanResult<f64>, BooleanError>, what: &str) -> Body<f64> {
-    let r = r.unwrap_or_else(|e| panic!("{what}: an answer, got {e}"));
+    let r = r.unwrap_or_else(|e| {
+        panic!(
+            "{what}: an answer, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let b = r
         .body()
         .unwrap_or_else(|| panic!("{what}: a body"))

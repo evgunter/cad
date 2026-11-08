@@ -52,11 +52,12 @@ use geom::cover::{Cover, Site};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
 
 use crate::body::Body;
-use crate::boolean::boxes::{boundary_cover, edge_end_point, face_cover, sweep_pad};
+use crate::boolean::boxes::sweep_pad;
 use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
-use crate::entity::{EntityId, FaceKey};
+use crate::cover::{boundary_cover, edge_end_point, face_cover};
+use crate::entity::FaceKey;
 use crate::geometry::SurfaceKey;
-use crate::live::{BoundaryMember, proven};
+use crate::live::BoundaryMember;
 use crate::validate::decide;
 
 /// K name: the gap between one face's least depth and the other's
@@ -80,8 +81,9 @@ pub(crate) const DEPTH_ACROSS: &str = "census_backstop_depth_across";
 /// A depth.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Depth<T: geom_core::Real> {
-    /// The distance from the line through `origin` along `axis`.
-    Axis { origin: Point3<T>, axis: Vec3<T> },
+    /// The distance from a line: a carrier's axis, or any line of nonzero
+    /// direction ([`geom::Line::distance`] holds for either).
+    Axis(geom::Line<T>),
     /// The distance from `center`.
     Center { center: Point3<T> },
     /// The distance from the circle about `center`, of radius `major`,
@@ -152,8 +154,17 @@ pub(super) fn carrier_depth<T: Decide>(
             axis,
             radius,
             ..
-        } => (Depth::Axis { origin, axis }, Some(radius.abs())),
-        Surface::Cone { apex, axis, .. } => (Depth::Axis { origin: apex, axis }, None),
+        } => (
+            Depth::Axis(geom::Line { origin, dir: axis }),
+            Some(radius.abs()),
+        ),
+        Surface::Cone { apex, axis, .. } => (
+            Depth::Axis(geom::Line {
+                origin: apex,
+                dir: axis,
+            }),
+            None,
+        ),
         Surface::Sphere { center, radius, .. } => (Depth::Center { center }, Some(radius.abs())),
         Surface::Torus {
             center,
@@ -168,6 +179,20 @@ pub(super) fn carrier_depth<T: Decide>(
                 major: major_radius.abs(),
             },
             geom::is_ring_torus(major_radius, minor_radius, band).then_some(minor_radius),
+        ),
+        // A spindle's points come nearer its core than its tube: no level.
+        Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            ..
+        } => (
+            Depth::Core {
+                center,
+                axis,
+                major: major_radius.abs(),
+            },
+            None,
         ),
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
     };
@@ -189,20 +214,20 @@ pub(super) fn carrier_depth<T: Decide>(
 /// Where `f` or a record on the walk from it does not resolve, as
 /// [`face_cover`]: a torn boundary is not one with no claim.
 pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<Read<T>> {
-    let face = proven(&body.faces, f, EntityId::Face);
-    let surface = body.face_surface_linked(f, face);
+    let face = body.proven_face(f);
+    let surface = face.surface();
     let cover = face_cover(body, f, band).ok()?;
     let plane = match surface {
         Surface::Plane { origin, normal, .. } => {
-            Some(((*origin, *normal), boundary_cover(body, f, face).ok()?))
+            Some(((*origin, *normal), boundary_cover(body, face).ok()?))
         }
         _ => None,
     };
-    let mut depths: Vec<Proposed<T>> = carrier_depth(surface, face.surface, band)
+    let mut depths: Vec<Proposed<T>> = carrier_depth(surface, face.record().surface, band)
         .into_iter()
         .collect();
     let mut segments = Vec::new();
-    for member in body.face_boundary_linked(f, face) {
+    for member in face.boundary() {
         let (ek, edge) = match member {
             BoundaryMember::Isolated { point, .. } => {
                 segments.push((point, point));
@@ -225,17 +250,14 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
             segments.push(ends);
         } else if let Some(conic) = carrier.conic() {
             depths.push(Proposed {
-                depth: Depth::Axis {
-                    origin: conic.frame().center,
-                    axis: conic.frame().axis,
-                },
+                depth: Depth::Axis(conic.frame().axis_line()),
                 level: None,
                 source: Source::Arc(ends.0, ends.1),
             });
         }
     }
     Some(Read {
-        surface: face.surface,
+        surface: face.record().surface,
         cover,
         plane,
         segments,
@@ -245,7 +267,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
 
 /// `v` less its component along `n`'s direction, and that component.
 pub(super) fn split<T: Decide>(v: Vec3<T>, n: Vec3<T>) -> (Vec3<T>, T) {
-    let n = n / n.norm();
+    let n = n.normalize();
     let along = v.dot(n);
     (v - n * along, along)
 }
@@ -253,9 +275,8 @@ pub(super) fn split<T: Decide>(v: Vec3<T>, n: Vec3<T>) -> (Vec3<T>, T) {
 /// **The least and greatest `depth` over what `cover` holds** (module
 /// docs).
 pub(super) fn range_on<T: Decide>(depth: Depth<T>, cover: &Cover<T>) -> (T, T) {
-    let line = |origin, dir| Site::Line(geom::Line { origin, dir });
     match depth {
-        Depth::Axis { origin, axis } => cover.distance_range(&line(origin, axis)),
+        Depth::Axis(line) => cover.distance_range(&Site::Line(line)),
         Depth::Center { center } => cover.distance_range(&Site::Point(center)),
         Depth::Core {
             center,
@@ -271,8 +292,8 @@ pub(super) fn range_on<T: Decide>(depth: Depth<T>, cover: &Cover<T>) -> (T, T) {
 /// core depth.
 fn nearest_offset<T: Decide>(depth: Depth<T>, p: Point3<T>, q: Point3<T>) -> Option<Vec3<T>> {
     let (u, w) = match depth {
-        Depth::Axis { origin, axis } => {
-            let a = axis / axis.norm();
+        Depth::Axis(geom::Line { origin, dir: axis }) => {
+            let a = axis.normalize();
             (split(p - origin, a).0, split(q - p, a).0)
         }
         Depth::Center { center } => (p - center, q - p),
@@ -303,14 +324,11 @@ pub(super) fn greatest<T: Decide>(bounds: impl Iterator<Item = Option<T>>) -> Op
 /// or the centre's foot on it. `None` for a core depth.
 fn least_point<T: Decide>(depth: Depth<T>, (o, n): (Point3<T>, Vec3<T>)) -> Option<Point3<T>> {
     match depth {
-        Depth::Axis { origin, axis } => {
+        Depth::Axis(geom::Line { origin, dir: axis }) => {
             let s = (o - origin).dot(n) / axis.dot(n);
             Some(origin + axis * s)
         }
-        Depth::Center { center } => {
-            let n = n / n.norm();
-            Some(center - n * (center - o).dot(n))
-        }
+        Depth::Center { center } => Some(geom::Line { origin: o, dir: n }.square_foot(center)),
         Depth::Core { .. } => None,
     }
 }
@@ -477,19 +495,22 @@ pub(super) fn across<T: Decide>(
         read.depths
             .iter()
             .filter_map(|proposed| match (proposed.depth, proposed.source) {
-                (Depth::Axis { axis, .. }, Source::Arc(p, q)) => {
-                    unit((axis / axis.norm()).cross(q - p))
+                (Depth::Axis(geom::Line { dir: axis, .. }), Source::Arc(p, q)) => {
+                    unit(axis.normalize().cross(q - p))
                 }
                 _ => None,
             })
     });
     let off = |x: Point3<T>, origin: Point3<T>, axis: Vec3<T>| unit(split(x - origin, axis).0);
     let between = match (ra.carrier(), rb.carrier()) {
-        (Some(Depth::Axis { origin: o, axis: a }), Some(Depth::Axis { origin: p, axis: b })) => {
+        (
+            Some(Depth::Axis(geom::Line { origin: o, dir: a })),
+            Some(Depth::Axis(geom::Line { origin: p, dir: b })),
+        ) => {
             vec![off(p, o, a), off(o, p, b)]
         }
-        (Some(Depth::Axis { origin, axis }), Some(Depth::Center { center }))
-        | (Some(Depth::Center { center }), Some(Depth::Axis { origin, axis })) => {
+        (Some(Depth::Axis(geom::Line { origin, dir: axis })), Some(Depth::Center { center }))
+        | (Some(Depth::Center { center }), Some(Depth::Axis(geom::Line { origin, dir: axis }))) => {
             vec![off(center, origin, axis)]
         }
         (Some(Depth::Center { center: c }), Some(Depth::Center { center: d })) => {
@@ -523,8 +544,7 @@ mod tests {
     /// The circle of radius `r` about `c` in the plane normal to `z`.
     fn rim_about(c: Point3<f64>, r: f64) -> Cover<f64> {
         Cover::arc(
-            c,
-            (v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0)),
+            &geom::Frame::new(c, v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             (r, r),
             ParamWindow::new(0.0, core::f64::consts::TAU),
         )
@@ -532,10 +552,10 @@ mod tests {
     }
 
     fn z_axis() -> Depth<f64> {
-        Depth::Axis {
+        Depth::Axis(geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 2.0),
-        }
+            dir: v(0.0, 0.0, 2.0),
+        })
     }
 
     fn core(major: f64) -> Depth<f64> {
@@ -622,9 +642,7 @@ mod tests {
     #[test]
     fn a_core_depth_reads_a_tube_at_its_minor_radius_and_a_disc_at_its_centre() {
         let tube = Cover::tube(
-            p(0.0, 0.0, 0.0),
-            v(0.0, 0.0, 1.0),
-            v(1.0, 0.0, 0.0),
+            &geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             2.0,
             0.45,
         )
@@ -783,7 +801,7 @@ mod tests {
     }
     fn arc(c: Point3<f64>, n: Vec3<f64>, from: Point3<f64>, to: Point3<f64>) -> Proposed<f64> {
         Proposed {
-            depth: Depth::Axis { origin: c, axis: n },
+            depth: Depth::Axis(geom::Line { origin: c, dir: n }),
             level: None,
             source: Source::Arc(from, to),
         }
@@ -856,7 +874,7 @@ mod tests {
             dirs(&ball(p(1.0, 2.0, 3.0)), &ball(p(1.0, 2.0, 3.0))).is_empty(),
             "coincident centres propose nothing"
         );
-        let wall = |o, a| read_of(vec![carrier(Depth::Axis { origin: o, axis: a })]);
+        let wall = |o, a| read_of(vec![carrier(Depth::Axis(geom::Line { origin: o, dir: a }))]);
         let y = v(0.0, 1.0, 0.0);
         let parallel = dirs(&wall(p(0.0, 0.0, 0.0), y), &wall(p(1.0, 0.7, 1.0), y * 2.0));
         assert_eq!(parallel.len(), 2, "two offsets");

@@ -73,4 +73,4 @@ Rows: `section_cert_parallel_tori_rows`. Filed: level tubes' node
 (`work/sect/level-tubes-of-parallel-tori-refuse-at-the-node.md`), the cone
 sibling and ball separation for tilted poses (both `work/sect/`), and the
 tour's two-piece stem
-(`work/issues/the-tour-lily-ships-its-stem-as-two-pieces.md`).
+(`work/sect/the-tour-lily-ships-its-stem-as-two-pieces.md`).

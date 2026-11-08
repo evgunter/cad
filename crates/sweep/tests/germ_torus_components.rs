@@ -74,9 +74,18 @@ fn at_rest(b: &Body<f64>) -> AtRestBody<f64> {
 
 /// **Where a run stops**, in a word the rows pin: each a door's own
 /// typed refusal past the germ mint, or a body.
-fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
+fn stop(got: &Result<BooleanResult<f64>, BooleanError>, kind: Option<geom::SurfaceKind>) -> String {
     use geom_brep::PropsError;
     use topo::{MassPropsError, ValidationError};
+    // The refused face's own chart, read right after its boolean.
+    let chart = match kind {
+        Some(geom::SurfaceKind::Torus) => "torus",
+        Some(geom::SurfaceKind::Sphere) => "sphere",
+        Some(geom::SurfaceKind::Cylinder) => "cylinder",
+        Some(geom::SurfaceKind::Cone) => "cone",
+        Some(geom::SurfaceKind::Plane) => "plane",
+        _ => "unread",
+    };
     match got {
         Ok(r) => format!("body {:?}", r.body().map(|b| b.kind)),
         Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
@@ -84,19 +93,10 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
                 MassPropsError::Face {
                     source: PropsError::QuadratureUnsupported { what },
                     ..
-                } if what.starts_with(
-                    "curved-cut face half-edge carries a pcurve with no harmonic form",
-                ) =>
-                {
-                    "projected".to_owned()
+                } if what.starts_with("a trimmed face with no volume lane on its chart") => {
+                    format!("{chart} trim")
                 }
-                MassPropsError::Face {
-                    source: PropsError::QuadratureUnsupported { what },
-                    ..
-                } if what.starts_with("conic trim on a cone/sphere/torus chart") => {
-                    "conic trim".to_owned()
-                }
-                MassPropsError::RingOnCurvedFace { .. } => "ring on a curved face".to_owned(),
+                MassPropsError::RingOnCurvedFace { .. } => format!("ring on a {chart} face"),
                 other => format!("volume {other:?}"),
             },
             other => format!("result {other:?}"),
@@ -138,7 +138,7 @@ fn marching<R>(run: impl FnOnce() -> R) -> (R, usize) {
 /// the join and the certificate alike); `other_eps` names the
 /// placements that stop elsewhere at another ε row, measured: at `1e-6`
 /// a march's tube straddles
-/// (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+/// (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
 fn row(
     a: fn() -> Body<f64>,
     places: &[usize],
@@ -153,9 +153,19 @@ fn row(
             .find(|&&(e, k, _)| e == eps && k == i)
             .map_or(want, |(_, _, w)| w);
         let (a, b) = (at_rest(&a()), placed(&donut(), placements()[i]));
+        // Each run's refused face is read right after it
+        // (`topo::boolean::refused_face_kind`).
+        let kind = |r: &Result<BooleanResult<f64>, BooleanError>| {
+            r.as_ref().err().and_then(topo::boolean::refused_face_kind)
+        };
         let (ab, ab_marches) = marching(|| topo::union(&a, &b, Tol::witness()));
+        let ab_kind = kind(&ab);
         let (ba, ba_marches) = marching(|| topo::union(&b, &a, Tol::witness()));
-        let (got, marches) = ([stop(&ab), stop(&ba)], [ab_marches, ba_marches]);
+        let ba_kind = kind(&ba);
+        let (got, marches) = (
+            [stop(&ab, ab_kind), stop(&ba, ba_kind)],
+            [ab_marches, ba_marches],
+        );
         if got != *want {
             off.push(format!("placement {i}: {got:?}"));
         }
@@ -171,10 +181,11 @@ fn row(
 /// foot on the carried section, the general placements' (1, 2, 3, 5)
 /// listed by the march and the square walls' (0, 4) counted; every run
 /// stops past the mint at a door's own refusal: the result gate's volume
-/// on a face its fitted chords bound
-/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`)
-/// or a conic trim on the torus chart, or the cap plane's spiric
-/// (`GermSectionSpiric`). Placement 5 divides the drum's wall, holding a
+/// on a torus face, a trim the chart table has no lane for (the drum's
+/// chorded wall measures through the rotational lane, so the torus face
+/// is the one the gate reports in any face order;
+/// `work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`),
+/// or the cap plane's spiric (`GermSectionSpiric`). Placement 5 divides the drum's wall, holding a
 /// ring, by a spline chord, and re-homes the ring by the path.
 #[test]
 fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
@@ -182,12 +193,12 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
         drum,
         &[0, 1, 2, 3, 4, 5],
         &[
-            ["conic trim", "projected"],
-            ["projected", "projected"],
-            ["projected", "conic trim"],
+            ["torus trim", "torus trim"],
+            ["torus trim", "torus trim"],
+            ["torus trim", "torus trim"],
             ["spiric", "spiric"],
-            ["conic trim", "conic trim"],
-            ["projected", "conic trim"],
+            ["torus trim", "torus trim"],
+            ["torus trim", "torus trim"],
         ],
         &[
             (1e-6, 2, ["tube straddles"; 2]),
@@ -200,15 +211,19 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
 /// **A ball cutting both tube circles of its meridian** (placement 5):
 /// two curves about the torus axis, counted, which no plane or meridian
 /// tells apart; each germ's component is its site's foot, and the run
-/// stops at the result gate's volume on a conic trim of the torus chart.
+/// stops at the result gate's volume on the ball's sphere face, its trim
+/// a chart with no lane (the refused face's own surface read; the
+/// matcher read the message alone before, and named it the torus's).
+// Pinned red at every ε row, on the sphere face's trim:
+// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
 #[test]
 fn a_ball_round_the_donuts_axis_passes_the_germ_mint() {
-    row(ball, &[5], &[["conic trim", "conic trim"]], &[]);
+    row(ball, &[5], &[["sphere trim", "sphere trim"]], &[]);
 }
 
 /// **Two donuts in general pose** (placements 1, 2, 3): the section the
 /// march's, each germ's component its site's foot. Each passes the join
-/// and stops at the result gate's volume: a conic trim on the torus
+/// and stops at the result gate's volume: a trim on the torus
 /// chart, or a ring left on a curved face (`RingOnCurvedFace`).
 #[test]
 fn two_donuts_in_general_pose_pass_the_germ_mint() {
@@ -216,9 +231,9 @@ fn two_donuts_in_general_pose_pass_the_germ_mint() {
         donut,
         &[1, 2, 3],
         &[
-            ["ring on a curved face", "conic trim"],
-            ["conic trim", "conic trim"],
-            ["conic trim", "conic trim"],
+            ["ring on a torus face", "torus trim"],
+            ["torus trim", "torus trim"],
+            ["torus trim", "torus trim"],
         ],
         &[
             (1e-6, 1, ["pierce curvature"; 2]),

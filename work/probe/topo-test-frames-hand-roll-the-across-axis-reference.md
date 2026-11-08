@@ -26,7 +26,7 @@ degenerate-axis policy beside `Vec3::orthonormal_basis`:
   (~1156);
 - `crates/topo/src/boolean/offer_rows.rs` `seam` (~1395): `across`,
   then `n1 = k.cross(across).normalize()`;
-- `crates/topo/src/boolean/circle_torus/meridian_rows.rs` `unit_perp`
+- `crates/geom-brep/src/curve_face/circle_torus/meridian_rows.rs` `unit_perp`
   (~115).
 
 ## Fix

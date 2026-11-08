@@ -413,7 +413,7 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         sub,
         legs,
         vec![(
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::X),
             Formula::mul(common::len(1e200), common::scl(1e200))
                 .expect("length times scalar is a length"),
         )],

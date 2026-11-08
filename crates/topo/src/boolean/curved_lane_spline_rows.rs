@@ -29,7 +29,7 @@ use geom_core::{Point3, Sign, Tol, Vec3};
 /// first. `normal` is the sheet's plane normal, chosen so the net bulges
 /// to `normal × (last − first)`'s side, the side the chord leaves the
 /// face on. The sheet, its face, and its spline edge.
-fn spline_sheet(
+pub(super) fn spline_sheet(
     control: [Point3<f64>; 3],
     weights: [f64; 3],
     normal: Vec3<f64>,
@@ -292,7 +292,7 @@ fn upper_cone() -> (Body<f64>, FaceKey) {
 /// seed's placeholder, on `face`'s carrier under sense `true`, and
 /// returns it.
 fn twin_on_the_carrier(b: &mut Body<f64>, face: FaceKey) -> FaceKey {
-    let carrier = b.face_surface(face).unwrap().clone();
+    let carrier = b.proven_face(face).surface().clone();
     let twin = b.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     b.lifting_rechart_refusals_for_tests(|b| {
         b.set_face_surfaces_describing(

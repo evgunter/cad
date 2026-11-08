@@ -22,11 +22,14 @@ crates/geom-brep/src/certify.rs	1	constant	f	a sample schedule's fraction
 crates/geom-brep/src/certify.rs	1	constant	schedule_param(domain.0, domain.1, i, samples)	held_station: an interior station of a fixed sample schedule, a point the schedule chose (the ends are the carrier's held ends)
 crates/geom-brep/src/certify.rs	2	constant	schedule_fraction(i, CERT_SAMPLES)	a sample schedule's fraction
 crates/geom-brep/src/curve_pair/pose.rs	4	constant	band.escalate()	the band's escalation width, a tolerance
-crates/geom-brep/src/curve_pair/pose/window.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
+crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
+crates/geom-brep/src/curve_pair/span.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a refused member's window on a line)
+crates/geom-brep/src/curve_pair/walk.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a polished piece pair's window bound)
 crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.zero()	the band's zero width, a tolerance
 crates/geom-brep/src/dihedral.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/edge_nurbs.rs	1	constant	*w	on_carrier_domain: the interpolation's unit weights, a constant of its form
 crates/geom-brep/src/edge_nurbs.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	<fn>	edge_piece: a piece end that is no carrier breakpoint is the f64 end of the edge's parameter enclosure, a computed value entered as a constant (breakpoints keep their held values)
+crates/geom-brep/src/edge_wedge.rs	1	constant	phase	a fixed station of a rim's uniform-phase schedule (WedgeWalk::around_circle)
 crates/geom-brep/src/extent.rs	2	constant	f64::from(k)	a sample or piece index
 crates/geom-brep/src/extent.rs	1	constant	f64::from(n)	a schedule's piece count
 crates/geom-brep/src/extent.rs	1	constant	f64::from(ELLIPSE_PIECES)	the ellipse arm's piece count
@@ -42,20 +45,24 @@ crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
 crates/geom-brep/src/pair_section/gap.rs	1	constant	k as f64	the index of a cell of the critical gap's first cut of the turn
 crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the parallel-tori arm's level-row width)
 crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	n as f64	a strand count along a loop of the parallel-tori arm's matching curve
+crates/geom-brep/src/pcurve_cache.rs	1	constant	band.zero()	the band's zero width, a tolerance: the incidence read's charge fraction
 crates/geom-brep/src/pcurve_cache.rs	1	constant	a	own_interval: a net's knot-domain lower end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	b	own_interval: a net's knot-domain upper end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(i) / n	a sample schedule's fraction
+crates/geom-brep/src/pcurve_cache.rs	1	constant	l	a sample schedule's fraction: a line's critical parameter read at its data's middles, a place in the span to read the distance at; a definite Off does not rely on its value, the supremum (a Zero read as within the band) relies on its placement
 crates/geom-brep/src/pcurve_cache.rs	2	constant	k as f64	a chart-hat span index, and an arc rim's sub-arc index
 crates/geom-brep/src/pcurve_cache.rs	1	constant	span.saturating_sub(degree) as f64	a span index
 crates/geom-brep/src/pcurve_cache.rs	1	constant	p as f64	the Greville average's count
 crates/geom-brep/src/pcurve_cache.rs	4	constant	spans as f64	a span count
-crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	0.5 * f64::from(m)	a quarter-turn count
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	a	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	b	a circle image's partition break on its unit piece parameter, a point the partition chose
+crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	f64::from(k) / f64::from(cuts)	a cone line's incidence cut on its edge's unit parameter, a dyadic fraction the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	nappe_sign(*nappe)	a cone nappe's sign, ±1
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s0	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s1	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	v	net_param: a parameter that is no net breakpoint: an edge enclosure's f64 end (a computed value, laundered), or a partition or halving break (a genuine constant)
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	constant	f64::from(i) / n	a sample schedule's fraction
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	constant	band.zero()	the band's zero width, a tolerance: whether an in-band floor is past it
 crates/geom-brep/src/props/closure.rs	1	constant	VERTEX_SLACK * band.zero()	the vertex slack, a multiple of the band's zero width: a tolerance
 crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
 crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
@@ -89,6 +96,7 @@ crates/geom-core/src/spline/knot_values.rs	1	constant	lo	Knots::on_domain: the r
 crates/geom-core/src/spline/knots.rs	1	constant	hi	knot_difference: a knot of a bare KnotVector, which holds no value in a scalar (callers: the certification ring's hull over the value channel, and Knots::on_domain's caller-given ends). KNOWN GAP: the function is pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
 crates/geom-core/src/spline/knots.rs	1	constant	lo	knot_difference: a knot of a bare KnotVector, which holds no value in a scalar (callers: the certification ring's hull over the value channel, and Knots::on_domain's caller-given ends). KNOWN GAP: the function is pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
+crates/geom/src/azimuth.rs	1	constant	0.5 * f64::from(self.0)	a quarter-turn count
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/cover.rs	1	constant	f64::from(k)	a piece index
 crates/geom/src/cover/readings.rs	1	constant	cut	a spline window's interior cut, a point the cover chooses from the window's point ends (geom-brep `net_param`'s posture)
@@ -126,11 +134,10 @@ crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
-crates/topo/src/boolean/circle_roots.rs	1	constant	band.zero()	the band's zero width, a tolerance (a leg's start on the plane, which picks its roots' representative)
+crates/topo/src/boolean/conic_quadric/mod.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex)
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
-crates/topo/src/boolean/rim_wedge.rs	1	constant	phase(i)	a fixed station of the sample schedule
 crates/topo/src/boolean/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
 crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
 crates/topo/src/boolean/section_cert/ruling.rs	2	constant	f64::from(k)	an eighth-turn sample index
@@ -186,3 +193,4 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	band.escalate()	the band's 
 crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * (m as f64 + 8.0) * geom_core::UNIT_ROUNDOFF	a summation's rounding factor, from the count of its terms
 crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * samples.len() as f64	the count of steps a walk's error bound is shared over
 crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's multiple of π, a literal at each call (±1, ±3)
+crates/topo/src/boolean/sectors.rs	1	constant	k	a quarter cut of a whole turn, a fraction from TurnOrder::quarter_fractions

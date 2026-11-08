@@ -112,6 +112,8 @@ mod fillet_overrun_nearest_fit;
 mod fillet_recourse_followability;
 #[path = "fillet_stored_tangency.rs"]
 mod fillet_stored_tangency;
+#[path = "gate_kinds_followed.rs"]
+mod gate_kinds_followed;
 #[path = "generic_replay.rs"]
 mod generic_replay;
 #[path = "guided_replay.rs"]
@@ -203,5 +205,5 @@ mod review_fillet_e2_probes;
 #[path = "review_fillet_stored_tangency_r2_probes.rs"]
 mod review_fillet_stored_tangency_r2_probes;
 
-#[path = "review_recourse_roster_r1_probes.rs"]
-mod review_recourse_roster_r1_probes;
+#[path = "cusp_fillet_keeps_its_leg.rs"]
+mod cusp_fillet_keeps_its_leg;

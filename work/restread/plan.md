@@ -19,7 +19,7 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 | P0 | `the-census-edge-face-lane-escalates-a-plane-residual-at-an-end-far-outside-the-face` | M | The census's edge-face and vertex-face lanes escalate a plane residual in band before reading the face's region, so an end 0.58 outside the face escalates pm_census_ef_residual |
 | P0 | `the-census-parallel-test-reads-two-edges-through-one-point-end-to-end-as-a-near-parallel-pair` | M | The census's parallel test levers the two edges' line angle at the shorter length, so two edges continuing each other through one point, or lying 3e-8 apart, escalate pm_census_ee_parallel |
 | P1 | `at-infinity-probe-measures-in-closed-form-only` | M | point-in-solid's at-infinity probe measures in closed form only, so an obliquely trimmed wall refuses VolumeUncertified |
-| P0 | `census-cross-solid-curved-pairs-undecidable-on-shell-results` | H | The census's cross-solid backstop answers CensusUndecidable for curved solids within reach of each other, so 26 multi-solid shell results fail the empty-contact tier 3' they should pass |
+| P0 | `census-cross-solid-curved-pairs-undecidable-on-shell-results` | X (16) | The census's cross-solid backstop answers CensusUndecidable for curved solids within reach of each other, so 26 multi-solid shell results fail the empty-contact tier 3' they should pass |
 | P1 | `seam-description-reads-a-dihedral-at-the-seams-own-length` | M | The boolean's seam description reads a seam's dihedral at the seam's own length, so a short seam between faces that part far away is left a scaffold at rest |
 | P1 | `torus-face-bounded-by-an-oblique-circle-refuses-point-classification` | H | A torus face bounded by a circle off both chart families refuses point classification (PartialTorusFace), where a sphere face so bounded is now read |
 | P3 | `census-face-reach-returns-a-nan-box-for-an-unclaimable-boundary-edge` | E | census::face_reach returns a NaN-ended Some for a cylinder or cone face with an unclaimable boundary edge, against its own None contract |
@@ -36,8 +36,10 @@ and moved to CONTACTHOLD — `an-escalated-census-finding-names-no-pair`,
 `census-face-pair-confirm-is-a-trial-ladder` and
 `the-two-carrier-face-pair-confirm-escalates-where-its-second-face-reads-the-point-out`.
 `census-cross-solid-curved-pairs-undecidable-on-shell-results` keeps
-only its certify-apart half (its body says so). The table above is the
-opening slate; `work.py status --program restread` is the live one.
+only its certify-apart half (its body says so). The hold lifted when
+INTENT closed (2026-10-30, #6103); each moved row's own re-read says
+what it waits on now. The table above is the opening slate;
+`work.py status --program restread` is the live one.
 
 ## Order
 
@@ -69,10 +71,7 @@ metred at an ellipse's minor semi-axis, DR-111). A brief for any unit
 that levers a `decide` asks, per verdict, which bound makes that
 verdict sound.
 
-A lane measures its row's repro on current main before it builds, and
-reads the row against the D10 hold (`work/intent/plan.md`): a row that
-turns out to need declared pairs or contact parks on its INTENT stage
-row and moves to CONTACTHOLD.
+A lane measures its row's repro on current main before it builds.
 
 ## Exit
 

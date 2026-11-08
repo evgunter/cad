@@ -2,10 +2,9 @@
 id: declared-tangency-needs-the-registered-identity-door
 kind: issue
 title: a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt
-status: parked
+status: open
 opened: 2026-09-05
 refs: [1828]
-blocked_on: [fillet-tangency-is-not-the-constructors-node]
 priority: P1
 cost: H
 ---
@@ -101,3 +100,14 @@ closes, this one opens again. The look at the bracket's 28 starts here
 (`the-brackets-fillet-decisions-owe-a-structural-look`, "Where the look
 starts").
 
+
+## Un-parked (2026-11-06, ROUND orchestrator)
+
+Its blocker, `work/round/fillet-tangency-is-not-the-constructors-node`,
+closed: PATHS 5a/5b made `Segment::Arc(Arc2)` carry the constructor's
+carrier, so the centre `carrier_line_circle` reads is the constructor's
+node, and the line×line fillet now registers its incoming tangency
+(`path.rs`'s `register_incoming_tangency`). Not measured here: whether
+the pad's `carrier_line_circle` decisions now discharge. Still owed on
+this row: the arc-carrier fillets (`crates/profile/src/path/*`) register
+no tangency at all.

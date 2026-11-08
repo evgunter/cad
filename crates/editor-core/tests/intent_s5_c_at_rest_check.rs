@@ -69,8 +69,14 @@ fn stacked(
 /// The checks over `doc` at the default configuration.
 fn checks(doc: &ProfileDoc) -> editor_core::ChecksReport {
     let run = corpus::eval::<f64>(doc);
-    editor_core::run_checks(doc, &run, &ChecksConfig::default(), Tol::witness())
-        .unwrap_or_else(|e| panic!("the checks run: {e}"))
+    editor_core::run_checks(
+        doc,
+        &run,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the checks run: {e}"))
 }
 
 /// `report`'s findings of `check`.
@@ -413,7 +419,14 @@ fn a_could_not_look_finding_never_refuses() {
     };
     for cfg in [ChecksConfig::default(), error.clone()] {
         let run = corpus::eval::<f64>(&fit);
-        let report = editor_core::run_checks(&fit, &run, &cfg, Tol::witness()).expect("it runs");
+        let report = editor_core::run_checks(
+            &fit,
+            &run,
+            &cfg,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .expect("it runs");
         let blind = of(&report, CheckId::AtRest);
         assert!(
             !blind.is_empty()

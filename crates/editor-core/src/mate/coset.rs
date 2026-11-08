@@ -261,7 +261,7 @@ impl SubgroupFamily {
     /// fixed a spin is a link of a chain about the target space's axes;
     /// where one is, the spin is the one about the target's own direction.
     #[must_use]
-    pub fn leaves(self, coord: super::Coord) -> bool {
+    pub fn leaves<R>(self, coord: &super::Coord<R>) -> bool {
         super::solve::leaves(self, coord)
     }
 
@@ -632,9 +632,11 @@ fn point_on_line<T: SolveScalar>(
     direction: UnitVec3<T>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let d = p - origin;
-    let u = direction.get();
-    let off = d - u * d.dot(u);
+    let off = geom::Line {
+        origin,
+        dir: direction.get(),
+    }
+    .offset(p);
     Ok(decide("mate_axis_point_offset", Margin::norm3(off), band)? == Sign::Zero)
 }
 

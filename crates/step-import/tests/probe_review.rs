@@ -79,7 +79,7 @@ fn a3_sweep_all_tiers() {
             }
             Ok(_) => println!("a3sweep eps={eps:e} {name}: WIREFRAME"),
             Err(e) => {
-                let s = e.to_string();
+                let s = e.render();
                 let short: String = s.chars().take(90).collect();
                 println!("a3sweep eps={eps:e} {name}: REFUSED {short}");
             }
@@ -101,7 +101,7 @@ fn a1_inside_out_torus_cannot_slip_through() {
     );
     let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("an inside-out torus must not import at all");
-    let text = err.to_string();
+    let text = err.render();
     assert!(
         text.contains("CurvedSenseInverted"),
         "the refusal must name the inversion: {text}"
@@ -118,7 +118,11 @@ fn a1_reversed_bound_torus() {
     );
     let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("a reversed-bound torus is inside out and must not import");
-    assert!(err.to_string().contains("CurvedSenseInverted"), "{err}");
+    assert!(
+        err.render().contains("CurvedSenseInverted"),
+        "{err_at}",
+        err_at = err.render()
+    );
 }
 
 /// A1 control: flip one box face's sense — what does the kernel do
@@ -138,7 +142,7 @@ fn a1_control_box_face_sense_flip() {
             );
         }
         Ok(_) => panic!("wireframe"),
-        Err(e) => println!("a1 box-flip refused: {e}"),
+        Err(e) => println!("a1 box-flip refused: {e_at}", e_at = e.render()),
     }
 }
 
@@ -157,7 +161,7 @@ fn a1_control_sphere_sense_flip() {
             );
         }
         Ok(_) => panic!("wireframe"),
-        Err(e) => println!("a1 sphere-flip refused: {e}"),
+        Err(e) => println!("a1 sphere-flip refused: {e_at}", e_at = e.render()),
     }
 }
 
@@ -183,7 +187,7 @@ fn a1_flipped_torus_volume() {
         let err = import_step(&text, &ImportOptions::default(), Tol::witness())
             .err()
             .unwrap_or_else(|| panic!("a1vol {label}: imported, so it was laundered"));
-        println!("a1vol {label}: refused — {err}");
+        println!("a1vol {label}: refused — {err_at}", err_at = err.render());
     }
 }
 
@@ -206,7 +210,11 @@ fn a1_double_flipped_torus() {
         );
     let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("the ring's complement is no solid to import");
-    assert!(err.to_string().contains("NegativeVolume"), "{err}");
+    assert!(
+        err.render().contains("NegativeVolume"),
+        "{err_at}",
+        err_at = err.render()
+    );
 }
 
 /// A1, **resolved**: the original imports; the sense-flip does not.
@@ -256,7 +264,7 @@ fn a1_control_box_bound_flip() {
         }
         Ok(_) => panic!("wireframe"),
         Err(e) => {
-            let s = e.to_string();
+            let s = e.render();
             println!("a1bb refused: {}", &s[..s.len().min(120)]);
         }
     }
@@ -301,7 +309,7 @@ fn a1_inside_out_cone_apex() {
             }
             Ok(_) => panic!("wireframe"),
             Err(e) => {
-                let s = e.to_string();
+                let s = e.render();
                 println!("a1ca {label} refused: {}", &s[..s.len().min(110)]);
                 // PINNED (M6-6): the sense flip refuses with the
                 // orientation-inverted diagnosis, pre-body. (The bound
@@ -331,7 +339,7 @@ fn a1_cone_apex_flip_senses() {
     let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .err()
         .unwrap_or_else(|| panic!("an inside-out cone_apex must refuse pre-body (M6-6 rider)"));
-    let s = err.to_string();
+    let s = err.render();
     println!("a1cas refused: {}", &s[..s.len().min(110)]);
     assert!(
         s.contains("ORIENTATION-INVERTED") && s.contains("#17"),
@@ -355,7 +363,7 @@ fn a1_control_cylinder_sense_flip() {
     let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .err()
         .unwrap_or_else(|| panic!("an inside-out cylinder wall must refuse pre-body (M6-6 rider)"));
-    let s = err.to_string();
+    let s = err.render();
     println!("a1cyl refused: {}", &s[..s.len().min(110)]);
     assert!(
         s.contains("ORIENTATION-INVERTED") && s.contains("#17"),
@@ -379,7 +387,7 @@ fn a5_off_locus_arc_between_coincident_planes() {
     );
     let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("an off-locus carrier must not adopt as a conventional curve");
-    let s = err.to_string();
+    let s = err.render();
     assert!(
         s.contains("edge #206") && s.contains("no intensional description certifies"),
         "expected the typed adoption refusal naming the edge: {s}"
@@ -398,7 +406,7 @@ fn a5_nearly_coincident_planes_refuse() {
         Ok(StepImport::Solid { .. }) => println!("a5b LAUNDERED: imported"),
         Ok(_) => panic!("wireframe"),
         Err(e) => {
-            let s = e.to_string();
+            let s = e.render();
             println!("a5b refused: {}", &s[..s.len().min(160)]);
         }
     }
@@ -429,7 +437,7 @@ fn a4_wrong_outer_designation_refuses() {
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(_) => println!("a4wo LAUNDERED: imported with wrong outer designation"),
         Err(e) => {
-            let s = e.to_string();
+            let s = e.render();
             println!("a4wo refused: {}", &s[..s.len().min(180)]);
         }
     }
@@ -453,7 +461,7 @@ fn a4_inference_on_demoted_bounds() {
         }
         Ok(_) => panic!("wireframe"),
         Err(e) => {
-            let s = e.to_string();
+            let s = e.render();
             println!("a4inf refused: {}", &s[..s.len().min(150)]);
         }
     }
@@ -470,7 +478,7 @@ fn a6_unit_edges() {
     assert_ne!(t, orig);
     match import_step(&t, &ImportOptions::default(), Tol::witness()) {
         Err(e) => {
-            let s = e.to_string();
+            let s = e.render();
             println!("a6 angle refused: {}", &s[..s.len().min(110)]);
         }
         Ok(_) => println!("a6 angle LAUNDERED"),
@@ -493,7 +501,7 @@ fn a6_unit_edges() {
             println!("a6 micro volume={v:e} (expect 1e-18)");
         }
         Ok(_) => panic!(),
-        Err(e) => println!("a6 micro refused: {e}"),
+        Err(e) => println!("a6 micro refused: {e_at}", e_at = e.render()),
     }
 }
 
@@ -508,7 +516,7 @@ fn a6_two_length_scales_refuse() {
     assert_ne!(t, orig);
     match import_step(&t, &ImportOptions::default(), Tol::witness()) {
         Err(e) => {
-            let s = e.to_string();
+            let s = e.render();
             println!("a6two refused: {}", &s[..s.len().min(120)]);
         }
         Ok(_) => println!("a6two LAUNDERED: two length scales accepted"),

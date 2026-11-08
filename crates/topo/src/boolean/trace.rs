@@ -22,8 +22,8 @@ use geom_brep::roots::{Roots, Unsettled};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3};
 
 use super::BooleanError;
-use super::circle_roots::CircleRoots;
 use crate::validate::decide;
+use geom_brep::curve_face::circle_roots::CircleRoots;
 
 /// The funnel row a crossing's sense is decided on: the cosine between
 /// the piece's direction and the outward normal, levered by the piece's
@@ -143,7 +143,7 @@ impl core::error::Error for TraceFault {}
 fn unsettled_words(why: Unsettled) -> &'static str {
     match why {
         Unsettled::Tangency => "a double root",
-        Unsettled::Meter => "a residual the band cannot meter",
+        Unsettled::Meter { .. } => "a residual the band cannot meter",
         Unsettled::Exhausted => "the walk ran past its piece budget",
         Unsettled::Floor => "a piece at the walk's floor the band does not read past",
         Unsettled::Resolvent => "a resolvent with no positive root",
@@ -158,6 +158,16 @@ fn door(error: BooleanError) -> TraceFault {
     match error {
         BooleanError::Escalated { diag, .. } => TraceFault::Escalated(diag),
         other => unreachable!("the trace dispatches each root door on its own kinds: {other:?}"),
+    }
+}
+
+/// A curve × face door's refusal, as the trace's: its escalation is the
+/// trace's own, carrying no decision of the Boolean's.
+fn door_refusal(refusal: geom_brep::curve_face::circle_roots::DoorRefusal) -> TraceFault {
+    use geom_brep::curve_face::circle_roots::DoorRefusal;
+    match refusal {
+        DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
+        DoorRefusal::Invariant(what) => unreachable!("a root door's invariant: {what}"),
     }
 }
 
@@ -209,7 +219,7 @@ pub fn ray_crossings<T: Decide>(
                 Sign::Zero => return on_carrier(),
                 Sign::Positive | Sign::Negative => {}
             }
-            vec![(o - origin).dot(normal) / lead]
+            vec![geom::plane_offset(origin, normal, o) / lead]
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(TraceFault::Unsupported {
@@ -267,7 +277,7 @@ pub fn circle_crossings<T: Decide>(
             // `A cos θ + B sin θ + K = 0`, solved for the cosine and sine.
             let a = normal.dot(u_ref) * radius;
             let b = normal.dot(v_ref) * radius;
-            let k = (center - origin).dot(normal);
+            let k = geom::plane_offset(origin, normal, center);
             let r2 = a.powi(2) + b.powi(2);
             let r = r2.sqrt();
             match sign(TRACE_PLANE_LEAD, Margin::of(r), band)? {
@@ -294,7 +304,7 @@ pub fn circle_crossings<T: Decide>(
                 })
                 .collect()
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => {
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(TraceFault::Unsupported {
                 carrier: surface.kind(),
             });
@@ -302,25 +312,30 @@ pub fn circle_crossings<T: Decide>(
         _ => {
             let circle = Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
             });
             let found = match surface {
-                Surface::Torus { .. } => {
-                    super::circle_torus::circle_torus_roots(&circle, T::zero(), tau, surface, band)
-                }
+                Surface::Torus { .. } => geom_brep::curve_face::circle_torus::circle_torus_roots(
+                    &circle,
+                    T::zero(),
+                    tau,
+                    surface,
+                    band,
+                )
+                .map_err(door_refusal)?,
                 _ => super::conic_quadric::conic_quadric_roots(
                     &circle,
                     T::zero(),
                     tau,
                     surface,
                     band,
-                ),
-            }
-            .map_err(door)?;
+                )
+                .map_err(door)?,
+            };
             roots_of(found)?
                 .into_iter()
                 .map(|theta| {
@@ -379,6 +394,10 @@ fn roots_of<T: Real>(found: Result<CircleRoots<T>, Unsettled>) -> Result<Vec<T>,
     }
 }
 
+/// The funnel row a crossing's distance from a cone's apex is decided
+/// on ([`crossing`]).
+const TRACE_CROSSING_APEX: &str = "trace_crossing_apex";
+
 /// One crossing at `point`, `along` the piece, its sense read off the
 /// piece's unit `velocity` against the outward normal: the cosine
 /// between them, the outward gradient's component along the velocity
@@ -392,6 +411,15 @@ fn crossing<T: Decide>(
     lever: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Crossing<T>, TraceFault> {
+    // A root at a cone's apex, which the root doors now answer as the
+    // carrier's double root there (`reduce::line_cone_roots`,
+    // `conic_quadric`'s "Through the apex"), has no outward normal and
+    // no sense to read: the piece crosses at the apex.
+    if let Surface::Cone { apex, .. } = *surface
+        && sign(TRACE_CROSSING_APEX, Margin::norm3(point - apex), band)? != Sign::Positive
+    {
+        return Err(TraceFault::Apex);
+    }
     let outward = crate::face_normal::surface_outward_normal(surface, point, sense).vec();
     let passage = match sign(
         TRACE_CROSSING_SENSE,
@@ -452,7 +480,9 @@ pub fn carrier_extent<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, T)> {
         Surface::Plane { origin, .. } => Some((origin, T::zero())),
         Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
         Surface::Cone { apex, .. } => Some((apex, T::zero())),
-        Surface::Sphere { .. } | Surface::Torus { .. } => surface.cover().ok().map(|c| c.ball()),
+        Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
+            surface.cover().ok().map(|c| c.ball())
+        }
         Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
@@ -512,8 +542,8 @@ pub fn plane_misses<T: Decide>(
                 }
             })?;
             let level = (point - Point3::origin()).dot(normal);
-            let above = level - cover.support(normal);
-            let below = (T::zero() - cover.support(-normal)) - level;
+            let (lo, hi) = cover.range_along(normal);
+            let (above, below) = (level - hi, lo - level);
             beyond(above.max(below))
         }
         // A tilted cylinder runs across the plane; one parallel to it
@@ -532,6 +562,6 @@ pub fn plane_misses<T: Decide>(
             Sign::Positive | Sign::Negative => Ok(false),
         },
         Surface::Cone { .. } => Ok(false),
-        Surface::Nurbs(_) | Surface::Approx(_) => Err(unsupported()),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Err(unsupported()),
     }
 }

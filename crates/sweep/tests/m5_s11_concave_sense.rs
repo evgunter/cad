@@ -598,7 +598,12 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap_or_else(|e| panic!("{row}: not an honest quadrature posture: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{row}: not an honest quadrature posture: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+        )
+    });
     match unmet {
         None => {
             // ACCURACY: the certified enclosure must CONTAIN the

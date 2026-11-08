@@ -135,7 +135,7 @@
 //!   instead returns the true volumes with the hole's wall touching the
 //!   cut face's interior along the contact, with no edge for it, and
 //!   tier 3 passes that
-//!   (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`).
+//!   (`tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
 //! - A convex wall whose material, read at first order, lies across
 //!   from its `S`-ON-`S` neighbours disagrees with them (they are curves
 //!   on the same wall) and refuses as a sliver
@@ -295,7 +295,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // refusal (the surfaces under-determine the
                     // contact — never guess); in-band escalates (F6:
                     // an osculating pair is a sliver at this ε).
-                    let surface = body.proven_face_surface(face);
+                    let surface = body.proven_face(face).surface();
                     let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
@@ -548,7 +548,7 @@ fn edge_wedge<T: Decide>(
         face: mate_face,
         reading: SectorReading::Escalated(diag),
     };
-    let sector_surface = |f| body.proven_face_surface(f);
+    let sector_surface = |f| body.proven_face(f).surface();
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let (_, along, _) = chord(body, vertex, he)?;
     let extent = crate::boolean::sectors::departure_arm_lever(along);
@@ -566,8 +566,8 @@ fn edge_wedge<T: Decide>(
     };
     let (n_own, n_mate) = (own_at.normal_along(along), mate_at.normal_along(along));
     match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
-        Ok(geom_brep::DihedralClass::Smooth) => return Ok(None),
-        Ok(geom_brep::DihedralClass::Transverse) => {}
+        Ok(geom_brep::Dihedral::Tangent(_)) => return Ok(None),
+        Ok(geom_brep::Dihedral::Corner(_)) => {}
         Err(escalation) => return Err(sliver(escalation.diag())),
     }
     // The mate runs the edge backwards, so its face's interior lies at
@@ -721,7 +721,7 @@ pub(crate) fn face_reach_from<T: Decide>(
     at: Point3<T>,
 ) -> Result<Lever<T>, UnboundedFace> {
     let over_span = matches!(
-        body.proven_face_surface(face),
+        body.proven_face(face).surface(),
         geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
     );
     boundary_lever(body, face, at, |curve| {
@@ -783,7 +783,7 @@ pub(crate) fn face_axial_range<T: Decide>(
 
 /// **How far along a cone's axis a face reaches**: bounds `(lo, hi)` on
 /// `(x − apex)·axis` over `face`, its cover's support either way along
-/// the axis ([`crate::boolean::boxes::face_cover`]). A face on the cone
+/// the axis ([`crate::cover::face_cover`]). A face on the cone
 /// itself holds the apex in that window where its boundary may wind
 /// round the axis (the cone arm's `cone_may_hold_apex`); a face with no
 /// cover reads the poison window, which every lever reading it
@@ -802,7 +802,7 @@ pub(crate) fn cone_axial_window<T: Decide>(
         unreachable!("a window along a cone's axis is asked of a cone")
     };
     face_reach_from(body, face, apex)?;
-    let Ok(cover) = crate::boolean::boxes::face_cover(body, face, band) else {
+    let Ok(cover) = crate::cover::face_cover(body, face, band) else {
         let poison = geom_core::poison();
         return Ok((poison, poison));
     };
@@ -891,14 +891,13 @@ fn boundary_fold<T: Decide, R: Copy>(
     ),
     max: impl Fn(R, R) -> R,
 ) -> Result<R, UnboundedFace> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
+    let view = body.proven_face(face);
     let mut extent = floor;
-    let outer = face_data.outer;
-    for (loop_key, members) in body.face_boundary_by_loop(face, face_data) {
+    for (_, members, role) in view.boundary_by_loop() {
         for member in members {
             let p = match member {
                 // An unbounded face has no finite lever arm.
-                BoundaryMember::Isolated { vertex: lone, .. } if loop_key == outer => {
+                BoundaryMember::Isolated { vertex: lone, .. } if role.is_outer() => {
                     return Err(UnboundedFace { face, vertex: lone });
                 }
                 BoundaryMember::Isolated { point, .. } => point,
@@ -1395,7 +1394,7 @@ mod tests {
     /// A refusal's ending is the split's lever alone, after a payload
     /// that is not the poisoned-margin sentence.
     fn ends_in_the_lever(label: &str, e: &SplitReduceError) {
-        let text = e.to_string();
+        let text = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.ends_with(&format!(
                 ". Recourse: {}",
@@ -1468,8 +1467,10 @@ mod tests {
         };
         assert!((m.abs() - 1.0).abs() <= 1e-15, "{label}: the margin {m}");
         assert!(
-            e.to_string().contains("within the zero band"),
-            "{label}: {e}"
+            e.render(geom_brep::recourse::Reading::Build)
+                .contains("within the zero band"),
+            "{label}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
         ends_in_the_lever(label, e);
     }
@@ -1657,7 +1658,7 @@ mod tests {
                 face: FaceKey::default(),
                 reading,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(text.ends_with(want.as_str()), "{label}: {text}");
         }
     }

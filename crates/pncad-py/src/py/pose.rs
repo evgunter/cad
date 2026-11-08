@@ -74,6 +74,13 @@ pub(crate) fn role_word(role: PoseRole) -> &'static str {
     }
 }
 
+impl RoleRead {
+    /// `read` read through `role`.
+    pub(crate) fn of(read: d::Operand, role: PoseRole) -> Self {
+        Self { read, role }
+    }
+}
+
 #[pymethods]
 impl RoleRead {
     /// `of` read through `role`.

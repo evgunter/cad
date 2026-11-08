@@ -44,15 +44,13 @@
 // is exactly the shape a GUI form has, where the draft is canonical
 // whatever the picker shows.
 
-use pncad::document::{
-    Bodies, BooleanValue, FrameMove, Operand, TargetAxis, corner_frame, moved_frame, save,
-};
+use pncad::document::{Bodies, FrameMove, Operand, TargetAxis, corner_frame, moved_frame, save};
 use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
     Evaluation, Formula, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind, SurfaceKindSet, ValuePayload,
-    WrittenLength, all_edges, apply, evaluate, select_where,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind, SurfaceKindSet, WrittenLength,
+    all_edges, apply, evaluate, select_where,
 };
 use pncad::topo::Body;
 
@@ -347,6 +345,7 @@ fn pipped_node(a: &mut Author, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
         [0.0, 0.0, L],
         [L, 0.0, 0.0],
         &EvalOptions::default(),
+        &pncad::document::CancelToken::new(),
         tol,
     )
     .expect("the cube has its corner at its own origin");
@@ -470,12 +469,10 @@ fn build(tol: Tol) -> Die {
 /// the EVALUATION now, so this is where the generic lives (the
 /// `heatsink` precedent).
 fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId, tol: Tol) -> Body<S> {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            crate::world::in_its_space(body, tol)
-        }
-        other => panic!("expected a body, got {other:?}"),
+    let payload = &ev.value(id).expect("the node evaluated").payload;
+    match payload.one_body() {
+        Some(Some(body)) => crate::world::in_its_space(body, tol),
+        _ => panic!("expected a body, got {payload:?}"),
     }
 }
 

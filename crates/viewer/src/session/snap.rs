@@ -117,10 +117,10 @@ impl DraftSnap {
     /// **The number each of `coords` reads where the snap stands the
     /// copy**, under the chart's orientation `orient` (the one Apply
     /// writes); `None` where the chart does not read it.
-    pub(crate) fn read(
+    pub(crate) fn read<R>(
         &self,
         orient: Option<Orientation>,
-        coords: &[Coord],
+        coords: &[Coord<R>],
         tol: pncad::geom_core::Tol,
     ) -> Vec<Option<f64>> {
         let Ok(band) = pncad::geom_core::Band::linear(tol) else {
@@ -138,10 +138,10 @@ impl DraftSnap {
     /// **The new chart's spin as a link of the loaded chain `chain`**,
     /// where the kernel states it one ([`spin_as_chain_turn`]), under
     /// the chart's orientation `orient`.
-    pub(crate) fn chain_turn(
+    pub(crate) fn chain_turn<R>(
         &self,
         orient: Option<Orientation>,
-        chain: &[Coord],
+        chain: &[Coord<R>],
     ) -> Option<ChainTurn> {
         let (on, to, to_flipped) = self.chart.as_ref()?;
         spin_as_chain_turn(
@@ -160,12 +160,12 @@ impl DraftSnap {
 /// chart of `placement`'s mate `id` as the landed pair `doc`, `ev` reads
 /// it, where the kernel states its spin one link of `chain`
 /// ([`spin_as_chain_turn`]).
-pub(crate) fn loaded_chain_turn(
+pub(crate) fn loaded_chain_turn<R>(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
     placement: RecipeNodeId,
     id: ConstraintId,
-    chain: &[Coord],
+    chain: &[Coord<R>],
     tol: pncad::geom_core::Tol,
 ) -> Option<ChainTurn> {
     let (raw, instance) = match doc.node(placement)? {
@@ -360,7 +360,7 @@ pub(crate) fn draft_snap(
     let n = orient.apply(seat.copy_dir.get());
     let slides = Placed::freedoms(doc, mates, None)
         .iter()
-        .filter(|c| matches!(c, Coord::Slide(_)))
+        .filter(|c| c.is_slide())
         .count();
     Some(DraftSnap {
         at: affine(turned, t),

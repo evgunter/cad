@@ -395,7 +395,7 @@ fn every_ray_from_the_virtual_apex_grazes_and_the_door_escalates() {
     };
     // Free space has no coincidence to declare: the recourse is the
     // one without a declaration in it.
-    let msg = err.to_string();
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("off its boundary"), "{msg}");
     assert!(msg.contains("grazed"), "{msg}");
     assert!(
@@ -464,7 +464,8 @@ fn a_disjoint_union_with_a_cone_face_now_assembles() {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(
             "the containment door still refuses a cone operand — this is the \
-             refusal issue 1011's cone half retires: {e}"
+             refusal issue 1011's cone half retires: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         ),
         Err(other) => panic!("unexpected refusal: {other:?}"),
     };
@@ -512,7 +513,7 @@ fn the_kind_refusal_no_longer_names_the_cone() {
         face: body.faces().next().unwrap().0,
         kind: geom::SurfaceKind::Nurbs,
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(!msg.contains("corrupt"), "{msg}");
     assert!(
@@ -532,7 +533,7 @@ fn the_kind_refusal_no_longer_names_the_cone() {
     let msg = PointInSolidError::PartialConeFace {
         face: body.faces().next().unwrap().0,
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
     assert!(

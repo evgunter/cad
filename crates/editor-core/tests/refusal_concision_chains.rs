@@ -175,7 +175,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ("Blend/SurgeryInvariant", "at face FaceKey"),
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/Merge", "merge_coplanar_faces"),
-    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
     (
         "Naming/SplitLineage",
         "split lineage of edge EdgeKey  cycles",
@@ -231,7 +231,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
-    // work/wire/wire-refusals-short-of-the-shape-guard.md
+    // wire-refusals-short-of-the-shape-guard (closed with WIRE: docs/doc-ledger/wire-leaves-the-tracker.md)
     "AssertionDimension",
     "CurvedSolidFrontier",
     "DegenerateDirection",
@@ -248,7 +248,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    // work/wire/wire-refusals-short-of-the-shape-guard.md
+    // wire-refusals-short-of-the-shape-guard (closed with WIRE: docs/doc-ledger/wire-leaves-the-tracker.md)
     "ShellLaneUnsupported",
     "ToleranceConflict",
     "UnschedulableCycle",
@@ -281,7 +281,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/SeamRetrimsArcFirstSide",
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
-    "ProfileReplay/Transition",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -323,7 +322,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
-    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
     "Check/ChartCoherenceUnexamined(corrupt)",
@@ -655,7 +654,7 @@ const DRIVER_CARRIED: &[&str] = &[
 
 #[test]
 fn every_driver_carried_chain_ends_in_the_operators_own_recourse() {
-    let carried = payloads::euler().to_string();
+    let carried = payloads::euler().render(geom_brep::recourse::Reading::Build);
     let (_, recourse) = carried
         .split_once("Recourse: ")
         .expect("the sample operation refusal states a recourse");
@@ -775,7 +774,7 @@ test_utils::f6_variants! {
     const NODE_ERROR_KIND: NodeErrorKind = [
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
-        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
+        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, EmptyMember,
         UnfinishedOperand, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
@@ -827,7 +826,7 @@ mod kernel {
         pub(super) const REVOLVE_ERROR: RevolveError = [
             Band, EmptyProfile, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
-            SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
+            SliverRadius, ArcCrossesAxis, SliverAxisClearance, ApexEndOffSheet,
             NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
             PinnedRunStation, CapPlane, Op, Pcurve,
@@ -961,7 +960,7 @@ mod kernel {
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
             ApexUnlifted,
-            PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RunImageNotYet,
+            PoleEdgesCoincide, SectionInvariant, SectionUnwalked, SectionUnarmed, RunImageNotYet,
             RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
@@ -973,7 +972,8 @@ mod kernel {
         /// `SplitFinishError`'s arms, for the `Split/Finish/` rows.
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
             DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
-            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
+            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, Undescribed, DescribeSideEscalated, DescribeBendEscalated,
+            WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
@@ -1235,6 +1235,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::ToleranceConflict { .. }
         | NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
+        | NodeErrorKind::EmptyMember { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::MemberOutOfRange { .. }
@@ -1697,6 +1698,13 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "EmptyMember",
+            NodeErrorKind::EmptyMember {
+                input: RecipeNodeId::new(0, tagged(3)),
+                at: vec![(editor_core::VarId::new(0, tagged(2)), 1)],
+            },
+        ),
+        row(
             "UnfinishedOperand/NegativeVolume",
             NodeErrorKind::UnfinishedOperand {
                 input: RecipeNodeId::new(0, tagged(3)),
@@ -1838,28 +1846,24 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "Escalated",
             NodeErrorKind::Escalated {
-                predicate: "revolve_full_vs_partial",
                 source: named("revolve_full_vs_partial"),
             },
         ),
         row(
             "MeasureEscalated",
             NodeErrorKind::MeasureEscalated {
-                predicate: "bool_plane_parallel",
                 source: named("bool_plane_parallel"),
             },
         ),
         row(
             "PlacementAxisEscalated",
             NodeErrorKind::PlacementAxisEscalated {
-                predicate: "eval_direction_norm",
                 source: named("eval_direction_norm"),
             },
         ),
         row(
             "PoseDirectionEscalated",
             NodeErrorKind::PoseDirectionEscalated {
-                predicate: topo::POSE_UNIT_NORM,
                 source: named(topo::POSE_UNIT_NORM),
             },
         ),
@@ -2017,7 +2021,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -2071,13 +2075,13 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverAxisClearance {
                 loop_index: 0,
                 segment_index: 3,
-                decision: sweep::ClearanceDecision::ArcApex,
+                decision: sweep::ClearanceDecision::ArcReach,
                 source: diag(),
             },
         ),
         (
-            "UnsupportedToroid",
-            E::UnsupportedToroid {
+            "ApexEndOffSheet",
+            E::ApexEndOffSheet {
                 loop_index: 0,
                 segment_index: 3,
             },
@@ -2179,7 +2183,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -2572,6 +2576,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
+                "SectionUnwalked",
+                J::SectionUnwalked(geom::PieceWalkRefusal::Exhausted),
+            ),
+            (
                 "SectionUnarmed",
                 J::SectionUnarmed {
                     face,
@@ -2627,7 +2635,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "TangentChordRefuted",
                 J::TangentChordRefuted {
                     face,
-                    mixed: Some(geom_brep::MixedStations {
+                    mixed: Some(geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     }),
@@ -2676,6 +2684,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::DescribeEscalated { edge, diag: diag() },
         ),
         (
+            "Undescribed",
+            F::Undescribed {
+                edge,
+                failure: topo::EdgeDescribeFailure::Crease,
+            },
+        ),
+        (
             "ConeCornerEscalated",
             F::ConeCornerEscalated {
                 vertex,
@@ -2698,6 +2713,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::DescribeBendEscalated { edge, diag: diag() },
         ),
         (
+            "WholeBodySideEscalated",
+            F::WholeBodySideEscalated { edge, diag: diag() },
+        ),
+        (
             "EdgeOnFacesEscalated",
             F::EdgeOnFacesEscalated { edge, diag: diag() },
         ),
@@ -2705,7 +2724,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "SmoothJoinRefuted",
             F::SmoothJoinRefuted {
                 edge,
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -3566,7 +3585,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use sweep::blend::{
         BlendDecision, BlendError as E, BlendKind, BlendSite, Breach, ClassifiedMargin,
-        CornerConfig,
+        CornerConfig, KnifeRefusal,
     };
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
     let (face, edge, vertex) = (FaceKey::default(), EdgeKey::default(), VertexKey::default());
@@ -3628,10 +3647,19 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "KnifeEdge",
+            "KnifeEdge(never opens)",
             E::KnifeEdge {
                 edge,
-                margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
+                margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
+                refusal: KnifeRefusal::NeverOpens,
+            },
+        ),
+        (
+            "KnifeEdge(no room)",
+            E::KnifeEdge {
+                edge,
+                margin: decided("fillet3_knife_room", -1e-3, Sign::Negative),
+                refusal: KnifeRefusal::NoRoom { radius: 1.2 },
             },
         ),
         (
@@ -4002,6 +4030,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             "Escalated(segment)",
             E::Escalated {
                 site: EscalationSite::Segment(a),
+                gate: profile::Gate::VertexSeparation,
                 source: named("vertex_separation"),
             },
         ),
@@ -4009,6 +4038,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             "Escalated(pair)",
             E::Escalated {
                 site: EscalationSite::SegmentPair(a, b),
+                gate: profile::Gate::CollinearOverlap,
                 source: named("collinear_overlap"),
             },
         ),
@@ -4040,7 +4070,10 @@ fn structure_refusal_indeterminate() -> profile::StructureRefusal {
             loop_: 1,
             against: 0,
         },
-        kind: StructureRefusalKind::Indeterminate(payloads::diag()),
+        kind: StructureRefusalKind::Indeterminate {
+            gate: profile::Gate::LoopOrientation,
+            source: payloads::named("loop_orientation"),
+        },
     }
 }
 
@@ -4050,9 +4083,9 @@ fn structure_refusal_indeterminate() -> profile::StructureRefusal {
 fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     use geom_core::Point2;
     use payloads::*;
-    use profile::path::{PathError as P, PathNoCornerReason};
+    use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
     use profile::{CornerReason, CornerRefusal, FilletLegCarrier, NoCornerReason};
-    use profile::{FilletLeg, ReplayError, ReplayErrorKind, TipState};
+    use profile::{CornerWindow, FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
             "JunctionTangent",
@@ -4090,7 +4123,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         (
             "NoCornerForFillet",
             P::NoCornerForFillet {
-                reason: PathNoCornerReason::CarriersParallel,
+                reason: PathNoCornerReason::CarriersTangent,
                 radius: 0.1,
             },
         ),
@@ -4199,7 +4232,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                     role: profile::PieceRole::Leg,
                 },
                 verb: profile::Verb::TangentArcTo,
-                predicate: "path_arc_landing",
+                read: profile::ArcRead::Landing,
                 point: Point2::new(-2.7, 2.7e-4),
                 miss: 3.4e-8,
                 scale: 1.36e4,
@@ -4216,7 +4249,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                     role: profile::PieceRole::Leg,
                 },
                 verb: profile::Verb::ArcTo,
-                predicate: "path_arc_through_point",
+                read: profile::ArcRead::ThroughPoint,
                 point: Point2::new(0.0, 2.74e8),
                 miss: 3.0e-8,
                 scale: 2.74e8,
@@ -4229,6 +4262,8 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             P::Escalated {
+                site: profile::EscalatedAt::Door,
+                gate: profile::Gate::RaySide,
                 source: named("ray_side"),
             },
         ),
@@ -4237,6 +4272,30 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::CarriersDoNotMeet,
                 radius: 0.1,
+            },
+        ),
+        (
+            "NoCornerForFillet(turn, leg)",
+            P::NoCornerForFillet {
+                reason: PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn: 0.01,
+                    align: -0.99995,
+                    lever: 5e-8,
+                    lever_of: TurnLever::ShorterLeg,
+                },
+                radius: 0.05,
+            },
+        ),
+        (
+            "NoCornerForFillet(turn, anchors)",
+            P::NoCornerForFillet {
+                reason: PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn: 0.9,
+                    align: 0.44,
+                    lever: 6e-10,
+                    lever_of: TurnLever::AnchorSeparation,
+                },
+                radius: 0.05,
             },
         ),
         (
@@ -4355,6 +4414,32 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 ],
             },
         ),
+        (
+            "NoCornerOfPair(behind the incoming ray)",
+            P::NoCornerOfPair {
+                radius: 0.312_345_678,
+                corners: vec![CornerRefusal {
+                    at: Point2::new(-1.234_567, 0.987_654),
+                    reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
+                }],
+            },
+        ),
+        (
+            "NoCornerOfPair(both windows)",
+            P::NoCornerOfPair {
+                radius: 0.312_345_678,
+                corners: vec![
+                    CornerRefusal {
+                        at: Point2::new(1.234_567, -0.987_654),
+                        reason: CornerReason::OutsideAnchors(CornerWindow::BehindArrivalAnchor),
+                    },
+                    CornerRefusal {
+                        at: Point2::new(-1.234_567, 0.987_654),
+                        reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
+                    },
+                ],
+            },
+        ),
         ("Band", P::Band(band_error())),
         ("Structure", P::Structure(structure_refusal())),
         (
@@ -4368,39 +4453,45 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::OverdeterminedJunction { site: "arc_to" },
         ),
     ];
+    use profile::{EscalatedAt, Gate};
     let routed = [
-        "fillet_corner_turn",
-        "fillet_corner_arm",
-        "fillet_leg_reach",
-        "fillet_leg_fit",
-        "fillet_offset_lever",
-        "fillet_enclosing_carrier",
-        "path_continuation_target_offset",
-        "path_seam_arrival_turn",
-        "path_leg_length",
-        "vertex_separation",
-        "path_junction_turn",
+        (EscalatedAt::Door, Gate::FilletCornerTurn),
+        (EscalatedAt::Door, Gate::FilletCornerArm),
+        (EscalatedAt::Door, Gate::FilletLegReach),
+        (EscalatedAt::Door, Gate::FilletLegFit),
+        (EscalatedAt::Door, Gate::FilletOffsetLever),
+        (EscalatedAt::Door, Gate::FilletEnclosingCarrier),
+        (EscalatedAt::Door, Gate::PathContinuationTargetOffset),
+        (EscalatedAt::Door, Gate::PathSeamArrivalTurn),
+        (EscalatedAt::Door, Gate::PathLegLength),
+        (EscalatedAt::Door, Gate::PathCornerTurn),
+        (EscalatedAt::StoredForm, Gate::VertexSeparation),
+        (EscalatedAt::Door, Gate::PathJunctionTurn),
     ];
     let path: Vec<(String, P<f64>)> = path
         .into_iter()
         .map(|(n, p)| (n.to_owned(), p))
-        .chain(routed.into_iter().map(|predicate| {
+        .chain(routed.into_iter().map(|(site, gate)| {
             (
-                format!("Escalated({predicate})"),
+                format!("Escalated({site:?}, {})", gate.predicate()),
                 P::Escalated {
+                    site,
+                    gate,
                     source: geom_core::Indeterminate {
-                        predicate: Some(predicate),
+                        predicate: Some(gate.predicate()),
                         ..diag()
                     },
                 },
             )
         }))
         .collect();
+    // The state that takes the most verbs, so its recourse is the
+    // longest list a lattice refusal draws.
     let transition = ReplayError {
         step: 2,
         kind: ReplayErrorKind::Transition {
-            state: TipState::Closed,
-            verb: None,
+            state: TipState::DirectedPoint,
+            verb: Some(profile::Verb::CloseTo),
         },
     };
     path.into_iter()
@@ -4484,7 +4575,9 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
         ),
         (
             "Carrier/Unsettled",
-            F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter)),
+            F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter {
+                row: "test_meter",
+            })),
         ),
     ];
     faults
@@ -4738,19 +4831,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UnsupportedUnjudgedGlue",
-            NamingError::UnsupportedUnjudgedGlue {
-                face: topo::FaceKey::default(),
-                faces: vec![
-                    (
-                        editor_core::VarId::new(0, tagged(41)),
-                        stable(EntityKind::Face, 3),
-                    ),
-                    (
-                        editor_core::VarId::new(0, tagged(43)),
-                        stable(EntityKind::Face, 4),
-                    ),
-                ],
+            "HoldingsUnread",
+            NamingError::HoldingsUnread {
+                face: Some(topo::FaceKey::default()),
+                refusal: topo::HeldRefusal::UncutRemainder {
+                    face: topo::FaceKey::default(),
+                },
             },
         ),
         (
@@ -4860,7 +4946,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             NamingError::Escalated {
-                predicate: "name_frag_on_member_edge",
                 source: named("name_frag_on_member_edge"),
             },
         ),
@@ -5608,7 +5693,7 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 "RimSeamMixed",
                 S::RimSeamMixed {
                     edge: topo::EdgeKey::default(),
-                    stations: geom_brep::MixedStations {
+                    stations: geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     },
@@ -5805,7 +5890,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "MixedEdge",
                 R::MixedEdge {
                     edge,
-                    stations: geom_brep::MixedStations {
+                    stations: geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     },
@@ -6068,7 +6153,10 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         let words = "the sign of a shell's volume cannot be read: this scalar carries no \
                      interval to certify its sums, and the volume lies within their rounding";
         let ending = geom_core::NOT_YET_ENDING;
-        assert_eq!(source.to_string(), format!("{words}. {ending}"));
+        assert_eq!(
+            source.render(geom_brep::recourse::Reading::Build),
+            format!("{words}. {ending}")
+        );
         let text = render(CheckEvidence::Unsupported {
             source: source.clone(),
         });
@@ -6594,7 +6682,7 @@ fn longest_breach() -> &'static str {
     .max_by_key(|&breach| {
         let detail = "";
         BlendError::BodyNotIntact { at, breach, detail }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
             .split_whitespace()
             .count()
     })

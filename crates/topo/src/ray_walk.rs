@@ -8,13 +8,13 @@
 //!
 //! A walk first asks where `q` itself stands — its boundary pre-pass,
 //! whose in-band rows refuse the query. Past it, every reading is about
-//! ONE RAY, so the rays are tried in schedule order and each ends one of
-//! these ways ([`RayFault`]): a verdict, which ends the walk; a graze, or
-//! a member that gave no ray to read, which keep nothing; a reading set
-//! aside for this ray alone — an in-band margin, or a limit it definitely
-//! met — which is kept as the walk's refusal should no ray decide
-//! ([`Evidence`], the ladder's one ranking); or a refusal of the whole query, which ends the walk
-//! at once. No direction is ever picked
+//! ONE RAY, so the rays are a ladder ([`geom_brep::ladder::climb`]) tried
+//! in schedule order, and each ends one of these ways ([`RayFault`]): a
+//! verdict, which answers; a graze, or a member that gave no ray to
+//! read, which pass; a reading set aside for this ray alone — an in-band
+//! margin, or a limit it definitely met — which the ladder keeps, ranks
+//! and refuses on should no ray decide; or a refusal of the whole query,
+//! which aborts the walk at once. No direction is ever picked
 //! by coordinate comparison — a comparison-picked basis could diverge
 //! between the f64 and interval lanes; a fixed schedule whose degenerate
 //! members are detected *by predicate* cannot.
@@ -70,7 +70,7 @@
 //! exhaustion. [`walk`]'s exhaustion argument receives nothing to
 //! relabel.
 
-use geom_brep::ladder::{Evidence, Ranked};
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{
     Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec2, Vec3,
 };
@@ -130,7 +130,7 @@ impl<E> RayFault<E> {
     /// **The fault's rank among faults one ray raised at several faces**
     /// at once, highest first: a refusal of the whole query, then a limit
     /// no tolerance moves, then an in-band margin, then a graze or no
-    /// reading (the order [`Evidence`] ranks a run's readings by). The
+    /// reading (the order [`Evidence`](geom_brep::ladder::Evidence) ranks a run's readings by). The
     /// highest is the ray's, whatever order its faces were read in.
     pub(crate) const fn rank(&self) -> u8 {
         match self {
@@ -153,11 +153,16 @@ impl<E> RayFault<E> {
     }
 }
 
-/// **The walk**: `read` each ray of `rays` in order until one decides.
-/// When none does, the refusal is [`Evidence`]'s ranking of what the
-/// rays kept, and `exhausted()` where they kept nothing — every ray
-/// grazed or gave nothing to read ([`NoRaySettled`]). A
-/// [`RayFault::Fatal`] ends the walk with its error at once.
+/// **The walk**: `read` each ray of `rays` in order until one decides:
+/// the ladder ([`climb`]) whose answer is a verdict. A
+/// [`RayFault::Fatal`] aborts the walk with its error at once
+/// ([`Rung::Aborts`]): the refusal rests on every ray set aside ahead of
+/// it, which a tighter tolerance might have decided first. A point's side is one fact, so every ray that decides gives the same
+/// verdict ([`Answering::Any`]): a ray set aside ahead of the one that
+/// decides is superseded in the record. When none decides, the refusal is
+/// [`Evidence`](geom_brep::ladder::Evidence)'s ranking of what the rays kept, and `exhausted()` where
+/// they kept nothing — every ray grazed or gave nothing to read
+/// ([`NoRaySettled`]).
 ///
 /// # Errors
 ///
@@ -167,20 +172,17 @@ pub(crate) fn walk<R, V, E>(
     mut read: impl FnMut(R) -> Result<V, RayFault<E>>,
     exhausted: impl FnOnce() -> E,
 ) -> Result<V, E> {
-    let mut kept = Evidence::default();
-    for ray in rays {
-        match read(ray) {
-            Ok(verdict) => return Ok(verdict),
-            Err(RayFault::Graze | RayFault::Unread) => {}
-            Err(RayFault::InBand(e)) => kept.in_band(e),
-            Err(RayFault::Blocked(e)) => kept.blocked(e),
-            Err(RayFault::Fatal(e)) => return Err(e),
-        }
+    match climb(Answering::Any, rays, |ray| match read(ray) {
+        Ok(verdict) => Rung::Answers(Ok(verdict)),
+        Err(RayFault::Graze | RayFault::Unread) => Rung::Passes,
+        Err(RayFault::InBand(e)) => Rung::InBand(e),
+        Err(RayFault::Blocked(e)) => Rung::Blocked(e),
+        Err(RayFault::Fatal(e)) => Rung::Aborts(Err(e)),
+    }) {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Undecided(e) => Err(e),
+        Climb::Passed => Err(exhausted()),
     }
-    Err(match kept.ranked() {
-        Ranked::Blocked(e) | Ranked::InBand(e) => e,
-        Ranked::Neither => exhausted(),
-    })
 }
 
 /// **The one sentence for a walk none of whose rays kept anything**, and
@@ -786,6 +788,61 @@ mod tests {
 
     fn lift(p: Point2<f64>) -> Point3<f64> {
         Point3::new(p.x, p.y, 0.0)
+    }
+
+    /// **A ray set aside ahead of the ray that decides leaves no live
+    /// escalation**: a point's side is one fact, so the walk's verdict
+    /// does not rest on the set-aside ray. Where no ray decides, the
+    /// kept one is the refusal, and its escalation stays.
+    #[test]
+    fn a_set_aside_ray_ahead_of_a_verdict_is_superseded() {
+        let in_band = 5e-9;
+        let run = |rays: &[Option<f64>]| {
+            let bracket = geom_core::k_stats::Bracket::open();
+            let got = walk(
+                rays.iter().copied(),
+                |ray| match ray {
+                    Some(margin) => advance("test_ray_walk_advance", Margin::of(margin), band())
+                        .map_err(|fault| fault.map(|_| ())),
+                    None => Err(RayFault::Unread),
+                },
+                || (),
+            );
+            (got, bracket.finish().escalations.len())
+        };
+        assert_eq!(
+            run(&[Some(in_band), Some(1.0)]),
+            (Ok(Sign::Positive), 0),
+            "the later ray decides; the set-aside ray's escalation is superseded"
+        );
+        assert_eq!(
+            run(&[Some(in_band), None]),
+            (Err(()), 1),
+            "no ray decides: the kept ray refuses, its escalation live"
+        );
+    }
+
+    /// **A refusal of the whole query keeps the rays set aside ahead of
+    /// it live**: a tighter ε on the set-aside ray might have answered
+    /// before the fatal ray was reached, so the refusal rests on it.
+    #[test]
+    fn a_fatal_after_a_set_aside_ray_keeps_its_escalation_live() {
+        let bracket = geom_core::k_stats::Bracket::open();
+        let got: Result<Sign, &str> = walk(
+            [Some(5e-9), None],
+            |ray| match ray {
+                Some(m) => advance("test_ray_walk_advance", Margin::of(m), band())
+                    .map_err(|f| f.map(|_| "in band")),
+                None => Err(RayFault::Fatal("corrupt")),
+            },
+            || "exhausted",
+        );
+        assert_eq!(got, Err("corrupt"));
+        assert_eq!(
+            bracket.finish().escalations.len(),
+            1,
+            "the refusal rests on the in-band ray"
+        );
     }
 
     /// A square carrying a **repeated vertex**, so one segment is

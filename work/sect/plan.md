@@ -107,19 +107,31 @@ and 16 points, 30 against 30 together, and the three merged back by
 `git mv`, ids and bodies unchanged
 (`docs/doc-ledger/secttail-sectrung-and-sectsite-merge-back.md`).
 
-**SECTSITE's P1 rows**, in order:
+**SECTSITE's rows**, in order (the C5 residue re-banded P0 on 2026-11-03):
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P1 | `a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm` | H | A closed edge lying in a cone, cylinder or torus face has no join arm |
-| P1 | `c5-plane-torus-cone-cylinder-arms` | H +design | The C5 plane × torus and cone × cylinder residue (U-H1, held by D10); lily wall 8's stop |
+| P0 | `c5-plane-torus-cone-cylinder-arms` | X (16) +design | The C5 plane × torus residue: the general rung (lily wall 8's stop) and U-H1 |
 
 1. **The closed edge**, read on the section value's components. A conic
    lying in a curved face is a section component whose carrier is an
    edge of one operand.
-2. **The C5 residue**, once D10 releases its touching poses: the hold is
-   `work/intent/d10-one-way-to-say-intent-is-unbuilt.md`. Its design
-   flag is read again then.
+2. **The C5 residue**, first now that it is P0 (2026-11-03): its general
+   plane × torus rung is lily wall 8's stop
+   (`work/splice/curved-demo-joins-build.md`). The D10 hold on its
+   touching poses (U-H1) lifted when INTENT closed on 2026-10-30
+   (#6103). Its design flag is read again at dispatch.
+
+**The cone's rung-3 rows** (filed and re-banded P0 on 2026-11-03):
+
+| pri | item | cost | title |
+|---|---|---|---|
+| P0 | `the-cone-has-no-implicit-enclosure-or-metres-conversion` | H +design | The cone has no implicit enclosure or metres conversion: every rung-3 pair with a cone refuses |
+| P0 | `cone-torus-rung-three-arm-waits-on-the-cone` | M, parked on the row above | Cone × torus at rung 3 (lily wall 2, the lantern welded onto the arch) |
+
+The cone row also gates SECTARMS' NURBS × cone stage, which klein wall
+3 needs.
 
 The P2/P3 rows carry no table here; `python3 scripts/work.py status --program sect`
 lists them. What their plans said still holds:

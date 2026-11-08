@@ -16,7 +16,7 @@ use editor_core::Dimension;
 
 use editor_core::{
     CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, VarId,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -231,7 +231,7 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
 }
 
 // ---------------------------------------------------------------
-// PROBE 2 — a circular axis read off the origin, with a
+// PROBE 2 — an OBLIQUE circular axis read, off the origin, with a
 // leg pinned at a non-identity frame. The expected offset is recomputed in the
 // test by Rodrigues, independently of the evaluator.
 // ---------------------------------------------------------------
@@ -284,8 +284,8 @@ fn apply(f: Frame, p: [f64; 3]) -> [f64; 3] {
 /// The seat point, carried two independent ways to the same world
 /// point. Two tops are seated, one on copy 0 and one on copy 2; each
 /// seat stands its top's origin on its copy's `(0, 0, 1)`. Copy 2 is
-/// copy 0 turned twice the step about the axis, a line of the document
-/// along z that misses the origin, so the second top's origin must be
+/// copy 0 turned twice the step about the OBLIQUE axis, a line of the
+/// document that misses the origin, so the second top's origin must be
 /// the first's turned by Rodrigues about that line. The leg's world
 /// pose is a rotation and a translation, so a turn composed inside `F`
 /// rather than outside it moves the second seat off. The axis is read
@@ -310,7 +310,7 @@ fn r1_off_origin_circular_axis_with_a_non_identity_group_frame() {
     let (doc, leg) = pinned_at(doc, leg_part.doc_ref, &f, &o);
 
     let axis_origin = [0.3, -1.2, 0.7];
-    let axis_dir = [0.0, 0.0, 1.0];
+    let axis_dir = [1.0, 2.0, 3.0];
     let theta = 0.7;
     let axis = crate::mate1_member_vocab::axis_with(
         &doc,
@@ -319,7 +319,7 @@ fn r1_off_origin_circular_axis_with_a_non_identity_group_frame() {
         unturn(f, axis_dir),
         &o,
     );
-    let (doc, k, pattern) = crate::fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 3);
+    let (doc, k, pattern) = crate::fixture::circular(doc, leg, axis, theta, 3);
     let mut doc = doc;
     let mut seated = Vec::new();
     for member in [0, 2] {
@@ -504,11 +504,11 @@ fn r1_pattern_free_solves_are_bit_identical() {
                 values: vec![
                     (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
                     (
-                        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                        editor_core::Coord::slide(editor_core::TargetAxis::X),
                         len(0.25),
                     ),
                     (
-                        editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                        editor_core::Coord::slide(editor_core::TargetAxis::Y),
                         len(0.0),
                     ),
                 ],

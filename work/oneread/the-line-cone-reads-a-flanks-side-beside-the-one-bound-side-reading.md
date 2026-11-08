@@ -2,11 +2,12 @@
 id: the-line-cone-reads-a-flanks-side-beside-the-one-bound-side-reading
 kind: issue
 title: The line cone reads a flank's side of a face plane at first order (link_plane) beside the one bound-side reading (bound_read, with its descent)
-status: spec
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [recl-edge-edge-composes-the-other-solids-material-beside-the-cone, the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways]
+closed: 2026-11-03
 ---
 
 

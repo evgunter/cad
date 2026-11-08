@@ -8,7 +8,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, PI, TAU};
 use geom::Curve3;
 use geom_core::{Band, Point3, Vec3};
 
-use super::{Boundary, BoundaryRefusal, boundary};
+use super::{Boundary, BoundaryRefusal, OnBoundary, boundary};
 use crate::curve_pair::Span;
 
 const ZERO: f64 = 1e-9;
@@ -30,7 +30,7 @@ fn read_on(
         .iter()
         .map(|(c, (t0, t1))| (c.eval(*t0), Span::new(c, (*t0, *t1))))
         .collect();
-    boundary(&Span::new(carrier, params), &spans, band())
+    boundary(&Span::new(carrier, params), &spans, &[], band())
 }
 
 /// A disc bounded by one closed circle edge, its vertex at angle 0.
@@ -48,7 +48,11 @@ fn closed_rim_arc_inside_is_along() {
 fn closed_rim_arc_across_its_vertex_meets_there() {
     let r = read_on(&disc(), &circle(Vec3::unit_z()), (-0.5, 0.5));
     match r {
-        Ok(Boundary::Meets { t, edge: 0, .. }) => assert!(t.abs() < 1e-9, "{t}"),
+        Ok(Boundary::Meets {
+            t,
+            at: OnBoundary::Vertex(0) | OnBoundary::Edge(0, _),
+            ..
+        }) => assert!(t.abs() < 1e-9, "{t}"),
         other => panic!("{other:?}"),
     }
 }
@@ -64,7 +68,16 @@ fn closed_rim_whole_circle_is_along() {
 #[test]
 fn closed_rim_whole_circle_seamed_elsewhere_meets_at_the_vertex() {
     let r = read_on(&disc(), &circle(Vec3::unit_z()), (1.0, 1.0 + TAU));
-    assert!(matches!(r, Ok(Boundary::Meets { edge: 0, .. })), "{r:?}");
+    assert!(
+        matches!(
+            r,
+            Ok(Boundary::Meets {
+                at: OnBoundary::Vertex(0) | OnBoundary::Edge(0, _),
+                ..
+            })
+        ),
+        "{r:?}"
+    );
 }
 
 fn quarter_ellipse() -> Vec<(Curve3<f64>, (f64, f64))> {
@@ -121,7 +134,11 @@ fn an_ellipse_sub_run_lies_along() {
 fn an_ellipse_run_past_the_corner_meets_there() {
     let r = read_on(&quarter_ellipse(), &ellipse(Vec3::unit_z()), (0.3, 2.0));
     match r {
-        Ok(Boundary::Meets { t, edge: 2, .. }) => assert!((t - FRAC_PI_2).abs() < 1e-9, "{t}"),
+        Ok(Boundary::Meets {
+            t,
+            at: OnBoundary::Vertex(2) | OnBoundary::Edge(2, _),
+            ..
+        }) => assert!((t - FRAC_PI_2).abs() < 1e-9, "{t}"),
         other => panic!("{other:?}"),
     }
 }
@@ -143,7 +160,16 @@ fn a_line_sub_run_lies_along_and_one_across_the_corner_meets() {
     let r = read_on(&rim(), &x, (0.2, 0.7));
     assert!(matches!(r, Ok(Boundary::Along { edge: 0 })), "{r:?}");
     let r = read_on(&rim(), &x, (-0.5, 0.5));
-    assert!(matches!(r, Ok(Boundary::Meets { edge: 0, .. })), "{r:?}");
+    assert!(
+        matches!(
+            r,
+            Ok(Boundary::Meets {
+                at: OnBoundary::Vertex(0) | OnBoundary::Edge(0, _),
+                ..
+            })
+        ),
+        "{r:?}"
+    );
 }
 
 /// Two arcs of one circle sharing a run shorter than the band's zero

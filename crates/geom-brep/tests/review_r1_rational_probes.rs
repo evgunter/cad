@@ -491,7 +491,10 @@ fn probe(
             Posture::Stopped(width_len)
         }
         Err(e) => {
-            println!("{name}: typed refusal (sound): {e}");
+            println!(
+                "{name}: typed refusal (sound): {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            );
             match e {
                 // A face whose AREA enclosure does not certify positive
                 // extent: the convergence meter has no lever, and the

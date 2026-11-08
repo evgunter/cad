@@ -59,8 +59,7 @@ fn cover_of<T: Real>(piece: Piece<T>) -> Cover<T> {
             circle: true,
             ..
         } => Cover::arc(
-            center,
-            (u_ref, normal.cross(u_ref)),
+            &geom::Frame::new(center, normal, u_ref),
             (major, major),
             ParamWindow::new(T::zero(), T::tau()),
         ),
@@ -71,7 +70,7 @@ fn cover_of<T: Real>(piece: Piece<T>) -> Cover<T> {
             major,
             minor,
             ..
-        } => Cover::tube(center, normal, u_ref, major, minor),
+        } => Cover::tube(&geom::Frame::new(center, normal, u_ref), major, minor),
         Piece::Segment(a, b) => Cover::segment(a, b),
     }
     .unwrap()
@@ -91,7 +90,7 @@ const SAMPLE_REL: f64 = 5e-15;
 /// The exact depth of the point `x`: the oracle.
 fn exact<T: geom_core::Decide>(depth: Depth<T>, x: Point3<T>) -> T {
     match depth {
-        Depth::Axis { origin, axis } => split(x - origin, axis).0.norm(),
+        Depth::Axis(line) => line.distance(x),
         Depth::Center { center } => (x - center).norm(),
         Depth::Core {
             center,
@@ -136,7 +135,7 @@ fn draw(r: &mut Rng, i: usize) -> (Depth<f64>, Piece<f64>, Vec<Point3<f64>>, f64
     let axis = if coaxial { n } else { unit(r) } * r.range(0.5, 2.0);
     let origin = centre(r, far);
     let depth = match i % 3 {
-        0 => Depth::Axis { origin, axis },
+        0 => Depth::Axis(geom::Line { origin, dir: axis }),
         1 => Depth::Center { center: origin },
         _ => Depth::Core {
             center: origin,
@@ -206,10 +205,10 @@ fn ivec(x: Vec3<f64>) -> Vec3<Interval> {
 
 fn lift_depth(d: Depth<f64>) -> Depth<Interval> {
     match d {
-        Depth::Axis { origin, axis } => Depth::Axis {
+        Depth::Axis(geom::Line { origin, dir: axis }) => Depth::Axis(geom::Line {
             origin: ip(origin),
-            axis: ivec(axis),
-        },
+            dir: ivec(axis),
+        }),
         Depth::Center { center } => Depth::Center { center: ip(center) },
         Depth::Core {
             center,

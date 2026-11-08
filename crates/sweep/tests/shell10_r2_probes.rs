@@ -302,7 +302,10 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
     assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2 is clean");
     let mut whole = body.clone();
     let refused = topo::mint_pcurves(&mut whole, tol()).expect_err("the whole-body mint refuses");
-    println!("[r2-10] e2e3 whole-body mint refuses: {refused}");
+    println!(
+        "[r2-10] e2e3 whole-body mint refuses: {refused_at}",
+        refused_at = refused.render(geom_brep::recourse::Reading::Build)
+    );
 
     // The operand's rows: the vessel's, through the subset entry — the
     // only public mint that can run on this body at all.
@@ -388,7 +391,10 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
     match b.kef(seam) {
         Ok(_) => {}
         Err(e) => {
-            println!("[r2-10] kef refused the seam: {e} — row not demonstrable this way");
+            println!(
+                "[r2-10] kef refused the seam: {e_at} — row not demonstrable this way",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             return;
         }
     }
@@ -407,7 +413,9 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
     let subset = topo::mint_pcurves_of(&mut sub, &faces, tol());
     println!(
         "[r2-10] subset pass over EVERY face: {:?} dead={} rows={}",
-        subset.as_ref().map_err(|e| e.to_string()),
+        subset
+            .as_ref()
+            .map_err(|e| e.render(geom_brep::recourse::Reading::Build)),
         dead_rows(&sub),
         sub.pcurves().count()
     );
@@ -420,7 +428,8 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
     let all = topo::mint_pcurves(&mut whole, tol());
     println!(
         "[r2-10] whole-body pass: {:?} dead={} rows={}",
-        all.as_ref().map_err(|e| e.to_string()),
+        all.as_ref()
+            .map_err(|e| e.render(geom_brep::recourse::Reading::Build)),
         dead_rows(&whole),
         whole.pcurves().count()
     );

@@ -179,7 +179,11 @@ pub(crate) fn moved_to_frame(
     for (coord, value) in &again.values {
         let var = bundle
             .iter()
-            .find_map(|c| c.value().filter(|v| v.coord == *coord).map(|v| v.by))
+            .find_map(|c| {
+                c.value()
+                    .filter(|v| editor_core::Coord::from(v.coord) == *coord)
+                    .map(|v| v.by)
+            })
             .unwrap_or_else(|| panic!("the placement holds a value on {coord:?}"));
         edits.push((var, value.clone()));
     }

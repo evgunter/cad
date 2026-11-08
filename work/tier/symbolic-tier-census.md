@@ -200,7 +200,7 @@ CSV rather than a name filter.
 | `side_cylinders_cosurface` | EXPLICIT | MEASURED 4 / 0 (symbolic / numeric) | `crates/sweep/src/extrude.rs` | plain |
 | `side_planes_cosurface` | EXPLICIT | MEASURED 0 / 8 (symbolic / numeric) | `crates/sweep/src/extrude.rs` | — |
 | `split_carrier` | EXPLICIT | closed form at the site | `crates/geom/tests/curves/lt_r1_probes.rs` | not in the M10-8 documents |
-| `split_conic_plane_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/splitting/classify.rs` | not in the M10-8 documents |
+| `plane_crossing_plane_parallel` | EXPLICIT | closed form at the site | `crates/geom-brep/src/curve_face/plane_crossing.rs` | not in the M10-8 documents |
 | `ss_carrier_external` | EXPLICIT | closed form at the site | `crates/geom-brep/src/intersect.rs` | not in the M10-8 documents |
 | `ss_carrier_identity` | EXPLICIT | closed form at the site | `crates/geom-brep/src/intersect.rs` | not in the M10-8 documents |
 | `ss_carrier_internal` | EXPLICIT | closed form at the site | `crates/geom-brep/src/intersect.rs` | not in the M10-8 documents |

@@ -146,10 +146,7 @@ fn a_frames_axes_and_planes_read_through_their_roles() {
     let (doc, _, ring) = fixture::circular(
         doc,
         cube,
-        (
-            RoleRead::through(Operand::Var(frame), PoseRole::Y),
-            editor_core::TargetAxis::Z,
-        ),
+        RoleRead::through(Operand::Var(frame), PoseRole::Y),
         std::f64::consts::FRAC_PI_2,
         2,
     );

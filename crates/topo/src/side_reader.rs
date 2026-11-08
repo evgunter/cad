@@ -16,15 +16,17 @@
 //! ([`crate::boolean::solid_contain`]'s crossing walk), logged under their
 //! own rows ([`AIMED_ROWS`]) so the two readers' verdicts stay apart.
 
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 
 use crate::body::Body;
 use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{
-    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, face_plane, ray_crossings,
+    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, ray_crossings,
     selection_reach, side_before, uncrossable,
 };
-use crate::entity::{EntityId, FaceKey, LoopBoundary};
+use crate::entity::{EntityId, FaceKey};
+use crate::live::proven;
 use crate::ray_walk::RayFault;
 
 /// An aimed ray's rows ([`side_at_infinity`]).
@@ -283,30 +285,24 @@ type Aim<T> = (Point3<T>, Vec3<T>);
 ///
 /// # Errors
 ///
-/// A planar face that does not walk, or whose plane or in-face walk
-/// refuses other than in band; a face that does not resolve.
+/// A planar face that does not walk, or whose in-face walk refuses
+/// other than in band; a face that does not resolve.
 fn aim_at<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     geo: &FaceGeo<T>,
     band: Band,
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
-    match face_plane(body, face) {
-        Ok((_, normal)) => {
-            if let Some(aim) = loop_aim(body, face, normal) {
-                return Ok(Some((aim, normal)));
-            }
-            return Ok(
-                crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal))
-            );
+    if let Some((_, normal)) = crate::face_normal::face_plane(body, face) {
+        if let Some(aim) = loop_aim(body, face, normal) {
+            return Ok(Some((aim, normal)));
         }
-        Err(PointInSolidError::KindUnsupported { .. }) => {}
-        Err(e) => return Err(e),
+        return Ok(crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal)));
     }
     let f = body
-        .get_face(face)
+        .passed_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let surface = body.face_surface_linked(face, f);
+    let surface = f.surface();
     let aim = match *geo {
         FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => {
             match region.aim() {
@@ -346,7 +342,7 @@ fn aim_at<T: Decide>(
     let chart = geom_brep::implicit_gradient(surface, aim);
     Ok(Some((
         aim,
-        geom_brep::OutwardNormal::from_chart(chart, f.sense).vec(),
+        geom_brep::OutwardNormal::from_chart(chart, f.sense()).vec(),
     )))
 }
 
@@ -366,16 +362,15 @@ fn aim_at<T: Decide>(
 /// ([`ray_crossings`]). `None` for a face with another edge, or one whose
 /// outer loop has none.
 fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option<Point3<T>> {
-    let edges = body.proven_face_edges(face);
-    let outer = body.get_face(face)?.outer;
+    let edges = body.proven_face(face).edges();
+    let outer = proven(&body.faces, face, EntityId::Face).outer;
     let first = *edges.first()?;
-    if body.get_half_edge(first.half)?.parent_loop != outer {
+    if proven(&body.half_edges, first.half, EntityId::HalfEdge).parent_loop != outer {
         return None;
     }
     let curve = |e: crate::entity::EdgeKey| {
-        body.get_edge(e)
-            .and_then(|ed| body.get_curve_geom(ed.curve))
-            .and_then(crate::null::CurveGeom::certified)
+        body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
+            .certified()
     };
     let (m, tau) = crate::boolean::solid_contain::along_half(
         body,
@@ -396,7 +391,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
         step = Some(step.map_or(room, |s: T| s.min(room)));
     }
     let into = crate::stands::inward(normal, tau);
-    Some(m + into / into.norm() * step.unwrap_or(T::zero()).max(T::zero()))
+    Some(m + into.normalize() * step.unwrap_or(T::zero()).max(T::zero()))
 }
 
 /// **How far from `aim` any face of the selection reaches**: the loops'
@@ -410,9 +405,13 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a face that does not resolve,
-/// and for one whose carrier's region cannot be bounded (a poisoned net,
-/// data that is not a finite number), which no start is shown beyond.
+/// [`PointInSolidError::CorruptFace`] for a face whose carrier's region
+/// cannot be bounded (a poisoned net, data that is not a finite number),
+/// which no start is shown beyond.
+///
+/// # Panics
+///
+/// Where a face of the selection does not resolve ([`SolidFaces`]).
 fn beyond<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -420,10 +419,7 @@ fn beyond<T: Decide>(
 ) -> Result<T, PointInSolidError> {
     let mut reach = selection_reach(body, faces, aim)?.length();
     for &face in faces {
-        let surface = body
-            .face_surface(face)
-            .ok_or(PointInSolidError::CorruptFace { face })?;
-        match surface.cover() {
+        match body.proven_face(face).surface().cover() {
             Ok(cover) => {
                 reach = reach.max(cover.distance_range(&geom::cover::Site::Point(aim)).1);
             }
@@ -449,23 +445,19 @@ fn beyond<T: Decide>(
 ///   pyramid's opposite flanks at its apex): some half-edge of one starts
 ///   where a half-edge of the other does.
 ///
-/// Both faces' loops are walked in place; nothing is collected.
+/// Both faces' loops are walked in place, a loop at a time; `a` and `b`
+/// are faces a ray crossed, so a stale one panics
+/// ([`crate::live::FaceView::boundary`]).
 pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
     if a == b {
         return true;
     }
-    // Not `Body::proven_face_edges`, which collects and resolves every mate: this reads
+    // Not `FaceView::edges`, which collects and resolves every mate: this reads
     // only the starts, in place, once per pair of faces.
     let starts = |face: FaceKey| {
-        body.get_face(face)
-            .into_iter()
-            .flat_map(|f| core::iter::once(f.outer).chain(f.rings.iter().copied()))
-            .filter_map(|l| match body.get_loop(l)?.boundary {
-                LoopBoundary::Cycle { first } => Some(body.loop_walk(first).closed("loop", first)),
-                LoopBoundary::Empty { .. } => None,
-            })
-            .flatten()
-            .filter_map(|h| body.get_half_edge(h).map(|he| he.start))
+        body.proven_face(face)
+            .boundary()
+            .filter_map(|member| member.half_edge().map(|_| member.vertex()))
     };
     starts(a).any(|v| starts(b).any(|w| w == v))
 }
@@ -651,29 +643,39 @@ fn cast_aims<T: Decide>(
             }
         }
     }
-    let (mut in_band, mut aimed, mut set_aside) = (None, 0, Vec::new());
-    for (face, geo) in &geos {
-        let face = *face;
-        let Some((aim, normal)) = aim_at(body, face, geo, band)? else {
-            continue;
+    // The ladder ([`climb`]) whose answer is the first aimed ray's side:
+    // every ray from outside reads the one side ([`Answering::Any`]). A
+    // pair in band is kept, and refuses where no ray decides. A set-aside
+    // ray passes, collected for the volume reader that answers after
+    // the rays: a limit a ray met is NOT ranked ahead of a pair, since
+    // the volume, not a refusal, is what follows it.
+    let (mut aimed, mut set_aside) = (0, Vec::new());
+    let read = climb(Answering::Any, &geos, |&(face, ref geo)| {
+        let (aim, normal) = match aim_at(body, face, geo, band) {
+            Ok(Some(aimed_at)) => aimed_at,
+            Ok(None) => return Rung::Passes,
+            Err(e) => return Rung::Aborts(Err(e)),
         };
         aimed += 1;
-        match aimed_ray(body, faces, &geos, face, aim, normal, band)? {
-            Aimed::Side(side) => return Ok(Rays::Side(side)),
-            Aimed::Pair(pair) => {
-                in_band.get_or_insert(pair);
+        match aimed_ray(body, faces, &geos, face, aim, normal, band) {
+            Ok(Aimed::Side(side)) => Rung::Answers(Ok(side)),
+            Ok(Aimed::Pair(pair)) => Rung::InBand(pair),
+            Ok(Aimed::SetAside(why)) => {
+                set_aside.push(SetAside {
+                    aimed: face,
+                    aim: Some(crate::census::witness(aim)),
+                    why,
+                });
+                Rung::Passes
             }
-            Aimed::SetAside(why) => set_aside.push(SetAside {
-                aimed: face,
-                aim: Some(crate::census::witness(aim)),
-                why,
-            }),
+            Err(e) => Rung::Aborts(Err(e)),
         }
+    });
+    match read {
+        Climb::Answered { answer, .. } => answer.map(Rays::Side),
+        Climb::Undecided(pair) => Ok(Rays::InBand(pair)),
+        Climb::Passed => Ok(Rays::Unread { aimed, set_aside }),
     }
-    if let Some(pair) = in_band {
-        return Ok(Rays::InBand(pair));
-    }
-    Ok(Rays::Unread { aimed, set_aside })
 }
 
 /// What one aimed ray reads ([`aimed_ray`]).
@@ -863,12 +865,13 @@ pub struct EdgeFrame {
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
     let kind = |f: FaceKey| {
-        body.face_surface(f)
+        body.passed_face(f)
+            .map(|f| f.surface())
             .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
     };
     let mut out = Vec::new();
     for (face, _) in body.faces() {
-        for fe in body.proven_face_edges(face) {
+        for fe in body.proven_face(face).edges() {
             let Some(edge) = body.edges.get(fe.edge) else {
                 continue;
             };
@@ -1102,7 +1105,8 @@ mod pre_filter_tests {
     }
 
     /// The brick with a point of `faces[0]` removed: that planar face's
-    /// in-face walk refuses (`Desync`), and its plane still reads.
+    /// in-face walk panics on the vertex's point link, and its plane still
+    /// reads.
     fn with_unwalkable_first_face(body: &mut Body<f64>, faces: &[FaceKey]) {
         let point = body
             .half_edges
@@ -1118,11 +1122,11 @@ mod pre_filter_tests {
         body.points.remove(point);
     }
 
-    /// **The walk refusal a spline face now answers instead of.** On a
-    /// selection whose first planar face's in-face walk refuses, the
-    /// first aim used to return that refusal; with a spline face in the
-    /// selection no aim is taken, so the volume reads, limited by the
-    /// spline face. Without the spline face the walk's refusal stands.
+    /// **A spline face takes no aim.** On a selection whose first planar
+    /// face's in-face walk breaks, the first aim reads that face and
+    /// panics on its torn link; with a spline face in the selection no
+    /// aim is taken, so the face is never walked and the volume reads,
+    /// limited by the spline face.
     #[test]
     fn a_spline_face_reads_the_volume_where_a_planar_aims_walk_refuses() {
         let tol = Tol::witness();
@@ -1130,12 +1134,14 @@ mod pre_filter_tests {
         let (mut body, faces) = brick_and_faces(tol);
         with_unwalkable_first_face(&mut body, &faces);
         let sel = SolidFaces::select(&body, faces.clone()).expect("the faces select");
-        let read = side_at_infinity(&body, &sel, band, || {
-            Err::<SolidContainment, _>("the volume")
-        });
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = side_at_infinity(&body, &sel, band, || {
+                Err::<SolidContainment, _>("the volume")
+            });
+        }));
         assert!(
-            read.is_err(),
-            "without a spline face the first aim's walk refusal is the answer"
+            report.contains("'s point names"),
+            "without a spline face the first aim walks the torn face: {report}"
         );
 
         let spline = *faces.last().expect("a brick has faces");

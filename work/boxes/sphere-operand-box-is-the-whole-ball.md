@@ -79,3 +79,5 @@ outside any box):
 ## Since PR 6336 (BOXES, 2026-11-02)
 
 `classify::gate_face_reach` is gone: the split gate reads `census::face_reach_in` for every face. (BOXES orchestrator)
+
+**Re-cited (onedoor/carrier-and-window, 2026-11-03).** `chord_join::face_azimuth_window` is now `topo::chart_window::face_azimuth_window`.

@@ -140,7 +140,7 @@ fn place_pip(
     let slides = axes
         .into_iter()
         .zip(t)
-        .map(|(at, by)| (Coord::Slide(at), len(*by)));
+        .map(|(at, by)| (Coord::slide(at), len(*by)));
     let spins = axes.into_iter().zip(axis).map(|(at, k)| {
         let by = if *k == 0.0 { 0.0 } else { k * a };
         (Coord::Spin(Some(at)), ang(by))

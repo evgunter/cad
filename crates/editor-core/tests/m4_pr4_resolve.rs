@@ -135,7 +135,7 @@ fn slide_placement(doc: ProfileDoc, placement: RecipeNodeId, tx: f64) -> Profile
     let slot = fixture::value_slot(
         &doc,
         placement,
-        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+        editor_core::Coord::slide(editor_core::TargetAxis::X),
     );
     step(
         doc,

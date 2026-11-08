@@ -165,6 +165,14 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         sweep::blend::FILLET3_CHAIN_RECOURSE,
     ),
     (
+        BlendDecision::KnifeEnd,
+        sweep::blend::FILLET3_KNIFE_END_RECOURSE,
+    ),
+    (
+        BlendDecision::KnifeRoom,
+        sweep::blend::FILLET3_KNIFE_RECOURSE,
+    ),
+    (
         BlendDecision::RingClearance,
         sweep::blend::FILLET3_RING_RECOURSE,
     ),
@@ -237,7 +245,7 @@ fn rendered(decision: BlendDecision, name: Option<&'static str>) -> String {
         decision,
         source: escalation(name),
     }
-    .to_string()
+    .render(geom_brep::recourse::Reading::Build)
 }
 
 /// **The names the crate decides are the blend's closed set and the
@@ -392,11 +400,13 @@ const NO_TOLERANCE: &[BlendDecision] = &[
 ];
 
 /// The decisions that pass on a negative sign as well as a positive one:
-/// the convexity sign on either side, the material side either way, and
-/// the contact edge's second-order separation on any definite sign.
+/// the convexity sign on either side, the material side either way, a
+/// knife's end either way (a cusp or a slit), and the contact edge's
+/// second-order separation on any definite sign.
 const TWO_SIDED: &[BlendDecision] = &[
     BlendDecision::ConvexitySign,
     BlendDecision::MaterialSide,
+    BlendDecision::KnifeEnd,
     BlendDecision::ContactSecondOrder,
 ];
 
@@ -415,7 +425,7 @@ fn a_decision_no_tolerance_decides_passing_is_offered_none() {
                         ..escalation(Some(name))
                     },
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(!text.contains("tighten"), "{decision:?} {m}: {text}");
                 assert!(text.contains(decision.lever()), "{decision:?} {m}: {text}");
             }
@@ -439,7 +449,7 @@ fn an_in_band_reading_is_offered_the_tolerance_exactly_where_its_sign_passes() {
                     ..escalation(Some(decision.predicate()))
                 },
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             let want =
                 !NO_TOLERANCE.contains(&decision) && (!negative || TWO_SIDED.contains(&decision));
             assert_eq!(
@@ -481,7 +491,7 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
             ),
             "{what}: {err:?}"
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !text.contains(geom_core::UNREADABLE_MARGIN_NOTE),
             "{what}: a short link is the caller's geometry: {text}"
@@ -504,8 +514,12 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
             continue;
         };
         let tighter = Band::new(offered / 2.0, offered / 2.0 * k).expect("a tighter band");
-        chain_g1(x, x, lever(), v, tighter)
-            .unwrap_or_else(|e| panic!("{what}: below the offer the junction passes: {e}"));
+        chain_g1(x, x, lever(), v, tighter).unwrap_or_else(|e| {
+            panic!(
+                "{what}: below the offer the junction passes: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     }
 }
 
@@ -520,7 +534,7 @@ fn the_convexity_sign_offer_names_the_wedge_opening() {
         decision: BlendDecision::ConvexitySign,
         source: escalation(Some(BlendDecision::ConvexitySign.predicate())),
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(
         text.ends_with(&format!(
             "Recourse: {}, or, if this wedge opening is intended, tighten the tolerance below \
@@ -606,7 +620,7 @@ fn the_split_param_escalation_reads_whole_through_the_blend_door() {
             diag: escalation(Some("split_edge_param_interior")),
         }),
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert_eq!(recourse_markers(&text), 1, "{text}");
     assert!(subjectless_escalations(&text).is_empty(), "{text}");
     assert!(stage_prefixes(&text, &[]).is_empty(), "{text}");

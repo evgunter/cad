@@ -52,7 +52,10 @@ fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[FaceKey]) {
     };
     match topo::shell_open(&operand, t, open, tol()) {
         Ok(s) => rows(label, &s.body),
-        Err(e) => println!("[r2rows] {label}: Err {e}"),
+        Err(e) => println!(
+            "[r2rows] {label}: Err {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 

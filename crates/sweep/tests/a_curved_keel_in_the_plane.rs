@@ -123,7 +123,7 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
 /// keel. The ring that side would carry is two coincident arcs, which no
 /// contact record backs and tier 3′ refuses, so the split refuses the
 /// trace instead of shipping it
-/// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`):
+/// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`):
 /// either way up, with the V's tip on the plane and `0.6 ε` either side.
 #[test]
 fn a_curved_keel_closed_at_both_ends_refuses_as_a_construction_gap() {

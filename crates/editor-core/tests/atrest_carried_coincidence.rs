@@ -142,12 +142,18 @@ fn host(
 /// The `unproven-coincidence` findings of the checks over `doc`.
 fn unproven(doc: &ProfileDoc, opts: &EvalOptions) -> Vec<CheckFinding> {
     let run = crate::fixture::run(doc, opts);
-    editor_core::run_checks(doc, &run, &ChecksConfig::default(), Tol::witness())
-        .unwrap_or_else(|e| panic!("the checks run: {e}"))
-        .findings
-        .into_iter()
-        .filter(|f| f.check == CheckId::UnprovenCoincidence)
-        .collect()
+    editor_core::run_checks(
+        doc,
+        &run,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the checks run: {e}"))
+    .findings
+    .into_iter()
+    .filter(|f| f.check == CheckId::UnprovenCoincidence)
+    .collect()
 }
 
 /// Each finding's carried row, or a panic naming the one that is not.
@@ -766,11 +772,12 @@ fn a_carried_door_job_is_pending_cancelable_and_settles() {
     let canceled = editor_core::CancelToken::new();
     canceled.cancel();
     assert!(
-        job.run(&doc, &canceled).is_err(),
+        job.run(&doc, &editor_core::Stop::canceled_by(&canceled))
+            .is_err(),
         "a canceled job answers Canceled"
     );
     report.settle(
-        job.run(&doc, &editor_core::CancelToken::new())
+        job.run(&doc, &editor_core::Stop::default())
             .expect("an uncanceled door"),
     );
     assert!(report.pending.is_empty(), "settled");
@@ -822,7 +829,7 @@ fn a_part_instanced_twice_is_replayed_once() {
     let (mut own, job) = split_door(&part, &opts);
     let before = versions.resolves();
     own.settle(
-        job.run(&part, &editor_core::CancelToken::new())
+        job.run(&part, &editor_core::Stop::default())
             .expect("an uncanceled door"),
     );
     let own_resolves = versions.resolves() - before;
@@ -840,7 +847,7 @@ fn a_part_instanced_twice_is_replayed_once() {
     let (mut report, job) = split_door(&doc, &opts);
     let before = versions.resolves();
     report.settle(
-        job.run(&doc, &editor_core::CancelToken::new())
+        job.run(&doc, &editor_core::Stop::default())
             .expect("an uncanceled door"),
     );
     let host_resolves = versions.resolves() - before;

@@ -3,6 +3,7 @@
 //! pads, and the chord polygon's exact and composite rules.
 
 use geom_core::Bounds;
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::spline::algebra;
@@ -188,7 +189,7 @@ impl TrimPiece {
 }
 
 /// One trim-loop EDGE of the trimmed lane, fully bracketed by the
-/// caller (key-free, like [`TrimEdgeQ`](super::cylinder::TrimEdgeQ)).
+/// caller (key-free, like [`TrimEdgeQ`](super::rotational::TrimEdgeQ)).
 ///
 /// An iso image is one exact chord and carries no `piece`: its
 /// endpoints are structure (`p0 → p0 + pd`), so there is no arc to
@@ -583,9 +584,9 @@ fn trim_cells<T: Decide>(
             let n = last.len() - 1;
             last[n] = hull2(last[n], c.b);
         }
-        let mut stack: Vec<(Vec<RPt2>, usize)> =
-            blocks.into_iter().rev().map(|b| (b, 0usize)).collect();
-        while let Some((block, depth)) = stack.pop() {
+        let mut reads = Budget::implied_by_depth(blocks.len(), MONOTONE_BISECTIONS as u32);
+        let roots = blocks.into_iter().map(|b| (b, 0usize));
+        let walked = bisect_within(roots, &mut reads, |(block, depth)| {
             let a = vertex(block[0]);
             let b = vertex(block[block.len() - 1]);
             // An ESCALATION propagates, as it does from every other
@@ -599,7 +600,11 @@ fn trim_cells<T: Decide>(
             // (a curvature artefact, not a fold), and each half's
             // differences are new numbers rather than the same ones
             // scaled.
-            match piece_monotone::<T>(&block, a, b, su, sv, band)? {
+            let monotone = match piece_monotone::<T>(&block, a, b, su, sv, band) {
+                Ok(sign) => sign,
+                Err(e) => return Step::Stop(e),
+            };
+            match monotone {
                 Sign::Positive => {}
                 // NO ROW PINS THIS LADDER, and the reason is worth
                 // knowing: the round has ALREADY split the image into
@@ -614,12 +619,10 @@ fn trim_cells<T: Decide>(
                 // exactly the case that has no other recourse.
                 Sign::Zero | Sign::Negative if depth < MONOTONE_BISECTIONS => {
                     let (l, r) = bezier_bisect(&block);
-                    stack.push((r, depth + 1));
-                    stack.push((l, depth + 1));
-                    continue;
+                    return Step::Halve([(l, depth + 1), (r, depth + 1)]);
                 }
                 Sign::Zero | Sign::Negative => {
-                    return Err(PropsError::QuadratureUnsupported {
+                    return Step::Stop(PropsError::QuadratureUnsupported {
                         what: TRIM_NOT_MONOTONE,
                     });
                 }
@@ -634,6 +637,14 @@ fn trim_cells<T: Decide>(
                 var: polygon_variation(&block),
                 slack: vertex_slack(block[0]).max(vertex_slack(block[block.len() - 1])),
             });
+            Step::Settled
+        });
+        match walked {
+            Ok(None) => {}
+            Ok(Some(e)) => return Err(e),
+            Err(Exhausted) => {
+                unreachable!("a block's refinement spends its depth before its reads")
+            }
         }
     }
     Ok(out)

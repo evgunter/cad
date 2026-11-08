@@ -285,7 +285,8 @@ fillet, the arrival ray after it — and the arc is fitted to their
 the sharp point (40, 30) exists and is then removed, so "author a
 corner, then fillet it away" is not a thing you can say. Two parallel
 rays have no corner to round, and that refuses as
-`NoCornerForFillet { reason: CarriersParallel }`.
+`NoCornerForFillet { reason: TurnWithinTolerance { .. } }`, carrying
+the turn's sine and the length it was levered by.
 
 Nowhere in this repo does a demo hand-write a tangency flag. Tangency
 arrives by construction, and the kernel *verifies* every declaration
@@ -1913,7 +1914,7 @@ let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: 
 doc = next;
 // The one bundle constructor: the slide its author writes, and the
 // constant zero on every freedom left unnamed.
-let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), lit(0.125))]);
+let placed = Placed::unmated(vec![(Coord::slide(TargetAxis::Z), lit(0.125))]);
 let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
 let (next, tab_on_plate) = insert(
     &doc,

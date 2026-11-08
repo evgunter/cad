@@ -9,8 +9,7 @@ use crate::fixture;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, Node, NodeErrorKind, ProfileDoc, TargetAxis,
-    ValuePayload, evaluate,
+    CancelToken, EvalOptions, Evaluation, Node, NodeErrorKind, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, insert, len, on_frame};
 use geom_core::Tol;
@@ -135,6 +134,7 @@ fn a_row_evaluates_its_members_as_data() {
     let ValuePayload::Instances(members) = &ev.value(row).unwrap().payload else {
         panic!("expected a family of bodies");
     };
+    let members = fixture::every_body(members);
     assert_eq!(members.len(), 3);
     for (i, member) in members.iter().enumerate() {
         assert_eq!(validate(member.body()), Ok(()));
@@ -176,7 +176,7 @@ fn a_ring_rotates_about_an_axis_read_off_the_body() {
     let (doc, cube) = unit_cube(doc, 2.0, 0.0);
     // The z axis through the origin, read off the cube.
     let axis = fixture::axis_on(&doc, cube, [0.0; 3], [0.0, 0.0, 1.0]);
-    let (doc, _, ring) = fixture::circular(doc, cube, (axis, TargetAxis::Z), FRAC_PI_2, 4);
+    let (doc, _, ring) = fixture::circular(doc, cube, axis, FRAC_PI_2, 4);
     let ev = run(&doc);
     let ValuePayload::Instances(members) = &ev
         .value(ring)
@@ -185,6 +185,7 @@ fn a_ring_rotates_about_an_axis_read_off_the_body() {
     else {
         panic!("expected a family of bodies");
     };
+    let members = fixture::every_body(members);
     assert_eq!(members.len(), 4);
     for member in members {
         assert_eq!(validate(member.body()), Ok(()));
@@ -297,14 +298,10 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
             | (NodeErrorKind::DegenerateDirection { role }, "degenerate") => {
                 assert_eq!(*role, "placement rotation axis", "the role word travels");
             }
-            (NodeErrorKind::PlacementAxisEscalated { predicate, source }, "escalated") => {
-                assert_eq!(
-                    *predicate, "eval_direction_norm",
-                    "an in-band length escalates naming THIS layer's funnel site"
-                );
-                // The name the FUNNEL recorded, which is a different
-                // fact: the escalation carries what `decide` was
-                // actually called with.
+            (NodeErrorKind::PlacementAxisEscalated { source }, "escalated") => {
+                // The name the FUNNEL recorded: the escalation carries
+                // what `decide` was actually called with, THIS layer's
+                // funnel site, and the refusal names no other.
                 assert_eq!(
                     source.predicate,
                     Some("eval_direction_norm"),

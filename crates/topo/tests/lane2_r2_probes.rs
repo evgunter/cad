@@ -76,7 +76,7 @@ fn the_declared_seat_through_the_four_doors_at_f64() {
             subject: topo::CensusSubject::FacePair(pair.0, pair.1),
         }
     );
-    let text = refusals[0].to_string();
+    let text = refusals[0].render(geom_brep::recourse::Reading::AtRest);
     assert!(
         text.contains("holds no certified chart-overlap lane at any scalar")
             && text.contains(

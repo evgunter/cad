@@ -445,8 +445,14 @@ fn the_drive_answers_each_certified_leaf_through_the_assertion() {
         max_depth: 6,
         ..DriveConfig::default()
     };
-    let verdict =
-        drive(&f.doc, &analyzed, &config, Tol::witness()).expect("the witness build succeeds");
+    let verdict = drive(
+        &f.doc,
+        &analyzed,
+        &config,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the witness build succeeds");
     let gap = f.doc.var_named("gap").expect("the fixture declares it");
     let (mut within, mut exceeded) = (0, 0);
     // Where the walls stand 0.42 apart, as an offset of `gap`.
@@ -473,8 +479,11 @@ fn the_drive_answers_each_certified_leaf_through_the_assertion() {
             assertion,
             &leaf.box_,
             verdict.symbolic(),
+            &editor_core::Stop::default(),
             Tol::witness(),
-        ) {
+        )
+        .expect("the replay is not stopped")
+        {
             Some(AssertionVerdict::Clearance(report)) => *report,
             other => panic!("a clearance's verdict over a leaf: {other:?}"),
         };
@@ -547,8 +556,11 @@ fn an_upper_bound_over_a_box_is_proved_at_every_point_or_not_at_all() {
             f.assertions[0],
             &gap_box(&f.doc, lo, hi),
             editor_core::drive::SymbolicDials::default(),
+            &editor_core::Stop::default(),
             Tol::witness(),
-        ) {
+        )
+        .expect("the replay is not stopped")
+        {
             Some(AssertionVerdict::Clearance(report)) => *report,
             other => panic!("a clearance's verdict over the box: {other:?}"),
         }
@@ -628,7 +640,7 @@ fn facet_pruning_answers_an_upper_bound_as_the_whole_box_does() {
                 ..ClearanceConfig::default()
             },
             oracle: &Widening,
-            ..ClearanceQuery::at_dials(bound, Tol::witness())
+            ..ClearanceQuery::at_dials(bound, crate::fixture::no_stop(), Tol::witness())
         };
         editor_core::clearance::clearance_at_dials(&f.doc, &leaf, &f.walls[0], &f.walls[1], &query)
     };
@@ -665,8 +677,14 @@ fn the_fold_keeps_an_upper_bounds_proving_pair() {
     use editor_core::clearance::{ClearanceBound, ClearanceQuery, clearance_over_at_dials};
     let f = facing(&[]);
     let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
-    let verdict = drive(&f.doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the witness build succeeds");
+    let verdict = drive(
+        &f.doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the witness build succeeds");
     assert!(!verdict.certified().is_empty(), "the drive certifies");
     let fold = clearance_over_at_dials(
         &f.doc,
@@ -676,6 +694,7 @@ fn the_fold_keeps_an_upper_bounds_proving_pair() {
         &f.walls[1],
         &ClearanceQuery::at_dials(
             ClearanceBound::AtMost(geom_core::Interval::from_bounds(0.46, 0.46)),
+            crate::fixture::no_stop(),
             Tol::witness(),
         ),
     );
@@ -834,8 +853,11 @@ fn scopes_that_meet_are_within_any_upper_bound_over_a_box() {
                     f.assertions[k],
                     &leaf,
                     editor_core::drive::SymbolicDials::default(),
+                    &editor_core::Stop::default(),
                     Tol::witness(),
-                ) {
+                )
+                .expect("the replay is not stopped")
+                {
                     Some(AssertionVerdict::Clearance(report)) => *report,
                     other => panic!("a clearance's verdict over the box: {other:?}"),
                 }

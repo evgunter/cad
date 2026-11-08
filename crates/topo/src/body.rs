@@ -129,6 +129,29 @@ pub(crate) const CYCLES_ARE_CLAIMANTS: &str =
     "on a tier-1-valid body a loop's next cycle is the half-edges that claim it";
 
 impl Walk {
+    /// [`Walk::closed`] for a claimed loop walk ([`Body::loop_walk_of`]):
+    /// its panic names `r#loop` too, the loop the walk left, and the
+    /// premise the walk's claims break.
+    #[track_caller]
+    pub(crate) fn closed_in(self, r#loop: LoopKey, first: HalfEdgeKey) -> Vec<HalfEdgeKey> {
+        match self {
+            Self::Closed(members) => members,
+            Self::Broken { at } => unreachable!(
+                "the loop walk from {first:?} breaks at {at:?}, leaving loop {loop:?}: its \
+                 step from there does not resolve or leaves the loop, and {WALKS_CLOSE}, and \
+                 {CYCLES_ARE_CLAIMANTS}; {}",
+                crate::live::OPERATORS_KEEP_LINKS,
+                loop = r#loop
+            ),
+            Self::Overrun => unreachable!(
+                "the loop walk from {first:?} does not close within the half-edge arena's \
+                 length, in loop {loop:?}, and {WALKS_CLOSE}; {}",
+                crate::live::OPERATORS_KEEP_LINKS,
+                loop = r#loop
+            ),
+        }
+    }
+
     /// The members of a walk a tier-1-valid body closes: the `what` walk
     /// from `first`, which every public door keeps closing (each `next`
     /// and mate resolves, an orbit stays at its vertex, and a cycle is no
@@ -964,6 +987,22 @@ impl<T: Real> Body<T> {
         out.points.remove(point).is_some().then_some(out)
     }
 
+    /// **Failure-injection door** (`sweep-testing` only): a clone of
+    /// this body with the surface at `key` replaced by `moved` in place,
+    /// every face and edge that names it left naming it: a stored body
+    /// whose surface no longer holds the curves its edges carry, the
+    /// state a damaged file or a defective operation reaches at rest.
+    ///
+    /// Returns `None` if `key` is stale.
+    #[cfg(feature = "sweep-testing")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_surface_moved_for_tests(&self, key: SurfaceKey, moved: Surface<T>) -> Option<Self> {
+        let mut out = self.clone();
+        *out.surfaces.get_mut(key)? = moved;
+        Some(out)
+    }
+
     /// The loop at `key`, or `None` if the key is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     /// (`get_loop`, like all lookups here, keeps the `get_` prefix partly
@@ -1073,9 +1112,11 @@ impl<T: Real> Body<T> {
     /// **The surface `face` is a region of**, or `None` where `face`
     /// does not resolve; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     ///
-    /// The one walk from a face key to its surface. `None` means exactly
-    /// that the face key is stale, and the caller decides what that means
-    /// for its own input: a refusal, or an honest no.
+    /// The public door from a face key to its surface, for a reader
+    /// outside this crate. `None` means exactly that the face key is
+    /// stale, and the caller decides what that means for its own input.
+    /// Inside the crate a face is read through a resolved
+    /// `FaceView`, and nothing here calls this.
     ///
     /// # Panics
     ///
@@ -1084,8 +1125,7 @@ impl<T: Real> Body<T> {
     #[must_use]
     #[track_caller]
     pub fn face_surface(&self, face: FaceKey) -> Option<&Surface<T>> {
-        let data = self.get_face(face)?;
-        Some(self.face_surface_linked(face, data))
+        Some(self.passed_face(face)?.surface())
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is
@@ -1190,14 +1230,20 @@ impl<T: Real> Body<T> {
         he: HalfEdgeKey,
         r#loop: LoopKey,
     ) -> Option<Vec<HalfEdgeKey>> {
-        let walk = self.bounded_walk(he, |body, member| {
-            let next = body.half_edges.get(member)?.next;
-            body.claims(next, r#loop).then_some(next)
-        });
-        match walk {
+        match self.loop_walk_of(he, r#loop) {
             Walk::Closed(members) => Some(members),
             Walk::Broken { .. } | Walk::Overrun => None,
         }
+    }
+
+    /// [`Body::loop_cycle_of`]'s walk with the three-way outcome
+    /// ([`Walk`]): `Broken` at the member whose `next` does not resolve
+    /// or does not claim `r#loop`.
+    pub(crate) fn loop_walk_of(&self, he: HalfEdgeKey, r#loop: LoopKey) -> Walk {
+        self.bounded_walk(he, |body, member| {
+            let next = body.half_edges.get(member)?.next;
+            body.claims(next, r#loop).then_some(next)
+        })
     }
 
     /// **A loop's half-edges in cycle order, by the loop's key**:
@@ -1357,7 +1403,7 @@ impl<T: Real> Body<T> {
             "face",
         );
         assert!(
-            data.outer == parent || data.rings.contains(&parent),
+            data.holds_loop(parent),
             "loop {parent:?} names face {face:?}, which does not list it: on a tier-1-valid \
              body a loop's face lists it"
         );

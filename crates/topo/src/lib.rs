@@ -125,6 +125,9 @@
 //! # run().unwrap();
 //! ```
 
+// A comment on a `mod` declaration below is `//`, never `///`: an outer
+// doc comment merges into the module's own `//!` docs and makes rustdoc
+// resolve their intra-doc links in this file's scope instead of theirs.
 pub mod attach;
 pub mod body;
 pub mod boolean;
@@ -135,35 +138,25 @@ pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
-pub mod clearance;
-pub mod construction;
-pub(crate) mod injective;
-// The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
-// section-chord geometry, a top-level sibling of `boolean/` and
-// `splitting/` for the reason its own docs give. Non-doc comment for
-// the same rustdoc reason as the sector modules below.
+pub(crate) mod chart_window;
 pub(crate) mod chord_join;
+pub mod clearance;
 pub mod coherence;
 pub mod coincidence;
+pub mod construction;
 pub mod contact;
+pub mod cover;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
-pub(crate) mod fuse;
-// The one door for a planar face's outward normal — at the crate root
-// because its consumers now span both halves and the shared sector
-// walk; its own docs carry the argument. Non-doc comment for the same
-// rustdoc reason as the sector modules below.
 pub mod face_boxes;
 pub mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
-// This crate's own sources, read as source. A sibling of `fixtures`
-// rather than a section of it: that module's subject is canonical
-// bodies, this one's is a Rust reader. Non-doc comment for the
-// same rustdoc reason as the sector modules below.
+pub(crate) mod fuse;
 pub mod geometry;
+pub(crate) mod injective;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
@@ -177,9 +170,6 @@ pub mod joint;
 pub(crate) mod lineage;
 pub mod link;
 pub(crate) mod live;
-// The one statement of a stored planar loop's signed winding, shared by
-// the merge's role assigner and tier 3's check 6. Non-doc comment for
-// the same rustdoc reason as the sector modules below.
 pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod mirror;
@@ -193,6 +183,7 @@ pub mod offset_general;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
+pub(crate) mod one_region;
 pub mod pcurves;
 pub mod pieces;
 pub(crate) mod policy_lane;
@@ -226,14 +217,6 @@ pub(crate) mod review_m1_pr5_internal;
 pub(crate) mod ring_path;
 #[cfg(test)]
 mod row_walk_proofs;
-// The shared vertex-neighborhood sector modules — top-level siblings
-// of `boolean/` and `splitting/` on purpose: both lanes ask these
-// questions, so neither hosts them. Each module's own docs carry
-// the placement argument. Non-doc comments deliberately: an outer
-// `///` here would merge into the module's own `//!` docs and make
-// rustdoc resolve their intra-doc links in THIS module's scope instead
-// of that one's.
-pub(crate) mod one_region;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
@@ -248,6 +231,7 @@ pub(crate) mod star;
 pub(crate) mod strut;
 pub mod surface_boundary;
 pub mod surgery;
+pub(crate) mod sweep_trace;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
 // must be compiled wherever any of their three consumers is — the
@@ -353,13 +337,48 @@ pub mod test_support {
         body: &crate::AtRestBody<f64>,
         tol: geom_core::Tol,
     ) -> crate::MassProperties<f64> {
-        match crate::mass_properties(body, tol, pinned_resolution(tol)) {
+        volume_at(what, body, tol, pinned_len(tol))
+    }
+
+    /// **`body`'s volume and area as numbers met at `resolution`** (mean
+    /// boundary displacement, m): [`pinned_volume`] at the width a row
+    /// states, for a row whose band [`pinned_resolution`] does not meet.
+    ///
+    /// # Panics
+    ///
+    /// Where the door refuses, or the resolution went unmet.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn volume_at(
+        what: &str,
+        body: &crate::AtRestBody<f64>,
+        tol: geom_core::Tol,
+        resolution: f64,
+    ) -> crate::MassProperties<f64> {
+        let settle = crate::Settle::Resolution(quantity::Length::from_meters(resolution));
+        match crate::mass_properties(body, tol, settle) {
             Ok(measured) => match measured.met() {
                 Ok(enclosure) => enclosure,
                 Err(unmet) => panic!("{what}: {unmet}"),
             },
             Err(refusal) => panic!("{what}: mass properties refused: {refusal}"),
         }
+    }
+
+    /// **A certified volume `volume ± pad` holds `want` within `band`
+    /// beyond its own bracket**: `|volume − want| ≤ band + pad`. The
+    /// assertion is only as sharp as `pad`: a row that needs it sharp
+    /// bounds the pad as well.
+    ///
+    /// # Panics
+    ///
+    /// Where it does not; `what` names the reading.
+    #[allow(clippy::panic)]
+    pub fn assert_volume_near(what: &str, volume: f64, pad: f64, want: f64, band: f64) {
+        assert!(
+            (volume - want).abs() <= band + pad,
+            "{what}: V = {volume} ± {pad:e}, want {want} within {band:e}"
+        );
     }
 
     /// [`pinned_resolution`]'s length (m), for a row that hands a face's
@@ -704,11 +723,11 @@ pub mod test_support {
         origin: geom_core::Point3<f64>,
         dir: geom_core::Vec3<f64>,
     ) -> (Vec<(f64, f64)>, Vec<f64>) {
+        let line = geom::Line { origin, dir };
         let at = |v: crate::entity::VertexKey| {
             let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
-            let t = (p - origin).dot(dir);
-            let off = (p - origin - dir * t).norm();
-            (off < 1e-9).then_some((t * 1e6).round() / 1e6)
+            let off = line.distance(p);
+            (off < 1e-9).then_some((line.param(p) * 1e6).round() / 1e6)
         };
         let mut spans: Vec<(f64, f64)> = body
             .edges()
@@ -963,7 +982,9 @@ pub mod test_support {
             }
             other => format!("{:?}", other.kind()),
         };
-        let defect = err.to_string().contains(geom_core::KERNEL_DEFECT_ENDING)
+        let defect = err
+            .render(geom_brep::recourse::Reading::Build)
+            .contains(geom_core::KERNEL_DEFECT_ENDING)
             || matches!(
                 err.kind(),
                 BooleanErrorKind::ClassificationInvariant | BooleanErrorKind::JoinDesync
@@ -1202,7 +1223,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.face_surface(face) else {
+        let Some(surface) = body.passed_face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(
@@ -1255,7 +1276,13 @@ pub mod test_support {
         p: geom_core::Point3<T>,
         band: geom_core::Band,
     ) -> Result<Option<bool>, crate::PointInSolidError> {
-        let (_, normal) = crate::boolean::solid_contain::face_plane(body, face)?;
+        let Some((_, normal)) = crate::face_normal::face_plane(body, face) else {
+            let f = body.proven_face(face);
+            return Err(crate::PointInSolidError::KindUnsupported {
+                face,
+                kind: f.surface().kind(),
+            });
+        };
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
     }
 }
@@ -1272,8 +1299,6 @@ pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
 
 pub use body::Body;
-#[doc(hidden)]
-pub use boolean::MemberLineage;
 pub use boolean::{
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
@@ -1290,16 +1315,15 @@ pub use boolean::{
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError,
     ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
     Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
-    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace,
-    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices,
-    joined_cell, joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap,
-    point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus, subtract,
-    tangent_pair_relation, union,
+    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention,
+    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
+    joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
 };
-pub use boolean::{
+pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
 };
 pub use joint::{Deck, JointElement};
@@ -1317,11 +1341,11 @@ pub use boolean::{
     take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
-pub use chord_join::face_azimuth_window_traces;
+pub use chart_window::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
-    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
+    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, census_cell_solid,
     census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
     census_uncleared_solids, line_segments_meet, line_segments_overlap, record_at_rest,
 };
@@ -1337,11 +1361,12 @@ pub use entity::{
 };
 pub use euler::{BadArgument, EulerOpError, RechartDoor};
 pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
+pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
-pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
+pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth};
 pub use chart_region::{
     CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP,
     WITNESS_SEGMENT_CAP, chart_region_overlap, glued_pair_overlap,
@@ -1391,6 +1416,8 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
+pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
+pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{
@@ -1412,14 +1439,14 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation,
-    KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision, NullEdgeRecord, OffPlane,
-    OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge, SectionEndReading,
-    SectionError, SectionGermFault, SectionGermReading, SectionPinMiss, SectionPolygon,
-    SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitContacts, SplitError,
-    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
-    SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ApexSectionReading, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite, LoopContainment,
+    LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
+    SectionEdge, SectionEndReading, SectionError, SectionGermFault, SectionGermReading,
+    SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading,
+    SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
+    SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
+    UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
+    vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{

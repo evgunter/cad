@@ -13,6 +13,34 @@ seat. Orientation conventions are stated once, in `src/entity.rs`.
 Determinism (DESIGN `[determinism]`): arena iteration is slot-index order, no hash container
 feeds a decision, every walk is bounded.
 
+## One home, by what the code is about `[topo.homes]`
+
+A module's home follows its signature, tested in this order. Who else
+reads it is never part of the answer.
+
+1. **It takes no `Body` and no arena key.** It is a reading of a
+   carrier or a carrier pair, so it lives in `geom-brep` (or `geom`),
+   whichever operation first needed it. `geom_brep::curve_face::route`
+   is the one table of how a curve span meets a face, and every door
+   it names is built beside it.
+2. **It reads or constructs over a `Body` and names no type declared
+   under an operation's directory.** It is a reading of a body (a
+   face's outward normal, a point against a loop, a corner's shape,
+   which shells a piece keeps), a construction over one (the Euler
+   operators, `join_edges`, the chord join), or surgery on one. It is
+   a crate-root module or a `Body` method, named by what it reads.
+3. **It names a type declared under an operation's directory.** It
+   belongs to that operation (`boolean/`, `splitting/`).
+
+An operation's directory is a leaf. Its `pub` items are its doors,
+re-exported by `lib.rs`, and it declares nothing `pub(crate)`. Nothing
+outside it imports from it, test code included, and neither operation
+imports the other. A shared reading refuses in its own error type,
+never in an operation's. A K name's prefix is the module that decides
+the margin, never a caller's lane. The gate
+`scripts/gates/engine-leaves.sh` holds this, and a red there means
+that what you need belongs at the root or below.
+
 ## Where in the code
 
 | Area | Modules |
@@ -24,6 +52,7 @@ feeds a decision, every walk is bounded.
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
+| A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_images`, `face_azimuth_window`, `face_loop_azimuth_travels`): the hull of a face's boundary images on its chart and each loop's net azimuth travel, each edge's branch pinned to the previous exit, by the face's orientation at a sphere pole, refused at a cone apex |
 | Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
 | The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `Candidate`, `Enclosure`, `EngineRefusal`, `min_separation`): carrier windows and the cell subdivision between two sets of faces, one fused sweep reading a pair against a lower bound, an upper bound or both (a band) with a caller's pair verifier, and the certified minimum-separation bracket the sweep suites read beside it |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
@@ -896,8 +925,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   blend's Boolean semantics (`S ∪ F`) and executed by its surgery (the
   mouth's cycle on the face the fill covers).
   Recipe-layer sugar may wrap any of these; the door stays the one
-  birthplace. `UnsupportedToroid` is permanent: a [surfaces] ring-torus
-  boundary — spindle tori have no representation.
+  birthplace. A revolve reads an arc by its interior: an arc whose
+  interior crosses the axis refuses, and otherwise the signed distance
+  of its circle's centre from the axis picks the [surfaces] kind — zero,
+  a sphere; more than the minor radius, a ring torus; otherwise one
+  sheet of a spindle or horn torus, whose points on the axis are apex
+  vertices in the pole form.
 - **∅, disjoint, and voids are typed results.** ∅ is a typed success
   value (`BooleanResult::Empty`), not an error. **A solid is one piece
   of material**: the `Outer` shell around it and the `Void` shells of
@@ -961,9 +994,17 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   one regular curve at their shared vertex: the surfaces are transverse
   there (tangent arms one order up), or the chart is regular there.
   Distinct components of one locus never share a point, so the vertex
-  decides the branch, and nothing is compared between the two edges. A
-  pole, a cone's apex or any point where the locus is not one curve is
-  never joinable; a reading of the vertex in the margin band refuses
+  decides the branch, and nothing is compared between the two edges.
+  The iso-family arm is a class reading of each carrier, so a boolean
+  whose join makes two of its input edges one on it records that
+  reading's Zero, the most either carrier misses its family by, as one
+  coincidence row naming the two (`DecisionSite::IsoJoin`, one carrier
+  continuing) for the `unproven-coincidence` lint ([coincidence]); a
+  join of two pieces of one input edge is that edge read twice, and a
+  join of two edges whose descriptions name one surface pair is that
+  pair's locus read twice, so neither records anything. A pole, a
+  cone's apex or any point where the locus is not one curve is never
+  joinable; a reading of the vertex in the margin band refuses
   typed. A closed edge the join makes keeps one *conventional vertex*:
   a vertex whose only edge is that one closed edge, at both its ends.
   Its position, and the edge's parameter origin and witness that hang
@@ -1130,22 +1171,26 @@ backs. `SameSide` refuses, naming the verdict in the refusal's typed
 reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
-bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
-establishes the smooth precondition. The census reads sides in three
+bits to the tangency token `classify_dihedral` returns
+(`geom_brep::Tangency::pairing`), so the pairing is asked only where the
+dihedral read smooth. The census reads sides in three
 other places, all through the touch analysis's `rest` module: pass 4,
 of an edge lying in a face of its own solid (`edge_in_own_face`, by
-`rest::judge`); arm 2's touches between two solids
+`rest::judge`, a cylinder or cone face the edge is a ruling of read as
+its chord across the edge, `FaceSector::chord`); arm 2's touches between two solids
 (`TouchSite::verdict`, by `rest::judge`); and every point where one
 solid touches itself, its whole link there (`sweep_self_touch_points`,
 by `rest::one_material`), a link holding a curved face, a face with a
 curved edge held at its corner, a planar face with a spline edge, or a
 point tied inside a curved edge read as its faces' tangent cones
-(`FaceSector::tangent`) where their first order decides, and left
-unread where it does not (`census::SelfTouch::SecondOrder`: a cone's
-apex, a cusp corner, sheets tangent to first order, a face whose
-tangent reading does not build, or sectors lying on each other). Every
-other use of a face's normal in the coincidence sweeps is
-sense-invariant.
+(`FaceSector::tangent`) where their first order decides, one order
+down where it ties at a cusp corner or along a ray
+(`link::second_order`), and left unread where neither decides
+(`census::SelfTouch::SecondOrder`: a cone's apex, a horn beside a sheet
+along its ray, a curved sheet holding a tied ray inside it, sheets the
+bends do not part, a face whose tangent reading does not build, or
+sectors lying on each other). Every other use of a face's normal in the
+coincidence sweeps is sense-invariant.
 
 The tangent reading is the germ's (`rest::first_order`). Under the
 blow-up `q ↦ p + (q − p)/t` the faces about `p` tend in C¹, as
@@ -1164,6 +1209,92 @@ a shared edge at dihedral π, graphs over complementary domains of one
 plane), each of which survives the perturbation. So the cone's verdict
 is the faces' at every small enough scale: the germ's, which is what
 the link claim is about.
+
+Where the first order ties along a ray `u` — a cusp corner, whose two
+edges leave along it, or a bound lying on another sheet's plane where
+the faces keep no coincidence — the reading goes one order down
+(`link::second_order`). Cut the faces square to `u` at distance `s` and
+scale the cut by `2/s²`: as `s → 0`, an edge leaving `p` along `u`
+with curvature vector `κ` meets the cut at `κ`, and a face whose
+tangent plane holds `u` meets it in a straight line of the face's
+outward normal `m` through its edges' points; a face whose tangent
+plane does not hold `u`, or holds it outside its sector, leaves the cut
+for good. So the germ about `u` is the cut's picture along the ray:
+
+- **a cusp corner** is a horn where the edge back into the vertex
+  stands left of the edge out (`(κ₁ − κ₀)·(m × u) > 0`), the face the
+  segment between them; the whole turn but a horn where it stands
+  right, the face its line less that segment, and a sector of the whole
+  turn at first order;
+- **a ring of horns** (each meeting the next at the edge back into it)
+  is a polygon; where every vertex off a side stands strictly on one
+  side of that side's face, the same side throughout, the polygon is
+  convex and simple and its faces' normals all point out of it (a thorn
+  of material) or all into it (a needle of void). The cone of the
+  link's sectors must read the ray decidedly outside its material for
+  a thorn, inside it for a needle, so no sheet of the cone comes near
+  it and the windings either side of the polygon differ by one;
+- **sheets along a ray where a bound ties** are half-lines from their
+  edges' points into their sectors, and planar sheets through the ray
+  whole lines through the point; where no two meet but at an edge's
+  point they share (without folding there), they are curves bounding
+  the material on their outward sides, and the cone, which sees them
+  meet on the ray as edges meet, reads the faces' winding about it as
+  the cut does.
+
+Each such sign is the bend's Taylor term at the arm `l` in metres
+(`Δκ·l²/2`), decided with the first order's residue there charged
+(`Reading::charged`): the two departures' parting off the plane it is
+read against (`δ·l`, decided zero), the ray's lean off a plane it lies
+on, and a sheet's lean along a line it runs on at first order. The
+sign of `Δκ` is jet data at `p`, and that is all the reading claims:
+nothing here bounds the third-order terms out at the arm, and the
+argument does not need it. What the charge buys is that the residue
+the first order left cannot reverse that sign at any scale the band
+resolves. The residue's part grows as `δ·s` and the bend's as
+`Δκ·s²/2`, so the bend's outweighs it above `s₀ = 2δ/|Δκ|`. With
+`|Δκ|·l²/2 − δ·l` past the escalation `K·zero` (`K` the band's
+escalation over its zero) and `δ·l` within `zero`, `s₀ < l/K`; and
+below `s₀` each term is at most `δ·s₀ ≤ (δl)²/(|Δκ|l²/2) ≤ zero/K`:
+inside the band. Left unread:
+
+- a sign the charge leaves in band;
+- a picture whose sheets meet;
+- a horn beside a sector along its ray;
+- a thorn the cone round it reaches (the ray not decidedly outside the
+  cone's material for a thorn, inside it for a needle), which may be a
+  real overlap;
+- a curved sheet holding a tied ray inside it, whose line is not read.
+
+The chord reading is the cross-section's (`FaceSector::chord`). A
+cylinder or cone face along a line edge of it, the edge lying in a
+planar face `F` of its own solid, is cut at `p`, the middle of the cell
+read, by the plane square to the carrier's axis: a circle arc of radius
+`ρ` from `p`, tangent `h` into the face, to the face's real point `q` at
+the lever `ℓ`, inside the face's clearance. On the arc
+`x(φ) = p + ρ((1 − cos φ)·b̂ + sin φ·ĥ)`, with `b̂` toward the axis, its
+signed height off `F` (positive on `q`'s side) is
+`ρ((1 − cos φ)·β + sin φ·τ)`, `β = b̂·n̂` and `τ = ĥ·n̂`. A circle meets
+`F`'s line in the section once more at most, so where `h` and `q` read
+one side of `F` the arc between them lies on it. Where `h` reads Zero,
+`|τ|·ℓ ≤ z` (`z` the band's zero), and an arc tilted away from `q`'s
+side (`τ < 0`) dips toward the side opposite `q`'s by
+`ρ(√(β² + τ²) − β) ≤ ρτ²/(2β)` before it crosses back. `q` decided at
+`K·z` gives `ρ(1 − cos φ_q)·β ≥ K·z + ρ·sin φ_q·|τ| ≥ K·z`, and
+`ρ(1 − cos φ_q) = ℓ²/(2ρ)`, so `β ≥ 2ρKz/ℓ²` and the dip is at most
+`z/(4K)`: inside the band, at every `K > 1`. The lens between the arc and
+its chord then lies on `q`'s side of `F`, and no other sheet of the edge
+enters it (`chords_clear`, the one door the stand-in leaves by), so the
+half-plane from the edge through `q` bounds a wedge that meets `F`'s far
+side exactly where the face's does, and `rest::judge` reads it as a
+planar face. A cylinder is the same along its ruling. A cone's sections
+along the edge are one another scaled about its apex, which `F` holds as
+it holds the edge's line; the reading holds along the cell only where
+the apex lies off the edge, on or past one of its ends, which the reading
+reads (an edge through the apex meets a strip point-reflected through
+it, on `F`'s other side). Then the cell, `p` its middle, stands within
+twice `p`'s distance of the apex, and the dip at most doubles, to
+`z/(2K)`.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,

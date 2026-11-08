@@ -38,6 +38,13 @@ struct Read<T: Real> {
     span: (T, T),
 }
 
+/// The refusals this module pushes for one edge's reading, each named
+/// once, so a reader that maps them ([`edge_tangent_refusal`]) reads the
+/// same constants the pushes write.
+const NO_CURVE: &str = "a curved edge with no certified curve";
+const NO_REACH: &str = "a curved edge whose speed bound meters no reach over its span";
+const NO_LENGTH: &str = "a curved edge whose least speed meters no length over its span";
+
 fn refuse(edge: EdgeKey, what: &'static str, errors: &mut Vec<ValidationError>) {
     errors.push(ValidationError::CensusUnsupported {
         subject: CensusSubject::Entity(EntityId::Edge(edge)),
@@ -80,7 +87,7 @@ fn read<T: Decide>(
         .and_then(|d| body.curves.get(d.curve))
         .and_then(crate::null::CurveGeom::certified)
     else {
-        refuse(edge, "a curved edge with no certified curve", errors);
+        refuse(edge, NO_CURVE, errors);
         return None;
     };
     let carrier = curve.carrier().clone();
@@ -88,20 +95,12 @@ fn read<T: Decide>(
     let span = curve.params();
     let span_reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
     if decided("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
-        refuse(
-            edge,
-            "a curved edge whose speed bound meters no reach over its span",
-            errors,
-        );
+        refuse(edge, NO_REACH, errors);
         return None;
     }
     let length = Margin::metered((span.1 - span.0).abs(), lo);
     if decided("pm_census_curved_speed_floor", length, band, errors)? != Sign::Positive {
-        refuse(
-            edge,
-            "a curved edge whose least speed meters no length over its span",
-            errors,
-        );
+        refuse(edge, NO_LENGTH, errors);
         return None;
     }
     Some(Read {
@@ -187,14 +186,17 @@ fn on_interior_reading<T: Decide>(
 
 /// **`e`'s tangent where `q` lies on its interior**, along its plus
 /// half and scaled to the edge's reach from `q`, its edge cover's far
-/// distance from above (`boolean::boxes::edge_reach_bounds`): the corner it bounds is read by
+/// distance from above (`boolean::crate::cover::edge_reach_bounds`): the corner it bounds is read by
 /// the wedge, which acts on every sign, so its lever is the region's own
 /// measure from where it is read, and where that is known only from both
 /// sides (an ellipse, spiric or spline edge, whose bound from above can
 /// pass it many times over) the tangent carries both and the wedge acts
-/// only on a sign both read. `Some(None)` where `q` is not on the
-/// interior; `None` where a decision escalated or the edge is not read
-/// (pushed).
+/// only on a sign both read. The direction is [`edge_tangent_at`]'s.
+/// `Some(None)` where `q` is not on a curved edge's interior; `None`
+/// where a decision escalated or the edge is not read (pushed). Its
+/// caller reads a straight edge's departure off the snapshot's chord
+/// first, so a straight edge never reaches it; if one did, it would
+/// answer the line's direction at any `q`, as [`edge_tangent_at`] does.
 pub(super) fn tangent_on_interior<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
@@ -202,13 +204,103 @@ pub(super) fn tangent_on_interior<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<Departure<T>>> {
+    let tangent = edge_tangent_at(body, e, q, band, errors)?;
+    let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
+    let lever = crate::cover::edge_reach_bounds(body, e, edge, q)?;
+    Some(tangent.map(|tangent| Departure::along(tangent.dir(), lever)))
+}
+
+/// An edge's unit tangent at a point, along its plus half
+/// ([`edge_tangent_at`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) enum EdgeTangent<T: Real> {
+    /// A straight edge's direction: its line's ([`super::edge_line`]),
+    /// the same at every point.
+    Straight(geom_core::Vec3<T>),
+    /// A curve's tangent and curvature vector at the parameter the edge's
+    /// span certifies the point on ([`Hit::On`]).
+    Curved {
+        /// The unit tangent.
+        dir: geom_core::Vec3<T>,
+        /// The curvature vector ([`geom_brep::curvature_vector`]).
+        bend: geom_core::Vec3<T>,
+    },
+}
+
+impl<T: Real> EdgeTangent<T> {
+    /// The unit direction, either way.
+    pub(super) fn dir(self) -> geom_core::Vec3<T> {
+        match self {
+            Self::Straight(dir) | Self::Curved { dir, .. } => dir,
+        }
+    }
+
+    /// The curvature vector: zero on a straight edge.
+    pub(super) fn bend(self) -> geom_core::Vec3<T> {
+        match self {
+            Self::Straight(_) => geom_core::Vec3::zero(),
+            Self::Curved { bend, .. } => bend,
+        }
+    }
+}
+
+/// **`e`'s unit tangent at `q`, where `q` lies on its interior**, along
+/// its plus half: the one reading of an edge's direction at a point.
+/// A straight edge's is its line's direction ([`super::edge_line`]),
+/// the same at every point, so it answers for any `q` and the caller
+/// holds `q` on the edge. A curve's is its tangent, with its curvature
+/// vector, at the parameter its span certifies `q` on ([`Hit::On`]), so
+/// no reader of it rests on an uncertified foot. `Some(None)` where `q`
+/// is not on a curve's interior; `None` where a decision escalated or
+/// the edge is not read (pushed, [`edge_tangent_refusal`]).
+pub(super) fn edge_tangent_at<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<EdgeTangent<T>>> {
+    if let Some(line) = super::edge_line(body, e) {
+        return Some(Some(EdgeTangent::Straight(line.dir.normalize())));
+    }
     let r = read(body, e, band, errors)?;
-    let e = crate::live::proven(&body.edges, r.edge, EntityId::Edge);
-    let lever = crate::boolean::boxes::edge_reach_bounds(body, r.edge, e, q)?;
-    Some(
-        on_interior_at(body, &r, q, band, errors)?
-            .map(|(t, _)| Departure::along(r.curve.deriv(t).normalize(), lever)),
-    )
+    Some(on_interior_at(body, &r, q, band, errors)?.map(|(t, _)| {
+        let deriv = r.curve.deriv(t);
+        EdgeTangent::Curved {
+            dir: deriv.normalize(),
+            bend: geom_brep::curvature_vector(deriv, r.curve.deriv2(t)),
+        }
+    }))
+}
+
+/// **What [`edge_tangent_at`] pushed when it did not read**, as a
+/// touch's refusal: an escalation is a sign in band
+/// ([`TouchUnread::InBand`]); a refusal is its typed reason
+/// ([`TouchUnread::EdgeTangent`]), read off the constants the pushes
+/// write. A refusal pushed with no reading here, or none pushed at all,
+/// breaks this module's contract (every `None` pushes one of them), and
+/// reads as [`TouchUnread::Corrupt`].
+pub(super) fn edge_tangent_refusal(refused: &[ValidationError]) -> crate::link::TouchUnread {
+    use crate::link::{EdgeTangentUnread as Why, TouchUnread};
+    refused
+        .iter()
+        .find_map(|r| match r {
+            ValidationError::CensusEscalated { .. } => Some(TouchUnread::InBand),
+            ValidationError::CensusUnsupported {
+                cause:
+                    CensusUnsupportedCause::ContactLane(
+                        crate::contact::ContactRefusal::NotCertifiable { what },
+                    ),
+                ..
+            } => match *what {
+                NO_CURVE => Some(Why::NoCurve),
+                NO_REACH | NO_LENGTH => Some(Why::Unmetered),
+                walk => geom::PieceWalkRefusal::of_sentence(walk).map(Why::Unwalked),
+            }
+            .map(TouchUnread::EdgeTangent),
+            _ => None,
+        })
+        .unwrap_or(TouchUnread::Corrupt)
 }
 
 /// [`on_interior_reading`], keeping the parameter `q`'s foot is at.
@@ -223,24 +315,11 @@ fn on_interior_at<T: Decide>(
     match span.contact(q, geom::mid_param(r.span.0, r.span.1), band) {
         Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
-        Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
-            errors.push(ValidationError::CensusEscalated { cause });
-            None
-        }
-        Err(geom::CarrierRefusal::Exhausted) => {
-            refuse(
-                r.edge,
-                "the census's reading of a point on a spline edge ran past its budget",
-                errors,
-            );
-            None
-        }
-        Err(geom::CarrierRefusal::Unbounded) => {
-            refuse(
-                r.edge,
-                "a spline edge whose speed bound is zero or poison",
-                errors,
-            );
+        Err(refusal) => {
+            match refusal.escalation() {
+                Ok(cause) => errors.push(ValidationError::CensusEscalated { cause }),
+                Err(why) => refuse(r.edge, why.sentence(), errors),
+            }
             None
         }
     }
@@ -286,6 +365,19 @@ impl<T: Decide> EdgeSpan<T> {
     pub(crate) fn span(&self) -> Span<'_, T> {
         let span = Span::new(&self.read.curve, self.read.span);
         if self.endless { span.endless() } else { span }
+    }
+
+    /// A span of `curve` with its ends, owned by no edge.
+    #[cfg(test)]
+    pub(crate) fn of(curve: Curve3<T>, span: (T, T)) -> Self {
+        Self {
+            read: Read {
+                edge: EdgeKey::default(),
+                curve,
+                span,
+            },
+            endless: false,
+        }
     }
 }
 
@@ -402,8 +494,10 @@ fn interior_meeting<T: Decide>(
             "the meeting reading of two curved edges could not settle a count"
         }
         MeetFault::Unsupported { pose } => pose,
-        MeetFault::Desync => "the meeting reading of two curved edges misread a carrier's kind",
-        MeetFault::Contradiction { readings } => readings,
+        fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => super::meet_fault(
+            format_args!("curved edges {:?} and {:?}", ra.edge, rb.edge),
+            fault,
+        ),
     };
     refuse(ra.edge, what, errors);
     refuse(rb.edge, what, errors);
@@ -421,6 +515,47 @@ mod tests {
 
     use super::{Read, curved_interiors_meet, interior_meeting, reads_meet};
     use crate::EdgeCurveSpec;
+
+    /// **A spline walk the census could not run reads back as itself**: the
+    /// refusal it pushes names the walk by its own sentence
+    /// ([`geom::PieceWalkRefusal::sentence`]), pinned here as text, and the
+    /// edge-tangent reading of that refusal is the same walk refusal, at
+    /// both of its kinds. The census's rendered message does not show
+    /// that name: `ContactRefusal::NotCertifiable` renders no `what`.
+    #[test]
+    fn an_unwalked_edge_reads_back_as_its_walk_refusal() {
+        use crate::link::{EdgeTangentUnread, TouchUnread};
+        for (why, sentence) in [
+            (
+                geom::PieceWalkRefusal::Exhausted,
+                "a spline's piece walk ran past its budget",
+            ),
+            (
+                geom::PieceWalkRefusal::Unbounded,
+                "a spline's speed bound is zero or poison",
+            ),
+        ] {
+            let mut errors = Vec::new();
+            super::refuse(EdgeKey::default(), why.sentence(), &mut errors);
+            assert!(
+                matches!(
+                    &errors[..],
+                    [crate::ValidationError::CensusUnsupported {
+                        cause: crate::CensusUnsupportedCause::ContactLane(
+                            crate::contact::ContactRefusal::NotCertifiable { what },
+                        ),
+                        ..
+                    }] if *what == sentence
+                ),
+                "{why:?}: the census names the walk by its sentence: {errors:?}"
+            );
+            assert_eq!(
+                super::edge_tangent_refusal(&errors),
+                TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(why)),
+                "{why:?}"
+            );
+        }
+    }
     use crate::body::Body;
     use crate::construction::MevSite;
     use crate::entity::EdgeKey;

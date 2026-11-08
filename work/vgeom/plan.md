@@ -37,11 +37,12 @@ FIT's five rows arrived by `git mv`, ids and bodies unchanged:
   wrote, so one lane can take both. `mispaired-ids-exempts-the-empty-window`
   is independent; first establish whether a zero-name part with
   patches is reachable (`NodePick::patch_names`, editor-core).
-- two rows parked on the D10 hold (stage 3 D′,
-  `a-placement-pins-by-written-values-without-a-mate`):
-  `a-moved-copys-pick-span-crosses-its-frame-unconverted` (P1, E).
-  Re-read it against the walk D′ leaves once it lands; its body says
-  what to check. (Its sibling `one-failed-root-refuses-the-whole-pick-index`
+- two rows once parked on the D10 hold (stage 3 D′,
+  `a-placement-pins-by-written-values-without-a-mate`), now released:
+  `a-moved-copys-pick-span-crosses-its-frame-unconverted` (P1, E) is
+  dispatchable. D′ has landed (PRs 5592, 5613, 5636); re-read the row
+  against main, then fix, narrow or close it. Its body says what to
+  check. (Its sibling `one-failed-root-refuses-the-whole-pick-index`
   went to CHROME on 2026-11-01, claimed by the P0 that carries it.)
 
 FIT's review tiers carry over for its rows: a full review for a change

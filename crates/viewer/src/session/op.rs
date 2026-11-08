@@ -118,15 +118,6 @@ pub enum SessionOp {
         /// The field to probe.
         target: BoundsTarget,
     },
-    /// **Stage a creating operation for its verdict**, committing
-    /// nothing ([`crate::session::DocSession::staged_for`]): the run its
-    /// door would record, evaluated beside the picture. A draft's
-    /// question, not an action: it neither edits nor counts as one
-    /// ([`crate::frame::acts`]).
-    Stage {
-        /// The operation staged.
-        creation: Creation,
-    },
     /// Change how a slot's literal is WRITTEN — its display unit —
     /// leaving the canonical value bit-identical.
     ///
@@ -521,7 +512,7 @@ pub enum SessionOp {
         /// The mate, `on` read off that copy.
         mate: Box<Mate<Formula>>,
         /// The freedoms it leaves that are set, each to its number.
-        values: Vec<(Coord, Formula)>,
+        values: Vec<(Coord<Operand>, Formula)>,
         /// Whether the author asked, by name, to move the copy into the
         /// space the mate's `to` reads where that is not its target:
         /// the placement is first stood by the identity bundle, then
@@ -787,22 +778,19 @@ pub enum SessionOp {
     /// re-pointed alone, and nothing read through them is re-seated
     /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
-    /// The plane is the one through `origin` with normal `normal` in
-    /// the target's own coordinates, read off the target's geometry
-    /// (`Node::Split`'s tool is a plane read whose reads reach its
-    /// operand's root alone) at the numbers' nominal values in the
-    /// document. A target seat of the wrong kind refuses
-    /// [`Refusal::WrongNodeKind`]; a number of the wrong dimension, one
-    /// that does not evaluate, a normal that names no direction and a
-    /// target with no geometry to read the plane off refuse
-    /// [`Refusal::Frame`].
+    /// The plane is any plane the document reads in the target's space
+    /// ([`SplitPlane`]): a picked face's own, read where it was picked
+    /// as the mirror reads its plane, or a plane read the caller
+    /// writes. A target seat of the wrong kind refuses
+    /// [`Refusal::WrongNodeKind`]; a plane read in another space refuses
+    /// at the insert door (`EditError::SpaceMismatch`). Whether the
+    /// face is planar, and which side is empty, are the split's own to
+    /// say where it evaluates.
     AddSplit {
         /// The body split.
         target: Operand,
-        /// A point on the plane (`Length`).
-        origin: [Formula; 3],
-        /// The plane's normal (`Scalar`).
-        normal: [Formula; 3],
+        /// The plane it is cut along.
+        plane: SplitPlane,
     },
     /// **Mirror an existing body across the plane of a picked face** —
     /// the mirror tool's one committed action. The plane is the face's
@@ -862,9 +850,9 @@ pub enum SessionOp {
         input: Operand,
         /// Copy count.
         count: i64,
-        /// The replication rule; a circular rule's axis is read off
-        /// the input's own geometry at its numbers' nominal values, and
-        /// refuses [`Refusal::Frame`] as [`Self::AddSplit`]'s plane does.
+        /// The replication rule: its direction or axis one of the
+        /// space's axes or picked geometry the pattern reads, refusing
+        /// [`Refusal::Frame`] where the pick reads none.
         rule: PatternRuleSpec,
     },
     /// Insert one FUSED pattern of an existing body — the pattern
@@ -1304,7 +1292,6 @@ impl SessionOp {
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
-            | Self::Stage { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1383,7 +1370,6 @@ impl SessionOp {
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
-            | Self::Stage { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1596,7 +1582,6 @@ impl SessionOp {
         match self {
             Self::Select(_)
             | Self::Hover(_)
-            | Self::Stage { .. }
             | Self::PreviewGesture { .. }
             | Self::CommitGesture { .. }
             | Self::PreviewVariableGesture { .. }
@@ -1733,7 +1718,6 @@ impl SessionOp {
             Self::Open(_) | Self::NewDocument { .. } => false,
             Self::Select(_)
             | Self::Hover(_)
-            | Self::Stage { .. }
             | Self::PreviewGesture { .. }
             | Self::CommitGesture { .. }
             | Self::PreviewVariableGesture { .. }
@@ -1812,6 +1796,8 @@ impl SessionOp {
                     | Self::AddDrawnProfile { .. }
                     | Self::AddExtrude { .. }
                     | Self::AddRevolve { .. }
+                    | Self::AddSplit { .. }
+                    | Self::AddMirror { .. }
             ),
         }
     }
@@ -1853,7 +1839,6 @@ impl SessionOp {
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
-            | Self::Stage { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1893,6 +1878,17 @@ impl SessionOp {
             Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }
+}
+
+/// **The plane a split cuts along** ([`SessionOp::AddSplit`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum SplitPlane {
+    /// A face, read as its plane on the body it was picked on
+    /// (`crate::matetool::plane_of`).
+    Face(FaceSelection),
+    /// A plane read as written: a `Plane` variable, or a frame's
+    /// coordinate plane read through its role.
+    Read(pncad::document::pose::RoleRead<Operand>),
 }
 
 /// **One seat of a clearance requirement** ([`SessionOp::AddClearance`]):

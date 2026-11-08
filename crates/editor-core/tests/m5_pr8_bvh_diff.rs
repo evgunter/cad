@@ -26,12 +26,10 @@
 
 use crate::corpus;
 
-use std::collections::BTreeSet;
-
 use corpus::{documents, read_body};
 use editor_core::{CancelToken, EvalOptions, Evaluation, Node, evaluate};
 use geom_core::Tol;
-use topo::{SweepStrategy, SweepTrace, sweep_traces};
+use topo::{SweepStrategy, sweep_traces};
 
 fn eval_with<T>(doc: &editor_core::ProfileDoc, strategy: SweepStrategy) -> Evaluation<T>
 where
@@ -43,8 +41,6 @@ where
     };
     evaluate::<T>(doc, None, &CancelToken::new(), &opts, Tol::witness())
 }
-
-type Pair = (topo::EdgeKey, topo::FaceKey);
 
 /// A node result's `Debug` form MINUS the verdict log. The log is the
 /// one field that legitimately differs between sweep strategies: it
@@ -68,17 +64,6 @@ fn scrubbed<T: geom_core::Decide>(
         ),
         other => format!("{other:?}"),
     }
-}
-
-/// Idealized-accepted pairs missing from the realized candidate set.
-fn missing_pairs(realized: &SweepTrace, idealized: &SweepTrace) -> Vec<Pair> {
-    let examined: BTreeSet<Pair> = realized.examined.iter().copied().collect();
-    idealized
-        .accepted
-        .iter()
-        .copied()
-        .filter(|p| !examined.contains(p))
-        .collect()
 }
 
 /// Pin 2 over the whole corpus: tree-backed and brute-force
@@ -171,20 +156,32 @@ fn corpus_boolean_operands_superset_pin() {
             )
             .expect("idealized sweep runs on green corpus operands");
             assert_eq!(
-                missing_pairs(&r_ab, &i_ab),
+                r_ab.lost_accepted(&i_ab),
                 vec![],
                 "{} node {id:?}: A→B lost accepted pairs",
                 d.name
             );
             assert_eq!(
-                missing_pairs(&r_ba, &i_ba),
+                r_ba.lost_accepted(&i_ba),
                 vec![],
                 "{} node {id:?}: B→A lost accepted pairs",
                 d.name
             );
+            assert!(
+                r_ab.is_restriction_of(&i_ab),
+                "{} node {id:?}: A→B realized examined sequence is not a restriction of the \
+                 idealized one",
+                d.name
+            );
+            assert!(
+                r_ba.is_restriction_of(&i_ba),
+                "{} node {id:?}: B→A realized examined sequence is not a restriction of the \
+                 idealized one",
+                d.name
+            );
             booleans += 1;
-            examined += r_ab.examined.len() + r_ba.examined.len();
-            accepted += i_ab.accepted.len() + i_ba.accepted.len();
+            examined += r_ab.examined().len() + r_ba.examined().len();
+            accepted += i_ab.accepted().len() + i_ba.accepted().len();
         }
     }
     assert!(booleans > 0, "the corpus exercises boolean nodes");

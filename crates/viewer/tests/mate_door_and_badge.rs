@@ -105,7 +105,13 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
         Err(_) => None,
     }
     };
-    let kernel = run_checks(&doc, &ev, &ChecksConfig::default(), tol);
+    let kernel = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &pncad::document::Stop::default(),
+        tol,
+    );
     assert_eq!(
         loud(&kernel),
         Some(1),
@@ -140,7 +146,13 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
     )
     .0;
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
-    let kernel = run_checks(&doc, &ev, &ChecksConfig::default(), tol);
+    let kernel = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &pncad::document::Stop::default(),
+        tol,
+    );
     assert_eq!(
         loud(&kernel),
         Some(1),

@@ -45,7 +45,7 @@ fn orphan_curve_set_refuses() {
          #952 = CIRCLE('',#11,1.);",
     );
     match import_step(&m, &ImportOptions::default(), Tol::witness()) {
-        Err(e) => println!("orphan curve set refuses typed: {e}"),
+        Err(e) => println!("orphan curve set refuses typed: {e_at}", e_at = e.render()),
         other => panic!("an orphan curve set must refuse, got {other:?}"),
     }
 }
@@ -94,8 +94,8 @@ fn a_conic_self_loop_with_a_nonfinite_angle_refuses_typed() {
         "#26 = CARTESIAN_POINT('',(0.,0.,1.));",
         "#26 = CARTESIAN_POINT('',(0.,0.,1.E400));",
     );
-    // (b) A semi-axis of zero: the in-plane component divided by it is
-    // `0.0 / 0.0` for a vertex on the other axis.
+    // (b) A semi-axis of zero, which the angle no longer divides by
+    // (below).
     let zero_semi_axis = base
         .replace("#24 = CIRCLE('',#25,0.5);", "#24 = ELLIPSE('',#25,0.5,0.);")
         .replace(
@@ -107,24 +107,40 @@ fn a_conic_self_loop_with_a_nonfinite_angle_refuses_typed() {
     // here: putting a vertex at 1e308 inverts the cylinder wall's own
     // winding, so the face's orientation gate refuses the file before
     // any edge parameter is asked for.
-    for (route, text) in [
-        ("overflowing centre", &overflowing_centre),
-        ("zero semi-axis", &zero_semi_axis),
-    ] {
-        assert_ne!(text, &base, "{route}: the substitution must apply");
-        match import_step(text, &ImportOptions::default(), Tol::witness()) {
-            Err(StepImportError::Topology { id, what }) => {
-                println!("{route}: #{id}: {what}");
-                assert_eq!(id, 21, "{route}: the rim edge is the offender");
-                assert!(what.contains("not finite"), "{route}: {what}");
-            }
-            other => panic!("{route} must refuse Topology, got {other:?}"),
+    // The zero semi-axis no longer reads a NaN angle: `Conic::azimuth`
+    // reads `(y·a, x·b)` with no division. The file is refused at
+    // adoption, typed, until the `ELLIPSE` mint goes through its deciding
+    // door (`work/importgate/step-import-mints-an-ellipse-past-its-deciding-door.md`).
+    assert_ne!(
+        zero_semi_axis, base,
+        "zero semi-axis: the substitution must apply"
+    );
+    match import_step(&zero_semi_axis, &ImportOptions::default(), Tol::witness()) {
+        Err(StepImportError::Adoption { id, .. }) => {
+            assert_eq!(id, 21, "zero semi-axis: the rim edge is the offender");
         }
+        other => panic!("zero semi-axis must refuse at adoption, got {other:?}"),
+    }
+    assert_ne!(
+        overflowing_centre, base,
+        "overflowing centre: the substitution must apply"
+    );
+    match import_step(
+        &overflowing_centre,
+        &ImportOptions::default(),
+        Tol::witness(),
+    ) {
+        Err(StepImportError::Topology { id, what }) => {
+            println!("overflowing centre: #{id}: {what}");
+            assert_eq!(id, 21, "overflowing centre: the rim edge is the offender");
+            assert!(what.contains("not finite"), "overflowing centre: {what}");
+        }
+        other => panic!("overflowing centre must refuse Topology, got {other:?}"),
     }
 }
 
 /// The refusal above names non-finite data, and must not name the
-/// conic's centre: `atan2(0.0, 0.0)` is `0.0`, so a vertex exactly at
+/// conic's centre: a direction of no length reads the reference, so a vertex exactly at
 /// the centre yields a finite (and wrong) angle, and is declined by
 /// the adoption gate's endpoint residual instead.
 ///

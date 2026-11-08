@@ -27,8 +27,31 @@ before the split's probes) reports that the cone it drew for this seed
 is no fixture: its faces do not bound one material. That is a defect
 of the draw, not a contradiction of the oracle, but it fails the row.
 
+A second seed, `0xc104fc1eeda44d90` (`CAD_FUZZ_EFFORT=1`, any
+`CAD_TOLERANCE_EPS`), fails the same way at its ε-1e-6 draw:
+`ε 1e-6, cone 25, split: the drawn cone bounds no one material`.
+Found on `splitdoor/cone-apex-vertex-pairs`, and red identically at
+that branch's earlier head `656e9bd920`. The failing check is fixture code only
+(`drawn`, `cone_oracle`, `one_material`). A third,
+`0xbdef491a30087e7a`, fails it at its ε-1e-9 draw (`cone 30, split`).
+A fourth, `0xea18fcee647dcd12`, at its ε-1e-12 draw (`cone 15,
+split`). A fifth, `0x6c4c058888f82e3b`, at the default ε: "the drawn
+cone bounds no one material", found by RESTREAD's verifier on PR 6415
+and red at that PR's merge base too. The fuzz draws a fresh seed per
+run, so a replay needs the seed given.
+
 ## Done when
 
 The draw cannot produce such a cone (or skips it loudly, by
 `loud_skip_marker!`, rather than failing), and this seed is pinned as
 an ordinary row beside the fix.
+
+**A second seed** (RESTREAD, `restread/self-touch-second-order`, whose
+diff does not reach the fuzz's draw or its oracle): seed
+`0xa194f9d0b0758284` at the default ε, effort 1, reports
+`ε 1e-6, cone 18, split` and `ε 1e-6, cone 18, conic`, the same
+message.
+
+**A third seed from the same lane** (found by PR 6422's review):
+seed `0x5a8a9d9e82406bc6` at ε 1e-12 reports `cone 31, split`, the
+same message, and is red at that branch's merge base `dc4e9b279e` too.

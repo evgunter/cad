@@ -72,7 +72,7 @@ pub(super) fn ring_at(
         let points: Vec<_> = ring_vertices(body, ring)
             .unwrap()
             .into_iter()
-            .map(|v| vertex_point(body, v))
+            .map(|v| body.resolve_vertex_point(v, Proven))
             .collect();
         let want: Vec<_> = core::iter::once(p)
             .chain(then.iter().copied())

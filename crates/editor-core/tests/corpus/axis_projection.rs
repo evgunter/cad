@@ -59,7 +59,7 @@ pub fn document() -> CorpusDoc {
     let placed = editor_core::Placed {
         mates: vec![crate::fixture::mate(bushing.axis(), bushing.axis())],
         values: vec![
-            (Coord::Slide(TargetAxis::Y), len(SLIDE)),
+            (Coord::slide(TargetAxis::Y), len(SLIDE)),
             (Coord::SPIN, ang(SPIN)),
         ],
     };

@@ -1683,12 +1683,11 @@ pub fn loft_parameters<L: SectionLoop>(
 /// sampled at.
 ///
 /// `plane` — the STARTING frame the rest is carried from — is the
-/// caller's, and `geom_core::linalg::frame::path_start_frame` is where
-/// a caller gets it: the frame through the path's start point whose
-/// local +Z is the start tangent, its roll off a reference ladder
-/// decided under the band. A caller wanting a different roll composes
-/// a rotation about the tangent onto that frame; there is no second
-/// door.
+/// caller's: with no roll in mind, the world frame at the path's start
+/// turned onto the start tangent by the least turn
+/// (`RigidMotion::turned_onto`). A caller wanting a different roll
+/// composes a rotation about the tangent onto that frame; there is no
+/// second door.
 ///
 /// Under Q8 the produced skin is not an approximation of a swept
 /// locus — it IS the sweep (crate-module docs).

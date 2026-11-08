@@ -241,7 +241,12 @@ pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
         target,
         band(),
     )
-    .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "d = {d}: the cap's offset must fit: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert!(
         matches!(approx, Surface::Approx(_)),
         "the door mints the variant"
@@ -319,7 +324,12 @@ pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
     }
     for (edge, spec) in specs {
         body.set_edge_curve(edge, spec, Tol::witness())
-            .unwrap_or_else(|e| panic!("re-describing {edge:?} on the Approx chart: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "re-describing {edge:?} on the Approx chart: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
     }
     topo::mint_pcurves(&mut body, Tol::witness()).expect("the cap's rows derive on its chart");
     (body, face)
@@ -453,8 +463,13 @@ pub fn try_approx_walls(
     for (face, wall) in walls {
         let old = body.get_face(face).unwrap().surface;
         let base = Arc::new(pulled_back(&wall, d));
-        let approx = geom_brep::approx_offset_surface_at(base, d, target, band())
-            .unwrap_or_else(|e| panic!("d = {d}: the wall's offset must fit: {e}"));
+        let approx =
+            geom_brep::approx_offset_surface_at(base, d, target, band()).unwrap_or_else(|e| {
+                panic!(
+                    "d = {d}: the wall's offset must fit: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         if let Surface::Approx(a) = &approx {
             let kv = a.fit().knots_v_f64_interim().knots();
             fit_interior_v = kv[FIT_DEGREE + 1..kv.len() - (FIT_DEGREE + 1)].to_vec();
@@ -536,8 +551,13 @@ pub fn try_approx_walls(
 /// honestly refuse — the PLANAR pull-backs, where `Δn = 0` and the
 /// `IsoCurve` residual is f64 dust at every ε the suite runs at.
 pub fn approx_walls(body: &mut Body<f64>, d: f64, target: f64) -> Vec<FaceKey> {
-    try_approx_walls(body, d, target)
-        .unwrap_or_else(|r| panic!("edge {:?} re-attach: {}", r.edge, r.error))
+    try_approx_walls(body, d, target).unwrap_or_else(|r| {
+        panic!(
+            "edge {:?} re-attach: {}",
+            r.edge,
+            r.error.render(geom_brep::recourse::Reading::Build)
+        )
+    })
 }
 
 /// **The cross-check that keeps [`iso_residual`]'s replica honest**:
@@ -624,7 +644,10 @@ pub fn assert_seam_verdict(name: &str, curved: bool, d: f64, e: &topo::ReplaceFa
         ..
     } = e
     else {
-        panic!("{name}, d = {d:e}: expected the seam's section to refuse, got {e}");
+        panic!(
+            "{name}, d = {d:e}: expected the seam's section to refuse, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     let eps = Tol::witness().eps();
     let traced = |want: &dyn Fn(&SsiError) -> bool| matches!(verdict, SectionVerdict::FromMiddle(ssi) if want(ssi));

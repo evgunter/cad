@@ -73,4 +73,4 @@ Rows: `band_planar_cut_off_interval`
 `band_turn_overrun_fillet::the_overrun_carves_at_the_certified_scalar`;
 the refusal pin is gone. Filed from the class sweep:
 `a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
-`work/issues/a-seam-anchored-param-read-straddles-the-cut-at-interval.md`.
+`work/shell/a-seam-anchored-param-read-straddles-the-cut-at-interval.md`.

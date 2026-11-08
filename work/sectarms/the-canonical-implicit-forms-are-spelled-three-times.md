@@ -44,3 +44,16 @@ Give the forms one home, a form generic over the ring it is written in
 that home take the carrier's held knots (`Knots`, `structure()`) rather
 than the interim vector. That brings geom-brep's interim count back down
 by three.
+
+## Two more spellings (PR 6412)
+
+The 1×2 lane (`crates/geom-brep/src/ssi/system.rs`, `ImplicitChartR2`)
+reads each curved partner through two further spellings of the same
+surfaces: the kernel's linearized residual and gradient
+(`crates/geom-brep/src/implicit.rs`, `implicit_residual`,
+`implicit_gradient`), which a settled state is held to, and its Taylor
+series along a path (`crates/geom-brep/src/ssi/jet.rs`,
+`implicit_path_jet`), which `rhs2` and `rhs3` read. `jet.rs` pins its
+constant term against `implicit_residual`, but nothing ties either to
+`Curved`'s canonical forms beyond the divisor `2R` each assumes.
+

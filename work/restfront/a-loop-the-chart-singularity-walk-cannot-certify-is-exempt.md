@@ -41,7 +41,7 @@ A walk whose turn bound follows the carrier locally (as the sampled
 distance's row owes), and a statement of what a loop winding twice is:
 no face of this kernel, which tier 1 or 2 should refuse before tier 3
 reads it. Coupled to
-`work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`,
+`work/restfront/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`,
 whose shared walk this one can become.
 
 Filed by the RESTCURVE implementer in PR 6054's fix pass (adjudication

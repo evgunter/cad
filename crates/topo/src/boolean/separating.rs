@@ -16,7 +16,7 @@
 //!   operand's own axes.
 //!
 //! and reads both items' supports either way along each, off their
-//! covers ([`super::boxes::face_cover`], [`super::boxes::edge_cover`]),
+//! covers ([`crate::cover::face_cover`], [`crate::cover::edge_cover`]),
 //! so the gap between two of them does not depend on how the pair is
 //! turned.
 //!
@@ -89,8 +89,7 @@ impl<T: Real> Circle<T> {
     /// datum that is not a finite number.
     pub(crate) fn cover(&self) -> Option<Cover<T>> {
         Cover::arc(
-            self.center,
-            (self.u_ref, self.v_ref),
+            &geom::Frame::new(self.center, self.u_ref.cross(self.v_ref), self.u_ref),
             (self.radius, self.radius),
             ParamWindow::new(T::zero(), T::tau()),
         )
@@ -222,7 +221,7 @@ impl<T: Decide> OperandAxes<T> {
 ///
 /// # Panics
 ///
-/// As [`super::boxes::face_cover`]: each item is one the caller read
+/// As [`crate::cover::face_cover`]: each item is one the caller read
 /// out of its body, and a torn hop past it is a kernel bug.
 pub(crate) fn apart<T: Decide>(
     x: (&Body<T>, Item<T>),
@@ -232,12 +231,12 @@ pub(crate) fn apart<T: Decide>(
     band: Band,
 ) -> bool {
     apart_by(x, y, axes, pad, band, &|body, f, _| {
-        super::boxes::face_cover(body, f, band).ok()
+        crate::cover::face_cover(body, f, band).ok()
     })
 }
 
-/// A face's cover read along an aim: [`super::boxes::face_cover`], or
-/// [`super::boxes::face_cover_toward`], which reads one more constraint
+/// A face's cover read along an aim: [`crate::cover::face_cover`], or
+/// [`crate::cover::face_cover_toward`], which reads one more constraint
 /// off the aim. `None` for a face with no cover.
 pub(crate) type FaceCoverAlong<'r, T> =
     dyn Fn(&Body<T>, FaceKey, UnitVec3<T>) -> Option<Cover<T>> + 'r;
@@ -298,7 +297,7 @@ pub(crate) fn support_along<T: Decide>(
     band: Band,
 ) -> Option<(T, T)> {
     span_by(body, items, dir, &|body, f, _| {
-        super::boxes::face_cover(body, f, band).ok()
+        crate::cover::face_cover(body, f, band).ok()
     })
 }
 
@@ -329,11 +328,13 @@ fn cover<T: Decide>(
 ) -> Option<Cover<T>> {
     match item {
         Item::Face(f) => face_cover(body, f, dir),
-        Item::Edge(e) => super::boxes::edge_cover(body, e).ok(),
+        Item::Edge(e) => crate::cover::edge_cover(body, e).ok(),
         Item::Circle(circle) => circle.cover(),
-        Item::Ball { center, radius } => {
-            Cover::tube(center, Vec3::unit_z(), Vec3::unit_x(), T::zero(), radius)
-        }
+        Item::Ball { center, radius } => Cover::tube(
+            &geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+            T::zero(),
+            radius,
+        ),
     }
 }
 
@@ -341,7 +342,7 @@ fn cover<T: Decide>(
 /// centre — a point that moves with its body. `None` for a face whose
 /// boundary has no vertex.
 pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
-    use super::boxes::edge_end_point;
+    use crate::cover::edge_end_point;
     let mut points = Vec::new();
     match item {
         Item::Edge(ek) => {
@@ -350,8 +351,8 @@ pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<
             points.push(edge_end_point(body, ek, e.he_minus, "he_minus"));
         }
         Item::Face(f) => {
-            let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
-            for member in body.face_boundary_linked(f, face) {
+            let face = body.proven_face(f);
+            for member in face.boundary() {
                 points.push(match member {
                     BoundaryMember::Isolated { point, .. } => point,
                     BoundaryMember::Edge { ek, edge, .. } => {

@@ -317,8 +317,8 @@ fn osculates(err: &BooleanError) -> bool {
 // 3. ∖ and ∩ on the same fixtures.
 // -------------------------------------------------------------------
 
-/// **∖ and ∩ pass the revert roster; the seated peg answers the closed
-/// form and the rest stop where ∪ does.** The coincident pair's are
+/// **∖ and ∩ reach ∪'s doors; the seated peg answers the closed form
+/// and the rest stop where ∪ does.** The coincident pair's are
 /// [`two_coincident_full_tori_are_one_body`]'s. The torus is on the roster,
 /// so a torus pair under a subtract or an intersect reaches the same
 /// doors as under a union, in both operand orders:

@@ -4,6 +4,9 @@ kind: issue
 title: angle.rs answers an integer too large for f64 twice — Turns::sin_cos refuses past 2^51, Angle::from_turns encloses past 2^53
 status: open
 opened: 2026-10-21
+priority: P3
+cost: M
+design: true
 ---
 
 ## What

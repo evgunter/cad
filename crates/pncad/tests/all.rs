@@ -95,6 +95,7 @@ fn boolean_refusal_surface_kind(e: &BooleanError) -> Option<&'static str> {
                 SurfaceKind::Sphere => "sphere",
                 SurfaceKind::Cone => "cone",
                 SurfaceKind::Torus => "torus",
+                SurfaceKind::Spindle => "spindle",
                 SurfaceKind::Nurbs => "nurbs",
                 SurfaceKind::Approx => "approx",
             })
@@ -380,6 +381,8 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ChainArm => "chain_arm",
         BlendDecision::ConvexitySign => "convexity_sign",
         BlendDecision::MaterialSide => "material_side",
+        BlendDecision::KnifeEnd => "knife_end",
+        BlendDecision::KnifeRoom => "knife_room",
         BlendDecision::RingClearance => "ring_clearance",
         BlendDecision::SupportCoaxiality => "support_coaxiality",
         BlendDecision::ContactArm => "contact_arm",
@@ -763,8 +766,12 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             "offset_carriers_disjoint"
         )
     );
-    match PathNoCornerReason::CarriersParallel {
-        PathNoCornerReason::CarriersParallel | PathNoCornerReason::CarriersDoNotMeet => {}
+    match PathNoCornerReason::<f64>::CarriersTangent {
+        PathNoCornerReason::CarriersTangent | PathNoCornerReason::CarriersDoNotMeet => {}
+        PathNoCornerReason::TurnWithinTolerance {
+            lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+            ..
+        } => {}
     }
 
     assert_eq!(
@@ -2299,7 +2306,7 @@ fn placed_against(
         TargetAxis::ALL
             .into_iter()
             .zip(by)
-            .map(|(axis, by)| (Coord::Slide(axis), len(by)))
+            .map(|(axis, by)| (Coord::slide(axis), len(by)))
             .collect(),
     );
     let space = doc
@@ -3707,7 +3714,10 @@ fn asm2a_constrain(
     doc: pncad::document::ProfileDoc,
     placement: pncad::document::RecipeNodeId,
     mate: pncad::document::Mate<pncad::document::Formula>,
-    values: Vec<(pncad::document::Coord, pncad::document::Formula)>,
+    values: Vec<(
+        pncad::document::Coord<pncad::document::Operand>,
+        pncad::document::Formula,
+    )>,
 ) -> (pncad::document::ProfileDoc, pncad::document::MateRef) {
     let placed = pncad::document::Placed {
         mates: vec![mate],
@@ -3766,7 +3776,7 @@ fn asm2a_pin(
         TargetAxis::ALL
             .into_iter()
             .zip(at.translation)
-            .map(|(axis, by)| (Coord::Slide(axis), len(by)))
+            .map(|(axis, by)| (Coord::slide(axis), len(by)))
             .collect(),
     );
     applied(&doc, placed.write(instance)).doc
@@ -4091,8 +4101,8 @@ fn asm_r2a_mated_assembly(
     };
     let length = |m: f64| Formula::literal(m, pncad::document::Dimension::Length).expect("finite");
     let values = vec![
-        (Coord::Slide(TargetAxis::X), length(30.0)),
-        (Coord::Slide(TargetAxis::Y), length(0.0)),
+        (Coord::slide(TargetAxis::X), length(30.0)),
+        (Coord::slide(TargetAxis::Y), length(0.0)),
         (
             Coord::SPIN,
             Formula::zero(pncad::document::Dimension::Angle),
@@ -4153,7 +4163,12 @@ fn asm_r2a_child_mated_probe() {
         resolver: Some(std::sync::Arc::new(ws.clone())),
         ..pncad::document::EvalOptions::default()
     };
-    let poses = pncad::document::solve_document(&doc, &opts, Tol::witness());
+    let poses = pncad::document::solve_document(
+        &doc,
+        &opts,
+        &pncad::document::CancelToken::new(),
+        Tol::witness(),
+    );
     let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
@@ -4254,6 +4269,7 @@ fn asm_r2b_child_crossing_probe() {
         pncad::document::DocumentId::derive("asm-r2b-probe-split"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("a whole-group cut splits");
     let text =
@@ -4602,6 +4618,7 @@ fn asm4_split_and_inline_through_the_real_store() {
         d::DocumentId::derive("asm4-e2e-new"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("legal");
     ws_mut
@@ -4675,6 +4692,7 @@ fn asm4_child_split_probe() {
         d::DocumentId::derive("asm4-probe-new"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("legal");
     let text = format!(
@@ -5146,7 +5164,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   build" — the proof the sampling probe stands in for — and the
 ///   Python door for it is FILED and not built, which is the whole of
 ///   why these are here rather than in `crate::analysis`. The row is
-///   `work/lib/certified-range-has-no-python-door`, and carrying this
+///   `work/pydoor/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
 /// - **The mint** (`Mint` and its log's `Minted` entries): the chain
@@ -6865,7 +6883,7 @@ mod unit_vector_witness_through_the_facade {
     /// decide the same direction a second time to the same bits.
     #[test]
     fn a_users_witnesses_reach_the_doors() {
-        use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
+        use pncad::geom_core::linalg::frame::{mirror_across_plane, point_at};
         let band = Band::linear(Tol::witness()).unwrap();
         let origin = Point3::new(1.0, 2.0, 3.0);
         let normal = UnitVec3::new(Vec3::new(0.0, 0.0, 2.5), POSE_UNIT_NORM, band).unwrap();
@@ -6892,8 +6910,12 @@ mod unit_vector_witness_through_the_facade {
         )
         .unwrap();
         assert_eq!(bits(frame.linear() * Vec3::unit_z()), bits(normal.get()));
-        let start = path_start_frame(ao, dir.get(), Tol::witness()).unwrap();
-        assert_eq!(bits(start.linear() * Vec3::unit_z()), bits(dir.get()));
+        // The least turn takes the witness itself, with no second
+        // decision of the direction.
+        let start = pncad::geom_core::RigidMotion::axes_xy(ao)
+            .turned_onto(dir, "facade_turned_onto", band)
+            .unwrap();
+        assert!((start.w().get() - dir.get()).norm() < 1e-15);
         let mirror = mirror_across_plane(origin, normal.get(), Tol::witness()).unwrap();
         let p = mirror.transform_point(Point3::new(1.0, 2.0, 4.0));
         assert!((p.z - 2.0).abs() < 1e-12, "{p:?}");
@@ -7152,8 +7174,8 @@ fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
     let tol = Tol::witness();
     if 0.25 * landing_reach(tol) < d_shape_reach() {
         match d_shape(1.0, tol) {
-            Err(PathError::ArcMissBelowSceneResolution { predicate, .. }) => {
-                assert_eq!(predicate, "path_arc_landing");
+            Err(PathError::ArcMissBelowSceneResolution { read, .. }) => {
+                assert_eq!(read.gate().predicate(), "path_arc_landing");
             }
             other => panic!("the 40 km D past the scene's resolution: {other:?}"),
         }
@@ -7315,9 +7337,9 @@ fn moving_the_only_world_placement_moves_no_body_bit_and_moves_the_step_bytes() 
     );
     let mut moved = pncad::document::stand();
     moved.values = vec![
-        (Coord::Slide(TargetAxis::X), len(3.25)),
-        (Coord::Slide(TargetAxis::Y), len(-1.5)),
-        (Coord::Slide(TargetAxis::Z), len(0.75)),
+        (Coord::slide(TargetAxis::X), len(3.25)),
+        (Coord::slide(TargetAxis::Y), len(-1.5)),
+        (Coord::slide(TargetAxis::Z), len(0.75)),
         (
             Coord::Spin(Some(TargetAxis::X)),
             Formula::literal(0.0, Dimension::Angle).unwrap(),
@@ -7418,9 +7440,9 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
     // the distance scales with it.
     let d = (1.0e17 * Tol::witness().eps()).max(1.0e7);
     far.values = vec![
-        (Coord::Slide(TargetAxis::X), len(d + 0.3)),
-        (Coord::Slide(TargetAxis::Y), len(-0.3 * d - 0.7)),
-        (Coord::Slide(TargetAxis::Z), len(0.2 * d + 0.1)),
+        (Coord::slide(TargetAxis::X), len(d + 0.3)),
+        (Coord::slide(TargetAxis::Y), len(-0.3 * d - 0.7)),
+        (Coord::slide(TargetAxis::Z), len(0.2 * d + 0.1)),
         (Coord::Spin(Some(TargetAxis::X)), turn(0.3)),
         (
             Coord::Spin(Some(TargetAxis::Y)),
@@ -7469,7 +7491,7 @@ mod pattern_presets_are_recognised_as_themselves {
     use pncad::document::{
         BodyRead, Formula, Operand, ProfileDoc, RecipeNodeId, TargetAxis, VarName,
     };
-    use pncad::pattern::{Recognised, RingStep};
+    use pncad::pattern::{Recognised, RingAxis, RingStep, RowDirection};
 
     /// The box, an index `k = index(4)` beside it, and the box's space.
     fn with_index(name: &'static str) -> (ProfileDoc, RecipeNodeId, Operand) {
@@ -7509,16 +7531,56 @@ mod pattern_presets_are_recognised_as_themselves {
             &k,
             BodyRead::plain(Operand::Node(body)),
             space,
-            &[(TargetAxis::X, super::len(3.0))],
+            &[(RowDirection::Axis(TargetAxis::X), super::len(3.0))],
+            None,
         )
         .expect("a length pitch");
         let (doc, row) = super::insert(doc, row);
         let want = Recognised::Linear {
             index: index_of(&doc, "k"),
-            steps: vec![(TargetAxis::X, super::len(3.0))],
+            steps: vec![(RowDirection::Axis(TargetAxis::X), super::len(3.0))],
         };
         assert_eq!(pncad::pattern::recognise(&doc, row), Some(want));
         assert_eq!(pncad::pattern::recognise(&doc, body), None);
+    }
+
+    /// A row along the cap's axis, read off the box: one slide along the
+    /// read direction, the other two the constant `0` along the target
+    /// axes `across` names, read back as the row along that read.
+    #[test]
+    fn a_row_along_a_read_direction_is_recognised_as_a_row() {
+        let (doc, body, space) = with_index("k");
+        let k = VarName::from_static("k");
+        let read = pncad::document::pose::RoleRead::plain(cap_axis(body));
+        let row = pncad::pattern::linear_pattern(
+            &k,
+            BodyRead::plain(Operand::Node(body)),
+            space,
+            &[(RowDirection::Read(read), super::len(3.0))],
+            Some(pncad::document::SlideAxes::of([
+                TargetAxis::X,
+                TargetAxis::Y,
+            ])),
+        )
+        .expect("a length pitch");
+        let (doc, row) = super::insert(doc, row);
+        let k = index_of(&doc, "k");
+        match pncad::pattern::recognise(&doc, row) {
+            Some(Recognised::Linear { index, steps }) => {
+                assert_eq!(index, k, "the row's index");
+                match steps.as_slice() {
+                    [(RowDirection::Read(read), pitch)] => {
+                        assert!(
+                            matches!(read.read, Operand::Var(_)) && read.role.is_none(),
+                            "the row's direction is the read it was written with: {read:?}"
+                        );
+                        assert_eq!(*pitch, super::len(3.0), "the row's pitch");
+                    }
+                    other => panic!("one step along the read direction, not {other:?}"),
+                }
+            }
+            other => panic!("a row, not {other:?}"),
+        }
     }
 
     #[test]
@@ -7530,17 +7592,20 @@ mod pattern_presets_are_recognised_as_themselves {
             pncad::pattern::index_decl(j.clone(), Formula::count(3), Some(&i)),
         )
         .doc;
+        let x = RowDirection::Axis(TargetAxis::X);
+        let y = RowDirection::Axis(TargetAxis::Y);
         let grid = pncad::pattern::grid(
-            (&i, (TargetAxis::X, super::len(3.0))),
-            (&j, (TargetAxis::Y, super::len(2.5))),
+            (&i, (x.clone(), super::len(3.0))),
+            (&j, (y.clone(), super::len(2.5))),
             BodyRead::plain(Operand::Node(body)),
             space,
+            None,
         )
         .expect("length pitches");
         let (doc, grid) = super::insert(doc, grid);
         let want = Recognised::Grid {
-            outer: (index_of(&doc, "i"), vec![(TargetAxis::X, super::len(3.0))]),
-            inner: (index_of(&doc, "j"), vec![(TargetAxis::Y, super::len(2.5))]),
+            outer: (index_of(&doc, "i"), vec![(x, super::len(3.0))]),
+            inner: (index_of(&doc, "j"), vec![(y, super::len(2.5))]),
         };
         assert_eq!(pncad::pattern::recognise(&doc, grid), Some(want));
     }
@@ -7554,7 +7619,13 @@ mod pattern_presets_are_recognised_as_themselves {
             Formula::count_to_scalar(Formula::count(5)).expect("a count converts"),
         )
         .expect("an angle");
-        let axis = (cap_axis(body), cap_axis(body), TargetAxis::Z);
+        // Stood up the axis, as a raised ring is: the slide is a
+        // constant, and the ring reads back as one.
+        let axis = RingAxis::Mated {
+            on: cap_axis(body),
+            to: cap_axis(body),
+            slide: super::len(0.5),
+        };
         let ring = pncad::pattern::circular_pattern(
             &doc,
             &k,
@@ -7589,6 +7660,24 @@ mod pattern_presets_are_recognised_as_themselves {
         .expect("an angle");
         assert_eq!(
             pncad::pattern::recognise(&doc, bolts),
+            Some(Recognised::Circular {
+                index: index_of(&doc, "k"),
+                step: quarter.clone(),
+            })
+        );
+        // About an axis read in the target, with no mate.
+        let about = pncad::pattern::bolt_circle(
+            &doc,
+            &k,
+            Formula::count(4),
+            BodyRead::plain(Operand::Node(body)),
+            Operand::Var(doc.node_space(body).expect("the box stands in a space")),
+            RingAxis::About(pncad::document::pose::RoleRead::plain(cap_axis(body))),
+        )
+        .expect("a count");
+        let (doc, about) = super::insert(doc, about);
+        assert_eq!(
+            pncad::pattern::recognise(&doc, about),
             Some(Recognised::Circular {
                 index: index_of(&doc, "k"),
                 step: quarter,
@@ -7709,8 +7798,8 @@ fn a_clearance_refusal_names_each_side_as_the_document_says_it() {
 /// the third state), drops an assertion, or ignores the token.
 #[test]
 fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
-    use pncad::analysis::{Canceled, ClearanceOutcome, clearances_at_nominal};
-    use pncad::document::{ClearanceBounds, Node, Operand};
+    use pncad::analysis::{ClearanceOutcome, clearances_at_nominal};
+    use pncad::document::{ClearanceBounds, Node, Operand, Stop, Stopped};
     let (doc, solid) = plate_param_facade_only();
     let (doc, below) = insert(
         doc,
@@ -7728,7 +7817,7 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
             ClearanceBounds::AtMost(len(0.001)),
         ),
     );
-    let answers = clearances_at_nominal(&doc, None, &CancelToken::new(), Tol::witness())
+    let answers = clearances_at_nominal(&doc, None, &Stop::default(), Tol::witness())
         .expect("an uncanceled run answers");
     let ids: Vec<_> = answers.iter().map(|a| a.assertion).collect();
     assert_eq!(
@@ -7748,7 +7837,41 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
     let cancel = CancelToken::new();
     cancel.cancel();
     assert_eq!(
-        clearances_at_nominal(&doc, None, &cancel, Tol::witness()),
-        Err(Canceled)
+        clearances_at_nominal(&doc, None, &Stop::canceled_by(&cancel), Tol::witness()),
+        Err(Stopped::Canceled)
+    );
+    // A four-member row beside the clearances, under a budget of 2: the
+    // door refuses as out of the caller's budget, not with answers read
+    // off a prefix.
+    let doc = applied(
+        &doc,
+        pncad::pattern::index_decl(
+            pncad::document::VarName::from_static("k"),
+            Formula::count(4),
+            None,
+        ),
+    )
+    .doc;
+    let space = Operand::Var(doc.node_space(solid).expect("the plate stands in a space"));
+    let row = pncad::pattern::linear_pattern(
+        &pncad::document::VarName::from_static("k"),
+        pncad::document::BodyRead::plain(Operand::Node(solid)),
+        space,
+        &[(
+            pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::X),
+            len(3.0),
+        )],
+        None,
+    )
+    .expect("a length pitch");
+    let (doc, _row) = insert(doc, row);
+    let lowered = Stop {
+        member_budget: 2,
+        ..Stop::default()
+    };
+    assert_eq!(
+        clearances_at_nominal(&doc, None, &lowered, Tol::witness()),
+        Err(Stopped::Exhausted { budget: 2 }),
+        "a run out of the caller's budget answers no clearance"
     );
 }

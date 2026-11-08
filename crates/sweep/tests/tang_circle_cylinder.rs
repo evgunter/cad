@@ -25,11 +25,29 @@
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
+use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
+use crate::common::differential::{Budget, VOLUME_CLAIM, Verdict, judged_at_resolution};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError, BooleanOp, SweepStrategy};
+
+/// **A regression guard, not a soundness claim**: four times the widest
+/// volume half-width the tilted rod's ∖, ∩ and ∪ measured at ε `1e-9`
+/// (`1.89e-7`, PR 6478), which the resolution's sound ceiling
+/// ([`judged_at_resolution`], `1.28e-5` there) would let loosen
+/// fifty-fold unseen. Read at that ε only.
+const TILTED_ROD_PAD_GUARD: f64 = 7.6e-7;
+
+/// **The tilted rod's stopped-short ceiling, a regression guard**: four
+/// times the widest volume half-width its ∖, ∩ and ∪ measured at ε
+/// `1e-12` (`1.49e-6`, ∖ and ∩; ∪ `1.26e-7`). Every op stops at the work
+/// wall there, short of the pinned resolution
+/// (`work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`).
+/// The resolution's ceiling (`1.28e-8` at 1e-12) does not bound a
+/// measurement that stopped short; this does ([`judged_at_resolution`]).
+const TILTED_ROD_WALL_GUARD: f64 = 6.0e-6;
 
 /// The cylinder of radius `r` about `(cx, cy)`, `z ∈ [z0, z1]`, through
 /// the public circle and extrude doors.
@@ -115,24 +133,25 @@ fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, Boolean
 fn circle_wall_events(a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
     let (ab, ba) = topo::sweep_traces(a, b, SweepStrategy::Realized, None, Tol::witness())
         .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
-    let count = |x: &Body<f64>, y: &Body<f64>, trace: &topo::SweepTrace| {
-        trace
-            .accepted
-            .iter()
-            .filter(|(e, f)| {
-                let circle = x
-                    .get_edge(*e)
-                    .and_then(|e| x.get_curve_geom(e.curve))
-                    .and_then(topo::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-                let wall = matches!(
-                    y.get_face(*f).and_then(|f| y.get_surface(f.surface)),
-                    Some(topo::Surface::Cylinder { .. })
-                );
-                circle && wall
-            })
-            .count()
-    };
+    let count =
+        |x: &Body<f64>, y: &Body<f64>, trace: &topo::SweepPairs<(topo::EdgeKey, topo::FaceKey)>| {
+            trace
+                .accepted()
+                .iter()
+                .filter(|(e, f)| {
+                    let circle = x
+                        .get_edge(*e)
+                        .and_then(|e| x.get_curve_geom(e.curve))
+                        .and_then(topo::CurveGeom::certified)
+                        .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
+                    let wall = matches!(
+                        y.get_face(*f).and_then(|f| y.get_surface(f.surface)),
+                        Some(topo::Surface::Cylinder { .. })
+                    );
+                    circle && wall
+                })
+                .count()
+        };
     (count(a, b, &ab), count(b, a, &ba))
 }
 
@@ -235,42 +254,172 @@ fn parallel_cylinders_that_pierce_build_at_the_closed_form() {
     }
 }
 
-/// **A tilted rod through a rim takes the half-angle arm and reaches the
-/// volume lane.** A thin rod tilted 30° off the cylinder's axis passes
-/// through its top rim: the rim circle against the rod's wall is a
-/// degree-2 residual the ladder certifies, the pierce's sector side
-/// certifies, and the two walls' axes are skew, a pair the join reads on
-/// its section value and carries, marched; the result gate then refuses
-/// the body, whose spline-chorded walls have no volume lane.
+/// **A measurement short of the resolution is held to its row's guard.**
+/// Under a resolution's budget (`met` 1e-8, `stopped_short` 1e-7), a wall
+/// stop whose enclosure holds the closed form reads UNMET within the
+/// guard and BAD past it, however much easier a wide enclosure makes
+/// holding it (a pad of 1e-3 holds any volume near 1). A met measurement
+/// is held to `met`; a failed check or a closed form outside the
+/// enclosure is BAD at any stop.
 #[test]
-fn a_tilted_rod_through_a_rim_reaches_the_volume_lane() {
+fn a_stop_short_of_the_resolution_is_held_to_its_guard() {
+    let budget = Budget::Resolution {
+        met: 1e-8,
+        stopped_short: 1e-7,
+    };
+    let (wall, met) = (topo::Stop::Wall, topo::Stop::Met);
+    let at = |checks, v, pad, stop| budget.verdict(checks, (v, pad, stop), Some(1.0));
+    assert_eq!(
+        at(true, 1.0 + 4e-8, 5e-8, wall),
+        Verdict::Unmet,
+        "within the guard"
+    );
+    assert_eq!(
+        at(true, 1.0 + 1e-4, 1e-3, wall),
+        Verdict::Bad,
+        "a widened enclosure"
+    );
+    assert_eq!(
+        at(true, 1.0 + 1e-6, 5e-8, wall),
+        Verdict::Bad,
+        "outside the enclosure"
+    );
+    assert_eq!(at(false, 1.0, 5e-8, wall), Verdict::Bad, "a failed check");
+    assert_eq!(
+        at(true, 1.0, 5e-9, met),
+        Verdict::Sound,
+        "met, within its ceiling"
+    );
+    assert_eq!(
+        at(true, 1.0, 5e-8, met),
+        Verdict::Bad,
+        "met, past its ceiling"
+    );
+}
+
+/// **A tilted rod through a rim takes the half-angle arm and builds at
+/// its sliced volume.** A thin rod tilted 30° off the cylinder's axis
+/// passes through its top rim: the rim circle against the rod's wall is
+/// a degree-2 residual the ladder certifies, the pierce's sector side
+/// certifies, and the two walls' axes are skew, a pair the join reads on
+/// its section value and carries, marched; every operation builds, its
+/// spline-chorded walls measured by the rotational lane, at the crossed
+/// cylinders' sliced volume (`common::crossed_cylinders`). ∖ and ∩ are
+/// SOUND, or UNMET off the witness ε where the measurement stops at the
+/// work wall (every op at 1e-12, under `TILTED_ROD_WALL_GUARD`); ∪'s
+/// tier 3′ refuses at the census, whose edge-in-curved-face
+/// lane reads the rod's ruling inside a chorded cylinder face through a
+/// containment door that does not read its trim
+/// (`work/inside/the-census-reads-no-ruling-inside-a-chorded-cylinder-face.md`),
+/// and its volume is held to the oracle all the same.
+///
+/// The enclosure is read against the resolution's ceiling ([`judged_at_resolution`]) over the operands'
+/// area: each chorded wall's rule accepts its first round inside the
+/// pinned resolution, so the body's half-width (`1.9e-7` at ε `1e-9`)
+/// is past the shared budget.
+#[test]
+fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
+    let tol = Tol::witness();
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let turn = Affine3::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
         PI / 6.0,
     );
+    let shift = Vec3::new(0.95, 0.1, 2.0);
     let rod = topo::transform_rigid(
         &cyl(0.0, 0.0, 0.3, -1.5, 1.5),
-        &geom_core::test_support::rigid(&turn, Tol::witness()),
-        Tol::witness(),
+        &geom_core::test_support::rigid(&turn, tol),
+        tol,
     )
     .unwrap();
     let rod = topo::transform_rigid(
         &rod,
-        &geom_core::RigidMotion::translation(Vec3::new(0.95, 0.1, 2.0)).unwrap(),
-        Tol::witness(),
+        &geom_core::RigidMotion::translation(shift).unwrap(),
+        tol,
     )
     .unwrap();
     let (ab, _) = circle_wall_events(&a, &rod);
     assert!(ab > 0, "the cylinder's rim circle meets the rod's wall");
-    for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-        let err = run(op, &a, &rod).expect_err("no volume lane for a spline-chorded wall");
+    let truth = |op| {
+        crossed::volume(
+            Cylinder::upright(0.0, 0.0, 1.0, (0.0, 2.0)),
+            Cylinder::upright(0.0, 0.0, 0.3, (-1.5, 1.5))
+                .under(turn)
+                .under(Affine3::translation(shift)),
+            op,
+        )
+    };
+    let (a, rod) = (
+        finished("operand A", a, tol),
+        finished("operand B", rod, tol),
+    );
+    // The operands' area together: the drum's `6π`, the rod's
+    // `2π·0.3·3 + 2π·0.09`.
+    let area = 6.0 * PI + 2.0 * PI * (0.9 + 0.09);
+    // Off ε 1e-9 the chorded walls may reach the work wall short of the
+    // pinned resolution (at 1e-12, every op): the enclosure still holds
+    // the closed form, under `TILTED_ROD_WALL_GUARD`
+    // ([`judged_at_resolution`]).
+    let off_witness = tol.eps() != 1e-9;
+    for (label, op, r) in [
+        ("∖", Op::Subtract, topo::subtract(&a, &rod, tol)),
+        ("∩", Op::Intersect, topo::intersect(&a, &rod, tol)),
+    ] {
+        let read = judged_at_resolution(r, Some(truth(op)), tol, area, TILTED_ROD_WALL_GUARD);
         assert!(
-            at_the_volume_lane(&err),
-            "{op:?}: expected the volume lane's refusal, got {err:?}"
+            read.line.starts_with("OK SOUND") || off_witness && read.line.starts_with("OK UNMET"),
+            "{label}: {}",
+            read.line
+        );
+        assert!(
+            tol.eps() != 1e-9 || read.pad.is_some_and(|pad| pad <= TILTED_ROD_PAD_GUARD),
+            "{label}: the half-width {:?} past the regression guard",
+            read.pad
         );
     }
+    let union = topo::union(&a, &rod, tol);
+    let census = union.as_ref().ok().and_then(|r| r.body()).map(|bb| {
+        matches!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+                .as_ref()
+                .map_err(Vec::as_slice),
+            Err([topo::ValidationError::CensusUnsupported {
+                cause: topo::CensusUnsupportedCause::ContactLane(
+                    topo::ContactRefusal::NotCertifiable { what }
+                ),
+                ..
+            }]) if what.starts_with("a line edge on a curved face's ruling")
+        )
+    });
+    let read = judged_at_resolution(
+        union,
+        Some(truth(Op::Union)),
+        tol,
+        area,
+        TILTED_ROD_WALL_GUARD,
+    );
+    // Tier 3′ refuses the union at the census, so its line reads `BAD`;
+    // the volume is held to the budget's ceiling at its stop all the same.
+    let held = read
+        .volume
+        .zip(read.pad)
+        .zip(read.ceiling)
+        .is_some_and(|((v, pad), ceiling)| {
+            (v - truth(Op::Union)).abs() <= VOLUME_CLAIM + pad
+                && pad <= ceiling
+                && (off_witness || read.stop == Some(topo::Stop::Met))
+                && (tol.eps() != 1e-9 || pad <= TILTED_ROD_PAD_GUARD)
+        });
+    assert!(
+        census == Some(true)
+            && held
+            && read
+                .line
+                .contains("t2=true t3p=false cert=true operand=true"),
+        "∪: tier 3′ refuses at the census and nothing else, the volume holds: {}",
+        read.line
+    );
 }
 
 /// **A rim circle on a parallel wall tangent to its own, or crossing or
@@ -308,13 +457,4 @@ fn a_rim_circle_within_the_band_of_a_parallel_wall_is_a_tangency() {
             }
         }
     }
-}
-
-/// **The result a carried cylinder pair reaches today**: the join cuts
-/// the marched section's chords and the result gate refuses the body,
-/// whose spline-chorded wall has no volume lane
-/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
-fn at_the_volume_lane(e: &BooleanError) -> bool {
-    matches!(e, BooleanError::ResultInvalid { errors }
-        if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. })))
 }

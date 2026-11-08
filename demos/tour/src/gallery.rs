@@ -128,7 +128,13 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
 /// declares — are no reason to refuse their files.
 fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
     let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-    match run_checks(doc, &evaluation, &ChecksConfig::default(), tol) {
+    match run_checks(
+        doc,
+        &evaluation,
+        &ChecksConfig::default(),
+        &pncad::document::Stop::default(),
+        tol,
+    ) {
         Err(error) => format!(" — the check registry refused: {}", error.spoken(doc)),
         Ok(report) if report.findings.is_empty() => String::new(),
         Ok(report) => {

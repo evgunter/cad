@@ -26,7 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_brep::{DihedralClass, classify_dihedral};
+use geom_brep::{DihedralClass, dihedral_class};
 use geom_core::{Band, Point3, Tol, Vec3};
 
 /// The cap surface an extrusion mints: a plane of normal `n`.
@@ -66,7 +66,7 @@ fn worst_admitted_w(eps: f64, k: f64) -> Vec3<f64> {
     Vec3::new(eps, 0.0, k * eps)
 }
 
-/// `classify_dihedral`'s verdict at a cap rim built from the worst
+/// `dihedral_class`'s verdict at a cap rim built from the worst
 /// admitted extrusion vector, on a line leg of chord length `arm`,
 /// under a band of ratio `k`.
 fn worst_rim_verdict(eps: f64, k: f64, arm: f64) -> Result<DihedralClass, String> {
@@ -77,8 +77,7 @@ fn worst_rim_verdict(eps: f64, k: f64, arm: f64) -> Result<DihedralClass, String
     let cap = cap_plane(Vec3::new(0.0, 0.0, 1.0));
     let wall = wall_plane(Vec3::new(0.0, 1.0, 0.0), w);
     let arm = geom_core::test_support::fixture_lever(arm);
-    classify_dihedral(&cap, &wall, Point3::new(0.0, 0.0, 0.0), arm, band)
-        .map_err(|e| format!("{e:?}"))
+    dihedral_class(&cap, &wall, Point3::new(0.0, 0.0, 0.0), arm, band).map_err(|e| format!("{e:?}"))
 }
 
 /// **The loose bound closes only above `K = √2`.**

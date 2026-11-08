@@ -286,5 +286,11 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             error: Some(node_error_tag(refusal.kind().class())),
             ..none
         },
+        // A value's read: the value is the subject, by its address.
+        MateFault::ReadUnevaluated { value, refusal } => MateFaultPayload {
+            value_ref: Some(*value),
+            error: Some(node_error_tag(refusal.kind().class())),
+            ..none
+        },
     }
 }

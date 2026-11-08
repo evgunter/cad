@@ -761,8 +761,13 @@ pub enum ReplaceFaceError<T: Real> {
     },
 }
 
-impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: Real> ReplaceFaceError<T> {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             // The carrier's own repairs (set a positive ε; raise ε or
             // K) are addressed to a caller choosing a band's
@@ -780,7 +785,11 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             // Each door's refusal names what it is about itself.
             Self::Offset { error, .. } => write!(f, "{error}"),
-            Self::Fit { error, .. } => write!(f, "{error}"),
+            // The fit door's meter ends at a build at every door that
+            // reads the replacement's refusal.
+            Self::Fit { error, .. } => {
+                write!(f, "{}", read_at(error, geom_brep::recourse::at_build(at)))
+            }
             Self::IsoRow { error, .. } => write!(f, "{error}"),
             Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,
@@ -888,9 +897,10 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             } => write!(
                 f,
                 "the offset {} face meets a {} neighbour along a curve the kernel cannot \
-                 state: {verdict}. {NOT_YET_ENDING}",
+                 state: {}. {NOT_YET_ENDING}",
                 kind.adjective(),
-                other_kind.adjective()
+                other_kind.adjective(),
+                read_at(verdict, at)
             ),
             Self::CornerSection { verdict, .. } => write!(
                 f,
@@ -958,7 +968,7 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                  certifies that arc there. {NOT_YET_ENDING}",
                 conic.named()
             ),
-            Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),
+            Self::DegenerateTorus { refusal, .. } => write!(f, "{}", read_at(refusal, at)),
             Self::Escalated { source } => write!(
                 f,
                 "{}",
@@ -973,18 +983,21 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             } => {
                 write!(
                     f,
-                    "an edge beside the moved face could not be rebuilt: {error}"
+                    "an edge beside the moved face could not be rebuilt: {}",
+                    read_at(error, at)
                 )
             }
             Self::Op { edge: None, error } => write!(
                 f,
-                "the moved faces could not be put onto their offset surface: {error}"
+                "the moved faces could not be put onto their offset surface: {}",
+                read_at(error, at)
             ),
             Self::Pcurve { source } => write!(
                 f,
-                "the offset body's edges could not be parametrized on their faces: {source}"
+                "the offset body's edges could not be parametrized on their faces: {}",
+                read_at(source, at)
             ),
-            Self::Join { refusal } => write!(f, "offsetting the face: {refusal}"),
+            Self::Join { refusal } => write!(f, "offsetting the face: {}", read_at(refusal, at)),
             Self::TogetherChartMixed { .. } => write!(
                 f,
                 "a move names faces that do not lie on one surface, and a move moves one \
@@ -1027,6 +1040,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
         }
     }
 }
+
+geom_brep::ended_by_write!([T: Real] ReplaceFaceError<T>);
 
 impl<T: Real> std::error::Error for ReplaceFaceError<T> {}
 
@@ -1090,7 +1105,7 @@ fn transport_curve<T: Decide>(
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: ca,
                         u_ref,
                     },
@@ -1129,7 +1144,7 @@ fn transport_curve<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis: ca,
                             u_ref,
                         },
@@ -1170,7 +1185,7 @@ fn transport_curve<T: Decide>(
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: c,
+                        origin: c,
                         axis: ca,
                         u_ref,
                     },
@@ -1229,7 +1244,9 @@ fn transport_curve<T: Decide>(
                 ))
             }
         },
-        Surface::Approx(_) => None,
+        // The offset door mints no spindle sheet, so no edge is moved
+        // with one.
+        Surface::Spindle { .. } | Surface::Approx(_) => None,
     })
 }
 
@@ -1253,29 +1270,14 @@ pub(crate) fn translate_curve<T: Real>(
 ) -> Result<Curve3<T>, geom_core::spline::SplineError> {
     Ok(match curve {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(*center + delta, *axis, *radius, *u_ref),
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(*center + delta, *axis, *u_ref),
-            *semi_u,
-            *semi_v,
-        )),
+        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
+            frame: c.frame.translated(delta),
+            ..*c
+        }),
+        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
+            frame: e.frame.translated(delta),
+            ..*e
+        }),
         Curve3::Spiric {
             center,
             axis,
@@ -1309,7 +1311,7 @@ fn homothety<T: Real>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -1547,9 +1549,9 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .map(|&(faces, d)| {
             let face = faces[0];
-            let face_data = body.get_face(face).expect("a live face");
-            let old_key = face_data.surface;
-            let old_surface = body.face_surface_linked(face, face_data).clone();
+            let view = body.proven_face(face);
+            let old_key = view.record().surface;
+            let old_surface = view.surface().clone();
             assert!(
                 !matches!(old_surface, Surface::Cone { .. }),
                 "a cone's nappe and apex window are the door's"
@@ -1623,9 +1625,9 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Vec<(EdgeKey, Curve3<T>, T)> {
     let band = Band::linear(tol).expect("the witness band");
-    let face_data = body.get_face(face).expect("a live face");
-    let old_key = face_data.surface;
-    let old_surface = body.face_surface_linked(face, face_data).clone();
+    let view = body.proven_face(face);
+    let old_key = view.record().surface;
+    let old_surface = view.surface().clone();
     let new_surface = mint_offset(
         face,
         &old_surface,
@@ -1908,12 +1910,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     let mut charts: Vec<MovedChart<'_, T>> = Vec::with_capacity(moves.len());
     for &(faces, d) in moves {
         let face = faces[0];
-        let face_data = proven(&body.faces, face, EntityId::Face);
-        let old_key = face_data.surface;
+        let view = body.proven_face(face);
+        let old_key = view.record().surface;
         if let Some(&other) = groups.of(old_key).iter().find(|k| !faces.contains(k)) {
             return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
         }
-        let old_surface = body.face_surface_linked(face, face_data).clone();
+        let old_surface = view.surface().clone();
         // **The cone's mirror nappe is a consumer obligation, and this is
         // where this door discharges it.** `geom_brep::ConeOffset`'s
         // action moves the surface along the OPENING nappe's normal
@@ -2333,7 +2335,7 @@ fn cone_v_range<T: Decide>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: ca,
                     u_ref,
                 },
@@ -2349,7 +2351,7 @@ fn cone_v_range<T: Decide>(
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: ca,
                     u_ref,
                 },
@@ -2389,12 +2391,12 @@ fn cone_v_range<T: Decide>(
 /// each once — including the seams INTERNAL to the group, which move
 /// with the chart exactly as its outer edges do. Every member resolved
 /// at the door, and the walk from it reads links, so a miss panics
-/// naming the record ([`Body::face_cycles_linked`]).
+/// naming the record ([`crate::live::FaceView::half_edges`]).
 #[track_caller]
 fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Vec<EdgeKey> {
     let mut out: Vec<EdgeKey> = Vec::new();
     for &face in group {
-        for he in body.face_cycles_linked(face) {
+        for he in body.proven_face(face).half_edges() {
             let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
             if !out.contains(&edge) {
                 out.push(edge);
@@ -2531,7 +2533,7 @@ fn plan_edge<'s, T: Decide>(
         // (`IsoRowError::Interior`) rather than reading another row.
         let extract = row.filter(|&(axis, at, _)| {
             self_shared || {
-                let held = body.proven_face_surface(other);
+                let held = body.proven_face(other).surface();
                 crate::offset_derive::holds_the_move(old_surface, held, Some((axis, at)), d, band)
             }
         });
@@ -3105,7 +3107,7 @@ fn carried_alike<T: Decide>(
     tol: Tol,
 ) -> Result<Transported<T>, ReplaceFaceError<T>> {
     let exact = |c: &MovedChart<'_, T>| match c.old_surface {
-        Surface::Nurbs(_) | Surface::Approx(_) => false,
+        Surface::Nurbs(_) | Surface::Approx(_) | Surface::Spindle { .. } => false,
         Surface::Cylinder { .. } | Surface::Cone { .. } => !matches!(old, Curve3::Nurbs(_)),
         Surface::Plane { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => true,
     };

@@ -2157,7 +2157,7 @@ fn review3_a_meeting_off_the_carrier_says_so() {
             got.map(|_| "a body")
         );
     };
-    let text = e.to_string();
+    let text = e.render(geom_brep::recourse::Reading::Build);
     assert!(
         !text.contains("an edge on a curved face's carrier"),
         "the rim is not on the hole's wall: {text}"

@@ -40,7 +40,7 @@ use crate::common::oracles::sigma;
 use geom::{Curve3, Surface};
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point3, Vec3};
-use sweep::blend::arms::{BlendArm, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
+use sweep::blend::arms::{BlendArm, Branch, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
 use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE};
 
 const EPS: f64 = 1e-12;
@@ -260,9 +260,15 @@ impl Row {
                 "{}: the fixture is coaxial, departures {da}/{db}",
                 self.arm.name()
             );
-            let b = sheet.blend(ta, tb, radius);
-            let center =
-                sweep::blend::arms::sheet_center(self.rim, sheet.sheet_normal(), ta, tb, radius);
+            let b = sheet.blend(ta, tb, radius, Branch::Rim);
+            let center = sweep::blend::arms::sheet_center(
+                self.rim,
+                sheet.sheet_normal(),
+                ta,
+                tb,
+                radius,
+                Branch::Rim,
+            );
             (b, center)
         } else {
             let sheet = Ruling {
@@ -277,8 +283,9 @@ impl Row {
                 "{}: the fixture shares its ruling, departures {da}/{db}",
                 self.arm.name()
             );
-            let b = sheet.blend(ta, tb, radius);
-            let center = sweep::blend::arms::sheet_center(self.rim, sheet.tau, ta, tb, radius);
+            let b = sheet.blend(ta, tb, radius, Branch::Rim);
+            let center =
+                sweep::blend::arms::sheet_center(self.rim, sheet.tau, ta, tb, radius, Branch::Rim);
             (b, center)
         }
     }
@@ -325,7 +332,7 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
             ] {
                 let q = match trim.0 {
                     Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { center, .. },
+                        frame: geom::Frame { origin: center, .. },
                         radius,
                     }) => center + radial * radius,
                     Curve3::Line(geom::Line { origin, .. }) => origin,
@@ -498,7 +505,7 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
                 Convexity::Convex.ball_side(sphere_sense),
             )
             .unwrap();
-        let new = sheet.blend(tp, ts, radius);
+        let new = sheet.blend(tp, ts, radius, Branch::Rim);
         let (
             Surface::Torus {
                 center: c0,
@@ -522,11 +529,11 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         for (o, w) in [(&old.trim_a, &new.trim_a), (&old.trim_b, &new.trim_b)] {
             let (
                 Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center: a, .. },
+                    frame: geom::Frame { origin: a, .. },
                     radius: ra,
                 }),
                 Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center: b, .. },
+                    frame: geom::Frame { origin: b, .. },
                     radius: rb,
                 }),
             ) = (o.0.clone(), w.0.clone())

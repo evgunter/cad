@@ -144,8 +144,12 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let edges = query::all_edges(&body);
 
     for r in [0.30, 0.45, 0.499] {
-        let f = fillet_edges(&body, &edges, r, Tol::witness())
-            .unwrap_or_else(|e| panic!("r = {r} is well inside the screen: {e}"));
+        let f = fillet_edges(&body, &edges, r, Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "r = {r} is well inside the screen: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             topo::validate_geometric(&f.body, Tol::witness()),
             Ok(()),
@@ -175,7 +179,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
                     (gap - 1.0).abs() < 1e-9,
                     "the binding gap is the hexagon's SIDE, not its apothem: {gap}"
                 );
-                let text = format!("{e}");
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     text.contains("cannot certify") && text.contains("conservative by direction"),
                     "the screen must not assert the face IS consumed: {text}"

@@ -69,7 +69,10 @@ fn three_rim_honest_control() {
             );
         }
         Ok(_) => panic!("wireframe"),
-        Err(e) => panic!("honest three-rim cylinder must import: {e}"),
+        Err(e) => panic!(
+            "honest three-rim cylinder must import: {e_at}",
+            e_at = e.render()
+        ),
     }
 }
 
@@ -93,7 +96,10 @@ fn three_rim_flipped_wall_layering() {
             );
         }
         Ok(_) => panic!("wireframe"),
-        Err(e) => println!("3RIM flipped: rider refused pre-body after all: {e}"),
+        Err(e) => println!(
+            "3RIM flipped: rider refused pre-body after all: {e_at}",
+            e_at = e.render()
+        ),
     }
 }
 
@@ -112,7 +118,7 @@ fn cone_trunc_flipped_wall_refuses() {
         }
         Ok(_) => panic!("wireframe"),
         Err(e) => {
-            let s = e.to_string();
+            let s = e.render();
             println!("CONE_TRUNC flip refused: {}", &s[..s.len().min(110)]);
             assert!(
                 s.contains("ORIENTATION-INVERTED"),
@@ -214,6 +220,9 @@ fn conic_trimmed_flip_slips_both_gates() {
             println!("CONIC-SLIP flipped wall: imported, t3={t3:?} vol={vol:?}");
         }
         Ok(_) => panic!("wireframe"),
-        Err(e) => println!("CONIC-SLIP flipped wall: refused: {e}"),
+        Err(e) => println!(
+            "CONIC-SLIP flipped wall: refused: {e_at}",
+            e_at = e.render()
+        ),
     }
 }

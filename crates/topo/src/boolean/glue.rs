@@ -146,12 +146,11 @@ fn tangency<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let kind = |body: &Body<T>, f| body.proven_face_surface(f).kind();
+    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
     let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa), kind(b, fb)))
-        && super::rim_wedge::shared_rim(a, fa, b, fb, band)
+        && !super::rim_wedge::rim_exists(a, fa, b, fb, band)
             .map_err(|diag| BooleanError::coincidence(super::Coincide::Rim, read, diag))?
-            .is_none()
     {
         return Ok(false);
     }
@@ -182,8 +181,8 @@ fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
 /// one side with no cover leaves the other's ball; with neither, the
 /// ball is poison, which every lever reading it escalates.
 pub(super) fn overlap_ball<T: geom_core::Real>(
-    a: &boxes::FaceCovered<T>,
-    b: &boxes::FaceCovered<T>,
+    a: &crate::cover::FaceCovered<T>,
+    b: &crate::cover::FaceCovered<T>,
 ) -> geom_brep::ExtentBall<T> {
     match (a, b) {
         (Ok(a), Ok(b)) => geom_brep::ExtentBall::of_cover(&a.clone().meet(b.clone())),
@@ -214,9 +213,9 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
 ) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
     let pad = boxes::sweep_pad(band);
     let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
-        body.faces()
-            .filter(|&(k, face)| keep(body.face_surface_linked(k, face)))
-            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad, band))))
+        body.face_views()
+            .filter(|face| keep(face.surface()))
+            .map(|face| Ok((face.key(), boxes::face_box(body, face.key(), pad, band))))
             .collect()
     };
     pairs_among(&boxed(a)?, &boxed(b)?)
@@ -257,8 +256,8 @@ fn pairs_among(
 /// the coincidence's own site. A sphere's centre on a cylinder's or a
 /// torus's axis, and a cylinder or a torus coaxial with a torus, are one
 /// row each; two cylinders at their bisector pose are two, the radii
-/// decided equal and the axes decided meeting, the classification the
-/// join's bisector lane reads. The rows in A's face order and B's within
+/// decided equal and the axes decided meeting, the classification its
+/// listed nodes stand on. The rows in A's face order and B's within
 /// each, none where the operation's verdicts are given; the table is
 /// built either way, carrying through `lane`.
 ///
@@ -281,8 +280,8 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     let recorded = decls.verdicts != super::Verdicts::Given;
     // Every face read here is one this door enumerated from its body.
     let surface = |body: &Body<T>, f| {
-        let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
-        (face.surface, body.face_surface_linked(f, face).clone())
+        let face = body.proven_face(f);
+        (face.record().surface, face.surface().clone())
     };
     let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
@@ -303,13 +302,13 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     // Each face's cover once: every face's for the region, the served
     // faces' boxes for the pairs.
     let pad = boxes::sweep_pad(band);
-    let covered = |body: &Body<T>| -> Vec<(FaceKey, boxes::FaceCovered<T>)> {
+    let covered = |body: &Body<T>| -> Vec<(FaceKey, crate::cover::FaceCovered<T>)> {
         body.faces()
-            .map(|(k, _)| (k, boxes::face_cover(body, k, band)))
+            .map(|(k, _)| (k, crate::cover::face_cover(body, k, band)))
             .collect()
     };
     let (a_covers, b_covers) = (covered(a), covered(b));
-    let boxed = |covers: &[(FaceKey, boxes::FaceCovered<T>)]| -> Vec<(FaceKey, bvh::Aabb)> {
+    let boxed = |covers: &[(FaceKey, crate::cover::FaceCovered<T>)]| -> Vec<(FaceKey, bvh::Aabb)> {
         covers
             .iter()
             .map(|(k, c)| {
@@ -321,7 +320,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
             .collect()
     };
     let (a_boxes, b_boxes) = (boxed(&a_covers), boxed(&b_covers));
-    let hull = |covers: Vec<(FaceKey, boxes::FaceCovered<T>)>| {
+    let hull = |covers: Vec<(FaceKey, crate::cover::FaceCovered<T>)>| {
         covers
             .into_iter()
             .map(|(_, c)| c)

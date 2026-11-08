@@ -178,7 +178,7 @@ fn signed_dist(s: &Surface<f64>, q: Point3<f64>) -> f64 {
             ..
         } => torus_dist(center, axis, major_radius, minor_radius, q),
         // No closed-form distance for a spline or its offset.
-        Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
     }
 }
 
@@ -265,8 +265,8 @@ fn bits(s: &Surface<f64>) -> Vec<u64> {
             out.push(minor_radius.to_bits());
             v(&mut out, u_ref);
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            panic!("no bit flattening for the spline kinds")
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            panic!("no bit flattening for the kinds the offset door does not mint")
         }
     }
     out

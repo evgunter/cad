@@ -61,7 +61,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         doc,
         legs,
         vec![(
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             Formula::mul(common::len(1e200), common::scl(1e200))
                 .expect("length times scalar is a length"),
         )],

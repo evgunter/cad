@@ -38,6 +38,7 @@
 //! (`finish::discarded`).
 
 use geom_brep::LeverBounds;
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::sectors::reading_lever;
@@ -431,7 +432,7 @@ pub(super) struct Leaving<T: geom_core::Real, R = LeverBounds<T>> {
     /// The unit direction: the edge's tangent, or its secant.
     pub(super) dir: Vec3<T>,
     /// How far the edge reaches from the vertex, its edge cover's far
-    /// distance from above (`boxes::edge_reach_bounds`): a corner's reading acts on
+    /// distance from above (`crate::cover::edge_reach_bounds`): a corner's reading acts on
     /// every sign, so its lever is the region's own measure from where
     /// it is read, and where that is known only from both sides (a curve
     /// other than a line or circle, whose bound from above can pass it
@@ -493,7 +494,7 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
         geom::Curve3::Line(_) => {
             LeverBounds::Exact(geom_brep::ExtentBall::point(end).lever_from(base))
         }
-        _ => super::boxes::edge_reach_bounds(body, h.edge, edge, base)?,
+        _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
     };
     let (dir, bend) = match curve.carrier() {
         _ if secant => (curve.mid_point() - base, None),
@@ -511,7 +512,7 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
         }
     };
     Some(Leaving {
-        dir: dir / dir.norm(),
+        dir: dir.normalize(),
         reach,
         bend,
     })
@@ -563,7 +564,7 @@ pub(super) fn bisector<T: Decide>(
     let mid = s.middle();
     let len = mid.norm();
     match sign(len, T::one(), band)? {
-        Sign::Positive => Ok(mid / len),
+        Sign::Positive => Ok(mid.normalize()),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
             what: "a sector a half-turn wide reached the fate reading, whose bounds name no inside",
         }),
@@ -1349,37 +1350,47 @@ fn rehome<T: Decide>(
                 .filter_map(|he| body.get_half_edge(he).map(|h| h.start))
                 .collect(),
         };
-        let (mut side, mut in_band) = (None, None);
-        for v in vertices {
-            let p = body
+        // The ladder ([`climb`]) whose answer is the first vertex placed:
+        // a ring the cut does not cross is on one side, so every vertex
+        // placed reads it alike ([`Answering::Any`]). A vertex on the
+        // boundary passes; a limit and a vertex in band are kept, ranked,
+        // and refuse only where no vertex places the ring.
+        let placed = climb(Answering::Any, vertices, |v| {
+            let Some(p) = body
                 .get_vertex(v)
                 .and_then(|v| body.get_point(v.point))
                 .copied()
-                .ok_or_else(|| desync("a ring's vertex has no point"))?;
-            // A vertex the reading cannot place (on the boundary, or in
-            // band) says nothing; the next is asked.
+            else {
+                return Rung::Aborts(Err(desync("a ring's vertex has no point")));
+            };
             let at = match normal {
                 Some(n) => super::contfp(body, new, n.vec(), p, band).map(Some),
                 None => super::curved_face_containment(body, new, p, band),
             };
             match at {
-                Ok(Some(super::FaceContainment::In)) => side = Some(true),
-                Ok(Some(super::FaceContainment::Out)) => side = Some(false),
-                Err(e @ super::ContainError::Escalated { .. }) => {
-                    in_band.get_or_insert(contained(e, ""));
-                    continue;
+                Ok(Some(super::FaceContainment::In)) => Rung::Answers(Ok(true)),
+                Ok(Some(super::FaceContainment::Out)) => Rung::Answers(Ok(false)),
+                // The face was just made by the driver: one that does not
+                // resolve is a desync.
+                Err(super::ContainError::StaleFace(face)) => {
+                    super::contain::driver_face_stale(face)
                 }
-                _ => continue,
+                // Every other refusal is kept, or aborts, as the door's
+                // refusal states it is ([`super::ContainError::refusal`]).
+                Err(e) => geom_brep::ladder::rung_or_abort(e.refusal(), contained(e, ""), Err),
+                // On the new face's boundary, or a curved region with no
+                // verdict: the vertex says nothing.
+                Ok(_) => Rung::Passes,
             }
-            break;
-        }
-        match (side, in_band) {
-            (Some(true), _) => moved.push(ring),
-            (Some(false), _) => {}
-            (None, Some(escalated)) => return Err(escalated.into()),
-            (None, None) => {
-                return Err(Limit::RingUnplaced.into());
+        });
+        match placed {
+            Climb::Answered { answer, .. } => {
+                if answer? {
+                    moved.push(ring);
+                }
             }
+            Climb::Undecided(escalated) => return Err(escalated.into()),
+            Climb::Passed => return Err(Limit::RingUnplaced.into()),
         }
     }
     for ring in moved {
@@ -1946,11 +1957,15 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             }
             .into());
         };
-        let run = match (p0, p1) {
-            (Place::Along(h), _) => h,
-            (_, Place::Along(h)) => body
-                .mate(h)
-                .ok_or_else(|| desync("an edge along a fate edge has no mate"))?,
+        // The half running from `w0` to `w1`, and the one back, where an
+        // edge of a piece already runs that way: either end's `Along`
+        // names a half of a piece of the dropped face, while its mate may
+        // lie in the null scaffolding the join set between two pieces, or
+        // across the face's own boundary.
+        let (fwd, back) = match (p0, p1) {
+            (Place::Along(f), Place::Along(b)) => (Some(f), Some(b)),
+            (Place::Along(f), _) => (Some(f), None),
+            (_, Place::Along(b)) => (None, Some(b)),
             _ if across => continue,
             _ => {
                 let c = chord(body, (p0, p1), (&curve, forward), div_d, band, tol)?;
@@ -1969,13 +1984,31 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     kept_ends: [x0, x1],
                 });
                 slits.push((dropped, c));
-                c
+                let mate = body
+                    .mate(c)
+                    .ok_or_else(|| desync("a fate cut's chord has no mate"))?;
+                (Some(c), Some(mate))
             }
         };
-        let mate = body
-            .mate(run)
-            .ok_or_else(|| desync("a fate cut's run has no mate"))?;
-        halves.push((dropped, if fe.aligned { run } else { mate }, kept_he));
+        // The dropped face's side of the kept edge that the kept face
+        // holds: the kept half's own side where the copies' normals
+        // agree, the other where they are opposed.
+        let (want, other) = if fe.aligned { (fwd, back) } else { (back, fwd) };
+        let half = match (want, other) {
+            (Some(h), _) => h,
+            (None, Some(o)) => body
+                .mate(o)
+                .ok_or_else(|| desync("an edge along a fate edge has no mate"))?,
+            (None, None) => unreachable!("one end of a fate cut runs along an edge"),
+        };
+        let face = face_of_he(body, half)?;
+        if div_d.root(face) != root || body.null_face_pair(face).is_some() {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "the side of a fate edge the kept face holds lies in no piece of the dropped face",
+            }
+            .into());
+        }
+        halves.push((dropped, half, kept_he));
     }
     for (operand, c) in slits {
         let body = match operand {

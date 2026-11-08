@@ -4,6 +4,8 @@ kind: issue
 title: SetExpression still edits a slot's expansion at an ExprPath; spec §1 and Q8 re-address it to a defined variable
 status: open
 opened: 2026-10-07
+priority: P2
+cost: M
 ---
 
 `docs/INTENT-LITERALS-SPEC.md` §1 ("Edits") gives the final shape as

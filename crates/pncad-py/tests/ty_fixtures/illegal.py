@@ -642,7 +642,7 @@ except PersistError as _persist:
     _at_line: int = _persist.line  # ty: error
 
 try:
-    Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+    Frame.point_at((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0))
 except FrameError as _frame:
     _margin: float = _frame.margin  # ty: error
 

@@ -70,7 +70,12 @@ pub(crate) fn boolean<T: Decide + Bounds + AtRestPolicy>(
     } else {
         topo::subtract(&a, &b, tol())
     }
-    .unwrap_or_else(|e| panic!("the fixture's boolean builds, got {e}"))
+    .unwrap_or_else(|e| {
+        panic!(
+            "the fixture's boolean builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
     .body()
     .expect("the fixture's boolean is a body")
     .body
@@ -250,8 +255,12 @@ fn assert_absorbed<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBound
         (1, Ok(g)) if g > 0 => g,
         got => panic!("{what}: the source is one shell, each bar a handle, got {got:?}"),
     };
-    let out = blend(verb, body, edges, r)
-        .unwrap_or_else(|e| panic!("{what}: the fill absorbs the bar, got {e}"));
+    let out = blend(verb, body, edges, r).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the fill absorbs the bar, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
     validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
         .unwrap_or_else(|e| panic!("{what}: tier 3′, {e:?}"));
@@ -873,8 +882,12 @@ fn a_bump_on_a_bar_inside_the_fill_is_absorbed_with_it() {
     validate_geometric(&body, tol()).expect("the bumped bar is tier-3 valid");
     let held = c * (a * a - c * c).sqrt() + a * a * (c / a).asin();
     for verb in VERBS {
-        let out = blend(verb, &body, &[floor(&body, 1.0)], D)
-            .unwrap_or_else(|e| panic!("{verb:?}: the bump goes with the bar, got {e}"));
+        let out = blend(verb, &body, &[floor(&body, 1.0)], D).unwrap_or_else(|e| {
+            panic!(
+                "{verb:?}: the bump goes with the bar, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
         validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
             .unwrap_or_else(|e| panic!("{verb:?}: tier 3′, {e:?}"));

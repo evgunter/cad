@@ -970,7 +970,7 @@ pub fn poison<T: Real>() -> T {
 /// lever, a denominator, a span — or where the normalization is
 /// spelled `v / v.norm()`, which the prescale never sees. Known
 /// instances, a floor rather than a total: those listed in
-/// `work/issues/two-step-normalize-and-unasked-lengths`.
+/// `work/scalar/two-step-normalize-and-unasked-lengths`.
 /// `profile`'s `path::chord_director` is one by design: a leg's length
 /// is decided by the gates that read it as a lever and as a segment, so
 /// the chord door decides none and refuses nothing. It asks this of the

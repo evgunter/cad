@@ -60,7 +60,7 @@ enum Locus<T: Real> {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
-    match *body.face_surface(f)? {
+    match *body.passed_face(f)?.surface() {
         geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
         geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere { center, radius }),
         _ => None,
@@ -285,7 +285,12 @@ pub(super) fn edge_face<T: Decide>(
     let touch = match (curve, surface(body, face)) {
         (
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 radius,
             }),
             Some(Surface::Plane { origin, normal }),
@@ -301,12 +306,8 @@ pub(super) fn edge_face<T: Decide>(
                 return Read::Pushed;
             }
         },
-        (
-            geom::Curve3::Line(geom::Line { origin, dir }),
-            Some(Surface::Sphere { center, radius }),
-        ) => {
-            let foot = origin + dir * dir.dot(center - origin);
-            on_sphere((center, radius), foot, band, errors)
+        (geom::Curve3::Line(line), Some(Surface::Sphere { center, radius })) => {
+            on_sphere((center, radius), line.foot(center), band, errors)
         }
         _ => {
             errors.push(refused(
@@ -343,7 +344,7 @@ pub(super) fn face_face<T: Decide>(
     let touch = match surface(body, a).zip(surface(body, b))? {
         (Plane { origin, normal }, Sphere { center, radius })
         | (Sphere { center, radius }, Plane { origin, normal }) => {
-            let foot = center - normal * normal.dot(center - origin);
+            let foot = center - normal * geom::plane_offset(origin, normal, center);
             on_sphere((center, radius), foot, band, errors)
         }
         (

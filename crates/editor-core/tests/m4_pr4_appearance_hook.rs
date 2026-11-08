@@ -724,7 +724,7 @@ fn a_named_count_shrinking_is_the_indexs_count() {
     let (doc, pat) = crate::fixture::family_of(
         doc,
         ext,
-        vec![(editor_core::Coord::Slide(editor_core::TargetAxis::X), pitch)],
+        vec![(editor_core::Coord::slide(editor_core::TargetAxis::X), pitch)],
     );
     let ev = run(&doc);
     let inst2_face = ev

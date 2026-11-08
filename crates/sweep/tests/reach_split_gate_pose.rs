@@ -325,8 +325,11 @@ fn probe() {
                                             Err(e) => {
                                                 t.props_refused += 1;
                                                 println!(
-                                                    "PROPS {} s={s} {pose} n={n:?} d={d} clear={clear}: {e}",
-                                                    f.name
+                                                    "PROPS {} s={s} {pose} n={n:?} d={d} clear={clear}: {e_at}",
+                                                    f.name,
+                                                    e_at = e.render(
+                                                        geom_brep::recourse::Reading::AtRest
+                                                    )
                                                 );
                                                 continue;
                                             }
@@ -355,7 +358,11 @@ fn probe() {
                         Err(e) => {
                             if clear {
                                 t.clear_other += 1;
-                                println!("OTHER clear {} s={s} {pose} n={n:?} d={d}: {e}", f.name);
+                                println!(
+                                    "OTHER clear {} s={s} {pose} n={n:?} d={d}: {e_at}",
+                                    f.name,
+                                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                                );
                             } else if meets {
                                 t.meets_other += 1;
                             }
@@ -471,7 +478,11 @@ fn a_cut_clear_of_the_face_splits_in_every_pose_row() {
                             );
                             continue;
                         }
-                        Err(e) => panic!("{} at scale {s}, {pose}: posing refused: {e}", f.name),
+                        Err(e) => panic!(
+                            "{} at scale {s}, {pose}: posing refused: {e_at}",
+                            f.name,
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        ),
                     };
                 for (cut, plane) in [
                     (
@@ -487,8 +498,12 @@ fn a_cut_clear_of_the_face_splits_in_every_pose_row() {
                     ),
                 ] {
                     let what = format!("{} at scale {s}, {pose}, {cut}", f.name);
-                    split_posed(&f, s, &posed, *map, plane, &what)
-                        .unwrap_or_else(|e| panic!("{what}: {e}"));
+                    split_posed(&f, s, &posed, *map, plane, &what).unwrap_or_else(|e| {
+                        panic!(
+                            "{what}: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )
+                    });
                 }
             }
         }

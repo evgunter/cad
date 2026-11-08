@@ -54,8 +54,12 @@ fn y_axis<T: Real>() -> sweep::RevolveAxis<T> {
 fn measured(body: &Body<f64>, what: &str) -> (f64, f64) {
     body.faces()
         .map(|(face, _)| {
-            let r = topo::test_support::face_reading(body, face, tol(), 1e-6)
-                .unwrap_or_else(|e| panic!("{what}: face {face:?} reads: {e}"));
+            let r = topo::test_support::face_reading(body, face, tol(), 1e-6).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: face {face:?} reads: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                )
+            });
             (r.flux, r.area)
         })
         .fold((0.0, 0.0), |(f, a), (g, b)| (f + g, a + b))

@@ -24,6 +24,8 @@ mod eps_regression;
 mod gallery;
 #[path = "heatsink.rs"]
 mod heatsink;
+#[path = "impeller.rs"]
+mod impeller;
 #[path = "k_probe_brackets.rs"]
 mod k_probe_brackets;
 #[path = "klein.rs"]

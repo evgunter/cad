@@ -1032,18 +1032,18 @@ impl MergeDecision {
         }
     }
 
-    /// The one ending an escalation of this decision carries, at the
-    /// merge that built the geometry.
-    fn ending(self, diag: &Indeterminate) -> String {
+    /// The one ending an escalation of this decision carries, read at
+    /// `at`.
+    fn ending(self, diag: &Indeterminate, at: geom_brep::recourse::ReadAt) -> String {
         let arm = RefusedArm::Undecided(diag);
         match self {
             // An extent that does not read carries no margin.
-            Self::PairReach => Unsized::Defect.recourse(arm, Reading::Build),
+            Self::PairReach => Unsized::Defect.recourse(arm, at),
             Self::Neighbours(rung) => {
                 crate::boolean::BooleanDecision::Neighbours(rung).recourse(diag)
             }
             Self::NeighbourCoincidence => crate::boolean::refusal_routes::neighbour_ending(diag),
-            Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
+            Self::LoopWinding => LOOP_WINDING.recourse(arm, at),
         }
     }
 }
@@ -1075,8 +1075,13 @@ const LOOP_WINDING: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-impl core::fmt::Display for MergeCoplanarError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl MergeCoplanarError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             Self::InputNotClosed { errors } => {
                 write!(
@@ -1138,11 +1143,15 @@ impl core::fmt::Display for MergeCoplanarError {
                  inventory: sub-period re-merges commit, full closures stay in their \
                  cut-carrying canonical form and are recorded as a loud skip"
             ),
-            Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
+            Self::Op { error } => write!(f, "merge_coplanar_faces: {}", read_at(error, at)),
             Self::GluedOppositeOrientation { .. } => write!(
                 f,
-                "the two glued faces face opposite ways across the edge they share. {}",
-                GLUED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
+                "the two glued faces face opposite ways across the edge they share{}",
+                at.map(|at| format!(
+                    ". {}",
+                    GLUED_ORIENTATION.recourse(RefusedArm::SignCertain(None), at)
+                ))
+                .unwrap_or_default()
             ),
             Self::GlueRecordBroken { surfaces: (a, b) } => write!(
                 f,
@@ -1176,16 +1185,25 @@ impl core::fmt::Display for MergeCoplanarError {
                      winds counterclockwise about its outward normal, as tier 3 requires at rest"
                 ),
             },
-            Self::Escalated { decision, diag } => diag
-                .undecided(decision.subject(), decision.ending(diag))
-                .fmt(f),
+            Self::Escalated { decision, diag } => write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(
+                    diag,
+                    decision.subject(),
+                    at.map(|at| decision.ending(diag, at))
+                )
+            ),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::Pcurve { source } => write!(
                 f,
                 "merge_coplanar_faces: the staged result's pcurve re-mint refused \
-                 ({source}) — the body is untouched"
+                 ({}) — the body is untouched",
+                read_at(source, at)
             ),
-            Self::Join { refusal } => write!(f, "merging coplanar faces: {refusal}"),
+            Self::Join { refusal } => {
+                write!(f, "merging coplanar faces: {}", read_at(refusal, at))
+            }
             Self::KeptBoundaryUndescribed {
                 face,
                 edge,
@@ -1202,11 +1220,11 @@ impl core::fmt::Display for MergeCoplanarError {
                 if let Some(cause) = cause {
                     write!(f, " ({})", refusal_payload(cause))?;
                 }
-                write!(
-                    f,
-                    ". The body is untouched. {}",
-                    undescribed_ending(cause.as_deref(), *fitted)
-                )
+                f.write_str(". The body is untouched")?;
+                match at {
+                    Some(_) => write!(f, ". {}", undescribed_ending(cause.as_deref(), *fitted)),
+                    None => Ok(()),
+                }
             }
             Self::KeptBoundaryOffFace { face, edge, diag } => write!(
                 f,
@@ -1226,23 +1244,24 @@ impl core::fmt::Display for MergeCoplanarError {
                 let (question, ending) = match reading {
                     DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
                         concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
-                        geom_brep::DIHEDRAL_ARM
-                            .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                        at.map(|at| {
+                            geom_brep::DIHEDRAL_ARM.recourse(RefusedArm::Undecided(diag), at)
+                        }),
                     ),
                     DihedralReading::Lever(geom_brep::LeverRung::Reading) => (
                         "whether the faces at it cross or meet smoothly",
-                        CROSS_OR_SMOOTH.to_owned(),
+                        Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
                     DihedralReading::Bend => (
                         "whether the faces at it bend apart",
-                        CROSS_OR_SMOOTH.to_owned(),
+                        Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
                 };
                 write!(
                     f,
                     "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
                      {edge:?}, {}",
-                    diag.undecided(question, ending)
+                    geom_brep::recourse::undecided_at(diag, question, ending)
                 )
             }
             Self::KeptBoundaryMixed {
@@ -1267,6 +1286,8 @@ impl core::fmt::Display for MergeCoplanarError {
         }
     }
 }
+
+geom_brep::ended_by_write!(MergeCoplanarError);
 
 impl std::error::Error for MergeCoplanarError {}
 
@@ -2160,14 +2181,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // (`work/shell/staging-doors-gated-at-tier-3-still-derive-tier-1-twice`).
         if !outcome.groups.is_empty() {
             let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
-            let Some(boundary) =
-                crate::boolean::boundary_edges(&work, outcome.groups.iter().map(|g| g.kept))
-            else {
-                unreachable!(
-                    "merge_coplanar_faces: a kept face's loop does not walk, on a result that \
-                     passed tier 1 and tier 2 a statement ago"
-                )
-            };
+            let boundary =
+                crate::boolean::boundary_edges(&work, outcome.groups.iter().map(|g| g.kept));
             // The describer reads the records for the scaffold a
             // recorded skip leaves between its faces.
             let records: Vec<SkippedMerge> = outcome.skipped.clone();
@@ -2235,21 +2250,19 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`MergeCoplanarError::PoisonedSurfaceDescription`] for a net
     /// that has no kind here.
     fn merge_kind(&self, face: FaceKey) -> Result<MergeKind, MergeCoplanarError> {
-        let record = proven(&self.faces, face, EntityId::Face);
-        Ok(self.described_kind(face, record)?.1)
+        Ok(self.described_kind(self.proven_face(face))?.1)
     }
 
-    /// Face `face`'s surface (`record` is its resolved record) and
-    /// the surface's [`MergeKind`]: [`Body::merge_kind`]'s errors past
-    /// the face lookup.
-    fn described_kind(
+    /// `face`'s surface and the surface's [`MergeKind`]:
+    /// [`Body::merge_kind`]'s errors past the face lookup.
+    fn described_kind<'a>(
         &self,
-        face: FaceKey,
-        record: &crate::entity::Face,
-    ) -> Result<(&Surface<T>, MergeKind), MergeCoplanarError> {
-        let described = self.face_surface_linked(face, record);
-        let kind = MergeKind::of(described)
-            .map_err(|PoisonedNet| MergeCoplanarError::PoisonedSurfaceDescription { face })?;
+        face: crate::live::FaceView<'a, T>,
+    ) -> Result<(&'a Surface<T>, MergeKind), MergeCoplanarError> {
+        let described = face.surface();
+        let kind = MergeKind::of(described).map_err(|PoisonedNet| {
+            MergeCoplanarError::PoisonedSurfaceDescription { face: face.key() }
+        })?;
         Ok((described, kind))
     }
 
@@ -2268,8 +2281,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             described: SecondaryMap::new(),
             placeholders: Vec::new(),
         };
-        for (face_key, record) in self.faces() {
-            let (described, kind) = self.described_kind(face_key, record)?;
+        for face in self.face_views() {
+            let (face_key, record) = (face.key(), face.record());
+            let (described, kind) = self.described_kind(face)?;
             if kind == MergeKind::Placeholder {
                 census.placeholders.push(face_key);
             }
@@ -2433,8 +2447,10 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// Where `rep` does not resolve, or a loop of it is not whole: the
     /// group was read off the staged body, tier-1-valid.
     fn rechart_survivor(&mut self, rep: FaceKey, description: (SurfaceKey, bool)) {
-        let old = proven(&self.faces, rep, EntityId::Face).surface;
-        self.drop_rows_on_chart_change(self.face_cycles(rep), old, description.0);
+        let survivor = self.proven_face(rep);
+        let old = survivor.record().surface;
+        let halves = self.half_edges_proven_whole([survivor]).concat();
+        self.drop_rows_on_chart_change(halves, old, description.0);
         self.rechart_in_place(rep, description);
     }
 
@@ -3033,28 +3049,22 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             // duplicate's loop's face — `rep`, the face both halves
             // were found on through that loop — to be live
             // (`require_key` on the loop's `face`) and kills no face.
-            // The role pass takes the resolved face record; the
-            // surface, loop and walk lookups it makes read the arena
-            // the surgery has just mutated, and announce what they
-            // cannot resolve.
-            let Some(survivor) = self.get_face(rep) else {
-                unreachable!(
-                    "merge_group: `rep` was required live by the `kemr` that minted the last \
-                     ring, and `kemr` kills no face"
-                )
-            };
-            let survivor = survivor.clone();
+            // The role pass reads `rep` proven; the surface, loop and
+            // walk lookups it makes read the arena the surgery has just
+            // mutated, and announce what they cannot resolve.
             #[cfg(test)]
-            tear_before_role_pass(self, &survivor);
-            if let Some(i) = self.merged_outline_ring(rep, &survivor, tol)? {
+            {
+                let survivor = self.proven_face(rep).record().clone();
+                tear_before_role_pass(self, &survivor);
+            }
+            if let Some(i) = self.merged_outline_ring(rep, tol)? {
                 let Some(fm) = self.faces.get_mut(rep) else {
                     unreachable!(
                         "merge_group: `rep` resolved a few lines above and the winding \
                          pass between is read-only"
                     )
                 };
-                fm.outer = survivor.rings[i];
-                fm.rings[i] = survivor.outer;
+                core::mem::swap(&mut fm.outer, &mut fm.rings[i]);
             }
         }
         Ok(group)
@@ -3117,17 +3127,18 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// # Panics
     ///
-    /// Where a surface or walk key does not resolve, a walk does not
-    /// close, or a half-edge's edge does not claim it: the surgery's
-    /// operators keep the body tier-1-valid.
+    /// Where `face` (which the caller proved live), a surface or walk
+    /// key does not resolve, a walk does not close, or a half-edge's edge
+    /// does not claim it: the surgery's operators keep the body
+    /// tier-1-valid.
     fn merged_outline_ring(
         &self,
         face: FaceKey,
-        survivor: &crate::entity::Face,
         tol: Tol,
     ) -> Result<Option<usize>, MergeCoplanarError> {
         let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
-        let described = self.face_surface_linked(face, survivor);
+        let survivor = self.proven_face(face);
+        let described = survivor.surface();
         // The face's OUTWARD normal (S10): "positively wound" means
         // CCW seen from OUTSIDE the material, so on a reversed face
         // the chart normal names the opposite convention and every
@@ -3135,19 +3146,13 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let Surface::Plane { normal, .. } = described else {
             return Ok(None);
         };
-        let normal = plane_outward_normal(survivor, *normal).vec();
+        let normal = plane_outward_normal(survivor.record(), *normal).vec();
         // Every loop's verdict, outline slot first (`None`). A negative
         // winding and an empty loop are not positive and name nothing.
         let mut positive: Vec<(Option<usize>, LoopKey)> = Vec::new();
         let mut zero = None;
         let mut unsupported = None;
-        let slots = core::iter::once((None, survivor.outer)).chain(
-            survivor
-                .rings
-                .iter()
-                .enumerate()
-                .map(|(i, &r)| (Some(i), r)),
-        );
+        let slots = survivor.loops().map(|(lk, _, role)| (role.ring(), lk));
         for (slot, l) in slots {
             match self.loop_winding(l, normal, band)? {
                 LoopWinding::Wound(Decided {
@@ -3823,7 +3828,8 @@ mod tests {
             assert_eq!(
                 OpPlacement::of(&error),
                 OpPlacement::Contradicts(want),
-                "{point:?} produced {error}"
+                "{point:?} produced {error_at}",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             );
             assert!(MergeCoplanarError::Op { error }.is_arena_fault());
         }
@@ -3845,7 +3851,8 @@ mod tests {
             assert_eq!(
                 OpPlacement::of(&error),
                 OpPlacement::Contradicts(want),
-                "{point:?} produced {error}"
+                "{point:?} produced {error_at}",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             );
         }
     }
@@ -4095,7 +4102,12 @@ mod tests {
                 let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
                     let _ = OpPlacement::of(&error);
                 }))
-                .unwrap_or_else(|| panic!("{error}: an argument refusal is placed nowhere"));
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{error_at}: an argument refusal is placed nowhere",
+                        error_at = error.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
                 assert!(
                     message.contains("merge_group handed an operator a stale argument"),
                     "{message}"
@@ -4109,9 +4121,17 @@ mod tests {
             match OpPlacement::of(&error) {
                 OpPlacement::Contradicts(fact) => {
                     assert!(!fact.what().is_empty());
-                    assert!(escapes, "{error}");
+                    assert!(
+                        escapes,
+                        "{error_at}",
+                        error_at = error.render(geom_brep::recourse::Reading::Build)
+                    );
                 }
-                OpPlacement::Inventory => assert!(!escapes, "{error}"),
+                OpPlacement::Inventory => assert!(
+                    !escapes,
+                    "{error_at}",
+                    error_at = error.render(geom_brep::recourse::Reading::Build)
+                ),
             }
         }
     }
@@ -4191,7 +4211,8 @@ mod tests {
                     error: error.clone()
                 }
                 .is_arena_fault(),
-                "{error} contradicts a fact merge_group established, so it escapes"
+                "{error_at} contradicts a fact merge_group established, so it escapes",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             );
             assert!(matches!(
                 OpPlacement::of(&error),
@@ -4698,7 +4719,7 @@ mod tests {
     /// is asserted rather than left to a reader.
     #[test]
     fn the_refusals_render_their_recourse() {
-        let rendered = |e: &MergeCoplanarError| e.to_string();
+        let rendered = |e: &MergeCoplanarError| e.render(geom_brep::recourse::Reading::Build);
         assert!(
             rendered(&MergeCoplanarError::ResultNotClosed { errors: Vec::new() })
                 .contains("refused"),
@@ -5069,7 +5090,7 @@ mod winding_arm_tests {
                     diag,
                 },
             ) => {
-                let text = err.to_string();
+                let text = err.render(geom_brep::recourse::Reading::Build);
                 assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
                 assert!(
                     test_utils::refusal::subjectless_escalations(&text).is_empty()
@@ -5357,12 +5378,11 @@ mod winding_arm_tests {
         // ...and as a merged face's only loop it is named, not taken
         // for a hole: it may be the outline, and nothing built reads it.
         let face = t.body.get_loop(t.r#loop).unwrap().face;
-        let survivor = t.body.get_face(face).unwrap().clone();
         let err = t
             .body
-            .merged_outline_ring(face, &survivor, tol)
+            .merged_outline_ring(face, tol)
             .expect_err("an outline whose winding is not built is not assigned");
-        assert_one_story(&err.to_string());
+        assert_one_story(&err.render(geom_brep::recourse::Reading::Build));
         assert_eq!(
             err,
             MergeCoplanarError::MergedFaceRoleAmbiguous {
@@ -5410,11 +5430,10 @@ mod winding_arm_tests {
                 tol,
             );
             let face = t.body.get_loop(t.r#loop).unwrap().face;
-            let survivor = t.body.get_face(face).unwrap().clone();
             let bracket = geom_core::k_stats::Bracket::open();
             let err = t
                 .body
-                .merged_outline_ring(face, &survivor, tol)
+                .merged_outline_ring(face, tol)
                 .expect_err("a face whose one loop winds zero has no outline");
             let log = bracket.finish();
             let MergeCoplanarError::Escalated {
@@ -5434,7 +5453,7 @@ mod winding_arm_tests {
                 vec![*diag],
                 "h {h:e}: the rejection is the one escalation on the log"
             );
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             assert_one_story(&text);
             assert!(
                 text.starts_with(
@@ -5493,12 +5512,11 @@ mod winding_arm_tests {
             tol,
         );
         let face = body.get_loop(first).unwrap().face;
-        let mut survivor = body.get_face(face).unwrap().clone();
-        survivor.rings = vec![second];
+        body.faces.get_mut(face).unwrap().rings = vec![second];
         let text = body
-            .merged_outline_ring(face, &survivor, tol)
+            .merged_outline_ring(face, tol)
             .expect_err("two outlines are not one face's")
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
         assert_one_story(&text);
         assert!(
             text.contains(&format!("{first:?}"))
@@ -5523,17 +5541,17 @@ mod winding_arm_tests {
             Point3::new(0.0, 1.0, 0.0),
             tol,
         );
-        let (face, survivor) = t
+        let face = t
             .body
             .faces()
             .find(|(_, f)| f.outer != t.r#loop)
-            .map(|(k, f)| (k, f.clone()))
+            .map(|(k, _)| k)
             .expect("the triangle's second face");
         let err = t
             .body
-            .merged_outline_ring(face, &survivor, tol)
+            .merged_outline_ring(face, tol)
             .expect_err("a face of holes has no outline");
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert_one_story(&text);
         assert!(!text.contains("tighten"), "{text}");
         assert_eq!(
@@ -5570,7 +5588,9 @@ mod winding_arm_tests {
                 decision: MergeDecision::LoopWinding,
                 diag,
             } if diag.margin.kind() == geom_core::MarginKind::Value
-        ) && err.to_string().contains("lies within the zero band")
+        ) && err
+            .render(geom_brep::recourse::Reading::Build)
+            .contains("lies within the zero band")
     }
 
     /// **With no loop positive, a zero winding is named before a loop
@@ -5593,14 +5613,17 @@ mod winding_arm_tests {
         fit_a_nurbs_quarter(&mut t, tol);
         let thin = thin_into(&mut t.body, 10.0, tol);
         let face = t.body.get_loop(t.r#loop).unwrap().face;
-        let mut survivor = t.body.get_face(face).unwrap().clone();
-        survivor.rings = vec![thin];
+        t.body.faces.get_mut(face).unwrap().rings = vec![thin];
         let err = t
             .body
-            .merged_outline_ring(face, &survivor, tol)
+            .merged_outline_ring(face, tol)
             .expect_err("no loop is positive");
-        assert_one_story(&err.to_string());
-        assert!(is_the_zero_story(&err), "{err:?}: {err}");
+        assert_one_story(&err.render(geom_brep::recourse::Reading::Build));
+        assert!(
+            is_the_zero_story(&err),
+            "{err:?}: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
 
     /// **An empty loop bounds no area, so it is not positive and names
@@ -5616,12 +5639,15 @@ mod winding_arm_tests {
         let thin = thin_into(&mut body, 0.0, tol);
         let lone = body.mvfs(Point3::new(5.0, 5.0, 0.0), true).unwrap().r#loop;
         let face = body.get_loop(thin).unwrap().face;
-        let mut survivor = body.get_face(face).unwrap().clone();
-        survivor.rings = vec![lone];
+        body.faces.get_mut(face).unwrap().rings = vec![lone];
         let err = body
-            .merged_outline_ring(face, &survivor, tol)
+            .merged_outline_ring(face, tol)
             .expect_err("a zero outline is no outline");
-        assert!(is_the_zero_story(&err), "zero beside empty: {err:?}: {err}");
+        assert!(
+            is_the_zero_story(&err),
+            "zero beside empty: {err:?}: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
         // A clockwise outline beside an empty ring.
         let t = tri(
             Point3::new(0.0, 0.0, 0.0),
@@ -5630,17 +5656,17 @@ mod winding_arm_tests {
             tol,
         );
         let mut body = t.body;
-        let (face, mut survivor) = body
+        let face = body
             .faces()
             .find(|(_, f)| f.outer != t.r#loop)
-            .map(|(k, f)| (k, f.clone()))
+            .map(|(k, _)| k)
             .expect("the triangle's second face");
         let lone = body.mvfs(Point3::new(5.0, 5.0, 0.0), true).unwrap().r#loop;
-        survivor.rings = vec![lone];
+        body.faces.get_mut(face).unwrap().rings = vec![lone];
         let err = body
-            .merged_outline_ring(face, &survivor, tol)
+            .merged_outline_ring(face, tol)
             .expect_err("a face of holes has no outline");
-        assert_one_story(&err.to_string());
+        assert_one_story(&err.render(geom_brep::recourse::Reading::Build));
         assert_eq!(
             err,
             MergeCoplanarError::MergedFaceRoleAmbiguous {
@@ -6072,7 +6098,7 @@ mod declared_reach_rows {
                     .expect("live")
             };
             let (pa, pc) = (at(&body, a), at(&body, c));
-            let flat = body.face_surface(top).expect("live").clone();
+            let flat = body.proven_face(top).surface().clone();
             let he1 = leaving(&body, top, a).expect("A is on the top");
             let he2 = leaving(&body, top, c).expect("C is on the top");
             // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.

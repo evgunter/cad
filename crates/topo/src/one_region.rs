@@ -43,6 +43,7 @@
 //! loops enclose the surface's end rather than its own region reads
 //! inverted there, and this module skips it.
 
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide};
 
 use crate::body::Body;
@@ -71,14 +72,15 @@ pub(crate) fn region_errors<T: Decide>(
         let torus = match surface {
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
-            | geom::Surface::Cone { .. } => false,
+            | geom::Surface::Cone { .. }
+            | geom::Surface::Spindle { .. } => false,
             geom::Surface::Torus { .. } => true,
             geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
                 continue;
             }
         };
         let Ok(cycles) = crate::surface_boundary::surface_cycle_windings(body, face) else {
-            continue; // tier 1 refuses a boundary that does not walk
+            continue; // a rotation that does not close: tier 1 refuses it
         };
         let readings = if torus {
             match torus_readings(&cycles) {
@@ -215,7 +217,12 @@ pub(crate) fn door_side<T: Decide>(
 }
 
 /// `cycle` read against the cycles `cut` at each of its vertices in walk
-/// order (module docs).
+/// order (module docs): the ladder ([`climb`]) whose answer is the first
+/// vertex placed. Every vertex of a cycle reads the one side
+/// ([`Answering::Any`]; the vertex an `Off` names is its witness), so a
+/// vertex read in band ahead of the answer is superseded. An unplaced
+/// vertex is exempt and passes, so a cycle no vertex places is exempt
+/// unless one read in band.
 fn read_cycle<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -223,28 +230,32 @@ fn read_cycle<T: Decide>(
     cut: &[usize],
     band: Band,
 ) -> Read {
-    let mut in_band = None;
-    for &h in cycle {
+    let placed = climb(Answering::Any, cycle, |&h| {
         let Some(vertex) = body.get_half_edge(h).map(|h| h.start) else {
-            continue;
+            return Rung::Passes;
         };
         let Some(q) = body
             .get_vertex(vertex)
             .and_then(|v| body.points.get(v.point))
         else {
-            continue;
+            return Rung::Passes;
         };
-        match door_side(body, face, cut, *q, band) {
-            Ok(Some(true)) => return Read::Face,
-            Ok(Some(false)) => return Read::Off(vertex),
-            // On a cycle of the cut, or unplaced.
-            Ok(None) => {}
-            Err(diag) => {
-                in_band.get_or_insert((vertex, diag));
-            }
-        }
+        Rung::of_reading(door_side(body, face, cut, *q, band).map(|side| {
+            side.map(|on_face| {
+                if on_face {
+                    Read::Face
+                } else {
+                    Read::Off(vertex)
+                }
+            })
+        }))
+        .map_kept(|diag| (vertex, diag))
+    });
+    match placed {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed => Read::Exempt,
+        Climb::Undecided((at, diag)) => Read::InBand(at, diag),
     }
-    in_band.map_or(Read::Exempt, |(at, diag)| Read::InBand(at, diag))
 }
 
 /// The edge of `cycle`'s first half-edge, which names the cycle.

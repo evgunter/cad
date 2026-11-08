@@ -681,8 +681,13 @@ pub enum ShellError<T: Real> {
     },
 }
 
-impl<T: Real> core::fmt::Display for ShellError<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: Real> ShellError<T> {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             Self::Band { error } => write!(f, "{error}"),
             Self::Thickness { thickness } => {
@@ -705,11 +710,13 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             Self::Roles { error } => write!(
                 f,
                 "the body's shells could not be sorted into one outer boundary and its \
-                 voids: {error}"
+                 voids: {}",
+                read_at(error, at)
             ),
             Self::Partition { shell, error } => write!(
                 f,
-                "the thin solid around void {shell:?} could not be partitioned out: {error}"
+                "the thin solid around void {shell:?} could not be partitioned out: {}",
+                read_at(error, at)
             ),
             Self::WallClearance { gap, needed, .. } => write!(
                 f,
@@ -753,10 +760,14 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             Self::Lift { error, .. } => write!(
                 f,
                 "the rim could not be lifted back onto a designated open face: {}",
-                AsShelled(error)
+                core::fmt::from_fn(|f| AsShelled(error, at).write(f))
             ),
             Self::Face { error, .. } => {
-                write!(f, "a face could not be offset inward: {}", AsShelled(error))
+                write!(
+                    f,
+                    "a face could not be offset inward: {}",
+                    core::fmt::from_fn(|f| AsShelled(error, at).write(f))
+                )
             }
             Self::OpenFaceStale { .. } => {
                 write!(
@@ -787,7 +798,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "the cavity could not be inserted: {error}. {KERNEL_DEFECT_ENDING}"
             ),
             Self::Rim { face, error } => {
-                write!(f, "the rim surgery on face {face:?} refused: {error}")
+                write!(
+                    f,
+                    "the rim surgery on face {face:?} refused: {}",
+                    read_at(error, at)
+                )
             }
             // The shell op takes no declaration: its levers are the
             // wall and the geometry.
@@ -806,14 +821,16 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             // payload (in `Debug`) names keys the user never saw.
             Self::Pcurve { source } => write!(
                 f,
-                "the finished thin solid's edges could not be parametrized on its faces. {}",
-                shell_mint_ending(source)
+                "the finished thin solid's edges could not be parametrized on its faces{}",
+                ended(at.map(|at| shell_mint_ending(source, at)))
             ),
             Self::RimSeamMixed { stations, .. } => write!(
                 f,
                 "a wall seam the rim shortens, {stations}. Recourse: {WALL_OR_GEOMETRY}"
             ),
-            Self::Join { refusal } => write!(f, "the assembled thin solid: {refusal}"),
+            Self::Join { refusal } => {
+                write!(f, "the assembled thin solid: {}", read_at(refusal, at))
+            }
             Self::NotValid { errors } => write!(
                 f,
                 "the assembled thin solid is not valid ({}) and is discarded. \
@@ -824,6 +841,8 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
     }
 }
 
+geom_brep::ended_by_write!([T: Real] ShellError<T>);
+
 impl<T: Real> std::error::Error for ShellError<T> {}
 
 /// **A face-replacement refusal as the shell op's user reads it.** The
@@ -832,7 +851,7 @@ impl<T: Real> std::error::Error for ShellError<T> {}
 /// moves each face by the wall thickness, signed by the face's sense,
 /// so an arm about the offset's length speaks of the wall. Every other
 /// arm reads as the door's own refusal.
-struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>);
+struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>, Option<geom_brep::recourse::ReadAt>);
 
 /// The lever of every refusal a thinner wall answers.
 const THINNER_WALL: &str = "use a thinner wall";
@@ -901,17 +920,31 @@ fn cavity_refusal_ending(
 /// The ending of a pcurve mint the shell op ran: a certification
 /// refusal's own at the build door ([`PcurveMintError::ending`]), the
 /// kernel's defect for a refusal of the pass itself.
-fn shell_mint_ending(source: &PcurveMintError) -> std::borrow::Cow<'static, str> {
+fn shell_mint_ending(
+    source: &PcurveMintError,
+    at: geom_brep::recourse::ReadAt,
+) -> std::borrow::Cow<'static, str> {
     source
-        .ending(geom_brep::recourse::Reading::Build)
+        .ending(at)
         .map_or(KERNEL_DEFECT_ENDING.into(), Into::into)
 }
 
-impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// `". {ending}"`, or nothing for a payload read at no door.
+fn ended(ending: Option<impl core::fmt::Display>) -> impl core::fmt::Display {
+    core::fmt::from_fn(move |f| match &ending {
+        Some(ending) => write!(f, ". {ending}"),
+        None => Ok(()),
+    })
+}
+
+impl<T: Real> AsShelled<'_, T> {
+    /// The face-replacement refusal as the shell op's user reads it,
+    /// ended at the door it carries, or its payload alone at none.
+    fn write(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use ReplaceFaceError as R;
         use geom_brep::offset_meters::{Meter, MeterError as M};
-        use geom_brep::recourse::{Reading, Refused};
+        use geom_brep::recourse::{Refused, read_at};
+        let at = self.1;
         use geom_brep::{OffsetError as O, OffsetFitError as F};
         let asked = match self.0 {
             R::StaleFace { .. } => Some("a face that is not in the body"),
@@ -966,7 +999,7 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                 error: fit @ F::Meter(error),
                 ..
             } if error.meter() == Meter::CurvatureHeadroom => {
-                let ending = error.ending_with_lever(THINNER_WALL, Reading::Build);
+                let ending = ended(at.map(|at| error.ending_with_lever(THINNER_WALL, at)));
                 match error {
                     M::CurvatureHeadroom {
                         reach,
@@ -975,7 +1008,7 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                     } => write!(
                         f,
                         "a wall this thick passes the face's radius of curvature on the wall's \
-                         side, {} m (margin {} m), so its offset folds over itself. {ending}",
+                         side, {} m (margin {} m), so its offset folds over itself{ending}",
                         geom_core::Readable(*reach),
                         verdict.margin().readable()
                     ),
@@ -986,13 +1019,14 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                     } => write!(
                         f,
                         "a wall this thick is not shown below the face's radius of curvature on \
-                         the wall's side, {} m (margin {} m), so its offset may fold. {ending}",
+                         the wall's side, {} m (margin {} m), so its offset may fold{ending}",
                         geom_core::Readable(*reach),
                         verdict.margin().readable()
                     ),
-                    M::Escalated { .. } | M::NormalFloor { .. } => {
-                        f.write_str(&fit.render_with_lever(THINNER_WALL))
-                    }
+                    M::Escalated { .. } | M::NormalFloor { .. } => match at {
+                        Some(at) => f.write_str(&fit.render_with_lever(THINNER_WALL, at)),
+                        None => write!(f, "{fit}"),
+                    },
                 }
             }
             R::Fit {
@@ -1022,10 +1056,10 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
             ),
             R::Pcurve { source } => write!(
                 f,
-                "the offset body's edges could not be parametrized on their faces. {}",
-                shell_mint_ending(source)
+                "the offset body's edges could not be parametrized on their faces{}",
+                ended(at.map(|at| shell_mint_ending(source, at)))
             ),
-            error => write!(f, "{error}"),
+            error => write!(f, "{}", read_at(error, at)),
         }
     }
 }
@@ -1075,11 +1109,12 @@ impl<T: Real> Shelled<T> {
     /// opening removed, the rings' edges and vertices minted in it; a
     /// divided seam ([`RimNaming::seam_pieces`]) into its pieces and the
     /// ring corners its pieces end on, its span across the opening
-    /// removed; and a seam, slit or apex the chart reduction retired
-    /// ([`ShellNaming::dead`]) into the rims, the rest removed. On a
-    /// void, the designated faces are removed, the rim being their
+    /// removed; and an operand seam, slit or apex the chart reduction
+    /// retired ([`ShellNaming::dead`]) into the rims, the rest removed.
+    /// On a void, the designated faces are removed, the rim being their
     /// cavity twin's. The cavity twins are new cells and no operand
-    /// record names one. Any other operand cell whose geometry the shell
+    /// record names one, so a twin the reduction or the glue retired has
+    /// no fate here. Any other operand cell whose geometry the shell
     /// changed under its key is read, not kept: the lineage carries the
     /// operand's geometry ([`crate::Lineage::from_source`]).
     #[must_use]
@@ -1128,14 +1163,28 @@ impl<T: Real> Shelled<T> {
                 .unwrap_or_else(|e| unreachable!("the shell states only removals: {e:?}"))
         };
         let mut lineage = crate::Lineage::new().through_joins(&naming.edge_joins);
-        for &e in &naming.dead.edges {
+        // `dead` is in result keys, and the reductions and the glue kill
+        // cavity twins too, cells the operand never had: a fate is stated
+        // only for a retired key the operand carried.
+        let (minted_edges, minted_vertices) = naming.row_mints();
+        for &e in naming
+            .dead
+            .edges
+            .iter()
+            .filter(|e| !minted_edges.contains(e))
+        {
             lineage = remove(
                 lineage,
                 Cell::Edge(e),
                 opened(every_rim.clone(), Vec::new()),
             );
         }
-        for &v in &naming.dead.vertices {
+        for &v in naming
+            .dead
+            .vertices
+            .iter()
+            .filter(|v| !minted_vertices.contains(v))
+        {
             lineage = remove(
                 lineage,
                 Cell::Vertex(v),
@@ -1258,6 +1307,44 @@ impl ShellNaming {
     #[must_use]
     pub fn rim_of(&self, designated: FaceKey) -> Option<&RimNaming> {
         self.rims.iter().find(|r| r.sources.contains(&designated))
+    }
+
+    /// The edges and vertices a row MINTS: the result half of every row
+    /// whose two columns differ. Survivors keep their operand keys, so a
+    /// row naming a key other than its source names a cell the
+    /// construction made (a cavity twin, a divided seam's later piece);
+    /// a row with equal columns names one the operand carried.
+    #[must_use]
+    pub(crate) fn row_mints(
+        &self,
+    ) -> (
+        std::collections::BTreeSet<EdgeKey>,
+        std::collections::BTreeSet<VertexKey>,
+    ) {
+        let edges = self
+            .inner_edges
+            .iter()
+            .chain(self.rims.iter().flat_map(|rim| {
+                rim.ring_edges
+                    .iter()
+                    .chain(&rim.seam_pieces)
+                    .chain(rim.holes.iter().flat_map(|h| &h.ring_edges))
+            }))
+            .filter(|(result, source)| result != source)
+            .map(|&(result, _)| result)
+            .collect();
+        let vertices = self
+            .inner_vertices
+            .iter()
+            .chain(self.rims.iter().flat_map(|rim| {
+                rim.ring_vertices
+                    .iter()
+                    .chain(rim.holes.iter().flat_map(|h| &h.ring_vertices))
+            }))
+            .filter(|(result, source)| result != source)
+            .map(|&(result, _)| result)
+            .collect();
+        (edges, vertices)
     }
 
     /// The cavity twin of a source edge, in result keys.
@@ -2195,8 +2282,8 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // of the host — the invariant the validator states as check 9.
         // Refused HERE, naming the shape, rather than left to arrive
         // as a generic at-rest report on a body already built.
-        let guest_outer = proven(&out.faces, guest, EntityId::Face).outer;
-        let host_outer = proven(&out.faces, host, EntityId::Face).outer;
+        let (guest_outer, _) = out.proven_face(guest).outer();
+        let (host_outer, _) = out.proven_face(host).outer();
         //
         // An UNDECIDABLE separation refuses too, and does not proceed:
         // the glue is a write, and building on a gap the predicate
@@ -2266,7 +2353,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // the outer rim has.
         let mut holes = Vec::with_capacity(promoted.len());
         for &(face, host_ring) in &promoted {
-            let outer = proven(&out.faces, face, EntityId::Face).outer;
+            let (outer, _) = out.proven_face(face).outer();
             let (ring_edges, ring_vertices) = ring_rows(&out, outer, &rows);
             holes.push(HoleRim {
                 face,
@@ -2318,11 +2405,148 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
+    #[cfg(debug_assertions)]
+    record_rooted(body, &out_body, &naming);
     naming.source = crate::SourceGeometry::of(body);
     Ok(Shelled {
         body: out_body,
         naming,
     })
+}
+
+/// **Every key the record names is rooted, and every retired key is
+/// gone**: a row's source half is a key the operand carries; a
+/// retirement is a key the operand carries or a row's result half
+/// ([`ShellRetired`]: scaffolding is in no row and not listed); and no
+/// retired key resolves in the result. A key this call minted and then
+/// killed is absent from the result, so no output-side walk sees a row
+/// naming one, and `emit_shell` consults the retired set only for a key
+/// no row mints, so a retired key that is a row's result half and still
+/// live passes it too. Only the operand, the result and the record
+/// together see both, and this is the one place that holds all three.
+#[cfg(debug_assertions)]
+fn record_rooted<T: Real>(operand: &Body<T>, result: &Body<T>, naming: &ShellNaming) {
+    use std::collections::BTreeSet;
+    /// The postcondition's one message shape: the key, and what it
+    /// `breaks` when it does not hold.
+    #[track_caller]
+    fn check(holds: bool, key: &dyn core::fmt::Debug, breaks: &str) {
+        assert!(holds, "shell postcondition: {key:?} {breaks} (kernel bug)");
+    }
+    const SOURCE: &str = "is a row's source half, and the operand does not carry it";
+    const ROOTED: &str = "is retired, and neither the operand carries it nor a row mints it";
+    const GONE: &str = "is retired, and the result still carries it";
+    // Exhaustive, so a new row kind cannot join the record without
+    // saying here where its two halves are.
+    let ShellNaming {
+        outer,
+        inner,
+        inner_edges,
+        inner_vertices,
+        rims,
+        thickened,
+        dead:
+            ShellRetired {
+                faces: dead_faces,
+                edges: dead_edges,
+                vertices: dead_vertices,
+                loops: dead_loops,
+                surfaces: dead_surfaces,
+                shells: dead_shells,
+            },
+        // The closing join's rows are in the result's key space at both
+        // halves, and what it kills is listed there, never in `dead`
+        // (`ShellRetired`): no half of one names an operand key, and the
+        // join is checked by its own door.
+        edge_joins: _,
+        source: _,
+    } = naming;
+    let faces: Vec<(FaceKey, FaceKey)> = outer.iter().chain(inner).copied().collect();
+    let mut edges: Vec<(EdgeKey, EdgeKey)> = inner_edges.clone();
+    let mut vertices: Vec<(VertexKey, VertexKey)> = inner_vertices.clone();
+    let mut designated: Vec<FaceKey> = Vec::new();
+    // A rim face stands for a whole chart, so it has no source half.
+    let mut rim_faces: Vec<FaceKey> = Vec::new();
+    // Loops, surfaces and shells are rooted neither way: a rim's `ring`
+    // (`RimNaming::ring`, `HoleRim::ring`) is a result loop with no
+    // source half, and a cavity twin's loops, surface and shell are
+    // minted with no row at all. Their retirements are checked against
+    // the result alone.
+    for RimNaming {
+        sources,
+        side: _,
+        rim,
+        ring: _,
+        ring_edges,
+        ring_vertices,
+        holes,
+        seam_pieces,
+    } in rims
+    {
+        designated.extend(sources);
+        rim_faces.push(*rim);
+        edges.extend(ring_edges.iter().chain(seam_pieces));
+        vertices.extend(ring_vertices);
+        for HoleRim {
+            face,
+            ring: _,
+            ring_edges,
+            ring_vertices,
+        } in holes
+        {
+            rim_faces.push(*face);
+            edges.extend(ring_edges);
+            vertices.extend(ring_vertices);
+        }
+    }
+    for &(_, s) in thickened {
+        check(operand.get_shell(s).is_some(), &s, SOURCE);
+    }
+    for s in faces.iter().map(|&(_, s)| s).chain(designated) {
+        check(operand.get_face(s).is_some(), &s, SOURCE);
+    }
+    for &(_, s) in &edges {
+        check(operand.get_edge(s).is_some(), &s, SOURCE);
+    }
+    for &(_, s) in &vertices {
+        check(operand.get_vertex(s).is_some(), &s, SOURCE);
+    }
+    let minted_f: BTreeSet<FaceKey> = faces.iter().map(|&(r, _)| r).chain(rim_faces).collect();
+    let minted_e: BTreeSet<EdgeKey> = edges.iter().map(|&(r, _)| r).collect();
+    let minted_v: BTreeSet<VertexKey> = vertices.iter().map(|&(r, _)| r).collect();
+    for &f in dead_faces {
+        check(
+            minted_f.contains(&f) || operand.get_face(f).is_some(),
+            &f,
+            ROOTED,
+        );
+        check(result.get_face(f).is_none(), &f, GONE);
+    }
+    for &e in dead_edges {
+        check(
+            minted_e.contains(&e) || operand.get_edge(e).is_some(),
+            &e,
+            ROOTED,
+        );
+        check(result.get_edge(e).is_none(), &e, GONE);
+    }
+    for &v in dead_vertices {
+        check(
+            minted_v.contains(&v) || operand.get_vertex(v).is_some(),
+            &v,
+            ROOTED,
+        );
+        check(result.get_vertex(v).is_none(), &v, GONE);
+    }
+    for &l in dead_loops {
+        check(result.get_loop(l).is_none(), &l, GONE);
+    }
+    for &g in dead_surfaces {
+        check(result.get_surface(g).is_none(), &g, GONE);
+    }
+    for &s in dead_shells {
+        check(result.get_shell(s).is_none(), &s, GONE);
+    }
 }
 
 /// A rim ring's two row lists: its edge rows and its vertex rows.
@@ -2556,7 +2780,7 @@ fn canonicalize_chart<T: Decide>(
             half_edge_points(body, &side1),
             half_edge_points(body, &side2),
         );
-        let chart = body.proven_face_surface(anchor).clone();
+        let chart = body.proven_face(anchor).surface().clone();
         let escalated = |source| ShellError::Escalated { source };
         let ring_first = if encloses(&chart, &p1, &p2, band).map_err(escalated)? {
             true
@@ -2587,7 +2811,7 @@ fn canonicalize_chart<T: Decide>(
         // The role assignment is verified, not assumed: the ring must
         // be the enclosed side.
         let (ring_pts, outer_pts) = {
-            let outer = proven(&body.faces, anchor, EntityId::Face).outer;
+            let (outer, _) = body.proven_face(anchor).outer();
             (loop_points(body, made.ring), loop_points(body, outer))
         };
         if !encloses(&chart, &ring_pts, &outer_pts, band)
@@ -2690,7 +2914,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     faces: &[FaceKey],
     band: Band,
 ) -> Result<bool, ShellError<T>> {
-    let surface = body.proven_face_surface(faces[0]);
+    let surface = body.proven_face(faces[0]).surface();
     let (Some(_), Some(chart)) = (
         crate::pcurves::chart_period(surface, band),
         crate::chart::Chart::of(surface),
@@ -2700,12 +2924,15 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     let interior = interior_edges(body, faces);
     let mut boundary: Vec<HeKey> = faces
         .iter()
-        .flat_map(|&f| {
-            let data = proven(&body.faces, f, EntityId::Face);
-            core::iter::once(data.outer)
-                .chain(data.rings.iter().copied())
-                .flat_map(|lk| cycle_of(body, lk))
-                .collect::<Vec<_>>()
+        .map(|&f| body.proven_face(f))
+        .flat_map(|face| {
+            debug_assert!(
+                face.loops()
+                    .all(|(_, l, _)| matches!(l.boundary, LoopBoundary::Cycle { .. })),
+                "every loop of {:?} bounds a face of a finished wall, so it is a cycle",
+                face.key()
+            );
+            face.half_edges()
         })
         .filter(|&he| !interior.contains(&proven(&body.half_edges, he, EntityId::HalfEdge).edge))
         .collect();
@@ -2849,7 +3076,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     // The host face's corner at the pole: `into` arrives along one seam,
     // `out_of` leaves along the other (along the same seam, on a spur).
-    let host_cycle = cycle_of(body, proven(&body.faces, host, EntityId::Face).outer);
+    let host_cycle = cycle_of(body, body.proven_face(host).outer().0);
     let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
     let Some(&out_of) = host_cycle.iter().find(|&&he| at(body, he) == pole) else {
         return Err(not_expressible(
@@ -2868,7 +3095,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
             "a seam of the designated chart has no corner of the cavity counterpart to end on",
         ));
     };
-    let point = |body: &Body<T>, v: VertexKey| crate::chord_join::vertex_point(body, v);
+    let point = |body: &Body<T>, v: VertexKey| body.resolve_vertex_point(v, crate::live::Proven);
     let (p_pole, p_ga, p_gb) = (point(body, pole), point(body, ga), point(body, gb));
     // Each corner the seams will end on lies on its seam strictly
     // between the boundary and the pole: the band between the boundary
@@ -3047,7 +3274,7 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
         ));
     };
     let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
-    let point = |body: &Body<T>, v: VertexKey| crate::chord_join::vertex_point(body, v);
+    let point = |body: &Body<T>, v: VertexKey| body.resolve_vertex_point(v, crate::live::Proven);
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     // The seam runs forward on its carrier from one boundary to the other.
     let seam_plus = proven(&body.edges, seam, EntityId::Edge).he_plus;
@@ -3249,8 +3476,8 @@ fn glue_ring<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
     dead: &mut ShellRetired,
 ) -> Result<crate::euler_ring::KfmrhResult, ShellError<T>> {
-    let guest_data = proven(&body.faces, guest, EntityId::Face);
-    let (guest_outer, guest_surface) = (guest_data.outer, guest_data.surface);
+    let guest_data = body.proven_face(guest);
+    let (guest_outer, guest_surface) = (guest_data.outer().0, guest_data.record().surface);
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     let mut carried: Vec<_> = Vec::new();
     for (edge, description) in loop_rekeyed(body, guest_outer, guest_surface, host_surface) {
@@ -3278,8 +3505,7 @@ fn guest_corner<T: Real>(
     twins: &TwinIndex,
     v: VertexKey,
 ) -> Option<VertexKey> {
-    let guest_outer = proven(&body.faces, guest, EntityId::Face).outer;
-    cycle_of(body, guest_outer)
+    cycle_of(body, body.proven_face(guest).outer().0)
         .into_iter()
         .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
         .find(|&g| twins.vertices.get(g) == Some(&v) || twins.vertices.get(v) == Some(&g))
@@ -3466,7 +3692,7 @@ mod rim_seam_rows {
     /// maps to rather than a body that reaches it.
     #[test]
     fn a_mixed_rim_seam_refuses_naming_its_stations() {
-        let stations = geom_brep::MixedStations {
+        let stations = geom_brep::MixedStations::Class {
             transverse: 3,
             smooth: 4,
         };
@@ -3476,7 +3702,7 @@ mod rim_seam_rows {
             panic!("a mixed re-ask is the rim seam's refusal, got {refusal:?}");
         };
         assert_eq!(got, stations);
-        let text = refusal.to_string();
+        let text = refusal.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with("a wall seam the rim shortens, ")
                 && text.ends_with("Recourse: change the wall thickness, or move the geometry"),
@@ -3524,7 +3750,7 @@ mod mint_endings {
                 }),
             };
             for refusal in [shell, face] {
-                let text = refusal.to_string();
+                let text = refusal.render(geom_brep::recourse::Reading::Build);
                 assert_eq!(
                     text.matches(KERNEL_DEFECT_ENDING).count(),
                     usize::from(defect),
@@ -3560,7 +3786,8 @@ mod mint_endings {
                 true,
             ),
         ] {
-            let text = ShellError::<f64>::Pcurve { source }.to_string();
+            let text =
+                ShellError::<f64>::Pcurve { source }.render(geom_brep::recourse::Reading::Build);
             assert_eq!(
                 text.matches(KERNEL_DEFECT_ENDING).count(),
                 usize::from(defect),
@@ -3611,7 +3838,7 @@ fn pair_rings<T: Decide>(
     let source_rings = rings_of(source);
     let not_expressible =
         |what: &'static str| ShellError::OpenFaceRimNotExpressible { face: rim, what };
-    let chart = body.proven_face_surface(rim).clone();
+    let chart = body.proven_face(rim).surface().clone();
     let escalated = |source| ShellError::Escalated { source };
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
@@ -3662,8 +3889,8 @@ fn duplicate_in_loop<T: Real>(
     face: FaceKey,
     skip: &[EdgeKey],
 ) -> Option<(crate::entity::LoopKey, HeKey, HeKey)> {
-    let data = proven(&body.faces, face, EntityId::Face);
-    for (r#loop, members) in body.face_boundary_by_loop(face, data) {
+    let view = body.proven_face(face);
+    for (r#loop, members, _) in view.boundary_by_loop() {
         let mut cycle = Vec::new();
         for member in members {
             let BoundaryMember::Edge { he, ek, .. } = member else {
@@ -3952,9 +4179,9 @@ fn offset_door<T: Decide>(
     band: Band,
 ) -> Result<OffsetDoor, ReplaceFaceError<T>> {
     let all_planar = body
-        .faces()
-        .filter(|(k, _)| scope.holds_face(*k))
-        .all(|(k, f)| matches!(body.face_surface_linked(k, f), geom::Surface::Plane { .. }));
+        .face_views()
+        .filter(|f| scope.holds_face(f.key()))
+        .all(|f| matches!(f.surface(), geom::Surface::Plane { .. }));
     if all_planar {
         return Ok(OffsetDoor::Planar);
     }
@@ -4045,8 +4272,8 @@ fn lift_to<T: Decide>(
     band: Band,
 ) -> Result<T, ReplaceFaceError<T>> {
     let surface = |face: FaceKey| {
-        let data = proven(&body.faces, face, EntityId::Face);
-        body.face_surface_linked(face, data)
+        let view = body.proven_face(face);
+        view.surface()
     };
     let d = match geom_brep::offset_distance(surface(from[0]), surface(onto)) {
         Ok(d) => d,
@@ -4228,7 +4455,7 @@ fn wall_clearance<T: Decide>(
             // offsets close that separation by `t·(1 − n_a·n_b) ≤ 2t`, so
             // a wall of at least `2t` everywhere keeps them apart. Read in either window, so a tilted pair the cosine
             // admits is not measured as parallel.
-            let gap = (b.origin - a.origin).dot(a.normal).abs();
+            let gap = geom::plane_offset(a.origin, a.normal, b.origin).abs();
             match decide(
                 "shell_wall_clearance",
                 Margin::of(gap - drift - two_t),
@@ -4306,7 +4533,7 @@ fn cavity_embedded<T: Decide + crate::props::AtRestPolicy>(
     let report = lane.sweep(&sweep, &windows, &windows, true, |candidate| {
         let (face, other) = candidate.faces();
         let ask = candidate.ask();
-        let chart = |f: FaceKey| cavity.proven_face_surface(f).map_scalar(lift);
+        let chart = |f: FaceKey| cavity.proven_face(f).surface().map_scalar(lift);
         let (sa, sb) = (chart(face), chart(other));
         let (la, lb) = lane.on_face_stations(candidate);
         let at = |s: &geom::Surface<Interval>, (u, v): (f64, f64)| {
@@ -4373,16 +4600,17 @@ fn planar_faces<T: Decide>(
     partition: &crate::offset_together::Scope,
 ) -> Vec<PlanarFace<T>> {
     let mut out = Vec::new();
-    for (face, data) in body.faces() {
+    for view in body.face_views() {
+        let face = view.key();
         let geom::Surface::Plane {
             origin,
             normal,
             u_ref,
-        } = body.face_surface_linked(face, data)
+        } = view.surface()
         else {
             continue;
         };
-        let normal = plane_outward_normal(data, *normal).vec();
+        let normal = plane_outward_normal(view.record(), *normal).vec();
         let frame = InPlane {
             origin: *origin,
             u: *u_ref,
@@ -4443,7 +4671,7 @@ fn footprint<T: Decide>(
     frame: &InPlane<T>,
 ) -> Option<((T, T), (T, T))> {
     let mut points = Vec::new();
-    for he in body.face_cycles_linked(face) {
+    for he in body.proven_face(face).half_edges() {
         let h = proven(&body.half_edges, he, EntityId::HalfEdge);
         let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
         points.push((start.x, start.y));
@@ -4473,7 +4701,7 @@ fn footprint<T: Decide>(
 }
 
 /// The `(u, v)` box of `frame` holding `edge`: its cover's box in the
-/// frame's rows (`boolean::boxes::edge_cover_linked`), about the frame's
+/// frame's rows (`boolean::crate::cover::edge_cover_linked`), about the frame's
 /// origin. Nothing for null scaffolding, a zero-length chord its vertex
 /// holds. Both corners are poison, and so the footprint, where the edge
 /// has no cover: its spline net carries poison, a datum or a computed
@@ -4486,8 +4714,8 @@ fn edge_box_in<T: Decide>(
     edge: &crate::entity::Edge,
     frame: &InPlane<T>,
 ) -> Vec<(T, T)> {
-    use crate::boolean::EdgeUncovered;
-    match crate::boolean::boxes::edge_cover_linked(body, key, edge) {
+    use crate::cover::EdgeUncovered;
+    match crate::cover::edge_cover_linked(body, key, edge) {
         Ok(cover) => cover_box_in(&cover, frame).to_vec(),
         Err(EdgeUncovered::Scaffold) => Vec::new(),
         Err(EdgeUncovered::Carrier(_) | EdgeUncovered::Ends) => {
@@ -4500,7 +4728,7 @@ fn edge_box_in<T: Decide>(
 /// The `(u, v)` box of `frame` holding `cover`: its box in the frame's
 /// rows, about the frame's origin.
 fn cover_box_in<T: Decide>(cover: &geom::cover::Cover<T>, frame: &InPlane<T>) -> [(T, T); 2] {
-    let (lo, hi) = cover.box_in(&geom::cover::Frame::Rows([frame.u, frame.v, frame.n]));
+    let (lo, hi) = cover.box_in(&geom::cover::BoxAxes::Rows([frame.u, frame.v, frame.n]));
     let o = frame.origin - geom_core::Point3::origin();
     let (ou, ov) = (o.dot(frame.u), o.dot(frame.v));
     [(lo.x - ou, lo.y - ov), (hi.x - ou, hi.y - ov)]
@@ -4675,16 +4903,17 @@ fn walls_cross<T: Decide>(
     }
     // The point of `L` nearest `a`'s box centre, so every side
     // and position below is a short difference.
-    let d = cross / cross.norm();
+    let d = cross.normalize();
     let k = a.normal.dot(b.normal);
     let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
     let r_a = a.normal.dot(a.origin - q);
     let r_b = b.normal.dot(b.origin - q);
     let det = cross.norm_squared();
     let p0 = q + a.normal * ((r_a - k * r_b) / det) + b.normal * ((r_b - k * r_a) / det);
-    let on_a = a.cut(p0, d, band)?;
-    let on_b = b.cut(p0, d, band)?;
-    let along = |p: geom_core::Point3<T>| (p - p0).dot(d);
+    let line = geom::Line { origin: p0, dir: d };
+    let on_a = a.cut(line, band)?;
+    let on_b = b.cut(line, band)?;
+    let along = |p: geom_core::Point3<T>| line.param(p);
     // Where the two faces are joined: every moved common edge, which
     // lies on `L`, and every shared vertex, widened to twice the
     // escalation width either side. Two joined faces come arbitrarily
@@ -4867,22 +5096,17 @@ impl<T: Decide> ArcPiece<T> {
 }
 
 impl<T: Decide> MovedWall<T> {
-    /// The intervals of `L = p0 + s·d` (`d` unit, in this face's plane)
-    /// the face covers, as `(lo, hi)` in `s` (module docs of
-    /// [`moved_walls_cross`] for the reading): the union of the two
-    /// readings that count a point on `L` with one side and with the
+    /// The intervals of the line `L` (its `dir` unit, in this face's
+    /// plane) the face covers, as `(lo, hi)` in `L`'s parameter (module
+    /// docs of [`moved_walls_cross`] for the reading): the union of the
+    /// two readings that count a point on `L` with one side and with the
     /// other. Each reading holds the boundary stretches on `L` of a face
     /// lying on the other side, so the union holds them whichever side
-    /// the face lies on, and swapping the pair (which turns `d`, and so
-    /// both sides, around) reads the same.
-    fn cut(
-        &self,
-        p0: geom_core::Point3<T>,
-        d: geom_core::Vec3<T>,
-        band: Band,
-    ) -> Result<Vec<(T, T)>, Indeterminate> {
-        let mut out = self.cut_counting(p0, d, band, true)?;
-        out.extend(self.cut_counting(p0, d, band, false)?);
+    /// the face lies on, and swapping the pair (which turns `L.dir`, and
+    /// so both sides, around) reads the same.
+    fn cut(&self, line: geom::Line<T>, band: Band) -> Result<Vec<(T, T)>, Indeterminate> {
+        let mut out = self.cut_counting(line, band, true)?;
+        out.extend(self.cut_counting(line, band, false)?);
         Ok(out)
     }
 
@@ -4890,8 +5114,7 @@ impl<T: Decide> MovedWall<T> {
     /// positive side when `zero_up`, else with the negative one.
     fn cut_counting(
         &self,
-        p0: geom_core::Point3<T>,
-        d: geom_core::Vec3<T>,
+        line: geom::Line<T>,
         band: Band,
         zero_up: bool,
     ) -> Result<Vec<(T, T)>, Indeterminate> {
@@ -4900,7 +5123,7 @@ impl<T: Decide> MovedWall<T> {
             Sign::Zero => zero_up,
             Sign::Negative => false,
         };
-        let m = self.normal.cross(d);
+        let m = self.normal.cross(line.dir);
         let mut sides: Vec<(VertexKey, bool)> = Vec::new();
         // A vertex is decided once, so every edge meeting it reads the
         // same side, and an undecided vertex escalates. A point inside an
@@ -4912,7 +5135,11 @@ impl<T: Decide> MovedWall<T> {
             if let Some(&(_, s)) = sides.iter().find(|(w, _)| Some(*w) == v) {
                 return Ok(s);
             }
-            let read = decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band);
+            let read = decide(
+                "shell_moved_wall_side",
+                Margin::of((p - line.origin).dot(m)),
+                band,
+            );
             let Some(v) = v else {
                 return Ok(read.map_or(zero_up, up));
             };
@@ -4940,7 +5167,7 @@ impl<T: Decide> MovedWall<T> {
                 // once exactly when its two ends' sides differ, at the
                 // root of its own half-turn.
                 let (a, b) = (ru * u.dot(m), rv * v.dot(m));
-                let sc = (center - p0).dot(m);
+                let sc = (center - line.origin).dot(m);
                 let phi = b.atan2(a);
                 let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
                     .max(-T::one())
@@ -4964,7 +5191,7 @@ impl<T: Decide> MovedWall<T> {
                         let p = at(split);
                         let s = up(decide(
                             "shell_moved_wall_side",
-                            Margin::of((p - p0).dot(m)),
+                            Margin::of((p - line.origin).dot(m)),
                             band,
                         )?);
                         ends.push((split, s));
@@ -4981,7 +5208,7 @@ impl<T: Decide> MovedWall<T> {
                     // one in the half-turn before it `φ − root`.
                     let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
-                    crossings.push((at(theta) - p0).dot(d));
+                    crossings.push(line.param(at(theta)));
                 }
                 continue;
             }
@@ -5001,11 +5228,10 @@ impl<T: Decide> MovedWall<T> {
                 let mut splits = 0;
                 while let Some((piece, a, b)) = work.pop_front() {
                     let (c, rho) = piece.ball();
-                    let w = c - p0;
-                    let along = w.dot(d);
+                    let along = line.param(c);
                     // The offset off `L` as a vector, not `|w|² − along²`,
                     // which cancels to noise when a small ball sits close.
-                    let perp = (w - d * along).norm();
+                    let perp = line.distance(c);
                     // Undecided reaches: the read only grows the set.
                     if !matches!(
                         decide("shell_moved_wall_ball_reach", Margin::of(rho - perp), band),
@@ -5026,18 +5252,18 @@ impl<T: Decide> MovedWall<T> {
                         out.push((along - half, along + half));
                     }
                     if side_of(a)? != side_of(b)? {
-                        let (sp, sq) = ((a.1 - p0).dot(m), (b.1 - p0).dot(m));
+                        let (sp, sq) = ((a.1 - line.origin).dot(m), (b.1 - line.origin).dot(m));
                         let x = a.1 + (b.1 - a.1) * (sp / (sp - sq));
-                        crossings.push((x - p0).dot(d));
+                        crossings.push(line.param(x));
                     }
                 }
                 continue;
             }
             let (p, q) = (edge.start.1, edge.end.1);
             if side_of(key(edge.start))? != side_of(key(edge.end))? {
-                let (sp, sq) = ((p - p0).dot(m), (q - p0).dot(m));
+                let (sp, sq) = ((p - line.origin).dot(m), (q - line.origin).dot(m));
                 let x = p + (q - p) * (sp / (sp - sq));
-                crossings.push((x - p0).dot(d));
+                crossings.push(line.param(x));
             }
         }
         // Ordered by decided comparisons, a selection rather than a
@@ -5074,16 +5300,16 @@ fn moved_walls<T: Decide>(
     partition: &crate::offset_together::Scope,
 ) -> Vec<MovedWall<T>> {
     let mut out = Vec::new();
-    for (face, data) in cavity.faces() {
-        let geom::Surface::Plane { origin, normal, .. } = cavity.face_surface_linked(face, data)
-        else {
+    for view in cavity.face_views() {
+        let face = view.key();
+        let geom::Surface::Plane { origin, normal, .. } = view.surface() else {
             continue;
         };
         let (origin, normal) = (*origin, *normal);
         let mut edges = Vec::new();
         let mut vertices = Vec::new();
         let mut points = Vec::new();
-        for (_, cycle) in crate::pcurves::face_loop_walks(cavity, face) {
+        for (_, cycle) in view.cycles() {
             let ends: Vec<(VertexKey, geom_core::Point3<T>)> = cycle
                 .iter()
                 .map(|&he| {
@@ -5103,11 +5329,11 @@ fn moved_walls<T: Decide>(
                 );
                 let (start, end) = (ends[i], ends[(i + 1) % ends.len()]);
                 let certified = cavity.edge_curve_linked(h.edge, edge).certified();
-                // The edge's cover (`boolean::boxes::edge_cover_linked`):
+                // The edge's cover (`boolean::crate::cover::edge_cover_linked`):
                 // `None` for null scaffolding, a chord the wall's own
                 // vertices below hold.
-                let cover = match crate::boolean::boxes::edge_cover_linked(cavity, h.edge, edge) {
-                    Err(crate::boolean::EdgeUncovered::Scaffold) => None,
+                let cover = match crate::cover::edge_cover_linked(cavity, h.edge, edge) {
+                    Err(crate::cover::EdgeUncovered::Scaffold) => None,
                     other => Some(other),
                 };
                 let curve = match certified {
@@ -5138,7 +5364,7 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Circle(geom::Circle {
                                 frame:
                                     geom::Frame {
-                                        center,
+                                        origin: center,
                                         ref axis,
                                         u_ref,
                                     },
@@ -5147,7 +5373,7 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Ellipse(geom::Ellipse {
                                 frame:
                                     geom::Frame {
-                                        center,
+                                        origin: center,
                                         ref axis,
                                         u_ref,
                                     },
@@ -5181,7 +5407,7 @@ fn moved_walls<T: Decide>(
                             let p = geom_core::Point3::new(poison, poison, poison);
                             (p, p)
                         },
-                        |c| c.box_in(&geom::cover::Frame::World),
+                        |c| c.box_in(&geom::cover::BoxAxes::World),
                     );
                     points.extend([lo, hi]);
                 }
@@ -5350,7 +5576,7 @@ fn count_components<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> usize {
 #[track_caller]
 fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
     let mut out = Vec::new();
-    for he in body.face_cycles_linked(face) {
+    for he in body.proven_face(face).half_edges() {
         let mate = body.proven_mate(he, crate::live::link(EntityId::Face(face), "cycle"));
         let parent = body.face_of_linked(mate.mate);
         if parent != face && !out.contains(&parent) {
@@ -5370,6 +5596,81 @@ mod tests {
     mod footprint_fuzz;
     #[allow(clippy::panic)]
     mod speed_fuzz;
+
+    /// **The closing postcondition goes red in each of its three
+    /// directions** (`record_rooted`). Its inputs are the operand, the
+    /// result and a record with public fields, so each row hands it a
+    /// record no construction writes: a key of a second body stands for
+    /// one this call minted, which the operand does not carry.
+    #[cfg(debug_assertions)]
+    mod record_rooted {
+        use super::super::{Body, EdgeKey, ShellNaming, ShellRetired, record_rooted};
+
+        fn prism() -> Body<f64> {
+            crate::test_support::prism::<f64>(
+                &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+                1.0,
+                geom_core::Tol::witness(),
+            )
+            .body
+        }
+
+        fn an_edge(body: &Body<f64>) -> EdgeKey {
+            body.edges().next().expect("a prism has edges").0
+        }
+
+        /// A retirement of a key the operand never carried and no row
+        /// mints: BLEND unit 8's defect, on the shell.
+        #[test]
+        #[should_panic(
+            expected = "is retired, and neither the operand carries it nor a row mints it"
+        )]
+        fn a_retirement_no_row_mints_is_red() {
+            let operand = Body::<f64>::new();
+            let naming = ShellNaming {
+                dead: ShellRetired {
+                    edges: vec![an_edge(&prism())],
+                    ..ShellRetired::default()
+                },
+                ..ShellNaming::default()
+            };
+            record_rooted(&operand, &operand, &naming);
+        }
+
+        /// A row whose source half is a key the operand never carried.
+        #[test]
+        #[should_panic(expected = "is a row's source half, and the operand does not carry it")]
+        fn a_row_rooted_at_a_minted_key_is_red() {
+            let operand = Body::<f64>::new();
+            let minted = an_edge(&prism());
+            let naming = ShellNaming {
+                inner_edges: vec![(minted, minted)],
+                ..ShellNaming::default()
+            };
+            record_rooted(&operand, &operand, &naming);
+        }
+
+        /// A retirement that is a row's result half, rooted both ways,
+        /// and still live in the result: the case `emit_shell`'s guard
+        /// passes, since it consults the retired set only for a key no
+        /// row mints.
+        #[test]
+        #[should_panic(expected = "is retired, and the result still carries it")]
+        fn a_retired_key_the_result_still_carries_is_red() {
+            let operand = prism();
+            let result = operand.clone();
+            let kept = an_edge(&operand);
+            let naming = ShellNaming {
+                inner_edges: vec![(kept, kept)],
+                dead: ShellRetired {
+                    edges: vec![kept],
+                    ..ShellRetired::default()
+                },
+                ..ShellNaming::default()
+            };
+            record_rooted(&operand, &result, &naming);
+        }
+    }
 
     /// **The wall wrapper words the curvature-headroom meter in the
     /// meter's own idiom**: the zero arm is "not shown below", never
@@ -5392,7 +5693,11 @@ mod tests {
                 face: FaceKey::default(),
                 error: geom_brep::OffsetFitError::Meter(meter),
             };
-            (AsShelled(&error).to_string(), ending)
+            (
+                core::fmt::from_fn(|f| AsShelled(&error, Some(Reading::Build.into())).write(f))
+                    .to_string(),
+                ending,
+            )
         };
         let (zero, ending) = render(Refused::Zero(Classified {
             margin: geom_core::MarginDiag::value(5e-10),
@@ -5471,12 +5776,26 @@ mod tests {
             curve: conic(1.0, 1.0, (0.0, east.0), (2.0 * pi, east.0)),
         }]);
         close(
-            disc.cut(Point3::new(0.0, 0.6, 0.0), x, band).unwrap(),
+            disc.cut(
+                geom::Line {
+                    origin: Point3::new(0.0, 0.6, 0.0),
+                    dir: x,
+                },
+                band,
+            )
+            .unwrap(),
             &[(-0.8, 0.8)],
             "the disc at y = 0.6",
         );
         close(
-            disc.cut(Point3::new(0.0, 1.5, 0.0), x, band).unwrap(),
+            disc.cut(
+                geom::Line {
+                    origin: Point3::new(0.0, 1.5, 0.0),
+                    dir: x,
+                },
+                band,
+            )
+            .unwrap(),
             &[],
             "the disc at y = 1.5",
         );
@@ -5498,12 +5817,26 @@ mod tests {
         ]);
         let top = 0.91_f64.sqrt();
         close(
-            half.cut(Point3::new(0.3, 0.0, 0.0), y, band).unwrap(),
+            half.cut(
+                geom::Line {
+                    origin: Point3::new(0.3, 0.0, 0.0),
+                    dir: y,
+                },
+                band,
+            )
+            .unwrap(),
             &[(0.0, top)],
             "the half disc at x = 0.3",
         );
         close(
-            half.cut(Point3::new(0.3, 0.0, 0.0), -y, band).unwrap(),
+            half.cut(
+                geom::Line {
+                    origin: Point3::new(0.3, 0.0, 0.0),
+                    dir: -y,
+                },
+                band,
+            )
+            .unwrap(),
             &[(-top, 0.0)],
             "the half disc at x = 0.3, run down",
         );
@@ -5517,7 +5850,15 @@ mod tests {
         }]);
         let h = 0.75_f64.sqrt();
         close(
-            ellipse.cut(Point3::new(1.0, 0.0, 0.0), y, band).unwrap(),
+            ellipse
+                .cut(
+                    geom::Line {
+                        origin: Point3::new(1.0, 0.0, 0.0),
+                        dir: y,
+                    },
+                    band,
+                )
+                .unwrap(),
             &[(-h, h)],
             "the ellipse at x = 1",
         );
@@ -5919,7 +6260,15 @@ mod tests {
                 plus,
             );
             for c in [0.3, 0.5, 0.8] {
-                let got = wall.cut(Point3::new(c, 0.0, 0.0), up, band).unwrap();
+                let got = wall
+                    .cut(
+                        geom::Line {
+                            origin: Point3::new(c, 0.0, 0.0),
+                            dir: up,
+                        },
+                        band,
+                    )
+                    .unwrap();
                 covers_exactly(
                     &got,
                     (0.0, 1.0 - c * c),
@@ -5927,7 +6276,15 @@ mod tests {
                     &format!("plus {plus}: the parabola at x = {c}"),
                 );
             }
-            let past = wall.cut(Point3::new(1.5, 0.0, 0.0), up, band).unwrap();
+            let past = wall
+                .cut(
+                    geom::Line {
+                        origin: Point3::new(1.5, 0.0, 0.0),
+                        dir: up,
+                    },
+                    band,
+                )
+                .unwrap();
             assert!(
                 past.is_empty(),
                 "plus {plus}: the parabola at x = 1.5 covers nothing, got {past:?}"
@@ -6034,7 +6391,13 @@ mod tests {
                 let cos_v = ((c * c + d * d).sqrt() - big) / small;
                 let top = small * (1.0 - cos_v * cos_v).sqrt();
                 let got = wall
-                    .cut(Point3::new(d, c, 0.0), Vec3::new(0.0, 0.0, 1.0), band)
+                    .cut(
+                        geom::Line {
+                            origin: Point3::new(d, c, 0.0),
+                            dir: Vec3::new(0.0, 0.0, 1.0),
+                        },
+                        band,
+                    )
                     .unwrap();
                 covers_exactly(
                     &got,

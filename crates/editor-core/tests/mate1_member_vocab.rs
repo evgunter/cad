@@ -307,7 +307,7 @@ fn a_ring_member_rotates_the_solved_member() {
     let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let axis = axis_with(&doc, leg, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], &o);
     let theta = core::f64::consts::FRAC_PI_2;
-    let (doc, k, pattern) = fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 4);
+    let (doc, k, pattern) = fixture::circular(doc, leg, axis, theta, 4);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, mate) = seat(
         doc,
@@ -396,7 +396,7 @@ fn mates_never_solve_a_familys_values() {
     assert!(
         written
             .iter()
-            .any(|(coord, by)| *coord == Coord::Slide(TargetAxis::X) && by.bit_eq(&slide(3.0))),
+            .any(|(coord, by)| *coord == Coord::slide(TargetAxis::X) && by.bit_eq(&slide(3.0))),
         "the value expression is untouched: {written:?}"
     );
 
@@ -406,7 +406,7 @@ fn mates_never_solve_a_familys_values() {
         doc.clone(),
         editor_core::DocEdit::SetParam {
             node: pattern,
-            slot: fixture::value_slot(&doc, pattern, Coord::Slide(TargetAxis::X)),
+            slot: fixture::value_slot(&doc, pattern, Coord::slide(TargetAxis::X)),
             value: slide(1.5).into(),
             fresh: Vec::new(),
         },

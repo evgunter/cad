@@ -42,7 +42,7 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Unit
 
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::SectorFaceError;
 use crate::sector_shape::SlitTips;
 use crate::splitting::{
@@ -75,7 +75,7 @@ pub(crate) struct SectionPlane<T: geom_core::Real> {
 }
 
 /// A door's signed offset of the vertex from the plane, as it evaluated
-/// it ([`crate::sector_shape::plane_offset_rounded`]), and the normal it
+/// it ([`geom::plane_offset_rounded`]), and the normal it
 /// evaluated it with.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Offset<T: geom_core::Real> {
@@ -246,8 +246,8 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 /// this reading resolves sectors through [`crate::sector_face::resolve`],
 /// which has an arm for every kind read here.
 fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band) -> bool {
-    let f = crate::live::proven(&body.faces, face, EntityId::Face);
-    match *body.face_surface_linked(face, f) {
+    let f = body.proven_face(face);
+    match *f.surface() {
         geom::Surface::Cone { apex, axis, .. } => !matches!(
             crate::face_normal::cone_point(apex, axis, at, band),
             Ok(crate::face_normal::ConePoint::Apex)
@@ -255,7 +255,10 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
         | geom::Surface::Torus { .. } => true,
-        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => false,
+        geom::Surface::Plane { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => false,
     }
 }
 
@@ -348,8 +351,8 @@ fn section_sine<T: Decide>(
     plane: SectionPlane<T>,
     band: Band,
 ) -> Option<Rounded<T>> {
-    let f = crate::live::proven(&body.faces, face, EntityId::Face);
-    let wall = body.face_surface_linked(face, f).clone();
+    let f = body.proven_face(face);
+    let wall = f.surface().clone();
     if let Ok(Some(WallSection {
         case: SectionCase::Straight(_) | SectionCase::Tangent(_),
         ..
@@ -362,7 +365,7 @@ fn section_sine<T: Decide>(
     // charge over the same sine, this share decides nothing until the
     // sine is a few ulps, where the offset's has long been past `ε/K`.
     let g = geom_brep::implicit_gradient(&wall, at).normalize();
-    let charge = T::from_f64(4.0 * geom_core::UNIT_ROUNDOFF);
+    let charge = geom_core::running::direction_rounding(T::one());
     let g = [g.x, g.y, g.z].map(|c| Rounded {
         value: c,
         error: charge,

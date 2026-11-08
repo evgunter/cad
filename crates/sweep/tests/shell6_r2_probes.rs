@@ -277,7 +277,10 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
             tol,
         ) {
             Ok(topo::Shelled { body: h, .. }) => h,
-            Err(e) => panic!("[r2p7] {what}: `shell` REFUSED — a user gets nothing: {e}"),
+            Err(e) => panic!(
+                "[r2p7] {what}: `shell` REFUSED — a user gets nothing: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         };
         assert_eq!(
             topo::validate_geometric(&hollow, tol),

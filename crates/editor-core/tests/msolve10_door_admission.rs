@@ -176,7 +176,10 @@ fn whole_door(
 fn value_at(at: u32, coord: Coord, by: Formula) -> editor_core::Constraint<Formula> {
     editor_core::Constraint::of_value(
         editor_core::ConstraintId::placeholder(at),
-        editor_core::Value { coord, by },
+        editor_core::Value {
+            coord: coord.into(),
+            by,
+        },
     )
 }
 
@@ -264,7 +267,7 @@ fn a1_a_value_is_admitted_by_its_bundle() {
     let plane = mate(body, ids[0], ids[1]);
     let mut bundle = lone(plane);
     for (at, axis) in [(2, TargetAxis::X), (3, TargetAxis::Y), (4, TargetAxis::Z)] {
-        bundle.push(value_at(at, Coord::Slide(axis), len(0.25)));
+        bundle.push(value_at(at, Coord::slide(axis), len(0.25)));
     }
     let (_, fault) = whole_door(&doc, ids[1], bundle).expect_err("refused");
     assert!(
@@ -295,7 +298,7 @@ fn a1_a_value_is_admitted_by_its_bundle() {
     ));
     bundle.push(value_at(
         2,
-        Coord::Slide(TargetAxis::Z),
+        Coord::slide(TargetAxis::Z),
         Formula::zero(Dimension::Length),
     ));
     bundle.push(value_at(3, Coord::SPIN, ang(0.1)));

@@ -152,7 +152,7 @@ pub fn document() -> CorpusDoc {
 
     r.place_part(pipped);
 
-    let bump = value_bump(&r.doc, pip, Coord::Slide(TargetAxis::Z), 0.015625);
+    let bump = value_bump(&r.doc, pip, Coord::slide(TargetAxis::Z), 0.015625);
     CorpusDoc {
         name: "die_pips",
         about: "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",

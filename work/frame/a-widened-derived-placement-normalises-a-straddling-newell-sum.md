@@ -2,10 +2,11 @@
 id: a-widened-derived-placement-normalises-a-straddling-newell-sum
 kind: issue
 title: A boss on a widened derived frame refuses on the symbolic lane at clause 1: newell normalises a cross-sum whose enclosure contains zero, so a margin the tier proves zero is never asked
-status: open
+status: closed
 opened: 2026-09-14
 priority: P0
 cost: H
+closed: 2026-11-03
 ---
 
 
@@ -267,3 +268,76 @@ again. Nothing on the plain tier refuses, the clause-1
 `newell_plane_residual` included. Opened for FRAME to close or re-scope; the
 tilted twin's `interval_span_forward` refusal is pinned separately
 (`m10_derived_frame_tilted_interval`).
+
+## Re-measured on main (FRAME, 2026-11-03): nothing reaches clause 1
+
+Measured on `origin/main` at `0f01217666` (branch `frame/newell-remeasure`),
+by execution. `ProfileLift` is retired (Ruling A on #5068): there is one
+lift, so "both lifts" is one run per lane.
+
+**The HEIGHT document** (`boss_on_widened_box`) at `ε/8`, `1e-6`, `1e-3`
+and `5e-2`:
+
+- `Sym<Interval>`, under `SymRules::shipped()` and under
+  `SymRules::none()`: no failure at any width.
+  `sym10_phase1_the_derived_frame_rows_refusal_rendered` at `5e-2`
+  splits `newell_plane_residual` 48 symbolic / 0 numeric under both
+  `none` and A0, with no refusal.
+- plain `Interval`: the derived document refuses at every width, at
+  node 17, the box's own extrude, before any boss:
+  `carrier_endpoint_end` over `[0, 4.004e-6]` at `1e-6`, `[0, 4.004e-3]`
+  at `1e-3`, `[0, 0.2105]` at `5e-2`, and `carrier_on_surface_2` over
+  `±1.0e-9` at `ε/8`. The boss's placement is poisoned through it. A
+  document holding only that widened-height box gives the same node,
+  predicate and enclosure at every width, and certifies at `ε/32`. The
+  authored twin builds no widened body and certifies on both lanes.
+
+So `m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin`
+is red on the plain lane only, and the reason is the plain tier's
+one-leaf width on an `h − h` margin of the box itself. That is not this
+row's mechanism, and it is not a frame question.
+
+**R2's STACKED document** (`tiltV stacked-2`) went with
+`Datum::FaceFrame` (INTENT stage 3 D's re-spelling, `ac1c2847ad`). Restated as copies
+seated on copies' end caps over a `Spin` by `atan2(t, 1)`, it certifies
+on both lanes at `1e-3`, the width this row names. At `5e-2` it refuses
+on both lanes with a different class, a mate chart's typed
+`PoseDegenerate { construction: Chart }` (`pose_unit_norm` over
+`[0, 3.76]`). That is filed on MSOLVE's slate as
+`work/msolve/a-mate-on-a-placed-copys-cap-over-a-widened-tilt-cannot-mint-its-chart`.
+
+**The callers.** `newell_plane` now has two call sites:
+`sweep::swept::cap_plane`, which serves the extrude's near and far caps,
+the loft's bottom and top caps and the partial revolve's start and end
+caps, and the extrude's side planes in `sweep::extrude`. Every call on
+these documents was instrumented: 62 on the box alone, 201 on the
+height ladder (both documents, three lanes, four widths) and 144 on the
+stacked document. In every call `normal_sum.norm_squared()` decides
+Positive, and no component of the normalised normal is undecided. The
+smallest plain-lane lower bound of `|N|²` is `0.25`. The box's far cap
+at `ε/8` still widens `N.x` and `N.y` to `±2.0e-9` around a true 0,
+which is the seed this row described, but `|N|²` is `[64, 64]`. At wider
+boxes the plain lane refuses at the edge gate, and from `2e-1` the
+symbolic lane refuses at limb 2's carrier enclosure, before any normal
+could straddle. No loft or revolve document was reached.
+
+The mechanism no longer has a reach because a copy shares its source's
+body under its frame: no body is rebuilt over a widened placement, so
+no `newell_plane` sees points that the parameter reached through a
+placement. `newell_plane` still normalises bare (`normal_sum.normalize()`
+in `crates/geom-brep/src/newell.rs`); the witness `UnitVec3` paragraph
+above still applies, as a hygiene item and not as this P0.
+
+**Closes** on this evidence. The pins
+`m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width`
+and `m10_the_derived_frames_refusal_is_not_a_freeze` already hold the
+symbolic lane green at every width. The ignored parity row's reason and
+the file's prose now say what its plain-lane red is.
+
+## Closed
+
+Closed by FRAME on 2026-11-03, on the re-measure above (branch `frame/newell-remeasure`). The re-measure covered the HEIGHT document and a rebuild of the STACKED one at the widths this row names, on both lanes, and instrumented both `newell_plane` call sites. Nothing reaches clause 1. `|N|²` is decided positive at every call, because a copy shares its source's body under its frame and no body is rebuilt over a widened placement.
+
+The `#[ignore]`d parity row this section named as its acceptance test is deleted. Its symbolic half is `m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width`. Its plain half tested the widened box's own one-leaf gate, which is the plain tier's, not the frame's.
+
+What is left is filed as `newell-plane-normalizes-without-minting-the-unit-witness` (P4). The stacked document at `5e-2` meets a different class, filed by the lane as `msolve/a-mate-on-a-placed-copys-cap-over-a-widened-tilt-cannot-mint-its-chart`.
