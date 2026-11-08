@@ -87,7 +87,7 @@ pub(crate) struct Circle<T: Real> {
 impl<T: Real> Circle<T> {
     /// The circle's cover: its arc over the whole turn. `None` for a
     /// datum that is not a finite number.
-    pub(crate) fn cover(&self) -> Option<Cover<T>> {
+    pub(in crate::boolean) fn cover(&self) -> Option<Cover<T>> {
         Cover::arc(
             &geom::Frame::new(self.center, self.u_ref.cross(self.v_ref), self.u_ref),
             (self.radius, self.radius),

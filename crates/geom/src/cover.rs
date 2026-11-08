@@ -680,19 +680,33 @@ impl<T: Real> Core<T> {
 impl<T: Bounds> Cover<T> {
     /// **The world box, bracketed and padded by `pad`**: each end of
     /// [`Cover::box_in`] at [`BoxAxes::World`] taken at its bracket's outer
-    /// end, then [`Aabb::padded`]. Poison anywhere reaches a NaN bound,
-    /// which overlaps everything.
+    /// end, then [`Aabb::padded`]. A bound that is not a number in any
+    /// lane makes the whole box the poison box ([`whole_poison`]), which
+    /// overlaps everything.
     pub fn aabb(&self, pad: f64) -> Aabb {
         let (lo, hi) = self.box_in(&BoxAxes::World);
-        Aabb {
+        whole_poison(Aabb {
             min_x: lo.x.lo(),
             min_y: lo.y.lo(),
             min_z: lo.z.lo(),
             max_x: hi.x.hi(),
             max_y: hi.y.hi(),
             max_z: hi.z.hi(),
-        }
+        })
         .padded(pad)
+    }
+}
+
+/// The box, or [`Aabb::poison`] where any of its bounds is NaN: a box
+/// NaN in one lane alone still prunes on the others
+/// (`Aabb::overlaps` is six comparisons), so poison in one lane is made
+/// poison in all.
+fn whole_poison(b: Aabb) -> Aabb {
+    let bounds = [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z];
+    if bounds.iter().any(|x| x.is_nan()) {
+        Aabb::poison()
+    } else {
+        b
     }
 }
 

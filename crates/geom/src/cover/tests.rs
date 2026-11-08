@@ -1603,3 +1603,38 @@ fn a_tube_reads_its_core_at_its_minor_radius() {
         "two points: {near}, {far}"
     );
 }
+
+/// **A NaN bound in one lane poisons the whole box**: the box `[0, 1]³`
+/// with `min_x` NaN stays finite in `y` and `z`, so it would prune
+/// against `[0, 1] × [100, 101] × [0, 1]`; the cover's box is the poison
+/// box, which overlaps it. Red where `aabb` hands the BVH the one-lane
+/// NaN box.
+#[test]
+fn a_nan_bound_in_one_lane_poisons_the_whole_box() {
+    let one_lane = bvh::Aabb {
+        min_x: f64::NAN,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 1.0,
+        max_z: 1.0,
+    };
+    let far = bvh::Aabb {
+        min_x: 0.0,
+        min_y: 100.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 101.0,
+        max_z: 1.0,
+    };
+    assert!(!one_lane.overlaps(&far), "the one-lane NaN box prunes");
+    assert!(
+        super::whole_poison(one_lane).overlaps(&far),
+        "the cover's box never prunes on poison"
+    );
+    let finite = bvh::Aabb {
+        min_x: 0.0,
+        ..one_lane
+    };
+    assert_eq!(super::whole_poison(finite), finite, "a finite box is kept");
+}
