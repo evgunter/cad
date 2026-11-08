@@ -156,6 +156,7 @@ pub(crate) mod torus_region;
 pub mod trace;
 pub mod voids;
 pub(crate) mod vtxfac;
+pub(crate) mod walk_probe;
 pub(crate) mod zip;
 
 use geom_core::{
@@ -6371,14 +6372,27 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let none = sectors::Partners::None;
         let a_plain = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &none, band)?;
         let b_plain = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &none, band)?;
+        let z = geom_core::Vec3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0));
+        walk_probe::at_bool("vv-none", &a, c.a, z, &a_plain, &tips[0], band);
+        walk_probe::at_bool("vv-none", &b, c.b, z, &b_plain, &tips[1], band);
         let (a_sectors, b_sectors) = if a_plain.iter().chain(&b_plain).any(|s| s.apex().is_some()) {
             let faces = |plain: &[sectors::BoolSector<T>]| {
                 sectors::Partners::Faces(plain.iter().map(|s| s.at_vertex).collect())
             };
-            (
+            let pair = (
                 sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &faces(&b_plain), band)?,
                 sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &faces(&a_plain), band)?,
-            )
+            );
+            if walk_probe::enabled() {
+                walk_probe::note(format!(
+                    "vv-faces cut a {}->{} b {}->{}",
+                    a_plain.len(),
+                    pair.0.len(),
+                    b_plain.len(),
+                    pair.1.len()
+                ));
+            }
+            pair
         } else {
             (a_plain, b_plain)
         };

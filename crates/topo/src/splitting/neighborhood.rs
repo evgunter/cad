@@ -460,6 +460,17 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
             apex,
         })
         .collect();
+    if crate::boolean::walk_probe::enabled() {
+        let classes: Vec<PlaneSide> = entries.iter().map(|e| e.class).collect();
+        crate::boolean::walk_probe::at_split(
+            body,
+            vertex,
+            plane.normal.get(),
+            &classes,
+            tips,
+            band,
+        );
+    }
     let readings = rules::apply_rule_a(body, plane, vertex, &mut entries, &dirs, band)?;
     rules::apply_rule_b(body, vertex, &mut entries, &readings, band)?;
     Ok((entries, rays))

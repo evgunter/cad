@@ -596,6 +596,15 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         &super::sectors::Partners::Pierced(n_pierced.vec()),
         band,
     )?;
+    super::walk_probe::at_bool(
+        "pierce",
+        piercing_body,
+        vertex,
+        n_pierced.vec(),
+        &sectors,
+        tips,
+        band,
+    );
     let n = sectors.len();
     // At a cone's apex the pierce reads the pierced face's plane: a
     // curved face's section of the cone there curves off the ruling its
