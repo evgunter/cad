@@ -46,7 +46,7 @@ const SLIVER_RESIDUE: &str =
 /// The unit cylinder about `z`, `0 ≤ z ≤ 1`, its seam vertices at
 /// `(±1, 0, 0)` and `(±1, 0, 1)`.
 fn cylinder(tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(
+    topo::finish(
         sweep::test_support::prism(
             vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)],
             1.0,
@@ -69,7 +69,7 @@ fn cut(
 
 /// Why tier 3 refuses one side, or `None` where it is valid at rest.
 fn at_rest(body: &Body<f64>, tol: Tol) -> Option<String> {
-    Some(reasons(&AtRestBody::validate(body.clone(), tol).err()?))
+    Some(reasons(&topo::finish(body.clone(), tol).err()?))
 }
 
 /// Tier 3's findings on one side: a frame finding by its datum, measure
@@ -109,7 +109,10 @@ fn outcome(r: Result<topo::SplitResult<f64>, SplitError>, tol: Tol) -> String {
             }
         }
         Err(SplitError::Join(SplitJoinError::Euler(e))) => format!("chord {e:?}"),
-        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { side, errors })) => {
+        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest {
+            side,
+            findings: errors,
+        })) => {
             format!("at-rest gate {} {}", side.word(), reasons(&errors))
         }
         Err(e) => format!("refused {}", variant(&format!("{e:?}"), 2)),
@@ -289,7 +292,7 @@ fn a_slab_face_nearly_along_a_ruling_builds() {
     let mut wrong = Vec::new();
     for dd in [-50.0 * eps, -1e3 * eps] {
         for t in [1e-2, -1e-2] {
-            let slab = AtRestBody::validate(
+            let slab = topo::finish(
                 sweep::test_support::prism_at(rect(1.0 + dd, -2.0, 3.0, 2.0), 0.25, 0.5, tol),
                 tol,
             )
@@ -299,7 +302,7 @@ fn a_slab_face_nearly_along_a_ruling_builds() {
                 Vec3::new(0.0, 1.0, 0.0),
                 t,
             );
-            let slab = AtRestBody::validate(
+            let slab = topo::finish(
                 topo::transform_rigid(&slab, &geom_core::test_support::rigid(&turn, tol), tol)
                     .expect("a rigid turn"),
                 tol,

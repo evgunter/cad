@@ -29,7 +29,10 @@ fn rev(outline: &[(f64, f64)]) -> Body<f64> {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, Revolution::Full, tol()).unwrap().body
+    revolve(&vp, axis, Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 fn census(b: &Body<f64>) -> (i64, i64, i64, i64) {
@@ -52,8 +55,7 @@ fn unslit_plane_annuli_round_trip_through_step() {
             .map(|(k, _)| k)
             .collect();
         assert_eq!(bore.len(), 1, "the bottom bore rim is one edge");
-        let operand =
-            topo::AtRestBody::validate(washer.clone(), tol()).expect("the washer is finished");
+        let operand = topo::finish(washer.clone(), tol()).expect("the washer is finished");
         sweep::blend::build::fillet_edges(&operand, &bore, 0.2, tol())
             .unwrap()
             .body

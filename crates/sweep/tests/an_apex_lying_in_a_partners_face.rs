@@ -33,6 +33,7 @@ fn zprism(pts: &[(f64, f64, f64)], z: (f64, f64)) -> topo::Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn apex() -> AtRestBody<f64> {
@@ -100,7 +101,7 @@ fn an_apex_across_a_round_hole_is_recorded_in_the_face() {
     .unwrap();
     let wide = finished(
         "the block",
-        brick((-1.0, 1.0), (0.5, 1.5), (-0.5, 2.5), tol()),
+        brick::<f64>((-1.0, 1.0), (0.5, 1.5), (-0.5, 2.5), tol()),
         tol(),
     );
     let rod = finished("the rod", rod, tol());
@@ -135,7 +136,7 @@ fn an_apex_in_band_of_a_faces_edge_is_recorded_in_no_face() {
         let d = k * zero;
         let b = finished(
             "the block",
-            brick((d, 1.0), (0.5, 1.5), (-0.5, 2.5), tol()),
+            brick::<f64>((d, 1.0), (0.5, 1.5), (-0.5, 2.5), tol()),
             tol(),
         );
         let r = topo::union(&apex(), &b, tol()).unwrap();

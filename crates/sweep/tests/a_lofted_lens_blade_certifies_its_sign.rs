@@ -72,6 +72,7 @@ fn blade(tol: Tol) -> topo::Body<f64> {
     loft_body::<f64>(&sections, &places, 3, tol)
         .expect("the lens blade lofts")
         .body
+        .into_body()
 }
 
 /// **A round tube big enough that its number stays open**: two
@@ -100,6 +101,7 @@ fn round_tube(tol: Tol) -> topo::Body<f64> {
     )
     .expect("the tube lofts")
     .body
+    .into_body()
 }
 
 /// The blade certifies: tier 3 admits it on a positive enclosure, the

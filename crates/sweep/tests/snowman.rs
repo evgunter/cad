@@ -854,7 +854,7 @@ fn a_lens_beside_a_slab_its_trimmed_sphere_crosses_builds() {
     for (label, (y0, y1)) in [("below", (-3.0, -0.5)), ("above", (1.6, 3.0))] {
         let slab: AtRestBody<f64> = finished(
             "the slab",
-            sweep::test_support::brick((-2.0, 2.0), (y0, y1), (-2.0, 2.0), Tol::witness()),
+            sweep::test_support::brick::<f64>((-2.0, 2.0), (y0, y1), (-2.0, 2.0), Tol::witness()),
             Tol::witness(),
         );
         let v_slab = 16.0 * (y1 - y0);
@@ -1039,7 +1039,7 @@ fn a_slab_tilted_across_the_lens_seams_builds() {
 fn a_slab_cutting_a_cap_off_a_banded_ball_builds() {
     let band = finished(
         "the band's box",
-        sweep::test_support::brick((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     let banded = run(BooleanOp::Intersect, &ball(1.0, 0.0), &band);
@@ -1073,7 +1073,7 @@ fn a_slab_cutting_a_cap_off_a_pole_strut_carve_builds() {
     );
     let cutter = finished(
         "the box",
-        sweep::test_support::brick((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol),
+        sweep::test_support::brick::<f64>((-1.0, 0.25), (-1.0, 1.0), (-1.0, 0.0), tol),
         tol,
     );
     let carve = run(BooleanOp::Subtract, &ball, &cutter);
@@ -1178,7 +1178,7 @@ fn two_cut_ins_on_one_face_build_in_either_order() {
     }
     let band = finished(
         "the band's box",
-        sweep::test_support::brick((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     let banded = run(BooleanOp::Intersect, &ball(1.0, 0.0), &band);
@@ -1222,7 +1222,7 @@ fn two_cut_ins_on_one_face_build_in_either_order() {
 fn a_circle_across_an_earlier_cut_takes_none_of_its_own() {
     let band = finished(
         "the band's box",
-        sweep::test_support::brick((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     let banded = run(BooleanOp::Intersect, &ball(1.0, 0.0), &band);
@@ -1254,7 +1254,7 @@ fn a_circle_across_an_earlier_cut_takes_none_of_its_own() {
 fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
     let box_ = finished(
         "the box",
-        sweep::test_support::brick((0.5, 2.0), (-2.0, 2.0), (-2.0, 2.0), Tol::witness()),
+        sweep::test_support::brick::<f64>((0.5, 2.0), (-2.0, 2.0), (-2.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     let carve = run(BooleanOp::Subtract, &ball(1.0, 0.0), &box_);
@@ -1445,7 +1445,7 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
     let tol = Tol::witness();
     let slab: AtRestBody<f64> = finished(
         "the slab",
-        sweep::test_support::brick((-2.0, 2.0), (-3.0, -2.0), (-2.0, 2.0), tol),
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (-3.0, -2.0), (-2.0, 2.0), tol),
         tol,
     );
     let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
@@ -1453,7 +1453,7 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
     // material and B's outer sphere in A's.
     let block: AtRestBody<f64> = finished(
         "the block",
-        sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), tol),
+        sweep::test_support::brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), tol),
         tol,
     );
     let holed = run(BooleanOp::Subtract, &block, &ball(1.0, 0.0));

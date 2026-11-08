@@ -24,7 +24,7 @@ use crate::revolve_common;
 use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
-use sweep::{Revolution, revolve};
+use sweep::Revolution;
 
 /// The dimple's radius, in metres.
 const R_SPHERE: f64 = 0.010;
@@ -64,7 +64,15 @@ fn the_dimpled_ring_measures_its_closed_form_at_a_quarter_turn() {
     let l = 1.0;
     let theta = core::f64::consts::FRAC_PI_2;
     let vp = validated(vec![dimpled_ring(l)]);
-    let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
+    // The construction: the door's own finish refuses the hairline body
+    // (tier 3, below), so the probe reads the body before it.
+    let t = sweep::test_support::revolve_construction(
+        &vp,
+        axis_y(),
+        Revolution::Partial(theta),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     let v = topo::test_support::pinned_volume(
         "the measured body",
@@ -115,7 +123,15 @@ fn a_hairline_revolve_of_a_dimpled_ring_refuses_typed_at_the_props_door() {
         "the props door's sphere lever must read the meridians' pole junction as a cusp"
     );
     let vp = validated(vec![dimpled_ring(l)]);
-    let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
+    // The construction: the door's own finish refuses the hairline body
+    // (tier 3, below), so the probe reads the body before it.
+    let t = sweep::test_support::revolve_construction(
+        &vp,
+        axis_y(),
+        Revolution::Partial(theta),
+        Tol::witness(),
+    )
+    .unwrap();
     // Each meridian is levered at its faces' extent (`topo::wedge_reach`),
     // the end wall's `r_max` across, not at the sphere's: the sphere wall
     // meets each end wall at a definite corner, so both store the faces'

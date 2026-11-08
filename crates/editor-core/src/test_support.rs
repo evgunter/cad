@@ -82,7 +82,7 @@ pub fn len2(v: [f64; 2]) -> [Formula; 2] {
 /// # Panics
 ///
 /// At a member that is a boolean's empty result.
-pub fn every_body<T: geom_core::Decide>(
+pub fn every_body<T: geom_core::Decide + topo::AtRestPolicy>(
     members: &[Option<crate::Framed<T>>],
 ) -> Vec<&crate::Framed<T>> {
     members
@@ -1396,18 +1396,6 @@ pub fn assemble_world_copies_edits(
         },
     );
     (doc, log)
-}
-
-/// **What the at-rest check could not look at in one gathered
-/// `product`**, read as the `AtRest` resident reads it: for a row at a
-/// scalar the checks registry cannot run at (a dual, which carries no
-/// chart-coherence lane), whose census is structurally absent
-/// ([`crate::AtRestEvidence::NotRun`]).
-pub fn at_rest_could_not_look<T: crate::checks::at_rest::LocalizeLane>(
-    product: &crate::Product<T>,
-    tol: geom_core::Tol,
-) -> Vec<crate::AtRestEvidence> {
-    crate::checks::at_rest::reading(product, tol).could_not_look
 }
 
 /// The judgement whose naming [`with_judgement_naming_fault`] refuses,

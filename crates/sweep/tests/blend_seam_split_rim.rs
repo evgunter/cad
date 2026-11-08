@@ -441,7 +441,7 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets on the running result, got {e:?}"));
         bands += out.band_faces.len();
-        body = out.body;
+        body = out.body.into_body();
     }
     assert_eq!(bands, 3, "one band per rim");
     validate_geometric(&body, tol())

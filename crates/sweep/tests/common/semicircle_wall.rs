@@ -12,7 +12,7 @@ use profile::test_support::bulge_loop;
 use sweep::test_support::{lift_places, lift_sections, stacked_at};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
-use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, Pcurve, PcurveMintError};
+use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, LeafBody as _, Pcurve, PcurveMintError};
 
 pub fn tol() -> Tol {
     Tol::witness()
@@ -47,6 +47,7 @@ pub fn semicircle_prism<T: AtRestPolicy>() -> Body<T> {
     )
     .expect("the prism builds")
     .body
+    .into_body()
 }
 
 /// The arc wall: the face whose rows include the `IsoArc` rims.

@@ -48,6 +48,7 @@ fn native_loft_prism() -> topo::Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("native loft_prism builds")
         .body
+        .into_body()
 }
 
 /// V2: a seam carrier byte-equal to NEITHER wall's boundary iso (a
@@ -195,6 +196,7 @@ fn native_arc_loft_for_probe() -> topo::Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("arc loft builds")
         .body
+        .into_body()
 }
 
 #[test]

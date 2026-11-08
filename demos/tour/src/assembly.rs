@@ -410,7 +410,8 @@ fn volume_bits(body: &Body<f64>, tol: Tol) -> u64 {
 /// Gathers a document's product with its names — the whole-document
 /// A10 gather, which is what "what this document means" is.
 fn product_of(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> (Body<f64>, NameTable) {
-    product_named(doc, ev, tol).expect("the product gathers")
+    let (body, names) = product_named(doc, ev, tol).expect("the product gathers");
+    (body.into_body(), names)
 }
 
 // ---- The part documents ----

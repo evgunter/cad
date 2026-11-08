@@ -40,7 +40,7 @@ boolean-names-splitting    21  boolean/insert.rs
 boolean-names-splitting    16  boolean/join.rs
 boolean-names-splitting     1  boolean/join_walk_order_rows.rs
 boolean-names-splitting     6  boolean/mod.rs
-boolean-names-splitting    17  boolean/ops.rs
+boolean-names-splitting    16  boolean/ops.rs
 boolean-names-splitting     5  boolean/reduce.rs
 boolean-names-splitting     9  boolean/refusal_routes.rs
 boolean-names-splitting    17  boolean/region.rs
@@ -63,15 +63,15 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             177  boolean/mod.rs
+crate-visible             175  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
-crate-visible              31  boolean/ops.rs
+crate-visible              29  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
 crate-visible               2  boolean/planar_lane_carrier_rows.rs
 crate-visible               2  boolean/plane_eq.rs
 crate-visible              20  boolean/records.rs
 crate-visible               8  boolean/reduce.rs
-crate-visible              24  boolean/refusal_routes.rs
+crate-visible              22  boolean/refusal_routes.rs
 crate-visible              36  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
@@ -89,9 +89,9 @@ crate-visible               2  boolean/voids.rs
 crate-visible               4  boolean/vtxfac.rs
 crate-visible               5  boolean/zip.rs
 crate-visible              51  splitting/containment.rs
-crate-visible              12  splitting/finish.rs
+crate-visible              11  splitting/finish.rs
 crate-visible               8  splitting/join.rs
-crate-visible              19  splitting/mod.rs
+crate-visible              17  splitting/mod.rs
 crate-visible               5  splitting/neighborhood.rs
 crate-visible               3  splitting/order.rs
 crate-visible              17  splitting/pieced_arc.rs
@@ -151,7 +151,7 @@ names-boolean              24  props.rs
 names-boolean               4  query.rs
 names-boolean               1  ray_walk.rs
 names-boolean              11  replace_face.rs
-names-boolean              32  review_d18.rs
+names-boolean              31  review_d18.rs
 names-boolean               1  ring_path.rs
 names-boolean               1  ring_path/cone_islands.rs
 names-boolean               1  ring_path/graze_rows.rs
@@ -207,7 +207,7 @@ refused-binding             6  validate.rs
 
 splitting-names-boolean     6  splitting/classify.rs
 splitting-names-boolean    11  splitting/containment.rs
-splitting-names-boolean    51  splitting/finish.rs
+splitting-names-boolean    44  splitting/finish.rs
 splitting-names-boolean     3  splitting/mod.rs
 splitting-names-boolean     3  splitting/neighborhood.rs
 splitting-names-boolean     2  splitting/rules.rs
