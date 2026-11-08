@@ -56,8 +56,8 @@
 //!
 //! The module also hosts the two **pre-sweep gates**, which refuse an
 //! operand pair before any edge is split: the operand gate
-//! ([`gate_operand_pairs`]: each operand passes tier 2, and a kind
-//! with no wired arm may not enter an undeclared pair), and the
+//! ([`gate_operand_pairs`]: a kind with no wired arm may not enter an
+//! undeclared pair), and the
 //! maximal-faces gate ([`gate_maximal_faces`]: no operand carries two
 //! coplanar neighbours).
 
@@ -578,24 +578,26 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 }
 
 /// **The operand gate, pair-scoped** (M5 PR 9, C12.1 — the F5
-/// planar-only gate retires PER C5 TABLE ARM, never wholesale).
+/// planar-only gate retires PER C5 TABLE ARM, never wholesale): a face
+/// kind off the face-kind `roster` ([`boolean_arm_exists`]) disqualifies
+/// the operation only through a PAIR it could enter
+/// ([`first_unsupported_pair`]) and that the caller's declarations do
+/// not cover. A torus wall whose box clears the other operand does not
+/// gate anything, and neither does one whose contact with the face it
+/// may meet the author has DECLARED.
 ///
-/// First, each operand passes [`gate_operand`]: a closed solid at rest
-/// by the validator's own verdict, with supported edge carriers. Then
-/// two rules, with different scopes on purpose:
-///
-/// - **Faces**: a kind off the face-kind `roster` ([`boolean_arm_exists`])
-///   disqualifies the operation only through a PAIR it could enter
-///   ([`first_unsupported_pair`]) and that the caller's declarations
-///   do not cover. A torus wall whose box clears the other operand
-///   does not gate anything, and neither does one whose contact with
-///   the face it may meet the author has DECLARED.
-/// - **Edges**: body-scoped ([`gate_operand`]).
+/// Nothing about the operands' own validity is read here: each is a
+/// finished body ([`crate::finish`]), or, on the sphere re-cut's
+/// re-entry, one carved, turned, grafted and cut from a finished body
+/// by operators that keep tier 2. Edge carriers are not gated either: a
+/// lane that reads one refuses a kind it has no row for at its own
+/// site, naming the edge and the face
+/// ([`BooleanError::EdgeCarrierUnsupported`]).
 ///
 /// # Errors
 ///
-/// [`gate_operand`]'s per operand; [`BooleanError::CurvedPairUnsupported`]
-/// for a germ pair with no arm; [`first_unsupported_pair`]'s.
+/// [`BooleanError::CurvedPairUnsupported`] for a germ pair with no arm;
+/// [`first_unsupported_pair`]'s.
 pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
@@ -603,9 +605,6 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     band: Band,
     roster: impl Fn(&geom::Surface<T>) -> bool,
 ) -> Result<(), BooleanError> {
-    for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-        gate_operand(body, operand)?;
-    }
     // A pair is covered by the certificate its consumer reads: the
     // declared descent through the carrier ladder, which runs on a pair
     // the door verified ONE carrier. A `Tangent` claim covers nothing
@@ -627,44 +626,16 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     Ok(())
 }
 
-/// **The operand gate's BODY-scoped half**: a closed solid at rest, by
-/// the validator's own verdict ([`crate::validate_closed`]). Tier-2
-/// scaffolding — a strut, an empty loop, a null edge, a split shell —
-/// refuses as [`BooleanError::ScaffoldingOperand`], carrying the
-/// findings. A tier-1 finding panics naming the first: every public
-/// door keeps a body tier-1-valid, so only a kernel bug hands one in.
-///
-/// Edge carriers are not gated: a lane that reads one refuses a kind it
-/// has no row for at its own site, naming the edge and the face
-/// ([`BooleanError::EdgeCarrierUnsupported`]).
-///
-/// Orientation is not read here: an operand is a finished body, whose
-/// finish at a certifying scalar includes check 7 per solid.
-pub(super) fn gate_operand<T: Decide>(
-    body: &Body<T>,
-    operand: Operand,
-) -> Result<(), BooleanError> {
-    let scaffolding =
-        crate::validate::operand_scaffolding(body, format_args!("operand {operand:?}"));
-    if !scaffolding.is_empty() {
-        return Err(BooleanError::ScaffoldingOperand {
-            operand,
-            errors: scaffolding,
-        });
-    }
-    Ok(())
-}
-
-/// An operand edge's certified carrier. Tier 2 refuses a null edge and
-/// tier 1 an unresolvable curve key at the operand gate, and the
-/// sweep's only surgery (`split_edge`) mints certified pieces, so a
-/// miss past the gate is a kernel invariant, not the operand's fault.
+/// An operand edge's certified carrier. An operand holds no null edge
+/// and no unresolvable curve key (it is finished, [`gate_operand_pairs`]),
+/// and the sweep's only surgery (`split_edge`) mints certified pieces,
+/// so a miss is a kernel invariant, not the operand's fault.
 pub(super) fn certified<T: geom_core::Real>(
     geom: Option<&CurveGeom<T>>,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
     geom.and_then(CurveGeom::certified)
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "an operand edge past the tier-1/2 gate has no certified carrier",
+            what: "an operand edge of a finished body has no certified carrier",
         })
 }
 
@@ -758,7 +729,7 @@ fn vertex_refusal(
         }) => BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag),
         VertexRefusal::Walk(_) => BooleanError::ClassificationInvariant {
             what: "the neighbourhood walk refused a vertex of an operand at rest (a null edge \
-                   or a degenerate chord where the operand gate admits none)",
+                   or a degenerate chord, which a finished operand holds none of)",
         },
         VertexRefusal::Plane(what) => BooleanError::ClassificationInvariant { what },
     }
@@ -771,8 +742,8 @@ fn vertex_refusal(
 /// as the predicate's own typed escalation instead. The ladder reads a
 /// ball about the shared edge's start that holds the edge, so the offset
 /// is the planes' at the edge and the tilt is levered at its reach. It runs
-/// on an operand [`gate_operand`] passed, so every edge it reads holds
-/// a certified carrier.
+/// on a finished operand, so every edge it reads holds a certified
+/// carrier.
 pub(super) fn gate_maximal_faces<T: Decide>(
     body: &Body<T>,
     operand: Operand,

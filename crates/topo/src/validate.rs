@@ -10417,14 +10417,6 @@ pub fn validate_pseudomanifold_certificate_structural<
     pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
-/// [`SCAFFOLDING_RECOURSE`], as a literal so [`SCAFFOLDING_REFUSAL`] can
-/// end in it.
-macro_rules! scaffolding_recourse {
-    () => {
-        "finish that edit first"
-    };
-}
-
 /// **A finished body at a scalar with certification rights**, and tier
 /// 3's verdict on it kept beside it — so a tier-3′ pass over the same
 /// body pays the census alone — with the certificate its check 7
@@ -10565,17 +10557,9 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     }
 }
 
-/// What every door refusing an operand with scaffolding at rest says
-/// after naming the operand.
-pub const SCAFFOLDING_REFUSAL: &str = concat!(
-    "is not a finished solid: it still carries what an edit left behind, such as a \
-     strut or an empty loop, so it is refused. Recourse: ",
-    scaffolding_recourse!()
-);
-
-/// The advice [`SCAFFOLDING_REFUSAL`] ends in, for a refusal that meets
-/// the same scaffolding in a body no door gated.
-pub const SCAFFOLDING_RECOURSE: &str = scaffolding_recourse!();
+/// The advice a refusal that meets construction scaffolding in a body
+/// ends in.
+pub const SCAFFOLDING_RECOURSE: &str = "finish that edit first";
 
 /// What every door refusing an inside-out operand says after naming the
 /// operand: true of a solid check 7 decides negative, of a shell check 10
@@ -10586,24 +10570,6 @@ pub const INSIDE_OUT_REFUSAL: &str = concat!(
      material and bound negative volume, and it is refused. Recourse: ",
     crate::boolean::solid_contain::inside_out_recourse!()
 );
-
-/// **Tier 2's findings on a door's operand.** A tier-1 finding panics
-/// naming `subject` and the first finding: every public door keeps a
-/// body tier-1-valid, so only a kernel bug hands one in.
-pub(crate) fn operand_scaffolding<T: Real>(
-    body: &Body<T>,
-    subject: impl fmt::Display,
-) -> Vec<ValidationError> {
-    let (broken, scaffolding) = closed_by_tier(body);
-    if let Some(first) = broken.first() {
-        unreachable!(
-            "{subject} fails tier 1 ({} findings, the first {first:?}): every public door keeps \
-             the body tier-1-valid",
-            broken.len()
-        );
-    }
-    scaffolding
-}
 
 impl<T: geom_core::Decide> core::ops::Deref for AtRestBody<T> {
     type Target = Body<T>;
