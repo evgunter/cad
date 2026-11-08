@@ -273,15 +273,6 @@ impl<const N: usize> PartialEq<[ValidationError; N]> for NotFinished {
     }
 }
 
-impl<'a> IntoIterator for &'a NotFinished {
-    type Item = &'a ValidationError;
-    type IntoIter = core::slice::Iter<'a, ValidationError>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.findings.iter()
-    }
-}
-
 impl NotFinished {
     /// Each family once, its text, then each of its findings, which ends
     /// in the family's recourse; each finding read at rest where the
@@ -369,7 +360,7 @@ pub enum FindingFamily {
     /// volume's sign, the shells' roles and winding).
     Orientation,
     /// The census of the body's contacts against its records (tier 3′).
-    Contact,
+    Census,
     /// The boundary is embedded off its records (tier 3′): no face
     /// through a wedge, no overlapping wedges, no self-crossing.
     Embedding,
@@ -394,7 +385,7 @@ impl FindingFamily {
             Self::FaceSense => "a face's sense or region on its surface is wrong",
             Self::FaceRegion => "a face's loops do not bound one region",
             Self::Orientation => "the material's side is wrong or unread",
-            Self::Contact => "a contact disagrees with its records",
+            Self::Census => "a contact disagrees with its records",
             Self::Embedding => "the boundary meets itself off its records",
             Self::Interference => "instances interfere",
         }
@@ -418,7 +409,7 @@ impl FindingFamily {
             | Self::FaceSense
             | Self::FaceRegion
             | Self::Orientation
-            | Self::Contact
+            | Self::Census
             | Self::Embedding
             | Self::Interference => None,
         }
@@ -539,7 +530,7 @@ impl ValidationError {
             | Self::CensusLaneUnsupported { .. }
             | Self::CensusUndecidable { .. }
             | Self::ArcEndOffCorner { .. }
-            | Self::CuspEdgesMissing { .. } => F::Contact,
+            | Self::CuspEdgesMissing { .. } => F::Census,
             Self::FaceThroughEdgeWedge { .. }
             | Self::FaceThroughEdgeWedgeUndecided { .. }
             | Self::CoincidentWedgesOverlap { .. }

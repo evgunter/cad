@@ -1775,7 +1775,7 @@ fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
             .any(|e| matches!(e, crate::ValidationError::PlanarFaceResidual { .. })),
         "the stranded half's vertices lie off its plane: {errors:?}"
     );
-    for e in &errors {
+    for e in errors.iter() {
         let own = match e {
             crate::ValidationError::PlanarFaceResidual { face, vertex } => {
                 *face == stranded && vertices.contains(vertex)
