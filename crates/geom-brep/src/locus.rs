@@ -770,7 +770,7 @@ mod tests {
             axis: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         };
-        let metre = ExtentBall::of_sphere(Point3::origin(), 1.0);
+        let metre = ExtentBall::fixture(Point3::origin(), 1.0);
         for (a, b) in [
             (&plane, &cyl),
             (&cyl, &plane),
@@ -815,12 +815,12 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_z(),
         };
-        let metre = ExtentBall::of_sphere(Point3::origin(), 1.0);
+        let metre = ExtentBall::fixture(Point3::origin(), 1.0);
         match tangent_locus(&plane, &cyl, metre, band) {
             Ok(TangentLocus::Line { .. }) => {}
             other => panic!("over a metre the tilt reads zero and the ruling is minted: {other:?}"),
         }
-        let ten = ExtentBall::of_sphere(Point3::new(5.0, 0.0, 0.0), 5.0);
+        let ten = ExtentBall::fixture(Point3::new(5.0, 0.0, 0.0), 5.0);
         match tangent_locus(&plane, &cyl, ten, band) {
             Err(TangentLocusError::Escalated(d)) => assert_eq!(
                 d.predicate,
@@ -855,7 +855,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let cyl = x_cylinder(0.0, (band.zero() * band.escalate()).sqrt(), 1.0);
-        let metre = ExtentBall::of_sphere(Point3::origin(), 1.0);
+        let metre = ExtentBall::fixture(Point3::origin(), 1.0);
         match tangent_locus(&plane, &cyl, metre, band) {
             Err(TangentLocusError::NotTangent {
                 apart: false,
@@ -881,7 +881,7 @@ mod tests {
         let (r1, r2) = (1.0, 1.0 - 0.9 * zero);
         let c1 = x_cylinder(0.0, 0.0, r1);
         let c2 = x_cylinder(r1 + r2 - 0.6 * zero, 0.0, r2);
-        let metre = ExtentBall::of_sphere(Point3::origin(), 1.0);
+        let metre = ExtentBall::fixture(Point3::origin(), 1.0);
         for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
             match tangent_locus(a, b, metre, band) {
                 Ok(TangentLocus::Line { .. }) => {}
@@ -924,7 +924,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let cyl = tilted_resting_cylinder(1000.0, band.zero());
-        let metre = ExtentBall::of_sphere(Point3::origin(), 1.0);
+        let metre = ExtentBall::fixture(Point3::origin(), 1.0);
         match tangent_locus(&plane, &cyl, metre, band) {
             Ok(TangentLocus::Line {
                 line: geom::Line { origin, .. },
@@ -953,7 +953,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let cyl = tilted_resting_cylinder(0.0, band.zero());
-        let off_axis = ExtentBall::of_sphere(Point3::new(0.0, 5.0, 0.0), 1.0);
+        let off_axis = ExtentBall::fixture(Point3::new(0.0, 5.0, 0.0), 1.0);
         match tangent_locus(&plane, &cyl, off_axis, band) {
             Err(TangentLocusError::Escalated(d)) => assert_eq!(
                 d.predicate,
@@ -985,7 +985,7 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_z(),
         };
-        let ten = ExtentBall::of_sphere(Point3::new(5.0, 0.0, 0.0), 5.0);
+        let ten = ExtentBall::fixture(Point3::new(5.0, 0.0, 0.0), 5.0);
         for (height, want_apart, why) in [(0.5, false, "crossing"), (1.5, true, "clear")] {
             match tangent_locus(&plane, &cyl(height), ten, band) {
                 Err(TangentLocusError::NotTangent { apart, predicate }) => {
@@ -1017,7 +1017,7 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_z(),
         };
-        let ten = ExtentBall::of_sphere(Point3::new(5.0, 0.0, 0.0), 5.0);
+        let ten = ExtentBall::fixture(Point3::new(5.0, 0.0, 0.0), 5.0);
         for (y, want, why) in [
             (3.0, (true, "cc_parallel_gap"), "clear"),
             (1.0, (false, "tangent_locus_internal_gap"), "crossing"),
@@ -1059,7 +1059,7 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_z(),
         };
-        let reach = ExtentBall::of_sphere(Point3::new(0.5, 0.0, 0.0), 1.5);
+        let reach = ExtentBall::fixture(Point3::new(0.5, 0.0, 0.0), 1.5);
         let wall = (-1.0, 1.0);
         let across = |plane_face: (f64, f64)| {
             move |dir: UnitVec3<f64>| {
@@ -1124,7 +1124,7 @@ mod tests {
             radius: r,
             u_ref: Vec3::unit_z(),
         };
-        let reach = ExtentBall::of_sphere(Point3::new(0.5, 1.0, 0.0), 2.0);
+        let reach = ExtentBall::fixture(Point3::new(0.5, 1.0, 0.0), 2.0);
         let across = |second: (f64, f64)| {
             move |dir: UnitVec3<f64>| {
                 let flip = |(lo, hi): (f64, f64)| {
@@ -1180,7 +1180,7 @@ mod tests {
             radius: r,
             u_ref: Vec3::unit_z(),
         };
-        let reach = ExtentBall::of_sphere(Point3::new(0.5, 1.0, 0.0), 2.0);
+        let reach = ExtentBall::fixture(Point3::new(0.5, 1.0, 0.0), 2.0);
         // `across` is ±ŷ for the plane pair and ±ẑ for the cylinders;
         // `which` is the face whose extent starts `s` off the ruling, the
         // other spanning it.
@@ -1228,7 +1228,7 @@ mod tests {
     #[test]
     fn a_definite_answer_leaves_no_escalation_on_the_log() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let reach = ExtentBall::of_sphere(Point3::new(0.5, 0.0, 0.0), 1.5);
+        let reach = ExtentBall::fixture(Point3::new(0.5, 0.0, 0.0), 1.5);
         let along = |origin: Point3<f64>, r: f64| Surface::Cylinder {
             origin,
             axis: Vec3::unit_x(),

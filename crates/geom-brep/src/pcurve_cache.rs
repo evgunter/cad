@@ -7194,7 +7194,7 @@ fn run_spiric_checks<T: Decide>(
                 ..
             },
         ) => {
-            let arm = crate::ExtentBall::of_torus(s_center, s_major, s_minor).lever();
+            let arm = crate::ExtentBall::of_covered(&surface.cover()).lever();
             let torus_center = |t: WallTorus| t.center(c_c, n_c, c_offset);
             // The axis is gated for PARALLELISM only — a sine of unit
             // vectors, levered over the chart torus's ball. Which

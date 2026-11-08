@@ -282,7 +282,7 @@ impl<T: geom_core::Real> ConsumedExtent<T> {
     /// names, for the rows that meter at one.
     #[cfg(test)]
     pub(crate) fn arm(arm: T) -> Self {
-        Self::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
+        Self::new(geom_brep::ExtentBall::fixture(Point3::origin(), arm))
     }
 }
 
@@ -1412,7 +1412,7 @@ mod tests {
             1.0,
             true,
         );
-        let ext = ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(
+        let ext = ConsumedExtent::new(geom_brep::ExtentBall::fixture(
             Point3::new(1.0, 0.0, 0.0),
             1e-3,
         ));

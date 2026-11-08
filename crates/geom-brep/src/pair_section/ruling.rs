@@ -1358,7 +1358,7 @@ mod tests {
     }
 
     fn ruled(a: &Surface<f64>, b: &Surface<f64>) -> (RuledCylinders<f64>, f64) {
-        let region = ExtentBall::of_sphere(Point3::origin(), 3.0);
+        let region = ExtentBall::fixture(Point3::origin(), 3.0);
         let pose = CylinderCylinderPose::decide(a, b, &Reach::Ball(region), band())
             .expect("two cylinders")
             .expect("a decided pose");

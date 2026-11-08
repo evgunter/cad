@@ -59,7 +59,7 @@ fn tilted(toward: Vec3<f64>) -> Vec3<f64> {
 /// The witness reads the same rows: it mints in both operand orders.
 #[test]
 fn plane_cylinder_reads_one_verdict_at_every_stored_origin() {
-    let reach = ExtentBall::of_sphere(Point3::origin(), 0.5);
+    let reach = ExtentBall::fixture(Point3::origin(), 0.5);
     let axis = tilted(Vec3::unit_z());
     for along in STORED {
         let cyl = cylinder(Point3::new(0.0, 0.0, 1.0), axis, along);
@@ -98,7 +98,7 @@ fn plane_cylinder_reads_one_verdict_at_every_stored_origin() {
 /// order and minted in the other.
 #[test]
 fn equal_cylinders_read_one_verdict_in_either_order_at_every_stored_origin() {
-    let reach = ExtentBall::of_sphere(Point3::origin(), 1.0);
+    let reach = ExtentBall::fixture(Point3::origin(), 1.0);
     let toward = tilted(-Vec3::unit_y());
     for along1 in STORED {
         for along2 in STORED {
@@ -135,7 +135,7 @@ fn equal_cylinders_read_one_verdict_in_either_order_at_every_stored_origin() {
 /// axis row; neither reads it from a different lever than the other.
 #[test]
 fn the_tilt_lever_does_not_depend_on_operand_order() {
-    let reach = ExtentBall::of_sphere(Point3::new(0.0, -5.0, 0.0), 1.0);
+    let reach = ExtentBall::fixture(Point3::new(0.0, -5.0, 0.0), 1.0);
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);
     let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), tilted(-Vec3::unit_y()), -1000.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
@@ -168,7 +168,7 @@ fn the_tilt_lever_does_not_depend_on_operand_order() {
 /// radius reads its tilt as Zero.
 #[test]
 fn the_tilt_is_levered_from_the_nearer_foot() {
-    let reach = ExtentBall::of_sphere(Point3::new(0.0, -5.0, 0.0), 1.0);
+    let reach = ExtentBall::fixture(Point3::new(0.0, -5.0, 0.0), 1.0);
     let theta = band().zero() / 7.0;
     let toward = Vec3::unit_x() * theta.cos() - Vec3::unit_y() * theta.sin();
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);

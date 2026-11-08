@@ -2428,7 +2428,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("UnrecordedSide", R::UnrecordedSide { vertex }),
-        ("UnboundedFace", R::UnboundedFace { face, vertex }),
+        ("UnboundedFace", R::UnboundedFace { face }),
         (
             "CrossingInsertion",
             R::CrossingInsertion {

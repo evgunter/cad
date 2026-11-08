@@ -62,7 +62,7 @@ fn answers(what: &str, ring: &Ring, wall: &Wall, want: &[Class]) {
         ring,
         wall,
         want,
-        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(
             p(0.0, 0.0, 0.0),
             super::section_cert_rows::LEVER / 2.0,
         )),
@@ -423,7 +423,7 @@ fn the_square_reading_is_levered_by_the_tori_ball() {
     let tilt = |of_zero: f64| of_zero * band().zero() / lever;
     for radius in [50.0, 1.0] {
         let reach =
-            geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), radius));
+            geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), radius));
         answers_within(
             "a tilt 0.6 of the band's Zero",
             &donut,

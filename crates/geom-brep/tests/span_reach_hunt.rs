@@ -1,12 +1,12 @@
 //! **A conic arc's span reach is never short of its farthest point**
-//! (`Reach::span_reach_from`), hunted over random circles and ellipses
+//! (`Reach::lever_from`), hunted over random circles and ellipses
 //! (eccentricities to 0.999999, a negative or swapped semi-axis), spans
 //! from 1e-6 rad to two turns either way, and pivots on the arc, at its
 //! centre, along and against its crests, far off its plane and just off
 //! it. The farthest point is sampled and each local maximum refined by
 //! golden section. The reach is never short of it to rounding, a
 //! circle's never past it either and an ellipse's never by more than a
-//! quarter's bulge, and never past the whole turn ([`Reach::lever_from`]).
+//! quarter's bulge.
 
 #![allow(clippy::panic, clippy::cast_precision_loss)]
 
@@ -111,7 +111,7 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
                 t0,
                 t1,
             };
-            let got = reach.span_reach_from(p).length();
+            let got = reach.lever_from(p).length();
             let far = farthest(&carrier, t0, t1, p);
             let scale = (center - Point3::origin()).norm() + (p - Point3::origin()).norm() + big;
             let tol = 16.0 * f64::EPSILON * scale;
@@ -128,11 +128,6 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
             assert!(
                 got <= far + slack + tol,
                 "{label}: {got} passes the farthest point {far} by more than {slack}; {}",
-                fuzz::replay()
-            );
-            assert!(
-                got <= reach.lever_from(p).length(),
-                "{label}: {got} passes the whole turn; {}",
                 fuzz::replay()
             );
         }

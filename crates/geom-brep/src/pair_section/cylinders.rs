@@ -946,8 +946,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                     ];
                     let mut listed = Vec::new();
                     for ((curve, span), at) in arcs.into_iter().zip(ends) {
-                        let placed = ExtentBall::of_conic(curve)
-                            .map_or(RegionPlacement::Straddles, &against);
+                        let placed = against(ExtentBall::of_covered(&curve.cover()));
                         if placed == RegionPlacement::Outside {
                             continue;
                         }

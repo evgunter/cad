@@ -822,7 +822,8 @@ fn seam_face_reading<T: Decide>(
     // Where the chart's normal is defined is the chart's own question,
     // read over its control net's reach as the sector walk reads it; the
     // seam's reach is the arm's alone.
-    let net_reach = crate::ExtentBall::of_control_net_from(chart.control(), p).lever();
+    let net = geom::cover::Cover::net(chart.control().to_vec());
+    let net_reach = crate::ExtentBall::of_cover_from(net.as_ref(), p).lever();
     let jet =
         crate::regular_jet(chart, uv, net_reach.length(), band).map_err(SeamEscalation::Crease)?;
     let (normal, _) = crate::chart_normal_at(chart, true, &jet, uv, net_reach, band)

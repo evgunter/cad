@@ -87,13 +87,20 @@ pub struct TorusDisplacement<T: Real> {
     pub across: T,
 }
 
-impl<T: Real> TorusDisplacement<T> {
+impl<T: geom_core::spline::SpanLocate> TorusDisplacement<T> {
     /// The displacement between `a` and `b`.
     #[must_use]
     pub fn of(a: TorusData<T>, b: TorusData<T>) -> Self {
-        let arm = crate::ExtentBall::of_circle(a.center, a.major_radius)
-            .lever()
-            .max(crate::ExtentBall::of_circle(b.center, b.major_radius).lever());
+        let spine = |t: TorusData<T>| {
+            let circle = geom::Curve3::circle(
+                t.center,
+                t.axis,
+                t.major_radius,
+                t.axis.orthonormal_basis().0,
+            );
+            crate::ExtentBall::of_covered(&circle.cover()).lever()
+        };
+        let arm = spine(a).max(spine(b));
         let apart = a.center - b.center;
         let core = apart.norm()
             + (a.major_radius - b.major_radius).abs()

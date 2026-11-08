@@ -130,7 +130,7 @@ impl<T: Real> SplinePairPose<T> {
     /// convex hull (its weights are positive), so the section in the ball
     /// about the first net's control points.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_control_net(self.nets[0].control())
+        ExtentBall::of_covered(&geom::cover::Cover::net(self.nets[0].control().to_vec()).ok_or(()))
     }
 
     /// The pair's section with these components, nothing decided Zero.

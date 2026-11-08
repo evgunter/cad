@@ -1698,27 +1698,6 @@ impl<T: Decide> ArcPieces<'_, T> {
     }
 }
 
-/// **How far from `q` the loop reaches**: the radius of a ball about
-/// `q` holding every vertex of `loop` and every edge's carrier arc
-/// ([`step_cover`]). It asks no decision, so it cannot refuse on
-/// geometry; it over-estimates, which is the direction its callers
-/// need.
-///
-/// # Errors
-///
-/// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
-/// edge with no cover (a spline net carrying poison, data or a computed
-/// point that is not finite, an end vertex that is not a finite point), or a
-/// poisoned extent.
-pub(crate) fn loop_extent_from<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
-    q: Point3<T>,
-) -> Result<Lever<T>, PointInLoopError> {
-    let (verts, covers) = loop_hull(body, r#loop)?;
-    extent_from(r#loop, q, &verts, &covers)
-}
-
 /// The points and covers [`extent_from`] folds for `loop`, read with no
 /// decision: every vertex, and each edge's [`step_cover`].
 #[allow(clippy::type_complexity)] // two lists, each named at its reader
@@ -1929,8 +1908,8 @@ pub(crate) fn point_in_loop_projected<T: Decide>(
 /// vector, the whole loop lies in the plane through its first vertex
 /// with that normal, and so does `q` (the module docs' three rows). A
 /// wrong plane is a different region, so anything but a definite
-/// `Zero` refuses. A spline's control points stand for its locus:
-/// positive weights keep the curve in their hull.
+/// `Zero` refuses. An edge is read at its cover's range along the
+/// normal (`crate::cover::edge_cover`); null scaffolding at its vertex.
 fn certify_plane<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
@@ -1952,35 +1931,14 @@ fn certify_plane<T: Decide>(
         return Err(off_plane(OffPlaneCause::NormalNotUnit));
     }
     let off = |p: Point3<T>| Margin::of(geom::plane_offset(origin, normal, p));
-    let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
-    // A conic's whole carrier, read from its centre.
+    // Each edge's region off the plane, either way: its cover's range
+    // along the normal, from the plane's own offset.
+    let base = (origin - Point3::origin()).dot(normal);
     for step in &steps {
         let mut margins = vec![off(step.point)];
-        match step.curve.map(|c| c.carrier()) {
-            None | Some(geom::Curve3::Line(_)) => {}
-            Some(conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
-                if let (Some(k), Some(ball)) = (conic.conic(), ExtentBall::of_conic(conic)) {
-                    margins.extend([off(k.frame().origin), tilt(k.frame().axis, ball.lever())]);
-                }
-            }
-            Some(&geom::Curve3::Spiric {
-                center,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            }) => margins.extend([
-                off(center + u_ref * offset),
-                tilt(
-                    u_ref,
-                    ExtentBall::of_torus(center, major_radius, minor_radius)
-                        .lever_from_within(center, offset.abs()),
-                ),
-            ]),
-            Some(geom::Curve3::Nurbs(n)) => {
-                margins.extend(n.control().iter().map(|&p| off(p)));
-            }
+        if let Some(cover) = step_cover(body, r#loop, step)? {
+            let (lo, hi) = cover.range_along(normal);
+            margins.extend([Margin::of(lo - base), Margin::of(hi - base)]);
         }
         for m in margins {
             if decide("point_in_loop_plane", m, band).map_err(escalate)? != Sign::Zero {
@@ -2115,14 +2073,14 @@ fn carrier_walk<T: Decide>(
 
 /// **A ball holding the whole loop**, `(center, radius)`: the loop's
 /// first vertex and the reach [`point_in_loop`] confines its
-/// refusal with ([`loop_extent_from`]). Nothing here needs the loop to
+/// refusal with ([`extent_from`] of [`loop_hull`]). Nothing here needs the loop to
 /// be planar — each edge is bounded on its own carrier — so a curved
 /// face's outer loop is served the same way.
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::CorruptLoop`] — a loop [`loop_extent_from`]
-/// refuses.
+/// [`PointInLoopError::CorruptLoop`] — a loop that does not walk, an
+/// edge with no cover, or a poisoned extent.
 pub(crate) fn loop_reach<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,

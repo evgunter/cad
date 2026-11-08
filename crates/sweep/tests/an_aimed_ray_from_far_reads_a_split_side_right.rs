@@ -248,7 +248,8 @@ fn the_side_readers_reach_bounds_a_section_arc_not_its_ellipse() {
         let parts = split(&cyl, &plane, tol).expect("ψ 10⁻³ builds at every ε row");
         for part in [&parts.above, &parts.below] {
             let SplitPart::Body(b) = part else { continue };
-            for reach in topo::test_support::aim_reach(b, v) {
+            let band = geom_core::Band::linear(tol).expect("a band");
+            for reach in topo::test_support::aim_reach(b, v, band) {
                 let reach = reach.expect("each solid has a reach");
                 assert!(
                     reach < 5.0,

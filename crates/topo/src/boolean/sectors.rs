@@ -4709,7 +4709,7 @@ mod tests {
     /// A ball over the fixtures' plate and cylinders: their verdicts are
     /// exact, so the extent only has to enclose them.
     fn fixture_reach() -> geom_brep::ExtentBall<f64> {
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::new(2.0, 0.5, 1.0), 4.0)
+        geom_brep::ExtentBall::fixture(geom_core::Point3::new(2.0, 0.5, 1.0), 4.0)
     }
 
     /// A sector's two bounds at the fixtures' touch, both reaching

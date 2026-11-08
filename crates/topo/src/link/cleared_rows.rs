@@ -61,7 +61,7 @@ fn cap(center: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Cap {
 impl Cap {
     /// The cap's sectors at `p`, held as `holds` say.
     fn cleared(&self, p: Point3<f64>, holds: &[Hold]) -> Result<Vec<FaceSector<f64>>, TouchUnread> {
-        FaceSector::cleared(&self.body, self.face, self.outward, p, holds)
+        FaceSector::cleared(&self.body, self.face, self.outward, p, holds, band())
     }
 
     /// The hold inside the cap's chord.
@@ -195,7 +195,8 @@ fn a_ring_nearer_than_the_outer_loop_bounds_the_disc() {
         .unwrap()
         .vec();
     let q = p(1.0, 1.6, 1.0);
-    let s = FaceSector::cleared(&body, top, outward, q, &[Hold::Inside]).expect("the top's disc");
+    let s = FaceSector::cleared(&body, top, outward, q, &[Hold::Inside], band())
+        .expect("the top's disc");
     assert_eq!(s.len(), 1, "one sector inside the face");
     let r = s[0].face.clear.expect("a cleared radius");
     assert!(

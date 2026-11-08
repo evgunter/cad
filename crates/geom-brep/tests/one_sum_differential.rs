@@ -334,7 +334,7 @@ fn one_sum_differential() {
                 radius: if coax { r1 } else { r2 },
                 u_ref: perp(a2, &mut rng),
             };
-            let ball = ExtentBall::of_sphere(
+            let ball = ExtentBall::fixture(
                 o1 + y * (r1 * rng.r(0.5, 1.0)) + a1 * (s * rng.r(-1.0, 1.0)),
                 rad,
             );
@@ -437,7 +437,7 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let ball = ExtentBall::of_sphere(
+            let ball = ExtentBall::fixture(
                 o - nrm * (r * rng.r(0.5, 1.0)) + a * (s * rng.r(-1.0, 1.0)),
                 rad,
             );

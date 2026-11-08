@@ -80,25 +80,16 @@ pub enum PairUnread {
 
 /// **A face's consumed extent**: a ball enclosing every point of it,
 /// the region over which a verdict about its carrier is consumed
-/// ([`pair_extent`]). The carrier's whole cover's ball where the carrier
-/// is bounded ([`geom::Surface::cover`]: a sphere's ball, a torus's tube,
-/// a spline's net, whatever the trim); otherwise the ball around the
-/// face's certified box, from the kernel's one kind→box rule
-/// (`census::face_reach`). `None` where `face`, the caller's key, does
-/// not resolve, where that box has no claim to make, or where the ball
-/// does not read. The face's surface is a link, and its miss panics (on
-/// an at-rest operand by tier 1, mid-operation by
+/// ([`pair_extent`]): its cover's ball ([`crate::cover::face_cover`]),
+/// the carrier's met with what its trim proves. `None` where `face`, the
+/// caller's key, does not resolve, where the face has no cover, or where
+/// the ball does not read. The face's surface is a link, and its miss
+/// panics (on an at-rest operand by tier 1, mid-operation by
 /// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
-    let f = body.passed_face(face)?;
-    let ball = match f.surface().cover() {
-        Ok(cover) => ExtentBall::of_cover(&cover),
-        Err(_) => {
-            let (lo, hi) = crate::census::face_reach(body, face, band)?;
-            ExtentBall::of_box(lo, hi)
-        }
-    };
-    ball.readable()
+    body.passed_face(face)?;
+    let cover = crate::cover::face_cover(body, face, band).ok()?;
+    ExtentBall::of_cover(&cover).readable()
 }
 
 /// The face's boundary vertex positions (outer loop then rings; an

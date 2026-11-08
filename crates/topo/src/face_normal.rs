@@ -583,7 +583,8 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
         return Err(SplineNormalError::PlaceholderChart);
     }
     let uv = (T::from_computed(u), T::from_computed(v));
-    let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), p).lever();
+    let net = geom::cover::Cover::net(chart.control().to_vec());
+    let reach = geom_brep::ExtentBall::of_cover_from(net.as_ref(), p).lever();
     geom_brep::chart_point_normal(
         chart,
         f.sense(),

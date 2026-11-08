@@ -361,8 +361,6 @@ mod one_sum_differential;
 mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
-#[path = "span_reach_differential.rs"]
-mod span_reach_differential;
 #[path = "span_reach_hunt.rs"]
 mod span_reach_hunt;
 #[path = "tangent_gap_hull_charges_both_sags.rs"]

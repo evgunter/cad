@@ -197,7 +197,7 @@ impl<T: Real> SplineImplicitPose<T> {
     /// net's control points: about the middle of their box, reaching the
     /// farthest.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_control_net(self.net.control())
+        ExtentBall::of_covered(&geom::cover::Cover::net(self.net.control().to_vec()).ok_or(()))
     }
 }
 

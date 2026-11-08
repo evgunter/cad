@@ -770,7 +770,7 @@ fn traceable(k: &Frame, partner: &Surface<f64>) -> bool {
 
 /// The reach every search pose is classified with.
 fn reach_of(k: &Frame) -> Reach<f64> {
-    geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(k.apex, 5.0 * k.scale))
+    geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(k.apex, 5.0 * k.scale))
 }
 
 fn class_on(c: &Component<f64>, essential: bool) -> Class {

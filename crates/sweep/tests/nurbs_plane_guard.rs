@@ -165,7 +165,7 @@ fn a_plane_cutting_the_blades_loft_clears() {
             let got = topo::test_support::section_verdict(
                 plane,
                 w,
-                geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0),
+                geom_brep::ExtentBall::fixture(Point3::origin(), 1.0),
                 band,
             );
             eprintln!(

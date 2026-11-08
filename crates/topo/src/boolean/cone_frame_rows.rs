@@ -522,7 +522,6 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
             below: 1.0,
             above: 1.0,
             across: geom_core::test_support::fixture_lever(1.0),
-            round: geom_core::test_support::fixture_lever(1.0),
         },
     ] {
         let got = one_loop(pair_section_frame_at(

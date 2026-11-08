@@ -2429,18 +2429,12 @@ pub fn plane_cone_section<T: Decide>(
     // `t = −δ/c` from the apex (`c` is ±1 within the band here).
     let t = (T::zero() - apex_gap) / c;
     let rim_r = t.abs() * (sin_a / cos_a);
-    let arm = ExtentBall::of_circle(apex + a * t, rim_r)
-        .lever()
-        .max(extent);
+    let rim = Curve3::circle(apex + a * t, a, rim_r, cone_u);
+    let arm = ExtentBall::of_covered(&rim.cover()).lever().max(extent);
     match decide("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::circle(
-            apex + a * t,
-            a,
-            rim_r,
-            cone_u,
-        ))),
+        Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(rim)),
         Sign::Positive | Sign::Negative => {
             let tilt = ConeTilt::new(c, s, (sin_a, cos_a), discr);
             match decide("pn_conic_type", Margin::levered(discr, extent), band)
@@ -2847,8 +2841,10 @@ pub fn plane_torus_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            let tilt =
-                Margin::levered(a.cross(n).norm(), ExtentBall::of_torus(c, big_r, r).lever());
+            let tilt = Margin::levered(
+                a.cross(n).norm(),
+                ExtentBall::of_covered(&torus.cover()).lever(),
+            );
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the

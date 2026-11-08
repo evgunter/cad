@@ -382,7 +382,7 @@ impl<T: Decide> Sweep<'_, T> {
         let big = self.core.circle.radius;
         Margin::levered(
             slope / (T::from_f64(2.0) * d_hi * big),
-            crate::ExtentBall::of_circle(self.core.circle.frame.origin, big).lever(),
+            crate::ExtentBall::of_covered(&geom::Curve3::Circle(self.core.circle).cover()).lever(),
         )
     }
 

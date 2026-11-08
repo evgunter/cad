@@ -387,8 +387,7 @@ mod tests {
         let down = plane([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
         for frac in [0.1, 0.5, 1.0] {
             let arm = frac * band.zero();
-            let extent =
-                ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm));
+            let extent = ConsumedExtent::new(geom_brep::ExtentBall::fixture(Point3::origin(), arm));
             for (other, cos) in [(up, 1.0), (down, -1.0)] {
                 let bracket = Bracket::open();
                 let got = oriented_plane_eq(&up, &other, &extent, band);

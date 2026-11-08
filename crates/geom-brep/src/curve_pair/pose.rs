@@ -1149,8 +1149,8 @@ fn conic_conic<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
-    let ball = |c: &Curve3<T>| crate::ExtentBall::of_conic(c).ok_or(MeetFault::Desync);
-    let arm = ball(a.carrier())?.lever().max(ball(b.carrier())?.lever());
+    let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(&c.cover());
+    let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
     let lever = arm.length();
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(

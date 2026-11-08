@@ -236,7 +236,7 @@ fn across(v: Vec3<f64>, a: Vec3<f64>) -> Vec3<f64> {
 
 /// The reach every search pose is classified with.
 fn reach_of(k: &Frame) -> Reach<f64> {
-    geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(k.apex, 5.0 * k.scale))
+    geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(k.apex, 5.0 * k.scale))
 }
 
 /// What the arm promises of the traced count.
@@ -707,7 +707,7 @@ fn near_axis_balls_agree_with_the_closed_form() {
             u_ref: b1,
         };
         let what = format!("L {scale}, e/L {frac}, α {alpha}, ρ {rho}, want {want:?}");
-        let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(apex, 5.0 * scale));
+        let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(apex, 5.0 * scale));
         match classify(
             &cone,
             &ball,

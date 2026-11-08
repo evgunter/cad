@@ -1176,6 +1176,18 @@ fn plane_frame<T: Decide>(
     }
 }
 
+/// **A face of the pair's region** ([`crate::cover::face_cover`]): the
+/// extent its carrier gates read. A face with no cover is refused, as a
+/// face that does not resolve is.
+fn pair_cover<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<geom::cover::Cover<T>, ChartRegionError> {
+    body.passed_face(face).ok_or(ChartRegionError::Corrupt)?;
+    crate::cover::face_cover(body, face, band).map_err(|_| ChartRegionError::Corrupt)
+}
+
 /// Every boundary vertex of a face, outer loop then rings, cycle order
 /// (fixed schedule, D9): [`crate::live::FaceView::boundary`], every hop past
 /// the face a link. A lone-vertex loop is refused, as a face that does
@@ -1200,17 +1212,18 @@ fn face_boundary_points<T: Decide>(
 ///
 /// # The margin, and why its lever is the pair's own extent
 ///
-/// `m = max over the union of BOTH faces' boundary vertices p of
+/// `m = max over BOTH faces' points p of
 /// max(|(p − o_a)·n̂_a|, |(p − o_b)·n̂_b|)` — metres, a point-to-plane
-/// distance, [`Margin::of`]'s door.
+/// distance, [`Margin::of`]'s door — each face read at its cover's range
+/// along each normal ([`pair_cover`], [`geom::cover::Cover::range_along`]).
 ///
-/// A vertex of face A lies on A's carrier exactly, so its A-term is
-/// zero and its B-term is the two carriers' SEPARATION at that
-/// location; symmetrically for B's vertices. So `m` is the largest
-/// separation of the two carriers anywhere on the pair's own boundary.
-/// Each term is affine in `p`, so its supremum over a trim region is
-/// attained at a vertex: `m` is EXACT over the region, not a
-/// small-angle bound.
+/// A point of face A lies on A's carrier, so its A-term is zero to the
+/// cover and its B-term is the two carriers' SEPARATION at that
+/// location; symmetrically for B's. So `m` bounds the largest
+/// separation of the two carriers anywhere on the pair's own region.
+/// Each term is affine in `p`, so its supremum over a face is its
+/// cover's support: exact where the face's edges are segments and conic
+/// arcs, not a small-angle bound.
 ///
 /// **The lever is the pair's own extent, per vertex.** Door 1 reads
 /// the same disagreement as one displacement over a ball enclosing both
@@ -1222,9 +1235,9 @@ fn face_boundary_points<T: Decide>(
 /// a millimetre across a table get different answers.
 ///
 /// **The margin is symmetric BY CONSTRUCTION** (the argument-order
-/// obligation): the vertex set is a UNION and both plane-distance
-/// functions are evaluated at every vertex, so swapping `(A, B)` for
-/// `(B, A)` permutes a `max` over an unchanged multiset of `f64`s.
+/// obligation): both faces' covers are read along both normals, so
+/// swapping `(A, B)` for `(B, A)` permutes a `max` over an unchanged
+/// multiset of `f64`s.
 /// `T::max` is associative-commutative on point brackets, so the
 /// margin is bit-identical in both orders — no appeal to the lemma's
 /// ε framing is needed for THIS row.
@@ -1260,10 +1273,10 @@ fn carrier_agreement<T: Decide + Bounds>(
     let (o_b, n_b) = plane_frame(body_b, face_b)?;
     let mut worst = T::zero();
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
-        for p in face_boundary_points(body, face)? {
-            worst = worst
-                .max((p - o_a).dot(n_a).abs())
-                .max((p - o_b).dot(n_b).abs());
+        for (o, n) in [(o_a, n_a), (o_b, n_b)] {
+            let (lo, hi) = pair_cover(body, face, band)?.range_along(n);
+            let base = (o - geom_core::Point3::origin()).dot(n);
+            worst = worst.max((lo - base).abs()).max((hi - base).abs());
         }
     }
     match decide_magnitude("chart_region_carrier_tilt", Margin::of(worst), band) {
@@ -1343,13 +1356,12 @@ fn cyl_frame<T: Decide>(
 /// - `chart_region_cyl_radius` — `r_a − r_b`, metres at unit arm (a
 ///   length is not re-levered; enters `E` at weight one).
 /// - `chart_region_cyl_tilt` — `‖â_a × â_b‖` levered by `hyp`.
-///   `reach` is the largest |axial coordinate| of any boundary vertex
-///   of either face about either description's own origin, and
+///   `reach` is the largest |axial coordinate| of either face's cover
+///   about either description's own origin ([`pair_cover`]), and
 ///   `r_max = max(r_a, r_b)` (both union-maxes over order-symmetric
 ///   multisets — the `chart_region_carrier_tilt` construction). `hyp`
-///   over-states `‖p − o_b‖` for every trim point (|v| ≤ reach on the
-///   boundary, and a straight-chart-edge region attains its v-extremes
-///   on the boundary), which widens toward decline — the conservative
+///   over-states `‖p − o_b‖` for every trim point (|v| ≤ reach over the
+///   face's cover), which widens toward decline — the conservative
 ///   direction; the second-order remainder rides the module's standing
 ///   small-multiple posture.
 /// - `chart_region_cyl_offset` — the larger of the two perpendicular
@@ -1516,17 +1528,20 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     let gate_band = premise.band(band);
 
     // --- The carrier gates, at the pair's own extent (doc above).
-    //     `reach` is the axial reach (largest |axial coordinate| of a
-    //     boundary vertex about either origin, both faces — union-max
-    //     over an order-symmetric multiset); `hyp` is the TRANSFER
+    //     `reach` is the axial reach (largest |axial coordinate| of
+    //     either face's cover about either origin, a union-max over an
+    //     order-symmetric set); `hyp` is the TRANSFER
     //     lever `√(reach² + r_max²)`: every point p of either trim
     //     satisfies ‖p − o‖² = v² + r² ≤ reach² + r_max², so a rigid
     //     rotation by θ between the two descriptions displaces trim
     //     points by at most sin θ · hyp — the radius is priced.
     let mut reach = T::zero();
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
-        for p in face_boundary_points(body, face)? {
-            reach = reach.max(a.height(p).abs()).max(b.height(p).abs());
+        let cover = pair_cover(body, face, band)?;
+        for frame in [a, b] {
+            let (lo, hi) = cover.range_along(frame.axis);
+            let base = (frame.origin - geom_core::Point3::origin()).dot(frame.axis);
+            reach = reach.max((lo - base).abs()).max((hi - base).abs());
         }
     }
     let r_max = a_radius.max(b_radius);

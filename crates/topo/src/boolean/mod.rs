@@ -168,7 +168,7 @@ use crate::coincidence::{Cited, Cites};
 use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
-use crate::live::{BoundaryMember, Proven};
+use crate::live::Proven;
 use crate::merge_faces::MergeCoplanarError;
 #[cfg(feature = "sweep-testing")]
 use crate::sweep_trace::SweepPairs;
@@ -7059,7 +7059,6 @@ fn given_verdicts<T: Decide>(
 ) -> Result<VerifiedGlue<T>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
     let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
-    let pad = witness_pad::<T>(band);
     let mut verified = VerifiedGlue::default();
     for &GluedPair {
         a: fa,
@@ -7074,7 +7073,7 @@ fn given_verdicts<T: Decide>(
                 let kinds = (kind(a, fa), kind(b, fb));
                 let given = given.ok_or(invariant("a given pair carries no decision"))?;
                 if let Some(line) = given.line {
-                    let (_, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
+                    let (_, overlap) = witness_span(a, fa, b, fb, &line, band)?;
                     if locus_through_both_faces(
                         [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
                         &geom::Curve3::Line(line),
@@ -7308,7 +7307,7 @@ fn tangent_line<T: Decide>(
     };
     match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
         Ok(geom_brep::TangentLocus::Line { line, gap }) => {
-            let (span, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
+            let (span, overlap) = witness_span(a, fa, b, fb, &line, band)?;
             Ok(Ok(TangentLine {
                 carrier: geom::Curve3::Line(line),
                 span,
@@ -7790,14 +7789,11 @@ fn witness_pad<T: Real>(band: Band) -> T {
 /// The parameter spans of the line `origin + t·dir` (`dir` unit) the
 /// two faces reach along it: their union, the extent a witness along
 /// it is metered over, and their overlap, where both faces' extents
-/// meet ([`locus_through_both_faces`]). Each face's span holds every
-/// point of the face: its boundary vertices' projections and, for a
-/// circle or ellipse edge, its carrier's whole reach along the line
-/// (an arc can bulge past its ends); a face with an edge of another
-/// kind spans its box along the line, padded by `pad`
-/// ([`crate::census::face_reach_in`]). So extents meeting at one point
-/// meet at an end of each, where no interiors meet.
-#[allow(clippy::type_complexity)]
+/// meet ([`locus_through_both_faces`]). Each face's span is its cover's
+/// range along the line ([`crate::cover::face_cover`],
+/// [`geom::cover::Cover::range_along`]), which holds every point of the
+/// face. So extents meeting at one point meet at an end of each, where
+/// no interiors meet.
 fn witness_span<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -7805,92 +7801,22 @@ fn witness_span<T: Decide>(
     fb: FaceKey,
     line: &geom::Line<T>,
     band: Band,
-    pad: T,
 ) -> Result<((T, T), (T, T)), BooleanError> {
-    let along = |p: Point3<T>| line.param(p);
+    let at = line.param(Point3::origin());
     let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
         let invalid = |what| BooleanError::InvalidInput { operand, what };
-        let mut ts: Vec<T> = face_boundary_points(body, f, operand)?
-            .into_iter()
-            .map(along)
-            .collect();
-        match conic_reach(body, f, along, line.dir) {
-            Some(extra) => ts.extend(extra),
-            None => {
-                let aim = geom_core::UnitVec3::new(line.dir, "bool_tangent_line_aim", band)
-                    .map_err(|_| invalid("the tangent line has no direction"))?;
-                let (lo, hi) =
-                    crate::census::face_reach_in(body, f, band, &geom::cover::BoxAxes::aimed(aim))
-                        .ok_or(invalid(
-                            "a face of the pair has no reach along its tangent line",
-                        ))?;
-                let at = along(Point3::origin());
-                ts.extend([lo.x + at - pad, hi.x + at + pad]);
-            }
-        }
-        let mut ts = ts.into_iter();
-        let first = ts.next().ok_or(invalid(
-            "declared face pair has no boundary vertex to meter the tangent witness",
-        ))?;
-        Ok(ts.fold((first, first), |(lo, hi), t| (t.min(lo), t.max(hi))))
+        body.passed_face(f)
+            .ok_or(invalid("declared face's boundary is unwalkable"))?;
+        let cover = crate::cover::face_cover(body, f, band)
+            .map_err(|_| invalid("a face of the pair has no cover to meter the tangent witness"))?;
+        let (lo, hi) = cover.range_along(line.dir / line.dir.norm_squared());
+        Ok((lo + at, hi + at))
     };
     let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);
     Ok((
         (sa.0.min(sb.0), sa.1.max(sb.1)),
         (sa.0.max(sb.0), sa.1.min(sb.1)),
     ))
-}
-
-/// The reach along `dir` (unit; `along` the parameter of a point) of
-/// each circle and ellipse edge of `f`'s boundary, its carrier's two
-/// extremes; `None` where an edge is neither one nor a line, or `f`
-/// does not resolve. Every hop past the face is a link
-/// ([`crate::live::FaceView::boundary_by_loop`]).
-fn conic_reach<T: Decide>(
-    body: &Body<T>,
-    f: FaceKey,
-    along: impl Fn(Point3<T>) -> T,
-    dir: geom_core::Vec3<T>,
-) -> Option<Vec<T>> {
-    let face = body.passed_face(f)?;
-    let mut out = Vec::new();
-    for (_, members, _) in face.boundary_by_loop() {
-        for member in members {
-            let BoundaryMember::Edge { ek, edge, .. } = member else {
-                continue;
-            };
-            let (center, reach) = match *body.edge_curve_linked(ek, edge).certified()?.carrier() {
-                geom::Curve3::Line(_) => continue,
-                geom::Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
-                    radius,
-                }) => (center, radius * axis.cross(dir).norm()),
-                geom::Curve3::Ellipse(geom::Ellipse {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
-                    semi_u,
-                    semi_v,
-                }) => (
-                    center,
-                    ((semi_u * u_ref.dot(dir)).powi(2)
-                        + (semi_v * axis.cross(u_ref).dot(dir)).powi(2))
-                    .sqrt(),
-                ),
-                _ => return None,
-            };
-            out.extend([along(center) - reach, along(center) + reach]);
-        }
-    }
-    Some(out)
 }
 
 /// Whether two faces' extents along their tangent line meet along a
@@ -8187,26 +8113,6 @@ fn boundary_cuts<T: Decide>(
         Some(fault) => Err(FaceUnread::Boundary(fault)),
         None => Ok(located),
     }
-}
-
-/// The face's boundary vertex positions (outer loop then rings, cycle
-/// order; an empty loop contributes its lone vertex) — the witness-
-/// extent datum of `verify_tangent_declaration`. The face is the
-/// caller's declaration, so its miss is the operand's refusal; every hop
-/// past it is a link ([`crate::live::FaceView::boundary`]).
-fn face_boundary_points<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    operand: Operand,
-) -> Result<Vec<Point3<T>>, BooleanError> {
-    let bad = || BooleanError::InvalidInput {
-        operand,
-        what: "declared face's boundary is unwalkable",
-    };
-    let f = body.passed_face(face).ok_or_else(bad)?;
-    Ok(f.boundary()
-        .map(|member| body.member_point(&member))
-        .collect())
 }
 
 fn validate_declarations<T: Decide>(

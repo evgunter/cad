@@ -18,7 +18,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 use crate::live::{BoundaryMember, FaceView, linked, proven};
 
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
@@ -234,7 +234,9 @@ pub(crate) fn hull_of_covers<T: Real>(
 /// proves, one arm per kind, each constraint a stage of that one rule.
 ///
 /// - **Plane**: the convex hull of its boundary (each edge's cover,
-///   [`edge_cover`], and each isolated vertex).
+///   [`edge_cover`], and each isolated vertex). A ruled face (a plane, a
+///   cylinder, a cone) whose outer loop is a lone vertex has no bounding
+///   loop, and keeps its carrier's refusal.
 /// - **Cylinder**: the boundary's convex hull. The carrier is ruled
 ///   along its axis, so the ruling through any point of the face leaves
 ///   it at the boundary both ways; that needs only that the axis be a
@@ -312,7 +314,13 @@ fn face_cover_in<T: Decide>(
     let f = body.proven_face(face);
     let surface = f.surface();
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
+    // A lone-vertex outer loop bounds nothing: a ruled face holds no
+    // hull of it.
+    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
     match surface {
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
+            carrier
+        }
         Surface::Plane { .. } => and_trim(carrier, boundary_cover(body, f).map(Cover::convex)),
         Surface::Cylinder { axis, .. } => {
             if !crate::validate::is_direction(axis) {
@@ -367,6 +375,92 @@ fn face_cover_in<T: Decide>(
         // form reads a ring torus.
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => carrier,
     }
+}
+
+/// **The farthest `face` stands from `at`**: its cover's far distance
+/// ([`face_cover`], [`Cover::distance_range`]), as a lever. It holds what
+/// bulges past the boundary (a sphere's far side, a cone's apex), and
+/// reads no null scaffolding as a bound.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_reach_from<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    band: Band,
+) -> Result<geom_core::Lever<T>, FaceUncovered> {
+    let cover = face_cover(body, face, band)?;
+    Ok(geom_brep::ExtentBall::of_cover_from(Some(&cover), at).lever())
+}
+
+/// **How far `face` reaches from `at` along `axis`**: bounds `(lo, hi)`
+/// on `(x − at)·axis` over the face, its cover's range along `axis`
+/// ([`Cover::range_along`]) read from `at`.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_range_along<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<(T, T), FaceUncovered> {
+    let (lo, hi) = face_cover(body, face, band)?.range_along(axis);
+    let base = (at - Point3::origin()).dot(axis);
+    Ok((lo - base, hi - base))
+}
+
+/// **How far `face` reaches from `at` either way along `axis`**:
+/// `(below, above)`, the farthest `−(x − at)·axis` and `(x − at)·axis`
+/// over the face ([`face_range_along`]), each at least zero, `at` being a
+/// point the reading is consumed from. They lever a tilt of `axis` read
+/// at `at`'s foot on it.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_axial_range<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<(T, T), FaceUncovered> {
+    let (lo, hi) = face_range_along(body, face, at, axis, band)?;
+    Ok(((T::zero() - lo).max(T::zero()), hi.max(T::zero())))
+}
+
+/// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),
+/// measured from `at` against `cone`'s axis: its window along the axis
+/// from the apex ([`face_range_along`]), narrowed to `within` where the
+/// consumed region lies in a second face too (that face's window, read
+/// the same way), and [`face_reach_from`] `at` as its lever.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn cone_face_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    (cone, within): (&Surface<T>, Option<(T, T)>),
+    band: Band,
+) -> Result<geom_brep::Reach<T>, FaceUncovered> {
+    let &Surface::Cone { apex, axis, .. } = cone else {
+        unreachable!("the plane×cone arm's reach is asked of a cone")
+    };
+    let (lo, hi) = face_range_along(body, face, apex, axis, band)?;
+    let (lo, hi) = within.map_or((lo, hi), |(from, to)| (lo.max(from), hi.min(to)));
+    let at_axis = (at - apex).dot(axis);
+    Ok(geom_brep::Reach::of_face(
+        at,
+        (at_axis - lo, hi - at_axis),
+        face_reach_from(body, face, at, band)?,
+    ))
 }
 
 /// **Whether a face on `cone` may hold its apex**: unless every loop is
@@ -590,7 +684,7 @@ fn sphere_window<T: Decide>(
             SPHERE_SEAM,
             Margin::levered(
                 seam.get().dot(unit.get()),
-                geom_brep::ExtentBall::of_sphere(*center, *radius).lever(),
+                geom_brep::ExtentBall::of_covered(&surface.cover()).lever(),
             ),
             band,
         );

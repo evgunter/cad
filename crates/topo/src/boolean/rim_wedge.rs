@@ -1087,7 +1087,8 @@ pub(crate) fn classify_shared_rim<T: Decide>(
 /// circle's reach from its centre.
 #[cfg(test)]
 fn rim_diameter(rim: Rim<f64>) -> geom_core::Lever<f64> {
-    geom_brep::ExtentBall::of_circle(rim.center, rim.radius).twice_lever_from(rim.center)
+    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    geom_brep::ExtentBall::of_covered(&circle.cover()).twice_lever_from(rim.center)
 }
 
 #[cfg(test)]

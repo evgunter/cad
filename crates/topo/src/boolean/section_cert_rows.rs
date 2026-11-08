@@ -88,11 +88,11 @@ pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
         g,
-        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(
             p(0.0, 0.0, 0.0),
             LEVER / 2.0,
         )),
-        Some(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), LEVER)),
+        Some(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), LEVER)),
         Some(geom_brep::SsiLane::marched()),
         band(),
     )
@@ -103,7 +103,7 @@ fn unmarched(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
         g,
-        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(
             p(0.0, 0.0, 0.0),
             LEVER / 2.0,
         )),
@@ -425,7 +425,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
     let unmarched = super::classify(
         &donut(),
         &rod,
-        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(
             p(0.0, 0.0, 0.0),
             LEVER / 2.0,
         )),
@@ -747,8 +747,8 @@ fn a_cylinder_pair_the_region_cuts_counts_two_unbounded_arcs() {
     let s = super::classify(
         &a,
         &b,
-        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.5)),
-        Some(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.5)),
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), 1.5)),
+        Some(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), 1.5)),
         Some(geom_brep::SsiLane::marched()),
         band(),
     );
@@ -3210,7 +3210,7 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
                 let x = tor.at(u, PI / 2.0 - t);
                 let pl = Partner::Plane(x, tor.normal(u, PI / 2.0 - t));
                 let reach =
-                    geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(tor.c, 5.0 * scale));
+                    geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(tor.c, 5.0 * scale));
                 let label = format!("×{scale:e}, axis {axis:?}, u {u}, t {t:e}");
                 match super::classify(
                     &tor.surface(),
@@ -3258,7 +3258,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
     for scale in [1e-3, 1.0, 1e3] {
         let rc = scale;
         let base = Point3::origin() + v(0.3, -0.2, 0.1) * scale;
-        let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(base, 2.0 * scale));
+        let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(base, 2.0 * scale));
         let (mut touches, mut poses) = (0, 0);
         for i in 0..16 {
             let z = 1.0 - (f64::from(i) + 0.5) / 8.0;
@@ -3398,10 +3398,8 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                     }
                 }
             }
-            let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
-                t.c,
-                2.0 * (t.big_r + t.r),
-            ));
+            let reach =
+                geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(t.c, 2.0 * (t.big_r + t.r)));
             for partner in partners {
                 for section in [
                     super::classify(
