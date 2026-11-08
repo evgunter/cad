@@ -37,7 +37,7 @@ boolean-names-splitting    72  boolean/contain.rs
 boolean-names-splitting    17  boolean/fate.rs
 boolean-names-splitting     7  boolean/finish.rs
 boolean-names-splitting    21  boolean/insert.rs
-boolean-names-splitting    16  boolean/join.rs
+boolean-names-splitting     6  boolean/join.rs
 boolean-names-splitting     1  boolean/join_walk_order_rows.rs
 boolean-names-splitting     6  boolean/mod.rs
 boolean-names-splitting    16  boolean/ops.rs
@@ -47,7 +47,7 @@ boolean-names-splitting    17  boolean/region.rs
 boolean-names-splitting     1  boolean/rim_wedge.rs
 boolean-names-splitting     3  boolean/ruled_region.rs
 boolean-names-splitting    18  boolean/sectors.rs
-boolean-names-splitting    36  boolean/solid_contain.rs
+boolean-names-splitting    33  boolean/solid_contain.rs
 boolean-names-splitting     6  boolean/sphere_region.rs
 boolean-names-splitting     3  boolean/spline_region.rs
 boolean-names-splitting    22  boolean/torus_region.rs
@@ -88,7 +88,7 @@ crate-visible               3  boolean/torus_region.rs
 crate-visible               2  boolean/voids.rs
 crate-visible               4  boolean/vtxfac.rs
 crate-visible               5  boolean/zip.rs
-crate-visible              51  splitting/containment.rs
+crate-visible              50  splitting/containment.rs
 crate-visible              11  splitting/finish.rs
 crate-visible               8  splitting/join.rs
 crate-visible              17  splitting/mod.rs
@@ -96,7 +96,7 @@ crate-visible               5  splitting/neighborhood.rs
 crate-visible               3  splitting/order.rs
 crate-visible              17  splitting/pieced_arc.rs
 crate-visible               2  splitting/reassembly.rs
-crate-visible               9  splitting/rules.rs
+crate-visible               3  splitting/rules.rs
 crate-visible              10  splitting/spiric_arc.rs
 crate-visible               3  splitting/spline_arc.rs
 
@@ -174,13 +174,12 @@ names-boolean               2  turn_rows.rs
 names-boolean              81  validate.rs
 
 names-splitting            10  cell_region.rs
-names-splitting            56  census.rs
+names-splitting            55  census.rs
 names-splitting             1  census/self_touch.rs
-names-splitting            42  chord_join.rs
+names-splitting            31  chord_join.rs
 names-splitting             7  chord_join/sibling_escalation_rows.rs
 names-splitting            11  lib.rs
 names-splitting             1  lineage.rs
-names-splitting             1  link.rs
 names-splitting             3  offset_together.rs
 names-splitting             6  props.rs
 names-splitting            10  review_d18.rs

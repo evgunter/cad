@@ -148,7 +148,6 @@ REGISTER=(
   "crates/sweep/src/blend/build.rs|face_cycle||1|unaudited"
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
   "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
-  "crates/topo/src/boolean/mod.rs|conic_reach||1|audited: a lone-vertex loop has no edge to bulge, and its vertex is in the span already — witness_span projects every loop's points through face_boundary_points, which reads the Empty arm by name"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/join.rs|region_halves||1|unaudited"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { return|1|audited: the discarded variant is refused by name — a lone-vertex loop on the face a cut crosses returns FallbackExtentUnsupported naming that face, so no boundary hit of the meridian goes unread"

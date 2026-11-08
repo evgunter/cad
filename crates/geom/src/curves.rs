@@ -1155,9 +1155,9 @@ impl<T: Decide> Curve3<T> {
         match decide(
             "spiric_frame_orthogonal",
             // The torus's ball, `R + r` about its centre: the bounded
-            // carrier this curve lies on. `geom` sits below `geom_brep`,
-            // so the extent home's `ExtentBall::of_torus` is out of reach
-            // here; this is its one other spelling.
+            // carrier this curve lies on, its tube's (`Cover::tube`) for a
+            // unit frame. `geom` sits below `geom_brep`, so the extent
+            // home's `ExtentBall::of_cover` is out of reach here.
             Margin::levered(
                 axis.dot(u_ref),
                 geom_core::Lever::of_consumed_extent(major_radius + minor_radius),

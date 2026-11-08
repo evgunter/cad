@@ -672,9 +672,10 @@ fn aimed_ray<T: Decide>(
     let (turn_sin, turn_cos) = aim_turn();
     let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
     let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
-    let from = aim + out * (selection_reach(body, faces, aim, band)?.length() * T::from_f64(2.0));
+    let reach_from = |p| selection_reach(body, faces, p, band);
+    let from = aim + out * (reach_from(aim)?.length() * T::from_f64(2.0));
     let d = (aim - from).normalize();
-    let reach = selection_reach(body, faces, from, band)?;
+    let reach = reach_from(from)?;
     let crossings = match ray_crossings(body, geos, from, d, reach, band, AIMED_ROWS) {
         Ok(crossings) => crossings,
         Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {

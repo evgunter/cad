@@ -1556,7 +1556,7 @@ fn section_loop<T: Decide>(
 pub(crate) enum SectionReach<T: Real> {
     /// A cone wall's face, as the plane×cone arm reads it.
     Cone(geom_brep::Reach<T>),
-    /// A cylinder wall's face, as [`agreed_section`] reads it.
+    /// A cylinder wall's face, as [`wall_face_section`] reads it.
     Cylinder(WallReach<T>),
     /// A torus wall's face, or a plane face against a torus: the
     /// divided face's farthest distance from the chord's site, which the
@@ -2585,10 +2585,8 @@ pub(crate) fn cone_apex_plane_section<T: Decide>(
 /// the face ([`chord_spec`]) and the split's pairing of the face's
 /// crossings along it (`splitting::join`) — so the two cannot read
 /// different conics. It is lane-neutral: the pair is the face and a
-/// plane, and nothing here knows which lane asks. So a cylinder wall is
-/// read as the most guarded lane needs it, the Boolean's germ join on the
-/// declared-tangency path: served only where the face's reach over its
-/// edges' spans and round their whole turn agree ([`agreed_section`]).
+/// plane, and nothing here knows which lane asks; a cylinder wall is
+/// read over its face's cover ([`wall_face_section`]).
 ///
 /// # Errors
 ///

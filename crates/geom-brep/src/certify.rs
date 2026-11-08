@@ -2189,7 +2189,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
     /// use geom_core::{Band, Dual64, Point3, Real};
     /// fn at<T: geom_core::Decide>(spec: EdgeCurveSpec<T>, p: Point3<T>, band: Band, lane: NurbsLane<T>) {
-    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::of_sphere(p, T::from_f64(1.0)).lever(), band, lane);
+    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::point(p).lever(), band, lane);
     /// }
     /// ```
     ///
@@ -2206,7 +2206,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///     band: Band,
     ///     lane: NurbsLane<T>,
     /// ) {
-    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::of_sphere(p, T::from_f64(1.0)).lever(), band, lane);
+    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::point(p).lever(), band, lane);
     /// }
     /// ```
     ///
@@ -2496,7 +2496,7 @@ pub struct StatedImage<T: Real> {
 ///     };
 ///     let _ = forged;
 ///     let lane = NurbsLane::certified();
-///     let arm = geom_brep::ExtentBall::of_sphere(ends.0, 1.0).lever();
+///     let arm = geom_brep::ExtentBall::point(ends.0).lever_from(ends.1);
 ///     let _ = EdgeCurve::certify(spec, ends.0, ends.1, surfaces, arm, band, lane);
 /// }
 /// ```
