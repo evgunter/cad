@@ -1385,6 +1385,18 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // entity's key (`splitting::finish`'s `carve`), so those
         // names still hold on `a2` and `b2`.
         let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
+        // The re-entry's operands are not finished (the cut-ins leave
+        // joinable vertices), but they hold tiers 1 and 2: carved, turned,
+        // grafted and cut from finished operands by operators that each
+        // keep both. A finding here is a kernel defect.
+        for (what, body) in [("A", &a2), ("B", &b2)] {
+            debug_assert_eq!(
+                crate::validate_closed(body),
+                Ok(()),
+                "re-cut operand {what} fails tier 1 or 2, though every operator that made it \
+                 keeps both on a finished operand (kernel bug)"
+            );
+        }
         let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
         if let BooleanResult::Body(out) = &mut result {
             // A row names the cells of the op's inputs, not of the

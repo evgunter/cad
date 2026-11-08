@@ -1420,8 +1420,8 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     else {
         panic!("the box re-imports as a solid, not a wireframe");
     };
-    named::<CertifiedBody>(body.clone());
-    named::<&Body<f64>>(body.body());
+    named::<AtRestBody<f64>>(body.clone());
+    named::<&Body<f64>>(&*body);
     let measured: pncad::topo::MassMeasurement<f64> = body
         .measure(pinned_resolution(Tol::witness()))
         .expect("a box measures through its certificate");
@@ -1461,13 +1461,8 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
-    let again = mass_properties(
-        &pncad::topo::finish(pncad::topo::Body::clone(body.body()), Tol::witness())
-            .expect("the measured body passes tier 3"),
-        Tol::witness(),
-        pinned_resolution(Tol::witness()),
-    )
-    .expect("imported mass properties");
+    let again = mass_properties(&body, Tol::witness(), pinned_resolution(Tol::witness()))
+        .expect("imported mass properties");
     assert_eq!(enclosure.volume.to_bits(), again.enclosure.volume.to_bits());
     assert_eq!(
         enclosure.surface_area.to_bits(),
@@ -2568,15 +2563,10 @@ fn the_export_door_serves_the_one_shot_journey() {
         .expect("the export re-imports");
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
-            let v = mass_properties(
-                &pncad::topo::finish(pncad::topo::Body::clone(body.body()), Tol::witness())
-                    .expect("the measured body passes tier 3"),
-                Tol::witness(),
-                pinned_resolution(Tol::witness()),
-            )
-            .expect("imported mass properties")
-            .enclosure
-            .volume;
+            let v = mass_properties(&body, Tol::witness(), pinned_resolution(Tol::witness()))
+                .expect("imported mass properties")
+                .enclosure
+                .volume;
             assert!((v - 6.0).abs() < 1e-9, "imported volume {v} differs");
         }
         other => panic!("expected a solid import, got {other:?}"),
@@ -2637,16 +2627,11 @@ fn the_document_export_door_ships_the_multi_solid_product() {
         .expect("the export re-imports");
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
-            assert_eq!(body.body().solids().count(), 2, "two disjoint solids ship");
-            let v = mass_properties(
-                &pncad::topo::finish(pncad::topo::Body::clone(body.body()), Tol::witness())
-                    .expect("the measured body passes tier 3"),
-                Tol::witness(),
-                pinned_resolution(Tol::witness()),
-            )
-            .expect("imported mass properties")
-            .enclosure
-            .volume;
+            assert_eq!(body.solids().count(), 2, "two disjoint solids ship");
+            let v = mass_properties(&body, Tol::witness(), pinned_resolution(Tol::witness()))
+                .expect("imported mass properties")
+                .enclosure
+                .volume;
             assert!(
                 (v - (2.0 * 2.0 * 1.5 + 1.0)).abs() < 1e-9,
                 "imported volume {v} is not the parts' sum"

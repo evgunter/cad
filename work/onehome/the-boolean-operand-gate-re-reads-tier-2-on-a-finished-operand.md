@@ -2,11 +2,13 @@
 id: the-boolean-operand-gate-re-reads-tier-2-on-a-finished-operand
 kind: issue
 title: The Boolean's operand gate re-reads tier 2 (ScaffoldingOperand) on operands the scalar's finish already passed
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: E
 branch: onehome/finished-tail
+closed: 2026-11-08
+pr: 6584
 ---
 
 
