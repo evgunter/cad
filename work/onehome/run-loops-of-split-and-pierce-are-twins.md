@@ -2,10 +2,11 @@
 id: run-loops-of-split-and-pierce-are-twins
 kind: issue
 title: splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home?
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: M
+branch: onehome/star-walk
 ---
 
 
