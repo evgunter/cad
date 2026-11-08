@@ -329,3 +329,13 @@ Newest entries at the bottom; the tail is the program's live status.
   - **The question now offers:** (a) keep the per-placement re-point; (b) a named body variable the re-point redefines, which goes to designers as a follow-up. The use-difference both reviewers named is stated: a later Place still reads `B`.
   - **Fix pass on the union dispatched** to the implementer.
   - **Class:** a statement of fact made to Ev on an `[ev]` PR ("we already have X") was checked against neither the code nor the rule's exemptions, and Ev ruled on it. A factual premise given to Ev is measured in the code first, like an "unchanged" claim. (PLACING orchestrator)
+- 2026-11-08 — **PR 6581's fix pass is in**, green at `4103fdbc04`. All eleven items are reported fixed:
+  - one placement list now serves both the offer and the button;
+  - `rebinds` shares the names-layer walk;
+  - one member census, `sole_whole`; a member is handed over or refused typed (`Refusal::Unspliced`), never widened to its family;
+  - the sketch on a copy says so;
+  - the split case is restored;
+  - `original_of` reaches the body.
+
+  Filed: `a-declined-re-point-offer-stays-as-a-button` (P2, design). The netting row stays filed, with no witness.
+  - **A targeted re-check review** (Opus, outside the pair, as on 6300) was dispatched on the fix pass. The pass carried three MAJORs into kernel logic and adds a new refusal. (PLACING orchestrator)
