@@ -23,8 +23,8 @@
 
 use pncad::document::AuthoredNode;
 use pncad::document::{
-    Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand, ProfileProgram, RecipeNodeId,
-    Said, Say, Speaker, SpokenNode, held_by,
+    Doc, Evaluation, Formula, HeldNodes, Node, Operand, ProfileProgram, RecipeNodeId, Said, Say,
+    Speaker, SpokenNode,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
@@ -34,7 +34,6 @@ use pncad::topo::BooleanOp;
 use crate::seats::{
     FaceRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
 };
-use crate::session::refuse::one_body;
 use crate::session::{
     BooleanSpec, ClearedSeat, FaceSelection, PartSelectSpec, PatternDirection, PatternRuleSpec,
     SessionOp,
@@ -1237,145 +1236,31 @@ impl PartTool {
     }
 }
 
-/// **The duplicate tool**: one body pick, committing one
-/// [`SessionOp::Duplicate`].
-///
-/// One seat and no fields: the step after duplicating is to MOVE the
-/// copy away, so a form asking where the copy should go first would be
-/// the pattern form again under another name. Where the copy lands is
-/// [`duplicate_step`]'s rule — along [`STEP_DIRECTION`], clear of the
-/// original by at least [`DUPLICATE_GAP`] of its own width — and the
-/// step lands in the translation slots of the transform the gesture
-/// authors, editable in the property panel the moment the edit lands.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DuplicateTool {
-    seats: Seats,
-    /// The drawn copy the pick landed on, when it landed on one: the
-    /// copy the duplicate is placed beside.
-    beside: Option<RecipeNodeId>,
-}
-
-impl Default for DuplicateTool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl DuplicateTool {
-    /// A tool holding nothing.
-    pub const fn new() -> Self {
-        Self {
-            seats: Seats::one(Seat::DuplicateBody),
-            beside: None,
-        }
-    }
-
-    /// The seats, roles and picks together — what the panel's line is
-    /// composed from ([`crate::seats::seat_line`]).
-    pub fn seats(&self) -> &Seats {
-        &self.seats
-    }
-
-    /// The held body.
-    pub fn input(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
-    }
-
-    /// Feed one node pick — a second pick REPLACES the first, this
-    /// tool having only the one seat. `doc` routes it, and does not
-    /// judge it.
-    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.pick_at(doc, node, None);
-    }
-
-    /// [`Self::pick`] of the output `body` a viewport pick hit. A pick
-    /// on a drawn copy also holds that copy, which the duplicate is
-    /// placed beside.
-    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
-        self.seats.pick_at(doc, node, body);
-        self.beside = crate::world::placed_var(doc, node).map(|_| node);
-    }
-
-    /// The drawn copy the held pick landed on, if it landed on one.
-    pub fn beside(&self) -> Option<RecipeNodeId> {
-        self.beside
-    }
-
-    /// The half seat `i` reads, when it holds a split picked alone
-    /// ([`Seats::choose_half`]).
-    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.seats.choose_half(i, half);
-    }
-
-    /// Empty the seat.
-    pub fn clear(&mut self) {
-        self.seats.clear();
-        self.beside = None;
-    }
-
-    /// The survival step ([`crate::seats`]). The held copy survives
-    /// while it is still a drawn copy of the held body; otherwise the
-    /// duplicate is placed as a pick of the body places it
-    /// ([`SessionOp::Duplicate`]).
-    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        let events = self.seats.reconcile(doc);
-        let held = self.seats.read(0);
-        self.beside = self.beside.filter(|copy| {
-            held.as_ref()
-                .is_some_and(|read| crate::world::placements_of_read(doc, read).contains(copy))
-        });
-        events
-    }
-
-    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
-    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.seats.respeak(doc);
-    }
-
-    /// **The one committed edit**.
-    ///
-    /// # Errors
-    ///
-    /// [`SeatError::Empty`] until a body is picked.
-    pub fn op(&self) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::Duplicate {
-            input: self.seats.require_read(0)?,
-            beside: self.beside,
-        })
-    }
-}
-
-/// **Which way a stepped copy goes by default**: +x of the space the
-/// body is in, unnormalized as every direction slot in this vocabulary
-/// is. A duplicate is placed at its original copy's pose, so it lands
-/// along that copy's own +x.
-///
-/// The direction the duplicate tool steps its copy along. The pattern
-/// form names its direction as one of the space's axes or a pick
-/// (`Drafts::pattern_along`), never as components.
+/// **Which way an inserted part is stepped clear of what is drawn**: +x
+/// of the space it is drawn against
+/// ([`crate::pickindex::clear_of_drawn`]).
 pub const STEP_DIRECTION: [f64; 3] = [1.0, 0.0, 0.0];
 
-/// **How much clear space a duplicate leaves AT LEAST**, as a fraction
-/// of the body's own width along [`STEP_DIRECTION`]: the copy's near
-/// side lands at least this far past the original's far side, and
-/// further for a body thin along the step ([`duplicate_step`] says
-/// why).
+/// **How much clear space a step clear leaves AT LEAST**, as a fraction
+/// of the stepped body's own width along [`STEP_DIRECTION`]: its near
+/// side lands at least this far past the far side of what it clears,
+/// and further for a body thin along the step ([`clearance`] says why).
 ///
 /// A fraction rather than a length, so the gap scales with the part —
 /// a millimetre gap beside a metre-long beam is invisible, and beside
 /// a millimetre pin it is the whole view.
-pub const DUPLICATE_GAP: f64 = 0.25;
+pub const CLEARANCE_GAP: f64 = 0.25;
 
-/// The measuring tessellation's chord, as a fraction of the body's
+/// The measuring tessellation's chord, as a fraction of the measured
 /// FLOOR-mesh extent (`crate::scene::SCALE_PROBE_DELTA`'s mesh).
 ///
 /// Fine enough that the conservative inflation it costs — twice the
-/// chord, on the width — stays well under [`DUPLICATE_GAP`] for a body
+/// chord, on the width — stays well under [`CLEARANCE_GAP`] for a body
 /// about as wide along the step as it is across; coarse enough that
-/// measuring a body is one cheap tessellation rather than a picture's
-/// worth. For a body thin along the step the inflation is NOT small
-/// against the width, and the copy lands further off than the gap
-/// alone would put it ([`duplicate_step`]).
+/// measuring is one cheap tessellation rather than a picture's worth.
+/// For a body thin along the step the inflation is NOT small against
+/// the width, and the step lands further off than the gap alone would
+/// put it ([`clearance`]).
 ///
 /// Public for [`crate::scene::SCALE_PROBE_DELTA`]'s reason: a row that
 /// asserts a landed step against a body's closed form has to run the
@@ -1383,218 +1268,13 @@ pub const DUPLICATE_GAP: f64 = 0.25;
 /// without the build noticing.
 pub const MEASURE_CHORD: f64 = 1.0 / 64.0;
 
-/// **Why a duplicate could not be placed** — every way the landed body
-/// can fail to be one thing with a width.
-#[derive(Debug)]
-pub enum DuplicateFault {
-    /// Nothing has landed, so there is no body to measure yet.
-    NotLanded,
-    /// The picture on screen answers an OLDER document than the one
-    /// the duplicate would be committed to — an edit has not landed
-    /// yet ([`crate::session::DocSession::busy`]). The landed value of
-    /// an edited node is its value BEFORE the edit, so a step measured
-    /// off it could be the old width, and after a document replacement
-    /// the same id may name a different node altogether (issue #1384).
-    Stale,
-    /// The picture on screen — which answers the current document —
-    /// holds no value for the input, and the input's standing, as the
-    /// feature tree draws it ([`crate::tree::standing_as_drawn`]), says
-    /// why and where the repair is.
-    ///
-    /// Its `through` may be a mate, which is not the DAG ancestor
-    /// `NodeStanding` documents
-    /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
-    NoValue {
-        /// The input's standing, as the tree draws it.
-        standing: NodeStanding,
-        /// The nodes `standing` names, as the landed document held them
-        /// ([`held_by`]).
-        held: HeldNodes,
-    },
-    /// The input's VALUE is several bodies, and a duplicate copies one:
-    /// a transform of them would be several bodies again, which no
-    /// world placement reads.
-    ///
-    /// The body seat refuses a read of several bodies by its kind, so
-    /// this is the value's own answer behind it: the door asks the
-    /// value, which is the evaluator's own question.
-    NotOneBody {
-        /// The node picked, as the landed document held it.
-        input: SpokenNode,
-    },
-    /// The input reads a split's half that holds no material: the
-    /// split's plane misses the body on that side.
-    EmptyHalf {
-        /// The split, as the landed document held it.
-        input: SpokenNode,
-        /// The half read.
-        half: SplitHalf,
-    },
-    /// The measuring tessellation refused.
-    Unmeasured {
-        /// The node picked, as the landed document held it.
-        input: SpokenNode,
-        /// The tessellator's own refusal.
-        error: pncad::mesh::TessellateError,
-    },
-    /// The body's mesh has no extent to step by.
-    NoExtent {
-        /// The node picked, as the landed document held it.
-        input: SpokenNode,
-    },
-    /// The copy the duplicate is to stand beside is not a drawn copy
-    /// of the body duplicated.
-    NotACopy {
-        /// The copy named, as the landed document held it.
-        copy: SpokenNode,
-        /// The body duplicated, as the landed document held it.
-        input: SpokenNode,
-    },
-}
-
-impl core::fmt::Display for DuplicateFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::NotLanded => f.write_str(
-                "the document has not evaluated yet, so there is no body to measure a copy's \
-                 step off",
-            ),
-            Self::Stale => f.write_str(
-                "the picture is older than the document — wait for the latest edit to evaluate, \
-                 so the copy's step is measured off the body as it now is",
-            ),
-            Self::NoValue { standing, held } => write!(
-                f,
-                "there is no body to copy: {}",
-                Said(standing, Speaker::held(held))
-            ),
-            Self::NotOneBody { input } => write!(
-                f,
-                "{input}'s value is several bodies; a duplicate copies ONE — project the one \
-                 you mean first"
-            ),
-            Self::EmptyHalf { input, half } => write!(
-                f,
-                "{input}'s {} half holds no material: its plane misses the body on that side",
-                half.name()
-            ),
-            Self::Unmeasured { input, error } => write!(
-                f,
-                "{input}'s body could not be measured for the copy's step: {error}"
-            ),
-            Self::NoExtent { input } => {
-                write!(f, "{input}'s body has no width to step a copy by")
-            }
-            Self::NotACopy { copy, input } => write!(
-                f,
-                "{copy} is not a drawn copy of {input}, so there is no copy to place the \
-                 duplicate beside"
-            ),
-        }
-    }
-}
-
-impl core::error::Error for DuplicateFault {}
-
-/// **Where a duplicate's copy lands**: the step, in metres along
-/// [`STEP_DIRECTION`], that puts the copy's near side AT LEAST
-/// [`DUPLICATE_GAP`] of the body's width past the original's far side —
-/// so the two never touch, whatever the body's size.
-///
-/// **Read off `eval`, which the caller must hand in CURRENT** — an
-/// evaluation of the document the duplicate will be committed to. The
-/// session door refuses [`DuplicateFault::NotLanded`] and
-/// [`DuplicateFault::Stale`] before calling this; a stale evaluation
-/// would hand back an edited node's OLD value, and nothing here could
-/// tell.
-///
-/// **Conservative, and why.** The width is measured on a tessellation
-/// at chord δ. The step needs every point of the exact surfaces to lie
-/// within a known distance of the mesh, and `pncad::mesh`'s crate docs
-/// state the promise the other way round — each triangle within δ of
-/// the surface — with an honest bound of δ + ε (+ rounding), ε being
-/// the kernel tolerance its boundary vertices sit within. The direction
-/// this needs holds too, and rests on the same facts: the mesh vertices
-/// lie on the surfaces (within ε), and each face kind's certificate
-/// bounds the gap between the surface and the linear interpolant
-/// through them over the triangle's own parameter cell, which runs both
-/// ways, while the cells cover the face. So the true width is at most
-/// the mesh's plus 2(δ + ε), and the step adds that before the gap;
-/// rounding is left to the gap, which exceeds it by many orders.
-///
-/// **So the gap is a floor, not the step's exact share.** δ is
-/// [`MEASURE_CHORD`] of the body's floor-mesh DIAGONAL, which sets the
-/// scale before any width is known; for a body thin along
-/// [`STEP_DIRECTION`] the 2(δ + ε) margin can be several times the
-/// width, and the copy lands further away than a quarter-width. Never
-/// nearer.
-///
-/// # Errors
-///
-/// [`DuplicateFault::NoValue`], [`DuplicateFault::NotOneBody`],
-/// [`DuplicateFault::Unmeasured`], [`DuplicateFault::NoExtent`].
-pub fn duplicate_step(
-    doc: &Doc<ProfileProgram>,
-    eval: &Evaluation<f64>,
-    input: &Operand,
-    tol: Tol,
-) -> Result<f64, DuplicateFault> {
-    // The session door's kind gate ran first and refused a read naming
-    // no output.
-    let (node, port) = crate::world::read_output(doc, input)
-        .unwrap_or_else(|| unreachable!("a body read the session admitted names an output"));
-    let value = eval.usable(node).map_err(|standing| {
-        let standing = crate::tree::standing_as_drawn(standing, eval);
-        let held = held_by(&standing, doc);
-        DuplicateFault::NoValue { standing, held }
-    })?;
-    let spoken = || doc.spoken(node);
-    let body = match port {
-        Some(port) => match value.payload.output_body(u32::from(port)) {
-            Ok(body) => Some(body),
-            // A port the value holds no body at is a split's empty half.
-            Err(_) => match (&value.payload, SplitHalf::of_output_body(u32::from(port))) {
-                (pncad::document::ValuePayload::Split { .. }, Some(half)) => {
-                    return Err(DuplicateFault::EmptyHalf {
-                        input: spoken(),
-                        half,
-                    });
-                }
-                _ => None,
-            },
-        },
-        None => one_body(&value.payload),
-    }
-    .ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
-    let measured = |chord: f64| {
-        pncad::mesh::tessellate(body.body(), chord, tol).map_err(|error| {
-            DuplicateFault::Unmeasured {
-                input: spoken(),
-                error,
-            }
-        })
-    };
-    let (mesh, chord) = measured_at_scale(measured, |mesh| mesh.positions.clone())?
-        .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
-    // The step is stated in the body's space; the body is measured in
-    // its own frame, along that heading read into it.
-    let heading = body
-        .heading_in_own(Vec3::from_array(STEP_DIRECTION))
-        .map_err(|_| DuplicateFault::NoExtent { input: spoken() })?
-        .to_array();
-    let width = width_along(&mesh.positions, heading)
-        .filter(|w| w.is_finite() && *w > 0.0)
-        .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
-    Ok(clearance(width, width, chord, tol))
-}
-
 /// **Something measured off meshes cut fine for its own size**: `at`
 /// at [`crate::scene::SCALE_PROBE_DELTA`] reads its size — the diagonal
 /// of the box around the probe's `points` — and `at` again at
 /// [`MEASURE_CHORD`] of that size is the measure, answered with the
 /// chord it was cut at. `Ok(None)` where the probe has no extent. The
-/// one measurement a duplicate's step ([`duplicate_step`]) and an
-/// inserted part's frame ([`crate::pickindex::clear_of_drawn`]) take.
+/// measurement an inserted part's frame takes
+/// ([`crate::pickindex::clear_of_drawn`]).
 ///
 /// # Errors
 ///
@@ -1618,50 +1298,30 @@ pub fn measured_at_scale<M, E>(
 
 /// **How far to step a body whose near side is `span` behind the far
 /// side of what it must clear**, measured off meshes at `chord`: `span`
-/// widened by the meshes' sag on both sides, 2(δ + ε) — the true extent
-/// is at most the mesh's plus that ([`duplicate_step`] carries the
-/// argument) — then [`DUPLICATE_GAP`] of the stepped body's own `width`,
-/// widened the same way, on top. A duplicate clears its original
-/// (`span` = `width`); an inserted part clears everything drawn
+/// widened by the meshes' sag on both sides, 2(δ + ε), then
+/// [`CLEARANCE_GAP`] of the stepped body's own `width`, widened the same
+/// way, on top. An inserted part clears everything drawn
 /// ([`crate::pickindex::clear_of_drawn`]).
+///
+/// **Conservative, and why.** The extents are measured on
+/// tessellations at chord δ. The step needs every point of the exact
+/// surfaces to lie within a known distance of the mesh, and
+/// `pncad::mesh`'s crate docs state the promise the other way round —
+/// each triangle within δ of the surface — with an honest bound of
+/// δ + ε (+ rounding), ε being the kernel tolerance its boundary
+/// vertices sit within. The direction this needs holds too, and rests
+/// on the same facts: the mesh vertices lie on the surfaces (within ε),
+/// and each face kind's certificate bounds the gap between the surface
+/// and the linear interpolant through them over the triangle's own
+/// parameter cell, which runs both ways, while the cells cover the
+/// face. So a true extent is at most the mesh's plus 2(δ + ε); rounding
+/// is left to the gap, which exceeds it by many orders. **So the gap is
+/// a floor, not the step's exact share**: δ is [`MEASURE_CHORD`] of the
+/// measured DIAGONAL, so for a body thin along [`STEP_DIRECTION`] the
+/// margin can be several times its width. Never nearer.
 pub fn clearance(span: f64, width: f64, chord: f64, tol: Tol) -> f64 {
     let sag = 2.0 * (chord + tol.eps());
-    span + sag + (width + sag) * DUPLICATE_GAP
-}
-
-impl DuplicateFault {
-    /// This fault with its nodes spoken from `doc`, a later version of
-    /// the document it was raised in
-    /// ([`crate::session::Refusal::respoken`]).
-    #[must_use]
-    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
-        let again = |node: SpokenNode| node.respoken(doc);
-        match self {
-            Self::NoValue { standing, held } => Self::NoValue {
-                standing,
-                held: held.respoken(doc),
-            },
-            Self::NotOneBody { input } => Self::NotOneBody {
-                input: again(input),
-            },
-            Self::EmptyHalf { input, half } => Self::EmptyHalf {
-                input: again(input),
-                half,
-            },
-            Self::Unmeasured { input, error } => Self::Unmeasured {
-                input: again(input),
-                error,
-            },
-            Self::NoExtent { input } => Self::NoExtent {
-                input: again(input),
-            },
-            Self::NotACopy { copy, input } => Self::NotACopy {
-                copy: again(copy),
-                input: again(input),
-            },
-            unspoken @ (Self::NotLanded | Self::Stale) => unspoken,
-        }
-    }
+    span + sag + (width + sag) * CLEARANCE_GAP
 }
 
 /// How far `points` spread along `direction` (normalized here): the
@@ -1679,56 +1339,6 @@ fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) ->
     let first = along.next()?;
     let (lo, hi) = along.fold((first, first), |(lo, hi), r| (lo.min(r), hi.max(r)));
     Some(hi - lo)
-}
-
-/// **The slides a duplicate's copy is moved by**: [`STEP_DIRECTION`]
-/// stepped by `step` metres ([`duplicate_step`]'s answer), on the
-/// original's own axes.
-///
-/// # Errors
-///
-/// [`pncad::document::DimensionError`] for a non-finite `step` — which
-/// [`duplicate_step`] never answers — and it is a `Result` because
-/// whether a number is authorable keeps ONE home, the expression door.
-pub fn duplicate_moves(
-    step: f64,
-) -> Result<Vec<(pncad::document::Coord, Formula)>, pncad::document::DimensionError> {
-    use pncad::document::{Coord, Dimension, TargetAxis as A};
-    [A::X, A::Y, A::Z]
-        .into_iter()
-        .zip(STEP_DIRECTION)
-        .filter(|&(_, d)| d != 0.0)
-        .map(|(axis, d)| {
-            Ok((
-                Coord::slide(axis),
-                Formula::literal(d * step, Dimension::Length)?,
-            ))
-        })
-        .collect()
-}
-
-/// **Where the drawn copy `copy` stands in its space**: its
-/// placement's motion as `eval` solved it, the identity for a copy the
-/// identity bundle places.
-///
-/// # Errors
-///
-/// [`DuplicateFault::NoValue`] for a copy `eval` holds no value for.
-pub fn copy_motion(
-    doc: &Doc<ProfileProgram>,
-    eval: &Evaluation<f64>,
-    copy: RecipeNodeId,
-) -> Result<pncad::document::Frame, DuplicateFault> {
-    let value = eval.usable(copy).map_err(|standing| {
-        let standing = crate::tree::standing_as_drawn(standing, eval);
-        let held = held_by(&standing, doc);
-        DuplicateFault::NoValue { standing, held }
-    })?;
-    Ok(value
-        .motion
-        .map_or(pncad::document::Frame::IDENTITY, |motion| {
-            pncad::document::Frame::from_affine(motion.to_affine())
-        }))
 }
 
 /// **One member of the family `of`, read alone** (D10 `[repetition]`):

@@ -126,8 +126,6 @@ vocabulary! {
         PatternBody,
         /// The pattern a part projects one instance of.
         PartInstance,
-        /// The body a duplicate copies.
-        DuplicateBody,
         /// The body a mirror reflects.
         MirrorBody,
         /// A clearance requirement's first seat, held as a body.
@@ -144,7 +142,7 @@ vocabulary! {
     /// `combine_ops::every_seats_wanted_kind_is_the_one_its_door_refuses_by`
     /// is the row that sweeps it. That row used to have a second job —
     /// reading this list against a hand-written `Seat::ordinal` for
-    /// holes and duplicates — and no longer needs one: there is a
+    /// holes and repeats — and no longer needs one: there is a
     /// single declaration now, so a seat this array misses is a seat
     /// the enum does not have.
     pub const ALL;
@@ -166,7 +164,6 @@ impl Seat {
             | Self::SubtractTool
             | Self::SplitTarget
             | Self::PatternBody
-            | Self::DuplicateBody
             | Self::MirrorBody
             | Self::ClearedFirst
             | Self::ClearedSecond => NodeKindWanted::Body,
@@ -182,7 +179,6 @@ impl Seat {
             Self::SplitTarget => "split target",
             Self::PatternBody => "patterned body",
             Self::PartInstance => "pattern to project",
-            Self::DuplicateBody => "duplicated body",
             Self::MirrorBody => "mirrored body",
             Self::ClearedFirst => FaceRole::ClearedFirst.name(),
             Self::ClearedSecond => FaceRole::ClearedSecond.name(),

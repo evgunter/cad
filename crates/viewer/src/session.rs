@@ -70,7 +70,7 @@ use pncad::select::Resolution;
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
-use crate::combine::{self, DuplicateFault, PatternOutputChoice};
+use crate::combine::{self, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{
@@ -2334,8 +2334,8 @@ impl DocSession {
                 constraints,
                 into_target_space,
             } => {
-                if let Some(refusal) =
-                    self.withheld_bundle(placement, &base, &constraints, into_target_space)
+                if let Err(refusal) =
+                    self.bundle_judged(placement, &base, &constraints, into_target_space)
                 {
                     return OpOutcome::refused(refusal);
                 }
@@ -2374,7 +2374,6 @@ impl DocSession {
             | SessionOp::AddFillet { .. }
             | SessionOp::AddChamfer { .. }
             | SessionOp::AddPart { .. }
-            | SessionOp::Duplicate { .. }
             | SessionOp::AddInstance { .. }) => {
                 let inserts = matches!(op, SessionOp::AddInstance { .. });
                 let door = self.creation_door(op);
@@ -2447,11 +2446,7 @@ impl DocSession {
             } => self.add_split(target, &origin, &normal),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddClearance { a, b, bounds } => self.add_clearance(a, b, bounds),
-            SessionOp::Place {
-                body,
-                target,
-                constraints,
-            } => self.place(body, target, constraints),
+            SessionOp::Place { body } => self.place(body),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
             }
@@ -2469,7 +2464,6 @@ impl DocSession {
                 selection,
             } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
             SessionOp::AddPart { of, select } => self.add_part(of, select),
-            SessionOp::Duplicate { input, beside } => self.add_duplicate(input, beside),
             SessionOp::AddInstance { id } => self.add_instance(id),
             other => unreachable!("only a creating operation reaches its door: {other:?}"),
         }
@@ -4100,69 +4094,6 @@ impl DocSession {
         Ok(creating(move |run| run.insert(node)))
     }
 
-    /// Duplicate one body ([`SessionOp::Duplicate`]): of a copy, one
-    /// more copy of its body in that copy's space, by values on every
-    /// freedom at the copy's evaluated motion stepped clear along the
-    /// original's own `x`, and no mate; of a body nothing copies, two
-    /// copies in its own space, a stand-in by the identity and the
-    /// stepped one.
-    ///
-    /// **One action and therefore one undo.** The original's placements
-    /// are untouched.
-    fn add_duplicate(
-        &self,
-        input: Operand,
-        beside: Option<RecipeNodeId>,
-    ) -> Result<Creating, Refusal> {
-        let input = as_body(self.committed_doc(), input);
-        self.require_read(&input, NodeKindWanted::Body)?;
-        // The kind gate above is the document's; this is the VALUE's —
-        // one body, with a width to clear — and the value must be the
-        // CURRENT document's. `busy` is the authority on that: it is
-        // the session's own comparison of the landed generation against
-        // the committed one, so an edit or a document replacement that
-        // has not landed yet is refused here rather than measured off
-        // the value it replaced.
-        let landed = match self.landed_pair() {
-            None => Err(DuplicateFault::NotLanded),
-            Some(_) if self.busy() => Err(DuplicateFault::Stale),
-            Some((doc, eval)) => combine::duplicate_step(doc, eval, &input, self.tol)
-                .and_then(|step| Ok((step, duplicate_seats(doc, eval, &input, beside)?))),
-        };
-        let (step, seats) = match landed {
-            Ok(landed) => landed,
-            Err(fault) => return Err(Refusal::Duplicate(fault)),
-        };
-        let stepped = Frame::translation(combine::STEP_DIRECTION.map(|d| d * step));
-        let own = self.home_space(&input)?;
-        let copy = move |target: VarId, bundle| {
-            Node::place(
-                pncad::document::BodyRead::plain(input.clone()),
-                Operand::Var(target),
-                bundle,
-            )
-        };
-        let unmated = |at: &Frame| pncad::document::Placed::unmated(moves_of(at)).bundle();
-        // The copy made is the stepped one: an unplaced body's second.
-        let made = usize::from(seats.is_empty());
-        let mut copies = Vec::new();
-        if seats.is_empty() {
-            copies.push(copy(own, editor_core::stand().bundle()));
-            copies.push(copy(own, unmated(&stepped)));
-        }
-        for (target, at) in seats {
-            let at = Frame::from_affine(at.affine::<f64>() * stepped.affine::<f64>());
-            copies.push(copy(target, unmated(&at)));
-        }
-        Ok(creating(move |run| {
-            let mut minted = Vec::new();
-            for copy in copies {
-                minted.push(run.insert(copy)?);
-            }
-            Ok(minted[made])
-        }))
-    }
-
     /// Insert one blend — fillet or chamfer — on a set of an existing
     /// body's edges ([`SessionOp::AddFillet`],
     /// [`SessionOp::AddChamfer`]).
@@ -4764,7 +4695,7 @@ impl DocSession {
     }
 
     /// **A mate added to `placement`'s bundle** ([`SessionOp::AddMate`]):
-    /// the placement editor's Edit door on it, `mate` a row as written
+    /// the placement editor on it, `mate` a row as written
     /// and `values` typed, applied as the editor applies ([`Self::drafted`]).
     fn add_mate(
         &mut self,
@@ -4787,8 +4718,8 @@ impl DocSession {
         self.perform_bundle(op)
     }
 
-    /// **The placement editor's Apply for `tool`**, derived against the
-    /// committed document and its evaluation.
+    /// **The bundle the placement editor's draft `tool` writes**,
+    /// derived against the committed document and its evaluation.
     fn drafted(
         &self,
         tool: &crate::matetool::MateTool,
@@ -4822,7 +4753,7 @@ impl DocSession {
                 constraints,
                 into_target_space,
             }) => self.set_bundle(placement, &base, constraints, into_target_space),
-            Ok(other) => unreachable!("an Edit door drafts a `SetBundle`: {other:?}"),
+            Ok(other) => unreachable!("the placement editor drafts a `SetBundle`: {other:?}"),
             Err(refusal) => OpOutcome::refused(refusal),
         }
     }
@@ -4838,7 +4769,7 @@ impl DocSession {
         if let Err(refusal) = self.bundle_fresh(placement, base) {
             return OpOutcome::refused(refusal);
         }
-        if !into_target_space && constraints == base {
+        if writes_nothing(self.committed_doc(), placement, base, &constraints, into_target_space) {
             return OpOutcome::default();
         }
         self.commit_run(|run| bundle_run(run, placement, constraints, into_target_space))
@@ -4860,85 +4791,24 @@ impl DocSession {
         }
     }
 
-    /// **The placement editor's Apply withheld where its verdict is no
-    /// standing copy** ([`Self::bundle_verdict`]): a placement that would
-    /// evaluate to a fault, or read what does not evaluate, is not
-    /// committed from the editor — the panel says why, and the draft
-    /// stays open. A door's refusal is the door's to give.
-    fn withheld_bundle(
-        &self,
-        placement: RecipeNodeId,
-        base: &[pncad::document::Constraint<Formula>],
-        constraints: &[pncad::document::Constraint<Formula>],
-        into_target_space: bool,
-    ) -> Option<Refusal> {
-        self.withheld(&SessionOp::SetBundle {
-            placement,
-            base: base.to_vec(),
-            constraints: constraints.to_vec(),
-            into_target_space,
-        })
-    }
-
-    /// [`Self::withheld_bundle`] of any Apply.
-    fn withheld(&self, op: &SessionOp) -> Option<Refusal> {
-        match self.bundle_verdict(op) {
-            BundleVerdict::Faults(fault) => Some(Refusal::PlacementFails { fault: Some(fault) }),
-            BundleVerdict::Unsolved => Some(Refusal::PlacementFails { fault: None }),
-            BundleVerdict::Stands(_) | BundleVerdict::Refused(_) => None,
-        }
-    }
-
-    /// **One placement of `body` holding the bundle** ([`SessionOp::Place`]),
-    /// withheld where it would not stand ([`Self::withheld`]).
-    fn place(
-        &self,
-        body: Operand,
-        target: VarId,
-        constraints: Vec<pncad::document::Constraint<Formula>>,
-    ) -> Result<Creating, Refusal> {
-        let op = SessionOp::Place {
-            body: body.clone(),
-            target,
-            constraints: constraints.clone(),
-        };
-        if let Some(refusal) = self.withheld(&op) {
-            return Err(refusal);
-        }
-        self.placing(body, target, constraints)
-    }
-
-    /// **The Create door's run**: one placement of `body` holding the
-    /// bundle, taking over what read the body along a seen path — a `⊔`
-    /// operand, the product — never a copy's source.
-    fn placing(
-        &self,
-        body: Operand,
-        target: VarId,
-        constraints: Vec<pncad::document::Constraint<Formula>>,
-    ) -> Result<Creating, Refusal> {
-        let body = as_body(self.committed_doc(), body);
+    /// **One placement of `body` where it stands** ([`SessionOp::Place`]):
+    /// into the body's own space, no mate and every slide and spin at
+    /// zero (`editor_core::stand`), taking over what read the body along
+    /// a seen path — a `⊔` operand, the product — never a copy's source.
+    /// A body placed already gets a second placement beside its first.
+    fn place(&self, body: Operand) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
-        // The Create door places a body: a copy moves by its own Edit door.
+        let body = as_body(doc, body);
+        // Place places a body: a copy is edited by its own placement.
         if let Some((node, _)) = crate::world::read_output(doc, &body)
             && moves_copies(doc, node)
         {
-            return Err(Refusal::CreateOnACopy {
+            return Err(Refusal::PlaceOnACopy {
                 copy: doc.spoken(node),
             });
         }
         self.require_placeable(&body)?;
-        // A body a placement copies moves by that copy's Edit door, and is
-        // never placed a second time.
-        if let Some(var) = crate::world::read_var(doc, &body)
-            && let Some(&copy) = crate::world::placements_reading(doc, var).first()
-        {
-            let body = crate::world::read_output(doc, &body).map_or(copy, |(node, _)| node);
-            return Err(Refusal::BodyPlaced {
-                body: doc.spoken(body),
-                copy: doc.spoken(copy),
-            });
-        }
+        let target = self.home_space(&body)?;
         let mut takeover = Takeover::of(doc, &body);
         takeover.copies.clear();
         takeover.stranded_pick(doc)?;
@@ -4946,60 +4816,64 @@ impl DocSession {
             let placement = run.insert(Node::place(
                 pncad::document::BodyRead::plain(body),
                 Operand::Var(target),
-                constraints,
+                editor_core::stand().bundle(),
             ))?;
             Ok(Wrote::one(placement))
         }))
     }
 
-    /// **What the placement editor's Apply `op` would do, judged before
-    /// it is applied**: the op's edits run on a scratch recording of the
-    /// committed document and the result evaluated, so the panel names
-    /// the door's refusal or the placement's fault — or where the copy
-    /// would stand — while the person can still change the draft.
+    /// **The document's door on the placement editor's `op`**, a
+    /// [`SessionOp::SetBundle`], judged without committing it: the op's
+    /// edits run on a scratch recording of the committed document and the
+    /// result is solved, so the editor holds a draft the door would
+    /// refuse — mates repeating an equation, two spaces, a side off the
+    /// copy, a pick its kind cannot read — or one whose copy would not
+    /// stand ([`Refusal::PlacementFails`]), and commits only what lands.
     /// Nothing enters the document or the history.
-    #[must_use]
-    pub fn bundle_verdict(&self, op: &SessionOp) -> BundleVerdict {
-        let doc = self.committed_doc();
-        let mut run = Recording::start(doc, self.tol);
-        let staged = match op {
+    ///
+    /// # Errors
+    ///
+    /// The refusal `op` would land with.
+    pub fn bundle_door(&self, op: &SessionOp) -> Result<(), Refusal> {
+        match op {
             SessionOp::SetBundle {
                 placement,
                 base,
                 constraints,
                 into_target_space,
-            } => self.bundle_fresh(*placement, base).and_then(|()| {
-                bundle_run(
-                    &mut run,
-                    *placement,
-                    constraints.clone(),
-                    *into_target_space,
-                )
-                .map(|()| *placement)
-                .map_err(|error| Refusal::Edit(Box::new(error)))
-            }),
-            SessionOp::Place {
-                body,
-                target,
-                constraints,
-            } => self
-                .placing(body.clone(), *target, constraints.clone())
-                .and_then(|creating| {
-                    creating(&mut run, &|_| false)
-                        .map(|made| made.node)
-                        .map_err(|error| Refusal::Edit(Box::new(error)))
-                }),
-            other => unreachable!("only the placement editor's Apply is judged: {other:?}"),
-        };
-        let placement = match staged {
-            Ok(placement) => placement,
-            Err(refusal) => return BundleVerdict::Refused(refusal.respoken(doc)),
-        };
+            } => self.bundle_judged(*placement, base, constraints, *into_target_space),
+            other => unreachable!("only the placement editor's bundle is judged: {other:?}"),
+        }
+    }
+
+    /// [`Self::bundle_door`] of a `SetBundle`'s parts.
+    fn bundle_judged(
+        &self,
+        placement: RecipeNodeId,
+        base: &[pncad::document::Constraint<Formula>],
+        constraints: &[pncad::document::Constraint<Formula>],
+        into_target_space: bool,
+    ) -> Result<(), Refusal> {
+        let doc = self.committed_doc();
+        self.bundle_fresh(placement, base)?;
+        // A bundle that writes what the placement holds lands as nothing.
+        if writes_nothing(doc, placement, base, constraints, into_target_space) {
+            return Ok(());
+        }
+        let mut run = Recording::start(doc, self.tol);
+        Ok(())
+            .and_then(|()| {
+                bundle_run(&mut run, placement, constraints.to_vec(), into_target_space)
+                    .map_err(|error| Refusal::Edit(Box::new(error)))
+            })
+            .map_err(|refusal| refusal.respoken(doc))?;
         let solved = pncad::document::solve_document(run.doc(), &self.eval_options(), self.tol);
         match (solved.fault(placement), solved.relative(placement)) {
-            (Some(fault), _) => BundleVerdict::Faults(Box::new(fault.clone())),
-            (None, Some(at)) => BundleVerdict::Stands(at),
-            (None, None) => BundleVerdict::Unsolved,
+            (Some(fault), _) => Err(Refusal::PlacementFails {
+                fault: Some(Box::new(fault.clone())),
+            }),
+            (None, Some(_)) => Ok(()),
+            (None, None) => Err(Refusal::PlacementFails { fault: None }),
         }
     }
 
@@ -5203,22 +5077,6 @@ struct Insert {
     space: VarId,
     node: RecipeNodeId,
     frame: Option<Frame>,
-}
-
-/// **The placement editor's verdict on its Apply**
-/// ([`DocSession::bundle_verdict`]): where the copy would stand, or why
-/// it would not.
-#[derive(Debug)]
-pub enum BundleVerdict {
-    /// The copy would stand at this relative pose in its target space.
-    Stands(Frame),
-    /// The placement would evaluate to this fault.
-    Faults(Box<pncad::document::MateFault>),
-    /// The door would refuse the Apply.
-    Refused(Refusal),
-    /// The placement would not be solved: something it reads does not
-    /// evaluate.
-    Unsolved,
 }
 
 /// **A creation's run, decided and not yet staged**: what a creating
@@ -5789,6 +5647,36 @@ fn write_bundle(
     Ok(())
 }
 
+/// **Whether a `SetBundle` of `constraints` over `base` writes nothing**:
+/// the bundle the placement holds, and no move into another space — none
+/// asked, or the space its first mate's `to` reads is the one it stands in
+/// already ([`bundle_run`]).
+fn writes_nothing(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    base: &[pncad::document::Constraint<Formula>],
+    constraints: &[pncad::document::Constraint<Formula>],
+    into_target_space: bool,
+) -> bool {
+    constraints == base && moved_into(doc, placement, constraints, into_target_space).is_none()
+}
+
+/// The space `placement` is moved into before its bundle is written:
+/// the one its first mate's `to` reads, where that is asked and is not
+/// its target.
+fn moved_into(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    constraints: &[pncad::document::Constraint<Formula>],
+    into_target_space: bool,
+) -> Option<VarId> {
+    constraints
+        .iter()
+        .find_map(|c| c.mate())
+        .and_then(|m| doc.operand_space(&m.to))
+        .filter(|&space| into_target_space && Some(space) != doc.node_space(placement))
+}
+
 /// **The placement editor's Edit, applied**: `placement` moved by name
 /// into the space its first mate's `to` reads where that is asked and is
 /// not its target, then `constraints` written whole.
@@ -5798,12 +5686,7 @@ fn bundle_run(
     constraints: Vec<pncad::document::Constraint<Formula>>,
     into_target_space: bool,
 ) -> Result<(), EditError> {
-    let space = constraints
-        .iter()
-        .find_map(|c| c.mate())
-        .and_then(|m| run.doc().operand_space(&m.to))
-        .filter(|&space| into_target_space && Some(space) != run.doc().node_space(placement));
-    if let Some(space) = space {
+    if let Some(space) = moved_into(run.doc(), placement, &constraints, into_target_space) {
         into_space(run, placement, space)?;
     }
     write_bundle(run, placement, constraints)
@@ -6188,51 +6071,6 @@ fn space_evaluation<'a>(derived: &'a Derived, history: &History) -> Option<&'a E
     let committed = history.doc();
     let shown = derived.scratch.as_ref().unwrap_or(committed);
     (*run.doc == *committed || *run.doc == *shown).then(|| run.evaluation.as_ref())
-}
-
-/// One placement a duplicate steps from: the space its copy is in, and
-/// where it stands there.
-type DuplicateSeat = (VarId, Frame);
-
-/// **Where a duplicate of `input` is placed** ([`SessionOp::Duplicate`]):
-/// for `beside`, or else for each copy of `input`, that copy's target
-/// space and its evaluated motion ([`combine::copy_motion`]). Empty for
-/// a body nothing copies.
-///
-/// # Errors
-///
-/// [`DuplicateFault::NotACopy`] for a `beside` that is not a drawn
-/// copy of `input`; [`DuplicateFault::NoValue`] for a copy `eval`
-/// holds no value for.
-fn duplicate_seats(
-    doc: &Doc<ProfileProgram>,
-    eval: &Evaluation<f64>,
-    input: &Operand,
-    beside: Option<RecipeNodeId>,
-) -> Result<Vec<DuplicateSeat>, DuplicateFault> {
-    let drawn = crate::world::placements_of_read(doc, input);
-    let copies = match beside {
-        Some(copy) if drawn.contains(&copy) => vec![copy],
-        Some(copy) => {
-            let input = crate::world::read_output(doc, input)
-                .map_or_else(|| doc.spoken(copy), |(node, _)| doc.spoken(node));
-            return Err(DuplicateFault::NotACopy {
-                copy: doc.spoken(copy),
-                input,
-            });
-        }
-        None => drawn,
-    };
-    copies
-        .into_iter()
-        .map(|copy| {
-            let target = match doc.node(copy) {
-                Some(Node::Place { target, .. }) => *target,
-                _ => unreachable!("a drawn copy of a body read is a `Place`"),
-            };
-            Ok((target, combine::copy_motion(doc, eval, copy)?))
-        })
-        .collect()
 }
 
 /// **Whether `node`'s value is a placement's copy**: a placement or

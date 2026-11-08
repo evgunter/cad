@@ -471,8 +471,8 @@ fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
 /// copy, and for the union is poisoned through the refused shelf, and
 /// the tree draws both downstream of it. The properties panel's verdict
 /// on a picked face, the
-/// mate tool's dropped pick, the duplicate door and the blend loader
-/// each carry a standing, and each must
+/// mate tool's dropped pick and the blend loader each carry a standing,
+/// and each must
 /// carry the TREE's. The product's gather refusal is drawn by none of
 /// them: the tree badges the refused copy at its row, and the at-rest
 /// badge takes no verdict on a product that did not gather.
@@ -481,7 +481,6 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     use pncad::document::{NodeStanding, ProductError};
     use pncad::select::{Resolution, ResolveIndeterminate};
     use viewer::blend::{BlendEvent, BlendTool};
-    use viewer::combine::DuplicateFault;
     use viewer::matetool::{MateTool, MateToolEvent};
     use viewer::session::{FaceSelection, Selection, Standing};
     use viewer::tree::DrawnBody;
@@ -544,7 +543,6 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         },
         "the tree points post_a at the refused shelf"
     );
-    let boolean_drawn = drawn(boolean);
     assert_eq!(
         tree::cause_row(bench.post_a, ev),
         Some(offender),
@@ -560,7 +558,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         ),
         other => panic!("the face stays selected, got {other:?}"),
     }
-    match mate_tool.reconcile(doc, ev).as_slice() {
+    match mate_tool.reconcile(session.committed_doc(), (doc, ev)).as_slice() {
         [
             MateToolEvent::PickLost { resolution, .. },
             MateToolEvent::Reloaded { .. },
@@ -576,18 +574,6 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     }
     // Each refusal carrying the standing whole says its nodes as the
     // document holds them: post_a by its kind, never `node <tag>`.
-    match viewer::combine::duplicate_step(doc, ev, &bench.post_a.into(), tol) {
-        Err(DuplicateFault::NoValue { standing, .. }) => {
-            assert_eq!(standing, post_a, "the duplicate door, post_a");
-        }
-        other => panic!("the duplicate door refuses post_a, got {other:?}"),
-    }
-    match viewer::combine::duplicate_step(doc, ev, &boolean.into(), tol) {
-        Err(DuplicateFault::NoValue { standing, .. }) => {
-            assert_eq!(standing, boolean_drawn, "the duplicate door, the boolean");
-        }
-        other => panic!("the duplicate door refuses the boolean, got {other:?}"),
-    }
     let target = DrawnBody::new(bench.post_a, 0);
     match BlendTool::new().load_all_edges(target, doc, ev, &index) {
         Some(BlendEvent::TargetHasNoValue { standing, .. }) => {

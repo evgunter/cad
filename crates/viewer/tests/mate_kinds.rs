@@ -220,7 +220,7 @@ fn two_straight_edges_mated_as_axes_are_collinear() {
     }
     let proposal = common::proposed(&session, tool, choice(VarKind::Axis, false))
         .expect("two edges mate as axes");
-    assert_eq!(proposal.placement, Some(bench.post_b), "the on pick's copy");
+    assert_eq!(proposal.placement, bench.post_b, "the on pick's copy");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(b_edge);
@@ -413,7 +413,7 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
     .expect("a rim and a cylinder mate as axes");
     assert_eq!(
         proposal.placement,
-        Some(small_copy),
+        small_copy,
         "the rim's copy is placed"
     );
     common::commit_mate(&mut session, proposal.op());

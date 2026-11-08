@@ -27,7 +27,6 @@ use pncad::trace::TraceMarks;
 use crate::blend::BlendKindChoice;
 use crate::combine::{ClearanceBoundChoice, PatternOutputChoice};
 use crate::forms::{PatternLayoutChoice, ShapeKind};
-use crate::history::HistoryId;
 use crate::props::{self, Notation, SlotRow};
 use crate::seats::SeatError;
 use crate::session::{FaceSelection, Refusal, SessionOp, SketchTraceFault};
@@ -82,11 +81,6 @@ pub(crate) struct Drafts {
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
     pub(crate) new_variable_offer: Option<VarName>,
-    /// **The placement editor's last verdict**: the history state and
-    /// the Apply it judged, and what the session answered, said
-    /// ([`crate::session::DocSession::bundle_verdict`]) — asked once per
-    /// draft, not once per frame.
-    pub(crate) mate_verdict: Option<MateVerdict>,
     /// The placement editor's value fields being typed in, by freedom:
     /// the text, until the field loses focus and the draft takes it.
     pub(crate) mate_value_edits: Vec<(pncad::document::Coord<pncad::document::Operand>, String)>,
@@ -412,18 +406,6 @@ impl std::fmt::Display for Dropped {
             self.said
         )
     }
-}
-
-/// **The placement editor's verdict on one Apply**: the history state
-/// and the op it was asked over, and its sentence — `Ok` where the copy
-/// would stand, `Err` with the refusal or the fault.
-#[derive(Debug)]
-pub(crate) struct MateVerdict {
-    pub(crate) at: HistoryId,
-    pub(crate) op: crate::session::SessionOp,
-    pub(crate) said: Result<String, String>,
-    /// Whether the verdict withholds Apply: a copy that would not stand.
-    pub(crate) blocks: bool,
 }
 
 impl ProfileEdit {
@@ -1166,7 +1148,6 @@ impl Default for Drafts {
             new_variable_dimension: None,
             new_variable_value: 0.0,
             new_variable_offer: None,
-            mate_verdict: None,
             mate_value_edits: Vec::new(),
             mate_value_door: None,
             new_doc_name: None,
@@ -2151,11 +2132,11 @@ mod tests {
         use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
         let x = || <Coord<Operand>>::slide(TargetAxis::X);
         let y = || <Coord<Operand>>::slide(TargetAxis::Y);
-        let door = PlaceDoor::Edit {
+        let door = PlaceDoor {
             placement: RecipeNodeId::new(0, 7),
             base: Vec::new(),
         };
-        let reloaded = PlaceDoor::Edit {
+        let reloaded = PlaceDoor {
             placement: RecipeNodeId::new(0, 7),
             base: pncad::document::stand().bundle(),
         };
@@ -2181,8 +2162,9 @@ mod tests {
         );
         drafts.mate_value_edits = vec![(x(), "5 mm".to_owned())];
         drafts.sync_mate_edits(
-            Some(&PlaceDoor::Create {
-                body: Operand::Node(RecipeNodeId::new(0, 9)),
+            Some(&PlaceDoor {
+                placement: RecipeNodeId::new(0, 9),
+                base: Vec::new(),
             }),
             &[x()],
         );

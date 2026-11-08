@@ -818,7 +818,6 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
-        | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
         | SessionOp::SetLabel { .. }
@@ -2198,7 +2197,6 @@ pub fn tool_notice(
             | MateToolEvent::Reloaded { .. }
             | MateToolEvent::PlacementGone { .. }
             | MateToolEvent::NotPlaceable { .. }
-            | MateToolEvent::SeenThroughSeveral { .. }
             | MateToolEvent::HalfUnchosen { .. }
             | MateToolEvent::PatternFamily { .. },
         ) => Retold::Never,

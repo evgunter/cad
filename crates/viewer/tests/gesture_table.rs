@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 64;
+const OP_COUNT: usize = 63;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -318,10 +318,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             of: node,
             select: PartSelectSpec::Instance(1),
         },
-        SessionOp::Duplicate {
-            input: node.into(),
-            beside: None,
-        },
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
@@ -369,11 +365,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             ),
         },
         SessionOp::IntoOwnSpace { placement: node },
-        SessionOp::Place {
-            body: node.into(),
-            target: pncad::document::VarId::WORLD,
-            constraints: pncad::document::stand().bundle(),
-        },
+        SessionOp::Place { body: node.into() },
         SessionOp::SetBundle {
             placement: node,
             base: Vec::new(),
@@ -484,11 +476,10 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // and both fenced for `SetVariable`'s reason.
         SessionOp::SetVariableUnit { .. } => (42, false),
         SessionOp::SetVariableText { .. } => (43, false),
-        // Two more insert doors, fenced with every other one: both
-        // commit to the history, which is what a drag has to be
+        // One more insert door, fenced with every other one: it
+        // commits to the history, which is what a drag has to be
         // protected from.
         SessionOp::AddPart { .. } => (44, false),
-        SessionOp::Duplicate { .. } => (45, false),
         // It commits an action to the history (every reference to the
         // part moves), which is what a drag has to be protected from.
         SessionOp::AcceptPartVersion { .. } => (46, false),
@@ -532,7 +523,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // What the document makes, as `SetProduct` is.
         SessionOp::AddToProduct { .. } => (61, false),
         // An insert door, fenced with every other one.
-        SessionOp::AddClearance { .. } => (63, false),
+        SessionOp::AddClearance { .. } => (45, false),
     }
 }
 
@@ -1049,7 +1040,6 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
-        | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
         | SessionOp::SetLabel { .. }

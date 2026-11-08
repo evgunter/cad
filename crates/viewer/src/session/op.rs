@@ -529,32 +529,30 @@ pub enum SessionOp {
         /// mate at the door, naming both spaces.
         into_target_space: bool,
     },
-    /// **The placement editor's Create** ([`crate::matetool::MateTool`]),
-    /// the Transform tool's on a body nothing places
-    /// ([`crate::matetool::MateTool::moving`]): one placement of `body` into `target` holding the whole bundle
-    /// `constraints` (`DocEdit::place`), and what read the body along a
-    /// path the picture is seen through — a `⊔` operand, the product —
-    /// re-pointed to it, in one action. One history state, one undo. A
-    /// `body` that is itself a copy refuses [`Refusal::CreateOnACopy`],
-    /// and one a placement copies [`Refusal::BodyPlaced`], naming that
-    /// copy: each moves by its copy's Edit door.
+    /// **Place a body where it stands**: one placement of `body` into
+    /// the body's own space, with no mate and every slide and spin at
+    /// zero (`editor_core::stand`), and what read the body along a path
+    /// the picture is seen through — a `⊔` operand, the product —
+    /// re-pointed to it, in one action. One history state, one undo. The
+    /// placement editor ([`crate::matetool::MateTool`]) then opens on the
+    /// placement it made, and every mate is added there. A body placed
+    /// already gets a second placement, the way it got its first. A
+    /// `body` that is itself a copy refuses [`Refusal::PlaceOnACopy`]: a
+    /// copy is edited by its own placement.
     Place {
         /// The body, as a seat reads it.
         body: Operand,
-        /// The space the copy is placed into.
-        target: VarId,
-        /// The bundle, as authored, in order.
-        constraints: Vec<pncad::document::Constraint<Formula>>,
     },
-    /// **The placement editor's Edit**, the Transform tool's on a copy:
-    /// `placement`'s bundle written
-    /// whole (`DocEdit::SetConstraints`), each constraint the draft
-    /// loaded under its own id. Refused [`Refusal::BundleStale`] where
-    /// the placement no longer holds `base`, the bundle the draft was
-    /// loaded from, and refused by the door as the bundle's own. With
-    /// `into_target_space`, the copy is first moved into the space its
-    /// first mate's `to` reads, by name, in the same action. One history
-    /// state, one undo; a bundle equal to `base` records nothing.
+    /// **The placement editor's change**, committed live: `placement`'s
+    /// bundle written whole (`DocEdit::SetConstraints`), each constraint
+    /// the draft loaded under its own id. Refused [`Refusal::BundleStale`]
+    /// where the placement no longer holds `base`, the bundle the draft
+    /// was loaded from, refused by the door as the bundle's own, and
+    /// refused [`Refusal::PlacementFails`] where its copy would not
+    /// stand (`DocSession::bundle_door`). With `into_target_space`, the
+    /// copy is first moved into the space its first mate's `to` reads,
+    /// by name, in the same action. One history state, one undo; a
+    /// bundle equal to `base` records nothing.
     SetBundle {
         /// The placement.
         placement: RecipeNodeId,
@@ -970,43 +968,6 @@ pub enum SessionOp {
         /// Which body of it.
         select: PartSelectSpec,
     },
-    /// **Duplicate one body**: a copy stepped clear of the picked body,
-    /// drawn and editable on its own.
-    ///
-    /// **A duplicate of a copy is one more copy** of its body in that
-    /// copy's space, stepped clear of it along the original's own `x`;
-    /// a duplicate of a body nothing copies is two copies in its own
-    /// space, a stand-in by the identity and the stepped one. One
-    /// action, one undo; the original's placements are untouched. The
-    /// copies are of one body, so a feature on one of them re-points
-    /// both (`work/placing/a-feature-gesture-re-points-every-copy-of-its-target.md`).
-    ///
-    /// **The step is measured, not fixed**
-    /// ([`crate::combine::duplicate_step`]): along
-    /// [`crate::combine::STEP_DIRECTION`], far enough that the copy
-    /// clears the original by at least [`crate::combine::DUPLICATE_GAP`]
-    /// of the body's own width. It is read off the LANDED value of the
-    /// CURRENT document, so this door refuses ([`Refusal::Duplicate`])
-    /// before anything has landed, while an edit has not landed yet,
-    /// and for an input whose value is several bodies — which the body
-    /// seat's node-kind gate admits for a placement of a pattern, and
-    /// which a pattern of two would index in place, adding nothing.
-    /// Both numbers land in the pattern's ordinary slots and are edited
-    /// in the property panel afterwards.
-    ///
-    /// **Where the copy is drawn**: beside the drawn copy `beside`, or
-    /// beside each drawn copy of `input` when the pick named the body
-    /// itself; at the identity of the world for a body nothing draws.
-    /// Each placement is written by values on every freedom at that
-    /// copy's evaluated motion, into the copy's space, with no mate, so
-    /// the duplicate stands where the person sees the original, stepped
-    /// along the original's own `x`, and does not follow it.
-    Duplicate {
-        /// The body duplicated.
-        input: Operand,
-        /// The drawn copy of `input` the pick landed on, if any.
-        beside: Option<RecipeNodeId>,
-    },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second
     /// insert door after the mate tool's.
@@ -1290,7 +1251,6 @@ impl SessionOp {
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
-            | Self::Duplicate { .. }
             | Self::AddInstance { .. } => true,
             // A mate is a constraint in a placement's bundle, no node.
             Self::AddMate { .. }
@@ -1420,7 +1380,6 @@ impl SessionOp {
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
-            | Self::Duplicate { .. }
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
@@ -1651,7 +1610,6 @@ impl SessionOp {
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
-            | Self::Duplicate { .. }
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
@@ -1786,7 +1744,6 @@ impl SessionOp {
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
-            | Self::Duplicate { .. }
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
@@ -1884,7 +1841,6 @@ impl SessionOp {
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
-            | Self::Duplicate { .. }
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }

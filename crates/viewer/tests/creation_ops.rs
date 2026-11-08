@@ -823,7 +823,7 @@ fn reconcile_drops_the_pick_across_a_new_document() {
             distance: len(0.01),
         },
     );
-    let mut seats = Seats::one(Seat::DuplicateBody);
+    let mut seats = Seats::one(Seat::MirrorBody);
     seats.pick(session.committed_doc(), body);
     let out = session.perform(SessionOp::NewDocument {
         name: "fresh".to_owned(),
@@ -1072,22 +1072,25 @@ fn an_add_profile_mints_only_the_profile() {
 
 /// **A viewport pick on a revolve's body is that body, not a half**: a
 /// revolve defines a body and an axis, so the pick seats its body's
-/// port; the seat line says no half, and the duplicate lands.
+/// port; the seat line says no half, and the split lands.
 #[test]
 fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
-    use viewer::combine::DuplicateTool;
+    use viewer::combine::SplitTool;
     let tol = Tol::witness();
     let (mut session, revolve) = authored_ring(tol);
     session.pump();
     let doc = session.committed_doc().clone();
-    let mut tool = DuplicateTool::new();
+    let mut tool = SplitTool::new();
     tool.pick_at(&doc, revolve, Some(0));
     let line = viewer::seats::seat_line(tool.seats(), pncad::document::Speaker::of(&doc));
     assert!(
         !line.contains("half"),
         "a revolve is said as a split half: {line}"
     );
-    let outcome = session.perform(tool.op().expect("seated"));
+    let outcome = session.perform(
+        tool.op([len(0.0), len(0.0), len(0.0)], [scl(0.0), scl(0.0), scl(1.0)])
+            .expect("seated"),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }
 

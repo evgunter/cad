@@ -14,7 +14,7 @@ use pncad::topo::BooleanOp;
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
 use crate::combine::{
-    BooleanTool, ClearanceBoundChoice, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION,
+    BooleanTool, ClearanceBoundChoice, PatternOutputChoice,
 };
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
@@ -22,11 +22,10 @@ use crate::forms::{
     boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::matetool::{MATE_KINDS, MateTool, PlaceDoor};
+use crate::matetool::{MATE_KINDS, MateTool};
 use crate::parts::{PartChooser, PartEntry};
-use crate::props::{Notation, render_number};
+use crate::props::Notation;
 use crate::seats::{Seat, Seats, seat_line};
-use crate::session::BundleVerdict;
 use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
@@ -111,27 +110,6 @@ pub(crate) fn clearance_bound_rows(
         }
         length_picker(ui, "clearance_bound", &mut notation.length);
     });
-}
-
-/// **What the duplicate tool tells a user before they click it** —
-/// where the copy will land, which is
-/// [`crate::combine::duplicate_step`]'s RULE: the
-/// step itself is measured off the body at the commit, so what the
-/// panel can promise ahead of it is how the step is chosen, and that
-/// the copy clears the original.
-///
-/// A free function answering a STRING rather than painting, so a
-/// headless row can read the sentence and the panel can only show what
-/// this composed. Its numbers go through [`render_number`], the
-/// crate's one spelling of a number a person reads.
-pub(crate) fn duplicate_note() -> String {
-    let [x, y, z] = STEP_DIRECTION.map(render_number);
-    format!(
-        "the copy lands beside the original along its own ({x}, {y}, {z}), clear of it by at \
-         least {}% of the body's width — more for a body thin that way — measured off the body as it now is; \
-         every slot is editable afterwards",
-        render_number(DUPLICATE_GAP * 100.0),
-    )
 }
 
 /// **A seated tool's held picks, drawn**: [`seat_line`] over the
@@ -643,12 +621,9 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.pattern_tool_ui(ui);
             ui.separator();
-            // Beside the pattern they read and author: a projection
-            // takes ONE body out of a split's or a pattern's several,
-            // and a duplicate authors one stepped copy of a body.
+            // Beside the pattern it reads: a projection takes ONE body
+            // out of a split's or a pattern's several.
             self.projection_tool_ui(ui);
-            ui.separator();
-            self.duplicate_tool_ui(ui);
         });
         // The blend tools sit in their own section: they
         // take a body that exists and reshape its EDGES, which is a
@@ -703,11 +678,13 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// **The placement editor's panel**: its door, one line per mate
-    /// row (its kind, its sense, its seats, its stroke), the value rows
-    /// the live mates leave, the verdict on Apply judged before it, and
-    /// Apply. A refused Apply leaves the editor open: it closes when its
-    /// op lands ([`ToolKind::commits`]).
+    /// **The placement editor's panel**: the placement it edits, one
+    /// line per mate row (its kind, its sense, its seats, its stroke),
+    /// the value rows the live mates leave, why a held draft is pending,
+    /// and the control that discards it. Each change is offered to the
+    /// document's door as it is made ([`MateTool::offer`]) and, taken,
+    /// queued as one `SetBundle`; nothing waits on an Apply. Cancel closes
+    /// the editor, a held draft with it.
     pub(crate) fn mate_tool_ui(&mut self, ui: &mut egui::Ui) {
         // A CLONE of the tool value, edited here and written back whole
         // when it changed.
@@ -720,14 +697,11 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(
             ui,
             ToolKind::Mate.says(&match tool.door() {
-                None => "pick the body or the copy to place".to_owned(),
-                Some(PlaceDoor::Create { .. }) => format!(
-                    "placing a new copy: pick on it, then on what it meets, each {}",
+                None => "pick a body to place it, or a copy to edit its placement".to_owned(),
+                Some(door) => format!(
+                    "editing the placement {}: pick on the copy, then on what it meets, each {}",
+                    self.session.committed_doc().spoken(door.placement),
                     crate::matetool::said_entities(&crate::matetool::reads(tool.active_kind()))
-                ),
-                Some(PlaceDoor::Edit { placement, .. }) => format!(
-                    "editing the placement {}",
-                    self.session.committed_doc().spoken(*placement)
                 ),
             }),
         );
@@ -763,7 +737,7 @@ impl ViewerBehavior<'_> {
         if tool.door().is_some() && ui.button("add a mate").clicked() {
             edited.add_mate(tool.active_kind());
         }
-        if let Some(PlaceDoor::Edit { .. }) = tool.door() {
+        if tool.door().is_some() {
             let mut into = tool.into_target_space();
             if ui
                 .checkbox(&mut into, "move the copy into the target's space")
@@ -786,11 +760,11 @@ impl ViewerBehavior<'_> {
             _ => Vec::new(),
         };
         self.drafts.sync_mate_edits(tool.door(), &coords);
-        let op = match &proposal {
+        match &proposal {
             Some(Ok(proposal)) => {
                 // Every value row is a field showing its formula as the
                 // person reads it ([`crate::matetool::value_text`]);
-                // typing replaces it.
+                // typing replaces it, and the field's commit is a change.
                 for row in &proposal.values {
                     ui.horizontal(|ui| {
                         ui.label(row.coord.name());
@@ -847,69 +821,32 @@ impl ViewerBehavior<'_> {
                         proposal.retired.len()
                     ));
                 }
-                Some(if tool.into_target_space() {
-                    proposal.op_into_target_space()
-                } else {
-                    proposal.op()
-                })
             }
-            Some(Err(error)) => {
-                crate::widgets::message(ui, ToolKind::Mate.refuses(error).to_string());
-                None
-            }
-            None => None,
-        };
-        let mut withheld = None;
-        if let Some(op) = &op {
-            let at = self.session.history().current();
-            let fresh = self
-                .drafts
-                .mate_verdict
-                .as_ref()
-                .is_some_and(|held| held.at == at && held.op == *op);
-            if !fresh {
-                let verdict = self.session.bundle_verdict(op);
-                let blocks = matches!(verdict, BundleVerdict::Faults(_) | BundleVerdict::Unsolved);
-                let said = match verdict {
-                    BundleVerdict::Stands(_) => Ok("the copy stands as the draft says".to_owned()),
-                    BundleVerdict::Faults(fault) => Err(fault.to_string()),
-                    BundleVerdict::Refused(refusal) => Err(refusal.to_string()),
-                    BundleVerdict::Unsolved => {
-                        Err("what the placement reads does not evaluate".to_owned())
-                    }
-                };
-                self.drafts.mate_verdict = Some(crate::drafts::MateVerdict {
-                    at,
-                    op: op.clone(),
-                    said,
-                    blocks,
-                });
-            }
-            if let Some(held) = &self.drafts.mate_verdict {
-                match &held.said {
-                    Ok(said) => crate::widgets::message(ui, ToolKind::Mate.says(said)),
-                    Err(said) => {
-                        crate::widgets::message(ui, ToolKind::Mate.refuses(said).to_string())
-                    }
-                };
-                if held.blocks {
-                    withheld = Some(
-                        "the copy would not stand: Apply is withheld until the draft stands it"
-                            .to_owned(),
-                    );
-                }
-            }
+            // A draft that writes no bundle yet says why as it is held
+            // (below).
+            Some(Err(_)) | None => {}
         }
-        let closing = commit_row(ui, ToolKind::Mate.commit(), withheld.as_deref(), |_| {});
-        if closing.commit {
-            match op {
-                Some(op) => self.push_tool_op(self.tool_noun(ToolKind::Mate), op),
-                None => self.notices.push(frame::tool_news(
-                    &ToolKind::Mate.refuses(&"the draft has no Apply yet"),
-                )),
-            }
+        // **Each change is offered as it is made**, once the picture
+        // answers the committed document: the draft's bundle is derived
+        // against the landed pair, and an edit still evaluating would
+        // derive it against the document before it.
+        if !self.session.busy()
+            && let Some((landed, ev)) = self.session.landed_pair()
+            && let Some(op) = edited.offer(landed, ev, self.session.tol(), |op| {
+                self.session.bundle_door(op)
+            })
+        {
+            self.ops.push(op);
         }
-        if closing.cancel {
+        if let Some(refusal) = edited.pending() {
+            let sentence = format!("{} {refusal}", crate::pane::profile::PENDING);
+            crate::widgets::message_toned(ui, sentence, &self.theme, Tone::Actionable);
+        }
+        let discard = crate::pane::profile::discard_control(ui, edited.pending().is_some());
+        if discard {
+            edited.discard(self.session.committed_doc());
+        }
+        if ui.button(crate::widgets::CANCEL).clicked() {
             self.tools.close();
         } else if edited != tool
             && let Some(open) = self.tools.mate_mut()
@@ -1621,31 +1558,6 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// The duplicate tool's panel: one body pick, the sentence saying
-    /// where the copy lands, and the one committed edit.
-    ///
-    /// **No fields, deliberately.** The gesture's whole point is that
-    /// the next thing a user does is move the copy, so a form asking
-    /// where it should go first would be the pattern form again. What
-    /// the panel owes instead is the number it commits without asking,
-    /// which [`duplicate_note`] states.
-    pub(crate) fn duplicate_tool_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(tool) = self.tools.duplicate() else {
-            return self.tool_door(ui, ToolKind::Duplicate);
-        };
-        crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
-        if let Some((seat, half)) = seats_row(
-            ui,
-            tool.seats(),
-            frame::landed_speaker(self.session.landed_pair()),
-            &self.theme,
-        ) {
-            self.tools.choose_half(seat, half);
-        }
-        crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
-        self.tool_commit_row(ui, ToolKind::Duplicate, |_, _| Ok(tool.op()?));
-    }
-
     /// The blend tool's panel: activation, the freeze sentence, the
     /// live count of held edges, the all-edges affordance, the kind
     /// choice with its one Length field, and the one committed edit.
@@ -1825,9 +1737,8 @@ impl ViewerBehavior<'_> {
     /// The
     /// pattern and blend tools create one of two kinds, by the choice
     /// their form holds, and the boolean tool one of three, by the
-    /// operation it holds; the duplicate tool's last node is a
-    /// projection, and the mirror tool's, for a drawn body, the union
-    /// of its symmetric part; the label lands there.
+    /// operation it holds; the mirror tool's last node, for a drawn
+    /// body, is the union of its symmetric part; the label lands there.
     fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
         Some(match kind {
             ToolKind::Mate | ToolKind::Transform => return None,
@@ -1856,7 +1767,7 @@ impl ViewerBehavior<'_> {
                 BlendKindChoice::Fillet => "Fillet",
                 BlendKindChoice::Chamfer => "Chamfer",
             },
-            ToolKind::Part | ToolKind::Duplicate => "Part",
+            ToolKind::Part => "Part",
             ToolKind::Clearance => "Assertion",
         })
     }
@@ -2025,7 +1936,7 @@ mod tests {
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
     use super::{
-        Picked, clear_picks_button, duplicate_note, mate_picks_row, part_selector_rows, seats_row,
+        Picked, clear_picks_button, mate_picks_row, part_selector_rows, seats_row,
     };
     use crate::combine::BooleanTool;
     use crate::frame::Tone;
@@ -2110,19 +2021,6 @@ mod tests {
         }
     }
 
-    /// The end cap `minted` made, picked on the body of `drawn`.
-    fn cap_on(minted: u64, drawn: u64) -> FaceSelection {
-        FaceSelection {
-            name: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, test_utils::refusal::tagged(minted)),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
-            node: RecipeNodeId::new(0, test_utils::refusal::tagged(drawn)),
-            body: 0,
-        }
-    }
-
     /// **The mate panel's picks, painted**: the seated tools' line —
     /// one `role: pick` item per side, `none picked` for the open one, the
     /// seated line's empty sentence — with each pick said as the chrome
@@ -2130,36 +2028,55 @@ mod tests {
     /// was picked on where that is not the feature the words name.
     #[test]
     fn the_mate_panel_says_its_picks_in_the_seated_panels_line() {
-        // The picks' nodes are not in this document, so each is spoken
-        // as a bare tag.
-        let doc = Doc::<ProfileProgram>::empty_derived("mate-row", Tol::witness());
+        let tol = Tol::witness();
+        let doc = Doc::<ProfileProgram>::empty_derived("mate-row", tol);
+        let (doc, profile) = crate::test_support::inserted(&doc, crate::test_support::square(0.02), tol);
+        let (doc, extrude) = crate::test_support::inserted(
+            &doc,
+            pncad::document::Node::Extrude {
+                profile: profile.into(),
+                distance: crate::test_support::len(0.01),
+            },
+            tol,
+        );
+        let (doc, copy) = crate::test_support::placed(&doc, extrude, tol);
         let evaluation = pncad::document::evaluate(
             &doc,
             None,
             &pncad::document::CancelToken::new(),
             &pncad::document::EvalOptions::default(),
-            Tol::witness(),
+            tol,
         );
         // The speaker the panel is drawn with.
         let by = crate::frame::landed_speaker(Some((&doc, &evaluation)));
         let painted =
             |tool: &MateTool| painted_text(|ui| mate_picks_row(ui, tool, 0, by, &Theme::DEFAULT));
         assert_eq!(painted(&MateTool::new()), "none picked");
-        // The Create door on node 3's body: a pick on it is `on`, a pick
-        // on any other body `to`.
-        let mut tool = MateTool::create(crate::session::picked_body(&doc, &cap_on(3, 3)).0);
+        // The editor on the copy: a pick on it is `on`, a pick on any
+        // other body `to`.
+        let cap = |drawn: RecipeNodeId| FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: extrude,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: drawn,
+            body: 0,
+        };
+        let mut tool = MateTool::edit(&doc, copy).expect("a placement");
         tool.add_mate(pncad::document::VarKind::Plane);
         assert_eq!(painted(&tool), "none picked");
-        tool.pick(&doc, cap_on(3, 3));
-        assert_eq!(
-            painted(&tool),
-            "on: the end cap of node 000000000003; to: none picked"
+        tool.pick(&doc, cap(copy));
+        let on = painted(&tool);
+        assert!(
+            on.starts_with("on: the end cap of ") && on.ends_with("; to: none picked"),
+            "{on}"
         );
-        tool.pick(&doc, cap_on(3, 5));
-        assert_eq!(
-            painted(&tool),
-            "on: the end cap of node 000000000003; \
-             to: the end cap of node 000000000003, on node 000000000005"
+        tool.pick(&doc, cap(extrude));
+        let both = painted(&tool);
+        assert!(
+            both.starts_with(&on[..on.len() - "none picked".len()]) && !both.ends_with("none picked"),
+            "the body picked as itself is `to`: {both}"
         );
     }
 
@@ -2249,34 +2166,6 @@ mod tests {
         assert!(
             drawn.contains("numbered from zero"),
             "the field says where the numbering starts: {drawn}"
-        );
-    }
-
-    /// **The duplicate panel says how the copy's step is chosen** —
-    /// along which direction and by how much clear space — in the
-    /// numbers the step rule actually uses.
-    ///
-    /// Held to the landed node from the other side by
-    /// `combine_ops::a_duplicate_keeps_the_notes_promise`, which
-    /// asserts the committed pattern's spacing against the same rule.
-    #[test]
-    fn the_duplicate_note_says_how_the_step_is_chosen() {
-        let note = duplicate_note();
-        assert!(
-            note.contains("along its own (1, 0, 0)"),
-            "along the original's own +x: {note}"
-        );
-        assert!(
-            note.contains("at least 25% of the body's width"),
-            "a quarter of the body's width, as a floor: {note}"
-        );
-        assert!(
-            note.contains("measured off the body as it now is"),
-            "and that the step is the body's, not a fixed length: {note}"
-        );
-        assert!(
-            note.contains("editable afterwards"),
-            "and that the slot is not frozen: {note}"
         );
     }
 
@@ -2936,7 +2825,6 @@ mod tools_respeak {
             ToolKind::Split,
             ToolKind::Pattern,
             ToolKind::Part,
-            ToolKind::Duplicate,
         ] {
             let (session, mut tools, last) =
                 picked_renamed_deleted(kind, |block, _| vec![Selection::Node(block)]);

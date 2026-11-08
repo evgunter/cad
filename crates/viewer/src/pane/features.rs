@@ -211,7 +211,7 @@ pub(crate) struct RowClicks {
     /// [`TreeRow::constraints`].
     pub(crate) remove: Option<MateRef>,
     /// Whether the placement's `edit` button was clicked: the placement
-    /// editor's Edit door on the row's node.
+    /// editor on the row's node.
     pub(crate) edit: bool,
     /// Whether the pointer is over the row's label: a clearance row's
     /// witness is drawn while it is ([`crate::marks::witness`]).

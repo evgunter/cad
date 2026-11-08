@@ -458,17 +458,9 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     // The Create door places a body not yet placed.
     let loose = common::xy_box_in(&mut session, [0.01, 0.01, 0.01]);
     session.pump();
-    let home = session
-        .committed_doc()
-        .operand_space(&loose.into())
-        .expect("the box is in a space");
     run(
         &mut session,
-        SessionOp::Place {
-            body: loose.into(),
-            target: home,
-            constraints: pncad::document::stand().bundle(),
-        },
+        SessionOp::Place { body: loose.into() },
         "placed",
     );
     run(
@@ -598,14 +590,6 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             select: PartSelectSpec::Instance(1),
         },
         "second",
-    );
-    run(
-        &mut session,
-        SessionOp::Duplicate {
-            input: block.into(),
-            beside: None,
-        },
-        "copy",
     );
     run(
         &mut session,

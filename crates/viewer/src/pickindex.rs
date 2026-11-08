@@ -2953,14 +2953,12 @@ fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> 
 /// **Where an inserted space is drawn, clear of what is drawn**: the
 /// display frame that steps `space`'s drawn bodies past everything else
 /// drawn along [`crate::combine::STEP_DIRECTION`] by
-/// [`crate::combine::clearance`] — the duplicate's rule, its own width's
-/// gap past the far side — each part as `display` draws it. The spaces
-/// in `ignored` are measured neither way: inserts still waiting for
-/// their own frame. `None` where nothing else is drawn, `space` draws
-/// nothing, it is clear already, or the picture does not build.
-///
-/// Measured as [`crate::combine::duplicate_step`] measures
-/// ([`crate::combine::measured_at_scale`]).
+/// [`crate::combine::clearance`] — its own width's gap past the far
+/// side — each part as `display` draws it, measured off meshes cut for
+/// their size ([`crate::combine::measured_at_scale`]). The spaces in
+/// `ignored` are measured neither way: inserts still waiting for their
+/// own frame. `None` where nothing else is drawn, `space` draws nothing,
+/// it is clear already, or the picture does not build.
 pub fn clear_of_drawn(
     doc: &Doc<ProfileProgram>,
     eval: &Evaluation<f64>,

@@ -1327,7 +1327,7 @@ impl ViewerApp {
     fn survive_tools(&mut self) {
         let dropped = self
             .tools
-            .reconcile(self.session.doc(), self.session.name_run());
+            .reconcile(self.session.committed_doc(), self.session.name_run());
         // A tool's survival drop is provoked by the document transition
         // it did not survive, so the act that accepts the next one is
         // what retires it; `frame::tool_notice` reads from the event
@@ -1447,6 +1447,15 @@ impl ViewerApp {
             // to learns its id here and nowhere else.
             let made = outcome.made;
             let committed = outcome.refusal.is_none();
+            // The placement editor opens on the placement a Place made,
+            // and settles the draft whose change landed or was refused.
+            if matches!(
+                accepted_op,
+                SessionOp::Place { .. } | SessionOp::SetBundle { .. }
+            ) {
+                self.tools
+                    .answered(&accepted_op, made, committed, self.session.committed_doc());
+            }
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -2438,6 +2447,9 @@ impl eframe::App for ViewerApp {
             self.picks.index_or_why(self.fit.as_ref()),
             &ops,
         );
+        // A pick that asked the placement editor for Place commits it
+        // in the batch of the click that asked.
+        ops.extend(self.tools.take_place());
         // A split target picked or cleared after the viewport drew
         // this frame's plane (`splitplane::push_split_plane`) asks for
         // the next.
@@ -4317,7 +4329,6 @@ mod properties_pane_tests {
             | ToolKind::Split
             | ToolKind::Pattern
             | ToolKind::Part
-            | ToolKind::Duplicate
             | ToolKind::Mirror => COMBINE_BODIES,
             ToolKind::Blend => BLEND_EDGES,
             ToolKind::Clearance => REQUIREMENTS,
@@ -4424,7 +4435,7 @@ mod properties_pane_tests {
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 
-    /// **The placement editor's value rows are fields**: the Edit door on
+    /// **The placement editor's value rows are fields**: the editor on
     /// the startup copy, its identity bundle loaded. Each row is drawn as
     /// its freedom's word and, next after it, a field showing the number
     /// the bundle holds — never a variable's raw id — and typing into one
@@ -8760,26 +8771,27 @@ mod properties_pane_tests {
     }
 
     /// **An edge-on-edge direction mate committed at the panel's own
-    /// default sense does not turn its copy over**: the plate duplicated
-    /// beside itself, one vertical corner edge of each picked, the panel
-    /// switched to `direction` and committed untouched. The default is
-    /// the kind's own (`matetool::senses`), not a plane's rest carried
-    /// across, and the panel names the two senses.
+    /// default sense does not turn its copy over**: the plate placed a
+    /// second time, one vertical corner edge of each copy picked, the
+    /// panel switched to `direction`, which commits live — the copy moved
+    /// into the first copy's space where it stands in another. The
+    /// default is the kind's own (`matetool::senses`), not a plane's rest
+    /// carried across, and the panel names the two senses.
     #[test]
     fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
         let mut driven = Driven::with(Vec::new());
         driven.settle();
-        driven.perform(SessionOp::Duplicate {
-            input: pncad::document::Operand::Node(extrude()),
-            beside: Some(placement()),
+        driven.perform(SessionOp::Place {
+            body: pncad::document::Operand::Node(extrude()),
         });
         let doc = driven.app.session.committed_doc().clone();
-        let [copy] = crate::world::placements_of(&doc, extrude())
+        let [copy] = doc
+            .placements()
             .into_iter()
-            .filter(|&at| at != placement())
+            .filter(|&at| at != placement() && doc.copied_read(at) == doc.read_of_node(extrude()))
             .collect::<Vec<_>>()[..]
         else {
-            panic!("the duplicate is one more copy")
+            panic!("the second placement is one more copy")
         };
         let index = driven.on_screen();
         let vertical = |node| {
@@ -8813,8 +8825,14 @@ mod properties_pane_tests {
                 && !shown.iter().any(|t| t == "opposed"),
             "the direction's sense is named by its two values: {shown:?}"
         );
-        driven.click(&crate::tools::ToolKind::Mate.commit());
-        driven.quiet();
+        let mated = |driven: &Driven| {
+            matches!(driven.app.session.committed_doc().node(copy), Some(Node::Place { constraints, .. })
+                if constraints.iter().any(|c| c.mate().is_some()))
+        };
+        if !mated(&driven) {
+            driven.click("move the copy into the target's space");
+            driven.quiet();
+        }
         let (doc, ev) = driven.app.session.landed_pair().expect("landed");
         assert!(
             matches!(doc.node(copy), Some(Node::Place { constraints, .. })
