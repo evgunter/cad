@@ -79,6 +79,7 @@ fn skewed_prism_ringed(nu: f64, outer: &[(f64, f64)], ring: &[(f64, f64)], h: f6
     )
     .expect("extrude")
     .body
+    .into_body()
 }
 
 /// The rectangle whose diagonal is the far point: anchor (0,0), far

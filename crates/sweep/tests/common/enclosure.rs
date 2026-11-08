@@ -19,12 +19,41 @@ pub fn box_about(c: f64) -> (f64, f64) {
 }
 
 /// Every wall's poles, weights and v knots, in face order, through `f`.
-fn wall_values<T: SpanLocate, R>(lofted: &Lofted<T>, f: impl Fn(T) -> R) -> Vec<R> {
+/// A loft's body in either form a suite holds it: finished at the door,
+/// or the construction state the test-support twins return.
+pub trait LoftedBody<T: geom_core::Real> {
+    /// The body.
+    fn body_of(&self) -> &topo::Body<T>;
+}
+
+impl<T: geom_core::Real> LoftedBody<T> for topo::Body<T> {
+    fn body_of(&self) -> &topo::Body<T> {
+        self
+    }
+}
+
+impl<T: geom_core::Real> LoftedBody<T> for topo::Replay<T> {
+    fn body_of(&self) -> &topo::Body<T> {
+        self
+    }
+}
+
+impl<T: geom_core::Real> LoftedBody<T> for topo::AtRestBody<T> {
+    fn body_of(&self) -> &topo::Body<T> {
+        self
+    }
+}
+
+fn wall_values<T: topo::AtRestPolicy + SpanLocate, R, B: LoftedBody<T>>(
+    lofted: &Lofted<T, B>,
+    f: impl Fn(T) -> R,
+) -> Vec<R> {
     let mut out = Vec::new();
     for face in lofted.side_faces.iter().flatten().flatten() {
-        let face = lofted.body.get_face(*face).expect("a built face");
+        let face = lofted.body.body_of().get_face(*face).expect("a built face");
         match lofted
             .body
+            .body_of()
             .get_surface(face.surface)
             .expect("a described face")
         {
@@ -45,7 +74,11 @@ fn wall_values<T: SpanLocate, R>(lofted: &Lofted<T>, f: impl Fn(T) -> R) -> Vec<
 /// and every vertex holds the matching one of `sample`, the `f64` loft
 /// of one member of the family `enclosing` was built over. One
 /// construction builds both bodies, so they list both in one order.
-pub fn assert_encloses(what: &str, enclosing: &Lofted<Interval>, sample: &Lofted<f64>) {
+pub fn assert_encloses<B: LoftedBody<Interval>>(
+    what: &str,
+    enclosing: &Lofted<Interval, B>,
+    sample: &Lofted<f64>,
+) {
     let brackets = wall_values(enclosing, |x| (x.lo(), x.hi()));
     let values = wall_values(sample, |x| x);
     assert_eq!(
@@ -61,6 +94,7 @@ pub fn assert_encloses(what: &str, enclosing: &Lofted<Interval>, sample: &Lofted
     }
     let corners: Vec<[(f64, f64); 3]> = enclosing
         .body
+        .body_of()
         .points()
         .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
         .collect();

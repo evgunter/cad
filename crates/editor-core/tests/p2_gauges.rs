@@ -337,7 +337,7 @@ pub(crate) fn a_pinned_copy_escalates_its_transform() -> bool {
 /// value is held to an escalation the run made (a refusal of its own
 /// or of a node it is poisoned through), never another refusal; at
 /// every other ε, and wherever it evaluates, `check` runs.
-pub(crate) fn encloses_or_escalates<T: geom_core::Decide>(
+pub(crate) fn encloses_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
     check: impl FnOnce(),

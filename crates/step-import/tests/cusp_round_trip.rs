@@ -46,6 +46,7 @@ fn cusp_lune() -> topo::Body<f64> {
     )
     .expect("the cusp lune extrudes")
     .body
+    .into_body()
 }
 
 /// The endpoints of every edge check 4 marks `Tangent`.

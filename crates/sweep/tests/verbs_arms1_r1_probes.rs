@@ -454,7 +454,7 @@ fn the_partial_zone_refuses_through_its_own_gates() {
 fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     let body = bored_dome();
     let rim = bored_dome_equator(&body);
-    let mut out = fillet_edges(
+    let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &[rim],
         0.1,
@@ -479,25 +479,25 @@ fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
         panic!("the band is a torus");
     };
     // Lifts RechartStrandsDescriptions: the in-band torus is what tier 3 must escalate.
-    out.body
-        .set_face_surface_unvouched_for_tests(
-            band_face,
-            FaceSurface::New {
-                surface: Surface::Torus {
-                    center,
-                    axis,
-                    major_radius,
-                    // R − r lands at eps·√k — strictly inside the
-                    // [eps, k·eps] escalation band, so the classification
-                    // is not available at this tolerance.
-                    minor_radius: major_radius - tol().eps() * tol().k().sqrt(),
-                    u_ref,
-                },
-                sense: true,
+    let mut body = out.body.clone().into_body();
+    body.set_face_surface_unvouched_for_tests(
+        band_face,
+        FaceSurface::New {
+            surface: Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                // R − r lands at eps·√k — strictly inside the
+                // [eps, k·eps] escalation band, so the classification
+                // is not available at this tolerance.
+                minor_radius: major_radius - tol().eps() * tol().k().sqrt(),
+                u_ref,
             },
-        )
-        .unwrap();
-    let errors = validate_geometric(&out.body, tol()).expect_err("the boundary cannot pass");
+            sense: true,
+        },
+    )
+    .unwrap();
+    let errors = validate_geometric(&body, tol()).expect_err("the boundary cannot pass");
     assert!(
         errors
             .iter()

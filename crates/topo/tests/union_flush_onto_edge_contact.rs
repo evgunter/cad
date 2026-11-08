@@ -68,9 +68,21 @@ const ORDERS: [[usize; 3]; 6] = [
 
 fn members(c_span: (f64, f64), tol: Tol) -> [AtRestBody<f64>; 3] {
     [
-        finished("a", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol),
-        finished("b", brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol), tol),
-        finished("c", brick(c_span, (-1.0, 0.0), (-1.0, 0.0), tol), tol),
+        finished(
+            "a",
+            brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        ),
+        finished(
+            "b",
+            brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        ),
+        finished(
+            "c",
+            brick::<f64>(c_span, (-1.0, 0.0), (-1.0, 0.0), tol),
+            tol,
+        ),
     ]
 }
 
@@ -336,7 +348,7 @@ fn quarter_pinch(
     let [p, q] = lows.map(|(x, y)| {
         finished(
             "a quarter brick",
-            brick((x, x + 1.0), (y, y + 1.0), z, tol),
+            brick::<f64>((x, x + 1.0), (y, y + 1.0), z, tol),
             tol,
         )
     });
@@ -410,7 +422,7 @@ fn a_pinch_without_its_edge_edge_row_reads_its_shared_ends() {
 /// under 180°) about the z-axis, over `z`.
 fn wedge(d0: f64, d1: f64, z: (f64, f64), tol: Tol) -> AtRestBody<f64> {
     let at = |deg: f64| (deg.to_radians().cos(), deg.to_radians().sin());
-    let body = common::prism_z(&[(0.0, 0.0), at(d0), at(d1)], z.0, z.1, tol).body;
+    let body = common::prism_z::<f64>(&[(0.0, 0.0), at(d0), at(d1)], z.0, z.1, tol).body;
     finished("a wedge", body, tol)
 }
 
@@ -1156,7 +1168,7 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
     let (pinch, carried) = pinch(tol);
     let wall = finished(
         "wall",
-        common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.0, 1.0, tol).body,
+        common::prism_z::<f64>(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.0, 1.0, tol).body,
         tol,
     );
     let ab = BooleanInputs {
@@ -1172,7 +1184,7 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
     // with a new pair of vertices at its cut.
     let upper = finished(
         "upper",
-        common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.75, 1.25, tol).body,
+        common::prism_z::<f64>(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.75, 1.25, tol).body,
         tol,
     );
     let cut = BooleanInputs {
@@ -2617,9 +2629,21 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
 #[test]
 fn a_pinch_lines_end_joins_where_the_next_union_straightens_it() {
     let tol = Tol::witness();
-    let p = finished("p", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
-    let q = finished("q", brick((-1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), tol), tol);
-    let r = finished("r", brick((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol), tol);
+    let p = finished(
+        "p",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let q = finished(
+        "q",
+        brick::<f64>((-1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let r = finished(
+        "r",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol),
+        tol,
+    );
     let step = |a: &AtRestBody<f64>, b: &AtRestBody<f64>, prev: Option<&BooleanBody<f64>>| {
         let mut decls = BooleanInputs::default();
         if let Some(prev) = prev {

@@ -57,6 +57,7 @@ fn revolved(verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// A prism whose volume is checked against the closed form, so the
@@ -743,7 +744,7 @@ fn a_box_inside_the_cut_cylinder_subtracts_through_the_containment_fallback() {
     let half = finished("the cut cylinder", tilted_cut_cylinder(true), tol());
     let cavity = finished(
         "the sunk box",
-        brick((-0.2, 0.2), (-0.2, 0.2), (1.8, 2.2), tol()),
+        brick::<f64>((-0.2, 0.2), (-0.2, 0.2), (1.8, 2.2), tol()),
         tol(),
     );
     let out = match topo::subtract(&half, &cavity, tol()) {
@@ -792,7 +793,7 @@ fn holed_plate() -> Body<f64> {
         body.faces().any(|(_, f)| !f.rings.is_empty()),
         "the hole is a ring of the top and bottom faces"
     );
-    body
+    body.into_body()
 }
 
 /// **The cut cylinder's ellipse-bounded face refuses nothing.** Before

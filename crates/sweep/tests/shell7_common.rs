@@ -33,6 +33,7 @@ pub(crate) fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64>
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// A polyline meridian revolved.
@@ -67,6 +68,7 @@ pub(crate) fn tube_torus(major: f64, minor: f64) -> Body<f64> {
     )
     .expect("the solid torus builds")
     .body
+    .into_body()
 }
 
 /// Its hollow twin.
@@ -86,6 +88,7 @@ pub(crate) fn tube_torus_hollow(major: f64, minor: f64, wall: f64) -> Body<f64> 
     )
     .expect("the hollow torus builds")
     .body
+    .into_body()
 }
 
 /// `p` in the `(ρ, h)` half-plane of the `y` axis.

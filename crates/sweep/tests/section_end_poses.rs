@@ -35,7 +35,7 @@ use topo::splitting::{SplitError, split};
 use topo::{AtRestBody, Body, BooleanError, SectionEndReading, SectionPinMiss, SplitJoinError};
 
 fn finished(body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol).expect("a valid operand")
+    topo::finish(body, tol).expect("a valid operand")
 }
 
 /// The unit cylinder about `z`, `0 ≤ z ≤ 1`, its seam vertices at

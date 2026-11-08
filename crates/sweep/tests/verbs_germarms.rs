@@ -173,7 +173,7 @@ fn assert_bar_through_the_pipe_at(
 ) -> [Census; 4] {
     let bar = finished(
         "the bar",
-        brick(
+        brick::<f64>(
             (x.0 + c.0, x.1 + c.0),
             (y.0 + c.1, y.1 + c.1),
             z,
@@ -198,7 +198,7 @@ fn bored_block_at(c: (f64, f64)) -> (AtRestBody<f64>, f64) {
     let tol = Tol::witness();
     let block = finished(
         "the block",
-        brick(
+        brick::<f64>(
             (c.0 - 2.0, c.0 + 2.0),
             (c.1 - 2.0, c.1 + 2.0),
             (-1.0, 1.0),
@@ -226,7 +226,7 @@ fn assert_bar_across_the_bore_at(
     let (bored, v_bored) = bored_block_at(c);
     let bar = finished(
         "the bar",
-        brick(
+        brick::<f64>(
             (x.0 + c.0, x.1 + c.0),
             (y.0 + c.1, y.1 + c.1),
             z,
@@ -447,7 +447,7 @@ fn a_notched_or_ringed_walls_flipped_sense_refuses() {
         ("notched", (-0.3, 0.3), (-0.3, 0.3), false),
         ("ringed", (0.15, 0.7), (-0.4, 0.1), true),
     ] {
-        let bar = finished("the bar", brick((-1.1, 1.1), y, z, tol), tol);
+        let bar = finished("the bar", brick::<f64>((-1.1, 1.1), y, z, tol), tol);
         let topo::BooleanResult::Body(out) = topo::union(&pipe(), &bar, tol).expect("builds")
         else {
             panic!("{what}: empty");
@@ -519,7 +519,7 @@ fn a_bar_clear_of_the_wall_still_answers() {
         &pipe(),
         &finished(
             "the bar",
-            brick((1.5, 2.5), (-0.3, 0.3), (-0.3, 0.3), tol),
+            brick::<f64>((1.5, 2.5), (-0.3, 0.3), (-0.3, 0.3), tol),
             tol,
         ),
         tol,
@@ -546,7 +546,7 @@ fn a_bar_grazing_the_wall_keeps_the_pierce_door() {
         pipe(),
         finished(
             "the bar",
-            brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), Tol::witness()),
+            brick::<f64>((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), Tol::witness()),
             Tol::witness(),
         ),
     );
@@ -626,7 +626,7 @@ fn a_cone_wall_cut_along_its_axis_names_the_hyperbola() {
         &finished("the frustum", frustum, tol),
         &finished(
             "the bar",
-            brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+            brick::<f64>((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
             tol,
         ),
     );
