@@ -8,7 +8,7 @@
 //!
 //! [`two_boxes`] authors an overlapping pair through the creation
 //! vocabulary alone (rectangle profile → extrude, and a second one
-//! moved by the Transform tool, the placement editor's Create door): a
+//! placed and moved by the Transform tool, Place then the editor): a
 //! 40 × 20 × 10 mm block and
 //! a 20 × 10 × 6 mm block offset so that they overlap in a
 //! 5 × 10 × 6 mm brick and share NO plane. The constants below are

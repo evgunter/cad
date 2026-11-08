@@ -947,7 +947,7 @@ pub fn recount_op(session: &DocSession, family: RecipeNodeId, count: i64) -> Ses
     }
 }
 
-/// **The placement editor's Apply for `tool`**, its active row chosen as
+/// **The placement editor's bundle for `tool`**, its active row chosen as
 /// `choice` says, derived against `session`'s landed pair.
 ///
 /// # Panics
@@ -1006,7 +1006,7 @@ pub fn transformed_at(
         tool.type_value(coord.clone(), by.clone());
     }
     tool.proposal(doc, ev, tol)
-        .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
+        .unwrap_or_else(|error| panic!("the draft writes a bundle: {error}"))
         .op()
 }
 

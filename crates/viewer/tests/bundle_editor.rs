@@ -1,9 +1,8 @@
-//! **The placement editor**: a draft of one placement's whole bundle,
-//! applied as one edit through one of two doors — Create on a body not
-//! yet placed, Edit on a placement, keeping its ids — with the verdict
-//! judged before Apply, a stale draft reloaded, no value reading a
-//! variable re-written as a measured number, and a mate struck out
-//! through the tree's `remove` measured where the copy stands.
+//! **The placement editor**: Place on a body not yet placed, then a
+//! draft of one placement's whole bundle written as one edit keeping its
+//! ids, judged by the door before it lands, a stale draft reloaded, no
+//! value reading a variable re-written as a measured number, and a mate
+//! struck out through the tree's `remove` measured where the copy stands.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -68,7 +67,7 @@ fn rest() -> MateChoice {
 }
 
 /// **A value reading a variable survives a mate committed beside it**,
-/// and Apply is one undo step that keeps every id it loaded. post_b's
+/// and the change is one undo step that keeps every id it loaded. post_b's
 /// slide along `x` reads `px`; the seat's rest leaves that slide, so the
 /// value keeps reading `px` — never the number it measures — while the
 /// constants on the freedoms the rest changes the meaning of are
@@ -109,7 +108,7 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
     common::commit_mate(&mut session, proposal.op());
 
     let (id, by) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
-    assert_eq!(id, slide_x, "Apply keeps the loaded value's id");
+    assert_eq!(id, slide_x, "the bundle keeps the loaded value's id");
     assert_eq!(by, px, "the value still reads px");
     assert_eq!(session.history().len(), states + 1, "one history state");
     let outcome = session.perform(SessionOp::Undo);
@@ -122,7 +121,7 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
 }
 
 /// **A draft over a bundle the document has since changed is stale**:
-/// the survival step loads it again, said, and an Apply of the old one
+/// the survival step loads it again, said, and a `SetBundle` of the old one
 /// is refused rather than written over the bundle the placement holds.
 #[test]
 fn a_stale_draft_reloads_and_its_apply_is_refused() {
@@ -436,8 +435,8 @@ fn place_lands_where_the_body_stands_with_zero_values() {
 /// **A kept chart keeps its slides**: post_b rested under the shelf, the
 /// shelf then turned 60° about `x`, so the rest's target leans past the
 /// diagonal and the orientation nearest where post_b now stands is no
-/// longer the loaded one. The Edit door opened untouched still lists the
-/// loaded slides — the chart is the bundle's — and its Apply writes
+/// longer the loaded one. The editor opened untouched still lists the
+/// loaded slides — the chart is the bundle's — and its bundle writes
 /// nothing.
 #[test]
 fn an_untouched_draft_over_a_tilted_target_keeps_its_slides() {

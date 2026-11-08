@@ -27,7 +27,7 @@ fn two_picks_one_choice_one_committed_edit() {
     // empty one.
     asm::unpin(&mut session, bench.post_b);
 
-    // The first pick, on post_b's copy, opens the Edit door on it and
+    // The first pick, on post_b's copy, opens the editor on it and
     // fills a fresh row's on seat; the second, elsewhere, its to seat.
     let mut tool = MateTool::new();
     assert!(tool.door().is_none(), "no pick, no door");
@@ -321,7 +321,7 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     // A reconcile against an unchanged pair is quiet.
     assert!(tool.reconcile(session.committed_doc(), (doc, eval)).is_empty());
 
-    // The copy the Edit door is on goes too: the editor holds nothing,
+    // The copy the editor is on goes too: it holds nothing,
     // said.
     session.perform(SessionOp::DeleteNode { node: bench.post_b });
     session.pump();
@@ -627,8 +627,8 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
 /// **The Transform tool reads a pick through a union by A11's member
 /// walk**, as the editor's first pick does: one rule decides which door
 /// a pick opens. A face of the union's own body, named as post_b's
-/// member face, opens the Edit door of the copy the walk reaches — not a
-/// Create door on the union.
+/// member face, opens the editor on the copy the walk reaches — not
+/// Place on the union.
 #[test]
 fn the_transform_tool_reaches_an_instance_through_a_unions_name() {
     let tol = Tol::witness();

@@ -451,11 +451,11 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "turned",
     );
-    // The Transform tool's Apply on a body nothing places: the Create
-    // door, its slides typed.
+    // The Transform tool on a body nothing places: Place, then its
+    // slides typed in the editor.
     let op = common::transformed(&mut session, block, &common::slides([0.005, 0.007, 0.003]));
     let moved = run(&mut session, op, "moved");
-    // The Create door places a body not yet placed.
+    // Place places a body not yet placed.
     let loose = common::xy_box_in(&mut session, [0.01, 0.01, 0.01]);
     session.pump();
     run(
