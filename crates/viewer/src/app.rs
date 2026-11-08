@@ -12256,7 +12256,7 @@ mod properties_pane_tests {
         }
 
         /// **`text` typed on `coord`'s value row of the placement editor
-        /// opened on `row`**, and its Apply performed.
+        /// opened on `row`**, and the change it forms performed.
         fn typed_on_row(
             driven: &mut Driven,
             row: RecipeNodeId,
@@ -12272,7 +12272,7 @@ mod properties_pane_tests {
             editor.type_value(coord, by);
             let op = editor
                 .proposal(doc, eval, session.tol())
-                .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
+                .unwrap_or_else(|error| panic!("the draft writes a bundle: {error}"))
                 .op();
             driven.app.perform_batch(vec![op]);
             driven.settle();

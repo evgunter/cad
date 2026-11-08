@@ -72,6 +72,8 @@ fn session(label: &str, tol: Tol) -> DocSession {
 
 /// **The editor's change offered as the panel offers it**: against the
 /// landed pair, judged by the session's door.
+// The door answers the session's own `Refusal`, whatever its width.
+#[allow(clippy::result_large_err)]
 fn offered(session: &DocSession, tool: &mut MateTool) -> Option<SessionOp> {
     let (doc, ev) = session.landed_pair().expect("landed");
     tool.offer(doc, ev, session.tol(), |op| session.bundle_door(op))
