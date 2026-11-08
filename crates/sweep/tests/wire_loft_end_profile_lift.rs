@@ -164,7 +164,10 @@ mod interval {
     /// instead, and a run where NOTHING separates fails loudly rather than
     /// passing vacuously: that would mean the behaviour this row exists
     /// for is unreachable at that ε, which is a finding, not a green.
-    fn separating_pair() -> Option<(f64, f64, Vec<Section>, Vec<SketchPlane<f64>>)> {
+    /// A separating rung: `(h, b)` and the sections and planes it lofts.
+    type Separating = (f64, f64, Vec<Section>, Vec<SketchPlane<f64>>);
+
+    fn separating_pair() -> Option<Separating> {
         let s = Tol::witness().eps() * 1e9;
         let mut tried = Vec::new();
         let mut past_box = Vec::new();
