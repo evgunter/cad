@@ -547,11 +547,11 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             .face_views()
             .map(|f| {
                 let (key, kind) = (f.key(), f.surface().kind());
-                Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
+                Ok((key, kind, super::boxes::face_box(other, key, pad, band)))
             })
             .collect::<Result<_, BooleanError>>()?;
         for (face, kind) in offenders {
-            let boxed = super::boxes::face_box(body, face, pad, band)?;
+            let boxed = super::boxes::face_box(body, face, pad, band);
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box)
                     && !covered(operand, face, other_face)
@@ -782,9 +782,9 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         );
         // The ball about the edge's start that holds all of it: out to
         // its cover's farthest distance from there.
-        let cover = match super::boxes::edge_cover_linked(body, edge_key, edge) {
+        let cover = match crate::cover::edge_cover_linked(body, edge_key, edge) {
             Ok(cover) => Some(cover),
-            Err(super::EdgeUncovered::Scaffold) => unreachable!(
+            Err(crate::cover::EdgeUncovered::Scaffold) => unreachable!(
                 "{operand:?}'s edge {edge_key:?}, read out of its arena, has no certified \
                  carrier: the operand gate refuses a null edge as scaffolding"
             ),
@@ -793,7 +793,9 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // number), or an end vertex that is not a finite point: the
             // edge bounds no region, and levers at poison, which the
             // ladder escalates as its orientation rung's refusal.
-            Err(super::EdgeUncovered::Carrier(_) | super::EdgeUncovered::Ends) => None,
+            Err(crate::cover::EdgeUncovered::Carrier(_) | crate::cover::EdgeUncovered::Ends) => {
+                None
+            }
         };
         let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::of_cover_from(
             cover.as_ref(),
@@ -865,7 +867,7 @@ fn face_tree<T: Decide + Bounds>(
                 max_z: f64::NEG_INFINITY,
             }
         } else {
-            boxes::face_box(y, f, pad, band)?
+            boxes::face_box(y, f, pad, band)
         });
     }
     Ok(bvh::Bvh::build(&face_boxes))

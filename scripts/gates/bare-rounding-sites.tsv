@@ -173,8 +173,7 @@ crates/sweep/tests/the_football_revolves.rs	test	1	oracle
 crates/sweep/tests/torax_axial.rs	test	1	oracle
 crates/sweep/tests/torus_touch_off_faces.rs	test	1	oracle
 crates/sweep/tests/vrev_acceptance_set.rs	test	1	oracle
-crates/topo/src/boolean/boxes.rs	prod	1	re-pose
-crates/topo/src/boolean/boxes.rs	test	13	oracle
+crates/topo/src/boolean/boxes.rs	test	9	oracle
 crates/topo/src/boolean/conic_quadric/circle_sphere_rows.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/circle_wall_rows.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/cone_rows.rs	test	2	oracle

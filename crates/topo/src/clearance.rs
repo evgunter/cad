@@ -4980,16 +4980,11 @@ mod receipt_rule {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod cone_window {
-    use core::f64::consts::{FRAC_PI_2, PI};
-
-    use geom::{Curve3, Surface};
-    use geom_brep::{CurveSelector, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
-    use geom_core::{Point3, Tol, Vec3};
+    use geom_core::Tol;
 
     use super::{Which, window_of};
     use crate::Body;
     use crate::entity::FaceKey;
-    use crate::euler::{FaceSurface, MefSite, MevSite};
 
     const ALPHA: f64 = 0.5;
 
@@ -4998,76 +4993,10 @@ mod cone_window {
         z / ALPHA.cos()
     }
 
-    /// The cone of half-angle [`ALPHA`] about `+z`, apex at the origin.
-    fn cone() -> Surface<f64> {
-        Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
-            half_angle: ALPHA,
-            u_ref: Vec3::unit_x(),
-        }
-    }
-
-    /// **A cone cap**: the face on [`cone`] bounded by its one circle at
-    /// height `z`, two half-circle edges with no seam, so it holds the
-    /// apex inside and none of its boundary reaches it.
+    /// A cone cap at height `z` on the cone of half-angle [`ALPHA`]
+    /// (`test_support_fixtures::cone_cap`).
     fn cone_cap(z: f64) -> (Body<f64>, FaceKey) {
-        let r = z * ALPHA.tan();
-        let on = |u: f64| Point3::new(r * u.cos(), r * u.sin(), z);
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(on(0.0), true).unwrap();
-        let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, z),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-        });
-        body.set_face_surface(
-            seed.face,
-            FaceSurface::Shared {
-                key: plane,
-                sense: true,
-            },
-        )
-        .unwrap();
-        let carrier = body.add_surface(cone());
-        let half = |u0: f64| EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                pair: SurfacePair::new(carrier, plane),
-                selector: CurveSelector::Witness(on(u0 + FRAC_PI_2)),
-            },
-            carrier: Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), r, Vec3::unit_x()),
-            param_start: u0,
-            param_end: u0 + PI,
-        };
-        let e = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                on(PI),
-                half(0.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        let face = body
-            .lifting_rechart_refusals_for_tests(|body| {
-                body.mef(
-                    MefSite::Chords {
-                        he1: e.he_minus,
-                        he2: e.he_plus,
-                    },
-                    half(PI),
-                    FaceSurface::Shared {
-                        key: carrier,
-                        sense: true,
-                    },
-                    Tol::witness(),
-                )
-            })
-            .unwrap()
-            .face;
-        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        (body, face)
+        crate::test_support_fixtures::cone_cap(ALPHA, z, Tol::witness())
     }
 
     /// **A cone face's window ends where the face does, unless the face

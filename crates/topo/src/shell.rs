@@ -4714,7 +4714,7 @@ fn footprint<T: Decide>(
 }
 
 /// The `(u, v)` box of `frame` holding `edge`: its cover's box in the
-/// frame's rows (`boolean::boxes::edge_cover_linked`), about the frame's
+/// frame's rows (`boolean::crate::cover::edge_cover_linked`), about the frame's
 /// origin. Nothing for null scaffolding, a zero-length chord its vertex
 /// holds. Both corners are poison, and so the footprint, where the edge
 /// has no cover: its spline net carries poison, a datum or a computed
@@ -4727,8 +4727,8 @@ fn edge_box_in<T: Decide>(
     edge: &crate::entity::Edge,
     frame: &InPlane<T>,
 ) -> Vec<(T, T)> {
-    use crate::boolean::EdgeUncovered;
-    match crate::boolean::boxes::edge_cover_linked(body, key, edge) {
+    use crate::cover::EdgeUncovered;
+    match crate::cover::edge_cover_linked(body, key, edge) {
         Ok(cover) => cover_box_in(&cover, frame).to_vec(),
         Err(EdgeUncovered::Scaffold) => Vec::new(),
         Err(EdgeUncovered::Carrier(_) | EdgeUncovered::Ends) => {
@@ -5342,11 +5342,11 @@ fn moved_walls<T: Decide>(
                 );
                 let (start, end) = (ends[i], ends[(i + 1) % ends.len()]);
                 let certified = cavity.edge_curve_linked(h.edge, edge).certified();
-                // The edge's cover (`boolean::boxes::edge_cover_linked`):
+                // The edge's cover (`boolean::crate::cover::edge_cover_linked`):
                 // `None` for null scaffolding, a chord the wall's own
                 // vertices below hold.
-                let cover = match crate::boolean::boxes::edge_cover_linked(cavity, h.edge, edge) {
-                    Err(crate::boolean::EdgeUncovered::Scaffold) => None,
+                let cover = match crate::cover::edge_cover_linked(cavity, h.edge, edge) {
+                    Err(crate::cover::EdgeUncovered::Scaffold) => None,
                     other => Some(other),
                 };
                 let curve = match certified {
@@ -6157,8 +6157,9 @@ mod tests {
 
     /// **A spline piece is read in the smaller of its two balls.** On the
     /// weight-`40` parabola the speed bound's ball over the whole window
-    /// has radius about `90`, while the control net's ball has radius
-    /// `√2`: the piece, and so the wall's box, is read in the latter.
+    /// has radius about `90`, while the cover's ball has radius at most
+    /// the control net's `√2`: the piece, and so the wall's box, is read
+    /// in the latter.
     #[test]
     fn a_rational_spline_piece_is_read_in_its_control_ball() {
         let carrier = weighted_parabola(40.0);
@@ -6177,10 +6178,21 @@ mod tests {
             "the speed ball is wide, radius {}",
             speed.get() * 0.5
         );
+        // The cover's ball is the meet's: no wider than the control net's
+        // `√2` about `(0, 1)`, and narrower where the window's pieces'
+        // box is (`geom::cover::Cover::ball`).
         assert!(
-            (radius - 2.0_f64.sqrt()).abs() < 1e-12 && (centre.y - 1.0).abs() < 1e-12,
-            "the piece is read in the control ball about (0, 1), radius √2, got {centre:?}, {radius}"
+            radius <= 2.0_f64.sqrt() + 1e-12 && centre.x.abs() < 1e-12,
+            "the piece is read in its cover's ball, at most the control ball's √2, got \
+             {centre:?}, {radius}"
         );
+        for k in 0..=2_000 {
+            let p = carrier.eval(f64::from(k) / 2_000.0);
+            assert!(
+                (p - centre).norm() <= radius + 1e-12,
+                "the piece's point {p:?} lies outside its ball about {centre:?}, radius {radius}"
+            );
+        }
     }
 
     /// **A contact on `L` is read whichever side the face lies on, and

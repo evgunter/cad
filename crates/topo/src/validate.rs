@@ -9005,7 +9005,7 @@ pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeK
 /// edge's extent so a cross product over its length is a lever: a line
 /// by its chord, a conic or spiric arc by its walk tangent there at the
 /// arc's reach from that start, its edge cover's far distance from
-/// above (`boolean::boxes::edge_reach_bounds`). The
+/// above (`boolean::crate::cover::edge_reach_bounds`). The
 /// wedge acts on every sign, so its lever is the region's own measure
 /// from where it is read; where that is known only from both sides (an
 /// ellipse or spiric arc, whose bound from above can pass it many times
@@ -9024,7 +9024,7 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
         geom::Curve3::Line(_) => Some(Departure::Exact(p1 - p0)),
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
             let e = body.edges.get(h.edge)?;
-            let lever = crate::boolean::boxes::edge_reach_bounds(body, h.edge, e, p0)?;
+            let lever = crate::cover::edge_reach_bounds(body, h.edge, e, p0)?;
             Some(Departure::along(
                 curve.walk_tangents(plus).0.normalize(),
                 lever,
