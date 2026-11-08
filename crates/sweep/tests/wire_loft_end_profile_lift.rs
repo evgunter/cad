@@ -257,7 +257,7 @@ mod interval {
     #[test]
     fn each_seam_strut_at_interval_encloses_the_f64_world_points_exactly() {
         let (sections, places) = cone_sections();
-        let lofted = loft_body::<Interval>(
+        let lofted = sweep::test_support::loft_body_construction::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
             &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             1,

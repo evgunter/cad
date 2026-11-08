@@ -65,6 +65,7 @@ fn arc_prism(s: f64) -> topo::Body<f64> {
     )
     .expect("the arc prism lofts")
     .body
+    .into_body()
 }
 
 /// The face-lane rounds run while `run` executed — the certificate

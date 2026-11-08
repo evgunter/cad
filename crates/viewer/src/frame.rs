@@ -2686,7 +2686,6 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::ProductOutsideWorld
         | ProductErrorKind::Frame
         | ProductErrorKind::Graft
-        | ProductErrorKind::PieceInvalid
         | ProductErrorKind::ProductInvalid
         | ProductErrorKind::ContactLineage => {
             if kind.means_no_body() {
@@ -3653,7 +3652,6 @@ mod tests {
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::Graft,
-            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ] {
@@ -3710,7 +3708,6 @@ mod tests {
             ProductErrorKind::StrandedProduct,
             ProductErrorKind::ProductOutsideWorld,
             ProductErrorKind::Graft,
-            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ]

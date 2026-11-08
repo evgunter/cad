@@ -50,9 +50,9 @@
 //!    derive-on-demand, exactly what a natively built body carries).
 //! 5. **The shared at-rest gate** (M7-7, #260 ruling (a);
 //!    [`import_step`]): the body is handed to
-//!    `topo::validate_geometric` — the kernel's own at-rest validator,
-//!    tiers 1–3, the same function on the same body a native
-//!    construction's caller runs — and only a body it passes ships as
+//!    the kernel's own at-rest gate — the scalar's finish
+//!    ([`topo::finish`]), tiers 1–3, the same function on the same body
+//!    every native door's result goes through — and only a body it passes ships as
 //!    [`StepImport::Solid`]. Steps 1–4 certify each edge's
 //!    description; this certifies the BODY, which is what "import is
 //!    adoption" has to mean if it means anything.
@@ -864,9 +864,11 @@ pub fn import_step(
                 // solid count: `topo::graft_disjoint` below refuses any
                 // copy that is not exactly one solid (derivation:
                 // `work/gather/product-gate-says-verbatim-then-states-the-difference.md`).
-                if topo::per_part_gate_owed(model.instances.len()) {
-                    gate(&one, Some(spec.id), tol)?;
-                }
+                let one = if topo::per_part_gate_owed(model.instances.len()) {
+                    gate(one, Some(spec.id), tol)?.into_body()
+                } else {
+                    one
+                };
                 topo::graft_disjoint(&mut body, &one).map_err(|source| {
                     StepImportError::Instance {
                         solid: spec.id,
@@ -892,8 +894,8 @@ pub fn import_step(
             // **The shared at-rest validation gate** (M7-7, the #260
             // ruling (a) + D9 engineering convention 2). Every
             // imported solid is held to the kernel's invariants by the
-            // SAME function a native body's caller runs at rest —
-            // `topo::validate_geometric`, tiers 1–3 — reached only
+            // SAME function every native door's result goes through —
+            // the scalar's finish (`topo::finish`), tiers 1–3 — reached only
             // through `gate` below, which adds no opinion of its own:
             // no kind predicate selects which bodies are asked (the
             // band re-mint's backstop was that opinion, and it
@@ -967,17 +969,24 @@ pub fn import_step(
     }
 }
 
-/// The reader's ONLY contact with the kernel's at-rest validator: pass
-/// a body, get the verdicts back as a typed refusal naming the subject
-/// (`solid` = the `MANIFOLD_SOLID_BREP` asked about alone, `None` = the
-/// assembled body). Nothing is filtered, nothing is reworded, no
-/// verdict class is privileged — the whole point is that import has no
-/// validation logic that could drift from the kernel's (D9 engineering
-/// convention 2). If this function ever grows a condition, the gate has
-/// grown an opinion.
-fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), StepImportError> {
-    topo::validate_geometric(body, tol)
-        .map_err(|errors| StepImportError::TierInvalid { solid, errors })
+/// The reader's per-solid contact with the kernel's at-rest gate: the
+/// scalar's one finish ([`topo::finish`]), the same gate every door's
+/// result goes through. Pass a body, get it back finished or the
+/// finish's findings back whole as a typed refusal naming the subject
+/// (`solid` = the file's `MANIFOLD_SOLID_BREP` asked about alone).
+/// Nothing is filtered, nothing is reworded, no verdict class is
+/// privileged — the whole point is that import has no validation logic
+/// that could drift from the kernel's (D9 engineering convention 2). If
+/// this function ever grows a condition, the gate has grown an opinion.
+fn gate(
+    body: topo::Body<f64>,
+    solid: Option<u64>,
+    tol: Tol,
+) -> Result<topo::AtRestBody<f64>, StepImportError> {
+    topo::finish(body, tol).map_err(|findings| StepImportError::TierInvalid {
+        solid,
+        errors: findings.into_findings(),
+    })
 }
 
 /// The aggregate subject's gate: the tier-3′ form, recording the

@@ -1321,10 +1321,14 @@ fn exactly_one_validation_call_site_in_the_reader() {
     // tier-3 battery over the same body (its own product is the marks
     // channel). A gate grown there would be a third entry wearing a
     // fourth name.
-    const DOORS: [&str; 3] = [
+    // `topo::finish` is the scalar's finish, the tier-3 door the
+    // per-solid gate goes through: the same battery under the one
+    // constructor of a finished body.
+    const DOORS: [&str; 4] = [
         "validate_geometric",
         "validate_pseudomanifold",
         "contact_marks",
+        "topo::finish(",
     ];
     for path in test_utils::source::rust_sources(&src) {
         let text = std::fs::read_to_string(&path).unwrap();

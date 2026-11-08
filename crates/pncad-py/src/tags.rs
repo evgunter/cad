@@ -915,7 +915,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::SelectResolve => "select_resolve",
         C::EmptyOperand => "empty_operand",
         C::EmptyMember => "empty_member",
-        C::UnfinishedOperand => "unfinished_operand",
+        C::NotFinished => "not_finished",
+        C::UnfinishedLeaf => "unfinished_leaf",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
         C::UnderflowedDirection => "underflowed_direction",
@@ -1057,7 +1058,8 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::EmptyOperand { .. } => None,
         NodeErrorKind::EmptyMember { .. } => None,
-        NodeErrorKind::UnfinishedOperand { .. } => None,
+        NodeErrorKind::NotFinished { .. } => None,
+        NodeErrorKind::UnfinishedLeaf { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
@@ -1323,6 +1325,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
         ExtrudeError::SidePlane { .. } => "side_plane",
         ExtrudeError::Op { .. } => "op",
         ExtrudeError::Pcurve(_) => "pcurve",
+        ExtrudeError::NotFinished { .. } => "not_finished",
     }
 }
 
@@ -1358,6 +1361,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::CapPlane { .. } => "cap_plane",
         RevolveError::Op { .. } => "op",
         RevolveError::Pcurve(_) => "pcurve",
+        RevolveError::NotFinished { .. } => "not_finished",
     }
 }
 
@@ -1411,11 +1415,6 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Finish(SplitFinishError::EdgeJoin { refusal, .. }) => {
             join_refusal_tag(refusal)
         }
-        // A side refused only on in-band shells is the Boolean's
-        // `Escalated` on the same decision, so it carries the Boolean's word.
-        SplitOpError::Finish(SplitFinishError::ResultEscalated { .. }) => {
-            boolean_error_tag(BooleanErrorKind::Escalated)
-        }
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
         SplitOpError::Pieces(_) => "pieces",
@@ -1447,9 +1446,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnsupportedRunOut { .. } => "unsupported_run_out",
         BlendError::UnsupportedGeometry { .. } => "unsupported_geometry",
         BlendError::BodyNotIntact { .. } => "body_not_intact",
-        BlendError::ScaffoldingOperand { .. } => "scaffolding_operand",
-        BlendError::InsideOutOperand { .. } => "inside_out_operand",
-        BlendError::UnjoinedOperand { .. } => "unjoined_operand",
+        BlendError::NotFinished { .. } => "not_finished",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::WhollyInside { .. } => "wholly_inside",
@@ -1496,7 +1493,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PointInFaceRefused => "point_in_face_refused",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::InsideOutOperand => "inside_out_operand",
-        BooleanErrorKind::UnjoinedOperand => "unjoined_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
         BooleanErrorKind::CoplanarNeighbours => "coplanar_neighbours",
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
@@ -1644,6 +1640,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
         LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
+        LoftError::NotFinished { .. } => "not_finished",
         LoftError::PinnedCorner { .. } => "pinned_corner",
         LoftError::PinnedCornerUnsupported { .. } => "pinned_corner_unsupported",
         LoftError::CornerEscalated { .. } => "corner_escalated",
@@ -2275,7 +2272,6 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
-        E::BodyInvalid { .. } => "body_invalid",
         E::Compose(_) => "compose_refused",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
@@ -2296,7 +2292,6 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::ProductOutsideWorld => "product_outside_world",
         K::Frame => "frame_refused",
         K::Graft => "graft_refused",
-        K::PieceInvalid => "piece_invalid",
         K::ProductInvalid => "product_invalid",
         K::ContactLineage => "contact_lineage",
     }
@@ -2506,7 +2501,6 @@ pub fn at_rest_evidence_tag(evidence: &AtRestEvidence) -> &'static str {
         AtRestEvidence::Malformed(_) => "malformed",
         AtRestEvidence::InsideArrival(_) => "inside_arrival",
         AtRestEvidence::NotGathered(_) => "not_gathered",
-        AtRestEvidence::NotRun => "not_run",
         AtRestEvidence::Carried(_) => "carried",
     }
 }
@@ -2515,7 +2509,6 @@ pub fn at_rest_evidence_tag(evidence: &AtRestEvidence) -> &'static str {
 pub fn unlocalized_tag(why: &Unlocalized) -> &'static str {
     match why {
         Unlocalized::Refused { .. } => "refused",
-        Unlocalized::Invalid { .. } => "invalid",
         Unlocalized::Empty => "empty",
         Unlocalized::Unnamed => "unnamed",
         Unlocalized::Lane => "lane",
