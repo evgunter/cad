@@ -590,7 +590,8 @@ fn the_products_body_is_drawn_whatever_reads_it() {
 
 /// **The copy-to-body door**, and the seat beside it:
 /// - a row `P` of a world copy `W` is a copy of `W`: its original is
-///   `W`, `W`'s copies are `[P]`, and a pick on it seats `P` itself;
+///   the body at the end of its copies, `W`'s copies are `[P]`, and a
+///   pick on it seats `P` itself;
 /// - a copy of member 1 of a family names member 1, and is its own
 ///   original (the variable it reads is the family);
 /// - a copy of a body into that body's own space is a copy as one in
@@ -608,7 +609,16 @@ fn a_gesture_reads_a_copy_through_one_door() {
     let (doc, w) = common::placed(&doc, body, tol);
     let (doc, row) = row_of(doc, w, "k", 2);
     let w_out = doc.output(w, 0).expect("a copy");
-    assert_eq!(world::original_of(&doc, row), w, "the row's original is W");
+    assert_eq!(
+        world::copy_source(&doc, row, 0).map(|source| source.operation),
+        Some(w),
+        "the row copies W"
+    );
+    assert_eq!(
+        world::original_of(&doc, row),
+        body,
+        "and its original is the body W copies"
+    );
     assert_eq!(
         world::seat_read(&doc, row, None).0,
         row,
@@ -630,7 +640,7 @@ fn a_gesture_reads_a_copy_through_one_door() {
     );
     let source = world::copy_source(&doc, member, 0).expect("a copy");
     assert_eq!((source.operation, source.body), (xs, 1), "member 1, not 0");
-    assert_eq!(world::original_of(&doc, member), member);
+    assert_eq!(world::original_of(&doc, member), body, "through the family");
     assert_eq!(world::placed_var(&doc, member), None);
 
     // A copy of the body into its own space.

@@ -162,6 +162,7 @@ fn takeovers(session: &DocSession, block: RecipeNodeId) -> Vec<(&'static str, Se
                 spec: viewer::session::BooleanSpec::Union(vec![block.into(), block.into()]),
             },
         ),
+        ("split", split_at_half_height(session, block)),
     ]
 }
 
@@ -230,16 +231,17 @@ fn on_the_body(face: FaceSelection, body: RecipeNodeId) -> FaceSelection {
 }
 
 /// **The small block rested on the block's top stays seated through a
-/// fillet, a mirror, a sketch on the face and a union of the block, each
-/// re-pointed**: each re-point moves the block's drawn copy to the
-/// result and rebinds the mate's face to the result's name for the top,
-/// so the small block is drawn where it stood and every row is well.
-/// One undo restores the document the gesture left. Goes red if the
-/// re-point stops writing the rebind: the mate's face then no longer
-/// resolves and the small block's placement fails.
+/// fillet, a mirror, a sketch on the face, a union of the block and a
+/// split, each re-pointed**: each re-point moves the block's drawn copy
+/// to the result — for the split, `above ⊔ below` — and rebinds the
+/// mate's face to the result's name for the top, so the small block is
+/// drawn where it stood and every row is well. One undo restores the
+/// document the gesture left. Goes red if the re-point stops writing the
+/// rebind, or reads no successor through a split's half: the mate's face
+/// then no longer resolves and the small block's placement fails.
 #[test]
 fn a_mate_on_the_taken_copys_face_stays_seated() {
-    for at in 0..4 {
+    for at in 0..5 {
         let Seated {
             mut session,
             block,
@@ -937,6 +939,39 @@ fn a_split_picked_on_a_copy_leaves_its_mate_seated() {
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
+}
+
+/// **A face the split cuts leaves its mate stale**: the small block
+/// rested on the block's `−x` wall, then the block split at half its
+/// height and its placements re-pointed onto `above ⊔ below`. Each half
+/// holds a fragment of the wall and neither is the wall, so no rebind
+/// is written, the mate never seats on a piece of it, and the small
+/// block's placement fails naming the wall. Goes red if the re-point
+/// re-seats a name onto one fragment.
+#[test]
+fn a_face_the_split_cuts_stays_stale() {
+    let Seated {
+        mut session,
+        block,
+        small_copy,
+        ..
+    } = seated(minus_x_wall);
+    let wall = minus_x_wall(&session);
+    let op = split_at_half_height(&session, block);
+    let (_, outcome) = taken_over(&mut session, op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    assert!(
+        rebinds(&outcome.committed).is_empty(),
+        "no half carries the wall whole: {:?}",
+        outcome.committed
+    );
+    let eval = session.evaluation().expect("landed");
+    let failed = format!("{:?}", eval.node_error(small_copy));
+    assert!(
+        failed.contains("Vanished") && failed.contains(&format!("{:?}", wall.name)),
+        "the small block's mate reads the wall, which the split cut: {failed}"
+    );
 }
 
 /// The block alone, its one world copy placed by hand at the identity,

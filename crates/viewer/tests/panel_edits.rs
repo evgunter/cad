@@ -719,6 +719,7 @@ test_utils::f6_variants! {
         BundleStale,
         PlaceOnACopy,
         NothingPlaced,
+        Unspliced,
         ValueNotRemoved,
         Draft,
         PlacementFails,

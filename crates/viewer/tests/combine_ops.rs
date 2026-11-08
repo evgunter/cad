@@ -3269,6 +3269,21 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
 // AUTH-4: projecting one body out of several.
 // ---------------------------------------------------------------
 
+/// The volume of what the product slot reads, gathered off the landed
+/// document as it is.
+fn product_volume(session: &mut DocSession, tol: Tol) -> f64 {
+    session.pump();
+    let (landed, ev) = session.landed_pair().expect("a run landed");
+    let body = pncad::document::product(landed, ev, tol).expect("the product gathers");
+    pncad::topo::test_support::pinned_volume(
+        "mass properties",
+        &pncad::topo::finish(pncad::topo::Body::clone(&body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .volume
+}
+
 /// The world's volume — the copies placed into the world, gathered as
 /// one `⊔`, as one number.
 ///
@@ -3515,6 +3530,11 @@ fn a_pattern_takes_its_body_over_and_a_member_read_places_nothing() {
         [pattern],
         "the family is drawn in the world, the copy it repeats is not"
     );
+    // The product read the copy, and reads the family's `⊔` now: both
+    // members, once each.
+    let both = product_volume(session, tol);
+    let one = A[0] * A[1] * A[2];
+    assert!(near(both, one * 2.0), "both members in the product: {both}");
     assert_eq!(
         at_rest_findings(session),
         0,
@@ -4076,8 +4096,8 @@ fn a_pattern_of_one_half_of_a_split_re_points_neither_copy() {
 /// **A re-point that would strand a pick refuses, typed, and records
 /// nothing.** A `⊔` of two placed boxes is placed in the world, and a
 /// pick of its first piece is placed beside it. The union of the `⊔`
-/// with the second box writes no placement, and offers to re-point the
-/// `⊔`'s world copy onto the union, which holds no pieces; a pick is
+/// with the second box writes no placement; re-pointing the `⊔`'s world
+/// copy onto the union, which holds no pieces, is refused: a pick is
 /// never re-pointed, so the re-point refuses rather than leave the pick
 /// naming a piece its copy no longer holds.
 #[test]
@@ -4128,10 +4148,15 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
         doc.output(seat, 0),
         "the union writes no placement"
     );
-    let offer = viewer::world::repoint_offer(doc, union).expect("the union offers the re-point");
+    assert_eq!(
+        viewer::world::repoint_offer(doc, union),
+        None,
+        "the union is built on a copy, so it offers no re-point"
+    );
+    let seat_body = doc.output(seat, 0).expect("the `⊔`'s body");
     let steps = session.history().len();
     let out = session.perform(SessionOp::RepointPlacements {
-        body: Operand::Var(offer.body),
+        body: Operand::Var(seat_body),
         onto: union,
     });
     assert!(

@@ -434,6 +434,16 @@ pub enum Refusal {
         /// The body, as the document held it at the refusal.
         body: SpokenVar,
     },
+    /// **A delete that cannot splice** (DM6,
+    /// `editor_core::continuation::SpliceFault`): `node` would have to be
+    /// handed one member of a family where no edit can hand it one.
+    Unspliced {
+        /// The reader, the cut or the node the walk came back to, as the
+        /// document held it at the refusal.
+        node: SpokenNode,
+        /// Which.
+        fault: editor_core::continuation::SpliceFault,
+    },
     /// The tree's `remove` asked of a value: a freedom is always set,
     /// and its only edit is its number.
     ValueNotRemoved {
@@ -494,6 +504,10 @@ impl Refusal {
             Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
             Self::NothingPlaced { body } => Self::NothingPlaced {
                 body: body.respoken(doc),
+            },
+            Self::Unspliced { node, fault } => Self::Unspliced {
+                node: again(node),
+                fault,
             },
             Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
@@ -580,6 +594,7 @@ impl Refusal {
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
             | Self::NothingPlaced { .. }
+            | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -628,6 +643,7 @@ impl Refusal {
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
             | Self::NothingPlaced { .. }
+            | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -962,6 +978,24 @@ impl Refusal {
                 "{copy} is a copy; move it by its own placement in the placement editor, not \
                  by a copy of it"
             ),
+            Self::Unspliced { node, fault } => match fault {
+                editor_core::continuation::SpliceFault::MemberAtSeat { .. } => write!(
+                    f,
+                    "deleting this would hand {node} one member of a family at a seat that \
+                     reads a whole body, which no edit can write; delete or re-point {node} first"
+                ),
+                editor_core::continuation::SpliceFault::MemberTarget { .. } => write!(
+                    f,
+                    "deleting this tool leaves {node} cutting nothing, and what it continues is \
+                     one member of a family, which its readers cannot be handed; delete {node} \
+                     first"
+                ),
+                editor_core::continuation::SpliceFault::ContinuationCycle { .. } => write!(
+                    f,
+                    "the delete's continuations came back to {node}, which an acyclic recipe \
+                     cannot do; nothing was deleted"
+                ),
+            },
             Self::NothingPlaced { body } => {
                 write!(
                     f,

@@ -130,6 +130,7 @@ fn gestures_on(
     session: &DocSession,
     body: RecipeNodeId,
     copy: RecipeNodeId,
+    other: RecipeNodeId,
 ) -> Vec<(&'static str, SessionOp, bool)> {
     let edge = lateral_edges(session, copy)[0].clone();
     let row = || PatternRuleSpec::Linear {
@@ -199,30 +200,80 @@ fn gestures_on(
             },
             false,
         ),
+        (
+            "combine with the other copy",
+            SessionOp::AddBoolean {
+                spec: viewer::session::BooleanSpec::Union(vec![copy.into(), other.into()]),
+            },
+            false,
+        ),
     ]
 }
 
-/// **A feature picked on a copy reads that copy alone** (Ev, PR 6353):
-/// for each feature gesture, picked on the first of two world copies of
-/// the bracket, the gesture writes no placement's source, both copies
-/// still place the bracket, the second copy is drawn as it was, and what
-/// the gesture made reads the first copy; the result says it belongs to
-/// that copy and offers the way to the bracket. Deleting what a fillet,
-/// a chamfer, a mirror or a sketch made leaves the document as it was;
-/// a split's, a pattern's and a fused pattern's inverse is one undo.
-///
-/// *Breaks if* a seat reads through a copy to its body (the result reads
-/// the bracket, and the copies are re-pointed), a gesture writes a
-/// placement, or a delete is not the gesture's inverse.
-#[test]
-fn a_feature_picked_on_a_copy_reads_that_copy_alone() {
+/// The bracket Placed twice in its own space, the second slid 0.1 m
+/// along y: the session, the bracket and the two copies.
+fn two_own_space_copies(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let mut session = common::inline_without_door(Doc::empty_derived("own-space", tol), tol);
+    let body = common::xy_box_in(&mut session, SIZE);
+    session.pump();
+    let mut copies = Vec::new();
+    for _ in 0..2 {
+        let out = session.perform(SessionOp::Place { body: body.into() });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        session.pump();
+        copies.push(out.made.expect("a placement"));
+    }
+    let op = common::transformed(&mut session, copies[1], &common::slides([0.0, 0.1, 0.0]));
+    assert!(session.perform(op).refusal.is_none());
+    session.pump();
+    (session, body, copies[0], copies[1])
+}
+
+/// [`two_world_copies`] with the product a `⊔` reading both.
+fn two_world_copies_in_a_product(
+    tol: Tol,
+) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let (mut session, body, first, second) = two_world_copies(tol);
+    let product = session.perform(SessionOp::SetProduct {
+        bodies: vec![Operand::Node(first), Operand::Node(second)],
+    });
+    assert!(product.refusal.is_none(), "{:?}", product.refusal);
+    session.pump();
+    (session, body, first, second)
+}
+
+/// **Whether the pane says `node` is on the copy `copy` of `body`**, with
+/// the way back to `body` ([`viewer::frame::placement_offers`]).
+fn says_on_copy(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: RecipeNodeId) -> bool {
+    match viewer::frame::placement_offers(doc, node) {
+        (Some(text), offers) => {
+            text.contains("placed copy")
+                && offers
+                    .iter()
+                    .any(|(_, op)| *op == SessionOp::Select(Selection::Node(body)))
+        }
+        (None, _) => false,
+    }
+}
+
+/// **Every feature gesture picked on the first copy of `make`'s
+/// fixture** reads that copy alone: no placement's source written, both
+/// copies placing the bracket, the second drawn, and the node the
+/// gesture made — the one the app selects after it, so the one the
+/// pane speaks of — said to be on the first copy, with the way to the
+/// bracket. Deleting what a fillet, a chamfer, a mirror or a sketch
+/// made is the identity; a split's, a pattern's, a fused pattern's and
+/// a combine's inverse is one undo. Answers the failures.
+fn every_gesture_on(
+    make: impl Fn(Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId),
+) -> Vec<String> {
     let tol = Tol::witness();
     let mut bad = Vec::new();
-    let (probe, body, first, _) = two_world_copies(tol);
-    let count = gestures_on(&probe, body, first).len();
+    let (probe, body, first, second) = make(tol);
+    let count = gestures_on(&probe, body, first, second).len();
     for at in 0..count {
-        let (mut session, body, first, second) = two_world_copies(tol);
-        let (name, op, inverse) = gestures_on(&session, body, first).swap_remove(at);
+        let (mut session, body, first, second) = make(tol);
+        let (name, op, inverse) = gestures_on(&session, body, first, second).swap_remove(at);
         let before = world(session.committed_doc());
         let read = session.committed_doc().output(body, 0);
         let out = session.perform(op);
@@ -238,38 +289,30 @@ fn a_feature_picked_on_a_copy_reads_that_copy_alone() {
         if [first, second].map(|copy| source_of(doc, copy)) != [read; 2] {
             bad.push(format!("{name}: a copy no longer places the bracket"));
         }
-        if !viewer::world::is_drawn(doc, second) {
-            bad.push(format!("{name}: the second copy is not drawn"));
+        let made = out.made.expect("made");
+        // Built on the first copy, or on a family repeating it, or the
+        // family itself.
+        let repeats_first =
+            |copy: RecipeNodeId| copy == first || source_of(doc, copy) == doc.output(first, 0);
+        let on_first = viewer::world::built_on_copy(doc, made)
+            .is_some_and(|(copy, _)| repeats_first(copy))
+            || repeats_first(made);
+        if !on_first {
+            bad.push(format!("{name}: what it made does not read the first copy"));
         }
-        // What it made on the copy: a node built on it, or a family
-        // repeating it.
-        let on_first: Vec<RecipeNodeId> = out
-            .minted
-            .iter()
-            .copied()
-            .filter(|&node| {
-                viewer::world::built_on_copy(doc, node) == Some((first, body))
-                    || source_of(doc, node) == doc.output(first, 0)
-            })
-            .collect();
-        if on_first.is_empty() {
-            bad.push(format!("{name}: nothing it made reads the first copy"));
+        if !says_on_copy(doc, made, body) {
+            bad.push(format!(
+                "{name}: the pane does not say the made node is on the copy, with the way \
+                 to the bracket: {:?}",
+                viewer::frame::placement_offers(doc, made)
+            ));
         }
-        // Each says it is on a placed copy, with the way back: to the
-        // body, or for a family of the copy, to the copy it repeats.
-        for node in on_first {
-            match viewer::frame::placement_offers(doc, node) {
-                (Some(text), offers)
-                    if text.contains("placed copy")
-                        && offers.iter().any(|(_, op)| {
-                            *op == SessionOp::Select(Selection::Node(body))
-                                || *op == SessionOp::Select(Selection::Node(first))
-                        }) => {}
-                other => bad.push(format!("{name}: says no copy, or no way back: {other:?}")),
+        for row in session.tree_rows() {
+            if row.status != RowStatus::Ok {
+                bad.push(format!("{name}: {row:?}"));
             }
         }
         if inverse {
-            let made = out.made.expect("made");
             let deleted = session.perform(SessionOp::DeleteNode { node: made });
             if let Some(refusal) = deleted.refusal {
                 bad.push(format!("{name}: delete refused {refusal:?}"));
@@ -285,6 +328,36 @@ fn a_feature_picked_on_a_copy_reads_that_copy_alone() {
             }
         }
     }
+    bad
+}
+
+/// **A feature picked on a world copy reads that copy alone** (Ev, PR
+/// 6353), every gesture ([`every_gesture_on`]).
+///
+/// *Breaks if* a seat reads through a copy to its body (the result reads
+/// the bracket, and the copies are re-pointed), a gesture writes a
+/// placement, the made node does not say it is on the copy (a sketch's
+/// profile), or a delete is not the gesture's inverse.
+#[test]
+fn a_feature_picked_on_a_copy_reads_that_copy_alone() {
+    let bad = every_gesture_on(two_world_copies);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// The same over two copies Place made in the bracket's own space
+/// (PR 6581's review, R1 and R2).
+#[test]
+fn a_feature_picked_on_an_own_space_copy_reads_that_copy_alone() {
+    let bad = every_gesture_on(two_own_space_copies);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// The same over two world copies the product `⊔` reads: the `⊔` seat
+/// is the takeover's, and the delete hands it back (PR 6581's review,
+/// R1).
+#[test]
+fn a_feature_picked_on_a_copy_in_the_product_reads_that_copy_alone() {
+    let bad = every_gesture_on(two_world_copies_in_a_product);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
@@ -689,4 +762,403 @@ fn delete_splices_by_continuation() {
         doc.output(first, 0),
         "the product reads the first"
     );
+}
+
+/// The bracket in a session of its own, landed.
+fn bracket(name: &str, tol: Tol) -> (DocSession, RecipeNodeId) {
+    let mut session = common::inline_without_door(Doc::empty_derived(name, tol), tol);
+    let body = common::xy_box_in(&mut session, SIZE);
+    session.pump();
+    (session, body)
+}
+
+/// One Place of `body`, landed.
+fn place(session: &mut DocSession, body: RecipeNodeId) -> RecipeNodeId {
+    let out = session.perform(SessionOp::Place { body: body.into() });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    out.made.expect("a placement")
+}
+
+/// `node` inserted by hand into `session`'s document: a fresh landed
+/// session and the node.
+fn with(session: &DocSession, node: AuthoredNode, tol: Tol) -> (DocSession, RecipeNodeId) {
+    let (doc, id) = viewer::test_support::inserted(session.committed_doc(), node, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    (session, id)
+}
+
+/// **The offer's button does what the offer says** (PR 6581's review,
+/// R1 m1 and R2 M1): the bracket Placed twice, then a body built on the
+/// bracket and one of its own copies — by hand, `U = B ∪ C1`, and through
+/// the combine gesture with `C1` slid aside. The offer leaves `C1` out,
+/// since `U` reads it; the button re-points `C2` alone, and lands.
+///
+/// *Breaks if* the action re-derives a placement list other than the
+/// offer's (the button is refused `WouldCycle` on `C1`).
+#[test]
+fn the_offer_and_its_button_re_point_the_same_placements() {
+    let tol = Tol::witness();
+    for gesture in [false, true] {
+        let (mut session, body) = bracket("offer-cycle", tol);
+        let c1 = place(&mut session, body);
+        let c2 = place(&mut session, body);
+        let (mut session, u) = if gesture {
+            let op = common::transformed(&mut session, c1, &common::slides([0.01, 0.0, 0.0]));
+            assert!(session.perform(op).refusal.is_none());
+            session.pump();
+            let u = common::session_insert(
+                &mut session,
+                SessionOp::AddBoolean {
+                    spec: viewer::session::BooleanSpec::Union(vec![body.into(), c1.into()]),
+                },
+            );
+            session.pump();
+            (session, u)
+        } else {
+            with(
+                &session,
+                Node::Union {
+                    members: pncad::document::Bodies::Spelled(vec![
+                        Operand::Node(body).into(),
+                        Operand::Node(c1).into(),
+                    ]),
+                },
+                tol,
+            )
+        };
+        let doc = session.committed_doc().clone();
+        let offer = viewer::world::repoint_offer(&doc, u).expect("U offers");
+        assert_eq!(offer.placements, [c2], "gesture={gesture}: C1 left out");
+        let (_, offers) = viewer::frame::placement_offers(&doc, u);
+        let (label, op) = offers
+            .into_iter()
+            .find(|(_, op)| matches!(op, SessionOp::RepointPlacements { .. }))
+            .expect("the button");
+        assert!(label.starts_with("Re-point the 1 placement "), "{label}");
+        let out = session.perform(op);
+        assert!(
+            out.refusal.is_none(),
+            "gesture={gesture}: {:?}",
+            out.refusal
+        );
+        let doc = session.committed_doc();
+        assert_eq!(doc.copied_read(c2), doc.output(u, 0), "C2 re-pointed");
+        assert_eq!(doc.copied_read(c1), doc.output(body, 0), "C1 left");
+    }
+}
+
+/// **Delete is the inverse two features deep** (PR 6581's review, R2
+/// M2): the bracket `B` and its world copy `C`; `G = fillet(C)`, then
+/// `K = chamfer(G)` on an edge `G` carries from `C`; then `F = fillet(B)`
+/// with its re-point accepted, which rebinds `K`'s edge inside `G`'s
+/// name. Deleting `F` carries that name back too: every row is well,
+/// and the document is the one before `F`.
+///
+/// *Breaks if* the splice's rebinds stop at selections whose body is a
+/// handed copy, missing names that carry a copy's entity in from deeper
+/// (`resolve::derivation_reads`).
+#[test]
+fn a_chain_on_a_copy_survives_the_re_point_and_its_delete() {
+    let tol = Tol::witness();
+    let (session, body) = bracket("deep", tol);
+    let (doc, copy) = common::world_copy(session.committed_doc(), body, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let edges = lateral_edges(&session, copy);
+    let g = common::session_insert(
+        &mut session,
+        SessionOp::AddFillet {
+            target: copy,
+            radius: len(0.001),
+            selection: vec![edges[0].clone()],
+        },
+    );
+    session.pump();
+    let carried = pncad::select::all_edges(session.evaluation().expect("landed"), g)
+        .into_iter()
+        .find(|name| {
+            matches!(name.path.as_slice(),
+                [RoleSeg::From { of, .. }] if *of.name() == edges[1])
+        })
+        .expect("G carries a second edge of the copy");
+    let k = common::session_insert(
+        &mut session,
+        SessionOp::AddChamfer {
+            target: g,
+            distance: len(0.0005),
+            selection: vec![carried],
+        },
+    );
+    session.pump();
+    let ok = |session: &DocSession, when: &str| {
+        for row in session.tree_rows() {
+            assert_eq!(row.status, RowStatus::Ok, "{when}: {row:?}");
+        }
+    };
+    ok(&session, "premise");
+    let before = world(session.committed_doc());
+    let third = lateral_edges(&session, body)[2].clone();
+    let f = common::session_insert(
+        &mut session,
+        SessionOp::AddFillet {
+            target: body,
+            radius: len(0.001),
+            selection: vec![third],
+        },
+    );
+    session.pump();
+    let offer = viewer::world::repoint_offer(session.committed_doc(), f).expect("F offers");
+    let out = session.perform(SessionOp::RepointPlacements {
+        body: Operand::Var(offer.body),
+        onto: f,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    ok(&session, "after the re-point");
+    let out = session.perform(SessionOp::DeleteNode { node: f });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    assert!(session.committed_doc().node(k).is_some(), "K survives");
+    ok(&session, "after the delete");
+    let after = world(session.committed_doc());
+    assert!(
+        after.0 == before.0,
+        "the delete of F is the identity on the nodes"
+    );
+}
+
+/// The family of two the pattern gesture makes of the bracket picked
+/// as itself, and a plain Place of the bracket: the session, the family
+/// and the placement.
+fn family_and_copy(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let (mut session, body) = bracket("member", tol);
+    let out = session.perform(SessionOp::AddPattern {
+        input: body.into(),
+        count: 2,
+        rule: PatternRuleSpec::Linear {
+            direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
+            spacing: len(2.0 * SIZE[0]),
+        },
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let family = out.made.expect("the family");
+    let copy = place(&mut session, body);
+    (session, body, family, copy)
+}
+
+/// Member 0 of `family`, read by index.
+fn member0(doc: &Doc<ProfileProgram>, family: RecipeNodeId) -> pncad::document::BodyRead<Formula> {
+    let var = doc.output(family, 0).expect("the family's output");
+    pncad::document::BodyRead::indexed(Operand::Var(var), vec![Formula::count(0)])
+}
+
+/// **A continuation is a body read whole** (PR 6581's review, R2 M3):
+/// - `∪[xs[0], C]` with `C` deleted keeps `xs[0]` as its one operand, so
+///   a world copy reading the union still copies one body, not the
+///   family;
+/// - `xs[0] − C` with the tool `C` deleted would hand its readers one
+///   member, which no slot can be written: the delete refuses, typed
+///   (`Refusal::Unspliced`), and nothing is deleted;
+/// - a fillet over a family deleted hands a `∪` reading its member 0
+///   the family's member 0, and refuses, typed, while a copy of its
+///   member 0 stands: a placement's source is written whole.
+///
+/// *Breaks if* a delete hands a reader of one member the whole family.
+#[test]
+fn a_continuation_is_a_body_read_whole() {
+    let tol = Tol::witness();
+    let (session, _, family, copy) = family_and_copy(tol);
+    let m0 = member0(session.committed_doc(), family);
+    let (session, u) = with(
+        &session,
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![m0, Operand::Node(copy).into()]),
+        },
+        tol,
+    );
+    let (mut session, reader) = with(&session, common::world_place(Operand::Node(u)), tol);
+    let out = session.perform(SessionOp::DeleteNode { node: copy });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    assert_eq!(
+        source_of(doc, reader),
+        doc.output(u, 0),
+        "the copy reads the union still"
+    );
+    let Some(Node::Union {
+        members: pncad::document::Bodies::Spelled(members),
+    }) = doc.node(u)
+    else {
+        panic!("the union stays")
+    };
+    assert!(
+        matches!(&members[..], [one] if one.is_indexed() && Some(one.read) == doc.output(family, 0)),
+        "with member 0 its one operand: {members:?}"
+    );
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+
+    let (session, _, family, copy) = family_and_copy(tol);
+    let m0 = member0(session.committed_doc(), family);
+    let (session, cut) = with(
+        &session,
+        Node::Subtract {
+            from: m0,
+            tool: Operand::Node(copy).into(),
+        },
+        tol,
+    );
+    let (mut session, _) = with(&session, common::world_place(Operand::Node(cut)), tol);
+    let before = session.committed_doc().clone();
+    let refusal = session.delete_refusal(copy);
+    assert!(
+        matches!(&refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == cut),
+        "{refusal:?}"
+    );
+    let out = session.perform(SessionOp::DeleteNode { node: copy });
+    assert!(
+        matches!(&out.refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == cut),
+        "the op refuses as the button says: {:?}",
+        out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&before), "nothing deleted");
+
+    // A fillet over the family, read by member: a list operand is handed
+    // the same member of the family; a placement's source, which the slot
+    // door writes whole, refuses typed.
+    let (mut session, body, family, copy) = family_and_copy(tol);
+    let edge = lateral_edges(&session, body)[..1].to_vec();
+    let fillet = common::session_insert(
+        &mut session,
+        SessionOp::AddFillet {
+            target: family,
+            radius: len(0.001),
+            selection: edge,
+        },
+    );
+    session.pump();
+    let f0 = member0(session.committed_doc(), fillet);
+    let (session, u) = with(
+        &session,
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![f0.clone(), Operand::Node(copy).into()]),
+        },
+        tol,
+    );
+    let (mut session, member_copy) = with(
+        &session,
+        Node::place(
+            f0,
+            Operand::Var(VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    );
+    let refusal = session.delete_refusal(fillet);
+    assert!(
+        matches!(&refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == member_copy),
+        "the copy of a member refuses: {refusal:?}"
+    );
+    let out = session.perform(SessionOp::DeleteNode { node: member_copy });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let out = session.perform(SessionOp::DeleteNode { node: fillet });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    let Some(Node::Union {
+        members: pncad::document::Bodies::Spelled(members),
+    }) = doc.node(u)
+    else {
+        panic!("the union stays")
+    };
+    assert!(
+        matches!(&members[..], [one, _] if one.is_indexed() && Some(one.read) == doc.output(family, 0)),
+        "handed member 0 of the family: {members:?}"
+    );
+}
+
+/// **The pane's "on this copy" reaches down a chain and through a
+/// member copy, and "Go to the original body" reaches the body** (PR
+/// 6581's review, R1 n6, R2 m5):
+/// - `chamfer(fillet(C))` says it is on `C`, with the way to `B`;
+/// - a copy of member 0 of `B`'s pattern says it is a placed copy of `B`,
+///   and a fillet on it says it is on that copy, the way back to `B`;
+/// - a copy of a copy is a placed copy of `B`, not of the copy it reads.
+#[test]
+fn on_this_copy_reaches_down_a_chain_and_to_the_body() {
+    let tol = Tol::witness();
+    let (mut session, body, first, _) = two_world_copies(tol);
+    let edges = lateral_edges(&session, first);
+    let g = common::session_insert(
+        &mut session,
+        SessionOp::AddFillet {
+            target: first,
+            radius: len(0.001),
+            selection: vec![edges[0].clone()],
+        },
+    );
+    session.pump();
+    let carried = pncad::select::all_edges(session.evaluation().expect("landed"), g)
+        .into_iter()
+        .find(|name| matches!(name.path.as_slice(), [RoleSeg::From { .. }]))
+        .expect("a carried edge");
+    let k = common::session_insert(
+        &mut session,
+        SessionOp::AddChamfer {
+            target: g,
+            distance: len(0.0005),
+            selection: vec![carried],
+        },
+    );
+    let doc = session.committed_doc();
+    assert_eq!(viewer::world::built_on_copy(doc, k), Some((first, body)));
+    assert!(
+        says_on_copy(doc, k, body),
+        "{:?}",
+        viewer::frame::placement_offers(doc, k)
+    );
+
+    let (session, body, family, _) = family_and_copy(tol);
+    let m0 = member0(session.committed_doc(), family);
+    let (mut session, member) = with(
+        &session,
+        Node::place(
+            m0,
+            Operand::Var(VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    );
+    let doc = session.committed_doc();
+    assert_eq!(
+        viewer::world::original_of(doc, member),
+        body,
+        "through the family"
+    );
+    assert!(
+        says_on_copy(doc, member, body),
+        "{:?}",
+        viewer::frame::placement_offers(doc, member)
+    );
+    let edge = pncad::select::all_edges(session.evaluation().expect("landed"), member)[0].clone();
+    let on_member = common::session_insert(
+        &mut session,
+        SessionOp::AddFillet {
+            target: member,
+            radius: len(0.001),
+            selection: vec![edge],
+        },
+    );
+    let doc = session.committed_doc();
+    assert!(says_on_copy(doc, on_member, body));
+
+    let (session, body, first, _) = two_world_copies(tol);
+    let (session, again) = with(&session, common::world_place(Operand::Node(first)), tol);
+    let doc = session.committed_doc();
+    assert_eq!(viewer::world::original_of(doc, again), body);
+    assert!(says_on_copy(doc, again, body));
 }

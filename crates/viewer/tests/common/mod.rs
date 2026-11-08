@@ -824,7 +824,10 @@ pub fn drawn_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     drawn_copies(doc)
         .into_iter()
-        .map(|placement| viewer::world::original_of(doc, placement))
+        .map(|placement| {
+            viewer::world::copy_source(doc, placement, 0)
+                .map_or(placement, |source| source.operation)
+        })
         .collect()
 }
 
@@ -850,11 +853,12 @@ pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
 }
 
 /// **The placements of `body` into the world**, in document order: the
-/// copies of it ([`viewer::world::placements_of`]) that stand there.
+/// copies of it ([`viewer::world::placements_of`]) whose copy stands
+/// there ([`viewer::world::world_copy`]).
 pub fn world_placements(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> Vec<RecipeNodeId> {
     viewer::world::placements_of(doc, body)
         .into_iter()
-        .filter(|&copy| doc.node_space(copy) == Some(pncad::document::VarId::WORLD))
+        .filter(|&copy| viewer::world::world_copy(doc, copy).is_some())
         .collect()
 }
 

@@ -389,7 +389,7 @@ No edit picks a survivor: the kernel's `DeleteNode` leaves its readers
 unresolved and typed (D10). The delete gesture hands each reader of a
 deleted node to the body that node continues, as explicit
 `SetParam`/`SetMembers`/`Rebind` edits in one action
-(`continuation::splice`, applied by `Recording::delete_by_continuation`). A node continues
+(`continuation::splice`, applied by `Splice::apply`). A node continues
 a body when it is that body changed in place, in its space, carrying its
 entities: a fillet, chamfer or shell continues its input; an operator
 left with one operand continues that operand; a cut whose tool is

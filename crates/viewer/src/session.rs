@@ -3650,7 +3650,10 @@ impl DocSession {
             SplitPlane::Read(read) => read.clone(),
         };
         let takeover = self.takeover(&target)?;
-        let seen = !takeover.is_empty();
+        // Where placements read the body, the `⊔` is written too: what
+        // they would be re-pointed onto ([`SessionOp::RepointPlacements`]).
+        let seen =
+            !takeover.is_empty() || !crate::world::placements_of_read(doc, &target).is_empty();
         Ok(taking_over(takeover, move |run| {
             let split = run.insert(Node::Split {
                 target: target.into(),
@@ -4045,8 +4048,11 @@ impl DocSession {
                 prior: self.memo_under(&resolver),
                 resolver,
             },
-            ..Takeover::placements_of(doc, var)
+            ..Takeover::placements_of(doc, var, onto)
         };
+        // A split's halves carry the body's entities as themselves: the
+        // takeover looks for a name's successor in them too.
+        let intact = split_halves_read(doc, onto);
         if takeover.copies.is_empty() {
             return Err(Refusal::NothingPlaced {
                 body: doc.spoken_var(var),
@@ -4057,7 +4063,10 @@ impl DocSession {
         let reads = takeover.reads.clone();
         let tol = self.tol();
         Ok(Box::new(move |run, held| {
-            let wrote = Wrote::one(onto);
+            let wrote = Wrote {
+                intact,
+                ..Wrote::one(onto)
+            };
             let made = takeover.repoint(run, wrote, held)?;
             on_sides_follow(run, &copies, (var, &onto_read), &reads, tol)?;
             Ok(made)
@@ -4428,10 +4437,11 @@ impl DocSession {
     /// An id the document does not hold takes the single-edit path so
     /// the typed refusal comes from the door rather than from here.
     fn delete_node(&mut self, node: RecipeNodeId) -> OpOutcome {
-        if self.committed_doc().node(node).is_none() {
-            return self.commit(DocEdit::DeleteNode { id: node });
+        match spliced(self.committed_doc(), node) {
+            Ok(Some(splice)) => self.commit_run(|run| splice.apply(run)),
+            Ok(None) => self.commit(DocEdit::DeleteNode { id: node }),
+            Err(refusal) => OpOutcome::refused(refusal),
         }
-        self.commit_run(|run| run.delete_by_continuation(node).map(drop))
     }
 
     /// **What `SessionOp::DeleteNode` would answer for `node` because
@@ -4452,11 +4462,13 @@ impl DocSession {
     /// refuses the op before this admission runs, and a held node's
     /// splice is applied at the click rather than rehearsed every frame.
     pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
-        if self.committed_doc().node(node).is_some() {
-            return None;
+        match spliced(self.committed_doc(), node) {
+            Ok(Some(_)) => None,
+            Ok(None) => self
+                .stage_run(|run| run.apply(DocEdit::DeleteNode { id: node }).map(drop))
+                .err(),
+            Err(refusal) => Some(refusal),
         }
-        self.stage_run(|run| run.apply(DocEdit::DeleteNode { id: node }).map(drop))
-            .err()
     }
 
     /// The same door for an action that takes SEVERAL edits, a fixed
@@ -5202,12 +5214,13 @@ impl Takeover {
         }
     }
 
-    /// **The re-point of `var`'s placements**: every placement reading
-    /// it, its source to be re-pointed, and nothing else.
-    fn placements_of(doc: &Doc<ProfileProgram>, var: VarId) -> Self {
+    /// **The re-point of `var`'s placements onto `onto`**: the
+    /// placements the offer names ([`crate::world::repoint_targets`]),
+    /// each source to be re-pointed, and nothing else.
+    fn placements_of(doc: &Doc<ProfileProgram>, var: VarId, onto: RecipeNodeId) -> Self {
         Self {
             taken: Some(var),
-            copies: crate::world::placements_of_var(doc, var),
+            copies: crate::world::repoint_targets(doc, var, onto),
             ..Self::nothing()
         }
     }
@@ -5460,18 +5473,62 @@ fn followed(
     }
 }
 
+/// **The halves of the one split `node`'s `⊔` reads**, where `node` is a
+/// `⊔` spelling exactly a split's two outputs (the split gesture's
+/// `above ⊔ below`); empty for any other node.
+fn split_halves_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId> {
+    let Some(Node::Assemble {
+        members: pncad::document::Bodies::Spelled(members),
+    }) = doc.node(node)
+    else {
+        return Vec::new();
+    };
+    let Some(split) = members
+        .first()
+        .and_then(|member| doc.operation_of(member.read))
+        .filter(|&at| matches!(doc.node(at), Some(Node::Split { .. })))
+    else {
+        return Vec::new();
+    };
+    let halves = doc.outputs(split);
+    let read: Vec<VarId> = members.iter().map(|member| member.read).collect();
+    if read == halves { halves } else { Vec::new() }
+}
+
+/// **The delete of `node` by continuation, planned**
+/// ([`editor_core::continuation::splice`]): `None` for a node `doc` does
+/// not hold, its fault as the session's refusal.
+fn spliced(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Result<Option<editor_core::continuation::Splice<ProfileProgram>>, Refusal> {
+    editor_core::continuation::splice(doc, node).map_err(|fault| {
+        use editor_core::continuation::SpliceFault;
+        let at = match fault {
+            SpliceFault::MemberAtSeat { reader, .. } => reader,
+            SpliceFault::MemberTarget { cut } => cut,
+            SpliceFault::ContinuationCycle { node } => node,
+        };
+        Refusal::Unspliced {
+            node: doc.spoken(at),
+            fault,
+        }
+    })
+}
+
 /// **The `⊔` seats reading `var` whole**, by node and seat, in document
-/// order.
+/// order ([`editor_core::continuation::spelled`]).
 fn assemble_seats(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<(RecipeNodeId, OperandSlot)> {
     doc.ids()
         .into_iter()
-        .filter_map(|id| Some((id, doc.node(id)?)))
-        .filter(|(_, node)| matches!(node, Node::Assemble { .. }))
-        .flat_map(|(id, node)| {
-            node.body_reads()
+        .filter(|&id| matches!(doc.node(id), Some(Node::Assemble { .. })))
+        .filter_map(|id| Some((id, editor_core::continuation::spelled(doc, id)?)))
+        .flat_map(|(id, members)| {
+            members
                 .into_iter()
-                .filter(|(_, read)| read.read == var && !read.is_indexed())
-                .map(move |(seat, _)| (id, seat))
+                .enumerate()
+                .filter(|(_, (stored, _))| stored.read == var && !stored.is_indexed())
+                .map(move |(i, _)| (id, OperandSlot::Member(i)))
         })
         .collect()
 }
@@ -5480,35 +5537,19 @@ fn assemble_seats(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<(RecipeNodeId, O
 /// as written ([`DocEdit::SetMembers`]).
 fn drop_seats(run: &mut Recording<'_, ProfileProgram>, var: VarId) -> Result<(), EditError> {
     let doc = run.doc();
-    let written: Vec<(RecipeNodeId, Vec<pncad::document::BodyRead<Formula>>)> = doc
-        .ids()
+    let nodes: std::collections::BTreeSet<RecipeNodeId> = assemble_seats(doc, var)
         .into_iter()
-        .filter_map(|id| {
-            let Some(Node::Assemble {
-                members: pncad::document::Bodies::Spelled(stored),
-            }) = doc.node(id)
-            else {
-                return None;
-            };
-            if !stored
-                .iter()
-                .any(|read| read.read == var && !read.is_indexed())
-            {
-                return None;
-            }
-            let Node::Assemble {
-                members: pncad::document::Bodies::Spelled(authored),
-            } = doc.node(id)?.authored(doc)
-            else {
-                return None;
-            };
-            let kept = stored
-                .iter()
-                .zip(authored)
-                .filter(|(read, _)| read.read != var || read.is_indexed())
+        .map(|(node, _)| node)
+        .collect();
+    let written: Vec<_> = nodes
+        .into_iter()
+        .filter_map(|node| {
+            let kept = editor_core::continuation::spelled(doc, node)?
+                .into_iter()
+                .filter(|(stored, _)| stored.read != var || stored.is_indexed())
                 .map(|(_, authored)| authored)
                 .collect();
-            Some((id, kept))
+            Some((node, kept))
         })
         .collect();
     for (node, members) in written {

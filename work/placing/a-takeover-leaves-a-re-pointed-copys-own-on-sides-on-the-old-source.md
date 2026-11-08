@@ -4,6 +4,8 @@ kind: issue
 title: The kernel's takeover re-points a copy's source but leaves the copy's own mates' on sides reading the old source, which the mate door then refuses NotOnTheCopy
 status: open
 opened: 2026-11-08
+priority: P2
+cost: E
 ---
 
 

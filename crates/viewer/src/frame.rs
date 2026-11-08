@@ -2587,7 +2587,7 @@ pub fn placement_offers(
     let by = Speaker::of(doc);
     let mut said = None;
     let mut offers = Vec::new();
-    let on_copy = crate::world::placed_var(doc, node)
+    let on_copy = crate::world::copy_source(doc, node, 0)
         .is_some()
         .then(|| (node, crate::world::original_of(doc, node)))
         .or_else(|| crate::world::built_on_copy(doc, node));

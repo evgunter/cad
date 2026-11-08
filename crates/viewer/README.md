@@ -474,7 +474,7 @@ vocabulary is not a forbidden import path.
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
 | `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — a split's plane, a pattern's picked direction or axis — could not be made from its numbers or its pick. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
-| `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **33** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
+| `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named across the crate — drivers, panes and tool modules alike (`rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists them) |
 | `session::author` | `BooleanSpec`, `PatternRuleSpec` and its `PatternDirection` (a target axis or a picked edge or face, never typed components), `PartSelectSpec` — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the delete's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
@@ -2395,8 +2395,7 @@ inserted part is a fresh `new_space()` and the instance into it by the
 identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A feature gesture — a fillet, a
 chamfer, a mirror, a sketch on a face, a split, a pattern fused or not,
-a combine — lands where the pick was seen and takes the seen body over
-along the path it was seen through. Picked on a copy, it reads that
+a combine — lands where the pick was seen. Picked on a copy, it reads that
 copy in the copy's space (`fillet(C)`) and takes over the `⊔` operands
 and the product slot that read it, writing no placement's source; the
 other copies of the body are untouched, and the Properties pane says

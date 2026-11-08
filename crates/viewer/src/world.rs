@@ -465,20 +465,6 @@ pub fn shown_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
     Picture::of(doc).shown_spaces(doc)
 }
 
-/// **The construction whose own space `node`'s value lives in**, read
-/// off its recipe (D10 `[placement.spaces]`): `None` for a value in the
-/// world's space, in a `new_space()`, or in no space. A placement whose
-/// target is a construction's space is a relation to that
-/// construction's body; a construction answers itself.
-pub fn construction_of_space(
-    doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
-) -> Option<RecipeNodeId> {
-    let space = doc.node_space(node)?;
-    let (construction, _) = doc.defined_by(space)?;
-    (!matches!(doc.node(construction)?, Node::World | Node::Space)).then_some(construction)
-}
-
 /// **The nodes the picture draws some body of** ([`Picture::nodes`]).
 pub fn drawn_nodes(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     Picture::of(doc).nodes()
@@ -587,37 +573,109 @@ pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     !placements_of(doc, node).is_empty()
 }
 
+/// **The node `node` is first built from**: the operation its first
+/// read reaches, in field order — a feature's input, an operator's first
+/// operand, an extrude's profile, the face a profile is drawn on. `None`
+/// for a node that reads nothing.
+fn first_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<RecipeNodeId> {
+    doc.node(node)?
+        .operand_rows()
+        .into_iter()
+        .find_map(|(_, var)| doc.read_ports(var).first().map(|&(at, _)| at))
+}
+
 /// **The placed copy `node` is built on, and that copy's original
 /// body** (Ev, PR 6353: a feature picked on a copy belongs to that
-/// placed copy, with an easy way to the original body): the first body
-/// `node` reads as a body that is a copy of one body whole
-/// ([`placed_var`]), and the operation defining what it copies. `None`
-/// for a placement itself, and for a node built on no copy.
+/// placed copy, with an easy way to the original body): down the first
+/// reads `node` is built from ([`first_read`]) — a feature of a feature
+/// of a copy included — the first copy reached, and the body it
+/// copies at the end of its copies ([`original_of`]). A profile is
+/// asked of the bodies made from it, since what it is sketched on is
+/// read by what places it ([`copy_downstream_of`]). `None` for a
+/// placement itself, and for a node built on no copy.
 pub fn built_on_copy(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
 ) -> Option<(RecipeNodeId, RecipeNodeId)> {
-    if matches!(
-        doc.node(node)?,
-        Node::Place { .. } | Node::InstantiatePart { .. }
-    ) {
-        return None;
+    match doc.node(node)? {
+        Node::Place { .. } | Node::InstantiatePart { .. } => return None,
+        Node::Profile(_) => return copy_downstream_of(doc, node),
+        _ => {}
     }
-    takes(doc, node).into_iter().find_map(|(taken, _)| {
-        let original = doc.operation_of(placed_var(doc, taken)?)?;
-        Some((taken, original))
-    })
+    let mut at = node;
+    loop {
+        at = first_read(doc, at)?;
+        if copy_source(doc, at, 0).is_some() {
+            return Some((at, original_of(doc, at)));
+        }
+    }
+}
+
+/// **The copy a profile's sketch is built on**: the first node made from
+/// `profile`, in evaluation order, that is built on a copy — the union a
+/// sketch on a copy's face fuses into the copy.
+fn copy_downstream_of(
+    doc: &Doc<ProfileProgram>,
+    profile: RecipeNodeId,
+) -> Option<(RecipeNodeId, RecipeNodeId)> {
+    let mut made = BTreeSet::from([profile]);
+    for id in doc.ids() {
+        if made.contains(&id) || !doc.upstream(id).iter().any(|at| made.contains(at)) {
+            continue;
+        }
+        made.insert(id);
+        if !matches!(doc.node(id), Some(Node::Place { .. }))
+            && let Some(on) = built_on_copy(doc, id)
+        {
+            return Some(on);
+        }
+    }
+    None
+}
+
+/// **Every node `node` reads, at any depth**, through [`Doc::upstream`].
+fn reads_at_any_depth(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
+    let mut seen = BTreeSet::new();
+    let mut next = vec![node];
+    while let Some(at) = next.pop() {
+        for input in doc.upstream(at) {
+            if seen.insert(input) {
+                next.push(input);
+            }
+        }
+    }
+    seen
+}
+
+/// **The placements a re-point of `body` onto `onto` re-points**: every
+/// placement reading `body` but one `onto` itself reads, which a re-point
+/// would close into a cycle. The one list the offer names and the action
+/// writes ([`repoint_offer`], `SessionOp::RepointPlacements`).
+pub fn repoint_targets(
+    doc: &Doc<ProfileProgram>,
+    body: VarId,
+    onto: RecipeNodeId,
+) -> Vec<RecipeNodeId> {
+    let read = reads_at_any_depth(doc, onto);
+    placements_of_var(doc, body)
+        .into_iter()
+        .filter(|placement| !read.contains(placement))
+        .collect()
 }
 
 /// **What re-pointing a body's placements onto `node` would re-point**
 /// (Ev, PR 6353: a feature on a body picked as itself offers, as one
 /// explicit step, to re-point the variable the body's placements share
 /// onto the result): the first body `node` reads as a body that some
-/// placement reads, and those placements — every one
-/// but a placement `node` itself reads, which a re-point would close
-/// into a cycle. `None` for a placement, for a node the picture does not
-/// draw (an intermediate body: a mirror's image its union reads), for a
-/// node with no one body output, and where nothing is left to re-point.
+/// placement reads — through a split's halves, the body split — and the
+/// placements [`repoint_targets`] answers. `None` for a placement, for a
+/// node the picture does not draw, itself or as a `⊔`'s pieces (an
+/// intermediate body: a mirror's image its union reads), for one built on a copy ([`built_on_copy`]:
+/// it belongs to that copy alone), for a node with no one body output,
+/// and where nothing is left to re-point.
+///
+/// The offer is derived: it stands for as long as `node` is drawn and
+/// the body's placements read the body, accepted or not.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepointOffer {
     /// The body whose placements are offered: the variable they share.
@@ -631,7 +689,11 @@ pub fn repoint_offer(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<Re
     if matches!(
         doc.node(node)?,
         Node::Place { .. } | Node::InstantiatePart { .. }
-    ) || !is_drawn(doc, node)
+    ) || !Picture::of(doc)
+        .drawn
+        .iter()
+        .any(|drawn| drawn.of_node(node))
+        || built_on_copy(doc, node).is_some()
     {
         return None;
     }
@@ -640,13 +702,11 @@ pub fn repoint_offer(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<Re
         return None;
     }
     takes(doc, node).into_iter().find_map(|(taken, _)| {
-        let body = doc.read_of_node(taken)?;
-        let placements: Vec<RecipeNodeId> = placements_of_var(doc, body)
-            .into_iter()
-            .filter(|&placement| {
-                !pncad::document::cascade_delete_order(doc, placement).contains(&node)
-            })
-            .collect();
+        let body = match doc.node(taken)? {
+            Node::Split { target, .. } => target.read,
+            _ => doc.read_of_node(taken)?,
+        };
+        let placements = repoint_targets(doc, body, node);
         (!placements.is_empty()).then_some(RepointOffer { body, placements })
     })
 }
@@ -661,13 +721,18 @@ pub fn read_body(doc: &Doc<ProfileProgram>, var: VarId) -> Option<crate::tree::D
     Some(crate::tree::DrawnBody::new(operation, u32::from(port)))
 }
 
-/// **The original body of `node`**: the operation whose body the copy
-/// `node` places whole ([`placed_var`]), any other node as it is — the
-/// way from a copy to its body, which a finding on a copy selects.
+/// **The original body of `node`**: down the copies `node` is a copy of
+/// ([`copy_source`]) — a member copy through its family — to the first
+/// body that is no copy; any other node as it is. The way from a copy to
+/// its body, which a finding on a copy selects and the pane's "Go to the
+/// original body" names. Each step reads a source upstream of the copy,
+/// so the walk ends.
 pub fn original_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
-    placed_var(doc, node)
-        .and_then(|var| doc.operation_of(var))
-        .unwrap_or(node)
+    let mut at = node;
+    while let Some(source) = copy_source(doc, at, 0) {
+        at = source.operation;
+    }
+    at
 }
 
 /// **The read a seat takes for a pick on `node`**: `node` itself with

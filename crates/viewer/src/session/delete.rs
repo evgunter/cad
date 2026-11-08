@@ -50,7 +50,12 @@ impl DeleteAffordance {
     /// target, or the readers handed to what it continues: the delete
     /// does not remove them.
     pub(super) fn of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Self {
-        let cascade = splice(doc, node).map_or_else(Vec::new, |splice| splice.deleted);
+        // A delete that cannot splice deletes nothing: its button is drawn
+        // disabled with the refusal (`DocSession::delete_refusal`).
+        let cascade = match splice(doc, node) {
+            Ok(Some(splice)) => splice.deleted,
+            Ok(None) | Err(_) => Vec::new(),
+        };
         let spoken = doc.spoken(node);
         // The cascade's last entry is the target itself; everything
         // before it is a dependent.
