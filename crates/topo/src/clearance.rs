@@ -4996,7 +4996,7 @@ mod cone_window {
     /// A cone cap at height `z` on the cone of half-angle [`ALPHA`]
     /// (`test_support_fixtures::cone_cap`).
     fn cone_cap(z: f64) -> (Body<f64>, FaceKey) {
-        crate::test_support_fixtures::cone_cap(ALPHA, z)
+        crate::test_support_fixtures::cone_cap(ALPHA, z, Tol::witness())
     }
 
     /// **A cone face's window ends where the face does, unless the face

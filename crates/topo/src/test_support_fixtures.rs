@@ -150,7 +150,7 @@ pub struct CubeOps<T: Real> {
 /// # Panics
 ///
 /// Where the fixture's own construction refuses (a kernel bug).
-pub fn cone_cap(alpha: f64, z: f64) -> (Body<f64>, FaceKey) {
+pub fn cone_cap(alpha: f64, z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
     use core::f64::consts::{FRAC_PI_2, PI};
     use geom_brep::CurveSelector;
     let cone = || Surface::Cone {
@@ -193,7 +193,7 @@ pub fn cone_cap(alpha: f64, z: f64) -> (Body<f64>, FaceKey) {
             },
             on(PI),
             half(0.0),
-            Tol::witness(),
+            tol,
         )
         .unwrap();
     let face = body
@@ -208,12 +208,12 @@ pub fn cone_cap(alpha: f64, z: f64) -> (Body<f64>, FaceKey) {
                     key: carrier,
                     sense: true,
                 },
-                Tol::witness(),
+                tol,
             )
         })
         .unwrap()
         .face;
-    crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
     (body, face)
 }
 

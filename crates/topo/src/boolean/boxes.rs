@@ -1946,7 +1946,7 @@ pub(crate) mod tests {
     #[test]
     fn a_cone_caps_box_holds_its_apex() {
         let alpha = 0.5_f64;
-        let (body, face) = crate::test_support_fixtures::cone_cap(alpha, 1.0);
+        let (body, face) = crate::test_support_fixtures::cone_cap(alpha, 1.0, Tol::witness());
         let b = face_box(&body, face, 0.0, witness_band());
         assert!(
             holds(&b, Point3::origin()),
