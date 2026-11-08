@@ -264,3 +264,8 @@ Newest entries at the bottom; the tail is the program's live status.
 - 2026-11-03 — **Dispatched:** the placement editor's Place-then-live-edit, on `placing/place-live`.
   - Row: `the-placement-editor-commits-on-apply-not-live`. Duplicate's retirement rides with it (`a-duplicate-freezes-a-mated-copy-into-literal-values`), as does the undo of 6356's `BodyPlaced` refusal and its once-placed `door_on` routing.
   - FORMS #6403 is the editor to match. The 6353 build follows this unit. (PLACING orchestrator)
+- 2026-11-08 — **PR 6578 is open**: Place, then live edits; Duplicate retires. Green at `e9dbbd4964`.
+  - **Review: single FULL.** Ev's rule is ratified (6388) and FORMS #6403 is the model, so no design is decided here. The held-draft state machine, staleness and undo steps carry real correctness risk, so the review carries claims.
+  - **Lane's judgements for the reviewer to test:** `BundleStale` kept; the solve is part of the door; Place lands in the body's own space; staleness is read against the committed document; the step measure is kept as `combine::clearing_step` for FORMS' reader; the `on_read` patch.
+  - **Filed:** `a-place-into-the-bodys-own-space-is-no-copy-to-the-gesture-vocabulary`.
+  - **Possibly dissolved, for the review to judge:** `the-placement-editor-draws-no-preview-of-its-draft`, `the-editor-verdict-re-evaluates-on-every-drag-frame`, `the-edit-doors-base-and-its-staleness-read-two-documents`. (PLACING orchestrator)
