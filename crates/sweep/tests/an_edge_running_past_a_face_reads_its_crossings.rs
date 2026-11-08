@@ -188,12 +188,18 @@ fn a_crossing_at_a_shallow_angle_builds_or_refuses_typed() {
             }
             (Err(e), Some(kind))
                 if format!("{:?}", e.kind()) == kind
-                    && !e.to_string().contains(geom_core::KERNEL_DEFECT_ENDING) => {}
+                    && !e
+                        .render(geom_brep::recourse::Reading::Build)
+                        .contains(geom_core::KERNEL_DEFECT_ENDING) => {}
             (other, want) => moved.push(format!(
                 "{what}: {}, where it {}",
                 match other {
                     Ok(_) => "builds".to_owned(),
-                    Err(e) => format!("refuses {:?}: {e}", e.kind()),
+                    Err(e) => format!(
+                        "refuses {:?}: {e_at}",
+                        e.kind(),
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    ),
                 },
                 want.map_or("builds".to_owned(), |k| format!("refuses {k}"))
             )),

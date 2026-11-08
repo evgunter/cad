@@ -115,7 +115,12 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
             } else {
                 topo::offset_charts_together(&mut work, &moves, band(), tol)
             };
-            outcome.unwrap_or_else(|e| panic!("{what}: the {door} door refused {e}"));
+            outcome.unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the {door} door refused {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let Surface::Cone {
                 apex: a,
                 half_angle: ha,
@@ -194,7 +199,10 @@ fn the_per_chart_doors_reach_is_not_the_rim_tolerance() {
             for signed in [-mag, mag] {
                 let mut work = body.clone();
                 topo::replace_faces_offset(&mut work, &faces, signed, tol).unwrap_or_else(|e| {
-                    panic!("{what} d={signed:e}: the door builds the moved cone: {e}")
+                    panic!(
+                        "{what} d={signed:e}: the door builds the moved cone: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
                 });
             }
         }

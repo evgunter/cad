@@ -87,7 +87,7 @@ Each door that turns a Zero into cells on one point:
 - **Loft**: adjacent coincident sections refuse (`DegenerateStacking`).
   `sweep_body` along a closed path decides nothing and builds coincident
   caps, refused at rest only (evidence added to
-  `work/carve/self-overlapping-spines-build-and-validate.md`).
+  `work/lathe/self-overlapping-spines-build-and-validate.md`).
 - **Shell**: a Zero clearance refuses (`WallClearance`, `OffsetsCross`
   away from a joint); its rim's null-edge copy is collapsed onto ring
   vertices. Refused or fused.

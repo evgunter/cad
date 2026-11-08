@@ -273,9 +273,15 @@ fn cut_wall(tol: Tol) {
     };
     let uncut = plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
     let uncut_box = analyzed_box(&uncut.doc, &AnalysisPolicy::default());
-    let receipt = drive(&uncut.doc, &uncut_box, &whole, tol)
-        .expect("the study's nominal builds")
-        .receipt();
+    let receipt = drive(
+        &uncut.doc,
+        &uncut_box,
+        &whole,
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the study's nominal builds")
+    .receipt();
     assert_eq!(
         receipt.certified, 1,
         "the study's own document certifies this box whole, so the wall is the cut's: {receipt:?}"
@@ -283,13 +289,31 @@ fn cut_wall(tol: Tol) {
     let Plate { doc, web, .. } =
         crate::plate::cut_plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &whole, tol).expect("the cut plate's nominal builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &whole,
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the cut plate's nominal builds");
     crate::walls::wall(
         "two-hole plate",
         1,
         "the holes cut from the blank, the web read off the cut part's bore walls, \
          over 1e-9 of the study",
-        stackup(&doc, web, &analyzed, &verdict, None, true, None, tol).map_err(|r| match r {
+        stackup(
+            &doc,
+            web,
+            &analyzed,
+            &verdict,
+            None,
+            true,
+            None,
+            &pncad::document::Stop::default(),
+            tol,
+        )
+        .map_err(|r| match r {
             StackupRefusal::NothingCertified { receipt, .. } => Ok(receipt),
             other => Err(Box::new(other)),
         }),
@@ -303,8 +327,14 @@ fn cut_wall(tol: Tol) {
     // laws) measured between the same cylinder axes.
     let row = |p: &Plate| {
         let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
-        let mc = monte_carlo(&p.doc, &analyzed, &McConfig::default(), tol)
-            .expect("the Monte-Carlo lane answers");
+        let mc = monte_carlo(
+            &p.doc,
+            &analyzed,
+            &McConfig::default(),
+            &pncad::document::Stop::default(),
+            tol,
+        )
+        .expect("the Monte-Carlo lane answers");
         let m = mc
             .values
             .iter()
@@ -346,13 +376,31 @@ fn real_study(tol: Tol) {
         WEB_BOUND * 1e3
     );
 
-    let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &starved(),
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the nominal builds");
     println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // The verdict on the requirement, read off the ASSERTION NODE over
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
-    let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
-    match stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
+    let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol)
+        .expect("the replays run to completion at the default member budget");
+    match stackup(
+        &doc,
+        web,
+        &analyzed,
+        &verdict,
+        None,
+        true,
+        None,
+        &pncad::document::Stop::default(),
+        tol,
+    ) {
         Ok(report) => {
             println!("{}", indent(&report.render(&doc, &analyzed)));
             // What the captions below claim, asserted here — the cell panics
@@ -532,7 +580,14 @@ fn real_study(tol: Tol) {
 
     // The advisory lane, which CAN answer at this box — and says what
     // it is on every line.
-    let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
+    let mc = monte_carlo(
+        &doc,
+        &analyzed,
+        &McConfig::default(),
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the nominal builds");
     println!("{}", indent(&mc.render(&doc)));
     assert!(
         mc.render(&doc).contains("ADVISORY"),
@@ -584,7 +639,14 @@ fn certified_study(tol: Tol) {
         ..
     } = plate(spacing_half_width, radius_sigma, bound, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &parallel(), tol).expect("the nominal builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &parallel(),
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the nominal builds");
     println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // **The verdict the CI row gates on, read off the ASSERTION NODE**
     // — not off a comparison this cell makes for itself. That is the
@@ -593,8 +655,20 @@ fn certified_study(tol: Tol) {
     // numbers that differ by less than the run's own coincidence
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
-    let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
-    let report = match stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
+    let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol)
+        .expect("the replays run to completion at the default member budget")
+        .0;
+    let report = match stackup(
+        &doc,
+        web,
+        &analyzed,
+        &verdict,
+        None,
+        true,
+        None,
+        &pncad::document::Stop::default(),
+        tol,
+    ) {
         Ok(report) => report,
         Err(refusal) => panic!(
             "the certifiable box did not certify: {refusal}. That is a finding about the \
@@ -605,7 +679,15 @@ fn certified_study(tol: Tol) {
     println!("{}", indent(&report.render(&doc, &analyzed)));
     print_divergence(&report, bound, worst, &decided, tol);
     // The E11.6 datum: where each certified leaf's mass lands.
-    let histogram = leaf_histogram(&doc, &analyzed, &verdict, web, tol);
+    let histogram = leaf_histogram(
+        &doc,
+        &analyzed,
+        &verdict,
+        web,
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("nothing stops the cell's run");
     println!("{}", indent(&histogram.render(&doc)));
     println!(
         "   the assertion node {} is the recorded requirement, and THIS is what the CI \
@@ -652,7 +734,14 @@ fn certified_study(tol: Tol) {
          whole divergence is inside the escalation threshold: window {gap:e} against {:e}",
         tol.k() * tol.eps()
     );
-    let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
+    let mc = monte_carlo(
+        &doc,
+        &analyzed,
+        &McConfig::default(),
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the nominal builds");
     println!("{}", indent(&mc.render(&doc)));
     assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
     // The advisory lane's own number, READ OFF THE REPORT rather than
@@ -733,14 +822,15 @@ pub struct RequirementMasses {
 /// per leaf — on the lane the drive certified the leaf on, which the
 /// verdict carries, so a consumer never has to know which — and that
 /// call is the whole cost (stop 1 has hundreds of certified leaves,
-/// each a replay), so it is taken once and read twice.
+/// each a replay), so it is taken once and read twice. A replay that
+/// stopped is the door's refusal, not a leaf with no verdict.
 pub fn requirement_over_leaves(
     doc: &ProfileDoc,
     analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
     assertion: RecipeNodeId,
     tol: Tol,
-) -> (Decided, RequirementMasses) {
+) -> Result<(Decided, RequirementMasses), pncad::document::Stopped> {
     let mut seen: Option<Decided> = None;
     let mut masses = RequirementMasses {
         holds: 0.0,
@@ -748,7 +838,14 @@ pub fn requirement_over_leaves(
         unevaluated: 0.0,
     };
     for leaf in verdict.certified() {
-        let reading = assertion_at(doc, assertion, &leaf.box_, verdict.symbolic(), tol);
+        let reading = assertion_at(
+            doc,
+            assertion,
+            &leaf.box_,
+            verdict.symbolic(),
+            &pncad::document::Stop::default(),
+            tol,
+        )?;
         let holds = reading.as_ref().and_then(|v| v.holds());
         let mass = leaf_mass(analyzed, &leaf.box_);
         match holds {
@@ -768,7 +865,7 @@ pub fn requirement_over_leaves(
             Some(_) => Decided::Mixed,
         });
     }
-    (seen.unwrap_or(Decided::Nothing), masses)
+    Ok((seen.unwrap_or(Decided::Nothing), masses))
 }
 
 /// One leaf's mass under the study's distributions: the product over

@@ -102,7 +102,7 @@ fn an_edge_at_the_zero_bands_edge_refuses_typed_and_its_lever_builds() {
         let tag = format!("{name} nt e{edge} a{a} d{d:e}");
         match cut(d) {
             Err(SplitError::Finish(e @ SplitFinishError::EdgeOnFacesEscalated { .. })) => {
-                let text = e.to_string();
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 if !text.starts_with("whether an edge along the cut lies on both faces it bounds")
                     || !text.ends_with(LEVER)
                 {

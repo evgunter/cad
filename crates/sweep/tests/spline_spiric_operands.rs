@@ -6,9 +6,14 @@
 //! placements, in both operand orders, and holds each outcome to an
 //! oracle:
 //!
-//! - an `Ok` carries the volume the oracle gives: the closed form where
-//!   the placement has one, and otherwise inclusion–exclusion, every
-//!   op that builds implying one shared `V(O ∩ B)`;
+//! - an `Ok` carries the volume the oracle gives: the closed form in
+//!   `V(O)` and `V(B)` where the placement has one, and otherwise
+//!   inclusion–exclusion, every op that builds implying one shared
+//!   `V(O ∩ B)`. `V(O)` is the operand's closed form where it has one
+//!   (its measure holds it), and otherwise its measure. Every body is
+//!   measured at [`RESOLUTION`], its bracket held within the band, and
+//!   each reading is held to its oracle within the band beyond the
+//!   brackets on both sides;
 //! - a placement marked to build builds every op;
 //! - an `Err` is a typed refusal, never a kernel invariant, and a
 //!   refusal naming a face names one of the operand its site says owns
@@ -24,7 +29,10 @@
 //! - the lofted cylinder (`lofted_cylinder`): rational NURBS walls and
 //!   seams, `V = π·h`.
 //!
-//!   Each builds every op against a brick far off and a brick around it.
+//!   The loft prism builds every op against a brick far off and a brick
+//!   around it; the lofted cylinder builds them but for the far brick's
+//!   union and the brick around it less the cylinder, which refuse at its
+//!   own rims (`the_lofted_cylinders_unions_refuse_at_its_own_rims`).
 //!   Its spline edges are boxed by their control nets and cross no face
 //!   of the brick, its NURBS faces' boxes meet none of the brick's, and
 //!   each vertex of the brick stands past every face of it, so the
@@ -34,8 +42,8 @@
 //!   quarter of the revolved vessel about `ŷ`: a neck cylinder under a
 //!   mouth plane, a torus band whose two rims on the quarter's cut
 //!   planes are spirics, a lower cylinder and a base. Its volume is an
-//!   elliptic integral, so its own measure is the closed form's stand-in
-//!   and inclusion–exclusion holds every cut: a poke through the neck
+//!   elliptic integral, so it has no closed form to hold its measure to;
+//!   inclusion–exclusion holds every cut: a poke through the neck
 //!   wall, a peg through the mouth, a brick inside, each away from the
 //!   spirics, all build; a poke into the torus band refuses typed
 //!   (`a_poke_into_the_cavitys_torus_band_refuses_typed`).
@@ -44,8 +52,12 @@
 
 use geom::SurfaceKind;
 use geom_core::Tol;
-use topo::{AtRestBody, BooleanError, BooleanResult, Operand};
+use topo::{AtRestBody, BooleanError};
 
+use crate::common::op_census::{
+    Run, assert_one_meet, band, kernel_invariant, measure, names_its_own_face, result_volume,
+    six_runs,
+};
 use crate::common::torus_walls::vessel_cavity;
 use sweep::test_support::{finished, loft_prism, lofted_cylinder};
 use topo::test_support::brick_with_fresh_keys;
@@ -55,8 +67,9 @@ type Box3 = ((f64, f64), (f64, f64), (f64, f64));
 /// What an `Ok` is held to.
 #[derive(Clone, Copy)]
 enum Oracle {
-    /// `V(O ∪ B)`, `V(O ∩ B)`, `V(O ∖ B)`, `V(B ∖ O)`.
-    Known([f64; 4]),
+    /// `V(O ∪ B)`, `V(O ∩ B)`, `V(O ∖ B)`, `V(B ∖ O)` from `V(O)` and
+    /// `V(B)`.
+    Known(fn(f64, f64) -> [f64; 4]),
     /// Inclusion–exclusion: each op that builds implies `V(O ∩ B)`, and
     /// they agree, inside `[0, min(V(O), V(B))]`.
     Cut,
@@ -74,34 +87,37 @@ fn volume_of_box(((x0, x1), (y0, y1), (z0, z1)): Box3) -> f64 {
     (x1 - x0) * (y1 - y0) * (z1 - z0)
 }
 
-fn known(
-    name: &'static str,
-    brick: Box3,
-    v: f64,
-    builds: bool,
-    of: impl Fn(f64, f64) -> [f64; 4],
-) -> Placement {
+/// `brick` disjoint from the operand.
+fn far(brick: Box3, builds: bool) -> Placement {
+    let of: fn(f64, f64) -> [f64; 4] = |v, b| [v + b, 0.0, v, b];
     Placement {
-        name,
+        name: "far",
         brick,
-        oracle: Oracle::Known(of(v, volume_of_box(brick))),
+        oracle: Oracle::Known(of),
         builds,
     }
 }
 
-/// `brick` disjoint from an operand of volume `v`.
-fn far(brick: Box3, v: f64, builds: bool) -> Placement {
-    known("far", brick, v, builds, |v, b| [v + b, 0.0, v, b])
-}
-
 /// `brick` enclosing it.
-fn around(brick: Box3, v: f64, builds: bool) -> Placement {
-    known("around", brick, v, builds, |v, b| [b, v, 0.0, b - v])
+fn around(brick: Box3, builds: bool) -> Placement {
+    let of: fn(f64, f64) -> [f64; 4] = |v, b| [b, v, 0.0, b - v];
+    Placement {
+        name: "around",
+        brick,
+        oracle: Oracle::Known(of),
+        builds,
+    }
 }
 
 /// `brick` within it.
-fn inside(brick: Box3, v: f64, builds: bool) -> Placement {
-    known("inside", brick, v, builds, |v, b| [v, b, v - b, 0.0])
+fn inside(brick: Box3, builds: bool) -> Placement {
+    let of: fn(f64, f64) -> [f64; 4] = |v, b| [v, b, v - b, 0.0];
+    Placement {
+        name: "inside",
+        brick,
+        oracle: Oracle::Known(of),
+        builds,
+    }
 }
 
 fn cut(name: &'static str, brick: Box3, builds: bool) -> Placement {
@@ -113,104 +129,32 @@ fn cut(name: &'static str, brick: Box3, builds: bool) -> Placement {
     }
 }
 
-/// The refusals that name a broken kernel rather than an input or a
-/// frontier.
-fn kernel_invariant(e: &BooleanError) -> bool {
-    matches!(
-        e,
-        BooleanError::ClassificationInvariant { .. } | BooleanError::JoinDesync { .. }
-    ) || matches!(e, BooleanError::Join(j) if matches!(j.error(), topo::SplitJoinError::SectionInvariant { .. }))
-}
-
-/// Where a refusal names a face, that it is a face of the operand its
-/// site says owns it — resolving there and not in the other — of the
-/// kind it states; and where it names an edge, a spiric or spline edge
-/// of its operand.
-fn names_its_own_face(e: &BooleanError, [a, b]: [&AtRestBody<f64>; 2]) -> Result<(), String> {
-    let body = |operand: Operand| match operand {
-        Operand::A => a,
-        Operand::B => b,
-    };
-    let owned = |operand: Operand, face| {
-        body(operand).get_face(face).is_some() && body(operand.other()).get_face(face).is_none()
-    };
-    let kind_of = |operand: Operand, face| {
-        body(operand)
-            .get_face(face)
-            .and_then(|f| body(operand).get_surface(f.surface))
-            .map(geom::Surface::kind)
-    };
-    let check = |ok: bool, why: String| ok.then_some(()).ok_or(why);
-    match *e {
-        BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        } => check(
-            owned(operand, face) && kind_of(operand, face) == Some(kind),
-            format!("{face:?} is no {kind:?} face of {operand:?} alone"),
-        ),
-        BooleanError::CurvedPairUnsupported {
-            operand,
-            face,
-            kind,
-            other_face,
-            other_kind,
-            ..
-        } => check(
-            owned(operand, face)
-                && kind_of(operand, face) == Some(kind)
-                && owned(operand.other(), other_face)
-                && kind_of(operand.other(), other_face) == Some(other_kind),
-            format!(
-                "{face:?}/{other_face:?} are not {kind:?}/{other_kind:?} faces of {operand:?} and its partner"
-            ),
-        ),
-        BooleanError::EdgeCarrierUnsupported {
-            operand,
-            edge,
-            face,
-            face_of,
-            ..
-        } => check(
-            matches!(
-                topo::query::edge_carrier_kind(body(operand), edge),
-                Some(topo::query::CurveKind::Nurbs | topo::query::CurveKind::Spiric)
-            ) && owned(face_of, face),
-            format!("{edge:?} of {operand:?} against {face:?} of {face_of:?}"),
-        ),
-        BooleanError::SplineCrossingUnsettled {
-            operand,
-            edge,
-            face,
-            face_of,
-            ..
-        } => check(
-            topo::query::edge_carrier_kind(body(operand), edge)
-                == Some(topo::query::CurveKind::Nurbs)
-                && owned(face_of, face),
-            format!("{edge:?} of {operand:?} against {face:?} of {face_of:?}"),
-        ),
-        _ => Ok(()),
-    }
-}
-
-/// One op of a placement: its name, its two operands in order, its
-/// outcome, its slot in [`Oracle::Known`], and `V(O ∩ B)` from its
-/// volume, given `V(O)` and `V(B)`.
-type Run<'a> = (
-    &'static str,
-    [&'a AtRestBody<f64>; 2],
-    Result<BooleanResult<f64>, BooleanError>,
-    usize,
-    fn(f64, f64, f64) -> f64,
-);
-
 /// Runs the four ops in both orders against each placement and holds
-/// each outcome to its oracle; returns the census lines.
-fn census(name: &str, operand: &AtRestBody<f64>, placements: &[Placement]) -> Vec<String> {
+/// each outcome to its oracle; returns the census lines. `V(O)` is the
+/// operand's closed form where it has one, which its measure holds, and
+/// otherwise its measure.
+fn census(
+    name: &str,
+    operand: &AtRestBody<f64>,
+    closed_form: Option<f64>,
+    placements: &[Placement],
+) -> Vec<String> {
     let tol = Tol::witness();
-    let v = topo::test_support::pinned_volume("the operand measures", operand, tol).volume;
+    let (measured, measured_pad) = measure(&format!("{name}: the operand"), operand);
+    // `V(O)` and its bracket's half-width.
+    let (v, v_pad) = match closed_form {
+        Some(want) => {
+            topo::test_support::assert_volume_near(
+                &format!("{name}: the operand against its closed form"),
+                measured,
+                measured_pad,
+                want,
+                band(want),
+            );
+            (want, 0.0)
+        }
+        None => (measured, measured_pad),
+    };
     let mut lines = Vec::new();
     for p in placements {
         let (x, y, z) = p.brick;
@@ -221,53 +165,14 @@ fn census(name: &str, operand: &AtRestBody<f64>, placements: &[Placement]) -> Ve
             p.name
         );
         let vb = volume_of_box(p.brick);
-        // Each op's volume as a function of `V(O ∩ B)`, inverted.
-        let runs: [Run<'_>; 6] = [
-            (
-                "O ∪ B",
-                [operand, &brick],
-                topo::union(operand, &brick, tol),
-                0,
-                |v, vb, got| v + vb - got,
-            ),
-            (
-                "B ∪ O",
-                [&brick, operand],
-                topo::union(&brick, operand, tol),
-                0,
-                |v, vb, got| v + vb - got,
-            ),
-            (
-                "O ∩ B",
-                [operand, &brick],
-                topo::intersect(operand, &brick, tol),
-                1,
-                |_, _, got| got,
-            ),
-            (
-                "B ∩ O",
-                [&brick, operand],
-                topo::intersect(&brick, operand, tol),
-                1,
-                |_, _, got| got,
-            ),
-            (
-                "O ∖ B",
-                [operand, &brick],
-                topo::subtract(operand, &brick, tol),
-                2,
-                |v, _, got| v - got,
-            ),
-            (
-                "B ∖ O",
-                [&brick, operand],
-                topo::subtract(&brick, operand, tol),
-                3,
-                |_, vb, got| vb - got,
-            ),
-        ];
         let mut implied = Vec::new();
-        for (op, pair, got, slot, meet) in runs {
+        for Run {
+            op,
+            pair,
+            keep,
+            got,
+        } in six_runs(operand, &brick)
+        {
             let line = format!("{name} / {} / {op}: ", p.name);
             match got {
                 Err(e) => {
@@ -282,40 +187,27 @@ fn census(name: &str, operand: &AtRestBody<f64>, placements: &[Placement]) -> Ve
                     lines.push(format!("{line}refuses {e:?}"));
                 }
                 Ok(result) => {
-                    let got = match &result {
-                        BooleanResult::Empty => 0.0,
-                        BooleanResult::Body(b) => {
-                            topo::test_support::pinned_volume("the measured body", &b.body, tol)
-                                .volume
-                        }
-                    };
+                    let (got, got_pad) = result_volume(&format!("{line}the result"), &result);
                     match p.oracle {
-                        Oracle::Known(want) => assert!(
-                            (got - want[slot]).abs() <= 1e-6 * want[slot].max(1.0),
-                            "{line}builds V = {got}, the closed form gives {}",
-                            want[slot]
-                        ),
-                        Oracle::Cut => implied.push((op, meet(v, vb, got))),
+                        Oracle::Known(of) => {
+                            let want = of(v, vb)[keep.slot()];
+                            topo::test_support::assert_volume_near(
+                                &format!("{line}against the closed form"),
+                                got,
+                                got_pad + v_pad,
+                                want,
+                                band(want),
+                            );
+                        }
+                        // `V(O)` enters every op's implied `V(O ∩ B)` alike,
+                        // so their agreement reads only the results' brackets.
+                        Oracle::Cut => implied.push((op, keep.meet(v, vb, got), got_pad)),
                     }
                     lines.push(format!("{line}builds V = {got}"));
                 }
             }
         }
-        if let Some(&(_, first)) = implied.first() {
-            let scale = v.max(vb);
-            assert!(
-                (-1e-9 * scale..=v.min(vb) + 1e-9 * scale).contains(&first),
-                "{name} / {}: V(O ∩ B) = {first} lies outside [0, min(V(O), V(B))]",
-                p.name
-            );
-            for &(op, meet) in &implied {
-                assert!(
-                    (meet - first).abs() <= 1e-9 * scale,
-                    "{name} / {}: {op} implies V(O ∩ B) = {meet}, the others {first}",
-                    p.name
-                );
-            }
-        }
+        assert_one_meet(&format!("{name} / {}", p.name), &implied, v, v_pad, vb);
     }
     lines
 }
@@ -328,10 +220,11 @@ fn loft_prism_census() -> Vec<String> {
     census(
         "loft prism",
         &prism,
+        Some(9.0),
         &[
-            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), 9.0, true),
-            around(((-3.0, 3.0), (-3.0, 3.0), (-1.0, 3.0)), 9.0, true),
-            inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), 9.0, false),
+            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), true),
+            around(((-3.0, 3.0), (-3.0, 3.0), (-1.0, 3.0)), true),
+            inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), false),
             cut(
                 "slab through the walls",
                 ((-3.0, 3.0), (-0.25, 0.25), (0.75, 1.25)),
@@ -354,10 +247,14 @@ fn lofted_cylinder_census() -> Vec<String> {
     census(
         "lofted cylinder",
         &cylinder,
+        Some(v),
         &[
-            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), v, true),
-            around(((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0)), v, true),
-            inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), v, false),
+            // Its union refuses at its own rims
+            // (`the_lofted_cylinders_unions_refuse_at_its_own_rims`).
+            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), false),
+            // Its `B ∖ O` refuses at its own rims too.
+            around(((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0)), false),
+            inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), false),
             cut(
                 "slab through the wall",
                 ((-2.0, 2.0), (-0.25, 0.25), (0.75, 1.25)),
@@ -367,13 +264,10 @@ fn lofted_cylinder_census() -> Vec<String> {
     )
 }
 
-/// The cavity, at rest, and its volume, its own measure.
-fn cavity() -> (AtRestBody<f64>, f64) {
-    let tol = Tol::witness();
+/// The cavity, at rest.
+fn cavity() -> AtRestBody<f64> {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let cavity = AtRestBody::validate(cavity, tol).expect("the cavity passes the at-rest gate");
-    let v = topo::test_support::pinned_volume("the cavity measures", &cavity, tol).volume;
-    (cavity, v)
+    AtRestBody::validate(cavity, Tol::witness()).expect("the cavity passes the at-rest gate")
 }
 
 /// The cavity's placements, in its own frame: the quarter `x ≥ 1/128`,
@@ -383,14 +277,15 @@ fn cavity() -> (AtRestBody<f64>, f64) {
 /// and 0.0703) over `y ∈ [0.0703, 0.1797]`, whose rims on the cut planes
 /// are the two spirics. Every cut stands clear of the band.
 fn cavity_census() -> Vec<String> {
-    let (cavity, v) = cavity();
+    let cavity = cavity();
     census(
         "vessel cavity",
         &cavity,
+        None,
         &[
-            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), v, true),
-            around(((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)), v, true),
-            inside(((0.03, 0.05), (0.25, 0.30), (-0.05, -0.03)), v, true),
+            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), true),
+            around(((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)), true),
+            inside(((0.03, 0.05), (0.25, 0.30), (-0.05, -0.03)), true),
             cut(
                 "poke through the neck wall",
                 ((0.08, 0.2), (0.25, 0.30), (-0.05, -0.03)),
@@ -407,30 +302,6 @@ fn cavity_census() -> Vec<String> {
 
 #[test]
 fn no_spline_or_spiric_operand_builds_wrong() {
-    // Pinned red, two ways. At ε = 1e-6 the lofted cylinder's far union
-    // builds a volume 3.2e-5 off its closed form
-    // (`work/splice/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`); at
-    // 1e-12 the bare operand's measurement stops at its wall
-    // (`work/splice/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).
-    let eps = geom_core::Tol::witness().eps();
-    let says: &[&str] = if test_utils::kernel_limit::at_row(eps, &[1e-6]) {
-        &[
-            "lofted cylinder / far / O ∪ B: builds V = 7.283217721708709, the closed form gives 7.283185307179586",
-        ]
-    } else {
-        &["the operand measures: the measurement did not meet its resolution: it stopped at `wall`"]
-    };
-    test_utils::pinned_red::row(
-        eps,
-        &[1e-6, 1e-12],
-        "the spline and spiric operands",
-        says,
-        no_spline_or_spiric_operand_builds_wrong_row,
-    );
-}
-
-/// The row [`no_spline_or_spiric_operand_builds_wrong`] runs, under its pins.
-fn no_spline_or_spiric_operand_builds_wrong_row() {
     let mut lines = loft_prism_census();
     lines.extend(lofted_cylinder_census());
     lines.extend(cavity_census());
@@ -446,7 +317,7 @@ fn no_spline_or_spiric_operand_builds_wrong_row() {
 #[test]
 fn a_poke_into_the_cavitys_torus_band_refuses_typed() {
     let tol = Tol::witness();
-    let (cavity, _) = cavity();
+    let cavity = cavity();
     let brick = finished(
         "the brick",
         brick_with_fresh_keys::<f64>((0.12, 0.25), (0.11, 0.14), (-0.06, -0.04), tol),
@@ -476,6 +347,85 @@ fn a_poke_into_the_cavitys_torus_band_refuses_typed() {
             kinds,
             [SurfaceKind::Plane, SurfaceKind::Torus],
             "{op}: the pair"
+        );
+    }
+}
+
+/// **The lofted cylinder's union with a far brick, in both orders, and a
+/// brick around it less the cylinder, refuse at the rider reading**
+/// (`splice/an-unread-rider-related-only-by-its-own-vertices-refuses`).
+/// The slit pass asks each circle rim arc against the lofted cylinder's
+/// OTHER spline wall, which shares the arc's two vertices in the
+/// cylinder's own topology and nothing else: the arc's place on a spline
+/// face is not read, so nothing says it lies along no piece of that wall
+/// (`EdgeInFace { SplineFace }`). Pinned in the far `O ∪ B` by identity: the edge is
+/// a circle arc of the cylinder bounding a plane cap and a spline wall,
+/// the face a spline wall of the cylinder that is not one of the arc's
+/// faces and holds both its vertices. In the far `B ∪ O` and the around
+/// `B ∖ O` the keys are the result's, so the variant and gap are pinned.
+/// The other ops build (the census row above).
+#[test]
+fn the_lofted_cylinders_unions_refuse_at_its_own_rims() {
+    let tol = Tol::witness();
+    let cyl = finished("the lofted cylinder", lofted_cylinder(2.0, tol), tol);
+    let brick = finished(
+        "the far brick",
+        brick_with_fresh_keys::<f64>((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol),
+        tol,
+    );
+    let gap = topo::EdgeInFaceGap::SplineFace;
+    match topo::union(&cyl, &brick, tol) {
+        Err(BooleanError::EdgeInFace { edge, face, gap: g }) if g == gap => {
+            let kind = |f: topo::FaceKey| {
+                cyl.get_face(f)
+                    .and_then(|d| cyl.get_surface(d.surface))
+                    .map(geom::Surface::kind)
+            };
+            let sides = topo::readback::edge_sides(&cyl, edge).expect("the edge is the cylinder's");
+            let (fa, fb) = sides.faces();
+            let mut own = [kind(fa), kind(fb)];
+            own.sort_by_key(|k| format!("{k:?}"));
+            assert_eq!(
+                topo::query::edge_carrier_kind(&cyl, edge),
+                Some(topo::query::CurveKind::Circle),
+                "the edge is a rim arc"
+            );
+            assert_eq!(
+                own,
+                [Some(SurfaceKind::Nurbs), Some(SurfaceKind::Plane)],
+                "the arc bounds a spline wall and a cap"
+            );
+            assert!(
+                kind(face) == Some(SurfaceKind::Nurbs) && face != fa && face != fb,
+                "the face is the cylinder's other spline wall"
+            );
+            let e = cyl.get_edge(edge).expect("the arc");
+            let start = |h| cyl.get_half_edge(h).expect("its half-edge").start;
+            let (a, b) = (start(e.he_plus), start(e.he_minus));
+            let of = |v| cyl.faces_of_vertex(v).unwrap_or_default();
+            assert!(
+                of(a).contains(&face) && of(b).contains(&face),
+                "the wall holds both the arc's vertices"
+            );
+        }
+        other => panic!(
+            "O ∪ B: the rim arc against the other wall, got {:?}",
+            other.err()
+        ),
+    }
+    let around = finished(
+        "the brick around it",
+        brick_with_fresh_keys::<f64>((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0), tol),
+        tol,
+    );
+    for (what, got) in [
+        ("far B ∪ O", topo::union(&brick, &cyl, tol)),
+        ("around B ∖ O", topo::subtract(&around, &cyl, tol)),
+    ] {
+        assert!(
+            matches!(&got, Err(BooleanError::EdgeInFace { gap: g, .. }) if *g == gap),
+            "{what}: {:?}",
+            got.err()
         );
     }
 }

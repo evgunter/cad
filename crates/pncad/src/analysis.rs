@@ -129,27 +129,28 @@ pub use editor_core::clearance::{
 /// its parts resolved through `resolver`, and each clearance
 /// assertion's verdict read back in plain numbers, in document order,
 /// a refusal said in `doc`'s own words. The door an at-rest certify
-/// seam submits: it is stopped by `cancel` like any evaluation, and
+/// seam submits: it is stopped by `stop` like any evaluation, and
 /// says so.
 ///
 /// # Errors
 ///
-/// [`Canceled`] when `cancel` was set before the evaluation finished.
+/// [`crate::document::Stopped`] when `stop` stopped the evaluation: its token
+/// was canceled, or the run ran out of its member budget.
 pub fn clearances_at_nominal(
     doc: &crate::document::ProfileDoc,
     resolver: Option<std::sync::Arc<dyn crate::document::PartResolver>>,
-    cancel: &crate::document::CancelToken,
+    stop: &crate::document::Stop,
     tol: geom_core::Tol,
-) -> Result<Vec<ClearanceAnswer>, Canceled> {
-    use editor_core::{AssertionVerdict, Claim, EvalOutcome, Node, NodeResult, ValuePayload};
-    let opts = editor_core::EvalOptions {
+) -> Result<Vec<ClearanceAnswer>, crate::document::Stopped> {
+    use editor_core::{AssertionVerdict, Claim, Node, NodeResult, ValuePayload};
+    let opts = stop.options(editor_core::EvalOptions {
         resolver,
         ..editor_core::EvalOptions::default()
-    };
+    });
     let ev: editor_core::Evaluation<geom_core::Interval> =
-        editor_core::evaluate(doc, None, cancel, &opts, tol);
-    if ev.outcome == EvalOutcome::Canceled {
-        return Err(Canceled);
+        editor_core::evaluate(doc, None, &stop.cancel, &opts, tol);
+    if let Some(stopped) = crate::document::Stopped::of(ev.outcome) {
+        return Err(stopped);
     }
     Ok(doc
         .ids()
@@ -186,10 +187,6 @@ pub fn clearances_at_nominal(
         })
         .collect())
 }
-
-/// [`clearances_at_nominal`] was stopped by its cancel token.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Canceled;
 
 /// One clearance assertion's answer.
 #[derive(Debug, Clone, PartialEq)]

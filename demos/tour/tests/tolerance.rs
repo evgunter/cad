@@ -52,8 +52,14 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
             other => panic!("{name}: the assertion has a verdict, got {other:?}"),
         };
         let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
-        let mc = monte_carlo(&p.doc, &analyzed, &McConfig::default(), tol)
-            .expect("the Monte-Carlo lane answers");
+        let mc = monte_carlo(
+            &p.doc,
+            &analyzed,
+            &McConfig::default(),
+            &pncad::document::Stop::default(),
+            tol,
+        )
+        .expect("the Monte-Carlo lane answers");
         let tally = mc
             .assertions
             .iter()
@@ -80,9 +86,17 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
             web.4
         );
         if leaves {
-            let verdict = drive(&p.doc, &analyzed, &parallel(), tol).expect("the nominal builds");
+            let verdict = drive(
+                &p.doc,
+                &analyzed,
+                &parallel(),
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the nominal builds");
             let (decided, masses) =
-                requirement_over_leaves(&p.doc, &analyzed, &verdict, p.assertion, tol);
+                requirement_over_leaves(&p.doc, &analyzed, &verdict, p.assertion, tol)
+                    .expect("the replays run to completion at the default member budget");
             line.push_str(&format!(
                 "; leaves {} holds {:016x} violated {:016x} unevaluated {:016x}",
                 describe(&decided),

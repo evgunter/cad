@@ -45,7 +45,7 @@ fn probe(tag: &str, text: &str, base_vol: f64) {
             }
         }
         Ok(StepImport::Wireframe { .. }) => println!("{tag}: wireframe?"),
-        Err(e) => println!("{tag}: REFUSES TYPED: {e}"),
+        Err(e) => println!("{tag}: REFUSES TYPED: {e_at}", e_at = e.render()),
     }
 }
 

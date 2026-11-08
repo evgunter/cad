@@ -10,7 +10,7 @@ cost: M
 
 
 Filed by SECT's orchestrator, 2026-10-29, from PR 6011's review and its
-cost row (`work/sect/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`).
+cost row (`work/secttorus/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`).
 
 ## Measured
 

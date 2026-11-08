@@ -66,9 +66,9 @@ use sweep::blend::{
     ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
     FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
     FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
-    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TURN_RECOURSE,
-    FILLET3_WEDGE_RECOURSE,
+    FILLET3_GEOMETRY_RECOURSE, FILLET3_KNIFE_RECOURSE, FILLET3_RADIUS_RECOURSE,
+    FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
+    FILLET3_TURN_RECOURSE, KnifeRefusal,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -188,7 +188,7 @@ fn chamfers(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
 
 /// The refusal carries exactly the recourse under test.
 fn carries(err: &BlendError, recourse: &str, what: &str) {
-    let shown = err.to_string();
+    let shown = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         shown.contains(recourse),
         "{what}: the refusal must carry its own recourse.\n  got: {shown}"
@@ -250,16 +250,11 @@ fn the_clearance_recourse_reduces_to_a_blend_size_that_builds() {
     builds(&body, &rim, 0.05, "the reduced blend size");
 }
 
-/// **`FILLET3_WEDGE_RECOURSE` — "blend an edge whose supports meet
-/// at a definite angle".**
-///
-/// A slit — a plate bored by a declared-cusp lune, whose kiss is a strut
-/// where the plate's material meets itself across one tangent plane —
-/// decides Zero with the outward normals opposed. The definite-angle
-/// edge the sentence names is on the SAME body: one of the plate's own
-/// vertical corners.
-#[test]
-fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
+/// The plate bored by a declared-cusp lune: its kiss is a slit, a strut
+/// where the plate's material meets itself across one tangent plane.
+/// Returns the body, the kiss, and one of the plate's own vertical
+/// corners, a definite-angle edge.
+fn lune_slit_plate() -> (Body<f64>, EdgeKey, EdgeKey) {
     let plate = bulge_loop(sweep::test_support::corners(&[
         (-1.0, -1.0),
         (3.0, -1.0),
@@ -302,16 +297,50 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
                 .all(|p| (p.x - 3.0).abs() < 1e-9 && (p.y - 5.0).abs() < 1e-9)
         })
         .expect("the plate's vertical corner at (3, 5)");
-    let err = refusal(&body, &[kiss], 0.05, "a slit strut", false);
+    (body, kiss, corner)
+}
+
+/// **`FILLET3_KNIFE_RECOURSE` — "reduce the fillet radius until the
+/// ball fits in the crescent".**
+///
+/// The lune's crescent opens to `R_big − R_small = 1`, so the slit's
+/// ball does not exist at `r = 1.2` (`fillet3_knife_room`), and the
+/// reduced radius the sentence names builds and validates.
+#[test]
+fn the_knife_recourse_is_followed_by_a_ball_that_fits_the_crescent() {
+    let (body, kiss, _) = lune_slit_plate();
+    let err = refusal(&body, &[kiss], 1.2, "a slit wider than its crescent", false);
     assert!(
         matches!(
             err,
-            BlendError::KnifeEdge { margin, .. }
-                if margin.predicate == "fillet3_convexity_sign" && margin.sign == Sign::Zero
+            BlendError::KnifeEdge {
+                margin,
+                refusal: KnifeRefusal::NoRoom { .. },
+                ..
+            } if margin.predicate == "fillet3_knife_room" && margin.sign == Sign::Negative
         ),
-        "a slit is the zero-margin wedge, got {err:?}"
+        "a ball wider than the crescent has no room, got {err:?}"
     );
-    carries(&err, FILLET3_WEDGE_RECOURSE, "knife edge");
+    carries(&err, FILLET3_KNIFE_RECOURSE, "knife room");
+    builds(&body, &[kiss], 0.3, "the ball that fits the crescent");
+}
+
+/// **No fixture in this suite reaches `FILLET3_WEDGE_RECOURSE`** —
+/// "blend an edge whose supports meet at a definite angle or definitely
+/// tangent".
+///
+/// It is the lever of an in-band convexity sign only: an edge whose
+/// dihedral is neither definite nor definitely zero at its arm. The
+/// slit this row used to witness decides Zero, and a knife now builds
+/// where its ball is defined, so the caller meets a band, not the
+/// sentence. **The premise:** no door here authors an edge whose wedge
+/// lands within the band of tangency, and this row goes red where the
+/// slit stops building. The missing witness is its own row,
+/// `work/band/the-in-band-wedge-recourse-has-no-witness.md`.
+#[test]
+fn the_wedge_recourse_has_no_witness_in_this_suite() {
+    let (body, kiss, corner) = lune_slit_plate();
+    builds(&body, &[kiss], 0.05, "the slit's own fillet");
     builds(&body, &[corner], 0.05, "the definite-angle edge");
 }
 
@@ -721,7 +750,7 @@ fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
         ),
         "a nearly flat trihedron escalates the independence decision, got {err:?}"
     );
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains(FILLET3_CORNER_INDEPENDENCE_RECOURSE) && !text.contains("declare"),
         "{text}"
@@ -997,7 +1026,7 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
 /// the copy this suite used to keep is exactly the failure the home's
 /// own doc records.
 fn carries_no_named_recourse(err: &BlendError, what: &str) {
-    let shown = err.to_string();
+    let shown = err.render(geom_brep::recourse::Reading::Build);
     for (name, sentence) in ALL_RECOURSES {
         assert!(
             !shown.contains(sentence),
@@ -1035,9 +1064,10 @@ fn a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of() {
         );
         carries_no_named_recourse(&err, "a nonpositive setback");
         assert!(
-            err.to_string()
+            err.render(geom_brep::recourse::Reading::Build)
                 .contains("supply a positive radius or setback"),
-            "and it advises anyway: {err}"
+            "and it advises anyway: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         );
     }
     chamfers(&body, &edges, 0.1, "the positive setback it names");
@@ -1061,8 +1091,10 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
     );
     carries_no_named_recourse(&err, "a repeated edge");
     assert!(
-        err.to_string().contains("request each edge once"),
-        "and it advises anyway: {err}"
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains("request each edge once"),
+        "and it advises anyway: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
     builds(&body, &edges, 0.1, "each edge requested once");
 }
@@ -1110,7 +1142,10 @@ fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_
             Err(BlendError::FaceClearanceUncertified { .. } | BlendError::Escalated { .. }) => {
                 clearance += 1;
             }
-            Err(other) => panic!("r = {r}: unexpected outcome {other}"),
+            Err(other) => panic!(
+                "r = {r}: unexpected outcome {other_at}",
+                other_at = other.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
     assert!(
@@ -1170,7 +1205,8 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
         "mixed convexity is met at the CORNER, not along a chain, got {err:?}"
     );
     assert!(
-        !err.to_string().contains(FILLET3_CONVEXITY_RECOURSE),
+        !err.render(geom_brep::recourse::Reading::Build)
+            .contains(FILLET3_CONVEXITY_RECOURSE),
         "and the caller is handed the corner recourse, not the convexity one"
     );
 }
@@ -1211,7 +1247,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
         matches!(err, BlendError::UnsupportedGeometry { .. }),
         "the ring's ellipse carriers are what refuse, got {err:?}"
     );
-    let shown = err.to_string();
+    let shown = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         shown.contains(FILLET3_GEOMETRY_RECOURSE),
         "the caller is handed the geometry recourse: {shown}"
@@ -1280,7 +1316,8 @@ fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
          meters the ring gap first, got {err:?}"
     );
     assert!(
-        !err.to_string().contains(FILLET3_RING_RECOURSE),
+        !err.render(geom_brep::recourse::Reading::Build)
+            .contains(FILLET3_RING_RECOURSE),
         "and the caller reads the clearance recourse here, not the ring one"
     );
 }
@@ -1311,9 +1348,8 @@ fn top_front_edge(body: &Body<f64>) -> [EdgeKey; 1] {
 /// which the Boolean serves against the bore's cylinder, so the
 /// reordered request builds, tier-3 valid. The fillet's band is a
 /// cylinder skew to the bore's, which the Boolean reads on its section
-/// value and carries, marched; the result gate then refuses the body,
-/// whose spline-chorded walls have no volume lane: the leg is the
-/// sentence's, the gap the volume lane's.
+/// value and carries, marched, and the reordered request builds too, its
+/// spline-chorded walls measured by the rotational lane.
 #[test]
 fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
     use crate::common::bores::bored_brick;
@@ -1340,8 +1376,13 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
         } else {
             fillet_edges(&rest, &edge, d, tol())
         };
-        out.unwrap_or_else(|e| panic!("chamfer {chamfer}: the brick's edge blends: {e}"))
-            .body
+        out.unwrap_or_else(|e| {
+            panic!(
+                "chamfer {chamfer}: the brick's edge blends: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
+        .body
     };
     let cut = |b: &Body<f64>| {
         topo::subtract(
@@ -1351,7 +1392,12 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
         )
     };
     let chamfered = cut(&blended(true))
-        .unwrap_or_else(|e| panic!("the bore after the chamfer builds: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "the bore after the chamfer builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body()
         .expect("the bore leaves material")
         .body
@@ -1368,17 +1414,38 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
         (v - closed).abs() <= pad + 1e-9,
         "the reordered chamfer is the rule's `S − R − H`: {v} ± {pad} vs {closed}"
     );
-    let filleted = cut(&blended(false));
+    let filleted = cut(&blended(false))
+        .unwrap_or_else(|e| {
+            panic!(
+                "the bore after the fillet builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
+        .body()
+        .expect("the bore leaves material")
+        .body
+        .clone()
+        .into_body();
+    validate_geometric(&filleted, tol())
+        .unwrap_or_else(|e| panic!("the reordered fillet is tier-3 valid, got {e:?}"));
+    // `S − R − H`: the brick, less the fillet's band `(1 − π/4)·d² · 4`,
+    // less the bore up to the band's quarter round, whose height over
+    // the bore's disc is `2.5 − d + √(d² − (y − y₀)²)`, `y₀ = −2 + d`:
+    // with `y = −1.8 + 0.1·sin θ`, `∫ 2·√(0.01 − s²)·height ds` is
+    // `∫ 0.02·cos²θ·height dθ`, smooth over `θ ∈ [−π/2, π/2]`.
+    let height = |y: f64| 2.5 - d + (d * d - (y + 2.0 - d).powi(2)).sqrt();
+    let bore = |t: f64| 0.02 * t.cos().powi(2) * height(-1.8 + 0.1 * t.sin());
+    let half = std::f64::consts::FRAC_PI_2;
+    let mut held = 0.0;
+    for k in 0..16 {
+        let a = -half + f64::from(k) * half / 8.0;
+        held += crate::common::quadrature::gk15(&bore, a, a + half / 8.0).0;
+    }
+    let (v, pad) = crate::band_planar_cut_off::volume_enclosure(&filleted);
+    let closed = 40.0 - (1.0 - std::f64::consts::FRAC_PI_4) * d * d * 4.0 - held;
     assert!(
-        matches!(
-            &filleted,
-            Err(topo::boolean::BooleanError::ResultInvalid { errors })
-                if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))
-        ),
-        "the bore after the fillet: the band's cylinder against the skew bore is carried, and \
-         the body waits on the volume lane of a spline-chorded wall; once that lands, this row \
-         flips to a build. Got {:?}",
-        filleted.err()
+        (v - closed).abs() <= pad + crate::common::differential::VOLUME_CLAIM,
+        "the reordered fillet is the rule's `S − R − H`: {v} ± {pad} vs {closed}"
     );
 }
 

@@ -50,3 +50,11 @@ E deletes `UndeclaredCoincidence`. The glue door declares a pair of discs that a
 ## Parked on INTENT stage 4 (2026-10-12)
 
 This row acts on declared contacts: a declared `Seam` / `Rest` pair, or a declared tangency. D10's stage 4 retires the declared pairs, the undeclared refusals and the stored tangent-joint flags, so widening it now would widen a path D10 is removing. It is parked on `intent-stage4-is-built` and is re-read against the built code when that row closes (TANG orchestrator).
+
+## The D10 hold has lifted (2026-11-03)
+
+`intent-stage4-is-built` closed on 2026-10-24, and INTENT closed on
+2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`), so the parking above
+no longer stands. Dispatchable: the first step is the re-read against
+the built code that the section above names.

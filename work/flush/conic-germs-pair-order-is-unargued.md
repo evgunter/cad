@@ -30,7 +30,7 @@ Two poses with all-mutual conic germs still escalate on
 - `crates/sweep/tests/band_apart_partners_on_a_steep_ellipse.rs`,
   `k = 10`, at every ε (margin −3.3 zero). With the conic arm free,
   this pose went on to `interval_span_forward`
-  (`work/issues/an-ellipse-arcs-span-is-levered-by-its-global-speed-floor.md`).
+  (`work/lever/an-ellipse-arcs-span-is-levered-by-its-global-speed-floor.md`).
 - `crates/sweep/tests/germ_plane_torus_frame.rs`,
   `a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name`,
   at ε 1e-6. With the conic arm free, it reached the dispatch.

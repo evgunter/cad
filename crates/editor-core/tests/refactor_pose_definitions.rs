@@ -107,6 +107,7 @@ fn try_split(
         DocumentId::derive(&format!("{seed}-part")),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
 }
 

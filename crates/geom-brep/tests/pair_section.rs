@@ -98,7 +98,7 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
         ClassCarrier::Closed(curve) => curve.eval(0.4),
         _ => unreachable!(),
     };
-    let foot = carried.foot(p, band()).unwrap();
+    let foot = on_arc(carried.site(p, band()).unwrap());
     assert_eq!(foot.component, 1, "the foot's component");
 }
 
@@ -352,7 +352,7 @@ fn the_general_rung_carries_through_its_door() {
     let witness = section.counted().expect("a counted section")[0]
         .witness
         .unwrap();
-    assert_eq!(carried.foot(witness, band()).unwrap().component, 0);
+    assert_eq!(on_arc(carried.site(witness, band()).unwrap()).component, 0);
     // Seated at an interior parameter: the loop opened there, certified
     // again, the same locus run from that point round to it.
     let (lo, hi) = c.span;
@@ -383,9 +383,8 @@ fn the_general_rung_carries_through_its_door() {
     );
     for k in 1..64 {
         let p = seated.carrier.eval(s0 + (s1 - s0) * f64::from(k) / 64.0);
-        let foot = c.carrier.foot(p, at);
         assert!(
-            (c.carrier.eval(foot.t()) - p).norm() < band().zero(),
+            c.carrier.foot(p, at).gap() < band().zero(),
             "the seated loop's point {k} lies on the loop"
         );
     }
@@ -812,7 +811,7 @@ fn two_loops_keep_their_sites_and_order_near_the_node() {
                     let theta = std::f64::consts::PI * (1.0 + (2.0 * u - 1.0).powi(3));
                     let p = wall_point(r, d, big, theta, sheet).unwrap();
                     let at = format!("d {d}, R {big}, θ {theta}");
-                    let f = c.foot(p, band()).unwrap_or_else(|e| panic!("{at}: {e:?}"));
+                    let f = on_arc(c.site(p, band()).unwrap_or_else(|e| panic!("{at}: {e:?}")));
                     assert_eq!(*want.get_or_insert(f.component), f.component, "{at}");
                     ts.push(f.t);
                 }
@@ -856,9 +855,10 @@ fn one_loop_keeps_its_order_near_the_node() {
                 let Some(p) = wall_point(r, d, big, theta, sheet) else {
                     continue;
                 };
-                let f = c
-                    .foot(p, band())
-                    .unwrap_or_else(|e| panic!("d {d}, R {big}, τ {tau}: {e:?}"));
+                let f = on_arc(
+                    c.site(p, band())
+                        .unwrap_or_else(|e| panic!("d {d}, R {big}, τ {tau}: {e:?}")),
+                );
                 assert_eq!(f.component, 0);
                 ts.push(f.t);
             }
@@ -894,7 +894,7 @@ fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
                     let Some(p) = wall_point(r, d, big, theta, sheet) else {
                         continue;
                     };
-                    let Ok(f) = c.foot(p, band()) else {
+                    let Ok(geom_brep::SiteReading::OnArc(f)) = c.site(p, band()) else {
                         refused += 1;
                         continue;
                     };
@@ -916,4 +916,38 @@ fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
     // The row is a reading, not a run of refusals: 2716 of its 3104
     // sites read at every ε when it landed.
     assert!(read >= 2500, "{read} sites read, {refused} refusals");
+}
+
+/// **A closed form is seated by its span**: each of the coaxial pose's
+/// circles, seated at any angle, is its own carrier over that angle to
+/// a turn on, with no lane asked for and no certificate. Its seat point
+/// is the circle's point at that angle, so a chord cut from it starts
+/// there.
+#[test]
+fn a_closed_form_is_seated_by_its_span() {
+    let (cyl, sph) = (cylinder(1.0), sphere(0.0, 2.0));
+    let section = built(&cyl, &sph);
+    let carried = section.carry(None, band()).expect("closed forms carry");
+    for c in carried.components() {
+        let (lo, hi) = c.span;
+        assert!(c.closed() && c.certificate.is_none(), "a closed form");
+        for at in [lo, lo + 1.0, lo + 3.0, lo - 2.5, hi + 0.5] {
+            let seated = section
+                .seat(None, c, at, band())
+                .unwrap_or_else(|e| panic!("seat {at}: {e:?}"));
+            assert_eq!(seated.span, (at, at + (hi - lo)), "seated at {at}");
+            assert!(
+                (seated.carrier.eval(at) - c.carrier.eval(at)).norm() == 0.0,
+                "seat {at}: the carrier is as it was"
+            );
+        }
+    }
+}
+
+/// The foot of a site off every node: these sections list none.
+fn on_arc(reading: geom_brep::SiteReading<f64>) -> geom_brep::SiteFoot<f64> {
+    match reading {
+        geom_brep::SiteReading::OnArc(foot) => foot,
+        geom_brep::SiteReading::AtNode(n) => panic!("a site at node {n} of a section with none"),
+    }
 }

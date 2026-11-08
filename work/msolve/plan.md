@@ -24,7 +24,7 @@ items on DOCM's slate.
 `mate.rs` and `mate/*` until DOCM cedes them or declines to. That is
 announced, not assumed — and it is exactly the state
 `scripts/work.py territory` is blind to
-(`work/issues/territory-cannot-see-a-path-two-programs-both-claim`), so
+(`work/meta/territory-cannot-see-a-path-two-programs-both-claim`), so
 it will not warn anyone.
 
 ## The ruling this program runs on (Ev, in chat, 2026-09-05)
@@ -326,33 +326,26 @@ EDIT's PR #3676 deleted the cluster maintenance, so item 23's third
 row (the `mate/maintain.rs` move) was overtaken. Main closed that row,
 and MSOLVE-12 merges main without it.
 
-**The intent-refactor hold (Ev, `[ev]` PR #3990, 2026-10-03).**
-Ev opened a redesign of dependency, placement and intent, and asked
-every active orchestrator to start no new unit on that ground while
-finishing units already started (Ev's words: `git show
+**The intent-refactor hold (Ev, `[ev]` PR #3990, 2026-10-03) has
+lifted.** Ev opened a redesign of dependency, placement and intent, and
+asked every active orchestrator to start no new unit on that ground
+(Ev's words: `git show
 5f7a1c71e3:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent.md`,
-messages 4 and 5). Every live MSOLVE row is mate or solve work, so:
+messages 4 and 5). D10's build closed with INTENT on 2026-10-30
+(#6103, `docs/doc-ledger/intent-leaves-the-tracker.md`), and no MSOLVE
+row waits on it:
 
 - **MSOLVE-14** (item 19, the solve at the run's scalar) merged on PR
   3986 (DR-70). It closed its two rows. The box-driver row its §6
-  reaches is parked on D10's build and on flux's
-  `the-box-driver-carries-no-part-resolver`.
+  reaches (`a-box-independent-mate-fault-bisects-the-whole-leaf-budget`)
+  is parked on SCALAR's `the-box-driver-carries-no-part-resolver`.
 - **MSOLVE-15** (item 22's build: the deletions that ride row 53's
-  offset, which PLACE built in PR 3961) is specced on
-  `msolve/15-frame-offset-carries-the-roll` and **not started**. It
-  stays unstarted. Its spec is now stale in its §1, because PLACE built
-  the frame shape, and D10 moves the ground under it. Re-cut it against
-  D10 once the hold lifts.
-- **Every other live row is parked** with
-  `blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Ev ratified D10
-  on #3990, and the hold now waits on its build rather than the ruling;
-  main re-pointed the rows parked on the PR. Item 25, the new
-  PLACE-filed rows and every other row are parked this way.
-
-With MSOLVE-14 merged, the program has nothing it may start. Its
-status is `blocked` and the orchestrator has stopped, as the hold says.
-When D10's build lands, re-cut the parked rows against it, starting
-with MSOLVE-15.
+  offset, which PLACE built in PR 3961) was specced on
+  `msolve/15-frame-offset-carries-the-roll` and never started. Its
+  spec is stale in its §1, because PLACE built the frame shape, and D10
+  moved the ground under it: re-cut it against main before it starts.
+- The rows the hold parked are open. Re-cut each against main at
+  dispatch.
 
 The exit walk waits on 10–12, 14–16 and 17–26: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm

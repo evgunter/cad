@@ -122,10 +122,11 @@ use crate::FaceContainment;
 use crate::cell_region::{
     Ball, BoundaryStop, CellRegion, cell_region_lifted, centre, lift_boundary, station_region,
 };
-use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
+use crate::entity::{EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, VertexKey};
 use crate::injective::{
     self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
 };
+use crate::live::{BoundaryMember, FaceView, proven};
 use lift::{Lift, certified_lift};
 
 /// The funnel site name of the clearance comparison — the separation
@@ -882,7 +883,7 @@ pub enum CellBudget {
 pub fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
     source
         .terminal_sliver
-        .then_some(source.predicate.unwrap_or("<unnamed>"))
+        .then(|| source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
 }
 
 /// The counting receipt of one clearance query.
@@ -1543,7 +1544,7 @@ impl Sweep {
                 // distance topology fixed at 0.
                 let sliver = |r: &Reading| match r {
                     Reading::Undecided(source) => Some(EngineRefusal::Sliver {
-                        predicate: source.predicate.unwrap_or(CLEARANCE_MARGIN),
+                        predicate: source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
                     }),
                     _ => None,
                 };
@@ -3267,7 +3268,7 @@ impl RegionMemo {
         }
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
-            Region::Trimmed => match w.body.face_surface(w.face) {
+            Region::Trimmed => match w.body.passed_face(w.face).map(|f| f.surface()) {
                 None => CellRegion::Undecided,
                 Some(stored) => {
                     // The carrier is the window's own lift, which
@@ -3385,10 +3386,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             side,
         })
     };
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         return unsupported("an unreadable face");
     };
-    let stored = body.face_surface_linked(face, f);
+    let stored = f.surface();
     let Some((bounds, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
@@ -3445,7 +3446,8 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
-        Surface::Nurbs(net) => match iso_bounded_domain(body, f, net) {
+        Surface::Spindle { .. } => return unsupported("a spindle sheet's face"),
+        Surface::Nurbs(net) => match iso_bounded_domain(body, f.record(), net) {
             Ok((u, v)) => (u, v, Region::Whole),
             Err(carrier) => return unsupported(carrier),
         },
@@ -3473,33 +3475,28 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
 
 /// **Whether a face's boundary winds nowhere**: the elements of all its
 /// joints, over every loop together, compose to the identity with no
-/// reset. A missing joint, a loop that does not close, or an outer loop
-/// with no edges reads as winding.
+/// reset. A missing joint, or an outer loop with no edges, reads as
+/// winding; every hop of the walk is a link
+/// ([`crate::live::FaceView::boundary_by_loop`]).
 ///
 /// On a cone a reset is written at a joint on the apex
 /// ([`crate::joint`]); absent one, the composed `u` of the whole
 /// boundary is its winding about the axis. What a total of zero tells
 /// [`window_of`] is argued there.
-fn winds_nowhere<T: Decide>(body: &Body<T>, f: &Face) -> bool {
+fn winds_nowhere<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> bool {
     let mut elements = Vec::new();
-    for (i, lk) in core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
-        .enumerate()
-    {
-        match body.get_loop(lk).map(|l| l.boundary) {
-            Some(LoopBoundary::Cycle { first }) => {
-                let Some(cycle) = body.loop_cycle(first) else {
+    for (_, members, role) in f.boundary_by_loop() {
+        for member in members {
+            let Some(he) = member.half_edge() else {
+                if role.is_outer() {
                     return false;
-                };
-                for he in cycle {
-                    let Some(e) = body.joint(he) else {
-                        return false;
-                    };
-                    elements.push(e);
                 }
-            }
-            Some(LoopBoundary::Empty { .. }) if i > 0 => {}
-            _ => return false,
+                continue;
+            };
+            let Some(e) = body.joint(he) else {
+                return false;
+            };
+            elements.push(e);
         }
     }
     crate::joint::Winding::of(elements).is_zero()
@@ -3726,10 +3723,11 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 /// over its OWN parameter interval — interval arithmetic does the
 /// bounding, so a circular edge's bulge is enclosed rather than chorded
 /// away — together with the boundary's vertex points, each lifted
-/// through [`Interval::from_certified`]. `None` for a face whose
-/// boundary this cannot walk, one of whose edges carries no certified
-/// curve, or one any of whose lifted values does not certify: an
-/// unclaimable extent, never a silently smaller one.
+/// through [`Interval::from_certified`]. `None` for a face that does not
+/// resolve, one of whose edges carries no certified curve, or one any of
+/// whose lifted values does not certify: an unclaimable extent, never a
+/// silently smaller one. The walk past the face is
+/// [`crate::live::FaceView::boundary_by_loop`]'s, every hop a link.
 ///
 /// The lifted boundary carries each edge's carrier and span, its two
 /// end vertices, and each of the face's half-edges on it with that
@@ -3743,76 +3741,69 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     face: FaceKey,
 ) -> Option<(Aabb, Boundary)> {
     certified_lift(|lift: Lift<'_, T>| -> Option<(Aabb, Boundary)> {
-        let f = body.get_face(face)?;
+        let f = body.passed_face(face)?;
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
         let mut out = Boundary {
-            sense: f.sense,
+            sense: f.sense(),
             ..Boundary::default()
         };
         let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
         let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
-        for &lk in core::iter::once(&f.outer).chain(&f.rings) {
-            let l = body.get_loop(lk)?;
-            match l.boundary {
-                LoopBoundary::Empty { vertex } => {
-                    let p = point(body.get_point(body.get_vertex(vertex)?.point)?);
-                    out.vertices.insert(vertex, p);
-                    pts.push(p);
+        for (lk, members, role) in f.boundary_by_loop() {
+            let mut cycle = false;
+            for member in &members {
+                let p = point(&body.member_point(member));
+                out.vertices.insert(member.vertex(), p);
+                pts.push(p);
+                if let BoundaryMember::Edge { he, ek, .. } = *member {
+                    halves.entry(ek).or_default().push(he);
+                    cycle = true;
                 }
-                LoopBoundary::Cycle { first } => {
-                    for he in body.loop_cycle(first)? {
-                        let h = body.get_half_edge(he)?;
-                        let p = point(body.get_point(body.get_vertex(h.start)?.point)?);
-                        out.vertices.insert(h.start, p);
-                        pts.push(p);
-                        halves.entry(h.edge).or_default().push(he);
-                    }
-                    if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
-                        if lk == f.outer {
-                            let surface = body.face_surface_linked(face, f);
-                            let periodic =
-                                [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
-                            out.extent = extent_of(
-                                periodic,
-                                rows.iter().map(|row| {
-                                    let (t0, t1) = row.row.params();
-                                    let end = |t: T| {
-                                        let q = row.pcurve.eval(t);
-                                        [lift.of(q.x), lift.of(q.y)]
-                                    };
-                                    row_of(
-                                        &row.pcurve,
-                                        (lift.of(t0), lift.of(t1)),
-                                        [end(t0), end(t1)],
-                                        lift,
-                                    )
-                                }),
-                            );
-                        }
-                        for row in rows {
+            }
+            if cycle && let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
+                if role.is_outer() {
+                    let surface = f.surface();
+                    let periodic =
+                        [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
+                    out.extent = extent_of(
+                        periodic,
+                        rows.iter().map(|row| {
                             let (t0, t1) = row.row.params();
                             let end = |t: T| {
                                 let q = row.pcurve.eval(t);
-                                Point2::new(lift.of(q.x), lift.of(q.y))
+                                [lift.of(q.x), lift.of(q.y)]
                             };
-                            images.insert(
-                                row.half_edge,
-                                (
-                                    [end(t0), end(t1)],
-                                    iso_of(&row.pcurve, lift),
-                                    harmonic_of(&row.pcurve, lift),
-                                    wall_of(&row.pcurve, lift),
-                                ),
-                            );
-                        }
-                    }
+                            row_of(
+                                &row.pcurve,
+                                (lift.of(t0), lift.of(t1)),
+                                [end(t0), end(t1)],
+                                lift,
+                            )
+                        }),
+                    );
+                }
+                for row in rows {
+                    let (t0, t1) = row.row.params();
+                    let end = |t: T| {
+                        let q = row.pcurve.eval(t);
+                        Point2::new(lift.of(q.x), lift.of(q.y))
+                    };
+                    images.insert(
+                        row.half_edge,
+                        (
+                            [end(t0), end(t1)],
+                            iso_of(&row.pcurve, lift),
+                            harmonic_of(&row.pcurve, lift),
+                            wall_of(&row.pcurve, lift),
+                        ),
+                    );
                 }
             }
         }
         for (ek, hes) in halves {
-            let e = body.get_edge(ek)?;
-            let curve = body.get_curve_geom(e.curve)?.certified()?;
+            let e = proven(&body.edges, ek, EntityId::Edge);
+            let curve = body.edge_curve_linked(ek, e).certified()?;
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
@@ -3820,10 +3811,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
             pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
-            let ends = [
-                body.get_half_edge(e.he_plus)?.start,
-                body.get_half_edge(e.he_minus)?.start,
-            ];
+            let ends = [e.he_plus, e.he_minus]
+                .map(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start);
             let uses = hes
                 .iter()
                 .map(|he| {

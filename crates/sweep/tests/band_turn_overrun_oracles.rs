@@ -438,8 +438,12 @@ pub(crate) const TURN: [Req; 2] = [req([2, 4], [3, 1]), req([2, 3], [4, 5])];
 /// oracle's to `1e-10` relative to the cube of the scale; returns the
 /// count of non-trivalent vertices.
 fn builds_at_the_clip_oracle(p: &Poly, reqs: &[Req], d: f64, scale: f64, what: &str) -> usize {
-    let out = chamfered(&p.body, &p.edges(reqs), d, what)
-        .unwrap_or_else(|e| panic!("{what}: builds, got {e}"));
+    let out = chamfered(&p.body, &p.edges(reqs), d, what).unwrap_or_else(|e| {
+        panic!(
+            "{what}: builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let removed = volume(&p.body) - volume(&out.body);
     let want = p.taken(reqs, d);
     assert!(
@@ -572,8 +576,12 @@ fn the_bracket_corner_matches_a_hand_integrated_closed_form() {
     for d in [0.05, 0.1, 0.3, 0.6] {
         let what = format!("d {d}");
         let (body, edges) = leaning_turn(-1.0);
-        let out = chamfered(&body, &edges, d, &what)
-            .unwrap_or_else(|e| panic!("{what}: builds, got {e}"));
+        let out = chamfered(&body, &edges, d, &what).unwrap_or_else(|e| {
+            panic!(
+                "{what}: builds, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             non_trivalent(&out.body),
             0,
@@ -645,7 +653,10 @@ fn leaning_prisms_match_the_slab_oracle_over_leans_setbacks_and_scales_row() {
                                 failures.push(format!("{what}: {e}"));
                             }
                         }
-                        Err(e) => failures.push(format!("{what}: refused {e}")),
+                        Err(e) => failures.push(format!(
+                            "{what}: refused {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )),
                     }
                 }
             }
@@ -692,8 +703,12 @@ fn generic_hexahedra_build_and_fill_at_the_clip_oracle() {
                 edge_near(&void, a, b)
             })
             .collect();
-        let out =
-            chamfered(&void, &edges, D, &what).unwrap_or_else(|e| panic!("{what}: fills, got {e}"));
+        let out = chamfered(&void, &edges, D, &what).unwrap_or_else(|e| {
+            panic!(
+                "{what}: fills, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             non_trivalent(&out.body),
             0,
@@ -741,14 +756,19 @@ fn whole_rims_build_at_the_clip_oracle() {
                     match chamfered(&p.body, &p.edges(reqs), D, &what) {
                         Err(e) => assert!(
                             a_clearance(&e),
-                            "{what}: refuses at a clearance meter, got {e}"
+                            "{what}: refuses at a clearance meter, got {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
                         ),
                         Ok(_) => panic!("{what}: the two rims' strips meet on the front face"),
                     }
                     continue;
                 }
-                let out = chamfered(&p.body, &p.edges(reqs), D, &what)
-                    .unwrap_or_else(|e| panic!("{what}: builds, got {e}"));
+                let out = chamfered(&p.body, &p.edges(reqs), D, &what).unwrap_or_else(|e| {
+                    panic!(
+                        "{what}: builds, got {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
                 let removed = volume(&p.body) - volume(&out.body);
                 let want = p.taken(reqs, D);
                 assert!(
@@ -854,7 +874,10 @@ fn two_turns_on_one_l_match_the_slab_oracle() {
                         let typed =
                             a_clearance(&e) || matches!(e, BlendError::UnsupportedRunOut { .. });
                         if !typed {
-                            failures.push(format!("{what}: refused untyped, {e}"));
+                            failures.push(format!(
+                                "{what}: refused untyped, {e_at}",
+                                e_at = e.render(geom_brep::recourse::Reading::Build)
+                            ));
                         }
                     }
                 }
@@ -1028,10 +1051,16 @@ fn features_in_and_around_the_overrun_refuse_or_build_as_their_regions_say() {
                 }
             }
             (Ok(_), false) => failures.push(format!("{what}: built where the chamfer cuts it")),
-            (Err(e), true) => failures.push(format!("{what}: refused where clear, {e}")),
+            (Err(e), true) => failures.push(format!(
+                "{what}: refused where clear, {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )),
             (Err(e), false) => {
                 if !a_clearance(&e) {
-                    failures.push(format!("{what}: refuses at a clearance meter, got {e}"));
+                    failures.push(format!(
+                        "{what}: refuses at a clearance meter, got {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    ));
                 }
             }
         }
@@ -1066,7 +1095,8 @@ fn a_void_in_the_overruns_volume_refuses() {
         match chamfered(&body, &edges, D, "a void in the overrun") {
             Err(e) => assert!(
                 matches!(e, BlendError::WhollyInside { .. }),
-                "h {h}: refuses as wholly inside, got {e}"
+                "h {h}: refuses as wholly inside, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(out) => panic!(
                 "h {h}: a void in the overrun built, ΔV {}",
@@ -1093,7 +1123,8 @@ fn a_boss_clear_of_the_overrun_inside_the_far_bands_sliver_refuses() {
     match chamfered(&body, &edges, D, "a boss past q") {
         Err(e) => assert!(
             matches!(e, BlendError::RingClearance { .. }),
-            "a boss past q refuses at the far band's sliver, got {e}"
+            "a boss past q refuses at the far band's sliver, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         ),
         Ok(_) => panic!(
             "a boss past q built: `a-turns-overrun-meters-the-whole-cut-off-sliver` is fixed, \
@@ -1161,7 +1192,8 @@ fn a_short_near_edge_refuses_foot_inside_a_face_where_the_overrun_fits() {
         match chamfered(&p.body, &p.edges(&TURN), D, &what) {
             Err(e) => assert!(
                 foot_inside_a_face(&e),
-                "{what}: refuses FOOT_INSIDE_A_FACE, got {e}"
+                "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!(
                 "{what} built: `an-overruns-sliver-refuses-a-short-near-edge` is fixed, flip this row \
@@ -1203,17 +1235,27 @@ fn a_short_near_edge_refuses_foot_inside_a_face_where_the_overrun_fits() {
             match turn {
                 Err(e) => assert!(
                     foot_inside_a_face(&e),
-                    "{what}: refuses FOOT_INSIDE_A_FACE, got {e}"
+                    "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
                 ),
                 Ok(_) => panic!(
                     "{what} built: `an-overruns-sliver-refuses-a-short-near-edge` is fixed, flip \
                      this row"
                 ),
             }
-            chamfered(&body, &edges[1..], D, &what)
-                .unwrap_or_else(|e| panic!("{what}: the near band alone builds, got {e}"));
+            chamfered(&body, &edges[1..], D, &what).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the near band alone builds, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         } else {
-            turn.unwrap_or_else(|e| panic!("{what}: builds, got {e}"));
+            turn.unwrap_or_else(|e| {
+                panic!(
+                    "{what}: builds, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         }
     }
 }

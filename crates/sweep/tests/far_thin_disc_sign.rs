@@ -105,14 +105,23 @@ fn far_thin_discs_are_read_by_their_exact_volume() {
                 Err(_) => topo::test_support::classify_unvalidated(body, tol),
             };
             let roles: Vec<ShellRole> = classified
-                .unwrap_or_else(|e| panic!("{what}, {name}: the shell classifies: {e}"))
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{what}, {name}: the shell classifies: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                })
                 .iter()
                 .map(|c| c.role)
                 .collect();
             assert_eq!(roles, vec![role], "{what}, {name}: the shell's role");
             let got = [inside, beside].map(|p| {
-                point_in_solid(body, p, band, tol)
-                    .unwrap_or_else(|e| panic!("{what}, {name}: containment answers: {e}"))
+                point_in_solid(body, p, band, tol).unwrap_or_else(|e| {
+                    panic!(
+                        "{what}, {name}: containment answers: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                })
             });
             assert_eq!(got, at, "{what}, {name}: inside and beside the disc");
         }
@@ -282,7 +291,12 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                             Err(_) => topo::test_support::classify_unvalidated(body, tol),
                         };
                         let roles: Vec<ShellRole> = classified
-                            .unwrap_or_else(|e| panic!("{what}, {name}: the shell classifies: {e}"))
+                            .unwrap_or_else(|e| {
+                                panic!(
+                                    "{what}, {name}: the shell classifies: {e_at}",
+                                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                                )
+                            })
                             .iter()
                             .map(|c| c.role)
                             .collect();

@@ -121,8 +121,12 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
     let want_beta = -MINOR / (MAJOR + (MAJOR * MAJOR - MINOR * MINOR).sqrt());
     for (what, carrier) in poses() {
         assert!(off_torus(&carrier) < 1e-14, "{what}: on the torus");
-        let image = chart_pcurve(&carrier, &surface, band())
-            .unwrap_or_else(|e| panic!("{what}: no image: {e}"));
+        let image = chart_pcurve(&carrier, &surface, band()).unwrap_or_else(|e| {
+            panic!(
+                "{what}: no image: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let Pcurve::FocalSection(FocalImage {
             t0,
             va,
@@ -155,8 +159,13 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
             // The row is the image placed over the span it certifies on
             // (C4).
             let row = chart_pcurve_over(&carrier, a, b, &surface, band()).unwrap();
-            let cache = PcurveCache::certify(row, a, b, &carrier, &surface, band())
-                .unwrap_or_else(|e| panic!("{what}, [{a}, {b}]: {e}"));
+            let cache =
+                PcurveCache::certify(row, a, b, &carrier, &surface, band()).unwrap_or_else(|e| {
+                    panic!(
+                        "{what}, [{a}, {b}]: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             let cert = cache.certificate();
             assert!(
                 cert.envelope < 1e-12,
@@ -227,7 +236,12 @@ fn the_rows_certify_at_the_interval_scalar() {
             &surface,
             band(),
         )
-        .unwrap_or_else(|e| panic!("{what}: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let cert = cache.certificate();
         assert_eq!(cert.samples, 0, "{what}: no schedule at an exact witness");
         assert!(
@@ -391,14 +405,15 @@ fn the_envelope_covers_an_admitted_error() {
 }
 
 /// **A circle the incidence test reads on the torus that is none of its
-/// circles grazes it**, and one the test reads off it is off the chart.
-/// A circle ⊥ the axis through the tube's crest centred `2·K·ε` off the
-/// axis leaves the torus by only the square of that, so it passes the
-/// incidence test while the centring gate fails; a Villarceau circle
+/// circles takes the general lane**, and one the test reads off it is
+/// off the chart. A circle ⊥ the axis through the tube's crest centred
+/// `2·K·ε` off the axis leaves the torus by only the square of that, so
+/// it passes the incidence test while the centring gate fails, and its
+/// projected image certifies over a whole turn; a Villarceau circle
 /// moved `5·K·ε` along the axis is off the torus by that much at its
 /// crest; one tilted `1e-3` off its family's plane is off it outright.
 #[test]
-fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
+fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_the_chart() {
     let surface = torus();
     let Surface::Torus {
         center,
@@ -415,22 +430,23 @@ fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
     let crest = Curve3::circle(center + axis * MINOR + u_ref * delta, axis, MAJOR, cv);
     assert!(off_torus(&crest) < 0.5 * eps(), "the crest circle grazes");
     let got = chart_pcurve(&crest, &surface, band());
+    let Ok(image @ Pcurve::Projected(_)) = got else {
+        panic!(
+            "a crest circle centred off the axis, on the torus within the band, is none of its \
+             circles, and takes its projected image: {got:?}"
+        )
+    };
+    let cache = PcurveCache::certify(image, 0.0, TAU, &crest, &surface, band())
+        .unwrap_or_else(|e| panic!("the crest circle's projected image certifies: {e:?}"));
     assert!(
-        matches!(
-            got,
-            Err(PcurveCertifyError::NoGeneralLane {
-                gap: geom_brep::LaneGap::Unwritten,
-                ..
-            })
-        ),
-        "a crest circle centred off the axis, on the torus within the band, is none of its \
-         circles, and its general lane is not written yet on a torus: {got:?}"
+        cache.certificate().envelope < band().zero(),
+        "the crest circle's envelope is inside the band"
     );
 
     let Curve3::Circle(geom::Circle {
         frame:
             geom::Frame {
-                center: c,
+                origin: c,
                 axis: n,
                 u_ref: e,
             },
@@ -509,10 +525,19 @@ fn an_in_band_move_is_never_read_off_the_torus() {
         for fraction in [0.2, 0.5, 0.9] {
             let what = format!("r/R {ratio}, moved {fraction}·ε along the axis");
             let carrier = moved(fraction * eps());
-            let image = chart_pcurve(&carrier, &surface, band())
-                .unwrap_or_else(|e| panic!("{what}: refused: {e}"));
+            let image = chart_pcurve(&carrier, &surface, band()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let cache = PcurveCache::certify(image.clone(), 0.0, TAU, &carrier, &surface, band())
-                .unwrap_or_else(|e| panic!("{what}: the image does not certify: {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{what}: the image does not certify: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             let mut sup = 0.0_f64;
             for i in 0..=4096 {
                 let t = TAU * f64::from(i) / 4096.0;
@@ -553,11 +578,12 @@ fn each_villarceau_gate_alone_refuses_typed() {
         unreachable!()
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis: n,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis: n,
+                u_ref,
+            },
         radius,
     }) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {
@@ -596,7 +622,7 @@ fn each_villarceau_gate_alone_refuses_typed() {
     for (gate, center, axis, radius, u_ref) in rows {
         let carrier = Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -673,14 +699,14 @@ fn the_tube_rate_gate_refuses_typed_and_a_swept_tube_is_no_image() {
 /// against the 64 samples, and the gates escalate on
 /// `pcurve_torus_villarceau_plane`. Moved `3e-8`, with the pinch on a
 /// sample, it is read on the torus with the plane gate past the band.
-/// Either way the Villarceau class is not shown, a lane choice (D3), and
-/// a circle's general lane on a torus is not written yet, so it refuses
-/// lever-only "not yet" (`ChartClass`): escalating on the plane gate in
-/// band, and as `NoGeneralLane` past it. Never the focal
-/// section: a ladder that read an in-band gate as Zero would image it as
-/// the Villarceau circle it is not shown to be.
+/// Either way the Villarceau class is not shown, a lane choice (D3): the
+/// circle takes the general lane, its projected image, at every pose, and
+/// that image certifies over an arc with its envelope over the sampled
+/// residual or ends as the lane's own "not yet". Never the focal section:
+/// a ladder that read an in-band gate as Zero would image it as the
+/// Villarceau circle it is not shown to be.
 #[test]
-fn a_plane_gate_in_band_near_the_horn_refuses_not_yet_never_as_the_focal_section() {
+fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane_never_the_focal_section() {
     let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
     let big = 2.0;
     let r = big - 1e-6;
@@ -707,33 +733,52 @@ fn a_plane_gate_in_band_near_the_horn_refuses_not_yet_never_as_the_focal_section
         )
     };
     let mut wrong = Vec::new();
-    for half in [0.0, 0.5] {
-        for by in [3e-9, 6e-9] {
-            let got = chart_pcurve(&moved(by, half), &surface, band);
-            if !matches!(
-                &got,
-                Err(PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartClass,
-                    cause: geom_core::Indeterminate {
-                        predicate: Some("pcurve_torus_villarceau_plane"),
-                        ..
-                    },
-                    ..
-                })
-            ) {
-                wrong.push(format!("moved {by:e}, phase {half}: {got:?}"));
+    for (by, half) in [
+        (3e-9, 0.0),
+        (3e-9, 0.5),
+        (6e-9, 0.0),
+        (6e-9, 0.5),
+        (3e-8, 0.0),
+    ] {
+        let carrier = moved(by, half);
+        let image = match chart_pcurve(&carrier, &surface, band) {
+            Ok(image @ Pcurve::Projected(_)) => image,
+            other => {
+                wrong.push(format!(
+                    "moved {by:e}, phase {half}: not the projected image: {other:?}"
+                ));
+                continue;
+            }
+        };
+        // Its certificate covers the residual, or ends as the lane's own
+        // "not yet", never a tolerance offer.
+        let (t0, t1) = (0.2, 3.0);
+        // The mint's own image, certified as the mint certifies it.
+        match PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, band)
+            .map_err(|e| geom_brep::minted_refusal(e, &image, &carrier, &surface))
+        {
+            Ok(cache) => {
+                let sup = (0..=4096)
+                    .map(|i| {
+                        let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
+                        let uv = image.eval(t);
+                        surface.eval(uv.x, uv.y).distance(carrier.eval(t))
+                    })
+                    .fold(0.0, f64::max);
+                let envelope = cache.certificate().envelope;
+                if envelope + 16.0 * f64::EPSILON * (big + r + 1.0) < sup {
+                    wrong.push(format!(
+                        "moved {by:e}, phase {half}: envelope {envelope:e} under {sup:e}"
+                    ));
+                }
+            }
+            Err(e) => {
+                let ending = e.ending(geom_brep::recourse::Reading::Build);
+                if !ending.starts_with(geom_core::NOT_YET_ENDING) {
+                    wrong.push(format!("moved {by:e}, phase {half}: ends {ending}: {e:?}"));
+                }
             }
         }
-    }
-    let got = chart_pcurve(&moved(3e-8, 0.0), &surface, band);
-    if !matches!(
-        got,
-        Err(PcurveCertifyError::NoGeneralLane {
-            gap: geom_brep::LaneGap::Unwritten,
-            ..
-        })
-    ) {
-        wrong.push(format!("moved 3e-8: {got:?}"));
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
@@ -789,7 +834,7 @@ fn a_tube_rate_gates_rejected_zero_is_a_class_reading() {
         "the gate that rejected: {cause:?}"
     );
     assert_eq!(
-        refusal.to_string(),
+        refusal.render(geom_brep::recourse::Reading::Build),
         "pcurve certification: ChartClass at sample 0 escalated: margin 9e-10 lies within \
          the zero band (±1e-9). There is no way through yet",
         "the rendered refusal"

@@ -11,6 +11,7 @@
 
 use super::tests::{At, synthetic};
 use super::*;
+use crate::entity::LoopBoundary;
 use crate::euler::{FaceSurface, MefSite, MevCreated, MevSite};
 use crate::test_support_fixtures::{brick, describe_as_intersections, line, plane};
 use crate::test_support_meeting::{Pose, posed_pyramid};

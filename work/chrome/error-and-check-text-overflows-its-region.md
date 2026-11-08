@@ -200,7 +200,7 @@ literal words is filed on its owner's slate as
 `<program>-refusal-prose-outgrows-the-viewer` (`paths`, `encl`,
 `atrest`, `tess`, `chart`, `carve`, `exch`, `props`, `contact`, `ssi`,
 `pcert`, `wire`, `tquery`, `offset`, `reach`), plus
-`work/issues/unowned-refusal-prose-outgrows-the-viewer.md`.
+`work/chrome/unowned-refusal-prose-outgrows-the-viewer.md`.
 
 No refusal needed a viewer-side summary.
 
@@ -341,7 +341,7 @@ filed, each admitted by exact row id and exact label in the chain
 test's `FILED` / `ADMISSIONS` lists with the row that owns it:
 `work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md`,
 `work/props/props-refusal-prose-outgrows-the-viewer.md` and
-`work/issues/unowned-refusal-prose-outgrows-the-viewer.md`.
+`work/chrome/unowned-refusal-prose-outgrows-the-viewer.md`.
 
 **Every blend raise-site detail is rendered.**
 `every_blend_detail_renders_within_the_budget` reads the detail of

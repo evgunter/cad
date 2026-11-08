@@ -3,7 +3,7 @@
 //!
 //! # The banked question
 //!
-//! `work/lib/log.md` carried "die_tool's Python re-authoring (banked
+//! LIB's log (recoverable by `docs/doc-ledger/lib-leaves-the-tracker.md`) carried "die_tool's Python re-authoring (banked
 //! behind its Revolve/datum half)" from LIB-PYPU onward: PYPU bound
 //! the placement vocabulary (`Node.placed_union_at`, `Frame`,
 //! `PatternKind`) and authored the LINEAR twin — `heat_sink_fins`,

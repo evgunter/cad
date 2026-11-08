@@ -54,3 +54,12 @@ Every passenger's own acceptance holds, the census rows are re-pinned
 with what moved said in the PR, and the touched renders' citations in
 `crates/editor-core/tests/refusal_concision_chains.rs` point at
 `work/profiletail/`.
+
+## One passenger claimed by ROUND (2026-11-06)
+
+`profile-endings-say-lower-the-tolerance-and-route-by-name` moved to
+`work/round/`, riding ROUND's P1 unit
+`the-path-doors-escalation-carries-its-gate`: the closed decision type
+it asks for is the repair ROUND's fillet-recourse rows need on the same
+arms. The other three passengers stay here; the census rows both units
+re-pin merge in whichever lands second.

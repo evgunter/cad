@@ -95,7 +95,7 @@ triage only records that neither door has a declaration for it to name.
 The same menu also reaches these doors whole through carriers on other
 ground. `CapPlane`/`SidePlane` forward `NewellError`, and
 `Pcurve` forwards `PcurveMintError`. Both are filed on
-`work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md`.
+`work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md`.
 The repair can be made at either end.
 
 **Since (ENCL, `encl/sweep-must-carry-escalation`):** the four sweep sliver

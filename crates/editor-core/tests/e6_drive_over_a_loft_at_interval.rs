@@ -118,6 +118,7 @@ fn drive_loft(
             max_leaves: 256,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the drive runs");

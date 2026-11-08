@@ -102,10 +102,19 @@ fn kernel_sidecar_fields_match_live_kernel() {
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap_or_else(|e| panic!("{name}: mass properties: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{name}: mass properties: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            )
+        });
         let print = |value: f64, what: &'static str| {
-            step_export::fmt_real(value * 1e9, what)
-                .unwrap_or_else(|e| panic!("{name}: printing {what}: {e}"))
+            step_export::fmt_real(value * 1e9, what).unwrap_or_else(|e| {
+                panic!(
+                    "{name}: printing {what}: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            })
         };
         let mut want = vec![
             ("KERNEL_SOLIDS", body.solids().count().to_string()),

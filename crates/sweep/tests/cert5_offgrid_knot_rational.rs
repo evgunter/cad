@@ -268,7 +268,12 @@ fn row(
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap_or_else(|e| panic!("{name}: the blade measures: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{name}: the blade measures: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+        )
+    });
     let posture = body_posture(name, &got);
     eprintln!(
         "EPS-ROW {name} @ eps={eps:e}: {posture:?} volume {} ± {}",

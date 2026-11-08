@@ -21,7 +21,7 @@ pr: 4629
   - On a straddling enclosure: "subdivide the parameter box for a tighter enclosure, or …".
   - On an unreadable margin: "check the operation's inputs upstream, then …".
 - **Where it bites:** the geom-brep sites `newell.rs` (`NewellError::Escalated`), `nurbs_iso.rs` (`Escalated`) and `offset.rs` (`Escalated`) keep `X is undecided: {payload} — {advice}; {ending}`. The test `nurbs_iso` `an_escalated_row_states_its_decision_and_no_declaration` pins those levers at all three margin kinds. Most of the ~40 remaining sites in topo, sweep, profile and editor-core are whole renders too. The precedent `sweep/src/swept.rs` (the Bend arm) uses `ending()`, so it already loses them.
-- **Also waiting on this:** newell's callers all take no declaration (extrude side planes, and `swept::cap_plane` for extrude, loft and partial revolve), so it should end in `NO_DECLARATION_RECOURSE`. That closes a bullet of `work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md`, but only once the shape exists.
+- **Also waiting on this:** newell's callers all take no declaration (extrude side planes, and `swept::cap_plane` for extrude, loft and partial revolve), so it should end in `NO_DECLARATION_RECOURSE`. That closes a bullet of `work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md`, but only once the shape exists.
 
 ## Repair shape
 

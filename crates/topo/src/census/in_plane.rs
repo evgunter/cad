@@ -68,12 +68,13 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::boxes::{BoxFrame, edge_end_point, sweep_pad};
+use crate::boolean::boxes::{edge_end_point, sweep_pad};
 use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
 use crate::boolean::{CarrierRelation, CurvedPlacement, FaceContainment, face_placement};
-use crate::entity::{EdgeKey, EntityId, FaceKey};
-use crate::live::proven;
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey};
+use crate::live::{BoundaryMember, proven};
 use crate::validate::decide;
+use geom::cover::BoxAxes;
 
 /// K name: a vertex's offset from the other face's plane, read by the
 /// point placement before it places the vertex.
@@ -100,9 +101,13 @@ struct Loop<T: geom_core::Real> {
 /// `face`'s loops; `None` where one is a lone vertex, which bounds no
 /// edge to read.
 fn loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Loop<T>>> {
-    crate::pcurves::face_loop_walks(body, face)
-        .into_iter()
-        .map(|(_, cycle)| {
+    body.proven_face(face)
+        .boundary_by_loop()
+        .map(|(_, members, _)| {
+            let cycle: Vec<HalfEdgeKey> = members
+                .iter()
+                .map(BoundaryMember::half_edge)
+                .collect::<Option<_>>()?;
             let &first = cycle.first()?;
             let he = proven(&body.half_edges, first, EntityId::HalfEdge);
             let point = edge_end_point(body, he.edge, first, "start");
@@ -186,8 +191,8 @@ fn standing<T: Decide>(
     edges_apart: &dyn Fn(EdgeKey, EdgeKey) -> bool,
     band: Band,
 ) -> bool {
-    let face = proven(&body.faces, a, EntityId::Face);
-    let geom::Surface::Plane { origin, .. } = *body.face_surface_linked(a, face) else {
+    let face = body.proven_face(a);
+    let geom::Surface::Plane { origin, .. } = *face.surface() else {
         return false;
     };
     let (Some((n, _)), Some((nb, lever))) = (normal(body, a, band), normal(body, b, band)) else {
@@ -232,7 +237,7 @@ fn standing<T: Decide>(
         return false;
     };
     let off = |e: EdgeKey| {
-        let Some((lo, hi)) = super::edge_reach_in(body, e, &BoxFrame::aimed(n)) else {
+        let Some((lo, hi)) = super::edge_reach_in(body, e, &BoxAxes::aimed(n)) else {
             return false;
         };
         let gap = match sense {

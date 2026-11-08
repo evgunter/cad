@@ -107,7 +107,7 @@ fn split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64() {
     assert_eq!(diag.predicate, Some("dihedral_arm"), "{diag:?}");
     let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
     assert_eq!(
-        undecided.to_string(),
+        undecided.render(geom_brep::recourse::Reading::AtRest),
         format!(
             "whether two edges meeting at a vertex on one curve are one edge is undecided \
              (margin is invalid (NaN or a refused enclosure) against the ambiguity band ({:?}, {:?})). \

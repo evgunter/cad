@@ -290,7 +290,7 @@ fn split_along_a_meridian(
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c,
+                    origin: c,
                     axis: n,
                     u_ref,
                 },

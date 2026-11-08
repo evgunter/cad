@@ -167,7 +167,12 @@ fn carve_ruled(source: &Body<f64>, what: &str) -> f64 {
         R,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{what}: both creases carve, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
     assert!(out.corner_faces.is_empty() && out.band_faces.is_empty());
     assert_eq!(
@@ -463,7 +468,8 @@ fn a_ringed_support_refuses_at_the_ruled_plan_when_curved_and_carves_past_it_whe
         };
         assert!(
             detail.contains("support face carries a ring"),
-            "{what}: refused at the ruled plan, got {err}"
+            "{what}: refused at the ruled plan, got {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         );
     }
 }
@@ -602,6 +608,11 @@ fn a_tall_cylinder_wall_rim_carves_past_a_two_pi_meridian() {
         .collect();
     assert!(!rim.is_empty(), "the cylinder–cone rim's arcs");
     let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, R, tol())
-        .unwrap_or_else(|e| panic!("the tall wall's rim carves, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the tall wall's rim carves, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     validate_geometric(&out.body, tol()).expect("tier 3");
 }

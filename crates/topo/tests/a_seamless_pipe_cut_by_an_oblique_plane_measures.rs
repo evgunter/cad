@@ -295,7 +295,12 @@ fn measured<T: Decide + AtRestPolicy + CertifiedBounds>(
         tol,
         topo::test_support::pinned_resolution(tol),
     )
-    .unwrap_or_else(|e| panic!("{at}: the pipe does not measure: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{at}: the pipe does not measure: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+        )
+    });
     let eps = tol.eps();
     let (vpad, apad) = (
         512.0 * eps * pose.wall() * (1.0 + 1e-6),

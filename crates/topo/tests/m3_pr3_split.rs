@@ -558,7 +558,12 @@ fn a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch() {
                 let at = format!("{label}, n = {up:+}y, δ = {k}ε");
                 let o = Point3::new(0.0, 1.0 + k * eps, 0.0);
                 let plane = topo::test_support::split_plane(o, n, tol);
-                let r = split(&operand, &plane, tol).unwrap_or_else(|e| panic!("{at}: {e}"));
+                let r = split(&operand, &plane, tol).unwrap_or_else(|e| {
+                    panic!(
+                        "{at}: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
                 assert_eq!(r.coincidences.len(), 2, "{at}: the pinch is recorded");
                 let mut volume = 0.0;
                 let mut sections = 0;
@@ -641,7 +646,7 @@ fn a_vertex_in_the_band_of_the_split_plane_refuses_as_undecided() {
             "δ = {k}ε: the margin is the vertex's offset from the plane ({margin:e})"
         );
         assert_eq!(
-            err.to_string(),
+            err.render(geom_brep::recourse::Reading::Build),
             format!(
                 "whether a vertex lies on the split plane is undecided: margin {margin:e} lies \
                  inside the ambiguity band ({eps:e}, {k_eps:e}). Recourse: {}",
@@ -1109,7 +1114,7 @@ fn no_split_refusal_names_a_stage() {
         SplitError::Pcurves(topo::pcurves::PcurveMintError::Band(band)),
     ];
     for e in cases {
-        let msg = e.to_string();
+        let msg = e.render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             msg,
             band.to_string(),

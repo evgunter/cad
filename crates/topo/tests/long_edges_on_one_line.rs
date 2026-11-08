@@ -79,7 +79,12 @@ fn two_long_bars_overlapping_by_half_their_length_build_their_union() {
                 &pose,
                 tol,
             );
-            let built = union(&a, &b, tol).unwrap_or_else(|e| panic!("the union refused: {e}"));
+            let built = union(&a, &b, tol).unwrap_or_else(|e| {
+                panic!(
+                    "the union refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let body = &built.body().expect("a body").body;
             let volume = topo::test_support::pinned_volume("the measured body", body, tol).volume;
             assert!((volume - 6000.0).abs() < 1e-6, "volume {volume}");
@@ -123,8 +128,12 @@ fn a_cube_on_a_six_kilometre_bar_builds_its_union() {
                 &pose,
                 tol,
             );
-            let built =
-                union(&bar, &cube, tol).unwrap_or_else(|e| panic!("the union refused: {e}"));
+            let built = union(&bar, &cube, tol).unwrap_or_else(|e| {
+                panic!(
+                    "the union refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let body = &built.body().expect("a body").body;
             let volume = topo::test_support::pinned_volume("the measured body", body, tol).volume;
             assert!((volume - 6001.0).abs() < 1e-6, "volume {volume}");
@@ -189,7 +198,7 @@ fn an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision() 
             let a = posed_box("the first bar", ba, &pose, tol);
             let b = posed_box("the second bar", bb, &pose, tol);
             let refused = union(&a, &b, tol).expect_err("the union refuses");
-            let said = refused.to_string();
+            let said = refused.render(geom_brep::recourse::Reading::Build);
             assert!(
                 matches!(
                     refused,
@@ -249,7 +258,7 @@ fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
             let precision: Vec<String> = errors
                 .iter()
                 .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
-                .map(ToString::to_string)
+                .map(|e| e.render(geom_brep::recourse::Reading::AtRest))
                 .filter(|said| said.contains(RECOURSE))
                 .collect();
             assert!(!precision.is_empty(), "{errors:?}");
@@ -305,7 +314,7 @@ fn bars_meeting_exactly_raise_no_precision_escalation_at_validation() {
             let precision: Vec<String> = errors
                 .iter()
                 .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
-                .map(ToString::to_string)
+                .map(|e| e.render(geom_brep::recourse::Reading::AtRest))
                 .filter(|said| said.contains(RECOURSE))
                 .collect();
             assert!(precision.is_empty(), "{precision:?}");

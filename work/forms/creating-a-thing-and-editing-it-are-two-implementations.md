@@ -2,11 +2,13 @@
 id: creating-a-thing-and-editing-it-are-two-implementations
 kind: issue
 title: viewer: every node kind with a create form and an edit panel has two implementations; create should commit and hand off to the edit panel
-status: open
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: H
 refs: [the-profile-create-form-is-a-second-profile-editor, the-extrude-and-revolve-forms-take-no-variables, a-variable-is-edited-in-a-separate-widget-not-on-its-own-row]
+closed: 2026-11-03
+pr: 6431
 ---
 Reported by Ev (chat, 2026-11-01): "if there are any other things that
 have separate creating and editing widgets, those should also be
@@ -68,3 +70,39 @@ next to the Properties pane's slot rows for the node they create
 - This touches several programs' files (FORMS, DOORS, HELD, PLACING,
   VSEAM). Probably a designer pass first, then cut into per-tool
   units.
+
+## Closed
+
+2026-11-03, FORMS orchestrator. Every pair on FORMS' ground in the
+census is now one implementation, under the rule Ev ratified in
+`crates/viewer/README.md`, "A create gesture commits the node". The
+landings:
+- profile: #6403;
+- extrude and revolve: #6401;
+- blend, mirror, clearance and the pattern count: #6414;
+- split and pattern: #6431.
+
+#6388 and #6393 were the plan's earlier steps.
+
+The sweep in #6431 found two fields still on the create forms, and
+both stay:
+- the projection's `instance` (`pane/create.rs`
+  `part_selector_rows`);
+- the traced path's "to crossing" (`TraceGesture::crossing.nth`).
+
+Neither is a value; each says *which* thing the gesture reads. The
+ratified rule asks a gesture for "the kind and the reads", so they are
+reads.
+
+The census's other pairs are owned elsewhere:
+- PLACING's mate tool and Create door: `mate-tool-commits-one-mate`,
+  closed;
+- CHROME's variable editor:
+  `a-variable-is-edited-in-a-separate-widget-not-on-its-own-row`,
+  still open on CHROME's slate.
+
+The follow-ups FORMS filed are on its slate:
+- `a-clearance-bound-shape-is-a-row`;
+- `a-plane-other-than-a-face-cannot-be-authored-in-the-viewer`;
+- `no-viewer-row-re-points-a-live-nodes-read`;
+- `an-anonymous-index-cannot-be-written-into-a-value-row`.

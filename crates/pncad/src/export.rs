@@ -33,8 +33,7 @@
 //! host-language read-out that never re-enters a document.
 
 use editor_core::{
-    BooleanValue, Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say,
-    Speaker, ValuePayload,
+    Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say, Speaker,
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
@@ -55,7 +54,7 @@ pub enum ExportError {
         /// The node whose value was refused.
         node: RecipeNodeId,
         /// The value's kind, from the kernel's own
-        /// [`ValuePayload::kind_name`].
+        /// [`editor_core::ValuePayload::kind_name`].
         kind: &'static str,
     },
     /// The node's Boolean produced an empty result — nothing to
@@ -108,15 +107,23 @@ impl Say for ExportError {
                 "export: {}'s body is not at rest ({} finding(s), first: {})",
                 by.node(*node),
                 errors.len(),
-                errors
-                    .first()
-                    .map_or_else(|| "none".to_owned(), ToString::to_string)
+                // The export reads a body at rest.
+                errors.first().map_or_else(
+                    || "none".to_owned(),
+                    |e| e.render(geom_brep::recourse::Reading::AtRest)
+                )
             ),
+            // The composition is a map the export runs: a build.
             ExportError::Compose(e) => write!(
                 f,
-                "export: the body could not be composed into its space's coordinates: {e}"
+                "export: the body could not be composed into its space's coordinates: {}",
+                e.render(geom_brep::recourse::Reading::Build)
             ),
-            ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
+            ExportError::Step(e) => write!(
+                f,
+                "export: the STEP writer refused: {}",
+                e.render(geom_brep::recourse::Reading::AtRest)
+            ),
             ExportError::Product(e) => write!(f, "export: {}", Said(e, by)),
         }
     }
@@ -163,16 +170,13 @@ pub fn step_for_node(
     tol: Tol,
 ) -> Result<String, ExportError> {
     let value = evaluation.usable(node).map_err(ExportError::Standing)?;
-    let body = match &value.payload {
-        ValuePayload::Body(body) => body,
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        ValuePayload::Boolean(BooleanValue::Empty) => {
-            return Err(ExportError::EmptyBoolean { node });
-        }
-        other => {
+    let body = match value.payload.one_body() {
+        Some(Some(body)) => body,
+        Some(None) => return Err(ExportError::EmptyBoolean { node }),
+        None => {
             return Err(ExportError::NotABody {
                 node,
-                kind: other.kind_name(),
+                kind: value.payload.kind_name(),
             });
         }
     };

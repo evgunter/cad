@@ -67,3 +67,19 @@ take it soon. When it is fixed, pin both seeds as deterministic rows
 beside the fix.
 
 Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Another seed, at the default ε (2026-11-03, `onecopy/small-reads`)
+
+`cargo nextest run -p geom` on PR 6475's branch failed this test. That branch's geom diff is a doc comment and one new unit test, so the failure is not its own:
+
+> sup over the defect: 0.13233093034424084 (f64) / 0.13233093034424084 (Interval) < 0.132330930344241 at 23/64: a 0.03369404504116446 b 0.13233093034424084 t0 18.85412848563191 gap 1.2723748588382879e-2
+
+Reproduce: `CAD_FUZZ_SEED=0x6aefff4768992785 CAD_FUZZ_EFFORT=1`. Here the ceiling is `|b|`, not `|a|`, so the clamp at the ceiling bites from either coefficient.
+
+Another seed that reproduces it, at the default ε and at 1e-12 alike, on main `62dcb1a97e`: `CAD_FUZZ_SEED=0x4c4e025223660e02` (sup 45.74884339543839 < 45.748843395438406 at 35/64, `t0` 822842.79; met by PR 6500).
+
+**A second seed** (ONECOPY's harmonic-cut unit, 2026-11-06, on main `c80a1e8c` plus a diff that does not reach `geom::carrier_speed`). `CAD_FUZZ_SEED=0x60f5bbc7adbbd2d2 CAD_FUZZ_EFFORT=1` reds the row at both ε = 1e-9 and 1e-12:
+
+> sup over the defect: 26.03895124682756 (f64) / 26.03895124682756 (Interval) < 26.038951246827594 at 64/64: a 26.03895124682756 b 0.007562229532909478 t0 -237.19042521848743 gap -1.7984767358215947e-4
+
+The shape is the same: the bound reads the ceiling `|a|`, and the sample's upper end lies about 15 ulps above it.

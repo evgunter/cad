@@ -285,7 +285,8 @@ fillet, the arrival ray after it — and the arc is fitted to their
 the sharp point (40, 30) exists and is then removed, so "author a
 corner, then fillet it away" is not a thing you can say. Two parallel
 rays have no corner to round, and that refuses as
-`NoCornerForFillet { reason: CarriersParallel }`.
+`NoCornerForFillet { reason: TurnWithinTolerance { .. } }`, carrying
+the turn's sine and the length it was levered by.
 
 Nowhere in this repo does a demo hand-write a tangency flag. Tangency
 arrives by construction, and the kernel *verifies* every declaration

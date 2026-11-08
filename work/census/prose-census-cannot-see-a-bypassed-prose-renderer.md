@@ -71,7 +71,7 @@ reasonably believe the class was closed.
 
 ## Relation to the row beside it
 
-`work/issues/the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused.md`
+`work/census/the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused.md`
 (filed the same day, by the same review) names both of these facts as
 EVIDENCE for a different thesis — that the rule "a kind reaches a user
 as a common noun" has four implementations and the census reads one.

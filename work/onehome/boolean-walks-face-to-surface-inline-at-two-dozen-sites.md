@@ -6,7 +6,6 @@ status: closed
 opened: 2026-10-14
 priority: P1
 cost: M
-refs: [boolean-join-resolves-germ-face-surfaces-in-three-closures]
 branch: onehome/face-walks
 closed: 2026-11-02
 pr: 6362

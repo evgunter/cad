@@ -50,6 +50,7 @@ fn rebinds(doc: &ProfileDoc, copy: RecipeNodeId, u: RecipeNodeId) -> Vec<DocEdit
         &[copy],
         &Operand::Node(u),
         &EvalOptions::default(),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     )
     .expect("the takeover applies")
@@ -197,8 +198,15 @@ fn an_instances_copy_taken_over_with_a_lateral_face_held() {
             selection: Operand::select(Operand::Var(inst_out), vec![lateral_edge]),
         },
     );
-    let done = take_over(&host, &[copy], &Operand::Node(f), &o, Tol::witness())
-        .expect("a part-spelled face is rebound, not refused");
+    let done = take_over(
+        &host,
+        &[copy],
+        &Operand::Node(f),
+        &o,
+        &editor_core::CancelToken::new(),
+        Tol::witness(),
+    )
+    .expect("a part-spelled face is rebound, not refused");
     let written: Vec<_> = done
         .edits
         .iter()
@@ -275,7 +283,7 @@ fn the_door_evaluates_only_where_something_reads_a_copy() {
             &[copy],
             &Operand::Node(u),
             &[],
-            &EvalOptions::default(),
+            (&EvalOptions::default(), &editor_core::CancelToken::new()),
             None,
             held,
         )
@@ -323,7 +331,15 @@ fn a_reader_of_a_copy_of_the_copy_is_rebound() {
         },
     );
     let o = EvalOptions::default();
-    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let done = take_over(
+        &doc,
+        &[copy],
+        &Operand::Node(u),
+        &o,
+        &editor_core::CancelToken::new(),
+        Tol::witness(),
+    )
+    .expect("applies");
     assert_eq!(
         rebinds_in(&done.edits),
         1,
@@ -366,6 +382,7 @@ fn a_copy_given_twice_is_refused() {
         &[copy, copy],
         &Operand::Node(u),
         &EvalOptions::default(),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     )
     .expect_err("a repeat refuses");
@@ -406,7 +423,15 @@ fn a_reader_down_a_link(
         },
     );
     let o = EvalOptions::default();
-    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let done = take_over(
+        &doc,
+        &[copy],
+        &Operand::Node(u),
+        &o,
+        &editor_core::CancelToken::new(),
+        Tol::witness(),
+    )
+    .expect("applies");
     let ev = crate::fixture::run(&done.doc, &o);
     let held = done
         .doc
@@ -499,6 +524,7 @@ fn the_door_evaluates_again_only_for_a_link_it_could_not_answer() {
             &[copy],
             &Operand::Node(u),
             &EvalOptions::default(),
+            &editor_core::CancelToken::new(),
             Tol::witness(),
         )
         .expect("applies")
@@ -574,7 +600,15 @@ fn a_deep_chain_ends_and_rebinds_each_site_once() {
     let o = EvalOptions::default();
     let before = crate::fixture::run(&doc, &o);
     assert!(before.table(m2_out).is_some(), "the chain evaluates before");
-    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let done = take_over(
+        &doc,
+        &[copy],
+        &Operand::Node(u),
+        &o,
+        &editor_core::CancelToken::new(),
+        Tol::witness(),
+    )
+    .expect("applies");
     let rebinds: Vec<_> = done
         .edits
         .iter()
@@ -655,7 +689,15 @@ fn a_reader_downstream_of_a_feature_of_the_copy_is_rebound() {
             open: Operand::select(Operand::Var(fillet_out), vec![top_in_fillet]),
         },
     );
-    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let done = take_over(
+        &doc,
+        &[copy],
+        &Operand::Node(u),
+        &o,
+        &editor_core::CancelToken::new(),
+        Tol::witness(),
+    )
+    .expect("applies");
     assert_eq!(
         rebinds_in(&done.edits),
         2,
@@ -700,7 +742,15 @@ fn the_doors_evaluation_answers_the_document_it_names() {
         },
     );
     let o = EvalOptions::default();
-    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let done = take_over(
+        &doc,
+        &[copy],
+        &Operand::Node(u),
+        &o,
+        &editor_core::CancelToken::new(),
+        Tol::witness(),
+    )
+    .expect("applies");
     let answered = done.taken.evaluation.expect("the door evaluated");
     assert!(
         **answered.doc() != done.doc,
@@ -748,7 +798,15 @@ fn a_held_pick_on_a_mirror_whose_plane_reads_the_copy_follows() {
         },
     );
     let o = EvalOptions::default();
-    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let done = take_over(
+        &doc,
+        &[copy],
+        &Operand::Node(u),
+        &o,
+        &editor_core::CancelToken::new(),
+        Tol::witness(),
+    )
+    .expect("applies");
     let to = done
         .taken
         .moved

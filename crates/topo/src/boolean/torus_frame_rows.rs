@@ -81,7 +81,10 @@ fn shape(got: &Loops) -> String {
         Ok(None) => "straight".into(),
         Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
-        Err(FrameError::Spiric { loops, section }) => format!("spiric {loops:?} {section}"),
+        Err(FrameError::Spiric { loops, section }) => format!(
+            "spiric {loops:?} {section_at}",
+            section_at = section.render(geom_brep::recourse::Reading::Build)
+        ),
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::OpenConic { .. }) => "an open conic".into(),
         Err(FrameError::DegenerateTorus { convention, .. }) => {
@@ -100,7 +103,7 @@ fn served(got: Loops, what: &str) -> SectionLoops<f64> {
 /// The branch the site `p` lies on.
 fn branch(loops: &SectionLoops<f64>, p: Point3<f64>) -> Branch {
     match loops.branch_at(p, band()) {
-        Ok(Some(branch)) => branch,
+        Ok(branch) => branch,
         other => panic!("{p:?} lies on a loop: {other:?}"),
     }
 }
@@ -455,7 +458,7 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
             ) => assert_eq!(*got, half, "{what}"),
             _ => panic!("{what}: the pierce's refusal of the half, got {err:?}"),
         }
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(lever) && !text.contains("desync") && !text.contains("corrupt"),
             "{what}: the half's lever: {text}"
@@ -568,7 +571,7 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
         (big_r, r),
         &[(0.0, -a), (quarter, -a), (quarter, a), (0.0, a)],
     );
-    let surface = |body: &crate::Body<f64>, f: FaceKey| body.face_surface(f).unwrap().clone();
+    let surface = |body: &crate::Body<f64>, f: FaceKey| body.proven_face(f).surface().clone();
     let on = super::carrier_pair::face_witnesses(&torus, face).unwrap();
     let at = frame_reading(&surface(&torus, face), on, Vec::new()).unwrap();
     let rho = big_r + r * a.cos();

@@ -260,6 +260,7 @@ fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
         Surface::Torus { .. } => 4,
         Surface::Nurbs(_) => 5,
         Surface::Approx(_) => 6,
+        Surface::Spindle { .. } => 7,
     };
     match surface.data() {
         SurfaceData::Analytic(data) => core::iter::once(tag)
@@ -572,6 +573,7 @@ fn adopt_edges(
                         | Surface::Cone { .. }
                         | Surface::Sphere { .. }
                         | Surface::Torus { .. }
+                        | Surface::Spindle { .. }
                 )
             });
             // A wrap edge is a fact about one face: both its uses bound
@@ -926,14 +928,15 @@ fn line_column_match(
     if !(len2 > 0.0) || !len2.is_finite() {
         return None;
     }
-    for p in control {
-        let d = *p - *first;
-        let t = d.dot(chord) / len2;
-        if !t.is_finite() {
+    let line = geom::Line {
+        origin: *first,
+        dir: chord,
+    };
+    for &p in control {
+        if !line.param(p).is_finite() {
             return None;
         }
-        let clamped = t.clamp(0.0, 1.0);
-        if !((d - chord * clamped).norm() <= eps) {
+        if !((p - line.foot_within(p, (0.0, 1.0))).norm() <= eps) {
             return None;
         }
     }
@@ -1010,7 +1013,12 @@ fn mapped_self_description(
             vec: p_end - p_start,
         })),
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
@@ -1074,11 +1082,12 @@ fn arc_rim_on_wall_boundary(
     tol: Tol,
 ) -> Result<(), ArcRimRefusal> {
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            center,
-            axis,
-            u_ref,
-        },
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
         radius,
     }) = *carrier
     else {
@@ -1095,8 +1104,8 @@ fn arc_rim_on_wall_boundary(
     {
         return Err(ArcRimRefusal::Residual(f64::INFINITY));
     }
-    let a_hat = axis / axis_norm;
-    let u_hat = u_ref / u_ref_norm;
+    let a_hat = axis.normalize();
+    let u_hat = u_ref.normalize();
     let v_hat = a_hat.cross(u_hat);
     let tau = core::f64::consts::TAU;
     // The angular slack: the ambient band through the lever arm.
@@ -1128,19 +1137,17 @@ fn arc_rim_on_wall_boundary(
             let w = q - center;
             // The axial component, bound by name (the tripwire note
             // in [`line_frame`], same shape).
-            let axial = w.dot(a_hat);
-            let radial = w - a_hat * axial;
-            let ring = (radial.norm() - radius).hypot(axial);
-            let mut theta = w.dot(v_hat).atan2(w.dot(u_hat));
+            let (axial, rho) = geom::Line {
+                origin: center,
+                dir: a_hat,
+            }
+            .height_and_distance(q);
+            let ring = (rho - radius).hypot(axial);
+            // Within half a turn of the window's middle, `t0 − slack + π`.
+            let theta = geom::Azimuth::of(w.dot(v_hat), w.dot(u_hat)).near(t0 - slack + tau / 2.0);
             if !(ring.is_finite() && theta.is_finite()) {
                 worst = f64::INFINITY;
                 break;
-            }
-            while theta < t0 - slack {
-                theta += tau;
-            }
-            while theta >= t0 - slack + tau {
-                theta -= tau;
             }
             let arc_excess = (theta - t1 - slack).max(0.0) * radius;
             worst = worst.max(ring).max(arc_excess);
@@ -1244,7 +1251,7 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     if !(norm.is_finite() && norm > 0.0) {
         return None;
     }
-    let y = perpendicular / norm;
+    let y = perpendicular.normalize();
     let z = dir.cross(y);
     Some(Affine3::from_parts(
         geom_core::Mat3::from_cols(dir, y, z),

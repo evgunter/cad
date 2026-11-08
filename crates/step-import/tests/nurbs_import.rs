@@ -460,7 +460,12 @@ fn arc_loft_natively_computes_its_rational_volume() {
                     &step_export::StepOptions::default(),
                     Tol::witness(),
                 )
-                .unwrap_or_else(|e| panic!("re-exporting the {who} body: {e}"))
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "re-exporting the {who} body: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                })
             };
             assert_eq!(
                 rewrite(again.body(), "reversed-DATA"),

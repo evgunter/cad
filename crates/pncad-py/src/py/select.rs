@@ -374,6 +374,7 @@ pub(crate) enum SurfaceKind {
     Cone,
     Sphere,
     Torus,
+    Spindle,
     Nurbs,
     Approx,
 }
@@ -392,6 +393,7 @@ pub(crate) fn surface_kind(kind: KSurfaceKind) -> SurfaceKind {
         KSurfaceKind::Cone => SurfaceKind::Cone,
         KSurfaceKind::Sphere => SurfaceKind::Sphere,
         KSurfaceKind::Torus => SurfaceKind::Torus,
+        KSurfaceKind::Spindle => SurfaceKind::Spindle,
         KSurfaceKind::Nurbs => SurfaceKind::Nurbs,
         KSurfaceKind::Approx => SurfaceKind::Approx,
     }
@@ -405,6 +407,7 @@ impl SurfaceKind {
             Self::Cone => KSurfaceKind::Cone,
             Self::Sphere => KSurfaceKind::Sphere,
             Self::Torus => KSurfaceKind::Torus,
+            Self::Spindle => KSurfaceKind::Spindle,
             Self::Nurbs => KSurfaceKind::Nurbs,
             Self::Approx => KSurfaceKind::Approx,
         }

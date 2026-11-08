@@ -246,7 +246,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::recourse::{ReadAt, Reading};
+use geom_brep::recourse::ReadAt;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
 use crate::policy_lane::{KernelSite, Origin};
@@ -1381,18 +1381,23 @@ impl EulerOpError {
     /// This refusal's text, a certification refusal's ending read at `at`
     /// ([`CertifyError::render`]): the door that reports the refusal
     /// decides where it is read, the STEP import door with the file's
-    /// ε_in. Every other arm ignores `at`. `Display`
-    /// reads it at [`Reading::Build`], the operation that built the edge.
+    /// ε_in. Every other arm ignores `at`. Its `Display` is the payload
+    /// alone.
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
-        let at = at.into();
+        self.text(Some(at.into()))
+    }
+
+    /// The text ended at `at`, or the payload alone where it is `None`.
+    fn text(&self, at: Option<ReadAt>) -> String {
+        use geom_brep::recourse::read_at;
         match self {
             Self::Certification { error } => {
-                format!("geometry attachment gate: {}", error.render(at))
+                format!("geometry attachment gate: {}", read_at(error, at))
             }
             Self::RebasedCarrier { edge, error } => format!(
                 "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
-                error.render(at)
+                read_at(error, at)
             ),
             Self::RebasedNullEdge { edge } => format!(
                 "the moved run re-bases one end of null edge {edge:?} and not the other, \
@@ -1443,7 +1448,7 @@ impl EulerOpError {
                 "{}: edge {edge:?}'s re-description does not certify on the charts the move \
                  gives it: {}",
                 door.name(),
-                error.render(at)
+                read_at(error, at)
             ),
             Self::RechartOffBoundary { door, face, on } => format!(
                 "{}: face {face:?}'s boundary does not lie on the plane it moves onto ({on} is \
@@ -1538,7 +1543,7 @@ impl EulerOpError {
             // crossing (the split, the blend, the Boolean) forwards them
             // whole.
             Self::SplitParamNotInterior { verdict, .. } => format!(
-                "{}. {}",
+                "{}{}",
                 match verdict {
                     geom_brep::recourse::Refused::Zero(_) => format!(
                         "a crossing is not shown strictly inside its edge (margin {} m from an \
@@ -1549,16 +1554,20 @@ impl EulerOpError {
                         "a crossing lands outside its edge".to_owned()
                     }
                 },
-                crate::split::split_param_ending(verdict.arm())
+                at.map(|at| format!(". {}", crate::split::split_param_ending(verdict.arm(), at)))
+                    .unwrap_or_default()
             ),
-            Self::SplitParamEscalated { diag, .. } => diag
-                .undecided(
-                    crate::split::CROSSING_INTERIOR,
-                    crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(
-                        diag,
-                    )),
-                )
-                .to_string(),
+            Self::SplitParamEscalated { diag, .. } => geom_brep::recourse::undecided_at(
+                diag,
+                geom_brep::edge_crossing::CROSSING_INTERIOR,
+                at.map(|at| {
+                    crate::split::split_param_ending(
+                        geom_brep::recourse::RefusedArm::Undecided(diag),
+                        at,
+                    )
+                }),
+            )
+            .to_string(),
             Self::SplitSmoothEscalated { diag, .. } => diag
                 .undecided(
                     "whether a piece of a split smooth edge stays smooth along its span",
@@ -1601,7 +1610,10 @@ impl EulerOpError {
             } => format!(
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {}",
-                error.render(geom_brep::recourse::Reading::Build)
+                // A stored row re-certified over a child is the
+                // split's own construction, ended at a build at every
+                // door that reports the split.
+                read_at(error, geom_brep::recourse::at_build(at))
             ),
             Self::SplitJointUndecided {
                 edge,
@@ -1743,9 +1755,17 @@ impl EulerOpError {
     }
 }
 
+/// The payload alone: the ending is read at the door that reports the
+/// refusal ([`EulerOpError::render`]).
 impl fmt::Display for EulerOpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.render(Reading::Build))
+        f.write_str(&self.text(None))
+    }
+}
+
+impl geom_brep::recourse::Ended for EulerOpError {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
     }
 }
 
@@ -1894,7 +1914,7 @@ pub(crate) fn every_euler_op_error_once()
         },
         EulerOpError::SplitSmoothRefuted {
             edge: ek,
-            mixed: Some(geom_brep::MixedStations {
+            mixed: Some(geom_brep::MixedStations::Class {
                 transverse: 3,
                 smooth: 4,
             }),
@@ -1910,7 +1930,7 @@ pub(crate) fn every_euler_op_error_once()
         },
         EulerOpError::RestJoinMixed {
             edge: ek,
-            stations: geom_brep::MixedStations {
+            stations: geom_brep::MixedStations::Class {
                 transverse: 3,
                 smooth: 4,
             },
@@ -2363,33 +2383,25 @@ impl<T: Decide> Body<T> {
     /// malformed body, loops whose keys or cycles do not resolve are
     /// skipped too (total, never panics), so `None` means "not found or
     /// not reachable".
+    ///
+    /// It reads the explicitly unchecked walk
+    /// ([`Body::unchecked_face_cycles`]) on purpose: no Euler operator
+    /// calls it, only tests and hand construction, whose bodies no door
+    /// has certified yet, so an unwalkable loop is an honest "not here"
+    /// rather than a kernel bug.
     pub fn find_half_edge(
         &self,
         face: FaceKey,
         from: VertexKey,
         to: VertexKey,
     ) -> Option<HalfEdgeKey> {
-        let face_data = self.get_face(face)?;
-        for loop_key in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-            let Some(loop_data) = self.get_loop(loop_key) else {
-                continue;
-            };
-            let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            let Some(cycle) = self.loop_cycle(first) else {
-                continue;
-            };
-            for he in cycle {
-                let Some(he_data) = self.get_half_edge(he) else {
-                    continue;
-                };
-                if he_data.start == from && self.half_edge_end(he) == Some(to) {
-                    return Some(he);
-                }
-            }
-        }
-        None
+        self.unchecked_face_cycles(self.get_face(face)?)
+            .filter_map(Result::ok)
+            .flatten()
+            .find(|&he| {
+                self.get_half_edge(he).is_some_and(|h| h.start == from)
+                    && self.half_edge_end(he) == Some(to)
+            })
     }
 
     // ------------------------------------------------------------------
@@ -3560,9 +3572,10 @@ impl<T: Decide> Body<T> {
     /// [`Body::require_run_of`]'s `Whole` proof is.
     #[track_caller]
     pub(crate) fn require_loop_unlisted(&self, l: LoopKey, clearing: Clearing<'_>) {
-        let stray = self.faces.iter().find(|&(face, data)| {
-            (data.outer == l || data.rings.contains(&l)) && !clearing.clears_face(face)
-        });
+        let stray = self
+            .faces
+            .iter()
+            .find(|&(face, data)| data.holds_loop(l) && !clearing.clears_face(face));
         if let Some((face, _)) = stray {
             kill_leaves_dangling(EntityId::Face(face), EntityId::Loop(l));
         }
@@ -4173,8 +4186,8 @@ impl<T: Decide> Body<T> {
                 continue;
             }
             seen.push(face);
-            let face_data = proven(&self.faces, face, EntityId::Face);
-            let surface = self.face_surface_linked(face, face_data);
+            let view = self.proven_face(face);
+            let surface = view.surface();
             if let Some(from) = crate::pcurves::site_rows_from(self, face, surface) {
                 minted.push((face, from));
             }
@@ -4231,10 +4244,11 @@ impl<T: Decide> Body<T> {
         rewired: &[(LoopKey, Vec<SiteHalf>)],
         killed: Option<LoopKey>,
     ) -> SiteFace<T> {
-        let face_data = proven(&self.faces, face, EntityId::Face);
-        let surface = self.face_surface_linked(face, face_data).clone();
-        let loops = core::iter::once(face_data.outer)
-            .chain(face_data.rings.iter().copied())
+        let view = self.proven_face(face);
+        let surface = view.surface().clone();
+        let loops = view
+            .record()
+            .loop_keys()
             .filter(|&lk| Some(lk) != killed)
             .map(|lk| match rewired.iter().find(|(k, _)| *k == lk) {
                 Some((_, halves)) => SiteLoop::Rewired(halves.clone()),
@@ -4281,9 +4295,9 @@ impl<T: Decide> Body<T> {
         moved: bool,
         halves: Vec<SiteHalf>,
     ) -> Result<SiteFace<T>, EulerOpError> {
-        let from_data = proven(&self.faces, from, EntityId::Face);
+        let from_data = self.proven_face(from);
         let chart = match surface {
-            FaceSurface::Inherit => self.face_surface_linked(from, from_data).clone(),
+            FaceSurface::Inherit => from_data.surface().clone(),
             FaceSurface::Shared { key, .. } => self
                 .get_surface(*key)
                 .cloned()
@@ -5747,7 +5761,12 @@ mod tests {
         let plane_face = [created.he_plus, created.he_minus]
             .into_iter()
             .map(|he| body.face_of_half_edge(he).unwrap())
-            .find(|&f| matches!(body.face_surface(f), Some(geom::Surface::Plane { .. })))
+            .find(|&f| {
+                matches!(
+                    body.passed_face(f).map(|f| f.surface()),
+                    Some(geom::Surface::Plane { .. })
+                )
+            })
             .unwrap();
         // Both checks run before the pcurve pass (check 8). The pillow
         // reads its rowless spline face as unminted, an image derivable
@@ -5773,10 +5792,10 @@ mod tests {
                 crate::ValidationError::Pcurve {
                     finding: crate::PcurveMintError::Certify {
                         half_edge: spline_half,
-                        error: geom_brep::PcurveCertifyError::IsoUnsupported {
-                            what: "no boundary row of this chart, in either u direction, \
-                                   holds the circle at the probe — not an arc rim of this \
-                                   chart",
+                        error: geom_brep::PcurveCertifyError::NoGeneralLane {
+                            chart: geom::SurfaceKind::Nurbs,
+                            carrier: geom::CurveKind::Circle,
+                            gap: geom_brep::LaneGap::Unwritten,
                         },
                     },
                 },
@@ -7016,7 +7035,10 @@ mod tests {
     #[test]
     fn every_error_displays() {
         for error in every_euler_op_error_once() {
-            assert!(!error.to_string().is_empty(), "{error:?}");
+            assert!(
+                !error.render(geom_brep::recourse::Reading::Build).is_empty(),
+                "{error:?}"
+            );
         }
     }
 
@@ -7047,7 +7069,7 @@ mod tests {
                 he2: HalfEdgeKey::default(),
             }),
         ]) {
-            let text = error.to_string();
+            let text = error.render(geom_brep::recourse::Reading::Build);
             assert!(
                 !text.contains("kernel defect") && !text.contains("malformed"),
                 "{text}"
@@ -7073,7 +7095,13 @@ mod tests {
                 margin: None,
             },
         };
-        assert!(split.to_string().contains("kernel defect"), "{split}");
+        assert!(
+            split
+                .render(geom_brep::recourse::Reading::Build)
+                .contains("kernel defect"),
+            "{split_at}",
+            split_at = split.render(geom_brep::recourse::Reading::Build)
+        );
     }
 
     /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),
@@ -7129,7 +7157,7 @@ mod tests {
             ],
             other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
         };
-        let zero_text = zero.to_string();
+        let zero_text = zero.render(geom_brep::recourse::Reading::Build);
         let printed = zero_text
             .split_once("not shown strictly inside its edge (margin ")
             .and_then(|(_, rest)| rest.split_once(" m from an end)"))
@@ -7143,7 +7171,7 @@ mod tests {
             "the zero arm states its margin and claims no size: {zero_text}"
         );
         for (err, want) in [zero, outside, undecided].iter().zip(want) {
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains(LEVER) && !text.contains("declare"),
                 "the one lever, and no declaration: {text}"
@@ -7277,10 +7305,7 @@ mod removal_census {
         ),
         (
             "DanglingTopology: Face -> Loop",
-            Read(
-                "require_loop_unlisted",
-                &["data.outer ==", "data.rings.contains"],
-            ),
+            Read("require_loop_unlisted", &["data.holds_loop("]),
         ),
         (
             "DanglingTopology: Face -> Shell",

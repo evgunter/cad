@@ -34,6 +34,7 @@
 use crate::common::{axis_y, eps, sampled_deviation, validated};
 use core::f64::consts::{FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
+use geom_core::period::Period;
 use geom_core::{Point2, Point3, Tol};
 use mesh::cert::cert_torus;
 use mesh::tessellate;
@@ -42,7 +43,6 @@ use profile::test_support::bulge_loop;
 use sweep::{Revolution, revolve};
 use topo::Body;
 use topo::chart::Chart;
-use topo::chart_iso::unwrap_near;
 
 /// The unit's minor radius; `R/r` and `δ/r` are the sweep's axes.
 const MINOR: f64 = 1.0;
@@ -92,12 +92,12 @@ fn triangle_uv(chart: &Chart, tri: [Point3<f64>; 3]) -> [[f64; 2]; 3] {
     [
         raw[0],
         [
-            unwrap_near(raw[1][0], raw[0][0]),
-            unwrap_near(raw[1][1], raw[0][1]),
+            Period::new(core::f64::consts::TAU).near(raw[1][0], raw[0][0]),
+            Period::new(core::f64::consts::TAU).near(raw[1][1], raw[0][1]),
         ],
         [
-            unwrap_near(raw[2][0], raw[0][0]),
-            unwrap_near(raw[2][1], raw[0][1]),
+            Period::new(core::f64::consts::TAU).near(raw[2][0], raw[0][0]),
+            Period::new(core::f64::consts::TAU).near(raw[2][1], raw[0][1]),
         ],
     ]
 }

@@ -155,7 +155,7 @@ const A_TOLERANCE_PASSES: &[&str] = &["SpheresMeet (touching, nested within the 
 /// Every rewritten arm, rendered the way the viewer renders a failed node.
 fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     use geom::SurfaceKind;
-    use geom_brep::MaterialWedge;
+    use geom_brep::WedgeEnd;
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
         BooleanError, BooleanOp, ContactPair, EdgeKey, FaceKey, LoopKey, Operand,
@@ -192,11 +192,11 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "CurvedPairUnsupported",
             BooleanError::CurvedPairUnsupported {
-                op: Some(BooleanOp::Subtract),
-                site: topo::PairRefusalSite::RevertRoster,
+                op: None,
+                site: topo::PairRefusalSite::OperandGate,
                 operand: Operand::A,
                 face,
-                kind: SurfaceKind::Nurbs,
+                kind: SurfaceKind::Approx,
                 other_face: face,
                 other_kind: SurfaceKind::Cylinder,
             },
@@ -660,7 +660,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "RimCuspArmUnbuilt",
             BooleanError::RimCuspArmUnbuilt {
                 pair: declaration,
-                wedge: MaterialWedge::Slit,
+                wedge: WedgeEnd::Slit,
             },
         ),
         (

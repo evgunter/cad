@@ -398,10 +398,7 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
         }
     }
     for (f, data) in body.faces() {
-        if core::iter::once(&data.outer)
-            .chain(&data.rings)
-            .any(|&l| body.get_loop(l).is_none())
-        {
+        if data.loop_keys().any(|l| body.get_loop(l).is_none()) {
             faults.push(KillAnchorFault::DeadLoop(EntityId::Face(f)));
         }
         if body.get_shell(data.shell).is_none() {

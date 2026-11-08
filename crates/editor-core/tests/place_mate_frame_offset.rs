@@ -378,6 +378,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .unwrap_or_else(|e| panic!("split refused: {e}"));
     assert!(
@@ -419,6 +420,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         DocumentId::derive(&format!("{label}-part2")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect_err("both seats read `slide`");
     assert!(
@@ -441,6 +443,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         DocumentId::derive(&format!("{label}-part3")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .unwrap_or_else(|e| panic!("split refused: {e}"));
     assert!(

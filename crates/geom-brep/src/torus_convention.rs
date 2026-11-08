@@ -10,7 +10,7 @@
 
 use geom_core::{Band, Decided, Indeterminate};
 
-use crate::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use crate::recourse::{Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 
 /// **A half of the ring-torus convention `R > r > 0`**, as a decision.
 /// A torus outside it (no tube, a horn, a spindle) has no
@@ -156,25 +156,37 @@ impl TorusRefusal {
     }
 }
 
-impl core::fmt::Display for TorusRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// `at` ends the refusal by its convention's sized decision at the door
+/// that reads it; `None` writes the payload alone, as `Display` does.
+impl TorusRefusal {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<crate::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         let sized = self.convention.sized();
-        match &self.verdict {
-            TorusVerdict::Undecided(diag) => diag
-                .undecided(
-                    self.convention.subject(),
-                    sized.recourse(RefusedArm::Undecided(diag), Reading::Build),
-                )
-                .fmt(f),
-            TorusVerdict::Refused(verdict) => write!(
+        match (&self.verdict, at) {
+            (TorusVerdict::Undecided(diag), at) => write!(
                 f,
-                "{}. {}",
-                self.convention.refused("a torus's", *verdict),
-                sized.recourse(verdict.arm(), Reading::Build)
+                "{}",
+                crate::recourse::undecided_at(
+                    diag,
+                    self.convention.subject(),
+                    at.map(|at| sized.recourse(RefusedArm::Undecided(diag), at)),
+                )
             ),
+            (TorusVerdict::Refused(verdict), at) => {
+                f.write_str(&self.convention.refused("a torus's", *verdict))?;
+                match at {
+                    Some(at) => write!(f, ". {}", sized.recourse(verdict.arm(), at)),
+                    None => Ok(()),
+                }
+            }
         }
     }
 }
+
+crate::ended_by_write!(TorusRefusal);
 
 #[cfg(test)]
 #[allow(clippy::expect_used)]

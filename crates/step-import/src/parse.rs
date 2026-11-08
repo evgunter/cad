@@ -440,7 +440,7 @@ mod tests {
         let lone = parse_file(&header_only("FILE_NAME('asserted c\ronnectivities');"));
         assert!(
             lone.unwrap_err()
-                .to_string()
+                .render()
                 .contains("basic-alphabet string character"),
             "a lone CR is not a fold — it stays outside the basic alphabet"
         );
@@ -452,7 +452,7 @@ mod tests {
     fn folding_advances_the_line_counter() {
         let err = parse_file(&header_only("FILE_NAME('a\nb');\nFILE_SCHEMA(@);"))
             .unwrap_err()
-            .to_string();
+            .render();
         // Line 1 is the magic, 2 the HEADER keyword, 3 the literal's
         // first half, 4 its folded tail; the bad record is on 5.
         assert!(err.contains("line 5"), "got {err}");
@@ -479,7 +479,7 @@ mod tests {
     fn an_x2_control_directive_refuses_typed_naming_the_directive() {
         let err = parse_file(&header_only(r"FILE_NAME('\X2\30D530A9\X0\');"))
             .unwrap_err()
-            .to_string();
+            .render();
         assert!(err.contains(r"\X2\"), "got {err}");
     }
 }

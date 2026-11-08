@@ -158,7 +158,7 @@ pub(super) fn tangent(s: &Section<f64>) -> &'static str {
     }
 }
 
-fn touch(s: &Section<f64>) -> Touch<f64> {
+pub(super) fn touch(s: &Section<f64>) -> Touch<f64> {
     match s {
         Section::Touch(t) => *t,
         other => panic!("not a touch: {other:?}"),
@@ -384,7 +384,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
     ] {
         let s = classify(&donut(), &partner);
         // At ε 1e-6 the tilted torus's march straddles its tube
-        // (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+        // (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
         if matches!(s, Section::Unmarched) && Tol::witness().eps() == 1e-6 {
             continue;
         }
@@ -1235,9 +1235,13 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
     }
 }
 
-/// **A touch clears only on a pair with no event, and only out of a
-/// face.** `Out` of either face clears on that side; a touch on both
-/// faces, or one no face places, refuses R-tan; and an event on the
+/// **A touch clears out of a face on a pair with no event, or at a
+/// vertex of both faces.** `Out` of either face clears on that side; a
+/// touch of two cones at their common apex, a vertex each face holds, is
+/// that vertex pair's, its event the pair's own, so it clears evented or
+/// not, and no other touch at a vertex does; a touch inside both
+/// faces, or at a vertex of one alone, or one no face places, refuses
+/// R-tan; and any other event on the
 /// pair refuses whatever the placement — the clearance argument needs
 /// the pair's own silence (mutant: reading the placement on an evented
 /// pair).
@@ -1246,6 +1250,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     let s = Section::Touch(Touch {
         name: "section_sphere_plane_reach",
         at: p(0.0, 0.0, 1.0),
+        apex: false,
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
@@ -1255,6 +1260,37 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
     assert_eq!(rule(false, [IN, IN]), tan);
     assert_eq!(rule(false, [None, None]), tan);
+    let vertex = Some(FaceContainment::OnVertex(
+        crate::entity::VertexKey::default(),
+    ));
+    // A touch at a vertex both faces hold is not cleared as a vertex
+    // pair's unless it is two cones' at their common apex, which the
+    // touch says by its type, not its name.
+    assert_eq!(rule(false, [vertex, vertex]), tan);
+    assert_eq!(rule(true, [vertex, vertex]), tan);
+    assert_eq!(rule(false, [vertex, IN]), tan);
+    assert_eq!(rule(true, [vertex, OUT]), tan);
+    for name in [
+        "section_cone_coaxial_apexes",
+        super::super::fan::CONES_SHARE_APEX,
+    ] {
+        let apex = Section::Touch(Touch {
+            name,
+            at: p(0.0, 0.0, 1.0),
+            apex: true,
+        });
+        let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
+            certify(&apex, evented, band(), |_| Sheet::Not, |_, _| place)
+        };
+        for evented in [false, true] {
+            assert_eq!(
+                rule(evented, [vertex, vertex]),
+                Ok(vec![Cleared::TouchAtVertex]),
+                "{name}, evented {evented}"
+            );
+        }
+        assert_eq!(rule(true, [vertex, IN]), Err(Refusal::Tangent(name)));
+    }
     assert_eq!(rule(true, [OUT, OUT]), tan);
     assert_eq!(rule(true, [OUT, IN]), tan);
 }
@@ -1508,7 +1544,7 @@ pub(super) fn tilted_slab() -> Body<f64> {
 #[test]
 fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
     let (band_body, band_face) = seamless_band(-1.0, 1.0);
-    let surface = band_body.face_surface(band_face).unwrap().clone();
+    let surface = band_body.proven_face(band_face).surface().clone();
     let read = crate::pcurves::loop_windings(&band_body, band_face, &surface, band())
         .expect("the seamless band's loops read");
     assert!(
@@ -1723,7 +1759,7 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
     );
     // The sheet's seed face is the band's key in its own arena.
     assert!(wall_body.get_face(band_face).is_some(), "the keys coincide");
-    let surface = |b: &Body<f64>, f| b.face_surface(f).unwrap().clone();
+    let surface = |b: &Body<f64>, f| b.proven_face(f).surface().clone();
     let mut cache = ops::ChartCache::default();
     assert!(matches!(
         cache.describes(
@@ -2384,7 +2420,7 @@ fn torus_iso(
         },
         carrier: Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -3300,8 +3336,8 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
 /// dropped, and [`super::perp_to`] as `v − a·(a·v)`.
 #[test]
 fn every_torus_touch_holds_against_a_sampling_oracle() {
-    use super::super::conic_oracle::unit;
     use core::f64::consts::FRAC_PI_2;
+    use geom_brep::curve_face::conic_oracle::unit;
     use test_utils::fuzz;
     let band = band();
     let eps = band.zero();
@@ -3323,7 +3359,7 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
             );
             let t = Tor::new(
                 Point3::origin() + (c - Point3::origin()) * scale,
-                unit(&mut rng),
+                unit(|lo, hi| rng.range(lo, hi)),
                 big_r,
                 ratio * big_r,
             );

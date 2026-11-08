@@ -24,7 +24,7 @@ private copy, after checking the two are the same algorithm.
 
 ## Closed (2026-10-26, tracker sweep)
 
-**Superseded by `work/issues/double-double-arithmetic-is-spelled-in-five-places.md`**,
+**Superseded by `work/reroute/double-double-arithmetic-is-spelled-in-five-places.md`**,
 which lists this row's copy as its fifth instance and owns the one fix
 (a shared double-double type in `geom_core::exact`). The citation has
 moved since: on main at `bb25fa4f` `ssi/enclose.rs` has no `two_sum`;

@@ -71,12 +71,18 @@ use crate::m10_9_pins_interval::measured_studies;
 /// returns before the decision, so they do not move.
 /// So the annulus 654 -> 666 and the bracket 1542 -> 1556 symbolic, the
 /// other columns unmoved.
+///
+/// PCERT E1c (every mint reads incidence first, PR 5889), identical at all three ε rows:
+/// symbolic plate 1149 -> 1203, annulus 666 -> 720, link 962 -> 998,
+/// bracket 1556 -> 1618, pad 1616 -> 1684; the link's numeric 805 -> 821
+/// and the frozen of the link 2241 -> 5161, the bracket 914 -> 1313 and
+/// the pad 2476 -> 3268, the forms the read builds.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1149, 824, 229]),
-    ("r1_annulus", [666, 555, 212]),
-    ("r2_link", [962, 805, 2241]),
-    ("r2_filleted_bracket", [1556, 1159, 914]),
-    ("r2_rounded_pad", [1616, 1262, 2476]),
+    ("two_hole_plate", [1203, 824, 229]),
+    ("r1_annulus", [720, 555, 212]),
+    ("r2_link", [998, 821, 5161]),
+    ("r2_filleted_bracket", [1618, 1159, 1313]),
+    ("r2_rounded_pad", [1684, 1262, 3268]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

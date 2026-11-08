@@ -7,7 +7,6 @@ opened: 2026-10-20
 closed: 2026-11-02
 priority: P2
 cost: M
-refs: [names-emission-raises-panic-or-take-their-true-ending]
 ---
 
 
@@ -72,11 +71,11 @@ Each site needs the D9 argument: a type change, a typed refusal, or `unreachable
 
 All three sites are row (c): `unreachable!` with its why. None is reachable from a legal input, so no witness exists to build red first. (a) was weighed and is not local: a "one body's table" type would have to travel through every emitter and pass-through that hands a `NameTable` on.
 
-**`name_family`, `e.body != 0`.** Can a member's own value be multi-body? No. `eval/members.rs` `family_value` calls `name_family` only when every member's payload is `ValuePayload::Body` or `Boolean(Body)`. A family of families takes the `ValuePayload::Family` arm and is never named here. Each member table is that one-body value's `output(0)`.
+**`name_family`, `e.body != 0`.** Can a member's own value be multi-body? No. `eval/members.rs` `family_value` calls `name_family` only when every member is one body or a boolean's empty result (`ValuePayload::one_body` answers `Some`), and an empty member names nothing. A family of families takes the `ValuePayload::Family` arm and is never named here. Each member table is that one-body value's `output(0)`.
 
 That table names only body 0, because a value's table names only the output bodies the value holds (`OWN_BODIES`):
 - every emitter mints a one-body output at 0 (`check_total(.., 0)` closes each);
-- a family's rows sit at the member's index (`name_family`, `name_copy` beside a placed family);
+- a family's rows sit at the member's index (`name_family`);
 - every pass-through hands a table on beside a value of the same count:
   - `name_copy` of one body;
   - `name_lone_member`;
@@ -97,5 +96,5 @@ The old `EntityKey::Body => None` arm is now its own `unreachable!`. Body-kind n
 **Sweep of `names/` for `NamingError::Emission`.** Pattern: `Emission {` plus the `bug(..)`/`bug = |what|` wrappers (`borders.rs`, `emit_topo.rs`, `emit_union.rs`). Every other hit is a boolean-lineage or classification fact, not a torn table/body read: `UNSIDED`, `UNCLASSIFIED_SIDE`, `RESENSED_OFF_SIDES`, a chart cut surviving, split lineage leaving the graft rows, a carried group naming no operand, a crossing with no classified piece, the n-ary verdicts disagreeing. The rest are `output_body` (left alone, `wire/loop-coordinates-narrowing-has-no-bound`), Display and test sites.
 
 **Blind spot:** a raise built outside `names/` from a `what` string. A second pass over `editor-core/src` for `NamingError::Emission` found two of this shape:
-- `wire_assemble`'s and `distribute`'s `carry_contacts` → `Emission { what }`. They need the same graft-totality argument. Filed as `work/wire/an-assembles-contact-carry-raises-emission-for-a-bridge-the-graft-keeps-total.md`.
+- `wire_assemble`'s and `distribute`'s `carry_contacts` → `Emission { what }`. They need the same graft-totality argument. Filed as `work/wirerest/an-assembles-contact-carry-raises-emission-for-a-bridge-the-graft-keeps-total.md`.
 - `coincide::name_rows`' `ROW_CELL_NOT_IN_TABLE` is a record-cell lookup with its own history, which is not this shape (`cleave/a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold.md`, closed).

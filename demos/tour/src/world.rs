@@ -204,8 +204,17 @@ pub fn frame_on(
     tol: Tol,
 ) -> Operand {
     let body = body.into();
-    let base = corner_frame(doc, &body, corner, up, toward, &EvalOptions::default(), tol)
-        .unwrap_or_else(|refusal| panic!("a frame is read off {body:?}'s corners: {refusal}"));
+    let base = corner_frame(
+        doc,
+        &body,
+        corner,
+        up,
+        toward,
+        &EvalOptions::default(),
+        &pncad::document::CancelToken::new(),
+        tol,
+    )
+    .unwrap_or_else(|refusal| panic!("a frame is read off {body:?}'s corners: {refusal}"));
     moved_frame(base, moves)
 }
 

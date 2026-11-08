@@ -526,15 +526,31 @@ fn roots_off_the_faces_window_and_nappe_are_not_its_crossings() {
     assert_split_matches_oracle("a thin brick through the apex region", WIDENING, &other);
 }
 
-/// **An edge through the apex** refuses typed: the brick's corner sits
-/// at the full cone's apex, so three of its edges leave the apex.
-/// Neither a crossing nor a miss can be read there.
+/// **An edge ending at the apex** meets the cone at that end alone: the
+/// brick's corner sits at the full cone's apex, so three of its edges
+/// leave the apex, each a double root at its end
+/// (`boolean::reduce::line_cone_roots`). The corner is the vertex
+/// pair's to read, and the sweep splits neither body there: the brick
+/// gains no vertex, in either order.
 #[test]
-fn an_edge_through_the_apex_refuses_at_the_apex() {
+fn an_edge_ending_at_the_apex_meets_it_at_that_end_alone() {
     let other = brick((0.0, 0.4), (1.0, 1.4), (0.0, 0.4));
-    assert_sweep_refuses("a brick cornered at the apex", FULL, &other, |e| {
-        matches!(e, BooleanError::CrossingAtConeApex { .. })
-    });
+    let cone = FULL.body();
+    for (order, swapped) in [("frustum first", false), ("frustum second", true)] {
+        let (a, b) = if swapped {
+            (&*other, &*cone)
+        } else {
+            (&*cone, &*other)
+        };
+        let (sa, sb, _, _) = topo::sweep_split(a, b, Tol::witness())
+            .unwrap_or_else(|e| panic!("a brick cornered at the apex, {order}: {e:?}"));
+        let split = if swapped { sa } else { sb };
+        let got = new_vertices(&other, &split);
+        assert!(
+            got.is_empty(),
+            "a brick cornered at the apex, {order}: new vertices {got:?}"
+        );
+    }
 }
 
 /// **A graze keeps the frontier**: a brick whose bottom edge runs

@@ -49,11 +49,21 @@ type Site = (Point3<f64>, Vec3<f64>);
 fn frame(conic: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>) {
     match *conic {
         Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         })
         | Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         }) => (center, axis),
         _ => panic!("not a conic: {conic:?}"),
@@ -259,7 +269,10 @@ fn feet(
     let pillow = crate::fixtures::pillow(Tol::witness());
     let table = SectionTable::default();
     let mut halves = slotmap::SlotMap::<HalfEdgeKey, ()>::with_key();
-    let component = section.foot(g, band()).unwrap().component;
+    let geom_brep::SiteReading::OnArc(foot) = section.site(g, band()).unwrap() else {
+        panic!("a site off every node")
+    };
+    let component = foot.component;
     let mut germ = |dir| HalfGerm {
         he: halves.insert(()),
         a_face: pillow.face_a,
@@ -349,7 +362,10 @@ fn a_circle_on_a_sphere_walks_one_order_in_all_three_lanes() {
         geom_brep::SectionRead::Built(s) => s.carry(None, band()).unwrap(),
         geom_brep::SectionRead::Elsewhere(route) => panic!("{route:?}"),
     };
-    let component = section.foot(conic.eval(0.4), band()).unwrap().component;
+    let geom_brep::SiteReading::OnArc(foot) = section.site(conic.eval(0.4), band()).unwrap() else {
+        panic!("a site off every node")
+    };
+    let component = foot.component;
     let carried_seam = section.components()[component].carrier.eval(0.0);
     let split_conic = crate::chord_join::section_conic(conic.clone()).unwrap();
     let ts = sites(&conic, 0.4, &[split_conic.param(carried_seam)]);

@@ -227,7 +227,12 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
             let e = cert.enclosure();
             let measured = cert
                 .measure(topo::test_support::pinned_resolution(tol))
-                .unwrap_or_else(|refusal| panic!("{label}: the certificate measures: {refusal}"));
+                .unwrap_or_else(|refusal| {
+                    panic!(
+                        "{label}: the certificate measures: {refusal_at}",
+                        refusal_at = refusal.render(geom_brep::recourse::Reading::AtRest)
+                    )
+                });
             assert_ne!(
                 measured.stop,
                 topo::Stop::Met,
@@ -291,9 +296,12 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         let refine = quad_rounds(|| {
             continued = Some(gated.measure(topo::test_support::pinned_resolution(tol)));
         });
-        let continued = continued
-            .expect("the closure ran")
-            .unwrap_or_else(|e| panic!("{label}: the continuation measures: {e}"));
+        let continued = continued.expect("the closure ran").unwrap_or_else(|e| {
+            panic!(
+                "{label}: the continuation measures: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            )
+        });
         // Finished outside the count: the count is the one measurement's.
         let finished =
             topo::test_support::finished("the measured body", topo::Body::clone(&body), tol);
@@ -305,9 +313,12 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
                 topo::test_support::pinned_resolution(tol),
             ))
         });
-        let measured = measured
-            .expect("the closure ran")
-            .unwrap_or_else(|e| panic!("{label}: the measurement measures: {e}"));
+        let measured = measured.expect("the closure ran").unwrap_or_else(|e| {
+            panic!(
+                "{label}: the measurement measures: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            )
+        });
 
         // REUSE: none skipped — on EVERY roster body, in the form that
         // body can carry.
@@ -456,10 +467,20 @@ fn the_sign_walks_narrower_bracket_holds_the_closed_form() {
         tol,
         topo::test_support::pinned_resolution(tol),
     )
-    .unwrap_or_else(|e| panic!("the reporting door measures the strip: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the reporting door measures the strip: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+        )
+    });
     let measured = cert
         .measure(topo::test_support::pinned_resolution(tol))
-        .unwrap_or_else(|e| panic!("the certificate measures the strip: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the certificate measures the strip: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            )
+        });
     assert!(
         measured.enclosure.volume_pad < reported.enclosure.volume_pad,
         "the sign walk refined the walls past the resolution, so the certificate's pad \

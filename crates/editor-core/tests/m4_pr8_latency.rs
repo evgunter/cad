@@ -473,11 +473,20 @@ fn measure_split() -> Split {
         drop(gathered);
 
         let t0 = Instant::now();
-        run_checks_on(&doc, &ev, Subject::Product(&subject), &cfg, tol).expect("the registry runs");
+        run_checks_on(
+            &doc,
+            &ev,
+            Subject::Product(&subject),
+            &cfg,
+            &editor_core::Stop::default(),
+            tol,
+        )
+        .expect("the registry runs");
         checks.push(t0.elapsed());
 
         let t0 = Instant::now();
-        run_checks(&doc, &ev, &cfg, tol).expect("and so does its wrapper");
+        run_checks(&doc, &ev, &cfg, &editor_core::Stop::default(), tol)
+            .expect("and so does its wrapper");
         wholes.push(t0.elapsed());
     }
 
