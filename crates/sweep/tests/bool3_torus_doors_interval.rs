@@ -62,6 +62,7 @@ fn donut() -> topo::Body<Interval> {
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 #[test]

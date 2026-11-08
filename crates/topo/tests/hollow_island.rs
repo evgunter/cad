@@ -29,12 +29,16 @@ fn body_of(r: BooleanResult<f64>) -> BooleanBody<f64> {
 }
 
 fn cube(lo: f64, hi: f64) -> AtRestBody<f64> {
-    finished("cube", brick((lo, hi), (lo, hi), (lo, hi), tol()), tol())
+    finished(
+        "cube",
+        brick::<f64>((lo, hi), (lo, hi), (lo, hi), tol()),
+        tol(),
+    )
 }
 
 /// The brick `x × y × z`, finished.
 fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
-    finished("block", brick(x, y, z, tol()), tol())
+    finished("block", brick::<f64>(x, y, z, tol()), tol())
 }
 
 /// `cube(lo..hi)` with each `(lo, hi)` cube of `cavities` carved out.
@@ -408,8 +412,7 @@ fn split_missing_at_a_dual(
     body: Body<geom_core::Dual64>,
 ) -> Result<topo::SplitResult<geom_core::Dual64>, topo::SplitError> {
     use geom_core::Real as _;
-    let operand = <geom_core::Dual64 as topo::AtRestPolicy>::gate_at_rest_kept(body, tol())
-        .expect("a dual's gate runs nothing");
+    let operand = topo::finish(body, tol()).expect("a dual's gate runs nothing");
     let plane = topo::test_support::split_plane(
         geom_core::Point3::new(0.0, 0.0, 10.0).map(geom_core::Dual64::from_f64),
         geom_core::Vec3::new(0.0, 0.0, 1.0).map(geom_core::Dual64::from_f64),
@@ -459,7 +462,7 @@ fn a_cube_inside_a_cube_under_one_solid_refuses_as_overlapping() {
 /// `body`'s one solid holds two outer shells, and the at-rest gate
 /// refuses it on that alone.
 fn refused_as_two_outer_shells(what: &str, body: &topo::Body<f64>) {
-    let errors = topo::AtRestBody::validate(body.clone(), tol())
+    let errors = topo::finish(body.clone(), tol())
         .expect_err("two outer shells under one solid is not a finished body");
     assert!(
         matches!(

@@ -40,6 +40,7 @@ fn disc_cylinder() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Cylinder wall faces of `body`.
@@ -180,7 +181,8 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     let out = body
         .merge_coplanar_faces(Tol::witness())
         .expect("no-op merge");

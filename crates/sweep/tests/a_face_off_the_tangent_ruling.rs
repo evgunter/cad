@@ -21,7 +21,7 @@ fn band() -> Band {
 }
 
 fn at_rest(b: topo::Body<f64>) -> topo::AtRestBody<f64> {
-    topo::AtRestBody::validate(b, tol()).unwrap()
+    topo::finish(b, tol()).unwrap()
 }
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<f64> {

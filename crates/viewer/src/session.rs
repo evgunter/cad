@@ -5809,7 +5809,7 @@ fn drawn_frame(
 /// the window a trace is shown across.
 fn body_reach(ev: &Evaluation<f64>, node: pncad::document::RecipeNodeId) -> Option<f64> {
     let value = ev.usable(node).ok()?;
-    let body = value.payload.one_body().flatten()?.shared();
+    let body = value.payload.one_body().flatten()?.holding().arc();
     body.vertices()
         .filter_map(|(v, _)| pncad::topo::readback::vertex_point(body, v).ok())
         .map(|p| p.x.abs().max(p.y.abs()))
