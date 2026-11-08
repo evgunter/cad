@@ -653,7 +653,7 @@ impl<T: Real> Core<T> {
             origin: self.center,
             dir: self.axis,
         }));
-        let a = self.axis / self.axis.norm();
+        let a = self.axis.normalize();
         let base = vec_of(self.center).dot(a);
         let (below, above) = (T::zero() - support(-a) - base, support(a) - base);
         let r = self.radius;
