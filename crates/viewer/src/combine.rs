@@ -1162,7 +1162,7 @@ pub struct PatternTool {
 pub const PATTERN_COUNT: i64 = 4;
 
 /// **The spacing a row inserts with**: `clears` metres, the step that
-/// clears the body ([`clearing_step`]), rounded UP to one significant
+/// clears the body ([`step_clear_of`]), rounded UP to one significant
 /// figure in `unit` ([`crate::props::one_figure_length`]), so the copies
 /// still clear and the row's slide reads a round number in the unit the
 /// person works in (`60 mm` for a 51.8 mm step).
@@ -1437,13 +1437,13 @@ impl PartTool {
 
 /// **The axis a step clear goes along by default**: the `x` of the
 /// space the body is in. A pattern's row inserts along it, spaced by the
-/// step that clears the body ([`clearing_step`]), so the copies clear,
+/// step that clears the body ([`step_clear_of`]), so the copies clear,
 /// and an inserted part is drawn clear of what is drawn along it
 /// ([`crate::pickindex::clear_of_drawn`]).
 pub const STEP_ALONG: pncad::document::TargetAxis = pncad::document::TargetAxis::X;
 
 /// [`STEP_ALONG`] as components, unnormalized as every direction slot
-/// in this vocabulary is: what [`clearing_step`] measures along.
+/// in this vocabulary is: what [`step_clear_of`] measures along.
 pub const STEP_DIRECTION: [f64; 3] = match STEP_ALONG {
     pncad::document::TargetAxis::X => [1.0, 0.0, 0.0],
     pncad::document::TargetAxis::Y => [0.0, 1.0, 0.0],
@@ -1453,24 +1453,24 @@ pub const STEP_DIRECTION: [f64; 3] = match STEP_ALONG {
 /// **How much clear space a step clear leaves AT LEAST**, as a fraction
 /// of the stepped body's own width along [`STEP_DIRECTION`]: its near
 /// side lands at least this far past the far side of what it clears,
-/// and further for a body thin along the step ([`clearing_step`] says
+/// and further for a body thin along the step ([`step_clear_of`] says
 /// why).
 ///
 /// A fraction rather than a length, so the gap scales with the part —
 /// a millimetre gap beside a metre-long beam is invisible, and beside
 /// a millimetre pin it is the whole view.
-pub const CLEARANCE_GAP: f64 = 0.25;
+pub const STEP_GAP: f64 = 0.25;
 
 /// The measuring tessellation's chord, as a fraction of the body's
 /// FLOOR-mesh extent (`crate::scene::SCALE_PROBE_DELTA`'s mesh).
 ///
 /// Fine enough that the conservative inflation it costs — twice the
-/// chord, on the width — stays well under [`CLEARANCE_GAP`] for a body
+/// chord, on the width — stays well under [`STEP_GAP`] for a body
 /// about as wide along the step as it is across; coarse enough that
 /// measuring a body is one cheap tessellation rather than a picture's
 /// worth. For a body thin along the step the inflation is NOT small
 /// against the width, and the step is longer than the gap alone would
-/// make it ([`clearing_step`]).
+/// make it ([`step_clear_of`]).
 ///
 /// Public for [`crate::scene::SCALE_PROBE_DELTA`]'s reason: a row that
 /// asserts a landed step against a body's closed form has to run the
@@ -1481,7 +1481,7 @@ pub const MEASURE_CHORD: f64 = 1.0 / 64.0;
 /// **Why the step that clears a body could not be measured** — every
 /// way the landed body can fail to be one thing with a width.
 #[derive(Debug)]
-pub enum ClearingFault {
+pub enum StepClearFault {
     /// Nothing has landed, so there is no body to measure yet.
     NotLanded,
     /// The picture on screen answers an OLDER document than the one
@@ -1537,7 +1537,7 @@ pub enum ClearingFault {
     },
 }
 
-impl ClearingFault {
+impl StepClearFault {
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
@@ -1579,20 +1579,20 @@ impl ClearingFault {
     }
 }
 
-pncad::geom_brep::ended_by_write!(ClearingFault);
+pncad::geom_brep::ended_by_write!(StepClearFault);
 
-impl core::error::Error for ClearingFault {}
+impl core::error::Error for StepClearFault {}
 
 /// **The step that clears a body**: in metres along [`STEP_DIRECTION`],
-/// the step that puts a copy's near side AT LEAST [`CLEARANCE_GAP`] of
+/// the step that puts a copy's near side AT LEAST [`STEP_GAP`] of
 /// the body's width past the body's far side — so the two never touch,
 /// whatever the body's size. A pattern's row is spaced by it
 /// ([`row_spacing`]).
 ///
 /// **Read off `eval`, which the caller must hand in CURRENT** — an
 /// evaluation of the document the step will be committed to. The
-/// session door refuses [`ClearingFault::NotLanded`] and
-/// [`ClearingFault::Stale`] before calling this; a stale evaluation
+/// session door refuses [`StepClearFault::NotLanded`] and
+/// [`StepClearFault::Stale`] before calling this; a stale evaluation
 /// would hand back an edited node's OLD value, and nothing here could
 /// tell.
 ///
@@ -1619,14 +1619,14 @@ impl core::error::Error for ClearingFault {}
 ///
 /// # Errors
 ///
-/// [`ClearingFault::NoValue`], [`ClearingFault::NotOneBody`],
-/// [`ClearingFault::Unmeasured`], [`ClearingFault::NoExtent`].
-pub fn clearing_step(
+/// [`StepClearFault::NoValue`], [`StepClearFault::NotOneBody`],
+/// [`StepClearFault::Unmeasured`], [`StepClearFault::NoExtent`].
+pub fn step_clear_of(
     doc: &Doc<ProfileProgram>,
     eval: &Evaluation<f64>,
     input: &Operand,
     tol: Tol,
-) -> Result<f64, ClearingFault> {
+) -> Result<f64, StepClearFault> {
     // The session door's kind gate ran first and refused a read naming
     // no output.
     let (node, port) = crate::world::read_output(doc, input)
@@ -1634,7 +1634,7 @@ pub fn clearing_step(
     let value = eval.usable(node).map_err(|standing| {
         let standing = crate::tree::standing_as_drawn(standing, eval);
         let held = held_by(&standing, doc);
-        ClearingFault::NoValue { standing, held }
+        StepClearFault::NoValue { standing, held }
     })?;
     let spoken = || doc.spoken(node);
     let body = match port {
@@ -1643,7 +1643,7 @@ pub fn clearing_step(
             // A port the value holds no body at is a split's empty half.
             Err(_) => match (&value.payload, SplitHalf::of_output_body(u32::from(port))) {
                 (pncad::document::ValuePayload::Split { .. }, Some(half)) => {
-                    return Err(ClearingFault::EmptyHalf {
+                    return Err(StepClearFault::EmptyHalf {
                         input: spoken(),
                         half,
                     });
@@ -1653,26 +1653,26 @@ pub fn clearing_step(
         },
         None => value.payload.one_body().flatten(),
     }
-    .ok_or_else(|| ClearingFault::NotOneBody { input: spoken() })?;
+    .ok_or_else(|| StepClearFault::NotOneBody { input: spoken() })?;
     let measured = |chord: f64| {
         pncad::mesh::tessellate(body.body(), chord, tol).map_err(|error| {
-            ClearingFault::Unmeasured {
+            StepClearFault::Unmeasured {
                 input: spoken(),
                 error,
             }
         })
     };
     let (mesh, chord) = measured_at_scale(measured, |mesh| mesh.positions.clone())?
-        .ok_or_else(|| ClearingFault::NoExtent { input: spoken() })?;
+        .ok_or_else(|| StepClearFault::NoExtent { input: spoken() })?;
     // The step is stated in the body's space; the body is measured in
     // its own frame, along that heading read into it.
     let heading = body
         .heading_in_own(Vec3::from_array(STEP_DIRECTION))
-        .map_err(|_| ClearingFault::NoExtent { input: spoken() })?
+        .map_err(|_| StepClearFault::NoExtent { input: spoken() })?
         .to_array();
     let width = width_along(&mesh.positions, heading)
         .filter(|w| w.is_finite() && *w > 0.0)
-        .ok_or_else(|| ClearingFault::NoExtent { input: spoken() })?;
+        .ok_or_else(|| StepClearFault::NoExtent { input: spoken() })?;
     Ok(clearance(width, width, chord, tol))
 }
 
@@ -1681,7 +1681,7 @@ pub fn clearing_step(
 /// of the box around the probe's `points` — and `at` again at
 /// [`MEASURE_CHORD`] of that size is the measure, answered with the
 /// chord it was cut at. `Ok(None)` where the probe has no extent. The
-/// one measurement the step that clears a body ([`clearing_step`]) and
+/// one measurement the step that clears a body ([`step_clear_of`]) and
 /// an inserted part's frame ([`crate::pickindex::clear_of_drawn`]) take.
 ///
 /// # Errors
@@ -1707,17 +1707,17 @@ pub fn measured_at_scale<M, E>(
 /// **How far to step a body whose near side is `span` behind the far
 /// side of what it must clear**, measured off meshes at `chord`: `span`
 /// widened by the meshes' sag on both sides, 2(δ + ε) — the true extent
-/// is at most the mesh's plus that ([`clearing_step`] carries the
-/// argument) — then [`CLEARANCE_GAP`] of the stepped body's own `width`,
+/// is at most the mesh's plus that ([`step_clear_of`] carries the
+/// argument) — then [`STEP_GAP`] of the stepped body's own `width`,
 /// widened the same way, on top. A row's step clears its body
 /// (`span` = `width`); an inserted part clears everything drawn
 /// ([`crate::pickindex::clear_of_drawn`]).
 pub fn clearance(span: f64, width: f64, chord: f64, tol: Tol) -> f64 {
     let sag = 2.0 * (chord + tol.eps());
-    span + sag + (width + sag) * CLEARANCE_GAP
+    span + sag + (width + sag) * STEP_GAP
 }
 
-impl ClearingFault {
+impl StepClearFault {
     /// This fault with its nodes spoken from `doc`, a later version of
     /// the document it was raised in
     /// ([`crate::session::Refusal::respoken`]).

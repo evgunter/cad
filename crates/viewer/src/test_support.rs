@@ -468,9 +468,9 @@ pub const CLEARANCE_SIDE: f64 = 0.02;
 /// Their height.
 pub const CLEARANCE_HEIGHT: f64 = 0.01;
 /// The gap between their facing walls, along x.
-pub const CLEARANCE_GAP: f64 = 0.01;
+pub const STEP_GAP: f64 = 0.01;
 
-/// **Two blocks side by side, [`CLEARANCE_GAP`] apart along x**, each a
+/// **Two blocks side by side, [`STEP_GAP`] apart along x**, each a
 /// [`CLEARANCE_SIDE`] square extruded [`CLEARANCE_HEIGHT`], labelled
 /// `left` and `right`, and each placed into the world at the identity
 /// ([`placed`]) — two parts as they stand, the scene a clearance row
@@ -480,7 +480,7 @@ pub fn two_blocks_apart(tol: Tol) -> (Doc<ProfileProgram>, [RecipeNodeId; 2], [R
     let mut doc = Doc::empty_derived("two-blocks-apart", tol);
     let mut blocks = [RecipeNodeId::WORLD; 2];
     let mut copies = [RecipeNodeId::WORLD; 2];
-    for (i, (x, label)) in [(0.0, "left"), (CLEARANCE_SIDE + CLEARANCE_GAP, "right")]
+    for (i, (x, label)) in [(0.0, "left"), (CLEARANCE_SIDE + STEP_GAP, "right")]
         .into_iter()
         .enumerate()
     {

@@ -70,7 +70,7 @@ use pncad::select::Resolution;
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
-use crate::combine::{self, ClearingFault, PatternOutputChoice};
+use crate::combine::{self, PatternOutputChoice, StepClearFault};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{
@@ -3943,24 +3943,24 @@ impl DocSession {
     }
 
     /// **The step that clears `input` along its space's `x`**
-    /// ([`combine::clearing_step`]), measured off the landed value of
+    /// ([`combine::step_clear_of`]), measured off the landed value of
     /// the current document: the spacing the pattern tool's row inserts
     /// with.
     ///
     /// # Errors
     ///
     /// [`Refusal::WrongNodeKind`] for a read that is no body, and
-    /// [`Refusal::Clearing`] where nothing current has landed or the
+    /// [`Refusal::StepClear`] where nothing current has landed or the
     /// body has no width to measure.
-    pub fn clearing_step(&self, input: &Operand) -> Result<f64, Refusal> {
+    pub fn step_clear_of(&self, input: &Operand) -> Result<f64, Refusal> {
         let input = as_body(self.committed_doc(), input.clone());
         self.require_read(&input, NodeKindWanted::Body)?;
         match self.landed_pair() {
-            None => Err(ClearingFault::NotLanded),
-            Some(_) if self.busy() => Err(ClearingFault::Stale),
-            Some((doc, eval)) => combine::clearing_step(doc, eval, &input, self.tol),
+            None => Err(StepClearFault::NotLanded),
+            Some(_) if self.busy() => Err(StepClearFault::Stale),
+            Some((doc, eval)) => combine::step_clear_of(doc, eval, &input, self.tol),
         }
-        .map_err(Refusal::Clearing)
+        .map_err(Refusal::StepClear)
     }
 
     /// Insert one blend — fillet or chamfer — on a set of an existing
@@ -4638,7 +4638,7 @@ impl DocSession {
         if let Err(refusal) = self.bundle_fresh(placement, base) {
             return OpOutcome::refused(refusal);
         }
-        if writes_nothing(
+        if bundle_writes_nothing(
             self.committed_doc(),
             placement,
             base,
@@ -4732,7 +4732,7 @@ impl DocSession {
         let doc = self.committed_doc();
         self.bundle_fresh(placement, base)?;
         // A bundle that writes what the placement holds lands as nothing.
-        if writes_nothing(doc, placement, base, constraints, into_target_space) {
+        if bundle_writes_nothing(doc, placement, base, constraints, into_target_space) {
             return Ok(());
         }
         let mut run = Recording::start(doc, self.tol);
@@ -5486,7 +5486,7 @@ fn write_bundle(
 /// the bundle the placement holds, and no move into another space — none
 /// asked, or the space its first mate's `to` reads is the one it stands in
 /// already ([`bundle_run`]).
-fn writes_nothing(
+pub(crate) fn bundle_writes_nothing(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
     base: &[pncad::document::Constraint<Formula>],

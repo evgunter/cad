@@ -731,61 +731,52 @@ pub struct MateChoice {
     pub values: Vec<(Coord, Formula)>,
 }
 
-/// The draft: its door, its mate rows, what the person set, and where
-/// its last change stands against the document.
+/// The draft: its door, its mate rows, what the person set, the rows
+/// it was loaded with, and where its last change stands against the
+/// document.
 #[derive(Debug, Clone, PartialEq)]
 struct PlaceDraft {
     door: PlaceDoor,
     rows: Vec<MateRow>,
+    /// The rows as the bundle loaded them: what the draft differs from.
+    loaded_rows: Vec<MateRow>,
     typed: Vec<(Coord, Formula)>,
     active: usize,
     into_target_space: bool,
     offer: Offer,
 }
 
-/// **Where the draft stands against the document** — the profile
-/// editor's states (`crate::drafts::ProfileEdit`), for a bundle.
+/// **Why a draft is held**: a refusal, one value however often it is
+/// said — two held drafts are the same state when they hold the same
+/// refusal, not two equal ones.
 #[derive(Debug, Clone)]
-enum Offer {
-    /// Nothing changed since the draft was loaded or last landed.
-    Quiet,
-    /// A change was made and waits to be offered; the refusal it was
-    /// made over, while it is still said.
-    Unsettled(Option<Arc<Refusal>>),
-    /// Offered and refused: the draft is held, and this is why.
-    Pending(Arc<Refusal>),
-    /// Offered and taken: this op is landing, and picks made before it
-    /// lands wait to be seated over the bundle it writes.
-    Landing {
-        op: Box<SessionOp>,
-        waiting: Vec<MatePick>,
-    },
-}
+pub struct Held(Arc<Refusal>);
 
-/// A refusal is one value however often it is said: two offers are
-/// the same state when they hold the same refusal.
-impl PartialEq for Offer {
+impl PartialEq for Held {
     fn eq(&self, other: &Self) -> bool {
-        let same = |a: &Option<Arc<Refusal>>, b: &Option<Arc<Refusal>>| match (a, b) {
-            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
-            (None, None) => true,
-            _ => false,
-        };
-        match (self, other) {
-            (Self::Quiet, Self::Quiet) => true,
-            (Self::Unsettled(a), Self::Unsettled(b)) => same(a, b),
-            (Self::Pending(a), Self::Pending(b)) => Arc::ptr_eq(a, b),
-            (
-                Self::Landing { op, waiting },
-                Self::Landing {
-                    op: other_op,
-                    waiting: other_waiting,
-                },
-            ) => op == other_op && waiting == other_waiting,
-            _ => false,
-        }
+        Arc::ptr_eq(&self.0, &other.0)
     }
 }
+
+/// **One change to the draft**, as the person makes it: made now, or,
+/// while the last change lands, made over the bundle it writes
+/// ([`crate::offer::Offer::defer`]).
+#[derive(Debug, Clone, PartialEq)]
+enum Change {
+    Pick(MatePick),
+    AddMate(VarKind),
+    AddWritten(Mate<Formula>),
+    ChooseKind(usize, VarKind),
+    Sense(usize, bool),
+    Strike(usize, bool),
+    Type(Coord, Formula),
+    IntoTargetSpace(bool),
+}
+
+/// **Where the draft stands with the document** — the live editors' one
+/// state machine ([`crate::offer::Offer`]). A landed change reloads the
+/// draft at once ([`MateTool::landed`]), so `Landed` is not held here.
+type Offer = crate::offer::Offer<Held, Change, ()>;
 
 /// **The placement editor.** A value: the chrome holds one while the
 /// tool is open, a test constructs one and drives the same methods.
@@ -1108,10 +1099,9 @@ pub struct ProposedMate {
 /// bundle with its value rows.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MateProposal {
-    /// The door.
+    /// The door: the placement the bundle is written into, and the
+    /// bundle the draft was loaded from.
     pub door: PlaceDoor,
-    /// The placement the bundle is written into.
-    pub placement: RecipeNodeId,
     /// The live mates, in row order.
     pub mates: Vec<ProposedMate>,
     /// The value rows.
@@ -1575,13 +1565,14 @@ impl MateTool {
     /// one.
     fn loaded(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Self {
         let base = crate::session::held_bundle(doc, placement);
-        let rows = base
+        let rows: Vec<MateRow> = base
             .iter()
             .filter_map(|c| c.mate().map(|m| MateRow::written(doc, Some(c.id), m)))
             .collect();
         Self {
             draft: Some(PlaceDraft {
                 door: PlaceDoor { placement, base },
+                loaded_rows: rows.clone(),
                 rows,
                 typed: Vec::new(),
                 active: 0,
@@ -1648,10 +1639,25 @@ impl MateTool {
     /// **A Place landed**: the editor opens on `placement`, the
     /// placement it made, with no mate row — every mate is added here.
     pub fn placed(&mut self, doc: &Doc<ProfileProgram>, placement: RecipeNodeId) {
-        *self = Self {
-            kind: self.kind,
-            ..Self::loaded(doc, placement)
-        };
+        self.reload(doc, placement);
+    }
+
+    /// **The editor on `placement` loaded afresh from `doc`**, keeping
+    /// the kind a fresh row opens with — every reload's one spelling.
+    /// Answers whether `placement` is one; the editor holds nothing when
+    /// it is not.
+    fn reload(&mut self, doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
+        let kind = self.kind;
+        match Self::edit(doc, placement) {
+            Ok(reloaded) => {
+                *self = Self { kind, ..reloaded };
+                true
+            }
+            Err(_) => {
+                self.draft = None;
+                false
+            }
+        }
     }
 
     /// **The editor on `mate`'s placement, that mate struck out** —
@@ -1676,7 +1682,7 @@ impl MateTool {
         };
         draft.rows[at].struck = true;
         draft.active = at;
-        tool.changed();
+        draft.offer.changed();
         Ok(tool)
     }
 
@@ -1684,11 +1690,7 @@ impl MateTool {
     /// mate an API caller states rather than picks
     /// ([`SessionOp::AddMate`]).
     pub fn add_written(&mut self, doc: &Doc<ProfileProgram>, mate: &Mate<Formula>) {
-        if let Some(draft) = self.draft.as_mut() {
-            draft.rows.push(MateRow::written(doc, None, mate));
-            draft.active = draft.rows.len() - 1;
-        }
-        self.changed();
+        self.make(Some(doc), Change::AddWritten(mate.clone()));
     }
 
     /// The door the draft is on, `None` before the first pick.
@@ -1746,10 +1748,7 @@ impl MateTool {
     /// Set whether the bundle is written with the copy moved into its
     /// first mate's `to` space.
     pub fn set_into_target_space(&mut self, into: bool) {
-        if let Some(draft) = self.draft.as_mut() {
-            draft.into_target_space = into;
-        }
-        self.changed();
+        self.make(None, Change::IntoTargetSpace(into));
     }
 
     /// **Feed one pick**, consumed into tool state. With nothing open,
@@ -1766,7 +1765,6 @@ impl MateTool {
         pick: impl Into<MatePick>,
     ) -> Option<MateToolEvent> {
         let pick = pick.into();
-        let kind = self.kind;
         if self.draft.is_none() {
             match door_picked(doc, &pick, Purpose::Mating) {
                 Ok(Opening::Place(body)) => {
@@ -1774,44 +1772,13 @@ impl MateTool {
                     return None;
                 }
                 Ok(Opening::Edit(placement)) => {
-                    *self = Self {
-                        kind,
-                        ..Self::loaded(doc, placement)
-                    };
-                    self.add_mate(kind);
+                    self.reload(doc, placement);
+                    self.add_mate(self.kind);
                 }
                 Err(event) => return Some(*event),
             }
         }
-        // A pick made while the last change is landing waits to be
-        // seated over the bundle it writes.
-        if let Some(PlaceDraft {
-            offer: Offer::Landing { waiting, .. },
-            ..
-        }) = self.draft.as_mut()
-        {
-            waiting.push(pick);
-            return None;
-        }
-        let side = if self.is_on_copy(doc, &pick) {
-            MateSide::On
-        } else {
-            MateSide::To
-        };
-        let Some(draft) = self.draft.as_mut() else {
-            unreachable!("the editor is open: it was opened just above")
-        };
-        if draft.rows.is_empty() {
-            draft.rows.push(MateRow::fresh(kind));
-            draft.active = 0;
-        }
-        let row = &mut draft.rows[draft.active];
-        let seat = MateSeat::filled_by(row.kind, pick.entity());
-        let held = HeldPick::new(doc, pick);
-        let drafted = row.side_mut(side);
-        drafted.written = None;
-        *drafted.seat_mut(seat) = Some(held);
-        self.changed();
+        self.make(Some(doc), Change::Pick(pick));
         None
     }
 
@@ -1828,11 +1795,7 @@ impl MateTool {
     /// place of the slides and the spin the earlier ones leave.
     pub fn add_mate(&mut self, kind: VarKind) {
         self.kind = kind;
-        if let Some(draft) = self.draft.as_mut() {
-            draft.rows.push(MateRow::fresh(kind));
-            draft.active = draft.rows.len() - 1;
-        }
-        self.changed();
+        self.make(None, Change::AddMate(kind));
     }
 
     /// Make row `row` the one picks go to.
@@ -1849,50 +1812,122 @@ impl MateTool {
     /// the new kind; the row opens at the kind's own sense.
     pub fn choose_kind(&mut self, row: usize, kind: VarKind) {
         self.kind = kind;
-        let Some(row) = self.draft.as_mut().and_then(|d| d.rows.get_mut(row)) else {
-            return;
-        };
-        if row.kind == kind {
-            return;
-        }
-        let mut fresh = MateRow::fresh(kind);
-        for side in [MateSide::On, MateSide::To] {
-            for pick in row.side(side).picks() {
-                let seat = MateSeat::filled_by(kind, pick.pick().entity());
-                *fresh.side_mut(side).seat_mut(seat) = Some(pick.clone());
-            }
-        }
-        fresh.loaded = row.loaded;
-        fresh.struck = row.struck;
-        *row = fresh;
-        self.changed();
+        self.make(None, Change::ChooseKind(row, kind));
     }
 
     /// Set row `row`'s sense: whether its `to` is turned round. A kind
     /// with no sense keeps none.
     pub fn set_sense(&mut self, row: usize, flip: bool) {
-        if let Some(row) = self.draft.as_mut().and_then(|d| d.rows.get_mut(row)) {
-            row.flip = flip && senses(row.kind).is_some();
-        }
-        self.changed();
+        self.make(None, Change::Sense(row, flip));
     }
 
     /// Strike row `row` out, or take the stroke off.
     pub fn strike(&mut self, row: usize, struck: bool) {
-        if let Some(row) = self.draft.as_mut().and_then(|d| d.rows.get_mut(row)) {
-            row.struck = struck;
-        }
-        self.changed();
+        self.make(None, Change::Strike(row, struck));
     }
 
     /// **Type `by` on `coord`**: the number the bundle writes on that
     /// freedom while the mates leave it, whatever it held.
     pub fn type_value(&mut self, coord: Coord, by: Formula) {
-        if let Some(draft) = self.draft.as_mut() {
-            draft.typed.retain(|(c, _)| *c != coord);
-            draft.typed.push((coord, by));
+        self.make(None, Change::Type(coord, by));
+    }
+
+    /// **`change`, made to the draft**: now, and then waiting to be
+    /// offered — or, while the last change lands, held to be made over
+    /// the bundle it writes ([`Self::landed`]). `doc` is the document a
+    /// pick or a written mate is read in; with none, such a change waits.
+    fn make(&mut self, doc: Option<&Doc<ProfileProgram>>, change: Change) {
+        let Some(draft) = self.draft.as_mut() else {
+            return;
+        };
+        let Some(change) = draft.offer.defer(change) else {
+            return;
+        };
+        if self.apply(doc, change)
+            && let Some(draft) = self.draft.as_mut()
+        {
+            draft.offer.changed();
         }
-        self.changed();
+    }
+
+    /// `change` made to the open draft; answers whether it moved it.
+    fn apply(&mut self, doc: Option<&Doc<ProfileProgram>>, change: Change) -> bool {
+        let side = match (&change, doc) {
+            (Change::Pick(pick), Some(doc)) => Some(if self.is_on_copy(doc, pick) {
+                MateSide::On
+            } else {
+                MateSide::To
+            }),
+            _ => None,
+        };
+        let kind = self.kind;
+        let Some(draft) = self.draft.as_mut() else {
+            return false;
+        };
+        match change {
+            Change::Pick(pick) => {
+                let (Some(doc), Some(side)) = (doc, side) else {
+                    return false;
+                };
+                if draft.rows.is_empty() {
+                    draft.rows.push(MateRow::fresh(kind));
+                    draft.active = 0;
+                }
+                let row = &mut draft.rows[draft.active];
+                let seat = MateSeat::filled_by(row.kind, pick.entity());
+                let held = HeldPick::new(doc, pick);
+                let drafted = row.side_mut(side);
+                drafted.written = None;
+                *drafted.seat_mut(seat) = Some(held);
+            }
+            Change::AddMate(kind) => {
+                draft.rows.push(MateRow::fresh(kind));
+                draft.active = draft.rows.len() - 1;
+            }
+            Change::AddWritten(mate) => {
+                let Some(doc) = doc else {
+                    return false;
+                };
+                draft.rows.push(MateRow::written(doc, None, &mate));
+                draft.active = draft.rows.len() - 1;
+            }
+            Change::ChooseKind(at, kind) => {
+                let Some(row) = draft.rows.get_mut(at) else {
+                    return false;
+                };
+                if row.kind == kind {
+                    return false;
+                }
+                let mut fresh = MateRow::fresh(kind);
+                for side in [MateSide::On, MateSide::To] {
+                    for pick in row.side(side).picks() {
+                        let seat = MateSeat::filled_by(kind, pick.pick().entity());
+                        *fresh.side_mut(side).seat_mut(seat) = Some(pick.clone());
+                    }
+                }
+                fresh.loaded = row.loaded;
+                fresh.struck = row.struck;
+                *row = fresh;
+            }
+            Change::Sense(at, flip) => {
+                let Some(row) = draft.rows.get_mut(at) else {
+                    return false;
+                };
+                row.flip = flip && senses(row.kind).is_some();
+            }
+            Change::Strike(at, struck) => {
+                let Some(row) = draft.rows.get_mut(at) else {
+                    return false;
+                };
+                row.struck = struck;
+            }
+            Change::Type(coord, by) => {
+                draft.typed.retain(|(c, _)| *c != coord);
+                draft.typed.push((coord, by));
+            }
+            Change::IntoTargetSpace(into) => draft.into_target_space = into,
+        }
+        true
     }
 
     /// This draft with nothing typed — what its mates alone propose.
@@ -1926,22 +1961,25 @@ impl MateTool {
         Ok(self)
     }
 
-    /// **A change was made to the draft**: it waits to be offered,
-    /// still saying the refusal it was made over.
-    fn changed(&mut self) {
-        let Some(draft) = self.draft.as_mut() else {
-            return;
-        };
-        let was = core::mem::replace(&mut draft.offer, Offer::Quiet);
-        draft.offer = match was {
-            // A change made while the last one lands keeps it landing:
-            // only a pick can be (`Self::pick` holds it back).
-            landing @ Offer::Landing { .. } => landing,
-            Offer::Pending(refused) | Offer::Unsettled(Some(refused)) => {
-                Offer::Unsettled(Some(refused))
-            }
-            Offer::Quiet | Offer::Unsettled(None) => Offer::Unsettled(None),
-        };
+    /// **Whether the draft differs from the bundle it was loaded from**:
+    /// its rows, a number typed, or the copy asked into another space —
+    /// what letting go of it would lose ([`crate::offer::Offer::holds_changes`]).
+    #[must_use]
+    pub fn differs_from_base(&self) -> bool {
+        self.draft.as_ref().is_some_and(|draft| {
+            draft.rows != draft.loaded_rows || !draft.typed.is_empty() || draft.into_target_space
+        })
+    }
+
+    /// **Whether letting the draft go loses anything** the document does
+    /// not hold: a change still landing, changes waiting on it, or a
+    /// draft that differs from its bundle — what an undo takes back first
+    /// (`Tools::undo_pending`), as the profile editor's does.
+    #[must_use]
+    pub fn holds_changes(&self) -> bool {
+        self.draft
+            .as_ref()
+            .is_some_and(|draft| draft.offer.holds_changes(self.differs_from_base()))
     }
 
     /// **Offer the draft to the document**, once a change was made since
@@ -1951,8 +1989,8 @@ impl MateTool {
     /// [`SessionOp::SetBundle`] that writes the whole draft when the door
     /// takes it, which the draft then waits on ([`Self::landed`]). A
     /// draft that writes no bundle yet, or that the door refuses, is held
-    /// with its reason ([`Self::pending`]); one that writes the bundle
-    /// the placement holds answers nothing.
+    /// with its reason ([`Self::pending`]); one that writes nothing
+    /// (`crate::session::bundle_writes_nothing`) answers nothing.
     pub fn offer(
         &mut self,
         doc: &Doc<ProfileProgram>,
@@ -1960,24 +1998,32 @@ impl MateTool {
         tol: Tol,
         door: impl FnOnce(&SessionOp) -> Result<(), Refusal>,
     ) -> Option<SessionOp> {
-        if !matches!(
-            self.draft.as_ref().map(|draft| &draft.offer),
-            Some(Offer::Unsettled(_))
-        ) {
+        if !self
+            .draft
+            .as_ref()
+            .is_some_and(|draft| draft.offer.unsettled())
+        {
             return None;
         }
         let proposed = self.proposal(doc, ev, tol);
         let Some(draft) = self.draft.as_mut() else {
             unreachable!("an unsettled draft is open")
         };
+        let held = |refusal| Offer::Pending(Held(Arc::new(refusal)));
         let proposal = match proposed {
             Ok(proposal) => proposal,
             Err(error) => {
-                draft.offer = Offer::Pending(Arc::new(Refusal::Draft(Box::new(error))));
+                draft.offer = held(Refusal::Draft(Box::new(error)));
                 return None;
             }
         };
-        if !draft.into_target_space && proposal.bundle == draft.door.base {
+        if crate::session::bundle_writes_nothing(
+            doc,
+            draft.door.placement,
+            &draft.door.base,
+            &proposal.bundle,
+            draft.into_target_space,
+        ) {
             draft.offer = Offer::Quiet;
             return None;
         }
@@ -1989,13 +2035,13 @@ impl MateTool {
         match door(&op) {
             Ok(()) => {
                 draft.offer = Offer::Landing {
-                    op: Box::new(op.clone()),
-                    waiting: Vec::new(),
+                    op: op.clone(),
+                    deferred: Vec::new(),
                 };
                 Some(op)
             }
             Err(refusal) => {
-                draft.offer = Offer::Pending(Arc::new(refusal));
+                draft.offer = held(refusal);
                 None
             }
         }
@@ -2005,76 +2051,78 @@ impl MateTool {
     /// last offer, while it still holds what was refused.
     #[must_use]
     pub fn pending(&self) -> Option<&Refusal> {
-        match self.draft.as_ref().map(|draft| &draft.offer) {
-            Some(Offer::Pending(refused) | Offer::Unsettled(Some(refused))) => Some(refused),
-            _ => None,
-        }
+        self.draft
+            .as_ref()
+            .and_then(|draft| draft.offer.refused())
+            .filter(|_| self.differs_from_base())
+            .map(|held| &*held.0)
     }
 
     /// The op the draft's last change formed, while it is landing.
     #[must_use]
     pub fn landing(&self) -> Option<&SessionOp> {
-        match self.draft.as_ref().map(|draft| &draft.offer) {
-            Some(Offer::Landing { op, .. }) => Some(op),
-            _ => None,
-        }
+        self.draft.as_ref().and_then(|draft| draft.offer.landing())
     }
 
     /// **Drop the held draft**: the editor shows the placement's bundle
     /// as `doc` holds it.
     pub fn discard(&mut self, doc: &Doc<ProfileProgram>) {
-        let Some(placement) = self.door().map(|door| door.placement) else {
-            return;
-        };
-        if let Ok(reloaded) = Self::edit(doc, placement) {
-            *self = Self {
-                kind: self.kind,
-                ..reloaded
-            };
+        if let Some(placement) = self.door().map(|door| door.placement) {
+            self.reload(doc, placement);
         }
     }
 
     /// **The draft's change landed**: the editor loads the bundle `doc`
-    /// now holds, the row picks went to kept, and the picks made while it
-    /// landed are seated over it.
+    /// now holds, the row picks went to kept, and every change made while
+    /// it landed is made over it.
     pub fn landed(&mut self, doc: &Doc<ProfileProgram>) {
         let Some(draft) = self.draft.as_mut() else {
             return;
         };
-        let waiting = match core::mem::replace(&mut draft.offer, Offer::Quiet) {
-            Offer::Landing { waiting, .. } => waiting,
+        let deferred = match core::mem::replace(&mut draft.offer, Offer::Quiet) {
+            Offer::Landing { deferred, .. } => deferred,
             _ => Vec::new(),
         };
         let (placement, active) = (draft.door.placement, draft.active);
-        let Ok(mut reloaded) = Self::edit(doc, placement) else {
-            self.draft = None;
+        if !self.reload(doc, placement) {
             return;
-        };
-        reloaded.kind = self.kind;
-        if let Some(draft) = reloaded.draft.as_mut() {
+        }
+        if let Some(draft) = self.draft.as_mut() {
             draft.active = active.min(draft.rows.len().saturating_sub(1));
+            draft.offer = Offer::Deferred(deferred);
         }
-        *self = reloaded;
-        for pick in waiting {
-            let _ = self.pick(doc, pick);
-        }
+        self.make_deferred(doc);
     }
 
     /// **The draft's change was refused where it landed** (the document
     /// moved under it in the same batch, which the batch says): the
-    /// picks made while it landed are seated, and the draft waits to be
+    /// changes made while it landed are made, and the draft waits to be
     /// offered again, so the door says its refusal over the document as
     /// it now is.
     pub fn refused(&mut self, doc: &Doc<ProfileProgram>) {
         let Some(draft) = self.draft.as_mut() else {
             return;
         };
-        let waiting = match core::mem::replace(&mut draft.offer, Offer::Unsettled(None)) {
-            Offer::Landing { waiting, .. } => waiting,
+        let deferred = match core::mem::replace(&mut draft.offer, Offer::Quiet) {
+            Offer::Landing { deferred, .. } => deferred,
             _ => Vec::new(),
         };
-        for pick in waiting {
-            let _ = self.pick(doc, pick);
+        draft.offer = Offer::Deferred(deferred);
+        self.make_deferred(doc);
+        if let Some(draft) = self.draft.as_mut() {
+            draft.offer.changed();
+        }
+    }
+
+    /// The changes that waited on a landing, made now over `doc`.
+    fn make_deferred(&mut self, doc: &Doc<ProfileProgram>) {
+        let deferred = self
+            .draft
+            .as_mut()
+            .map(|draft| draft.offer.take_deferred())
+            .unwrap_or_default();
+        for change in deferred {
+            self.make(Some(doc), change);
         }
     }
 
@@ -2198,8 +2246,11 @@ impl MateTool {
                 }
             }
         }
-        if !events.is_empty() {
-            self.changed();
+        if !events.is_empty()
+            && let Some(draft) = self.draft.as_mut()
+            && draft.offer.landing().is_none()
+        {
+            draft.offer.changed();
         }
         // A change landing is judged when it has landed (`Self::landed`).
         if let Some(PlaceDoor { placement, base }) =
@@ -2228,12 +2279,7 @@ impl MateTool {
                     return events;
                 }
                 Some(held) if held != *base => {
-                    if let Ok(reloaded) = Self::edit(doc, placement) {
-                        *self = Self {
-                            kind: self.kind,
-                            ..reloaded
-                        };
-                    }
+                    self.reload(doc, placement);
                     events.push(MateToolEvent::Reloaded {
                         placement: doc.spoken(placement),
                     });
@@ -2548,7 +2594,6 @@ impl MateTool {
         }
         Ok(MateProposal {
             door: draft.door.clone(),
-            placement,
             mates,
             values,
             dropped,

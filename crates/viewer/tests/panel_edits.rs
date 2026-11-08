@@ -700,7 +700,7 @@ test_utils::f6_variants! {
         EmptyName,
         WrongNodeKind,
         NotABodyRead,
-        Clearing,
+        StepClear,
         Frame,
         Edit,
         Dimension,

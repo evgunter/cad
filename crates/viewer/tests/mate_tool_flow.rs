@@ -57,7 +57,7 @@ fn two_picks_one_choice_one_committed_edit() {
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     let (doc, _) = session.landed_pair().expect("landed");
-    assert_eq!(proposal.placement, bench.post_b, "the on pick's copy");
+    assert_eq!(proposal.door.placement, bench.post_b, "the on pick's copy");
     for (coord, by) in asm::middle_seat_values() {
         assert!(
             proposal
@@ -451,7 +451,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     asm::unpin(&mut session, bench.shelf_i);
     let proposal = shelf_on(&session, &shelf_bottom, &copy_one);
     assert_eq!(
-        proposal.placement, bench.shelf_i,
+        proposal.door.placement, bench.shelf_i,
         "the mate places the shelf"
     );
 

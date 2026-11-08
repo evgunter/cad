@@ -292,45 +292,34 @@ pub(crate) enum Change {
     AddLoop(Vec<Step<f64>>),
 }
 
-/// **Where the profile editor's draft stands with the document**: one
-/// state, so no two flags can disagree about it.
-#[derive(Debug)]
-enum Offer {
-    /// Nothing to offer: the draft is as loaded, or its last offer
-    /// formed nothing (held back, or nothing moved).
-    Quiet,
-    /// Changed since it was last offered ([`ProfileEdit::changed`]);
-    /// the refusal of the offer before, if there was one, still said.
-    Unsettled(Option<Pending>),
-    /// Offered and refused: the draft is *pending*.
-    Pending(Pending),
-    /// Offered and taken: `op` formed and is still to land, and the
-    /// changes made in its frame wait on it ([`ProfileEdit::defer`]).
-    Landing {
-        op: SessionOp,
-        deferred: Vec<Change>,
-    },
-    /// `op` landed, writing `program`: the reload over that program
-    /// makes the waiting changes ([`Drafts::profile_edit`]), and over
-    /// any other program drops them, said.
-    Landed {
-        program: ProfileProgram<Formula>,
-        deferred: Vec<Change>,
-    },
-    /// Changes made in an earlier frame over the program this draft
-    /// was loaded from, still to be made ([`ProfileEdit::take_deferred`]).
-    Deferred(Vec<Change>),
-}
+/// **Where the profile editor's draft stands with the document** — the
+/// live editors' one state machine ([`crate::offer::Offer`]): a change
+/// is a [`Change`], a held draft says a [`Pending`], and a landed op
+/// wrote a program.
+type Offer = crate::offer::Offer<Pending, Change, ProfileProgram<Formula>>;
 
 /// **A pending draft the profile editor let go of**, and why — said
 /// on the status line, so no path drops one silently
 /// ([`Drafts::take_dropped`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Dropped {
-    /// The profile, as the document the draft was made over spoke it.
+    /// The node the draft edited, as the document the draft was made
+    /// over spoke it.
     pub(crate) said: String,
     /// Why it went.
     pub(crate) why: DropWhy,
+    /// Which editor held it.
+    pub(crate) editor: Editor,
+}
+
+/// **The live editor a dropped draft was held in**: both drop a draft
+/// alike, and the notice names which.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Editor {
+    /// The profile editor.
+    Profile,
+    /// The placement editor (`crate::matetool::MateTool`).
+    Placement,
 }
 
 /// Why a pending draft was let go of.
@@ -373,9 +362,13 @@ impl std::fmt::Display for Dropped {
             DropWhy::NodeGone => "the profile is no longer in the document",
             DropWhy::NotLanded => "the change they were made over did not land",
         };
+        let editor = match self.editor {
+            Editor::Profile => "profile editor",
+            Editor::Placement => "placement editor",
+        };
         write!(
             f,
-            "{}: the changes pending in the profile editor were discarded — {why}",
+            "{}: the changes pending in the {editor} were discarded — {why}",
             self.said
         )
     }
@@ -844,21 +837,12 @@ impl ProfileEdit {
     /// lose. A draft whose op has landed loses nothing but the changes
     /// that waited on it.
     fn holds_changes(&self) -> bool {
-        match &self.offer {
-            Offer::Landing { .. } => true,
-            Offer::Landed { deferred, .. } => !deferred.is_empty(),
-            Offer::Deferred(deferred) => !deferred.is_empty() || self.differs_from_base(),
-            Offer::Quiet | Offer::Unsettled(_) | Offer::Pending(_) => self.differs_from_base(),
-        }
+        self.offer.holds_changes(self.differs_from_base())
     }
 
     /// **A change was made to the draft**: it waits to be offered.
     pub(crate) fn changed(&mut self) {
-        let was = core::mem::replace(&mut self.offer, Offer::Quiet);
-        self.offer = Offer::Unsettled(match was {
-            Offer::Pending(refused) | Offer::Unsettled(Some(refused)) => Some(refused),
-            _ => None,
-        });
+        self.offer.changed();
     }
 
     /// `change`, made to the draft in the editor's `notation`.
@@ -888,25 +872,13 @@ impl ProfileEdit {
     /// it is the caller's to make now.
     #[must_use = "a change no op waits for is the caller's to make"]
     pub(crate) fn defer(&mut self, change: Change) -> Option<Change> {
-        match &mut self.offer {
-            Offer::Landing { deferred, .. } => {
-                deferred.push(change);
-                None
-            }
-            _ => Some(change),
-        }
+        self.offer.defer(change)
     }
 
     /// The changes that waited on an op which has landed, to be made
     /// now over the program it wrote; taken.
     pub(crate) fn take_deferred(&mut self) -> Vec<Change> {
-        match core::mem::replace(&mut self.offer, Offer::Quiet) {
-            Offer::Deferred(deferred) => deferred,
-            other => {
-                self.offer = other;
-                Vec::new()
-            }
-        }
+        self.offer.take_deferred()
     }
 
     /// **Whether a change offered now would be settled** — moved since
@@ -914,7 +886,7 @@ impl ProfileEdit {
     /// (`dragging`): a drag lands once, at its release.
     #[must_use]
     pub(crate) fn settles(&self, dragging: bool) -> bool {
-        matches!(self.offer, Offer::Unsettled(_)) && !dragging
+        self.offer.unsettled() && !dragging
     }
 
     /// **Offer the draft to the document**, once it [`Self::settles`]
@@ -974,12 +946,7 @@ impl ProfileEdit {
     /// **Why the draft is pending**: the refusal of its last offer,
     /// while it still holds what was refused.
     pub(crate) fn pending(&self) -> Option<&Pending> {
-        match &self.offer {
-            Offer::Pending(refused) | Offer::Unsettled(Some(refused)) => {
-                self.differs_from_base().then_some(refused)
-            }
-            _ => None,
-        }
+        self.offer.refused().filter(|_| self.differs_from_base())
     }
 }
 
@@ -1285,11 +1252,10 @@ impl Drafts {
                 // The changes that waited on an op which landed are made
                 // over the program it wrote, and only over that one.
                 let deferred = match held.map(|held| &mut held.offer) {
-                    Some(Offer::Landed { program, deferred })
-                        if current.as_ref() == Some(program) =>
-                    {
-                        core::mem::take(deferred)
-                    }
+                    Some(Offer::Landed {
+                        written: program,
+                        deferred,
+                    }) if current.as_ref() == Some(program) => core::mem::take(deferred),
                     _ => Vec::new(),
                 };
                 let why = match (&self.profile_edit, &current) {
@@ -1409,7 +1375,22 @@ impl Drafts {
     /// Changes of the draft of `said` let go of, for `why`: the one
     /// record of a drop, read by [`Self::take_dropped`].
     fn say_dropped(&mut self, said: String, why: DropWhy) {
-        self.dropped.push(Dropped { said, why });
+        self.dropped.push(Dropped {
+            said,
+            why,
+            editor: Editor::Profile,
+        });
+    }
+
+    /// **Undo took back the placement editor's held draft first**
+    /// (`crate::tools::Tools::undo_pending`), on the placement `said`:
+    /// said with the profile editor's drops, on the same channel.
+    pub(crate) fn placement_undone(&mut self, said: String) {
+        self.dropped.push(Dropped {
+            said,
+            why: DropWhy::Undo,
+            editor: Editor::Placement,
+        });
     }
 
     /// **Undo takes back a pending draft first**: when the editor holds
@@ -1434,10 +1415,7 @@ impl Drafts {
     /// same batch takes it back before it lands
     /// (`ViewerApp::perform_batch`).
     pub(crate) fn landing(&self) -> Option<&SessionOp> {
-        match &self.profile_edit.as_ref()?.offer {
-            Offer::Landing { op, .. } => Some(op),
-            _ => None,
-        }
+        self.profile_edit.as_ref()?.offer.landing()
     }
 
     /// **`op` was performed**: when it is the op the editor's draft
@@ -1465,7 +1443,12 @@ impl Drafts {
             _ => None,
         });
         match written {
-            Some(program) => edit.offer = Offer::Landed { program, deferred },
+            Some(program) => {
+                edit.offer = Offer::Landed {
+                    written: program,
+                    deferred,
+                }
+            }
             None => {
                 edit.offer = Offer::Unsettled(None);
                 if !deferred.is_empty() {

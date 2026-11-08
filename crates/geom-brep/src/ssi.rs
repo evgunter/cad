@@ -150,7 +150,7 @@ pub use implicit_chart::{ImplicitSection, SectionReading};
 pub use march::{
     BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
-    STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
+    STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepClearFault, StepperMode,
 };
 pub use pair::{PairCorner, PairReading, PairRegion, PairRow, PairRowRefusal, Section};
 pub use refine::{RefineStop, RefusedRound, ResidualTrend, RoundMargin};
@@ -459,7 +459,7 @@ pub enum SsiError {
         /// parameter.
         speed: f64,
         /// What is wrong with the step.
-        fault: StepFault,
+        fault: StepClearFault,
     },
     /// Newton refinement would not settle a seed onto the surface pair:
     /// a seed outside every basin, or poisoned arithmetic. The seed is
@@ -979,11 +979,11 @@ impl core::fmt::Display for SsiError {
             ),
             Self::StepUnusable { mode, speed, fault } => {
                 let what = match fault {
-                    StepFault::SpeedUnusable => "converts no step into metres",
-                    StepFault::NotFinite => {
+                    StepClearFault::SpeedUnusable => "converts no step into metres",
+                    StepClearFault::NotFinite => {
                         "gives a step that is not a finite number in the state's coordinates"
                     }
-                    StepFault::DoesNotMove => {
+                    StepClearFault::DoesNotMove => {
                         "gives a step below the resolution of the state's coordinates, which \
                          does not move the trace"
                     }
@@ -1511,11 +1511,11 @@ impl SsiError {
             // mint refuses a degenerate chart before any march.
             Self::StepCollapsed { .. }
             | Self::StepUnusable {
-                fault: StepFault::NotFinite | StepFault::DoesNotMove,
+                fault: StepClearFault::NotFinite | StepClearFault::DoesNotMove,
                 ..
             } => STEP_SCALE.recourse(RefusedArm::SignCertain(None), reading),
             Self::StepUnusable {
-                fault: StepFault::SpeedUnusable,
+                fault: StepClearFault::SpeedUnusable,
                 ..
             } => defect_ending(reading).to_owned(),
             // The march's wall, met by refinement: where the refused
@@ -4662,7 +4662,7 @@ mod ending_tests {
         use super::{
             ChartAxis, ChartSpeedRefusal, DomainField, ExhaustLane, ExhaustivenessRefusal,
             FloorFault, FloorKind, FloorRefusal, OperandDatum, ReachBound, RefineStop,
-            SSI_MAX_CELLS, SSI_MAX_STEPS, SettlingRefusal, StepBound, StepCap, StepFault,
+            SSI_MAX_CELLS, SSI_MAX_STEPS, SettlingRefusal, StepBound, StepCap, StepClearFault,
             TubeDegeneracy,
         };
         use crate::ssi::BandVerdict;
@@ -4867,7 +4867,7 @@ mod ending_tests {
                 SsiError::StepUnusable {
                     mode: super::StepperMode::Realized.name(),
                     speed: 1e-300,
-                    fault: StepFault::DoesNotMove,
+                    fault: StepClearFault::DoesNotMove,
                 },
             ),
             (

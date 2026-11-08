@@ -2138,7 +2138,7 @@ of the node they insert, or a pick.
   defaults the code owns (`combine::PATTERN_COUNT` and the rest beside
   it): `4` copies; a row along the target's `x` (`combine::STEP_ALONG`)
   spaced by the step that clears the body
-  (`DocSession::clearing_step`, `combine::clearing_step`) rounded
+  (`DocSession::step_clear_of`, `combine::step_clear_of`) rounded
   up to one significant figure in the working unit
   (`combine::row_spacing`), so the copies clear the body; a ring about
   the target's `z`

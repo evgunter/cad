@@ -780,6 +780,36 @@ impl Tools {
         }
     }
 
+    /// **The op the open placement editor's change waits on to land**,
+    /// if one formed this frame and has not been performed: an undo in
+    /// the same batch takes it back before it lands, as the profile
+    /// editor's (`ViewerApp::perform_batch`).
+    pub fn mate_landing(&self) -> Option<&SessionOp> {
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => tool.landing(),
+            _ => None,
+        }
+    }
+
+    /// **Undo takes back the placement editor's held draft first**, as
+    /// the profile editor's (`Drafts::undo_pending`): when the open
+    /// editor holds changes the document does not
+    /// ([`MateTool::holds_changes`]), they are dropped — the editor shows
+    /// the bundle as `doc`, the committed document, holds it — and the
+    /// undo is spent on them. Answers the placement the dropped draft
+    /// edited, for the notice that says so.
+    pub fn undo_pending(&mut self, doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
+        let Some(OpenTool::Mate(tool)) = &mut self.open else {
+            return None;
+        };
+        if !tool.holds_changes() {
+            return None;
+        }
+        let placement = tool.door()?.placement;
+        tool.discard(doc);
+        Some(placement)
+    }
+
     /// **The session answered `op`**, which made `made` and `committed`
     /// or was refused, leaving `doc` the committed document: a landed
     /// [`SessionOp::Place`] opens the placement editor on the placement

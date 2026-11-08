@@ -722,7 +722,7 @@ fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
 /// Red if the spacing is written as the raw measure, rounded down, or
 /// rounded in another unit than the working one.
 #[test]
-fn a_rows_default_spacing_is_its_clearing_step_rounded_up() {
+fn a_rows_default_spacing_is_its_step_clear_of_rounded_up() {
     use pncad::quantity::{CM, IN, M, MM};
     let doc = Doc::<ProfileProgram>::empty_derived("row-spacing", Tol::witness());
     let at = |clears: f64, unit| {

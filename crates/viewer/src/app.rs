@@ -1341,6 +1341,19 @@ impl ViewerApp {
         self.tools.document_replaced();
     }
 
+    /// **Undo takes back the placement editor's held draft first**
+    /// (`Tools::undo_pending`), said with the profile editor's drops.
+    /// Answers whether it did.
+    fn undo_placement_draft(&mut self) -> bool {
+        let doc = self.session.committed_doc();
+        let Some(placement) = self.tools.undo_pending(doc) else {
+            return false;
+        };
+        let said = doc.spoken(placement).to_string();
+        self.drafts.placement_undone(said);
+        true
+    }
+
     /// Perform one frame's whole batch of operations, keeping the
     /// refusal worth showing.
     ///
@@ -1386,6 +1399,16 @@ impl ViewerApp {
                 ops.remove(at);
             }
         }
+        // The placement editor's change, the same way.
+        if let Some(landing) = self.tools.mate_landing().cloned()
+            && let Some(undo) = ops.iter().position(|op| matches!(op, SessionOp::Undo))
+            && let Some(edit) = ops.iter().position(|op| *op == landing)
+            && self.undo_placement_draft()
+        {
+            for at in [undo.max(edit), undo.min(edit)] {
+                ops.remove(at);
+            }
+        }
         let mut refusal: Option<Refusal> = None;
         // The VERDICTS are `frame`'s, computed from the ops and the
         // refusal; this loop only performs and collects (`frame`'s
@@ -1395,7 +1418,9 @@ impl ViewerApp {
         for op in ops {
             // Undo takes back a pending profile draft first, and says
             // so; the next undo steps the history.
-            if matches!(op, SessionOp::Undo) && self.drafts.undo_pending() {
+            if matches!(op, SessionOp::Undo)
+                && (self.drafts.undo_pending() || self.undo_placement_draft())
+            {
                 continue;
             }
             performed.push(op.clone());
@@ -8766,6 +8791,102 @@ mod properties_pane_tests {
         );
     }
 
+    /// **Undo takes back the placement editor's held draft first, and
+    /// says so**, as the profile editor's: a mate row added and not yet
+    /// seated is held, and the first undo drops it without stepping the
+    /// history; the next undo is the history's.
+    #[test]
+    fn undo_takes_back_a_held_placement_draft_first_and_says_so() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let mut tool =
+            crate::matetool::MateTool::edit(driven.app.session.committed_doc(), placement())
+                .expect("the startup copy is a placement");
+        tool.add_mate(pncad::document::VarKind::Plane);
+        let (doc, ev) = driven.app.session.landed_pair().expect("landed");
+        let session = &driven.app.session;
+        assert!(
+            tool.offer(doc, ev, session.tol(), |op| session.bundle_door(op))
+                .is_none(),
+            "a row with empty seats writes no bundle"
+        );
+        assert!(tool.holds_changes(), "premise: the draft is held");
+        driven.app.tools.open_mate(tool);
+        let state = driven.app.session.history().current();
+        driven.app.perform_batch(vec![SessionOp::Undo]);
+        assert_eq!(
+            driven.app.session.history().current(),
+            state,
+            "the history did not step"
+        );
+        let editor = driven.app.tools.mate().expect("the editor stays open");
+        assert!(
+            editor.rows().is_empty() && !editor.holds_changes(),
+            "the draft went"
+        );
+        assert!(
+            status(&driven)
+                .is_some_and(|said| said
+                    .contains("placement editor were discarded — undo took them back first")),
+            "said: {:?}",
+            status(&driven)
+        );
+        driven.app.perform_batch(vec![SessionOp::Undo]);
+        assert!(
+            status(&driven).is_some_and(|said| said.contains("nothing to undo")),
+            "the next undo is the history's: {:?}",
+            status(&driven)
+        );
+    }
+
+    /// **An undo in the batch of the change it lands on takes the
+    /// change back before it lands**, as the profile editor's: the
+    /// history neither steps nor keeps a redo of it, and the value is
+    /// the one the document held.
+    #[test]
+    fn an_undo_in_the_batch_of_a_placement_change_takes_it_back_before_it_lands() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let slide_x = <pncad::document::Coord<pncad::document::Operand>>::slide(
+            pncad::document::TargetAxis::X,
+        );
+        let mut tool =
+            crate::matetool::MateTool::edit(driven.app.session.committed_doc(), placement())
+                .expect("the startup copy is a placement");
+        tool.type_value(slide_x.clone(), crate::test_support::len(0.005));
+        let (doc, ev) = driven.app.session.landed_pair().expect("landed");
+        let session = &driven.app.session;
+        let op = tool
+            .offer(doc, ev, session.tol(), |op| session.bundle_door(op))
+            .expect("a typed value passes");
+        driven.app.tools.open_mate(tool);
+        let (states, state) = (
+            driven.app.session.history().len(),
+            driven.app.session.history().current(),
+        );
+        driven.app.perform_batch(vec![op, SessionOp::Undo]);
+        let history = driven.app.session.history();
+        assert_eq!(
+            history.len(),
+            states,
+            "the change never entered the history"
+        );
+        assert_eq!(history.current(), state);
+        assert!(!history.can_redo(), "no redo of a change taken back");
+        let doc = driven.app.session.committed_doc();
+        let written = match doc.node(placement()).map(|node| node.written(doc)) {
+            Some(Node::Place { constraints, .. }) => constraints,
+            other => panic!("the startup copy is a placement: {other:?}"),
+        };
+        assert!(
+            written
+                .iter()
+                .filter_map(|c| c.value())
+                .any(|v| v.coord == slide_x && v.by.is_zero()),
+            "the slide is as the document held it: {written:?}"
+        );
+    }
+
     /// **An edge-on-edge direction mate committed at the panel's own
     /// default sense does not turn its copy over**: the plate placed a
     /// second time, one vertical corner edge of each copy picked, the
@@ -12245,7 +12366,7 @@ mod properties_pane_tests {
             let clears = driven
                 .app
                 .session
-                .clearing_step(&extrude().into())
+                .step_clear_of(&extrude().into())
                 .expect("the plate is measured");
             driven.click(&ToolKind::Pattern.commit());
             driven.settle();

@@ -305,8 +305,8 @@ pub enum Refusal {
     },
     /// The step that clears a body could not be measured — its input's
     /// landed value is not one body with a width
-    /// ([`combine::ClearingFault`]).
-    Clearing(combine::ClearingFault),
+    /// ([`combine::StepClearFault`]).
+    StepClear(combine::StepClearFault),
     /// A gesture's frame could not be made: one of its numbers is not
     /// of its dimension or does not evaluate, its direction is none, or
     /// the body it reads the frame off offers no geometry to read
@@ -517,7 +517,7 @@ impl Refusal {
                 current,
                 notation,
             },
-            Self::Clearing(fault) => Self::Clearing(fault.respoken(doc)),
+            Self::StepClear(fault) => Self::StepClear(fault.respoken(doc)),
             unspoken @ (Self::NoSuchVariable(_)
             | Self::NotABodyRead { .. }
             | Self::EmptyName
@@ -553,7 +553,7 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::NotABodyRead { .. }
-            | Self::Clearing(_)
+            | Self::StepClear(_)
             | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -605,7 +605,7 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::NotABodyRead { .. }
-            | Self::Clearing(_)
+            | Self::StepClear(_)
             | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -917,7 +917,7 @@ impl Refusal {
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
-            Self::Clearing(fault) => {
+            Self::StepClear(fault) => {
                 write!(f, "{}", pncad::geom_brep::recourse::read_at(fault, at))
             }
             Self::Frame(fault) => write!(f, "{fault}"),

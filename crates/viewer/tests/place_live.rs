@@ -173,6 +173,30 @@ fn a_body_shown_again_and_picked_is_placed_a_second_time() {
         [first, second],
         "both placements copy the body"
     );
+    // The second copy is drawn, where Place stood it: the identity of
+    // the body's own space, where the body stood. With the body hidden
+    // again, a pick there reaches the copy.
+    let hidden = session.perform(SessionOp::SetBodyOn {
+        node: body,
+        on: false,
+    });
+    assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    assert!(
+        viewer::world::is_drawn(doc, second),
+        "the second copy is drawn"
+    );
+    let (landed, ev) = session.landed_pair().expect("landed");
+    assert_eq!(
+        pncad::document::SolvedPoses::of(landed, ev).relative(second),
+        Some(pncad::document::Frame::IDENTITY),
+        "it stands where the body stands"
+    );
+    let Selection::Face(face) = face_at(&session, [0.0, 0.0]) else {
+        unreachable!("a face pick")
+    };
+    assert_eq!(face.node, second, "a pick where the body stood reaches it");
 
     // A pick on a copy still opens that copy's placement.
     tools.close();
@@ -359,4 +383,128 @@ fn discard_drops_the_held_draft() {
             if constraints.iter().all(|c| c.mate().is_none())),
         "no mate reached the copy"
     );
+}
+
+/// **Undo takes back a held draft first**, as the profile editor's: a
+/// committed change stays, the held flush goes, and the tools answer the
+/// placement whose draft went (`Tools::undo_pending`, which the chrome
+/// spends an Undo on instead of stepping the history).
+#[test]
+fn an_undo_spends_the_held_draft_not_the_committed_change() {
+    let tol = Tol::witness();
+    let (mut session, tool, copy) = small_placed_beside_wide("place-live-undo", tol);
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mate);
+    *tools.mate_mut().expect("open") = tool;
+    let editor = tools.mate_mut().expect("open");
+    editor.type_value(Coord::slide(TargetAxis::X), common::len(0.005));
+    let op = offered(&session, editor).expect("a typed value passes");
+    assert!(landed(&mut session, &mut tools, op), "it lands");
+    let states = session.history().len();
+    let held = flushed_across_spaces(&session, tools.mate().expect("open").clone());
+    *tools.mate_mut().expect("open") = held;
+    assert_eq!(
+        tools.undo_pending(session.committed_doc()),
+        Some(copy),
+        "the undo is spent on the held draft"
+    );
+    let editor = tools.mate().expect("open");
+    assert!(
+        editor.rows().is_empty() && editor.pending().is_none(),
+        "the flush went"
+    );
+    assert!(!editor.holds_changes(), "nothing left to take back");
+    assert_eq!(
+        tools.undo_pending(session.committed_doc()),
+        None,
+        "the next undo is the history's"
+    );
+    assert_eq!(session.history().len(), states, "the history did not step");
+    assert_eq!(
+        slide_of(session.committed_doc(), copy, TargetAxis::X),
+        0.005,
+        "the committed change stays"
+    );
+}
+
+/// **A change made while the last one lands is made over the bundle it
+/// writes**, as the profile editor defers its clicks: the y typed between
+/// the x's offer and its landing is neither lost nor landed with it, and
+/// is the next change offered.
+#[test]
+fn a_change_made_while_the_last_lands_is_made_over_it() {
+    let tol = Tol::witness();
+    let (mut session, tool, copy) = small_placed_beside_wide("place-live-deferred", tol);
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mate);
+    *tools.mate_mut().expect("open") = tool;
+    let editor = tools.mate_mut().expect("open");
+    editor.type_value(Coord::slide(TargetAxis::X), common::len(0.01));
+    let first = offered(&session, editor).expect("x passes");
+    editor.type_value(Coord::slide(TargetAxis::Y), common::len(0.02));
+    assert!(editor.landing().is_some(), "x is still landing");
+    assert!(landed(&mut session, &mut tools, first), "x lands");
+    assert_eq!(slide_of(session.committed_doc(), copy, TargetAxis::Y), 0.0);
+    let editor = tools.mate_mut().expect("open");
+    assert!(editor.holds_changes(), "y is held over what x wrote");
+    let second = offered(&session, editor).expect("y passes, over x");
+    assert!(landed(&mut session, &mut tools, second), "y lands");
+    let doc = session.committed_doc();
+    assert_eq!(slide_of(doc, copy, TargetAxis::X), 0.01, "x as it landed");
+    assert_eq!(slide_of(doc, copy, TargetAxis::Y), 0.02, "y over it");
+}
+
+/// **An undo ahead of a change formed before it refuses that change
+/// stale** (`Refusal::BundleStale`): the `SetBundle` was drafted over the
+/// bundle the undo took away, and is not written over the one it brought
+/// back; the editor stops waiting on it.
+#[test]
+fn a_change_drafted_before_an_undo_is_refused_stale() {
+    let tol = Tol::witness();
+    let (mut session, tool, _copy) = small_placed_beside_wide("place-live-stale", tol);
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mate);
+    *tools.mate_mut().expect("open") = tool;
+    let editor = tools.mate_mut().expect("open");
+    editor.type_value(Coord::slide(TargetAxis::X), common::len(0.01));
+    let first = offered(&session, editor).expect("x passes");
+    assert!(landed(&mut session, &mut tools, first));
+    let editor = tools.mate_mut().expect("open");
+    editor.type_value(Coord::slide(TargetAxis::Y), common::len(0.01));
+    let second = offered(&session, editor).expect("y passes");
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    let outcome = session.perform(second.clone());
+    assert!(
+        matches!(outcome.refusal, Some(Refusal::BundleStale { .. })),
+        "{:?}",
+        outcome.refusal
+    );
+    tools.answered(&second, None, false, session.committed_doc());
+    assert!(tools.mate().expect("open").landing().is_none());
+}
+
+/// **The editor's draft is judged against the committed document while
+/// its own change still evaluates**: opened on the bundle a change just
+/// committed, before the evaluation answering it lands, reconcile keeps
+/// the draft — the landed pair answers the bundle before, and is not
+/// what the draft was loaded from.
+#[test]
+fn a_draft_opened_while_a_run_is_held_is_kept_by_reconcile() {
+    let tol = Tol::witness();
+    let (mut session, mut tool, copy) = small_placed_beside_wide("place-live-held-run", tol);
+    tool.type_value(Coord::slide(TargetAxis::X), common::len(0.01));
+    let op = offered(&session, &mut tool).expect("x passes");
+    assert!(session.perform(op).refusal.is_none(), "x lands");
+    assert!(session.busy(), "premise: its run has not landed");
+    let mut editor = MateTool::edit(session.committed_doc(), copy).expect("a placement");
+    editor.add_mate(pncad::document::VarKind::Plane);
+    let landed_pair = session.landed_pair().expect("an older run is landed");
+    assert_ne!(
+        authored(landed_pair.0, copy),
+        authored(session.committed_doc(), copy),
+        "premise: the landed pair answers the bundle before"
+    );
+    let events = editor.reconcile(session.committed_doc(), landed_pair);
+    assert!(events.is_empty(), "nothing reloads: {events:?}");
+    assert_eq!(editor.rows().len(), 1, "the draft is kept");
 }

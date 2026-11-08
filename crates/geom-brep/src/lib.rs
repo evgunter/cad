@@ -234,7 +234,7 @@ pub use ssi::{
     ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, ImplicitSection, ReachBound,
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
-    SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
+    SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepClearFault, StepperMode, TangentPair,
     TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
     cylinder_torus_ssi, idealized_trace_r3, march_cylinder_sphere, march_cylinder_torus,
     march_torus_torus, plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi,

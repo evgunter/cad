@@ -753,25 +753,37 @@ impl ViewerBehavior<'_> {
         // answers the committed document: the draft's bundle is derived
         // against the landed pair, and an edit still evaluating would
         // derive it against the document before it.
-        if !self.session.busy()
-            && let Some((landed, ev)) = self.session.landed_pair()
-            && let Some(op) = edited.offer(landed, ev, self.session.tol(), |op| {
-                self.session.bundle_door(op)
+        let busy = self.session.busy();
+        let formed = if busy {
+            None
+        } else {
+            self.session.landed_pair().and_then(|(landed, ev)| {
+                edited.offer(landed, ev, self.session.tol(), |op| {
+                    self.session.bundle_door(op)
+                })
             })
-        {
-            self.ops.push(op);
-        }
+        };
         // A draft that writes no bundle is said above, as it is derived.
-        if let Some(refusal) = edited
+        let refused = edited
             .pending()
-            .filter(|refusal| !matches!(refusal, crate::session::Refusal::Draft(_)))
-        {
+            .filter(|refusal| !matches!(refusal, crate::session::Refusal::Draft(_)));
+        let waiting = formed.is_none() && busy && edited.differs_from_base();
+        if let Some(refusal) = refused {
             let sentence = format!("{} {refusal}", crate::pane::profile::PENDING);
             crate::widgets::message_toned(ui, sentence, &self.theme, Tone::Actionable);
+        } else if waiting {
+            let sentence = format!(
+                "{} the change waits for the picture to answer the document",
+                crate::pane::profile::PENDING
+            );
+            crate::widgets::message_toned(ui, sentence, &self.theme, Tone::Advisory);
         }
-        let discard = crate::pane::profile::discard_control(ui, edited.pending().is_some());
-        if discard {
+        let open = edited.differs_from_base() && formed.is_none();
+        if crate::pane::profile::discard_control(ui, open) {
             edited.discard(self.session.committed_doc());
+        }
+        if let Some(op) = formed {
+            self.ops.push(op);
         }
         if ui.button(crate::widgets::CANCEL).clicked() {
             self.tools.close();
@@ -1263,7 +1275,7 @@ impl ViewerBehavior<'_> {
             .pattern_kind
         {
             PatternLayoutChoice::Linear => {
-                let clears = session.clearing_step(&tool.read()?)?;
+                let clears = session.step_clear_of(&tool.read()?)?;
                 Ok(tool.linear_op(
                     drafts.pattern_output,
                     crate::combine::PATTERN_COUNT,
