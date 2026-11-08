@@ -4,6 +4,8 @@ kind: issue
 title: The wire-loft row whose interval revalidation escalates while f64 decides is reached only past the session box at ε = 1e-9 and 1e-6
 status: open
 opened: 2026-11-08
+priority: P2
+cost: E
 ---
 
 
@@ -30,3 +32,7 @@ separating rung was the box's refusal, and still fails on any other miss.
 arithmetics at the shipped ε (if one exists, the ladder gains it), or a
 ruling that this door's escalation case is a 1e-12-only subject, recorded
 at the row.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.

@@ -86,3 +86,7 @@ leg), an extent read in kind, but `profile` does not depend on
 one is a design call.
 
 **2026-11-02 (orchestrator).** PR 6410 adds one pin while fixing main after PR 6387 (reads/holdings) collided with this change. In `topo::boolean::overlap::one_sense` (`bool_overlap_senses`), the cosine of two unit normals is levered at a unit arm. Its source is the faces' extent (the sine × extent reading), and the holdings lane owns that choice.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
