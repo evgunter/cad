@@ -455,9 +455,9 @@ gate_exact_skip --statements \
 BOUNDS_ALLOWLIST=(
   # 2026-07-29 (M5 PR 8), the driver amendment: the boolean-sweep and
   # evaluation-service seams, and `separation` under the same entry.
-  # boxes.rs's three are the box builders (`face_box`, `boundary_hull`,
-  # `edge_box`); its point read needs no `Bounds` and is `Real`-bound.
-  'crates/topo/src/boolean/boxes.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # boxes.rs's two are the box builders (`face_box`, `edge_box`), each
+  # its cover's bracketed box; its point read needs no `Bounds`.
+  'crates/topo/src/boolean/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
   # carrier_touch.rs's four are the crossing layer's touch reading:
   # `clusters`, the subdivision driver (a piece's half-length bracket
   # stops the bisection); `edge_clear_of_ball`, which prunes a boundary

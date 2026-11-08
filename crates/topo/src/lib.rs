@@ -145,6 +145,7 @@ pub mod coherence;
 pub mod coincidence;
 pub mod construction;
 pub mod contact;
+pub mod cover;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
@@ -1395,6 +1396,9 @@ pub use boolean::{
     insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
     joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
     point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+};
+pub use cover::{
+    BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{

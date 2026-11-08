@@ -141,7 +141,6 @@ pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
 mod slit;
-pub use boxes::EdgeUncovered;
 pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
@@ -338,15 +337,16 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
         crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
-        | boxes::BOX_CYLINDER_AXIS
-        | boxes::BOX_SPHERE_AXIS
-        | boxes::BOX_SPHERE_SEAM_UNIT
+        | crate::cover::SPHERE_AXIS
+        | crate::cover::SPHERE_SEAM_UNIT
         | separating::PAIR_AXIS
         | separating::PAIR_NORMAL
         | solid_contain::POINT_AXIS => geom_core::DIRECTION_LENGTH_SUBJECT,
-        boxes::BOX_SPHERE_SEAM => "whether a sphere's seam direction is square to its polar axis",
+        crate::cover::SPHERE_SEAM => {
+            "whether a sphere's seam direction is square to its polar axis"
+        }
         // `geom_core`'s lever on a dimensionless direction, which the
-        // narrow phase's normals and the cylinder box's axis read.
+        // narrow phase's normals read.
         geom_core::UNIT_DIRECTION_ARM => {
             "whether the reach a direction is read over has any length"
         }
@@ -6265,7 +6265,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 .filter(|&k| crate::face_normal::face_plane(piercing_body, k).is_none())
                 .collect();
             for face in curved {
-                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);
+                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band));
             }
         }
         let box_holds = |face: FaceKey, p: Point3<T>| {
