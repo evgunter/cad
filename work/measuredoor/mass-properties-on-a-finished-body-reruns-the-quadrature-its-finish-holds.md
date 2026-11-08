@@ -21,9 +21,11 @@ The measurement door does not read it. `topo::mass_properties`
 (`crates/topo/src/props.rs`, `mass_properties`) takes a finished body
 (`F: FinishedBody`) and calls `measure_body`, which walks from round 0.
 So the same finished body has two measurement spellings: one continues
-the gate's rounds, and the other re-pays them. Each answers the same four
-fields bit for bit (`validate_geometric_certificate`'s doc: "THE value,
-not a second one"). The next author reaches for `mass_properties`, the
+the gate's rounds, and the other re-pays them. At the finish's own `tol`
+the two answer the same four fields bit for bit
+(`validate_geometric_certificate`'s doc: "THE value, not a second one");
+`mass_properties` takes its own `tol`, and at another one it is a
+different measurement, so the fold must keep that argument's reading. The next author reaches for `mass_properties`, the
 named door, and pays the quadrature twice.
 
 The one place is probably `mass_properties` itself reading the finished

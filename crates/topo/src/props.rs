@@ -2279,21 +2279,6 @@ impl<T: Decide> KeptSign<T> {
     }
 }
 
-impl<T: Decide> fmt::Debug for KeptSign<T> {
-    /// The certificate as [`SignCertificate`]'s render reads it.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let e = fold_runs(&self.runs).enclosure();
-        write!(
-            f,
-            "KeptSign: volume in [{:?}, {:?}], surface area {:?}, {} faces",
-            e.volume_lo,
-            e.volume_hi,
-            e.surface_area,
-            self.runs.len()
-        )
-    }
-}
-
 /// The closed-form-only walk against a caller-held band: plain
 /// `T: Decide`, no quadrature lane and no bracket read —
 /// [`mass_properties_structural`] is this door with the band built

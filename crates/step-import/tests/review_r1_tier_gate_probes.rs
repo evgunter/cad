@@ -217,6 +217,42 @@ fn r1_multisolid_of_honest_solids_still_imports() {
     assert_eq!(body.solids().count(), 2, "both solids shipped");
 }
 
+/// **A one-solid file past the session box refuses at import, by
+/// name, as the same body built natively does at its finish** (one
+/// gate for native and imported bodies, `[tolerance.units]`). The cube
+/// 2 km out reaches about 2001 m. Its aggregate gate is the scalar's
+/// finish, which asks the session box before any check reads a margin,
+/// so the refusal is that finding alone, whatever else the body carries:
+/// the same cube inside-out reads it alone too, where a gate past the
+/// box would read the inversion.
+#[test]
+fn a_one_solid_file_past_the_session_box_refuses_outside_it_alone() {
+    let far: &dyn Fn(&str) -> String = &|l: &str| translate_x(l, 2000.0);
+    let far_inverted: &dyn Fn(&str) -> String = &|l: &str| translate_x(&invert(l), 2000.0);
+    for (what, doctor) in [
+        ("the far cube", far),
+        ("the far inverted cube", far_inverted),
+    ] {
+        let text = multi_cube(&[(1000, doctor)]);
+        let e = import_step(&text, &ImportOptions::default(), Tol::witness())
+            .expect_err("a cube 2 km out lies past the session box");
+        let StepImportError::TierInvalid { solid, errors } = &e else {
+            panic!("{what}: want the gate's refusal, got: {e:?}");
+        };
+        assert_eq!(
+            *solid, None,
+            "{what}: a one-solid file's subject is the whole body"
+        );
+        assert!(
+            matches!(
+                errors.as_slice(),
+                [ValidationError::OutsideSessionBox { .. }]
+            ),
+            "{what}: want OutsideSessionBox alone: {errors:?}"
+        );
+    }
+}
+
 /// Moves the cube's (0,1,1) corner to (0,1,1+delta) and re-aims every
 /// LINE whose edge ends at that corner so both endpoints stay exactly
 /// ON their carriers (adoption certifies edges; it must stay green —

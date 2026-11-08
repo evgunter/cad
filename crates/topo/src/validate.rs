@@ -10423,6 +10423,13 @@ pub fn validate_pseudomanifold_certificate_structural<
 /// decided on, so a reader measures it through the rounds the gate ran
 /// ([`AtRestBody::measure`]).
 ///
+/// **It keeps that certificate's quadrature runs alive**, one per face
+/// at the round check 7 stopped at, for as long as the body is held:
+/// they are what a measurement continues from, and the only place they
+/// exist once the finish returns. They are shared (`Arc`), so a clone of
+/// the finished body does not copy them, and [`AtRestBody::into_body`]
+/// drops them with the verdict.
+///
 /// Its one constructor is the certifying scalars' [`AtRestPolicy::finish`]
 /// (`[topology.tiers]`), which runs [`validate_geometric`] and keeps its
 /// `Ok`; a scalar without certification rights cannot construct one
@@ -10450,7 +10457,7 @@ pub fn validate_pseudomanifold_certificate_structural<
 /// relogs them where it takes the body. The box scalars' leaf is tier 2
 /// alone and its taker runs tier 3 there, logged, so both lanes log the
 /// finish at the taker (`docs/predicate-dimension-audit.md` F34).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct AtRestBody<T: geom_core::Decide> {
     body: Body<T>,
     sign: std::sync::Arc<crate::props::KeptSign<T>>,
@@ -10570,6 +10577,19 @@ pub const INSIDE_OUT_REFUSAL: &str = concat!(
      material and bound negative volume, and it is refused. Recourse: ",
     crate::boolean::solid_contain::inside_out_recourse!()
 );
+
+impl<T: geom_core::Decide> fmt::Debug for AtRestBody<T> {
+    /// The body, its certificate as [`crate::SignCertificate`]'s render
+    /// reads it over this body, and whether it holds a finish record.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { body, sign, held } = self;
+        f.debug_struct("AtRestBody")
+            .field("body", body)
+            .field("sign", &sign.of(body))
+            .field("held", &held.is_some())
+            .finish()
+    }
+}
 
 impl<T: geom_core::Decide> core::ops::Deref for AtRestBody<T> {
     type Target = Body<T>;

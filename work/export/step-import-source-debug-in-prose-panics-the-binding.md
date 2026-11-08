@@ -83,3 +83,5 @@ remains in the file. `error.rs`'s `nested_at_the_door` test pins the
 `Placement` arm's prose. `TierInvalid`'s `{e:?} — {e}` is the one Debug
 spelling left in that `Display`. It is argued at the site and tracked
 on its own (`work/export/step-import-joins-rendered-refusals-on-a-mark-they-may-contain.md`).
+
+Note, 2026-11-08 (PR 6584): `BooleanError::ScaffoldingOperand` and `reduce::gate_operand` are deleted, along with `validate::operand_scaffolding` and `topo::SCAFFOLDING_REFUSAL`. A Boolean operand is a finished body (`T::Finished`), whose finish runs tiers 1 and 2. Nothing in the reduce re-reads tier 2. The sphere re-cut's derived operands `debug_assert` tiers 1 and 2 instead (`boolean/ops.rs`, `through_the_join`). A citation of these symbols above names code that is gone.

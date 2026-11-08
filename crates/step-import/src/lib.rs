@@ -57,15 +57,16 @@
 //!    description; this certifies the BODY, which is what "import is
 //!    adoption" has to mean if it means anything.
 //!
-//!    Asked once on the assembled body (tier 3′, `gate3`) and, where
-//!    [`topo::per_part_gate_owed`] says the file owes it — more than
-//!    one instance — once per placed instance **on that solid's own
-//!    body** (tier 3, `gate`), so the refusal names the
-//!    `MANIFOLD_SOLID_BREP` it is about. Why each solid is asked is
-//!    `docs/DESIGN.md` import step 4. Those two functions are the only
-//!    places this crate calls the validator, and neither holds an
-//!    opinion: no body kind is exempt, no verdict class is filtered
-//!    (an escalated verdict refuses like any other —
+//!    The finish (`gate`) is asked once on the assembled body, and,
+//!    where [`topo::per_part_gate_owed`] says the file owes it — more
+//!    than one instance — once per placed instance **on that solid's
+//!    own body**, so the refusal names the `MANIFOLD_SOLID_BREP` it is
+//!    about. Why each solid is asked is `docs/DESIGN.md` import step 4.
+//!    The assembled body, finished, then meets the census against its
+//!    records (`gate3`, the rest of tier 3′). The finish and that census
+//!    are the only places this crate calls the validator, and neither
+//!    holds an opinion: no body kind is exempt, no verdict class is
+//!    filtered (an escalated verdict refuses like any other —
 //!    escalate-never-guess).
 //!
 //!    This is D9 engineering convention 2 applied to the door #260
