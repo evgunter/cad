@@ -715,7 +715,7 @@ fn harmonic_curvature_bound<T: Real>(h: &ResidualHarmonics<T>) -> T {
 /// terms. That is a carrier's stored terms amplifying, which the run's
 /// admission rule (`geom_core::tolerance::admissible`) does not cover,
 /// and is charged here until
-/// `work/onehome/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`
+/// `work/oneround/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`
 /// evaluates the point from its vertex. The share over in-box
 /// coordinates is not separated out of it.
 fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {

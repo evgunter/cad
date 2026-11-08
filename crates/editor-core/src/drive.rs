@@ -33,7 +33,7 @@
 //! consumer takes it as a finished body (a Boolean's, a split's, a
 //! shell's or a blend's operand, the product). So a leaf whose document
 //! is sweeps alone has had tier 2, not tier 3, over its box, until the
-//! switch's rows land (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`).
+//! switch's rows land (`work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`).
 //!
 //! **What the wrapper adds, and what it does not** (ERROR-DESIGN E12).
 //! The numeric channel is `Interval`'s, verbatim and bit for bit —
