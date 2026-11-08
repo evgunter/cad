@@ -2,10 +2,11 @@
 id: a-place-into-the-bodys-own-space-is-no-copy-to-the-gesture-vocabulary
 kind: issue
 title: A placement Place makes stands in its body's own space, which the gesture vocabulary does not count as a copy
-status: open
+status: review
 opened: 2026-11-08
 priority: P1
 cost: M
+pr: 6581
 ---
 
 
