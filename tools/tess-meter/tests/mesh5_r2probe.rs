@@ -53,6 +53,7 @@ fn revolve_polygon(pts: &[Point2<f64>], theta: f64) -> Body<f64> {
     revolve(&profile, axis, Revolution::Partial(theta), Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn fnv(bytes: &[u8], h: &mut u64) {

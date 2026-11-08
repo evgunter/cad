@@ -169,6 +169,7 @@ fn straight_arc_prism() -> topo::Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the straight arc prism builds")
         .body
+        .into_body()
 }
 
 /// The **INTEGRAL** mixed prism (M7-8 union ruling, option (c)): the
@@ -202,6 +203,7 @@ fn offset_square_prism() -> topo::Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
+        .into_body()
 }
 
 /// **The integral twin, first-class end to end** (M7-8 union ruling,

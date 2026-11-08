@@ -36,6 +36,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A unit-side regular hexagonal prism (circumradius 1 ⇒ side 1,

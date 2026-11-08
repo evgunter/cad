@@ -325,7 +325,7 @@ fn a_rod_wider_than_an_elliptical_rim_refuses_on_the_plate() {
     use geom_core::{Affine3, Mat3, Point3};
     let block = finished(
         "the block",
-        sweep::test_support::brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
+        sweep::test_support::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
         tol(),
     );
     let upright =
@@ -472,7 +472,7 @@ fn a_bar_through_a_ball_leaves_two_lumps_the_census_parts() {
     );
     let bar = finished(
         "the bar",
-        sweep::test_support::brick((-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4), tol()),
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4), tol()),
         tol(),
     );
     let Ok(topo::BooleanResult::Body(lumps)) = topo::subtract(&bar, &ball, tol()) else {
@@ -517,7 +517,7 @@ fn a_trimmed_sphere_face_holding_its_pole_clears_only_past_it() {
     use geom_core::{Affine3, Point3};
     let knife = finished(
         "the slab",
-        sweep::test_support::brick((-2.0, 2.0), (0.1, 2.0), (-2.0, 2.0), tol()),
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (0.1, 2.0), (-2.0, 2.0), tol()),
         tol(),
     );
     for spin in [1.0, core::f64::consts::FRAC_PI_2] {
@@ -576,7 +576,7 @@ fn prism(shape: &[((f64, f64), f64)], phi: f64, by: (f64, f64), z0: f64, h: f64)
         depth: h,
         side: sweep::ExtrudeSide::Along,
     };
-    sweep::extrude(&p, along, tol()).unwrap().body
+    sweep::extrude(&p, along, tol()).unwrap().body.into_body()
 }
 
 /// **A sliver off a block's corner parts along its own flat until it
@@ -628,7 +628,7 @@ fn a_sliver_off_a_blocks_corner_parts_along_its_flat_until_it_touches() {
 fn a_lens_through_a_blocks_corner_leaves_two_pieces_the_census_parts() {
     let block = finished(
         "the block",
-        sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        sweep::test_support::brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     );
     let lens = [((0.0, -0.4), 0.3), ((0.0, 0.4), 0.3)];
