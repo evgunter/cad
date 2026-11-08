@@ -2411,9 +2411,13 @@ placement's source to the new body through the kernel's takeover
 each copy's mates' `on` sides off the new body, in one action. No
 gesture re-points a placement unasked. A pattern's member 0 stands
 where the body stood. A split takes the seen body over by
-`above ⊔ below`, its two halves standing where that body stood; where
-nothing reads the body along such a path, the split's halves are drawn
-in its place. A second copy of a body is a second placement of it:
+`above ⊔ below`, its two halves standing where that body stood. A split
+of a body that placements read writes `above ⊔ below` too: that `⊔` is
+the new body the split makes, as a fillet makes `fillet(B)`, and it
+offers to re-point the placements onto it, the halves standing in the
+body's space where the body stood. Where nothing reads the body, along
+a seen path or as a placement's source, the split's halves are drawn in
+its place. A second copy of a body is a second placement of it:
 Place on the body, shown again in the View pane and picked as itself.
 Every placement is a copy to the viewer, wherever its target stands
 (D10 `[placement.placement]`: "each placement is a copy of its own"):
@@ -2444,7 +2448,11 @@ continues — a fillet's, a chamfer's or a shell's input; the one
 operand an operator is left with; a cut's target once its tool goes —
 as explicit `SetParam`, `SetMembers`, `SetProduct` and `Rebind` edits
 in one action, and takes the readers of a node that continues nothing
-with it. Nothing about how the node was made is recorded or inferred:
+with it. What a node continues may be one member of a family (a cut
+of `xs[k]` whose tool goes): a list operand is handed that member, and
+a seat that reads a whole body (a placement's source, the product)
+cannot be, so there the delete refuses (`Refusal::Unspliced`) and
+deletes nothing. Nothing about how the node was made is recorded or inferred:
 the plan is read off the recipe, so adding a feature and deleting it
 leaves the document as it was, and a mirror's image or a sketch's
 profile (the piece its gesture made) deleted collapses the union back

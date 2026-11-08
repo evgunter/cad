@@ -435,11 +435,11 @@ pub enum Refusal {
         body: SpokenVar,
     },
     /// **A delete that cannot splice** (DM6,
-    /// `editor_core::continuation::SpliceFault`): `node` would have to be
-    /// handed one member of a family where no edit can hand it one.
+    /// `editor_core::continuation::SpliceFault`): one member of a family
+    /// would land where no edit writes one.
     Unspliced {
-        /// The reader, the cut or the node the walk came back to, as the
-        /// document held it at the refusal.
+        /// The reader that would be handed the member, or the deleted
+        /// node, as the document held it at the refusal.
         node: SpokenNode,
         /// Which.
         fault: editor_core::continuation::SpliceFault,
@@ -982,13 +982,18 @@ impl Refusal {
                 editor_core::continuation::SpliceFault::MemberAtSeat { .. } => write!(
                     f,
                     "deleting this would hand {node} one member of a family at a seat that \
-                     reads a whole body, which no edit can write; delete or re-point {node} first"
-                ),
-                editor_core::continuation::SpliceFault::MemberTarget { .. } => write!(
-                    f,
-                    "deleting this tool leaves {node} cutting nothing, and what it continues is \
-                     one member of a family, which its readers cannot be handed; delete {node} \
+                     reads a whole body, which no edit can write; delete or re-point {node} \
                      first"
+                ),
+                editor_core::continuation::SpliceFault::MemberAtProduct => write!(
+                    f,
+                    "deleting {node} would hand the product one member of a family, and the \
+                     product reads a whole body; set the product first"
+                ),
+                editor_core::continuation::SpliceFault::MemberOfAMember { .. } => write!(
+                    f,
+                    "deleting this would hand a reader of one member of {node} a member of a \
+                     member, which no read spells; delete that reader first"
                 ),
                 editor_core::continuation::SpliceFault::ContinuationCycle { .. } => write!(
                     f,

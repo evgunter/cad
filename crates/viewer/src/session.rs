@@ -3637,7 +3637,10 @@ impl DocSession {
     /// on the body it was picked on, as the mirror reads its plane.
     /// Where something reads the target along a seen path, `above ⊔
     /// below` takes it over there ([`Takeover`]), so each `⊔` and the
-    /// product show the two halves where they showed the body.
+    /// product show the two halves where they showed the body. Where
+    /// placements read the target, `above ⊔ below` is written as well:
+    /// the new body the split makes, onto which they can be re-pointed
+    /// ([`SessionOp::RepointPlacements`]), as onto a fillet.
     fn add_split(&self, target: Operand, plane: &SplitPlane) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
         let target = as_body(doc, target);
@@ -5506,8 +5509,8 @@ fn spliced(
         use editor_core::continuation::SpliceFault;
         let at = match fault {
             SpliceFault::MemberAtSeat { reader, .. } => reader,
-            SpliceFault::MemberTarget { cut } => cut,
-            SpliceFault::ContinuationCycle { node } => node,
+            SpliceFault::MemberAtProduct => node,
+            SpliceFault::MemberOfAMember { node } | SpliceFault::ContinuationCycle { node } => node,
         };
         Refusal::Unspliced {
             node: doc.spoken(at),

@@ -573,26 +573,24 @@ pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     !placements_of(doc, node).is_empty()
 }
 
-/// **The node `node` is first built from**: the operation its first
-/// read reaches, in field order — a feature's input, an operator's first
-/// operand, an extrude's profile, the face a profile is drawn on. `None`
-/// for a node that reads nothing.
-fn first_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<RecipeNodeId> {
-    doc.node(node)?
-        .operand_rows()
-        .into_iter()
-        .find_map(|(_, var)| doc.read_ports(var).first().map(|&(at, _)| at))
-}
-
 /// **The placed copy `node` is built on, and that copy's original
 /// body** (Ev, PR 6353: a feature picked on a copy belongs to that
-/// placed copy, with an easy way to the original body): down the first
-/// reads `node` is built from ([`first_read`]) — a feature of a feature
-/// of a copy included — the first copy reached, and the body it
-/// copies at the end of its copies ([`original_of`]). A profile is
-/// asked of the bodies made from it, since what it is sketched on is
-/// read by what places it ([`copy_downstream_of`]). `None` for a
-/// placement itself, and for a node built on no copy.
+/// placed copy, with an easy way to the original body).
+///
+/// Read off everything `node` is built from, at any depth and in no
+/// order: the walk down its reads stops at each copy it reaches. `node`
+/// is built on a copy where it reaches at least one copy and reaches no
+/// body other than through a copy — `fillet(C)`, `chamfer(fillet(C))`,
+/// `C ∪ mirror(C)`, a sketch fused onto `C` (whose boss is a copy of
+/// the sketch's own extrude). `∪[B, C]`, which reads the body `B` as
+/// well as a copy of it, is built on no copy, whichever operand comes
+/// first: it is built on `B`, and offers `B`'s re-point. Where several
+/// copies are reached, the answer is the one minted first. The original
+/// is the body at the end of that copy's copies ([`original_of`]).
+///
+/// A profile is asked of the bodies made from it, since what it is
+/// sketched on is read by what places it ([`copy_downstream_of`]).
+/// `None` for a placement itself, and for a node built on no copy.
 pub fn built_on_copy(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
@@ -602,35 +600,59 @@ pub fn built_on_copy(
         Node::Profile(_) => return copy_downstream_of(doc, node),
         _ => {}
     }
-    let mut at = node;
-    loop {
-        at = first_read(doc, at)?;
-        if copy_source(doc, at, 0).is_some() {
-            return Some((at, original_of(doc, at)));
+    let mut copies = BTreeSet::new();
+    let mut seen = BTreeSet::from([node]);
+    let mut next = vec![node];
+    while let Some(at) = next.pop() {
+        let reads: Vec<RecipeNodeId> = doc
+            .node(at)
+            .into_iter()
+            .flat_map(Node::operand_rows)
+            .flat_map(|(_, var)| doc.read_ports(var))
+            .map(|(read, _)| read)
+            .collect();
+        if reads.is_empty() && at != node {
+            // A body built from nothing, reached other than through a
+            // copy.
+            return None;
+        }
+        for read in reads {
+            if copy_source(doc, read, 0).is_some() {
+                copies.insert(read);
+            } else if seen.insert(read) {
+                next.push(read);
+            }
         }
     }
+    let copy = copies.into_iter().next()?;
+    Some((copy, original_of(doc, copy)))
 }
 
-/// **The copy a profile's sketch is built on**: the first node made from
-/// `profile`, in evaluation order, that is built on a copy — the union a
-/// sketch on a copy's face fuses into the copy.
+/// **The copy a profile's sketch is built on**: among the nodes made
+/// from `profile` at any depth, those built on a copy ([`built_on_copy`])
+/// — the union a sketch on a copy's face fuses into the copy — the copy
+/// minted first; `None` where none is.
 fn copy_downstream_of(
     doc: &Doc<ProfileProgram>,
     profile: RecipeNodeId,
 ) -> Option<(RecipeNodeId, RecipeNodeId)> {
     let mut made = BTreeSet::from([profile]);
-    for id in doc.ids() {
-        if made.contains(&id) || !doc.upstream(id).iter().any(|at| made.contains(at)) {
-            continue;
+    loop {
+        let more: Vec<RecipeNodeId> = doc
+            .ids()
+            .into_iter()
+            .filter(|id| !made.contains(id))
+            .filter(|&id| doc.upstream(id).iter().any(|at| made.contains(at)))
+            .collect();
+        if more.is_empty() {
+            break;
         }
-        made.insert(id);
-        if !matches!(doc.node(id), Some(Node::Place { .. }))
-            && let Some(on) = built_on_copy(doc, id)
-        {
-            return Some(on);
-        }
+        made.extend(more);
     }
-    None
+    made.into_iter()
+        .filter(|&id| id != profile && !matches!(doc.node(id), Some(Node::Place { .. })))
+        .filter_map(|id| built_on_copy(doc, id))
+        .min()
 }
 
 /// **Every node `node` reads, at any depth**, through [`Doc::upstream`].

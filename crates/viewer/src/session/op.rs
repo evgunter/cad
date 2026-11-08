@@ -769,8 +769,11 @@ pub enum SessionOp {
     /// wherever a body seat takes one. What reads the target along a
     /// seen path (a `⊔` operand, the product slot) reads `above ⊔ below`
     /// instead, in the same action; no placement's source is written
-    /// (Ev, PR 6353). Picked on a copy, the split reads that copy, so its
-    /// halves stand where the copy stood. A `⊔` operand and the product
+    /// (Ev, PR 6353). Where placements read the target, `above ⊔ below`
+    /// is written too: the one new body the split makes, as a fillet
+    /// makes `fillet(B)`, which offers to re-point those placements onto
+    /// it ([`SessionOp::RepointPlacements`]). Picked on a copy, the split
+    /// reads that copy, so its halves stand where the copy stood. A `⊔` operand and the product
     /// slot are re-pointed alone, and nothing read through them is
     /// re-seated
     /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).

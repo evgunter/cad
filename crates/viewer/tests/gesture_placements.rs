@@ -25,6 +25,7 @@ use crate::common;
 
 use common::drawn;
 use common::{displayed_face_at, len, plate_index};
+use pncad::document::Bodies;
 use pncad::document::{
     AuthoredNode, Dimension, Doc, DocEdit, Formula, Node, Operand, OperandSlot, ProfileProgram,
     RecipeNodeId, SlotId, VarId,
@@ -959,9 +960,9 @@ fn member0(doc: &Doc<ProfileProgram>, family: RecipeNodeId) -> pncad::document::
 /// - `∪[xs[0], C]` with `C` deleted keeps `xs[0]` as its one operand, so
 ///   a world copy reading the union still copies one body, not the
 ///   family;
-/// - `xs[0] − C` with the tool `C` deleted would hand its readers one
-///   member, which no slot can be written: the delete refuses, typed
-///   (`Refusal::Unspliced`), and nothing is deleted;
+/// - `xs[0] − C` with the tool `C` deleted continues member 0: a copy of
+///   the cut, whose source is written whole, refuses typed
+///   (`Refusal::Unspliced`, naming the copy), and nothing is deleted;
 /// - a fillet over a family deleted hands a `∪` reading its member 0
 ///   the family's member 0, and refuses, typed, while a copy of its
 ///   member 0 stands: a placement's source is written whole.
@@ -1003,6 +1004,9 @@ fn a_continuation_is_a_body_read_whole() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
+    // A cut of member 0 whose tool goes continues member 0: a copy of
+    // the cut, whose source the slot door writes whole, refuses typed,
+    // naming the copy; nothing is deleted.
     let (session, _, family, copy) = family_and_copy(tol);
     let m0 = member0(session.committed_doc(), family);
     let (session, cut) = with(
@@ -1013,16 +1017,16 @@ fn a_continuation_is_a_body_read_whole() {
         },
         tol,
     );
-    let (mut session, _) = with(&session, common::world_place(Operand::Node(cut)), tol);
+    let (mut session, reader) = with(&session, common::world_place(Operand::Node(cut)), tol);
     let before = session.committed_doc().clone();
     let refusal = session.delete_refusal(copy);
     assert!(
-        matches!(&refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == cut),
+        matches!(&refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == reader),
         "{refusal:?}"
     );
     let out = session.perform(SessionOp::DeleteNode { node: copy });
     assert!(
-        matches!(&out.refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == cut),
+        matches!(&out.refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == reader),
         "the op refuses as the button says: {:?}",
         out.refusal
     );
@@ -1161,4 +1165,503 @@ fn on_this_copy_reaches_down_a_chain_and_to_the_body() {
     let doc = session.committed_doc();
     assert_eq!(viewer::world::original_of(doc, again), body);
     assert!(says_on_copy(doc, again, body));
+}
+
+// ---- PR 6581's re-check (lane `placing-recheck-6581`), pinned to the fixed behaviour ----
+
+/// Whether `name` is `target` or carries it in at any depth.
+fn carries(name: &StableName, target: &StableName) -> bool {
+    name == target
+        || name.path.iter().any(|seg| match seg {
+            RoleSeg::From { of, .. } => carries(of.name(), target),
+            _ => false,
+        })
+}
+
+fn edge_carrying(session: &DocSession, on: RecipeNodeId, target: &StableName) -> StableName {
+    pncad::select::all_edges(session.evaluation().expect("landed"), on)
+        .into_iter()
+        .find(|name| carries(name, target))
+        .unwrap_or_else(|| panic!("{on:?} carries {target:?}"))
+}
+
+fn face_carrying(session: &DocSession, on: RecipeNodeId, target: &StableName) -> StableName {
+    pncad::select::all_faces(session.evaluation().expect("landed"), on)
+        .into_iter()
+        .find(|name| carries(name, target))
+        .unwrap_or_else(|| panic!("{on:?} carries face {target:?}"))
+}
+
+fn top_name(body: RecipeNodeId) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node: body,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    }
+}
+
+fn rows_ok(session: &DocSession, when: &str) -> Vec<String> {
+    session
+        .tree_rows()
+        .into_iter()
+        .filter(|row| row.status != RowStatus::Ok)
+        .map(|row| format!("{when}: {row:?}"))
+        .collect()
+}
+
+/// fillet(C) → chamfer → sketch on its top → fillet of what the sketch
+/// made, on the copy `copy` of `body`: answers the made nodes.
+fn mixed_chain(
+    session: &mut DocSession,
+    body: RecipeNodeId,
+    copy: RecipeNodeId,
+) -> Vec<RecipeNodeId> {
+    let edges = lateral_edges(session, body);
+    let e0 = edge_carrying(session, copy, &edges[0]);
+    let g = common::session_insert(
+        session,
+        SessionOp::AddFillet {
+            target: copy,
+            radius: len(0.001),
+            selection: vec![e0],
+        },
+    );
+    session.pump();
+    let e1 = edge_carrying(session, g, &edges[1]);
+    let k = common::session_insert(
+        session,
+        SessionOp::AddChamfer {
+            target: g,
+            distance: len(0.0005),
+            selection: vec![e1],
+        },
+    );
+    session.pump();
+    let face = face_carrying(session, k, &top_name(body));
+    let out = session.perform(SessionOp::SketchOnFace {
+        face: FaceSelection {
+            name: face,
+            node: k,
+            body: 0,
+        },
+        loops: vec![common::rectangle_loop([0.0, 0.0], 0.004, 0.004)],
+        distance: len(0.003),
+        spin: Formula::zero(Dimension::Angle),
+    });
+    assert!(out.refusal.is_none(), "sketch: {:?}", out.refusal);
+    session.pump();
+    let made: Vec<RecipeNodeId> = out.minted.clone();
+    let fused = *made
+        .iter()
+        .find(|&&n| {
+            matches!(
+                session.committed_doc().node(n),
+                Some(Node::Union { .. } | Node::Assemble { .. })
+            )
+        })
+        .unwrap_or_else(|| panic!("the sketch's union among {made:?}"));
+    let e2 = edge_carrying(session, fused, &edges[2]);
+    let h = common::session_insert(
+        session,
+        SessionOp::AddFillet {
+            target: fused,
+            radius: len(0.0005),
+            selection: vec![e2],
+        },
+    );
+    session.pump();
+    vec![g, k, fused, h]
+}
+
+fn fillet_and_repoint(session: &mut DocSession, body: RecipeNodeId) -> RecipeNodeId {
+    let e3 = lateral_edges(session, body)[3].clone();
+    let f = common::session_insert(
+        session,
+        SessionOp::AddFillet {
+            target: body,
+            radius: len(0.001),
+            selection: vec![e3],
+        },
+    );
+    session.pump();
+    let offer = viewer::world::repoint_offer(session.committed_doc(), f).expect("F offers");
+    let out = session.perform(SessionOp::RepointPlacements {
+        body: Operand::Var(offer.body),
+        onto: f,
+    });
+    assert!(out.refusal.is_none(), "re-point: {:?}", out.refusal);
+    session.pump();
+    f
+}
+
+/// **Delete is the inverse four features deep** (re-check, claim 2): a mixed chain (fillet, chamfer, sketch, fillet) on
+/// the copy BEFORE the re-point; F = fillet(B), re-point, delete F: the
+/// document (nodes, product, drawn) is the one before F, rows well.
+#[test]
+fn a_mixed_chain_before_the_repoint_survives_its_delete() {
+    let tol = Tol::witness();
+    let (session, body) = bracket("rc-deep-before", tol);
+    let (doc, copy) = common::world_copy(session.committed_doc(), body, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let chain = mixed_chain(&mut session, body, copy);
+    let mut bad = rows_ok(&session, "premise");
+    let before = world(session.committed_doc());
+    let f = fillet_and_repoint(&mut session, body);
+    bad.extend(rows_ok(&session, "after the re-point"));
+    let out = session.perform(SessionOp::DeleteNode { node: f });
+    assert!(out.refusal.is_none(), "delete: {:?}", out.refusal);
+    session.pump();
+    bad.extend(rows_ok(&session, "after the delete"));
+    for n in &chain {
+        assert!(session.committed_doc().node(*n).is_some(), "{n:?} survives");
+    }
+    let after = world(session.committed_doc());
+    assert!(bad.is_empty(), "{bad:#?}");
+    assert!(after.0 == before.0, "nodes differ after the delete");
+    assert_eq!(after.1, before.1, "product");
+    assert_eq!(after.2, before.2, "drawn");
+}
+
+/// **The same chain built after the re-point** (re-check): built on the copy AFTER the re-point (its
+/// names now carry F's), then F deleted: the chain survives and every
+/// row is well.
+#[test]
+fn a_mixed_chain_after_the_repoint_survives_its_delete() {
+    let tol = Tol::witness();
+    let (session, body) = bracket("rc-deep-after", tol);
+    let (doc, copy) = common::world_copy(session.committed_doc(), body, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let f = fillet_and_repoint(&mut session, body);
+    let chain = mixed_chain(&mut session, body, copy);
+    let mut bad = rows_ok(&session, "premise");
+    let out = session.perform(SessionOp::DeleteNode { node: f });
+    assert!(out.refusal.is_none(), "delete: {:?}", out.refusal);
+    session.pump();
+    for n in &chain {
+        assert!(session.committed_doc().node(*n).is_some(), "{n:?} survives");
+    }
+    bad.extend(rows_ok(&session, "after the delete"));
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// **A cut of a member nothing reads goes with its tool** (re-check m1):
+/// `xs[0] − C`, nothing reading it. The cut continues member 0 and has
+/// no reader to hand it to, so the delete lands.
+#[test]
+fn a_cut_of_a_member_nobody_reads_deletes_its_tool() {
+    let tol = Tol::witness();
+    let (session, _, family, copy) = family_and_copy(tol);
+    let m0 = member0(session.committed_doc(), family);
+    let (mut session, cut) = with(
+        &session,
+        Node::Subtract {
+            from: m0,
+            tool: Operand::Node(copy).into(),
+        },
+        tol,
+    );
+    let out = session.perform(SessionOp::DeleteNode { node: copy });
+    assert!(
+        out.refusal.is_none(),
+        "the cut {cut:?} has no reader: {}",
+        out.refusal.map(|r| r.to_string()).unwrap_or_default()
+    );
+    assert!(
+        session.committed_doc().node(cut).is_none(),
+        "the cut goes with its tool"
+    );
+}
+
+/// **A cut of a member read by a list hands it the member** (re-check
+/// m1): `xs[0] − C` read only as a member of `∪[cut, xs[1]]`. A list
+/// keeps indices (`SetMembers`), so the union is handed `xs[0]`, by the
+/// rule a fillet over a family's member reader takes.
+#[test]
+fn a_cut_of_a_member_read_by_a_list_is_handed_the_member() {
+    let tol = Tol::witness();
+    let (session, _, family, copy) = family_and_copy(tol);
+    let doc = session.committed_doc();
+    let (m0, m1) = (member0(doc, family), member_k(doc, family, 1));
+    let (session, cut) = with(
+        &session,
+        Node::Subtract {
+            from: m0,
+            tool: Operand::Node(copy).into(),
+        },
+        tol,
+    );
+    let (mut session, u) = with(
+        &session,
+        Node::Union {
+            members: Bodies::Spelled(vec![Operand::Node(cut).into(), m1]),
+        },
+        tol,
+    );
+    let out = session.perform(SessionOp::DeleteNode { node: copy });
+    assert!(
+        out.refusal.is_none(),
+        "the union {u:?} is a list: {}",
+        out.refusal.map(|r| r.to_string()).unwrap_or_default()
+    );
+    let doc = session.committed_doc();
+    assert!(doc.node(cut).is_none(), "the cut goes, continuing member 0");
+    let Some(Node::Union {
+        members: pncad::document::Bodies::Spelled(members),
+    }) = doc.node(u)
+    else {
+        panic!("the union stays")
+    };
+    let family_out = doc.output(family, 0);
+    assert!(
+        matches!(&members[..], [a, b] if a.is_indexed() && b.is_indexed()
+            && Some(a.read) == family_out && Some(b.read) == family_out),
+        "the union is handed member 0 beside member 1: {members:?}"
+    );
+}
+
+/// **No widening** (re-check): `∩[xs[0], C]` read by a world copy; deleting
+/// C keeps member 0, the copy reads the ∩, never the family.
+#[test]
+fn an_intersection_left_with_a_member_keeps_it() {
+    let tol = Tol::witness();
+    let (session, _, family, copy) = family_and_copy(tol);
+    let m0 = member0(session.committed_doc(), family);
+    let (session, i) = with(
+        &session,
+        Node::Intersect {
+            members: Bodies::Spelled(vec![m0, Operand::Node(copy).into()]),
+        },
+        tol,
+    );
+    let (mut session, reader) = with(&session, common::world_place(Operand::Node(i)), tol);
+    let out = session.perform(SessionOp::DeleteNode { node: copy });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    assert_eq!(doc.copied_read(reader), doc.output(i, 0), "reads the ∩");
+}
+
+/// **On this copy at depth** (re-check, claim 4): a copy of a copy, four features deep with a sketch, says it
+/// is on the copy and goes to B; a copy of a member copy reaches B.
+#[test]
+fn on_this_copy_at_depth_and_through_member_copies() {
+    let tol = Tol::witness();
+    let (session, body) = bracket("rc-depth", tol);
+    let (doc, c1) = common::world_copy(session.committed_doc(), body, tol);
+    let (doc, c2) =
+        viewer::test_support::inserted(&doc, common::world_place(Operand::Node(c1)), tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let chain = mixed_chain(&mut session, body, c2);
+    let doc = session.committed_doc();
+    let mut bad = Vec::new();
+    for &n in &chain {
+        let (said, offers) = viewer::frame::placement_offers(doc, n);
+        let ok = said.as_deref().is_some_and(|s| s.contains("placed copy"))
+            && offers
+                .iter()
+                .any(|(_, op)| *op == SessionOp::Select(Selection::Node(body)));
+        if !ok || viewer::world::built_on_copy(doc, n).map(|(c, _)| c) != Some(c2) {
+            bad.push(format!(
+                "{n:?}: {said:?} {offers:?} {:?}",
+                viewer::world::built_on_copy(doc, n)
+            ));
+        }
+    }
+    for id in doc.ids() {
+        if matches!(doc.node(id), Some(Node::Profile(_))) {
+            let (said, _) = viewer::frame::placement_offers(doc, id);
+            if !said.as_deref().is_some_and(|s| s.contains("placed copy")) {
+                bad.push(format!("profile {id:?}: {said:?}"));
+            }
+        }
+    }
+
+    let (session, body, family, _) = family_and_copy(tol);
+    let m1 = member_k(session.committed_doc(), family, 1);
+    let (session, mc) = with(
+        &session,
+        Node::place(
+            m1,
+            Operand::Var(VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    );
+    let (session, mcc) = with(&session, common::world_place(Operand::Node(mc)), tol);
+    let doc = session.committed_doc();
+    if viewer::world::original_of(doc, mcc) != body {
+        bad.push(format!(
+            "copy of a member copy: original {:?}",
+            viewer::world::original_of(doc, mcc)
+        ));
+    }
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// **The offer leaves out a cycle through a mate** (re-check, claim 1). C1 is mated onto C2; U = B ∪ C1 reads
+/// C2 through C1's pose. C3 is free. The offer must leave C1 and C2 out,
+/// and its button must land.
+#[test]
+fn the_offer_leaves_out_a_placement_read_through_a_mate() {
+    let tol = Tol::witness();
+    let (mut session, body) = bracket("rc-mate-cycle", tol);
+    let place = |session: &mut DocSession| {
+        let out = session.perform(SessionOp::Place { body: body.into() });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        session.pump();
+        out.made.expect("a copy")
+    };
+    let c1 = place(&mut session);
+    let c2 = place(&mut session);
+    let c3 = place(&mut session);
+    let bottom = StableName {
+        kind: EntityKind::Face,
+        node: body,
+        path: vec![RoleSeg::Cap(CapEnd::Start)],
+    };
+    common::commit_mate(
+        &mut session,
+        SessionOp::AddMate {
+            placement: c1,
+            mate: Box::new(crate::fixture::rest(
+                Operand::select(Operand::Node(body), vec![bottom]),
+                Operand::select(Operand::Node(c2), vec![top_name(body)]),
+            )),
+            values: Vec::new(),
+            into_target_space: false,
+        },
+    );
+    let (mut session, u) = with(
+        &session,
+        Node::Union {
+            members: Bodies::Spelled(vec![Operand::Node(body).into(), Operand::Node(c1).into()]),
+        },
+        tol,
+    );
+    let doc = session.committed_doc().clone();
+    let offer = viewer::world::repoint_offer(&doc, u).expect("U offers");
+    assert_eq!(offer.placements, [c3], "C1 and C2 left out");
+    let (_, offers) = viewer::frame::placement_offers(&doc, u);
+    let (_, op) = offers
+        .into_iter()
+        .find(|(_, op)| matches!(op, SessionOp::RepointPlacements { .. }))
+        .expect("the button");
+    let out = session.perform(op);
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    assert_eq!(doc.copied_read(c3), doc.output(u, 0));
+}
+
+/// **A split of a body only placements read makes `above ⊔ below` and
+/// offers the re-point** (re-check m2; Ev's 6353 ruling, as accepted):
+/// the bracket's world copy is its only reader. The split writes the `⊔`
+/// of its halves — the new body, as a fillet makes `fillet(B)` — writes
+/// no placement, and the `⊔` offers to re-point the copy onto it.
+#[test]
+fn a_split_of_a_body_only_placements_read_offers_the_re_point() {
+    let tol = Tol::witness();
+    let (session, body) = bracket("rc-split", tol);
+    let (doc, copy) = common::world_copy(session.committed_doc(), body, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let plane = common::cut_across(&session, body, SIZE[2] / 2.0);
+    let out = session.perform(SessionOp::AddSplit {
+        target: body.into(),
+        plane,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    assert!(!writes_a_source(&out.committed), "no placement is written");
+    session.pump();
+    let doc = session.committed_doc();
+    let both = *out
+        .minted
+        .iter()
+        .find(|&&n| matches!(doc.node(n), Some(Node::Assemble { .. })))
+        .expect("above ⊔ below");
+    let offer = viewer::world::repoint_offer(doc, both).expect("the ⊔ offers");
+    assert_eq!(offer.placements, [copy], "the copy");
+    assert_eq!(Some(offer.body), doc.output(body, 0));
+}
+
+/// **A feature on a mirror of the copy survives the re-point and its
+/// delete** (re-check m3): the forward re-point rebinds down `names::verbatim_edge`
+/// chains (`take_over::chains`: a copy, a mirror, a split of the copy);
+/// the splice's `rebinds` closes over `doc.placements()` alone. A mirror
+/// of the copy C (`C ∪ image`), and a fillet on that union picking an
+/// edge the IMAGE carries; then F = fillet(B), re-point, delete F: the
+/// document must be the one before F, every row well. Red at head
+/// `4103fdbc04` AFTER THE RE-POINT (the forward door leaves G stale);
+/// the delete itself restores the nodes.
+#[test]
+#[ignore = "work/doors/a-takeover-leaves-a-feature-on-a-mirror-of-the-copy-stale.md"]
+fn a_feature_on_a_mirror_of_the_copy_survives_the_repoint_and_its_delete() {
+    let tol = Tol::witness();
+    let (session, body) = bracket("rc-mirror-chain", tol);
+    let (doc, copy) = common::world_copy(session.committed_doc(), body, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let index = common::plate_index(&session);
+    let plane =
+        common::displayed_face_at(&session, &index, &common::along_x(-1.0, 0.0, SIZE[2] / 2.0));
+    assert_eq!(plane.node, copy, "the wall is picked on the copy");
+    let out = session.perform(SessionOp::AddMirror {
+        body: copy.into(),
+        plane,
+    });
+    assert!(out.refusal.is_none(), "mirror: {:?}", out.refusal);
+    session.pump();
+    let image = out.made.expect("the mirror");
+    let doc = session.committed_doc();
+    let image_out = doc.output(image, 0).expect("the image");
+    let union = *out
+        .minted
+        .iter()
+        .find(|&&n| matches!(doc.node(n), Some(Node::Union { .. })))
+        .expect("C ∪ image");
+    // An edge F (which fillets lateral 3) leaves alone: lateral 0's image.
+    let keep = lateral_edges(&session, body)[0].clone();
+    let edge = pncad::select::all_edges(session.evaluation().expect("landed"), union)
+        .into_iter()
+        .find(|name| {
+            matches!(name.path.as_slice(),
+                [RoleSeg::From { read, of }] if *read == image_out
+                    && carries(of.name(), &keep))
+        })
+        .expect("an image lateral edge on the union");
+    let g = common::session_insert(
+        &mut session,
+        SessionOp::AddFillet {
+            target: union,
+            radius: len(0.0005),
+            selection: vec![edge],
+        },
+    );
+    session.pump();
+    let mut bad = rows_ok(&session, "premise");
+    let before = world(session.committed_doc());
+    let f = fillet_and_repoint(&mut session, body);
+    bad.extend(rows_ok(&session, "after the re-point"));
+    let out = session.perform(SessionOp::DeleteNode { node: f });
+    assert!(out.refusal.is_none(), "delete: {:?}", out.refusal);
+    session.pump();
+    assert!(session.committed_doc().node(g).is_some(), "G survives");
+    bad.extend(rows_ok(&session, "after the delete"));
+    let after = world(session.committed_doc());
+    assert!(
+        after.0 == before.0,
+        "nodes differ after the delete; rows: {bad:#?}"
+    );
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// Member `k` of `family`, read by index.
+fn member_k(
+    doc: &Doc<ProfileProgram>,
+    family: RecipeNodeId,
+    k: i64,
+) -> pncad::document::BodyRead<Formula> {
+    let var = doc.output(family, 0).expect("the family's output");
+    pncad::document::BodyRead::indexed(Operand::Var(var), vec![Formula::count(k)])
 }
