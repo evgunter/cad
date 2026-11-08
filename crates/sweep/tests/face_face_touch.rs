@@ -626,7 +626,7 @@ fn a_record_on_an_arc_trimmed_face_confirms_along_the_line_through_it() {
 /// **A given tangency whose faces' extents along its line are disjoint
 /// is no touch**: a block standing across the plate's y = 2 face at
 /// x ∈ [1, 1.5] divides it, and the rod tangent to that face along
-/// x = 0 is given to both pieces (each descends from the judged face);
+/// x = 0 is given to both pieces (each holds area of the judged face);
 /// the line runs through the left piece only, so the right piece's
 /// pair places it in neither face's span and records nothing.
 #[test]
@@ -657,8 +657,9 @@ fn a_given_tangency_whose_faces_part_along_its_line_records_nothing() {
         .map(|(f, _)| f)
         .filter(|&f| {
             built.steps[0]
-                .lineage
-                .member_faces(f)
+                .holdings
+                .of(f)
+                .and_then(topo::Held::faces)
                 .is_some_and(|m| m.contains(&(0, side)))
         })
         .collect();

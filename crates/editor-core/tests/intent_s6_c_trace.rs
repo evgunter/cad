@@ -598,7 +598,7 @@ fn the_union_records_the_constructed_tangency_unproven() {
         &[(union, &rows[..])],
         None,
         Tol::witness(),
-        &CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door");
     let tangent: Vec<_> = rows

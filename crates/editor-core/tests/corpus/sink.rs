@@ -166,7 +166,7 @@ pub fn document() -> CorpusDoc {
     let linear = r.copies(
         moved,
         vec![(
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             Formula::mul(scalar_of(j), len(3.0)).expect("a length"),
         )],
     );
@@ -187,7 +187,7 @@ pub fn document() -> CorpusDoc {
                     .expect("an angle"),
             ),
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::mul(scalar_of(c), len(-4.0)).expect("a length"),
             ),
         ],
@@ -353,7 +353,7 @@ pub fn document() -> CorpusDoc {
     r.place_part(linear);
     r.in_world_by(revolve, crate::fixture::upright_at([-2.0, 0.0, 0.0]));
 
-    let bump = value_slot(&r.doc, moved, Coord::Slide(TargetAxis::Y));
+    let bump = value_slot(&r.doc, moved, Coord::slide(TargetAxis::Y));
     CorpusDoc {
         name: "kitchen_sink",
         about: "every v1 node kind and every DocEdit kind in one document",

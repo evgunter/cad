@@ -36,3 +36,5 @@ Found by the RESTCURVE wrap-tip unit's sweep (branch
 `restcurve/wrap-tip-tiers`); not fixed there.
 
 Signed: (RESTCURVE implementer)
+
+**Re-cited (onedoor/carrier-and-window, 2026-11-03).** The walk is `topo::chart_window::run_azimuth_images` (`pole_branch` beside it), and its names are `chart_window_cone_apex`, `chart_window_sphere_pole` and `chart_window_sphere_pole_side` (`docs/K-REPORT.md`, census note of 2026-11-03).

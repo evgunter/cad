@@ -265,7 +265,7 @@ MACRO='crates/viewer/src/vocab.rs'
 # &str); 3]` — so a statement record splits a `const` item in half and
 # the initialiser lands in a record with no `const` in it. That is a
 # defect in the shared reader, not a property of this rule, and it is
-# `work/issues/gate-rust-reader-splits-an-array-type-at-its-semicolon`;
+# `work/guard/gate-rust-reader-splits-an-array-type-at-its-semicolon`;
 # when it is fixed there, this reader is what should go. It reassembles
 # instead: from a line
 # declaring a `const` with an upper-case name, accumulate the code view
@@ -468,7 +468,7 @@ BEGIN { FS = "|" }
 #
 # A CASE CAN ASSERT A NAME IS PRESENT AND NEVER THAT ONE IS ABSENT, so
 # a repair whose effect is to REMOVE a wrong name has no case that can
-# see it (`work/issues/gate-selftest-cannot-observe-the-identity-a-gate-
+# see it (`work/guard/gate-selftest-cannot-observe-the-identity-a-gate-
 # names`). Stage 7's is such a repair, so its case is coverage rather
 # than a control; stages 2 and 4 gained names that did not exist before,
 # so theirs are controls.
@@ -1543,7 +1543,7 @@ gate_selftest() {
   # otherwise ship green over a diagnosis pointing at the wrong item,
   # which is what happened during review of this gate. The durable half
   # — a harness that cannot express "and the subject it named was X" —
-  # is `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names`.
+  # is `work/guard/gate-selftest-cannot-observe-the-identity-a-gate-names`.
   gate_selftest_case 'declares a hand-written `const ALL`' plant_named_all
   gate_selftest_case 'crates/viewer/src/a:b.rs:3 declares a hand-written `const ALL`' \
     plant_named_all_colon_path

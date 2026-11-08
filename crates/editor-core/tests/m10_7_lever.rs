@@ -184,11 +184,11 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         },
         vec![
             (
-                editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                editor_core::Coord::slide(editor_core::TargetAxis::X),
                 editor_core::Formula::zero(editor_core::Dimension::Length),
             ),
             (
-                editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                editor_core::Coord::slide(editor_core::TargetAxis::Y),
                 editor_core::Formula::zero(editor_core::Dimension::Length),
             ),
             (
@@ -346,10 +346,10 @@ fn an_undecided_parallelism_keeps_the_measure_doors_sentence() {
     let theta = tol.eps() * tol.k().sqrt() / arm_of(10.0e-3);
     let (ev, measure) = measured(10.0e-3, theta);
     let kind = &ev.node_error(measure).expect("the measure refused").kind;
-    let editor_core::NodeErrorKind::MeasureEscalated { predicate, source } = kind else {
+    let editor_core::NodeErrorKind::MeasureEscalated { source } = kind else {
         panic!("a tilt inside the band escalates at the measure door: {kind:?}");
     };
-    assert_eq!(*predicate, "bool_plane_parallel");
+    assert_eq!(source.predicate, Some("bool_plane_parallel"));
     let shown = kind.to_string();
     assert_eq!(
         shown,

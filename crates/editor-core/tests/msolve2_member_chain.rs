@@ -30,7 +30,7 @@ use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
     Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult, Operand, OperandSlot,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarId, VarName, product,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, VarId, VarName, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
@@ -143,13 +143,7 @@ fn ring(
     step_angle: f64,
     count: i64,
 ) -> (ProfileDoc, VarId, RecipeNodeId) {
-    fixture::circular(
-        doc,
-        input,
-        (RoleRead::plain(axis), TargetAxis::Z),
-        step_angle,
-        count,
-    )
+    fixture::circular(doc, input, RoleRead::plain(axis), step_angle, count)
 }
 
 /// A quarter turn — the step every rotating rule here takes.

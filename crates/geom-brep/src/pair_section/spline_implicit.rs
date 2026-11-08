@@ -19,9 +19,8 @@
 //!    the tensor composite `f∘S`, formed in certification arithmetic
 //!    through the march door ([`curved`]);
 //! 2. **the boundary pass**, through the march door, each side of the
-//!    rectangle against the partner (the plane's [`crate::PlaneSection`]
-//!    pass, or a curved partner's [`crate::ssi::boundary`] pass on its
-//!    form, run once): a graze or a side held tangent refuses by name,
+//!    rectangle against the partner's form ([`crate::ssi::boundary`]'s
+//!    pass, run once): a graze or a side held tangent refuses by name,
 //!    and its crossings and `Side` and `Corner` regions are where the
 //!    section ends;
 //! 3. **the regularity sweep** ([`sweep`]): where `∇φ` is bounded off
@@ -33,26 +32,29 @@
 //!    all the section has, and a pinch ([`SectionError::Pinched`]) where a
 //!    node, or a touch beside components with ends, meets arcs the march
 //!    would list; the interior-loop guard's loop-free stage is it. Where
-//!    the sweep declines, a plane's pose is read whole on
-//!    the same pass, the pass carried on the pose; a curved partner's
-//!    whole reading over the rectangle is not built, and its pose refuses
-//!    as the general rung's ([`SectionError::RoutesToGeneralRung`]).
+//!    the sweep declines, the pose is read whole on the same pass, on the
+//!    1×2 trace ([`crate::ImplicitSection`]), a plane's pass carried on
+//!    the pose.
 //!
 //! The order is the proof's: the sweep's loop-free verdict says nothing
 //! of a wall within the band of the partner everywhere, which the hull
 //! decides, nor of a component touching a side without crossing it,
 //! which the pass refuses as a graze.
 //!
-//! Read whole, the section of a plane and a NURBS wall (an approximating
-//! surface read as its fit) is [`crate::PlaneSection::all`] over the
-//! wall's whole knot rectangle: every branch with its three-limb certificate, every
-//! boundary region, and the accounting that they are all of them. The
+//! Read whole, the section of a plane, cylinder, sphere or ring torus and
+//! a NURBS wall (an approximating surface read as its fit) is
+//! [`crate::ImplicitSection::all`] over the wall's whole knot rectangle:
+//! every branch with its three-limb certificate, every boundary region,
+//! and the accounting that they are all of them. The
 //! plane is read at its pivot, its origin moved to its foot nearest the
-//! wall (`SplineImplicitPose::anchored`), so where its origin is stored
-//! changes nothing. The foot is found in `f64`, so the plane read may
-//! stand off the stored one; that shift is certified and charged: the
-//! reading's band is padded by it, and the witness's bracket reads the
-//! stored plane's height. Each piece of the section is a component:
+//! wall (`SplineImplicitPose::pivot`), so its frame stands where the
+//! wall is wherever its origin is stored. The foot is found in `f64`, so
+//! the plane read may stand off the stored one; that shift is certified
+//! and charged: the reading's band is padded by it, and the witness's
+//! bracket reads the stored plane's height. Charged, the shift still
+//! moves a reading at the band's edge: where the origin is stored can
+//! decide a pose there
+//! (`work/sectarms/a-plane-at-the-bands-edge-reads-by-where-its-origin-is-stored.md`). Each piece of the section is a component:
 //!
 //! - a closed branch is a [`ComponentShape::Loop`], with its witness;
 //! - an open branch, which runs between two crossings of the wall's
@@ -65,10 +67,11 @@
 //! **A branch's witness** is the wall's point `q = S(P(mid))` at the
 //! middle of the branch's pcurve on the wall (an enclosure's centre),
 //! and its pad a metre bound on how far `q` stands from a point of that
-//! branch's own arc: a segment of the chart through `P(mid)` along the
-//! plane height's gradient, inside the window of the branch's certified
-//! chart tube that holds `P(mid)`, whose ends the stored plane's height
-//! is certified to straddle, halved about the sign change while the
+//! branch's own arc: a segment of the chart through `P(mid)` along `φ`'s
+//! chart gradient (the plane height's, or the curved partner's residual
+//! along the wall), inside the window of the branch's certified chart
+//! tube that holds `P(mid)`, whose ends `φ` (the stored plane's height,
+//! or the partner's form) is certified to straddle, halved about the sign change while the
 //! sign stays certified ([`bracket`]). The segment holds a point of the
 //! section, and inside the window limb 3 proves the section one arc,
 //! the branch's; the image's length from `P(mid)` to it is bounded by
@@ -102,6 +105,7 @@ use crate::intersect::SectionError;
 use crate::ssi::boundary::BoundaryPass;
 use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
 use crate::ssi::exhaust::UvRect;
+use crate::ssi::residual::ImplicitForm;
 use crate::ssi::{BranchEnd, SsiBoundaryContact, SsiBranch, SsiDomain, SsiTube};
 
 mod curved;
@@ -119,7 +123,7 @@ pub struct SplineImplicitPose<T: Real> {
     partner_first: bool,
     /// The boundary pass the classification ran (stage 2), carried to
     /// the whole reading so it runs once.
-    pass: Option<std::sync::Arc<BoundaryPass>>,
+    pass: Option<std::sync::Arc<(crate::ssi::PassKey, BoundaryPass<[f64; 2]>)>>,
 }
 
 impl<T: Real> SplineImplicitPose<T> {
@@ -354,25 +358,20 @@ impl<T: Decide> SplineImplicitPose<T> {
         let Surface::Plane { origin, normal, .. } = self.partner else {
             unreachable!("the pose holds a plane")
         };
-        (p - origin).dot(normal / normal.norm())
+        (p - origin).dot(normal.normalize())
     }
 }
 
 impl SplineImplicitPose<f64> {
-    /// **The plane read at its pivot**: the same carrier, its origin
-    /// moved to the foot on it of the wall's ball's centre, so the
-    /// reading's window stands where the wall is wherever the plane's
-    /// stored origin lies (as an angular datum is read at its pivot,
-    /// `section_cert`'s lever and pivot). The foot is found in `f64`,
-    /// so the plane read stands off the stored one by up to
-    /// [`Pivot::shift`], which the reading's band and the witness's
+    /// **The plane read at its pivot**, with what moving its origin
+    /// cost: the same carrier, its origin moved to the foot on it of the
+    /// wall's ball's centre, so its frame stands where the wall is
+    /// wherever the plane's stored origin lies (as an angular datum is
+    /// read at its pivot, `section_cert`'s lever and pivot). The foot is
+    /// found in `f64`, so the plane read stands off the stored one by up
+    /// to [`Pivot::shift`], which the reading's band and the witness's
     /// bracket are charged. A plane pose's alone: the classification
     /// reads it only where the partner is a plane.
-    pub(crate) fn anchored(&self) -> Surface<f64> {
-        self.pivot().plane
-    }
-
-    /// The plane read at its pivot, with what moving its origin cost.
     fn pivot(&self) -> Pivot {
         let Surface::Plane {
             origin,
@@ -382,7 +381,11 @@ impl SplineImplicitPose<f64> {
         else {
             unreachable!("the pose holds a plane")
         };
-        let n = normal / normal.norm();
+        // The foot on the unit normal, kept inline until the corner-touch
+        // verdict stops moving with the pivot's last bit
+        // (`a-corner-touch-verdict-moves-with-the-planes-stored-origin`);
+        // then it is `Frame::foot`.
+        let n = normal.normalize();
         let c = self.ball().center();
         let foot = c - n * (c - origin).dot(n);
         let (a, o, m) = (
@@ -407,36 +410,20 @@ impl SplineImplicitPose<f64> {
         }
     }
 
-    /// **The reading's domain**: against a plane, the window of the plane
-    /// read at its pivot (`Self::anchored`), reaching twice the farthest
-    /// control point from the pivot plus the feature extent, so it holds
-    /// the wall and a march ends only on the wall's rectangle. A curved
-    /// partner has no chart window and nothing marches on its pose, so its
-    /// domain carries only what the classification reads, the feature
-    /// extent and the accounting floor: the cube of the net's ball. The
-    /// feature extent is the net ball's diameter
-    /// ([`super::domain_about`]).
+    /// **The reading's domain**: the cube of the net's ball. The 1×2
+    /// trace marches on the wall's rectangle, which bounds it, against a
+    /// plane as against a curved partner, so no window bounds a march and
+    /// the domain carries only what the reading reads, the feature extent
+    /// and the accounting floor. The feature extent is the net ball's
+    /// diameter ([`super::domain_about`]).
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
-        if !self.is_plane() {
-            let ball = self.ball();
-            return super::domain_about(ball.center(), ball.radius(), ball.radius() * 2.0);
-        }
-        let Surface::Plane { origin, .. } = self.anchored() else {
-            unreachable!("the pose holds a plane")
-        };
-        let reach = self
-            .net()
-            .control()
-            .iter()
-            .map(|p| p.distance(origin))
-            .fold(0.0, f64::max);
-        let extent = self.ball().radius() * 2.0;
-        super::domain_about(origin, reach * 2.0 + extent, extent)
+        let ball = self.ball();
+        super::domain_about(ball.center(), ball.radius(), ball.radius() * 2.0)
     }
 }
 
-/// **The plane read at its pivot** (`SplineImplicitPose::anchored`).
+/// **The plane read at its pivot** (`SplineImplicitPose::pivot`).
 struct Pivot {
     /// The plane, its origin at the foot.
     plane: Surface<f64>,
@@ -450,14 +437,6 @@ struct Pivot {
 }
 
 impl Pivot {
-    /// The plane read at its pivot, as the sweep reads it.
-    fn phi(&self) -> sweep::Phi<'static> {
-        let Surface::Plane { origin, normal, .. } = self.plane else {
-            unreachable!("the pivot holds a plane")
-        };
-        sweep::Phi::Plane(origin, normal)
-    }
-
     /// The reading's band: `band` padded by the shift.
     ///
     /// # Errors
@@ -500,11 +479,66 @@ impl Heights {
     }
 }
 
+/// **The partner a branch's witness is bracketed against**: the stored
+/// plane's heights, or a curved partner's form.
+#[derive(Clone, Copy)]
+enum Bracketed<'a> {
+    /// The stored plane, read from the foot.
+    Plane(Heights),
+    /// A cylinder, sphere or torus: the surface, whose linearized
+    /// residual selects the bracket's direction and step, and its form,
+    /// whose certified sign decides it.
+    Curved(&'a Surface<f64>, &'a ImplicitForm),
+}
+
+impl From<Heights> for Bracketed<'_> {
+    fn from(heights: Heights) -> Self {
+        Self::Plane(heights)
+    }
+}
+
+impl Bracketed<'_> {
+    /// The certified sign of `φ` over `s`, an enclosure of a point:
+    /// `Some(true)` on the positive side.
+    fn sign(self, s: Box3) -> Option<bool> {
+        crate::ssi::section::sign(match self {
+            Self::Plane(heights) => heights.over(s),
+            Self::Curved(_, form) => form.value(form.framed(s)),
+        })
+    }
+
+    /// At the wall's point `p`: `φ`'s value in metres there, the
+    /// gradient whose chart image the bracket steps along, and the
+    /// least step's floor, in metres, below which `φ` reads as no
+    /// distance: the rounding of the coordinates `φ` is read in, about
+    /// the plane's origin or the partner's centre or axis.
+    fn at(self, p: Point3<f64>) -> (f64, Vec3<f64>, f64) {
+        match self {
+            Self::Plane(heights) => {
+                let m = heights.normal;
+                (
+                    (p - heights.origin).dot(m).abs() + heights.lift.abs().hi(),
+                    m,
+                    f64::EPSILON * (p - heights.origin).norm() * m.norm(),
+                )
+            }
+            Self::Curved(surface, form) => {
+                let q = form.framed_point(p);
+                (
+                    crate::implicit_residual(surface, p).abs(),
+                    crate::implicit_gradient(surface, p),
+                    f64::EPSILON * geom_core::interval::norm_sup(&[q.x, q.y, q.z]),
+                )
+            }
+        }
+    }
+}
+
 /// **Why a plane × spline component has no carrier to carry**: the
 /// section is read whole for the section certificate alone, the glue
 /// door's table never holds it, and no seat certifies against a wall's
 /// chart.
-pub(super) const UNCARRIED: &str = "a plane × spline section is read whole for the section \
+pub(super) const UNCARRIED: &str = "a spline × implicit section is read whole for the section \
     certificate alone, which carries none of its components";
 
 /// The note a region's component carries.
@@ -518,7 +552,11 @@ const REGION: &str = "a Side or Corner region: the section runs along a side of 
 /// branch's certificate that holds `P(mid)` ([`bracket`]). `None` where
 /// the certificate is not a chart tube, the branch carries no wall
 /// pcurve, or no bracket fits its window: a component with no witness.
-fn witness(b: &SsiBranch, net: &NurbsSurface<f64>, heights: Heights) -> Option<(Point3<f64>, f64)> {
+fn witness(
+    b: &SsiBranch,
+    net: &NurbsSurface<f64>,
+    partner: Bracketed<'_>,
+) -> Option<(Point3<f64>, f64)> {
     let (SsiTube::Chart { pad_u, pad_v, .. }, Some(pcurve)) =
         (b.certificate.tube, b.pcurve_b.as_ref())
     else {
@@ -529,7 +567,7 @@ fn witness(b: &SsiBranch, net: &NurbsSurface<f64>, heights: Heights) -> Option<(
         .into_iter()
         .find(|w| w.ends.0 <= mid && mid <= w.ends.1)?;
     let at = pcurve.eval(mid);
-    bracket(net, heights, (at.x, at.y), window.rect)
+    bracket(net, partner, (at.x, at.y), window.rect)
 }
 
 /// The most doublings [`bracket`] takes. It is not what ends a search:
@@ -562,14 +600,15 @@ const BRACKET_HALVINGS: u32 = 64;
 /// 3 proves the section one arc: so the zero is the branch's. A segment
 /// that leaves the window or the wall's rectangle, or a gradient that
 /// is not a direction, is no bracket.
-fn bracket(
+fn bracket<'p>(
     net: &NurbsSurface<f64>,
-    heights: Heights,
+    partner: impl Into<Bracketed<'p>>,
     at: (f64, f64),
     window: UvRect,
 ) -> Option<(Point3<f64>, f64)> {
+    let partner = partner.into();
     let jet = net.ders(at.0, at.1);
-    let m = heights.normal;
+    let (phi, m, least) = partner.at(jet.point);
     let (gu, gv) = (m.dot(jet.du), m.dot(jet.dv));
     let g = gu.hypot(gv);
     if !(g.is_finite() && g > 0.0) {
@@ -577,10 +616,7 @@ fn bracket(
     }
     let (du, dv) = (gu / g, gv / g);
     let point = |t: f64| (at.0 + du * t, at.1 + dv * t);
-    let phi = (jet.point - heights.origin).dot(m);
-    let base = (phi.abs() + heights.lift.abs().hi())
-        .max(f64::EPSILON * (jet.point - heights.origin).norm() * m.norm())
-        / g;
+    let base = phi.max(least) / g;
     let (u_domain, v_domain) = (net.knot_values_u().domain(), net.knot_values_v().domain());
     let inside = |(u, v): (f64, f64)| {
         window.holds((u, v))
@@ -593,18 +629,7 @@ fn bracket(
     let at_box = |(u, v): (f64, f64)| UvWindow::new(u, u, v, v).map(|w| boxes.rect_box(w));
     // The height's certified sign at `t`: `Some(true)` above the plane,
     // `Some(false)` below, `None` undecided.
-    let sign = |t: f64| {
-        let h = heights.over(at_box(point(t))?);
-        if !h.is_certified() {
-            None
-        } else if h.lo() > 0.0 {
-            Some(true)
-        } else if h.hi() < 0.0 {
-            Some(false)
-        } else {
-            None
-        }
-    };
+    let sign = |t: f64| partner.sign(at_box(point(t))?);
     let mut step = base;
     let (mut low, mut high) = (0.0, 0.0);
     for _ in 0..=BRACKET_DOUBLINGS {
@@ -675,7 +700,7 @@ pub(super) fn classified<T: Decide>(
 
 /// **The pair's classification, the march door's arm**: for a curved
 /// partner, stages 1 to 3 ([`curved`]); for a plane past its door, stage
-/// 2, the boundary pass ([`crate::PlaneSection`]'s, run once), whose
+/// 2, the boundary pass ([`crate::ImplicitSection`]'s, run once), whose
 /// grazes and side tangencies refuse by name, then stage 3, the
 /// regularity sweep ([`sweep`]). Its loop-free verdict is the section:
 /// no component where the pass found no end, else
@@ -697,7 +722,7 @@ pub(super) fn section(
     }
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;
-    let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
+    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
         .map_err(super::whole_reading_refused)?;
     let (reach, pass) = {
         let pass = reading.pass().map_err(super::whole_reading_refused)?;
@@ -707,18 +732,21 @@ pub(super) fn section(
             .map(|c| ChartReach::side(c.at.side))
             .chain(pass.contacts.iter().map(contact_reach))
             .fold(ChartReach::default(), ChartReach::or);
-        (reach, std::sync::Arc::new(pass.clone()))
+        (
+            reach,
+            std::sync::Arc::new((reading.pass_key(), pass.clone())),
+        )
     };
     let decided = match sweep::sweep(
         reading.boxes(),
-        pivot.phi(),
+        reading.form(),
         reading.account_floor(),
         read_band,
         pose.ball().certified_diameter(),
     ) {
         sweep::Sweep::Declined(_) => {
             let out = reading.all().map_err(super::whole_reading_refused)?;
-            return listed(pose, &pivot, out);
+            return listed(pose, Bracketed::Plane(pivot.heights), out);
         }
         sweep::Sweep::LoopFree(decided) => decided,
     };
@@ -814,27 +842,28 @@ pub(super) fn loop_free(
 ///
 /// The whole reading's refusal, mapped (module docs), and
 /// [`SectionError::Unaccounted`] for a branch that ends off the wall's
-/// rectangle, which the plane lane's reading never marches; a curved
-/// partner's whole reading is not built
-/// ([`SectionError::RoutesToGeneralRung`]).
+/// rectangle, which the chart lanes' readings never march; a curved
+/// partner's is [`curved::whole`]'s.
 pub(super) fn whole(
     pose: &SplineImplicitPose<f64>,
     band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
     if !pose.is_plane() {
-        return Err(curved::unbuilt());
+        return curved::whole(pose, band);
     }
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;
-    let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
+    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
         .map_err(super::whole_reading_refused)?;
     let reading = match &pose.pass {
-        Some(pass) => reading.with_pass(BoundaryPass::clone(pass)),
+        Some(carried) => reading
+            .with_pass((&carried.0, BoundaryPass::clone(&carried.1)))
+            .map_err(super::whole_reading_refused)?,
         None => reading,
     };
     listed(
         pose.clone(),
-        &pivot,
+        Bracketed::Plane(pivot.heights),
         reading.all().map_err(super::whole_reading_refused)?,
     )
 }
@@ -856,7 +885,7 @@ fn contact_reach(region: &SsiBoundaryContact) -> ChartReach {
 /// rectangle.
 fn listed(
     pose: SplineImplicitPose<f64>,
-    pivot: &Pivot,
+    partner: Bracketed<'_>,
     out: crate::ssi::SsiOutcome,
 ) -> Result<PairSection<f64>, SectionError> {
     let open = |on_wall: ChartReach| ComponentShape::Open {
@@ -874,13 +903,13 @@ fn listed(
             }
             BranchEnd::Cut => {
                 return Err(SectionError::Unaccounted {
-                    cause: "a branch of the plane × spline reading ended off the wall's \
+                    cause: "a branch of the spline × implicit reading ended off the wall's \
                             rectangle, where no side of the wall's chart holds it"
                         .to_owned(),
                 });
             }
         };
-        let witness = witness(&b, pose.net(), pivot.heights);
+        let witness = witness(&b, pose.net(), partner);
         components.push(SectionComponent {
             shape,
             winds: [false, false],

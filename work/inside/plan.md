@@ -56,10 +56,7 @@ metred at an ellipse's minor semi-axis, DR-111). A brief for any unit
 that levers a `decide` asks, per verdict, which bound makes that
 verdict sound.
 
-A lane measures its row's repro on current main before it builds, and
-reads the row against the D10 hold (`work/intent/plan.md`): a row that
-turns out to need declared pairs or contact parks on its INTENT stage
-row and moves to CONTACTHOLD.
+A lane measures its row's repro on current main before it builds.
 
 ## Exit
 

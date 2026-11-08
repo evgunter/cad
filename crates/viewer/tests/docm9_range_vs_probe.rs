@@ -122,6 +122,7 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
             max_leaves: 2048,
             ..DriveConfig::default()
         },
+        &pncad::document::Stop::default(),
         tol(),
     )
     .expect("the slab's depth certifies");

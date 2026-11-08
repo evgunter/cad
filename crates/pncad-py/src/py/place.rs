@@ -24,7 +24,7 @@ use pncad::tolerance::Tol;
 ///
 /// **The degenerate arm's `input` does not get an attribute of its
 /// own**: it IS the `variant`, which `crate::tags::frame_error_tag`
-/// mints per input (`degenerate_aim`, `degenerate_tangent`, ...), so
+/// mints per input (`degenerate_aim`, `degenerate_roll_reference`, ...), so
 /// a second spelling of the same word would publish one fact twice.
 ///
 /// What the degenerate arm does carry is the CLASSIFIER's payload,
@@ -280,31 +280,6 @@ impl Frame {
             pncad::authoring::p3(ex, ey, ez),
             pncad::authoring::p3(tx, ty, tz),
             pncad::authoring::v3(roll_reference.0, roll_reference.1, roll_reference.2),
-            tol,
-        )
-        .map(|f| Self(d::Frame::from_affine(f.to_affine())))
-        .map_err(|err| frame_err(py, &err))
-    }
-
-    /// The profile frame at the start of a swept path: a frame at
-    /// `origin` whose local **+Z is the path `tangent`**, so the local
-    /// XY plane is the plane the profile is drawn in.
-    ///
-    /// There is no tip to read a roll from, so the roll comes from a
-    /// stated LADDER — world +Z, then world +X — and the frame
-    /// refuses if neither is definitely off the tangent line rather
-    /// than returning an all-zero frame.
-    #[staticmethod]
-    fn path_start_frame(
-        py: Python<'_>,
-        origin: (Length, Length, Length),
-        tangent: (f64, f64, f64),
-    ) -> PyResult<Self> {
-        let tol = Tol::witness();
-        let [ox, oy, oz] = meters(origin);
-        pncad::geom_core::linalg::frame::path_start_frame::<f64>(
-            pncad::authoring::p3(ox, oy, oz),
-            pncad::authoring::v3(tangent.0, tangent.1, tangent.2),
             tol,
         )
         .map(|f| Self(d::Frame::from_affine(f.to_affine())))

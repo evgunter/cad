@@ -95,6 +95,15 @@ impl<T: Decide> ConicDeparture<T> {
     }
 }
 
+/// **A curve's curvature vector** where its first and second derivatives
+/// are `deriv` and `deriv2`: the second derivative's part normal to the
+/// tangent, per arc length squared, `(d″ − t̂·(d″·t̂))/|d′|²`.
+#[must_use]
+pub fn curvature_vector<T: Real>(deriv: Vec3<T>, deriv2: Vec3<T>) -> Vec3<T> {
+    let t = deriv.normalize();
+    (deriv2 - t * deriv2.dot(t)) / deriv.norm_squared()
+}
+
 impl<T: Decide> ConicBend<T> {
     /// The bend of the conic `carrier` where an edge leaves it: `deriv`
     /// and `deriv2` the carrier's first and second derivatives there,
@@ -105,9 +114,7 @@ impl<T: Decide> ConicBend<T> {
     /// On a line carrier, which does not bend.
     #[must_use]
     pub fn of(carrier: &geom::Curve3<T>, deriv: Vec3<T>, deriv2: Vec3<T>, span: T) -> Self {
-        let speed_sq = deriv.norm_squared();
-        let t = deriv.normalize();
-        let curvature = (deriv2 - t * deriv2.dot(t)) / speed_sq;
+        let curvature = curvature_vector(deriv, deriv2);
         let bounds = match *carrier {
             // The parameter is the angle, so the arc is `radius·span`
             // long, no point lies further than the diameter, and the arc

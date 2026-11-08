@@ -289,8 +289,14 @@ fn a_failing_measure_and_its_assertion_gate_no_placement() {
         "and the assertion over it has no verdict"
     );
     product(&doc, &run, Tol::witness()).expect("the placed block is the product");
-    run_checks(&doc, &run, &ChecksConfig::default(), Tol::witness())
-        .expect("the checks run over the world");
+    run_checks(
+        &doc,
+        &run,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run over the world");
 }
 
 /// **(C, test 9) Nothing places as a side effect.** Two placed blocks,
@@ -432,6 +438,7 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         DocumentId::derive("intent-c-split-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect("a cut that places its body splits");
     let Some(Node::Union {
@@ -476,6 +483,7 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         DocumentId::derive("intent-c-split-unplaced"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect_err("a cut that does not place its body severs its readers");
     assert!(
@@ -863,6 +871,7 @@ fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
         DocumentId::derive("intent-c-split-posed-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     ) {
         Err(SplitError::RemainderReadUncarried {
             reader: named,
@@ -882,6 +891,7 @@ fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
         DocumentId::derive("intent-c-split-two-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     ) {
         Err(SplitError::RemainderReadUncarried {
             reader: named,

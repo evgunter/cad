@@ -125,6 +125,35 @@ class TestTheRowIsAFamily(unittest.TestCase):
         )
         self.assertEqual(len(ev.value(middle).bodies()), 1)
 
+    def test_a_family_with_an_empty_member_lists_its_bodies(self):
+        """`row[k] - row[1]`: member 1 cuts itself away. The family is
+        still a family of bodies, and `bodies()` is each present
+        member's body, the empty member's place denoting none."""
+        doc = Doc()
+        family = row_of(doc, box(doc))
+        cut = doc.insert(Node.subtract(family, family[1]))
+        ev = evaluate(doc)
+        value = ev.value(cut)
+        self.assertEqual(value.kind, "instances")
+        self.assertEqual(
+            [len(member.bodies()) for _, member in value.members()], [1, 0, 1]
+        )
+        bodies = value.bodies()
+        self.assertEqual(len(bodies), COUNT - 1)
+        for body in bodies:
+            self.assertEqual(pinned(body).volume, 2.0 * 2.0 * 1.0)
+
+    def test_a_family_every_member_of_which_is_empty_lists_no_body(self):
+        """`row[k] - row[k]`: every member cuts itself away. The family
+        is still a family of bodies, holding none."""
+        doc = Doc()
+        family = row_of(doc, box(doc))
+        cut = doc.insert(Node.subtract(family, family))
+        value = evaluate(doc).value(cut)
+        self.assertEqual(value.kind, "instances")
+        self.assertEqual(len(value.members()), COUNT)
+        self.assertEqual(value.bodies(), [])
+
     def test_each_member_weighs_what_the_row_says_it_weighs(self):
         doc = Doc()
         family = row_of(doc, box(doc))
@@ -356,7 +385,7 @@ class TestTheGridAndTheRing(unittest.TestCase):
         k = index(doc, "k", 4)
         ring = doc.insert(
             Node.circular_pattern(
-                doc, k, block, doc.space(block), (axis, axis, "z"), step=Formula.angle_in(90, deg)
+                doc, k, block, doc.space(block), (axis, axis), step=Formula.angle_in(90, deg)
             )
         )
         group = doc.insert(Node.union(ring))
@@ -367,11 +396,27 @@ class TestTheGridAndTheRing(unittest.TestCase):
         block = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
         axis = z_axis(doc, block)
         k = index(doc, "k", 4)
-        ring = doc.insert(Node.bolt_circle(doc, k, 4, block, doc.space(block), (axis, axis, "z")))
+        ring = doc.insert(Node.bolt_circle(doc, k, 4, block, doc.space(block), (axis, axis)))
         group = doc.insert(Node.union(ring))
         ev = evaluate(doc)
         self.assertEqual(len(ev.value(ring).bodies()), 4)
         self.assertEqual(mass_of(ev, group).volume, 4.0)
+
+    def test_a_bolt_circle_about_a_read_axis_needs_no_mate(self):
+        # Spun about an axis read in the target, each member turns from
+        # where the block stands: the same four as the mated ring.
+        doc = Doc()
+        block = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
+        axis = z_axis(doc, block)
+        k = index(doc, "k", 4)
+        ring = doc.insert(Node.bolt_circle(doc, k, 4, block, doc.space(block), axis))
+        group = doc.insert(Node.union(ring))
+        ev = evaluate(doc)
+        self.assertEqual(len(ev.value(ring).bodies()), 4)
+        self.assertEqual(mass_of(ev, group).volume, 4.0)
+        self.assertEqual(doc.recognise(ring).kind, "circular")
+        with self.assertRaises(TypeError):
+            Node.circular_pattern(doc, k, block, doc.space(block), axis, count=4, slide=1 * m)
 
     def test_a_ring_takes_exactly_one_spacing(self):
         doc = Doc()
@@ -381,7 +426,7 @@ class TestTheGridAndTheRing(unittest.TestCase):
         for spacing in ({}, {"count": 4, "step": Formula.angle_in(90, deg)}):
             with self.subTest(spacing=sorted(spacing)):
                 with self.assertRaises(TypeError):
-                    Node.circular_pattern(doc, k, block, doc.space(block), (axis, axis, "z"), **spacing)
+                    Node.circular_pattern(doc, k, block, doc.space(block), (axis, axis), **spacing)
 
 
 class TestTheReadSide(unittest.TestCase):
@@ -401,12 +446,36 @@ class TestTheReadSide(unittest.TestCase):
         self.assertIsNone(seen.step)
         self.assertIsNone(doc.recognise(cube))
 
+    def test_a_row_along_a_read_direction_reads_back_its_read(self):
+        # The row runs along the block's own frame's x, read through its
+        # role, its other slides along y and z.
+        doc = Doc()
+        block = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
+        frame = own_frame(doc, block, (2.0, -0.5, 0.0), (3.0, -0.5, 0.0))
+        k = index(doc, "k", COUNT)
+        row = doc.insert(
+            Node.linear_pattern(
+                k,
+                block,
+                doc.space(block),
+                [(RoleRead(frame, "x"), Formula.length_in(PITCH, m))],
+                across=["y", "z"],
+            )
+        )
+        group = doc.insert(Node.union(row))
+        self.assertEqual(mass_of(evaluate(doc), group).volume, float(COUNT))
+        seen = doc.recognise(row)
+        self.assertEqual(seen.kind, "linear")
+        [(along, _)] = seen.steps
+        self.assertIsInstance(along, RoleRead)
+        self.assertEqual(along.role, "x")
+
     def test_a_ring_is_recognised_as_a_ring(self):
         doc = Doc()
         block = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
         axis = z_axis(doc, block)
         k = index(doc, "k", 4)
-        ring = doc.insert(Node.bolt_circle(doc, k, 4, block, doc.space(block), (axis, axis, "z")))
+        ring = doc.insert(Node.bolt_circle(doc, k, 4, block, doc.space(block), (axis, axis)))
         seen = doc.recognise(ring)
         self.assertEqual(seen.kind, "circular")
         self.assertEqual(seen.steps, [])

@@ -82,7 +82,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let slot = crate::fixture::value_slot(
         &doc,
         moved,
-        pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
+        pncad::document::Coord::slide(pncad::document::TargetAxis::X),
     );
     let (doc, _) = edited(
         &doc,

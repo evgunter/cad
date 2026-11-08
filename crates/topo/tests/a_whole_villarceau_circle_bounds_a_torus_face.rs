@@ -50,9 +50,18 @@ fn a_whole_villarceau_circle_closes_one_edge_on_a_torus_face() {
                 FaceSurface::Inherit,
                 tol,
             )
-            .unwrap_or_else(|e| panic!("family {family}: the closed Villarceau edge: {e}"));
-        topo::mint_pcurves(&mut body, tol)
-            .unwrap_or_else(|e| panic!("family {family}: the mint refuses: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "family {family}: the closed Villarceau edge: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
+        topo::mint_pcurves(&mut body, tol).unwrap_or_else(|e| {
+            panic!(
+                "family {family}: the mint refuses: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         for he in [made.he_plus, made.he_minus] {
             let row = body
                 .pcurve(he)

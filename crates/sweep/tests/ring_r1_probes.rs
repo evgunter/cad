@@ -257,7 +257,7 @@ fn boolean_admissible_fixture_still_runs_no_crossing_machinery() {
     assert!(!verdicts.is_empty());
     let crossing: Vec<_> = verdicts
         .iter()
-        .filter(|v| v.predicate.starts_with("bool_"))
+        .filter(|v| crate::common::crossing::decided_by_crossing(v.predicate))
         .collect();
     assert!(crossing.is_empty(), "{crossing:?}");
     assert_eq!(t.cavities.len(), 2);

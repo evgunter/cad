@@ -120,9 +120,9 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
         placement,
         seat.mate,
         &[
-            (Coord::Slide(TargetAxis::X), len(seat.apart)),
+            (Coord::slide(TargetAxis::X), len(seat.apart)),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -294,8 +294,14 @@ fn p3_checks_over_the_seam_document() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p3-row", inner_ref, 3, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
-    let report =
-        run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
+    let report = run_checks(
+        &outer,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run");
     println!(
         "P3: findings={} {:?}",
         report.findings.len(),
@@ -310,8 +316,14 @@ fn p4_checks_over_a_correctly_mated_document() {
     let (part, body) = store.insert_part(cube_part("m6r2-p4-cube"), Tol::witness());
     let (doc, _, _) = stand("m6r2-p4-stand", part, body, 0.0, &store);
     let ev = run(&doc, &with_resolver(store));
-    let report =
-        run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run");
     println!(
         "P4: findings={} {:?}",
         report.findings.len(),

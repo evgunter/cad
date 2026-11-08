@@ -45,7 +45,7 @@ the sentence that says it cannot is the only thing recording that it
 could not. The cited path is also dead — the item lives at
 `work/edit/doc-param-unit-edit-has-no-door.md` — but that half is
 already the class filed as
-`work/issues/dead-work-citations-from-shipped-code-and-docs.md`; this
+`work/meta/dead-work-citations-from-shipped-code-and-docs.md`; this
 row is about the READING, not the path.
 
 ## What is needed

@@ -16,7 +16,10 @@ fn render(label: &str, r: Result<(), Vec<ValidationError>>) {
             println!("{label}: {} error(s)", es.len());
             for e in &es {
                 println!("    debug   : {e:?}");
-                println!("    display : {e}");
+                println!(
+                    "    display : {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                );
             }
         }
     }

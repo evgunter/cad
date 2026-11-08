@@ -1,5 +1,6 @@
-//! **What the chart lanes' section handles share.** The plane × NURBS
-//! handle ([`super::plane::PlaneSection`]) and the NURBS × NURBS one
+//! **What the chart lanes' section handles share.** The residual ×
+//! NURBS handle ([`super::implicit_chart::ImplicitSection`], any
+//! implicit partner's) and the NURBS × NURBS one
 //! ([`super::pair::Section`]) read one section two ways under one
 //! contract, and differ in the system, the charts, the boundary pass and
 //! the cells a tube is proved over. The rules that are the same on every
@@ -56,6 +57,14 @@ impl TubeCell<4> for Box4 {
 impl TubeCell<4> for UvRect {
     fn holds_state(&self, x: &[f64; 4]) -> bool {
         self.holds((x[2], x[3]))
+    }
+}
+
+/// The chart tube's cell on the 1×2 lane: the wall's coordinates, the
+/// whole state.
+impl TubeCell<2> for UvRect {
+    fn holds_state(&self, x: &[f64; 2]) -> bool {
+        self.holds((x[0], x[1]))
     }
 }
 

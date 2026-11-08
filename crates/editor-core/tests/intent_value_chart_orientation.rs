@@ -95,9 +95,9 @@ fn hung_doc(tilt: f64, about: TargetAxis, orient: Orientation) -> (ProfileDoc, R
     let placed = Placed {
         mates: vec![mate],
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(10.0)),
+            (Coord::slide(TargetAxis::X), len(10.0)),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -234,8 +234,8 @@ fn a_floor_swept_through_a_quarter_turn_moves_its_copy_continuously() {
         let placed = Placed {
             mates: vec![mate],
             values: vec![
-                (Coord::Slide(TargetAxis::X), len(3.0)),
-                (Coord::Slide(TargetAxis::Y), len(4.0)),
+                (Coord::slide(TargetAxis::X), len(3.0)),
+                (Coord::slide(TargetAxis::Y), len(4.0)),
                 (Coord::SPIN, fixture::ang(30.0_f64.to_radians())),
             ],
         };
@@ -297,8 +297,8 @@ fn a_rest_spins_the_same_way_whichever_side_carries_its_flip() {
         let placed = Placed {
             mates: vec![mate],
             values: vec![
-                (Coord::Slide(TargetAxis::X), len(3.0)),
-                (Coord::Slide(TargetAxis::Y), len(4.0)),
+                (Coord::slide(TargetAxis::X), len(3.0)),
+                (Coord::slide(TargetAxis::Y), len(4.0)),
                 (Coord::SPIN, fixture::ang(spin)),
             ],
         };
@@ -418,7 +418,7 @@ fn on_the_wall(orient: Orientation, slides: [TargetAxis; 2]) -> Hung {
         mates: vec![mate],
         values: slides
             .into_iter()
-            .map(|a| (Coord::Slide(a), Formula::zero(Dimension::Length)))
+            .map(|a| (Coord::slide(a), Formula::zero(Dimension::Length)))
             .chain([(Coord::SPIN, Formula::zero(Dimension::Angle))])
             .collect(),
     };
@@ -496,7 +496,12 @@ fn a_rest_on_a_wall_refuses_at_the_raw_door_and_places_through_the_gesture() {
     }
     let mut action = editor_core::Recording::start(&doc, Tol::witness());
     action
-        .constrain(placement, mate, &EvalOptions::default())
+        .constrain(
+            placement,
+            mate,
+            &EvalOptions::default(),
+            &editor_core::CancelToken::new(),
+        )
         .expect("the gesture lands");
     let doc = action.finish().expect("one action").doc;
     let placed = standing(&doc, placement).unwrap_or_else(|f| panic!("the gesture places: {f}"));
@@ -528,7 +533,7 @@ fn taking_a_slide_out_as_a_gesture_writes_the_slides_the_bundle_leaves() {
         .iter()
         .find(|c| {
             c.value()
-                .is_some_and(|v| v.coord == Coord::Slide(TargetAxis::X))
+                .is_some_and(|v| v.coord == Coord::slide(TargetAxis::X))
         })
         .map(|c| c.id)
         .expect("the structural fill wrote x");
@@ -545,7 +550,12 @@ fn taking_a_slide_out_as_a_gesture_writes_the_slides_the_bundle_leaves() {
     );
     let mut action = editor_core::Recording::start(&doc, Tol::witness());
     action
-        .remove_mate(placement, slide_x, &EvalOptions::default())
+        .remove_mate(
+            placement,
+            slide_x,
+            &EvalOptions::default(),
+            &editor_core::CancelToken::new(),
+        )
         .expect("the gesture lands");
     let done = action.finish().expect("one action");
     let slides: Vec<Coord> = fixture::bundle(&done.doc, placement)
@@ -555,7 +565,7 @@ fn taking_a_slide_out_as_a_gesture_writes_the_slides_the_bundle_leaves() {
         .collect();
     assert_eq!(
         slides,
-        [Coord::Slide(TargetAxis::Y), Coord::Slide(TargetAxis::Z)],
+        [Coord::slide(TargetAxis::Y), Coord::slide(TargetAxis::Z)],
         "the slides the wall leaves"
     );
     let placed = standing(&done.doc, placement).unwrap_or_else(|f| panic!("placed: {f}"));

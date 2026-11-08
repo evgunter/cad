@@ -237,7 +237,7 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, Kit, MateRef) {
         doc,
         ids[1],
         mate,
-        &[(Coord::Slide(TargetAxis::Z), len(2.0))],
+        &[(Coord::slide(TargetAxis::Z), len(2.0))],
     );
     (fixture::assemble_world_copies(doc), ids, kit, coaxial)
 }
@@ -1079,7 +1079,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             "a plane's normal slide",
             &planed,
             rest,
-            Coord::Slide(TargetAxis::Z),
+            Coord::slide(TargetAxis::Z),
             len(0.5),
             editor_core::VarKind::Plane,
         ),
@@ -1232,7 +1232,7 @@ fn a_lone_point_mates_chain_turns_its_copy_in_the_order_written() {
         point_of(read(kit.corner(ids[0], CapEnd::End, 2))),
     );
     let (tz, tx, ty) = (0.3, 0.2, 0.1);
-    let chain = |spins: &[(TargetAxis, f64)]| -> Vec<(Coord, Formula)> {
+    let chain = |spins: &[(TargetAxis, f64)]| -> Vec<(Coord<editor_core::Operand>, Formula)> {
         spins
             .iter()
             .map(|&(a, t)| (Coord::Spin(Some(a)), ang(t)))
@@ -1291,7 +1291,7 @@ fn a_lone_point_mates_chain_turns_its_copy_in_the_order_written() {
         "the mated corner lands on its target, {miss:e} off"
     );
 
-    let refused = |values: Vec<(Coord, Formula)>| -> Box<MateFault> {
+    let refused = |values: Vec<(Coord<editor_core::Operand>, Formula)>| -> Box<MateFault> {
         let placed = editor_core::Placed {
             mates: vec![ball.clone()],
             values,
@@ -1307,7 +1307,7 @@ fn a_lone_point_mates_chain_turns_its_copy_in_the_order_written() {
         "a second spin about x right after the first: {twice:?}"
     );
     let mut slid = chain(&[(Z, tz), (X, tx), (Y, ty)]);
-    slid.push((Coord::Slide(X), Formula::zero(Dimension::Length)));
+    slid.push((Coord::slide(X), Formula::zero(Dimension::Length)));
     let slid = refused(slid);
     assert!(
         matches!(&*slid, MateFault::Overconstrained { constraints, .. } if constraints.len() == 2),

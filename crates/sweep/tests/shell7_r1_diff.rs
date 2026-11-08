@@ -98,7 +98,10 @@ fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
             Some(s.body)
         }
         Err(e) => {
-            println!("[r1diff] {label}: shell Err {e}");
+            println!(
+                "[r1diff] {label}: shell Err {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             None
         }
     }

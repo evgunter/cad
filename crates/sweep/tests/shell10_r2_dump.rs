@@ -117,7 +117,10 @@ fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[topo::FaceKey]) {
         tol(),
     ) {
         Ok(s) => dump(label, &s.body),
-        Err(e) => println!("[r2dump] {label}: shell_open Err {e}"),
+        Err(e) => println!(
+            "[r2dump] {label}: shell_open Err {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 

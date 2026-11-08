@@ -321,7 +321,7 @@ fn the_die_pips_shape_stops_typed_at_its_tangent_top() {
     // The retired claims must be GONE from the surfaced text: revert is
     // wired, the gate is not wholesale, and the sphere class is no
     // longer refused as a class.
-    let msg = err.to_string();
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     assert!(!msg.contains("no representation"), "{msg}");
     assert!(!msg.contains("no seam lane"), "{msg}");
 }

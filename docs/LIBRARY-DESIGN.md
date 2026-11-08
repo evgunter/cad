@@ -21,8 +21,10 @@ own unit, per LB11, which also records its declared-offset half as
 out of scope), and of U4, LQ3(b)'s composition door and
 LQ3(c)'s frame family landed while LQ3(a)'s open-chain path
 vocabulary and the `wire_sweep`/`Node::Tube` discharge stay the
-named design conversation. The live residuals are the register at
-the tail of `work/lib/log.md`, whose largest standing item is the
+named design conversation. The live residuals were the register at
+the tail of LIB's log (recoverable by `docs/doc-ledger/lib-leaves-the-tracker.md`;
+`work/pydoor/lib-residual-register-was-never-migrated-to-rows.md` re-files
+it), whose largest standing item is the
 assembly surface: authorable through the façade, still unbound in
 `pncad-py` for AUTHORING — the seam it is reached through is bound
 (LIB-G18a: `evaluate(doc, resolver=store)`, so an assembly document
@@ -68,7 +70,8 @@ sites, each mapped to the unit below that would kill it.
 *The table itself is retired.* It tracked nothing live once its
 units shipped; the surveyed line numbers no longer resolve, and what
 is genuinely still open is the residual register at the tail of
-`work/lib/log.md` — the one place that tracks it. The survey is in
+LIB's log, recoverable by `docs/doc-ledger/lib-leaves-the-tracker.md`
+(`work/pydoor/lib-residual-register-was-never-migrated-to-rows.md` re-files it). The survey is in
 this file's git history if the original sites are ever wanted.
 
 What the corpus showed already WORKS, and must not regress, is a
@@ -187,8 +190,9 @@ boundary only.**
 - **U4 — path & placement vocabulary.** Exact 3-D path legs (line,
   arc; the long-turn arc is #222's banked frontier and lands
   there), so sampled quarter-circles become exact values; a kernel
-  door for the path-start frame (the Gram–Schmidt recipe written
-  once, with the degenerate-axis policy stated); pose values with
+  door for a frame across a direction with no stated reference (a
+  written frame turned onto it by the least turn,
+  `RigidMotion::turned_onto`, refusing at its pole); pose values with
   point-at and MIRROR placement doors, since manual axis-angle
   placement with antiparallel special-casing puts a valid solid in
   the wrong place (the lily findings are the acceptance evidence);
@@ -276,8 +280,8 @@ bindings crate).
   thread).** The proposal as ratified: The 2026-08-10 substrate survey pinned the
   walls AS THEY STOOD THEN (a dated reading, not a description of the
   tree today — the start-frame half of it has since moved: every scene
-  and every sweep fixture now calls
-  `geom_core::linalg::frame::path_start_frame`):
+  and every sweep fixture now turns a written frame onto the start
+  tangent, `geom_core::RigidMotion::turned_onto`):
   `sweep_body` consumes ONE `NurbsCurve3<f64>`; every scene
   hand-samples its path (17-point S-curve, interpolate degree 3)
   and hand-rolls the start frame (Gram–Schmidt with a
@@ -359,7 +363,7 @@ bindings crate).
 ## L8. Second-round rulings (Ev, in-chat, 2026-08-06, at program start)
 
 Recorded by the program orchestrator; operational detail in
-`work/lib/log.md`.
+LIB's log (recoverable by `docs/doc-ledger/lib-leaves-the-tracker.md`).
 
 - **LQ5 execution — first authorized batch**: U1 and U2 start now,
   in parallel with the M6/M7 close-out (footprints verified

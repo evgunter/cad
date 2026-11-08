@@ -105,6 +105,6 @@ absolute slack compared against a varying ε — is alive elsewhere on this
 slate and is the subject of `torus-tangency-shell-floor-does-not-scale-with-k`
 and of the two kernel rows `D70` closed onto
 (`work/trim/plane-nurbs-certificate-bound-does-not-refine-with-eps`,
-`work/issues/ssi-fit-sample-budget-is-a-constant-compared-against-a-varying-eps`).
+`work/ssiarith/ssi-fit-sample-budget-is-a-constant-compared-against-a-varying-eps`).
 This instance is closed; the class has three live carriers and needs no
 fourth.

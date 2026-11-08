@@ -482,7 +482,6 @@ declared_stadium: ClosedLoop = (
 here: Frame = Frame.translation((0 * m, 0 * m, 0 * m))
 turned: Frame = Frame.rotate_then_translate((0.0, 0.0, 1.0), 90 * deg, (1 * m, 0 * m, 0 * m))
 aimed: Frame = Frame.point_at((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m), (0.0, 1.0, 0.0))
-swept: Frame = Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
 frame_origin: tuple[Length, Length, Length] = here.origin
 frame_det: float = here.determinant
 
@@ -497,8 +496,8 @@ index_j: DocEdit = DocEdit.declare_var(VarName("j"), VarDecl.index(Formula.count
 index_count: Formula | None = VarDecl.index(5).count
 family: NodeId = doc.insert(Node.linear_pattern(VarName("k"), plate, doc.world, [("x", Formula.length_in(0.5, m))]))
 grid: Node = Node.grid((VarName("k"), "x", 0.5 * m), (VarName("j"), "y", 0.5 * m), plate, doc.world)
-ring: Node = Node.circular_pattern(doc, VarName("k"), plate, doc.world, (spin_axis, spin_axis, "z"), step=90 * deg)
-bolts: Node = Node.bolt_circle(doc, VarName("k"), 5, plate, doc.world, (spin_axis, spin_axis, "z"))
+ring: Node = Node.circular_pattern(doc, VarName("k"), plate, doc.world, (spin_axis, spin_axis), step=90 * deg)
+bolts: Node = Node.bolt_circle(doc, VarName("k"), 5, plate, doc.world, (spin_axis, spin_axis))
 seen: Recognised | None = doc.recognise(family)
 grid_member: IndexedRead = family[1, 2]
 members_of: list[tuple[list[int], Value]] = evaluate(doc).value(family).members()
@@ -952,7 +951,7 @@ except PersistError as persist_refusal:
         line_number: int = at_line
 
 try:
-    Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+    Frame.point_at((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0))
 except FrameError as frame_refusal:
     which_input: str = frame_refusal.variant
     which_band_arm: str | None = frame_refusal.inner_variant

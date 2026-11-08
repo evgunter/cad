@@ -285,7 +285,7 @@ fn scene_error_forwards_its_tessellation_arm() {
 /// kernel's own words — never a variant name.
 #[test]
 fn mate_tool_error_names_the_freedom_it_cannot_write() {
-    use pncad::document::Coord;
+    type Coord = pncad::document::Coord<pncad::document::Operand>;
     let outer = MateToolError::Unwritable {
         coord: Coord::SPIN,
         by: f64::INFINITY,

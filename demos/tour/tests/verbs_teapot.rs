@@ -452,7 +452,12 @@ fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
             1.0 / 128.0,
             tol,
         )
-        .unwrap_or_else(|e| panic!("{what} hollows at the axial door, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what} hollows at the axial door, got {e_at}",
+                e_at = e.render(pncad::geom_brep::recourse::Reading::Build)
+            )
+        });
     }
 }
 
@@ -538,7 +543,12 @@ fn the_hollow_now_survives_every_axial_junction() {
             thickness,
             tol,
         )
-        .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what} hollows, got {e_at}",
+                e_at = e.render(pncad::geom_brep::recourse::Reading::Build)
+            )
+        });
     }
 }
 
@@ -652,7 +662,12 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
             &chart,
             tol,
         )
-        .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: the opened arm must build the rim, got {e_at}",
+                e_at = e.render(pncad::geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
         assert_eq!(
             pncad::topo::validate_geometric(&cup, tol),

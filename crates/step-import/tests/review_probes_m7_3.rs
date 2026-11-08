@@ -78,7 +78,7 @@ fn probe_refit_seam_refuses_typed() {
     assert_ne!(text, fixture("loft_prism", "step"), "mutation applied");
     match import(&text) {
         Err(e) => {
-            let msg = e.to_string();
+            let msg = e.render();
             eprintln!("PROBE refit-seam refusal @ eps={eps:e}: {msg}");
             assert!(
                 PLANT > eps,
@@ -243,7 +243,10 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
     let mutated = format!("{}{}{}", &text[..open], snapped, &text[end..]);
     assert_ne!(mutated, text, "weights snapped");
     match import(&mutated) {
-        Err(e) => eprintln!("PROBE weight-snap refusal (honest): {e}"),
+        Err(e) => eprintln!(
+            "PROBE weight-snap refusal (honest): {e_at}",
+            e_at = e.render()
+        ),
         Ok(StepImport::Solid { body, .. }) => {
             let t3 = topo::validate_geometric(body.body(), Tol::witness());
             panic!(
@@ -349,7 +352,10 @@ fn probe_arm_b_rim_off_wall_arc() {
             );
         }
         Err(other) => {
-            panic!("the plant must refuse AT THE RESIDUAL GATE (RimOffWallBoundary), got: {other}")
+            panic!(
+                "the plant must refuse AT THE RESIDUAL GATE (RimOffWallBoundary), got: {other_at}",
+                other_at = other.render()
+            )
         }
         Ok(StepImport::Solid { body, .. }) => {
             let t1 = topo::validate(body.body());
@@ -429,7 +435,10 @@ fn probe_subunit_x_direction_rim_frame_rigidity() {
     );
     assert_ne!(text, orig, "direction mutated");
     match import(&text) {
-        Err(e) => eprintln!("PROBE subunit-dir refused (honest): {e}"),
+        Err(e) => eprintln!(
+            "PROBE subunit-dir refused (honest): {e_at}",
+            e_at = e.render()
+        ),
         Ok(StepImport::Solid { body, .. }) => {
             let mut bad = Vec::new();
             for (ek, e) in body.body().edges() {
@@ -466,7 +475,10 @@ fn probe_rim_same_sense_flip_is_honest() {
     );
     assert_ne!(text, orig, "same_sense flipped");
     match import(&text) {
-        Err(e) => eprintln!("PROBE same_sense flip refused (honest): {e}"),
+        Err(e) => eprintln!(
+            "PROBE same_sense flip refused (honest): {e_at}",
+            e_at = e.render()
+        ),
         Ok(StepImport::Solid { body, .. }) => {
             // If accepted, it must be the SAME body (flag interpretive).
             let base = solid(&orig, "committed fixture");

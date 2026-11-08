@@ -480,12 +480,10 @@ fn some_single_op_reaches(
         }
     }
     // mekr: all four site shapes over all loop pairs of each face.
-    for (_, face) in body.faces() {
-        let loops: Vec<LoopKey> = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
-            .collect();
+    for face in body.face_views() {
+        let loops: Vec<LoopKey> = face.loops().map(|(lk, ..)| lk).collect();
         for &target_l in &loops {
-            for &ring in &face.rings {
+            for &ring in &face.record().rings {
                 if target_l == ring {
                     continue;
                 }
@@ -704,10 +702,10 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
     // face -> vertices it touches
     let mut face_vertices: SecondaryMap<FaceKey, Vec<VertexKey>> = SecondaryMap::new();
     for &face in &faces {
-        let face_data = body.get_face(face).unwrap();
+        let view = body.proven_face(face);
         let mut vs = Vec::new();
-        for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-            match body.get_loop(l).unwrap().boundary {
+        for (_, l, _) in view.loops() {
+            match l.boundary {
                 LoopBoundary::Empty { vertex } => vs.push(vertex),
                 LoopBoundary::Cycle { first } => {
                     for he in body.loop_cycle(first).unwrap() {
@@ -754,10 +752,10 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
         let mut comp_edges: SecondaryMap<crate::entity::EdgeKey, ()> = SecondaryMap::new();
         let mut rings = 0usize;
         for &face in &comp_faces {
-            let face_data = body.get_face(face).unwrap();
-            rings += face_data.rings.len();
-            for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-                if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
+            let view = body.proven_face(face);
+            rings += view.record().rings.len();
+            for (_, l, _) in view.loops() {
+                if let LoopBoundary::Cycle { first } = l.boundary {
                     for he in body.loop_cycle(first).unwrap() {
                         comp_edges.insert(body.get_half_edge(he).unwrap().edge, ());
                     }
@@ -1258,7 +1256,8 @@ fn assert_torn_outcome<R>(
         Ok(Ok(_)) => assert!(may_succeed, "{label}: returned Ok on the torn chain"),
         Ok(Err(err)) => assert!(
             !matches!(err, EulerOpError::Argument(_)),
-            "{label}: refused a key read out of the body as an argument: {err}"
+            "{label}: refused a key read out of the body as an argument: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         ),
         Err(report) => {
             assert!(

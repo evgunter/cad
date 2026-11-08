@@ -541,6 +541,11 @@ pub(crate) fn by_kind(
             face,
             side: Which::First,
         }),
+        Surface::Spindle { .. } => Err(EngineRefusal::Unsupported {
+            carrier: "a spindle sheet's face, which has no injectivity lane yet",
+            face,
+            side: Which::First,
+        }),
     }
 }
 
@@ -717,12 +722,15 @@ fn overlap(a: Point3<Interval>, b: Point3<Interval>) -> bool {
 // windows ([`crate::clearance`]'s `window_of`, whose periodic axes are
 // these) and the presentations read the same table and the same turn.
 
-/// **Whether a chart axis is periodic**: the azimuth of a cylinder, cone
-/// or sphere, and a torus's both angles; no axis of a plane or a
-/// free-form chart.
+/// **Whether a chart axis is periodic**: the azimuth of a cylinder, cone,
+/// sphere or spindle sheet, and a torus's both angles; no axis of a
+/// plane or a free-form chart.
 pub(crate) fn periodic<T: Real>(surface: &Surface<T>, axis: Axis) -> bool {
     match surface {
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => axis == Axis::U,
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Spindle { .. } => axis == Axis::U,
         Surface::Torus { .. } => true,
         _ => false,
     }
@@ -1133,7 +1141,7 @@ fn present<'a>(
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
         | Surface::Torus { .. } => present_chart(piece, near_edges, near_vertices, band),
-        Surface::Approx(_) => Err(Unpresented::Structural),
+        Surface::Spindle { .. } | Surface::Approx(_) => Err(Unpresented::Structural),
     }
 }
 
@@ -2366,7 +2374,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2375,7 +2383,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -4197,8 +4205,12 @@ impl Psi {
             Self::Linear { n, q } => n.dot(p - q),
             Self::Carrier(Implicit::Plane { o, n }) => n.dot(p - o),
             Self::Carrier(Implicit::Cylinder { o, axis, r }) => {
-                let w = p - o;
-                (w - axis * w.dot(axis)).norm() - r
+                geom::Line {
+                    origin: o,
+                    dir: axis,
+                }
+                .distance(p)
+                    - r
             }
             Self::Carrier(Implicit::Sphere { c, r }) => (p - c).norm() - r,
             Self::Carrier(Implicit::Cone {
@@ -4208,9 +4220,12 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let w = p - apex;
-                let h = w.dot(axis);
-                (w - axis * h).norm() * cos - nappe * h * sin
+                let (h, rho) = geom::Line {
+                    origin: apex,
+                    dir: axis,
+                }
+                .height_and_distance(p);
+                rho * cos - nappe * h * sin
             }
             Self::Graph { .. } => return None,
         })
@@ -4221,8 +4236,11 @@ impl Psi {
         match *self {
             Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n,
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
-                let w = p - o;
-                let radial = w - axis * w.dot(axis);
+                let radial = geom::Line {
+                    origin: o,
+                    dir: axis,
+                }
+                .offset(p);
                 radial * (at(1.0) / radial.norm())
             }
             Self::Carrier(Implicit::Sphere { c, .. }) => {
@@ -4236,8 +4254,11 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let w = p - apex;
-                let radial = w - axis * w.dot(axis);
+                let radial = geom::Line {
+                    origin: apex,
+                    dir: axis,
+                }
+                .offset(p);
                 radial * (cos / radial.norm()) - axis * (nappe * sin)
             }
             Self::Graph { m, t, slope, .. } => m - t * slope,
@@ -4565,11 +4586,21 @@ fn plane_through(
     if let [(i, _)] = near.edges.as_slice()
         && let Some((
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             })
             | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { center, axis, .. },
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
                 ..
             }),
             _,

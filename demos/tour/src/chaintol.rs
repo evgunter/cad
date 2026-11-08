@@ -134,9 +134,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use pncad::analysis::{AnalysisPolicy, DriveConfig, ParamBox, analyzed_box, assertion_at, drive};
-use pncad::document::{
-    CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, ValuePayload, evaluate,
-};
+use pncad::document::{CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, evaluate};
 use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, Tol};
 
 use crate::chain::{
@@ -156,7 +154,7 @@ const MM: f64 = 1e3;
 /// the three fields off `DriveConfig::default()` is the whole of what
 /// is reachable from out here, and it is what this cell does rather
 /// than restating `4096` and `128` as literals.
-/// (`work/lib/the-drivers-symbolic-dials-have-no-name-on-the-facade`.)
+/// (`work/pydoor/the-drivers-symbolic-dials-have-no-name-on-the-facade`.)
 fn drive_dials() -> (SymBudget, SymRules) {
     let dials = DriveConfig::default().symbolic;
     (
@@ -534,7 +532,13 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
         ..DriveConfig::default()
     };
     let t0 = Instant::now();
-    match drive(&built.doc, &analyzed, &config, tol) {
+    match drive(
+        &built.doc,
+        &analyzed,
+        &config,
+        &pncad::document::Stop::default(),
+        tol,
+    ) {
         Ok(verdict) => {
             let (mut holds, mut violated, mut undecided) = (0usize, 0usize, 0usize);
             for leaf in verdict.certified() {
@@ -546,8 +550,10 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
                     built.assertion,
                     &leaf.box_,
                     verdict.symbolic(),
+                    &pncad::document::Stop::default(),
                     tol,
                 )
+                .expect("the replay runs to completion at the default member budget")
                 .and_then(|v| v.holds())
                 {
                     Some(true) => holds += 1,
@@ -630,7 +636,7 @@ pub fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f
             .enumerate()
             .map(|(k, id)| {
                 let payload = &ev.value(*id).expect("the pin evaluated").payload;
-                let ValuePayload::Body(body) = payload else {
+                let Some(Some(body)) = payload.one_body() else {
                     panic!("a placed pin evaluates to a body, got {payload:?}");
                 };
                 // Where the pin stands in the world: its frame composed

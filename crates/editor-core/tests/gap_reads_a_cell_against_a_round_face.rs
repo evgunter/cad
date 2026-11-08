@@ -278,8 +278,17 @@ fn the_analysis_lanes_read_a_round_gap_over_its_radius() {
         let (doc, m) = gap_node(&doc, &wall_ref, &edge);
         let nominal = value::<f64>(&doc, m).expect("f64 reads");
         let var = doc.output(m, 0).expect("a measure defines its value");
-        let entries = sensitivities(&doc, var, None, None, false, None, Tol::witness())
-            .unwrap_or_else(|e| panic!("bore {bore}: the Dual pass refused {e:?}"));
+        let entries = sensitivities(
+            &doc,
+            var,
+            None,
+            None,
+            false,
+            None,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("bore {bore}: the Dual pass refused {e:?}"));
         assert_eq!(entries.len(), 1, "bore {bore}: one toleranced input");
         match entries[0].outcome {
             SensitivityOutcome::Derivative { value, .. } => {
@@ -317,6 +326,7 @@ fn the_analysis_lanes_read_a_round_gap_over_its_radius() {
                 max_leaves: 16,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the drive runs");
@@ -334,6 +344,7 @@ fn the_analysis_lanes_read_a_round_gap_over_its_radius() {
                 parallel: false,
                 ..McConfig::default()
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the nominal builds");
@@ -436,8 +447,17 @@ fn the_dual_pass_reads_the_radius_where_a_cell_meets_the_axis() {
         let cell = if use_edge { &edge } else { &foot };
         let (doc, m) = gap_node(&doc, &wall, cell);
         let var = doc.output(m, 0).expect("a measure defines its value");
-        let entries = sensitivities(&doc, var, None, None, false, None, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: the Dual pass refused {e:?}"));
+        let entries = sensitivities(
+            &doc,
+            var,
+            None,
+            None,
+            false,
+            None,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: the Dual pass refused {e:?}"));
         match entries.first().map(|e| &e.outcome) {
             Some(SensitivityOutcome::Derivative { value, .. }) => {
                 assert!((value + 1.0).abs() < 1e-9, "{name}: ∂g/∂r reads {value}");

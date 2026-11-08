@@ -575,7 +575,7 @@ fn non_finite_sector_chord_names_the_cause_and_no_tolerance_recourse() {
         vertex: VertexKey::default(),
         face: topo::FaceKey::default(),
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(!msg.contains("split_reduce"), "no stage prefix: {msg}");
     assert!(msg.contains("has no finite length"), "{msg}");
     assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");

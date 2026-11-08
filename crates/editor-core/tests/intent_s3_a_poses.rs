@@ -519,13 +519,7 @@ fn ring_about_a_meet(a_origin: [f64; 3], a_tilt: f64) -> String {
         a: plain(a),
         b: axis(PoseRole::Zx),
     }));
-    let (doc, _, ring) = fixture::circular(
-        doc,
-        block,
-        (meet, editor_core::TargetAxis::Z),
-        std::f64::consts::FRAC_PI_2,
-        3,
-    );
+    let (doc, _, ring) = fixture::circular(doc, block, meet, std::f64::consts::FRAC_PI_2, 3);
     let ev = eval(&doc);
     format!("{:?}", ev.value(ring).expect("the ring builds").payload)
 }
@@ -1004,13 +998,7 @@ fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
     let wall_axis = RoleRead::plain(pose(PoseDef::Axis {
         of: select(revolve, wall),
     }));
-    let (doc, _, ring) = fixture::circular(
-        doc,
-        revolve,
-        (wall_axis, editor_core::TargetAxis::Y),
-        std::f64::consts::FRAC_PI_2,
-        2,
-    );
+    let (doc, _, ring) = fixture::circular(doc, revolve, wall_axis, std::f64::consts::FRAC_PI_2, 2);
     let ev = eval(&doc);
     let axis_of = |var| match bound_pose(&doc, &ev, OperandSlot::Axis, var, Tol::witness()) {
         Ok(PoseValue::Axis(line)) => (line.foot(), UnitVec3::get(line.dir())),

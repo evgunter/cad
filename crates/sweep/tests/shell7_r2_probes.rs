@@ -80,7 +80,10 @@ fn p2_the_torus_at_a_thickness_approaching_its_minor_radius() {
                     "t = {t}: volume off the closed form"
                 );
             }
-            Err(e) => eprintln!("[p2] t = {t}: refuses — {e}"),
+            Err(e) => eprintln!(
+                "[p2] t = {t}: refuses — {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -145,7 +148,10 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
                 );
                 eprintln!("[p3b] R = {major:e}: SHELLS — volume {props:?}");
             }
-            Err(e) => eprintln!("[p3b] R = {major:e}: refuses — {e}"),
+            Err(e) => eprintln!(
+                "[p3b] R = {major:e}: refuses — {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -200,7 +206,10 @@ fn p3_the_seam_decide_at_small_major_radii() {
                     props.enclosure.volume
                 );
             }
-            Err(e) => eprintln!("[p3] R = {major:e}, r = {minor:e}: refuses — {e}"),
+            Err(e) => eprintln!(
+                "[p3] R = {major:e}, r = {minor:e}: refuses — {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -428,7 +437,10 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
         tol(),
     ) {
         Ok(_) => eprintln!("[e2e] the twice-shelled hollow torus shells again"),
-        Err(e) => eprintln!("[e2e] shelling the shelled hollow torus refuses — {e}"),
+        Err(e) => eprintln!(
+            "[e2e] shelling the shelled hollow torus refuses — {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 
     // 4. `shell_open` on a torus: no planar face to designate. The
@@ -450,7 +462,10 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
             out.body.shells().count(),
             out.naming.rims.len()
         ),
-        Err(e) => eprintln!("[e2e] shell_open on a torus face refuses — {e}"),
+        Err(e) => eprintln!(
+            "[e2e] shell_open on a torus face refuses — {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -511,7 +526,10 @@ fn p6_an_independent_corpus_differential() {
         dump(&format!("frustum {r0}/{r1}/{h}, operand"), &body);
         match topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol()) {
             Ok(out) => dump(&format!("frustum {r0}/{r1}/{h}, shelled"), &out.body),
-            Err(e) => println!("[r2dump] frustum {r0}/{r1}/{h}, shelled | refuses {e}"),
+            Err(e) => println!(
+                "[r2dump] frustum {r0}/{r1}/{h}, shelled | refuses {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
     // Partial wedges at several turns.
@@ -520,7 +538,10 @@ fn p6_an_independent_corpus_differential() {
         dump(&format!("wedge {turn:.3}, operand"), &body);
         match topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol()) {
             Ok(out) => dump(&format!("wedge {turn:.3}, shelled"), &out.body),
-            Err(e) => println!("[r2dump] wedge {turn:.3}, shelled | refuses {e}"),
+            Err(e) => println!(
+                "[r2dump] wedge {turn:.3}, shelled | refuses {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
     // Sphere-zone vases: the wall is an arc whose circle is centred ON
@@ -541,7 +562,10 @@ fn p6_an_independent_corpus_differential() {
         dump(&format!("vase {bulge}, operand"), &vase);
         match topo::shell(&finished("the operand", vase.clone(), tol()), 0.05, tol()) {
             Ok(out) => dump(&format!("vase {bulge}, shelled"), &out.body),
-            Err(e) => println!("[r2dump] vase {bulge}, shelled | refuses {e}"),
+            Err(e) => println!(
+                "[r2dump] vase {bulge}, shelled | refuses {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
     // The klein elbow: a quarter tube.
@@ -565,7 +589,10 @@ fn p6_an_independent_corpus_differential() {
     dump("elbow, operand", &elbow);
     match topo::shell(&finished("the operand", elbow.clone(), tol()), 0.05, tol()) {
         Ok(out) => dump("elbow, shelled", &out.body),
-        Err(e) => println!("[r2dump] elbow, shelled | refuses {e}"),
+        Err(e) => println!(
+            "[r2dump] elbow, shelled | refuses {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     // The hollow torus of SHELL-5, and the solid one.
     let hollow = tube_along_arc_hollow::<f64>(
@@ -586,7 +613,10 @@ fn p6_an_independent_corpus_differential() {
     dump("hollow torus, operand", &hollow);
     match topo::shell(&finished("the operand", hollow.clone(), tol()), 0.05, tol()) {
         Ok(out) => dump("hollow torus, shelled", &out.body),
-        Err(e) => println!("[r2dump] hollow torus, shelled | refuses {e}"),
+        Err(e) => println!(
+            "[r2dump] hollow torus, shelled | refuses {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 

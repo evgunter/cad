@@ -69,6 +69,28 @@ impl Q {
         }
     }
 
+    /// `|self|`.
+    pub(crate) fn abs(&self) -> Self {
+        Self {
+            n: if self.n.sign() == Sign::Minus {
+                -&self.n
+            } else {
+                self.n.clone()
+            },
+            d: self.d.clone(),
+        }
+    }
+
+    /// `self ≤ o`, exactly.
+    pub(crate) fn le(&self, o: &Self) -> bool {
+        &self.n * &o.d <= &o.n * &self.d
+    }
+
+    /// The larger of `self` and `o`.
+    pub(crate) fn max(self, o: Self) -> Self {
+        if self.le(&o) { o } else { self }
+    }
+
     /// `lo ≤ self ≤ hi`, exactly.
     pub(crate) fn within(&self, lo: f64, hi: f64) -> bool {
         let (lo, hi) = (Self::of(lo), Self::of(hi));

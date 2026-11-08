@@ -119,7 +119,7 @@ Ev's request:
 - `work/sym/a-chain-of-three-joints-straddles-dihedral-arm` — the first
   refusal over the whole study, which is a different thing
 - `work/sym/a-widened-rotation-angle-refuses-on-the-plain-interval-lane`
-- `work/lib/the-drivers-symbolic-dials-have-no-name-on-the-facade` — on
+- `work/pydoor/the-drivers-symbolic-dials-have-no-name-on-the-facade` — on
   LIB's slate, where `crates/pncad` is
 
 **This row stays CLOSED.** Its condition was that the certified lane

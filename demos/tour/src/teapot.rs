@@ -154,14 +154,20 @@
 //!    one of the spout's NURBS walls rising there, meets that wall's
 //!    boundary, since the meridian and the spout's seams lie in the
 //!    pot's one plane of symmetry. A meeting on a boundary edge splits
-//!    both edges, and the spout's seam is a spline with no point
-//!    parameter to split at: `PointSplitCarrierUnsupported { operand: B }`.
-//!    That is the pierce the join actually needs, the spout's walls entering
-//!    the belly, and it is the NURBS face against a curved face that
-//!    the section object's rung 3 builds. Making the spout the shape a
-//!    potter draws did not make it joinable; it moved the refusal off a
-//!    pair the model does not care about and onto the meeting itself.
-//!    Wall 3 pins it and the note carries the payload.
+//!    both edges, the spout's spline seam at the parameter the meeting
+//!    read it at. The spout's walls read the belly's pierce point off
+//!    their trims, and the join then finds no frame for the section of
+//!    the belly's sphere and the spout's outer wall:
+//!    `GermFrameUnsupported { a_kind: Sphere, b_kind: Nurbs }` (at
+//!    ε = 1e-6 the meridian's interior walk against one of the spout's
+//!    bore walls floors first: `SplineCrossingUnsettled { why: Floor }`).
+//!    That is the pierce the join
+//!    actually needs, the spout's walls entering the belly, and it is the
+//!    NURBS face against a curved face that the section object's rung 3
+//!    builds. Making the spout the shape a potter draws did not make it
+//!    joinable; it moved the refusal off a pair the model does not care
+//!    about and onto the meeting itself. Wall 3 pins it and the note
+//!    carries the payload.
 //!
 //!    Wall 2 is past the operand gate, the maximal-faces precondition
 //!    and the section, and stops at the segment the join cannot yet
@@ -177,9 +183,9 @@
 //!    face, the mouth-rim annulus at `y = 1/8`, was `FaceKey(1v1)`
 //!    when the cup came from a plane scan and became `FaceKey(2v1)`
 //!    once it came from the document. Wall 2 matches on `operand`
-//!    (the vessel's split planar walls); wall 3 matches on `operand` alone,
-//!    because the variant it pins carries no kinds — the edge key it
-//!    does carry is exactly the sort of value a probe must not pin.
+//!    (the vessel's split planar walls); wall 3 resolves the two faces
+//!    its refusal names in the spout's and the pot's bodies and matches
+//!    them by their geometry, never by the key's value.
 //! 5. **A spout the shape of a spout IS authorable — and this row was
 //!    half wrong when it was written.** It used to read: *"there is no
 //!    variable-section sweep, so the shape on screen is a straight
@@ -274,8 +280,7 @@ use pncad::prelude::AuthoredNode;
 use pncad::document::{
     Axis3, Bodies, CancelToken, Coord, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoftSection, LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, StationMove, TargetAxis, TubeWindow, ValuePayload, apply,
-    evaluate,
+    ProgramTarget, RecipeNodeId, StationMove, TargetAxis, TubeWindow, apply, evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -290,7 +295,7 @@ use pncad::select::{
     face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{Body, BooleanError, Operand};
+use pncad::topo::{Body, BooleanError};
 
 use crate::{SceneBody, TourStop, View};
 
@@ -736,7 +741,7 @@ fn spout_loft(
 /// `y` onto `+x`, `z` onto `+y`: a quarter turn back about `x`, then
 /// one back about `y`), that frame turned by [`spout_turn`] about `+z`,
 /// and slid to [`SPOUT_ROOT`].
-fn spout_values() -> Vec<(Coord, Formula)> {
+fn spout_values() -> Vec<(Coord<pncad::document::Operand>, Formula)> {
     let mut values = vec![
         (
             Coord::Spin(Some(TargetAxis::X)),
@@ -758,7 +763,7 @@ fn spout_values() -> Vec<(Coord, Formula)> {
 
 /// **The handle's values on the pot's axes**: its spine centre slid onto
 /// the belly wall, its axes the pot's.
-fn handle_values() -> Vec<(Coord, Formula)> {
+fn handle_values() -> Vec<(Coord<pncad::document::Operand>, Formula)> {
     crate::world::slides([HANDLE_C.x, HANDLE_C.y, HANDLE_C.z])
 }
 
@@ -1124,9 +1129,9 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
     let value = ev
         .value(id)
         .unwrap_or_else(|| panic!("node {id:?} evaluated to a body, got {}", describe(ev, id)));
-    match &value.payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        other => panic!("expected a body, got {other:?}"),
+    match value.payload.one_body() {
+        Some(Some(b)) => crate::world::in_its_space(b, tol),
+        _ => panic!("expected a body, got {:?}", value.payload),
     }
 }
 
@@ -1201,7 +1206,7 @@ fn rim_circle(
                 .expect("a rim carries a certified curve");
             match *c.carrier() {
                 Curve3::Circle(pncad::geom::Circle {
-                    frame: pncad::geom::Frame { center, .. },
+                    frame: pncad::geom::Frame { origin: center, .. },
                     radius,
                 }) => {
                     assert!(
@@ -1262,7 +1267,7 @@ fn describe_join(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
             kind.name(),
             other_kind.name()
         ),
-        Err(other) => format!("{other}"),
+        Err(other) => other.render(pncad::geom_brep::recourse::Reading::Build),
     }
 }
 
@@ -1510,13 +1515,9 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
     asked
         .into_iter()
         .map(|(what, node)| {
-            let census = ev.value(node).and_then(|v| match &v.payload {
-                ValuePayload::Body(b) => Some((
-                    b.body().vertices().count(),
-                    b.body().edges().count(),
-                    b.body().faces().count(),
-                )),
-                _ => None,
+            let census = ev.value(node).and_then(|v| {
+                let b = v.payload.one_body().flatten()?.body();
+                Some((b.vertices().count(), b.edges().count(), b.faces().count()))
             });
             (what, describe(&ev, node), census)
         })
@@ -1545,7 +1546,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // so the request reaches the vessel's sphere face meeting the
     // handle's torus. The section value carries that pair's loops, the
     // segment lays them, and the union builds; its result's volume is not
-    // computed (a conic trim on the sphere's chart has no quadrature yet),
+    // computed (a trimmed sphere face has no volume lane on its chart yet),
     // so the result is invalid.
     crate::walls::wall(
         "teapot",
@@ -1564,7 +1565,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
                             ..
                         },
                         ..
-                    }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+                    }] if what.starts_with("a trimmed face with no volume lane on its chart")
                 )
             )
         },
@@ -1587,33 +1588,79 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // first, and the meridian meets it there: the meridian and the
     // spout's seams lie in the pot's one plane of symmetry, so where
     // the meridian pierces the wall it crosses a seam. A meeting on a
-    // boundary edge splits both edges, and a spline seam has no point
-    // parameter to split at
-    // (`work/splice/a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`).
+    // boundary edge splits both edges, the spline seam at the parameter
+    // the meeting read it at. The spout's walls read the belly's pierce
+    // point off their trims, and the join then has no frame for the
+    // section of the belly's sphere and the spout's outer wall
+    // (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
     //
-    // The predicate matches on the operand and the class, deliberately
-    // not the edge: an arena key moves whenever the model is re-authored,
-    // and a probe that pinned one would red on a rename. What is pinned
-    // is the class and the side: an edge of operand B, the spout.
+    // The predicate resolves the two faces the refusal names and pins
+    // them by geometry ([`wall3_pinned`]), not by the keys' values: an
+    // arena key moves whenever the model is re-authored.
     crate::walls::wall(
         "teapot",
         3,
         "join the CANAL to the vessel (union; the root disc wholly inside the belly)",
         join_outcome(ev, r.spout_union),
         |e| {
-            matches!(
-                e,
-                BooleanError::PointSplitCarrierUnsupported {
-                    operand: Operand::B,
-                    ..
-                }
-            )
+            let tol = Tol::witness();
+            wall3_pinned(e, &body_at(ev, r.spout, tol), &body_at(ev, r.pot, tol))
         },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
          walls 2 and 3, re-state the montage caption (which currently says four solids), \
          and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
          inside the cavity, which is fine for a refused request and wrong for a joined one",
     );
+}
+
+/// The far corner of the spout's outer wall that wall 3 asks about, at
+/// its chart's `(1, 1)`, on the symmetry plane `z = 0`: measured off the
+/// loft, which interpolates its stations.
+const SPOUT_OUTER_TIP: [f64; 3] = [-0.081_711_418_8, 0.153_348_328_1, 0.0];
+
+/// **Wall 3's pinned refusal**, at every ε: the join finds no frame for
+/// the germ pair of the belly's sphere (centre `Y_BELLY_C` on the axis,
+/// radius `R_BELLY`), the A face, against the spout's outer wall, from
+/// `SPOUT_R0` above the root to [`SPOUT_OUTER_TIP`], the B face
+/// (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
+/// Every face is resolved in the operand's own body and matched by its
+/// geometry.
+///
+/// The match is absolute, at a nanometre: the corners are the authored
+/// stations and the loft's own evaluation of them, not readings of the
+/// run's band, so they do not move with ε, and the faces they tell
+/// apart stand millimetres apart.
+pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>) -> bool {
+    let near = |p: Point3<f64>, q: [f64; 3]| (p - Point3::new(q[0], q[1], q[2])).norm() < 1e-9;
+    let BooleanError::GermFrameUnsupported {
+        a_face: belly,
+        a_kind: SurfaceKind::Sphere,
+        b_face: face,
+        b_kind: SurfaceKind::Nurbs,
+    } = e
+    else {
+        return false;
+    };
+    let the_belly = pot
+        .get_face(*belly)
+        .and_then(|f| pot.get_surface(f.surface))
+        .is_some_and(|s| {
+            matches!(s, Surface::Sphere { center, radius, .. }
+                if near(*center, [0.0, Y_BELLY_C, 0.0]) && (radius - R_BELLY).abs() < 1e-12)
+        });
+    let the_outer_wall = spout
+        .get_face(*face)
+        .and_then(|f| spout.get_surface(f.surface))
+        .is_some_and(|s| match s {
+            Surface::Nurbs(n) => {
+                let (u0, u1) = n.knot_values_u().domain();
+                let (v0, v1) = n.knot_values_v().domain();
+                near(n.eval(u0, v0), [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_R0])
+                    && near(n.eval(u1, v1), SPOUT_OUTER_TIP)
+            }
+            _ => false,
+        });
+    the_belly && the_outer_wall
 }
 
 /// The scene's recipe, built and evaluated. Both the render walk and
@@ -2649,7 +2696,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              a canal. A loft's walls are Nurbs and the pair rung HAS a Nurbs arm, so the \
              request now gets past it into the sweep, which meets the belly's revolve seam \
              (a meridian, where the spout leaves the belly) with one of the spout's NURBS walls, on that wall's seam, \
-             and cannot yet split a spline seam at a point: the pierce the join needs. The shape a potter \
+             splits both there, and cannot yet ask a spline wall whether it holds the sphere's pierce point: \
+             the pierce the join needs. The shape a potter \
              draws did not become joinable; the refusal moved off a pair nobody modelled \
              and onto the meeting itself. The schedule is the banked germ-chord \
              lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \
@@ -2658,9 +2706,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              is the evaluation's own carried refusal. NEITHER PROBE PINS AN ARENA KEY, which is \
              why both survived a re-authoring that moved one — the mouth-rim annulus at \
              y = 1/8 was FaceKey(1v1) off the plane scan and is FaceKey(2v1) off the \
-             document. Wall 2 matches on the operand; wall 3 matches on \
-             the operand and the face's kind, never the face key, which is exactly the \
-             sort of value a probe must not pin. The lofted canal above \
+             document. Wall 2 matches on the operand; wall 3 matches the two faces it \
+             names by their geometry, never by the keys' values. The lofted canal above \
              is what a potter would draw and it IS authorable; what is not is a SWEPT \
              spout said as a recipe (`wire_sweep` refuses unconditionally, U4/LQ3 \
              banked — the library sweep itself turns a bend like this one, short of a U-turn) \

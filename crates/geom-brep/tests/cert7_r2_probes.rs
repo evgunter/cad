@@ -84,8 +84,12 @@ fn r2_ellipse_of_revolution_wall_through_the_storage_door() {
     let wall = ellipse_wall(2.0, 1.0, 0.2, 1.2);
     let d = 0.05;
     let tol = 1e-3;
-    let s = approx_offset_surface_at(Arc::new(wall.clone()), d, tol, band())
-        .unwrap_or_else(|e| panic!("the ellipse wall refused through the storage door: {e}"));
+    let s = approx_offset_surface_at(Arc::new(wall.clone()), d, tol, band()).unwrap_or_else(|e| {
+        panic!(
+            "the ellipse wall refused through the storage door: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let geom::Surface::Approx(approx) = s else {
         panic!("the storage door returned a non-Approx variant");
     };
@@ -127,7 +131,10 @@ fn r2_hostile_uniform_weight_scales_contain_or_refuse() {
                 );
                 eprintln!("k={k:e}: certified, hull_sup={:.3e}", cert.hull_sup);
             }
-            Err(e) => eprintln!("k={k:e}: refused (honest): {e}"),
+            Err(e) => eprintln!(
+                "k={k:e}: refused (honest): {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -165,6 +172,9 @@ fn r2_hostile_alternating_weights_contain_or_refuse() {
                 cert.hull_sup / worst
             );
         }
-        Err(e) => eprintln!("hostile 0.1/10: refused (honest, sampled {worst:.3e}): {e}"),
+        Err(e) => eprintln!(
+            "hostile 0.1/10: refused (honest, sampled {worst:.3e}): {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }

@@ -6,7 +6,6 @@ status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
-refs: [a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted]
 closed: 2026-10-03
 ---
 

@@ -242,15 +242,33 @@ fn signed_axis(word: &str) -> PyResult<d::SignedAxis> {
 /// leaves the three slides and a chain of spins about the target
 /// space's axes, in the order written.
 #[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct Coord(pub(crate) d::Coord);
+#[derive(Clone, PartialEq)]
+pub(crate) struct Coord(pub(crate) d::Coord<d::Operand>);
 
 #[pymethods]
 impl Coord {
-    /// The slide along the chart's `axis`: `"x"`, `"y"` or `"z"`.
+    /// The slide along the chart's `axis`: `"x"`, `"y"` or `"z"`; with
+    /// no `axis`, along the mated direction itself, beside a mate that
+    /// leaves a translation along it (an axis, a direction).
     #[staticmethod]
-    fn slide(axis: &str) -> PyResult<Self> {
-        Ok(Self(d::Coord::Slide(target_axis(axis)?)))
+    #[pyo3(signature = (axis=None))]
+    fn slide(axis: Option<&str>) -> PyResult<Self> {
+        Ok(Self(d::Coord::Slide(axis.map(target_axis).transpose()?)))
+    }
+
+    /// The slide along a `Direction`, or an `Axis` for its direction,
+    /// read off a body in the target space (a plain read, or one through
+    /// a role: `RoleRead(face_plane, "normal")`).
+    #[staticmethod]
+    fn slide_along(along: super::pose::PoseArg) -> Self {
+        Self(d::Coord::SlideAlong(along.read()))
+    }
+
+    /// A link of a chain where no mate fixes a direction: the spin about
+    /// an `Axis` read off a body in the target space, about its line.
+    #[staticmethod]
+    fn spin_about(about: super::pose::PoseArg) -> Self {
+        Self(d::Coord::SpinAbout(about.read()))
     }
 
     /// The spin about the target's own direction, with no `axis`; or about the
@@ -261,11 +279,12 @@ impl Coord {
         Ok(Self(d::Coord::Spin(axis.map(target_axis).transpose()?)))
     }
 
-    /// The stable word: `slide_x`, `slide_y`, `slide_z`, `spin`,
-    /// `spin_x`, `spin_y` or `spin_z`.
+    /// The stable word: `slide_x`, `slide_y`, `slide_z`, `slide`,
+    /// `slide_along`, `spin`, `spin_x`, `spin_y`, `spin_z` or
+    /// `spin_about`.
     #[getter]
     fn variant(&self) -> &'static str {
-        coord_tag(self.0)
+        coord_tag(&self.0)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -275,16 +294,23 @@ impl Coord {
     fn __hash__(&self) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
-        self.0.hash(&mut h);
+        format!("{:?}", self.0).hash(&mut h);
         h.finish()
     }
 
     fn __repr__(&self) -> String {
         let word = axis_word;
-        match self.0 {
-            d::Coord::Slide(axis) => format!("Coord.slide({:?})", word(axis)),
-            d::Coord::Spin(Some(axis)) => format!("Coord.spin({:?})", word(axis)),
+        let read = |r: &d::pose::RoleRead<d::Operand>| match r.role {
+            Some(role) => format!("RoleRead({}, {:?})", r.read, super::pose::role_word(role)),
+            None => r.read.to_string(),
+        };
+        match &self.0 {
+            d::Coord::Slide(Some(axis)) => format!("Coord.slide({:?})", word(*axis)),
+            d::Coord::Slide(None) => "Coord.slide()".to_string(),
+            d::Coord::SlideAlong(r) => format!("Coord.slide_along({})", read(r)),
+            d::Coord::Spin(Some(axis)) => format!("Coord.spin({:?})", word(*axis)),
             d::Coord::Spin(None) => "Coord.spin()".to_string(),
+            d::Coord::SpinAbout(r) => format!("Coord.spin_about({})", read(r)),
         }
     }
 }
@@ -317,9 +343,10 @@ pub(crate) fn target_axis(axis: &str) -> PyResult<d::TargetAxis> {
 ///
 /// Beside a mate fixing a direction it is charted on the target space's
 /// own axes carried by the least turn from where the mate's orientation
-/// puts the copy's mated direction onto the mated one: a slide is the
-/// copy's origin measured along a carried axis, the spin the turn left
-/// about the target's own direction. Zero says the copy's own coordinates agree
+/// puts the copy's mated direction onto the mated one, the spin the turn
+/// left about the target's own direction. The copy stands where its
+/// mates and spins seat it plus the sum of its slides, each its value
+/// along its direction (`Coord`). Zero says the copy's own coordinates agree
 /// with the target space's, up to the orientation, as far as the mates
 /// allow.
 ///
@@ -375,7 +402,11 @@ pub(crate) fn bundle(entries: BundleArg) -> Vec<d::Constraint<d::Formula>> {
 
 impl MateValue {
     /// The value `by` on `coord`, `by` read at the freedom's dimension.
-    pub(crate) fn of(py: Python<'_>, coord: d::Coord, by: &super::expr::SlotArg) -> PyResult<Self> {
+    pub(crate) fn of(
+        py: Python<'_>,
+        coord: d::Coord<d::Operand>,
+        by: &super::expr::SlotArg,
+    ) -> PyResult<Self> {
         let by = super::pose::scalar_at(py, coord.dimension(), by, coord.name())?;
         Ok(Self(d::Value { coord, by }))
     }
@@ -385,13 +416,13 @@ impl MateValue {
 impl MateValue {
     #[new]
     fn new(py: Python<'_>, coord: &Coord, by: super::expr::SlotArg) -> PyResult<Self> {
-        Self::of(py, coord.0, &by)
+        Self::of(py, coord.0.clone(), &by)
     }
 
     /// Which freedom.
     #[getter]
     fn coord(&self) -> Coord {
-        Coord(self.0.coord)
+        Coord(self.0.coord.clone())
     }
 
     /// The number, as written.
@@ -408,7 +439,7 @@ impl MateValue {
     fn __repr__(&self) -> String {
         format!(
             "MateValue({}, {})",
-            Coord(self.0.coord).__repr__(),
+            Coord(self.0.coord.clone()).__repr__(),
             self.0.by
         )
     }
@@ -478,7 +509,7 @@ impl Placed {
             .iter()
             .map(|(coord, by)| {
                 MateValue(d::Value {
-                    coord: *coord,
+                    coord: coord.clone(),
                     by: by.clone(),
                 })
             })
@@ -779,7 +810,7 @@ impl MateFault {
             d::NoChartWhy::SlidesDoNotSpan { write, .. } => {
                 Some(write.axes().map(axis_word).collect())
             }
-            d::NoChartWhy::SlideTurnsABall => None,
+            d::NoChartWhy::SlideTurnsABall | d::NoChartWhy::ReadSlidesDoNotSpan => None,
         }
     }
 

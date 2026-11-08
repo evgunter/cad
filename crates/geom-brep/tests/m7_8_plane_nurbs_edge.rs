@@ -586,10 +586,22 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
             refused(&r),
             "[{lo:e}, {hi:e}] lane: domain and fault: {r:?}"
         );
-        let msg = PlaneNurbsRefusal::CarrierDomain(r).to_string();
+        // The payload states the condition; the door ends it in the
+        // carrier's own lever, once.
+        let refusal = PlaneNurbsRefusal::CarrierDomain(r);
+        let payload = refusal.to_string();
+        assert!(
+            payload.contains(says) && payload.matches("Recourse:").count() == 0,
+            "[{lo:e}, {hi:e}] lane: its own condition, no recourse: {payload}"
+        );
+        let msg = refusal.render(geom_brep::recourse::Reading::Build);
         assert!(
             msg.contains(says) && msg.matches("Recourse:").count() == 1,
             "[{lo:e}, {hi:e}] lane: its own condition and one recourse: {msg}"
+        );
+        assert!(
+            msg.ends_with(geom_brep::CARRIER_DOMAIN_RECOURSE),
+            "[{lo:e}, {hi:e}] lane: the carrier's parameterization is the lever: {msg}"
         );
 
         // The mint's image of the spline over its own domain, and of a

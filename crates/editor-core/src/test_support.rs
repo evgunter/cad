@@ -6,8 +6,9 @@
 //! determinant the review rows read the certified one against, the
 //! recipe walks' pass-through classification a row holds against the
 //! evaluator, and the load door's nesting limit a row holds against
-//! what a save writes, the recipes more than one suite builds, and the
-//! spelling a content key writes for a slot.
+//! what a save writes, the recipes more than one suite builds, the
+//! spelling a content key writes for a slot, and a family of bodies read
+//! as its bodies.
 //!
 //! One home for every reader in this crate and the crates that test
 //! against it: the unit-test modules reach it as `crate::test_support`,
@@ -27,7 +28,7 @@ use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
 use crate::{
-    Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    Dimension, DocEdit, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
     ProfileProgram, RecipeNodeId,
 };
 
@@ -75,28 +76,37 @@ pub fn len2(v: [f64; 2]) -> [Formula; 2] {
 
 // --- the stored form ------------------------------------------------
 
+/// **Every member's body of a family of bodies**, in member order: the
+/// `Instances` payload of a family no member of which is empty.
+///
+/// # Panics
+///
+/// At a member that is a boolean's empty result.
+pub fn every_body<T: geom_core::Decide>(
+    members: &[Option<crate::Framed<T>>],
+) -> Vec<&crate::Framed<T>> {
+    members
+        .iter()
+        .enumerate()
+        .map(|(i, body)| {
+            body.as_ref()
+                .unwrap_or_else(|| panic!("member {i} is the empty result"))
+        })
+        .collect()
+}
+
 /// **A document to lower into and throw away**, for a row that asks a
 /// stored form something its variables' values do not answer.
 pub fn scratch(tol: geom_core::Tol) -> ProfileDoc {
     ProfileDoc::empty_derived("scratch", tol)
 }
 
-/// The stored node `node` lowers to in `doc`: what the edit door would
-/// write for it, every variable it mints minted into `doc`, for a row
-/// that places a node in a document by hand.
-///
-/// # Panics
-///
-/// If `node` does not lower in `doc`.
-pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileProgram> {
-    crate::edit::lower_node_into(doc, node).expect("a node the document can answer lowers")
-}
-
 /// **A stored node read as given**: every slot lowered into `doc` as
-/// [`stored`] lowers it, and every operand stored as the read it names
-/// with no door around it — a variable by id as itself, a node or a
-/// port as the id `read` hands for it — for a row about a node's own
-/// shape, whose operands need name no live output.
+/// the edit door lowers it, every variable it mints minted into `doc`,
+/// and every operand stored as the read it names with no door around
+/// it — a variable by id as itself, a node or a port as the id `read`
+/// hands for it — for a row about a node's own shape, whose operands
+/// need name no live output.
 ///
 /// # Panics
 ///
@@ -197,15 +207,6 @@ pub fn as_written(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> crate::Autho
     node.written(doc)
 }
 
-/// The stored expression `formula` lowers to where no name is held.
-///
-/// # Panics
-///
-/// If `formula` reads a variable by name.
-pub fn stored_expr(formula: &Formula) -> Expr {
-    Expr::try_from(formula).expect("a formula with no name leaf lowers in any scope")
-}
-
 /// The stored program `program` lowers to in `doc`, its plane read as
 /// given ([`stored_reading`]): a plane naming node `n` is stored as the
 /// read with `n`'s own id, for a row about a program's own shape,
@@ -223,7 +224,8 @@ pub fn stored_program(doc: &mut ProfileDoc, program: &ProfileProgram<Formula>) -
     }
 }
 
-/// The stored loop `program` lowers to in `doc` ([`stored`]).
+/// The stored loop `program` lowers to in `doc`, every variable it
+/// mints minted into `doc`.
 ///
 /// # Panics
 ///
@@ -276,7 +278,7 @@ pub fn body_of(doc: &ProfileDoc, node: RecipeNodeId) -> crate::Operand {
 /// exactly where the frame says, else by the angles `atan2` reads off
 /// its columns (`linear = Rz(γ)·Ry(β)·Rx(α)`), to their rounding. The
 /// constant `0` is left to [`crate::Placed::of`].
-pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
+pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord<crate::Operand>, Formula)> {
     use crate::{Coord, TargetAxis};
     let quarter = |k: i32| -> [[i32; 3]; 3] {
         // The turn by `k` quarters about z, in columns.
@@ -328,8 +330,8 @@ pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
         .into_iter()
         .zip(at.translation)
         .filter(|&(_, by)| by != 0.0)
-        .map(|(axis, by)| (Coord::Slide(axis), len(by)));
-    let spins: Vec<(Coord, Formula)> = match chain {
+        .map(|(axis, by)| (Coord::slide(axis), len(by)));
+    let spins: Vec<(Coord<crate::Operand>, Formula)> = match chain {
         Some(chain) => chain
             .into_iter()
             .filter(|&(_, k)| k != 0)
@@ -574,8 +576,8 @@ pub fn placed_against_in(
     crate::Placed {
         mates: vec![crate::Mate { on, to, orient }],
         values: vec![
-            (Coord::Slide(across[0]), slide(coordinate(across[0]))),
-            (Coord::Slide(across[1]), slide(coordinate(across[1]))),
+            (Coord::slide(across[0]), slide(coordinate(across[0]))),
+            (Coord::slide(across[1]), slide(coordinate(across[1]))),
             (Coord::SPIN, spin),
         ],
     }
@@ -593,10 +595,10 @@ pub fn axes_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
     use geom_core::linalg::Vec3 as V;
     let u = V::new(u[0], u[1], u[2]);
     let v = V::new(v[0], v[1], v[2]);
-    let x = u * (1.0 / u.norm());
+    let x = u.normalize();
     let y = v - x * v.dot(x);
     assert!(y.norm() > 0.0, "the frame's axes span a plane");
-    let y = y * (1.0 / y.norm());
+    let y = y.normalize();
     let z = x.cross(y);
     crate::Frame {
         columns: [[x.x, x.y, x.z], [y.x, y.y, y.z], [z.x, z.y, z.z]],
@@ -644,7 +646,7 @@ pub fn plane_on(
         crate::mate::corner::read_of(doc, &ev, &body).expect("the body has a value");
     let solid = framed.body();
     let n = V::new(normal[0], normal[1], normal[2]);
-    let n = n * (1.0 / n.norm());
+    let n = n.normalize();
     let o = Point3::new(origin[0], origin[1], origin[2]);
     let parallel: Vec<_> = solid
         .faces()
@@ -1500,7 +1502,7 @@ mod tests {
     #[test]
     fn a_quarter_turn_is_read_about_its_own_axis() {
         let quarter = Formula::turn_over(4).expect("a quarter turn");
-        let spins = |at| -> Vec<(Coord, Formula)> {
+        let spins = |at| -> Vec<(Coord<crate::Operand>, Formula)> {
             moves_at(&at)
                 .into_iter()
                 .filter(|(c, _)| matches!(c, Coord::Spin(_)))

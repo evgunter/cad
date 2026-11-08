@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-02
 priority: P3
 cost: E
-refs: [the-union-fallback-graft-re-certifies-a-disjoint-operand-through-the-lane-free-door]
 ---
 
 

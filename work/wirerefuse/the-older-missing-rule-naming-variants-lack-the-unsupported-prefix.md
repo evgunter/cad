@@ -34,3 +34,7 @@ it, so a grep for the frontier misses them:
 Rename each (and its `pncad-py` tag word in `tags.rs` / `TAG_INVENTORY`, the
 `display_contract` census idents, `refusal_concision_chains`' rows and keyed
 list), or argue per variant why it is not row 2.
+
+## A started draft, handed back (2026-11-02, WIRE)
+
+Dispatched and stopped under the sitting rule; nothing was pushed. The plan the draft took: rename the seven Unruled variants `Unsupported*`, keeping the Python tag words (the prefixed siblings do not spell "unsupported" there either). `PartnerUnread` is in the Limit category (a precision limit), so it is not this row's.

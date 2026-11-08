@@ -269,7 +269,7 @@ fn reading(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<Reading> {
         ValuePayload::Body(b) | ValuePayload::Boolean(BooleanValue::Body { body: b, .. }) => {
             vec![b]
         }
-        ValuePayload::Instances(v) => v.iter().collect(),
+        ValuePayload::Instances(v) => v.iter().flatten().collect(),
         ValuePayload::Split { above, below } => [above, below]
             .into_iter()
             .filter_map(|s| match s {
@@ -576,7 +576,7 @@ fn a_value_edit_moves_a_copys_frame_and_not_its_mesh() {
     let before = editor_core::NodePick::build_with(&first, copy, 0, 0.1, tol, &mut memo)
         .expect("the copy tessellates");
     memo.end_picture();
-    let slid = editor_core::Coord::Slide(editor_core::TargetAxis::X);
+    let slid = editor_core::Coord::slide(editor_core::TargetAxis::X);
     let edit = fixture::value_bump(&doc, copy, slid, 1.5);
     let moved = editor_core::apply(&doc, &edit, tol)
         .expect("the value moves")

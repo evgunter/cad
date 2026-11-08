@@ -128,6 +128,30 @@ pub fn slides_left_along<T: SolveScalar>(count: usize, n: Vec3<T>) -> SlideAxes 
     }))
 }
 
+/// **The target axes the other slides of a bundle with no mate run
+/// along, beside slides along `dirs`** (D10 `[placement.values]`): the
+/// target axes that with `dirs` are independent — beside one direction
+/// the two other than the one it runs most along, beside two the one
+/// their plane's normal runs most along. What a gesture reads off a
+/// picked direction before it writes a row along it
+/// ([`super::Placed::unmated_across`]); the evaluation decides the
+/// slides' independence again where the direction moves.
+#[must_use]
+pub fn slides_across(dirs: &[Vec3<f64>]) -> SlideAxes {
+    let most = |v: Vec3<f64>| {
+        let q = [v.x.abs(), v.y.abs(), v.z.abs()];
+        (0..3).fold(0, |b, i| if q[i] > q[b] { i } else { b })
+    };
+    match dirs {
+        [d] => {
+            let m = most(*d);
+            SlideAxes::of(TargetAxis::ALL.into_iter().filter(|a| a.index() != m))
+        }
+        [a, b] => SlideAxes::of([TargetAxis::of_index(most(a.cross(*b)))]),
+        _ => SlideAxes::default(),
+    }
+}
+
 /// **A direction across the unit `n`**, the reference a spin about `n`
 /// is measured from: where `n` lies along axis `j`, the next axis
 /// `(j + 1) mod 3` exactly; otherwise the target axis least along `n`

@@ -176,8 +176,12 @@ fn quarter_spool() -> Body<f64> {
 }
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
-    point_in_solid(body, q, band(), Tol::witness())
-        .unwrap_or_else(|e| panic!("point_in_solid refused at {q:?}: {e}"))
+    point_in_solid(body, q, band(), Tol::witness()).unwrap_or_else(|e| {
+        panic!(
+            "point_in_solid refused at {q:?}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
 }
 
 /// The probe offset — **BOOL-2's expression, unchanged**, because this
@@ -622,7 +626,8 @@ fn a_disjoint_union_with_a_donut_now_assembles() {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(
             "the containment door still refuses a torus operand — this is the \
-             refusal issue 1011's torus half retires: {e}"
+             refusal issue 1011's torus half retires: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         ),
         Err(other) => panic!("unexpected refusal: {other:?}"),
     };
@@ -669,7 +674,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
         face: body.faces().next().unwrap().0,
         kind: geom::SurfaceKind::Nurbs,
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(!msg.contains("corrupt"), "{msg}");
     assert!(
@@ -685,7 +690,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
     let msg = PointInSolidError::PartialTorusFace {
         face: body.faces().next().unwrap().0,
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
     assert!(
@@ -694,18 +699,18 @@ fn the_kind_refusal_no_longer_names_the_torus() {
     );
 }
 
-/// **The radii regime that is not mintable.** Issue 1011's torus half
+/// **The radii regime that is not a torus.** Issue 1011's torus half
 /// asks for both radii regimes if both are mintable through public
-/// doors. They are not: `Surface::Torus` carries the ring convention
-/// `R > r`, the revolve door refuses a spindle at construction, and
-/// `topo::validate`'s tier-3 check reports `DegenerateTorus` on any face
-/// carrying one at rest — so the containment arm is written for ring
-/// tori and premises `R > r` where it needs it (the residual's
-/// `ρ ≥ R − r > 0`).
+/// doors. Only the ring is a torus: `Surface::Torus` carries the ring convention
+/// `R > r`, and `topo::validate`'s tier-3 check reports `DegenerateTorus`
+/// on any face carrying one at rest — so the containment arm is written
+/// for ring tori and premises `R > r` where it needs it (the residual's
+/// `ρ ≥ R − r > 0`). An arc whose circle reaches the axis sweeps one
+/// sheet of a spindle torus, a kind of its own (`Surface::Spindle`).
 ///
 /// This row is the receipt for the REVOLVE door and only that one: a
-/// profile whose arc centre falls on the far side of the axis-parallel
-/// line through the arc — a spindle — does not produce a body.
+/// profile whose arc centre falls nearer the axis than its radius — a
+/// spindle — builds a sheet, and no torus face.
 ///
 /// # What this receipt does NOT cover
 ///
@@ -729,7 +734,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
 /// a typed refusal instead of a poison frame. On a ring torus it never
 /// fires.
 #[test]
-fn a_spindle_torus_is_not_mintable_through_the_public_door() {
+fn a_spindle_profile_revolves_to_a_sheet_and_no_torus() {
     // A shallow bulge on the same chord: sagitta 0.15, arc radius
     // 0.908, centre at x = 0.242 — the centre is nearer the axis than
     // the tube radius, so `R < r`.
@@ -743,16 +748,31 @@ fn a_spindle_torus_is_not_mintable_through_the_public_door() {
         (Point2::new(1.0, 1.0), 0.0),
         (Point2::new(0.0, 1.0), 0.0),
     ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness());
-    let refused = match profile {
-        Err(_) => true,
-        Ok(vp) => revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).is_err(),
-    };
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    let body = revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    let kinds: Vec<_> = body
+        .faces()
+        .filter_map(|(_, f)| body.get_surface(f.surface))
+        .collect();
     assert!(
-        refused,
-        "a spindle torus must not reach a body — the containment arm, the surface \
-         convention and tier-3 check 1 all premise R > r"
+        !kinds
+            .iter()
+            .any(|s| matches!(s, geom::Surface::Torus { .. })),
+        "a spindle profile mints no torus face: {kinds:?}"
     );
+    assert!(
+        kinds.iter().any(|s| matches!(
+            s,
+            geom::Surface::Spindle { major_radius, minor_radius, .. }
+                if (major_radius - big_r).abs() < 1e-12 && (minor_radius - r).abs() < 1e-12
+        )),
+        "its arc sweeps the apple sheet R = {big_r}, r = {r}: {kinds:?}"
+    );
+    topo::AtRestBody::validate(body, Tol::witness()).unwrap();
 }
 
 /// **The analytic oracle.** Two and a half thousand points on a lattice

@@ -333,14 +333,14 @@ struct Closed<'a> {
 ///   crossing the face's boundary at its corner on the plate's top, and
 ///   runs along the line body's own coincident edges there, whose
 ///   edge-edge records the division does not place (`Unplaced`;
-///   `work/cleave/an-edge-running-past-a-face-along-coincident-edges-is-not-divided.md`).
+///   `work/cleavetail/an-edge-running-past-a-face-along-coincident-edges-is-not-divided.md`).
 ///   At its midpoint, from the face's own direction round into it, the
 ///   material is solid to 30°, empty to 80°, solid to 180°, empty to
 ///   270°, solid to 300° and empty beyond.
 /// - The line body towards 350° less the prisms over 0°–50° and
 ///   280°–330°: the prism's edge lies in the wedge's face, whose material
 ///   divides it, and an end touches an edge there (`DividedEndTouched`;
-///   `work/cleave/the-boolean-parting-refuses-its-rarer-configurations.md`).
+///   `work/parting/the-boolean-parting-refuses-its-rarer-configurations.md`).
 ///
 /// Main built each as one edge, its wedge claiming the empty sector
 /// between the face's material and the prism's, which the result gate

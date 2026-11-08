@@ -226,7 +226,17 @@ fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
         },
     )
     .doc;
-    let entries = sensitivities(&doc, h, None, None, false, None, Tol::witness()).unwrap();
+    let entries = sensitivities(
+        &doc,
+        h,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(
         entries.iter().map(|e| e.param).collect::<Vec<_>>(),
         vec![w],
@@ -1118,11 +1128,11 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
         },
         vec![
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::named(name, Dimension::Length),
             ),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -1178,6 +1188,7 @@ fn monte_carlo_binds_a_definition_in_every_draw() {
         &doc,
         &analyzed_box(&doc, &AnalysisPolicy::default()),
         &config,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a normal law samples");

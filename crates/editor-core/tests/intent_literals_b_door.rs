@@ -129,7 +129,7 @@ fn a_refused_insert_speaks_one_id_by_name_or_by_id() {
         let placed = editor_core::Placed::of(
             &doc,
             Vec::new(),
-            vec![(editor_core::Coord::Slide(editor_core::TargetAxis::X), by)],
+            vec![(editor_core::Coord::slide(editor_core::TargetAxis::X), by)],
         );
         Node::place(
             editor_core::BodyRead::plain(editor_core::Operand::Node(b)),
@@ -289,7 +289,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
                 editor_core::Constraint {
                     id: editor_core::ConstraintId(editor_core::MintId::new(0, 1)),
                     kind: editor_core::ConstraintKind::Value(editor_core::Value {
-                        coord: editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                        coord: editor_core::Coord::slide(editor_core::TargetAxis::X),
                         by: len(0.2),
                     }),
                 },

@@ -8,7 +8,7 @@ priority: P3
 cost: E
 ---
 
-(Found by ENCL's PR 4874 sweep for readers that flatten an escalation's decision into a generic arm. That PR fixed the same shape at `pcurve_cache` `ssi_refusal`. The geom-brep sibling is `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image.md`. These files are shared by cleave and hone ground (`work.py territory`).)
+(Found by ENCL's PR 4874 sweep for readers that flatten an escalation's decision into a generic arm. That PR fixed the same shape at `pcurve_cache` `ssi_refusal`. The geom-brep sibling is `work/pcert/describe-maps-every-chart-pcurve-escalation-to-chart-image.md`. These files are shared by cleave and hone ground (`work.py territory`).)
 
 ## What
 

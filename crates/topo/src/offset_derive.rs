@@ -68,10 +68,18 @@ pub enum SectionVerdict {
     },
 }
 
-impl core::fmt::Display for SectionVerdict {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SectionVerdict {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
-            Self::Closed(e) => write!(f, "the closed-form section refused: {e}"),
+            Self::Closed(e) => write!(
+                f,
+                "the closed-form section refused: {}",
+                geom_brep::recourse::read_at(e, at)
+            ),
             Self::Ssi(e) => write!(f, "the spline-wall section refused: {e}"),
             Self::FromMiddle(e) => write!(
                 f,
@@ -94,6 +102,8 @@ impl core::fmt::Display for SectionVerdict {
         }
     }
 }
+
+geom_brep::ended_by_write!(SectionVerdict);
 
 /// Why a moved corner is not a root of a surface along an edge.
 #[derive(Clone, Debug)]
@@ -153,7 +163,7 @@ pub enum SplineRoot {
 
 /// The plane × spline-wall section and the plane's root along a spline
 /// carrier — the offset door's spline lane, at the one scalar its
-/// march is written in (`geom_brep::PlaneSection` traces in
+/// march is written in (`geom_brep::ImplicitSection` traces in
 /// `f64`). Where a scalar holds none
 /// ([`crate::AtRestPolicy::section_lane`]), a slanted spline edge
 /// refuses by name rather than transporting.
@@ -754,6 +764,11 @@ pub(crate) fn section_closed<T: Decide>(
                 what: "a spline wall's section is the spline lane's, not a closed form",
             }));
         }
+        Surface::Spindle { .. } => {
+            return Ok(Err(SectionVerdict::Unsupported {
+                what: "a spindle sheet wall's section has no lane yet",
+            }));
+        }
     };
     let chosen = match nearest(candidates, old, span, band)? {
         Ok(c) => c,
@@ -895,7 +910,7 @@ const NEWTON_STEPS: usize = 24;
 /// **The plane × spline-wall section** through `old`'s middle: the
 /// wall's exact row where the plane cuts the wall along one (every
 /// control row level in the plane's normal, the case of a loft between
-/// parallel sections), otherwise what [`geom_brep::PlaneSection`] reads
+/// parallel sections), otherwise what [`geom_brep::ImplicitSection`] reads
 /// at that point: the branch whose certified chart tube holds where the
 /// middle settles, or the wall's boundary row where a `Side` region
 /// holds it (the plane holds that row within the band). A `Corner`
@@ -932,7 +947,7 @@ fn plane_wall_section<'w, 's>(
                 extent: extent.length(),
                 floor_scale: 1.0,
             };
-            let mut section = match geom_brep::PlaneSection::of_charted(
+            let mut section = match geom_brep::ImplicitSection::of_charted(
                 plane,
                 (wall, chart_of(chart)),
                 domain,
@@ -940,7 +955,7 @@ fn plane_wall_section<'w, 's>(
             ) {
                 Ok(s) => s,
                 Err(e @ SsiError::WrongLane { .. }) => {
-                    mispaired("PlaneSection::of_charted", "the plane's wall", &e)
+                    mispaired("ImplicitSection::of_charted", "the plane's wall", &e)
                 }
                 Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
             };
@@ -1179,7 +1194,7 @@ fn bisect(
     normal: Vec3<f64>,
     bracket: (f64, f64),
 ) -> f64 {
-    let phi = |t: f64| (c.eval(t) - origin).dot(normal);
+    let phi = |t: f64| geom::plane_offset(origin, normal, c.eval(t));
     let (mut a, mut b) = bracket;
     let fa = phi(a);
     for _ in 0..64 {
@@ -1268,7 +1283,7 @@ fn plane_spline_root(
     } else {
         (hi, lo)
     };
-    let phi = |t: f64| (carrier.eval(t) - origin).dot(normal).abs();
+    let phi = |t: f64| geom::plane_offset(origin, normal, carrier.eval(t)).abs();
     Ok(SplineRoot::Short {
         end: near_end,
         near_gap: phi(near_end),
@@ -1413,7 +1428,7 @@ mod square {
         let circle = |center, axis, radius, u_ref| {
             Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

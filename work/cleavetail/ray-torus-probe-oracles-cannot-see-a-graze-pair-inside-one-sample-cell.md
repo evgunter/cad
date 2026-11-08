@@ -32,7 +32,7 @@ crossing.
 Not measured: whether any of their poses grazes within one cell today.
 They are fixed poses and pass, so nothing is red; the gap is that these
 rows cannot catch a wrong `Miss` on a graze. The fix is the shape
-`crate::boolean::conic_oracle::crossings` has (refine each sampled
+`geom_brep::curve_face::conic_oracle::crossings` has (refine each sampled
 extremum of `|F|`, the end cells included) or an exact oracle for the
 line × torus quartic.
 

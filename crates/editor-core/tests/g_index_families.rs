@@ -98,6 +98,7 @@ fn a_ring_is_one_placement_whose_spin_reads_the_index() {
     let ValuePayload::Instances(copies) = &ev.value(ring).unwrap().payload else {
         unreachable!()
     };
+    let copies = fixture::every_body(copies);
     let ValuePayload::Body(source) = &ev.value(the_block).unwrap().payload else {
         panic!("the block is a body")
     };
@@ -125,7 +126,7 @@ fn a_ring_is_one_placement_whose_spin_reads_the_index() {
     assert_eq!(at, (0..12).collect::<Vec<u32>>(), "every member named");
     // Member 3 is a quarter turn, exactly: the block's span in x is
     // member 3's span in y.
-    let three = fixture::in_space(&copies[3]);
+    let three = fixture::in_space(copies[3]);
     for (v, _) in three.vertices() {
         let p = fixture::point(&three, v);
         assert!((4.0..=5.0).contains(&p.y), "member 3 stands on +y: {p:?}");
@@ -181,8 +182,8 @@ fn sunk_fins(n: i64) -> (ProfileDoc, VarId, RecipeNodeId, RecipeNodeId) {
         &doc,
         Vec::new(),
         vec![
-            (Coord::Slide(TargetAxis::X), slide),
-            (Coord::Slide(TargetAxis::Z), fixture::len(0.75)),
+            (Coord::slide(TargetAxis::X), slide),
+            (Coord::slide(TargetAxis::Z), fixture::len(0.75)),
         ],
     );
     let node = fixture::place_node(
@@ -295,8 +296,8 @@ fn a_grid_is_two_indices_one_within_the_other() {
         doc,
         cell,
         vec![
-            (Coord::Slide(TargetAxis::X), slide(i)),
-            (Coord::Slide(TargetAxis::Y), slide(j)),
+            (Coord::slide(TargetAxis::X), slide(i)),
+            (Coord::slide(TargetAxis::Y), slide(j)),
         ],
     );
     let ev = run(&doc);
@@ -336,8 +337,8 @@ fn a_reader_of_two_unrelated_indices_refuses_at_the_door() {
         &doc,
         Vec::new(),
         vec![
-            (Coord::Slide(TargetAxis::X), slide(i)),
-            (Coord::Slide(TargetAxis::Y), slide(j)),
+            (Coord::slide(TargetAxis::X), slide(i)),
+            (Coord::slide(TargetAxis::Y), slide(j)),
         ],
     );
     let refused = fixture::insert_refused(

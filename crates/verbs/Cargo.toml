@@ -29,6 +29,9 @@ profile = { path = "../profile" }
 # boolean and the split in `topo`.
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
+# A refusal's ending is read at the door that reports it
+# (`geom_brep::recourse`).
+geom-brep = { path = "../geom-brep" }
 
 [dev-dependencies]
 # The blend fixtures the `param_flow` exhaustiveness rows run against —

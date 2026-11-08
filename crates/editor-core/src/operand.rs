@@ -205,6 +205,18 @@ pub enum OperandSlot {
         /// Which side.
         side: crate::mate::MateSide,
     },
+    /// The direction a placement's slide value runs along, read in its
+    /// target space.
+    Along {
+        /// The value.
+        constraint: crate::node::ConstraintId,
+    },
+    /// The axis a placement's spin value turns about, read in its target
+    /// space.
+    About {
+        /// The value.
+        constraint: crate::node::ConstraintId,
+    },
     /// The body a placement copies.
     Source,
     /// Reference `i` of a measure, in argument order, under its
@@ -269,6 +281,8 @@ impl OperandSlot {
             Self::Side { constraint, side } => {
                 format!("constraint {constraint} side {}", side.name())
             }
+            Self::Along { constraint } => format!("constraint {constraint} direction"),
+            Self::About { constraint } => format!("constraint {constraint} axis"),
             Self::Source => "source".to_owned(),
             Self::Measured(_, i) | Self::Cleared(i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
@@ -303,6 +317,8 @@ impl OperandSlot {
             // A mate's pose, of whichever kind; the door asks that its
             // two sides agree (`MateFault::KindsDiffer`).
             Self::Side { .. } => SlotKind::Pose(crate::pose::PoseAdmits::Any),
+            Self::Along { .. } => SlotKind::Pose(crate::pose::PoseAdmits::Heading),
+            Self::About { .. } => SlotKind::Is(VarKind::Axis),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
             Self::Cleared(_) => SlotKind::Cleared,
             // A placement copies a body, or a family read whole.

@@ -119,7 +119,7 @@ pub fn document() -> CorpusDoc {
     let row = r.copies(
         cube,
         vec![(
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             Formula::mul(crate::fixture::scalar_of(k), len(PITCH)).expect("a length"),
         )],
     );
@@ -135,7 +135,7 @@ pub fn document() -> CorpusDoc {
         &r.doc,
         Vec::new(),
         vec![(
-            editor_core::Coord::Slide(editor_core::TargetAxis::Z),
+            editor_core::Coord::slide(editor_core::TargetAxis::Z),
             len(LIFT),
         )],
     );

@@ -66,7 +66,7 @@ pub fn document() -> CorpusDoc {
     let row = r.copies(
         fin,
         vec![(
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             Formula::mul(crate::fixture::scalar_of(k), len(PITCH)).expect("a length"),
         )],
     );

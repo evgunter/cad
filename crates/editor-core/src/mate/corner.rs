@@ -110,17 +110,15 @@ pub(crate) fn read_of(
     let Some(NodeResult::Ok(value)) = evaluation.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
-    // A family is read through its first member, in that member's own
-    // names: what a reader evaluated once per member reads at each
-    // (D10 `[repetition]`).
+    // A family is read through its first member that is a body, in that
+    // member's own names: the names a reader evaluated once per member
+    // reads at each (D10 `[repetition]`), which any member spells. An
+    // empty member is refused where that reader is evaluated at it.
     if let Some(members) = &value.members {
-        let (_, first) = members
+        let Some((first, solid)) = members
             .members
-            .first()
-            .ok_or(PinRefusal::NotABody { node })?;
-        let (ValuePayload::Body(solid)
-        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: solid, .. })) =
-            &first.payload
+            .iter()
+            .find_map(|(_, member)| Some((member, member.payload.one_body()??)))
         else {
             return Err(PinRefusal::NotABody { node });
         };
@@ -138,14 +136,12 @@ pub(crate) fn read_of(
         },
         _ => 0,
     };
-    let solid = match &value.payload {
-        ValuePayload::Body(b)
-        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: b, .. }) => b.clone(),
-        ValuePayload::Instances(bodies) => bodies
-            .first()
-            .cloned()
-            .ok_or(PinRefusal::NotABody { node })?,
-        ValuePayload::Split { above, below } => {
+    let solid = match (value.payload.one_body(), &value.payload) {
+        (Some(body), _) => body.cloned().ok_or(PinRefusal::NotABody { node })?,
+        (None, ValuePayload::Instances(_)) => {
+            unreachable!("family {node:?} keeps no members")
+        }
+        (None, ValuePayload::Split { above, below }) => {
             let half = crate::names::SplitHalf::of_output_body(u32::from(port))
                 .ok_or(PinRefusal::NotABody { node })?;
             let side = if half == crate::names::SplitHalf::Above {
@@ -258,11 +254,12 @@ pub fn corner_frame_in(
 }
 
 /// [`corner_frame_in`], over an evaluation of `doc` under `opts` made
-/// here.
+/// here, which `cancel` cancels.
 ///
 /// # Errors
 ///
 /// As [`corner_frame_in`]'s.
+#[allow(clippy::too_many_arguments)] // the gesture's picks, then the run it reads
 pub fn corner_frame(
     doc: &crate::ProfileDoc,
     body: &Operand,
@@ -270,8 +267,9 @@ pub fn corner_frame(
     up: [f64; 3],
     toward: [f64; 3],
     opts: &EvalOptions,
+    cancel: &CancelToken,
     tol: Tol,
 ) -> Result<Operand, PinRefusal> {
-    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
+    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, cancel, opts, tol);
     corner_frame_in(doc, &ev, body, corner, up, toward)
 }

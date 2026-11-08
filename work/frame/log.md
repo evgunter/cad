@@ -101,3 +101,77 @@ A successor should run `work.py incoming --program frame` first: E and D′ are 
 
 - 2026-10-26 — (tracker sweep) `authored-and-derived-directions-decide-a-unitless-norm-against-the-length-band` (P3 M) arrives from FLUXHOLD by `mv`, id kept. It is off the D10 hold, and it asks of the same direction doors what `direction-doors-refuse-finite-directions-normalize-now-answers` asks, so the plan's lanes now pair them. Its hit list is refreshed against main `bb25fa4f`. Every other live row was re-read against the tree and kept. Three rows carry no `priority` (`a-frame-turned-by-a-radian-angle-is-spelled-as-its-columns`, `exact-axis-and-reference-frames-still-decide`, `turns-has-two-answers-to-an-integer-past-the-mantissa`), and those three have no `cost` either; band them at the next sitting.
 - 2026-10-26 — (easy-fixes lane) Closed `frame-degenerate-escalation-ends-a-poisoned-gauge-without-the-note`: the `Degenerate` escalation ends through `lever_ending`, pinned on a NaN margin.
+
+## 2026-11-03 — FRAME picked up; P0 re-measured first, the P1 pair to designers
+
+New FRAME orchestrator (session 01VyvYnHBqVczdN3EQWpQqKf); status `active`. INTENT released all three rows that were parked on it: the P0 on E, and the two P1 rows on D′.
+
+- **P0 `a-widened-derived-placement-normalises-a-straddling-newell-sum`.** E's re-measure says the plain tier no longer refuses on the HEIGHT document. But `m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin` is still `#[ignore]`d, now with a different reason (the plain lane's attachment gate). Before anything is specified, a lane re-measures on main: the height and stacked documents, both tiers, and the acceptance row. It reports whether this row's newell clause-1 margin is still reached anywhere, and whether the row should close, be re-scoped onto what refuses now, or be fixed. It implements nothing until it has reported. Review tier: set once the lane's answer says whether there is code to review.
+- **P1 `path-start-frame-is-the-only-frame-from-a-tangent-and-is-named-for-the-start` + `two-doors-answer-an-axis-off-a-tangent-with-no-rule-for-which`.** One question, so they get one designer pair (two designers drawn; record on `analysis/design-fork/frame-tangent-doors`). It moves since filing: D10 `[placement.frame]` confines `orthonormal_basis`, and CARVE's `sweep::sweep_places` now answers interior stations. If the pair converges and no ratified text moves, the orchestrator decides; otherwise an `[ev]` PR.
+- 2026-11-03 — Banded the three unbanded rows. `a-frame-turned-by-a-radian-angle-is-spelled-as-its-columns` is P4 M: it re-spells fixture and demo callers, and each site judges whether it wants the decided door. `exact-axis-and-reference-frames-still-decide` is P4 M with `design`: a fixture-spelling call before about 50 sites move. `turns-has-two-answers-to-an-integer-past-the-mantissa` is P3 M with `design`: two rules in one file for an integer past the mantissa. It is latent and nothing builds on it, so it is not P1's "entrenches".
+
+## 2026-11-03 — the tangent doors: designers converged; unit dispatched
+
+The pair converged after one reconciliation round on `a-frame-across-a-direction-is-a-written-frame-turned-onto-it`. Draw and labels: `analysis/design-fork/frame-tangent-doors`. First reports:
+- A wanted to keep a (point, direction) door, `point_along`, rolled by the least turn, and called least turn versus ladder Ev's preference.
+- B retired the door for `RigidMotion::turned_onto` on a written frame, and called it the orchestrator's.
+
+In round 1, A conceded both points: `point_along` is `axes_xy(p).turned_onto(d)` and has no recourse at its pole, and Ev already accepted the horizontal-path consequence on PR 6298. B accepted façade-level sugar and A's finding below.
+
+Decided here, not an `[ev]` fork: no ratified text moves, and the ladder was never ratified. So this is not a DESIGN-FORK-LOG row (rule 1). Review tier for the unit is single FULL, reason in the item.
+
+Filed:
+- `msolve/the-least-turn-has-two-arithmetics-and-the-chart-decides-its-pole-a-third-way` (P1 M);
+- a seam note on DOCTAIL's log (the bottom-cap pole versus its face frame's spin-only slot).
+
+## 2026-11-03 — P0 closed on re-measure
+
+The measurement lane (`frame/newell-remeasure`, head `8136118f78`) re-measured `a-widened-derived-placement-normalises-a-straddling-newell-sum` on main `0f01217666`:
+- the HEIGHT document, both lanes;
+- the STACKED document, rebuilt in today's terms because its fixture was deleted with `Datum::FaceFrame`;
+- an instrumented `newell_plane`.
+
+Nothing reaches clause 1. Closed. The ignored parity row is deleted (orchestrator's read): its symbolic half is already pinned, and its plain half measured the plain tier's one-leaf gate on a widened box. That gate refusal is a property of the plain tier and is not filed.
+
+Filed: `newell-plane-normalizes-without-minting-the-unit-witness` (P4 E). The lane filed `msolve/a-mate-on-a-placed-copys-cap-over-a-widened-tilt-cannot-mint-its-chart` (P3 M).
+
+Review tier: **orchestrator's read**. The diff is test comments, one ignored test deleted, and tracker state. No code moves.
+
+## 2026-11-03 — turned_onto lands (PR 6465)
+
+Single FULL review. Verdict: mergeable with fixes, no MAJOR. Its probes confirmed the claims by execution:
+- `turned_onto` equals `turned_between(w, d) ∘ self` bit for bit over 20k draws;
+- identity is exact;
+- there is no flip anywhere along `(s, 0, 1)`;
+- the frame refuses as one closed band at the pole;
+- klein's wall 3 re-pin is the measured refusal.
+
+The fix pass took everything:
+- stale prose (`linalg.rs`, `unit_vec.rs`);
+- the band narration;
+- the hit list's two blind spots, with step-import's stored `orthonormal_basis` `u_ref` added as evidence to exch's row;
+- the bit-for-bit probe joining the suite;
+- the tube's start frame pinned against the closed form.
+
+**A class finding, recorded on STRUT's row:** retiring the start door left three hand-written copies of the start-frame recipe, in the sweep test helper, the tour's `frame_across` and the façade example. The fix minted the shape it closed, and STRUT's `sweep-body-makes-every-caller-derive-its-start-frame` now names them and the door its helper should call.
+
+Four open rows on PYDOOR and PLACING that cited `path_start_frame` as live got evidence lines.
+
+**Ratified text.** `docs/LIBRARY-DESIGN.md` U4 (#229) ratified "a kernel door for the path-start frame (the Gram–Schmidt recipe written once, with the degenerate-axis policy stated)". It is re-worded to name `turned_onto`. Read as the orchestrator's: what U4 decided (one kernel door in geom-core, with its policy stated) still holds; the recipe it named was the one scenes hand-rolled then; and Ev ruled the least turn for this question on PR 6298. LQ3(c) (#362) is a record of the proposal as ratified and is left as written. Raised to Ev in chat; Ev's reading governs if it differs.
+
+**Inherited red at merge:** python `TestTeapot.test_both_joins_refuse_through_the_document`, which is SPLICE's (`work/splice/the-teapot-north-star-row-still-expects-the-point-split-refusal.md`, PR 6469). It is annotated on the PR.
+
+## 2026-11-03 — turned_onto lands (PR 6465); FRAME handed back
+
+PR 6465 merged with one inherited red, python `TestTeapot.test_both_joins_refuse_through_the_document`, which is SPLICE's and is annotated on the PR. Banded the row that arrived from `work/issues/`, `the-frame-seam-census-rows-guard-a-constructor-no-minted-frame-reads`: P3 E, a guard that cannot go red.
+
+**Handed back, status `ready`.** The sitting's P0 and P1 rows are done:
+- the newell P0 closed on re-measure;
+- the two tangent-door P1 rows closed by `turned_onto`.
+
+What remains is P2 to P4. The P2 rows are `direction-doors-refuse-finite-directions-normalize-now-answers` (design; paired in the plan with the P3 unit-less-norm row) and `project-and-reject-collapse-past-the-squares-range` (E).
+
+Seams left open on other slates:
+- MSOLVE: the least turn's three spellings (P1).
+- DOCTAIL: the bottom-cap pole versus its face frame's spin-only slot (log note).
+- STRUT: the start-frame recipe's three hand copies (evidence on `sweep-body-makes-every-caller-derive-its-start-frame`).

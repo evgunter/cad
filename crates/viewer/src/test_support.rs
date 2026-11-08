@@ -21,9 +21,9 @@
 #![allow(clippy::panic)]
 
 use pncad::document::{
-    AuthoredNode, BooleanValue, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef,
-    DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, ValuePayload, VarName, apply, evaluate,
+    AuthoredNode, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef, DocumentId, EditError,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node, NodeErrorKind, PartFault,
+    ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 #[cfg(test)]
@@ -41,7 +41,7 @@ use crate::scene::DisplayTolerance;
 /// `editor_core::test_support`'s, over the same `Expr` the façade
 /// re-exports, so this crate reads the kernel's fixtures rather than a
 /// second spelling of them.
-pub use editor_core::test_support::{ang, len, len2, scl};
+pub use editor_core::test_support::{ang, every_body, len, len2, scl};
 
 /// A length literal that remembers it was WRITTEN in millimetres —
 /// `len` lowers canonically and carries no notation, which is what a
@@ -325,7 +325,7 @@ pub fn mated(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
     mate: pncad::document::Mate<Formula>,
-    values: Vec<(pncad::document::Coord, Formula)>,
+    values: Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, pncad::document::MateRef) {
     // A mate into another space re-targets the copy here, an explicit
@@ -623,10 +623,11 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
     let value = eval
         .value(node)
         .unwrap_or_else(|| panic!("the node evaluated: {:?}", eval.node_error(node)));
-    let body = match &value.payload {
-        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        other => panic!("expected a body, got {other:?}"),
-    };
+    let body = value
+        .payload
+        .one_body()
+        .flatten()
+        .unwrap_or_else(|| panic!("expected a body, got {:?}", value.payload));
     pncad::topo::mass_properties(
         &pncad::topo::AtRestBody::validate(body.body().clone(), tol)
             .expect("the measured body passes tier 3"),
@@ -1010,7 +1011,8 @@ pub fn row_of_copies(
         &index,
         pncad::document::BodyRead::plain(body),
         pncad::document::Operand::Var(space),
-        &[(axis, len(pitch))],
+        &[(pncad::pattern::RowDirection::Axis(axis), len(pitch))],
+        None,
     )
     .expect("a length pitch");
     inserted(&declared, row, tol)
@@ -1023,7 +1025,7 @@ pub fn row_of_copies(
 /// ([`pncad::document::MateFault::Overconstrained`]).
 fn valued(
     held: Vec<pncad::document::Constraint<Formula>>,
-    values: Vec<(pncad::document::Coord, Formula)>,
+    values: Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)>,
 ) -> Vec<pncad::document::Constraint<Formula>> {
     use pncad::document::{Constraint, ConstraintId, Value};
     let mut values = values;

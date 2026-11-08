@@ -93,8 +93,8 @@ fn dist(a: &Frame, b: &Frame) -> f64 {
 /// Returns the floor's top normal and a point on it in the world (the
 /// floor's own frame is read off a bare copy at the same moves).
 fn on_floor(
-    moves: Vec<(Coord, Formula)>,
-    values: Vec<(Coord, Formula)>,
+    moves: Vec<(Coord<editor_core::Operand>, Formula)>,
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
     orient: Orientation,
     direction: bool,
 ) -> Out {
@@ -134,7 +134,7 @@ fn on_floor(
     .0
 }
 
-fn rx(t: f64) -> Vec<(Coord, Formula)> {
+fn rx(t: f64) -> Vec<(Coord<editor_core::Operand>, Formula)> {
     vec![(Coord::Spin(Some(TargetAxis::X)), fixture::ang(t))]
 }
 
@@ -152,7 +152,7 @@ fn up_x(t: f64) -> [f64; 3] {
 /// *Breaks if* the door admits a bundle short of pinning its copy.
 #[test]
 fn a_rest_written_with_one_slide_refuses_at_the_door() {
-    let x = |v| (Coord::Slide(TargetAxis::X), len(v));
+    let x = |v| (Coord::slide(TargetAxis::X), len(v));
     let sp = (Coord::SPIN, Formula::zero(Dimension::Angle));
     for t in [0.0, 0.5] {
         for direction in [false, true] {
@@ -172,7 +172,11 @@ fn a_rest_written_with_one_slide_refuses_at_the_door() {
 
 /// The boss hung under a plate tilted by a chain (as in the PR's row),
 /// generalised: any chain, any orientation.
-fn hung(chain: Vec<(Coord, Formula)>, orient: Orientation, values: Vec<(Coord, Formula)>) -> Out {
+fn hung(
+    chain: Vec<(Coord<editor_core::Operand>, Formula)>,
+    orient: Orientation,
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
+) -> Out {
     let doc = ProfileDoc::empty(DocumentId::derive("value-chart-sweep-hung"), Tol::witness());
     let (doc, plate) = block(doc, 20.0, 10.0, 2.0);
     let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
@@ -196,13 +200,13 @@ fn hung(chain: Vec<(Coord, Formula)>, orient: Orientation, values: Vec<(Coord, F
     .0
 }
 
-fn std_values_for(o: Orientation) -> Vec<(Coord, Formula)> {
+fn std_values_for(o: Orientation) -> Vec<(Coord<editor_core::Operand>, Formula)> {
     let j = o.z().index();
-    let mut v: Vec<(Coord, Formula)> = TargetAxis::ALL
+    let mut v: Vec<(Coord<editor_core::Operand>, Formula)> = TargetAxis::ALL
         .into_iter()
         .filter(|a| a.index() != j)
         .zip([10.0, 0.0])
-        .map(|(a, by)| (Coord::Slide(a), len(by)))
+        .map(|(a, by)| (Coord::slide(a), len(by)))
         .collect();
     v.push((Coord::SPIN, Formula::zero(Dimension::Angle)));
     v
@@ -256,7 +260,7 @@ fn plate_sweep(orients: &[Orientation], axes: &[&str], steps: u32) {
     let mut report = Vec::new();
     for &o in orients {
         for &axis in axes {
-            let chain = |t: f64| -> Vec<(Coord, Formula)> {
+            let chain = |t: f64| -> Vec<(Coord<editor_core::Operand>, Formula)> {
                 match axis {
                     "x" => vec![(Coord::Spin(Some(TargetAxis::X)), fixture::ang(t))],
                     "y" => vec![(Coord::Spin(Some(TargetAxis::Y)), fixture::ang(t))],
@@ -379,6 +383,87 @@ fn a_wedge_resting_at_a_few_stations_stays_on_a_tilting_floor() {
     );
 }
 
+/// **The wedge of the sweep rested by its slope on the floor tilted
+/// `t` about `x`, by `values` under `o`**: where it stands, or the
+/// refusal.
+fn wedge_on_the_floor(
+    t: f64,
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
+    o: Orientation,
+) -> Out {
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("value-chart-sweep-wedge"),
+        Tol::witness(),
+    );
+    let (doc, wedge) = prism(doc, vec![(0.0, 0.0), (4.0, 0.0), (0.0, 3.0)], 1.0);
+    let slope = face(&doc, wedge, [2.0, 1.5, 0.5], [0.6, 0.8, 0.0]);
+    let (doc, floor, _) = fixture::floor(doc, rx(t));
+    let (doc, placement) = insert(
+        doc,
+        fixture::stood(editor_core::BodyRead::plain(Operand::from(wedge))),
+    );
+    let mut mate = fixture::mate(fixture::plane(head(slope)), fixture::flip(floor));
+    mate.orient = o;
+    place(
+        doc,
+        placement,
+        Placed {
+            mates: vec![mate],
+            values,
+        },
+    )
+    .0
+}
+
+/// **Where an oblique rest stands** (A11, `[placement.values]`: a
+/// carried slide beside a mate oblique in the source's coordinates runs
+/// along its part in what the mate leaves). The wedge's slope, whose
+/// normal `(0.6, 0.8, 0)` is no axis of the wedge, rests on the floor
+/// tilted `t`:
+/// - with its slides `0` its origin stands where the mate seats it, the
+///   plane's point nearest the target's origin: on the floor's normal
+///   through the origin, the slope's 2.4 off the wedge's origin away;
+/// - each slide moves it exactly its value, in the floor's plane: 0.5
+///   more along `x` moves it 0.5. (The slides along `x` and `z` span
+///   the plane: the slope's normal has a part along `y`.)
+///
+/// *Breaks if* a carried slide off the plane is read as the copy's
+/// origin measured along it, which seats the zero off the normal and
+/// steps a slide by more than its value.
+#[test]
+fn an_oblique_rest_stands_at_its_seat_and_steps_its_values() {
+    let x = |v| (Coord::slide(TargetAxis::X), len(v));
+    let z = |v| (Coord::slide(TargetAxis::Z), len(v));
+    let sp = (Coord::SPIN, fixture::ang(0.3));
+    let o = Orientation::IDENTITY;
+    for t in [0.0, 0.7] {
+        let up = up_x(t);
+        let at = |vx: f64, vz: f64| -> [f64; 3] {
+            wedge_on_the_floor(t, vec![x(vx), z(vz), sp.clone()], o)
+                .unwrap_or_else(|e| panic!("t={t}: the rest places: {e}"))
+                .translation
+        };
+        let zero = at(0.0, 0.0);
+        let along = dot(zero, up);
+        let off: f64 = (0..3)
+            .map(|k| (zero[k] - up[k] * along).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        assert!(
+            off < 1e-12 && (along.abs() - 2.4).abs() < 1e-12,
+            "t={t}: the zero stands at {zero:?}, {off:e} off the floor's normal, {along} along it"
+        );
+        let (a, b) = (at(3.0, 4.0), at(3.5, 4.0));
+        let step: Vec<f64> = (0..3).map(|k| b[k] - a[k]).collect();
+        let norm = step.iter().map(|c| c * c).sum::<f64>().sqrt();
+        let across = dot([step[0], step[1], step[2]], up);
+        assert!(
+            (norm - 0.5).abs() < 1e-12 && across.abs() < 1e-12,
+            "t={t}: 0.5 more along x moves the copy {norm}, {across:e} off the plane"
+        );
+    }
+}
+
 /// The wedge sweep under `orients`, for each pair of written slides
 /// named in `pairs`, the floor tilted from −1.5 to 1.5 rad in `steps`
 /// steps: where the slides span, the slope lies on the floor,
@@ -386,33 +471,10 @@ fn a_wedge_resting_at_a_few_stations_stays_on_a_tilting_floor() {
 /// times the step.
 fn wedge_sweep(orients: &[Orientation], pairs: &[&str], steps: u32) {
     let mut bad = Vec::new();
-    let run = |t: f64, values: Vec<(Coord, Formula)>, o: Orientation| -> Out {
-        let doc = ProfileDoc::empty(
-            DocumentId::derive("value-chart-sweep-wedge"),
-            Tol::witness(),
-        );
-        let (doc, wedge) = prism(doc, vec![(0.0, 0.0), (4.0, 0.0), (0.0, 3.0)], 1.0);
-        let slope = face(&doc, wedge, [2.0, 1.5, 0.5], [0.6, 0.8, 0.0]);
-        let (doc, floor, _) = fixture::floor(doc, rx(t));
-        let (doc, placement) = insert(
-            doc,
-            fixture::stood(editor_core::BodyRead::plain(Operand::from(wedge))),
-        );
-        let mut mate = fixture::mate(fixture::plane(head(slope)), fixture::flip(floor));
-        mate.orient = o;
-        place(
-            doc,
-            placement,
-            Placed {
-                mates: vec![mate],
-                values,
-            },
-        )
-        .0
-    };
-    let x = |v| (Coord::Slide(TargetAxis::X), len(v));
-    let y = |v| (Coord::Slide(TargetAxis::Y), len(v));
-    let z = |v| (Coord::Slide(TargetAxis::Z), len(v));
+    let run = wedge_on_the_floor;
+    let x = |v| (Coord::slide(TargetAxis::X), len(v));
+    let y = |v| (Coord::slide(TargetAxis::Y), len(v));
+    let z = |v| (Coord::slide(TargetAxis::Z), len(v));
     let sp = (Coord::SPIN, fixture::ang(0.3));
     let h = 3.0 / f64::from(steps);
     for &o in orients {

@@ -78,8 +78,8 @@ fn rest_choice(
         kind: pncad::document::VarKind::Plane,
         flip: true,
         values: vec![
-            (Coord::Slide(slides[0].0), common::len(slides[0].1)),
-            (Coord::Slide(slides[1].0), common::len(slides[1].1)),
+            (Coord::slide(slides[0].0), common::len(slides[0].1)),
+            (Coord::slide(slides[1].0), common::len(slides[1].1)),
             (Coord::SPIN, common::ang(spin)),
         ],
     }

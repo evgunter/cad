@@ -50,8 +50,8 @@ fn plane_seated(
         placement,
         mate,
         &[
-            (Coord::Slide(TargetAxis::X), x),
-            (Coord::Slide(TargetAxis::Y), y),
+            (Coord::slide(TargetAxis::X), x),
+            (Coord::slide(TargetAxis::Y), y),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
@@ -59,7 +59,7 @@ fn plane_seated(
         .into_iter()
         .find(|c| {
             c.value()
-                .is_some_and(|v| v.coord == Coord::Slide(TargetAxis::X))
+                .is_some_and(|v| v.coord == Coord::slide(TargetAxis::X))
         })
         .map(|c| MateRef::new(placement, c.id))
         .expect("the x slide is held");
@@ -270,7 +270,7 @@ fn a_parameter_drives_a_value_and_the_solved_pose_moves() {
                 &unvalued,
                 rest(head(p.top_cap(top)), head(p.base_cap(base))),
                 &[(
-                    Coord::Slide(TargetAxis::X),
+                    Coord::slide(TargetAxis::X),
                     Formula::named(VarName::from_static(name), Dimension::Length),
                 )],
             )
@@ -378,6 +378,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .unwrap_or_else(|e| panic!("split refused: {e}"));
     assert!(
@@ -419,6 +420,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         DocumentId::derive(&format!("{label}-part2")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect_err("both seats read `slide`");
     assert!(
@@ -441,6 +443,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         DocumentId::derive(&format!("{label}-part3")),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .unwrap_or_else(|e| panic!("split refused: {e}"));
     assert!(
@@ -471,7 +474,7 @@ fn a_constraint_compares_by_bits() {
         editor_core::Constraint::of_value(
             id,
             Value {
-                coord: Coord::Slide(TargetAxis::X),
+                coord: Coord::slide(TargetAxis::X),
                 by: len(by),
             },
         )

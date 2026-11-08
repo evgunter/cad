@@ -3530,15 +3530,19 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
         }
     }
 
-    /// The first mate of `bundle` whose `to` reads outside `target`,
-    /// as the two spaces.
+    /// The first read of `bundle` in the target space, a mate's `to`
+    /// or a value's direction or axis, that reads outside `target`, as
+    /// the two spaces.
     fn targets_fault(
         &mut self,
         target: VarId,
         bundle: &[crate::mate::Constraint],
     ) -> Option<(VarId, VarId)> {
-        for mate in bundle.iter().filter_map(crate::mate::Constraint::mate) {
-            let spaces = self.reached_all([mate.to]);
+        let reads = bundle
+            .iter()
+            .flat_map(|c| c.target_reads().into_iter().copied().collect::<Vec<_>>());
+        for read in reads {
+            let spaces = self.reached_all([read]);
             if let Some(space) = spaces.into_iter().find(|&space| space != target) {
                 return Some((target, space));
             }

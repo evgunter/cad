@@ -132,7 +132,12 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         T::UnsupportedCurvedShape { source, .. } => {
             fields[4] = (
                 "note",
-                PyString::new(py, &source.to_string()).unbind().into_any(),
+                PyString::new(
+                    py,
+                    &source.render(pncad::geom_brep::recourse::Reading::AtRest),
+                )
+                .unbind()
+                .into_any(),
             );
             Ok(())
         }
@@ -183,7 +188,13 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     if let Err(failed) = projected {
         return failed;
     }
-    typed_err(py, ErrorClass::Tessellate, err.to_string(), &fields)
+    // The tessellator reads the body at rest.
+    typed_err(
+        py,
+        ErrorClass::Tessellate,
+        err.render(pncad::geom_brep::recourse::Reading::AtRest),
+        &fields,
+    )
 }
 
 /// Raise `StlError` with the refusing party's own message, a stable

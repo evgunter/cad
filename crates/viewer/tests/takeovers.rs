@@ -148,18 +148,17 @@ fn takeovers(session: &DocSession, block: RecipeNodeId) -> Vec<(&'static str, Se
         ),
         ("mirror", mirror_across(session, &minus_x_wall(session))),
         ("sketch on face", boss_on(top(session))),
-        ("split", split_at_half_height(block)),
+        ("split", split_at_half_height(session, block)),
     ]
 }
 
 /// The split tool's committed op on `block`, by the level plane at half
 /// its height: the top and the underside are left intact, every wall
 /// is cut.
-fn split_at_half_height(block: RecipeNodeId) -> SessionOp {
+fn split_at_half_height(session: &DocSession, block: RecipeNodeId) -> SessionOp {
     SessionOp::AddSplit {
         target: block.into(),
-        origin: common::len3([0.0, 0.0, BLOCK[2] / 2.0]),
-        normal: common::scl3([0.0, 0.0, 1.0]),
+        plane: common::cut_across(session, block, BLOCK[2] / 2.0),
     }
 }
 
@@ -520,7 +519,7 @@ fn a_fused_patterns_takeover_rebinds_the_mate_on_the_copys_top() {
         input: block.into(),
         count: 2,
         rule: PatternRuleSpec::Linear {
-            direction: common::scl3([0.0, 1.0, 0.0]),
+            direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Y),
             spacing: len(0.1),
         },
     });
@@ -802,7 +801,7 @@ fn a_face_the_split_cuts_stays_stale() {
         ..
     } = seated(minus_x_wall);
     let wall = minus_x_wall(&session);
-    let outcome = session.perform(split_at_half_height(block));
+    let outcome = session.perform(split_at_half_height(&session, block));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert!(
@@ -881,7 +880,10 @@ fn a_split_of_a_world_copy_draws_its_halves_where_the_copy_stood() {
     let (mut session, block, copy) = copied_at_the_identity(tol);
     let before = session.committed_doc().clone();
     let stood = drawn::extent(&mut session, copy);
-    let split = common::session_insert(&mut session, split_at_half_height(block));
+    let split = {
+        let op = split_at_half_height(&session, block);
+        common::session_insert(&mut session, op)
+    };
     session.pump();
     assert_eq!(
         viewer::world::drawn_nodes(session.committed_doc()),
@@ -941,7 +943,10 @@ fn a_split_of_a_copy_the_product_reads_leaves_the_product_reading_the_halves() {
     let doc = session.committed_doc();
     let product = doc.product().expect("the slot reads the block's copy");
     let copy = doc.operation_of(product).expect("the copy's placement");
-    let split = common::session_insert(&mut session, split_at_half_height(block));
+    let split = {
+        let op = split_at_half_height(&session, block);
+        common::session_insert(&mut session, op)
+    };
     session.pump();
     let doc = session.committed_doc();
     assert_eq!(
@@ -998,7 +1003,10 @@ fn a_split_of_the_body_the_product_reads_re_points_the_slot() {
     let before = session.committed_doc().clone();
     let body = before.output(union, 0).expect("the union's body");
     assert_eq!(before.product(), Some(body), "the slot reads the union");
-    let split = common::session_insert(&mut session, split_at_half_height(union));
+    let split = {
+        let op = split_at_half_height(&session, union);
+        common::session_insert(&mut session, op)
+    };
     session.pump();
     let doc = session.committed_doc();
     let slot = doc.product().expect("the slot reads a body");
@@ -1041,7 +1049,10 @@ fn a_split_of_a_body_a_union_operand_reads_re_points_the_operand() {
     let mut session = common::inline_without_door(doc, tol);
     session.pump();
     let stood = drawn::extent(&mut session, copy);
-    let split = common::session_insert(&mut session, split_at_half_height(block));
+    let split = {
+        let op = split_at_half_height(&session, block);
+        common::session_insert(&mut session, op)
+    };
     session.pump();
     let doc = session.committed_doc();
     let Some(Node::Assemble { members }) = doc.node(assemble) else {
@@ -1075,7 +1086,10 @@ fn a_combine_with_its_own_earlier_half_keeps_the_mate() {
     let mut session = common::inline_without_door(Doc::empty_derived("own-half", tol), tol);
     let block = common::xy_box_in(&mut session, BLOCK);
     let small = common::xy_box_in(&mut session, SMALL);
-    let earlier = common::session_insert(&mut session, split_at_half_height(block));
+    let earlier = {
+        let op = split_at_half_height(&session, block);
+        common::session_insert(&mut session, op)
+    };
     session.pump();
     let doc = session.committed_doc().clone();
     let (doc, copy) = common::world_copy(&doc, block, tol);
@@ -1123,7 +1137,7 @@ fn a_split_of_a_body_nothing_reads_writes_the_split_alone() {
     let mut session = common::inline_without_door(Doc::empty_derived("split-alone", tol), tol);
     let block = common::xy_box_in(&mut session, BLOCK);
     session.pump();
-    let outcome = session.perform(split_at_half_height(block));
+    let outcome = session.perform(split_at_half_height(&session, block));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [DocEdit::InsertNode { .. }] = outcome.committed[..] else {
         panic!("one insert, the split: {:?}", outcome.committed)

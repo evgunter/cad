@@ -866,10 +866,7 @@ impl TrimmedFace<'_> {
     /// NURBS arm, whose winding the census does not read.
     fn outward(&self, p: Point3<f64>) -> Option<geom_core::Vec3<f64>> {
         let radial = match *self.lane {
-            Lane::Cylinder { origin, axis, .. } => {
-                let d = p - origin;
-                d - axis * d.dot(axis)
-            }
+            Lane::Cylinder { origin, axis, .. } => geom::Line { origin, dir: axis }.offset(p),
             Lane::Sphere { center, .. } => p - center,
             Lane::Nurbs { .. } => return None,
         };
@@ -1796,13 +1793,14 @@ fn trim_frontier(
         ) {
             return Ok(TessellateError::UnsupportedCurve {
                 edge: ek,
-                note: "conic/B-spline/spiric trim on a plane/cone/sphere/torus chart — \
-                       the only trimmed-face tessellation lanes written are the \
+                note: "conic/B-spline/spiric trim on a plane, cone, sphere, torus or \
+                       spindle sheet chart — the only trimmed-face tessellation lanes \
+                       written are the \
                        cylinder chart's, the NURBS chart's and the sphere chart's for \
                        circle-bounded faces; the remaining analytic \
                        charts have no trimmed lane (the spiric-bounded torus wall and \
                        plane cap of a hollowed partial revolve land here: \
-                       `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
+                       `work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
             });
         }
     }
@@ -1894,7 +1892,7 @@ fn trim_polygon(
             // a harmonic one. Unreachable at this head for a different
             // reason: `tessellate_trimmed`'s chart roster has no torus
             // or plane arm, so a spiric-bounded face refuses before
-            // this walk (`work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
+            // this walk (`work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
             Pcurve::Spiric { .. } => {}
             // A focal section's image is likewise a closed form of the
             // carrier's own parameter, read exactly at the chord pass's

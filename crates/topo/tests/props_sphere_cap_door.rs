@@ -326,8 +326,10 @@ fn a_pole_in_band_of_a_great_circle_cut_is_undecided_on_both_faces() {
                 reading: Undecided::Boundary(_),
             } => {
                 assert!(
-                    e.to_string().contains("tighten the tolerance below"),
-                    "the sized ending: {e}"
+                    e.render(geom_brep::recourse::Reading::AtRest)
+                        .contains("tighten the tolerance below"),
+                    "the sized ending: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::AtRest)
                 );
                 undecided.push((*face, *point));
             }

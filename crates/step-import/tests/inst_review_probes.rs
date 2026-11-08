@@ -309,7 +309,10 @@ fn per_solid_gate_names_the_inverted_instance() {
             assert_eq!(solid, Some(206), "the refusal names the inverted sphere");
         }
         Ok(_) => panic!("an inverted instance must not import"),
-        Err(other) => panic!("expected TierInvalid naming #206, got {other}"),
+        Err(other) => panic!(
+            "expected TierInvalid naming #206, got {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -459,7 +462,10 @@ fn a_placement_no_chain_reaches_refuses_typed() {
             assert_eq!(id, 4_000_000_000_001, "the refusal names the relationship");
             assert!(what.contains("no component's placement chain"), "{what}");
         }
-        other => panic!("expected Structure, got {other}"),
+        other => panic!(
+            "expected Structure, got {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -489,6 +495,9 @@ fn a_cyclic_placement_chain_refuses_typed() {
         StepImportError::Structure { what, .. } => {
             assert!(what.contains("returns to a representation"), "{what}");
         }
-        other => panic!("expected Structure, got {other}"),
+        other => panic!(
+            "expected Structure, got {other_at}",
+            other_at = other.render()
+        ),
     }
 }

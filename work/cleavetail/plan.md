@@ -50,3 +50,30 @@ no open program's `paths` claim; it needs a `[render]` pass.
 ## Exit criteria
 
 None set: the program closes when its slate is empty.
+
+## CLEAVE's remainder, moved in 2026-11-03
+
+CLEAVE closed with no dispatchable row above P2
+(`docs/doc-ledger/cleave-leaves-the-tracker.md`). Its fourteen live rows
+moved here by `git mv`, ids and bodies unchanged, and they are one
+story: **where solids meet along a line**.
+
+- **The P1, parked**: `three-corners-alternating-round-a-corner-refuse-at-the-join`
+  (M), on GAUGE's `shared-vertex-crossings-that-tie-or-interleave-are-unprobed`.
+- **Line wedges (P2)**: `lumps-meeting-four-sheets-on-a-line-refuse-line-wedges`,
+  `a-box-straddling-the-ringed-top-less-the-plate-refuses-line-wedges`,
+  `a-difference-whose-partner-ends-inside-a-slit-overlaps-its-wedges`,
+  `an-edge-running-past-a-face-along-coincident-edges-is-not-divided`,
+  `a-cut-rod-inside-an-equal-rod-with-vertices-on-its-seam-refuses-single-site`.
+- **Fate cuts (P2, P3)**: `a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug`,
+  `a-fate-cut-touch-end-on-an-edge-of-its-faces-division-is-unplaced`,
+  `a-fate-corner-inside-a-curved-edge-of-its-faces-division-refuses-as-a-placement-limit`,
+  `a-sphere-cut-in-circle-across-a-cut-of-its-face-refuses-in-the-voice-of-a-kernel-bug`.
+- **Slits, slivers and pinch rays (P3)**: `slit-face-glued-has-no-witness`,
+  `a-sliver-of-more-than-two-edges-is-not-read-as-one`,
+  `pinch-rays-in-a-face-keeps-two-refusals-one-of-unknown-reach`.
+- **Unbanded**: `the-inside-out-reading-rests-on-two-unenforced-promises`.
+  Band it at the next sitting; it counts as medium until then.
+
+If this track outgrows a sitting, cut it on that seam: the fate-cut
+placement rows against the line-wedge rows.

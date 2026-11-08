@@ -211,7 +211,7 @@ fn r1_inside_out_torus_band_never_imports_green() {
         ),
         "expected the shared gate's typed refusal on the +V invariant, got: {e:?}"
     );
-    let msg = e.to_string();
+    let msg = e.render();
     assert!(
         msg.contains("shared at-rest validation gate") && msg.contains("NegativeVolume"),
         "the message names the gate and the failing check: {msg}"
@@ -227,7 +227,7 @@ fn r1_inside_out_torus_band_never_imports_green() {
 fn r1_inverted_cylinder_band_refuses_pre_body() {
     for name in ["band_d180.stp", "band_d_invcyl.stp"] {
         let e = import_step(&band(name), &ImportOptions::default(), Tol::witness()).unwrap_err();
-        let msg = e.to_string();
+        let msg = e.render();
         assert!(
             msg.contains("ORIENTATION-INVERTED cylinder band"),
             "{name}: expected the typed pre-body inversion refusal, got: {msg}"

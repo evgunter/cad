@@ -509,7 +509,12 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
                 &Surface::Nurbs(Arc::new(chart.clone())),
                 band(),
             )
-            .unwrap_or_else(|e| panic!("the interior column certifies exactly: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "the interior column certifies exactly: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             assert!(
                 cache.certificate().envelope <= eps,
                 "its collapsed-row hull is inside ε = {eps:e}: {:e} m",
@@ -539,13 +544,18 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
 #[test]
 fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
     use geom_core::{Bounds, Dual, Dual64};
-    let widened = {
+    // The f64 loft's bowed wall, and its widened chart lifted constant.
+    let (picked, widened) = {
         let body = prism(SCALE);
         let (_, _, bowed, _) = flat_bowed_seam(&body, SCALE);
+        let picked = chart_of(&body, bowed).control().to_vec();
         let Surface::Nurbs(n) = widened_u_chart_by(&chart_of(&body, bowed), 1) else {
             panic!("the widened chart is a NURBS chart")
         };
-        Surface::Nurbs(Arc::new(n.map_scalar(Dual::constant)))
+        (
+            picked,
+            Surface::Nurbs(Arc::new(n.map_scalar(Dual::constant))),
+        )
     };
     let square = || -> sweep::Section {
         let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
@@ -573,10 +583,14 @@ fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
     let bowed = body
         .faces()
         .find_map(|(_, f)| match body.get_surface(f.surface) {
+            // The same wall of the same loft: its net is the f64 pick's.
             Some(Surface::Nurbs(n))
                 if !n.is_placeholder()
-                    && n.control().iter().any(|p| p.y.lo() != -SCALE)
-                    && n.control().iter().any(|p| p.x.lo().abs() == SCALE) =>
+                    && n.control().len() == picked.len()
+                    && n.control()
+                        .iter()
+                        .zip(&picked)
+                        .all(|(p, q)| (p.x.lo(), p.y.lo(), p.z.lo()) == (q.x, q.y, q.z)) =>
             {
                 Some(f.surface)
             }

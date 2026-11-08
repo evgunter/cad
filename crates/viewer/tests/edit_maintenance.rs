@@ -652,12 +652,16 @@ fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
     tool.pick(session.doc(), b);
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
-    let coords: Vec<Coord> = proposal.values.iter().map(|row| row.coord).collect();
+    let coords: Vec<Coord<pncad::document::Operand>> = proposal
+        .values
+        .iter()
+        .map(|row| row.coord.clone())
+        .collect();
     assert_eq!(
         coords,
         [
-            Coord::Slide(TargetAxis::X),
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::X),
+            Coord::slide(TargetAxis::Y),
             Coord::SPIN
         ],
         "a rest along z leaves two slides and its spin"

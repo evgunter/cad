@@ -107,7 +107,10 @@ fn both_doors_mint_one_refusal_for_one_nonpositive_size() {
             }
             other => panic!("both doors must refuse NonpositiveSize at {size}: {other:?}"),
         }
-        let (ft, ct) = (f.to_string(), c.to_string());
+        let (ft, ct) = (
+            f.render(geom_brep::recourse::Reading::Build),
+            c.render(geom_brep::recourse::Reading::Build),
+        );
         assert_eq!(
             ft.strip_prefix("fillet: "),
             ct.strip_prefix("chamfer: "),
@@ -146,7 +149,7 @@ fn a_positive_size_under_epsilon_reads_a_false_fact_at_both_doors_today() {
         matches!(f.error, BlendError::RadiusHeadroom { radius, .. } if radius == size),
         "today the fillet meters predicate 1 at {size} m: {f:?}"
     );
-    let ft = f.to_string();
+    let ft = f.render(geom_brep::recourse::Reading::Build);
     assert!(
         ft.contains("curvature headroom") && ft.contains("reduce the fillet radius"),
         "and reads the headroom sentence a plane cannot owe: {ft}"

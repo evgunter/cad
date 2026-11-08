@@ -139,6 +139,7 @@ pub fn checks_report(
     doc: &d::ProfileDoc,
     evaluation: &d::Evaluation<f64>,
     cfg: &d::ChecksConfig,
+    stop: &d::Stop,
     tol: Tol,
 ) -> Result<d::ChecksReport, d::ChecksError> {
     if !cfg.needs_a_subject() {
@@ -146,7 +147,7 @@ pub fn checks_report(
         // reached through the wrapper rather than re-spelled, because
         // the sentence a subject-free run reports under is the
         // registry's to word.
-        return d::run_checks(doc, evaluation, cfg, tol);
+        return d::run_checks(doc, evaluation, cfg, stop, tol);
     }
     // The gather's refusal is a SUBJECT the residents report over, not
     // an error, and WHICH subject it is belongs to `Subject::refused`:
@@ -155,10 +156,19 @@ pub fn checks_report(
     // caller hands the error over whole rather than drawing that line
     // a second time.
     match memo.with(doc, evaluation, tol, |product| {
-        d::run_checks_on(doc, evaluation, d::Subject::Product(product), cfg, tol)
+        d::run_checks_on(
+            doc,
+            evaluation,
+            d::Subject::Product(product),
+            cfg,
+            stop,
+            tol,
+        )
     }) {
         Ok(report) => report,
-        Err(source) => d::run_checks_on(doc, evaluation, d::Subject::refused(source), cfg, tol),
+        Err(source) => {
+            d::run_checks_on(doc, evaluation, d::Subject::refused(source), cfg, stop, tol)
+        }
     }
 }
 

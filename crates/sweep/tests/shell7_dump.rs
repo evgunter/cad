@@ -120,7 +120,10 @@ fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
             Some(s.body)
         }
         Err(e) => {
-            println!("[dump] {label}: shell Err {e}");
+            println!(
+                "[dump] {label}: shell Err {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             None
         }
     }
@@ -131,7 +134,10 @@ fn direct(label: &str, body: &Body<f64>, t: f64) {
     let band = Band::linear(tol()).expect("band");
     match topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol()) {
         Ok(_) => dump(label, &cavity),
-        Err(e) => println!("[dump] {label}: direct door Err {e}"),
+        Err(e) => println!(
+            "[dump] {label}: direct door Err {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -389,7 +395,10 @@ fn shell7_dump_corpus() {
         Err(topo::ShellError::NotValid { errors }) => {
             println!("[dump] collinear cap: shell NotValid {errors:?}")
         }
-        Err(e) => println!("[dump] collinear cap: shell Err {e}"),
+        Err(e) => println!(
+            "[dump] collinear cap: shell Err {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     direct("collinear cap, direct door", &cap, 0.05);
     let v = PI / 4.0;
@@ -408,7 +417,10 @@ fn shell7_dump_corpus() {
         Err(topo::ShellError::NotValid { errors }) => {
             println!("[dump] two-arc sphere: shell NotValid {errors:?}")
         }
-        Err(e) => println!("[dump] two-arc sphere: shell Err {e}"),
+        Err(e) => println!(
+            "[dump] two-arc sphere: shell Err {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     direct("two-arc sphere, direct door", &ball, 0.05);
 }

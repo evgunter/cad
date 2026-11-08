@@ -42,7 +42,7 @@ its limit.
 What lands on top of those nights:
 
 - PR 6011's torus germ rows at 1e-12 (opt-level 2, measured by its dual
-  review: `work/sect/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`):
+  review: `work/secttorus/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`):
   the tilted-rod spins row 1 015–1 770 s, the drum × donut row 400–700 s,
   the two donuts 520–900 s. That is 32–56 test-minutes, 8–14 minutes of
   the row on the runner's four test threads, and up to 30 minutes if the

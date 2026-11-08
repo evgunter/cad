@@ -124,7 +124,10 @@ fn boolean(tag: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
                         format!("REFUSED join {}", text.chars().take(90).collect::<String>())
                     }
                 },
-                Err(e) => format!("REFUSED {e:?} | {e}"),
+                Err(e) => format!(
+                    "REFUSED {e:?} | {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             };
             println!("BOOL {tag} {order} {op}: {line}");
         }

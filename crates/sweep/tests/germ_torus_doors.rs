@@ -238,7 +238,7 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
         let geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -254,11 +254,18 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
         let (t0, t1) = c.params();
         for fb in faces_where(&b, is_torus) {
             let s = surface(&b, fb);
-            let (lo, hi) =
-                geom_brep::circle_residual_extremes(s, center, axis, radius, u_ref).unwrap();
-            let (arc_lo, arc_hi) =
-                geom_brep::circle_arc_residual_range(s, center, axis, radius, u_ref, t0, t1)
-                    .unwrap();
+            let (lo, hi) = geom_brep::circle_residual_extremes(
+                s,
+                &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+            )
+            .unwrap();
+            let (arc_lo, arc_hi) = geom_brep::circle_arc_residual_range(
+                s,
+                &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+                t0,
+                t1,
+            )
+            .unwrap();
             let margin = (lo.max(-hi)).max(arc_lo.max(-arc_hi));
             assert!(
                 (margin + 1.733_498_408_828_498e-5).abs() < 1e-12,
@@ -385,7 +392,7 @@ fn a_segment_through_the_tube_is_pierced_at_both_quartic_roots() {
         topo::sweep_traces(&d, &b, topo::SweepStrategy::Realized, None, Tol::witness())
             .expect("the sweep completes on a transverse bar");
     let mut minted: Vec<_> = b_on_a
-        .accepted
+        .accepted()
         .iter()
         .map(|&(e, _)| e)
         .filter(|e| !original.contains(e))
@@ -397,7 +404,8 @@ fn a_segment_through_the_tube_is_pierced_at_both_quartic_roots() {
         8,
         "two pierces on each of four edges: {b_on_a:?}"
     );
-    let pierced: std::collections::BTreeSet<_> = b_on_a.accepted.iter().map(|&(_, f)| f).collect();
+    let pierced: std::collections::BTreeSet<_> =
+        b_on_a.accepted().iter().map(|&(_, f)| f).collect();
     assert_eq!(
         pierced,
         d.faces().map(|(k, _)| k).collect(),
@@ -434,7 +442,7 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
         topo::sweep_traces(&d, &b, topo::SweepStrategy::Realized, None, Tol::witness())
             .expect("the chord between the pierces is no event on the face it misses");
     let mut minted: Vec<_> = b_on_d
-        .accepted
+        .accepted()
         .iter()
         .map(|&(e, _)| e)
         .filter(|e| !original.contains(e))
@@ -456,7 +464,8 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
         })
         .collect();
     assert_eq!(inner.len(), 1, "the donut has one inner face");
-    let pierced: std::collections::BTreeSet<_> = b_on_d.accepted.iter().map(|&(_, f)| f).collect();
+    let pierced: std::collections::BTreeSet<_> =
+        b_on_d.accepted().iter().map(|&(_, f)| f).collect();
     assert_eq!(
         pierced,
         inner.iter().copied().collect(),
@@ -506,14 +515,15 @@ fn a_bar_with_its_corners_on_the_inner_face_records_there_and_nowhere_else() {
     let (_, b_on_d) =
         topo::sweep_traces(&d, &b, topo::SweepStrategy::Realized, None, Tol::witness())
             .expect("a chord between two corners on the inner face is no event on the outer");
-    let recorded: std::collections::BTreeSet<_> = b_on_d.accepted.iter().map(|&(e, _)| e).collect();
+    let recorded: std::collections::BTreeSet<_> =
+        b_on_d.accepted().iter().map(|&(e, _)| e).collect();
     assert_eq!(
         recorded,
         b.edges().map(|(k, _)| k).collect(),
         "every edge of the bar records its corners: {b_on_d:?}"
     );
     assert!(
-        b_on_d.accepted.iter().all(|&(_, f)| f == inner[0]),
+        b_on_d.accepted().iter().all(|&(_, f)| f == inner[0]),
         "every record lands on the inner face: {b_on_d:?}"
     );
 }
@@ -555,7 +565,7 @@ fn a_cylinder_chord_passes_the_wall_face_it_does_not_meet() {
     )
     .expect("the chord is no event on the face it misses");
     let pierced: std::collections::BTreeSet<_> =
-        rod_on_cyl.accepted.iter().map(|&(_, f)| f).collect();
+        rod_on_cyl.accepted().iter().map(|&(_, f)| f).collect();
     assert_eq!(
         pierced.len(),
         2,
@@ -566,7 +576,7 @@ fn a_cylinder_chord_passes_the_wall_face_it_does_not_meet() {
         "nothing lands on the wall face the rod never meets: {rod_on_cyl:?}"
     );
     assert!(
-        rod_on_cyl.examined.iter().any(|&(_, f)| f == third[0]),
+        rod_on_cyl.examined().iter().any(|&(_, f)| f == third[0]),
         "the third face must be examined, or this row tests nothing: {rod_on_cyl:?}"
     );
 }
@@ -789,7 +799,10 @@ fn a_rod_inside_the_tube_is_not_passed_silently() {
         None,
         Tol::witness(),
     ) {
-        assert!(!on_d.accepted.is_empty(), "the rod crosses the tube twice");
+        assert!(
+            !on_d.accepted().is_empty(),
+            "the rod crosses the tube twice"
+        );
     }
     if let Ok(r) = topo::union(&d, &rod, Tol::witness()) {
         assert!(!matches!(
@@ -844,7 +857,7 @@ fn a_tilted_segment_through_the_tube_is_pierced_on_the_ferrari_arm() {
         topo::sweep_traces(&d, &b, topo::SweepStrategy::Realized, None, Tol::witness())
             .expect("the sweep completes on the tilted bar");
     let mut minted: Vec<_> = b_on_d
-        .accepted
+        .accepted()
         .iter()
         .map(|&(e, _)| e)
         .filter(|e| !original.contains(e))
@@ -1007,7 +1020,7 @@ fn the_sweep_never_steps_over_a_contradicted_torus_root() {
             Tol::witness(),
         ) {
             assert!(
-                !on_d.accepted.is_empty(),
+                !on_d.accepted().is_empty(),
                 "the edges cross the tube, so a clean sweep stepped over a root"
             );
         }
@@ -1137,7 +1150,7 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 }
 
 /// **∖ and ∩ reach the doors ∪ does, both orders.** With the torus on
-/// the revert roster, a subtract or an intersect over the fixtures above
+/// the roster every op reads, a subtract or an intersect over the fixtures above
 /// reaches the same doors as their unions:
 ///
 /// - the near-perpendicular bar's tilted faces cut general spiric

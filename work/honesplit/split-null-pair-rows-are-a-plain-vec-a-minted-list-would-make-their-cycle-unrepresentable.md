@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-19
 priority: P4
 cost: M
-refs: [split-and-boolean-copy-chains-are-chased-three-ways]
 ---
 
 

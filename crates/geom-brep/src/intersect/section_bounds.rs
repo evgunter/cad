@@ -287,7 +287,7 @@ fn unit<T: CertifiedBounds>(v: Vec3<T>) -> V3 {
         Interval::from_certified(v.y),
         Interval::from_certified(v.z),
     );
-    v / v.norm_squared().sqrt()
+    v.normalize()
 }
 
 fn boxed(b: Box3) -> V3 {
@@ -332,7 +332,10 @@ impl Quadric {
                     cos_a: Interval::from_certified(cos_a),
                 }
             }
-            Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
+            Surface::Torus { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => return None,
         })
     }
 

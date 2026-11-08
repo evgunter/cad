@@ -332,10 +332,6 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
     let l = link.link();
     let (q_a, along) = open_trimline(l, l.face_a)?;
     let (q_b, _) = open_trimline(l, l.face_b)?;
-    let spine = match l.blend.surface {
-        Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
-        _ => None,
-    };
     let end = EndCut::plan(
         body,
         vertex,
@@ -344,7 +340,7 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
         (q_a, q_b),
         along,
         section,
-        spine,
+        &l.blend.surface,
     )?;
     Ok(CutOffPlan { link, end })
 }
@@ -552,9 +548,21 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     // touches its supports tangentially, turns its corner on an arc and
     // ends in an arc; the chamfer's meets them at an angle and closes
     // its corner and its ends on chords.
-    let trim_carrier = || match kind {
-        BlendKind::Fillet => ContactCarrier::TrimLine,
-        BlendKind::Chamfer => ContactCarrier::Chord,
+    let trim_carrier = |edge: EdgeKey, face: FaceKey| -> Result<ContactCarrier<T>, BlendError> {
+        match kind {
+            BlendKind::Fillet => {
+                let l = opens
+                    .iter()
+                    .map(|o| o.link())
+                    .find(|l| l.edge == edge)
+                    .ok_or_else(|| {
+                        disagrees(EntityId::Edge(edge), "a support's chord is no open link")
+                    })?;
+                let (origin, dir) = open_trimline(l, face)?;
+                Ok(ContactCarrier::TrimLine(geom::Line { origin, dir }))
+            }
+            BlendKind::Chamfer => Ok(ContactCarrier::Chord),
+        }
     };
     let mut described: Described<T> = Vec::new();
     if opens.is_empty() {
@@ -687,7 +695,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
                     tol,
                 )
                 .map_err(|e| op("trimline mef", e))?;
-            described.push((created.edge, trim_carrier(), chord.edge));
+            described.push((created.edge, trim_carrier(chord.edge, f)?, chord.edge));
             // The chord runs foot(from) → foot(to): it parallels its
             // own source edge, in this support face. Birth data,
             // straight off the plan.

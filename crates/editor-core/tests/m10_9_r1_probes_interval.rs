@@ -67,7 +67,7 @@ fn r1_circle_at_and_eval_agree_bit_for_bit() {
         let c = Point3::new(cx, cy, cz);
         let a = Vec3::new(ax, ay, az);
         let u = Vec3::new(ux, uy, uz);
-        let door = Curve3::circle_at(c, a, r, u, t);
+        let door = Curve3::circle_at(&geom::Frame::new(c, a, u), r, t);
         let via = Curve3::circle(c, a, r, u).eval(t);
         assert_eq!(
             (door.x.to_bits(), door.y.to_bits(), door.z.to_bits()),
@@ -78,7 +78,7 @@ fn r1_circle_at_and_eval_agree_bit_for_bit() {
         let ci = Point3::new(iv(cx), iv(cy), iv(cz));
         let ai = Vec3::new(iv(ax), iv(ay), iv(az));
         let ui = Vec3::new(iv(ux), iv(uy), iv(uz));
-        let door_i = Curve3::circle_at(ci, ai, iv(r), ui, iv(t));
+        let door_i = Curve3::circle_at(&geom::Frame::new(ci, ai, ui), iv(r), iv(t));
         let via_i = Curve3::circle(ci, ai, iv(r), ui).eval(iv(t));
         assert_eq!(
             format!("{:?}{:?}{:?}", door_i.x, door_i.y, door_i.z),
@@ -276,6 +276,7 @@ fn r1_split_bore_disc_end_to_end() {
                     max_leaves: 32,
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             );
             let dt = t.elapsed().as_secs_f64();
@@ -300,11 +301,19 @@ fn r1_split_bore_disc_end_to_end() {
                         None,
                         false,
                         None,
+                        &editor_core::Stop::default(),
                         tol,
                     );
                     println!("      stackup {stack:?}");
-                    let a =
-                        editor_core::drive::assertion_at(&doc, assertion, v.root(), dials(r), tol);
+                    let a = editor_core::drive::assertion_at(
+                        &doc,
+                        assertion,
+                        v.root(),
+                        dials(r),
+                        &editor_core::Stop::default(),
+                        tol,
+                    )
+                    .expect("the replay is not stopped");
                     println!("      assertion {a:?}");
                 }
             }
@@ -347,6 +356,7 @@ fn r1_the_door_moves_no_bit_on_r1s_document() {
                     symbolic: dials(r),
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .map(|v| v.serialize())

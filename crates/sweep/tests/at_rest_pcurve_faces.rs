@@ -17,8 +17,8 @@
 //!   (`CarrierOffChart`);
 //! - a circle ⊥ the axis through the tube's crest, centred off the
 //!   axis, which the incidence test reads on the torus while it is no
-//!   circle of it: its general lane on a torus is not written yet, so it
-//!   refuses lever-only "not yet" (`NoGeneralLane`, D3);
+//!   circle of it: it takes the general lane (D3), its projected image,
+//!   and the face mints clean;
 //! - a straight line, which no torus holds (`CarrierOffChart`).
 //!
 //! Adopted from PCERT reviewer R2's probes on PR 3759.
@@ -133,12 +133,17 @@ fn off_chart(e: &PcurveMintError) -> bool {
     matches!(
         e,
         PcurveMintError::Certify {
-            error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+            error: PcurveCertifyError::CarrierOffChart {
+                margin: Some(geom_brep::OffMargin::Past(_)),
+                ..
+            },
             ..
         }
-    ) && e.to_string().ends_with(geom_core::KERNEL_DEFECT_ENDING)
+    ) && e
+        .render(geom_brep::recourse::Reading::Build)
+        .ends_with(geom_core::KERNEL_DEFECT_ENDING)
         && topo::ValidationError::Pcurve { finding: e.clone() }
-            .to_string()
+            .render(geom_brep::recourse::Reading::AtRest)
             .ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
 }
 
@@ -168,13 +173,13 @@ fn verdicts(
     (findings, mint, body)
 }
 
-/// **Each strut alone is refused by its own class**, at whichever
-/// corner it stands: the oblique circle and the line are off the torus,
-/// and the crest circle, on it but none of its circles, has no general
-/// lane yet. Tier 3 names the strut and the mint
-/// refuses with it; none is excused.
+/// **Each strut alone is read by its own class**, at whichever corner
+/// it stands: the oblique circle and the line are off the torus, so tier
+/// 3 names the strut and the mint refuses with it, none excused; the
+/// crest circle, on it but none of its circles, takes the general lane:
+/// tier 3 reads the face clean and the mint stores its projected row.
 #[test]
-fn each_strut_alone_is_refused_by_its_own_class() {
+fn each_strut_alone_is_read_by_its_own_class() {
     for i in 0..2 {
         let (f, m, _) = verdicts(Some(i), None);
         assert!(
@@ -201,25 +206,16 @@ fn each_strut_alone_is_refused_by_its_own_class() {
         .expect("the wall has a corner on the tube's crest");
     let p = start_point(&body, crest);
     arc_strut(&mut body, crest, crest_circle_through(p), 0.2);
-    let unwritten = |e: &PcurveMintError| {
-        matches!(
-            e,
-            PcurveMintError::Certify {
-                error: PcurveCertifyError::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Unwritten,
-                    ..
-                },
-                ..
-            }
-        )
-    };
     let f = validate_pcurves(&body, band());
-    assert!(
-        matches!(f.as_slice(), [e] if unwritten(e)),
-        "crest circle: {f:?}"
-    );
+    assert!(f.is_empty(), "crest circle: {f:?}");
     let m = topo::mint_pcurves_of(&mut body, &[wall], tol());
-    assert!(matches!(&m, Err(e) if unwritten(e)), "crest circle: {m:?}");
+    assert!(m.is_ok(), "crest circle: {m:?}");
+    assert!(
+        body.half_edges().any(|(he, _)| body
+            .pcurve(he)
+            .is_some_and(|row| matches!(row.pcurve(), Pcurve::Projected(_)))),
+        "crest circle: the strut's row is its projected image"
+    );
 }
 
 /// **A stale wide row is refused, complete or half-minted.** On a
@@ -306,47 +302,69 @@ fn tilted_parallel_through(p: Point3<f64>, tilt: f64) -> Curve3<f64> {
     )
 }
 
-fn certificate_refused(e: &PcurveMintError) -> bool {
+/// Whether the mint refused as an escalation of `want`: the incidence
+/// read in band, or a closed-form envelope term.
+fn certificate_refused(e: &PcurveMintError, want: fn(geom_brep::PcurveCheck) -> bool) -> bool {
     matches!(
         e,
         PcurveMintError::Certify {
-            error: PcurveCertifyError::Escalated { .. },
+            error: PcurveCertifyError::Escalated { check, .. },
             ..
-        }
+        } if want(*check)
     )
 }
 
 /// **A covered strut whose refusal the band cannot decide is named** —
-/// a parallel tilted off the torus's axis. Tilted 2ε, it refuses in its
-/// derivation (`ChartWinding`); tilted ε, its image derives and only
-/// its certificate refuses (`Envelope`). Tier 3 names it, the mint
-/// refuses with it, and the reversed body reads the same, at either
-/// corner.
+/// a parallel tilted off the torus's axis. At the corner on the tube's
+/// crest, tilted 2ε its incidence read lands in band (`ChartIncidence`),
+/// and tilted ε its closed-form image derives and only its certificate
+/// refuses (an `EnvelopeTerm`). Tier 3 names it, the mint refuses with it, and
+/// the reversed body reads the same. At the other corner, where the
+/// tilt moves the circle along the tube, it stays on the torus while its
+/// class reading lands in band: it takes the general lane, tier 3 reads
+/// it clean and the mint stores its projected row.
 #[test]
 fn a_tilted_parallel_strut_refuses_its_certificate() {
     let (f, _, _) = verdicts(None, None);
     assert!(f.is_empty(), "the bare wall is clean: {f:?}");
     let eps = tol().eps();
-    for (c, k) in [(0, 2.0), (1, 2.0), (1, 1.0)] {
+    let incidence: fn(geom_brep::PcurveCheck) -> bool =
+        |c| c == geom_brep::PcurveCheck::ChartIncidence;
+    let envelope: fn(geom_brep::PcurveCheck) -> bool =
+        |c| matches!(c, geom_brep::PcurveCheck::EnvelopeTerm(_));
+    for (c, k, want) in [(0, 2.0, envelope), (1, 2.0, incidence), (1, 1.0, envelope)] {
         let tilt = k * eps;
         let mut body = torus_quarter();
         let (wall, cycle) = torus_wall(&body);
         let p = start_point(&body, cycle[c]);
         arc_strut(&mut body, cycle[c], tilted_parallel_through(p, tilt), 0.2);
         let f = validate_pcurves(&body, band());
-        assert!(
-            matches!(f.as_slice(), [e] if certificate_refused(e)),
-            "parallel tilted {tilt} at {c}: tier 3 names the certificate: {f:?}"
-        );
         let mut minted = body.clone();
         let m = topo::mint_pcurves_of(&mut minted, &[wall], tol());
+        if c == 0 {
+            assert!(
+                f.is_empty() && m.is_ok(),
+                "parallel tilted {tilt} at {c}: the general lane mints clean: {f:?} / {m:?}"
+            );
+            assert!(
+                minted.half_edges().any(|(he, _)| minted
+                    .pcurve(he)
+                    .is_some_and(|row| matches!(row.pcurve(), Pcurve::Projected(_)))),
+                "parallel tilted {tilt} at {c}: the strut's row is its projected image"
+            );
+            continue;
+        }
         assert!(
-            matches!(&m, Err(e) if certificate_refused(e)),
+            matches!(f.as_slice(), [e] if certificate_refused(e, want)),
+            "parallel tilted {tilt} at {c}: tier 3 names the certificate: {f:?}"
+        );
+        assert!(
+            matches!(&m, Err(e) if certificate_refused(e, want)),
             "parallel tilted {tilt} at {c}: the mint refuses with it: {m:?}"
         );
         let fr = validate_pcurves(&body.revert().unwrap(), band());
         assert!(
-            matches!(fr.as_slice(), [e] if certificate_refused(e)),
+            matches!(fr.as_slice(), [e] if certificate_refused(e, want)),
             "parallel tilted {tilt} at {c}: reversed, the same verdict: {fr:?}"
         );
     }
@@ -595,7 +613,12 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
                 topo::construction::FaceSurface::Inherit,
                 tol(),
             )
-            .unwrap_or_else(|e| panic!("family {family}: the Villarceau split refuses: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "family {family}: the Villarceau split refuses: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         for he in [made.he_plus, made.he_minus] {
             let row = body
                 .pcurve(he)
@@ -684,7 +707,10 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
             matches!(
                 finding,
                 PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+                    error: PcurveCertifyError::CarrierOffChart {
+                        margin: Some(geom_brep::OffMargin::Past(_)),
+                        ..
+                    },
                     ..
                 }
             ),
@@ -692,9 +718,11 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
         );
         let minted = topo::mint_pcurves_of(&mut body, &[wall], tol()).unwrap_err();
         assert_eq!(&minted, finding, "the mint and tier 3 refuse alike");
-        let built = minted.to_string();
-        let wrapped = sweep::ExtrudeError::Pcurve(minted.clone()).to_string();
-        let at_rest = topo::ValidationError::Pcurve { finding: minted }.to_string();
+        let built = minted.render(geom_brep::recourse::Reading::Build);
+        let wrapped =
+            sweep::ExtrudeError::Pcurve(minted.clone()).render(geom_brep::recourse::Reading::Build);
+        let at_rest = topo::ValidationError::Pcurve { finding: minted }
+            .render(geom_brep::recourse::Reading::AtRest);
         for (door, text, culprit) in [
             ("build", &built, geom_core::KERNEL_DEFECT_ENDING),
             (
@@ -713,7 +741,20 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
                 "declared {declared} at {door}: {text}"
             );
         }
-        texts.push([built, wrapped, at_rest]);
+        texts.push([built, wrapped, at_rest].map(|t| unquoted(&t)));
     }
     assert_eq!(texts[0], texts[1], "who placed the strut moves no ending");
+}
+
+/// `text` without the margin its read quotes: the two placements read
+/// the one miss from coordinates rounded at their own reach, so the
+/// quoted number may differ in its last place while the words may not.
+fn unquoted(text: &str) -> String {
+    match text.find(" (margin ") {
+        Some(at) => {
+            let close = at + text[at..].find(')').expect("the quote closes");
+            format!("{}{}", &text[..at], &text[close + 1..])
+        }
+        None => text.to_owned(),
+    }
 }

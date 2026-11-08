@@ -384,7 +384,7 @@ fn bulge_arc_carrier_composes() {
         let u_ref = (to3d(p0) - center) * (1.0 / radius);
         let carrier = Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },

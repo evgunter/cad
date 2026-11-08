@@ -246,6 +246,7 @@ fn chart_of(surface: &Surface<f64>) -> (&'static str, bool) {
         Surface::Cone { .. } => ("cone", true),
         Surface::Sphere { .. } => ("sphere", true),
         Surface::Torus { .. } => ("torus", true),
+        Surface::Spindle { .. } => ("spindle", true),
         Surface::Nurbs(_) => ("nurbs", true),
         Surface::Approx(_) => ("approx", true),
     }
@@ -253,12 +254,12 @@ fn chart_of(surface: &Surface<f64>) -> (&'static str, bool) {
 
 /// The chart's axis units, for the printed ranges. `u` is an angle on
 /// every analytic chart but the plane; `v` is an angle only on the
-/// sphere (polar) and the torus (the tube angle).
+/// sphere (polar), the torus and the spindle sheet (the tube angle).
 fn units_of(chart: &str) -> (&'static str, &'static str) {
     match chart {
         "plane" => ("m", "m"),
         "cylinder" | "cone" => ("rad", "m"),
-        "sphere" | "torus" => ("rad", "rad"),
+        "sphere" | "torus" | "spindle" => ("rad", "rad"),
         _ => ("", ""),
     }
 }

@@ -117,7 +117,7 @@ fn seated(r: &mut Recorder, pin: Revolved, housing: Revolved, seat: RecipeNodeId
         placement,
         crate::fixture::mate(on, to),
         vec![
-            (Coord::Slide(TargetAxis::Y), len(HOUSING_H)),
+            (Coord::slide(TargetAxis::Y), len(HOUSING_H)),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );

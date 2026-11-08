@@ -12,7 +12,7 @@
 
 use crate::AtRestBody;
 use crate::body::Body;
-use crate::entity::{Face, HalfEdgeKey, LoopBoundary};
+use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::test_support::finished;
 use crate::test_support_fixtures::{
@@ -440,7 +440,7 @@ pub fn corners_disjoint(body: &Body<f64>, tol: Tol) -> Result<(), String> {
         ) {
             return Err(format!("{fk:?}: its outer loop is not a cycle"));
         }
-        let cycles = cycles_of(body, f);
+        let cycles = cycles_of(body, fk);
         assert!(
             !cycles.is_empty(),
             "{fk:?}: a face with an outer cycle has no cycles"
@@ -569,14 +569,12 @@ fn corner_sweep(
     Ok((from, TAU))
 }
 
-/// The half-edge cycles of a face's loops, outer first.
-pub fn cycles_of(body: &Body<f64>, f: &Face) -> Vec<Vec<HalfEdgeKey>> {
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
-        .filter_map(|l| match body.get_loop(l)?.boundary {
-            LoopBoundary::Cycle { first } => body.loop_cycle(first),
-            LoopBoundary::Empty { .. } => None,
-        })
+/// The half-edge cycles of a face's loops, outer first
+/// ([`crate::live::FaceView::cycles`]); a lone-vertex loop has none.
+pub fn cycles_of(body: &Body<f64>, fk: FaceKey) -> Vec<Vec<HalfEdgeKey>> {
+    body.proven_face(fk)
+        .cycles()
+        .map(|(_, cycle)| cycle)
         .collect()
 }
 
@@ -606,8 +604,8 @@ pub fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
     };
     let mut faces: Vec<Vec<Point>> = body
         .faces()
-        .map(|(_, f)| {
-            let mut ps: Vec<Point> = cycles_of(body, f).into_iter().flatten().map(pt).collect();
+        .map(|(fk, _)| {
+            let mut ps: Vec<Point> = cycles_of(body, fk).into_iter().flatten().map(pt).collect();
             ps.sort_unstable();
             ps
         })

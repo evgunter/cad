@@ -1282,7 +1282,7 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
         count = re.search(r'index_decl\(\s*k\.clone\(\),\s*pe\("(\d+)", &scope\)', layout)
         self.assertIsNotNone(count, "layout_doc no longer authors its count inline")
         self.assertScene(int(count.group(1)), PATTERN_COUNT, "PATTERN_COUNT")
-        spacing = re.search(r'TargetAxis::Y, pe\("(\d+) mm", &scope\)', layout)
+        spacing = re.search(r'TargetAxis::Y\),\s*pe\("(\d+) mm", &scope\)', layout)
         self.assertIsNotNone(spacing, "layout_doc no longer authors its spacing in mm")
         self.assertScene(
             int(spacing.group(1)) / 1000.0, PATTERN_SPACING, "PATTERN_SPACING"

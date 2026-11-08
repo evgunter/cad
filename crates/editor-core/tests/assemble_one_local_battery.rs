@@ -67,6 +67,7 @@ fn the_gather_pays_tier_3_prime_once_and_the_at_rest_check_nothing() {
             &ev,
             editor_core::Subject::Product(&product),
             &at_rest_only,
+            &editor_core::Stop::default(),
             tol,
         )
     });

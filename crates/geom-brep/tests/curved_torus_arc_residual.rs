@@ -125,9 +125,16 @@ fn a_coaxial_circle_reads_its_closed_form_residual_within_the_charge() {
     let center = Point3::new(0.0, 0.0, h);
     let closed = ((rho_c - big_r).powi(2) + h.powi(2) - minor.powi(2)) / (2.0 * minor);
     assert!((closed - 0.75).abs() < 1e-12, "fixture: {closed}");
-    let (lo, hi) =
-        circle_arc_residual_range(&s, center, Vec3::unit_z(), rho_c, Vec3::unit_x(), 0.0, TAU)
-            .expect("the torus arm answers");
+    let (lo, hi) = circle_arc_residual_range(
+        &s,
+        &geom::Circle::new(
+            geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+            rho_c,
+        ),
+        0.0,
+        TAU,
+    )
+    .expect("the torus arm answers");
     assert!(lo <= closed && closed <= hi, "[{lo}, {hi}] misses {closed}");
     // `a_h = 0`: the circle's plane is perpendicular to the axis, so
     // the axial channel contributes nothing and the whole width is
@@ -170,9 +177,16 @@ fn a_ring_plane_circle_reaches_both_closed_form_extremes() {
         residual_at_rho(offset - rho_c),
         residual_at_rho(offset + rho_c),
     );
-    let (lo, hi) =
-        circle_arc_residual_range(&s, center, Vec3::unit_z(), rho_c, Vec3::unit_x(), 0.0, TAU)
-            .expect("the torus arm answers");
+    let (lo, hi) = circle_arc_residual_range(
+        &s,
+        &geom::Circle::new(
+            geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+            rho_c,
+        ),
+        0.0,
+        TAU,
+    )
+    .expect("the torus arm answers");
     let charge = chord_dip(
         f2_oracle(
             big_r,
@@ -213,8 +227,13 @@ fn a_circle_parallel_to_the_axis_pins_the_bounds_axial_channel() {
     // Frame: the circle's own axis is radial, so its plane is spanned
     // by the torus axis and the tangential direction.
     let (axis, u_ref) = (Vec3::unit_x(), Vec3::unit_z());
-    let (lo, hi) =
-        circle_arc_residual_range(&s, center, axis, rho_c, u_ref, 0.0, TAU).expect("the torus arm");
+    let (lo, hi) = circle_arc_residual_range(
+        &s,
+        &geom::Circle::new(geom::Frame::new(center, axis, u_ref), rho_c),
+        0.0,
+        TAU,
+    )
+    .expect("the torus arm");
     let rho_far = (offset.powi(2) + rho_c.powi(2)).sqrt();
     let charge = chord_dip(
         f2_oracle(big_r, minor, rho_c, TAU, (offset, rho_far), rho_c, rho_c),
@@ -259,9 +278,13 @@ fn a_meridian_straddles_zero_and_a_concentric_tube_stays_one_sided() {
     let spine = Point3::new(big_r, 0.0, 0.0);
     let meridian_axis = Vec3::unit_y();
     for (tube, name) in [(minor, "on the locus"), (0.05, "inside"), (0.4, "outside")] {
-        let (lo, hi) =
-            circle_arc_residual_range(&s, spine, meridian_axis, tube, Vec3::unit_x(), 0.0, TAU)
-                .expect("the torus arm answers");
+        let (lo, hi) = circle_arc_residual_range(
+            &s,
+            &geom::Circle::new(geom::Frame::new(spine, meridian_axis, Vec3::unit_x()), tube),
+            0.0,
+            TAU,
+        )
+        .expect("the torus arm answers");
         let closed = (tube.powi(2) - minor.powi(2)) / (2.0 * minor);
         assert!(
             lo <= closed && closed <= hi,
@@ -317,8 +340,13 @@ fn a_tangency_between_samples_is_not_certified_clear() {
         circle_point(center, Vec3::unit_z(), rho_c, u_ref, touch),
     );
     assert!(contact.abs() < 1e-12, "the fixture must touch: {contact}");
-    let (lo, hi) = circle_arc_residual_range(&s, center, Vec3::unit_z(), rho_c, u_ref, 0.0, TAU)
-        .expect("the torus arm answers");
+    let (lo, hi) = circle_arc_residual_range(
+        &s,
+        &geom::Circle::new(geom::Frame::new(center, Vec3::unit_z(), u_ref), rho_c),
+        0.0,
+        TAU,
+    )
+    .expect("the torus arm answers");
     assert!(
         lo <= 0.0 && 0.0 <= hi,
         "the charged enclosure must contain the contact it cannot see: [{lo}, {hi}]"
@@ -387,10 +415,14 @@ fn the_lily_weld_pairs_resolve_at_the_ratified_sample_count() {
     // (a) the stem's outer-equator seam, a 22° arc, against the arch.
     let seam = circle_arc_residual_range(
         &arch_torus(),
-        Point3::new(-5.0, 0.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        5.0 + STEM_R,
-        Vec3::unit_x(),
+        &geom::Circle::new(
+            geom::Frame::new(
+                Point3::new(-5.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Vec3::unit_x(),
+            ),
+            5.0 + STEM_R,
+        ),
         0.0,
         D22,
     )
@@ -400,10 +432,10 @@ fn the_lily_weld_pairs_resolve_at_the_ratified_sample_count() {
     // constant (STEM_R² − ARCH_R²)/2·ARCH_R.
     let end_circle = circle_arc_residual_range(
         &arch_torus(),
-        weld(),
-        weld_tangent(),
-        STEM_R,
-        Vec3::new(D22.cos(), 0.0, D22.sin()),
+        &geom::Circle::new(
+            geom::Frame::new(weld(), weld_tangent(), Vec3::new(D22.cos(), 0.0, D22.sin())),
+            STEM_R,
+        ),
         0.0,
         TAU,
     )
@@ -411,10 +443,10 @@ fn the_lily_weld_pairs_resolve_at_the_ratified_sample_count() {
     // (c) the arch's start meridian against the stem, one-sided INSIDE.
     let start_circle = circle_arc_residual_range(
         &stem_torus(),
-        weld(),
-        weld_tangent(),
-        ARCH_R,
-        Vec3::new(D22.cos(), 0.0, D22.sin()),
+        &geom::Circle::new(
+            geom::Frame::new(weld(), weld_tangent(), Vec3::new(D22.cos(), 0.0, D22.sin())),
+            ARCH_R,
+        ),
         0.0,
         TAU,
     )
@@ -479,9 +511,19 @@ fn the_arc_scoped_curvature_bound_beats_the_whole_carrier_one() {
         5.0 + STEM_R,
         Vec3::unit_x(),
     );
-    let whole = circle_residual_curvature_bound(&s, c, axis, radius, u).expect("torus arm");
+    let whole = circle_residual_curvature_bound(
+        &s,
+        &geom::Circle::new(geom::Frame::new(c, axis, u), radius),
+    )
+    .expect("torus arm");
     // The arc's own bound, read off the door's charge.
-    let (lo, hi) = circle_arc_residual_range(&s, c, axis, radius, u, 0.0, D22).expect("torus arm");
+    let (lo, hi) = circle_arc_residual_range(
+        &s,
+        &geom::Circle::new(geom::Frame::new(c, axis, u), radius),
+        0.0,
+        D22,
+    )
+    .expect("torus arm");
     let (dense_lo, dense_hi) = dense_range(&s, c, axis, radius, u, (0.0, D22));
     let arc_charge = ((hi - dense_hi) + (dense_lo - lo)) / 2.0;
     let arc_f2 = arc_charge / chord_dip(1.0, D22 / ARC_RESIDUAL_SAMPLES as f64);
@@ -575,16 +617,24 @@ fn the_k_sample_margin_never_falls_below_the_two_endpoint_one_by_more_than_a_cel
         };
         let t0 = rng.range(0.0, TAU);
         let t1 = t0 + rng.range(1e-3, TAU);
-        let f2 = circle_residual_curvature_bound(&s, center, axis, radius, u_ref)
-            .expect("a harmonic kind");
+        let f2 = circle_residual_curvature_bound(
+            &s,
+            &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+        )
+        .expect("a harmonic kind");
         let old = {
             let dip = chord_dip(f2, t1 - t0);
             let a = implicit_residual(&s, circle_point(center, axis, radius, u_ref, t0));
             let b = implicit_residual(&s, circle_point(center, axis, radius, u_ref, t1));
             (a.min(b) - dip).max(-(a.max(b) + dip))
         };
-        let (lo, hi) = circle_arc_residual_range(&s, center, axis, radius, u_ref, t0, t1)
-            .expect("a harmonic kind");
+        let (lo, hi) = circle_arc_residual_range(
+            &s,
+            &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+            t0,
+            t1,
+        )
+        .expect("a harmonic kind");
         let new = lo.max(-hi);
         let cell_charge = chord_dip(f2, (t1 - t0) / ARC_RESIDUAL_SAMPLES as f64);
         let deficit = old - new;
@@ -643,7 +693,11 @@ fn the_k_sample_door_is_not_monotone_and_this_is_the_bound() {
         core::f64::consts::PI - span / 2.0,
         core::f64::consts::PI + span / 2.0,
     );
-    let f2 = circle_residual_curvature_bound(&s, center, axis, radius, u_ref).expect("plane arm");
+    let f2 = circle_residual_curvature_bound(
+        &s,
+        &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+    )
+    .expect("plane arm");
     assert!(
         (f2 - 1.0).abs() < 1e-12,
         "the fixture's f2 must be exactly 1: {f2}"
@@ -654,8 +708,13 @@ fn the_k_sample_door_is_not_monotone_and_this_is_the_bound() {
         let (a, b) = (ends(t0), ends(t1));
         (a.min(b) - dip).max(-(a.max(b) + dip))
     };
-    let (lo, hi) =
-        circle_arc_residual_range(&s, center, axis, radius, u_ref, t0, t1).expect("plane arm");
+    let (lo, hi) = circle_arc_residual_range(
+        &s,
+        &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+        t0,
+        t1,
+    )
+    .expect("plane arm");
     let new = lo.max(-hi);
     let cell_charge = chord_dip(f2, span / ARC_RESIDUAL_SAMPLES as f64);
     assert!(
@@ -703,10 +762,10 @@ fn a_coincident_torus_pair_encloses_pm_charge_and_reads_negative() {
     // radial direction and the axis span.
     let (lo, hi) = circle_arc_residual_range(
         &s,
-        Point3::new(big_r, 0.0, 0.0),
-        Vec3::unit_y(),
-        minor,
-        Vec3::unit_x(),
+        &geom::Circle::new(
+            geom::Frame::new(Point3::new(big_r, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x()),
+            minor,
+        ),
         0.0,
         TAU,
     )

@@ -17,7 +17,7 @@ measured at that PR's head `f6f69915e4`.
 
 - **At ε 1e-12 the door's liveness is pinned by no row.** The crossing
   row `torus_crossings_match_the_true_distance`
-  (`crates/topo/src/boolean/ellipse_torus.rs`) asks for certificates
+  (`crates/geom-brep/src/curve_face/ellipse_torus.rs`) asks for certificates
   only where the band resolves them. At ε 1e-12 every one of its poses
   has `100·noise/slope` ≈ 4.6e-10 m, wider than the band, so it accepts
   `Uncertain` on every pose there. The verifier found that a door that
@@ -39,7 +39,7 @@ measured at that PR's head `f6f69915e4`.
 (`semi_u`/`semi_v`, "in either order"; `Curve3::ellipse` refuses only a
 non-positive minor semi-axis, `crates/geom/src/curves.rs` ~:146-171), so
 the fuzz pose's swapped semi-axes (`torus_rows::pose`,
-`crates/topo/src/boolean/ellipse_torus.rs` ~:405-417) build a legitimate
+`crates/geom-brep/src/curve_face/ellipse_torus.rs` ~:405-417) build a legitimate
 ellipse, not one the constructor rejects. What stays is the first
 bullet: a pose the 1e-12 band resolves, with the row asking for its
 certificate.

@@ -106,13 +106,16 @@ impl PlacePart for Recorder {
 /// world's `+y`**, its origin at the world's: `−turn/4` about `x`, so
 /// its own `y` lies along the world's `−z` — the values of a bundle with
 /// no mate ([`Recorder::in_world_by`]).
-pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
+pub fn spun_about_y() -> Vec<(
+    editor_core::Coord<editor_core::Operand>,
+    editor_core::Formula,
+)> {
     use editor_core::{Coord, Dimension, Formula, TargetAxis};
     let quarter = Formula::turn_over(4).expect("a quarter turn");
     let back = Formula::neg(quarter).expect("an angle negates");
     [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
+        .map(|axis| (Coord::slide(axis), Formula::zero(Dimension::Length)))
         .chain([
             (Coord::Spin(Some(TargetAxis::X)), back),
             (
@@ -403,7 +406,8 @@ pub fn documents() -> Vec<CorpusDoc> {
 /// registry membership, which requires every node green at every lane, and
 /// `coincidence_door.rs` pins where it stops, or (the press fit written
 /// over two equal variables) it is a variant read for the census only.
-/// `shaft_and_bearing`, its one-radius variant and `boss_tangent_by_value`
+/// `shaft_and_bearing`, its one-radius variant, `boss_tangent_by_value`,
+/// `shaft_and_bearing::with_a_ball` and `shaft_and_bearing::rounded_mouth`
 /// are green at `f64` and their unions escalate at `Interval`; the
 /// others' unions refuse at `f64`.
 /// The per-row door census reads them beside [`documents`], so the rows

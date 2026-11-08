@@ -298,7 +298,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     let slide_x = fixture::value_slot(
         &r.doc,
         placed,
-        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+        editor_core::Coord::slide(editor_core::TargetAxis::X),
     );
     r.push(editor_core::DocEdit::SetParam {
         node: placed,
@@ -338,7 +338,13 @@ fn a_tilted_extrude_certifies_on_its_stored_charts() {
     for deg in [45.0, 30.0] {
         let (doc, placed) = tilted_prism(deg);
         let sel = Selection::body_of(placed);
-        let report = self_intersection(&doc, &box_of(&doc, "place"), &sel, Tol::witness());
+        let report = self_intersection(
+            &doc,
+            &box_of(&doc, "place"),
+            &sel,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        );
         assert_eq!(
             report.verdict(),
             &ClearanceVerdict::Holds,
