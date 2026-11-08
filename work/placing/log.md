@@ -324,3 +324,8 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Action:**
     - correct 6581's `[ev]` question (done now that both reports are in);
     - run the fix pass on the union. (PLACING orchestrator)
+- 2026-11-08 — **6581's `[ev]` question rewritten, with a correction.**
+  - **The correction:** on 6353 the orchestrator told Ev that placements share "the same named variable, say `bracket`" (VR2/VR7). They do not, because a body's output is exempt from naming. Ev's "offer to repoint that variable" was answered on that wrong premise, and fits a named alias most literally.
+  - **The question now offers:** (a) keep the per-placement re-point; (b) a named body variable the re-point redefines, which goes to designers as a follow-up. The use-difference both reviewers named is stated: a later Place still reads `B`.
+  - **Fix pass on the union dispatched** to the implementer.
+  - **Class:** a statement of fact made to Ev on an `[ev]` PR ("we already have X") was checked against neither the code nor the rule's exemptions, and Ev ruled on it. A factual premise given to Ev is measured in the code first, like an "unchanged" claim. (PLACING orchestrator)
