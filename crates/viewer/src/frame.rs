@@ -2387,7 +2387,7 @@ pub fn pending_line(report: &ChecksReport) -> Option<String> {
 pub struct CheckRow {
     /// What the button selects: the node the finding is about (for a
     /// copy's finding the operation defining the body its placement
-    /// places, [`crate::world::seat_of`]; the deciding node of an
+    /// places, [`crate::world::original_of`]; the deciding node of an
     /// unproven coincidence), or the variable an unused finding names.
     pub select: Selection,
     /// That node or variable, spoken.
@@ -2489,7 +2489,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     };
                 }
                 FindingSubject::Output { placement, .. } => {
-                    crate::world::seat_of(landed, placement)
+                    crate::world::original_of(landed, placement)
                 }
                 FindingSubject::Node(node) => node,
                 // An overlap's row is the earlier copy's, as a contact's
@@ -2503,7 +2503,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     let node = landed.operation_of(at).unwrap_or_else(|| {
                         unreachable!("a census is taken over an operation's output")
                     });
-                    crate::world::seat_of(landed, node)
+                    crate::world::original_of(landed, node)
                 }
                 // The earlier copy's placement: the row's cells name both.
                 FindingSubject::Copies { a, .. } => landed

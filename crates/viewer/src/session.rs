@@ -3986,14 +3986,11 @@ impl DocSession {
         // canonical form is what makes two recipes over the same edges
         // bit-identical, and `persist`'s strict door treats a
         // non-canonical set on the wire as a corrupt file.
-        // A pick on a copy is read on its body (A10): the body the
-        // placement places, and the body's own name for each edge.
+        // A pick on a copy is read on that copy (Ev, PR 6353), under the
+        // names it carries verbatim from its body; any target is read as
+        // the body it defines: a revolve's body, not its axis.
         let doc = self.committed_doc();
-        // A copy carries its body's names, so the edges' names are the
-        // body's already. Any other target is read as the body it
-        // defines: a revolve's body, not its axis.
-        let read: Operand = crate::world::placed_var(doc, target)
-            .map_or_else(|| as_body(doc, target.into()), Operand::from);
+        let read = as_body(doc, target.into());
         match read {
             // A node with no body output: the kind gate's own refusal.
             Operand::Node(node) => self.require_kind(node, NodeKindWanted::Body)?,
@@ -4052,12 +4049,13 @@ impl DocSession {
 
     /// **A combine's takeover**: the first operand, in the spec's order,
     /// that something reads along a seen path ([`Takeover`]), refused
-    /// where it would strand a pick; and every other such operand's
-    /// copies, to delete, since its material is in the result. So a
-    /// combine of placed bodies leaves `[result]`. A repeated operand
-    /// counts once; operands nothing reads re-point nothing. Read off
-    /// the committed document before the operands are placed, the one
-    /// takeover the run then makes.
+    /// where it would strand a pick; and every other such operand, whose
+    /// `⊔` seats are dropped and whose product slot the result takes,
+    /// since its material is in the result. So a combine of the product's
+    /// bodies leaves `[result]`, and no placement is written. A repeated
+    /// operand counts once; operands nothing reads re-point nothing. Read
+    /// off the committed document before the operands are placed, the
+    /// one takeover the run then makes.
     fn combine_in_world(&self, operands: &[Operand]) -> Result<Takeover, Refusal> {
         let doc = self.committed_doc();
         let mut distinct: Vec<&Operand> = Vec::new();
@@ -4074,8 +4072,13 @@ impl DocSession {
             return Ok(Takeover::of_var(doc, None));
         };
         first.stranded_pick(doc)?;
+        let rest: Vec<Takeover> = read.collect();
+        for other in &rest {
+            other.stranded_pick(doc)?;
+        }
         Ok(Takeover {
-            dropped: read.flat_map(|takeover| takeover.copies).collect(),
+            product: first.product || rest.iter().any(|other| other.product),
+            dropped: rest.iter().filter_map(|other| other.taken).collect(),
             ..first
         })
     }
@@ -4684,8 +4687,7 @@ impl DocSession {
         }
         self.require_placeable(&body)?;
         let target = self.home_space(&body)?;
-        let mut takeover = Takeover::of(doc, &body);
-        takeover.copies.clear();
+        let takeover = Takeover::of(doc, &body);
         takeover.stranded_pick(doc)?;
         Ok(taking_over(takeover, move |run| {
             let placement = run.insert(Node::place(
@@ -5110,15 +5112,17 @@ impl ProductDoor {
     }
 }
 
-/// **What a takeover re-points** (spec §5′.3 (a)): every read of the
-/// body `taken` along a path the picture is seen through — a gesture's
-/// copy of it (a placement's source, [`crate::world::placements_of_var`]),
-/// a `⊔` operand, and the product slot — read off the committed
-/// document before the gesture's own nodes exist.
+/// **What a takeover re-points** (spec §5′.3 (a)): the reads of the
+/// body `taken` along a path the picture is seen through — a `⊔`
+/// operand and the product slot — read off the committed document
+/// before the gesture's own nodes exist; or, for the re-point a person
+/// accepts ([`SessionOp::RepointPlacements`]), the placements that read
+/// it. No feature gesture re-points a placement's source (Ev, PR 6353).
 struct Takeover {
     /// The body taken over.
     taken: Option<VarId>,
-    /// Each copy of `taken`, its source re-pointed.
+    /// Each placement of `taken`, its source re-pointed: empty but for
+    /// the accepted re-point ([`Takeover::placements_of`]).
     copies: Vec<RecipeNodeId>,
     /// Each `⊔` operand reading `taken` whole, by node and seat.
     operands: Vec<(RecipeNodeId, OperandSlot)>,
@@ -5127,10 +5131,10 @@ struct Takeover {
     /// What the kernel's takeover reads the result's table under
     /// ([`DocSession::unchecked_takeover`]).
     reads: TakeoverReads,
-    /// Copies of other bodies the action deletes once it has taken
+    /// Other bodies whose `⊔` seats the action drops once it has taken
     /// these over: a combine's other operands, whose material is in the
     /// result ([`DocSession::combine_in_world`]).
-    dropped: Vec<RecipeNodeId>,
+    dropped: Vec<VarId>,
 }
 
 impl Takeover {
@@ -5151,30 +5155,27 @@ impl Takeover {
         Self::of_var(doc, crate::world::read_var(doc, read))
     }
 
-    /// The takeover of `taken` in `doc`.
+    /// The takeover of `taken` in `doc`: its `⊔` seats and the product
+    /// slot.
     fn of_var(doc: &Doc<ProfileProgram>, taken: Option<VarId>) -> Self {
         let Some(var) = taken else {
             return Self::nothing();
         };
-        let operands = doc
-            .ids()
-            .into_iter()
-            .filter_map(|id| Some((id, doc.node(id)?)))
-            .filter(|(_, node)| matches!(node, Node::Assemble { .. }))
-            .flat_map(|(id, node)| {
-                node.body_reads()
-                    .into_iter()
-                    .filter(|(_, read)| read.read == var && !read.is_indexed())
-                    .map(move |(seat, _)| (id, seat))
-            })
-            .collect();
         Self {
             taken,
-            copies: crate::world::placements_of_var(doc, var),
-            operands,
+            operands: assemble_seats(doc, var),
             product: doc.product() == Some(var),
-            reads: TakeoverReads::default(),
-            dropped: Vec::new(),
+            ..Self::nothing()
+        }
+    }
+
+    /// **The re-point of `var`'s placements**: every placement reading
+    /// it, its source to be re-pointed, and nothing else.
+    fn placements_of(doc: &Doc<ProfileProgram>, var: VarId) -> Self {
+        Self {
+            taken: Some(var),
+            copies: crate::world::placements_of_var(doc, var),
+            ..Self::nothing()
         }
     }
 
@@ -5183,7 +5184,6 @@ impl Takeover {
     fn is_empty(&self) -> bool {
         self.copies.is_empty() && self.operands.is_empty() && !self.product
     }
-
     /// Whether a reader takes only one body: a `⊔` operand or the
     /// product slot, where a family is read through a `⊔` over it.
     fn reads_one_body(&self) -> bool {
@@ -5303,8 +5303,8 @@ impl Takeover {
             self.reads.prior.as_deref(),
             held,
         )?;
-        for placement in self.dropped {
-            run.apply(DocEdit::DeleteNode { id: placement })?;
+        for var in self.dropped {
+            drop_seats(run, var)?;
         }
         // The door's run, which carries the document it ran on and the
         // resolver it ran under: the seed the run of the recorded document
@@ -5316,6 +5316,63 @@ impl Takeover {
             seed,
         })
     }
+}
+
+/// **The `⊔` seats reading `var` whole**, by node and seat, in document
+/// order.
+fn assemble_seats(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<(RecipeNodeId, OperandSlot)> {
+    doc.ids()
+        .into_iter()
+        .filter_map(|id| Some((id, doc.node(id)?)))
+        .filter(|(_, node)| matches!(node, Node::Assemble { .. }))
+        .flat_map(|(id, node)| {
+            node.body_reads()
+                .into_iter()
+                .filter(|(_, read)| read.read == var && !read.is_indexed())
+                .map(move |(seat, _)| (id, seat))
+        })
+        .collect()
+}
+
+/// **Every `⊔` seat reading `var` whole dropped from its list**, the rest
+/// as written ([`DocEdit::SetMembers`]).
+fn drop_seats(run: &mut Recording<'_, ProfileProgram>, var: VarId) -> Result<(), EditError> {
+    let doc = run.doc();
+    let written: Vec<(RecipeNodeId, Vec<pncad::document::BodyRead<Formula>>)> = doc
+        .ids()
+        .into_iter()
+        .filter_map(|id| {
+            let Some(Node::Assemble {
+                members: pncad::document::Bodies::Spelled(stored),
+            }) = doc.node(id)
+            else {
+                return None;
+            };
+            if !stored.iter().any(|read| read.read == var && !read.is_indexed()) {
+                return None;
+            }
+            let Node::Assemble {
+                members: pncad::document::Bodies::Spelled(authored),
+            } = doc.node(id)?.authored(doc)
+            else {
+                return None;
+            };
+            let kept = stored
+                .iter()
+                .zip(authored)
+                .filter(|(read, _)| read.read != var || read.is_indexed())
+                .map(|(_, authored)| authored)
+                .collect();
+            Some((id, kept))
+        })
+        .collect();
+    for (node, members) in written {
+        run.apply(DocEdit::SetMembers {
+            node,
+            members: pncad::document::Bodies::Spelled(members),
+        })?;
+    }
+    Ok(())
 }
 
 /// **What a takeover reads the result's table under**: the session's
@@ -5585,18 +5642,17 @@ impl core::fmt::Display for SketchTraceFault {
 
 impl core::error::Error for SketchTraceFault {}
 
-/// **The body a pick is read on, and the entity's name there**
-/// (`crate::world::body_of`; a copy carries its body's names, so the
-/// name is the pick's): the node's output by its port where it holds
-/// several, its body output otherwise.
+/// **The body a pick is read on, and the entity's name there**: the
+/// drawn body it landed on, a copy as itself (a copy carries its body's
+/// names, so the name is the pick's) — the node's output by its port
+/// where it holds several, its body output otherwise.
 pub(crate) fn picked_body(
     doc: &Doc<ProfileProgram>,
     pick: &impl crate::tree::PickedEntity,
 ) -> (Operand, StableName) {
     let on = pick.on();
-    let (at, port) = crate::world::body_of(doc, on.node(), on.body());
     let name = pick.name().clone();
-    let body = match crate::world::seat_read(doc, at, Some(port)) {
+    let body = match crate::world::seat_read(doc, on.node(), Some(on.body())) {
         (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),
     };

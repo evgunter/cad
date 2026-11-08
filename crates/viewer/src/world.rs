@@ -16,11 +16,11 @@
 //!
 //! Each drawn body is drawn in its own space, and the **shown spaces**
 //! are the world and every space that holds a drawn body
-//! ([`shown_spaces`], IDENTITY DI5). A copy carries its body's names as
-//! they are, so a pick on a copy names the copied body's entity; a
-//! gesture that authors against a body reads the copy's source under
-//! that name ([`body_of`]). A pick on any other drawn body — a
-//! construction, an operator's result — is on that body's own operation.
+//! ([`shown_spaces`], IDENTITY DI5). Every placement is a copy, wherever
+//! its target stands, and a copy carries its body's names as they are,
+//! so a pick on a copy names the copied body's entity, read on the copy:
+//! a pick seats the drawn body it lands on ([`seat_read`]), and
+//! [`copy_source`] is the way from a copy to the body it places.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -489,38 +489,6 @@ pub fn is_drawn(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     Picture::of(doc).is_drawn(node)
 }
 
-/// **The spaces a gesture's copies stand in**: the world, and every
-/// `new_space()` no placement reads a source body of. A placement into
-/// one of them is a copy a gesture authors through and takes over
-/// ([`copy_source`], [`placements_of_var`]); one into a space whose
-/// bodies a placement copies out — a body moved against its own
-/// geometry, a pattern in its body's own space — is a relation inside
-/// that space, and a gesture reads it as the node it is.
-///
-/// This is the gesture vocabulary's own rule, not the picture's: what a
-/// takeover re-points is the takeover's to decide
-/// (`work/doors/`), and the picture draws by [`Picture::of`].
-fn copy_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
-    let placements = doc.placements();
-    let read: BTreeSet<VarId> = placements
-        .iter()
-        .filter_map(|&placement| doc.copied_read(placement))
-        .filter_map(|var| doc.space_of(var))
-        .collect();
-    placements
-        .iter()
-        .filter_map(|&placement| doc.node_space(placement))
-        .chain([VarId::WORLD])
-        .filter(|&space| {
-            space == VarId::WORLD
-                || (!read.contains(&space)
-                    && doc
-                        .defined_by(space)
-                        .is_some_and(|(node, _)| matches!(doc.node(node), Some(Node::Space))))
-        })
-        .collect()
-}
-
 /// **What a copy's body copies**: the variable the placement reads, the
 /// operation defining it and the port, and the body of that
 /// operation's value its body `body` is a copy of.
@@ -541,16 +509,16 @@ pub struct Source {
 }
 
 /// **The one copy-to-body door**: what body `body` of `node` copies,
-/// where `node` is a `Place` into a space a gesture's copies stand in
-/// ([`copy_spaces`]); `None` for any other node, which a pick and a
-/// seat take as itself.
+/// where `node` is a `Place`, wherever its target stands (D10
+/// `[placement.placement]`: each placement is a copy of its own);
+/// `None` for any other node. A seat never reads through it: a pick on
+/// a copy seats the copy. It is the way from a copy to its original
+/// body, for the placed badge, the placement editor's `on` side and
+/// the re-point offer.
 pub fn copy_source(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> Option<Source> {
     let Some(Node::Place { source, .. }) = doc.node(node) else {
         return None;
     };
-    if !copy_spaces(doc).contains(&doc.node_space(node)?) {
-        return None;
-    }
     let (operation, port) = doc.defined_by(source.read)?;
     let member = source.is_indexed();
     let body = if member {
@@ -572,19 +540,17 @@ pub fn copy_source(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> 
     })
 }
 
-/// **The body the copy `node` places**, a gesture's copy of one body
-/// ([`copy_source`]): `None` for any other node, and for a copy of
-/// members read by index, which a seat takes as the copy itself — the
-/// variable it reads is the family, and a seat over it would read every
-/// member.
+/// **The body the copy `node` places, whole** ([`copy_source`]):
+/// `None` for any other node, and for a copy of members read by index,
+/// whose variable is the family.
 pub fn placed_var(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
     copy_source(doc, node, 0)
         .filter(|source| !source.member)
         .map(|source| source.var)
 }
 
-/// **The copies of `var`**, in document order: the gesture's copies
-/// ([`copy_source`]) whose placement reads it.
+/// **The copies of `var`**, in document order: every placement whose
+/// source reads it.
 pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
     copies_where(doc, |copied| copied == var)
 }
@@ -606,16 +572,11 @@ pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<Recip
     copies_where(doc, |copied| outputs.contains(&copied))
 }
 
-/// The placements into the spaces a gesture's copies stand in whose
-/// source's read `copies` accepts, in document order.
+/// The placements whose source's read `copies` accepts, in document
+/// order.
 fn copies_where(doc: &Doc<ProfileProgram>, copies: impl Fn(VarId) -> bool) -> Vec<RecipeNodeId> {
-    let spaces = copy_spaces(doc);
     doc.placements()
         .into_iter()
-        .filter(|&placement| {
-            doc.node_space(placement)
-                .is_some_and(|s| spaces.contains(&s))
-        })
         .filter(|&placement| doc.copied_read(placement).is_some_and(&copies))
         .collect()
 }
@@ -624,12 +585,6 @@ fn copies_where(doc: &Doc<ProfileProgram>, copies: impl Fn(VarId) -> bool) -> Ve
 /// tree's placed badge marks.
 pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     !placements_of(doc, node).is_empty()
-}
-
-/// **The body a picked body is**: through [`copy_source`] for a copy,
-/// as it is otherwise.
-pub fn body_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> (RecipeNodeId, u32) {
-    copy_source(doc, node, body).map_or((node, body), |source| (source.operation, source.body))
 }
 
 /// **The drawn body a read is**: the operation defining `var`, and its
@@ -642,27 +597,26 @@ pub fn read_body(doc: &Doc<ProfileProgram>, var: VarId) -> Option<crate::tree::D
     Some(crate::tree::DrawnBody::new(operation, u32::from(port)))
 }
 
-/// **The node a seat takes for a pick on `node`**: the operation whose
-/// body a copy places ([`placed_var`]), so a tool authors against the
-/// body and not against its copy; any other node as it is.
-pub fn seat_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
-    seat_read(doc, node, None).0
+/// **The original body of `node`**: the operation whose body the copy
+/// `node` places whole ([`placed_var`]), any other node as it is — the
+/// way from a copy to its body, which a finding on a copy selects.
+pub fn original_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
+    placed_var(doc, node)
+        .and_then(|var| doc.operation_of(var))
+        .unwrap_or(node)
 }
 
-/// **The read a seat takes for a pick on `node`**: the operation and
-/// port whose body a copy places ([`placed_var`]), or `node` itself
-/// with the output a viewport pick hit (`body`). The port is kept only
-/// for an operation that defines several outputs (a split's halves);
-/// one with a single output is read by naming it alone.
+/// **The read a seat takes for a pick on `node`**: `node` itself with
+/// the output a viewport pick hit (`body`) — a pick on a copy seats the
+/// copy (Ev, PR 6353). The port is kept only for an operation that
+/// defines several outputs (a split's halves); one with a single output
+/// is read by naming it alone.
 pub fn seat_read(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     body: Option<u32>,
 ) -> (RecipeNodeId, Option<u8>) {
-    let (node, port) = match copy_source(doc, node, 0).filter(|source| !source.member) {
-        Some(source) => (source.operation, Some(source.port)),
-        None => (node, body.and_then(|b| u8::try_from(b).ok())),
-    };
+    let port = body.and_then(|b| u8::try_from(b).ok());
     (node, port.filter(|_| names_a_port(doc, node)))
 }
 
@@ -673,15 +627,6 @@ pub fn seat_read(
 /// [`body_read`] share.
 fn names_a_port(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     doc.read_of_node(node).is_none() && !doc.outputs(node).is_empty()
-}
-
-/// **What a feature gesture's result takes over**: the read `target`
-/// denotes in a body seat, and the placements reading it. Empty
-/// for a target nothing places, which places nothing.
-pub fn placements_of_target(doc: &Doc<ProfileProgram>, target: RecipeNodeId) -> Vec<RecipeNodeId> {
-    doc.read_of_node(target)
-        .map(|var| placements_of_var(doc, var))
-        .unwrap_or_default()
 }
 
 /// **The output `read` names**: its operation, and the port where the

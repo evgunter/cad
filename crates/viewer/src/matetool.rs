@@ -65,7 +65,7 @@
 //! frame, an axis seat an edge fills and a point seat a vertex fills,
 //! written [`pose::PoseDef::Through`]. A pick on a placement's copy
 //! authors `on` as the entity of the shape the placement copies
-//! ([`crate::world::body_of`]); a pick on an instance as its own
+//! ([`crate::world::copy_source`]); a pick on an instance as its own
 //! output's; a pick on a member of an instance is read through A11's
 //! member walk ([`pncad::document::member_of`]).
 //!
@@ -1268,23 +1268,17 @@ fn door_picked(
 /// **The entity `pick` names as an `on` side reads it**: off the shape
 /// a `Place` copies, by the shape's own name for it (a copy carries its
 /// body's names), on the output it copies where the shape's operation
-/// defines several (a split's halves) — a copy Place stood in its body's
-/// own space included, which a seat takes as itself
-/// ([`crate::world::copy_source`]); an instance's or a body's own read
-/// otherwise.
+/// defines several (a split's halves) ([`crate::world::copy_source`]);
+/// an instance's or a body's own read otherwise, and a copy whose body
+/// does not resolve as itself.
 fn on_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
     let picked = SitedRef::new(pick.node(), pick.name().clone());
     match doc.node(pick.node()) {
-        Some(Node::Place { source, .. }) => {
-            let (at, port) = match crate::world::copy_source(doc, pick.node(), pick.on().body()) {
-                Some(copied) => (copied.operation, copied.body),
-                None => doc
-                    .defined_by(source.read)
-                    .filter(|_| !source.is_indexed())
-                    .map_or((pick.node(), pick.on().body()), |(at, port)| {
-                        (at, u32::from(port))
-                    }),
-            };
+        Some(Node::Place { .. }) => {
+            let (at, port) = crate::world::copy_source(doc, pick.node(), pick.on().body())
+                .map_or((pick.node(), pick.on().body()), |copied| {
+                    (copied.operation, copied.body)
+                });
             let body = match crate::world::seat_read(doc, at, Some(port)) {
                 (at, Some(port)) => Operand::output(at, port),
                 (at, None) => Operand::Node(at),
