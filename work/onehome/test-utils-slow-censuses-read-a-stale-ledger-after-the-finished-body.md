@@ -2,10 +2,12 @@
 id: test-utils-slow-censuses-read-a-stale-ledger-after-the-finished-body
 kind: issue
 title: test-utils' slow-set source censuses are red on main: the reader ledger still lists product_gate_attribution.rs (renamed by PR 6371), and several walks miss newly arrived files
-status: open
+status: closed
 opened: 2026-11-08
 priority: P1
 cost: E
+closed: 2026-11-08
+pr: 6587
 ---
 
 
