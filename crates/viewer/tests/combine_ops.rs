@@ -3341,18 +3341,14 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
         },
     );
     let (above, below) = split_volumes(&mut session, split, tol);
-    let op = common::transformed_at(
-        &mut session,
-        split,
-        Some(u32::from(SplitHalf::Below.port())),
-        &[],
-    );
-    let SessionOp::SetBundle {
-        placement: moved, ..
-    } = op
-    else {
-        panic!("the editor on the placement Place made: {op:?}")
-    };
+    session.pump();
+    let (doc, _) = session.landed_pair().expect("landed");
+    let place =
+        viewer::matetool::MateTool::moving(doc, split, Some(u32::from(SplitHalf::Below.port())))
+            .expect("the half is a body")
+            .take_place()
+            .expect("a half picked as itself is Place");
+    let moved = common::placed_by(&mut session, place);
     let doc = session.committed_doc();
     assert!(
         matches!(

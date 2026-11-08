@@ -298,7 +298,7 @@ fn r2_turning_a_loaded_rests_sense_keeps_a_slide_reading_a_variable() {
 /// shows there opens that copy's placement, never a second Place: the
 /// copy is drawn in the body's place.
 #[test]
-fn r2_a_body_seen_through_its_copy_opens_the_copys_edit_door() {
+fn r2_a_pick_where_a_placed_body_stood_edits_its_copy() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(
         pncad::document::Doc::empty_derived("r2-seen-through", tol),

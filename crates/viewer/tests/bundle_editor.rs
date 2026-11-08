@@ -124,7 +124,7 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
 /// the survival step loads it again, said, and a `SetBundle` of the old one
 /// is refused rather than written over the bundle the placement holds.
 #[test]
-fn a_stale_draft_reloads_and_its_apply_is_refused() {
+fn a_stale_draft_reloads_and_its_bundle_is_refused() {
     let tol = Tol::witness();
     let bench = asm::bench("bundle-stale", tol);
     let mut session = asm::open_bench(&bench, tol);

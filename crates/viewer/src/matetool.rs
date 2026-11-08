@@ -2035,7 +2035,7 @@ impl MateTool {
         match door(&op) {
             Ok(()) => {
                 draft.offer = Offer::Landing {
-                    op: op.clone(),
+                    op: Box::new(op.clone()),
                     deferred: Vec::new(),
                 };
                 Some(op)

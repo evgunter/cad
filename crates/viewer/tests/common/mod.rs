@@ -1035,18 +1035,22 @@ pub fn proposed(
         .proposal(doc, ev, session.tol())
 }
 
-/// **The Transform tool, as a person drives it**: the placement editor
-/// opened on `node` by the tool's door
+/// **The Transform tool, through the doors a person's clicks take**:
+/// the placement editor opened on `node` by the tool's door
 /// ([`viewer::matetool::MateTool::moving`]) — on a body picked as
 /// itself, its Place performed and the editor opened on the placement
-/// it made — each of `values` typed on its value row, and the
-/// `SetBundle` that writes them. Pumps first: the editor derives its
-/// bundle against the landed pair.
+/// it made — each of `values` typed on its value row as one change (the
+/// fields a person commits before the picture answers are offered
+/// together), and that change offered to the session's door as the
+/// panel offers it ([`viewer::matetool::MateTool::offer`],
+/// `DocSession::bundle_door`): the `SetBundle` it answers, not yet
+/// performed. Pumps first: the editor derives its bundle against the
+/// landed pair.
 ///
 /// # Panics
 ///
-/// Where the door does not open, the Place refuses, or the draft
-/// writes no bundle.
+/// Where the door does not open, the Place refuses, or the door
+/// refuses the change.
 pub fn transformed(
     session: &mut DocSession,
     node: RecipeNodeId,
@@ -1057,6 +1061,8 @@ pub fn transformed(
 
 /// [`transformed`] of the output `body` of `node` a viewport pick hit —
 /// a split's half.
+// The door answers the session's own `Refusal`, whatever its width.
+#[allow(clippy::result_large_err)]
 pub fn transformed_at(
     session: &mut DocSession,
     node: RecipeNodeId,
@@ -1076,9 +1082,20 @@ pub fn transformed_at(
     for (coord, by) in values {
         tool.type_value(coord.clone(), by.clone());
     }
-    tool.proposal(doc, ev, tol)
-        .unwrap_or_else(|error| panic!("the draft writes a bundle: {error}"))
-        .op()
+    let mut refused = None;
+    let op = tool.offer(doc, ev, tol, |op| {
+        let verdict = session.bundle_door(op);
+        if let Err(refusal) = &verdict {
+            refused = Some(refusal.to_string());
+        }
+        verdict
+    });
+    op.unwrap_or_else(|| {
+        panic!(
+            "the door takes the change: {}",
+            refused.unwrap_or_else(|| format!("{:?}", tool.pending()))
+        )
+    })
 }
 
 /// **The three slides the Transform tool types**, each zero the constant

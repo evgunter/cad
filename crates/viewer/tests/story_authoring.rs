@@ -79,8 +79,8 @@ const CUT_W: f64 = 0.040;
 const CUT_T: f64 = 0.006;
 const CUT_Z: f64 = 0.031;
 const CUT_H: f64 = 0.008;
-/// The second cutter is the first one's twin, quarter-turned and lifted a
-/// little, so its floor is not coplanar with the first slot's.
+/// The cutter's second copy is quarter-turned and lifted a little, so
+/// its floor is not coplanar with the first slot's.
 const CUT2_LIFT: f64 = 0.0004;
 /// The taller drum the user edits in after the undo walk.
 const DRUM_H2: f64 = 0.009;
@@ -95,12 +95,12 @@ const MERLON_SINK: f64 = 0.001;
 const MERLON_OFF: f64 = 0.009;
 
 /// History states from `NewDocument` to the carved rook: the root
-/// plus twenty-eight committed actions. Ten of those are the Transform
-/// tool's, a Place and the editor's change for each of five bodies: four
+/// plus twenty-six committed actions. Ten of those are the Transform
+/// tool's, a Place and the editor's change for each of five copies: four
 /// LIFTS, since every profile is drawn on its own plane, so each body
 /// the rook stacks above the plinth is moved up its axis before it is
-/// combined, and the second cutter's turn and lift.
-const CARVED_STATES: usize = 29;
+/// combined, and the cutter's second placement, turned and lifted.
+const CARVED_STATES: usize = 27;
 /// The Transform tool's editor changes among them, one per body moved:
 /// each writes a placement's bundle and makes no feature.
 const TRANSFORM_EDITS: usize = 5;
@@ -110,7 +110,7 @@ const TRANSFORM_EDITS: usize = 5;
 /// Every body lands unplaced, so no action writes or re-points a world
 /// placement.
 const PLACING_EDITS: usize = 5;
-/// Edits on the session's FINAL path: the twenty-eight carving actions'
+/// Edits on the session's FINAL path: the twenty-six carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`
 /// counts states.
@@ -157,7 +157,7 @@ fn circle(session: &mut DocSession, radius: f64) -> RecipeNodeId {
 }
 
 /// `body` moved by `translation` — the Transform tool on a body nothing
-/// places: the placement editor's Create door, its slides typed.
+/// places: Place, then its slides typed in the editor.
 fn lifted(session: &mut DocSession, body: RecipeNodeId, translation: [f64; 3]) -> RecipeNodeId {
     common::moved_to(session, body, translation)
 }
@@ -281,11 +281,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
 
     // ── The crown: two crossing slots, the second the first cutter
-    //    quarter-turned about the axis: a second cutter body, turned
-    //    and lifted by the Transform tool. The first cutter's body cannot
-    //    be shared: a second placement of it is a second copy of the
-    //    body the first cut consumed, and would carry what the cut
-    //    reads of it ───────────────────────────────────────────────────
+    //    quarter-turned about the axis: the cutter body placed a second
+    //    time — the Transform tool on the body picked as itself is
+    //    Place, beside the copy the first cut consumed — then turned and
+    //    lifted in the editor ────────────────────────────────────────────
     let (_, cutter) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
     let cutter1 = lifted(&mut session, cutter, [0.0, 0.0, CUT_Z]);
     let cut1 = session_insert(
@@ -302,13 +301,12 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         near(v_cut1, v_u3 - slab_area() * (DRUM_Z + DRUM_H - CUT_Z)),
         "the first slot removes a chord slab of the drum: {v_cut1}"
     );
-    let (_, second) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
     let mut values = common::slides([0.0, 0.0, CUT_Z + CUT2_LIFT]);
     values.push((
         pncad::document::Coord::Spin(Some(pncad::document::TargetAxis::Z)),
         ang(FRAC_PI_2),
     ));
-    let op = common::transformed(&mut session, second, &values);
+    let op = common::transformed(&mut session, cutter, &values);
     let SessionOp::SetBundle {
         placement: cutter2, ..
     } = op

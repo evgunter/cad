@@ -931,7 +931,7 @@ impl ProfileEdit {
                     ids,
                 };
                 self.offer = Offer::Landing {
-                    op: op.clone(),
+                    op: Box::new(op.clone()),
                     deferred: Vec::new(),
                 };
                 Some(op)
@@ -1431,7 +1431,7 @@ impl Drafts {
         let Offer::Landing { op: waited, .. } = &edit.offer else {
             return;
         };
-        if waited != op {
+        if **waited != *op {
             return;
         }
         let Offer::Landing { deferred, .. } = core::mem::replace(&mut edit.offer, Offer::Quiet)

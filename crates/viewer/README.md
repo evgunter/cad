@@ -2299,17 +2299,23 @@ pane shows it again beside its copies: a second placement is made the
 way the first is. A pick that lands on a copy opens that copy's
 placement instead. The editor opens on a placement — from Place, its
 tree row (`edit placement`), a mate row's `remove`, or a pick on its
-copy — and **each change commits live**: a pick seated, a kind or a
-sense chosen, a row added or struck, a value field committed, each
-offered to the document's door as it is made (`MateTool::offer`) and,
-taken, written as one `SessionOp::SetBundle` (`DocEdit::SetConstraints`)
-keeping the id of every constraint it loaded. Place and each change are
-one undo step. A change the door refuses, or one that writes no bundle
-yet (a seat still empty), is not applied: the editor holds it as a
-draft over the document, says why (`MateTool::pending`), and commits
-the draft whole on the first later change that makes it pass, as the
-profile editor does; "Discard pending changes" drops it
-(`MateTool::discard`). A draft over a bundle the document has since
+copy — and **each change is offered live**: a pick seated, a kind or
+a sense chosen, a row added or struck, a value field committed, each
+offered to the document's door as it is made (`MateTool::offer`) once
+the picture answers the committed document and, taken, written as one
+`SessionOp::SetBundle` (`DocEdit::SetConstraints`) keeping the id of
+every constraint it loaded. Place and each change taken are one undo
+step. A change the door refuses, or one that writes no bundle yet (a
+pick that leaves the other seat empty), is not applied: the editor
+holds it as a draft over the document, says why (`MateTool::pending`),
+and commits the draft whole on the first later change that makes it
+pass. The two editors hold their drafts in one state machine
+(`offer::Offer`): a change made while the last one lands waits and is
+made over the bundle it writes, Undo takes back a held draft first and
+says so, an Undo in the batch of the change it lands on takes that
+change back before it lands, and "Discard pending changes" drops the
+draft (`MateTool::discard`) whenever it differs from the bundle and no
+change of it is landing. A draft over a bundle the document has since
 changed (an undo, a redo, an edit from elsewhere) reloads, said
 (`MateToolEvent::Reloaded`), judged against the committed document; a
 `SetBundle` drafted over a bundle the placement no longer holds is

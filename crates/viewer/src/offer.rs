@@ -29,7 +29,7 @@ pub enum Offer<P, C, W> {
     /// changes made meanwhile wait on it ([`Self::defer`]).
     Landing {
         /// The op that lands the draft.
-        op: SessionOp,
+        op: Box<SessionOp>,
         /// The changes that wait on it.
         deferred: Vec<C>,
     },

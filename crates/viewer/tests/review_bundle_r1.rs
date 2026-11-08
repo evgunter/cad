@@ -228,7 +228,7 @@ fn r1_removing_an_unknown_constraint_refuses_typed() {
 
 /// Decided: "a number typed on a freedom that survives is kept". A
 /// number typed on a freedom the draft's mates then take must not leave
-/// the draft with no Apply: the panel has no door that un-types it.
+/// the draft writing no bundle: the panel has no door that un-types it.
 #[test]
 fn r1_a_number_typed_on_a_freedom_a_later_kind_takes_does_not_wedge_the_draft() {
     let tol = Tol::witness();
@@ -248,6 +248,6 @@ fn r1_a_number_typed_on_a_freedom_a_later_kind_takes_does_not_wedge_the_draft() 
     std::fs::remove_dir_all(&bench.dir).expect("removable");
     assert!(
         changed.is_ok(),
-        "the draft has no Apply once a kind takes the typed freedom: {changed:?}"
+        "the draft writes no bundle once a kind takes the typed freedom: {changed:?}"
     );
 }
