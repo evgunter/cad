@@ -137,7 +137,7 @@ fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Opti
     // door finishes its result, and check 7's quadrature escalates there
     // on the rim span's winding (`props_rim_span_winding`, in band),
     // `VolumeUncomputable` alone. The P0 row
-    // `work/onehome/f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves.md`
+    // `work/boxfinish/f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves.md`
     // is the reader that lifts it; this pin turns red when it lands.
     if major > 1e3 && window_arg.is_none() && Tol::witness().eps() <= 1e-12 {
         match &got {
