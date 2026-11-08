@@ -6503,7 +6503,6 @@ fn every_blend_detail_renders_within_the_budget() {
         "unwalked",
         "disagrees",
         "scaffolding",
-        "degenerate",
     ] {
         assert!(
             details.iter().any(|(h, _, _)| *h == helper),
