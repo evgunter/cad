@@ -281,7 +281,7 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
                         eprintln!("k={k} {name} {op:?}: REFUSED {e:?}");
                         let ring_contact = matches!(
                             &e,
-                            topo::BooleanError::ResultInvalid { errors }
+                            topo::BooleanError::ResultInvalid { findings: errors }
                                 if !errors.is_empty()
                                     && errors.iter().all(|f| matches!(
                                         f,

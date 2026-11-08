@@ -32,9 +32,9 @@ fn trio() -> [AtRestBody<f64>; 3] {
     let tol = Tol::witness();
     let unit = (0.0, 1.0);
     [
-        finished("a", brick((0.0, 1.0), unit, unit, tol), tol),
-        finished("b", brick((0.5, 1.5), unit, unit, tol), tol),
-        finished("c", brick((0.8, 2.0), unit, unit, tol), tol),
+        finished("a", brick::<f64>((0.0, 1.0), unit, unit, tol), tol),
+        finished("b", brick::<f64>((0.5, 1.5), unit, unit, tol), tol),
+        finished("c", brick::<f64>((0.8, 2.0), unit, unit, tol), tol),
     ]
 }
 

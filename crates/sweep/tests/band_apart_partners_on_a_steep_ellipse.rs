@@ -96,7 +96,7 @@ fn cylinder(k: f64) -> AtRestBody<f64> {
 }
 
 fn block(k: f64, g: f64) -> AtRestBody<f64> {
-    let b = topo::test_support::prism_z(&profile(k, g), FLOOR, 0.0, Tol::witness()).body;
+    let b = topo::test_support::prism_z::<f64>(&profile(k, g), FLOOR, 0.0, Tol::witness()).body;
     finished("the block", b, Tol::witness())
 }
 

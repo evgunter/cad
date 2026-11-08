@@ -817,7 +817,6 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
-        | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
         | SessionOp::SetLabel { .. }
@@ -2198,7 +2197,6 @@ pub fn tool_notice(
             | MateToolEvent::Reloaded { .. }
             | MateToolEvent::PlacementGone { .. }
             | MateToolEvent::NotPlaceable { .. }
-            | MateToolEvent::SeenThroughSeveral { .. }
             | MateToolEvent::HalfUnchosen { .. }
             | MateToolEvent::PatternFamily { .. },
         ) => Retold::Never,
@@ -2688,7 +2686,6 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::ProductOutsideWorld
         | ProductErrorKind::Frame
         | ProductErrorKind::Graft
-        | ProductErrorKind::PieceInvalid
         | ProductErrorKind::ProductInvalid
         | ProductErrorKind::ContactLineage => {
             if kind.means_no_body() {
@@ -3655,7 +3652,6 @@ mod tests {
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::Graft,
-            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ] {
@@ -3712,7 +3708,6 @@ mod tests {
             ProductErrorKind::StrandedProduct,
             ProductErrorKind::ProductOutsideWorld,
             ProductErrorKind::Graft,
-            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ]

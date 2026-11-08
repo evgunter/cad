@@ -72,6 +72,7 @@ fn native_arc_loft() -> topo::Body<f64> {
     loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the uniformly-spaced arc loft builds natively")
         .body
+        .into_body()
 }
 
 /// RW2 probe 1's reorder (adopted verbatim): reverse every

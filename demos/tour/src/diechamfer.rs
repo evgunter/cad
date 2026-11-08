@@ -245,7 +245,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             bodies: vec![SceneBody::plain(
                 "diechamferblank",
                 [0.66, 0.74, 0.70],
-                chamfered,
+                chamfered.into_body(),
             )],
         },
         TourStop {
@@ -277,7 +277,11 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 edge_material(L, D)
             )),
             view: view(),
-            bodies: vec![SceneBody::plain("diechamfer", [0.58, 0.70, 0.66], die)],
+            bodies: vec![SceneBody::plain(
+                "diechamfer",
+                [0.58, 0.70, 0.66],
+                die.into_body(),
+            )],
         },
     ]
 }

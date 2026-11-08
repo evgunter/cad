@@ -53,6 +53,7 @@ fn semicircle_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[profile(), profile()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body
+        .into_body()
 }
 
 /// The arc wall and its two rim half-edges, `v = 0` first.
@@ -319,7 +320,8 @@ fn seam_tube() -> (Body<f64>, FaceKey, [HalfEdgeKey; 2]) {
         tol(),
     )
     .expect("the quarter tube builds")
-    .body;
+    .body
+    .into_body();
     let on_torus = |body: &Body<f64>, h: HalfEdgeKey| {
         let face = body.get_face(body.face_of_half_edge(h).unwrap()).unwrap();
         matches!(body.get_surface(face.surface), Some(Surface::Torus { .. }))
