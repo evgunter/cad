@@ -269,3 +269,10 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Lane's judgements for the reviewer to test:** `BundleStale` kept; the solve is part of the door; Place lands in the body's own space; staleness is read against the committed document; the step measure is kept as `combine::clearing_step` for FORMS' reader; the `on_read` patch.
   - **Filed:** `a-place-into-the-bodys-own-space-is-no-copy-to-the-gesture-vocabulary`.
   - **Possibly dissolved, for the review to judge:** `the-placement-editor-draws-no-preview-of-its-draft`, `the-editor-verdict-re-evaluates-on-every-drag-frame`, `the-edit-doors-base-and-its-staleness-read-two-documents`. (PLACING orchestrator)
+- 2026-11-08 — **PR 6578's review is in**: APPROVE-WITH-FIXES (single FULL, `placing-review-6578`, frozen head `e9dbbd4964`).
+  - **MAJOR (demonstrated):** Undo with a held mate draft steps history and reloads the draft away. The profile editor spends the draft first. The cause is a re-spelled `Offer` that drifted from `drafts::Offer` (no `Landed`/`Deferred`/`undo_pending`).
+  - **MINORs:** a non-pick change made while landing is dropped silently; Discard's enabling differs from the profile editor; Place-made copies get no badge and stand outside the product (the filed row, now hitting every copy); the story helper bypasses the door; stale Apply/Create prose.
+  - **Lane's judgements (a)–(f):** all upheld.
+  - **Rows:** the base/staleness row is fixed in code but owes its done-when row; the per-frame row is half closed; the preview row is dissolved in substance, with parity to check.
+  - **Fix pass dispatched** to the implementer on all of it. The m3 row is P1: fixed in this pass if small, scheduled next otherwise.
+  - **Class:** a second editor built "to match" one already built re-spelled the first editor's state type rather than sharing it, and the copy drifted within one unit. Where parity is the requirement, share the type. (PLACING orchestrator)
