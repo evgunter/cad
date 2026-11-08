@@ -5,10 +5,9 @@
 //! margin on the body's geometry, so every such check takes "in the box"
 //! as its premise.
 //!
-//! An edge's reach is read through the one per-edge reach
-//! (`boolean::boxes::edge_reach_bounds`, over [`geom_brep::edge_reach_bounds`]);
-//! the box decides on its bound from below, so a body is refused only
-//! where points of it lie past the box.
+//! An edge's reach is read from below, over its own sampled points
+//! ([`geom_brep::edge_reach_below`]), so a body is refused only where
+//! points of it lie past the box.
 
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign};
 
@@ -17,16 +16,20 @@ use crate::validate::ValidationError;
 
 /// **How far `body` reaches from the origin, bounded from below**: each
 /// vertex's point and each certified edge's reach over its own span
-/// (`boolean::boxes::edge_reach_bounds`'s `below`), every one a distance
-/// of a point of the body.
+/// ([`geom_brep::edge_reach_below`]), every one a distance of a point of
+/// the body.
 pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
     let origin = Point3::origin();
     let vertices = body
         .vertices()
         .map(|(v, data)| (body.point_of(v, data) - origin).norm());
     let edges = body.edges().filter_map(|(e, data)| {
-        crate::boolean::boxes::edge_reach_bounds(body, e, data, origin)
-            .map(|bounds| bounds.below().length())
+        let curve = body.edge_curve_linked(e, data).certified()?;
+        Some(geom_brep::edge_reach_below(
+            curve.carrier(),
+            curve.params(),
+            origin,
+        ))
     });
     vertices.chain(edges).fold(T::zero(), T::max)
 }

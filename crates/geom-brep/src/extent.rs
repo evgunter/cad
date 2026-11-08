@@ -699,6 +699,16 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     }
 }
 
+/// **How far an edge reaches from `pivot`, bounded from below**, from
+/// the edge alone: the farthest of its sampled points
+/// (`sampled_reach`), each a point of the edge, so the reach is never
+/// below it. For a reader that needs only that bound and no cover (the
+/// session box: a body is refused only where points of it lie past the
+/// box).
+pub fn edge_reach_below<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T), pivot: Point3<T>) -> T {
+    sampled_reach(carrier, span, pivot)
+}
+
 /// The farthest of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
 /// `k = 0..=16`, from `pivot`: each a point of the edge, so the edge's
 /// reach from `pivot` is never below it.
