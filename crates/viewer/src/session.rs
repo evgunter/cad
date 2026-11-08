@@ -61,7 +61,7 @@ use pncad::document::{
     DocumentId, EditError, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, HeldNodes,
     Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartResolver, ProductError,
     ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
-    apply, cascade_delete_order, parse_formula, product_recorded, run_checks_at_rest_on,
+    apply, parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -2270,7 +2270,8 @@ impl DocSession {
             | SessionOp::AddFillet { .. }
             | SessionOp::AddChamfer { .. }
             | SessionOp::AddPart { .. }
-            | SessionOp::AddInstance { .. }) => {
+            | SessionOp::AddInstance { .. }
+            | SessionOp::RepointPlacements { .. }) => {
                 let inserts = matches!(op, SessionOp::AddInstance { .. });
                 let door = self.creation_door(op);
                 let outcome = self.create(labelled.take(), door, outside);
@@ -2354,6 +2355,7 @@ impl DocSession {
             } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
             SessionOp::AddPart { of, select } => self.add_part(of, select),
             SessionOp::AddInstance { id } => self.add_instance(id),
+            SessionOp::RepointPlacements { body, onto } => self.repoint_placements(&body, onto),
             other => unreachable!("only a creating operation reaches its door: {other:?}"),
         }
     }
@@ -4011,6 +4013,48 @@ impl DocSession {
         }))
     }
 
+    /// **Re-point the placements of `body` onto `onto`**
+    /// ([`SessionOp::RepointPlacements`]): every placement reading the
+    /// variable `body` names, its source set to `onto`'s body through the
+    /// kernel's takeover, which rebinds what reads each copy where `onto`
+    /// carries the name, and each copy's mates' `on` sides read off
+    /// `onto` ([`on_sides_follow`]). Refused [`Refusal::NothingPlaced`]
+    /// where nothing places `body`, and where a re-point would strand a
+    /// pick ([`Takeover::stranded_pick`]); a placement `onto` itself reads
+    /// refuses at the slot door (`EditError::WouldCycle`).
+    fn repoint_placements(&self, body: &Operand, onto: RecipeNodeId) -> Result<Creating, Refusal> {
+        let doc = self.committed_doc();
+        let body = as_body(doc, body.clone());
+        let var = crate::world::read_var(doc, &body).ok_or_else(|| Refusal::NotABodyRead {
+            read: Box::new(body.clone()),
+        })?;
+        let onto_read = as_body(doc, onto.into());
+        self.require_read(&onto_read, NodeKindWanted::Body)?;
+        let resolver = self.run_resolver();
+        let takeover = Takeover {
+            reads: TakeoverReads {
+                prior: self.memo_under(&resolver),
+                resolver,
+            },
+            ..Takeover::placements_of(doc, var)
+        };
+        if takeover.copies.is_empty() {
+            return Err(Refusal::NothingPlaced {
+                body: doc.spoken_var(var),
+            });
+        }
+        takeover.stranded_pick(doc)?;
+        let copies = takeover.copies.clone();
+        let reads = (takeover.reads.resolver.clone(), takeover.reads.prior.clone());
+        let tol = self.tol();
+        Ok(Box::new(move |run, held| {
+            let wrote = Wrote::one(onto);
+            let made = takeover.repoint(run, wrote, held)?;
+            on_sides_follow(run, &copies, (var, &onto_read), &reads, tol)?;
+            Ok(made)
+        }))
+    }
+
     /// **The space the body `read` is in**, where a gesture writes what
     /// it makes of the body. A read in no space refuses
     /// [`Refusal::NotABodyRead`]: nothing lands in the world unasked.
@@ -4362,42 +4406,23 @@ impl DocSession {
         })
     }
 
-    /// **Delete a feature and everything downstream of it**, as one
-    /// action and therefore one undo.
-    ///
-    /// A recipe node that anything consumes cannot leave the document
-    /// alone — `DocEdit::DeleteNode` refuses a delete that would
-    /// dangle a live reference, and in a chain-shaped model (a boolean
-    /// per feature) that is every node but the last. The whole
-    /// dependent cone therefore goes, consumers first, which is the
-    /// order [`cascade_delete_order`] hands back and the order the
-    /// door accepts.
-    ///
-    /// **The cone, not the chain's remainder**: nodes whose only tie
-    /// to the target is that they fed it survive, so deleting one pip's
-    /// boolean out of a die leaves that pip's body in the document,
-    /// unconsumed and unplaced — the cone takes the boolean's world
-    /// placements with it, since they read it. Reconnecting a deleted node's
-    /// consumers to its input instead — splice, the CAD-conventional
-    /// delete — needs an edit that rewires a live node's inputs. The
-    /// vocabulary has ONE such edit now, `DocEdit::SetMembers`, and it
-    /// reaches only the LIST inputs (a `Union`'s members, a `Loft`'s
-    /// sections): a splice has to rewire a NAMED operand, which nothing
-    /// here does. Still open as issue #1324.
+    /// **Delete a node by continuation**, as one action and therefore
+    /// one undo (DM6, `pncad::document::splice`): each reader of the
+    /// node is handed to the body it continues — a fillet's input, the
+    /// one operand an operator is left with, a cut's target once its
+    /// tool goes — through explicit edits, and the readers of a node
+    /// that continues nothing go with it, consumers first. Nothing is
+    /// recorded about how the node was made: the plan is read off the
+    /// recipe, so adding a fillet and deleting it leaves the document as
+    /// it was, after a reopen as before it.
     ///
     /// An id the document does not hold takes the single-edit path so
     /// the typed refusal comes from the door rather than from here.
     fn delete_node(&mut self, node: RecipeNodeId) -> OpOutcome {
-        let doomed = cascade_delete_order(self.committed_doc(), node);
-        if doomed.is_empty() {
+        if self.committed_doc().node(node).is_none() {
             return self.commit(DocEdit::DeleteNode { id: node });
         }
-        self.commit_action(
-            doomed
-                .into_iter()
-                .map(|id| DocEdit::DeleteNode { id })
-                .collect(),
-        )
+        self.commit_run(|run| run.delete_by_continuation(node).map(drop))
     }
 
     /// **What `SessionOp::DeleteNode` would answer for `node` because
@@ -4406,8 +4431,8 @@ impl DocSession {
     /// the op.
     ///
     /// It walks [`Self::delete_node`]'s own branch over the document
-    /// that op reads: an empty cascade takes the single edit, and that
-    /// edit is staged through the door ([`Self::stage_run`]) and never
+    /// that op reads: a node it does not hold takes the single edit, and
+    /// that edit is staged through the door ([`Self::stage_run`]) and never
     /// recorded, so the refusal is `EditError`'s and has one home. A
     /// selection can outlive its feature here — a face resolves
     /// against the last LANDED run, which still holds a feature the
@@ -4416,10 +4441,9 @@ impl DocSession {
     ///
     /// Not everything `perform` can answer: a held value gesture
     /// refuses the op before this admission runs, and a held node's
-    /// cascade is applied at the click rather than rehearsed every
-    /// frame.
+    /// splice is applied at the click rather than rehearsed every frame.
     pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
-        if !cascade_delete_order(self.committed_doc(), node).is_empty() {
+        if self.committed_doc().node(node).is_some() {
             return None;
         }
         self.stage_run(|run| run.apply(DocEdit::DeleteNode { id: node }).map(drop))
@@ -5315,6 +5339,116 @@ impl Takeover {
             moved: taken.moved,
             seed,
         })
+    }
+}
+
+/// **Each mate of `copies` reads its `on` side off `onto`** once their
+/// sources are re-pointed from `was` ([`SessionOp::RepointPlacements`]):
+/// a placement's `on` reads the body it copies
+/// (`editor_core::mate::solve::on_reads_the_copy`), so each selection
+/// an `on` side reads in `was` is read in `onto` instead, under the name
+/// `onto`'s table gives the entity it carries whole
+/// (`editor_core::names::successors`), and as it was where `onto`
+/// carries none — which the mate's own evaluation then reports. The
+/// table is read off an evaluation of the document as the re-point left
+/// it, made only where an `on` side reads `was`.
+fn on_sides_follow(
+    run: &mut Recording<'_, ProfileProgram>,
+    copies: &[RecipeNodeId],
+    (was, onto): (VarId, &Operand),
+    (resolver, prior): &(Option<Arc<dyn PartResolver>>, Option<Arc<Evaluation<f64>>>),
+    tol: Tol,
+) -> Result<(), EditError> {
+    let Some(was_at) = run.doc().operation_of(was) else {
+        return Ok(());
+    };
+    let Some(now) = crate::world::read_var(run.doc(), onto) else {
+        return Ok(());
+    };
+    let sides: Vec<(RecipeNodeId, OperandSlot, VarId)> = copies
+        .iter()
+        .filter_map(|&copy| Some((copy, run.doc().node(copy)?)))
+        .flat_map(|(copy, node)| {
+            node.operand_rows()
+                .into_iter()
+                .filter(|(seat, _)| {
+                    matches!(
+                        seat,
+                        OperandSlot::Side {
+                            side: pncad::document::MateSide::On,
+                            ..
+                        }
+                    )
+                })
+                .map(move |(seat, var)| (copy, seat, var))
+        })
+        .filter(|&(_, _, var)| {
+            run.doc()
+                .read_ports(var)
+                .iter()
+                .any(|&(at, _)| at == was_at)
+        })
+        .collect();
+    if sides.is_empty() {
+        return Ok(());
+    }
+    let answered = pncad::document::Answered::evaluate(
+        Arc::new(run.doc().clone()),
+        prior.as_deref(),
+        &pncad::document::CancelToken::new(),
+        &crate::evalseam::options(resolver),
+        tol,
+    );
+    let moved = answered
+        .evaluation()
+        .table(now)
+        .map(|table| editor_core::names::successors(table, &[was]))
+        .unwrap_or_default();
+    for (copy, seat, var) in sides {
+        let written = run.doc().written_operand(var);
+        let read = followed(run.doc(), &written, was, now, &moved);
+        if read != written {
+            run.apply(DocEdit::SetParam {
+                node: copy,
+                slot: SlotId::Operand(seat),
+                value: pncad::document::SlotValue::Read(read),
+                fresh: Vec::new(),
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// **`read` with each selection it holds in `was` held in `now`**, each
+/// name moved where `moved` says ([`on_sides_follow`]).
+fn followed(
+    doc: &Doc<ProfileProgram>,
+    read: &Operand,
+    was: VarId,
+    now: VarId,
+    moved: &std::collections::BTreeMap<StableName, StableName>,
+) -> Operand {
+    match read {
+        Operand::Select { body, names } if crate::world::read_var(doc, body) == Some(was) => {
+            Operand::Select {
+                body: Box::new(Operand::Var(now)),
+                names: names
+                    .iter()
+                    .map(|name| moved.get(name).cloned().unwrap_or_else(|| name.clone()))
+                    .collect(),
+            }
+        }
+        Operand::Pose(def) => {
+            let def = def.try_map(
+                &mut |_, read| {
+                    Ok::<_, core::convert::Infallible>(followed(doc, read, was, now, moved))
+                },
+                &mut |_, scalar: &Formula| Ok(scalar.clone()),
+            );
+            let Ok(def) = def;
+            Operand::Pose(Box::new(def))
+        }
+        _ => read.clone(),
     }
 }
 

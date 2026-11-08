@@ -428,6 +428,12 @@ pub enum Refusal {
         /// The copy, as the document held it at the refusal.
         copy: SpokenNode,
     },
+    /// A re-point of a body's placements asked of a body nothing places
+    /// ([`super::SessionOp::RepointPlacements`]).
+    NothingPlaced {
+        /// The body, as the document held it at the refusal.
+        body: SpokenVar,
+    },
     /// The tree's `remove` asked of a value: a freedom is always set,
     /// and its only edit is its number.
     ValueNotRemoved {
@@ -486,6 +492,9 @@ impl Refusal {
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
             Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
+            Self::NothingPlaced { body } => Self::NothingPlaced {
+                body: body.respoken(doc),
+            },
             Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
             Self::PlacementFails { fault } => Self::PlacementFails { fault },
@@ -570,6 +579,7 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::NothingPlaced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -617,6 +627,7 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::NothingPlaced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -951,6 +962,9 @@ impl Refusal {
                 "{copy} is a copy; move it by its own placement in the placement editor, not \
                  by a copy of it"
             ),
+            Self::NothingPlaced { body } => {
+                write!(f, "nothing places {body}, so there is no placement to re-point")
+            }
             Self::ValueNotRemoved { node } => write!(
                 f,
                 "a value of {node} sets a freedom its mates leave, and a freedom is always set; \

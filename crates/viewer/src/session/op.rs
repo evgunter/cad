@@ -1039,6 +1039,20 @@ pub enum SessionOp {
         /// outputs (a split's halves); `None` for a tree row.
         body: Option<u32>,
     },
+    /// **Re-point the placements of `body` onto `onto`** (Ev, PR 6353):
+    /// the explicit step a feature on a body picked as itself offers
+    /// (`crate::world::repoint_offer`). Every placement reading the
+    /// variable `body` names has its source re-pointed to `onto`
+    /// through the kernel's takeover (`Recording::take_over`), which
+    /// rebinds what reads each copy, and each copy's mates read their
+    /// `on` side off `onto` where it carries the face. One action, one
+    /// undo. No feature gesture does this unasked.
+    RepointPlacements {
+        /// The body whose placements are re-pointed, as a seat reads it.
+        body: Operand,
+        /// The node whose body they place from now on.
+        onto: RecipeNodeId,
+    },
     /// **A creation, labelled**: the creation's own edits and then a
     /// `DocEdit::SetLabel` on the node it made (`OpOutcome::made`), as
     /// ONE action and one undo. The insert carries no label, because what an insert
@@ -1286,6 +1300,7 @@ impl SessionOp {
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
             | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. }
             | Self::CreateLabelled { .. } => false,
         }
     }
@@ -1371,6 +1386,7 @@ impl SessionOp {
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
             | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. }
             | Self::CreateLabelled { .. } => None,
         }
     }
@@ -1599,7 +1615,8 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
-            | Self::AddToProduct { .. } => false,
+            | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. } => false,
             // A labelled creation is its creation, labelled.
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
@@ -1732,7 +1749,8 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
-            | Self::AddToProduct { .. } => true,
+            | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
     }
@@ -1830,7 +1848,8 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
-            | Self::AddToProduct { .. } => false,
+            | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. } => false,
             Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }

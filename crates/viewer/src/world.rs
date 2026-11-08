@@ -587,6 +587,71 @@ pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     !placements_of(doc, node).is_empty()
 }
 
+/// **The placed copy `node` is built on, and that copy's original
+/// body** (Ev, PR 6353: a feature picked on a copy belongs to that
+/// placed copy, with an easy way to the original body): the first body
+/// `node` reads as a body that is a copy of one body whole
+/// ([`placed_var`]), and the operation defining what it copies. `None`
+/// for a placement itself, and for a node built on no copy.
+pub fn built_on_copy(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Option<(RecipeNodeId, RecipeNodeId)> {
+    if matches!(
+        doc.node(node)?,
+        Node::Place { .. } | Node::InstantiatePart { .. }
+    ) {
+        return None;
+    }
+    takes(doc, node).into_iter().find_map(|(taken, _)| {
+        let original = doc.operation_of(placed_var(doc, taken)?)?;
+        Some((taken, original))
+    })
+}
+
+/// **What re-pointing a body's placements onto `node` would re-point**
+/// (Ev, PR 6353: a feature on a body picked as itself offers, as one
+/// explicit step, to re-point the variable the body's placements share
+/// onto the result): the first body `node` reads as a body, where it is
+/// no copy and some placement reads it, and those placements — every
+/// one but a placement `node` itself reads, which a re-point would
+/// close into a cycle. `None` for a placement, for a node with no one
+/// body output, and where nothing is left to re-point.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepointOffer {
+    /// The body whose placements are offered: the variable they share.
+    pub body: VarId,
+    /// The placements re-pointed, in document order.
+    pub placements: Vec<RecipeNodeId>,
+}
+
+/// [`RepointOffer`] for `node`.
+pub fn repoint_offer(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<RepointOffer> {
+    if matches!(
+        doc.node(node)?,
+        Node::Place { .. } | Node::InstantiatePart { .. }
+    ) {
+        return None;
+    }
+    let onto = doc.read_of_node(node)?;
+    if doc.var(onto)?.kind() != VarKind::Body {
+        return None;
+    }
+    let (taken, _) = takes(doc, node).into_iter().next()?;
+    if matches!(
+        doc.node(taken)?,
+        Node::Place { .. } | Node::InstantiatePart { .. }
+    ) {
+        return None;
+    }
+    let body = doc.read_of_node(taken)?;
+    let placements: Vec<RecipeNodeId> = placements_of_var(doc, body)
+        .into_iter()
+        .filter(|&placement| !pncad::document::cascade_delete_order(doc, placement).contains(&node))
+        .collect();
+    (!placements.is_empty()).then_some(RepointOffer { body, placements })
+}
+
 /// **The drawn body a read is**: the operation defining `var`, and its
 /// port as the body's index in that operation's value — a split's
 /// second half is its node's body 1. `None` for a variable no operation

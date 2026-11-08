@@ -821,7 +821,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AcceptPartVersion { .. }
         | SessionOp::SetLabel { .. }
         | SessionOp::SetProduct { .. }
-        | SessionOp::AddToProduct { .. } => true,
+        | SessionOp::AddToProduct { .. }
+        | SessionOp::RepointPlacements { .. } => true,
         SessionOp::CreateLabelled { creation, .. } => acts(creation.op()),
     }
 }
@@ -2567,6 +2568,63 @@ pub fn product_recourse(
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// **What the selection says about the copy it is on, and the steps it
+/// offers** (Ev, PR 6353), read off the committed document:
+/// - a pick on a placed copy, or a body built on one, is said to be on
+///   that placed copy, with a button to its original body
+///   ([`crate::world::built_on_copy`]);
+/// - a body built on a body picked as itself, where placements read that
+///   body, offers to re-point them onto it, as one explicit step
+///   ([`crate::world::repoint_offer`], [`SessionOp::RepointPlacements`]).
+///
+/// The sentence, where there is one, then each button's label and op.
+pub fn placement_offers(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> (Option<String>, Vec<(String, SessionOp)>) {
+    let by = Speaker::of(doc);
+    let mut said = None;
+    let mut offers = Vec::new();
+    let on_copy = crate::world::placed_var(doc, node)
+        .is_some()
+        .then(|| (node, crate::world::original_of(doc, node)))
+        .or_else(|| crate::world::built_on_copy(doc, node));
+    if let Some((copy, original)) = on_copy {
+        said = Some(if copy == node {
+            format!(
+                "a placed copy of {}: a feature on it belongs to this copy alone",
+                by.node(original)
+            )
+        } else {
+            format!(
+                "on the placed copy {} of {}: it belongs to that copy alone",
+                by.node(copy),
+                by.node(original)
+            )
+        });
+        offers.push((
+            format!("Go to the original body, {}", by.node(original)),
+            SessionOp::Select(crate::session::Selection::Node(original)),
+        ));
+    }
+    if let Some(offer) = crate::world::repoint_offer(doc, node) {
+        let count = offer.placements.len();
+        let plural = if count == 1 { "" } else { "s" };
+        offers.push((
+            format!(
+                "Re-point the {count} placement{plural} of {} onto {}",
+                by.read(offer.body),
+                by.node(node)
+            ),
+            SessionOp::RepointPlacements {
+                body: pncad::document::Operand::Var(offer.body),
+                onto: node,
+            },
+        ));
+    }
+    (said, offers)
 }
 
 /// **What the chrome badges about the δ the display budget chose**,
