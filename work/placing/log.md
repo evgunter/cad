@@ -276,3 +276,8 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Rows:** the base/staleness row is fixed in code but owes its done-when row; the per-frame row is half closed; the preview row is dissolved in substance, with parity to check.
   - **Fix pass dispatched** to the implementer on all of it. The m3 row is P1: fixed in this pass if small, scheduled next otherwise.
   - **Class:** a second editor built "to match" one already built re-spelled the first editor's state type rather than sharing it, and the copy drifted within one unit. Where parity is the requirement, share the type. (PLACING orchestrator)
+- 2026-11-08 — **PR 6578 merged** (`4bf1e8db59`). The fix pass was accepted on the orchestrator's read: `crate::offer::Offer` is now shared by both editors, and every item was fixed. The editor and Duplicate rows are closed. The base/staleness row closed with its done-when row. The per-frame and preview rows are narrowed and left open.
+- 2026-11-08 — **Design fork dispatched** on `a-place-into-the-bodys-own-space-is-no-copy-to-the-gesture-vocabulary` (P1): is a Place-made placement a copy to the gesture vocabulary?
+  - Two designers (arm byte 233, label byte 163; the mapping is on `analysis/design-fork/placing-own-space-copy`).
+  - Brief: `~/.local/share/cad-work/placing-fork-ownspace-brief.md`. It states the problem only; the row's "Owed" sketch was not handed over.
+  - **The 6353 build waits on this fork**, because how a pick on a placed copy is seated is exactly what this fork decides. (PLACING orchestrator)
