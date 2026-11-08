@@ -1000,7 +1000,8 @@ impl<T: Real> Arc<T> {
                 let u_hat = self.frame.u_ref / u_len;
                 let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
                 let v_hat = v_off.normalize();
-                let rho = (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
+                let rho =
+                    (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
                 let (dp, dq) = (p - u_hat * rho, q - v_hat * rho);
                 let w = *at - self.frame.origin;
                 let (x, y) = (w.dot(u_hat), w.dot(v_hat));
