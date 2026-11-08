@@ -87,7 +87,8 @@ fn try_mesh_of(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64, delta: f64)
 /// open-mesh answer? Print both spellings.
 #[test]
 fn p1_open_mesh_answer_changed_by_the_recentring() {
-    for off in [0.0, 1.0e3] {
+    // 5.7e2 on every axis keeps the prism inside the 1 km session box.
+    for off in [0.0, 5.7e2] {
         let mut m = mesh_of(
             plane_at(off),
             &[(0.0, 0.0), (2.7, 0.0), (2.7, 1.3), (0.0, 1.3)],
@@ -233,23 +234,33 @@ fn p4_e2e_l_shaped_body_near_and_far() {
 #[test]
 fn p5_sweep_placeholder() {}
 
-/// P6 — CLAIM 2's headline digit: reproduce the huge-offset red value
-/// (PR body says 33.333333333333336 against a true 1e-9) with the
-/// pre-fix spelling, independently of the PR's own row.
+/// P6 — CLAIM 2's headline digit: the huge-offset red value (PR body
+/// says 33.333333333333336 against a true 1e-9) with the pre-fix
+/// spelling. Its fixture, a 1e-3 cube at 1e8 m on every axis, is past
+/// the 1 km session box, so the extrude's gate refuses it and no mesh is
+/// made (D4 ¶4): the digit is not reproducible through a door, which is
+/// what this row now records.
 #[test]
 fn p6_reproduce_the_huge_offset_red_digit() {
-    let m = mesh_of(
-        plane_at(1.0e8),
-        &[(0.0, 0.0), (1.0e-3, 0.0), (1.0e-3, 1.0e-3), (0.0, 1.0e-3)],
-        1.0e-3,
-        1e-6,
+    let lp = ProfileLoop::polygon(
+        [(0.0, 0.0), (1.0e-3, 0.0), (1.0e-3, 1.0e-3), (0.0, 1.0e-3)]
+            .into_iter()
+            .map(|(x, y)| Point2::new(x, y)),
     );
-    let (old, new) = (origin_fold(&m), signed_volume(&m));
-    println!(
-        "huge-offset 1e-3 cube @1e8: PRE-FIX={old:.17e} (rel {:.3e})  \
-         POST-FIX={new:.17e} (rel {:.3e})",
-        ((old - 1e-9) / 1e-9).abs(),
-        ((new - 1e-9) / 1e-9).abs()
+    let vp = Profile::new(plane_at(1.0e8), vec![lp])
+        .validate(Tol::witness())
+        .expect("a valid square");
+    let got = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0e-3,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    );
+    assert!(
+        matches!(&got, Err(e) if format!("{e:?}").contains("OutsideSessionBox")),
+        "the 1e8 m cube is past the session box: {got:?}"
     );
 }
 

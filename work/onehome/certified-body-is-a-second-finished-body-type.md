@@ -2,10 +2,11 @@
 id: certified-body-is-a-second-finished-body-type
 kind: issue
 title: topo::CertifiedBody (body + the gate's sign certificate) is a second finished-body type beside AtRestBody
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: onehome/finished-tail
 ---
 
 Found by the gate-typing fork's designer weighing (PR 6326, 2026-11-02).

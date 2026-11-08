@@ -35,3 +35,7 @@ unfinished. Each case is pinned where a test asserted a body:
 **The test that says it is closed.** Each row above asserts its body
 again (the probes read the door, not the construction twin), at the
 same ε.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to BOXFINISH (`work/boxfinish/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows that let the box scalars finish their sweep leaves at tier 3 and so retire Ev's switch (PR 6371) went to BOXFINISH.

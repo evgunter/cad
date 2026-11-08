@@ -394,6 +394,7 @@ use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{CertCheck, CertifyError};
 use geom_core::one_line::on_one_line;
+use geom_core::tolerance::SESSION_BOX_EXTENT;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
@@ -478,14 +479,16 @@ pub(crate) fn decide_positive<T: Decide>(
 
 /// **Whether a reading's own rounding leaves an in-band reading the
 /// input's**: the rounding, `K` times over, decided Zero under `name`, so
-/// it lies within the `ε/K` share of the band that K's noise headroom
-/// presumes (DESIGN.md Q1). A reading whose chain amplifies its rounding
-/// past a few ulp at the model's extent — a quotient by a small sine, a
-/// section carrier stored far from its arc — is typed as the input's,
-/// with its lever, only where this admits it; past it, no lever is
-/// offered. A reading whose rounding is a few ulp of coordinates (a
-/// line chord's residual, `merge_faces::edge_on_faces_reading`) is
-/// within that share by Q1's premise, and asks nothing here.
+/// it lies within an `ε/K` share of the band. This is an amplification
+/// share, kept until `work/onehome/site-rounding-charges-owed-a-re-posing.md`
+/// re-poses the readings that need it: a reading whose chain amplifies
+/// its rounding past the run's admission rule — a quotient by a small
+/// sine, a section carrier stored far from its arc — is typed as the
+/// input's, with its lever, only where this admits it; past it, no lever
+/// is offered. A reading whose rounding is a short chain on in-box
+/// coordinates (a line chord's residual,
+/// `merge_faces::edge_on_faces_reading`) is covered by the admission rule
+/// (`geom_core::tolerance::admissible`), and asks nothing here.
 ///
 /// # Errors
 ///
@@ -1020,6 +1023,14 @@ pub enum ContactMark {
     )
 )]
 pub enum ValidationError {
+    /// The body reaches definitely past the session box
+    /// (`session_box_reach`, D4 ¶4): no coordinate of a model is larger
+    /// in magnitude than `geom_core::tolerance::SESSION_BOX_EXTENT`.
+    /// Reported alone, before any check reads a margin on the geometry.
+    OutsideSessionBox {
+        /// The box's extent less the body's reach, metres (negative).
+        margin: geom_core::MarginDiag,
+    },
     /// Tier 3: the run's tolerance could not produce a valid
     /// classification band (absurd ε — see `Band::linear`). Reported
     /// alone; no geometric check can run without a band.
@@ -3124,6 +3135,11 @@ const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 /// ([`geom_brep::recourse::BAND_TOLERANCE_RECOURSE`]).
 pub(crate) const TOLERANCE: &str = geom_brep::recourse::BAND_TOLERANCE_RECOURSE;
 
+/// [`crate::FindingFamily::SessionBox`]'s one recourse: the box bounds
+/// the model, not the tolerance, so the geometry moves.
+pub(crate) const SESSION_BOX: &str =
+    "Recourse: place the geometry nearer the origin, or model it at a smaller size";
+
 /// The ending of a margin the band could not decide, where a coincidence
 /// between two things has an object to declare: the shared menu
 /// ([`geom_core::COINCIDENCE_RECOURSE`], which
@@ -4412,6 +4428,12 @@ impl ValidationError {
         use geom_brep::recourse::{read_at, undecided_at};
         let ended = |ending: Option<String>| ending.map(|e| format!(". {e}")).unwrap_or_default();
         match self {
+            Self::OutsideSessionBox { margin } => write!(
+                f,
+                "the body reaches {} m past the {SESSION_BOX_EXTENT:e} m session box, which no \
+                 coordinate of a model may exceed (D4 ¶4)",
+                margin.readable_below_zero()
+            ),
             Self::Band { error } => write!(
                 f,
                 "the tolerance the body was checked at is not usable: {}",
@@ -6300,6 +6322,8 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     };
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
+    let band = Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])?;
+    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
     let mut marks = slotmap::SecondaryMap::new();
     let (errors, certificate) = tier3_local_checks_marked(
         body,

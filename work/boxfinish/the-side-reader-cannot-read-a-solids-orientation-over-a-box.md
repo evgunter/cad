@@ -50,3 +50,7 @@ boss's rungs certify; the tour certifies its share).
 in the parameters (a face's own exact point, not an enclosure derived
 across the box), so a crossing margin carries the face's own width and
 not the box's. Unmeasured.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to BOXFINISH (`work/boxfinish/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows that let the box scalars finish their sweep leaves at tier 3 and so retire Ev's switch (PR 6371) went to BOXFINISH.

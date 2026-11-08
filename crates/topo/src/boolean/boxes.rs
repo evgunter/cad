@@ -26,10 +26,10 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **four** of the thirteen doors that read a box from
-//! here; at five of the other nine, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL, and at the other four it is
-//! more exact work AND can be a refusal:
+//! PRUNES. At some doors that read a box from here, box NON-overlap is
+//! the answer being sought, so a bigger box is a REFUSAL; at others it
+//! is more exact work AND can be a refusal; and where a cover sizes a
+//! lever, a bigger one lengthens the lever, which can only refuse more:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict; a
@@ -142,9 +142,47 @@
 //!   for a face on the point's carrier whose trim the chart door cannot
 //!   read, which is not cleared, so there a bigger box REFUSES
 //!   (`HeldPierceUnbuilt`) a point the face stays clear of.
+//! - `shell`'s wall-clearance gate (`footprints_may_overlap`, over each
+//!   planar face's footprint from its edges' covers, [`edge_cover_linked`](crate::cover::edge_cover_linked))
+//!   GRANTS on non-overlap: two faces whose grown footprints clear are
+//!   never read for clearance, so a bigger footprint sends a pair that
+//!   clears to the wall reading, which REFUSES (`WallClearance`) a pair
+//!   whose planes stand closer than twice the offset. A footprint TIGHTER
+//!   than its face is the unsound direction: it could pass walls that
+//!   cross.
+//! - `shell`'s moved walls (`moved_walls`, each wall's box from its
+//!   edges' covers, [`edge_cover_linked`](crate::cover::edge_cover_linked)) PRUNE: two walls whose boxes
+//!   are apart are never read for a crossing, and whether two walls
+//!   overlap is decided along their shared line through `Decide`. A
+//!   bigger box costs that reading and lengthens the extent lever it
+//!   reads transversality on, so it is more exact work, never a crossing
+//!   claimed on box overlap.
+//! - `splitting::containment`'s loop extent (`extent_from`, each edge's
+//!   [`edge_cover`](crate::cover::edge_cover) folded into a ball about the point) sizes the lever
+//!   the point-in-loop decisions are read on: a bigger cover lengthens
+//!   it, so a decision lands in band more readily and the walk REFUSES
+//!   more, never a wrong side. A cover TIGHTER than its edge is the
+//!   unsound direction: the lever could under-state a reading's reach.
+//! - `boolean::ruled_region`'s reach bound (`reach_bound`, each boundary
+//!   edge's [`edge_cover`](crate::cover::edge_cover)) sizes the lever of a ruled face's crossings
+//!   in the same direction: a bigger cover lengthens it and can only
+//!   REFUSE more, never place a crossing wrongly.
+//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`](crate::cover::edge_cover)
+//!   read from below through `geom_brep::edge_reach_bounds`) reads NO
+//!   looseness: on a line the cover's far distance is its segment's
+//!   farther end, and on a circle arc its crest where the window holds it
+//!   or its farther end (`Arc::point_far`, exact for a circle in an
+//!   orthonormal frame), each hulled only with the edge's own end
+//!   vertices, so it is the edge's exact reach; on any other carrier the
+//!   bound from below is the edge's own sampled points, which the cover
+//!   does not move. So the box refuses (`OutsideSessionBox`) only on a
+//!   true lower bound of the body's reach
+//!   (`line_and_arc_edges_in_the_box_read_their_exact_reach`, sweep). A
+//!   line or arc arm made looser than exact would be the unsound
+//!   direction: it could refuse a body that lies in the box.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The thirteen are not
+//! about a door, and the door has to be named. The doors are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
 //! a new door cannot land unargued. **It pins WHERE the doors are
@@ -1516,9 +1554,9 @@ pub(crate) mod tests {
         // it, and meets the two operands' hulls (`cover::meet_within`).
         // `boolean/ops.rs`'s face rows read each face's cover and box it,
         // and the pair reach meets two of them. One of
-        // `boolean/ops.rs`'s four and `pieces.rs`'s one are one door:
+        // `boolean/ops.rs`'s six and `pieces.rs`'s one are one door:
         // the boolean's exit builds the face-box closure the piece
-        // sort's screen calls. Another of `ops.rs`'s four is not a door:
+        // sort's screen calls. Another of `ops.rs`'s six is not a door:
         // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
         // its bricks' faces to hand the arm's question what the scan
         // hands it. `boolean/separating.rs`'s four are two doors and their
@@ -1529,7 +1567,7 @@ pub(crate) mod tests {
         // `boolean/carrier_touch_rows.rs`' one: a spiric-edge witness
         // calls `edge_box` to show its ball lies inside the edge's box,
         // so that only the edge's own floor can clear it.
-        const PINNED: [(&str, usize); 19] = [
+        const PINNED: [(&str, usize); 20] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/carrier_touch_rows.rs", 1),
             ("boolean/glue.rs", 5),
@@ -1545,6 +1583,7 @@ pub(crate) mod tests {
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
+            ("session_box.rs", 1),
             ("shell.rs", 2),
             ("splitting/classify.rs", 1),
             ("splitting/containment.rs", 1),
