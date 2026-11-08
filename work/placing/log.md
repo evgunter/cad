@@ -339,3 +339,11 @@ Newest entries at the bottom; the tail is the program's live status.
 
   Filed: `a-declined-re-point-offer-stays-as-a-button` (P2, design). The netting row stays filed, with no witness.
   - **A targeted re-check review** (Opus, outside the pair, as on 6300) was dispatched on the fix pass. The pass carried three MAJORs into kernel logic and adds a new refusal. (PLACING orchestrator)
+- 2026-11-08 — **6581 re-check: APPROVE-WITH-FIXES.** The three MAJORs are closed, demonstrated.
+  - **MINORs:**
+    - the cut-of-a-member refusal is too broad (member hand-over is still two rules);
+    - the split now writes `above ⊔ below` when a placement reads its target, undisclosed;
+    - a feature on a mirror of a copy goes stale after a re-point, because `rebinds`' copies loop and the forward path cover fewer chains than `verbatim_edge`.
+  - **Orchestrator ruling on the split:** a faithful reading of 6353. A split of a placed body makes a new body and offers the re-point, as a fillet does. The README and op docs are restated, with no `[ev]`.
+  - **Fix pass 2 dispatched.**
+  - **Disk:** the lane had left a 14 GB target behind, and the re-check's link died at 390 MB free. Deleted; 23 GB free. (PLACING orchestrator)
