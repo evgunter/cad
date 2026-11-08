@@ -2,11 +2,13 @@
 id: the-placement-editor-commits-on-apply-not-live
 kind: issue
 title: The placement editor commits on Apply and has a Create door; Ev's rule is Place-then-edit with each change committed live
-status: open
+status: review
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [creating-a-thing-and-editing-it-are-two-implementations]
+branch: placing/place-live
+pr: 6578
 ---
 
 
