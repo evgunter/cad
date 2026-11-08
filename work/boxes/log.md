@@ -434,6 +434,7 @@ Filed:
 - 6399 pass 2: a second restriction routine and a copied arm.
 
 The style lane's Q1 caught each one. The pattern is now in the briefs, and the `cover-kind-match-gate` unit is the structural answer.
+- 2026-11-03 — `cover-edge-doors` merged (PR 6399, `c036d7ae`). **Dispatched `cover-topo-faces`.** Review tier: DUAL, letter H, so the arm is CONCURRENT. It exports `topo::face_cover`/`edge_cover`, the public surface `cover-levers`, `cover-app-readers` and the gate build on, and it replaces both box lanes with broad verdict moves: architectural, and hard to change later. The brief carries the build's class finding: check your own diff for a copy of what you close, reader-side tightening, or a second spelling. (BOXES orchestrator)
 - 2026-11-03 — **Seam (ONEDOOR): `[topo.homes]` is now held per PR** by `scripts/gates/engine-leaves.sh`, merged in PR 6458. Ev ratified the rule on PR 6426; it is in `crates/topo/README.md`.
   - **What the gate refuses** in `crates/topo/src`, outside an engine directory:
     - naming an item declared under `boolean/` or `splitting/`, counted by name however it is reached;
@@ -444,3 +445,46 @@ The style lane's Q1 caught each one. The pattern is now in the briefs, and the `
   - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
   - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
   - (ONEDOOR orchestrator)
+- 2026-11-08 — The `cover-topo-faces` lane was resumed after the weekly usage limit stopped it (2026-11-03; five commits pushed through `5cf5c2fbc5`, clone intact). On resume it was told that main's `engine-leaves.sh` (`[topo.homes]`, Ev on PR 6426) puts `face_cover`/`edge_cover` and the edge reading at the crate root, not under `boolean/`, and pointed at `aabb-poison-is-per-lane-and-a-one-lane-nan-box-prunes`: the cover's `aabb()` must hand the BVH `Aabb::poison()`, never a one-lane-NaN box. (BOXES orchestrator)
+
+## 2026-11-08 — `cover-topo-faces` (PR 6579): the concurrent dual pair
+
+(BOXES orchestrator) Tier DUAL, letter H, arm CONCURRENT, protocol `1b9ac429b1`. Two Opus reviewers were dispatched together at 2026-11-08T17:5xZ on frozen head `0cc69585`, from one brief. Glimpses disclosed: R1 saw another lane's `cargo` command lines in `ps`; R2 read the PR's own check runs and the `test (kernel)` job log to explain a red, which is not the other lane's artefacts. Neither saw findings. Both returned APPROVE-WITH-FIXES.
+
+Correspondence pre-note (to be confirmed by the blind coding at merge):
+
+**Bilateral:**
+- the box-door inventory red at the head (MAJOR/MAJOR, both executed);
+- `overlap_ball` dropping the band pad that `section_door` keeps (MINOR/MINOR, argued), and its meet unpinned (mutant D survives, both);
+- `depth_gap::least_on`'s reader-side max (MINOR/MINOR);
+- the filed row's false premise;
+- `Breach::Degenerate` dead and the zero-axis case misnamed;
+- the vacuous cone-pinching disjunct;
+- the `≤ √2` shell row;
+- the lanes-agree row now nominal;
+- `bool_box_` K prefixes;
+- C7 answered (a) by both;
+- stale README text;
+- loop-closes-in-the-chart spelled twice or more;
+- the 20/50 verdict confirmed by both.
+
+**Unilateral R1:**
+- the apex winding branch unpinned (mutant A2, executed);
+- two meet-ball spellings in `glue`;
+- `face_rows` re-spelling `face_box`;
+- `face_cover_toward` aim-dependence;
+- six edge-reading entry points.
+
+**Unilateral R2:**
+- "support either way less the base" five times;
+- `cone_axial_window`'s scaffolding fold;
+- slab and frustum terms that never tighten a box (MUT_SLAB/FRUSTUM survive);
+- the clockwise-torus hole measured at 5.08 m (known row).
+
+**Tally candidates:** none. The one MAJOR is bilateral.
+
+**Adjudicated:**
+- everything into the fix pass, except: C7, filed as the unit `cover-carrier-level-piece` (P1/M, parked on this unit); `cone_axial_window`'s fold, sent to `cover-levers`; the clockwise torus, which stays on its row.
+- C7 is not a question for Ev. Both reviewers read the ratified text as already deciding it, and the level piece is its faithful elaboration.
+
+**Class finding, again.** The unit minted five spellings of one support-difference and two meet balls, despite the brief naming the trap. Q1 caught it in both reviews. The structural answer is still `cover-kind-match-gate`. A rule-of-thumb grep for "support either way" shapes belongs in that gate's design.
