@@ -98,7 +98,7 @@ use geom_core::Decide;
 use topo::{AtRestPolicy, Body, ContactRecords, ValidationError};
 
 use crate::doc::Doc;
-use crate::eval::{BooleanValue, Evaluation, NodeStanding, NodeValue, SplitSide, ValuePayload};
+use crate::eval::{Evaluation, NodeStanding, NodeValue, SplitSide, ValuePayload};
 use crate::names::{CarriedRows, EntityKey, NameTable, SplitHalf};
 use crate::node::RecipeNodeId;
 use crate::sentence::{Labelled, Labels, Staged};
@@ -245,7 +245,11 @@ impl crate::finding::Finding for SourceLine<'_> {
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.error)
+        write!(
+            f,
+            "{}",
+            self.error.render(geom_brep::recourse::Reading::AtRest)
+        )
     }
 
     fn recourse(&self) -> &str {
@@ -340,7 +344,15 @@ impl ProductError {
         labels: Labels,
         by: Speaker<'_>,
     ) -> core::fmt::Result {
-        let list = crate::finding::render_lines::<&ValidationError, _>;
+        // The findings are the at-rest gate's.
+        let list = |f: &mut core::fmt::Formatter<'_>, errors: &[ValidationError]| {
+            crate::finding::render_lines(
+                f,
+                errors
+                    .iter()
+                    .map(|e| e.render(geom_brep::recourse::Reading::AtRest)),
+            )
+        };
         let piece = |id: RecipeNodeId| by.node_as(id, "piece");
         match self {
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
@@ -373,8 +385,9 @@ impl ProductError {
             ),
             Self::Graft { node, source } => write!(
                 f,
-                "the kernel could not graft {}'s body: {source}",
-                piece(*node)
+                "the kernel could not graft {}'s body: {}",
+                piece(*node),
+                source.render(geom_brep::recourse::Reading::Build)
             ),
             Self::PieceInvalid { findings } => {
                 // Findings arrive in gather order, so one piece's outputs
@@ -407,7 +420,10 @@ impl ProductError {
                         }
                         crate::finding::render_lines(
                             f,
-                            findings.iter().flat_map(|source| &source.errors),
+                            findings
+                                .iter()
+                                .flat_map(|source| &source.errors)
+                                .map(|e| e.render(geom_brep::recourse::Reading::AtRest)),
                         )
                     }
                 }
@@ -609,33 +625,37 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
     let carried = || Arc::clone(&value.carry.contacts);
     let rows = || Arc::clone(&value.carry.findings);
     let norows = || Arc::new(crate::checks::at_rest::CarriedFindings::default());
+    if let Some(body) = value.payload.one_body() {
+        return Some(
+            body.map(|body| (0, body.clone(), carried(), rows()))
+                .into_iter()
+                .collect(),
+        );
+    }
     match &value.payload {
-        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            Some(vec![(0, body.clone(), carried(), rows())])
-        }
-        ValuePayload::Boolean(BooleanValue::Empty) => Some(Vec::new()),
-        // Cannot refuse: an instance list is minted by the pattern op,
-        // which refuses any index `names::narrow` does not fit, or
-        // by `Placeable::map`, which rebuilds an existing list one body
-        // for one.
+        // A family's body stands at its member's place, an empty member
+        // contributing nothing and shifting no later one, as a split's
+        // empty half shifts nothing. Cannot refuse: a family is minted
+        // by `family_value`, whose naming refuses any place
+        // `names::narrow` does not fit, or by a placement of one, which
+        // keeps its places.
         ValuePayload::Instances(bodies) => Some(
             bodies
                 .iter()
                 .enumerate()
-                .map(|(i, body)| {
+                .filter_map(|(i, body)| {
+                    let body = body.as_ref()?;
                     let ix = crate::names::narrow(i, crate::names::Numbered::OutputBody)
                         .unwrap_or_else(|e| {
-                            unreachable!(
-                                "instance {i} outlived its minting op's index refusal: {e}"
-                            )
+                            unreachable!("member {i} outlived its family's place refusal: {e}")
                         });
                     let member = value.carry.member(i);
-                    (
+                    Some((
                         ix,
                         body.clone(),
                         Arc::clone(&member.contacts),
                         Arc::clone(&member.findings),
-                    )
+                    ))
                 })
                 .collect(),
         ),
@@ -663,6 +683,9 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // an assertion's verdict denote no material, so a document
         // whose only addition is an assertion has the same product it
         // had without one.
+        ValuePayload::Body(_) | ValuePayload::Boolean(_) => {
+            unreachable!("`one_body` answers every one-body value")
+        }
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::Assertion(_)
@@ -1238,13 +1261,14 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             let table = evaluation
                 .shared_table_at(var)
                 .unwrap_or_else(crate::names::empty);
-            // A family's member brings the records its own door kept.
+            // A family's member brings the records its own door kept,
+            // and each body's carry is at its place: an empty member or
+            // half holds one, and shifts no later body onto it.
             let sources = bodies
                 .into_iter()
-                .enumerate()
-                .filter(|(_, (ix, ..))| half.is_none_or(|h| h == *ix))
-                .map(|(i, (ix, body, contacts, rows))| {
-                    let member = carry.member(i);
+                .filter(|(ix, ..)| half.is_none_or(|h| h == *ix))
+                .map(|(ix, body, contacts, rows)| {
+                    let member = carry.member(ix as usize);
                     let kept = match &carry.members {
                         Some(_) => member
                             .census

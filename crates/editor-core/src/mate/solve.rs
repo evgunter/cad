@@ -367,13 +367,15 @@ impl SolvedPoses {
 /// **The document's solve, at its own parameters**: every placement's
 /// answer, read off the document's nominal evaluation under `opts`
 /// ([`SolvedPoses::of`]). There is no solve apart from the evaluation
-/// that folds each bundle where its placement evaluates.
+/// that folds each bundle where its placement evaluates, which `cancel`
+/// cancels: a placement the run did not reach answers its standing.
 pub fn solve_document(
     doc: &Doc<crate::ProfileProgram>,
     opts: &crate::eval::EvalOptions,
+    cancel: &crate::CancelToken,
     tol: geom_core::Tol,
 ) -> SolvedPoses {
-    solve_document_at(doc, opts, tol)
+    solve_document_at(doc, opts, cancel, tol)
 }
 
 /// **[`solve_document`] at a run's own scalar**: declared at the

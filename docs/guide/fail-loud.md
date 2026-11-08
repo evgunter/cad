@@ -85,11 +85,16 @@ let refused = Open
 assert!(matches!(
     refused,
     Err(PathError::NoCornerForFillet {
-        reason: PathNoCornerReason::CarriersParallel,
+        reason: PathNoCornerReason::TurnWithinTolerance { sin_turn, .. },
         ..
-    })
+    }) if sin_turn == 0.0
 ));
 ```
+
+The reason carries the turn's sine and the length it was levered by,
+because the refusal is a product: a turn of zero at tolerance is either
+no angle at all, as here, or a real angle stated over a lever too short
+to resolve it. The kernel does not guess which; the numbers say.
 
 Note what did *not* happen: no arc of radius 0.25 was placed
 somewhere plausible, and no zero-length segment was emitted. The

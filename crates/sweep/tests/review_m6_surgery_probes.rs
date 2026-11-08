@@ -263,7 +263,10 @@ fn p2_ring_touch_trio_through_the_front_door() {
             Tol::witness(),
         )
         .expect_err("a crossing trim circle must refuse pre-mutation");
-        println!("P2b: -5mm refuses with: {err}");
+        println!(
+            "P2b: -5mm refuses with: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
     // (c) in-band: the gap sits inside [eps, K*eps).
     {
@@ -284,7 +287,10 @@ fn p2_ring_touch_trio_through_the_front_door() {
             Tol::witness(),
         )
         .expect_err("an in-band clearance must escalate");
-        println!("P2c: in-band refuses with: {err}");
+        println!(
+            "P2c: in-band refuses with: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
 }
 
@@ -301,7 +307,10 @@ fn p2d_box_fillet_ring_touch_refuses() {
         Tol::witness(),
     )
     .expect_err("a ring crossing the trimline must refuse pre-mutation");
-    println!("P2d: refuses with: {err}");
+    println!(
+        "P2d: refuses with: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 /// P3: one-pip and two-adjacent-pips ladders; then a too-close pair.
@@ -492,7 +501,10 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             Tol::witness(),
         )
         .expect_err("overlapping widened circles must refuse");
-        println!("P3-tight: refuses with: {err}");
+        println!(
+            "P3-tight: refuses with: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
 }
 
@@ -513,7 +525,10 @@ fn p4_rim_at_a_face_edge_refuses_typed() {
                 RIM_R,
                 Tol::witness(),
             ) {
-                Err(e) => println!("P4: fillet refuses typed: {e}"),
+                Err(e) => println!(
+                    "P4: fillet refuses typed: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
                 Ok(out) => {
                     assert_eq!(
                         topo::validate_geometric(&out.body, Tol::witness()),
@@ -573,7 +588,12 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
             RIM_R,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("theta {theta}: rim fillet: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "theta {theta}: rim fillet: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             topo::validate_geometric(&out.body, Tol::witness()),
             Ok(()),
@@ -700,6 +720,7 @@ fn p8_duplicate_edge_refuses() {
     // caller can act on it without re-deriving which edge doubled.
     assert!(
         matches!(err.error, sweep::blend::BlendError::RepeatedEdge { edge } if edge == box_edges[0]),
-        "{err}"
+        "{err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
 }

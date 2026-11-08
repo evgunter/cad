@@ -2,11 +2,14 @@
 id: path-start-frame-is-the-only-frame-from-a-tangent-and-is-named-for-the-start
 kind: issue
 title: path_start_frame is the only (point, tangent) -> frame door, and every interior-station caller reads wrong against its name
-status: open
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: M
-design: true
+parent: a-frame-across-a-direction-is-a-written-frame-turned-onto-it
+branch: frame/turned-onto
+closed: 2026-11-03
+pr: 6465
 ---
 
 
@@ -103,3 +106,11 @@ nothing here is fixed by it.
   because only the start frame reads the ladder. That bears on the
   row's two shapes: the interior-station case may already have its
   door, and what is left is the name.
+
+## Decided (FRAME, 2026-11-03)
+
+Re-checked against main by a designer pair, which converged. Interior stations read `sweep_places`. The ladder door retires for `RigidMotion::turned_onto`, a written frame carried onto the direction by D10's least turn. `orthonormal_basis` is named scratch-only in one "which door" paragraph. Carried by `a-frame-across-a-direction-is-a-written-frame-turned-onto-it`.
+
+## Closed
+
+Landed by PR 6465 (2026-11-03): `RigidMotion::turned_onto`, the retirement of `path_start_frame` and its ladder, interior stations on `sweep_places`, and the "which door" paragraph in `linalg::frame`.

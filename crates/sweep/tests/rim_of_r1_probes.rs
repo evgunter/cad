@@ -192,7 +192,7 @@ fn the_refusals_own_text_names_the_door_and_following_it_carves() {
     let Err(refusal) = fillet_edges(&source, &[seed], 0.05, tol()) else {
         panic!("one arc stops at the seam vertex")
     };
-    let text = refusal.error.to_string();
+    let text = refusal.error.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains("request the rim whole, every arc the seam split it into"),
         "the refusal names the request that carves: {text}"

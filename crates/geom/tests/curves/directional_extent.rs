@@ -27,7 +27,7 @@ use geom_core::{Bounds, Dual64, Interval, Point3, Real, Vec3};
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
     Curve3::Circle(geom::Circle {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },
@@ -44,7 +44,7 @@ fn ellipse(
 ) -> Curve3<f64> {
     Curve3::Ellipse(geom::Ellipse {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },

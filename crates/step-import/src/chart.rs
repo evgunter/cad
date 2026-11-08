@@ -147,7 +147,10 @@ pub(crate) fn uv_of(
 fn periodic(surface: &Surface<f64>) -> (bool, bool) {
     match surface {
         Surface::Plane { .. } => (false, false),
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => (true, false),
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Spindle { .. } => (true, false),
         Surface::Torus { .. } => (true, true),
         // The conservative answer for a chart this module cannot
         // invert: assume both directions wrap, as the spline arm does.
@@ -279,9 +282,7 @@ pub(crate) fn infer_outer(
 /// then too coarse to tell a wrap from a jump — an honest refusal, not
 /// a guessed branch).
 fn unwrap(prev: f64, next: f64) -> Result<f64, OuternessRefusal> {
-    let tau = core::f64::consts::TAU;
-    let k = ((prev - next) / tau).round();
-    let lifted = next + k * tau;
+    let lifted = geom_core::period::Period::new(core::f64::consts::TAU).near(next, prev);
     if (lifted - prev).abs() > core::f64::consts::FRAC_PI_2 {
         return Err(OuternessRefusal::SeamDependent);
     }

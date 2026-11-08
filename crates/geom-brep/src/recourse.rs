@@ -6,7 +6,7 @@
 //! what it passes on and what its refused side is ([`SizedDecision`]);
 //! the refused arm ([`RefusedArm`]) and the door that reads it
 //! ([`ReadAt`]) decide the rest. Edge certification
-//! (`crate::certify::recourse`) and the offset meters
+//! (`CertCheck`'s [`DoorCheck::recourse`]) and the offset meters
 //! (`crate::offset_meters::Meter`) both end their sized decisions here.
 //!
 //! A decision with no size the user chose ends here too: in a defect or
@@ -50,6 +50,14 @@ pub enum ReadAt {
 }
 
 impl ReadAt {
+    /// Whether this is a build's door ([`Reading::Build`]): the one test
+    /// a refusal's `write` takes where a build ends differently, so no
+    /// reading is spelled inside a refusal's text.
+    #[must_use]
+    pub const fn is_build(self) -> bool {
+        matches!(self, Self::Run(Reading::Build))
+    }
+
     /// **The culprit a defect ending names at this door** (D4 ¶1 (iv)):
     /// the one chooser every defect ending read through this module
     /// takes, sized or not. A run door names its own
@@ -89,6 +97,120 @@ impl Reading {
         }
     }
 }
+
+/// **A refusal whose ending is read at a door** (D4 ¶1): its `Display`
+/// is its payload alone, and its ending exists only through
+/// [`Ended::ended`] at the door that reads it, so no `Display` answers
+/// one door's question for another.
+///
+/// Each implementor's inherent `render(at)` is the same function: a door
+/// calls `render` with the reading it holds (a [`Reading`] or a
+/// [`ReadAt`] converts); a holder generic over its nested refusals calls
+/// `ended` through [`read_at`]. The trait exists for that generic half.
+pub trait Ended: core::fmt::Display {
+    /// This refusal's payload, followed by the ending, if any, that the
+    /// door `at` gives it. An implementor whose every arm names a
+    /// decision ends every arm; one with an arm no decision ends at that
+    /// door writes that arm's payload alone, and its holder ends it.
+    fn ended(&self, at: ReadAt) -> String;
+}
+
+/// **A nested refusal as its holder writes it**: ended at `at`, or its
+/// payload alone where `at` is `None` (the holder's own `Display`).
+pub fn read_at<E: Ended + ?Sized>(refusal: &E, at: Option<ReadAt>) -> impl core::fmt::Display + '_ {
+    core::fmt::from_fn(move |f| match at {
+        Some(at) => f.write_str(&refusal.ended(at)),
+        None => core::fmt::Display::fmt(refusal, f),
+    })
+}
+
+/// **An undecided reading's sentence ended at a door, or its payload
+/// alone**: [`Indeterminate::undecided`]'s sentence where `ending` is
+/// `Some`, and `"{subject} is undecided: {payload}"` where the holder
+/// is read at no door (its `Display`).
+pub fn undecided_at<'a, S: core::fmt::Display + 'a>(
+    diag: &'a Indeterminate,
+    subject: S,
+    ending: Option<String>,
+) -> impl core::fmt::Display + 'a {
+    core::fmt::from_fn(move |f| match &ending {
+        Some(ending) => core::fmt::Display::fmt(&diag.undecided(&subject, ending), f),
+        None => write!(
+            f,
+            concat!("{}", geom_core::undecided!("", payload)),
+            subject,
+            diag.payload()
+        ),
+    })
+}
+
+/// **A door for a nested refusal its holder ends at a build whatever
+/// door reads the holder**: `at` itself where the holder is its payload
+/// alone (`None`), and a build otherwise. Each call is a site that ends
+/// a refusal at a door other than the reader's, counted per file by
+/// `scripts/gates/display-payload-only.sh`.
+#[must_use]
+pub fn at_build(at: Option<ReadAt>) -> Option<ReadAt> {
+    at.map(|_| ReadAt::Run(Reading::Build))
+}
+
+/// **A door for a nested refusal its holder ends at rest whatever door
+/// reads the holder**: [`at_build`]'s sibling, for a finding of the
+/// at-rest gate reported inside an operation's refusal.
+#[must_use]
+pub fn at_rest(at: Option<ReadAt>) -> Option<ReadAt> {
+    at.map(|_| ReadAt::Run(Reading::AtRest))
+}
+
+/// **The three items of a refusal written once for both readings**: a
+/// type with `fn write(&self, f, at: Option<ReadAt>)` gets its payload
+/// `Display` (`at` = `None`), its inherent `render(at)` and its
+/// [`Ended`] impl from this.
+///
+/// It is a macro, not a blanket impl or a default method, because
+/// `Display` is a foreign trait: coherence refuses
+/// `impl<T: …> Display for T`, so every refusal must state its own
+/// `Display`. Without this, each of the 46 refusals written this way
+/// would repeat the same three items by hand. It ties `Display` to
+/// `write(f, None)` and `render` to `write(f, Some(at))`; it does not
+/// stop a `write` from writing an ending when `at` is `None`, which
+/// `scripts/gates/display-payload-only.sh` and the payload rows hold.
+#[macro_export]
+macro_rules! ended_by_write {
+    ([$($gen:tt)*] $ty:ty) => {
+        impl<$($gen)*> $ty {
+            /// This refusal's text ended at the door `at` reads it
+            /// (`recourse::Ended`); its `Display` is the
+            /// payload alone.
+            #[must_use]
+            pub fn render(&self, at: impl Into<$crate::recourse::ReadAt>) -> String {
+                let at = at.into();
+                core::fmt::from_fn(|f| self.write(f, Some(at))).to_string()
+            }
+        }
+
+        impl<$($gen)*> core::fmt::Display for $ty {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                self.write(f, None)
+            }
+        }
+
+        impl<$($gen)*> $crate::recourse::Ended for $ty {
+            fn ended(&self, at: $crate::recourse::ReadAt) -> String {
+                self.render(at)
+            }
+        }
+    };
+    ($ty:ty) => {
+        $crate::ended_by_write!([] $ty);
+    };
+}
+
+/// **The recourse for a tolerance that forms no usable band.** A run's
+/// ε is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails
+/// to form a band is K·ε overflowing: the repair is a smaller ε.
+pub const BAND_TOLERANCE_RECOURSE: &str = "Recourse: set a smaller tolerance, so that K times it \
+     stays finite; a run admits none below the floor its session box sets";
 
 /// The defect ending at `at` ([`ReadAt::culprit`]).
 #[must_use]
@@ -356,12 +478,14 @@ pub const INCIDENCE_AT_POSE: LeverOnly = LeverOnly {
             or so no piece of it sits there",
 };
 
-/// **An edge's curve whose incidence on its face is undecided**: not
-/// shown on the face and not shown off it, so its lever moves the
-/// geometry until the reading decides, at every door.
+/// **A boundary whose incidence on its face is undecided**: an edge's
+/// curve or a flat face's corner, not shown on the face and not shown
+/// off it, so its lever moves the geometry until the reading decides,
+/// at every door. The refusal's own sentence says which of the two was
+/// read; the lever fits both.
 pub const INCIDENCE_UNSHOWN: LeverOnly = LeverOnly {
-    lever: "the edge's curve is not shown on the face it bounds at this tolerance: move the \
-            geometry so it lies clearly on that face",
+    lever: "move the geometry so the boundary lies clearly on the face it bounds at this \
+            tolerance",
 };
 
 impl LeverOnly {
@@ -602,6 +726,281 @@ pub const NARROW_SPAN: &str = narrow_span!();
 /// ratio. Which span is not carried yet
 /// (`encl/narrow-span-refusals-do-not-say-which-span`).
 pub const NARROW_SPAN_RECOURSE: &str = narrow_span_recourse!();
+
+/// **A door's certification check**, as the one decision table reads it
+/// ([`Decision::Check`]): the check's own routing ends a refusal of it.
+/// Edge certification's ([`crate::CertCheck`]) and the pcurve door's
+/// ([`crate::PcurveCheck`]) implement it, and a holder that names the
+/// decision a refusal restates reads the check's ending here.
+pub trait DoorCheck: Copy {
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `at`.
+    #[must_use]
+    fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String;
+}
+
+/// **The decision a certification refusal is a refused arm of** (D4 ¶1
+/// (i)), at a door whose checks are `C`: the one table every
+/// certification door's refusals read their ending through
+/// ([`crate::CertifyError`], [`crate::PcurveCertifyError`],
+/// [`crate::edge_nurbs::PlaneNurbsRefusal`],
+/// [`crate::edge_nurbs::AnalyticRung3Refusal`]). Each refusal names its
+/// decision in its own exhaustive `decided()`, and its `decision()`
+/// reads the check and the refused arm off it where it is a check of
+/// that door; each kind of ending is written once, in
+/// [`Decision::ending`]. Where the refusal is one another door also
+/// reads, it ends by that door's home.
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(
+        name(DecisionKind),
+        derive(strum::EnumIter, Hash, PartialOrd, Ord),
+        vis(pub),
+        doc(hidden)
+    )
+)]
+pub(crate) enum Decision<'a, C> {
+    /// A check of this door, on the arm it refused.
+    Check(C, RefusedArm<'a>),
+    /// An SSI decision a certificate could not decide, escalated there:
+    /// that door's undecided sentence ([`crate::ssi::SsiDecision`]).
+    SsiUndecided(crate::ssi::SsiDecision, &'a Indeterminate),
+    /// The SSI door's refusal, carried: that door's ending of it.
+    Ssi(crate::ssi::SsiError),
+    /// The SSI door's one-arc proof, read as a stored edge's
+    /// ([`crate::ssi::OneArcRefusal::ending`]).
+    OneArc(crate::ssi::OneArcRefusal),
+    /// The image producer's own refusal, or a fitted certificate's
+    /// structural one, as the pcurve door ends it.
+    Fitted(crate::pcurve_cache::FittedEnding),
+    /// A lever on the input no margin reads.
+    Lever(Lever),
+    /// A decision with no size the user chose.
+    Unsized(Unsized),
+    /// A lane choice or a lane's capability gap (D3): "not yet", never a
+    /// defect and never a tolerance.
+    NotYet,
+    /// Limb 2's kernel limit, whose story is read off its own data.
+    KernelLimit {
+        /// The certified bound.
+        bound: f64,
+        /// The carrier's own enclosure width there.
+        width: f64,
+        /// The edge's extent.
+        extent: f64,
+    },
+}
+
+impl<C: DoorCheck> Decision<'_, C> {
+    /// The ending this decision gives its refusal, read at `at`.
+    pub(crate) fn ending(self, at: ReadAt) -> String {
+        let definite = RefusedArm::SignCertain(None);
+        match self {
+            Self::Check(check, arm) => check.recourse(arm, at),
+            Self::SsiUndecided(decision, cause) => decision.ending(cause, at),
+            Self::Ssi(e) => e.ending(at),
+            Self::OneArc(cause) => cause.ending(crate::ssi::OneArcDoor::AtRest, at),
+            Self::Fitted(ending) => ending.ending(at),
+            Self::Lever(lever) => lever.recourse(at),
+            Self::Unsized(decision) => decision.recourse(definite, at),
+            Self::NotYet => not_yet(definite, at),
+            Self::KernelLimit {
+                bound,
+                width,
+                extent,
+            } => kernel_limit_ending(bound, width, extent),
+        }
+    }
+}
+
+/// **A certification door's refusal**, as [`census`] reads it.
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+#[derive(Clone, Copy)]
+pub enum Door<'a> {
+    /// The edge door's.
+    Certify(&'a crate::CertifyError),
+    /// The pcurve door's.
+    Pcurve(&'a crate::PcurveCertifyError),
+    /// The plane × NURBS lane's.
+    PlaneNurbs(&'a crate::edge_nurbs::PlaneNurbsRefusal),
+    /// The analytic rung-3 lane's.
+    Rung3(&'a crate::edge_nurbs::AnalyticRung3Refusal),
+}
+
+#[cfg(feature = "test-support")]
+macro_rules! door_from {
+    ($($ty:ty => $arm:ident,)*) => {$(
+        impl<'a> From<&'a $ty> for Door<'a> {
+            fn from(refusal: &'a $ty) -> Self {
+                Self::$arm(refusal)
+            }
+        }
+    )*};
+}
+
+#[cfg(feature = "test-support")]
+door_from! {
+    crate::CertifyError => Certify,
+    crate::PcurveCertifyError => Pcurve,
+    crate::edge_nurbs::PlaneNurbsRefusal => PlaneNurbs,
+    crate::edge_nurbs::AnalyticRung3Refusal => Rung3,
+}
+
+/// What one refusal reads at one reading ([`census`]).
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct Census {
+    /// The kind of the refusal's decision, `None` for a refusal that is
+    /// no decision's.
+    pub kind: Option<DecisionKind>,
+    /// The table's ending of that decision ([`Decision::ending`]).
+    pub table: Option<String>,
+    /// The ending the door reads off the refusal itself instead, where
+    /// it does: the same reading its `ending` takes first.
+    pub own: Option<String>,
+}
+
+/// **What a door's refusal reads through the one decision table** at
+/// `at`: the row that holds every door to the table
+/// (`topo::test_support_samples`) reads it here.
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+#[must_use]
+pub fn census<'a>(refusal: impl Into<Door<'a>>, at: impl Into<ReadAt>) -> Census {
+    fn of<C: DoorCheck>(
+        decision: Option<Decision<'_, C>>,
+        at: ReadAt,
+        own: Option<String>,
+    ) -> Census {
+        Census {
+            kind: decision.as_ref().map(DecisionKind::from),
+            table: decision.map(|decision| decision.ending(at)),
+            own,
+        }
+    }
+    let at = at.into();
+    match refusal.into() {
+        Door::Certify(e) => of(e.decided(), at, e.own_ending(at)),
+        Door::Pcurve(e) => of(Some(e.decided()), at, e.own_ending(at)),
+        Door::PlaneNurbs(e) => of(Some(e.decided()), at, None),
+        Door::Rung3(e) => of(Some(e.decided()), at, None),
+    }
+}
+
+/// A refusal whose recourse is a lever on the input no margin reads, the
+/// same at every door: the levers [`Decision::Lever`] names.
+#[derive(Clone, Copy)]
+pub(crate) enum Lever {
+    /// The carrier's parameter range cannot carry the image.
+    CarrierDomain,
+    /// A fitted image needs the fitted door, which only a scalar with
+    /// certification rights holds.
+    FittedDoor,
+    /// A fitted-grade image certifies at its own doors, not the
+    /// closed-form one.
+    FittedGradeDoor,
+    /// The chart is the placeholder.
+    Placeholder,
+    /// The run's tolerance forms no band.
+    Tolerance,
+    /// A band its caller built is refused: its own recourse.
+    Band(&'static str),
+}
+
+impl Lever {
+    pub(crate) fn recourse(self, at: ReadAt) -> String {
+        match self {
+            Self::CarrierDomain => CARRIER_DOMAIN_RECOURSE.to_owned(),
+            Self::FittedDoor => fitted_door_recourse(at),
+            Self::FittedGradeDoor => FITTED_GRADE_DOOR_RECOURSE.to_owned(),
+            Self::Placeholder => PLACEHOLDER_RECOURSE.to_owned(),
+            Self::Tolerance => BAND_TOLERANCE_RECOURSE.to_owned(),
+            Self::Band(recourse) => recourse.to_owned(),
+        }
+    }
+}
+
+/// **The recourse for a fitted image read with no fitted door in hand**
+/// ([`crate::PcurveCertifyError::FittedLaneUnsupported`]): read the body at a
+/// scalar with certification rights. At a build the call that refused
+/// may also be at one already and have withheld its door.
+#[must_use]
+pub fn fitted_door_recourse(at: impl Into<ReadAt>) -> String {
+    let holders = crate::ScalarList(crate::FITTED_DOOR_HOLDERS);
+    let sym = <geom_core::Sym<f64> as geom_core::Real>::NAME;
+    if at.into().is_build() {
+        format!(
+            "Recourse: replay the body at a scalar with certification rights, which alone \
+             holds the fitted door ({holders}, the {sym} one over a certifying base), or, if \
+             the run is at one already, pass the call its door"
+        )
+    } else {
+        format!(
+            "Recourse: check the body at a scalar with certification rights ({holders}, the \
+             {sym} one over a certifying base)"
+        )
+    }
+}
+
+/// The recourse for a fitted-grade image handed to the closed-form door
+/// ([`crate::PcurveCertifyError::FittedGradeAtClosedFormDoor`]).
+pub const FITTED_GRADE_DOOR_RECOURSE: &str =
+    "Recourse: hand a Fitted or General image to certify_fitted or certify_general";
+
+/// The recourse for a chart that is still the placeholder
+/// ([`crate::Surface::is_placeholder_chart`]).
+pub const PLACEHOLDER_RECOURSE: &str = "Recourse: describe the surface first, then ask again";
+
+/// The one recourse for a carrier whose parameter domain its chart
+/// image cannot be expressed on ([`crate::CarrierDomainRefusal`]), read by the
+/// lane's refusal and by `topo`'s at-rest classifier alike.
+pub const CARRIER_DOMAIN_RECOURSE: &str = "Recourse: give the curve a parameter range of moderate \
+     width near zero, such as 0 to 1; an affine reparameterization moves no point of it";
+
+/// How far above the carrier's own enclosure width limb 2's bound may lie
+/// and still read as that width ([`crate::AnalyticRung3Refusal::KernelLimit`]'s
+/// ending). An order of magnitude: the composite's arithmetic adds a few
+/// roundings at the net's scale to the net's own.
+pub const KERNEL_LIMIT_ROUNDING_FACTOR: f64 = 16.0;
+
+/// How far above `extent · 2⁻⁵²` the carrier's own enclosure width may
+/// lie and still be its extent's rounding
+/// ([`crate::AnalyticRung3Refusal::KernelLimit`]'s ending): past it the width
+/// is set by something other than the edge's length — its distance from
+/// the operand's origin, or the width of its inputs' own enclosures —
+/// and the story does not say which.
+pub const KERNEL_LIMIT_EXTENT_FACTOR: f64 = 64.0;
+
+/// **The one story of limb 2's kernel limit** ([tolerance.recourse] (i),
+/// (iv)), its recourse read off the data: a bound within
+/// [`KERNEL_LIMIT_ROUNDING_FACTOR`] of the carrier's own rounding `width`
+/// is that width; where that width is the edge's own extent's rounding
+/// (within [`KERNEL_LIMIT_EXTENT_FACTOR`] of `extent · 2⁻⁵²`), the extent
+/// is the limit at this tolerance and shorter edges are the lever. A
+/// wider enclosure, or a bound far above it, has a cause the story
+/// cannot know from these numbers, so it claims none: it names
+/// loosening as the last resort and the kernel bug it may be.
+pub(crate) fn kernel_limit_ending(bound: f64, width: f64, extent: f64) -> String {
+    let rounding = bound <= KERNEL_LIMIT_ROUNDING_FACTOR * width;
+    if rounding && width <= KERNEL_LIMIT_EXTENT_FACTOR * extent * f64::EPSILON {
+        "The bound is the curve's own rounding at its length, too long to certify at this \
+         tolerance. Recourse: split the edge into shorter edges"
+            .to_owned()
+    } else if rounding {
+        format!(
+            "The bound is the curve's own enclosure width, wider than its length's rounding. {}",
+            KERNEL_LIMIT_RECOURSE
+        )
+    } else {
+        format!(
+            "The bound lies far above the curve's own enclosure width. {}",
+            KERNEL_LIMIT_RECOURSE
+        )
+    }
+}
 
 /// The content words `text` says more than once, for the payload pins:
 /// a payload says each thing once. Possessives fold into their noun
@@ -1083,8 +1482,9 @@ mod tests {
         // `None` where the decision has no import door: the offset
         // meters are asked at a build or at rest only (`Meter::recourse`).
         type End = Box<dyn Fn(RefusedArm<'_>, ReadAt) -> Option<String>>;
-        let certify =
-            |check| -> End { Box::new(move |a, at| Some(crate::certify::recourse(check, a, at))) };
+        let certify = |check: crate::CertCheck| -> End {
+            Box::new(move |a, at| Some(DoorCheck::recourse(check, a, at)))
+        };
         let lever = |ending: &str| Some(ending.to_owned());
         // (decision, its ending, at a build, at rest, at the door past
         // ε_in)

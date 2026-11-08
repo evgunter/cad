@@ -339,7 +339,7 @@ fn a_count_disagreement_blocks_the_ray_and_says_so() {
             }
         );
         assert!(e.confined() && !e.in_band(), "{e:?}");
-        let text = e.to_string();
+        let text = e.render(geom_brep::recourse::Reading::Build);
         for want in [
             format!("({constructed}) disagree"),
             format!("certify ({certified})"),

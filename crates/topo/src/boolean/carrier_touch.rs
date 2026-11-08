@@ -135,7 +135,12 @@ pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<MedialDistanc
             minor_radius.min(major_radius - minor_radius),
         )),
         geom::Surface::Plane { .. } => Some(MedialDistance::Unbounded),
-        geom::Surface::Cone { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
+        // A sheet's medial axis reaches its apexes, and no distance to
+        // it is written yet.
+        geom::Surface::Cone { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -149,10 +154,9 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
     // The point's height along `axis` from `origin`, and its offset
     // across it.
     let split = |origin: Point3<T>, axis: Vec3<T>| {
-        let a = axis / axis.norm();
-        let w = q - origin;
-        let h = w.dot(a);
-        (a * h, w - a * h)
+        let a = axis.normalize();
+        let (h, off) = geom::Line { origin, dir: a }.param_and_offset(q);
+        (a * h, off)
     };
     match *surface {
         geom::Surface::Sphere { center, radius, .. } => {
@@ -188,11 +192,14 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
             Some((d - minor_radius, core + v * (minor_radius / d), v / d))
         }
         geom::Surface::Plane { origin, normal, .. } => {
-            let n = normal / normal.norm();
+            let n = normal.normalize();
             let d = (q - origin).dot(n);
             Some((d, q - n * d, n))
         }
-        geom::Surface::Cone { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
+        geom::Surface::Cone { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -305,8 +312,8 @@ fn ball_off_face<T: Decide + Bounds>(
     {
         return Ok(false);
     }
-    let f = crate::live::proven(&y.faces, face, EntityId::Face);
-    for member in y.face_boundary_linked(face, f) {
+    let f = y.proven_face(face);
+    for member in f.boundary() {
         let clear_of_ball = match member {
             BoundaryMember::Isolated { point, .. } => clear((point - foot).norm(), radius, band),
             BoundaryMember::Edge { ek, .. } => edge_clear_of_ball(y, ek, foot, radius, band)?,
@@ -315,7 +322,7 @@ fn ball_off_face<T: Decide + Bounds>(
             return Ok(false);
         }
     }
-    let placed = match *y.face_surface_linked(face, f) {
+    let placed = match *f.surface() {
         geom::Surface::Plane { normal, .. } => {
             super::contain::contfp_decided(y, face, normal, foot, band)
                 .map(|(at, _)| CurvedPlacement::Trim(Some(at)))

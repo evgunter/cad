@@ -555,11 +555,11 @@ pub enum ErrorClass {
 /// Two things this roster does NOT claim, because they are open and
 /// filed rather than decided here: the third row's `variant` where its
 /// two siblings say `kind`
-/// (`work/lib/literalerror-publishes-its-tag-under-two-names.md`), and
+/// (`work/bind/literalerror-publishes-its-tag-under-two-names.md`), and
 /// a SEVENTH route — a replayed edit at `load` — which reaches
 /// `PersistError` with `inner_variant == "dimension"` and stops one
 /// rung above the check
-/// (`work/lib/persist-inner-variant-stops-one-rung-above-the-check.md`).
+/// (`work/bind/persist-inner-variant-stops-one-rung-above-the-check.md`).
 #[doc(hidden)]
 pub const DIMENSION_DOORS: () = ();
 

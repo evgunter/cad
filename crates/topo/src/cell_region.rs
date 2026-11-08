@@ -46,7 +46,8 @@ use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
 use crate::boolean::{FaceContainment, contfp, curved_face_containment};
-use crate::entity::{FaceKey, LoopBoundary};
+use crate::entity::FaceKey;
+use crate::live::BoundaryMember;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
 use crate::validate::decide;
 
@@ -93,7 +94,7 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let Some(stored) = body.face_surface(face) else {
+    let Some(stored) = body.passed_face(face).map(|f| f.surface()) else {
         return CellRegion::Undecided;
     };
     cell_region_lifted(
@@ -172,7 +173,7 @@ pub fn station_region<T: Decide + CertifiedBounds>(
     (u, v): (f64, f64),
     band: Band,
 ) -> Option<FaceContainment> {
-    let surface = body.face_surface(face)?;
+    let surface = body.passed_face(face)?.surface();
     let station = surface.eval(T::from_computed(u), T::from_computed(v));
     place(body, face, surface, station, band)
 }
@@ -250,9 +251,9 @@ impl Ball {
 }
 
 /// Is the carrier's singular set decided clear of the ball: a cone's
-/// apex, and a torus's axis, which holds every point where a spindle or
-/// horn torus meets itself (a ring torus never comes near it). The
-/// other carriers have none.
+/// apex, and a torus's or spindle sheet's axis, which holds a sheet's
+/// apexes (a ring torus never comes near it). The other carriers have
+/// none.
 fn clear_of_singular(
     surface: &Surface<Interval>,
     station: Point3<Interval>,
@@ -260,10 +261,12 @@ fn clear_of_singular(
 ) -> bool {
     match *surface {
         Surface::Cone { apex, .. } => clear(SINGULAR, (station - apex).norm()),
-        Surface::Torus { center, axis, .. } => {
-            let n = axis / axis.norm();
-            let w = station - center;
-            clear(SINGULAR, (w - n * w.dot(n)).norm())
+        Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
+            let axis_line = geom::Line {
+                origin: center,
+                dir: axis,
+            };
+            clear(SINGULAR, axis_line.distance(station))
         }
         _ => true,
     }
@@ -277,79 +280,46 @@ pub(crate) enum BoundaryStop {
     Vertex(Point3<Interval>),
     /// A non-seam edge's carrier and parameter span.
     Arc(Box<(geom::Curve3<Interval>, (Interval, Interval))>),
-    /// Something the walk could not read: never clear.
+    /// A face that does not resolve: never clear.
     Unreadable,
 }
 
 /// Every vertex of `face`, and every edge of it that is not a seam, in
 /// walk order and lifted, ending at the first thing the walk could not
 /// read. A sweep lifts a face's boundary once and asks it of every
-/// cell; the lift reads no bracket and decides nothing.
+/// cell; the lift reads no bracket and decides nothing. A face that does
+/// not resolve is unreadable; past it every hop is a link
+/// ([`crate::live::FaceView::boundary`]).
 pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Vec<BoundaryStop> {
     let mut stops = Vec::new();
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.passed_face(face) else {
         stops.push(BoundaryStop::Unreadable);
         return stops;
     };
-    let on_face = |he| {
-        body.get_half_edge(he)
-            .and_then(|h| body.get_loop(h.parent_loop))
-            .is_some_and(|l| l.face == face)
-    };
-    let vertex = |vertex| {
-        body.get_vertex(vertex)
-            .and_then(|x| body.get_point(x.point))
-            .map_or(BoundaryStop::Unreadable, |p| {
-                BoundaryStop::Vertex(p.map(Interval::from_certified))
-            })
-    };
-    for &lk in core::iter::once(&f.outer).chain(&f.rings) {
-        let Some(l) = body.get_loop(lk) else {
-            stops.push(BoundaryStop::Unreadable);
-            return stops;
+    let on_face = |he| body.face_of_linked(he) == face;
+    for member in f.boundary() {
+        stops.push(BoundaryStop::Vertex(
+            body.member_point(&member).map(Interval::from_certified),
+        ));
+        let BoundaryMember::Edge { ek, edge: e, .. } = member else {
+            continue;
         };
-        let first = match l.boundary {
-            LoopBoundary::Empty { vertex: v } => {
-                stops.push(vertex(v));
-                continue;
-            }
-            LoopBoundary::Cycle { first } => first,
-        };
-        let Some(cycle) = body.loop_cycle(first) else {
-            stops.push(BoundaryStop::Unreadable);
-            return stops;
-        };
-        for he in cycle {
-            let Some(h) = body.get_half_edge(he) else {
-                stops.push(BoundaryStop::Unreadable);
-                return stops;
-            };
-            stops.push(vertex(h.start));
-            let Some(e) = body.get_edge(h.edge) else {
-                stops.push(BoundaryStop::Unreadable);
-                return stops;
-            };
-            if on_face(e.he_plus) && on_face(e.he_minus) {
-                continue;
-            }
-            let Some(geom) = body.get_curve_geom(e.curve) else {
-                stops.push(BoundaryStop::Unreadable);
-                return stops;
-            };
-            // Null scaffolding has no carrier: its locus is its vertex,
-            // read above.
-            let Some(curve) = geom.certified() else {
-                continue;
-            };
-            let (t0, t1) = curve.params();
-            stops.push(BoundaryStop::Arc(Box::new((
-                curve.carrier().map_scalar(Interval::from_certified),
-                (Interval::from_certified(t0), Interval::from_certified(t1)),
-            ))));
+        if on_face(e.he_plus) && on_face(e.he_minus) {
+            continue;
         }
+        // Null scaffolding has no carrier: its locus is its vertex, read
+        // above.
+        let Some(curve) = body.edge_curve_linked(ek, e).certified() else {
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        stops.push(BoundaryStop::Arc(Box::new((
+            curve.carrier().map_scalar(Interval::from_certified),
+            (Interval::from_certified(t0), Interval::from_certified(t1)),
+        ))));
     }
     stops
 }

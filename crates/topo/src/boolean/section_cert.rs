@@ -472,7 +472,8 @@ pub(crate) enum Section<T: Real> {
         single: bool,
     },
     /// A classification margin is `Zero` or undecided: R-tan, naming the
-    /// predicate.
+    /// predicate ([`geom_core::UNNAMED_PREDICATE`] for an escalation that
+    /// named none).
     Tangent(&'static str),
     /// A crossing of the carriers the classification cannot place on
     /// either side of a line it reads the section by: R-order, naming the
@@ -505,6 +506,9 @@ pub(crate) struct Touch<T: Real> {
     /// stand deepest in each other, and on both carriers within the
     /// margin. Each arm says which point it reads.
     pub at: Point3<T>,
+    /// Whether it is two cones' touch at their common apex, which
+    /// [`certify`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
+    pub apex: bool,
 }
 
 /// Why a component was cleared.
@@ -523,6 +527,11 @@ pub(crate) enum Cleared {
     /// A touch on a pair with no event, its centre placed `Out` of the
     /// named face.
     TouchOut(Side),
+    /// Two cones' touch at their common apex ([`Touch::apex`]), a vertex
+    /// of both faces: the touch is that vertex pair's, whose contact is
+    /// the pair's event there and whose neighbourhood the vertex lanes
+    /// read with their fan arms.
+    TouchAtVertex,
 }
 
 /// Why a pair refused.
@@ -628,11 +637,6 @@ impl Refusal {
     }
 }
 
-/// The unit vector along `v`.
-fn unit<T: Real>(v: Vec3<T>) -> Vec3<T> {
-    v / v.norm()
-}
-
 use geom_brep::square_part as perp_to;
 
 /// **The meridian half-plane `Π` of the torus `(c, a)` toward `v`**: the
@@ -663,6 +667,7 @@ fn touch<T: Real>(p: Pinch, names: &[&'static str], at: impl FnOnce() -> Point3<
         Section::Touch(Touch {
             name: p.name,
             at: at(),
+            apex: false,
         })
     } else {
         p.into()
@@ -773,10 +778,10 @@ pub(crate) fn classify_known<T: Decide>(
         (S::Cylinder { .. }, S::Plane { .. }) => cylinder_plane(),
         (S::Plane { .. }, S::Cylinder { .. }) => swapped(cylinder_plane()),
         (&S::Sphere { center, radius, .. }, &S::Plane { origin, normal, .. }) => {
-            sphere_plane(center, radius, origin, unit(normal), band)
+            sphere_plane(center, radius, origin, normal.normalize(), band)
         }
         (&S::Plane { origin, normal, .. }, &S::Sphere { center, radius, .. }) => {
-            sphere_plane(center, radius, origin, unit(normal), band)
+            sphere_plane(center, radius, origin, normal.normalize(), band)
         }
         (
             &S::Sphere {
@@ -870,10 +875,10 @@ fn torus_pair<T: Decide>(
     if geom::require_ring_torus(big_r, r, band).is_err() {
         return Section::Intractable;
     }
-    let a = unit(axis);
+    let a = axis.normalize();
     match *p {
         geom::Surface::Plane { origin, normal, .. } => {
-            torus_plane(c, a, big_r, r, origin, unit(normal), band)
+            torus_plane(c, a, big_r, r, origin, normal.normalize(), band)
         }
         geom::Surface::Cone {
             apex,
@@ -881,7 +886,7 @@ fn torus_pair<T: Decide>(
             half_angle,
             ..
         } => {
-            let d = unit(d);
+            let d = d.normalize();
             // `z` is read along the cone's axis from its own apex: the
             // turn onto the torus axis moves it by the torus centre's
             // station from the pivot times `1 − cos` (at most `sin²`),
@@ -918,7 +923,7 @@ fn torus_pair<T: Decide>(
                     }
                 }
                 AxisPose::Undecided(diag) => {
-                    Section::Tangent(diag.predicate.unwrap_or("section_axes_offset"))
+                    Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
                 }
                 AxisPose::Parallel { .. } | AxisPose::Other => Section::Intractable,
             }
@@ -1041,7 +1046,7 @@ pub(super) fn torus_plane_loops<T: Decide>(
     (p0, n): (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let (a, n) = (unit(a), unit(n));
+    let (a, n) = (a.normalize(), n.normalize());
     let (_, s) = perp_to(n, a);
     match plane_cut(big_r, r, n.dot(p0 - c), s, band) {
         PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
@@ -1074,7 +1079,7 @@ fn cone_pair<T: Decide>(
     let cone = Cone::new(apex, axis, half_angle, u_ref);
     match *p {
         geom::Surface::Plane { origin, normal, .. } => {
-            cone_plane(&cone, origin, unit(normal), reach, band)
+            cone_plane(&cone, origin, normal.normalize(), reach, band)
         }
         geom::Surface::Sphere { center, radius, .. } => cone_sphere(&cone, center, radius, band),
         geom::Surface::Cylinder {
@@ -1084,7 +1089,7 @@ fn cone_pair<T: Decide>(
             ..
         } => match axis_pose(
             (apex, cone.a),
-            (origin, unit(d)),
+            (origin, d.normalize()),
             |_| T::zero(),
             reach.ball(),
             band,
@@ -1097,7 +1102,7 @@ fn cone_pair<T: Decide>(
             // The ruling charts read the pose as it stands, with nothing
             // bridged, so an offset neither reading claims is theirs.
             AxisPose::Undecided(_) | AxisPose::Other => {
-                cone_cylinder(&cone, origin, unit(d), rc, reach, band)
+                cone_cylinder(&cone, origin, d.normalize(), rc, reach, band)
             }
         },
         geom::Surface::Cone {
@@ -1107,17 +1112,21 @@ fn cone_pair<T: Decide>(
             u_ref: u_ref2,
         } => match axis_pose(
             (apex, cone.a),
-            (apex2, unit(d)),
+            (apex2, d.normalize()),
             // The apexes' gap is read off `apex2` itself, which the turn
             // onto the first axis moves along it by its station from the
             // pivot times `1 − cos`, at most `sin²`.
-            |t| (apex2 - t.at).dot(unit(d)).abs() * t.tilt.powi(2),
+            |t| (apex2 - t.at).dot(d.normalize()).abs() * t.tilt.powi(2),
             reach.ball(),
             band,
         ) {
             // The meridians `ρ = |h|τ₁` and `ρ = |h − d|τ₂` meet in one or
-            // two parallels, each essential on both; a common apex is the
-            // cones touching there or coinciding.
+            // two parallels, each essential on both. Apexes decided one
+            // (Zero) are a touch at the apex: the forms differ by
+            // `(cos²α₂ − cos²α₁)·|X − A|²` up to the apexes' gap, so the
+            // carriers meet within the band of the apex, about that one
+            // point (or are one double cone, whose faces' overlap is the
+            // glue door's). Undecided, it stays R-tan.
             AxisPose::Coaxial { slack, .. } => match signs_across(
                 [(
                     "section_cone_coaxial_apexes",
@@ -1128,7 +1137,10 @@ fn cone_pair<T: Decide>(
                 band,
             ) {
                 Ok(_) => essential_pair(true, true),
-                Err(tan) => tan.into(),
+                Err(tan) => match touch(tan, &["section_cone_coaxial_apexes"], || apex) {
+                    Section::Touch(t) => Section::Touch(Touch { apex: true, ..t }),
+                    other => other,
+                },
             },
             AxisPose::Parallel { .. } => {
                 let other = Cone::new(apex2, d, half_angle2, u_ref2);
@@ -1157,7 +1169,7 @@ struct Cone<T: Real> {
 
 impl<T: geom_core::spline::SpanLocate> Cone<T> {
     fn new(apex: Point3<T>, axis: Vec3<T>, alpha: T, u_ref: Vec3<T>) -> Self {
-        let frame = geom::square_frame(axis, u_ref);
+        let frame = geom::Frame::new(apex, axis, u_ref).square();
         Self {
             apex,
             a: frame.axis,
@@ -1267,7 +1279,7 @@ fn cone_cylinder<T: Decide>(
     }
     // A chart of the cylinder for the ruling reader, picked off the axes.
     // No output keeps it, but the reader's verdict may read it
-    // (`work/issues/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
+    // (`work/orbit/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
     let (f1, f2) = d.orthonormal_basis();
     let zero = Vec3::new(T::zero(), T::zero(), T::zero());
     let wall = ruling::Chart {
@@ -1321,6 +1333,41 @@ fn cone_cone<T: Decide>(
 ) -> Section<T> {
     const APEX: &str = "section_cone_pair_apex";
     const APERTURE: &str = "section_cone_pair_aperture";
+    const COMMON: &str = super::fan::CONES_SHARE_APEX;
+    const RULINGS: &str = "section_cone_pair_common_rulings";
+    // One apex, axes apart (parallel ones through one apex are the
+    // coaxial arm's): both forms are homogeneous about the apex, so the
+    // section is the lines through it both double cones hold, each a
+    // ruling `d` with `d·a₁ = ±cos α₁` and `d·a₂ = ±cos α₂`
+    // ([`geom_brep::cone_cone_apex_meeting`] for each pairing of
+    // nappes). None: the cones touch at the apex alone. Otherwise each
+    // line is an unbounded component, as the plane's line pair through an
+    // apex is ([`cone_plane`]). A pairing that touches along a ruling is
+    // R-tan.
+    if !parallel && super::fan::cones_share_apex(one.apex, two.apex, band) == Ok(true) {
+        let lever = reach.lever_from(one.apex).max(reach.lever_from(two.apex));
+        let mut lines = 0;
+        for a2 in [two.a, -two.a] {
+            let m = geom_brep::cone_cone_apex_meeting((one.a, one.sc.1), (a2, two.sc.1));
+            match sign(RULINGS, Margin::levered(m.disc, lever), band) {
+                Some(Sign::Positive) => lines += 2,
+                Some(Sign::Negative) => {}
+                Some(Sign::Zero) | None => return Section::Tangent(RULINGS),
+            }
+        }
+        if lines == 0 {
+            return Section::Touch(Touch {
+                name: COMMON,
+                at: one.apex,
+                apex: true,
+            });
+        }
+        let c = Component::closed_form(true, [false, false], None);
+        return Section::Components {
+            parts: vec![c; lines],
+            single: false,
+        };
+    }
     if let Err(tan) = signs(
         [
             (APEX, two.elevation(one.apex)),
@@ -1371,7 +1418,7 @@ fn cone_plane_pair<T: Decide>(
     let delta = one.apex - two.apex;
     let w = one.a * one.a.dot(delta) - delta * one.sc.1.powi(2);
     let mid = two.apex + delta * T::from_f64(0.5);
-    match cone_plane(one, mid, unit(w), reach, band) {
+    match cone_plane(one, mid, w.normalize(), reach, band) {
         Section::Components { parts, single } => Section::Components {
             parts: parts
                 .into_iter()
@@ -1638,7 +1685,7 @@ fn sphere_plane<T: Decide>(
             // A witness picked off the axes. No output keeps it, but W3
             // and the no-event decision read it, so which point decides
             // can follow the computing frame
-            // (`work/issues/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
+            // (`work/orbit/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
             let (b1, _) = n.orthonormal_basis();
             lone(cs - n * d + b1 * rad)
         }
@@ -1719,11 +1766,8 @@ pub(super) fn of_pair_section<T: Decide>(
                 single: false,
             };
         }
-        // Every row the value decides goes through `k_stats`, which names
-        // the predicate it escalates; one with no name is the value's
-        // door itself.
         Err(SectionError::Escalated(diag)) => {
-            return Section::Tangent(diag.predicate.unwrap_or("pair_section"));
+            return Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE));
         }
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
@@ -1787,12 +1831,19 @@ pub(super) fn of_pair_section<T: Decide>(
     // A tangency the section still crosses is read through its
     // components: a node whose arcs all have carriers, and a tangent
     // ruling the region cuts, an unbounded component W1 clears however it
-    // touches. Any other tangency is R-tan, or a touch at one point.
+    // touches. Any other tangency is R-tan, or a touch at one point: the
+    // pinch among them, whose node the value does not list while its
+    // lobes mint no carrier.
+    let pinched = matches!(
+        section.pose(),
+        geom_brep::PairPose::CylinderCylinder(pose) if pose.pinched()
+    );
     let crossed = !section.nodes().is_empty()
         && components
             .iter()
             .all(|c| !matches!(c.carrier, ClassCarrier::Unminted(_)));
     let unbounded = section.nodes().is_empty()
+        && !pinched
         && !components.is_empty()
         && components.iter().all(|c| ends(c).cut);
     if let (Some(zero), false) = (section.tangency(), crossed || unbounded) {
@@ -1801,6 +1852,7 @@ pub(super) fn of_pair_section<T: Decide>(
                 Some(at) => Section::Touch(Touch {
                     name: zero.decision.name(),
                     at,
+                    apex: false,
                 }),
                 None => Section::Tangent(zero.decision.name()),
             },
@@ -1886,7 +1938,8 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::TubeUnread
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
-            | CarryError::Seat(_),
+            | CarryError::Seat(_)
+            | CarryError::Unwalked(_),
         ) => return Section::Unmarched,
     };
     let components = section.components();
@@ -1929,8 +1982,25 @@ pub(crate) fn certify<T: Decide>(
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
         Section::Unordered(name) => return Err(Refusal::Unordered(name)),
-        Section::Touch(t) if !evented => {
+        // Two cones' touch at their common apex, a vertex both faces hold,
+        // is that vertex pair's, whose contact is the pair's event there:
+        // the vertex lanes read the touch's neighbourhood with their fan
+        // arms, so it clears evented or not. Only an apex touch: any other
+        // touch at a vertex keeps the rules below, which no vertex lane
+        // has been shown to stand in for.
+        Section::Touch(t) => {
             let placed = place(t.at, band);
+            if t.apex
+                && let [
+                    Some(FaceContainment::OnVertex(_)),
+                    Some(FaceContainment::OnVertex(_)),
+                ] = placed
+            {
+                return Ok(vec![Cleared::TouchAtVertex]);
+            }
+            if evented {
+                return Err(Refusal::Tangent(t.name));
+            }
             return [Side::F, Side::G]
                 .into_iter()
                 .zip(placed)
@@ -1938,7 +2008,6 @@ pub(crate) fn certify<T: Decide>(
                 .map(|(side, _)| vec![Cleared::TouchOut(side)])
                 .ok_or(Refusal::Tangent(t.name));
         }
-        Section::Touch(t) => return Err(Refusal::Tangent(t.name)),
         Section::Intractable => return Err(Refusal::Reach),
         Section::NoLane(scalar) => return Err(Refusal::NoLane(scalar)),
         Section::Unmarched => return Err(Refusal::Unmarched),

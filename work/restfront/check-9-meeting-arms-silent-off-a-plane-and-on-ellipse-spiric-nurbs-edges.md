@@ -82,3 +82,19 @@ The review's probe (`review/5567-01Lm5UxC`, `geom-brep`
 the measure taking such a ring at its stated winding.
 
 - 2026-11-02 — moved from RESTCURVE to RESTFRONT by `git mv` when RESTCURVE merged into RESTFRONT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RESTCURVE had fallen far under it).
+
+## 2026-11-03: who reads the silent `Disjoint` (SPLICE `splice/kind-reads`)
+
+Seen from SPLICE's sweep for doors that read a spline by its kind.
+`validate::meet_segment` reads a `Line` or a `Circle` and answers `None`
+for an `Ellipse`, `Spiric` or `Nurbs` edge (`_ => return None`), and
+`locus_gap` likewise; `ring_outer_contact_about`'s arms then `continue`
+past such a pair (arm 3, arm 5) or read it "not on the edge" (arm 2's
+`vertex_on_edge_interior`), and the walk ends `RingOuterVerdict::Disjoint`.
+That verdict is read as a real one beyond check 9: `shell.rs`'s rim-glue
+precondition takes `Disjoint => {}` as passed (its two calls), and the
+split's `section_loops::outlines_disjoint` asks it first (there each loop's
+spiric or spline edge then reads `OutlineEdge::Undecided`, which answers
+not disjoint, so the split is covered). A lofted or swept operand's spline
+edges on a planar face's loops are the shape that reaches the silent arms.
+

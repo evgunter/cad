@@ -299,9 +299,12 @@ fn a_tool_with_near_parallel_edges_standing_apart_builds() {
         );
         describe_as_intersections(&mut b, tol);
         let tool = finished(what, b, tol);
-        let BooleanResult::Body(r) =
-            subtract(&a, &tool, tol).unwrap_or_else(|e| panic!("{what}: {e}"))
-        else {
+        let BooleanResult::Body(r) = subtract(&a, &tool, tol).unwrap_or_else(|e| {
+            panic!(
+                "{what}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        }) else {
             panic!("{what}: empty");
         };
         let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
@@ -355,7 +358,7 @@ fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
         panic!("{refusal:?}, not the line's escalation");
     };
     assert_eq!(
-        refusal.to_string(),
+        refusal.render(geom_brep::recourse::Reading::Build),
         format!(
             "whether two straight edges lie on one line along a length is undecided: margin {:e} \
              lies inside the ambiguity band ({:e}, {:e}). Recourse: move the geometry so the \
@@ -366,9 +369,12 @@ fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
         )
     );
     let g = 0.25;
-    let BooleanResult::Body(r) =
-        subtract(&a, &tool(g), tol).unwrap_or_else(|e| panic!("moved apart: {e}"))
-    else {
+    let BooleanResult::Body(r) = subtract(&a, &tool(g), tol).unwrap_or_else(|e| {
+        panic!(
+            "moved apart: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    }) else {
         panic!("moved apart: empty");
     };
     let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;

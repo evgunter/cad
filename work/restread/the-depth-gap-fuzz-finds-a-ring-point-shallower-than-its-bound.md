@@ -40,3 +40,7 @@ Draw 340 of seed `0xe2bf3f192c072cb8`: a point on a zero-minor ring
 (major 1.1416) read 8.06e-14 deeper than its centre bound 1.2484.
 PR 5956 (cone apex) does not touch `census/`. Reproduce with
 `CAD_FUZZ_SEED=0xe2bf3f192c072cb8 CAD_FUZZ_EFFORT=1 CAD_TOLERANCE_EPS=1e-6`.
+
+## Another seed (2026-11-03)
+
+Seed `0xf23e6cc2b421332e` (PR 6430 CI) is written up in `work/restread/a-sampled-depth-on-a-zero-minor-ring-lies-past-its-core-bound.md`.

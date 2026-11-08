@@ -144,7 +144,10 @@ fn interval_lane_ring_rehoming() {
             assert_eq!((rings(below), rings(above)), (2, 2), "same as f64 lane");
         }
         Err(e) => {
-            eprintln!("interval ring re-homing refused typed: {e}");
+            eprintln!(
+                "interval ring re-homing refused typed: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         }
     }
 }

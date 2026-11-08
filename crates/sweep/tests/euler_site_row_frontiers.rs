@@ -172,8 +172,9 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
         "tier 3 reads the mint's own refusal"
     );
     assert!(cycle.iter().all(|&he| body.pcurve(he).is_none()));
-    let built = refused.to_string();
-    let at_rest = topo::ValidationError::Pcurve { finding: refused }.to_string();
+    let built = refused.render(geom_brep::recourse::Reading::Build);
+    let at_rest = topo::ValidationError::Pcurve { finding: refused }
+        .render(geom_brep::recourse::Reading::AtRest);
     assert!(built.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{built}");
     assert!(
         at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
@@ -217,9 +218,10 @@ fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
 /// through the fitted lane, which `set_edge_curve` does not carry. The
 /// door describes the edge and leaves the rows as found: the two
 /// `MissingCache` findings stand, beside the refusal the wall's
-/// re-derivation meets — the circle is no iso of the chart, so the
-/// minting pass could not state those rows either — and no other row
-/// moves.
+/// re-derivation meets — the circle is no arc rim of the chart, and a
+/// circle the door places at the vertex leaves the wall, so the wall's
+/// incidence read shows it off the chart and the minting pass could not
+/// state those rows either — and no other row moves.
 #[test]
 fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     let mut body = lofted_prism();
@@ -250,7 +252,11 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
             topo::PcurveMintError::MissingCache { half_edge } => missing.push(half_edge),
             topo::PcurveMintError::Certify {
                 half_edge,
-                error: geom_brep::PcurveCertifyError::IsoUnsupported { .. },
+                error:
+                    geom_brep::PcurveCertifyError::CarrierOffChart {
+                        carrier: geom::CurveKind::Circle,
+                        ..
+                    },
                 ..
             } => why.push(half_edge),
             ref other => panic!("only the gaps and why they are gaps, got {other:?}"),
@@ -262,8 +268,35 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     assert_eq!(missing, want);
     assert!(
         matches!(why.as_slice(), [he] if want.contains(he)),
-        "the wall's re-derivation refuses the described circle, no iso of the chart: \
-         {findings:?}"
+        "the wall's re-derivation reads the described circle off the chart: {findings:?}"
+    );
+    // A carrier off its face ends as its incidence read at the door that
+    // reads it: the stored culprit at rest, the kernel's defect at a build.
+    let iso = findings
+        .iter()
+        .find(|f| matches!(f, topo::PcurveMintError::Certify { .. }))
+        .unwrap()
+        .clone();
+    let topo::PcurveMintError::Certify { ref error, .. } = iso else {
+        unreachable!()
+    };
+    let read = geom_brep::IncidenceRead::of(error).expect("an incidence refusal");
+    assert!(read.is_definite(), "the circle is decided off the wall");
+    let at_rest = topo::ValidationError::Pcurve {
+        finding: iso.clone(),
+    }
+    .render(geom_brep::recourse::Reading::AtRest);
+    assert!(
+        at_rest.ends_with(&read.ending(geom_brep::recourse::Reading::AtRest)),
+        "{at_rest}"
+    );
+    let wall = body.face_of_half_edge(why[0]).unwrap();
+    let built = topo::mint_pcurves_of(&mut body, &[wall], tol())
+        .unwrap_err()
+        .render(geom_brep::recourse::Reading::Build);
+    assert!(
+        built.ends_with(&read.ending(geom_brep::recourse::Reading::Build)),
+        "{built}"
     );
 }
 
@@ -275,8 +308,8 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
 /// No image moves, nor any element but the joint the strut re-links,
 /// and the wall misses the null strut's two rows and the
 /// new strut's two.
-/// The new strut leaves the wall, so its wall image is `General`, and
-/// certification refuses that typed at the map residual.
+/// The new strut leaves the wall, so the wall's incidence read shows it
+/// off the chart, and its image refuses `CarrierOffChart`.
 #[test]
 fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     let mut body = lofted_prism();
@@ -318,43 +351,24 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
             other => panic!("only missing rows are reported, got {other:?}"),
         })
         .collect();
-    // The strut leaves the wall, so no iso line holds it a quarter span
-    // in, and its derived image is `General`, which certification
-    // refuses typed at the map residual: nothing here can store it.
-    let wall = {
-        let face = body.face_of_half_edge(he).unwrap();
-        body.get_surface(body.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
-    let curve = body
-        .get_curve_geom(body.get_edge(strut.edge).unwrap().curve)
-        .and_then(topo::CurveGeom::certified)
-        .unwrap();
-    let (t0, t1) = curve.params();
+    // The strut leaves the wall, so no iso line holds it, and the general
+    // lane's incidence read shows it off the chart: nothing here can
+    // store it.
     for h in [strut.he_plus, strut.he_minus] {
-        let image = match topo::pcurve_of(&body, h, band()) {
-            Ok(Pcurve::General(image)) => image,
-            other => panic!("{h:?}: the strut's image is General: {other:?}"),
-        };
-        let got = geom_brep::PcurveCache::certify_general(
-            image,
-            t0,
-            t1,
-            curve.carrier(),
-            &wall,
-            band(),
-            <f64 as topo::AtRestPolicy>::fitted_lane(),
-        );
+        let got = topo::pcurve_of(&body, h, band());
         assert!(
             matches!(
                 got,
-                Err(PcurveCertifyError::ResidualExceeded {
-                    check: geom_brep::PcurveCheck::MapResidual,
+                Err(topo::PcurveMintError::Certify {
+                    error: PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Nurbs,
+                        carrier: geom::CurveKind::Line,
+                        ..
+                    },
                     ..
                 })
             ),
-            "{h:?}: the strut's General image refuses at certification: {got:?}"
+            "{h:?}: the strut is read off the wall: {got:?}"
         );
     }
     missing.sort();

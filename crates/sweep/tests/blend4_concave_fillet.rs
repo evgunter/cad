@@ -442,7 +442,7 @@ fn the_corner_recourse_is_followable_on_both_sides() {
         Tol::witness(),
     )
     .expect_err("a mixed corner refuses");
-    let text = refused.error.to_string();
+    let text = refused.error.render(geom_brep::recourse::Reading::Build);
     assert!(
         matches!(
             refused.error,

@@ -60,7 +60,7 @@ side by side on the idle box:
 ## Where the time goes (from SECT's profiles, not re-taken here)
 
 SECT sampled the seam-region ∪ and the torus rows' ops with gdb
-(`work/sect/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`,
+(`work/secttorus/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`,
 "Where the time goes"; `work/sect/an-operation-retakes-each-carried-chords-rung-3-certificate-five-times.md`):
 the cost is not the march (3–16 %) but the certificates of the fitted
 chord edges, read at the join's edge door (`euler::certify_edge_spec` →

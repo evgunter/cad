@@ -220,7 +220,6 @@ use crate::splitting::containment::{
 };
 use crate::validate::decide;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
-use geom_brep::recourse::Reading;
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use super::region::RegionRefusal;
@@ -461,11 +460,39 @@ impl PointInSolidError {
     /// point stands ([`Self::in_band`]), a limit the door met near it
     /// ([`Self::confined`]), or a side that neither the volume nor an
     /// aimed ray could read for the point's rays that met nothing
-    /// ([`Self::sideless`]) — another point's rays may meet the boundary. Every other refusal is about a body — a
-    /// face kind with no arm, a corrupt face — and answers the same at
-    /// any point.
+    /// ([`Self::sideless`]) — another point's rays may meet the boundary.
+    /// Every other refusal is about a body — a face kind with no arm, a
+    /// corrupt face — and answers the same at any point.
     pub(crate) fn inconclusive(&self) -> bool {
         self.in_band() || self.confined() || self.sideless()
+    }
+
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]), derived from the partition above,
+    /// the type's one classification: a reading in band is ranked by its
+    /// margin where it carries one; a limit the door met near the point,
+    /// or a side no ray could read, is a limit; and every refusal that is
+    /// not [`Self::inconclusive`] answers the same at any point (a face
+    /// kind with no arm, a corrupt or inside-out body, a solid that is
+    /// not there), so a ladder over points reading it again gains
+    /// nothing: it aborts ([`geom_brep::ladder::Aborts`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`], for a refusal of the whole query.
+    pub fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
+        if self.in_band() {
+            match self {
+                Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+                Self::Loop(e) => e.refusal(),
+                _ => Ok(Refusal::InBand),
+            }
+        } else if self.confined() || self.sideless() {
+            Ok(Refusal::Limit)
+        } else {
+            Err(Aborts)
+        }
     }
 
     /// A ray of the point's that met nothing, whose side neither the
@@ -571,8 +598,12 @@ impl From<PointInLoopError> for PointInSolidError {
     }
 }
 
-impl core::fmt::Display for PointInSolidError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl PointInSolidError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             // The escalation names no decision, so it ends as the
             // containment door ends the same escalation
@@ -580,9 +611,10 @@ impl core::fmt::Display for PointInSolidError {
             Self::Escalated { diag, .. } => write!(
                 f,
                 "cannot tell what is inside the solid: {}",
-                diag.undecided(
+                geom_brep::recourse::undecided_at(
+                    diag,
                     super::placement_subject(None),
-                    super::placement_ending(None, Escalation::Margin, diag, Reading::Build),
+                    at.map(|at| super::placement_ending(None, Escalation::Margin, diag, at)),
                 )
             ),
             Self::RayExhausted => write!(
@@ -590,7 +622,11 @@ impl core::fmt::Display for PointInSolidError {
                 "cannot tell what is inside the solid: {}",
                 ray_walk::NoRaySettled
             ),
-            Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
+            Self::Loop(e) => write!(
+                f,
+                "cannot tell what is inside the solid: {}",
+                geom_brep::recourse::read_at(e, at)
+            ),
             Self::ZeroVolumeBody => write!(
                 f,
                 "cannot tell what is inside the solid: it encloses no measurable volume"
@@ -683,44 +719,9 @@ impl core::fmt::Display for PointInSolidError {
     }
 }
 
-impl std::error::Error for PointInSolidError {}
+geom_brep::ended_by_write!(PointInSolidError);
 
-/// The face's plane, F5-gated: origin and **outward** normal (the
-/// chart normal with the face's sense folded in through
-/// [`plane_outward_normal`] — the callers of this door are handed a
-/// material direction, not a chart datum).
-///
-/// Every consumer reads the normal's sign-blind content: each feeds it,
-/// directly or through a probe, to [`point_in_face`], whose answer is
-/// ray-crossing parity, and the join's tie (`sectors::runs_in`) also
-/// asks only whether a point's height over the plane is zero. Threading
-/// the sense here keeps the door's CONTRACT honest for a consumer that
-/// reads the sign.
-///
-/// # Errors
-///
-/// [`PointInSolidError::KindUnsupported`] for a face off a plane.
-///
-/// # Panics
-///
-/// Where `face`, a face the kernel enumerated, does not resolve.
-pub(crate) fn face_plane<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<(Point3<T>, Vec3<T>), PointInSolidError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    match body.face_surface_linked(face, f) {
-        Surface::Plane { origin, normal, .. } => {
-            Ok((*origin, plane_outward_normal(f, *normal).vec()))
-        }
-        // A non-plane is a CAPABILITY answer; only a face key that does
-        // not resolve is corruption.
-        s => Err(PointInSolidError::KindUnsupported {
-            face,
-            kind: s.kind(),
-        }),
-    }
-}
+impl std::error::Error for PointInSolidError {}
 
 /// A face's resolved query geometry: the planar datum, or a curved
 /// face's carrier with what reads a point on it — a closed group's
@@ -941,11 +942,11 @@ fn face_geo_arms<T: Decide>(
     face: FaceKey,
     charts: &ChartGroups,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    match body.face_surface_linked(face, f) {
+    let f = body.proven_face(face);
+    match f.surface() {
         Surface::Plane { origin, normal, .. } => Ok(FaceGeo::Plane(
             *origin,
-            plane_outward_normal(f, *normal).vec(),
+            plane_outward_normal(f.record(), *normal).vec(),
         )),
         &Surface::Cylinder {
             origin,
@@ -958,7 +959,7 @@ fn face_geo_arms<T: Decide>(
                 axis,
                 radius,
                 region,
-                sense: f.sense,
+                sense: f.sense(),
             }),
             None => {
                 let anchor = boundary_point(body, face)?;
@@ -982,7 +983,7 @@ fn face_geo_arms<T: Decide>(
                 axis,
                 half_angle,
                 region,
-                sense: f.sense,
+                sense: f.sense(),
             }),
             None => Ok(FaceGeo::PartialCone {
                 apex,
@@ -996,17 +997,14 @@ fn face_geo_arms<T: Decide>(
                 center,
                 radius,
                 representative,
-                sense: body
-                    .get_face(representative)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .sense,
+                sense: proven(&body.faces, representative, EntityId::Face).sense,
             }),
             None => match sphere_face_region(body, face, center, radius)? {
                 Some(region) => Ok(FaceGeo::SpherePatch {
                     center,
                     radius,
                     region,
-                    sense: f.sense,
+                    sense: f.sense(),
                 }),
                 None => Err(PointInSolidError::PartialSphereFace { face }),
             },
@@ -1025,10 +1023,7 @@ fn face_geo_arms<T: Decide>(
                     major_radius,
                     minor_radius,
                     representative,
-                    sense: body
-                        .get_face(representative)
-                        .ok_or(PointInSolidError::CorruptFace { face })?
-                        .sense,
+                    sense: proven(&body.faces, representative, EntityId::Face).sense,
                 });
             }
             match torus_face_region(body, face)? {
@@ -1038,17 +1033,19 @@ fn face_geo_arms<T: Decide>(
                     major_radius,
                     minor_radius,
                     region,
-                    sense: f.sense,
+                    sense: f.sense(),
                 }),
                 None => Err(PointInSolidError::PartialTorusFace { face }),
             }
         }
         // Refused in `face_geo` through `uncrossable`: only this
         // dispatch read alone reaches here, and it refuses the same way.
-        s @ (Surface::Nurbs(_) | Surface::Approx(_)) => Err(PointInSolidError::KindUnsupported {
-            face,
-            kind: s.kind(),
-        }),
+        s @ (Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_)) => {
+            Err(PointInSolidError::KindUnsupported {
+                face,
+                kind: s.kind(),
+            })
+        }
     }
 }
 
@@ -1111,7 +1108,7 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
         | SurfaceKind::Cone
         | SurfaceKind::Sphere
         | SurfaceKind::Torus => true,
-        SurfaceKind::Nurbs | SurfaceKind::Approx => false,
+        SurfaceKind::Spindle | SurfaceKind::Nurbs | SurfaceKind::Approx => false,
     }
 }
 
@@ -1123,7 +1120,7 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
 ///
 /// Where `face`, a face of the selection, does not resolve.
 pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PointInSolidError> {
-    let kind = body.proven_face_surface(face).kind();
+    let kind = body.proven_face(face).surface().kind();
     (!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind })
 }
 
@@ -1141,18 +1138,19 @@ pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Po
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a missing face, and
 /// [`loop_extent_from`]'s refusal of a loop that does not walk.
+///
+/// # Panics
+///
+/// Where `face`, a face of the selection, does not resolve.
 fn partial_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     anchor: Point3<T>,
 ) -> Result<Lever<T>, PointInSolidError> {
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let f = body.proven_face(face);
     let mut reach = geom_brep::ExtentBall::point(anchor).lever();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _, _) in f.loops() {
         reach = reach.max(loop_extent_from(body, lk, anchor)?);
     }
     Ok(reach)
@@ -1206,8 +1204,7 @@ fn torus_closed_group<T: Decide>(
 /// `(ρ² − r²)/2r` in metres: the form the certification layer
 /// classifies.
 fn wall_elevation<T: Decide>(origin: Point3<T>, axis: Vec3<T>, radius: T, q: Point3<T>) -> T {
-    let w = q - origin;
-    let radial = w - axis * w.dot(axis);
+    let radial = geom::Line { origin, dir: axis }.offset(q);
     (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius)
 }
 
@@ -1223,9 +1220,11 @@ pub(super) fn torus_elevation<T: Decide>(
     minor_radius: T,
     p: Point3<T>,
 ) -> T {
-    let w = p - center;
-    let h = w.dot(axis);
-    let rho = (w - axis * h).norm();
+    let (h, rho) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(p);
     ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
 }
 
@@ -1325,8 +1324,9 @@ pub(crate) fn trim_window_short<T: Decide>(
 ///
 /// # Panics
 ///
-/// Where `face`, a boundary half-edge's edge or that edge's curve does
-/// not resolve (D2 row 4): a torn curve is not null scaffolding. The
+/// Where `face`, its outer loop (a link of the face), a boundary
+/// half-edge's edge or that edge's curve does not resolve (D2 row 4): a
+/// torn curve is not null scaffolding. The
 /// links hold at rest and, on the reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn sphere_chart_trim<T: Decide>(
@@ -1338,16 +1338,12 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     band: Band,
 ) -> Result<Option<SphereChartTrim<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let f = proven(&body.faces, face, EntityId::Face);
-    if !f.rings.is_empty() {
+    let f = body.proven_face(face);
+    if !f.record().rings.is_empty() {
         return Ok(None);
     }
-    let surf = body.face_surface_linked(face, f).clone();
-    let LoopBoundary::Cycle { first } = body
-        .get_loop(f.outer)
-        .ok_or(PointInSolidError::CorruptFace { face })?
-        .boundary
-    else {
+    let surf = f.surface().clone();
+    let LoopBoundary::Cycle { first } = f.outer().1.boundary else {
         return Ok(None);
     };
     // A definite class miss is `None` (the honest remainder); an
@@ -1363,10 +1359,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut levels: Vec<(T, T)> = Vec::new();
     // A point's own exact meridian-half-plane pair.
-    let pair = |p: Point3<T>| -> (T, T) {
-        let w = p - center;
-        let h = w.dot(axis);
-        (h, (w - axis * h).norm())
+    let axis_line = geom::Line {
+        origin: center,
+        dir: axis,
     };
     for he in body
         .loop_cycle(first)
@@ -1380,7 +1375,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             .get_vertex(he_data.start)
             .and_then(|v| body.get_point(v.point))
             .ok_or(PointInSolidError::CorruptFace { face })?;
-        levels.push(pair(v));
+        levels.push(axis_line.height_and_distance(v));
         let edge = linked(
             &body.edges,
             he_data.edge,
@@ -1397,7 +1392,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     u_ref: u_c,
                 },
@@ -1494,7 +1489,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // image for every boundary edge and a branch it can pin across each
     // junction, and a face that denies it either is out of the class.
     // Only the in-band arm is an escalation.
-    let raw = match crate::chord_join::face_azimuth_window(body, &surf, face, band) {
+    let raw = match crate::chart_window::face_azimuth_window(body, &surf, face, band) {
         Ok(Some(w)) => w,
         Ok(None) => return Ok(None),
         Err(crate::chord_join::SplitJoinError::Escalated { diag, .. })
@@ -1759,15 +1754,8 @@ pub(crate) fn point_in_face<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, PointInSolidError> {
     let f = body
-        .get_face(face)
+        .passed_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    // An empty outer loop bounds no region (mid-op scaffolding never
-    // reaches this query; treat as no-hit).
-    let boundary =
-        |lk, field| linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field).boundary;
-    if matches!(boundary(f.outer, "outer"), LoopBoundary::Empty { .. }) {
-        return Ok(Some(false));
-    }
     let region = |lk| -> Result<LoopContainment, PointInSolidError> {
         point_in_loop_projected(body, lk, normal, p, band).map_err(|e| match e {
             PointInLoopError::Uncrossable(cause) => {
@@ -1776,19 +1764,23 @@ pub(crate) fn point_in_face<T: Decide>(
             e => PointInSolidError::Loop(e),
         })
     };
-    match region(f.outer)? {
-        LoopContainment::Out => return Ok(Some(false)),
-        LoopContainment::OnBoundary => return Ok(None),
-        LoopContainment::In => {}
-    }
-    for &ring in &f.rings {
-        if matches!(boundary(ring, "rings"), LoopBoundary::Empty { .. }) {
-            continue; // a lone ring vertex excludes no area
+    for (lk, l, role) in f.loops() {
+        let outer = role.is_outer();
+        if let LoopBoundary::Empty { .. } = l.boundary {
+            // An empty outer loop bounds no region (mid-op scaffolding
+            // never reaches this query; treat as no-hit); a lone ring
+            // vertex excludes no area.
+            if outer {
+                return Ok(Some(false));
+            }
+            continue;
         }
-        match region(ring)? {
-            LoopContainment::In => return Ok(Some(false)),
-            LoopContainment::OnBoundary => return Ok(None),
-            LoopContainment::Out => {}
+        match (region(lk)?, outer) {
+            (LoopContainment::OnBoundary, _) => return Ok(None),
+            (LoopContainment::Out, true) | (LoopContainment::In, false) => {
+                return Ok(Some(false));
+            }
+            (LoopContainment::In, true) | (LoopContainment::Out, false) => {}
         }
     }
     Ok(Some(true))
@@ -1866,6 +1858,14 @@ pub fn point_in_solid_of<T: Decide + crate::props::AtRestPolicy>(
 /// SELECTION's faces by key and act for a representative among them: a
 /// chart is body-wide, and a wearer outside the selection bounds
 /// material the query is not about.
+///
+/// # Panics
+///
+/// A selection is of the body it was made from: [`point_in_solid_faces`]
+/// reads its faces as keys that body enumerated, so a selection made from
+/// another body panics there at a face key that does not resolve in the
+/// body probed — a misuse of the API's keys, not a refusal of either
+/// body.
 #[derive(Clone, Debug)]
 pub struct SolidFaces {
     faces: Vec<FaceKey>,
@@ -1991,6 +1991,11 @@ impl SolidFaces {
 ///
 /// The core's ([`point_in_solid`]'s), plus
 /// [`PointInSolidError::ZeroVolumeBody`] for an empty selection.
+///
+/// # Panics
+///
+/// Where `sel` was made from another body and one of its faces does not
+/// resolve in `body` ([`SolidFaces`]).
 pub fn point_in_solid_faces<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
@@ -2059,7 +2064,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                 // Orientation-free: a residual compared against Zero
                 // answers the same whichever way the normal points,
                 // and `point_in_face` below is ray parity (ditto).
-                let elev = (q - origin).dot(normal);
+                let elev = geom::plane_offset(origin, normal, q);
                 match decide("bool_point_in_solid_plane", Margin::of(elev), band) {
                     // In-plane: ON the boundary iff within the face
                     // region (a loop-boundary graze is also ON).
@@ -2356,10 +2361,8 @@ pub(crate) fn selection_reach<T: Decide>(
 ) -> Result<Lever<T>, PointInSolidError> {
     let mut reach = geom_brep::ExtentBall::point(q).lever();
     for &face in faces {
-        let f = body
-            .get_face(face)
-            .ok_or(PointInSolidError::CorruptFace { face })?;
-        for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let f = body.proven_face(face);
+        for (l, _, _) in f.loops() {
             reach = reach.max(loop_extent_from(body, l, q)?);
         }
     }
@@ -2470,7 +2473,7 @@ pub(super) fn line_wall_roots<T: Decide>(
     about: About,
 ) -> Result<WallRoots<T>, WallRootFault> {
     let w0 = q - origin;
-    let w0p = w0 - axis * w0.dot(axis);
+    let w0p = geom::Line { origin, dir: axis }.offset(q);
     let dp = d - axis * d.dot(axis);
     let a2 = dp.norm_squared();
     let two_r = T::from_f64(2.0) * radius;
@@ -2672,7 +2675,7 @@ pub(super) fn line_cone_quadratic<T: Decide>(
     let w0 = q - apex;
     let shift = match about {
         About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d)) / d.norm_squared(),
+        About::Nearest => geom::Line { origin: q, dir: d }.param(apex),
     };
     let w = w0 + d * shift;
     let cos2 = half_angle.cos().powi(2);
@@ -2916,7 +2919,7 @@ fn ray_passes_beside<T: Decide>(
     let (verts, covers) = crate::splitting::containment::loop_hull(body, f.outer)
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
     let m = normal.cross(d);
-    let m = m / m.norm();
+    let m = m.normalize();
     let base = (q - Point3::origin()).dot(m);
     let (mut above, mut below) = (None::<T>, None::<T>);
     // Each part's least height above the plane, and least depth below it:
@@ -2925,7 +2928,10 @@ fn ray_passes_beside<T: Decide>(
         let h = (v - q).dot(m);
         (h, T::zero() - h)
     };
-    let edge = |c: &geom::cover::Cover<T>| (T::zero() - c.support(-m) - base, base - c.support(m));
+    let edge = |c: &geom::cover::Cover<T>| {
+        let (lo, hi) = c.range_along(m);
+        (lo - base, base - hi)
+    };
     for (a, b) in verts.into_iter().map(vertex).chain(covers.iter().map(edge)) {
         above = Some(above.map_or(a, |x| x.min(a)));
         below = Some(below.map_or(b, |x| x.min(b)));
@@ -3320,7 +3326,8 @@ fn edge_meets<T: Decide>(
     rows: RayRows,
 ) -> Result<EdgeMeets<T>, RayFault<PointInSolidError>> {
     let crossed = |f: FaceKey| planes.iter().any(|c| c.face == f);
-    let far = q + d * (reach * T::from_f64(2.0));
+    let top = reach * T::from_f64(2.0);
+    let far = q + d * top;
     let passes = crate::census::line_passes(body, (q, far), |_, a, b| crossed(a) && crossed(b));
     let mut meets = EdgeMeets {
         met: Vec::new(),
@@ -3336,7 +3343,7 @@ fn edge_meets<T: Decide>(
                 body,
                 v,
                 [pass.faces.0, pass.faces.1],
-                (q, far),
+                (q, top),
                 d,
                 band,
                 rows,
@@ -3405,7 +3412,7 @@ impl<T: Decide> EdgeMeets<T> {
         body: &Body<T>,
         v: crate::entity::VertexKey,
         faces: [FaceKey; 2],
-        (q, far): (Point3<T>, Point3<T>),
+        (q, top): (Point3<T>, T),
         d: Vec3<T>,
         band: Band,
         rows: RayRows,
@@ -3421,8 +3428,9 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let distance = crate::sector_shape::point_segment_distance(q, far, at);
-        let along = (at - q).dot(d);
+        let ray = geom::Line { origin: q, dir: d };
+        let along = ray.param(at);
+        let distance = (at - ray.foot_within(at, (T::zero(), top))).norm();
         match geom_core::k_stats::decide_magnitude(
             rows.vertex,
             Margin::of(distance.max(T::zero())),
@@ -3514,13 +3522,11 @@ fn wall_crosses_by_turn<T: Decide>(
     ray: TurnRay,
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
     let band = ray.band;
-    let axis = axis / axis.norm();
+    let axis = axis.normalize();
     let radius = radius.abs();
     let split = |x: Point3<T>| {
-        let w = x - origin;
-        let h = w.dot(axis);
-        let radial = w - axis * h;
-        (h, radial / radial.norm())
+        let (h, radial) = geom::Line { origin, dir: axis }.param_and_offset(x);
+        (h, radial.normalize())
     };
     let (h_p, e1) = split(p);
     let e2 = axis.cross(e1);
@@ -3550,7 +3556,7 @@ fn wall_crosses_by_turn<T: Decide>(
     // can be made red by no pose, and factor 0 only by a ruling drifting
     // by far more than the band, which a valid body bounds by a plane
     // through that ruling: not built.
-    for e in body.proven_face_edges(face) {
+    for e in body.proven_face(face).edges() {
         if e.across == face {
             continue;
         }
@@ -3562,22 +3568,26 @@ fn wall_crosses_by_turn<T: Decide>(
             return Ok(None);
         };
         let off = match *curve.carrier() {
-            geom::Curve3::Line(geom::Line { dir, .. }) => {
+            geom::Curve3::Line(geom::Line { origin: o, dir }) => {
                 let (t0, t1) = curve.params();
-                (dir / dir.norm()).cross(axis).norm() * ((t1 - t0) * dir.norm()).abs()
+                let start = geom::Line {
+                    origin: o + dir * t0,
+                    dir,
+                };
+                geom_brep::ruling_miss(&start, (T::zero(), t1 - t0), geom_brep::Ruling::Axis(axis))
+                    .value()
             }
             geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: normal,
                         ..
                     },
                 radius: r,
             }) => {
-                let w = center - origin;
-                r.abs() * (normal / normal.norm()).cross(axis).norm()
-                    + (w - axis * w.dot(axis)).norm()
+                r.abs() * normal.normalize().cross(axis).norm()
+                    + geom::Line { origin, dir: axis }.distance(center)
             }
             _ => return Ok(None),
         };
@@ -3647,7 +3657,7 @@ fn loop_turn<T: Decide>(
         normal.dot(u.cross(w)).atan2(u.dot(w))
     };
     let mut turn = T::zero();
-    for e in body.proven_face_edges(face) {
+    for e in body.proven_face(face).edges() {
         // A seam inside the face is walked once each way, and its two
         // turns cancel: it is left out, not summed, since in floats two
         // passes whose products vanish both read `atan2(+0, x < 0) = π`.
@@ -3747,11 +3757,14 @@ pub(crate) fn edge_clearance<T: Decide>(
         .and_then(|ed| body.get_curve_geom(ed.curve))
         .and_then(crate::null::CurveGeom::certified)?;
     match *curve.carrier() {
-        geom::Curve3::Line(_) => Some(crate::sector_shape::point_segment_distance(
-            at(e.ends[0])?,
-            at(e.ends[1])?,
-            m,
-        )),
+        geom::Curve3::Line(_) => {
+            let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
+            let chord = geom::Line {
+                origin: a,
+                dir: b - a,
+            };
+            Some((m - chord.foot_within(m, (T::zero(), T::one()))).norm())
+        }
         geom::Curve3::Circle(geom::Circle { radius, .. }) => {
             let (t0, t1) = curve.params();
             let n = T::from_f64(f64::from(CLEARANCE_SAMPLES));
@@ -3777,13 +3790,14 @@ pub(crate) fn edge_clearance<T: Decide>(
 /// # Panics
 ///
 /// Where `face`, a face the ray read, or its boundary walk does not
-/// resolve ([`Body::proven_face_edges`]).
+/// resolve ([`crate::live::FaceView::edges`]).
 fn every_bound_read<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    body.proven_face_edges(face)
+    body.proven_face(face)
+        .edges()
         .iter()
         .all(|e| e.across == face || read.contains(&e.edge))
 }
@@ -3799,7 +3813,8 @@ fn every_edge_read<T: geom_core::Real>(
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    body.proven_face_edges(face)
+    body.proven_face(face)
+        .edges()
         .iter()
         .all(|e| read.contains(&e.edge))
 }
@@ -4128,7 +4143,7 @@ fn chart_normal<T: Decide>(
     p: Point3<T>,
 ) -> Result<Vec3<T>, RayFault<PointInSolidError>> {
     Ok(geom_brep::implicit_gradient(
-        body.proven_face_surface(face),
+        body.proven_face(face).surface(),
         p,
     ))
 }
@@ -4154,7 +4169,7 @@ fn reach_margin<T: Decide>(
     m: &Met<T>,
     root: T,
 ) -> Result<T, RayFault<PointInSolidError>> {
-    let surface = body.proven_face_surface(face);
+    let surface = body.proven_face(face).surface();
     let (at, passage) = (q + d * root, q + d * m.at);
     let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
     let n = chart_normal(body, face, at)?;
@@ -4340,7 +4355,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             // outside the face, so a miss is asked, not assumed: q
             // definitely off the plane, or the face definitely to one
             // side of the ray.
-            let clear = clear_of_carrier((q - origin).dot(normal), face, band, rows);
+            let clear = clear_of_carrier(geom::plane_offset(origin, normal, q), face, band, rows);
             if matches!(clear, Ok(true)) || ray_passes_beside(body, face, q, d, normal, band, rows)?
             {
                 continue;
@@ -4985,7 +5000,9 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
             }
             return Err(match kept.ranked() {
                 geom_brep::ladder::Ranked::Blocked(e) => RayFault::Blocked(e),
-                geom_brep::ladder::Ranked::InBand(e) => RayFault::InBand(e),
+                geom_brep::ladder::Ranked::InBand(e) | geom_brep::ladder::Ranked::Unsettled(e) => {
+                    RayFault::InBand(e)
+                }
                 geom_brep::ladder::Ranked::Neither => RayFault::Unread,
             });
         }
@@ -5137,6 +5154,110 @@ const AT_INFINITY: crate::props::RoleNames =
 /// The side-at-infinity decision's name on the interval re-derivation.
 const AT_INFINITY_ENCLOSURE: crate::props::RoleNames =
     crate::props::RoleNames::one("bool_point_in_solid_infinity_enclosure");
+
+/// **The census's material probe ranks this door's refusals by their
+/// standing** ([`PointInSolidError::refusal`], read through
+/// [`crate::census::probe_vertices`], which states each refusal with the
+/// census's own reason): a refusal of the whole query stops the probe
+/// ahead of a later vertex inside; a limit outranks an in-band refusal
+/// read before it; a vertex inside still answers past an in-band one;
+/// and a vertex the census answered in band
+/// ([`crate::census::answered_in_band`]) is passed, its refusal unread.
+/// Fed the readings directly, since no body a constructor builds refuses
+/// two ways in one probe.
+#[cfg(test)]
+mod census_probe_ranking {
+    use super::{PointInSolidError, SolidContainment};
+    use crate::census::{Probe, Undecided, answered_in_band, probe_vertices};
+    use crate::entity::{EntityId, SolidKey, VertexKey};
+    use crate::validate::Undecidable;
+
+    fn keys() -> (VertexKey, VertexKey) {
+        let mut keys = slotmap::SlotMap::<VertexKey, ()>::with_key();
+        (keys.insert(()), keys.insert(()))
+    }
+
+    /// The probe over `readings`, one vertex each, the first two `keys`,
+    /// with the census's exemption over `answered`.
+    fn probe(
+        readings: Vec<Result<SolidContainment, PointInSolidError>>,
+        answered: &[((EntityId, EntityId), Undecidable)],
+    ) -> Probe {
+        let (a, b) = keys();
+        let vertices: Vec<_> = [a, b].into_iter().zip(0..readings.len()).collect();
+        let solid_of = |id| match id {
+            EntityId::Solid(s) => Some(s),
+            _ => None,
+        };
+        probe_vertices(
+            &vertices,
+            |i| readings[i].clone(),
+            |v| answered_in_band(answered, solid_of, SolidKey::default(), v),
+        )
+    }
+
+    fn what(e: &PointInSolidError) -> &'static str {
+        Undecided::of_point_in_solid(e).what()
+    }
+
+    #[test]
+    fn an_abort_stops_the_probe_and_a_limit_outranks_in_band() {
+        let gone = || PointInSolidError::NoSuchSolid {
+            solid: SolidKey::default(),
+        };
+        assert_eq!(
+            probe(vec![Err(gone()), Ok(SolidContainment::In)], &[]),
+            Probe::Refused(what(&gone())),
+            "a solid that is not there refuses the whole query: no later vertex is read"
+        );
+        assert_eq!(
+            probe(
+                vec![
+                    Err(PointInSolidError::RayExhausted),
+                    Err(PointInSolidError::ZeroVolumeBody)
+                ],
+                &[]
+            ),
+            Probe::Refused(what(&PointInSolidError::ZeroVolumeBody)),
+            "a limit outranks an in-band refusal read before it"
+        );
+        let (first, _) = keys();
+        assert_eq!(
+            probe(
+                vec![
+                    Err(PointInSolidError::RayExhausted),
+                    Ok(SolidContainment::In)
+                ],
+                &[]
+            ),
+            Probe::In(keys().1),
+            "a vertex inside answers past an in-band refusal"
+        );
+        assert_eq!(
+            probe(
+                vec![
+                    Err(PointInSolidError::RayExhausted),
+                    Ok(SolidContainment::Out)
+                ],
+                &[]
+            ),
+            Probe::Refused(what(&PointInSolidError::RayExhausted)),
+            "with no vertex inside, the kept refusal refuses"
+        );
+        let answered = [(
+            (
+                EntityId::Vertex(first),
+                EntityId::Solid(SolidKey::default()),
+            ),
+            Undecidable::ThinInBand,
+        )];
+        assert_eq!(
+            probe(vec![Err(gone()), Ok(SolidContainment::Out)], &answered),
+            Probe::Clear,
+            "a vertex answered in band is passed, even where its refusal would abort"
+        );
+    }
+}
 
 #[cfg(test)]
 mod volume_refusal_rows {
@@ -5863,7 +5984,7 @@ mod escalated_ending_rows {
                 escalation: Escalation::Margin,
                 diag,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             let placement = contfp.strip_prefix("contfp: ").unwrap();
             for (label, e) in [
                 ("solid door", PointInSolidError::Escalated { face, diag }),
@@ -5872,7 +5993,7 @@ mod escalated_ending_rows {
                     RegionRefusal::Escalated(diag).of_face(face),
                 ),
             ] {
-                let text = e.to_string();
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 assert_eq!(
                     text.strip_prefix("cannot tell what is inside the solid: "),
                     Some(placement),
@@ -6066,6 +6187,13 @@ mod kind_arm_tests {
                         axis: z,
                         major_radius: 0.4,
                         minor_radius: 0.1,
+                        u_ref: x,
+                    },
+                    SurfaceKind::Spindle => Surface::Spindle {
+                        center: o,
+                        axis: z,
+                        major_radius: -0.3,
+                        minor_radius: 0.5,
                         u_ref: x,
                     },
                     SurfaceKind::Nurbs => Surface::nurbs_placeholder(),

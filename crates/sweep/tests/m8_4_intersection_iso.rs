@@ -1217,7 +1217,12 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
             },
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{what}: the rim takes the carrier: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: the rim takes the carrier: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         body.detach_pcurve(he);
         let image = match topo::pcurve_of(&body, he, band()) {
             Ok(image @ Pcurve::IsoLine { p0, pl }) => {
@@ -1230,7 +1235,10 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
         };
         let surface = Surface::Nurbs(Arc::new(chart.clone()));
         if let Err(e) = geom_brep::PcurveCache::certify(image, t0, t1, &carrier, &surface, band()) {
-            panic!("{what}: the derived row certifies: {e}");
+            panic!(
+                "{what}: the derived row certifies: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         }
     }
 }
@@ -1427,7 +1435,12 @@ fn a_rim_run_back_on_a_decimal_symmetric_rows_own_knots_is_general() {
         },
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("the rim takes the carrier: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the rim takes the carrier: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     body.detach_pcurve(he);
     let image = match topo::pcurve_of(&body, he, band()) {
         Ok(Pcurve::General(image)) => image,
@@ -1442,5 +1455,10 @@ fn a_rim_run_back_on_a_decimal_symmetric_rows_own_knots_is_general() {
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
-    .unwrap_or_else(|e| panic!("the General image certifies against its chart: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the General image certifies against its chart: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
 }

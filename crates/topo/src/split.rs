@@ -25,7 +25,7 @@
 //! Serves ch. 14 `splitgenerate` edge splitting and ch. 15's edge×face
 //! reduction sweep (M3 PRs 2 and 4).
 
-use geom_brep::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use geom_brep::recourse::{Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{CertifyError, EdgeCurveSpec};
 use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Tol};
 
@@ -38,29 +38,16 @@ use crate::geometry::{CurveKey, PointKey};
 use crate::live::{Arg, dangling_link, link, lookup};
 use crate::provenance::Provenance;
 
-/// Where a crossing lands along its edge, in words: the subject every
-/// decision on it states, here and wherever an edge is split at a
-/// crossing.
-pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly inside its edge";
-
-/// The lever every door that splits an edge at a crossing has (the
-/// split, the blend, the Boolean): the geometry.
-pub(crate) const CROSSING_LEVER: &str =
-    "move the geometry so the crossing lands clearly away from the edge's ends";
-
 /// The lever a split of a smooth edge (a tangency or a pair) has where the must-carry rule
 /// over a piece is in band: the piece's length decides its sagitta.
 pub(crate) const SMOOTH_PIECE_LEVER: &str =
     "move the geometry so the crossing cuts a longer or a shorter piece off the smooth edge";
 
-/// What a crossing's interiority margin measures.
-pub(crate) const CROSSING_SIZE: &str = "distance from the edge's end";
-
 /// [`Body::split_edge`](crate::construction::Construct::split_edge)'s interiority decision: it passes only on a
 /// crossing definitely inside its edge.
 pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
-    lever: CROSSING_LEVER,
-    size: CROSSING_SIZE,
+    lever: geom_brep::edge_crossing::CROSSING_LEVER,
+    size: geom_brep::edge_crossing::CROSSING_SIZE,
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
     no_size: None,
@@ -70,8 +57,11 @@ pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
 /// operation that asked. Both of `split_edge`'s interiority refusals end
 /// here, and neither offers a declaration: no door that splits an edge
 /// takes one naming where on the edge a crossing lands.
-pub(crate) fn split_param_ending(arm: RefusedArm<'_>) -> String {
-    SPLIT_PARAM_INTERIOR.recourse(arm, Reading::Build)
+pub(crate) fn split_param_ending(
+    arm: RefusedArm<'_>,
+    at: impl Into<geom_brep::recourse::ReadAt>,
+) -> String {
+    SPLIT_PARAM_INTERIOR.recourse(arm, at)
 }
 
 /// Every key minted (and the one possibly killed) by one

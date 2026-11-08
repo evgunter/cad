@@ -418,19 +418,29 @@ same classification. The pins are `tests/fillet_stored_tangency.rs` and
 the three sentences' rows in `tests/fillet_recourse_followability.rs`.
 
 **Every fillet gate's in-band verdict carries that gate's own recourse.**
-`PathError::Escalated`'s `Display` asks `validate::fillet_recourse_for`
-for the sentence belonging to the escalation's predicate name — the one
-map from the nine `fillet_*` names to the six `FILLET_*_RECOURSE`
-sentences, several names sharing a sentence because they share a user
-situation (D4 ¶1's addendum). It renders the site it was resolving with
-that sentence and no coincidence tail: a fillet the caller asked for
-constructs its joints, so "declare the coincidence" names a declaration
-that does not exist. The fillet names are asked first, ahead of the
-stored-form classifications and the junction keys, and are disjoint
-from both. `tests/fillet_recourse_followability.rs` censuses the nine
-against the `decide("fillet_…")` call sites across `src`, so a gate
-added anywhere in the crate without a sentence is a red row, and so is a
-gate that disappears — the census is an equality with the tree.
+Every decision the crate makes is a `Gate` (`src/gate.rs`), one closed
+table giving each its `k_stats` name, its subject and its ending: its
+own lever, and whether a smaller ε decides its margin. An escalation is
+minted from a gate, and `PathError::Escalated` and
+`ProfileError::Escalated` carry it, so each door derives its sentence
+from the gate, the verdict and the door's site by an exhaustive match;
+no ending is looked up by predicate name. The nine fillet gates' levers
+live in `src/fillet_recourse.rs`, several gates sharing one because they
+share a user situation (D4 ¶1's addendum). The door renders the corner
+it was resolving with that lever and no coincidence tail: a fillet the
+caller asked for constructs its joints, so "declare the coincidence"
+names a declaration that does not exist. A gate whose margin is a size
+the user may intend, and which a smaller ε decides in the request's
+favour, adds the conditional, valued tighten. Every other gate ends in
+its lever alone: the two classified against the exact-order band,
+`fillet_leg_fit` and `fillet_leg_reach`, which no ε moves, and
+`fillet_offset_lever`, whose least lever grows as ε shrinks, so a smaller
+tolerance decides it against the request. The
+stored-form read is a site of its own (`EscalatedAt::StoredForm`),
+whose escalations name the stored form's levers under the gate's kind,
+and a guided replay names the parameter box first and the gate's lever
+after it. `tests/recourse_roster.rs` holds the table against `src`: no
+funnel call there names a decision anywhere but the table.
 
 Six of the nine take an in-band verdict from a request a caller can
 author. Of the other three, `fillet_corner_arm` is shadowed by
@@ -463,7 +473,10 @@ largest_tangent_radius }`.
 Two refusals stay outside the envelope because they are not about a
 corner. `NoCornerForFillet { reason, radius }` carries the pair-level
 conditions that name no corner (`PathNoCornerReason`:
-`CarriersParallel`, `CarriersDoNotMeet`). `FilletOffsetLeverTooShort`
+`CarriersTangent` and `CarriersDoNotMeet`, read on the carriers' own
+metre margins, and `TurnWithinTolerance`, the corner's turn levered by
+the shorter leg's arm or the anchors' separation, carrying both
+factors and ending in its turn gate's recourse). `FilletOffsetLeverTooShort`
 aborts the resolve where it fires, because a lever the band cannot
 support at one corner is a conditioning fact about the run rather than a
 fact about the pair.

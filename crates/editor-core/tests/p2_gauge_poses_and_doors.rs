@@ -468,6 +468,7 @@ fn split_of(
         DocumentId::derive(label),
         Tol::witness(),
         p.opts().resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
 }
 

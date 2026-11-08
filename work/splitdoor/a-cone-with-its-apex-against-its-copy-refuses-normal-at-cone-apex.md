@@ -1,11 +1,14 @@
 ---
 id: a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex
 kind: issue
-title: A cone with its apex, booleaned with an identical copy, refuses NormalAtConeApex at the apex vertex before the On verdict
-status: open
+title: A cone's apex against the other solid's vertex, its edge, or a plane through it reads the cone's fans of rulings (its copy, a box corner or edge, two cones through one apex)
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: H
+branch: splitdoor/cone-apex-vertex-pairs
+closed: 2026-11-03
+pr: 6424
 ---
 
 
@@ -49,3 +52,87 @@ Measured at the first unit's head (one-wrap-edge 45° cone, ε 1e-9):
   (`a_tipped_cones_apex_on_its_copys_refuses_the_vertex_pair_by_name`);
 - a box whose corner or edge sits at the apex refuses earlier,
   `CrossingAtConeApex`, at the box's edge through the apex.
+
+## Stage B1: the vertex–vertex lane (2026-11-02, `splitdoor/cone-apex-vertex-pairs`)
+
+Unit B lands in two stages; this row closes with the second.
+
+B1 builds the vertex–vertex lane at an apex:
+
+- a sweep edge ending at the other operand's apex meets it at that end
+  alone, the vertex pair's incidence (`boolean::reduce::line_cone_roots`);
+- the fan arms of the pair algebra (`boolean::fan`);
+- sectors cut at their partner faces' extremes (`boolean::sectors::Partners`);
+- two cones through one apex meet in their common rulings, or touch at it
+  (`boolean::section_cert`'s cone pair, `boolean::join`'s `KindArm::Apex`).
+
+`VertexPairAtConeApex` now names only two things: the readers with no fan
+arm, and a whole-turn cone vertex whose partner is not one cone's fans.
+Pinned in `crates/sweep/tests/a_cone_apex_meets_a_vertex.rs`:
+
+- the copy, both forms;
+- the copy turned over;
+- hourglasses, coaxial and tilted;
+- a box corner at the apex, turned;
+- two cones through one apex crossing along two rulings.
+
+Left for B2:
+
+- the apex on a curved edge or pierced against a curved face (the
+  seam-meridian sphere pose, an apex inside a sphere face);
+- a box edge through the apex.
+
+The small box `[0, 0.3] × [0.5, 1] × [0, 0.35]` with its corner at the
+45° cone's apex reaches the join and refuses `GermSectionOpenConic`.
+That is the hyperbola join limit, which already stands and which this
+unit does not touch. At 30° it builds.
+
+## Scope (restated 2026-11-02, closing with stage B2)
+
+The row opened on a cone against its copy refusing `NormalAtConeApex`.
+It closes on what units A and B deliver: a cone's apex against the
+other solid reads the cone's fans of rulings where the partner is
+planar, an edge, or another cone through the apex.
+
+- **Unit A** (PR 6266): the pierce lane reads a plane through the apex.
+  The apex corner is the cone's whole turn, cut where the plane's side
+  turns, and its germ is the section ruling.
+- **Stage B1** (`splitdoor/cone-apex-vertex-pairs`): the vertex–vertex
+  lane reads fans (`boolean::fan`). Builds: the copy, the turned-over
+  copy, hourglasses, a box corner at the apex, and two cones crossing
+  along common rulings (`crates/sweep/tests/a_cone_apex_meets_a_vertex.rs`).
+- **Stage B2** (`splitdoor/cone-apex-edge-face`):
+  - an edge through the apex is placed on the apex vertex
+    (`boolean::reduce::line_cone_roots`);
+  - a conic through the apex is read whole (`boolean::conic_quadric`,
+    "Through the apex").
+  - the vertex–vertex lane's apex quarters are true quarters of a
+    whole turn whatever the seam's rounding (`sectors::push_apex_corner`).
+  Builds: a box edge across the apex and along its axis, every op
+  either way round, at every quarter turn
+  (`crates/sweep/tests/a_cone_apex_on_an_edge.rs`).
+
+What B2 does not deliver, each refused by name and pinned:
+
+- a cone face cut along two rulings on both sides of its seam, kept by
+  `∪` or `cone ∖ box`: `ResultPinchedAtConeApex`, the props limit
+  (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`);
+- a box corner or edge a fraction of the band off the apex: box first
+  `EdgeUndescribed` while cone first builds
+  (`a-box-corner-just-off-a-cone-apex-refuses-box-first-edge-undescribed`),
+  or `CrossingAtConeApex` where the edge's roots spread past the band;
+- a box side holding a wide cone's seam reaches the join's open-conic
+  limit (`GermSectionOpenConic`).
+
+What stays besides is the apex against a CURVED partner: a cone × curved-carrier
+section through the apex, and the curved-face pierce. That is
+`a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count`,
+a design question with the sphere poses as its witnesses.
+
+## Closed (2026-11-03)
+
+Closed by stage B2 (PR 6424), after stage B1 (PR 6345).
+- B1 made the cone's apex read its fans of rulings against a vertex or another apex.
+- B2 did the same against an edge, and for a plane or conic through the apex.
+
+What B2 still refuses is named in "Scope": the pinch, the near-apex box corner read box first, and the open conic. The curved-face residue is `a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count` (B3), whose design question is `[ev]` PR 6432. (SPLITDOOR orchestrator)

@@ -186,7 +186,10 @@ fn in_band_section_escalates_typed_not_misclassified() {
         Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {
             panic!("in-band sliver MISCLASSIFIED as zero-area tangency");
         }
-        Err(e) => eprintln!("in-band probe: typed refusal {e}"),
+        Err(e) => eprintln!(
+            "in-band probe: typed refusal {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(_) => panic!("in-band sliver silently split at ε={eps}"),
     }
 }

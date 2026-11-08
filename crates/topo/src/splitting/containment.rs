@@ -134,7 +134,7 @@
 use geom::Conic;
 use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
-use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{
     Band, Decide, Indeterminate, InfSpeed, Lever, Margin, MarginDiag, Point3, Sign, Vec3,
@@ -237,7 +237,13 @@ impl LoopDecision {
     /// ray's margin is no size the user chose, and the plane is a
     /// residual, so each ends in its lever alone.
     #[must_use]
-    pub fn ending(self, escalation: Escalation, diag: &Indeterminate, reading: Reading) -> String {
+    pub fn ending(
+        self,
+        escalation: Escalation,
+        diag: &Indeterminate,
+        reading: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        let reading: geom_brep::recourse::ReadAt = reading.into();
         let arm = escalation.arm(diag);
         let sized = |size, passes| placement_sized(self.lever(), size, passes);
         match self {
@@ -349,6 +355,27 @@ pub enum PointInLoopError {
     /// A precondition of [`point_in_loop`] does not hold: the walk was
     /// handed a plane the loop or the point does not lie in.
     OffPlane(OffPlane),
+}
+
+impl PointInLoopError {
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]): an escalation by its margin, a
+    /// schedule no ray settled in band, an edge no ray crosses a limit,
+    /// and a loop that does not walk or a point off its plane a refusal
+    /// of the whole query ([`geom_brep::ladder::Aborts`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`], for a refusal of the whole query.
+    pub fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted { .. } => Ok(Refusal::InBand),
+            Self::Uncrossable(_) => Ok(Refusal::Limit),
+            Self::CorruptLoop { .. } | Self::OffPlane(_) => Err(Aborts),
+        }
+    }
 }
 
 /// **Which of [`point_in_loop`]'s preconditions failed**, for `loop`.
@@ -498,20 +525,27 @@ impl PointInLoopError {
     }
 }
 
-impl core::fmt::Display for PointInLoopError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl PointInLoopError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Escalated {
                 decision,
                 escalation,
                 diag,
                 ..
-            } => diag
-                .undecided(
+            } => write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(
+                    diag,
                     decision.subject(),
-                    decision.ending(*escalation, diag, Reading::Build),
+                    at.map(|at| decision.ending(*escalation, diag, at)),
                 )
-                .fmt(f),
+            ),
             Self::RayExhausted { .. } => write!(
                 f,
                 geom_core::undecided!("whether a point lies in a loop", payload),
@@ -529,6 +563,8 @@ impl core::fmt::Display for PointInLoopError {
         }
     }
 }
+
+geom_brep::ended_by_write!(PointInLoopError);
 
 impl std::error::Error for PointInLoopError {}
 
@@ -1027,10 +1063,12 @@ impl<T: Decide> ConicArc<T> {
             Ok(Reading::Carrier) => ConicHit::Carrier,
             Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
             Ok(Reading::End(_)) => ConicHit::End,
-            Err(geom::CarrierRefusal::Escalated(diag)) => return Err(diag.into()),
+            Err(geom::CarrierRefusal::Escalated(geom::CarrierEscalation::InBand(diag))) => {
+                return Err(diag.into());
+            }
             // The ellipse's two bounds on its distance, which no margin
             // says: a straddle, typed.
-            Err(geom::CarrierRefusal::Straddle(diag)) => {
+            Err(geom::CarrierRefusal::Escalated(geom::CarrierEscalation::Straddle(diag))) => {
                 return Err(ReadEscalation {
                     escalation: Escalation::Straddle,
                     diag,
@@ -1038,9 +1076,7 @@ impl<T: Decide> ConicArc<T> {
             }
             // An ellipse's `Past` stands on the span walk, which can run
             // past its budget: not placed, typed.
-            Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
-                ConicHit::Unsettled
-            }
+            Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
         })
     }
 
@@ -1313,6 +1349,11 @@ impl<T: Decide> CarrierLoop<T> {
     /// edge in turn, under `rows`, to the first that places it on the
     /// edge or at an end.
     ///
+    /// Which edge holds `q` is the answer (its key is what the face door
+    /// reports, `FaceContainment::OnEdge`), so an edge read in band may be
+    /// the true holder and no later edge answers past it: the first
+    /// escalation refuses.
+    ///
     /// # Errors
     ///
     /// The first edge's escalation.
@@ -1533,11 +1574,9 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line(_) => ArcFloor::Segment(crate::sector_shape::point_segment_distance(
-            carrier.eval(t0),
-            carrier.eval(t1),
-            q,
-        )),
+        geom::Curve3::Line(line) => {
+            ArcFloor::Segment((q - line.foot_within(q, (t0.min(t1), t0.max(t1)))).norm())
+        }
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             let Some(crate::ring_path::LoopArc::Conic(arc)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))
@@ -1551,11 +1590,17 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 unreachable!("a circle or an ellipse")
             };
             let (major, minor) = (conic.speed_hi(), conic.speed_lo());
-            let geom::Frame { center, axis, .. } = *conic.frame();
-            let n = axis / axis.norm();
-            let w = q - center;
-            let height = w.dot(n);
-            let across = (w - n * height).norm();
+            let geom::Frame {
+                origin: center,
+                axis,
+                ..
+            } = *conic.frame();
+            let n = axis.normalize();
+            let (height, across) = geom::Line {
+                origin: center,
+                dir: n,
+            }
+            .height_and_distance(q);
             let off = (minor - across).max(across - major).max(T::zero());
             ArcFloor::Conic {
                 annulus: (height.powi(2) + off.powi(2)).sqrt(),
@@ -1634,7 +1679,10 @@ pub(crate) struct ArcPieces<'c, T: geom_core::Real> {
 impl<T: Decide> ArcPieces<'_, T> {
     /// Whether `clear` decides every piece's floor clear on the
     /// carrier's point walk ([`geom::Curve3::point_walk`]), within
-    /// [`geom_core::bisect::PIECE_BUDGET`].
+    /// [`geom_core::bisect::PIECE_BUDGET`]. Not [`geom::Curve3::clear_of`]:
+    /// `clear` is the caller's lever, unlogged and with no band, so a walk
+    /// stops on a middle point that fails it rather than on a piece's
+    /// reach falling within a band.
     fn clear(self, clear: impl Fn(T) -> bool) -> bool {
         let hi = geom::carrier_speed::speed_range(self.carrier).1;
         let walk = self.carrier.point_walk(self.q, self.span, hi, |p| {
@@ -1903,7 +1951,7 @@ fn certify_plane<T: Decide>(
     if decide("point_in_loop_normal", unit, band).map_err(escalate)? != Sign::Zero {
         return Err(off_plane(OffPlaneCause::NormalNotUnit));
     }
-    let off = |p: Point3<T>| Margin::of((p - origin).dot(normal));
+    let off = |p: Point3<T>| Margin::of(geom::plane_offset(origin, normal, p));
     let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
     // A conic's whole carrier, read from its centre.
     for step in &steps {
@@ -1912,7 +1960,7 @@ fn certify_plane<T: Decide>(
             None | Some(geom::Curve3::Line(_)) => {}
             Some(conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
                 if let (Some(k), Some(ball)) = (conic.conic(), ExtentBall::of_conic(conic)) {
-                    margins.extend([off(k.frame().center), tilt(k.frame().axis, ball.lever())]);
+                    margins.extend([off(k.frame().origin), tilt(k.frame().axis, ball.lever())]);
                 }
             }
             Some(&geom::Curve3::Spiric {
@@ -2156,6 +2204,32 @@ fn conic_crossings<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_brep::recourse::Reading;
+
+    /// **An edge read in band refuses ahead of a later edge that places
+    /// the point** ([`CarrierLoop::place_off`]): which edge holds the
+    /// point is the face door's answer, and the edge in band may be it. A
+    /// point at the band's distance past a square's corner along its
+    /// second edge lies in band of the first edge and on the second.
+    #[test]
+    fn an_edge_in_band_refuses_ahead_of_a_later_edge_that_places_the_point() {
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let square = || CarrierLoop {
+            verts: vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)],
+            keys: vec![EdgeKey::default(); 4],
+            edges: (0..4).map(|_| LoopEdge::Chord).collect(),
+            covers: Vec::new(),
+        };
+        assert!(
+            square().place_off(p(1.0, 5e-9), WALK_ROWS, band).is_err(),
+            "the first edge in band refuses: it may be the edge that holds the point"
+        );
+        match square().place_off(p(1.0, 0.5), WALK_ROWS, band) {
+            Ok(Err(OnLoop { edge, .. })) => assert_eq!(edge, 1, "the second edge holds the point"),
+            _ => panic!("a point on the second edge, clear of the first, is on it"),
+        }
+    }
 
     /// [`ConicArc::of`] over a fixture span, its extent decided forward
     /// as certification decides it.
@@ -2424,7 +2498,7 @@ mod tests {
         // A circle: an overlap in its band escalates, one past it is wound.
         let circle = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center: Point3::new(0.0, 0.0, 0.0),
+                origin: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },

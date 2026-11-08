@@ -27,3 +27,5 @@ Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fi
 ## Callers (2026-11-02, PLACING, branch `placing/bundle-editor-transform`)
 
 `gesture_moves` is gone: the Transform tool opens the placement editor, whose value rows are typed, and writes no angles read off a matrix. `moves_of`'s callers are now `frame_off` and the duplicate's `add_duplicate` (its `unmated` bundles over `duplicate_seats`' `combine::copy_motion`).
+
+**FORMS, PR 6431 (2026-11-03).** `frame_off`, which this row cites as a caller of `moves_of`, is deleted with the split form's typed plane (`DocSession::read_off` went with it); a split's plane is a picked face or a plane read.

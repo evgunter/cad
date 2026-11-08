@@ -54,6 +54,8 @@ mod shared;
 
 #[path = "a_shared_row_is_certified_per_wall.rs"]
 mod a_shared_row_is_certified_per_wall;
+#[path = "an_iso_family_reads_the_edges_span.rs"]
+mod an_iso_family_reads_the_edges_span;
 #[path = "analytic_rung3_certificate.rs"]
 mod analytic_rung3_certificate;
 #[path = "approx_surface.rs"]
@@ -117,8 +119,12 @@ mod exhaust_lane_meters;
 mod flat_cone_harmonic_images;
 #[path = "flat_cone_tilted_ellipse.rs"]
 mod flat_cone_tilted_ellipse;
+#[path = "foot_and_phase_rows.rs"]
+mod foot_and_phase_rows;
 #[path = "germ_pose_gate.rs"]
 mod germ_pose_gate;
+#[path = "implicit_chart_section.rs"]
+mod implicit_chart_section;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]
@@ -143,6 +149,8 @@ mod m7_8_plane_nurbs_edge;
 mod m8_f67_r1_probes;
 #[path = "marched_windings.rs"]
 mod marched_windings;
+#[path = "off_coaxial_drift_oracle.rs"]
+mod off_coaxial_drift_oracle;
 #[path = "offa_r1_probes.rs"]
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
@@ -157,6 +165,8 @@ mod pair_section;
 mod pcurve_frame_premise_rows;
 #[path = "plane_cone_arc.rs"]
 mod plane_cone_arc;
+#[path = "plane_nurbs_readings.rs"]
+mod plane_nurbs_readings;
 #[path = "pn_apex_pair_over_a_span.rs"]
 mod pn_apex_pair_over_a_span;
 #[path = "pn_apex_reach.rs"]

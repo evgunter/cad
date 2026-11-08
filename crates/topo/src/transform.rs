@@ -187,59 +187,73 @@ pub enum TransformError {
 }
 
 impl TransformError {
-    /// This refusal's text read at `at`: a nested certification or
-    /// pcurve refusal renders at that door, a defect ends in the door's
-    /// defect ending ([`geom_brep::recourse::defect_ending`]), and
-    /// scaffolding ends in its edit's lever at a build.
-    #[must_use]
-    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
-        let at = at.into();
-        let defect = geom_brep::recourse::defect_ending(at);
+    /// This refusal's text, ended at `at` where it is `Some`: a nested
+    /// certification or pcurve refusal reads at that door, a defect ends
+    /// in the door's defect ending ([`geom_brep::recourse::defect_ending`]),
+    /// and scaffolding ends in its edit's lever at a build. `None` writes
+    /// the payload alone, its `Display`.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::{ReadAt, read_at};
+        let defect = at.map(geom_brep::recourse::defect_ending);
+        let ended = |defect: Option<&str>| defect.map(|d| format!(". {d}")).unwrap_or_default();
         match self {
-            Self::Pcurve { source } => source.render(at),
-            Self::Band(e) => e.to_string(),
-            Self::Certify { source, .. } => format!(
+            Self::Pcurve { source } => write!(f, "{}", read_at(source, at)),
+            Self::Band(e) => write!(f, "{e}"),
+            Self::Certify { source, .. } => write!(
+                f,
                 "an edge the map moved failed re-certification: {}",
-                source.render(at)
+                read_at(source, at)
             ),
-            Self::NullScaffold { edge } => match at {
-                geom_brep::recourse::ReadAt::Run(geom_brep::recourse::Reading::Build) => {
-                    format!(
-                        "the body still carries what an edit left behind, which the map cannot \
-                         move. Recourse: {}",
-                        crate::Unfinished::SCAFFOLDING_RECOURSE
-                    )
-                }
-                _ => format!(
+            Self::NullScaffold { .. } if at.is_some_and(ReadAt::is_build) => write!(
+                f,
+                "the body still carries what an edit left behind, which the map cannot \
+                 move. Recourse: {}",
+                crate::Unfinished::SCAFFOLDING_RECOURSE
+            ),
+            Self::NullScaffold { edge } => match defect {
+                Some(defect) => write!(
+                    f,
                     "edge {edge:?} carries a transient null-scaffold curve, which a body at \
                      rest never does. {defect}"
                 ),
+                None => write!(
+                    f,
+                    "edge {edge:?} carries a transient null-scaffold curve, which the map \
+                     cannot move"
+                ),
             },
-            Self::ApproxLaneUnsupported { scalar } => format!(
+            Self::ApproxLaneUnsupported { scalar } => write!(
+                f,
                 "an approximating surface cannot be moved at the {scalar} scalar with no \
                  offset-fit door in hand: its certificate is re-derived on the moved pair, and \
                  only {holders} holds that door (the fit is derived there alone). Recourse: \
                  move the body at {holders}",
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
-            Self::ApproxRecertify { source } => format!(
-                "a moved approximating surface could not be re-certified or re-fitted: {source}"
+            // The fit door's meter ends at a build at every door that
+            // reads the map's refusal.
+            Self::ApproxRecertify { source } => write!(
+                f,
+                "a moved approximating surface could not be re-certified or re-fitted: {}",
+                read_at(source, geom_brep::recourse::at_build(at))
             ),
-            Self::NurbsPlaceholder => format!(
+            Self::NurbsPlaceholder => write!(
+                f,
                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
                 geom_core::NOT_YET_ENDING
             ),
-            Self::Corrupt { found } => format!("the body is corrupt: {found}. {defect}"),
+            Self::Corrupt { found } => {
+                write!(f, "the body is corrupt: {found}{}", ended(defect))
+            }
         }
     }
 }
 
-/// Read at a build: the map is the operation that built what it moved.
-impl core::fmt::Display for TransformError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
-    }
-}
+geom_brep::ended_by_write!(TransformError);
 
 // No `source()`, matching every error type in this crate: each arm's
 // `Display` renders its nested payload's own `Display` in full, so the
@@ -264,6 +278,35 @@ pub(crate) enum Hand {
     Proper,
     /// Determinant `−1`.
     Improper,
+}
+
+/// **The map an isometry door applies**: a rigid motion, or a reflection
+/// as its affine map. A frame under a proper map is [`geom::Frame::moved`];
+/// under an improper one each kind states its own image ([`Hand`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Isometry<T: Real> {
+    /// A rigid motion.
+    Proper(RigidMotion<T>),
+    /// An improper isometry's map (determinant `−1`).
+    Improper(Affine3<T>),
+}
+
+impl<T: Real> Isometry<T> {
+    /// The map as an affine one.
+    fn affine(&self) -> Affine3<T> {
+        match self {
+            Self::Proper(motion) => motion.to_affine(),
+            Self::Improper(map) => *map,
+        }
+    }
+
+    /// Whether the map keeps orientation.
+    fn hand(&self) -> Hand {
+        match self {
+            Self::Proper(_) => Hand::Proper,
+            Self::Improper(_) => Hand::Improper,
+        }
+    }
 }
 
 impl Hand {
@@ -352,6 +395,19 @@ fn map_surface<T: Decide + crate::props::AtRestPolicy>(
             minor_radius,
             u_ref,
         } => Surface::Torus {
+            center: map.transform_point(center),
+            axis: map_vec(map, axis),
+            major_radius,
+            minor_radius,
+            u_ref: map_vec(map, u_ref),
+        },
+        Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => Surface::Spindle {
             center: map.transform_point(center),
             axis: map_vec(map, axis),
             major_radius,
@@ -470,17 +526,17 @@ fn map_approx<T: Decide>(
 /// The carrier `map ∘ c` on `c`'s own parameter, under either hand: a
 /// carrier has no outward side, and keeping its parameter keeps every
 /// edge's range and its forward half-edge.
-fn map_carrier<T: Real>(
-    map: &Affine3<T>,
-    hand: Hand,
-    c: &Curve3<T>,
-) -> Result<Curve3<T>, TransformError> {
-    let frame = |f: &geom::Frame<T>| {
-        geom::Frame::new(
-            map.transform_point(f.center),
+fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, TransformError> {
+    let (map, hand) = (&iso.affine(), iso.hand());
+    // A conic's frame: the frame's own image under a motion, and under a
+    // reflection the axial axis, so the image keeps its parameter.
+    let frame = |f: &geom::Frame<T>| match iso {
+        Isometry::Proper(motion) => f.moved(motion),
+        Isometry::Improper(map) => geom::Frame::new(
+            map.transform_point(f.origin),
             hand.axial(map, f.axis),
             map_vec(map, f.u_ref),
-        )
+        ),
     };
     Ok(match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
@@ -563,7 +619,7 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     motion: &RigidMotion<T>,
     tol: Tol,
 ) -> Result<Body<T>, TransformError> {
-    let mut out = map_isometry(body, &motion.to_affine(), Hand::Proper, tol)?;
+    let mut out = map_isometry(body, &Isometry::Proper(*motion), tol)?;
     // Pcurve caches (M5 PR 6, C4): the SAME posture as carriers and
     // witnesses — construction-fresh re-derivation against the mapped
     // geometry, never a mapped stored cache. A rigid map carries the
@@ -679,7 +735,7 @@ pub(crate) enum OrientationClass {
     /// its own reversal, and a reflection writes it so its chart is
     /// unmoved ([`map_surface`]).
     Plane,
-    /// A cylinder, cone, sphere or torus: the outward side rides the
+    /// A cylinder, cone, sphere, torus or spindle: the outward side rides the
     /// face's `sense`, and a reflection maps the frame forward,
     /// reversing the azimuth `u` (MIRROR-DESIGN P1).
     Analytic,
@@ -696,7 +752,8 @@ impl OrientationClass {
             Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. } => Self::Analytic,
+            | Surface::Torus { .. }
+            | Surface::Spindle { .. } => Self::Analytic,
             Surface::Nurbs(_) | Surface::Approx(_) => Self::Net,
         }
     }
@@ -714,10 +771,10 @@ impl OrientationClass {
 /// the chart.
 pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
-    map: &Affine3<T>,
-    hand: Hand,
+    iso: &Isometry<T>,
     tol: Tol,
 ) -> Result<Body<T>, TransformError> {
+    let (map, hand) = (&iso.affine(), iso.hand());
     let band = Band::linear(tol).map_err(TransformError::Band)?;
     let mut out = body.clone();
 
@@ -762,7 +819,7 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
         let start = endpoint(&out, he_plus, false)?;
         let end = endpoint(&out, he_plus, true)?;
         let (param_start, param_end) = old.params();
-        let carrier = map_carrier(map, hand, old.carrier())?;
+        let carrier = map_carrier(iso, old.carrier())?;
         // A sketch pushforward is stated in 3-space, so the authority
         // record travels with the map.
         let declared = || {
@@ -1012,7 +1069,10 @@ mod tests {
     #[test]
     fn the_carrier_placeholder_is_what_refuses() {
         assert!(matches!(
-            map_carrier(&aside(), Hand::Proper, &Curve3::nurbs_placeholder()),
+            map_carrier(
+                &Isometry::Proper(aside_motion()),
+                &Curve3::nurbs_placeholder()
+            ),
             Err(TransformError::NurbsPlaceholder)
         ));
     }
@@ -1047,7 +1107,8 @@ mod tests {
     fn a_described_carrier_maps_by_its_control_points() {
         let map = aside();
         let before = described_carrier();
-        let after = map_carrier(&map, Hand::Proper, &before).expect("a described net maps");
+        let after =
+            map_carrier(&Isometry::Proper(aside_motion()), &before).expect("a described net maps");
         let (Curve3::Nurbs(b), Curve3::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };
@@ -1060,6 +1121,125 @@ mod tests {
         for (p, q) in b.control().iter().zip(a.control()) {
             let want = map.transform_point(*p);
             assert_eq!((q.x, q.y, q.z), (want.x, want.y, want.z));
+        }
+    }
+    /// A reflection across a plane tilted off every world axis.
+    fn reflection() -> Affine3<f64> {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let n = geom_core::UnitVec3::new(Vec3::new(1.0, 2.0, 2.0) / 3.0, "mirror", band)
+            .expect("a unit normal");
+        crate::mirror::Reflection::across_unit(Point3::new(0.3, -0.2, 0.1), n).to_affine()
+    }
+
+    /// **A reflection keeps each carrier kind's parameter**: the image
+    /// carrier at `t` is the reflected point at `t`, by each kind's own
+    /// rule (a conic's axial axis; a spiric's seam and stand-off negated).
+    #[test]
+    fn a_reflection_keeps_a_carriers_parameter_kind_by_kind() {
+        let m = reflection();
+        let (c, a) = (Point3::new(0.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0) / 3.0);
+        let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+        let frame = geom::Frame::new(c, a, u);
+        let kinds = [
+            ("circle", Curve3::Circle(geom::Circle::new(frame, 0.7))),
+            (
+                "ellipse",
+                Curve3::Ellipse(geom::Ellipse::new(frame, 0.9, 0.4)),
+            ),
+            (
+                "spiric",
+                Curve3::Spiric {
+                    center: c,
+                    axis: a,
+                    u_ref: u,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    offset: 0.2,
+                },
+            ),
+        ];
+        for (kind, carrier) in kinds {
+            let image = map_carrier(&Isometry::Improper(m), &carrier).expect("an analytic carrier");
+            for k in 0..12 {
+                let t = f64::from(k) * 0.53 - 2.0;
+                let off = (image.eval(t) - m.transform_point(carrier.eval(t))).norm();
+                assert!(
+                    off < 1e-12,
+                    "{kind}: the image at {t} is {off} off the reflected point"
+                );
+            }
+        }
+    }
+
+    /// **A reflection's chart images, kind by kind**: a plane's chart
+    /// maps forward (its normal axial), every analytic chart of
+    /// revolution with its azimuth negated (its frame forward).
+    #[test]
+    fn a_reflection_maps_each_analytic_chart_kind_by_kind() {
+        let m = reflection();
+        let (o, a) = (Point3::new(0.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0) / 3.0);
+        let u_ref = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+        let kinds = [
+            (
+                "plane",
+                Surface::Plane {
+                    origin: o,
+                    normal: a,
+                    u_ref,
+                },
+                1.0,
+            ),
+            (
+                "cylinder",
+                Surface::Cylinder {
+                    origin: o,
+                    axis: a,
+                    radius: 0.7,
+                    u_ref,
+                },
+                -1.0,
+            ),
+            (
+                "cone",
+                Surface::Cone {
+                    apex: o,
+                    axis: a,
+                    half_angle: 0.4,
+                    u_ref,
+                },
+                -1.0,
+            ),
+            (
+                "sphere",
+                Surface::Sphere {
+                    center: o,
+                    radius: 0.7,
+                    axis: a,
+                    u_ref,
+                },
+                -1.0,
+            ),
+            (
+                "torus",
+                Surface::Torus {
+                    center: o,
+                    axis: a,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref,
+                },
+                -1.0,
+            ),
+        ];
+        for (kind, surface, azimuth) in kinds {
+            let image = map_surface(&m, Hand::Improper, &surface, Tol::witness())
+                .expect("an analytic surface");
+            for k in 0..9 {
+                let (s, t) = (f64::from(k) * 0.61 - 2.0, f64::from(k) * 0.17 - 0.6);
+                let want = m.transform_point(surface.eval(azimuth * s, t));
+                let off = (image.eval(s, t) - want).norm();
+                assert!(off < 1e-12, "{kind}: the image at ({s}, {t}) is {off} off");
+            }
         }
     }
 
@@ -1091,7 +1271,7 @@ mod tests {
         });
         let err = transform_rigid(&orphaned, &aside_motion(), Tol::witness())
             .expect_err("an orphan curve entry is corruption");
-        let shown = err.to_string();
+        let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.starts_with("the body is corrupt: a curve entry is referenced by no edge."),
             "{shown}"

@@ -395,7 +395,7 @@ fn probe_e_display_is_a_sentence() {
         inner: SolidKey::default(),
         witness: topo::VertexKey::default(),
     };
-    let text = e.to_string();
+    let text = e.render(geom_brep::recourse::Reading::AtRest);
     assert!(text.contains("interference fit"), "{text}");
     assert!(!text.contains("InstanceInterference"), "{text}");
 }

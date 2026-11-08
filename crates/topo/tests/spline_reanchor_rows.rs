@@ -118,7 +118,10 @@ fn an_outward_cap_offset_runs_past_the_spline_carriers_end() {
     )
     .expect_err("the carrier ends at the cap");
     let ReplaceFaceError::ReanchorPastCarrierEnd { edge, gap } = e else {
-        panic!("expected the past-the-end refusal, got {e}");
+        panic!(
+            "expected the past-the-end refusal, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!(
         spline_edges(&body).contains_key(edge),

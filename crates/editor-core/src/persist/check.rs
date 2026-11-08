@@ -2304,14 +2304,9 @@ pub enum ProgramFault {
     },
 }
 
-// The prose the document layer renders for a program fault. The
-// lattice arm states the walk failure in the same words
-// [`crate::ProgramRefusal::Transition`] does — that refusal is what
-// the probe raised — and then names the tip state and the verb that
-// could not follow it, keeping their `Debug` spellings for the reason
-// `profile`'s `ReplayError` rendering states: the pair is the
-// transition table's coordinate. The typed variant remains the
-// machine contract.
+// The lattice arm is the sentence [`crate::ProgramRefusal::Transition`]
+// renders — that refusal is what the probe raised. The typed variant
+// remains the machine contract.
 impl core::fmt::Display for ProgramFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2320,16 +2315,7 @@ impl core::fmt::Display for ProgramFault {
                 step,
                 state,
                 verb,
-            } => {
-                write!(
-                    f,
-                    "loop {loop_} step {step} is not a legal chain-lattice walk: "
-                )?;
-                match verb {
-                    Some(verb) => write!(f, "the {verb:?} verb at tip state {state:?}"),
-                    None => write!(f, "the chain is unclosed at tip state {state:?}"),
-                }
-            }
+            } => crate::program::write_lattice(f, *loop_, *step, *state, *verb),
         }
     }
 }

@@ -351,7 +351,7 @@ fn a_top_section_facing_down_refuses_naming_the_far_section() {
     match loft_body::<f64>(&sections, &places, 1, tol) {
         Err(e @ LoftError::FarSectionNotForward { slab }) => {
             assert_eq!(slab, 0, "the loft's one slab is slab 0");
-            let text = e.to_string();
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains("section 1's plane") && text.contains("author section 1"),
                 "the refusal names the far section and its recourse: {text}"

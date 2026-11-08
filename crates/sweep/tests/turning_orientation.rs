@@ -36,11 +36,10 @@
 //!   both vary continuously and no arc is anywhere in the path.
 //!
 //! One row here is not about a turning chart at all: the START frame
-//! every path-swept fixture in this crate sweeps from is the kernel's
-//! (`geom_core::linalg::frame::path_start_frame`), and it is that
-//! door's reference LADDER, not a hard cone, that decides the
-//! inflecting duct's roll — the duct departs along `+z`. The ladder
-//! row lives beside the fixture it decides.
+//! every path-swept fixture in this crate sweeps from is the world
+//! frame turned onto the start tangent by the least turn
+//! (`RigidMotion::turned_onto`), and the row pinning that sits beside
+//! the inflecting duct, which departs near `+z`.
 //!
 //! Each row carries an anti-vacuity condition on the shape (a chart
 //! that does not turn makes the claim above free) and, where the
@@ -325,8 +324,8 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
 /// **The inflecting duct from two start frames a quarter turn apart
 /// about the start tangent is one solid.**
 ///
-/// The two are the kernel's frame and the retired cone recipe's, which
-/// is it turned by `R_z(−90°)` (`s393_start_frame_door`). A centred
+/// The two are the start frame and that frame turned by `R_z(−90°)`
+/// about the tangent. A centred
 /// square is invariant under that quarter turn and the sweep carries
 /// the start frame rigidly, so every station's ring is the same set of
 /// world points in both builds; the quarter turn is the exact column
@@ -428,34 +427,22 @@ fn a_torsion_bearing_path_sweep_faces_out_along_the_twist() {
     assert_caps_face_out(&swept, &oracle, PROBE_DELTA);
 }
 
-/// **A start tangent that leans on world +Z still rolls off world +Z.**
+/// **A start tangent that leans on world +Z takes the world frame's
+/// roll, carried by the least turn.**
 ///
-/// The start placement these fixtures sweep from is the kernel's
-/// (`geom_core::linalg::frame::path_start_frame`, through
-/// [`normal_start_place`]), and its roll comes from a reference LADDER
-/// — world +Z, then world +X — where each rung is taken on a decided
-/// off-axis margin under the tolerance band. The case that separates a
-/// ladder from a hard cone is a tangent LEANING on the first rung
-/// without being on it: `|ẑ · t̂| = 0.95` is far inside the 0.9 cone a
-/// caller-side recipe would have switched at, and nowhere near the
-/// band.
-///
-/// The row is this suite's because its own [`inflecting_path`] is such
-/// a tangent — it departs along `+z` — so which rung the ladder takes
-/// decides the body every row above sweeps. That membership is
-/// asserted here rather than assumed: a fixture that drifted out of
-/// the lean would make this row free.
+/// The start placement these fixtures sweep from is the world frame at
+/// the path's start turned onto its start tangent
+/// (`RigidMotion::turned_onto`, through [`normal_start_place`]): the
+/// rotation about `ẑ × t̂` carrying `ẑ` onto `t̂`, so `x̂` turns with it
+/// and no reference is picked. `|ẑ · t̂| = 0.95` is the case a world
+/// axis picked by a cone would have switched on, with both off-axis
+/// components nonzero so a frame rolled any other way reads differently.
 #[test]
-fn a_start_tangent_leaning_on_world_z_takes_the_first_rung_anyway() {
+fn a_start_tangent_leaning_on_world_z_is_the_world_frame_turned_onto_it() {
     let cos = 0.95f64;
-    // Both off-axis components nonzero, so the two rungs give frames
-    // that are not each other's reflection and the row can tell them
-    // apart at all.
     let off = ((1.0 - cos * cos) / 2.0).sqrt();
     let dir = Vec3::new(off, off, cos);
     let base = Point3::new(1.5, -2.25, 3.125);
-    // A straight path, so its start tangent IS `dir` and the frame is
-    // read through the same door every fixture above goes through.
     #[allow(clippy::cast_precision_loss)]
     let path = NurbsCurve3::<f64>::interpolate(
         &(0..=4).map(|k| base + dir * (k as f64)).collect::<Vec<_>>(),
@@ -471,52 +458,22 @@ fn a_start_tangent_leaning_on_world_z_takes_the_first_rung_anyway() {
         (z - tangent).norm() < 1e-15,
         "the frame's local +Z is the unit start tangent: {z:?} against {tangent:?}"
     );
-    let start = path.eval(lo);
     assert!(
-        (place.origin() - start).norm() < 1e-15,
+        (place.origin() - path.eval(lo)).norm() < 1e-15,
         "the frame sits at the path's start"
     );
-    assert!(
-        z.z.abs() >= 0.9 && z.z.abs() < 1.0,
-        "the hypothesis: this tangent leans on +z by {} — inside the cone a \
-         caller-side recipe switches at, and not along the axis",
-        z.z.abs()
-    );
-
-    // The ladder's FIRST rung: x̂ is world +Z crossed into the tangent.
-    let first = Vec3::new(0.0, 0.0, 1.0).cross(z);
-    let first = first / first.norm();
-    assert!(
-        (x - first).norm() < 1e-15,
-        "the roll must come off world +Z: {x:?} against {first:?}"
-    );
-    // …and not off world +X, which is a visibly different frame here.
-    let second = Vec3::new(1.0, 0.0, 0.0).cross(z);
-    let second = second / second.norm();
-    assert!(
-        (x - second).norm() > 0.5,
-        "the two rungs must be far apart on this tangent, or the row cannot \
-         tell which one was taken: {x:?} against {second:?}"
-    );
-
-    // Right-handed and orthonormal, which is what the roll choice is
-    // free to be wrong about without any of the above noticing.
-    assert!(
-        (x.cross(y) - z).norm() < 1e-15
-            && (x.norm() - 1.0).abs() < 1e-15
-            && (y.norm() - 1.0).abs() < 1e-15
-            && x.dot(y).abs() < 1e-15,
-        "the placement is a right-handed orthonormal frame"
-    );
-
-    // The fixture this suite actually sweeps is in the same case.
-    let s = inflecting_path();
-    let (slo, _) = s.domain();
-    let st = s.deriv(slo) / s.deriv(slo).norm();
-    assert!(
-        st.z.abs() >= 0.9 && st.z.abs() < 1.0,
-        "the inflecting duct departs along +z, leaning by {} — the rows above \
-         sweep the body this ladder choice decides",
-        st.z.abs()
-    );
+    // The least turn in closed form: `R = I + [k]× + [k]×²/(1 + c)` for
+    // `k = ẑ × t̂`, `c = ẑ · t̂`, applied to the world axes.
+    let (zw, k) = (Vec3::unit_z(), Vec3::unit_z().cross(tangent));
+    let turn = |v: Vec3<f64>| v + k.cross(v) + k.cross(k.cross(v)) / (1.0 + zw.dot(tangent));
+    for (name, got, want) in [
+        ("x", x, turn(Vec3::unit_x())),
+        ("y", y, turn(Vec3::unit_y())),
+    ] {
+        assert!(
+            (got - want).norm() < 1e-15,
+            "local +{name} must be the world axis turned by the least turn: {got:?} \
+             against {want:?}"
+        );
+    }
 }

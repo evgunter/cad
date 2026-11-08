@@ -46,3 +46,11 @@ the chart-singularity reading and step-import's meridian landing
 (`normalize/singularity.rs`, `param_at`) both cite since PR 6054. The one
 reading this row owes can be that function, or replace it. Filed here,
 not widened there (PR 6054's adjudication, S-b).
+
+## Since PR 6491 (2026-11-06, ONECOPY)
+
+The region doors' copies are gone:
+- the torus door's two `Legs::landings` arms and the ruled door's `Conic::angle` went with `Legs::landings`;
+- an edge's parameter at a landing is now the plane door's own root, `span_plane_meet` read across the leg's plane, wherever the edge is read across a leg.
+
+One reading of a point's parameter on a conic edge remains in the doors: `TorusFaceRegion::arc_place`, which places a parallel leg's root on a meridian, a Villarceau circle or an oval as `Azimuth::of(y, x).near(middle)` against the span (`plane_crossing::span_place`). The fourth spelling this row names, `geom_brep::chart_singularity::foot`, is untouched, so the row stays open for one reading shared by those two.

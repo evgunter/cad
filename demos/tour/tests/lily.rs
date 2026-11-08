@@ -854,7 +854,12 @@ mod review_probes {
             let e = pncad::topo::validate_geometric_certificate(b, Tol::witness())
                 .expect("the swept leaf is tier 3 clean")
                 .measure(demo_tour::printed())
-                .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
+                .unwrap_or_else(|refusal| {
+                    panic!(
+                        "{name}: no certified volume: {refusal_at}",
+                        refusal_at = refusal.render(pncad::geom_brep::recourse::Reading::AtRest)
+                    )
+                })
                 .enclosure
                 .enclosure();
             let (lo, hi) = (e.volume_lo, e.volume_hi);
@@ -1356,7 +1361,7 @@ mod review_probes {
             .filter_map(|(_, e)| {
                 let geom = b.get_curve_geom(e.curve)?.certified()?;
                 let pncad::geom::Curve3::Circle(pncad::geom::Circle {
-                    frame: pncad::geom::Frame { center, .. },
+                    frame: pncad::geom::Frame { origin: center, .. },
                     radius,
                 }) = *geom.carrier()
                 else {

@@ -102,7 +102,7 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
         tol(),
     )
     .map_err(|e| {
-        let text = e.error.to_string();
+        let text = e.error.render(geom_brep::recourse::Reading::Build);
         (e.error, text)
     }) {
         Err((
@@ -170,8 +170,12 @@ fn assert_consumed(body: &Body<f64>, a: f64, what: &str) {
         !walls.is_empty(),
         "{what}: the source carries the bore's walls"
     );
-    let out = fillet_edges(&body, &creases, ROD_FILLET, tol())
-        .unwrap_or_else(|e| panic!("{what}: the bore goes with the sliver, got {e}"));
+    let out = fillet_edges(&body, &creases, ROD_FILLET, tol()).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the bore goes with the sliver, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
     validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
         .unwrap_or_else(|e| panic!("{what}: tier 3′, {e:?}"));
@@ -211,22 +215,6 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_the_closed_form() {
 /// the faces of the unbored rod's carve.
 #[test]
 fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval() {
-    // Pinned red since PR 5227: at ε = 1e-12 the curve-pair polish meters its
-    // iterate's accumulated width and refuses the cap ring's meeting
-    // (`work/cpair/curve-pair-polish-at-interval-reads-the-iterates-width`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the bore at Interval",
-        &[
-            "Interval: tier 3′, [CensusUnsupported { subject: Entity(Edge(EdgeKey(1v3))), cause: ContactLane(NotCertifiable { what: \"the meeting reading of two curved edges could not settle a count\" }) }",
-        ],
-        a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval_row,
-    );
-}
-
-/// The row [`a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`] runs, under its pin.
-fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval_row() {
     let tol = tol();
     let body = sweep::test_support::finished(
         "bored",
@@ -238,8 +226,12 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval_row() {
         ),
         tol,
     );
-    let out = fillet_edges(&body, &rod_creases(&body), iv(ROD_FILLET), tol)
-        .unwrap_or_else(|e| panic!("the bore goes with the sliver at Interval, got {e}"));
+    let out = fillet_edges(&body, &rod_creases(&body), iv(ROD_FILLET), tol).unwrap_or_else(|e| {
+        panic!(
+            "the bore goes with the sliver at Interval, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("Interval: tier 3, {e:?}"));
     validate_pseudomanifold(&out.body, &ContactRecords::default(), tol)
         .unwrap_or_else(|e| panic!("Interval: tier 3′, {e:?}"));
@@ -278,8 +270,13 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval_row() {
         ),
         tol,
     );
-    let plain = fillet_edges(&unbored, &rod_creases(&unbored), iv(ROD_FILLET), tol)
-        .unwrap_or_else(|e| panic!("the unbored rod carves at Interval, got {e}"));
+    let plain =
+        fillet_edges(&unbored, &rod_creases(&unbored), iv(ROD_FILLET), tol).unwrap_or_else(|e| {
+            panic!(
+                "the unbored rod carves at Interval, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     let census = |b: &Body<Interval>| (b.faces().count(), b.edges().count(), b.vertices().count());
     assert_eq!(
         census(&out.body),
@@ -513,7 +510,12 @@ fn a_bore_clear_of_the_d_rods_sliver_carves_at_the_closed_form() {
             ROD_FILLET,
             tol(),
         )
-        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: both creases carve, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         let dv = volume(&out.body) - vol0;
         let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;
@@ -544,7 +546,12 @@ fn assert_carves_at_the_closed_form(body: &Body<f64>, what: &str) {
         ROD_FILLET,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{what}: both creases carve, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
     let dv = volume(&out.body) - vol0;
     let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;
@@ -629,7 +636,7 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
         tol(),
     )
     .map_err(|e| {
-        let text = e.error.to_string();
+        let text = e.error.render(geom_brep::recourse::Reading::Build);
         (e.error, text)
     }) {
         Err((

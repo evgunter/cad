@@ -504,9 +504,12 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
                 topo::test_support::pinned_resolution(tol),
             ))
         });
-        let measured = measured
-            .expect("the closure ran")
-            .unwrap_or_else(|e| panic!("ROUND SPLIT {label}: the body measures: {e}"));
+        let measured = measured.expect("the closure ran").unwrap_or_else(|e| {
+            panic!(
+                "ROUND SPLIT {label}: the body measures: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            )
+        });
 
         let mut gated = None;
         let gate = quad_rounds(|| {
@@ -527,9 +530,12 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         let refine = quad_rounds(|| {
             continued = Some(gated.measure(topo::test_support::pinned_resolution(tol)));
         });
-        let continued = continued
-            .expect("the closure ran")
-            .unwrap_or_else(|e| panic!("ROUND SPLIT {label}: the continuation measures: {e}"));
+        let continued = continued.expect("the closure ran").unwrap_or_else(|e| {
+            panic!(
+                "ROUND SPLIT {label}: the continuation measures: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            )
+        });
         let short = |stop| matches!(stop, topo::Stop::Floor | topo::Stop::Wall);
 
         match (continued.stop, measured.stop) {
@@ -746,7 +752,12 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
     ] {
         let measured = certificate
             .measure(topo::test_support::pinned_resolution(tol))
-            .unwrap_or_else(|e| panic!("PLANTED exhausted schedule through the {door}: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "PLANTED exhausted schedule through the {door}: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                )
+            });
         assert!(
             matches!(measured.stop, topo::Stop::Floor | topo::Stop::Wall),
             "PLANTED exhausted schedule through the {door}: the caller that asks for the \

@@ -729,8 +729,17 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     );
 
     let body = doc.output(extrude, 0).expect("the extrude's body");
-    let not_a_measure = sensitivities(&doc, body, None, None, false, None, Tol::witness())
-        .expect_err("a body is not a value");
+    let not_a_measure = sensitivities(
+        &doc,
+        body,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect_err("a body is not a value");
     assert!(
         not_a_measure.to_string().starts_with(&format!(
             "{} is not a scalar variable",
@@ -896,7 +905,8 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_placements() {
         expected_components: [((base, 0), 2)].into_iter().collect(),
         ..ChecksConfig::default()
     };
-    let report = run_checks(&doc, &ev, &strict, tol).expect("the checks run");
+    let report =
+        run_checks(&doc, &ev, &strict, &editor_core::Stop::default(), tol).expect("the checks run");
     let (base_out, boss_out) = (doc.output(base, 0), doc.output(boss, 0));
     let interference = report
         .findings
@@ -967,7 +977,14 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
         &EvalOptions::default(),
         tol,
     );
-    let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("the checks run");
     let read = doc.output(base, 0);
     assert_eq!(
         read,

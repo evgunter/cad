@@ -3,7 +3,7 @@
 Status: **RATIFIED** (design-conversation PR #124, signed off and
 merged 2026-07-29; the ratified doc was the deliverable of that
 conversation). **IMPLEMENTED** as LIB unit U2 (`crates/profile/`);
-`docs/LIB-U2-SPEC.md` and `work/lib/log.md` are the implementation
+`docs/LIB-U2-SPEC.md` and LIB's log (recoverable by `docs/doc-ledger/lib-leaves-the-tracker.md`) are the implementation
 record. Designed across twelve review rounds with Ev
 (2026-07-27/29, #104 + the #124 threads); the round-by-round trail
 lives in #124 and the M5 log — this document states only the
@@ -263,9 +263,9 @@ authoring act.
   be written.
 - DOF check: arc 5; r binds 1; tangency to each fixed carrier
   binds 2 + 2 — exactly determined (#101's `LoopBuilder::fillet`
-  closed form at a virtual corner). Parallel/non-intersecting
-  carriers, or an intersection behind the ray start, refuse typed
-  `NoCornerForFillet`.
+  closed form at a virtual corner). Tangent/non-intersecting
+  carriers, a turn zero at tolerance, or an intersection behind the
+  ray start, refuse typed `NoCornerForFillet`.
 
 ### Closure: the `Start` token
 
@@ -969,8 +969,9 @@ the fused verb** (`arc_fillet`; a `nurbs_fillet` has no closed
 form and is an ABSENT VERB — unrepresentable, strictly better
 doctrine than the old typed wall); **bare `fillet` ⇔ tangent-ray
 extension**, uniform across line/arc/NURBS incomings. The one
-surviving refusal is `NoCornerForFillet` (parallel carriers /
-intersection behind the ray start) — geometry, not mechanism.
+surviving refusal is `NoCornerForFillet` (tangent or disjoint
+carriers, a turn zero at tolerance / intersection behind the ray
+start) — geometry, not mechanism.
 
 The program Step vocabulary carries the same spelling as the
 surface: pre-release, the step set is not a compatibility

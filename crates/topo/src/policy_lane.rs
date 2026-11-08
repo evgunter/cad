@@ -341,11 +341,11 @@ mod tests {
 /// qualifier is one of [`origin_census::NOT_DOORS`], the types and modules
 /// whose own `certify`/`recertify` is not an edge door (a path that
 /// continues, `geom_brep::certify::NOT_A_SAMPLE`, names the module). A method call
-/// `.recertify_stated(`, and `.recertify(` with five arguments or more,
-/// short of the door's six: the other `recertify`
-/// methods `topo` calls take two (`OffsetFitLane`) or four
-/// (`PcurveCache`), and a counted argument list only over-counts (a
-/// closure's `|a, b|`), so the arity reading errs loud.
+/// `.recertify_stated(`, and `.recertify(` with the door's six arguments
+/// or more: the other `recertify` methods `topo` calls take two
+/// (`OffsetFitLane`) or five (`PcurveCache`, the edge's span among
+/// them), and a counted argument list only over-counts (a closure's
+/// `|a, b|`), so the arity reading errs loud.
 ///
 /// **Production** is every file a test-only `cfg` does not gate, with
 /// everything such a `cfg` gates in it blanked — an item, or a field, a
@@ -357,7 +357,7 @@ mod tests {
 ///
 /// **What it cannot match.** A door reached through a macro's
 /// expansion, an `include!`d file, or a file a `#[path]` attribute
-/// mounts; a `.recertify(` of fewer than five arguments on an
+/// mounts; a `.recertify(` of fewer than six arguments on an
 /// [`EdgeCurve`] reached through a trait or a wrapper that renames it;
 /// a `geom_brep` door other than the six (none other returns a
 /// [`CertifyError`] today). The door bodies the scalars' policies run
@@ -497,7 +497,7 @@ mod origin_census {
                 };
                 let reached = match door {
                     "recertify_stated" => true,
-                    "recertify" => arity() >= 5,
+                    "recertify" => arity() >= 6,
                     _ => false,
                 };
                 if reached {
@@ -576,7 +576,7 @@ fn site(c: &EdgeCurve<f64>) {
     let fine = crate::policy_lane::certify(Origin::Callers, spec, s, e, f, 1.0, band);
     let cache = PcurveCache::certify(p, t0, t1, &carrier, surface, band);
     let lane = lane.recertify(approx, tol);
-    let row = cache.recertify(&carrier, surface, band, lane,);
+    let row = cache.recertify(&carrier, span, surface, band, lane,);
     let sample = geom_brep::certify::NOT_A_SAMPLE;
     // EdgeCurve::certify(spec) in a comment
     let s = "EdgeCurve::certify(";

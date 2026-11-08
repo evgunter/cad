@@ -27,3 +27,15 @@ for a plane only: `ssi::certify::CHART_TUBE_NEEDS_PLANE`, which
 Either a chart tube for an analytic operand, or a named, typed refusal
 for the pair at `resolve` (with the tube's limit as its reason) in
 place of `Unimplemented`, which reads as "nobody wrote this".
+
+## The tube half is built (2026-11-02)
+
+The chart tube now reads a cylinder, a sphere and a ring torus as well as
+a plane (`ssi::enclose::ChartPhi`, SECTARMS's NURBS × implicit stage 3a),
+and `CHART_TUBE_NEEDS_PLANE` is gone: `certify_branch` raises
+`CHART_TUBE_NEEDS_FORM` only for a partner with no form it reads (a cone,
+a spindle torus, or one not exact at `f64`). The refusal at `resolve`
+stands as written: `resolve` still refuses the spline side of a
+non-plane analytic × spline pair before any tube is read, so what closes
+this row now is a `Resolved` arm for that pair beside `PlaneNurbs`, or
+the typed refusal.

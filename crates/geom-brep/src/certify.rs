@@ -65,14 +65,14 @@ use crate::description::{
     SurfacePair, authority_of,
 };
 use crate::dihedral::{
-    DihedralClass, WedgeEscalation, decide_positive, decide_reported, wedge_decided,
+    DihedralClass, FirstOrderEscalation, decide_positive, decide_reported, wedge_decided,
 };
 use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, PcurveCheck, chart_pcurve_over};
 use crate::recourse::{
-    Classified, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass, SpanDecision,
-    Unsized,
+    Classified, Decision, DoorCheck, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision,
+    SizedPass, SpanDecision, Unsized,
 };
 
 // **The sized decisions' nouns, each spelled once.** A size noun is the
@@ -866,6 +866,19 @@ impl core::fmt::Display for CertifyError {
                 channel.describe(),
                 crate::pcurve_cache::POSE_LEVER,
             ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: crate::LaneGap::Envelope,
+            } => write!(
+                f,
+                "a conventional description's {} carrier is on its {} chart but is none of \
+                 the chart's own curves, and its general image's certificate on that chart does \
+                 not yet bound this pose. Recourse: {}",
+                carrier.name(),
+                chart.name(),
+                crate::pcurve_cache::ENVELOPE_LEVER,
+            ),
             Self::CarrierOffChart {
                 chart,
                 carrier,
@@ -979,7 +992,8 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the shared row's image on surface {surface:?} is not the edge: its \
-                 certificate refused at its {check:?} check"
+                 certificate refused at its {} check",
+                check.words()
             ),
             Self::Row {
                 surface,
@@ -1089,7 +1103,15 @@ impl CertifyError {
     /// than from a rendered string.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
-        Some(match self {
+        self.decided()?.check()
+    }
+
+    /// **The decision this refusal is a refused arm of**, one per arm
+    /// (D4 ¶1 (i)), or `None` for a refusal that is no decision's: the
+    /// exhaustive match a new arm names its decision in before it
+    /// compiles, which [`Self::ending`] and [`Self::decision`] both read.
+    pub(crate) fn decided(&self) -> Option<Decision<'_, CertCheck>> {
+        let (check, arm) = match self {
             Self::ResidualExceeded { check, margin, .. } => {
                 (*check, RefusedArm::SignCertain(Some(*margin)))
             }
@@ -1111,16 +1133,16 @@ impl CertifyError {
                 ..
             } => (CertCheck::ChartClass, RefusedArm::SignCertain(None)),
             Self::NoGeneralLane {
-                gap: crate::LaneGap::Pose { .. },
+                gap: crate::LaneGap::Pose { .. } | crate::LaneGap::Envelope,
                 ..
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::CarrierOffChart { margin, .. } => (
                 CertCheck::ChartIncidence,
-                crate::IncidenceRead::of_margin(*margin).arm(),
+                RefusedArm::SignCertain(margin.map(crate::OffMargin::diag)),
             ),
-            Self::PlaneNurbs(refusal) => return refusal.decision(),
-            Self::AnalyticRung3(refusal) => return refusal.decision(),
-            Self::Row { refusal, .. } => return refusal.decision(),
+            Self::PlaneNurbs(refusal) => return Some(refusal.decided()),
+            Self::AnalyticRung3(refusal) => return Some(refusal.decided()),
+            Self::Row { refusal, .. } => refusal.decision()?,
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
             | Self::IntersectionSameSurface { .. }
@@ -1128,15 +1150,16 @@ impl CertifyError {
             | Self::TangentCertificateUnsupported
             | Self::StatedInterval { .. }
             | Self::Band(_) => return None,
-        })
+        };
+        Some(Decision::Check(check, arm))
     }
 
     /// The ending this refusal's decision gives it, read at `at`
-    /// ([`recourse`] over [`CertifyError::decision`]), or `None` for a
-    /// refusal that is no decision's refused arm. The exceptions have no
-    /// `decision()` and end by their own: the lanes' one-arc proof
-    /// (`TubeNotOneArc`, [`crate::ssi::OneArcRefusal::ending`]), and a
-    /// door's input interval ([`StatedSpan::ending`]).
+    /// ([`Self::decided`], through the one decision table's
+    /// [`crate::recourse::Decision::ending`]), or `None` for a refusal
+    /// that is no decision's refused arm. A door's input interval ends by
+    /// its own ([`StatedSpan::ending`]), and an incidence refusal by its
+    /// read.
     ///
     /// `Display` renders the payload alone: where a refusal is read
     /// decides its ending (D4 ¶1 (i)), so the door that reports it
@@ -1144,15 +1167,18 @@ impl CertifyError {
     #[must_use]
     pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         let at = at.into();
+        self.own_ending(at)
+            .or_else(|| self.decided().map(|decision| decision.ending(at)))
+    }
+
+    /// The ending this door reads off the refusal itself rather than off
+    /// its decision, or `None`: a door's input interval by its span, and
+    /// a carrier's incidence by what was read, through the one map every
+    /// incidence ending goes through ([`crate::IncidenceRead::ending`]).
+    pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
-            Self::PlaneNurbs(refusal) => refusal.ending(at),
-            Self::AnalyticRung3(refusal) => refusal.ending(at),
             Self::StatedInterval { refused } => Some(refused.ending(at)),
-            // A carrier's incidence ends by what was read, through the one
-            // map every incidence ending goes through
-            // ([`crate::IncidenceRead::ending`]).
-            _ if let Some(read) = self.incidence_read() => Some(read.ending(at)),
-            _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
+            _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }
 
@@ -1164,14 +1190,14 @@ impl CertifyError {
     /// which every incidence refusal reaches it through, and is the one
     /// reading of it [`Self::ending`] and a door's classification share.
     #[must_use]
-    pub fn incidence_read(&self) -> Option<crate::IncidenceRead<'_>> {
+    pub fn incidence_read(&self) -> Option<crate::IncidenceRead> {
         match self {
             Self::CarrierOffChart { margin, .. } => Some(crate::IncidenceRead::of_margin(*margin)),
             Self::Escalated {
                 check: CertCheck::ChartIncidence,
                 cause,
                 ..
-            } => Some(crate::IncidenceRead::Undecided(cause)),
+            } => Some(crate::IncidenceRead::Undecided(*cause)),
             // The test's residual decided past the band: a definite miss,
             // read as the pcurve layer's (`IncidenceRead::of`) reads it.
             // Its margin is the residual, not a pose's height, so it is
@@ -1199,6 +1225,12 @@ impl CertifyError {
     }
 }
 
+impl crate::recourse::Ended for CertifyError {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
+    }
+}
+
 /// Why the transversality margin is undefined when its tangent planes
 /// are ([`CertCheck::TangentPlanes`]): the sentence its refusal says in
 /// place of the margin's numbers, which read nothing.
@@ -1213,7 +1245,8 @@ const TANGENT_PLANES_UNDEFINED: &str = "a surface's gradient is zero or undefine
 const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axis or centre; over \
      a parameter box, a narrower box encloses the edge and its surfaces closer to where they are";
 
-/// How one decision's refusals end: the one table [`recourse`] reads.
+/// How one decision's refusals end: the one table `CertCheck`'s
+/// [`DoorCheck::recourse`] reads.
 #[derive(Debug)]
 enum Ending {
     /// A decision on a size the user may intend ([`SizedDecision`]).
@@ -1454,6 +1487,28 @@ impl core::fmt::Display for StatedSpan {
 /// the uniqueness tube's bound are moved by the same change.
 const CROSS_LEVER: &str = "move the geometry so the surfaces cross at a clearer angle";
 
+impl<'a> Decision<'a, CertCheck> {
+    /// The certification check this decision is a refused arm of, where
+    /// it is one: a check of this door, or a certificate limb's check for
+    /// a limb escalated at the SSI door.
+    pub(crate) fn check(&self) -> Option<(CertCheck, RefusedArm<'a>)> {
+        match *self {
+            Self::Check(check, arm) => Some((check, arm)),
+            Self::SsiUndecided(crate::ssi::SsiDecision::Limb(limb), cause) => {
+                Some((limb.check(), RefusedArm::Undecided(cause)))
+            }
+            Self::SsiUndecided(..)
+            | Self::Ssi(_)
+            | Self::OneArc(_)
+            | Self::Fitted(_)
+            | Self::Lever(_)
+            | Self::Unsized(_)
+            | Self::NotYet
+            | Self::KernelLimit { .. } => None,
+        }
+    }
+}
+
 impl CertCheck {
     /// Whether this check refuses on a certified upper bound on a miss
     /// rather than on the miss: its refusal says only that the
@@ -1622,39 +1677,42 @@ impl CertCheck {
     }
 }
 
-/// The one ending a refusal of `check` carries on `arm`, read at `at`
-/// (D4 ¶1 (i)): computed from the decision and its verdict, never from a
-/// predicate name.
-///
-/// - A decision on a size (it passes on a nonzero sign) ends as
-///   [`SizedDecision::recourse`] gives: its lever, the conditional
-///   tolerance on a band-decided arm, and on a reading certainly on its
-///   refused side what that side is ([`crate::recourse::RefusedSide`],
-///   D4 ¶1 (iv)).
-/// - A residual or a form selection has no size. Every arm ends in the
-///   kernel-defect ending where the kernel built the geometry exactly
-///   (the file's too, at rest). Where the kernel
-///   approximated, an arm read at a build, and an undecided arm read at
-///   rest, end in the last resort; a definite arm at rest ends in the
-///   file's defect ending, since no loosening repairs a stored
-///   contradiction. A certified bound on the miss ends in the last resort
-///   on every arm: a loose bound contradicts nothing stored.
-/// - At the STEP import door ([`ReadAt::File`]) the file's declared
-///   coincidence distance picks the words: a sized decision's as
-///   [`SizedDecision::recourse`] gives; a residual's miss within ε_in but
-///   beyond ε, or a bound on it wholly within ε_in, names setting ε to
-///   ε_in as a stopgap ([`Unsized::residual_in_file`]); and past ε_in a
-///   defect ending names the file ([`ReadAt::culprit`]), sized or not.
-#[must_use]
-pub(crate) fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
-    let at = at.into();
-    match (check.ending(), at) {
-        (Ending::Sized(sized), at) => sized.recourse(arm, at),
-        (Ending::Residual(residual), ReadAt::File(file)) => residual.residual_in_file(arm, file),
-        (Ending::Unsized(no_size) | Ending::Residual(no_size), at) => no_size.recourse(arm, at),
-        (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
-        (Ending::NotYet, at) => crate::recourse::not_yet(arm, at),
-        (Ending::Incidence, at) => crate::IncidenceRead::arm_ending(arm, at),
+impl DoorCheck for CertCheck {
+    /// The one ending a refusal of this check carries on `arm`, read at `at`
+    /// (D4 ¶1 (i)): computed from the decision and its verdict, never from a
+    /// predicate name.
+    ///
+    /// - A decision on a size (it passes on a nonzero sign) ends as
+    ///   [`SizedDecision::recourse`] gives: its lever, the conditional
+    ///   tolerance on a band-decided arm, and on a reading certainly on its
+    ///   refused side what that side is ([`crate::recourse::RefusedSide`],
+    ///   D4 ¶1 (iv)).
+    /// - A residual or a form selection has no size. Every arm ends in the
+    ///   kernel-defect ending where the kernel built the geometry exactly
+    ///   (the file's too, at rest). Where the kernel
+    ///   approximated, an arm read at a build, and an undecided arm read at
+    ///   rest, end in the last resort; a definite arm at rest ends in the
+    ///   file's defect ending, since no loosening repairs a stored
+    ///   contradiction. A certified bound on the miss ends in the last resort
+    ///   on every arm: a loose bound contradicts nothing stored.
+    /// - At the STEP import door ([`ReadAt::File`]) the file's declared
+    ///   coincidence distance picks the words: a sized decision's as
+    ///   [`SizedDecision::recourse`] gives; a residual's miss within ε_in but
+    ///   beyond ε, or a bound on it wholly within ε_in, names setting ε to
+    ///   ε_in as a stopgap ([`Unsized::residual_in_file`]); and past ε_in a
+    ///   defect ending names the file ([`ReadAt::culprit`]), sized or not.
+    fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
+        match (self.ending(), at) {
+            (Ending::Sized(sized), at) => sized.recourse(arm, at),
+            (Ending::Residual(residual), ReadAt::File(file)) => {
+                residual.residual_in_file(arm, file)
+            }
+            (Ending::Unsized(no_size) | Ending::Residual(no_size), at) => no_size.recourse(arm, at),
+            (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
+            (Ending::NotYet, at) => crate::recourse::not_yet(arm, at),
+            (Ending::Incidence, at) => crate::IncidenceRead::arm_ending(arm, at),
+        }
     }
 }
 
@@ -1756,7 +1814,12 @@ impl<T: Real> EdgeCurveSpec<T> {
     {
         use geom_core::{Affine3, Point2, Point3};
         let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    ..
+                },
             ..
         }) = carrier
         else {
@@ -2876,19 +2939,37 @@ impl<T: Real> EdgeCurve<T> {
         &self,
         mut remap: impl FnMut(crate::keys::SurfaceKey) -> Option<crate::keys::SurfaceKey>,
     ) -> Option<Self> {
+        self.try_with_remapped_surfaces(|k| remap(k).ok_or(())).ok()
+    }
+
+    /// [`EdgeCurve::with_remapped_surfaces`] through a total `remap`.
+    #[must_use]
+    pub fn with_remapped_surfaces_total(
+        &self,
+        mut remap: impl FnMut(crate::keys::SurfaceKey) -> crate::keys::SurfaceKey,
+    ) -> Self {
+        let Ok(remapped) =
+            self.try_with_remapped_surfaces(|k| Ok::<_, core::convert::Infallible>(remap(k)));
+        remapped
+    }
+
+    fn try_with_remapped_surfaces<E>(
+        &self,
+        mut remap: impl FnMut(crate::keys::SurfaceKey) -> Result<crate::keys::SurfaceKey, E>,
+    ) -> Result<Self, E> {
         let description = match self.description {
             EdgeDescription::Intersection { pair, ref selector } => {
-                let (pair, selector) = selector.remapped(pair, &mut remap)?;
+                let (pair, selector) = selector.try_remapped(pair, &mut remap)?;
                 EdgeDescription::Intersection { pair, selector }
             }
             EdgeDescription::TangentIntersection { pair, witness } => {
                 EdgeDescription::TangentIntersection {
-                    pair: pair.try_map(|k| remap(k).ok_or(())).ok()?,
+                    pair: pair.try_map(&mut remap)?,
                     witness,
                 }
             }
             EdgeDescription::OnPair { pair } => EdgeDescription::OnPair {
-                pair: pair.try_map(|k| remap(k).ok_or(())).ok()?,
+                pair: pair.try_map(&mut remap)?,
             },
             // The chart IMAGE travels verbatim, because it is geometry
             // stated in chart COORDINATES, which a bitwise re-creation
@@ -2901,7 +2982,7 @@ impl<T: Real> EdgeCurve<T> {
             // A scaffold names no surface — there is none yet.
             EdgeDescription::Scaffold(m) => EdgeDescription::Scaffold(m),
         };
-        Some(Self {
+        Ok(Self {
             description,
             authority: self.authority,
             carrier: self.carrier.clone(),
@@ -3573,13 +3654,6 @@ fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
             sample: NOT_A_SAMPLE,
             cause,
         },
-        P::ArcRim(crate::edge_nurbs::ArcRimRefusal::Escalated { check, cause }) => {
-            CertifyError::Escalated {
-                check: arc_rim_check(check),
-                sample: NOT_A_SAMPLE,
-                cause,
-            }
-        }
         P::ReportedTransversalityPoisoned(cause) => CertifyError::Escalated {
             check: CertCheck::PlaneNurbsReportedTransversality,
             sample: NOT_A_SAMPLE,
@@ -3988,7 +4062,21 @@ fn canonical_of<T: Decide>(
                 // every stored cache of this class already carries,
                 // which is what makes description and cache the same
                 // object.
-                Some(p) => p.clone(),
+                Some(p) => {
+                    // A stated image is metered against the chart below;
+                    // whether the carrier lies on the chart is read first,
+                    // as the mint reads it (D3), so a carrier off its face
+                    // ends as that read, never as the residual's meter.
+                    crate::pcurve_cache::read_incidence(
+                        &spec.carrier,
+                        spec.param_start,
+                        spec.param_end,
+                        surface,
+                        band,
+                    )
+                    .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
+                    p.clone()
+                }
                 // D4, the minted half: an analytic chart's image is
                 // derived from the carrier through the one door that
                 // derives chart images anywhere in this kernel.
@@ -3999,80 +4087,7 @@ fn canonical_of<T: Decide>(
                     surface,
                     band,
                 )
-                .map_err(|e| match e {
-                    // A carrier not shown on its chart: its incidence,
-                    // ended by its read (D3), decided or in band.
-                    PcurveCertifyError::CarrierOffChart { why, margin, .. } => {
-                        CertifyError::CarrierOffChart {
-                            chart: surface.kind(),
-                            carrier: spec.carrier.kind(),
-                            why,
-                            margin,
-                        }
-                    }
-                    PcurveCertifyError::Escalated {
-                        check: PcurveCheck::ChartIncidence,
-                        cause,
-                        ..
-                    } => CertifyError::Escalated {
-                        check: CertCheck::ChartIncidence,
-                        sample: NOT_A_SAMPLE,
-                        cause,
-                    },
-                    // The mint runs ONCE, before the schedule, so the
-                    // sample field carries the not-a-sample sentinel:
-                    // reporting `0` would name a schedule point that
-                    // was never visited.
-                    // The class reading is a lane choice (D3): in band
-                    // it stays its own check, which ends "not yet", never
-                    // the mint's defect.
-                    PcurveCertifyError::Escalated {
-                        check: PcurveCheck::ChartClass,
-                        cause,
-                        ..
-                    } => CertifyError::Escalated {
-                        check: CertCheck::ChartClass,
-                        sample: NOT_A_SAMPLE,
-                        cause,
-                    },
-                    // The general lane's own reading where the lane
-                    // choice sent the carrier: its capability gap,
-                    // "not yet" as well.
-                    PcurveCertifyError::Escalated {
-                        check: PcurveCheck::GeneralLane,
-                        cause,
-                        ..
-                    } => CertifyError::Escalated {
-                        check: CertCheck::GeneralLane,
-                        sample: NOT_A_SAMPLE,
-                        cause,
-                    },
-                    PcurveCertifyError::Escalated { cause, .. } => CertifyError::Escalated {
-                        check: CertCheck::ChartImage,
-                        sample: NOT_A_SAMPLE,
-                        cause,
-                    },
-                    PcurveCertifyError::NoGeneralLane {
-                        chart,
-                        carrier,
-                        gap,
-                    } => CertifyError::NoGeneralLane {
-                        chart,
-                        carrier,
-                        gap,
-                    },
-                    // Every other refusal says the same thing: this
-                    // (chart, carrier) pair has no certified chart
-                    // image. That is a fact about the DESCRIPTION's
-                    // geometry, and it is reported as one — not as
-                    // `Unimplemented`, which means something else and
-                    // would send the caller looking for a missing
-                    // feature instead of a wrong locus.
-                    _ => CertifyError::ChartImageUnavailable {
-                        chart: surface.kind(),
-                        carrier: spec.carrier.kind(),
-                    },
-                })?,
+                .map_err(|e| mint_refusal(e, surface, &spec.carrier))?,
             };
             EdgeDescription::Chart(ChartCurve {
                 surface: *key,
@@ -4081,6 +4096,118 @@ fn canonical_of<T: Decide>(
             })
         }
     })
+}
+
+/// **A chart image's refusal, as the edge certificate's**: an incidence
+/// read ended by its read (D3), decided or in band; a class reading or
+/// the general lane's own, "not yet"; any other, the pair having no
+/// certified image. The mint and a stated image's incidence read refuse
+/// through it alike.
+fn mint_refusal<T: Real>(
+    e: PcurveCertifyError,
+    surface: &Surface<T>,
+    carrier: &Curve3<T>,
+) -> CertifyError {
+    use crate::{IncidenceRead, OffMargin};
+    // A carrier not shown on its chart ends by its read (D3), decided or
+    // in band: the one classifier, so this map and every reader of the
+    // refusal agree.
+    if let Some(read) = IncidenceRead::of(&e) {
+        let why = match e {
+            PcurveCertifyError::CarrierOffChart { why, .. } => why,
+            _ => "the carrier's distance from the chart is past the band",
+        };
+        let off = |margin| CertifyError::CarrierOffChart {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+            why,
+            margin,
+        };
+        return match read {
+            IncidenceRead::Off(margin) => off(margin.map(OffMargin::Past)),
+            IncidenceRead::AtPose(margin) => off(Some(OffMargin::InBand(margin))),
+            // The mint runs ONCE, before the schedule, so the sample
+            // field carries the not-a-sample sentinel: reporting `0`
+            // would name a schedule point that was never visited.
+            IncidenceRead::Undecided(cause) => CertifyError::Escalated {
+                check: CertCheck::ChartIncidence,
+                sample: NOT_A_SAMPLE,
+                cause,
+            },
+        };
+    }
+    match e {
+        // The class reading is a lane choice (D3): in band it stays its
+        // own check, which ends "not yet", never the mint's defect.
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartClass,
+            cause,
+            ..
+        } => CertifyError::Escalated {
+            check: CertCheck::ChartClass,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        // The general lane's own reading where the lane choice sent the
+        // carrier: its capability gap, "not yet" as well.
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            cause,
+            ..
+        } => CertifyError::Escalated {
+            check: CertCheck::GeneralLane,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        PcurveCertifyError::Escalated { cause, .. } => CertifyError::Escalated {
+            check: CertCheck::ChartImage,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        PcurveCertifyError::NoGeneralLane {
+            chart,
+            carrier,
+            gap,
+        } => CertifyError::NoGeneralLane {
+            chart,
+            carrier,
+            gap,
+        },
+        // Read above: an incidence refusal never reaches here.
+        PcurveCertifyError::CarrierOffChart { .. } => {
+            unreachable!("mint_refusal: IncidenceRead::of reads every CarrierOffChart")
+        }
+        // Every other refusal says the same thing: this (chart, carrier)
+        // pair has no certified chart image. That is a fact about the
+        // DESCRIPTION's geometry, and it is reported as one — not as
+        // `Unimplemented`, which means something else and would send the
+        // caller looking for a missing feature instead of a wrong locus.
+        PcurveCertifyError::UnsupportedChart { .. }
+        | PcurveCertifyError::ImageMismatch { .. }
+        | PcurveCertifyError::FittedGradeAtClosedFormDoor { .. }
+        | PcurveCertifyError::FittedLaneUnsupported { .. }
+        | PcurveCertifyError::SectorRefused { .. }
+        | PcurveCertifyError::IsoUnsupported { .. }
+        | PcurveCertifyError::ChartRow { .. }
+        | PcurveCertifyError::FittedLimb { .. }
+        | PcurveCertifyError::FittedCertificate { .. }
+        | PcurveCertifyError::CarrierDomain(_)
+        | PcurveCertifyError::CarrierEnclosure(_)
+        | PcurveCertifyError::FittedEscalated { .. }
+        | PcurveCertifyError::IntervalNotForward
+        | PcurveCertifyError::ChartWindingUnsupported
+        | PcurveCertifyError::ChannelKindMismatch { .. }
+        | PcurveCertifyError::WindingMismatch { .. }
+        | PcurveCertifyError::PlaceholderChart
+        | PcurveCertifyError::AzimuthPeriodExceeded
+        | PcurveCertifyError::PlacementTurnsExceeded
+        | PcurveCertifyError::TubePeriodExceeded
+        | PcurveCertifyError::ResidualExceeded { .. }
+        | PcurveCertifyError::Band(_) => CertifyError::ChartImageUnavailable {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+        },
+    }
 }
 
 /// **The mint** — what every scalar's edge door constructs: check 1,
@@ -4190,7 +4317,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                                 verdict,
                             });
                         }
-                        Err(WedgeEscalation::Lever(escalation)) => {
+                        Err(FirstOrderEscalation::Lever(escalation)) => {
                             if let Some(verdict) = escalation.collapsed_arm() {
                                 return Err(CertifyError::ArmCollapsed { sample: i, verdict });
                             }
@@ -4203,7 +4330,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                                 cause: escalation.diag(),
                             });
                         }
-                        Err(WedgeEscalation::NoTangentPlane(cause)) => {
+                        Err(FirstOrderEscalation::NoTangentPlane(cause)) => {
                             return Err(CertifyError::Escalated {
                                 check: CertCheck::TangentPlanes,
                                 sample: i,
@@ -5374,7 +5501,7 @@ mod tests {
                 "length",
                 vec![
                     CertifyError::PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal::ArcRim(
-                        crate::edge_nurbs::ArcRimRefusal::Refused {
+                        crate::edge_nurbs::ArcRimRefusal {
                             iso: Some(crate::pcurve_cache::PcurveCheck::ParamSpan),
                             limb: crate::ssi::SsiLimb::HullSupChart,
                             bound: MarginDiag::value(5e-6),
@@ -7047,7 +7174,7 @@ mod tests {
         };
         for reading in [Reading::Build, Reading::AtRest] {
             let end = |e: CertifyError| e.ending(reading).unwrap();
-            let lane = |p: P| p.ending(reading).unwrap();
+            let lane = |p: P| p.ending(reading);
             let pairs = [
                 (
                     CertCheck::Transversality,
@@ -7108,7 +7235,7 @@ mod tests {
                 };
                 assert_eq!(at_zero, offer("5e-11"), "{reading:?}");
                 assert_eq!(in_band, offer("5e-10"), "{reading:?}");
-                let definite = recourse(check, RefusedArm::SignCertain(None), reading);
+                let definite = check.recourse(RefusedArm::SignCertain(None), reading);
                 match (reading, check) {
                     // A tube's margin is a lower bound: its definite
                     // refusal is the certificate's limit, not a stored
@@ -7315,7 +7442,11 @@ mod tests {
                 verdict: straddle,
                 boxes: 4,
             };
-            let mut endings = vec![lane.ending(at), edge.ending(at), analytic.ending(at)];
+            let mut endings = vec![
+                Some(lane.ending(at)),
+                edge.ending(at),
+                Some(analytic.ending(at)),
+            ];
             if let ReadAt::Run(reading) = at {
                 endings.push(Some(ssi.ending(reading)));
             }
@@ -7442,7 +7573,7 @@ mod tests {
                     "{error:?} at {at:?}"
                 );
                 assert_eq!(
-                    recourse(refused.check(), refused.arm(), at),
+                    refused.check().recourse(refused.arm(), at),
                     want,
                     "recourse({:?}, {:?}) at {at:?}",
                     refused.check(),
@@ -7455,7 +7586,7 @@ mod tests {
             (CertCheck::ParamWinding, SpanDecision::Winding),
         ] {
             assert_eq!(
-                recourse(check, RefusedArm::SignCertain(None), Reading::Build),
+                check.recourse(RefusedArm::SignCertain(None), Reading::Build),
                 format!("Recourse: {}", decision.lever()),
                 "{check:?}"
             );
@@ -8045,14 +8176,13 @@ mod tests {
             ),
         ];
         for (reading, definite, undecided, exact) in rows {
-            assert_eq!(limb.ending(reading).unwrap(), definite, "{reading:?}");
+            assert_eq!(limb.ending(reading), definite, "{reading:?}");
             assert_eq!(
                 P::Escalated {
                     limb: crate::ssi::SsiLimb::OnLocus,
                     cause
                 }
-                .ending(reading)
-                .unwrap(),
+                .ending(reading),
                 undecided,
                 "{reading:?}"
             );
@@ -8114,7 +8244,7 @@ mod tests {
         ] {
             let (got_check, _) = refusal.decision().unwrap();
             assert_eq!(got_check, check, "{refusal:?}");
-            assert_eq!(refusal.ending(Reading::Build).unwrap(), want, "{refusal:?}");
+            assert_eq!(refusal.ending(Reading::Build), want, "{refusal:?}");
             // Through certification: the same check, and no schedule
             // point the limb never visited.
             let certified = from_plane_nurbs(refusal);
@@ -8160,14 +8290,14 @@ mod tests {
     #[test]
     fn each_decision_family_ends_in_its_routed_sentence() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let undecided_at = |check, margin, reading| {
+        let undecided_at = |check: CertCheck, margin, reading| {
             let cause = Indeterminate {
                 margin,
                 band,
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             };
-            recourse(check, RefusedArm::Undecided(&cause), reading)
+            check.recourse(RefusedArm::Undecided(&cause), reading)
         };
         let undecided = |check, margin| undecided_at(check, margin, Reading::Build);
         // A span reading on a side no construction mints, built by hand,
@@ -8256,11 +8386,7 @@ mod tests {
                 "Recourse: move the geometry so this arc stays clearly short of a full turn",
             ),
             (
-                recourse(
-                    CertCheck::EndpointStart,
-                    RefusedArm::SignCertain(None),
-                    Reading::AtRest,
-                ),
+                CertCheck::EndpointStart.recourse(RefusedArm::SignCertain(None), Reading::AtRest),
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             // At rest: a sized decision's sign-certain arm is a stored
@@ -8268,11 +8394,7 @@ mod tests {
             // (lever and conditional); an approximation's definite
             // residual is a stored contradiction no loosening repairs.
             (
-                recourse(
-                    CertCheck::ParamSpan,
-                    RefusedArm::SignCertain(None),
-                    Reading::AtRest,
-                ),
+                CertCheck::ParamSpan.recourse(RefusedArm::SignCertain(None), Reading::AtRest),
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             // A span of no length has no size to tighten below; no
@@ -8436,7 +8558,7 @@ mod tests {
                     crate::IncidenceRead::Off(None),
                     crate::IncidenceRead::Off(Some(MarginDiag::value(5e-9))),
                     crate::IncidenceRead::AtPose(MarginDiag::value(5e-9)),
-                    crate::IncidenceRead::Undecided(cause),
+                    crate::IncidenceRead::Undecided(*cause),
                 ] {
                     for file in [wide, narrow] {
                         let door = read.ending(file);
@@ -8470,7 +8592,7 @@ mod tests {
                 arms.push((RefusedArm::Zero(Classified { margin, band }), false));
             }
             for (arm, miss) in arms {
-                let at_rest = recourse(check, arm, Reading::AtRest);
+                let at_rest = check.recourse(arm, Reading::AtRest);
                 // Past ε_in the door reads as rest does, but names the
                 // file where rest names the kernel or the file: in the
                 // defect ending, and in an unreadable margin's note.
@@ -8502,7 +8624,7 @@ mod tests {
                     }
                     _ => None,
                 };
-                let narrow_door = recourse(check, arm, narrow);
+                let narrow_door = check.recourse(arm, narrow);
                 match (check.ending(), reaches_zero) {
                     (Ending::Sized(sized), Some(far))
                         if !(sized.passes.passes_zero() && matches!(arm, RefusedArm::Zero(_))) =>
@@ -8529,7 +8651,7 @@ mod tests {
                         "{check:?} {arm:?}: an ε_in below every margin picks no other words"
                     ),
                 }
-                let door = recourse(check, arm, wide);
+                let door = check.recourse(arm, wide);
                 assert_ne!(door, KERNEL_DEFECT_ENDING, "{check:?} {arm:?}");
                 assert_eq!(
                     door.matches("Recourse:").count() + door.matches("There is no way").count(),
@@ -8780,14 +8902,14 @@ mod tests {
         ];
         for (check, class, arm, build, at_rest, within, past) in rows {
             for (door, got, want) in [
-                ("a build", recourse(check, arm(2e-6), Reading::Build), build),
+                ("a build", check.recourse(arm(2e-6), Reading::Build), build),
                 (
                     "at rest",
-                    recourse(check, arm(2e-6), Reading::AtRest),
+                    check.recourse(arm(2e-6), Reading::AtRest),
                     at_rest,
                 ),
-                ("within ε_in", recourse(check, arm(5e-7), file), within),
-                ("past ε_in", recourse(check, arm(2e-6), file), past),
+                ("within ε_in", check.recourse(arm(5e-7), file), within),
+                ("past ε_in", check.recourse(arm(2e-6), file), past),
             ] {
                 assert_eq!(got, want, "{check:?}, {class}, at {door}");
             }
@@ -8867,7 +8989,7 @@ mod tests {
                     f
                 }
             };
-            assert_eq!(recourse(check, past, file), want, "{check:?} past ε_in");
+            assert_eq!(check.recourse(past, file), want, "{check:?} past ε_in");
         }
         assert_eq!(
             on_lever,
@@ -9014,7 +9136,8 @@ mod tests {
 
     /// **The collapsed-arm gates' definite refusals read the import door
     /// like every sized decision's** (D4 ¶1): a collapsed transversality
-    /// arm and a collapsed span meter end through [`recourse`] at the door, so
+    /// arm and a collapsed span meter end through
+    /// [`DoorCheck::recourse`] at the door, so
     /// a zero within the file's ε_in is a size the file cannot tell from
     /// zero, not the at-rest offer to tighten alone.
     #[test]
@@ -9038,7 +9161,7 @@ mod tests {
             let door = refusal.ending(file).unwrap();
             assert_eq!(
                 door,
-                recourse(check, verdict.arm(), file),
+                check.recourse(verdict.arm(), file),
                 "{check:?}: the door's ending is the decision's"
             );
             assert!(
@@ -9624,7 +9747,7 @@ mod tests {
             // incidence ends by its read, never from the check.
             let at_build = match check.ending() {
                 Ending::Incidence => crate::IncidenceRead::Off(None).ending(Reading::Build),
-                _ => recourse(check, RefusedArm::SignCertain(None), Reading::Build),
+                _ => check.recourse(RefusedArm::SignCertain(None), Reading::Build),
             };
             let named = at_build.starts_with("Recourse: move the geometry");
             assert_eq!(named, matches!(want, Class::Sized(..)), "{check:?}");

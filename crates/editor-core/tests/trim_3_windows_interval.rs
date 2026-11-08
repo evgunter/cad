@@ -191,6 +191,7 @@ fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
 
 fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config,

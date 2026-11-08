@@ -60,6 +60,7 @@ pub(crate) fn whole_box_leaf(
             symbolic: dials,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         tol,
     )
     .map_or((false, geom_core::SymCounts::default()), |v| {

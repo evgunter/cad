@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-01
 priority: P3
 cost: M
-refs: [a-fate-cut-end-on-an-edge-of-its-faces-division-lies-in-no-piece, a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug]
+refs: [a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug]
 ---
 
 

@@ -316,31 +316,53 @@ pub enum BandError {
     },
 }
 
-impl fmt::Display for BandError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
+impl BandError {
+    /// What was refused, without its recourse ([`Self::recourse`]), for a
+    /// holder that ends it at its own door.
+    pub fn payload(&self) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| match self {
             Self::InvalidValue { field, value } => write!(
                 f,
-                "the band's {} threshold is {value:e}, and must be finite and positive. \
-                 Recourse: for a band derived from the tolerance, set a smaller tolerance or \
-                 name a longer lever arm, so that its thresholds stay finite; a band built \
-                 directly wants finite, positive ones",
+                "the band's {} threshold is {value:e}, and must be finite and positive",
                 field.name()
             ),
             Self::InvalidLeverArm { value } => write!(
                 f,
-                "the band's lever arm is {value:e}, and must be finite and positive. \
-                 Recourse: name the lever arm the decision turns on (a radius of curvature \
-                 or an extent), or classify a linear margin instead"
+                "the band's lever arm is {value:e}, and must be finite and positive"
             ),
             Self::Empty { zero, escalate } => write!(
                 f,
                 "the band's zero threshold {zero:e} is not below its escalate threshold \
-                 {escalate:e}, so the band is empty. Recourse: raise the escalate threshold \
-                 above the zero threshold; a band derived from the tolerance does, with its \
-                 multiplier K > 1"
+                 {escalate:e}, so the band is empty"
             ),
+        })
+    }
+
+    /// The recourse of a band built by its caller, whose thresholds or
+    /// lever arm the caller named.
+    #[must_use]
+    pub const fn recourse(&self) -> &'static str {
+        match self {
+            Self::InvalidValue { .. } => {
+                "Recourse: for a band derived from the tolerance, set a smaller tolerance or \
+                 name a longer lever arm, so that its thresholds stay finite; a band built \
+                 directly wants finite, positive ones"
+            }
+            Self::InvalidLeverArm { .. } => {
+                "Recourse: name the lever arm the decision turns on (a radius of curvature \
+                 or an extent), or classify a linear margin instead"
+            }
+            Self::Empty { .. } => {
+                "Recourse: raise the escalate threshold above the zero threshold; a band \
+                 derived from the tolerance does, with its multiplier K > 1"
+            }
         }
+    }
+}
+
+impl fmt::Display for BandError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}. {}", self.payload(), self.recourse())
     }
 }
 
@@ -1955,6 +1977,26 @@ impl MarginDiag {
         self.with_zero(zero)
     }
 
+    /// **The larger of two Zeros' readings, standing for a decision
+    /// both were Zeros of**: the reading farther from zero (an
+    /// enclosure's farther bound), a poisoned one poisoning it, proven
+    /// only where both are, as [`Self::jointly`] tags it. A decision that
+    /// rests on several Zeros (two edges one carrier because each lies
+    /// on it) records its worst miss, not its first reading.
+    #[must_use]
+    pub fn worst(self, other: Self) -> Self {
+        let reach = |m: Self| match m.0 {
+            Reading::Value(v, ..) => Some(v.abs()),
+            Reading::Enclosure { lo, hi, .. } => Some(lo.abs().max(hi.abs())),
+            Reading::Invalid => None,
+        };
+        match (reach(self), reach(other)) {
+            (Some(a), Some(b)) if b > a => other.jointly(self),
+            (Some(_), Some(_)) => self.jointly(other),
+            _ => Self::INVALID,
+        }
+    }
+
     /// **The enclosure of two readings of one quantity**: from the lower
     /// of their lower ends to the higher of their upper ends, untagged.
     /// `None` where either was poisoned, which bounds nothing.
@@ -2356,6 +2398,14 @@ pub struct Indeterminate {
     pub predicate: Option<&'static str>,
 }
 
+/// **The mark a `&'static str` name slot carries for an escalation that
+/// named no predicate** ([`Indeterminate::predicate`] `None`): one
+/// spelling, so a nameless escalation reads as nameless wherever a
+/// payload or a recorder slot must hold a name, rather than being
+/// credited to some decision. It is a mark, never a funnel name: no
+/// decision is made under it.
+pub const UNNAMED_PREDICATE: &str = "<unnamed>";
+
 /// The unified sub-ε_input recourse sentence (the two-tolerance
 /// principle, D4 ¶1 addendum, #129): below ε_input, "exactly on the
 /// coincidence" and "in the ambiguity band" are ONE user situation —
@@ -2552,27 +2602,57 @@ macro_rules! to_the_files_writer {
     };
 }
 
-/// **How an undecided decision's refusal ends** (D4 ¶1 (i)), by what
-/// its margin measures: the kind a door's decision table records for
+/// **How an undecided decision's refusal ends** (D4 ¶1 (i)), with the
+/// decision's own lever: the kind a door's closed decision type gives
 /// each decision it renders.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EndingKind {
-    /// A size the user may have chosen: [`Indeterminate::ending`] under
-    /// [`COINCIDENCE_RECOURSE`], tolerance arm included.
-    Sized,
-    /// No size the user chose (an angle, a gauge, a curve parameter):
-    /// this lever alone, noted where the margin could not be read
+    /// A size the user may intend, which a smaller ε decides for the
+    /// request: the lever, and the conditional, valued tolerance arm
+    /// ([`Indeterminate::ending`]).
+    Sized(&'static str),
+    /// No size a smaller ε decides for the request (an angle, a gauge,
+    /// an exact-order comparison, a threshold that grows as ε shrinks):
+    /// the lever alone, noted where the margin could not be read
     /// ([`Indeterminate::lever_ending`]).
     Lever(&'static str),
 }
 
 impl EndingKind {
+    /// The lever, after "Recourse: ".
+    #[must_use]
+    pub const fn lever(self) -> &'static str {
+        match self {
+            Self::Sized(lever) | Self::Lever(lever) => lever,
+        }
+    }
+
+    /// The same kind with another lever: a site whose levers are its
+    /// own keeps the decision's kind.
+    #[must_use]
+    pub const fn with_lever(self, lever: &'static str) -> Self {
+        match self {
+            Self::Sized(_) => Self::Sized(lever),
+            Self::Lever(_) => Self::Lever(lever),
+        }
+    }
+
     /// The ending of `source` under this kind, read at the build.
     #[must_use]
     pub fn end(self, source: &Indeterminate) -> String {
         match self {
-            Self::Sized => source.ending(COINCIDENCE_RECOURSE),
+            Self::Sized(lever) => source.ending(lever),
             Self::Lever(lever) => source.lever_ending(lever),
+        }
+    }
+
+    /// `source`'s payload, what its reading is, and this kind's ending:
+    /// the sentence for a door that states its own subject before it.
+    #[must_use]
+    pub fn under(self, source: &Indeterminate) -> IndeterminateUnder<'_> {
+        match self {
+            Self::Sized(lever) => source.under(lever),
+            Self::Lever(lever) => source.under_lever(lever),
         }
     }
 }
@@ -2585,11 +2665,10 @@ impl EndingKind {
 /// neither is one anybody made.
 ///
 /// Every `Display` that routes a recourse by predicate name composes
-/// this on its fall-through arm. The home is here because the crates
-/// that route are `profile` and `sweep`, and this crate is the only
-/// ancestor they share: `sweep` depends on `profile`, `profile` on
-/// `geom-core` alone, so a sentence held in either of them is out of
-/// reach of the other.
+/// this on its fall-through arm, through [`Indeterminate::ending_by`].
+/// The home is here, with the ending it tails, so a routing table in
+/// any crate reaches it; `editor-core`'s decision table is the one that
+/// routes by name today.
 ///
 /// **It reports an absence, never a denial.** The refusal it tails has
 /// already rendered [`Indeterminate`]'s own Display, which ends in
@@ -2968,6 +3047,7 @@ impl fmt::Display for Indeterminate {
 pub struct IndeterminateUnder<'a> {
     diag: &'a Indeterminate,
     recourse: &'a str,
+    lever_only: bool,
 }
 
 impl Indeterminate {
@@ -2977,6 +3057,17 @@ impl Indeterminate {
         IndeterminateUnder {
             diag: self,
             recourse,
+            lever_only: false,
+        }
+    }
+
+    /// [`Indeterminate::under`] for a decision on no size the user chose:
+    /// the ending is [`Indeterminate::lever_ending`]'s, `lever` alone.
+    pub fn under_lever<'a>(&'a self, lever: &'a str) -> IndeterminateUnder<'a> {
+        IndeterminateUnder {
+            diag: self,
+            recourse: lever,
+            lever_only: true,
         }
     }
 }
@@ -3010,7 +3101,11 @@ impl fmt::Display for UnderTail<'_> {
             (None, Some(reading)) => write!(f, " — {reading}; ")?,
             (None, None) => f.write_str(" — ")?,
         }
-        f.write_str(&under.diag.ending(under.recourse))
+        if under.lever_only {
+            f.write_str(&under.diag.lever_ending(under.recourse))
+        } else {
+            f.write_str(&under.diag.ending(under.recourse))
+        }
     }
 }
 
@@ -4317,6 +4412,10 @@ mod tests {
         assert_eq!(arms.len(), 4, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
+            // The text is the payload, then the recourse, each once.
+            let payload = arm.payload().to_string();
+            assert!(!payload.contains("Recourse"), "{payload}");
+            assert_eq!(msg, format!("{payload}. {}", arm.recourse()));
             let lower = msg.to_lowercase();
             assert!(
                 RECOURSE_VERBS.iter().any(|v| lower.contains(v)),

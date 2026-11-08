@@ -2274,7 +2274,7 @@ test_utils::f6_variants! {
         UnsupportedSeamSides,
         UnsupportedJoin,
         UnsupportedUnionName,
-        UnsupportedUnjudgedGlue,
+        HoldingsUnread,
         UnsupportedTurnedCell,
         WayInZeroBand,
         JoinedPieceOffRoot,
@@ -2639,32 +2639,16 @@ fn naming_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            NamingError::UnsupportedUnjudgedGlue {
-                face,
-                faces: vec![
-                    (
-                        editor_core::VarId::new(0, tagged(41)),
-                        StableName {
-                            kind: EntityKind::Face,
-                            node: RecipeNodeId::new(0, tagged(41)),
-                            path: vec![RoleSeg::Cap(CapEnd::Start)],
-                        },
-                    ),
-                    (
-                        editor_core::VarId::new(0, tagged(43)),
-                        StableName {
-                            kind: EntityKind::Face,
-                            node: RecipeNodeId::new(0, tagged(43)),
-                            path: vec![RoleSeg::Cap(CapEnd::End)],
-                        },
-                    ),
-                ],
+            NamingError::HoldingsUnread {
+                face: None,
+                refusal: topo::HeldRefusal::Recharted {
+                    face: (1, topo::FaceKey::default()),
+                },
             },
             vec![
-                "member read 000000000029's face (the start cap",
-                "member read 00000000002b's face (the end cap",
-                "that no two members glued together",
-                "not read exactly yet",
+                "which member faces a region the boolean discarded holds area of",
+                "could not be read",
+                "turned before the boolean",
             ],
         ),
         (
@@ -2676,11 +2660,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::Escalated {
-                predicate: "name_frag_on_member_edge",
                 source: geom_core::Indeterminate {
                     margin: geom_core::predicate::MarginDiag::INVALID,
                     band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
-                    predicate: Some("side_of_plane"),
+                    predicate: Some("name_frag_on_member_edge"),
                     terminal_sliver: false,
                 },
             },
@@ -2788,9 +2771,9 @@ fn a_program_fault_states_its_lattice_coordinate() {
             verb: None,
         },
         vec![
-            "loop 0 step 2",
-            "not a legal chain-lattice walk",
-            "unclosed",
+            "at loop 0 step 2",
+            "tip state Entry",
+            "without closing the loop",
         ],
     )];
     assert_f6_every_variant(&cases, &PROGRAM_FAULT, &[]);

@@ -17,11 +17,17 @@
 //! face holds the face of each dropped fragment a
 //! [`SubstitutedFace`](super::SubstitutedFace) row, or the dropped face
 //! an [`UncutFace`](super::UncutFace) row, says it holds. That last read
-//! is the row's alone where its kept face is the only face the result
-//! holds of its operand face; where the result holds that operand face
-//! as several faces (cut before the substitution, or parted along a line
-//! after it), each of them holds the dropped face where its region meets
-//! it ([`super::overlap`]).
+//! is checked against the geometry: the dropped face must lie on the
+//! kept face's carrier, and meet its region in area
+//! ([`super::overlap`]). Where the kept face is the only face the result
+//! holds of its operand face, a row whose dropped face fails either
+//! check contradicts the geometry it records, and the face refuses
+//! ([`HeldRefusal::NotUnder`]) rather than name a face lying elsewhere;
+//! where the result holds that operand face as several faces (cut
+//! before the substitution, or parted along a line after it), each of
+//! them holds the dropped face where its region meets it. A fragment's
+//! and a merge's holdings are not read: a fragment lies inside its
+//! operand face, and a merge glues faces of one carrier.
 //!
 //! **The n-ary door** reads them per fold step (`nary`'s `lift`): a
 //! fragment of the joining member's face holds that face; a fragment of
@@ -29,7 +35,9 @@
 //! is one member face, and otherwise exactly those of them it meets in
 //! area. A piece lies inside the face it was cut from and can hold only
 //! what that face holds, and each reading is the geometric truth, so the
-//! holdings do not depend on member order. Which pieces a fold makes
+//! holdings do not depend on member order. The lift reads no carrier:
+//! each step's pair door has checked its own rows, so a member face an
+//! accumulation face holds lies under it, and under every piece of it. Which pieces a fold makes
 //! does, and so where an in-band reading can refuse.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -75,6 +83,21 @@ pub enum HeldRefusal {
         /// The refusal.
         refusal: OverlapRefusal,
     },
+    /// A row says the face holds a member face that lies on another
+    /// carrier, or whose region it does not meet: the records contradict
+    /// the geometry they describe. The member face.
+    NotUnder {
+        /// The member face.
+        member_face: MemberFace,
+    },
+    /// Whether a member face a row says the face holds lies on its
+    /// carrier could not be read: the carriers' coincidence is in band,
+    /// or a carrier is one the ladder has no description for. The
+    /// member face.
+    CarrierUnread {
+        /// The member face.
+        member_face: MemberFace,
+    },
     /// The region an [`UncutFace`](super::UncutFace) row's dropped face
     /// lost is no face the fold step cut, so where the dropped face held
     /// several member faces, which of them that region held is not read:
@@ -119,9 +142,31 @@ impl PartialEq for HeldRefusal {
                 },
             ) => f == g && kind(r) == kind(s),
             (Self::UncutRemainder { face: f }, Self::UncutRemainder { face: g }) => f == g,
-            (Self::Recharted { face: f }, Self::Recharted { face: g }) => f == g,
+            (Self::Recharted { face: f }, Self::Recharted { face: g })
+            | (Self::NotUnder { member_face: f }, Self::NotUnder { member_face: g })
+            | (Self::CarrierUnread { member_face: f }, Self::CarrierUnread { member_face: g }) => {
+                f == g
+            }
             _ => false,
         }
+    }
+}
+
+/// **Whether member face `m`, a face of `member`, lies on finished face
+/// `f`'s carrier**, in either sense (a subtract's result holds the
+/// tool's faces turned): a row saying `f` holds `m` is read against the
+/// geometry, so a row naming a face that lies elsewhere refuses rather
+/// than names.
+fn on_carrier<T: Decide>(
+    (body, f): (&Body<T>, FaceKey),
+    (member, m): (&Body<T>, MemberFace),
+    band: Band,
+) -> Result<(), HeldRefusal> {
+    use super::carrier_eq::CarrierRelation;
+    match super::carrier_pair::carrier_pair_relation(body, f, member, m.1, band) {
+        Ok(Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)) => Ok(()),
+        Ok(Ok(CarrierRelation::Distinct)) => Err(HeldRefusal::NotUnder { member_face: m }),
+        Ok(Err(_)) | Err(_) => Err(HeldRefusal::CarrierUnread { member_face: m }),
     }
 }
 
@@ -199,6 +244,29 @@ impl Holdings {
     /// carries until it leaves the door ([`Self::of_records`]).
     pub(crate) fn unread() -> Self {
         Self::default()
+    }
+
+    /// Holdings stated outright: a test's fixture for a record it built
+    /// by hand, which no door read.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn fixture(faces: BTreeMap<FaceKey, Held>, lost: Vec<Held>, uncut: Vec<Held>) -> Self {
+        Self::from_parts(faces, lost, uncut)
+    }
+
+    /// The pair door's reading ([`Self::of_records`]) of records a test
+    /// built by hand over `body` and `operands`, A's then B's, with no
+    /// clone a re-chart turned.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn read_records<T: Decide>(
+        op: BooleanOp,
+        naming: &BooleanNaming,
+        body: &Body<T>,
+        operands: [&Body<T>; 2],
+        band: Band,
+    ) -> Self {
+        Self::of_records(op, naming, body, (operands, [None, None]), band)
     }
 
     pub(crate) fn from_parts(
@@ -292,6 +360,10 @@ impl Holdings {
             .map(|(f, _)| {
                 let mut set = BTreeSet::new();
                 let mut maybe = BTreeSet::new();
+                // The member faces a substitution or uncut row says `f`
+                // holds: `true` where the row is the whole reading, so
+                // the face must meet `f`'s region.
+                let mut through: BTreeMap<MemberFace, bool> = BTreeMap::new();
                 for g in constituents(f) {
                     let (operand, r) = descent.result_face(g);
                     let kept = (place(operand), r);
@@ -301,22 +373,31 @@ impl Holdings {
                         }
                         ref several => maybe.extend(several.iter().copied()),
                     }
-                    if let Some(more) = held_through.get(&kept) {
-                        for &m in more {
-                            match input(m)[..] {
-                                [one] if pieces[&kept] == 1 => {
-                                    set.insert(one);
-                                }
-                                ref several => maybe.extend(several.iter().copied()),
-                            }
+                    for &m in held_through.get(&kept).into_iter().flatten() {
+                        let whole = pieces[&kept] == 1;
+                        for i in input(m) {
+                            let must = whole && input(m).len() == 1;
+                            *through.entry(i).or_default() |= must;
                         }
                     }
                 }
+                maybe.extend(through.keys().copied());
                 let mut held = Held::Faces(BTreeSet::new());
                 for m in maybe.difference(&set.clone()) {
+                    let must = through.get(m).copied();
+                    if must.is_some()
+                        && let Err(refusal) = on_carrier((body, f), (operands[m.0], *m), band)
+                    {
+                        held = Held::Refused(refusal);
+                        break;
+                    }
                     match overlap_as((body, f), ((operands[m.0], m.1), turned(m.0)), band) {
                         Ok(true) => {
                             set.insert(*m);
+                        }
+                        Ok(false) if must == Some(true) => {
+                            held = Held::Refused(HeldRefusal::NotUnder { member_face: *m });
+                            break;
                         }
                         Ok(false) => {}
                         Err(refusal) => {

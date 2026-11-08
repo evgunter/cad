@@ -196,7 +196,7 @@ impl Recording<'_, ProfileProgram> {
         copies: &[RecipeNodeId],
         result: &Operand,
         intact: &[VarId],
-        opts: &EvalOptions,
+        (opts, cancel): (&EvalOptions, &crate::CancelToken),
         prior: Option<&Evaluation<f64>>,
         held: &dyn Fn(RecipeNodeId) -> bool,
     ) -> Result<TakenOver, EditError> {
@@ -256,13 +256,7 @@ impl Recording<'_, ProfileProgram> {
         // so where nothing reads such a body the door evaluates once.
         // Each round takes the names it moved out of the document, so the
         // rounds end within the depth of the reads.
-        let mut run = Answered::evaluate(
-            Arc::new(doc.clone()),
-            prior,
-            &crate::CancelToken::new(),
-            opts,
-            self.tol(),
-        );
+        let mut run = Answered::evaluate(Arc::new(doc.clone()), prior, cancel, opts, self.tol());
         loop {
             let doc = self.doc();
             let ev = run.evaluation();
@@ -283,7 +277,7 @@ impl Recording<'_, ProfileProgram> {
             run = Answered::evaluate(
                 Arc::new(self.doc().clone()),
                 Some(run.evaluation()),
-                &crate::CancelToken::new(),
+                cancel,
                 opts,
                 self.tol(),
             );
@@ -459,11 +453,12 @@ pub fn take_over(
     copies: &[RecipeNodeId],
     result: &Operand,
     opts: &EvalOptions,
+    cancel: &crate::CancelToken,
     tol: Tol,
 ) -> Result<TakeOverOutcome, EditError> {
     let mut action = Recording::start(doc, tol);
     // A caller of the action holds every name it may be handed back.
-    let taken = action.take_over(copies, result, &[], opts, None, &|_| true)?;
+    let taken = action.take_over(copies, result, &[], (opts, cancel), None, &|_| true)?;
     let Recorded {
         doc,
         edits,

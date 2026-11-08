@@ -96,6 +96,9 @@ fn k6_loft_prism_imports_the_nurbs_frontier_retired() {
         Ok(StepImport::Wireframe { .. }) => {
             panic!("loft_prism must import as a solid, not a wireframe")
         }
-        Err(e) => panic!("loft_prism must import since M7-3 — the flip regressed: {e}"),
+        Err(e) => panic!(
+            "loft_prism must import since M7-3 — the flip regressed: {e_at}",
+            e_at = e.render()
+        ),
     }
 }

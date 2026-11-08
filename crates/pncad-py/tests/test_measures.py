@@ -446,12 +446,14 @@ class TestTheClearanceRequirement(unittest.TestCase):
                 self.assertIsNone(answer.pair)
 
     def test_a_bound_that_is_not_a_length_refuses_at_the_door(self):
-        """The bounds are lengths: an angle refuses at insert, never a
-        comparison of radians with metres."""
+        """The bounds are length slots: an angle refuses at insert, at
+        the bound's own slot, never a comparison of radians with
+        metres."""
         doc, a, b = self.seats()
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.clearance(a, b, at_least=doc.parse_formula("1 deg")))
-        self.assertEqual(caught.exception.variant, "payload_var_kind")
+        self.assertEqual(caught.exception.variant, "slot_dimension_mismatch")
+        self.assertEqual(caught.exception.slot, "clearance_low")
 
     def test_a_bounds_combination_outside_the_four_shapes_refuses(self):
         doc, a, b = self.seats()

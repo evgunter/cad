@@ -96,7 +96,10 @@ fn probe_a_pipped_cube_all_edges() {
                     .count()
             );
         }
-        Err(e) => println!("PROBE A: battery refuses: {e}"),
+        Err(e) => println!(
+            "PROBE A: battery refuses: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     match fillet_edges(
         &sweep::test_support::at_rest(&pipped, Tol::witness()),
@@ -105,7 +108,10 @@ fn probe_a_pipped_cube_all_edges() {
         Tol::witness(),
     ) {
         Ok(_) => println!("PROBE A: fillet_edges SUCCEEDED (composition works!)"),
-        Err(e) => println!("PROBE A: fillet_edges refuses: {e}"),
+        Err(e) => println!(
+            "PROBE A: fillet_edges refuses: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -133,7 +139,10 @@ fn probe_b_hexagonal_prism_over_refusal() {
                 let t3 = topo::validate_geometric(&f.body, Tol::witness()).is_ok();
                 println!("PROBE B: r={r:.3} builds, tier3 ok = {t3}");
             }
-            Err(e) => println!("PROBE B: r={r:.3} refuses: {e}"),
+            Err(e) => println!(
+                "PROBE B: r={r:.3} refuses: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -188,7 +197,7 @@ fn probe_d_rim_arc_orientation() {
                 verdict
                     .as_ref()
                     .err()
-                    .map(|e| e.to_string())
+                    .map(|e| e.render(geom_brep::recourse::Reading::Build))
                     .unwrap_or_default()
             );
         }
@@ -511,7 +520,10 @@ fn probe_f_skinny_triangle_refusal_boundary() {
                     .map(|m| mesh::validate::check_mesh(&m).is_ok());
                 println!("PROBE F: r={r} builds, tier2={t2}, mesh watertight={mesh_ok:?}");
             }
-            Err(e) => println!("PROBE F: r={r} refuses: {e}"),
+            Err(e) => println!(
+                "PROBE F: r={r} refuses: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -555,7 +567,10 @@ fn probe_c_oblique_trihedron() {
     let body = match out {
         Ok(o) => o.body().unwrap().body.clone(),
         Err(e) => {
-            println!("PROBE C: intersection refused: {e}");
+            println!(
+                "PROBE C: intersection refused: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             return;
         }
     };
@@ -580,6 +595,9 @@ fn probe_c_oblique_trihedron() {
                 topo::validate_geometric(&f.body, Tol::witness())
             );
         }
-        Err(e) => println!("PROBE C: fillet refuses: {e}"),
+        Err(e) => println!(
+            "PROBE C: fillet refuses: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }

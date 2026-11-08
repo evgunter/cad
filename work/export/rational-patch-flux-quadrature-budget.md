@@ -73,7 +73,7 @@ PROPS', re-homed at S-CERT's exit) but by TCOST-K3's check-7 SIGN
 certificate (PR #1703; `tier_gate.rs:270-287` narrates the history).
 dm1's every-band refusal is now the arc-rim `MapResidual` at the
 pcurve mint — TRIM's ground on both files, fix filed as
-`work/issues/arc-rim-mint-frontier-on-foreign-charts`, which EXCH
+`work/charttail/arc-rim-mint-frontier-on-foreign-charts`, which EXCH
 consumes. What survives of this item is ROUTE 2 alone (the algebraic
 cylinder certificate via `spline::compose::tensor`), whose substrate
 (compose) and consumer (the M7-6 lane, Track R) are both PROPS'

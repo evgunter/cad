@@ -29,3 +29,5 @@ shape without `cancel`.
 
 One generic seam trait over `(Request, Done)` with one inline
 implementation, the three seams type aliases of it, and one constructor.
+
+**FORMS, PR 6431 (2026-11-03).** The staged seam is deleted (`StagedService`, `InlineStager`, `ThreadStager`, `Worker::Staged`, `SessionOp::Stage`): its one asker was the split panel's verdict, which went with the split form's typed plane. The door and certify seams are the two that remain.

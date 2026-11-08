@@ -522,7 +522,9 @@ fn revalue_boss_union_apart_to_its_parting() {
         "boss_union",
         1619,
         &[],
-        "pcurve_chart_radial_moving",
+        // PCERT E1c (every mint reads incidence first, PR 5889): the apart move now parts
+        // at the read every mint makes first, before the radial decision.
+        "pcurve_cylinder_chart_incident",
         "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
     );
 }

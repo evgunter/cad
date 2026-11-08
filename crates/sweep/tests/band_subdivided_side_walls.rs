@@ -556,7 +556,12 @@ fn a_rim_band_is_cut_off_at_both_ends() {
             "fillet" => sweep::fillet::fillet_edges(&body, &req, R, t),
             _ => sweep::chamfer::chamfer_edges(&body, &req, R, t),
         }
-        .unwrap_or_else(|e| panic!("{verb}: the band builds, got {}", e.error));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{verb}: the band builds, got {}",
+                e.error.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             topo::validate_geometric(&out.body, t),
             Ok(()),

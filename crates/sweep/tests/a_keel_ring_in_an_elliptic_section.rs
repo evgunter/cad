@@ -240,7 +240,7 @@ fn a_keel_ring_on_an_island_in_a_hole_nests_on_the_island() {
                 assert_eq!(topo::validate_closed(b), Ok(()), "{what}: tier 2");
                 // Tilted, the square hole keeps a face of its own over the
                 // ellipse's, and tier 3′ refuses each side, trench or no
-                // trench (`work/cleave/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
+                // trench (`work/heldrecords/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
                 let pseudo = topo::validate_pseudomanifold(b, &ContactRecords::default(), tol());
                 assert_eq!(pseudo.is_ok(), tilt == 0.0, "{what}: tier 3′ {pseudo:?}");
                 let got = topo::test_support::pinned_volume(

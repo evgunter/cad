@@ -72,6 +72,6 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
             }
         }
         Ok(o) => panic!("{o:?}"),
-        Err(e) => println!("all-outer REFUSES TYPED: {e}"),
+        Err(e) => println!("all-outer REFUSES TYPED: {e_at}", e_at = e.render()),
     }
 }

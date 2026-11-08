@@ -196,7 +196,7 @@ fn the_raw_battery_refuses_a_null_strut_as_scaffolding_with_the_doors_advice() {
                 ),
                 "{what}, {kind:?}: the null edge is Scaffolding: {e:?}"
             );
-            let text = e.to_string();
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.ends_with(&advice) && topo::Unfinished::SCAFFOLDING_REFUSAL.ends_with(&advice),
                 "{what}, {kind:?}: the battery and the gate give one advice: {text}"

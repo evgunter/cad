@@ -70,7 +70,11 @@ fn run(tag: &str, a: Body<f64>, b: Body<f64>) {
                     ),
                     None => "ok empty".to_owned(),
                 },
-                Err(e) => format!("REFUSED {:?} | {e:?} | {e}", e.kind()),
+                Err(e) => format!(
+                    "REFUSED {:?} | {e:?} | {e_at}",
+                    e.kind(),
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             };
             println!("BOOL {tag} {order} {op}: {line}");
         }

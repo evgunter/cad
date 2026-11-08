@@ -654,7 +654,10 @@ impl crate::spoken::Say for NodePickError {
                 by.node(*node),
                 body
             ),
-            Self::Tessellate(error) => write!(f, "{error}"),
+            // The tessellator reads the body at rest.
+            Self::Tessellate(error) => {
+                write!(f, "{}", error.render(geom_brep::recourse::Reading::AtRest))
+            }
             Self::Index(error) => write!(f, "{error}"),
         }
     }

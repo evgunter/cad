@@ -110,7 +110,7 @@ Nothing in the user's model changed between those two.
 
 ### The gate, and it is not optional
 
-**`work/issues/mate-solve-is-transform-blind.md` must be fixed first or
+**`work/msolve/mate-solve-is-transform-blind.md` must be fixed first or
 alongside — never after.**
 
 Measured, through ordinary doors: the solve is transform-blind and

@@ -128,6 +128,7 @@ fn r2_evidence_every_refused_leaf_of_the_plates_real_study_read_as_its_set() {
             max_leaves,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         tol,
     )
     .expect("the nominal builds");
@@ -154,7 +155,17 @@ fn r2_evidence_every_refused_leaf_of_the_plates_real_study_read_as_its_set() {
         acc.certified,
         acc.unanalyzed
     );
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
+    match stackup(
+        &doc,
+        measure,
+        &analyzed,
+        &verdict,
+        None,
+        true,
+        None,
+        &editor_core::Stop::default(),
+        tol,
+    ) {
         Ok(r) => println!(
             "   stackup: worst case [{:.6e}, {:.6e}] over {} leaves; nominal {:?}",
             r.worst_case.lo, r.worst_case.hi, r.worst_case.leaves, r.nominal
@@ -419,6 +430,7 @@ fn r2_evidence_the_d_tab_end_to_end() {
                     symbolic: crate::m10_8_harness::dials(rules),
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .expect("the nominal builds");
@@ -450,6 +462,7 @@ fn r2_evidence_the_d_tab_end_to_end() {
                 None,
                 false,
                 None,
+                &editor_core::Stop::default(),
                 tol,
             ) {
                 Ok(r) => println!(
@@ -506,6 +519,7 @@ fn r2_evidence_serialize_every_m10_fixture_with_the_algebra_off() {
                 symbolic: crate::m10_8_harness::dials(SymRules::without_the_algebra()),
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .map(|v| v.serialize())

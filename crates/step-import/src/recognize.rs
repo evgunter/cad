@@ -247,7 +247,7 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
     // construction (a bulge needs a bulged control point).
     let mut residual = 0.0f64;
     for p in control {
-        residual = residual.max((*p - origin).dot(normal).abs());
+        residual = residual.max(geom::plane_offset(origin, normal, *p).abs());
     }
     (residual <= eps_in).then_some((plane, residual))
 }
@@ -279,7 +279,7 @@ fn try_cylinder(
     if axis_norm / (nu as f64) <= eps_in {
         return Err(axis_norm / (nu as f64));
     }
-    let axis = axis_sum / axis_norm;
+    let axis = axis_sum.normalize();
     // Three fixed samples of the v-start boundary at u-fractions
     // 0, 3/8, 6/8 of the domain — distinct azimuths even on a
     // full-period patch (where u-start and u-end coincide).
@@ -290,7 +290,11 @@ fn try_cylinder(
     let pa = sample(3.0 / 8.0);
     let pb = sample(6.0 / 8.0);
     // Project ⊥ axis into the plane through p0.
-    let proj = |p: Point3<f64>| p - axis * (p - p0).dot(axis);
+    let plane = geom::Line {
+        origin: p0,
+        dir: axis,
+    };
+    let proj = |p: Point3<f64>| plane.square_foot(p);
     let (q0, qa, qb) = (proj(p0), proj(pa), proj(pb));
     // Conditioning margin: the sagitta of the middle sample over the
     // chord — collinear-at-ε_in samples determine no finite radius
@@ -300,8 +304,12 @@ fn try_cylinder(
     if !(chord_norm.is_finite() && chord_norm > 0.0) {
         return Ok(None);
     }
-    let chord_dir = chord / chord_norm;
-    let off = (qa - q0) - chord_dir * (qa - q0).dot(chord_dir);
+    let chord_dir = chord.normalize();
+    let off = geom::Line {
+        origin: q0,
+        dir: chord_dir,
+    }
+    .offset(qa);
     let sagitta = off.norm();
     if !sagitta.is_finite() {
         return Ok(None);
@@ -334,9 +342,12 @@ fn try_cylinder(
     // in its control hull, on which the radial distance — a norm of
     // an affine map, hence convex — is maximized at a vertex.
     let mut rho_max = 0.0f64;
+    let spine = geom::Line {
+        origin: center,
+        dir: axis,
+    };
     for p in control {
-        let w = (*p - center) - axis * (*p - center).dot(axis);
-        rho_max = rho_max.max(w.norm());
+        rho_max = rho_max.max(spine.distance(*p));
     }
     let lipschitz = rho_max / radius;
     let residual = enveloped_residual_sup(patch, &cylinder, lipschitz);

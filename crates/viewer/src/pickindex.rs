@@ -1500,22 +1500,6 @@ impl PickIndex {
         &self.parts
     }
 
-    /// **Where `node`'s body is drawn**: the map from its body's
-    /// coordinates into the picture, as the picture draws it
-    /// ([`drawn`]), `None` where no part of that node is drawn — none
-    /// indexed, or every one hidden.
-    pub(crate) fn drawn_map(
-        &self,
-        display: &DisplayView,
-        node: RecipeNodeId,
-    ) -> Option<Affine3<f64>> {
-        let part = self
-            .parts
-            .iter()
-            .find(|part| part.node() == node && !display.hides(node, part.body()))?;
-        Some(drawn(display, part).unwrap_or_else(Affine3::identity))
-    }
-
     /// **Whether the drawn body `body` of `node` is outside the
     /// product** — one the product slot does not reach, which the
     /// picture tints.

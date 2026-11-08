@@ -20,7 +20,6 @@ fn circle_kind(read: Result<Option<LoopArc<f64>>, Indeterminate>) -> String {
         Ok(Some(LoopArc::Conic(ConicArc { own: Some(own), .. }))) => match own.split {
             LoopSplit::Side { .. } => "meridian".into(),
             LoopSplit::Radius { .. } => format!("parallel {}", own.positive),
-            LoopSplit::Bisector { .. } => "bisector".into(),
         },
         Ok(Some(_)) => "another arc".into(),
     }
@@ -58,7 +57,7 @@ fn minted_kind(
         Err(_) => ("refused", vec![]),
     };
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center: k, .. },
+        frame: geom::Frame { origin: k, .. },
         radius: rho,
     }) = edge.carrier
     else {
@@ -66,7 +65,7 @@ fn minted_kind(
     };
     let off = |c: &geom::Curve3<f64>| match c {
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, .. },
+            frame: geom::Frame { origin: center, .. },
             radius,
         }) => (*center - k).norm() + (radius - rho).abs(),
         _ => f64::INFINITY,

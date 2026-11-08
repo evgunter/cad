@@ -46,7 +46,7 @@ ordinary distance test decides. The design is open (`design: true`).
 ## Why it matters now
 
 CARVE's two designers on the loft's section placement
-(`work/carve/self-overlapping-spines-build-and-validate.md`) both put
+(`work/lathe/self-overlapping-spines-build-and-validate.md`) both put
 the loft's embedding certificate on this engine at a certifying scalar
 (D1, Ev's B at #1737), after SHELL-3 moves it into `topo`. Whether they
 need adjacent pairs is part of their reconciliation. Either way, the

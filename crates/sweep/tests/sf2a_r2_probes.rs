@@ -119,10 +119,16 @@ fn r2a_valence4_nonconcurring_corner_refuses_typed() {
     let e = topo::shell(&finished("the operand", chamfered.clone(), tol), 0.02, tol)
         .expect_err("a chamfered cube's corners do not concur under a uniform inset");
     let ShellError::Face { error, .. } = e else {
-        panic!("not the offset door's refusal: {e}");
+        panic!(
+            "not the offset door's refusal: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     let ReplaceFaceError::TogetherCorner { planes, what, .. } = *error else {
-        panic!("must refuse at the corner gate, got {error}");
+        panic!(
+            "must refuse at the corner gate, got {error_at}",
+            error_at = error.render(geom_brep::recourse::Reading::Build)
+        );
     };
     println!("[r2a] chamfered cube: TogetherCorner planes={planes} what={what}");
     assert_eq!(planes, 4, "the corner is valence 4");
@@ -246,7 +252,12 @@ fn r2a_bevel_kite_triangle_walls_in_closed_form() {
     ] {
         let body = prism(&pts, h);
         let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
-            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what} hollows, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            })
             .body;
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
@@ -306,7 +317,10 @@ fn r2a_a_face_named_twice_across_moves() {
     )
     .volume;
     match topo::offset_planes_together(&mut body, &moves, band(), tol) {
-        Err(e) => println!("[r2a] duplicate face: refused, {e}"),
+        Err(e) => println!(
+            "[r2a] duplicate face: refused, {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(_) => {
             let tier3 = topo::validate_geometric(&body, tol);
             let vol = topo::mass_properties(
@@ -425,7 +439,12 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
         t,
         tol,
     )
-    .unwrap_or_else(|e| panic!("the one-arc hexagon hollows: {e}"))
+    .unwrap_or_else(|e| {
+        panic!(
+            "the one-arc hexagon hollows: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
     .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
     let got = topo::test_support::pinned_volume(
@@ -468,7 +487,10 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
                 props.enclosure.volume
             );
         }
-        Err(e) => println!("[r2a] straight-vertex prism at head: refuses, {e}"),
+        Err(e) => println!(
+            "[r2a] straight-vertex prism at head: refuses, {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 

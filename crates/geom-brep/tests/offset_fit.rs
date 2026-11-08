@@ -93,7 +93,10 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
         let tol = 1e-4;
         let d = 0.3;
         let (_, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
-            panic!("LIVENESS: fit_offset refused this cylinder at d = {d}, tol = {tol}: {e}")
+            panic!(
+                "LIVENESS: fit_offset refused this cylinder at d = {d}, tol = {tol}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
         });
         assert!(
             cert.hull_sup <= tol,
@@ -104,8 +107,12 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
     }
     let tol = 3e-4;
     for d in [0.3_f64, -0.4] {
-        let (fit, cert) = fit_offset_at(&base, d, tol, band())
-            .unwrap_or_else(|e| panic!("fit_offset refused at d = {d}: {e}"));
+        let (fit, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
+            panic!(
+                "fit_offset refused at d = {d}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert!(
             cert.hull_sup <= tol,
             "d = {d}: certified sup {} exceeds the tolerance {tol}",
@@ -187,8 +194,12 @@ fn the_fit_lives_on_the_base_chart_window_bit_for_bit() {
         unit.weights().to_vec(),
     )
     .unwrap();
-    let (fit, cert) = fit_offset_at(&base, 0.3, 3e-4, band())
-        .unwrap_or_else(|e| panic!("fit_offset refused the re-charted cylinder: {e}"));
+    let (fit, cert) = fit_offset_at(&base, 0.3, 3e-4, band()).unwrap_or_else(|e| {
+        panic!(
+            "fit_offset refused the re-charted cylinder: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert!(cert.hull_sup <= 3e-4, "certified sup {}", cert.hull_sup);
     let bits = |(a, b): (f64, f64)| (a.to_bits(), b.to_bits());
     assert_eq!(
@@ -211,8 +222,12 @@ fn sphere_band_fit_matches_the_closed_form_both_signs() {
     let base = sphere_band(r, 0.25, 1.25);
     let tol = 3e-4;
     for d in [0.35_f64, -0.5] {
-        let (fit, cert) = fit_offset_at(&base, d, tol, band())
-            .unwrap_or_else(|e| panic!("fit_offset refused at d = {d}: {e}"));
+        let (fit, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
+            panic!(
+                "fit_offset refused at d = {d}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert!(cert.hull_sup <= tol, "certified sup {}", cert.hull_sup);
         let mut worst = 0.0f64;
         for (u, v) in grid(23, 19) {
@@ -259,8 +274,12 @@ fn non_analytic_base_fits_and_the_bound_contains_the_sample() {
     let base = bumpy_patch();
     let tol = 1e-4;
     let d = 0.05;
-    let (fit, cert) = fit_offset_at(&base, d, tol, band())
-        .unwrap_or_else(|e| panic!("fit_offset refused on the non-analytic base: {e}"));
+    let (fit, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
+        panic!(
+            "fit_offset refused on the non-analytic base: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert!(cert.hull_sup <= tol);
     let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
@@ -331,8 +350,12 @@ fn degree_1_base_directions_fit_and_certify() {
         ("ruled, linear in u", ruled_linear_in_u(), 0.05),
     ];
     for (name, base, d) in rows {
-        let (fit, cert) = fit_offset_at(&base, d, tol, band())
-            .unwrap_or_else(|e| panic!("{name} at d = {d}: fit_offset refused: {e}"));
+        let (fit, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
+            panic!(
+                "{name} at d = {d}: fit_offset refused: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert!(
             cert.hull_sup <= tol,
             "{name} at d = {d}: certified sup {} exceeds {tol}",
@@ -344,8 +367,12 @@ fn degree_1_base_directions_fit_and_certify() {
             "{name} at d = {d}: the certified sup {} UNDER-reports the sampled max {worst}",
             cert.hull_sup
         );
-        let again = certify_offset_at(&base, &fit, d, tol, band())
-            .unwrap_or_else(|e| panic!("{name} at d = {d}: certify_offset refused: {e}"));
+        let again = certify_offset_at(&base, &fit, d, tol, band()).unwrap_or_else(|e| {
+            panic!(
+                "{name} at d = {d}: certify_offset refused: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert!(
             again.hull_sup <= tol,
             "{name} at d = {d}: re-certified sup {} exceeds {tol}",
@@ -612,7 +639,7 @@ fn a_collapsed_control_row_refuses_at_the_regularity_floor() {
                 matches!(verdict, Refused::Zero(c) if c.margin == MarginDiag::value(0.0)),
                 "{verdict:?}"
             );
-            let text = e.to_string();
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.ends_with(
                     "Recourse: split the face clear of any pole, cusp or pinch; if it has none, \
@@ -643,7 +670,7 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
             // Folding by a fifth of the radius is sign-certain: the
             // lever alone, no tolerance.
             assert!(matches!(verdict, Refused::Negative { .. }), "{verdict:?}");
-            let text = e.to_string();
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.ends_with(
                     "Recourse: use an offset distance of smaller magnitude, or offset to the \
@@ -662,7 +689,10 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     let coll = patch_collapse(&cells, -1.0);
     let inside = -0.5 * coll.reach;
     if let Err(e) = fit_offset_at(&base, inside, 1e-3, band()) {
-        panic!("an inward offset at half the certified reach ({inside} m) refused: {e}");
+        panic!(
+            "an inward offset at half the certified reach ({inside} m) refused: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     }
 }
 
@@ -704,7 +734,7 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_rounds() {
                 tolerance,
                 best,
             };
-            let msg = e.to_string();
+            let msg = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 msg.contains(&format!("limit of {cap} samples,")),
                 "the cap is not what the message names: {msg}"
@@ -736,8 +766,12 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_rounds() {
 #[test]
 fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
     let base = bumpy_patch();
-    let (_, cert) = fit_offset_at(&base, 1e-6, 1e-9, band())
-        .unwrap_or_else(|e| panic!("the bumpy patch refused a 1e-9 request: {e}"));
+    let (_, cert) = fit_offset_at(&base, 1e-6, 1e-9, band()).unwrap_or_else(|e| {
+        panic!(
+            "the bumpy patch refused a 1e-9 request: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!((cert.rounds, cert.cells), (3, 609));
     assert!(
         (cert.hull_sup - 1.39455e-10).abs() < cert.hull_sup * 1e-3,
@@ -761,8 +795,12 @@ fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
 #[test]
 fn a_bound_that_never_became_finite_refuses_with_no_number() {
     let base = quarter_cylinder(1.0, 1.0);
-    let (_, cert) = fit_offset_at(&base, 1e-7, 1e-3, band())
-        .unwrap_or_else(|e| panic!("d = 1e-7 no longer certifies: {e}"));
+    let (_, cert) = fit_offset_at(&base, 1e-7, 1e-3, band()).unwrap_or_else(|e| {
+        panic!(
+            "d = 1e-7 no longer certifies: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!((cert.rounds, cert.cells), (5, 1144));
     assert!(
         (cert.hull_sup - 5.25391e-7).abs() < 5e-11,
@@ -792,7 +830,7 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
                     tolerance,
                     best,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 // The type cannot print an `inf` here — the face has no
                 // bound field — so the row asserts what the message DOES
                 // say: that no refinement bounded the error, the `d` it
@@ -850,8 +888,12 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
 fn a_micron_scale_offset_certifies_and_names_its_limit() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 1e-6;
-    let (fit, cert) = fit_offset_at(&base, d, 1e-3, band())
-        .unwrap_or_else(|e| panic!("a micron-scale offset refused at 1e-3: {e}"));
+    let (fit, cert) = fit_offset_at(&base, d, 1e-3, band()).unwrap_or_else(|e| {
+        panic!(
+            "a micron-scale offset refused at 1e-3: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
         cert.hull_sup.is_finite(),
@@ -1028,8 +1070,12 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
     for e in [0i32, 4, 5, 6, 7, 8, 9] {
         let shift = if e == 0 { 0.0 } else { 10f64.powi(e) };
         let base = shifted(shift);
-        let (fit, cert) = fit_offset_at(&base, d, 1e-2, band())
-            .unwrap_or_else(|err| panic!("shift 1e{e}: a micron offset refused: {err}"));
+        let (fit, cert) = fit_offset_at(&base, d, 1e-2, band()).unwrap_or_else(|err| {
+            panic!(
+                "shift 1e{e}: a micron offset refused: {err_at}",
+                err_at = err.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
         // True at EVERY station, and the assertion the whole row
         // exists to protect.
@@ -1088,8 +1134,12 @@ fn refinement_follows_the_anisotropy_on_a_thin_patch() {
     let base = quarter_cylinder(1.0, 1.0e-3);
     let d = 0.1;
     let tol = 1e-5;
-    let (fit, cert) = fit_offset_at(&base, d, tol, band())
-        .unwrap_or_else(|e| panic!("the thin patch refused at {tol}: {e}"));
+    let (fit, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
+        panic!(
+            "the thin patch refused at {tol}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
         worst <= cert.hull_sup,
@@ -1140,7 +1190,12 @@ fn a_patch_with_more_spans_than_the_cap_seeds_refuses_before_round_0() {
         Err(ref e @ OffsetFitError::SeedOverCap { cap, grid }) => {
             assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP);
             assert_eq!(grid, (49, 49));
-            assert!(e.to_string().ends_with("Recourse: split the face"), "{e}");
+            assert!(
+                e.render(geom_brep::recourse::Reading::Build)
+                    .ends_with("Recourse: split the face"),
+                "{e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         }
         other => panic!("a seed over the cap was not refused before round 0: {other:?}"),
     }
@@ -1220,7 +1275,7 @@ fn a_knot_span_a_few_ulps_wide_refuses_on_its_span() {
         match fit_offset_at(&base, 0.01, 1e-4, band()) {
             Err(e) => {
                 assert!(arm(&e), "{name}: refused on another arm: {e:?}");
-                let msg = e.to_string();
+                let msg = e.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     msg.contains(geom_brep::recourse::NARROW_SPAN)
                         && msg.ends_with(geom_brep::recourse::NARROW_SPAN_RECOURSE),
@@ -1270,16 +1325,24 @@ fn a_bound_found_then_lost_carries_the_bound_it_lost() {
 fn a_round_whose_bound_rose_takes_the_both_directions_step() {
     let base = bumpy_patch();
     let d = 5e-6;
-    let (_, at5) = fit_offset_at(&base, d, 2e-9, band())
-        .unwrap_or_else(|e| panic!("the bumpy patch refused 2e-9: {e}"));
+    let (_, at5) = fit_offset_at(&base, d, 2e-9, band()).unwrap_or_else(|e| {
+        panic!(
+            "the bumpy patch refused 2e-9: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert!(
         at5.rounds == 5 && (at5.hull_sup - 1.1285881e-9).abs() < 1e-14,
         "round {} carries {:e}",
         at5.rounds,
         at5.hull_sup
     );
-    let (_, past) = fit_offset_at(&base, d, 1.1e-9, band())
-        .unwrap_or_else(|e| panic!("the bumpy patch refused 1.1e-9: {e}"));
+    let (_, past) = fit_offset_at(&base, d, 1.1e-9, band()).unwrap_or_else(|e| {
+        panic!(
+            "the bumpy patch refused 1.1e-9: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert!(
         past.rounds > 6,
         "a request under round 5's bound certified on round {}, so round 6 did not rise",

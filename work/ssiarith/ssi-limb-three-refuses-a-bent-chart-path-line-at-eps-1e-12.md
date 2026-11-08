@@ -41,3 +41,16 @@ Find which end check fails (`one_arc::reaches_end` in
 cures it; then add `μ` 0.1 back to the row.
 
 - 2026-11-02 — moved from SSIMARCH to SSIARITH by `git mv` when SSIMARCH merged into SSIARITH, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SSIMARCH had fallen far under it).
+
+## A second fixture (2026-11-03)
+
+The μ 0.2 case of the same bent-path flat wall
+(`crates/geom-brep/tests/m5_pr7_ssi.rs`,
+`a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is`) now
+reaches the same shortfall at ε 1e-12, `TubeNotOneArc { cause: Short }`,
+since plane × NURBS folded onto the 1×2 residual × chart trace
+(SECTARMS, `sectarms/nurbs-implicit-arm-stage4a`, stage 4a/4b). The ℝ⁴
+trace read it as one branch from the `v = 0` side to the `v = 1`; the
+1×2 trace samples the line differently and its fitted carrier falls on
+the far side of the same limb-3 edge. The row now covers two fixtures,
+and the μ 0.2 row is pinned to the refusal with this file as its reason.

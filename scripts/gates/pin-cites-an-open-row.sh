@@ -17,12 +17,15 @@
 #     red` — the `#[ignore = "…"]` reasons, the "Pinned red since PR N"
 #     comments, nightly.yml's pinned k-lint step — or, in a workflow
 #     only, `held out` (the filters that keep a test out of a row);
+#   - a pin line of a gate's `.counts` file (any line not led by `#`),
+#     which is how a pin a move retires names its move row
+#     (`engine-leaves.counts`);
 #   - a comment between a pin call (`pinned_red::row(`,
 #     `kernel_limit::pinned(`, `_at`, `_row`, `_row_at`) and the `fn`
 #     line enclosing it, or in that fn's own doc and attribute block.
 # Scanned: `*.rs` under crates/, demos/, tools/ and
-# interval-transcendentals/ (any `target/` skipped), and
-# .github/workflows/*.yml.
+# interval-transcendentals/ (any `target/` skipped),
+# .github/workflows/*.yml and scripts/gates/*.counts.
 #
 # WHAT IT CANNOT SEE: a citation in a helper fn the pin call reaches
 # through an argument, one in a `/* … */` block, one in a module doc
@@ -53,7 +56,7 @@ function flush_block(   k) {
   blk_n = 0; blk_hit = 0
 }
 function cites(file, n, s) {
-  while (match(s, /work\/[a-z0-9-]+\/[A-Za-z0-9_.-]*[A-Za-z0-9]/)) {
+  while (match(s, ENVIRON["CITE_ERE"])) {
     print file "\t" n "\t" substr(s, RSTART, RLENGTH)
     s = substr(s, RSTART + RLENGTH)
   }
@@ -70,8 +73,10 @@ function walk_back(i,   j) {
 FNR == 1 {
   flush_block(); delete line
   wf = (FILENAME ~ /\.ya?ml$/)
+  pins = (FILENAME ~ /\.counts$/)
   phrase = wf ? ENVIRON["WORKFLOW_PHRASE_RE"] : ENVIRON["PIN_PHRASE_RE"]
 }
+pins { if ($0 !~ /^[[:space:]]*#/) cites(FILENAME, FNR, $0); next }
 {
   line[FNR] = $0
   if (is_comment($0)) {
@@ -87,14 +92,15 @@ FNR == 1 {
 END { flush_block() }
 '
 
-# `work/<program>/<file>.md<TAB>status` for every row, `-` where the
-# header carries none (plan.md, log.md, …). The header is the first
+# `work/<program>/<file>.md<TAB>status<TAB>kind` for every row, `-` where
+# the header carries none (plan.md, log.md, …). The header is the first
 # dozen lines; nothing past it is read.
 row_index() {
-  awk 'FNR == 1 { st[FILENAME] = "-" }
-       /^status:/ { st[FILENAME] = $2; nextfile }
+  awk 'FNR == 1 { st[FILENAME] = "-"; kd[FILENAME] = "-" }
        FNR > 12 { nextfile }
-       END { for (f in st) print f "\t" st[f] }' work/*/*.md \
+       /^status:/ { st[FILENAME] = $2 }
+       /^kind:/ { kd[FILENAME] = $2 }
+       END { for (f in st) print f "\t" st[f] "\t" kd[f] }' work/*/*.md \
     || gate_reader_died_refusal "the work/ row index (awk)" "$?"
 }
 
@@ -117,10 +123,14 @@ gate() {
     mapfile -t -O "${#files[@]}" files < <(gate_grep -lE "$WORKFLOW_PHRASE_RE" \
       "${workflows[@]}" | sort)
   fi
+  local counts=(scripts/gates/*.counts)
+  if [ -f "${counts[0]}" ]; then
+    mapfile -t -O "${#files[@]}" files < <(gate_grep -lE 'work/' "${counts[@]}" | sort)
+  fi
   local index cites=""
   index=$(row_index)
   if [ "${#files[@]}" -gt 0 ]; then
-    cites=$(FN_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((const|async|unsafe|extern)[[:space:]]+)*fn[[:space:]]' \
+    cites=$(CITE_ERE="$GATE_ROW_CITATION_ERE" FN_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((const|async|unsafe|extern)[[:space:]]+)*fn[[:space:]]' \
       PIN_PHRASE_RE="$PIN_PHRASE_RE" WORKFLOW_PHRASE_RE="$WORKFLOW_PHRASE_RE" \
       PIN_CALL_RE="$PIN_CALL_RE" awk "$extract_awk" "${files[@]}" | sort -u -t$'\t' -k1,1 -k2,2n -k3,3) \
       || gate_reader_died_refusal "the pin-citation reader (awk)" "$?"
@@ -129,12 +139,13 @@ gate() {
   if [ -n "$cites" ]; then GATE_SCAN_FILES=$(printf '%s\n' "$cites" | wc -l); fi
   local bad
   bad=$(printf '%s\n' "$index" | awk -F'\t' '
-    NR == FNR { st[$1] = $2; n = split($1, p, "/"); id = p[n]; at[id] = at[id] (at[id] ? " " : "") $1; next }
+    NR == FNR { st[$1] = $2; kd[$1] = $3; n = split($1, p, "/"); id = p[n]; at[id] = at[id] (at[id] ? " " : "") $1; next }
     $0 == "" { next }
     {
       path = $3; sub(/\.md$/, "", path); row = path ".md"
       if (row in st) {
         if (st[row] == "closed") print $1 ":" $2 ": cites " $3 " — that row is closed; lift the pin or point it at the open row that owns the fix"
+        else if ($1 ~ /\.counts$/ && (kd[row] == "program" || st[row] !~ /^(open|spec|dispatched|review)$/)) print $1 ":" $2 ": cites " $3 " — that is not an open item (kind " kd[row] ", status " st[row] "); a pin rises only for a site an open item (open, spec, dispatched or review) retires, so cite that item"
         next
       }
       n = split(row, p, "/"); id = p[n]; live = ""; dead = ""
@@ -215,6 +226,38 @@ plant_near_misses() {
     > "$1/crates/clean/src/live.rs"
 }
 
+plant_counts_closed() {
+  mkdir -p "$1/scripts/gates"
+  printf '# a header naming work/done/gone is no pin\nnames-boolean 3 a.rs  # work/done/gone\n' > "$1/scripts/gates/x.counts"
+}
+plant_counts_live() {
+  mkdir -p "$1/scripts/gates"
+  printf '# a header naming work/done/gone is no pin\nnames-boolean 3 a.rs  # work/live/owner\n' > "$1/scripts/gates/x.counts"
+}
+
+plant_counts_plan() {
+  mkdir -p "$1/scripts/gates"
+  printf 'names-boolean 3 a.rs  # not work/live/plan really\n' > "$1/scripts/gates/x.counts"
+}
+plant_counts_log() {
+  mkdir -p "$1/scripts/gates"
+  printf '# log\n' > "$1/work/live/log.md"
+  printf 'names-boolean 3 a.rs  # work/live/log\n' > "$1/scripts/gates/x.counts"
+}
+plant_counts_program() {
+  mkdir -p "$1/scripts/gates"
+  printf -- '---\nid: live\nkind: program\nstatus: active\n---\n' > "$1/work/live/program.md"
+  printf 'names-boolean 3 a.rs  # work/live/program.md\n' > "$1/scripts/gates/x.counts"
+}
+
+plant_counts_not_now() {
+  mkdir -p "$1/scripts/gates"
+  printf -- '---\nid: waits\nkind: issue\ntitle: t\nstatus: %s\nopened: 2026-10-30\n---\n' "$2" > "$1/work/live/waits.md"
+  printf 'names-boolean 3 a.rs  # work/live/waits\n' > "$1/scripts/gates/x.counts"
+}
+plant_counts_parked() { plant_counts_not_now "$1" parked; }
+plant_counts_deferred() { plant_counts_not_now "$1" deferred; }
+
 plant_no_rows() { rm -rf "$1/work"; }
 
 gate_selftest() {
@@ -228,8 +271,13 @@ gate_selftest() {
   gate_selftest_case --also "body.rs:2:" "that row is closed" plant_call_site_body
   gate_selftest_case --also "nightly.yml:6:" "does not exist under work/" plant_workflow_held_out
   gate_selftest_case "no work/<program>/<id>.md" plant_no_rows
+  gate_selftest_case --also "x.counts:2:" "that row is closed" plant_counts_closed
+  for p in plant_counts_plan plant_counts_log plant_counts_program plant_counts_parked plant_counts_deferred; do
+    gate_selftest_case --also "x.counts:1:" "that is not an open item" "$p"
+  done
+  gate_selftest_passes "a .counts pin citing a live row, under a header naming a closed one" plant_counts_live
   gate_selftest_passes "a closed row cited as history, behind another fn, or as a workflow reference" plant_near_misses
-  printf '%s selftest OK: passes a live citation and closed rows cited outside any pin; fires, at file:line, on a pin citing a closed row (an #[ignore] reason, a pin call'"'"'s doc block and its body comment), a missing row, a moved row (live or closed at its new home), a workflow hold-out citing a missing row, and a tree with no work/ rows; and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a live citation (a .counts pin line among them) and closed rows cited outside any pin; fires, at file:line, on a pin citing a closed row (an #[ignore] reason, a pin call'"'"'s doc block and its body comment), a missing row, a moved row (live or closed at its new home), a workflow hold-out citing a missing row, a .counts pin line citing a closed row (its header not read) or a file that is no open item (plan.md, log.md, an active program.md, a parked or deferred row), and a tree with no work/ rows; and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

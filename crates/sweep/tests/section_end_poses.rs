@@ -139,7 +139,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_split_and_its_lev
                     SectionEndReading::OnPlane => (ON_PLANE, ON_PLANE_LEVER),
                     SectionEndReading::SquareToAxis => (SQUARE, SQUARE_LEVER),
                 };
-                let text = e.to_string();
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 let pin = matches!(
                     e,
                     SplitJoinError::SectionEndEscalated { ref diag, .. }
@@ -187,7 +187,7 @@ enum Against {
 /// `(ε, pose, t)`: each refuses at its row in every op and order. At
 /// ε = 1e-12 none reaches the join in band: the square box builds at
 /// `t = ε`, and the slab refuses downstream
-/// (`work/cleave/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md`).
+/// (`work/honepose/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md`).
 const BOOLEANS: [(f64, Against, f64); 6] = [
     (1e-9, Against::SquareBox, 1e-9),
     (1e-9, Against::WallTilt { dd: -5e-8 }, 1e-9),
@@ -217,7 +217,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
         println!(
             "SKIPPED at this ε: no Boolean pose reaches the join in band at 1e-12; the square \
              box builds and the slab refuses downstream \
-             (work/cleave/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md)"
+             (work/honepose/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md)"
         );
         return;
     }
@@ -266,7 +266,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
                             })
                         ) =>
                     {
-                        let text = e.to_string();
+                        let text = e.render(geom_brep::recourse::Reading::Build);
                         if !text.contains(SQUARE) || !text.ends_with(SQUARE_LEVER) {
                             wrong.push(format!("{tag}: reads otherwise: {text}"));
                         }
@@ -293,10 +293,14 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
 /// `(w·cos φ, w·sin φ, z)` with normal `(cos φ, sin φ, θ)`, `φ = 0.4 +
 /// 0.7·k` as the census spells it: no vertex lies near any of them, and
 /// at ε = 1e-12 each escalates a chord's end pin on its own rounding.
+/// Which check meets that rounding first rides on the end parameter's
+/// last bits; a pose whose ends pin meets it downstream instead, a
+/// refusal not typed as the kernel's
+/// (`an-unresolved-section-carrier-refuses-downstream-untyped-at-1e-12`).
 const AXIAL: [(f64, u8, f64, f64); 8] = [
-    (0.3, 0, 1e-5, 0.3),
+    (0.3, 0, 1e-5, 0.5),
     (0.3, 4, 3e-5, 0.3),
-    (0.7, 2, 3e-5, 0.5),
+    (0.7, 2, 3e-5, 0.3),
     (0.95, 1, 3e-5, 0.3),
     (0.7, 7, 1e-4, 0.5),
     (0.95, 2, 1e-4, 0.5),
@@ -390,7 +394,8 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
             _ => None,
         };
         match (want, &got) {
-            (Some(want), Err(SplitError::Join(e))) if e.to_string() == want => {}
+            (Some(want), Err(SplitError::Join(e)))
+                if e.render(geom_brep::recourse::Reading::Build) == want => {}
             (_, got) => wrong.push(format!("{pose:?}: {:?}", got.as_ref().err())),
         }
     }
@@ -463,7 +468,9 @@ fn a_section_end_reads_the_same_wherever_the_part_sits() {
                     reading: SectionEndReading::OnPlane,
                     ..
                 },
-            )) if e.to_string().ends_with(ON_PLANE_LEVER) => {}
+            )) if e
+                .render(geom_brep::recourse::Reading::Build)
+                .ends_with(ON_PLANE_LEVER) => {}
             other => wrong.push(format!("x0 {x0}: {:?}", other.err())),
         }
         for d in [0.0, CLEARLY_OFF * eps, -CLEARLY_OFF * eps] {
@@ -510,7 +517,7 @@ fn along_the_miss_the_vertex_and_its_section_end_read_one_offset() {
         }
         match cut(over) {
             Err(e @ SplitError::Reduce(topo::SplitReduceError::SliverVertex { .. })) => {
-                let text = e.to_string();
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 if !text.contains("Recourse: move") {
                     wrong.push(format!("z0 {z0}, {:e} off: no lever: {text}", over - z0));
                 }
@@ -589,7 +596,7 @@ fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
                             })
                         ) =>
                     {
-                        let text = e.to_string();
+                        let text = e.render(geom_brep::recourse::Reading::Build);
                         if !text.contains(SQUARE) || !text.ends_with(SQUARE_LEVER) {
                             wrong.push(format!("{tag}: reads otherwise: {text}"));
                         }

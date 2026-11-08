@@ -29,6 +29,6 @@ axes or items would pass every row that exercises only one of them.
 
 A row over a few pairs the narrow phase parts and a few it does not,
 at several poses: the gate's verdict on each face pair, set against the
-sweep's trace (`SweepTrace::examined`, behind `sweep-testing`) for that
+sweep's trace (`SweepPairs::examined`, behind `sweep-testing`) for that
 pair's edges. Every face pair the gate parts has no edge of it
 examined against the other face.

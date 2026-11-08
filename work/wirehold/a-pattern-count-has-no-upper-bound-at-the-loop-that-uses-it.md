@@ -7,7 +7,6 @@ opened: 2026-09-21
 priority: P1
 cost: M
 closed: 2026-11-01
-refs: [need-count-spells-every-failure-as-a-pattern-count]
 ---
 
 

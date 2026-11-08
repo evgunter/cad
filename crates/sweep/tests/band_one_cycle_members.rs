@@ -153,8 +153,12 @@ pub(crate) fn assert_taken<T: Decide + Bounds + AtRestPolicy + geom_core::Certif
     validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
     assert!(!cups.is_empty(), "{what}: the source carries the cup");
     let c0 = topo::readback::euler_counts(body);
-    let out = blend(verb, body, edges, r)
-        .unwrap_or_else(|e| panic!("{what}: the cup goes with the band, got {e}"));
+    let out = blend(verb, body, edges, r).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the cup goes with the band, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
     validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
         .unwrap_or_else(|e| panic!("{what}: tier 3′, {e:?}"));

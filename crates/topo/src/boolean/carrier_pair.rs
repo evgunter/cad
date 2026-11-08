@@ -10,10 +10,9 @@ use geom_core::{Band, Decide, Point3};
 
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::plane_eq::{PlaneEqError, PlaneRelation};
-use super::reduce::face_plane;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
-use crate::face_normal::plane_outward_normal;
+use crate::face_normal::{face_plane, plane_outward_normal};
 use crate::live::BoundaryMember;
 
 /// **The one flush-pair door**: the carrier ladder for a single
@@ -91,8 +90,8 @@ pub enum PairUnread {
 /// an at-rest operand by tier 1, mid-operation by
 /// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
-    let f = body.get_face(face)?;
-    let ball = match body.face_surface_linked(face, f).cover() {
+    let f = body.passed_face(face)?;
+    let ball = match f.surface().cover() {
         Ok(cover) => ExtentBall::of_cover(&cover),
         Err(_) => {
             let (lo, hi) = crate::census::face_reach(body, face, band)?;
@@ -111,9 +110,9 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
 /// like any other), and a miss panics (on an at-rest body by tier 1,
 /// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
-    let f = body.get_face(face)?;
+    let f = body.passed_face(face)?;
     Some(
-        body.face_boundary_linked(face, f)
+        f.boundary()
             .map(|member| match member {
                 BoundaryMember::Isolated { point, .. } => point,
                 BoundaryMember::Edge { he, half, .. } => {
@@ -183,17 +182,17 @@ pub(crate) fn pair_extent<T: Decide>(
 /// public door keeps live, and which the reduction's operators keep
 /// live mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]).
 pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
-    let f = body.get_face(face)?;
+    let f = body.passed_face(face)?;
     // `sense` is the material-side bit: true means the face's outward
     // normal IS the chart normal, which for a sphere/cylinder chart
     // points away from the centre/axis. Read as a BIT, never as a
     // comparison on `T` — the scalar backends order intervals, not
     // signs (S10's exact-bit discipline).
-    let outward = f.sense;
-    match body.face_surface_linked(face, f) {
+    let outward = f.sense();
+    match f.surface() {
         geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane {
             origin: *origin,
-            normal: plane_outward_normal(f, *normal).vec(),
+            normal: plane_outward_normal(f.record(), *normal).vec(),
         }),
         geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
             center: *center,
@@ -235,7 +234,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
             half_angle: *half_angle,
             outward,
         }),
-        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -392,9 +391,11 @@ fn torus_distance<T: Decide>(c: &CarrierDesc<T>, p: Point3<T>) -> T {
     else {
         unreachable!("a torus distance reads a torus")
     };
-    let v = p - center;
-    let z = v.dot(axis);
-    let rho = (v - axis * z).norm();
+    let (z, rho) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(p);
     (((rho - major_radius).powi(2) + z.powi(2)).sqrt() - minor_radius).abs()
 }
 
@@ -685,7 +686,7 @@ fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>
             half_angle: *half_angle,
             outward: true,
         }),
-        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 

@@ -106,10 +106,23 @@ fn the_counterclockwise_wedge_blends_outward_at_both_doors() {
     for ((verb, f), (_, d)) in at_f64.into_iter().zip(at_dual) {
         let f = topo::test_support::finished(
             "f",
-            f.unwrap_or_else(|r| panic!("{verb} at f64: {r}")).body,
+            f.unwrap_or_else(|r| {
+                panic!(
+                    "{verb} at f64: {r_at}",
+                    r_at = r.render(geom_brep::recourse::Reading::Build)
+                )
+            })
+            .body,
             tol,
         );
-        let d = d.unwrap_or_else(|r| panic!("{verb} at the dual: {r}")).body;
+        let d = d
+            .unwrap_or_else(|r| {
+                panic!(
+                    "{verb} at the dual: {r_at}",
+                    r_at = r.render(geom_brep::recourse::Reading::Build)
+                )
+            })
+            .body;
         validate_geometric(&f, tol)
             .unwrap_or_else(|e| panic!("{verb}: the result is finished: {e:?}"));
         let volume = topo::test_support::pinned_volume("the measured body", &f, tol).volume;

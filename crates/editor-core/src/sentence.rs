@@ -68,6 +68,14 @@ pub use geom_core::Recourse;
 /// directory).
 pub const PASS_A_RESOLVER: &str = "pass a resolver over the store that holds the part";
 
+/// **What a run that ran out of its member budget says to do**
+/// ([`crate::EvalOptions::member_budget`]): the one recourse every
+/// refusal of an exhausted run states — [`crate::Stopped`], the node a
+/// stopped run did not reach ([`crate::NodeStanding::NotEvaluated`]),
+/// stackup's build of record, and the viewer's landing.
+pub const RAISE_THE_MEMBER_BUDGET: &str =
+    "raise the member budget, or lower a count it reaches, here or in a part it instances";
+
 /// **Why two spaces' bodies are not read together** (D10
 /// `[placement.spaces]`): the one clause every refusal of a read across
 /// two spaces states, at the edit door ([`crate::EditError::SpaceMismatch`]),

@@ -268,7 +268,7 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
         );
         for k in rims {
             let geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, .. },
+                frame: geom::Frame { origin: center, .. },
                 radius,
             }) = carrier_of(&body, k)
             else {
@@ -734,7 +734,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
 ///   arc length, both orders
-///   (`work/cleave/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
+///   (`work/honeroot/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
 /// - `k = ±1.1, ±2`: in band, both orders escalate. Which question
 ///   escalates first follows the operand walked first.
 #[test]
@@ -746,7 +746,7 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
         b.edges()
             .filter_map(|(e, _)| match carrier_of(b, e) {
                 geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, .. },
+                    frame: geom::Frame { origin: center, .. },
                     radius,
                 }) if (center.z - H).abs() < 1e-9 => Some(radius),
                 _ => None,

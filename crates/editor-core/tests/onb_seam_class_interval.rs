@@ -338,7 +338,13 @@ fn a_tilted_extrude_certifies_on_its_stored_charts() {
     for deg in [45.0, 30.0] {
         let (doc, placed) = tilted_prism(deg);
         let sel = Selection::body_of(placed);
-        let report = self_intersection(&doc, &box_of(&doc, "place"), &sel, Tol::witness());
+        let report = self_intersection(
+            &doc,
+            &box_of(&doc, "place"),
+            &sel,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        );
         assert_eq!(
             report.verdict(),
             &ClearanceVerdict::Holds,

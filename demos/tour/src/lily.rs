@@ -1752,8 +1752,9 @@ pub fn stem_frontier(tol: Tol) -> Option<String> {
                 "DECLARED FRONTIER at eps = {:e}: the lower stem (a {STEM_RING} m ring at a \
              {STEM_TUBE} m pipe, ring/pipe ~ 83) refuses as limb 2's kernel approximation \
              limit — a thin torus, the class ruled a kernel limit at this row — so the \
-             plant, its stop and its wall probes stand down here: {e}",
-                tol.eps()
+             plant, its stop and its wall probes stand down here: {}",
+                tol.eps(),
+                e.render(pncad::geom_brep::recourse::Reading::Build)
             ))
         }
         (true, Ok(_)) => panic!(
@@ -2465,7 +2466,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    crosses in two chords. That plane is tilted against the torus's axis, so it
     //    cuts a general spiric quartic whose loops wind round the tube,
     //    and C5 routes that section to its unbuilt general rung
-    //    (`work/sect/c5-plane-torus-cone-cylinder-arms`). It refuses
+    //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). It refuses
     //    the same way at 1e-9 and 1e-6, at `boolean::join::frame_refusal`.
     //    Behind it is the section of the leaf's NURBS walls against the
     //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's

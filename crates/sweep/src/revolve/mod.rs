@@ -551,9 +551,10 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// An arc segment's interior definitely dips into `r < 0` (span
-    /// beyond the half-period around an on-axis center, or an apex on
-    /// the negative side — the half-plane check for arc interiors).
+    /// An arc segment's interior definitely dips into `r < 0`: it
+    /// reaches `m = c − r·ê_r`, its circle's point of least radius, on
+    /// a sphere's or a sheet's circle (`axis_arc_interior`, the
+    /// half-plane check for arc interiors).
     ArcCrossesAxis {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -574,10 +575,11 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// An off-axis-centered arc whose carrier reaches (or crosses) the
-    /// axis: the swept torus would be horn/spindle, outside D3's ring
-    /// torus convention (`R > r > 0`).
-    UnsupportedToroid {
+    /// An arc whose circle reaches the axis within the band of
+    /// tangency ends on the axis at neither the apexes of the sheet its
+    /// circle sweeps nor the horn's one cusp: on the stretch where the
+    /// circle runs within the band of the axis, where no sheet's apex is.
+    ApexEndOffSheet {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the segment.
@@ -733,16 +735,20 @@ pub enum ClearanceDecision {
     LineRadial,
     /// A line's axial run: zero makes its wall a plane annulus.
     LineAxial,
-    /// An arc centre's distance from the axis: zero makes a sphere, a
-    /// positive distance a torus.
+    /// An arc centre's distance from the axis: zero makes a sphere.
     ArcCenter,
-    /// A sphere-class arc's span short of a half turn, at its radius.
-    ArcSpan,
-    /// A sphere-class arc's apex distance from the axis.
-    ArcApex,
-    /// A torus-class arc's clearance of the axis: its centre's distance
-    /// less its radius.
-    ArcClearance,
+    /// Whether an arc whose circle reaches the axis stops short of the
+    /// circle's point of least radius: the turn from its start to that
+    /// point less its span, at its radius.
+    ArcInterior,
+    /// An off-axis arc's circle's reach of the axis: its centre's
+    /// distance less its radius, positive a ring torus and otherwise a
+    /// spindle sheet.
+    ArcReach,
+    /// An arc's end on the axis against the apexes of the sheet its
+    /// circle sweeps: its distance along the axis from the nearest,
+    /// zero where the reading holds it.
+    ApexEnd,
 }
 
 impl ClearanceDecision {
@@ -751,9 +757,9 @@ impl ClearanceDecision {
         Self::LineRadial,
         Self::LineAxial,
         Self::ArcCenter,
-        Self::ArcSpan,
-        Self::ArcApex,
-        Self::ArcClearance,
+        Self::ArcInterior,
+        Self::ArcReach,
+        Self::ApexEnd,
     ];
 
     /// The `k_stats` name the decision is metered under.
@@ -763,21 +769,21 @@ impl ClearanceDecision {
             Self::LineRadial => "axis_line_radial",
             Self::LineAxial => "axis_line_axial",
             Self::ArcCenter => "axis_arc_center",
-            Self::ArcSpan => "axis_arc_span",
-            Self::ArcApex => "axis_arc_apex",
-            Self::ArcClearance => "axis_arc_clearance",
+            Self::ArcInterior => "axis_arc_interior",
+            Self::ArcReach => "axis_arc_reach",
+            Self::ApexEnd => "axis_arc_apex_end",
         }
     }
 
-    /// Whether the margin is a size the user chose. The span is an
-    /// angle. The line runs select the wall's form (zero a cylinder or a
-    /// plane annulus, either sign a cone), passing on any definite sign;
-    /// the centre's distance selects sphere (zero) or torus (positive),
-    /// and a negative one is refused. The apex and the clearance are
-    /// distances the profile must keep from the axis.
+    /// Whether the margin is a size the user chose. The interior's is
+    /// a turn. The line runs select the wall's form (zero a cylinder or
+    /// a plane annulus, either sign a cone), and the centre's distance
+    /// selects a sphere (zero) or not, each passing on any definite
+    /// sign. The reach is the distance the circle keeps from the axis,
+    /// whose sign picks ring or sheet.
     #[must_use]
     pub const fn sized(self) -> bool {
-        matches!(self, Self::ArcApex | Self::ArcClearance)
+        matches!(self, Self::ArcReach | Self::ApexEnd)
     }
 
     /// What the decision asks of the segment, as the noun it is about
@@ -787,9 +793,12 @@ impl ClearanceDecision {
             Self::LineRadial => ("the line", "runs parallel to the revolve axis"),
             Self::LineAxial => ("the line", "runs square to the revolve axis"),
             Self::ArcCenter => ("the centre of the arc", "lies on the revolve axis"),
-            Self::ArcSpan => ("the arc", "spans no more than a half turn"),
-            Self::ArcApex => ("the arc", "stays off the revolve axis at its apex"),
-            Self::ArcClearance => ("the arc", "clears the revolve axis"),
+            Self::ArcInterior => ("the arc", "keeps its interior off the revolve axis"),
+            Self::ArcReach => ("the circle of the arc", "stays clear of the revolve axis"),
+            Self::ApexEnd => (
+                "the end of the arc on the revolve axis",
+                "lies at an apex of the sheet the arc sweeps",
+            ),
         }
     }
 
@@ -805,8 +814,12 @@ impl ClearanceDecision {
     }
 }
 
-impl fmt::Display for RevolveError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl RevolveError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::EmptyProfile => f.write_str(crate::EMPTY_PROFILE),
@@ -905,14 +918,16 @@ impl fmt::Display for RevolveError {
                     )
                 )
             }
-            Self::UnsupportedToroid {
+            Self::ApexEndOffSheet {
                 loop_index,
                 segment_index,
             } => write!(
                 f,
-                "the arc at loop {loop_index} segment {segment_index} would sweep a horn or \
-                 spindle torus (its circle reaches the axis), which is not supported. \
-                 Recourse: keep the arc's circle clear of the axis"
+                "the arc at profile loop {loop_index} segment {segment_index} ends on the \
+                 revolve axis where its circle runs along it a hair off tangency, at no apex of \
+                 the sheet the circle sweeps. Recourse: end the arc where its circle crosses \
+                 the axis, or draw the circle tangent to the axis and end the arc at the \
+                 tangent point"
             ),
             Self::NonManifoldAxisContact {
                 loop_index,
@@ -1005,11 +1020,19 @@ impl fmt::Display for RevolveError {
                  on the axis, so the run's wall has no strut there"
             ),
             Self::CapPlane { source } => write!(f, "{source}"),
-            Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
-            Self::Pcurve(source) => write!(f, "{source}"),
+            Self::Op { source } => {
+                write!(
+                    f,
+                    "an Euler operation refused: {}",
+                    geom_brep::recourse::read_at(source, at)
+                )
+            }
+            Self::Pcurve(source) => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
         }
     }
 }
+
+geom_brep::ended_by_write!(RevolveError);
 
 impl std::error::Error for RevolveError {}
 
@@ -1062,9 +1085,10 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
 /// # Errors
 ///
 /// [`RevolveError`] — closed and typed: degenerate/sliver axis and
-/// angle, half-plane violations, sliver radii, unsupported toroids,
-/// non-manifold axis contact, sliver dihedrals, Newell failures, and
-/// every operator/certification refusal.
+/// angle, half-plane violations, sliver radii, an arc end on the axis
+/// at no apex of its sheet, non-manifold axis contact, sliver
+/// dihedrals, Newell failures, and every operator/certification
+/// refusal.
 ///
 /// # Panics
 ///
@@ -1132,13 +1156,14 @@ mod tests {
     use super::*;
 
     /// **A revolve escalation ends by its decision's kind.** The angle
-    /// and the arc span are angles, the axis direction's length is a
-    /// gauge, and the line runs, the arc centre and the cosurface
-    /// distance select a form: each ends in the lever alone on every
-    /// reading. The arc's apex and clearance are distances the profile
-    /// keeps from the axis, and the gap between two axis runs a
-    /// distance it keeps between them: each offers the tolerance a
-    /// value gives.
+    /// and the arc's interior (the turn to its circle's point of least
+    /// radius) are angles, the axis direction's length is a gauge, and
+    /// the line runs, the arc centre and the cosurface distance select
+    /// a form: each ends in the lever alone on every reading. The arc
+    /// circle's reach is a distance it keeps from the axis, an arc end's
+    /// distance from its sheet's apex one the profile draws, and the gap
+    /// between two axis runs a distance the profile keeps between them:
+    /// each offers the tolerance a value gives.
     #[test]
     fn a_revolve_escalation_ends_by_its_decisions_kind() {
         use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};
@@ -1159,18 +1184,19 @@ mod tests {
                 LEVER,
             ),
             (
-                ClearanceDecision::ArcSpan,
-                "whether the arc at loop 0 segment 2 spans no more than a half turn",
+                ClearanceDecision::ArcInterior,
+                "whether the arc at loop 0 segment 2 keeps its interior off the revolve axis",
                 LEVER,
             ),
             (
-                ClearanceDecision::ArcApex,
-                "whether the arc at loop 0 segment 2 stays off the revolve axis at its apex",
+                ClearanceDecision::ArcReach,
+                "whether the circle of the arc at loop 0 segment 2 stays clear of the revolve axis",
                 SIZED,
             ),
             (
-                ClearanceDecision::ArcClearance,
-                "whether the arc at loop 0 segment 2 clears the revolve axis",
+                ClearanceDecision::ApexEnd,
+                "whether the end of the arc on the revolve axis at loop 0 segment 2 lies at an \
+                 apex of the sheet the arc sweeps",
                 SIZED,
             ),
         ];
@@ -1236,7 +1262,11 @@ mod tests {
             }
         }
         for (text, err) in built {
-            assert_eq!(err.to_string(), text, "{err:?}");
+            assert_eq!(
+                err.render(geom_brep::recourse::Reading::Build),
+                text,
+                "{err:?}"
+            );
         }
     }
 
@@ -1258,14 +1288,14 @@ mod tests {
                     reading,
                     source,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
                 RevolveError::SliverRim {
                     loop_index: 0,
                     segment_index: 1,
                     reading,
                     source,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
             ] {
                 assert_eq!(
                     text.contains("curve apart there or share their curvature is undecided: "),
@@ -1313,7 +1343,7 @@ mod tests {
             },
         ];
         for e in errors {
-            let msg = e.to_string();
+            let msg = e.render(geom_brep::recourse::Reading::Build);
             assert_eq!(
                 msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
                 1,
@@ -1324,7 +1354,7 @@ mod tests {
         // the list above: a direction with no finite length is not a
         // coincidence at any tolerance, so the shared recourse is the
         // wrong one to offer and the arm carries its own.
-        let msg = RevolveError::NonFiniteAxis.to_string();
+        let msg = RevolveError::NonFiniteAxis.render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
             0,

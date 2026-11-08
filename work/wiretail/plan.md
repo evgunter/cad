@@ -35,7 +35,7 @@ SELECT-DESIGN, so a fork goes to Ev). The E rows are one unit.
 
 ## Review posture
 
-Inherits WIRE's (`work/wire/plan.md`): protocol v7, single reviews.
+Inherits WIRE's (WIRE's plan, recoverable by `docs/doc-ledger/wire-leaves-the-tracker.md`): protocol v7, single reviews.
 
 **From EMIT's close (2026-10-19).** The four label rows above came from
 `work/emit/` by `git mv` (+7 points). So did the parked

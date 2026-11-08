@@ -861,6 +861,13 @@ E1c waits on the answer.
   - E1c is widened to the sphere/cone/torus class arms and the sphere/torus ellipse kind gates;
   - E1d2 seals topo's construction tier.
   Next: E1d2 → E1c → E1e → E2 → E3 → E4.
+- 2026-10-28 — **E1c (`pcert/mints-read-incidence`): every mint arm reads incidence before it images.**
+  - `derive_class` opens the plane, cylinder, cone, sphere and torus arms with the chart's incidence test. The general lane takes the witness (`general_lane(shown, undecided)`). The sphere and torus kind gates send an ellipse not shown off to the general lane.
+  - The spiric's plane cap and torus wall read it too (a sweep hit). `topo::chart_region`'s plane site ends an incidence refusal by the read (`TrimOffFace`).
+  - A carrier off its face ends by E1d's door rule, never `ChartResidual`.
+  - Moves: E1b's `set_edge_curve` and Euler-chord rows now refuse `CarrierOffChart`; `m10_bulge` pins `pcurve_cylinder_chart_incident` 16/4 and `pcurve_line_chart_incident` 18/4.
+  - The read is taken in the chart's own frame: the anchor at the origin and the axis unit. A read where the carrier sits misread an exact rim 1e7 m out as off at 1e-12 (a kernel defect), and a ruling high up an axis long by δ (inside the at-rest margin) as off at 1e-6. E1d's sphere, cone and torus reads had the same flaw.
+  - Closed `plane-and-cylinder-mints-meter-incidence-as-a-residual`. The cylinder meridian arm's `pcurve_chart_radial_moving` tie-break, which E2 re-reads, now sits behind the read.
 - 2026-10-28 — E1d2 (PR 5881) merged: topo's construction tier is sealed.
   - Its 46 doors are crate-private inherent methods of `Body`, public only through `topo::construction::Construct`, which is where they are documented.
   - `pncad::topo` is the topo glob, with the tier's modules shadowed. The shadow set is derived from `construction.rs`.
@@ -869,6 +876,14 @@ E1c waits on the answer.
   - The spec types stay nameable because `EdgeCurve::{mint, certify, …}` take and return them.
   - Review tier: single FULL review (the move is mechanical, but whether the seal is complete had to be probed from outside). 0 MAJOR; fix list K1–K5 (the pins could not see a door made public; the tier's docs had dropped out of rustdoc). The orchestrator read the fixes.
 - 2026-10-28 — E1c (PR 5889) dispatched at review tier dual, class H (the incidence read across five charts). The concurrent pair reads frozen head 6c29a7e439, scope c591ab53c7..6c29a7e439.
+- 2026-10-28 — **E1c fix pass L1–L10** (PR 5889).
+  - Every at-rest reader of a stored carrier now reads incidence first: the stated chart image (`run_checks`), the stored pcurve rows (`PcurveCache::certify`/`recertify`) and the planar tier's boundary (through `IncidenceRead`). This closes `select/a-stated-chart-image-meters-its-carriers-incidence-as-a-residual`.
+  - The pair description's two-surface residual is filed on select: `a-two-surface-residual-meters-a-moved-face-as-the-descriptions-miss`.
+  - The read is decided less its rounding, as a multiple of the distance, so the symbolic tier's zero theorem survives the charge (the box replay of `m10_10`).
+  - The envelope sweeps draw on the face and count what they drop.
+  - The sphere parallel reads the radius its image turns at near the pole (`polar_read_radius`).
+  - Filed closed: `a-lifted-copy-of-a-circle-whose-turn-is-within-the-band-certifies` (check 2 refuses it).
+  - Three rows at the 1 s line move to the slow set; base and head measure alike.
 - 2026-11-02 — Filed `the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive` (P2). Since PR 6105's `cylinder_rim_axial` decision (CLEAR's CAVITYDIAG, on this program's ground), m10_3's two-parameter drive refuses every leaf at every ε. Its two rows are pinned, and the decision's symbolic count is re-blessed in sym11, sym_9 and m10_9. (GREEN lane)
 - 2026-11-02 — **PCTAIL merged into PCERT.** Under the budget rule of 2026-11-02 (only dispatchable P0, P1 and unbanded rows count) PCTAIL had fallen far under budget, and its charter is one story with PCERT's. Its 14 item files moved here by `git mv`, ids and bodies unchanged, each with a dated note; its plan is folded into `plan.md` and its charter, `paths` and `keep_out` into `program.md`, and its directory left the tracker (`docs/doc-ledger/pctail-leaves-the-tracker.md`, which names the SHA its log is recoverable at).
 - 2026-11-02 — **To the PCERT orchestrator: PCTAIL's rows have landed on your track.** Ev, in chat 2026-11-02: "dumping pctail into pcert is ok (adding rows to an existing orchestrator is safe, but taking them away may not be)". The track budget now counts only dispatchable P0, P1 and unbanded rows, and PCTAIL (your 2026-10-01 priority-seam tail on `pcurve_cache.rs`) had fallen to 6 points. Its 14 item files are now in `work/pcert/`, ids and bodies unchanged, each with a dated note. Its slate is appended to `plan.md` as a separate section at the end; nothing in your own order, rows or branches was changed. `budget: 36` is set to the merged load. The unbanded PCTAIL rows (`a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one`, `pcurve-certify-error-arms-with-no-ending`) count against the budget until banded.
@@ -876,3 +891,203 @@ E1c waits on the answer.
   - `pcurve-certify-error-arms-with-no-ending` is **P1**, cost M. `PcurveCertifyError::ending`'s grouped `None` and topo's at-rest fallback table (`DEFECT` / `NOT_YET` / `TOLERANCE`) are two implementations of one ending, which is the P1 definition.
   - `a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one` is **P3**, cost M: latent unsoundness, since `ring_path`'s parity premise is unmeasured on the cone and the torus.
   - Load 33/36. PCTAIL's slate runs after E1e → E2 → E3 → E4, with the P1 first (`plan.md`).
+- 2026-11-03 — **E1c merged** (PR 5889, `78027e0886`): every mint arm reads incidence before it images a carrier; the stated route, stored rows and the planar tier read through the same door, one read per carrier per certification, in the chart's own frame.
+  - Review tier: dual, class H. The concurrent pair read `6c29a7e439`. It is excluded from the pair count under 6(e): R2's worker restart killed its geom-brep slow run. Tallied 0: both executed MAJORs were bilateral. DR row `docs/dual-review-log/rows/PR-5889.md`.
+  - Four fix rounds:
+    - L1–L10 (the pair's union);
+    - M1–M6 (delta verifier on `2d0bf5a2f6`);
+    - N1–N5 (delta verifier on `76fd375d0f`: three slow rows triaged against a stale base, cost past the line);
+    - O1–O3 (delta verifier on `4ce2b4dffe`: 0 MAJOR, two MINOR). The orchestrator read O.
+  - Main was merged into the branch seven times.
+  - Rulings:
+    - N3 (a): the planar tier reads a conic over its edge's span, while the mint and certify keep the full turn. `a-conics-incidence-is-read-over-its-full-turn-not-the-edges-span` stays open (about 2× to fix) and now names `topo::chart_region`'s plane path, pinned.
+    - Cost: accepted at 1.61× / 1.57× / 1.05× against main `1fcdbde7de`. The head's own times held, and main got about 10% faster. The owed cut, (ii), is on `the-incidence-read-first-freezes-more-sym-nodes-on-the-fillet-pads`.
+  - S5 (`TrimOffFace`'s Display) and the corner lever's wording are on E1e's plan row. Next: E1e.
+- 2026-11-03 — **E1e dispatched** (`pcert/display-payload-only`, from main `32ac2a0820`): a refusal's `Display` carries only its payload, and its ending exists only through `render(at)`, with a gate counting the production spelling sites per reading. It folds in `TrimOffFace`'s at-rest Display (S5) and the planar corner's lever wording.
+  - Review tier: single FULL. The design is ratified (Ev's PR 5838, Q1), and the change moves where endings are spelled, not what they mean. It is wide, though, and a missed door would silently drop an ending, so the review carries correctness claims.
+  - Sequencing: the newly banded P1 `pcurve-certify-error-arms-with-no-ending` runs right after E1e, ahead of E2. Both touch `PcurveCertifyError`'s endings, so running them in parallel would conflict, and E1e's door-rendering is the ground the arms' endings land on.
+- 2026-11-03 — **E1e merged** (PR 6430): a refusal's `Display` carries only its payload, and its ending exists only through `render(at)`. 22 seed `Display`s and their ~20 wrappers are written once through `geom_brep::recourse::Ended` / `ended_by_write!`, every door renders at its own reading, and the gate `display-payload-only.sh` rejects a `Display` or `write(f, at)` body that reaches an ending. It also folds in `TrimOffFace` (ends at its reader's door) and the corner lever.
+  - Review tier: raised from single FULL to **DUAL** at scoping (04:52Z), when the sweep found 8 seeds and ~40 wrappers, not 5: a cross-crate trait is hard to change later. Letter M. Arm drawn SEQUENTIAL (byte 74, mod 3 = 2). (This corrects the dispatch entry's "single FULL".)
+  - Review 1: APPROVE-WITH-FIXES, 0 MAJOR / 4 MINOR (two build-fixed Displays, the gate blind to write bodies, mesh dropping a nested ending, false at-rest pins), so no review 2. Fix pass P1–P5 read by the orchestrator, gate mutants re-run red. DR row `docs/dual-review-log/rows/PR-6430.md`.
+  - Filed by the lane: `a-nested-refusal-ends-at-its-holders-door-not-its-readers`, `a-displays-constant-ending-answers-one-door-at-every-door`, and the wrappers of payload-only refusals that never end them.
+  - The topo `depth_gap_fuzz` red seen on this PR was main's. The orchestrator's `work/issues/a-sampled-depth-on-a-zero-minor-ring-lies-past-its-core-bound` is closed as a duplicate of restread's row.
+  - Next: the P1 `pcurve-certify-error-arms-with-no-ending`, then E2 → E3 → E4.
+- 2026-11-03 — **P1 `pcurve-certify-error-arms-with-no-ending` merged** (PR 6448), dispatched 11:22Z, run right after E1e because both touch `PcurveCertifyError`'s endings.
+  - `PcurveCertifyError::ending(at)` returns a `String` for every arm: 14 had none (13 in the row, re-derived), plus `FittedLimb` off the chart limbs. One exhaustive private `decision()` covers them, with no grouped `None` and no `_ =>`. topo's at-rest fallback table is retired.
+  - `FittedCertificate` carries the SSI door's ending (`FittedEnding`). A new arm, `FittedGradeAtClosedFormDoor`, keeps the hand-off lever for a caller giving a fitted image to the closed-form door.
+  - Named at-rest meaning changes:
+    - `SectorRefused` is now a defect; a stored piece, noted on `pcurve-winding-incidence-and-sector-refusals-end-as-a-kernel-defect`;
+    - `FittedLaneUnsupported` has one lever, worded per door;
+    - `FittedCertificate` follows its ending, its reason included;
+    - the off-limb `FittedLimb` was a panic on main and is now a defect.
+  - Review tier: single FULL (each arm's ending is a correctness question; nothing structural). Review: APPROVE-WITH-FIXES, 0 MAJOR / 6 MINOR. The fix list Q, read by the orchestrator, covered:
+    - the public door that reached `ImageMismatch`;
+    - the placeholder mapped to one arm;
+    - the at-rest reason;
+    - double recourses on `Band` / `ChartRow`;
+    - levers pinned by identity, with the reviewer's mutant red;
+    - the missed existing row, with the duplicate folded in.
+  - Ruled: `NoGeneralLane::Pose` keeps its pre-existing pair (the pose lever plus D3's "not yet"). Splitting at the pole is a real way through at a build door (`m6_3` pole fence), and the lever-vs-not-yet choice is filed on `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none`. `pcurve-image-mismatch-at-the-body-mint-asks-to-re-mint` stays open with the measurement.
+  - Filed:
+    - `wrappers-that-flatten-a-pcurve-certify-error-end-it-by-their-own-decision`;
+    - `geom-brep-public-certify-doors-end-caller-input-as-the-kernels-defect-at-a-build`;
+    - `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none`.
+  - Next: E2 → E3 → E4.
+- 2026-11-03 — **Tail banded; the sitting continues on six P1 rows.** After the P1 `pcurve-certify-error-arms-with-no-ending` merged (PR 6448), no P0 or P1 row was dispatchable, and 19 unbanded rows had put the load at 54/36. They are now banded by `work/README.md`'s definitions; load is 21/36.
+  - **P1, the D3 lane units:** E2 `a-line-on-a-cylinder-has-no-general-lane` (re-banded from P3), E4 `a-circles-general-lane-is-written-only-on-the-sphere` and E5 `a-mint-side-class-pick-escalates-in-band-where-its-general-lane-exists`. Ev ruled on `[ev]` PR 5186 that every class a lane choice reads has a general lane; until each is built, a class is handled by a special case. That is the P1 definition, and the same band the 3617 ruling gave the C4 routes.
+  - **P1, two implementations of one thing:** `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none` (the sibling of the P1 just closed), `harmonic3-circle-and-ellipse-arms-re-spell-conic-of` and `the-projected-image-inverts-chart-points-by-a-second-spelling`.
+  - **P2:** the full-turn conic read, `site_rows`' spline-carrier bypass, and the spiric run edge.
+  - **P3:** the rest of the refusal-vocabulary residue.
+  - **P4:** the frozen-node cost item.
+  - Order: E2 → E3 → E4, E5 beside. `plane-nurbs-refusal-ending…` and the two second-spelling rows fit between units, wherever they touch different code from the unit in flight.
+- 2026-11-03 — **P1 `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none` merged** (PR 6474). Every `PlaneNurbsRefusal` and `AnalyticRung3Refusal` arm ends by its decision through an exhaustive match: no grouped `None`, no `_ =>`.
+  - Shared refusals end from one home with `PcurveCertifyError`:
+    - the placeholder wall ends in `PLACEHOLDER_RECOURSE`;
+    - `CarrierEnclosure` ends "not yet";
+    - an unsettled foot reads `SsiError::FootPointInconclusive`'s ending, which is now "not yet" at every reading, never a defect or a damaged file. That ending also corrects 6448's `FootUnsettled` and the SSI door's own golden.
+    - A wrong-lane call ends as `WrongLane`.
+    - The SSI flattens carry the `SsiError`'s own ending, which closes `wrappers-that-flatten-an-ssi-error-end-it-by-their-own-decision`.
+  - Review tier: single FULL. Review: APPROVE-WITH-FIXES, 0 MAJOR / 6 MINOR, with the fix list S read by the orchestrator.
+  - **The pose gap was reverted.** The lane had routed `GeneralLane` to the pose lever. The review found the gap also catches in-band poses *beside* a pole, where "split the edge at it" names no passage, and the same apex fact ending two ways. The 6448 pair stands, and the evidence is recorded on the row.
+  - The every-arm row now reads the other doors' homes, so the reviewer's mutant D reds at every door, and the edge-door lever is pinned by identity.
+  - Filed **`two-decision-tables-for-one-ending` (P1)**: `LaneDecision` and `pcurve_cache`'s `Decision` drift apart.
+- 2026-11-03 — **`harmonic3-circle-and-ellipse-arms-re-spell-conic-of` closed** (PR 6468): there was no code to change. PR 6349 (onehome) had already made `carrier_harmonic` read `Conic::of` / `semi_axis_vectors()`, bit-identical at f64 and at Interval. Filed `work/shell/topo-stands-and-shell-moved-walls-re-spell-a-conics-frame-by-kind.md`. Review tier: the orchestrator's read.
+- 2026-11-03 — **E2 merged** (PR 6470): a line on a cylinder has a general (projected) lane, as Ev ruled on `[ev]` PR 5186.
+  - The lane: `has_lane` admits (Line, Cylinder), and check 4's line arm bounds incidence by a Bernstein convex-hull sup of ρ² − R², converted through the cylinder arm's own `over`.
+  - The fold goes: a Zero radial reading takes the meridian form, and an in-band reading takes the general lane. `chart_iso_family`'s re-read is gone.
+  - The departure, accepted: a definite non-Zero radial reading on a line now takes the general lane, not the moving arm. The moving arm built an atan2(0,0) channel that certification always refused; the review measured 12,517 such lines on main, none certifying.
+  - The retired D3 clause is out of the README C4 page and the code prose.
+  - Review tier: single FULL. Review: APPROVE-WITH-FIXES, 0 MAJOR. A 150k-draw counterexample search found nothing, and the `line-cylinder-ends` mutant reds it. No public verb regressed.
+  - Fix list R, read by the orchestrator:
+    - the stale prose;
+    - a third consumer (`props_meridian_axial`) named on the filed row;
+    - the 88/14,412 lane changes disclosed, with a band-scale row;
+    - G1's pin;
+    - the shared residual sampler;
+    - the iso guard narrowed;
+    - the row closed.
+  - Cost about 1.0× main.
+  - Filed:
+    - `a-ruling-read-in-band-meets-consumers-that-read-no-projected-image` (P2);
+    - **`the-ruling-question-is-read-in-two-units` (P1)**: props meters a ruling's tilt over the edge, while the mint reads its radial speed per unit parameter.
+  - Next: E4 and the projected-image second spelling (both on `projected.rs`), E5 after plane-nurbs, and E3.
+- 2026-11-04 — **E5 merged** (PR 6484): the mint-side class picks on a spline chart take the general lane in band (D3).
+  - The exact arc rim read in band now reads its fitted image, and the fitted path's own decision stands. `ArcRimRefusal::Escalated` is gone.
+  - `pick_arc_rim`: an in-band closed-form step no longer hides a measured row.
+  - `iso_schedule`: candidates read in band pass on to the general image.
+  - `nurbs_iso_derive`'s `arc_rim` arm is the one disposition for a circle in every description form. It reads the pick, then the row's certificate. If neither shows the circle, it refuses `NoGeneralLane{Unwritten}`, "not yet".
+  - Review tier: single FULL. Fix list T was read by the orchestrator:
+    - T1, option (b): a spline chart has no incidence test, so a circle off its wall ends "not yet" too. Filed P1, H.
+    - T2: one disposition per (Nurbs, Circle).
+    - T3: M7 is pinned.
+    - T4: the mutant table.
+    - T5: style.
+  - Cost about 0.95–1.0× main.
+  - Filed:
+    - `a-spline-chart-has-no-incidence-test-so-a-lane-choice-refusal-cannot-tell-off-from-uncovered` (P1);
+    - `a-curved-carriers-degree-one-general-image-ends-as-a-kernel-bug` (P1; E4's U2 class);
+    - `a-loft-section-rims-in-band-pick-offers-a-tolerance` (P2);
+    - `a-lane-choice-pick-splices-its-in-band-runs-live` (P2);
+    - `in-band-test-distances-are-spelled-five-ways` (P3).
+  - Next on `edge_nurbs.rs`: `two-decision-tables-for-one-ending`.
+- 2026-11-04 — **`two-decision-tables-for-one-ending` merged** (PR 6493).
+  - `recourse::Decision<C: DoorCheck>` and one `ending` replace `pcurve_cache::Decision` and `edge_nurbs::LaneDecision`.
+  - `CertifyError`'s table is folded in as the third.
+  - `Lever` and the kernel-limit texts now live in `recourse`.
+  - One `decided()`/`decision()` convention at every door.
+  - No ending moved: the review's dump of 510 entries is byte-identical at both heads.
+  - The guard `every_refusal_ends_through_the_one_decision_table` reads one `census` hook. It holds an explicit no-decision list that cites its row, so the reviewer's mutant M3 (a decided arm demoted to None) reds.
+  - Review tier: single STYLE. Verdict APPROVE-WITH-FIXES; fix list W was read by the orchestrator.
+  - Filed:
+    - `a-certify-errors-no-decision-arms-end-apart-from-the-one-table` (P2; `Band`'s lever-arm ending is unreachable today);
+    - `the-pcurve-mint-error-keeps-a-third-ending-table` (P2);
+    - `the-door-defect-is-two-kinds-of-the-one-decision-table` (P4).
+- 2026-11-04 — **E4 merged** (PR 6485): a circle has a general (projected) lane on the cylinder, cone and torus, and a line has one on the cone.
+  - `has_lane` and a typed `lane_of` are the one home.
+  - Check 4's incidence term for a circle on every curved chart is the chart form's exact trig polynomial. It is bounded by `implicit::conic_form_sup` with `rounding_charge` (the sphere joined, so `circle_chart` and `sphere_circle` are gone), and converted through `Meters::over_at`.
+  - The cone line's incidence is converted per part, halved on the lever's spread (9/8, depth 24).
+  - `general_lane_refusal` is the one place a general-lane refusal is relabelled, and only on the mint's own fresh image (`minted_refusal`, reached only from topo's walk). A stored row keeps its term.
+  - Review tier: DUAL, letter H, concurrent pair (byte 57, odd, A = R2). The R1 torus f64 MAJOR is bilateral. R2's unilateral executed MAJOR (a near-apex cone ruling ending in a tolerance offer) is tallied 1.
+  - Fix passes, with one delta verifier throughout:
+    - U1–U7: the torus conditioning, through implicit's harmonics family; the lane-taken tolerance offer; the C4 list; the cone line re-banded P1; style.
+    - The eps 1e-12 reds were root-caused: the apex fixture was 1.3e-10 off; the cone charge over-read 6e4× on flat cones.
+    - V: the relabel moved out of the shared checker. The verifier had shown a stored foreign row ending "not yet" at rest.
+    - X: the cone `terms` charge the projections' rounding. Before, they were short by up to 434× on needle cones, with one f64 envelope under-read at 3e-6. Now there are 0 shortfalls over 3000 draws (worst 0.022×), exact-rational coefficient rows on every chart, a 50-digit sweep of 508 rows with 0 under at both scalars, and radius-48 tight at about 150× ε.
+  - Final verdict: APPROVE-WITH-FIXES, non-gating. The lever integers in `conic_cone_harmonics` (implicit.rs ~1238) have no derivation at the site; the exact-rational row guards them. `minted_refusal` is re-exported publicly.
+  - Cost 1.04× (first head).
+  - Filed:
+    - `an-ellipses-general-lane-is-written-on-no-chart` (P1);
+    - `a-line-near-a-cone-is-read-as-a-ruling-without-a-class-gate` (P1);
+    - `a-spindle-chart-has-no-pcurve-lane` (spiricarm, P2);
+    - `a-stored-foreign-rows-at-rest-ending-depends-on-the-scalar` (P2);
+    - `a-minted-refusals-provenance-is-guarded-only-by-its-doc` (P2; the widened relabel's residual risk is recorded on it);
+    - `the-cones-fidelity-lever-reads-the-boxs-spread-not-the-poses` (P2).
+- 2026-11-04 — **`a-spline-chart-has-no-incidence-test-…` merged** (PR 6498): a spline chart has an incidence test.
+  - `pcurve_cache::spline_incidence` is a certified lower bound on a point's distance from a NURBS chart or an Approx's fit: Boehm-cut Bézier cells, box/slab floors, de Casteljau quartering, a best-first f64 shadow, and an f64 rounding charge covering the cut, the blend and the read.
+  - It is `incident`'s NURBS/Approx arm. topo's spline-chart lane choices read it first: the arc rim and catch-all end Off as `CarrierOffChart`; `iso_schedule`'s fall-through sends a read not shown off to the general image, whose certificate reads the wall (the subsumption principle, ruled Y7).
+  - Review tier: DUAL, letter H, concurrent pair (byte 1, odd, A = R2). Both APPROVE-WITH-FIXES, 0 MAJOR, tallied 0. Fix passes Y and YY, one delta verifier: about 30k Offs at band 1e-12, 5427 in exact rationals, 0 false.
+  - Cost: about 0.95× main overall. The in-band Interval seam row is 7.8× (filed P2).
+  - Filed:
+    - `the-spline-incidence-read-dives-where-its-floors-already-decide` (P2);
+    - `a-spline-charts-certificate-door-reads-no-incidence-…` (P1; Dual's `validate_pcurves` answers clean, DL3 keeps it P1);
+    - isotail's spline-wall limb row (P1);
+    - splice `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor` (P1);
+    - splice's cell-walk P3.
+  - Merged past main's two ε 1e-12 reds, both onecopy's and filed: the needle (PR 6492), and `section_end_poses` (PR 6482, bisected by the lane, filed in PR 6515).
+- 2026-11-04 — **`the-projected-image-inverts-chart-points-by-a-second-spelling` merged** (PR 6500).
+  - ψ reads its channels through `geom::ChartChannels`, the table `ChartInverse::point` reads, and names each angle on its piece's branch through `Azimuth::about(Quarter)`. That rotation is exact and decides nothing, so ψ still evaluates at every scalar without a band.
+  - Branch centres are stored as `Quarter` and fail loud on a missing piece. `rotate_box` takes a `Quarter` on every arm.
+  - Two moved baselines, both in sector:
+    - the sphere latitude at z = −0.0 reads +0.0;
+    - at Interval, a coordinate with an end under 2^-960 can have a one-step tighter enclosure, inside the old one.
+
+    The kept row `old_formula_rows` holds the old spelling as the oracle.
+  - Ruling: `about` and onecopy's `near` are two questions, not one door. `near` decides against a `T` reference; `about` evaluates on a known quarter. This revised the first ruling after the review's MINOR-1(c). They name each other in their docs.
+  - Review tier: single FULL. Verdict APPROVE-WITH-FIXES:
+    - bit-identity in sector over ~27 M reads;
+    - 48,570 Interval boxes, 0 outside;
+    - cost about 1.01×.
+
+    Fix list Z was read by the orchestrator.
+  - Filed:
+    - `the-projected-box-forms-spell-the-point-reading-apart` (P2);
+    - two P2s and two P3s on other chart-point spellings (props, replace_face, derive_class, winds, sphere and torus pairs).
+- 2026-11-04 — **`the-ruling-question-is-read-in-two-units` merged** (PR 6504): whether a line is a ruling of a cylinder or cone is one reading, `ruling_miss`, in metres over the edge's span, shared by the mint, props and the boolean.
+  - The ruling is anchored where the closed form places its image: on a cylinder, the ruling through the line's origin; on a cone, the generator the anchor names. The cone arm gets the class gate it lacked (`a-line-near-a-cone-is-read-as-a-ruling-without-a-class-gate`, closed).
+  - On a cylinder, the line's class gate reads the meridian form's own miss: the lean over the span plus the origin's radial standoff (fix AB1, mutant `meridian-standoff-unread`).
+  - Review tier: single FULL. NOT-MERGEABLE-AS-IS. M1 (executed) was the meter's anchor at the span start against the image at the origin; m1 (executed) was the props cone pair scaling with `|dir|`.
+    - Fix list AA went to one delta verifier, who returned APPROVE-WITH-FIXES: Zero did not bound the meridian's miss.
+    - Fix list AB followed, read by the orchestrator. Green at all three ε locally and hosted.
+  - Filed:
+    - `a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence` (P1). The verifier measured 2.6ε–263ε off ending "not yet" at the mint. No false certificate, so P1, not P0.
+    - `a-generator-anchored-near-the-apex-names-its-closed-form-poorly` (P3).
+  - Friction: the first reviewer was dispatched on a short sha and never started (`ref_not_found`), costing about 1.5 h. Lanes now get full 40-char shas, confirmed connected.
+- 2026-11-04 — **`the-edge-join-records-no-coincidence-for-the-class-it-joins-on` merged** (PR 6512, E3). When the boolean's edge join makes two edges one on a class reading, it records the Zero that reading stands on as a Coincidence row (D3/D10, Ev on [ev] 5113). An in-band reading refuses on its lever, and a definite one keeps the edges apart.
+  - One door. `chart_iso_family` returns `IsoReading { family, zero }`, where the zero is `MarginDiag::worst` of the class gates it decided Zero and the incidence margin. The sibling `chart_iso_zero` and the join's second derivation are gone.
+  - Every class gate decides through `class_gate`, including 6504's RADIAL_MOVING and CONE_RULING. The locus compares families only; the margin rides beside it. A join row reads input edges through `input_end`, so op-minted chords are not taken as inputs.
+  - Review tier: single FULL. APPROVE-WITH-FIXES.
+    - The latent MAJOR (executed): `join_input_edge` read op-minted chords as input edges.
+    - MINOR (executed): the margin kept the first gate, not the worst.
+    - Fix list BB was read by the orchestrator. BB3, the fold after 6504, is green hosted and green locally at 1e-9 and 1e-6. At 1e-12 only the onecopy reds remain.
+  - Filed:
+    - `a-non-ruling-class-reading-in-band-at-the-join-ends-not-yet` (P2: the sphere, torus and cone rim);
+    - `the-join-outside-the-boolean-records-no-class-zero` (P2);
+    - `a-join-onto-an-op-minted-edge-records-no-row` (P3);
+    - `the-joins-in-band-class-reading-ends-two-ways` (P3).
+  - Merged past main's two ε 1e-12 reds, both onecopy's and filed: the needle (PR 6492) and `section_end_poses` (PR 6482).
+- 2026-11-04 — **`a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence` merged** (PR 6527): a line's incidence is read, not sampled.
+  - `incident`'s line arm reads the chart's exact distance at the span ends and at every interior parameter where it can peak (`pcurve_cache::line_incidence`). That makes the read the supremum on all six analytic charts.
+  - Candidates come from monotone pieces. The span is cut at marks so that the read derivative is monotone on each piece, then each sign change is bisected (capped at 200):
+    - cone: `t*` and the apex-plane crossing `t_h`;
+    - torus and spindle, read on q²: `t*`, plus `t* ± τc` for R > 0, where `ρ(τc)³ = R·v²d²/|u|²`.
+  - The sphere reads its centre's foot. On a line along a torus axis the whole span is one piece, whose root is the foot. Placement precision is second order at smooth stationary points and first order at the kinks.
+  - Review tier: single FULL, soundness-led. NOT-MERGEABLE-AS-IS.
+    - M1 (executed, a regression against main): a line along a spindle's or torus's axis read On while 0.2 off. The quartic vanished identically and the centre's foot was never a candidate.
+    - Fix list DD rewrote the read as monotone pieces.
+    - One delta verifier: APPROVE. 10,483 lines against a 40-digit supremum, including exact and near-axis lines, horn tori and R≈r spindles, gave 0 misses. 2,280 pieces had 0 double roots.
+    - The final NIT pass was read by the orchestrator.
+  - Cost: at most 8 evaluations against 65. `read_incidence` is under main on every chart at both scalars, for example the cylinder at 5.6/47 ms against 103/506 ms.
+  - One moved fixture: `verbs_germarms2_interval` at 1e-12. Its in-band escalation is now `carrier_matches_mapped_source`, since the line reads inside the zero band at its ends and foot.
+  - Filed:
+    - `a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled` (P2);
+    - `a-lines-sup-on-a-chart-is-spelled-twice` (P3).

@@ -467,12 +467,21 @@ fn hollow_wall_and_shared_refusal_doors() {
         ),
         Err(TubeError::FullRangeWindow)
     ));
-    // The ring-torus convention, still through the SHARED revolve
-    // decide — the no-fork claim, executed on the hollow door.
-    assert!(matches!(
-        frame(Vec3::unit_y(), Vec3::unit_x(), TubeWindow::Full, 0.4),
-        Err(TubeError::Revolve(_))
-    ));
+    // A tube circle reaching the axis, still through the SHARED
+    // revolve decide — the no-fork claim, executed on the hollow door:
+    // its inner vertex lies across the axis.
+    let reaching = frame(Vec3::unit_y(), Vec3::unit_x(), TubeWindow::Full, 0.4);
+    assert!(
+        matches!(
+            reaching,
+            Err(TubeError::Revolve(sweep::RevolveError::VertexCrossesAxis {
+                vertex_index: 1,
+                ..
+            }))
+        ),
+        "{:?}",
+        reaching.as_ref().map(|_| "built")
+    );
 }
 
 /// **The interval row**: the hollow tube at the certified scalar —

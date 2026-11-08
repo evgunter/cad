@@ -29,7 +29,7 @@ cylinder (vertices at `(±1, 0, 0)`) builds the same pose. Measured over
 - the poses whose normal leans across the vertex (`β = π/2`), through
   the bottom or the top vertex, both phases, both senses: 48 refusals,
   at ±0.6ε and ±0.9ε for `(0, 2.5, 1)` and at ±0.6ε for `(0, 0.8, 1)`
-  (whose ±0.9ε rows both forms refuse on `split_conic_crossing_root`),
+  (whose ±0.9ε rows both forms refuse on `plane_crossing_root_in_span`),
   the margin `∓2 × offset` whatever the lean. The two-arc form builds
   all 48;
 - the boolean against the half-space `z ≤ z₀` through the vertex, the

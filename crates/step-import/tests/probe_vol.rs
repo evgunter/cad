@@ -45,7 +45,10 @@ fn measured_relative_volume_agreement() {
             Ok(StepImport::Solid { body, .. }) => body,
             Ok(other) => panic!("{name}: a solid, got {other:?}"),
             Err(e) => {
-                println!("{name}: refuses typed at ambient ε {eps:e}: {e}");
+                println!(
+                    "{name}: refuses typed at ambient ε {eps:e}: {e_at}",
+                    e_at = e.render()
+                );
                 continue;
             }
         };

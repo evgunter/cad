@@ -13,7 +13,7 @@ with a dated `## Slate triage` note. Nothing is dispatched.
 
 **The Indeterminate seal and what blocks it.** Only the funnel should build an `Indeterminate`; `topo` mints them outside it at eleven sites. The seal waits on the glue door's disagreements and the declared-pair contradictions that survive D10 stage 4, and a vertex piercing two faces a recorded contact declares one interface refuses VertexReadTwice.
 
-`a-vertex-piercing-two-declared-coincident-faces-reads-as-one` is held by INTENT's D10 hold (build nothing that relies on declared contact or coincidence) until INTENT says otherwise; CONTACTHOLD holds the D10 hold itself. `glue-disagreements-and-held-contradictions-after-stage-4` is a design row: weigh it per `memories/orchestration-model.md` before building. CLEAVETAIL's `hand-minted-indeterminate-ratchet-gate` guards the seal's ground until it lands.
+`a-vertex-piercing-two-declared-coincident-faces-reads-as-one` is dispatchable: the D10 hold that held it lifted when INTENT closed (2026-10-30, #6103). `glue-disagreements-and-held-contradictions-after-stage-4` is a design row: weigh it per `memories/orchestration-model.md` before building. CLEAVETAIL's `hand-minted-indeterminate-ratchet-gate` guards the seal's ground until it lands.
 
 ## The slate
 

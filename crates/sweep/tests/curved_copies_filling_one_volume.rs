@@ -705,13 +705,13 @@ fn pins_stacked_end_to_end_reach_no_witness_search() {
     }
     let stacked = traced(&stacks);
     assert!(
-        stacked.examined.is_empty(),
+        stacked.examined().is_empty(),
         "no stacked pair reaches the witness search: {stacked:?}"
     );
     let full = cylinder(1.0, Revolution::Full);
     let copies = traced(&two(&placed(&full, spun(0.0)), &placed(&full, spun(1.1))));
     assert!(
-        !copies.examined.is_empty() && copies.accepted.len() == copies.examined.len(),
+        !copies.examined().is_empty() && copies.accepted().len() == copies.examined().len(),
         "coincident copies' walls reach the search and are found: {copies:?}"
     );
 }

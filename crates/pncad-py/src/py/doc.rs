@@ -1567,7 +1567,12 @@ impl Doc {
         let mut action = d::Recording::start(&self.inner, tol);
         let edit_failed = |err: d::EditError| edit_err(py, &err);
         let minted = action
-            .constrain(placement.0, mate.0.clone(), &d::EvalOptions::default())
+            .constrain(
+                placement.0,
+                mate.0.clone(),
+                &d::EvalOptions::default(),
+                &d::CancelToken::new(),
+            )
             .map_err(edit_failed)?;
         let done = action.finish().map_err(edit_failed)?;
         self.take_up(done.doc, done.maintenance);
@@ -1751,6 +1756,7 @@ impl Doc {
                 spin,
                 orient.map(|o| o.0),
                 &d::EvalOptions::default(),
+                &d::CancelToken::new(),
             )
             .map_err(edit_failed)?;
         if let Some(label) = label {
@@ -1796,8 +1802,15 @@ impl Doc {
             ..d::EvalOptions::default()
         };
         let tol = Tol::witness();
-        let done = d::take_over(&self.inner, &copies, &result, &opts, tol)
-            .map_err(|err| edit_err(py, &err))?;
+        let done = d::take_over(
+            &self.inner,
+            &copies,
+            &result,
+            &opts,
+            &d::CancelToken::new(),
+            tol,
+        )
+        .map_err(|err| edit_err(py, &err))?;
         let mut moved = Vec::new();
         for (copy, names) in &done.taken.moved.0 {
             for (from, to) in names {
@@ -1946,6 +1959,7 @@ impl Doc {
             at(up),
             at(toward),
             &opts,
+            &d::CancelToken::new(),
             Tol::witness(),
         )
         .map(|inner| super::pose::PoseDef { inner })
@@ -1979,7 +1993,12 @@ impl Doc {
         let mut action = d::Recording::start(&self.inner, Tol::witness());
         let edit_failed = |err: d::EditError| edit_err(py, &err);
         let minted = action
-            .remove_mate(at.placement, at.id, &d::EvalOptions::default())
+            .remove_mate(
+                at.placement,
+                at.id,
+                &d::EvalOptions::default(),
+                &d::CancelToken::new(),
+            )
             .map_err(edit_failed)?;
         let done = action.finish().map_err(edit_failed)?;
         self.take_up(done.doc, done.maintenance);

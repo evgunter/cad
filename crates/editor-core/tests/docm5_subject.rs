@@ -82,10 +82,18 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
 fn both_ways(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> (ChecksReport, ChecksReport) {
     let cfg = ChecksConfig::default();
     let tol = Tol::witness();
-    let wrapped = run_checks(doc, ev, &cfg, tol).expect("the registry runs over the corpus");
+    let wrapped = run_checks(doc, ev, &cfg, &editor_core::Stop::default(), tol)
+        .expect("the registry runs over the corpus");
     let gathered = product_recorded(doc, ev, tol).expect("the corpus gathers");
-    let direct = run_checks_on(doc, ev, Subject::Product(&gathered), &cfg, tol)
-        .expect("and so does the door under it");
+    let direct = run_checks_on(
+        doc,
+        ev,
+        Subject::Product(&gathered),
+        &cfg,
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("and so does the door under it");
     (wrapped, direct)
 }
 
@@ -119,8 +127,17 @@ fn an_empty_world_is_the_empty_product_subject() {
         "the premise: this is the arm the wrapper maps to a subject"
     );
     let cfg = ChecksConfig::default();
-    let wrapped = run_checks(&doc, &ev, &cfg, tol).expect("an empty document is checkable");
-    let direct = run_checks_on(&doc, &ev, Subject::EmptyProduct, &cfg, tol).expect("so is it here");
+    let wrapped = run_checks(&doc, &ev, &cfg, &editor_core::Stop::default(), tol)
+        .expect("an empty document is checkable");
+    let direct = run_checks_on(
+        &doc,
+        &ev,
+        Subject::EmptyProduct,
+        &cfg,
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("so is it here");
     assert_eq!(wrapped, direct);
     assert_eq!(wrapped.findings, Vec::new(), "and it is clean");
     assert_eq!(
@@ -182,7 +199,14 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     };
     // Through the wrapper, which gathers.
     carries_the_gathers_refusal(
-        run_checks(&doc, &ev, &subject_free_off, tol).expect_err("the registry refuses"),
+        run_checks(
+            &doc,
+            &ev,
+            &subject_free_off,
+            &editor_core::Stop::default(),
+            tol,
+        )
+        .expect_err("the registry refuses"),
     );
     // And through the door, handed the same fact directly.
     carries_the_gathers_refusal(
@@ -191,6 +215,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
             &ev,
             Subject::refused(gathered()),
             &subject_free_off,
+            &editor_core::Stop::default(),
             tol,
         )
         .expect_err("the door refuses"),
@@ -201,7 +226,14 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     // placement comes before the subject's.
     let standing = ChecksError::Placement(NodeStanding::Failed { node: placement });
     assert_eq!(
-        run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses"),
+        run_checks(
+            &doc,
+            &ev,
+            &ChecksConfig::default(),
+            &editor_core::Stop::default(),
+            tol
+        )
+        .expect_err("the registry refuses"),
         standing
     );
     assert_eq!(
@@ -210,7 +242,8 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
             &ev,
             Subject::refused(gathered()),
             &ChecksConfig::default(),
-            tol
+            &editor_core::Stop::default(),
+            tol,
         )
         .expect_err("the door refuses"),
         standing
@@ -249,7 +282,8 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     let ev: Evaluation<f64> = corpus::eval(&plate);
     #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
-    let report = run_checks(&plate, &ev, &off, tol).expect("the registry runs");
+    let report = run_checks(&plate, &ev, &off, &editor_core::Stop::default(), tol)
+        .expect("the registry runs");
     #[cfg(debug_assertions)]
     assert_eq!(
         editor_core::gathers_on_this_thread() - before,
@@ -276,7 +310,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     );
     #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
-    let report = run_checks(&collide, &ev, &off, tol)
+    let report = run_checks(&collide, &ev, &off, &editor_core::Stop::default(), tol)
         .expect("with the subject-reading residents off there is nothing to gather for");
     #[cfg(debug_assertions)]
     assert_eq!(editor_core::gathers_on_this_thread() - before, 0);
@@ -314,7 +348,7 @@ fn the_coincidence_lint_refuses_when_the_gather_refuses() {
     );
     assert!(
         matches!(
-            run_checks(&collide, &ev, &cfg, tol),
+            run_checks(&collide, &ev, &cfg, &editor_core::Stop::default(), tol),
             Err(editor_core::ChecksError::Product { .. })
         ),
         "the lint's at-rest rows ride the product"
@@ -338,7 +372,14 @@ fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
 
     // The premise: the two documents are one recipe under two
     // identities, and they say different things.
-    let honest = run_checks(&overlapping, &ev_overlapping, &cfg, tol).expect("its own report");
+    let honest = run_checks(
+        &overlapping,
+        &ev_overlapping,
+        &cfg,
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("its own report");
     assert!(
         !honest.findings.is_empty(),
         "the premise: the overlapping twin has something to report"
@@ -368,6 +409,7 @@ fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
             &ev_overlapping,
             Subject::Product(&crossed),
             &cfg,
+            &editor_core::Stop::default(),
             tol,
         ),
         "a foreign product",
@@ -375,7 +417,14 @@ fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
     // And with no subject at all — the arm that skips the only resident
     // that could have refused.
     expect_pairing(
-        run_checks_on(&apart, &ev_overlapping, Subject::EmptyProduct, &cfg, tol),
+        run_checks_on(
+            &apart,
+            &ev_overlapping,
+            Subject::EmptyProduct,
+            &cfg,
+            &editor_core::Stop::default(),
+            tol,
+        ),
         "no subject",
     );
 
@@ -384,16 +433,38 @@ fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
     let ev_apart: Evaluation<f64> = corpus::eval(&apart);
     let own = product_recorded(&apart, &ev_apart, tol).expect("gathers");
     expect_pairing(
-        run_checks_on(&apart, &ev_overlapping, Subject::Product(&own), &cfg, tol),
+        run_checks_on(
+            &apart,
+            &ev_overlapping,
+            Subject::Product(&own),
+            &cfg,
+            &editor_core::Stop::default(),
+            tol,
+        ),
         "own product, foreign evaluation",
     );
     // The mirror: this document's evaluation with another's product.
     expect_pairing(
-        run_checks_on(&apart, &ev_apart, Subject::Product(&crossed), &cfg, tol),
+        run_checks_on(
+            &apart,
+            &ev_apart,
+            Subject::Product(&crossed),
+            &cfg,
+            &editor_core::Stop::default(),
+            tol,
+        ),
         "own evaluation, foreign product",
     );
     // And the honest pair still runs.
-    run_checks_on(&apart, &ev_apart, Subject::Product(&own), &cfg, tol).expect("the true pair");
+    run_checks_on(
+        &apart,
+        &ev_apart,
+        Subject::Product(&own),
+        &cfg,
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("the true pair");
 }
 
 /// **A2 — the registry's own preconditions answer BEFORE its subject
@@ -415,7 +486,15 @@ fn a_placement_without_a_value_refuses_as_the_registrys_own_precondition() {
         product_recorded(&doc, &ev, tol).is_err(),
         "and the gather refuses this pair too, so the two arms compete"
     );
-    match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("refuses") {
+    match run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect_err("refuses")
+    {
         ChecksError::Placement(standing) => assert_eq!(standing.node(), placement),
         other => panic!("expected the registry's own precondition, got {other}"),
     }
@@ -439,7 +518,7 @@ fn the_registry_gathers_once_and_the_door_under_it_never_does() {
 
     #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
-    run_checks(&doc, &ev, &cfg, tol).expect("the registry runs");
+    run_checks(&doc, &ev, &cfg, &editor_core::Stop::default(), tol).expect("the registry runs");
     #[cfg(debug_assertions)]
     assert_eq!(
         editor_core::gathers_on_this_thread() - before,
@@ -450,7 +529,15 @@ fn the_registry_gathers_once_and_the_door_under_it_never_does() {
     let subject = product_recorded(&doc, &ev, tol).expect("gathers");
     #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
-    run_checks_on(&doc, &ev, Subject::Product(&subject), &cfg, tol).expect("the door runs");
+    run_checks_on(
+        &doc,
+        &ev,
+        Subject::Product(&subject),
+        &cfg,
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("the door runs");
     #[cfg(debug_assertions)]
     assert_eq!(
         editor_core::gathers_on_this_thread() - before,
