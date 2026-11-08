@@ -300,3 +300,27 @@ Newest entries at the bottom; the tail is the program's live status.
     - `a-takeover-leaves-a-re-pointed-copys-own-on-sides-on-the-old-source`: the kernel gap, worked around in the viewer;
     - `a-labelled-creation-has-no-maintenance-witness`;
     - evidence on DOCTAIL's `no-docedit-splices-a-deleted-node`. (PLACING orchestrator)
+- 2026-11-08 — **PR 6581's dual pair is in** (concurrent, frozen head `a18cc51459`). R1: APPROVE-WITH-FIXES, no MAJOR. R2: NOT-MERGEABLE-AS-IS, three MAJORs, each demonstrated.
+  - **Correspondence pre-note:**
+    - **Bilateral:**
+      - the re-point button can be refused `WouldCycle`, because the offer excludes cycle placements and the action does not (R2 MAJOR, R1 MINOR; both executed);
+      - the `[ev]` question's omissions: a later Place still reads `B`, and the 6353 "named variable, say `bracket`" statement needs correcting;
+      - the `node_labels` netting row is a lost guard;
+      - the filed rows have no band;
+      - `on_sides_follow` is sound, its exposure not blocking;
+      - `construction_of_space` is stale and dead;
+      - the silent `steps > 64` cap;
+      - the permanent offer;
+      - parallel walkers and `⊔` re-authoring.
+    - **Unilateral R2 MAJOR (tally candidates):**
+      - M2: delete is not the inverse two features deep (`rebinds` misses names whose derivation reads a copy);
+      - M3: one operand left as `xs[k]` hands readers the whole family.
+    - **Unilateral R1:**
+      - a sketch on a copy does not say it is on the copy (its made node is the profile);
+      - `takeovers.rs` silently dropped its split case;
+      - a weakened volume assertion in `combine_ops`;
+      - `original_of` goes back one step only;
+      - an indexed read of a deleted fillet is dropped (unsure; may relate to M3).
+  - **Action:**
+    - correct 6581's `[ev]` question (done now that both reports are in);
+    - run the fix pass on the union. (PLACING orchestrator)
