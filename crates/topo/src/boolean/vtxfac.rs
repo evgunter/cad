@@ -596,15 +596,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         &super::sectors::Partners::Pierced(n_pierced.vec()),
         band,
     )?;
-    super::walk_probe::at_bool(
-        "pierce",
-        piercing_body,
-        vertex,
-        n_pierced.vec(),
-        &sectors,
-        tips,
-        band,
-    );
     let n = sectors.len();
     // At a cone's apex the pierce reads the pierced face's plane: a
     // curved face's section of the cone there curves off the ruling its
@@ -692,6 +683,22 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             })
             .collect::<Result<_, BooleanError>>()?,
     };
+    if super::walk_probe::enabled() {
+        let normals: Vec<_> = on_wall
+            .iter()
+            .map(|w| w.unwrap_or(n_pierced).vec())
+            .collect();
+        super::walk_probe::at_bool(
+            "pierce",
+            piercing_body,
+            vertex,
+            &normals,
+            on_wall.iter().any(Option::is_some),
+            &sectors,
+            tips,
+            band,
+        );
+    }
     // A conic tied with a plane face whose bend reads no side
     // (`BooleanDecision::ConicBend`) is held as its first-order `On`
     // until the lumps have run: a lump, or the second-order reading of

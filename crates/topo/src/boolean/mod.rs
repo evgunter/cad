@@ -6373,8 +6373,26 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let a_plain = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &none, band)?;
         let b_plain = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &none, band)?;
         let z = geom_core::Vec3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0));
-        walk_probe::at_bool("vv-none", &a, c.a, z, &a_plain, &tips[0], band);
-        walk_probe::at_bool("vv-none", &b, c.b, z, &b_plain, &tips[1], band);
+        walk_probe::at_bool(
+            "vv-none",
+            &a,
+            c.a,
+            &vec![z; a_plain.len()],
+            false,
+            &a_plain,
+            &tips[0],
+            band,
+        );
+        walk_probe::at_bool(
+            "vv-none",
+            &b,
+            c.b,
+            &vec![z; b_plain.len()],
+            false,
+            &b_plain,
+            &tips[1],
+            band,
+        );
         let (a_sectors, b_sectors) = if a_plain.iter().chain(&b_plain).any(|s| s.apex().is_some()) {
             let faces = |plain: &[sectors::BoolSector<T>]| {
                 sectors::Partners::Faces(plain.iter().map(|s| s.at_vertex).collect())

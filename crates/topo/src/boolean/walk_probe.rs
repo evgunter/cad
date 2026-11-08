@@ -44,19 +44,37 @@ struct Ent<T: geom_core::Real> {
     dir: Vec3<T>,
 }
 
-/// The split's walk geometry at `vertex`, read against `normal` (its
-/// sides discarded): the entries `classify_neighborhood_rays` pushes.
+/// A sector whose subdivision entries the split's walk refused: its
+/// orbit half-edge and the refusal's predicate.
+struct SplitRefusal {
+    he: crate::entity::HalfEdgeKey,
+    predicate: String,
+}
+
+fn predicate_of(e: &crate::splitting::SplitReduceError) -> String {
+    let dbg = format!("{e:?}");
+    match dbg.split("predicate: Some(\"").nth(1) {
+        Some(rest) => rest.split('"').next().unwrap_or("?").to_string(),
+        None => dbg.split([' ', '{']).next().unwrap_or("?").to_string(),
+    }
+}
+
+/// The split's walk geometry at `vertex`, each sector after orbit
+/// half-edge `he` read against `normal(he)` (its sides discarded): the
+/// entries `classify_neighborhood_rays` pushes. A sector whose
+/// subdivision the split refuses is recorded and walked past.
 fn split_view<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
-    normal: Vec3<T>,
+    normal: impl Fn(crate::entity::HalfEdgeKey) -> Vec3<T>,
     tips: &SlitTips,
     band: Band,
-) -> Result<(Vec<Ent<T>>, Vec<bool>), String> {
+) -> Result<(Vec<Ent<T>>, Vec<bool>, Vec<SplitRefusal>), String> {
     use crate::splitting::neighborhood::chord;
     let orbit = body.vertex_orbit_linked(vertex);
     let mut out = Vec::new();
     let mut apex = Vec::new();
+    let mut refused = Vec::new();
     for (i, &he) in orbit.iter().enumerate() {
         let (_, dir_a, _) = chord(body, vertex, he).map_err(|e| format!("chord {e:?}"))?;
         out.push(Ent {
@@ -71,24 +89,105 @@ fn split_view<T: Decide>(
         let is_apex = matches!(r.at_vertex, VertexFace::Apex(_));
         apex.push(is_apex);
         let bounds: CornerBounds = tips.bounds(vertex, r.face, he == next);
-        let wide = crate::splitting::wide_entries(
+        match crate::splitting::wide_entries(
             (vertex, r.face),
             (dir_a, dir_b),
             r.at_vertex,
             bounds,
-            normal,
+            normal(he),
             band,
-        )
-        .map_err(|e| format!("wide {e:?}"))?;
-        for (d, _, _) in wide {
-            out.push(Ent {
+        ) {
+            Ok(wide) => {
+                for (d, _, _) in wide {
+                    out.push(Ent {
+                        he,
+                        edge: false,
+                        dir: d.normalize(),
+                    });
+                }
+            }
+            Err(e) => refused.push(SplitRefusal {
                 he,
-                edge: false,
-                dir: d.normalize(),
-            });
+                predicate: predicate_of(&e),
+            }),
         }
     }
-    Ok((out, apex))
+    Ok((out, apex, refused))
+}
+
+/// A bound's code against the plane through the vertex along `normal`
+/// (no charge), or the Boolean's refusal's predicate.
+fn bool_code<T: Decide>(
+    dir: Vec3<T>,
+    reach: sectors::BoundSupport<T>,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<SideCode, String> {
+    sectors::pierce_side(
+        dir,
+        reach,
+        geom_brep::OutwardNormal::from_chart(normal, true),
+        sectors::FaceBend::Plane,
+        sectors::NO_CURVATURE(),
+        crate::link::metric::Reading::plain(band),
+    )
+    .map(|(r, _)| r.code)
+    .map_err(|e| {
+        let dbg = format!("{e:?}");
+        match dbg.split("predicate: Some(\"").nth(1) {
+            Some(rest) => rest.split('"').next().unwrap_or("?").to_string(),
+            None => dbg.split([' ', '{']).next().unwrap_or("?").to_string(),
+        }
+    })
+}
+
+/// Each refused sector, classified: `redundant` where both its edge
+/// bounds read one definite side of the same datum (the split's ray
+/// would be read for nothing), else whether the Boolean's bound reading
+/// of its interior rays against that datum reads or refuses too.
+fn refusal_words<T: Decide>(
+    refused: &[SplitRefusal],
+    sectors: &[BoolSector<T>],
+    normal: impl Fn(crate::entity::HalfEdgeKey) -> Vec3<T>,
+    band: Band,
+) -> String {
+    let mut words = Vec::new();
+    for r in refused {
+        let mine: Vec<&BoolSector<T>> = sectors.iter().filter(|s| s.he == r.he).collect();
+        let n = normal(r.he);
+        let (Some(first), Some(last)) = (mine.first(), mine.last()) else {
+            words.push(format!("split-refused:{}:nosector", r.predicate));
+            continue;
+        };
+        let own = bool_code(first.end, first.end_reach, n, band);
+        let next = bool_code(last.start, last.start_reach, n, band);
+        let class = match (&own, &next) {
+            (Ok(SideCode::In), Ok(SideCode::In)) | (Ok(SideCode::Out), Ok(SideCode::Out)) => {
+                "redundant".to_string()
+            }
+            _ => {
+                let inner: Vec<String> = mine[..mine.len() - 1]
+                    .iter()
+                    .map(|s| match bool_code(s.start, s.start_reach, n, band) {
+                        Ok(c) => format!("bool-reads-{c:?}"),
+                        Err(p) => format!("bool-refuses-{p}"),
+                    })
+                    .collect();
+                format!(
+                    "needed[{:?}|{:?}]{}",
+                    own.as_ref().map_err(|_| ()),
+                    next.as_ref().map_err(|_| ()),
+                    if inner.is_empty() {
+                        "no-bool-ray".to_string()
+                    } else {
+                        inner.join("+")
+                    }
+                )
+            }
+        };
+        words.push(format!("split-refused:{}:{class}", r.predicate));
+    }
+    words.join(" ")
 }
 
 fn bool_view<T: Decide>(sectors: &[BoolSector<T>]) -> Vec<Ent<T>> {
@@ -154,8 +253,14 @@ pub(crate) fn at_split<T: Decide>(
             &Partners::Pierced(normal),
             band,
         )
-        .map_err(|e| format!("bool-refused {e:?}"))?;
-        let (sv, apex) = split_view(body, vertex, normal, tips, band)?;
+        .map_err(|e| format!("bool-walk-refused {e:?}"))?;
+        let (sv, apex, refused) = split_view(body, vertex, |_| normal, tips, band)?;
+        if !refused.is_empty() {
+            return Ok(format!(
+                "split refusals {}",
+                refusal_words(&refused, &sectors, |_| normal, band)
+            ));
+        }
         let bv = bool_view(&sectors);
         let (geo, detail) = compare(&sv, &bv);
         // Sides, where the geometry agrees: the Boolean's bound reading
@@ -211,27 +316,41 @@ pub(crate) fn at_split<T: Decide>(
 }
 
 /// The probe at a pierce or a vertex–vertex read: the Boolean's walk
-/// against the split's walk geometry read against `normal`.
+/// against the split's walk geometry, each sector read against
+/// `normals[k]`, the datum the verb reads sector `k` against.
 pub(crate) fn at_bool<T: Decide>(
     site: &'static str,
     body: &Body<T>,
     vertex: VertexKey,
-    normal: Vec3<T>,
+    normals: &[Vec3<T>],
+    walled: bool,
     sectors: &[BoolSector<T>],
     tips: &SlitTips,
     band: Band,
 ) {
     let Some(mut f) = sink() else { return };
+    let normal = |he: crate::entity::HalfEdgeKey| {
+        let k = sectors
+            .iter()
+            .position(|s| s.he == he)
+            .expect("an orbit sector");
+        normals[k]
+    };
+    let wall = if walled { " wall" } else { "" };
     let line = match split_view(body, vertex, normal, tips, band) {
-        Ok((sv, apex)) => {
+        Ok((_, _, refused)) if !refused.is_empty() => format!(
+            "{site} refusals{wall} {}",
+            refusal_words(&refused, sectors, normal, band)
+        ),
+        Ok((sv, apex, _)) => {
             let (geo, detail) = compare(&sv, &bool_view(sectors));
             format!(
-                "{site} {geo} n={} apex={} {detail}",
+                "{site} {geo} n={} apex={}{wall} {detail}",
                 sv.len(),
                 apex.iter().any(|a| *a)
             )
         }
-        Err(e) => format!("{site} error {e}"),
+        Err(e) => format!("{site} split-walk-error {e}"),
     };
     let _ = writeln!(f, "{line}");
 }
