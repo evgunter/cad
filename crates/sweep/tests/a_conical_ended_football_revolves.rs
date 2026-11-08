@@ -116,10 +116,13 @@ fn a_conical_ended_football_revolves() {
         ("the lemon", LEMON),
         ("the apple", APPLE),
         ("the lemon near its apexes", near_apex),
+        // Far out, but inside the 1 km session box: at (1e3, 1e3) it
+        // reached about 1.41 km, past it, and the finished-body gate
+        // refuses that (`OutsideSessionBox`).
         (
-            "the lemon a thousand out",
+            "the lemon 920 m out",
             Band {
-                at: (1e3, 1e3),
+                at: (650.0, 650.0),
                 ..LEMON
             },
         ),
