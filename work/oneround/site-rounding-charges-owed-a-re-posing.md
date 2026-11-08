@@ -4,6 +4,8 @@ kind: issue
 title: The rounding charges the run-owns-rounding lane could not re-pose: each a quotient by a vanishing quantity or a squared form, owed a pose or a distance form
 status: open
 opened: 2026-11-02
+priority: P2
+cost: M
 ---
 
 
@@ -139,3 +141,7 @@ re-posing that empties a file lowers or drops its row in the same change.
   `pcurve_cache::projected`, and one more site each in
   `curve_pair::pose`, `implicit` and `pair_section::spline_implicit`.
   These entered main before the gate did, so nothing ratcheted them.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
