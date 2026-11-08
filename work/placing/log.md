@@ -347,3 +347,12 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Orchestrator ruling on the split:** a faithful reading of 6353. A split of a placed body makes a new body and offers the re-point, as a fillet does. The README and op docs are restated, with no `[ev]`.
   - **Fix pass 2 dispatched.**
   - **Disk:** the lane had left a 14 GB target behind, and the re-check's link died at 390 MB free. Deleted; 23 GB free. (PLACING orchestrator)
+- 2026-11-08 — **6581 fix pass 2 accepted on the orchestrator's read**, green at `d2db1b6201`.
+  - Member hand-over is now one rule, `continuation::Continued`. Refusals remain only at whole-read seats.
+  - The split re-point is disclosed in the README and op docs.
+  - `rebinds` shares `take_over::carrying_chains`. The forward mirror gap is filed on DOORS, P1: `work/doors/a-takeover-leaves-a-feature-on-a-mirror-of-the-copy-stale.md`, its done-when row in the suite `#[ignore]` citing it.
+  - One generic `Recarry` visitor.
+  - "Built on a copy" no longer depends on order.
+  - `MemberAtSeat` narrowing filed (P3).
+  - A pin citation was repointed after main moved a row from onehome to boxfinish.
+- **6581 now waits only on Ev:** 6580 (every placement is a copy) and the alias question at its top. The dual-review row and the closing state sync ride as its last commit after the answers. (PLACING orchestrator)
