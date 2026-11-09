@@ -1139,3 +1139,8 @@
 - 20:10Z 6648 fix pass at bee9b58b (main merged, 4 conflicts with main's semantics; F1–F7/Q1 folded; ladder::Ending via Refusal::recourse) → delta with session_013mPGJ3c41XYUDnxTmdvo5v; gating. Main red sweep side_reader_aims…take_no_circle_foot is suspected from 6645 → census lane.
 - 20:12Z foot lane opened PR 6671 (foot-followups-2, stacked on 6659; F1a margin+2·zero via section_site_in_span_past; F1b typed Desync; F3a ReducedRows moved by value) → delta with session_013mPGJ3tyjcmbPeAmhwAP32.
 - 20:15Z PR 6666 FULL: FIX/MAJOR. distance_within (and main's 6645 select, 11 violations; ConicArc 1340) is unsound whenever param_near's enclosure reaches past mid±π (near-axis and off-axis witnesses A/B). Measured fix: hull to the whole window [mid−π, mid+π] → 0 violations in 32k boxes. 6666's pin passes on main (not red). → census lane: fix at near or one shared helper; pins red on main; ray_walk second spelling; gate EXEMPT scope.
+- 20:25Z Merged (both disjoint from main; combined check clean):
+  - PR 6650 (sphere-door-frame) at gate-green 7ca16ca0 → 2806b8e2.
+  - PR 6658 (ring-island) at gate-green 6e2b9f82 → 2a3bc893.
+- 20:25Z On-surface-ties → onecopy/foot-closed-forms: the stale region doc, the ruled/torus sibling measurement plus the leg/uv half, and where the foot's closed forms live.
+- 20:25Z Catch-ups pushed: 6598 a5b3df2b, 6652 c99814d0, 6655 c6d6f3c8 (all gating).
