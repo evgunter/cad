@@ -147,7 +147,7 @@ names-boolean               1  offset_together.rs
 names-boolean              20  one_region.rs
 names-boolean               3  pcurves.rs
 names-boolean               3  pieces.rs
-names-boolean              24  props.rs
+names-boolean              23  props.rs
 names-boolean               4  query.rs
 names-boolean               1  ray_walk.rs
 names-boolean              11  replace_face.rs
@@ -222,7 +222,7 @@ ambiguous Crossing                       # chart_region.rs
 ambiguous Departure                      # chord_join.rs, link.rs, validate.rs
 ambiguous End                            # census.rs
 ambiguous FaceGeo                        # census.rs
-ambiguous Held                           # census.rs, props.rs
+ambiguous Held                           # census.rs
 ambiguous Landing                        # attach.rs
 ambiguous Locus                          # census/point.rs
 ambiguous Oval                           # ring_path.rs

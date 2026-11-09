@@ -89,7 +89,7 @@ fn unslit_plane_annuli_round_trip_through_step() {
         };
         assert_eq!(
             census(body),
-            census(imported.body()),
+            census(&imported),
             "{what}: the census survives the round trip"
         );
         let native = topo::test_support::pinned_volume(

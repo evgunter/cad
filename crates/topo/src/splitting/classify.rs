@@ -515,8 +515,8 @@ mod tests {
 }
 
 /// **A torn curve panics at the split gate and at the crossing
-/// insertion**, where a read that took the miss for scaffolding refused
-/// it as `ScaffoldingOperand`.
+/// insertion**: the miss is a kernel defect, never an operand's
+/// scaffolding.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_rows {

@@ -260,7 +260,11 @@ pub struct PairReading {
 impl core::fmt::Debug for Section<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
-            lane, pass, banked, ..
+            lane,
+            pass,
+            banked,
+            rows: _,
+            corners: _,
         } = self;
         f.debug_struct("Section")
             .field("domain", &lane.domain)
