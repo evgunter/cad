@@ -2,10 +2,12 @@
 id: engine-leaves-ambiguous-lines-grow-unchecked
 kind: issue
 title: engine-leaves: an ambiguous NAME line is added freely, so a namesake can take a name out of the count without a pin moving
-status: open
+status: closed
 opened: 2026-11-06
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6620
 ---
 
 

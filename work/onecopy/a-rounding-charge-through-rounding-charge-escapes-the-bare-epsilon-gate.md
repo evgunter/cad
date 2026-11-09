@@ -2,8 +2,10 @@
 id: a-rounding-charge-through-rounding-charge-escapes-the-bare-epsilon-gate
 kind: issue
 title: A conditioning charge routed through rounding_charge escapes the bare-EPSILON gate
-status: open
+status: closed
 opened: 2026-11-04
+closed: 2026-11-09
+pr: 6620
 ---
 
 
