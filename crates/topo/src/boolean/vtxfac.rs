@@ -79,7 +79,7 @@
 //! same cone, its partners' faces alone.
 
 use geom_brep::OutwardNormal;
-use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb, climb_evidence};
+use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -521,8 +521,12 @@ impl<T: geom_core::Real> PierceRead<T> {
 /// as the ring orders them.
 struct ReadRun<T: geom_core::Real> {
     run: crate::star::Run,
-    /// The site the facing was checked at, before any run's mint.
-    site: crate::star::Site,
+    /// Where the facing was checked, before any run's mint: a strut's
+    /// corner with the edge arriving at it, and the site's tip.
+    facing_at: (
+        Option<(HalfEdgeKey, crate::entity::EdgeKey)>,
+        crate::star::TipSide,
+    ),
     germs: (Germ<T>, Germ<T>),
     order: [(Leaned<T>, geom_core::Lever<T>); 2],
     bends: [Option<GermBend<T>>; 2],
@@ -531,8 +535,9 @@ struct ReadRun<T: geom_core::Real> {
 /// Classifies `contact.vertex` (in the piercing body) against
 /// `contact.face` (in the pierced body), writing nothing: the piercing
 /// side's insertion (module docs) as [`mint_pierce`] writes it. Every
-/// refusal of the pierce is here, so a pass reads each pierce before it
-/// mints any. Where the vertex is read again (`reread`, from
+/// refusal a reading of the pierce can meet is here, so a pass reads
+/// each pierce before it mints any; what is left to [`mint_pierce`] is
+/// the Euler operator's own refusal. Where the vertex is read again (`reread`, from
 /// [`pierced_and_paired`]) and crosses the face, refuses
 /// [`BooleanError::VertexReadTwice`].
 #[allow(clippy::too_many_arguments)]
@@ -1144,16 +1149,9 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // The star names a strut's facing by the orbit; the Boolean's one
         // facing rule ([`super::insert::strut_faces_first`]) reads it by
         // the corner's geometry, and the two must agree.
-        if let Some(corner) = site.strut_corner() {
+        let strut = strut_at(piercing_body, site);
+        if let Some((corner, arrival)) = strut {
             let corner_half = proven(&piercing_body.half_edges, corner, EntityId::HalfEdge);
-            let arrival = linked(
-                &piercing_body.half_edges,
-                corner_half.prev,
-                EntityId::HalfEdge,
-                EntityId::HalfEdge(corner),
-                "prev",
-            )
-            .edge;
             // A pierce's germs lie in the pierced face, through no
             // edge of the pierced solid: their cuts run beside none.
             let germ =
@@ -1187,7 +1185,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         }
         read_pierce.runs.push(ReadRun {
             run,
-            site,
+            facing_at: (strut, site.tip()),
             germs: (start_germ, end_germ),
             order,
             bends,
@@ -1195,6 +1193,25 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     }
     read_pierce.entries = entries;
     Ok(read_pierce)
+}
+
+/// A strut site's corner and the edge arriving at it, which a strut's
+/// facing is read at ([`super::insert::strut_faces_first`]).
+fn strut_at<T: geom_core::Real>(
+    body: &Body<T>,
+    site: crate::star::Site,
+) -> Option<(HalfEdgeKey, crate::entity::EdgeKey)> {
+    let corner = site.strut_corner()?;
+    let corner_half = proven(&body.half_edges, corner, EntityId::HalfEdge);
+    let arrival = linked(
+        &body.half_edges,
+        corner_half.prev,
+        EntityId::HalfEdge,
+        EntityId::HalfEdge(corner),
+        "prev",
+    )
+    .edge;
+    Some((corner, arrival))
 }
 
 /// Writes the piercing side's insertion [`read_vertex_on_face`] read:
@@ -1223,15 +1240,16 @@ pub(super) fn mint_pierce<T: Decide>(
     let mut planned = Vec::with_capacity(runs.len());
     for run in runs {
         // Another run's mint moves this one's fan end, so the site is
-        // read here; a strut's corner, and its tip, which the read checked
-        // the facing of, stand as read ([`read_vertex_on_face`]).
+        // read here; a strut's corner, the edge arriving at it, and its
+        // tip, which the read checked the facing at, stand as read
+        // ([`read_vertex_on_face`]).
         let site =
             crate::star::arc_site(&*piercing_body, contact.vertex, &entries, run.run, || {
                 format!("the run {:?}", run.run)
             });
         debug_assert_eq!(
-            (site.strut_corner(), site.tip()),
-            (run.site.strut_corner(), run.site.tip()),
+            (strut_at(piercing_body, site), site.tip()),
+            run.facing_at,
             "an earlier run's mint moved the strut corner a pierce run's facing was read at"
         );
         // The piercing run is Out.
@@ -1803,9 +1821,12 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// face as a ring, so a face holding two points, read at the second
 /// after the first's mint, would read its trim unplaced. Two pierces of
 /// one face at one point, a pose no row reaches, refuses
-/// [`BooleanError::HeldPierceUnbuilt`]. A definite refusal
-/// at any face outranks an escalation at any other, as in the pierce
-/// pass this serves.
+/// [`BooleanError::HeldPierceUnbuilt`]. The reads are one ladder, as
+/// in the pierce pass this serves: a refusal of the whole query at any
+/// face outranks every refusal kept at another, and a limit kept
+/// anywhere outranks a reading kept in band anywhere
+/// ([`Evidence`]); the order the faces are read in chooses only which
+/// refusal of the outranking class is reported.
 ///
 /// **On a curved face, or over one**, the run is the plane case's. Its
 /// germs are the two faces' section's tangents at the point, `±n × n_p`
@@ -1840,9 +1861,9 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Vec<HeldPierce<T>>, BooleanError> {
     // Every face of every pierce is read before anything is written,
-    // and each read is needed: a ladder no read answers, where a definite
-    // refusal stops it and an escalation is kept until every later read
-    // is taken, so which is read first does not choose between the two.
+    // and each read is needed: a ladder no read answers, where a refusal
+    // of the whole query (`BooleanError::refusal`'s `Aborts`) stops it
+    // and every other refusal is kept until every later read is taken.
     let mut reads: Vec<HeldRead<T>> = Vec::new();
     let mut kept = Evidence::default();
     for plan in plans {
@@ -1857,41 +1878,43 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         let climbed = climb_evidence(Answering::First, held, |read| {
             let read = match read {
                 Ok(read) => read,
-                Err(e) => return Rung::refusing(e, BooleanError::refusal),
+                Err(e) => return Rung::refused(e, BooleanError::refusal, core::convert::identity),
             };
             // Two pierces of one face at one point would mint two ring
             // vertices there. No row reaches the pose, so no answer here
             // is checked: it refuses, before anything is written.
             let earlier = reads.iter().filter(|r| r.face == read.face);
-            let rung = match climb(
-                Answering::First,
-                earlier,
-                |earlier| match super::one_vertex_at(earlier.point, read.point, band) {
-                    Ok(Some(_)) => Rung::Aborts(()),
-                    Ok(None) => Rung::Passes,
-                    Err(diag) => Rung::kept(diag),
-                },
-            ) {
-                Climb::Answered { .. } => {
-                    let kind = |body: &Body<T>, face| body.proven_face(face).surface().kind();
-                    let unbuilt = BooleanError::HeldPierceUnbuilt {
-                        operand: read.piercing,
-                        face: read.face,
-                        pierced: read.pierced,
-                        kind: kind(&*piercing_body, read.face),
-                        pierced_kind: kind(pierced_body, read.pierced),
-                        placed: true,
-                    };
-                    return Rung::refusing(unbuilt, BooleanError::refusal);
-                }
-                Climb::Passed => Rung::Passes,
-                Climb::Undecided(diag) => {
-                    Rung::kept(diag).map_kept(|diag| BooleanError::Escalated {
+            let rung =
+                match climb_evidence(
+                    Answering::First,
+                    earlier,
+                    |earlier| match super::one_vertex_at(earlier.point, read.point, band) {
+                        Ok(Some(_)) => Rung::Answers(()),
+                        Ok(None) => Rung::Passes,
+                        Err(diag) => Rung::kept(diag),
+                    },
+                ) {
+                    Ok(_) => {
+                        let kind = |body: &Body<T>, face| body.proven_face(face).surface().kind();
+                        let unbuilt = BooleanError::HeldPierceUnbuilt {
+                            operand: read.piercing,
+                            face: read.face,
+                            pierced: read.pierced,
+                            kind: kind(&*piercing_body, read.face),
+                            pierced_kind: kind(pierced_body, read.pierced),
+                            placed: true,
+                        };
+                        return Rung::refused(
+                            unbuilt,
+                            BooleanError::refusal,
+                            core::convert::identity,
+                        );
+                    }
+                    Err(kept) => kept.into_rung().map_kept(|diag| BooleanError::Escalated {
                         decision: super::BooleanDecision::VertexOnVertex,
                         diag,
-                    })
-                }
-            };
+                    }),
+                };
             reads.push(read);
             rung
         });

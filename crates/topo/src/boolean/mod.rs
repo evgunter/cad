@@ -6428,11 +6428,15 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut paired = std::collections::BTreeMap::new();
     // Vertex-on-face classification (sonva then sonvb, as 15.5). **Each
     // operand's pierces are read before any is minted**, and the reads
-    // are one ladder: a definite refusal stops the pass, and an
-    // escalation refuses only once every later pierce of both operands is
-    // read without one, so which operand's vertices are read first does
-    // not choose between the two. The rings follow, one per face and
-    // point (`vtxfac::mint_ring`).
+    // are one ladder that nothing answers: a refusal of the whole query
+    // (`BooleanError::refusal`'s `Aborts`) stops the pass, and every
+    // other refusal is kept until every later pierce of both operands is
+    // read, the pass refusing on the ranked one (`Evidence`). So which
+    // operand's vertices are read first does not choose the class of the
+    // refusal reported (an abort anywhere outranks every kept refusal,
+    // a limit anywhere one in band); it chooses only which refusal of
+    // that class, the first in A-then-B order. The rings follow, one
+    // per face and point (`vtxfac::mint_ring`).
     let read_pierces =
         |operand: Operand,
          a: &Body<T>,
@@ -6462,7 +6466,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         reads.push(read);
                         Rung::Passes
                     }
-                    Err(e) => Rung::refusing(e, BooleanError::refusal),
+                    Err(e) => Rung::refused(e, BooleanError::refusal, core::convert::identity),
                 }
             });
             match climbed {
