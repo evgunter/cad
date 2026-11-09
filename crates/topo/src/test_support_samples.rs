@@ -37,6 +37,7 @@
 #![allow(clippy::expect_used)] // one fixed band, well-formed by construction
 
 use geom_brep::certify::{CertCheck, CertifyError};
+use geom_brep::curve_pair::MeetFault;
 use geom_brep::edge_nurbs::PlaneNurbsRefusal;
 use geom_brep::offset_fit::{OFFSET_FIT_SAMPLE_CAP, OFFSET_FIT_WORK, OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedEnding, FittedMagnitude, PcurveCertifyError, PcurveCheck};
@@ -1897,6 +1898,30 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "CensusUnsupported/FaceUnboundable".to_owned(),
         CensusUnsupportedCause::FaceUnboundable,
     ));
+    for why in edge_tangent_reasons() {
+        causes.push((
+            format!("CensusUnsupported/CurvedEdge/{why:?}"),
+            CensusUnsupportedCause::CurvedEdge(why),
+        ));
+    }
+    for why in [
+        MeetFault::Unsettled(geom_brep::roots::Unsettled::Exhausted),
+        MeetFault::Unsettled(geom_brep::roots::Unsettled::AtApex),
+        MeetFault::Unsettled(geom_brep::roots::Unsettled::Crease),
+        MeetFault::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        MeetFault::Unwalked(geom::PieceWalkRefusal::Unbounded),
+        MeetFault::Unsupported {
+            pose: "one curve whose two runs read square to each other",
+        },
+    ]
+    .into_iter()
+    .filter_map(geom_brep::curve_pair::MeetUnread::of)
+    {
+        causes.push((
+            format!("CensusUnsupported/Meeting/{why:?}"),
+            CensusUnsupportedCause::Meeting(why),
+        ));
+    }
     for (l, cause) in causes {
         // The subject each cause is raised on: a face pair for the
         // chart-region and contact lanes, one face for the rest.
@@ -1905,6 +1930,9 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             CensusUnsupportedCause::Containment(_) | CensusUnsupportedCause::FaceUnboundable => {
                 CensusSubject::Entity(EntityId::Face(face))
             }
+            CensusUnsupportedCause::CurvedEdge(_) | CensusUnsupportedCause::Meeting(_) => {
+                CensusSubject::Entity(EntityId::Edge(crate::entity::EdgeKey::default()))
+            }
         };
         s.push((l, ValidationError::CensusUnsupported { subject, cause }));
     }
@@ -1912,7 +1940,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     // it on (`Undecided` is their one source).
     let carried = crate::splitting::LoopDecision::ALL
         .map(|decision| Undecided::WitnessTooClose(Some(decision)));
-    for why in Undecided::iter().chain(carried) {
+    // Every touch reason the backstop waits on, each edge-tangent reason
+    // its own (`Undecided::iter` yields one touch, the default).
+    let touches = crate::link::TouchUnread::iter()
+        .filter(|why| !matches!(why, crate::link::TouchUnread::Corrupt))
+        .chain(
+            edge_tangent_reasons()
+                .into_iter()
+                .map(crate::link::TouchUnread::EdgeTangent),
+        )
+        .map(Undecided::Touch);
+    for why in Undecided::iter()
+        .filter(|why| !matches!(why, Undecided::Touch(_)))
+        .chain(carried)
+        .chain(touches)
+    {
         let (a, b) = if why.on_faces() {
             (EntityId::Face(face), EntityId::Face(face))
         } else {
@@ -2131,6 +2173,36 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         &ring_pair_contacts(),
     ));
     out
+}
+
+/// Every reason the census refuses a curved edge for, each walk refusal
+/// its own: the samples' list, kept whole by [`listed`].
+fn edge_tangent_reasons() -> [crate::validate::EdgeTangentUnread; 5] {
+    use crate::validate::EdgeTangentUnread as E;
+    let reasons = [
+        E::NoCurve,
+        E::NoReach,
+        E::NoLength,
+        E::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        E::Unwalked(geom::PieceWalkRefusal::Unbounded),
+    ];
+    for why in reasons {
+        listed(why);
+    }
+    reasons
+}
+
+/// [`edge_tangent_reasons`]'s guard: a match over every reason, so a new
+/// one does not compile until it is matched here, beside the list it
+/// must join.
+const fn listed(why: crate::validate::EdgeTangentUnread) {
+    use crate::validate::EdgeTangentUnread as E;
+    match why {
+        E::NoCurve
+        | E::NoReach
+        | E::NoLength
+        | E::Unwalked(geom::PieceWalkRefusal::Exhausted | geom::PieceWalkRefusal::Unbounded) => {}
+    }
 }
 
 #[cfg(test)]

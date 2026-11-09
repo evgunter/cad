@@ -701,12 +701,108 @@ impl core::fmt::Display for CensusSubject {
     }
 }
 
+/// **Why the census did not read a curved edge**, typed: the reason
+/// [`CensusUnsupportedCause::CurvedEdge`] carries, and an edge tangent's
+/// at a touch ([`crate::link::TouchUnread::EdgeTangent`]). Its sentence,
+/// recourse and standing are its own.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EdgeTangentUnread {
+    /// The edge carries no certified curve. A limit.
+    #[default]
+    NoCurve,
+    /// The edge's speed bound meters no reach over its span. A limit.
+    NoReach,
+    /// The edge's least speed meters no length over its span. A limit.
+    NoLength,
+    /// A spline edge's piece walk could not run, standing as the walk's
+    /// refusal does ([`geom_brep::ladder::Refusal::of_walk`]).
+    Unwalked(geom::PieceWalkRefusal),
+}
+
+use geom_brep::ladder::Ending;
+
+impl EdgeTangentUnread {
+    /// What this reason is to a ladder, as each variant's docs state it.
+    /// It never refuses the whole query.
+    #[must_use]
+    pub const fn refusal(self) -> geom_brep::ladder::Refusal {
+        match self {
+            Self::NoCurve | Self::NoReach | Self::NoLength => geom_brep::ladder::Refusal::Limit,
+            Self::Unwalked(why) => geom_brep::ladder::Refusal::of_walk(why),
+        }
+    }
+
+    /// The one sentence this reason is rendered by.
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::NoCurve => "a curved edge with no certified curve",
+            Self::NoReach => "a curved edge whose speed bound meters no reach over its span",
+            Self::NoLength => "a curved edge whose least speed meters no length over its span",
+            Self::Unwalked(why) => why.sentence(),
+        }
+    }
+
+    /// **A touch point's sentence for this reason**
+    /// ([`crate::link::TouchUnread::EdgeTangent`]): the touch, and its
+    /// standing's ending ([`Self::recourse`]), "for this shape" after a
+    /// reading not built yet.
+    pub(crate) fn touch_sentence(self) -> &'static str {
+        macro_rules! touch {
+            ($ending:expr) => {
+                concat!(
+                    "a curved edge meets the point, and the check could not read its \
+                     direction there. ",
+                    $ending
+                )
+            };
+        }
+        match self.recourse() {
+            Ending::NotYet => touch!(concat!(geom_core::not_yet_ending!(), " for this shape")),
+            Ending::KernelLimit => touch!(geom_core::kernel_limit_recourse!()),
+            Ending::Move => touch!(geom_core::move_recourse!()),
+            Ending::Sized(_) => unreachable!("a curved edge's reason carries no margin to size"),
+        }
+    }
+
+    /// **The cross-solid backstop's sentence for this reason**: the
+    /// touch, its standing's ending ([`Self::recourse`], "for this shape"
+    /// after a reading not built yet), then the distance that clears the
+    /// pair.
+    pub(crate) fn backstop_sentence(self) -> &'static str {
+        macro_rules! backstop {
+            ($ending:expr) => {
+                concat!(
+                    "they touch on a curved edge whose direction there the check could not \
+                     read, so it cannot tell whether they overlap. ",
+                    $ending,
+                    "; otherwise ",
+                    crate::census::until_apart!()
+                )
+            };
+        }
+        match self.recourse() {
+            Ending::NotYet => backstop!(concat!(geom_core::not_yet_ending!(), " for this shape")),
+            Ending::KernelLimit => backstop!(geom_core::kernel_limit_recourse!()),
+            Ending::Move => backstop!(geom_core::move_recourse!()),
+            Ending::Sized(_) => unreachable!("a curved edge's reason carries no margin to size"),
+        }
+    }
+
+    /// The recourse its rendering ends with: its standing's
+    /// ([`geom_brep::ladder::Refusal::recourse`]).
+    #[must_use]
+    pub const fn recourse(self) -> geom_brep::ladder::Ending {
+        self.refusal().recourse()
+    }
+}
+
 /// **WHY a census decline declined** — the refusing lane's own typed
 /// refusal, carried instead of discarded.
 ///
-/// [`ValidationError::CensusUnsupported`] is raised by four
-/// different lanes, and until this was carried they all arrived at a
-/// consumer as one sentence about an uncertifiable inventory. That
+/// [`ValidationError::CensusUnsupported`] is raised by several
+/// lanes, one arm each, and until this was carried they all arrived at
+/// a consumer as one sentence about an uncertifiable inventory. That
 /// sentence is not always the true cause: a chart-region
 /// [`WitnessSegmentCapExceeded`](ChartRegionError::WitnessSegmentCapExceeded)
 /// or [`WitnessCellCapExceeded`](ChartRegionError::WitnessCellCapExceeded)
@@ -821,6 +917,14 @@ pub enum CensusUnsupportedCause {
     /// narrowed to say so, for the same reason [`Self::ChartRegion`]
     /// admits `Escalated`.
     ContactLane(ContactRefusal),
+    /// A curved edge the census reads did not read, for its typed reason,
+    /// whole: it renders by the reason's sentence and recourse.
+    CurvedEdge(EdgeTangentUnread),
+    /// The meeting reading of two edges the census reads did not run to
+    /// an answer, for its typed reason, whole
+    /// ([`geom_brep::curve_pair::MeetUnread`]): it renders by the
+    /// reason's sentence and recourse.
+    Meeting(geom_brep::curve_pair::MeetUnread),
     /// The census's face-bounding sweep could not bound the face at
     /// all: it has no boundary vertex, because its outer loop is
     /// empty or its boundary does not resolve. Nothing about the
@@ -887,6 +991,8 @@ impl CensusUnsupportedCause {
         match self {
             Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
+            Self::CurvedEdge(why) => f.write_str(why.sentence()),
+            Self::Meeting(why) => f.write_str(&meeting_words(*why)),
             // The containment door's reading, at a build, whichever door
             // reads the census.
             Self::Containment(e) => write!(
@@ -3147,10 +3253,7 @@ pub(crate) const SESSION_BOX: &str =
 /// poisoned margin, the defect ending, as [`own_close`] gives it: no
 /// declaration or move makes the margin readable.
 fn too_close(margin: &geom_core::MarginDiag) -> &'static str {
-    own_close(
-        margin,
-        concat!("Recourse: ", geom_core::coincidence_move_arm!()),
-    )
+    own_close(margin, geom_core::MOVE_RECOURSE)
 }
 
 /// The ending of an undecided margin whose refusal does not carry which
@@ -4025,7 +4128,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
             escalation,
             diag,
         } => close_to_boundary(*decision, *escalation, diag),
-        ContainError::RayExhausted => (GRAZED.into(), MOVE_GEOMETRY.into()),
+        ContainError::RayExhausted => (GRAZED.into(), geom_core::MOVE_RECOURSE.into()),
         ContainError::StaleFace(_) => (
             "a face the check asked about does not resolve in the body".into(),
             DEFECT.into(),
@@ -4071,9 +4174,6 @@ const UNWALKABLE: &str = "its boundary could not be walked";
 /// for a point a pre-pass had already placed off the boundary.
 const GRAZED: &str = "a point the check read is off the boundary, but no test ray from it \
                       settled where it lies: each grazed the boundary or could not be read";
-
-/// The lever for a point with nothing to declare a coincidence with.
-const MOVE_GEOMETRY: &str = concat!("Recourse: ", geom_core::coincidence_move_arm!());
 
 /// A point too near a boundary to place ends as the escalation's decision
 /// gives it at rest, or in the unnamed lever where it names none
@@ -4131,12 +4231,15 @@ pub(crate) fn classify_point_in_solid(
              of its crossings came apart"
                 .into(),
             format!(
-                "{MOVE_GEOMETRY}; {}",
+                "{}; {}",
+                geom_core::MOVE_RECOURSE,
                 crate::boolean::solid_contain::KERNEL_BUG_NOTE
             )
             .into(),
         ),
-        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY.into()),
+        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => {
+            (GRAZED.into(), geom_core::MOVE_RECOURSE.into())
+        }
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
             (uncrossable(u), NOT_YET_ENDING.into())
@@ -4240,7 +4343,7 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
         ),
         // The rays are the check's own: no coincidence to declare, and no
         // margin to size a tolerance by (`ray_walk::NoRaySettled`).
-        ChartRegionError::RayExhausted => (GRAZED, MOVE_GEOMETRY),
+        ChartRegionError::RayExhausted => (GRAZED, geom_core::MOVE_RECOURSE),
         ChartRegionError::WitnessSegmentCapExceeded { .. }
         | ChartRegionError::WitnessCellCapExceeded { .. } => (
             "their boundaries cross too many times for the check to finish",
@@ -4292,12 +4395,29 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
     }
 }
 
+/// [`CensusUnsupportedCause::Meeting`]'s words: the meeting reading,
+/// and the reason's own sentence: a pose it has no closed form for, or
+/// what kept it from settling.
+fn meeting_words(why: geom_brep::curve_pair::MeetUnread) -> String {
+    match why.pose() {
+        Some(pose) => format!("the meeting reading of two edges has no closed form for {pose}"),
+        None => format!(
+            "the meeting reading of two edges did not settle: {}",
+            why.sentence()
+        ),
+    }
+}
+
 fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, Cow<'static, str>) {
     match cause {
         CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
         CensusUnsupportedCause::ContactLane(e) => {
             let (why, recourse) = classify_contact_lane(e);
             (why.into(), recourse.into())
+        }
+        CensusUnsupportedCause::CurvedEdge(why) => (why.sentence().into(), why.recourse().render()),
+        CensusUnsupportedCause::Meeting(why) => {
+            (meeting_words(*why).into(), why.recourse().render())
         }
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
@@ -8752,6 +8872,12 @@ fn orientation_refused(errors: &[ValidationError]) -> impl Iterator<Item = FaceK
 /// - two sides leaving along one tangent, and a cusp corner whose own
 ///   two sides do: first order cannot order them, and two coincident
 ///   lines there are the census's overlap.
+///
+/// Corners are grouped by point key, so a loop passing one place at two
+/// keys within band is not read here either. Where that loop's two
+/// surface cycles cross, on a face tier 3's one-region reading takes, a
+/// vertex of one placed off the face's side of the other is
+/// `CycleOffFaceSide` ([`crate::one_region`], which reads every vertex).
 fn pinch_corner_errors<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
@@ -9919,12 +10045,98 @@ fn meet_at<T: Decide>(
     open.map_or(EdgePair::Apart, EdgePair::Unsure)
 }
 
-/// Check 9's rows for [`crate::splitting::containment::arc_trim`].
-const RING_OUTER_ARC_TRIM: crate::splitting::containment::ArcTrimRows =
-    crate::splitting::containment::ArcTrimRows {
-        end: "ring_outer_arc_end",
-        trim: "ring_outer_arc_trim",
-    };
+/// Check 9's rows for [`arc_trim`].
+const RING_OUTER_ARC_TRIM: ArcTrimRows = ArcTrimRows {
+    end: "ring_outer_arc_end",
+    trim: "ring_outer_arc_trim",
+};
+
+/// Check 9's two rows for [`arc_trim`].
+struct ArcTrimRows {
+    /// A point's distance to either end of the arc.
+    end: &'static str,
+    /// The two-term chordal margin: which side of the ends.
+    trim: &'static str,
+}
+
+/// **Whether `p`, a point on a circle, lies inside the arc of it whose
+/// ends are `ends` and whose apex is `apex`** (`anti` the apex's
+/// antipode) — decided as DISTANCES, never as an angle, and the one
+/// home of that rule, beside its one consumer, check 9 (a ray's crossing of
+/// a loop's arc is the plane door's, placed on the arc's span there:
+/// `containment::conic_crossings`). The points are in metres, so every
+/// length is a margin as it stands.
+///
+/// 1. **At an end**: `p` within the band of either end, measured as
+///    `|p − end|`, answers `Zero`. That is the ONLY way an endpoint
+///    neighbourhood counts: an angular window compresses arc length
+///    near an end by `sin(w/2)`, so on a short arc (and by `sin` of the
+///    complement on a near-full one) its `Zero` reaches `ε / sin(w/2)`
+///    along the carrier, a hundred times `ε` at `w = 0.02`.
+/// 2. **Otherwise, which side of the ends**: the sum of two chordal
+///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
+///    is an end, `m` the apex and `m′` its antipode. Chord length is
+///    monotone in angular distance up to a half turn, so each term is
+///    positive exactly on the arc; near an end they move as `cos(w/4)`
+///    and `sin(w/4)` times the arc length, whose sum is at least 1, so
+///    the margin is never compressed below the distance it measures —
+///    on a short arc, a near-full one, or a whole circle (where `m′` is
+///    the end and every point is inside). Its `Zero` is therefore within
+///    the band of an end, which step 1 has already answered.
+///
+/// `Positive` inside, `Negative` past an end, `Zero` at an end or in
+/// the trim's band.
+///
+/// **A DECIDED membership, and so not
+/// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
+/// the one place that says why, for this trim. That door answers "may hold" wherever
+/// exclusion is unproved, which is the sound answer for a caller
+/// selecting between two bounds that each hold either way. A decided
+/// membership has no such free answer: an uncertain one escalates, and
+/// its band is a length — measured along the carrier here, levered by
+/// the radius there — never a bare angle.
+///
+/// # Errors
+///
+/// An in-band end distance with neither end definitely `Zero`, or an
+/// in-band trim margin.
+fn arc_trim<T: Decide>(
+    p: geom_core::Point3<T>,
+    ends: [geom_core::Point3<T>; 2],
+    apex: geom_core::Point3<T>,
+    anti: geom_core::Point3<T>,
+    rows: &ArcTrimRows,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let [a, b] = ends;
+    let at = [
+        decide(rows.end, Margin::of((p - a).norm()), band),
+        decide(rows.end, Margin::of((p - b).norm()), band),
+    ];
+    if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
+        return Ok(Sign::Zero);
+    }
+    if let Some(diag) = at.into_iter().find_map(Result::err) {
+        return Err(diag);
+    }
+    decide(
+        rows.trim,
+        Margin::of(arc_trim_margin(p, a, apex, anti)),
+        band,
+    )
+}
+
+/// [`arc_trim`]'s step 2, the sum of two chordal defects,
+/// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`: positive on the arc,
+/// and never compressed below the angle to the nearer end.
+fn arc_trim_margin<T: Decide>(
+    p: geom_core::Point3<T>,
+    a: geom_core::Point3<T>,
+    apex: geom_core::Point3<T>,
+    anti: geom_core::Point3<T>,
+) -> T {
+    ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
+}
 
 /// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
 /// an end included, since arm 5 runs only once no vertex arm has
@@ -9937,9 +10149,7 @@ const RING_OUTER_ARC_TRIM: crate::splitting::containment::ArcTrimRows =
 /// from the circle says nothing about the trim, and deciding it first
 /// let an in-band radius escalate a point half a turn away from the
 /// arc. The rule, and why its margin never compresses near an end, is
-/// [`crate::splitting::containment::arc_trim`]'s — the one home the
-/// arc-bearing containment walk shares; here the lever is 1 (metres)
-/// and an end's neighbourhood reads inside.
+/// [`arc_trim`]'s; an end's neighbourhood reads inside.
 fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Band) -> Window {
     match segment {
         MeetSegment::Line { a, b } => {
@@ -9978,12 +10188,11 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 radius,
             });
             let mid = geom::mid_param(t0, t1);
-            match crate::splitting::containment::arc_trim(
+            match arc_trim(
                 p,
                 [carrier.eval(t0), carrier.eval(t1)],
                 carrier.eval(mid),
                 carrier.eval(mid + T::pi()),
-                geom_core::InfSpeed::new(T::one()),
                 &RING_OUTER_ARC_TRIM,
                 band,
             ) {
@@ -10029,14 +10238,15 @@ fn plane_chart_normal<T: Real>(
 /// whether any query REFUSED — and the docs say so rather than
 /// leaving a reader to find it in the walk.
 enum RingNestingVerdict {
-    /// Nothing to report. Either a vertex of the ring was placed
-    /// definitely inside the outer loop's region — it is a hole of
-    /// that region, as a ring claims to be — or no vertex was placed
+    /// Nothing to report. Either every vertex of the ring placed was
+    /// placed definitely inside the outer loop's region — it is a hole
+    /// of that region, as a ring claims to be — or no vertex was placed
     /// either way AND no query refused, which is the ring whose
     /// every readable vertex came back `OnBoundary`.
     Inside,
     /// A named ring vertex is definitely OUTSIDE that region, so the
-    /// ring is not a hole in it.
+    /// ring is not a hole in it: it lies outside, or crosses the outer
+    /// loop.
     Outside {
         /// The witness.
         ring_vertex: VertexKey,
@@ -10082,26 +10292,25 @@ enum RingNestingVerdict {
 /// vertex, and a ring no vertex of which was placed is
 /// [`RingNestingVerdict::Undecided`].
 ///
-/// **One vertex speaks for the whole ring, and the premise that makes
-/// it so is that the two loops do not CROSS.** A ring disjoint from
-/// the outer boundary is a connected curve in one component of the
-/// plane minus that boundary, so any one of its points places all of
-/// it — whatever curve joins its vertices, arcs and whole circles
-/// included. The premise is not checked BY this arm; it is checked
-/// FOR it, by the contact arms that run first: on a planar face whose
-/// two loops carry only `Line` and `Circle` edges, any point the two
-/// loops share is a `RingMeetsOuter` — at a vertex of either loop
-/// (arms 1 and 2, arm 2 in both directions), along a shared arc
-/// (arm 3), or at a point that is a vertex of neither (arm 4 for two
-/// whole circles, arm 5 for every other edge pair) — so this function
-/// never runs on a pair that crosses. Where a loop carries an
-/// `Ellipse`, `Spiric` or NURBS edge the premise is checked only in
-/// part: a vertex of one loop standing on a vertex of the other is
-/// still arm 1's, but arms 2, 3 and 5 have no locus or meeting point
-/// for that edge, so a crossing along or through it is ASSUMED absent
-/// (check 9's banner lists it in the residue). The walk reads an
-/// ellipse exactly; what is assumed there is the premise, not the
-/// placement.
+/// **Every vertex of the ring is read** ([`crate::loop_side`]). A ring
+/// disjoint from the outer boundary is a connected curve in one
+/// component of the plane minus that boundary, so its vertices place
+/// alike, whatever curve joins them, arcs and whole circles included.
+/// That premise is checked by the contact arms that run first, on a
+/// planar face whose two loops carry only `Line` and `Circle` edges: any
+/// point the two loops share is a `RingMeetsOuter`, at a vertex of
+/// either loop (arms 1 and 2, arm 2 in both directions), along a shared
+/// arc (arm 3), or at a point that is a vertex of neither (arm 4 for two
+/// whole circles, arm 5 for every other edge pair). Where a loop
+/// carries an `Ellipse`, `Spiric` or NURBS edge the premise is checked
+/// only in part: a vertex of one loop on a vertex of the other is still
+/// arm 1's, but arms 2, 3 and 5 have no locus or meeting point for that
+/// edge (check 9's banner lists the residue). So no vertex is taken for
+/// the rest: a ring whose vertices place on both sides crosses the
+/// outer loop and is [`RingNestingVerdict::Outside`] at a vertex placed
+/// outside, whichever the walk reads first. A crossing that places no
+/// vertex outside (an edge bowing out between inside vertices) is the
+/// contact arms' alone.
 ///
 /// **Why a `Disc`-class ring gets no second instrument** — the one
 /// home of this argument; check 9's banner and `docs/KERNEL-VERBS.md`
@@ -10151,25 +10360,29 @@ fn ring_nesting<T: Decide>(
             .filter_map(|&rhe| body.half_edges.get(rhe).map(|h| h.start))
             .collect(),
     };
-    let mut undecided: Option<ContainError> = None;
-    for rv in queries {
+    // A ring vertex lies in the face's plane (check 5), the walk's
+    // in-plane precondition; the off-boundary one is the contact arms'
+    // where they can see the edge (the doc above). On the boundary is the
+    // contact half's question, not this one.
+    match crate::loop_side::inside_at_every_vertex(&queries, |rv| {
         let Some(rp) = vertex_point(body, rv) else {
-            continue;
+            return geom_brep::ladder::Rung::Passes;
         };
-        // A ring vertex lies in the face's plane (check 5), the walk's
-        // in-plane precondition; the off-boundary one is the contact
-        // arms' where they can see the edge (the doc above).
         match crate::splitting::containment::point_in_loop(body, outer, normal, rp, band) {
-            Ok(crate::splitting::LoopContainment::In) => return RingNestingVerdict::Inside,
-            Ok(crate::splitting::LoopContainment::Out) => {
-                return RingNestingVerdict::Outside { ring_vertex: rv };
-            }
-            // The contact half's question, not this one.
-            Ok(crate::splitting::LoopContainment::OnBoundary) => {}
-            Err(source) => undecided = undecided.or(Some(source.into())),
+            Ok(crate::splitting::LoopContainment::In) => geom_brep::ladder::Rung::Answers(true),
+            Ok(crate::splitting::LoopContainment::Out) => geom_brep::ladder::Rung::Answers(false),
+            Ok(crate::splitting::LoopContainment::OnBoundary) => geom_brep::ladder::Rung::Passes,
+            Err(source) => geom_brep::ladder::Rung::InBand(ContainError::from(source)),
         }
+    }) {
+        crate::loop_side::EveryVertex::Inside | crate::loop_side::EveryVertex::Unplaced => {
+            RingNestingVerdict::Inside
+        }
+        crate::loop_side::EveryVertex::Outside { at } => {
+            RingNestingVerdict::Outside { ring_vertex: at }
+        }
+        crate::loop_side::EveryVertex::Undecided(source) => RingNestingVerdict::Undecided(source),
     }
-    undecided.map_or(RingNestingVerdict::Inside, RingNestingVerdict::Undecided)
 }
 
 /// An edge's certified carrier, or `None` on a null or unresolvable
@@ -12628,7 +12841,7 @@ mod tests {
         // nothing about it is close, at either level.
         assert_eq!(
             top(ContainError::RayExhausted),
-            (super::GRAZED.into(), super::MOVE_GEOMETRY.into())
+            (super::GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         );
         assert_eq!(read(S::Loop(L::CorruptLoop { r#loop })).1, super::DEFECT);
         // The solid door's own arena claims: defects at rest.
@@ -15639,6 +15852,58 @@ mod tests {
                     "{name}: must be refused by name; got {got:?}"
                 );
             }
+        }
+    }
+
+    /// **A ring crossing an ellipse-bearing outer loop is refused in every
+    /// walk order.** The ellipse lamina of
+    /// [`an_ellipse_bearing_outer_loop_is_decided_both_ways`], and a square
+    /// ring straddling its rim at `x = 1`: two corners inside, two
+    /// outside. Check 9's meeting arms have no row for an ellipse edge, so
+    /// only the nesting arm sees the crossing, and it must refuse it
+    /// whichever corner the ring's walk starts at.
+    #[test]
+    fn a_ring_crossing_an_ellipse_rim_is_refused_in_every_walk_order() {
+        let tol = Tol::witness();
+        let k = 0.4;
+        let on_plane = |x: f64, y: f64| Point3::new(x, y, k * x);
+        let outer: Vec<Point3<f64>> = [0.0, 1.0, 2.0]
+            .iter()
+            .map(|i| {
+                let t = i * std::f64::consts::TAU / 3.0;
+                on_plane(t.cos(), t.sin())
+            })
+            .collect();
+        let corners = [(0.7, -0.2), (1.3, -0.2), (1.3, 0.2), (0.7, 0.2)];
+        for start in 0..corners.len() {
+            let ring: Vec<Point3<f64>> = (0..corners.len())
+                .map(|i| {
+                    let (x, y) = corners[(start + i) % corners.len()];
+                    on_plane(x, y)
+                })
+                .collect();
+            let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+            let cylinder =
+                body.add_surface(crate::test_support_fixtures::CylFrame::canonical(1.0).surface());
+            let f = body.get_face(face).unwrap();
+            let (plane, outer_loop, ring_loop) = (f.surface, f.outer, f.rings[0]);
+            let edges: Vec<EdgeKey> = loop_cycle_of(&body, outer_loop)
+                .unwrap()
+                .into_iter()
+                .map(|he| body.get_half_edge(he).unwrap().edge)
+                .collect();
+            for e in edges {
+                recarry_as_ellipse_arc(&mut body, e, plane, cylinder, k, tol);
+            }
+            let got = nesting_words(&body, tol);
+            assert!(
+                got.iter().any(|e| matches!(
+                    e,
+                    ValidationError::RingOutsideOuter { face: fk, ring, .. }
+                        if *fk == face && *ring == ring_loop
+                )),
+                "the walk from corner {start}: the crossing ring is refused; got {got:?}"
+            );
         }
     }
 

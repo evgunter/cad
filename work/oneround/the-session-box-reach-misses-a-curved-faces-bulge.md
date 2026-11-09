@@ -27,3 +27,11 @@ That reach should come from the one extent home (`work/onehome/reach-names-eight
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## A second example, measured (2026-11-09, `onecopy/main-reds-stations`)
+
+A sphere of `r = 50` centred at `(0, 0, 975)` has a true largest `|coordinate|` of 1025, at its top.
+- **Poled on `y`** (`sweep::test_support::ball_poled_y`): the finished-body gate admits it (`validate_geometric` is `Ok`). Its top is interior to a face, on no vertex or edge.
+- **Poled on `z`** (`ball_poled_z`): the gate refuses it, `OutsideSessionBox` at margin −25, because its pole is a vertex at the top.
+
+The box reads the cube since PR 6608 (`[tolerance.units]` bounds each coordinate). It still reads only vertices and edges, so whether a curved face's extreme is caught depends on where the body's seams fall.

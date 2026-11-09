@@ -209,6 +209,7 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         Err(TangentLocusError::NotTangent {
             apart: true,
             predicate: "pc_parallel_gap",
+            ..
         }) => {}
         other => panic!("clearance must refuse apart: {other:?}"),
     }
@@ -216,6 +217,7 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         Err(TangentLocusError::NotTangent {
             apart: false,
             predicate: "pc_parallel_gap",
+            ..
         }) => {}
         other => panic!("a crossing must refuse crossing: {other:?}"),
     }
@@ -258,6 +260,7 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
         Err(TangentLocusError::NotTangent {
             apart: true,
             predicate: "cc_parallel_gap",
+            ..
         }) => {}
         other => panic!("{other:?}"),
     }
@@ -265,6 +268,7 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
         Err(TangentLocusError::NotTangent {
             apart: false,
             predicate: "tangent_locus_internal_gap",
+            ..
         }) => {}
         other => panic!("{other:?}"),
     }
@@ -378,7 +382,9 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
 fn r1_probe_nested_clear_cylinders_are_definitely_apart() {
     // r 1 strictly inside r 3, axes 0.5 apart: clearance 1.5 m.
     match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(0.5, 3.0), metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart, predicate }) => {
+        Err(TangentLocusError::NotTangent {
+            apart, predicate, ..
+        }) => {
             assert!(apart, "nested surfaces are definitely APART");
             assert_eq!(
                 predicate, "tangent_locus_internal_gap",

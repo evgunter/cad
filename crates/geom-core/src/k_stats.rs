@@ -23,6 +23,17 @@
 //! because they are the same code and not because several bodies are
 //! kept level.
 //!
+//! **A door's signature is its roster entry.** The least-band gate
+//! (`scripts/gates/least-band-on-a-door.sh`) and the ledger census
+//! (`geom-core/tests/flagged_census.rs`) read the doors off this file's
+//! `pub` signatures, so a door takes its band as a parameter whose type
+//! names `Band` (or a name this file gives it, by `type` or `use … as`),
+//! and its ledger row as one parameter of a text type (`&str`, `String`,
+//! or an alias this file gives one) or one whose name holds `row`, never
+//! inside a struct argument. Every other `pub` fn
+//! here that takes a band or such a parameter is named as a non-door in
+//! the reader that would otherwise take it for one.
+//!
 //! Cost on the production path: one thread-local `Cell` write per
 //! decision, plus — **inside an open [`Bracket`]** — one `Vec` push per
 //! outcome, definite or not (see `decide`'s own contract below). That
@@ -917,6 +928,38 @@ pub enum NonzeroSign {
     Negative,
 }
 
+impl NonzeroSign {
+    /// **The decided side's unit value**, `+1` or `−1` at `T`: the one
+    /// spelling of a ±1 read off a sign already decided. Its hull twin,
+    /// read off a value rather than a decision, is
+    /// [`crate::Real::unit_sign`].
+    #[must_use]
+    pub fn unit<T: Real>(self) -> T {
+        match self {
+            Self::Positive => T::one(),
+            Self::Negative => -T::one(),
+        }
+    }
+
+    /// The other side.
+    #[must_use]
+    pub fn flip(self) -> Self {
+        match self {
+            Self::Positive => Self::Negative,
+            Self::Negative => Self::Positive,
+        }
+    }
+}
+
+impl From<NonzeroSign> for Sign {
+    fn from(side: NonzeroSign) -> Self {
+        match side {
+            NonzeroSign::Positive => Self::Positive,
+            NonzeroSign::Negative => Self::Negative,
+        }
+    }
+}
+
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling
 /// for a predicate that reads a SIDE off the margin's sign and has no
 /// side to read when the margin is definitely zero — two normals whose
@@ -1047,6 +1090,66 @@ pub fn decide_magnitude_reported<T: Decide>(
             band.zero(),
             band.escalate()
         ),
+    }
+}
+
+/// **A two-sided row read across a region**: `datum` the row's signed
+/// margin where its pivot reads it, and `swing` a LENGTH, the most a
+/// term the caller admitted (a tilt levered at the row's own reach, or
+/// a position the row is read beside) moves that reading at a point the
+/// verdict serves; each caller derives its own. Across the region the reading stands inside
+/// `datum ± swing`, so each verdict is decided on its own side of that
+/// bracket, each the point deviation that flips it:
+///
+/// - `far`, `|datum| + swing`, the farthest a point of the region reads
+///   from the flip: Zero ⇒ [`Sign::Zero`] at every point;
+/// - otherwise `floor`, the bracket's reading nearest the flip (`datum`
+///   shrunk toward zero by `swing`, zero where the bracket holds it): a
+///   definite sign holds at every point. A floor decided Zero
+///   beside a definite far straddles the band, and escalates through
+///   the gate.
+///
+/// The two terms are never decided one at a time: each just inside the
+/// band would sum to nearly twice it. At zero swing it is the plain
+/// two-sided reading of `datum`, under two names.
+///
+/// # Errors
+///
+/// The [`Indeterminate`] of the row left undecided, naming it: the far
+/// row in its band, or a floor decided Zero beside a definite far row.
+pub fn decide_across<T: Decide>(
+    names: [&'static str; 2],
+    datum: T,
+    swing: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    decide_across_reported(names, datum, swing, band).map(|(sign, _)| sign)
+}
+
+/// [`decide_across`] with the margin the `far` row was decided on: the
+/// Zero verdict's own margin where the row reads Zero, the margin the
+/// floor stood past otherwise.
+///
+/// # Errors
+///
+/// As [`decide_across`].
+pub fn decide_across_reported<T: Decide>(
+    [far, floor]: [&'static str; 2],
+    datum: T,
+    swing: T,
+    band: Band,
+) -> Result<(Sign, MarginDiag), Indeterminate> {
+    let swing = swing.abs();
+    let (far_side, margin) = decide_magnitude_reported(far, Margin::of(datum.abs() + swing), band)?;
+    match far_side {
+        Magnitude::Zero => Ok((Sign::Zero, margin)),
+        Magnitude::Positive => {
+            let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
+            Ok(match decide_nonzero(floor, Margin::of(near), band)? {
+                NonzeroSign::Positive => (Sign::Positive, margin),
+                NonzeroSign::Negative => (Sign::Negative, margin),
+            })
+        }
     }
 }
 

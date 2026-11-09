@@ -11,8 +11,9 @@ refs: [6592, 6595]
 
 
 Found by `a-ladder-that-checks-its-answers-agree-has-no-home`
-(`onecopy/refusal-standing`). Its first form, commit `a8e175f9` (on
-the lane's local branch, not pushed), wired a debug check of the
+(`onecopy/refusal-standing`). Its first form, commit `a8e175f9` (pushed: it is in
+`onecopy/refusal-standing`'s history, so the wiring can be checked out
+to reproduce), wired a debug check of the
 `Answering::Any` premise into the `Any` ladders: read every rung after
 the answer, and assert each agrees. That wiring was held for the `Any`
 design fork, `[ev]` PR 6592, so the check is not on main.
@@ -40,8 +41,13 @@ side. Priority falls to P2, since no valid body reaches it.
 ## The disagreement shape (re-run on main after 6595)
 
 With `cast_aims` swapped to `ladder::climb_agreeing` and a panic on
-`Err(Disagree)`, topo `ci` gives **14 disagreements: `Ok(Out)` then
-`Ok(In)` 10 times, `Ok(In)` then `Ok(Out)` 4 times.** Before 6595, one
+`Err(Disagree)`, topo `ci` gives **14 climbs that disagree** (each
+counted once, at its first disagreeing pair, where the panic stops it):
+`Ok(Out)` then `Ok(In)` 10 times, `Ok(In)` then `Ok(Out)` 4 times.
+Counted by rung instead (every rung that disagrees with the first
+answer, as PR 6606's delta review read it with `a8e175f9`'s wiring), the
+7 tests give **32 disagreeing rungs: `Out` then `In` 19, `In` then `Out`
+13.** Before 6595, one
 probe showed two faces aimed at one shared point reading `Out` and `In`.
 That was the twin-root family. An inside-out shell's face reading `In`
 past outer faces reading `Out` is this one.
@@ -67,3 +73,9 @@ panic, and run `cargo nextest run -p topo --profile ci`.
 time, a multi-shell selection carries its side, and the site's premise
 is that of an `Alike` ladder whose source type establishes it. The
 every-rung audit (probe-gated) then passes on every fixture.
+
+## Other sites waiting on the same `Alike` (2026-11-09)
+
+When 6592's `Alike` lands, these premise-only ladders flip to it along with `cast_aims`:
+
+- **`topo::link::Cone::reads_given`'s reference climb** (`crates/topo/src/link.rs`, "every reference reads one material"). It climbs under `Answering::First` until then (PR 6637's review, F1): the premise is shown failing on `work/oneread/a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie.md`, and `editor_core::drive`'s `classify_replay` acts on the escalation log a superseded splice would drop. The code comment there says "pending 6592's `Alike`".

@@ -347,7 +347,7 @@ fn the_pinch_lists_no_node_and_refuses_to_carry() {
         );
         let got = section.carry(Some(SsiLane::marched()), band());
         assert!(
-            matches!(got, Err(CarryError::Unminted(why)) if why == geom_brep::pair_section::cylinders::PINCH),
+            matches!(got, Err(CarryError::Unminted(geom_brep::NoCarrier::Pinch))),
             "{label}: {got:?}"
         );
     }

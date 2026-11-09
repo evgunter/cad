@@ -1593,7 +1593,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     axial-direction cosine LEVERED BY `hyp`: metres of travel at
     //     the pair's own extent per unit axial step, so the sign read
     //     goes through the metres door with an honest length.
-    let sigma = match decide(
+    let sigma: T = match decide(
         "chart_region_cyl_axis_sense",
         Margin::levered(
             a.axis.dot(b.axis),
@@ -1603,18 +1603,19 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         ),
         band,
     ) {
-        Ok(Sign::Positive) => T::one(),
-        Ok(Sign::Negative) => T::zero() - T::one(),
-        // A zero-band axis dot contradicts the tilt gate's Zero (the
-        // dot of near-parallel units is near ±1): poisoned input.
-        Ok(Sign::Zero) => {
-            return Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some("chart_region_cyl_axis_sense"),
-                terminal_sliver: false,
-            }));
-        }
+        Ok(sense) => match sense.nonzero() {
+            Some(side) => side.unit(),
+            // A zero-band axis dot contradicts the tilt gate's Zero (the
+            // dot of near-parallel units is near ±1): poisoned input.
+            None => {
+                return Err(ChartRegionError::Escalated(Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("chart_region_cyl_axis_sense"),
+                    terminal_sliver: false,
+                }));
+            }
+        },
         Err(diag) => return Err(ChartRegionError::Escalated(diag)),
     };
     let w_a = a.v_ref();

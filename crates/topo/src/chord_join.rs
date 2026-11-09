@@ -120,7 +120,7 @@
 //! ruling, which refuses.
 
 use geom::Conic;
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use geom_brep::{EdgeCurveSpec, Pcurve};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
@@ -474,7 +474,8 @@ pub enum SplitJoinError {
     },
     /// A site's place on its section's spline component could not be
     /// read: the component's piece walk could not run
-    /// ([`geom_brep::SiteRefusal::Unwalked`]), a limit and not a fault.
+    /// ([`geom_brep::SiteRefusal::Unwalked`]), not a fault, and standing
+    /// as the walk's refusal does.
     SectionUnwalked(geom::PieceWalkRefusal),
     /// A plane's section of a curved face the chord layer has no arm
     /// for: valid input whose lane is not yet built (D2 addendum row 2),
@@ -3887,11 +3888,7 @@ impl<T: Decide> IslandReading<T> {
                     ))
                 };
                 let (from, to) = (at(after)?, at(h1)?);
-                (
-                    LoopArc::segment(from, to),
-                    from + (to - from) * T::from_f64(0.5),
-                    to - from,
-                )
+                (LoopArc::segment(from, to), from.mid(to), to - from)
             }
         };
         match quadric.off_apex(q, band) {
@@ -3922,18 +3919,23 @@ impl<T: Decide> IslandReading<T> {
     }
 
     /// The paths to `q` from every outer-loop point of `face`
-    /// ([`outer_references`]), in the order they are asked, each read by
-    /// `read` until one decides: a side ladder ([`paths_rung`]), so a
-    /// path set aside ahead of one that decides is superseded. Its
-    /// premise is the input's, not a theorem: the island lies in the
-    /// face, so every outer-loop point is on the same side of it. The
-    /// boolean's ring lane reads it mid-operation (`boolean::join`'s
-    /// `ring_run_ccw`), on a run of a ring of the operand's face, which
-    /// check 9 placed in the face at rest, closed by a section piece the
-    /// reduction kept where the face holds it. That is the construction's
-    /// guarantee: no check re-reads the island against the outer loop
-    /// there (`work/onecopy/the-ring-lanes-island-is-not-checked-in-its-face.md`).
-    pub(crate) fn read_paths<R>(
+    /// ([`outer_references`]), in the order they are asked, each
+    /// reference's paths read by `read` until one decides ([`paths_rung`]).
+    /// **Every reference is read and their answers must agree**
+    /// ([`climb_agreeing`]): the island lies in the face, so every
+    /// outer-loop point is on one side of it. That is the input's
+    /// premise, not a theorem. The boolean's ring lane reads it
+    /// mid-operation (`boolean::join`'s `ring_run_ccw`), on a run of a ring
+    /// of the operand's face closed by a section piece, where no gate has
+    /// placed the island in the face, so the premise is read here rather
+    /// than assumed. A reference set aside beside the answer is
+    /// superseded.
+    ///
+    /// # Errors
+    ///
+    /// [`SplitJoinError::SectionInvariant`] where two references decide
+    /// different answers: the island leaves the face.
+    pub(crate) fn read_paths<R: PartialEq>(
         &self,
         body: &Body<T>,
         face: FaceKey,
@@ -3941,10 +3943,17 @@ impl<T: Decide> IslandReading<T> {
         mut read: impl FnMut(Path<T>) -> Result<Option<R>, Indeterminate>,
     ) -> Result<Result<Option<R>, Indeterminate>, SplitJoinError> {
         let references = outer_references(body, face, &[])?;
-        Ok(climb(Answering::Any, references, |w| {
-            paths_rung(&self.quadric, (w, self.q), band, &mut read)
+        climb_agreeing(
+            references,
+            |w| paths_rung(&self.quadric, (w, self.q), band, &mut read),
+            |a, b| a == b,
+        )
+        .map(Climb::into_reading)
+        .map_err(|_| SplitJoinError::SectionInvariant {
+            face,
+            what: "an island's outer-loop references read different answers: the island leaves \
+                   its face",
         })
-        .into_reading())
     }
 
     /// The winding `path` reads: its lean against the left normal
@@ -4002,11 +4011,13 @@ impl<T: Decide> IslandReading<T> {
 ///   arms on `Line` and `Circle` edges and assumed on `Ellipse`,
 ///   `Spiric` and NURBS ones
 ///   (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
-///   Mid-operation it is excluded where the division identifies every
-///   vertex it passes through. A loop that crosses the run at a vertex
-///   the division did not identify (fate's rehome, [`ChordJoiner`]'s
-///   `rehome_rings`; the split identifies every vertex within band) is
-///   the residual (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
+///   Mid-operation it is excluded by the division: a vertex within the
+///   zero of the cut is identified and the ring divided there, and one
+///   in its band refuses (the boolean's `VertexOnFace` coincidence, the
+///   split's `SliverVertex`), so a ring left a bystander ([`ChordJoiner`]'s
+///   `rehome_rings`, fate's rehome) does not cross it. The premise is the
+///   division's, and the ladders do not check it
+///   (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
 ///
 /// Under it, which decided reading is taken changes nothing.
 fn paths_rung<T: Decide, R>(
@@ -4800,7 +4811,11 @@ impl RimSide {
                 // and any such point reads the one side (the loop does not
                 // cross its ring's plane: [`paths_rung`]'s premise, the
                 // plane for the curve); an escalation escalates only
-                // where none does.
+                // where none does. The division establishes it: the ring
+                // meets the pierced face's boundary only at its one site,
+                // the section's identified crossing, and on the sphere the
+                // ring's plane meets the surface in the ring alone, so a
+                // loop crossing the plane would cross the ring.
                 use geom_brep::ladder::{Answering, Climb, Rung, climb};
                 let points = loop_points(body, outer)?;
                 let read = climb(Answering::Any, points, |w| {
@@ -5415,11 +5430,11 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// sections meet at one point — so its anchor alone can land `OnBoundary`
 /// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
 /// every vertex does: each such verdict is decided, so the ring is on
-/// the run. A vertex whose reading escalates says nothing either, and
-/// the next is asked; the first escalation escalates only where no
-/// vertex decides ([`climb`]). The vertices agree because the
-/// ring does not cross the run, and a touch switches no side
-/// ([`paths_rung`]'s premise).
+/// the run. A vertex whose reading refuses says nothing either, kept by
+/// its standing ([`PointInLoopError::refusal`]), and the next is asked;
+/// a kept refusal refuses only where no vertex decides ([`climb`]). The
+/// vertices agree because the ring does not cross the run, and a touch
+/// switches no side ([`paths_rung`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -5427,24 +5442,35 @@ fn ring_side<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let read = |v: VertexKey| match point_in_loop(
-        body,
-        run,
-        normal,
-        body.resolve_vertex_point(v, Proven),
-        band,
-    ) {
-        Ok(LoopContainment::In) => Rung::Answers(Ok(RingSide::In)),
-        Ok(LoopContainment::Out) => Rung::Answers(Ok(RingSide::Out)),
-        Ok(LoopContainment::OnBoundary) => Rung::Passes,
-        Err(e @ PointInLoopError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| e),
-        Err(e) => Rung::Aborts(Err(SplitJoinError::from(e))),
+    let read = |v: VertexKey| {
+        vertex_side(point_in_loop(
+            body,
+            run,
+            normal,
+            body.resolve_vertex_point(v, Proven),
+            band,
+        ))
     };
     match climb(Answering::Any, ring_vertices(body, ring)?, read) {
-        Climb::Answered { answer, .. } => answer,
+        Climb::Answered { answer, .. } => answer.map_err(SplitJoinError::from),
         Climb::Passed => Ok(RingSide::OnRun),
         Climb::Undecided(e) => Err(SplitJoinError::RingHoming(e)),
     }
+}
+
+/// One ring vertex's containment as [`ring_side`]'s rung
+/// ([`Rung::answers`]): a decided side answers, a vertex on the run
+/// passes, and a refusal stands by its own standing
+/// ([`PointInLoopError::refusal`]).
+fn vertex_side(
+    reading: Result<LoopContainment, PointInLoopError>,
+) -> Rung<Result<RingSide, PointInLoopError>, PointInLoopError> {
+    let side = |at| match at {
+        LoopContainment::In => Some(RingSide::In),
+        LoopContainment::Out => Some(RingSide::Out),
+        LoopContainment::OnBoundary => None,
+    };
+    Rung::answers(reading.map(side), PointInLoopError::refusal)
 }
 
 /// Where ring re-homing puts a bystander ring.
@@ -5537,6 +5563,8 @@ mod cone_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod island_rows;
+#[cfg(test)]
+mod ring_side_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;

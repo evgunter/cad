@@ -235,7 +235,7 @@ fn read_both<T: Decide>(
             match s.contact(q, t, band) {
                 Ok(Some(hit)) => return Ok(Some(hit)),
                 Ok(None) => {}
-                Err(refusal) => held = held.or(Some(refusal)),
+                Err(refusal) => held = held.or(Some(refusal.refused())),
             }
         }
         held.map_or(Ok(None), Err)

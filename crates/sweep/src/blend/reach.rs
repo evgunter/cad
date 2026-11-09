@@ -593,7 +593,7 @@ fn sheet_fn<T: Decide + Bounds>(
     let one = T::one();
     let off_axis = |p: Point3<T>| sheet_of(axis, p);
     let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
-    let centre = lo + (hi - lo) / T::from_f64(2.0);
+    let centre = lo.mid(hi);
     Some(match s {
         Surface::Plane { normal, .. } => {
             let n = normal.normalize();
@@ -1609,7 +1609,7 @@ fn halves(lo: [f64; 3], hi: [f64; 3]) -> [([f64; 3], [f64; 3]); 2] {
     let k = (0..3)
         .max_by(|&i, &j| (hi[i] - lo[i]).total_cmp(&(hi[j] - lo[j])))
         .unwrap_or(0);
-    let mid = 0.5 * (lo[k] + hi[k]);
+    let mid = geom::mid_param(lo[k], hi[k]);
     let (mut h1, mut l2) = (hi, lo);
     h1[k] = mid;
     l2[k] = mid;

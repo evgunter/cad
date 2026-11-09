@@ -74,7 +74,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
 /// side.
 fn sheet(f: Frame, torus: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
     // The loop rule ([`super::island_rows`]).
-    let u = if sense { U } else { -U };
+    let u = super::island_rows::loop_start(sense, U);
     let mut body = Body::<f64>::new();
     let start = on_torus(f, -u, -V);
     let seed = body.mvfs(start, sense).unwrap();
@@ -265,11 +265,11 @@ fn scaled_frames() -> Vec<Frame> {
 /// way, in three frames at two scales and at both senses — closed by a
 /// meridian or a parallel, outer or inner. Both windings are read. Every
 /// decided path from every outer-loop point reads the oracle's winding
-/// too, not only the first one the lane takes, so an arc of the run the
-/// reading missed would show on the paths that cross it.
+/// too, not only the first each reference's ladder takes, so an arc of
+/// the run the reading missed would show on the paths that cross it.
 #[test]
 fn a_torus_ring_run_winds_its_island_as_the_oracle_does() {
-    winds_as_the_oracle(islands, 113);
+    winds_as_the_oracle(islands, 904);
 }
 
 /// The winding rows over the islands `islands` names in each frame.
@@ -280,7 +280,8 @@ fn winds_as_the_oracle(
     let mut seen = [0usize; 2];
     let mut paths = 0usize;
     // The verdicts the winding read and the ones a read of every path
-    // takes: the winding stops at the first path that decides.
+    // takes: the winding reads every outer-loop reference (their answers
+    // must agree), each up to its first path that decides.
     let mut verdicts = [0usize; 2];
     for f in scaled_frames() {
         for mirror in [false, true] {
@@ -342,15 +343,15 @@ fn winds_as_the_oracle(
     let runs = seen[0] + seen[1];
     assert!(paths > 4 * runs, "{paths} paths decided over {runs} runs");
     assert!(
-        4 * verdicts[0] < verdicts[1],
-        "the winding stops at the first deciding path: {verdicts:?}"
+        verdicts[0] < verdicts[1],
+        "each reference stops at its first deciding path: {verdicts:?}"
     );
     assert_eq!(
         2 * verdicts[0],
         twice_verdicts_per_run * runs,
         "twice the verdicts the winding records, per run ({runs} at this band's scales): a \
-         change here moves the K record (a path or a reference read past the first that \
-         decides, or one fewer)"
+         change here moves the K record (a path read past a reference's first that decides, \
+         a reference more or fewer)"
     );
 }
 
@@ -452,7 +453,7 @@ fn re_homes_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
 /// into the island exactly when it lies inside.
 #[test]
 fn a_run_on_a_spiric_oval_winds_its_island_as_the_oracle_does() {
-    winds_as_the_oracle(spiric_islands, 116);
+    winds_as_the_oracle(spiric_islands, 924);
     re_homes_as_the_oracle(spiric_islands);
 }
 
@@ -505,6 +506,6 @@ fn a_ring_on_the_runs_planes_off_its_arcs_stays() {
 /// it lies inside.
 #[test]
 fn a_run_on_the_tubes_top_or_bottom_circle_winds_its_island_as_the_oracle_does() {
-    winds_as_the_oracle(crest_islands, 113);
+    winds_as_the_oracle(crest_islands, 904);
     re_homes_as_the_oracle(crest_islands);
 }

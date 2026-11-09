@@ -322,8 +322,10 @@ This section is where that rule's parts live.
   form. No `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
   `running`'s charge doors (its `pub` items) outside this crate. Every
-  site is a listed entry, each a formula or a stored form owed a
-  re-posing, and an entry whose site has gone must be dropped. A count
+  site is a listed entry with its reason: in production, a formula or a
+  stored form owed a re-posing, an error-free transformation, or
+  test-support code; in a test, its oracle. An entry whose site has gone
+  must be dropped. A count
   raised beside a new site is held only by review, not against the
   merge base
   (`work/guard/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
@@ -337,11 +339,14 @@ This section is where that rule's parts live.
   (an edge over its span, a face's region, two faces' meet, a bounded
   carrier, each read as its cover), never from a length a caller
   vouches for. `ExtentBall` is its ball payload.
-- **The session box** is one predicate over a body's consumed extent
-  (its vertices, edges' spans and faces' boundaries, never a carrier's
-  stored terms). The finished-body gate asks it, and the refusal names
-  the operation. A kernel-bug panic that reads a margin on derived
-  geometry takes "in the box" as its premise.
+- **The session box** is one predicate over a body's largest
+  `|coordinate|`, read from below off its vertices' and its edges' own
+  points, never a carrier's stored terms: the box bounds each
+  coordinate (`[tolerance.units]`), so it is a cube. The finished-body
+  gate asks it, and the refusal names the operation. A body it refuses
+  has a point past the box; a curved face's interior extreme is not
+  read, so one it admits may still reach past it there
+  (`work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md`).
 - **The Interval lane** makes an ill-posed formula loud (its
   enclosure lands in the band, which is terminal); it does not certify
   around it.

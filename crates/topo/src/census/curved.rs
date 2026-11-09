@@ -22,8 +22,7 @@
 //! are no meeting of their own.
 
 use geom::Curve3;
-use geom_brep::curve_pair::{Hit, MeetFault, Meeting, Span, meet};
-use geom_brep::roots::Unsettled;
+use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, MeetUnread, Meeting, Span, meet};
 use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign};
 
 use super::{CensusSubject, CensusUnsupportedCause, ValidationError};
@@ -38,19 +37,25 @@ struct Read<T: Real> {
     span: (T, T),
 }
 
-/// The refusals this module pushes for one edge's reading, each named
-/// once, so a reader that maps them ([`edge_tangent_refusal`]) reads the
-/// same constants the pushes write.
-const NO_CURVE: &str = "a curved edge with no certified curve";
-const NO_REACH: &str = "a curved edge whose speed bound meters no reach over its span";
-const NO_LENGTH: &str = "a curved edge whose least speed meters no length over its span";
-
-fn refuse(edge: EdgeKey, what: &'static str, errors: &mut Vec<ValidationError>) {
+/// Pushes `edge`'s reading refused for `why`, the reason carried whole,
+/// so [`edge_tangent_refusal`] reads it back as itself.
+fn refuse(
+    edge: EdgeKey,
+    why: crate::validate::EdgeTangentUnread,
+    errors: &mut Vec<ValidationError>,
+) {
     errors.push(ValidationError::CensusUnsupported {
         subject: CensusSubject::Entity(EntityId::Edge(edge)),
-        cause: CensusUnsupportedCause::ContactLane(
-            crate::contact::ContactRefusal::NotCertifiable { what },
-        ),
+        cause: CensusUnsupportedCause::CurvedEdge(why),
+    });
+}
+
+/// Pushes the meeting of two curved edges refused for `why`, its
+/// reading's typed reason, carried whole.
+fn refuse_meeting(edge: EdgeKey, why: MeetUnread, errors: &mut Vec<ValidationError>) {
+    errors.push(ValidationError::CensusUnsupported {
+        subject: CensusSubject::Entity(EntityId::Edge(edge)),
+        cause: CensusUnsupportedCause::Meeting(why),
     });
 }
 
@@ -87,7 +92,7 @@ fn read<T: Decide>(
         .and_then(|d| body.curves.get(d.curve))
         .and_then(crate::null::CurveGeom::certified)
     else {
-        refuse(edge, NO_CURVE, errors);
+        refuse(edge, crate::validate::EdgeTangentUnread::NoCurve, errors);
         return None;
     };
     let carrier = curve.carrier().clone();
@@ -95,12 +100,12 @@ fn read<T: Decide>(
     let span = curve.params();
     let span_reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
     if decided("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
-        refuse(edge, NO_REACH, errors);
+        refuse(edge, crate::validate::EdgeTangentUnread::NoReach, errors);
         return None;
     }
     let length = Margin::metered((span.1 - span.0).abs(), lo);
     if decided("pm_census_curved_speed_floor", length, band, errors)? != Sign::Positive {
-        refuse(edge, NO_LENGTH, errors);
+        refuse(edge, crate::validate::EdgeTangentUnread::NoLength, errors);
         return None;
     }
     Some(Read {
@@ -278,28 +283,19 @@ pub(super) fn edge_tangent_at<T: Decide>(
 /// **What [`edge_tangent_at`] pushed when it did not read**, as a
 /// touch's refusal: an escalation is a sign in band
 /// ([`TouchUnread::InBand`]); a refusal is its typed reason
-/// ([`TouchUnread::EdgeTangent`]), read off the constants the pushes
-/// write. A refusal pushed with no reading here, or none pushed at all,
+/// ([`TouchUnread::EdgeTangent`]), carried on the refusal whole. A refusal pushed with no reading here, or none pushed at all,
 /// breaks this module's contract (every `None` pushes one of them), and
 /// reads as [`TouchUnread::Corrupt`].
 pub(super) fn edge_tangent_refusal(refused: &[ValidationError]) -> crate::link::TouchUnread {
-    use crate::link::{EdgeTangentUnread as Why, TouchUnread};
+    use crate::link::TouchUnread;
     refused
         .iter()
         .find_map(|r| match r {
             ValidationError::CensusEscalated { .. } => Some(TouchUnread::InBand),
             ValidationError::CensusUnsupported {
-                cause:
-                    CensusUnsupportedCause::ContactLane(
-                        crate::contact::ContactRefusal::NotCertifiable { what },
-                    ),
+                cause: CensusUnsupportedCause::CurvedEdge(why),
                 ..
-            } => match *what {
-                NO_CURVE => Some(Why::NoCurve),
-                NO_REACH | NO_LENGTH => Some(Why::Unmetered),
-                walk => geom::PieceWalkRefusal::of_sentence(walk).map(Why::Unwalked),
-            }
-            .map(TouchUnread::EdgeTangent),
+            } => Some(TouchUnread::EdgeTangent(*why)),
             _ => None,
         })
         .unwrap_or(TouchUnread::Corrupt)
@@ -320,10 +316,29 @@ fn on_interior_at<T: Decide>(
         Err(refusal) => {
             match refusal.escalation() {
                 Ok(cause) => errors.push(ValidationError::CensusEscalated { cause }),
-                Err(why) => refuse(r.edge, why.sentence(), errors),
+                Err(why) => refuse(
+                    r.edge,
+                    crate::validate::EdgeTangentUnread::Unwalked(why),
+                    errors,
+                ),
             }
             None
         }
+    }
+}
+
+/// **What a refused meeting of two curved edges says**: the reason of a
+/// reading that did not run to an answer, or `Err` with the cause of one
+/// in band. A kernel fault is the census's ([`super::meet_fault`],
+/// reported `on` the pair).
+fn meeting_unread(
+    fault: MeetFault,
+    on: core::fmt::Arguments<'_>,
+) -> Result<MeetUnread, geom_core::Indeterminate> {
+    match fault.kind() {
+        MeetKind::Escalated(cause) | MeetKind::Touch(cause) => Err(cause),
+        MeetKind::Unread(why) => Ok(why),
+        MeetKind::Fault { .. } => super::meet_fault(on, fault),
     }
 }
 
@@ -484,25 +499,18 @@ fn interior_meeting<T: Decide>(
             None => refusal,
         },
     };
-    let what = match refusal.fault {
-        MeetFault::Escalated(cause) | MeetFault::Touch(cause) => {
+    let why = match meeting_unread(
+        refusal.fault,
+        format_args!("curved edges {:?} and {:?}", ra.edge, rb.edge),
+    ) {
+        Ok(why) => why,
+        Err(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
             return None;
         }
-        MeetFault::Unsettled(Unsettled::Exhausted) => {
-            "the meeting reading of two curved edges ran past its budget"
-        }
-        MeetFault::Unsettled(_) => {
-            "the meeting reading of two curved edges could not settle a count"
-        }
-        MeetFault::Unsupported { pose } => pose,
-        fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => super::meet_fault(
-            format_args!("curved edges {:?} and {:?}", ra.edge, rb.edge),
-            fault,
-        ),
     };
-    refuse(ra.edge, what, errors);
-    refuse(rb.edge, what, errors);
+    refuse_meeting(ra.edge, why, errors);
+    refuse_meeting(rb.edge, why, errors);
     None
 }
 
@@ -518,43 +526,238 @@ mod tests {
     use super::{Read, curved_interiors_meet, interior_meeting, reads_meet};
     use crate::EdgeCurveSpec;
 
-    /// **A spline walk the census could not run reads back as itself**: the
-    /// refusal it pushes names the walk by its own sentence
-    /// ([`geom::PieceWalkRefusal::sentence`]), pinned here as text, and the
-    /// edge-tangent reading of that refusal is the same walk refusal, at
-    /// both of its kinds. The census's rendered message does not show
-    /// that name: `ContactRefusal::NotCertifiable` renders no `what`.
+    /// **A touch read on a curved edge ends with its reason's recourse**:
+    /// a walk past its budget offers the tolerance, a reason the kernel
+    /// does not read yet says so, and two readings of the touch that
+    /// disagree (an abort) say a kernel defect. Red where any of the three
+    /// ends with another's.
     #[test]
-    fn an_unwalked_edge_reads_back_as_its_walk_refusal() {
-        use crate::link::{EdgeTangentUnread, TouchUnread};
-        for (why, sentence) in [
+    fn a_curved_edge_touch_ends_with_its_reasons_recourse() {
+        use crate::link::TouchUnread;
+        use crate::validate::EdgeTangentUnread;
+        use geom::PieceWalkRefusal::{Exhausted, Unbounded};
+        for (why, ending) in [
             (
-                geom::PieceWalkRefusal::Exhausted,
-                "a spline's piece walk ran past its budget",
+                TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(Exhausted)),
+                geom_core::KERNEL_LIMIT_RECOURSE,
             ),
             (
-                geom::PieceWalkRefusal::Unbounded,
+                TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(Unbounded)),
+                concat!(geom_core::not_yet_ending!(), " for this shape"),
+            ),
+            (
+                TouchUnread::EdgeTangent(EdgeTangentUnread::NoCurve),
+                concat!(geom_core::not_yet_ending!(), " for this shape"),
+            ),
+            (
+                TouchUnread::EdgeTangent(EdgeTangentUnread::NoReach),
+                concat!(geom_core::not_yet_ending!(), " for this shape"),
+            ),
+            (
+                TouchUnread::EdgeTangent(EdgeTangentUnread::NoLength),
+                concat!(geom_core::not_yet_ending!(), " for this shape"),
+            ),
+            (TouchUnread::OffInterior, geom_core::kernel_defect_ending!()),
+        ] {
+            assert!(
+                why.sentence().ends_with(ending),
+                "{why:?}: {}",
+                why.sentence()
+            );
+        }
+    }
+
+    /// **The cross-solid backstop carries a touch's reason whole**
+    /// ([`crate::census::Undecided::Touch`]): an edge-tangent reason and
+    /// two readings of the touch that disagree each wait as an undecided
+    /// touch, and each renders by its own recourse: a walk past its
+    /// budget offers the tolerance, a reason not built yet says so, and
+    /// the disagreement says a kernel defect. A corrupt body is the
+    /// backstop's own refusal and does not wait. Red where a reason is
+    /// dropped on the way, or a sentence ends with another's.
+    #[test]
+    fn the_backstop_carries_a_touchs_reason_whole() {
+        use crate::census::Undecided;
+        use crate::link::TouchUnread;
+        use crate::validate::EdgeTangentUnread;
+        use geom::PieceWalkRefusal::Exhausted;
+        for (why, ending) in [
+            (
+                TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(Exhausted)),
+                concat!(
+                    "Recourse: loosen the tolerance, ",
+                    geom_core::kernel_limit_last_resort!(),
+                    "; otherwise move them until their bounding boxes no longer overlap"
+                ),
+            ),
+            (
+                TouchUnread::EdgeTangent(EdgeTangentUnread::NoReach),
+                concat!(
+                    geom_core::not_yet_ending!(),
+                    " for this shape; otherwise move them until their bounding boxes no \
+                     longer overlap"
+                ),
+            ),
+            (TouchUnread::OffInterior, geom_core::kernel_defect_ending!()),
+        ] {
+            let undecided = why.undecided();
+            assert_eq!(undecided, Undecided::Touch(why), "{why:?}: carried whole");
+            assert!(undecided.is_undecided_touch(), "{why:?}: waits as a touch");
+            assert!(
+                undecided.what().ends_with(ending),
+                "{why:?}: {}",
+                undecided.what()
+            );
+        }
+        let corrupt = TouchUnread::Corrupt.undecided();
+        assert_eq!(corrupt, Undecided::CorruptInstance);
+        assert!(
+            !corrupt.is_undecided_touch(),
+            "a corrupt body does not wait"
+        );
+    }
+
+    /// **A refused meeting of two curved edges carries its reading's
+    /// reason and reads as it**: the reason is the meeting's own fault
+    /// ([`geom_brep::curve_pair::MeetUnread`]), the cause renders the
+    /// reading and the reason's sentence (a pose its own phrase), and a
+    /// person reads the recourse its standing gives
+    /// ([`geom_brep::ladder::Refusal::recourse`]): the kernel limit's
+    /// lever for a reading a coarser band or a budget may settle, moving
+    /// the geometry for one in band (a cone's apex), and no way through
+    /// yet for one not built, or a crease's mixed payload not yet split. Red where a sentence or recourse is rewritten or swapped,
+    /// or the cause renders through anything but its reason.
+    #[test]
+    fn a_refused_curved_meeting_reads_as_its_reason() {
+        use geom::PieceWalkRefusal::{Exhausted, Unbounded};
+        use geom_brep::curve_pair::{MeetFault, MeetUnread};
+        use geom_brep::roots::Unsettled;
+        use geom_core::{KERNEL_LIMIT_RECOURSE, NOT_YET_ENDING};
+        let settle = "the meeting reading of two edges did not settle:";
+        for (fault, reading, recourse) in [
+            (
+                MeetFault::Unwalked(Exhausted),
+                format!("{settle} a spline's piece walk ran past its budget"),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                MeetFault::Unwalked(Unbounded),
+                format!("{settle} a spline's speed bound is zero or poison"),
+                NOT_YET_ENDING,
+            ),
+            (
+                MeetFault::Unsettled(Unsettled::Exhausted),
+                format!("{settle} the walk ran past its piece budget"),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                MeetFault::Unsettled(Unsettled::Tangency),
+                format!("{settle} a double root"),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                MeetFault::Unsettled(Unsettled::AtApex),
+                format!("{settle} a root at a cone's apex"),
+                "Recourse: move the geometry",
+            ),
+            (
+                MeetFault::Unsettled(Unsettled::Degenerate),
+                format!("{settle} a residual whose leading term vanishes"),
+                NOT_YET_ENDING,
+            ),
+            (
+                MeetFault::Unsettled(Unsettled::Crease),
+                format!("{settle} a meeting at a spline's crease"),
+                NOT_YET_ENDING,
+            ),
+            (
+                MeetFault::Unsupported { pose: "a pose" },
+                "the meeting reading of two edges has no closed form for a pose".to_owned(),
+                NOT_YET_ENDING,
+            ),
+        ] {
+            let why = MeetUnread::of(fault).unwrap();
+            assert_eq!(
+                super::meeting_unread(fault, format_args!("a pair")),
+                Ok(why),
+                "{fault:?}: the reason is the meeting's"
+            );
+            assert_eq!(
+                crate::CensusUnsupportedCause::Meeting(why).to_string(),
+                reading,
+                "{why:?}: the cause renders its reason's sentence"
+            );
+            let mut errors = Vec::new();
+            super::refuse_meeting(EdgeKey::default(), why, &mut errors);
+            assert_eq!(
+                errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                [format!(
+                    "an edge could not be checked: {reading}. {recourse}"
+                )],
+                "{why:?}: a person reads the reason's sentence and recourse"
+            );
+        }
+    }
+
+    /// **Every reason the census refuses a curved edge for reads back as
+    /// itself**: the refusal carries the reason whole
+    /// ([`crate::CensusUnsupportedCause::CurvedEdge`]), the edge-tangent
+    /// reading of it is that reason, and a person reads the reason's own
+    /// sentence and recourse, on the cause (its `Display`) and on the
+    /// refusal. Red where a sentence or a recourse is rewritten or
+    /// swapped between reasons, or the cause renders through anything
+    /// but its reason.
+    #[test]
+    fn a_curved_edge_refusal_reads_back_as_its_reason() {
+        use crate::link::TouchUnread;
+        use crate::validate::EdgeTangentUnread;
+        use geom::PieceWalkRefusal::{Exhausted, Unbounded};
+        use geom_core::{KERNEL_LIMIT_RECOURSE, NOT_YET_ENDING};
+        for (why, sentence, recourse) in [
+            (
+                EdgeTangentUnread::NoCurve,
+                "a curved edge with no certified curve",
+                NOT_YET_ENDING,
+            ),
+            (
+                EdgeTangentUnread::NoReach,
+                "a curved edge whose speed bound meters no reach over its span",
+                NOT_YET_ENDING,
+            ),
+            (
+                EdgeTangentUnread::NoLength,
+                "a curved edge whose least speed meters no length over its span",
+                NOT_YET_ENDING,
+            ),
+            (
+                EdgeTangentUnread::Unwalked(Exhausted),
+                "a spline's piece walk ran past its budget",
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                EdgeTangentUnread::Unwalked(Unbounded),
                 "a spline's speed bound is zero or poison",
+                NOT_YET_ENDING,
             ),
         ] {
             let mut errors = Vec::new();
-            super::refuse(EdgeKey::default(), why.sentence(), &mut errors);
-            assert!(
-                matches!(
-                    &errors[..],
-                    [crate::ValidationError::CensusUnsupported {
-                        cause: crate::CensusUnsupportedCause::ContactLane(
-                            crate::contact::ContactRefusal::NotCertifiable { what },
-                        ),
-                        ..
-                    }] if *what == sentence
-                ),
-                "{why:?}: the census names the walk by its sentence: {errors:?}"
-            );
+            super::refuse(EdgeKey::default(), why, &mut errors);
             assert_eq!(
                 super::edge_tangent_refusal(&errors),
-                TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(why)),
-                "{why:?}"
+                TouchUnread::EdgeTangent(why),
+                "{why:?}: the reason reads back as itself"
+            );
+            assert_eq!(
+                crate::CensusUnsupportedCause::CurvedEdge(why).to_string(),
+                sentence,
+                "{why:?}: the cause renders as its reason's sentence"
+            );
+            assert_eq!(
+                errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                [format!(
+                    "an edge could not be checked: {sentence}. {recourse}"
+                )],
+                "{why:?}: a person reads the reason's sentence and recourse"
             );
         }
     }

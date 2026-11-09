@@ -138,14 +138,49 @@ pub(crate) enum RawPart<T: Real> {
     Empty,
 }
 
-/// The split pipeline's own result: [`SplitResult`] before its sides are
-/// gated at rest (`super::split`).
-#[derive(Debug)]
-pub(crate) struct RawSplit<T: Real> {
-    pub(crate) above: RawPart<T>,
-    pub(crate) below: RawPart<T>,
-    pub(crate) naming: SplitNaming,
-    pub(crate) coincidences: Vec<crate::Coincidence>,
+pub(in crate::splitting) use raw::RawSplit;
+
+/// [`RawSplit`] and the one way to make one: its record is the reduce's
+/// rows, so its constructor takes them as [`super::ReducedRows`], which
+/// only the reduce mints and a [`SplitReduction`] gives up by value, and
+/// its record field is private to this module.
+mod raw {
+    use super::super::ReducedRows;
+    use super::{RawPart, SplitNaming};
+    use geom_core::Real;
+
+    /// The split pipeline's own result: [`super::SplitResult`] before
+    /// its sides are gated at rest (`super::super::split`).
+    #[derive(Debug)]
+    pub(in crate::splitting) struct RawSplit<T: Real> {
+        pub(in crate::splitting) above: RawPart<T>,
+        pub(in crate::splitting) below: RawPart<T>,
+        pub(in crate::splitting) naming: SplitNaming,
+        coincidences: Vec<crate::Coincidence>,
+    }
+
+    impl<T: Real> RawSplit<T> {
+        /// The split's two sides and naming, recording `rows`.
+        pub(in crate::splitting) fn from_reduction(
+            rows: ReducedRows,
+            (above, below): (RawPart<T>, RawPart<T>),
+            naming: SplitNaming,
+        ) -> Self {
+            Self {
+                above,
+                below,
+                naming,
+                coincidences: rows.0,
+            }
+        }
+
+        /// Its sides, naming and record.
+        pub(in crate::splitting) fn into_parts(
+            self,
+        ) -> (RawPart<T>, RawPart<T>, SplitNaming, Vec<crate::Coincidence>) {
+            (self.above, self.below, self.naming, self.coincidences)
+        }
+    }
 }
 
 /// The result of a plane split: both sides, functionally.
@@ -1246,6 +1281,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // tier-1 sweep over the reassembled body before it is carved into
     // the two sides. The guard owns the borrow, so a refusal on the
     // way closes the scope by dropping it.
+    let rows = red.coincidences;
     let mut reassembled = red.body;
     let mut body = reassembled.begin_surgery();
     let solid = single_solid(&body)?;
@@ -1254,7 +1290,16 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // one side (an ON-touching contact mints no null faces).
     if completed.is_empty() {
         body.sweep_and_close();
-        return whole_body_side(reassembled, &red.sides, &red.plane, tol);
+        // The record is the reduce's, as on the cut path. No fixture
+        // reaches a reduce row here: one needs two runs of a side about
+        // an ON vertex, which crosses the plane and mints a section
+        // (`work/onecopy/an-uncut-split-at-a-shared-non-manifold-vertex-is-unbuilt.md`).
+        let sides = whole_body_side(reassembled, &red.sides, &red.plane, tol)?;
+        return Ok(RawSplit::from_reduction(
+            rows,
+            sides,
+            SplitNaming::default(),
+        ));
     }
     let mut naming = SplitNaming {
         sections: Vec::with_capacity(completed.len() * 2),
@@ -1453,12 +1498,11 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     body.sweep_and_close();
     let above = carve(&reassembled, solid, &above_shells)?;
     let below = carve(&reassembled, solid, &below_shells)?;
-    Ok(RawSplit {
-        above: RawPart::Body(above),
-        below: RawPart::Body(below),
+    Ok(RawSplit::from_reduction(
+        rows,
+        (RawPart::Body(above), RawPart::Body(below)),
         naming,
-        coincidences: red.coincidences,
-    })
+    ))
 }
 
 /// Each section face that is a hole — sense `false`: its loop winds
@@ -1982,17 +2026,17 @@ pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitF
     }
 }
 
-/// The un-cut case: no section, so each shell lies whole on one side
-/// ([`shell_side`]). Where every shell reads one side the whole body
-/// lands there; where they differ (two lumps that meet only within the
-/// plane, a pinch on it) each side is carved from its own shells, as a
-/// cut body's are.
+/// The un-cut case's two sides, above then below: no section, so each
+/// shell lies whole on one side ([`shell_side`]). Where every shell
+/// reads one side the whole body lands there; where they differ (two
+/// lumps that meet only within the plane, a pinch on it) each side is
+/// carved from its own shells, as a cut body's are.
 fn whole_body_side<T: Decide>(
     body: Body<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     plane: &super::SplitPlane<T>,
     tol: Tol,
-) -> Result<RawSplit<T>, SplitFinishError> {
+) -> Result<(RawPart<T>, RawPart<T>), SplitFinishError> {
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let solid = single_solid(&body)?;
     let mut binned = ShellSides::default();
@@ -2009,7 +2053,7 @@ fn whole_body_side<T: Decide>(
         }
     }
     let ShellSides { above, below } = binned;
-    let (above, below) = match (above.is_empty(), below.is_empty()) {
+    Ok(match (above.is_empty(), below.is_empty()) {
         // A solid with no shell holds no material to place.
         (true, true) => return Err(SplitFinishError::Corrupt),
         (false, true) => (RawPart::Body(body), RawPart::Empty),
@@ -2018,15 +2062,6 @@ fn whole_body_side<T: Decide>(
             RawPart::Body(carve(&body, solid, &above)?),
             RawPart::Body(carve(&body, solid, &below)?),
         ),
-    };
-    Ok(RawSplit {
-        above,
-        below,
-        naming: SplitNaming::default(),
-        // The reduce's pinch coincidences are not carried here, as the
-        // cut path carries them: whether an uncut split should is
-        // `an-uncut-split-drops-its-pinch-coincidences`.
-        coincidences: Vec::new(),
     })
 }
 
@@ -2078,12 +2113,13 @@ fn shell_side<T: Decide>(
     for &face in &shell_data.faces {
         let view = body.linked_face(face, EntityId::Shell(shell), "faces");
         for member in view.boundary() {
-            let BoundaryMember::Edge { half, ek, edge, .. } = member else {
+            let vertex = member.vertex();
+            if seen_v.insert(vertex, ()).is_none() {
+                vertices.push(Reading::Vertex(vertex));
+            }
+            let BoundaryMember::Edge { ek, edge, .. } = member else {
                 continue;
             };
-            if seen_v.insert(half.start, ()).is_none() {
-                vertices.push(Reading::Vertex(half.start));
-            }
             if seen_e.insert(ek, ()).is_some() {
                 continue;
             }
@@ -2107,7 +2143,7 @@ fn shell_side<T: Decide>(
                 Some(PlaneSide::On) | None => Rung::Passes,
             },
             Reading::Edge(edge, carrier, (t0, t1)) => {
-                let mid = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
+                let mid = carrier.eval(geom::bracket_mid((t0, t1)));
                 let offset = geom::plane_offset(plane.origin, plane.normal.get(), mid);
                 Rung::decide(
                     "split_edge_side",
@@ -3017,11 +3053,31 @@ mod whole_body_side_rows {
         assert_eq!(diag.predicate, Some("split_edge_side"), "{diag:?}");
         let tilted = plane(Vec3::new(0.0, 1.0, 0.1), in_band, tol);
         match whole_body_side(wall(tol), &on, &tilted, tol) {
-            Ok(split) => assert!(
-                matches!(split.above, RawPart::Body(_)) && matches!(split.below, RawPart::Empty),
+            Ok((above, below)) => assert!(
+                matches!(above, RawPart::Body(_)) && matches!(below, RawPart::Empty),
                 "the decided arc answers Above"
             ),
             Err(e) => panic!("the arc at height 1 decides Above: {e:?}"),
+        }
+    }
+
+    /// **A lone vertex is a vertex of its shell**: a bare seed, whose one
+    /// vertex sits in its face's empty outer loop off the plane, lies on
+    /// that vertex's side, where a reading of edge members alone read it
+    /// ON everywhere and refused `Corrupt`.
+    #[test]
+    fn a_shell_whose_one_vertex_is_lone_reads_that_vertexs_side() {
+        let tol = Tol::witness();
+        let mut body = Body::new();
+        let seed = body.mvfs(Point3::new(0.0, 1.0, 1.0), true).unwrap();
+        let mut sides = SecondaryMap::new();
+        sides.insert(seed.vertex, PlaneSide::Above);
+        match whole_body_side(body, &sides, &plane(Vec3::unit_z(), 0.0, tol), tol) {
+            Ok((above, below)) => assert!(
+                matches!(above, RawPart::Body(_)) && matches!(below, RawPart::Empty),
+                "the lone vertex places its shell Above"
+            ),
+            Err(e) => panic!("the lone vertex decides Above: {e:?}"),
         }
     }
 

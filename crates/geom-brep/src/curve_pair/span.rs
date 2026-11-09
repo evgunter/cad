@@ -60,14 +60,26 @@
 //! past, the point is off the span, on the carrier
 //! ([`Reading::Carrier`]) or not ([`Reading::Off`], an undecided carrier
 //! included, since no answer to it puts the point on the span). A place
-//! the band cannot read is a refusal: the carrier's where it refused
-//! too, else the place's.
+//! the band cannot read is a refusal, the place's, with the carrier's
+//! beside it where that refused too ([`SpanRefusal`]).
 
 use geom::cover::Cover;
 use geom::{CarrierEscalation, CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
 use geom_core::k_stats::{self, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
+
+/// **Whether [`Span::window_near`]'s walk halves a piece it did not
+/// clear**: its reach chosen past `reach`, the member's ball's radius
+/// and the escalation. A heuristic's choice ([`k_stats::choose`], ledger
+/// row F37), not a `<`: either answer is sound, since a kept piece only
+/// widens the window. **At a tie the piece is kept**.
+pub(super) fn halves<T: Decide>(piece: T, reach: T) -> bool {
+    match k_stats::choose("curve_pair_window_halve", Margin::of(piece - reach), "F37") {
+        k_stats::Pick::Positive => true,
+        k_stats::Pick::Negative | k_stats::Pick::Tie => false,
+    }
+}
 
 /// A carrier and a parameter interval on it (module docs).
 #[derive(Clone, Copy)]
@@ -148,6 +160,45 @@ pub enum Reading<T> {
     /// Off the span: off the carrier, or past the span and not read on
     /// the carrier.
     Off,
+}
+
+/// **Why [`Span::read`] refused**: which of its two readings refused,
+/// each refusal its own.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SpanRefusal {
+    /// The place read the foot inside the span, and the carrier's
+    /// reading refused.
+    Carrier(CarrierRefusal),
+    /// The place against the span's ends refused, and the carrier read.
+    Place(CarrierRefusal),
+    /// The place against the span's ends refused, and so did the
+    /// carrier's reading: the carrier's refusal, which the answer is
+    /// ranked by ([`Self::refused`]).
+    Both(CarrierRefusal),
+}
+
+impl SpanRefusal {
+    /// **The refusal the answer is ranked by**: the one reading's that
+    /// refused, and the carrier's where both did. A place presupposes the
+    /// point on the carrier, so where the carrier is undecided the
+    /// place's refusal is a question about a point the carrier may not
+    /// hold.
+    #[must_use]
+    pub const fn refused(&self) -> CarrierRefusal {
+        match self {
+            Self::Carrier(refused) | Self::Place(refused) | Self::Both(refused) => *refused,
+        }
+    }
+
+    /// The band's escalation this refusal is ranked by
+    /// ([`Self::refused`], [`CarrierRefusal::escalation`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom::PieceWalkRefusal`]: the refusal is no escalation.
+    pub fn escalation(&self) -> Result<Indeterminate, geom::PieceWalkRefusal> {
+        self.refused().escalation()
+    }
 }
 
 impl<T> Reading<T> {
@@ -252,12 +303,17 @@ impl<'a, T: Decide> Span<'a, T> {
     /// span stands within the band's escalation of `member`, the
     /// member's cover. On a line, the cover's range along it
     /// ([`Cover::range_along`]) widened by the escalation either way,
-    /// within the span; on any other carrier, or for a member with no
-    /// cover (`None`), the whole span.
+    /// within the span. On any other carrier, the hull of the pieces of
+    /// the carrier's piece walk not decided farther than the escalation
+    /// from the cover's ball ([`Cover::ball`]); the whole span where the
+    /// walk cannot run, or for a member with no cover (`None`).
     pub fn window_near(&self, member: Option<&Cover<T>>, band: Band) -> (T, T) {
         let (lo, hi) = (self.t0.min(self.t1), self.t0.max(self.t1));
-        let (Curve3::Line(geom::Line { origin, dir }), Some(cover)) = (self.carrier, member) else {
+        let Some(cover) = member else {
             return (lo, hi);
+        };
+        let Curve3::Line(geom::Line { origin, dir }) = self.carrier else {
+            return self.pieces_near(cover, (lo, hi), band);
         };
         let (near, far) = cover.range_along(*dir);
         let base = (*origin - Point3::origin()).dot(*dir);
@@ -268,6 +324,42 @@ impl<'a, T: Decide> Span<'a, T> {
             within((near - base - reach) / per),
             within((far - base + reach) / per),
         )
+    }
+
+    /// [`Self::window_near`] off a line, by the carrier's piece walk
+    /// ([`Curve3::point_walk`]) about the cover's ball's centre: a piece is
+    /// cleared where its floor on that distance, less the ball's radius,
+    /// is proved past the escalation (a proof's inequality); halved while its
+    /// reach is chosen past the ball's radius and the escalation (a
+    /// resolution, sound either way, ledger row F37); and kept once
+    /// its reach is within them, so the window's ends are resolved to the
+    /// member's own size, or the escalation for a point. The whole span
+    /// where the carrier has no finite speed bound or the walk runs past
+    /// its budget.
+    fn pieces_near(&self, cover: &Cover<T>, (lo, hi): (T, T), band: Band) -> (T, T) {
+        let (centre, radius) = cover.ball();
+        let reach = radius + T::from_f64(band.escalate());
+        let positive = |row, m: T| matches!(k_stats::prove(row, Margin::of(m)), Ok(Sign::Positive));
+        if !geom_core::is_finite_length(self.hi.get())
+            || !positive("curve_pair_window_speed", self.hi.get())
+        {
+            return (lo, hi);
+        }
+        let mut kept: Option<(T, T)> = None;
+        let walked = self.carrier.point_walk(centre, (lo, hi), self.hi, |p| {
+            if positive("curve_pair_window_clear", p.gap - p.reach - reach) {
+                return geom::PieceStep::Settled;
+            }
+            if halves(p.reach, reach) {
+                return geom::PieceStep::Halve;
+            }
+            kept = Some(kept.map_or(p.span, |(from, _)| (from, p.span.1)));
+            geom::PieceStep::<()>::Settled
+        });
+        match walked {
+            Ok(_) => kept.unwrap_or((lo, lo)),
+            Err(geom_core::bisect::Exhausted) => (lo, hi),
+        }
     }
 
     /// `t` within half a turn of the span's middle on a closed carrier,
@@ -464,8 +556,9 @@ impl<'a, T: Decide> Span<'a, T> {
     ///
     /// # Errors
     ///
-    /// Whichever reading the answer rests on refused (module docs).
-    pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, CarrierRefusal> {
+    /// Whichever reading the answer rests on refused (module docs), with
+    /// which ([`SpanRefusal`]).
+    pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, SpanRefusal> {
         let foot = self.carrier.foot(q, near);
         let (on, carrier) = k_stats::detached(|| foot.on_carrier(band));
         let on = match on {
@@ -488,7 +581,7 @@ impl<'a, T: Decide> Span<'a, T> {
         Ok(match place {
             Ok(Place::End(which)) => Reading::End(which),
             Ok(Place::Inside) => {
-                let (t, margin) = on?;
+                let (t, margin) = on.map_err(SpanRefusal::Carrier)?;
                 Reading::On {
                     t: self.branch(t),
                     margin,
@@ -498,7 +591,12 @@ impl<'a, T: Decide> Span<'a, T> {
                 Ok(_) => Reading::Carrier,
                 Err(_) => Reading::Off,
             },
-            Err(refused) => return Err(on.err().unwrap_or(refused)),
+            Err(place) => {
+                return Err(match on {
+                    Ok(_) => SpanRefusal::Place(place),
+                    Err(carrier) => SpanRefusal::Both(carrier),
+                });
+            }
         })
     }
 
@@ -513,7 +611,7 @@ impl<'a, T: Decide> Span<'a, T> {
         q: Point3<T>,
         near: T,
         band: Band,
-    ) -> Result<Option<Hit<T>>, CarrierRefusal> {
+    ) -> Result<Option<Hit<T>>, SpanRefusal> {
         self.read(q, near, band).map(Reading::hit)
     }
 }

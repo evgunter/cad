@@ -55,6 +55,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SWEEP_PATH_TANGENT"),
     NameCarrier::Const("SWEEP_PATH_CHORD"),
     NameCarrier::Const("SWEEP_PATH_TURN"),
+    // The loft's pinned rim is an identity over its control rows, read
+    // by `geom_brep::ladder::read_identity` under this constant's name.
+    NameCarrier::Const("LOFT_RIM_PINNED"),
 ];
 
 /// The `decide*` calls whose name the reader cannot read at the site,

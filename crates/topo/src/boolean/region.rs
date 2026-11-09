@@ -26,7 +26,9 @@
 //! off the surface.
 
 use geom_brep::curve_face::plane_crossing::{RootPlace, SpanEnds};
-use geom_brep::curve_pair::on_surface::{CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve};
+use geom_brep::curve_pair::on_surface::{
+    AcrossRefusal, Charted, CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve,
+};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
@@ -191,8 +193,17 @@ pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
 }
 
 impl<T: Decide> QueryFoot<T> {
-    /// `p`'s foot on `surface`, read through its chart
+    /// `p`'s foot on `surface`, its coordinates read through its chart
     /// ([`geom::Surface::chart_point`]) once.
+    ///
+    /// On a sphere the foot's point is read along the radius,
+    /// `c + R·(p − c)/|p − c|`, not back through the chart. The chart's
+    /// round trip lands within a few ulps of it, and which ulps depends on
+    /// the chart's frame, so a door's answer for a `p` placed at a band's
+    /// edge would move with the frame. The point read off the radius
+    /// depends on no frame. A `p` at the centre names no radius (every
+    /// point of the sphere is a foot of it), and there the chart's point
+    /// stands.
     ///
     /// # Panics
     ///
@@ -202,7 +213,16 @@ impl<T: Decide> QueryFoot<T> {
         let Ok(chart) = surface.chart_point(p, band) else {
             unreachable!("a region door reads an analytic surface")
         };
-        Self::of_chart(surface, chart.uv)
+        let on_chart = Self::of_chart(surface, chart.uv);
+        match *surface {
+            geom::Surface::Sphere { center, radius, .. } => (p - center)
+                .checked_direction()
+                .map_or(on_chart, |(toward, _)| Self {
+                    uv: chart.uv,
+                    at: center + toward * radius,
+                }),
+            _ => on_chart,
+        }
     }
 
     /// The point at chart coordinates `uv` on `surface`: a corner a door
@@ -227,13 +247,13 @@ impl<T: Decide> QueryFoot<T> {
 
 /// Which curve of a pair is read across the other's plane
 /// ([`Legs::across`]).
-pub(in crate::boolean) enum ReadAcross<T: geom_core::Real> {
+pub(in crate::boolean) enum ReadAcross {
     /// The edge across the leg's plane, in the edge's parameter.
     EdgeOverLeg,
-    /// The leg across the edge's plane through `on` of unit normal
-    /// `normal`, in the leg's parameter; the door places each root on
-    /// the edge ([`Legs::on_edge_plane`]).
-    LegOverEdge { on: Point3<T>, normal: Vec3<T> },
+    /// The leg across the edge's own plane ([`OnSurface::plane`]), in the
+    /// leg's parameter; the door places each root on the edge
+    /// ([`Legs::on_edge_plane`]).
+    LegOverEdge,
 }
 
 /// **Where `leg` meets `edge`**: each meeting's point, the edge's
@@ -271,10 +291,10 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
         Ok(())
     };
     let mut out = Vec::new();
+    let on = OnSurface::edge(door.charted().key(), &edge.carrier, (edge.t0, edge.t1));
     match door.across(leg, edge, band)? {
         ReadAcross::EdgeOverLeg => {
-            let on = OnSurface::edge(&edge.carrier, (edge.t0, edge.t1));
-            match on.across(&curve, D::COMPONENT, band).map_err(in_band)? {
+            match on.across(&curve, D::COMPONENT, band).map_err(across)? {
                 CoSurface::InPlane => in_plane()?,
                 CoSurface::Touch => return Err(RayFault::Graze),
                 CoSurface::Unlaned => {
@@ -303,20 +323,22 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
                 }
             }
         }
-        ReadAcross::LegOverEdge { on, normal } => {
+        ReadAcross::LegOverEdge => {
             let (params, whole) = leg.course.span(leg.end.map(|end| end.place), edge);
             let ends = if whole {
                 SpanEnds::Endless
             } else {
                 SpanEnds::Ended
             };
-            match curve
-                .across_plane(params, ends, (on, normal), D::COMPONENT, band)
-                .map_err(in_band)?
+            match on
+                .under(&curve, params, ends, D::COMPONENT, band)
+                .map_err(across)?
             {
                 CoSurface::InPlane => in_plane()?,
                 CoSurface::Touch => return Err(RayFault::Graze),
-                CoSurface::Unlaned => unreachable!("a leg is a circle or a line"),
+                CoSurface::Unlaned => {
+                    unreachable!("a door reads a leg across a conic's or a spiric's plane only")
+                }
                 CoSurface::Roots(roots) => {
                     // At or in band of the leg's own end: the leg's place
                     // reads it.
@@ -330,6 +352,23 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
         }
     }
     Ok(out)
+}
+
+/// An edge's reading against a leg refused: in band sets the path aside.
+///
+/// # Panics
+///
+/// On a pair on two records: a door keys its edges and charts its legs
+/// from its one record ([`Legs::charted`]), so a mismatch is a fault in
+/// the door's wiring, not in the face.
+fn across(refusal: AcrossRefusal) -> Fault {
+    match refusal {
+        AcrossRefusal::InBand(diag) => in_band(diag),
+        AcrossRefusal::OffRecord { edge, curve } => unreachable!(
+            "a region door keys its edges and charts its legs from one record: the edge's \
+             {edge:?}, the leg's {curve:?}"
+        ),
+    }
 }
 
 /// Whether a root lies on the leg's own section of its plane
@@ -697,9 +736,11 @@ pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
     /// The lever of the closest crossing's sine.
     fn lever(&self) -> T;
 
-    /// The surface, whose chart's channels a root's section is read
-    /// through and whose chart a query's foot is read in ([`QueryFoot`]).
-    fn surface(&self) -> geom::Surface<T>;
+    /// The face's surface record, its key and surface: every leg is
+    /// charted on it ([`SurfaceCurve`]), every edge keyed by it
+    /// ([`OnSurface::edge`]), and a query's foot read in its chart
+    /// ([`QueryFoot`]).
+    fn charted(&self) -> &Charted<T>;
 
     /// Which of `leg` and `edge` is read across the other's plane: the
     /// edge across the leg's unless the door says otherwise.
@@ -712,7 +753,7 @@ pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
         _leg: &Leg<T, Self::Course>,
         _edge: &RegionEdge<T>,
         _band: Band,
-    ) -> Result<ReadAcross<T>, Fault> {
+    ) -> Result<ReadAcross, Fault> {
         Ok(ReadAcross::EdgeOverLeg)
     }
 
@@ -1132,7 +1173,7 @@ mod tests {
             u_ref: Vec3::new(0.0, -1.0, 0.0),
         };
         Line::on(built(SurfaceCurve::ruling(
-            &cylinder,
+            &Charted::record(Default::default(), &cylinder),
             Point2::new(0.0, 0.0),
             true,
             true,
@@ -1155,7 +1196,7 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         Round::on(built(SurfaceCurve::parallel(
-            &cylinder,
+            &Charted::record(Default::default(), &cylinder),
             Point2::new(0.0, 0.0),
             true,
         )))

@@ -13,7 +13,7 @@ use geom_core::{
 };
 
 use super::{ClassCarrier, ComponentShape, SectionComponent};
-use crate::intersect::decide_across;
+use geom_core::k_stats::decide_across;
 
 /// **Why an arm did not count the section.**
 #[derive(Clone, Copy, Debug)]
@@ -669,7 +669,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
                 outer2: s2,
                 ..
             } = strands[0];
-            let y = (y_lo + y_hi) / T::from_f64(2.0);
+            let y = geom::mid_param(y_lo, y_hi);
             let (rho, rho2) = (sheet([big_r, r], y, s1), sheet([big_r2, r2], y - h, s2));
             // Read at a fixed height, the rows move with the partner by
             // one slack through `e`, and through `ρ₂` by at most the
