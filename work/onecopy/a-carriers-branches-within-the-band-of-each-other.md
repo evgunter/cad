@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-04
 priority: P2
 cost: M
+design: true
 ---
 
 
@@ -26,3 +27,22 @@ Decide which applies:
 - or the readers of a branch's geometry read it only where a certificate separates the branches (for example a curvature-bounded neighbourhood of `t` clear of the rest of the span).
 
 The first is a gate on bodies, and the second is a reading. Either way, `Foot`'s doc already states what `On` holds.
+
+## Measured, and what remains
+
+The span reader is pinned as `geom_brep::curve_pair::span_rows::a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch`. The whole span of the 3e-10 hairpin is read as an edge is read, about a point on the near branch at `t = 0.08`:
+- at `f64`, it reads the near branch from either seed;
+- at `Interval` with a ±1e-10 box, seeded at the span's middle (the census's seed), it escalates;
+- at `Interval` with a ±1e-10 box, seeded on the far branch, it reads `On` at `t ≈ 0.92`, the tangent reversed, with nothing logged;
+- at a ±1e-12 box or a point box, it reads the near branch from either seed.
+
+Readers that can hand `Span::read` or `Foot::on_carrier` a seed other than the span's middle, and then read geometry or cut at `t`:
+- `census` shared-run ends (`run_ends`);
+- `ring_path`'s plane roots;
+- `solid_contain::curved_edges`;
+- `pair_section` (seeded at the span's start);
+- `slit` and `carrier_cross`, which cut at `Hit::On`'s `t`.
+
+No door refuses such an edge. Tier 3 names global self-intersection and minimum clearance as deferred (`topo::validate`'s tier-3 docs), and the clearance engine runs at no gate at rest.
+
+What remains is the fork, which awaits its designers: a self-clearance check in `EdgeCurve::certify` (a gate, and a change to its check sequence), a branch certificate on `Foot` that branch readers take (a reading), or doc only.
