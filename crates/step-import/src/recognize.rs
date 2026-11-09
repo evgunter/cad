@@ -79,7 +79,7 @@
 //! refuted one.
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{LengthOutOfFormat, Point3, Vec3};
+use geom_core::{LengthOutOfFormat, NoDirection, Point3, Vec3};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
@@ -270,12 +270,12 @@ fn try_cylinder(
     for iu in 0..nu {
         axis_sum = axis_sum + (at(iu, nv - 1) - at(iu, 0));
     }
-    // An underflowed axis is the conditioning refusal below at the
-    // length the format kept, zero.
-    let (axis, axis_norm) = match axis_sum.checked_direction_and_length() {
+    // An underflowed or zero axis is the conditioning refusal below,
+    // at its mean span read through the prescale.
+    let (axis, axis_norm) = match axis_sum.checked_direction() {
         Ok(pair) => pair,
-        Err(LengthOutOfFormat::NonFinite) => return Ok(None),
-        Err(LengthOutOfFormat::Underflowed) => return Err(0.0),
+        Err(NoDirection::OutOfFormat(LengthOutOfFormat::NonFinite)) => return Ok(None),
+        Err(_) => return Err(axis_sum.direction_and_length().1 / (nu as f64)),
     };
     // Divided by nu it is the mean v-span — a patch length. Below
     // ε_in no axis is determined at the budget.
@@ -302,11 +302,7 @@ fn try_cylinder(
     // chord — collinear-at-ε_in samples determine no finite radius
     // (the near-flat patch; D7's ambiguity class).
     let chord = qb - q0;
-    let Some((chord_dir, _)) = chord
-        .checked_direction_and_length()
-        .ok()
-        .filter(|&(_, n)| n > 0.0)
-    else {
+    let Some((chord_dir, _)) = chord.checked_direction().ok() else {
         return Ok(None);
     };
     let off = geom::Line {
@@ -331,11 +327,7 @@ fn try_cylinder(
     let denom = 2.0 * axb.norm_squared();
     let center = q0 + (axb.cross(a) * b.norm_squared() + b.cross(axb) * a.norm_squared()) / denom;
     let radial = q0 - center;
-    let Some((radial_hat, radius)) = radial
-        .checked_direction_and_length()
-        .ok()
-        .filter(|&(_, r)| r > 0.0)
-    else {
+    let Some((radial_hat, radius)) = radial.checked_direction().ok() else {
         return Ok(None);
     };
     let cylinder = Surface::Cylinder {

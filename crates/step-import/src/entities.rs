@@ -457,11 +457,7 @@ impl<'a> Resolver<'a> {
         // the same argument, the assembly pass already spends on a
         // direction field: dimensionless, but a unit vector's slack is
         // bounded by it just as tightly.
-        let Some((unit, norm)) = ratios
-            .checked_direction_and_length()
-            .ok()
-            .filter(|&(_, n)| n > 0.0)
-        else {
+        let Some((unit, norm)) = ratios.checked_direction().ok() else {
             return Err(StepImportError::MalformedRecord {
                 id,
                 expected: "three direction ratios that are not all zero and are finite \
@@ -540,11 +536,7 @@ impl<'a> Resolver<'a> {
         // two DIFFERENT vectors, and this crate is f64-only besides).
         let along = axis.dot(candidate);
         let perpendicular = candidate - axis * along;
-        let Some((unit, norm)) = perpendicular
-            .checked_direction_and_length()
-            .ok()
-            .filter(|&(_, n)| n > 0.0)
-        else {
+        let Some((unit, norm)) = perpendicular.checked_direction().ok() else {
             return Err(StepImportError::MalformedRecord {
                 id,
                 expected: "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction) \
@@ -2413,9 +2405,8 @@ impl Resolver<'_> {
             // tripwire watches for — no square is taken here).
             let along = z.dot(f.u_ref);
             let x = f.u_ref - z * along;
-            x.checked_direction_and_length()
+            x.checked_direction()
                 .ok()
-                .filter(|&(_, n)| n > 0.0)
                 .map(|(x, _)| Mat3::from_cols(x, z.cross(x), z))
         };
         let refuse = |what: &'static str| StepImportError::Structure { id, what };

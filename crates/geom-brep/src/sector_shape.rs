@@ -560,6 +560,56 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    /// **The arm at the interval scalar reads each chord's prescaled
+    /// length.** An enclosure within the prescale's reach reads as
+    /// narrow as its plain norm or narrower, and decides as it did on
+    /// the plain norm: `[1e-6, 1]` is a positive arm; `[1e-300, 1]`
+    /// encloses `[1e-300, ∞]` and escalates, as `[0, 1]` did. One that
+    /// spans more magnitude than any prescale arm holds (`[1, 1e300]`,
+    /// past `2⁵¹⁰`) loses its lower end to the squares, as
+    /// `Vec3::normalize`'s does, and escalates where the plain norm's
+    /// `[1, ∞]` decided positive: sound, and the documented width of the
+    /// one prescale.
+    #[test]
+    fn the_arm_of_an_interval_chord_is_its_prescaled_length() {
+        use geom_core::{Bounds, Interval};
+        let iv = Interval::from_bounds;
+        let chord = |lo: f64, hi: f64| Vec3::new(iv(lo, hi), iv(0.0, 0.0), iv(0.0, 0.0));
+        let unit = chord(1.0, 1.0);
+        let arm = sector_arm(chord(1e-6, 1.0), unit, band()).expect("[1e-6, 1] is a positive arm");
+        assert!(
+            arm.lo() <= 1e-6 && arm.lo() > 0.9e-6 && arm.hi() == 1.0,
+            "[1e-6, 1]: {arm:?}"
+        );
+        for (lo, hi) in [(1e-300, 1.0), (1.0, 1e300)] {
+            let length = chord(lo, hi).checked_length().expect("in the format");
+            assert!(
+                length.lo() <= lo && lo <= length.hi() && hi <= length.hi(),
+                "[{lo:e}, {hi:e}] encloses its length: {length:?}"
+            );
+            assert!(
+                matches!(
+                    sector_arm(chord(lo, hi), unit, band()),
+                    Err(SectorFault::Rung {
+                        rung: SectorRung::Arm,
+                        ..
+                    })
+                ),
+                "[{lo:e}, {hi:e}] escalates at the arm"
+            );
+        }
+        assert_eq!(
+            chord(1.0, 1e300).checked_length().map(|n| n.lo()),
+            Ok(0.0),
+            "[1, 1e300] loses its lower end to the prescale"
+        );
+        assert_eq!(
+            chord(1e-300, 1.0).checked_length().map(|n| n.hi()),
+            Ok(f64::INFINITY),
+            "[1e-300, 1] loses its upper end to the prescale"
+        );
+    }
+
     /// A rung refusal as `(rung, predicate, the margin's reading, the
     /// sign its gate rejected)`, so a row compares against the payload
     /// rather than against the code under test; `None` for any other

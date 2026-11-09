@@ -8,7 +8,7 @@
 use core::convert::Infallible;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::real::{Real, is_finite_length, is_underflowed_length, pow2};
+use crate::real::{Real, is_finite_length, is_underflowed_length, is_zero_length, pow2};
 
 /// A vector of the 2-D linear (tangent) space.
 #[derive(Clone, Copy, Debug)]
@@ -152,29 +152,78 @@ fn direction_and_length<T: Real, V: Prescale<T>>(v: V) -> (V, T) {
     (scaled / n, unscaled(n, k))
 }
 
-/// The prescaled vector, its norm and the power it was scaled by, or the
-/// rule's refusal. Inside the range the prescale is the identity, so
-/// the norm it reads IS the plain norm and is read once; past it the
-/// rule reads the plain norm itself.
-fn checked_prescaled<T: Real, V: Prescale<T>>(
-    v: V,
-) -> Result<(V, T, Option<f64>), LengthOutOfFormat> {
+/// The prescaled norm `n` scaled back by the power `k` it was read at.
+fn unscaled<T: Real>(n: T, k: Option<f64>) -> T {
+    k.map_or(n, |k| n.scale_pow2(k.recip()))
+}
+
+/// **Why a vector names no direction**: its length leaves the format,
+/// or it is the zero vector. The refusal of
+/// [`Vec3::checked_direction`], [`Vec3::checked_nonzero_length`] and
+/// their 2-D twins, so a door that needs a direction asks the zero
+/// question at the home rather than restating it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoDirection {
+    /// The length leaves the format ([`LengthOutOfFormat`]).
+    OutOfFormat(LengthOutOfFormat),
+    /// The vector is the zero vector: every component is zero
+    /// ([`is_zero_length`]).
+    Zero,
+}
+
+impl From<LengthOutOfFormat> for NoDirection {
+    fn from(e: LengthOutOfFormat) -> Self {
+        Self::OutOfFormat(e)
+    }
+}
+
+/// A vector read through the one prescale, past the out-of-format rule.
+struct Checked<V, T> {
+    scaled: V,
+    norm: T,
+    power: Option<f64>,
+    zero: bool,
+}
+
+impl<T: Real, V: Prescale<T>> Checked<V, T> {
+    fn direction(&self) -> V {
+        self.scaled / self.norm
+    }
+
+    fn length(&self) -> T {
+        unscaled(self.norm, self.power)
+    }
+
+    fn nonzero(self) -> Result<Self, NoDirection> {
+        if self.zero {
+            Err(NoDirection::Zero)
+        } else {
+            Ok(self)
+        }
+    }
+}
+
+/// `v` through the one prescale, or the rule's refusal. Inside the
+/// range the prescale is the identity, so the norm it reads IS the
+/// plain norm and is read once; past it the rule reads the plain norm
+/// itself.
+fn checked<T: Real, V: Prescale<T>>(v: V) -> Result<Checked<V, T>, LengthOutOfFormat> {
     let witness = v.witness();
-    let (scaled, k) = prescaled(v, witness);
-    let n = scaled.length();
-    let plain = if k.is_none() { n } else { v.length() };
+    let (scaled, power) = prescaled(v, witness);
+    let norm = scaled.length();
+    let plain = if power.is_none() { norm } else { v.length() };
     if !is_finite_length(plain) {
         Err(LengthOutOfFormat::NonFinite)
     } else if is_underflowed_length(plain, witness) {
         Err(LengthOutOfFormat::Underflowed)
     } else {
-        Ok((scaled, n, k))
+        Ok(Checked {
+            scaled,
+            norm,
+            power,
+            zero: is_zero_length(plain, witness),
+        })
     }
-}
-
-/// The prescaled norm `n` scaled back by the power `k` it was read at.
-fn unscaled<T: Real>(n: T, k: Option<f64>) -> T {
-    k.map_or(n, |k| n.scale_pow2(k.recip()))
 }
 
 impl<T: Real> Vec2<T> {
@@ -355,7 +404,21 @@ impl<T: Real> Vec2<T> {
     /// or is poison, [`LengthOutOfFormat::Underflowed`] where it
     /// underflowed to zero.
     pub fn checked_direction_and_length(self) -> Result<(Self, T), LengthOutOfFormat> {
-        checked_prescaled(self).map(|(scaled, n, k)| (scaled / n, unscaled(n, k)))
+        checked(self).map(|c| (c.direction(), c.length()))
+    }
+
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length)
+    /// that also refuses the zero vector: the door for a site that needs
+    /// a direction, so no caller restates the zero question.
+    ///
+    /// # Errors
+    ///
+    /// [`NoDirection::OutOfFormat`] as
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
+    /// [`NoDirection::Zero`] for the zero vector.
+    pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
+        let c = checked(self)?.nonzero()?;
+        Ok((c.direction(), c.length()))
     }
 
     /// The length half of
@@ -366,7 +429,18 @@ impl<T: Real> Vec2<T> {
     ///
     /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
     pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
-        checked_prescaled(self).map(|(_, n, k)| unscaled(n, k))
+        checked(self).map(|c| c.length())
+    }
+
+    /// The length half of [`checked_direction`](Self::checked_direction),
+    /// for a door that refuses a zero or out-of-format vector and reads
+    /// only its length.
+    ///
+    /// # Errors
+    ///
+    /// As [`checked_direction`](Self::checked_direction).
+    pub fn checked_nonzero_length(self) -> Result<T, NoDirection> {
+        Ok(checked(self)?.nonzero()?.length())
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -597,7 +671,21 @@ impl<T: Real> Vec3<T> {
     /// or is poison, [`LengthOutOfFormat::Underflowed`] where it
     /// underflowed to zero.
     pub fn checked_direction_and_length(self) -> Result<(Self, T), LengthOutOfFormat> {
-        checked_prescaled(self).map(|(scaled, n, k)| (scaled / n, unscaled(n, k)))
+        checked(self).map(|c| (c.direction(), c.length()))
+    }
+
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length)
+    /// that also refuses the zero vector: the door for a site that needs
+    /// a direction, so no caller restates the zero question.
+    ///
+    /// # Errors
+    ///
+    /// [`NoDirection::OutOfFormat`] as
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
+    /// [`NoDirection::Zero`] for the zero vector.
+    pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
+        let c = checked(self)?.nonzero()?;
+        Ok((c.direction(), c.length()))
     }
 
     /// The length half of
@@ -608,7 +696,18 @@ impl<T: Real> Vec3<T> {
     ///
     /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
     pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
-        checked_prescaled(self).map(|(_, n, k)| unscaled(n, k))
+        checked(self).map(|c| c.length())
+    }
+
+    /// The length half of [`checked_direction`](Self::checked_direction),
+    /// for a door that refuses a zero or out-of-format vector and reads
+    /// only its length.
+    ///
+    /// # Errors
+    ///
+    /// As [`checked_direction`](Self::checked_direction).
+    pub fn checked_nonzero_length(self) -> Result<T, NoDirection> {
+        Ok(checked(self)?.nonzero()?.length())
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -999,6 +1098,83 @@ impl<T: Real> Div<T> for Vec3<T> {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// **The checked readers, both dimensions, at every refusal.** An
+    /// overflowed or poisoned plain norm is `NonFinite`, an underflowed
+    /// one `Underflowed`; the zero vector passes the length readers with
+    /// the length `0` and is `Zero` to the direction readers; an
+    /// ordinary vector reads `direction_and_length`'s pair bit for bit.
+    #[test]
+    fn the_checked_readers_refuse_out_of_format_and_zero_vectors() {
+        use LengthOutOfFormat::{NonFinite, Underflowed};
+        let out = |e| Err(NoDirection::OutOfFormat(e));
+        let v3 = [
+            (Vec3::new(1e200, 1e200, 0.0), Err(NonFinite)),
+            (Vec3::new(f64::NAN, 1.0, 0.0), Err(NonFinite)),
+            (Vec3::new(1e-170, 0.0, 0.0), Err(Underflowed)),
+            (Vec3::new(0.0, 0.0, 0.0), Ok(0.0)),
+            (Vec3::new(3.0, 4.0, 12.0), Ok(13.0)),
+        ];
+        for (v, want) in v3 {
+            assert_eq!(v.checked_length(), want, "Vec3 length {v:?}");
+            let nonzero = match want {
+                Ok(0.0) => Err(NoDirection::Zero),
+                Ok(n) => Ok(n),
+                Err(e) => out(e),
+            };
+            assert_eq!(v.checked_nonzero_length(), nonzero, "Vec3 nonzero {v:?}");
+            let pair = v.checked_direction().map(|(d, n)| (d.to_array(), n));
+            let total = v.direction_and_length();
+            assert_eq!(
+                pair,
+                nonzero.map(|_| (total.0.to_array(), total.1)),
+                "Vec3 direction {v:?}"
+            );
+        }
+        let v2 = [
+            (Vec2::new(1e200, -1e200), Err(NonFinite)),
+            (Vec2::new(1.0, f64::NAN), Err(NonFinite)),
+            (Vec2::new(0.0, -1e-170), Err(Underflowed)),
+            (Vec2::new(0.0, 0.0), Ok(0.0)),
+            (Vec2::new(-3.0, 4.0), Ok(5.0)),
+        ];
+        for (v, want) in v2 {
+            assert_eq!(v.checked_length(), want, "Vec2 length {v:?}");
+            let nonzero = match want {
+                Ok(0.0) => Err(NoDirection::Zero),
+                Ok(n) => Ok(n),
+                Err(e) => out(e),
+            };
+            assert_eq!(v.checked_nonzero_length(), nonzero, "Vec2 nonzero {v:?}");
+            let pair = v.checked_direction().map(|(d, n)| (d.to_array(), n));
+            let total = v.direction_and_length();
+            assert_eq!(
+                pair,
+                nonzero.map(|_| (total.0.to_array(), total.1)),
+                "Vec2 direction {v:?}"
+            );
+        }
+    }
+
+    /// **The checked length is the prescaled one.** Past the range but in
+    /// the format, the plain norm loses bits to the subnormal squares
+    /// (`|(1e-160, 0, 0)|` is `9.99994e-161` plainly) and the checked
+    /// readers answer the true length, as `direction_and_length` does.
+    #[test]
+    fn the_checked_length_past_the_range_is_the_prescaled_length() {
+        let v3 = Vec3::new(1e-160, 0.0, 0.0);
+        assert_ne!(v3.norm(), 1e-160, "the plain norm loses bits here");
+        assert_eq!(v3.checked_length(), Ok(1e-160), "Vec3");
+        assert_eq!(v3.checked_nonzero_length(), Ok(1e-160), "Vec3 nonzero");
+        let v2 = Vec2::new(0.0, -1e-160);
+        assert_ne!(v2.norm(), 1e-160, "the plain norm loses bits here");
+        assert_eq!(v2.checked_length(), Ok(1e-160), "Vec2");
+        assert_eq!(
+            v2.checked_direction().map(|(d, _)| d.to_array()),
+            Ok([0.0, -1.0]),
+            "Vec2 direction"
+        );
+    }
 
     /// A coordinate with magnitude in [1e-3, 1e3] and independent sign.
     ///

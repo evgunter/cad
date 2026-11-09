@@ -929,7 +929,9 @@ fn pairing<T: Decide>(
 
 /// A chord from the touch point to `q`, as its length: a number, or a
 /// [`TouchUnread::ChordScale`] refusal for an edge too long or too
-/// short to measure. The one home of that question in the analysis.
+/// short to measure. The analysis's other `ChordScale` refusals are of
+/// scalar lengths (a clearance, a face's reach, a lever), not of a
+/// chord.
 fn chord<T: Real>(p: Point3<T>, q: Point3<T>) -> Result<T, TouchUnread> {
     (q - p)
         .checked_length()

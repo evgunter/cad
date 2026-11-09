@@ -1027,16 +1027,13 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 /// **Which doors ask it**: a door that refuses a vector whose length
 /// leaves the format asks it through
 /// [`Vec3::checked_direction_and_length`](crate::Vec3::checked_direction_and_length),
-/// [`Vec3::checked_length`](crate::Vec3::checked_length) or their 2-D
-/// twins ([`LengthOutOfFormat`](crate::LengthOutOfFormat)), so the doors
-/// are those readers' callers rather than a roster here. `topo`'s
-/// `sector_shape` asks per bounding CHORD rather than of the arm — the
-/// arm is the two chords' `min`, which has no witness of its own and
-/// which an underflowed chord always wins, so asking the arm would
-/// refuse without ever naming the cause. `topo`'s
-/// `chart_region::edge_lengths` asks it directly, beside
-/// [`Real::is_bounded`] rather than [`is_finite_length`]: its lengths are
-/// levers, which an unbounded enclosure must not reach.
+/// [`Vec3::checked_direction`](crate::Vec3::checked_direction), their
+/// length halves or their 2-D twins
+/// ([`LengthOutOfFormat`](crate::LengthOutOfFormat)), so the doors are
+/// those readers' callers rather than a roster here. A door refusing
+/// several vectors asks per vector, never of a length combined from
+/// them (a `min` has no witness of its own, and an underflowed term
+/// always wins it).
 ///
 /// `profile`'s OTHER 2-D director door, `unit_from_components`, asks
 /// [`is_finite_length`] and deliberately not this: the pair it refuses

@@ -298,7 +298,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     // that carrier is the closed class anyway — a segment shorter
     // than the interpretation budget can never promote to a line.
     let (dir, _) = chord
-        .checked_direction_and_length()
+        .checked_direction()
         .ok()
         .filter(|&(_, n)| n > eps_in)?;
     // INV-C3: the zero-radius cylinder composite is `dist(P, line)²`
@@ -391,11 +391,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     // collinear-at-ε_in samples determine no finite radius (the
     // surface recognizer's near-flat class, verbatim).
     let chord = s2 - s0;
-    let Some((chord_dir, _)) = chord
-        .checked_direction_and_length()
-        .ok()
-        .filter(|&(_, n)| n > 0.0)
-    else {
+    let Some((chord_dir, _)) = chord.checked_direction().ok() else {
         return Ok(None);
     };
     let off = geom::Line {
@@ -413,11 +409,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     // The plane through the three samples, oriented by the
     // INCREASING-PARAMETER winding.
     let normal = (s1 - s0).cross(s2 - s0);
-    let Some((axis, _)) = normal
-        .checked_direction_and_length()
-        .ok()
-        .filter(|&(_, n)| n > 0.0)
-    else {
+    let Some((axis, _)) = normal.checked_direction().ok() else {
         return Ok(None);
     };
     // The exact circumcenter of three coplanar points (the surface
@@ -428,11 +420,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     let denom = 2.0 * uxv.norm_squared();
     let center = s0 + (uxv.cross(u) * v.norm_squared() + v.cross(uxv) * u.norm_squared()) / denom;
     let radial = s0 - center;
-    let Some((u_ref, radius)) = radial
-        .checked_direction_and_length()
-        .ok()
-        .filter(|&(_, r)| r > eps_in)
-    else {
+    let Some((u_ref, radius)) = radial.checked_direction().ok().filter(|&(_, r)| r > eps_in) else {
         return Ok(None);
     };
     // The certificate. INV-C1 + INV-C2, both in metres at the end.

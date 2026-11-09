@@ -1096,12 +1096,7 @@ fn arc_rim_on_wall_boundary(
         return Ok(());
     };
     let eps = tol.eps();
-    let unit = |v: geom_core::Vec3<f64>| {
-        v.checked_direction_and_length()
-            .ok()
-            .filter(|&(_, n)| n > 0.0)
-            .map(|(d, _)| d)
-    };
+    let unit = |v: geom_core::Vec3<f64>| v.checked_direction().ok().map(|(d, _)| d);
     let (Some(a_hat), Some(u_hat)) = (unit(axis), unit(u_ref)) else {
         return Err(ArcRimRefusal::Residual(f64::INFINITY));
     };
@@ -1249,10 +1244,7 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     // verbatim).
     let along = dir.dot(candidate);
     let perpendicular = candidate - dir * along;
-    let (y, _) = perpendicular
-        .checked_direction_and_length()
-        .ok()
-        .filter(|&(_, n)| n > 0.0)?;
+    let (y, _) = perpendicular.checked_direction().ok()?;
     let z = dir.cross(y);
     Some(Affine3::from_parts(
         geom_core::Mat3::from_cols(dir, y, z),
@@ -1345,7 +1337,7 @@ fn carrier_on_surface(
         return false;
     };
     let eps = tol.eps();
-    let Some(n) = normal.checked_length().ok().filter(|&n| n > 0.0) else {
+    let Some(n) = normal.checked_nonzero_length().ok() else {
         return false;
     };
     (0..geom_brep::CERT_SAMPLES).all(|i| {

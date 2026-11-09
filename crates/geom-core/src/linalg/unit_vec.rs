@@ -323,6 +323,9 @@ fn decide_direction_by<T: Decide>(
     band: Band,
     margin: impl FnOnce(Vec3<T>) -> Margin<T>,
 ) -> Result<Vec3<T>, UnitVec3Error> {
+    // `margin` recomputes the plain norm the rule read (`Vec3::norm` is
+    // deterministic), so the gates and the margin read the one length;
+    // it is spelled twice rather than reached into.
     let (direction, _) = v.checked_direction_and_length()?;
     match decide(site, margin(v), band) {
         Ok(Sign::Positive) => Ok(direction),

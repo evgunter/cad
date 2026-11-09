@@ -888,7 +888,7 @@ impl Camera {
         // divide by NaN and hand back a poisoned ray as if it were an
         // answer, and the finiteness checks above are on the INPUT,
         // not on the arithmetic.
-        let Ok((unit, _)) = dir.checked_direction_and_length() else {
+        let Ok((unit, _)) = dir.checked_direction() else {
             return Err(CameraError::NotFinite {
                 what: "ray direction",
                 value: dir.norm(),

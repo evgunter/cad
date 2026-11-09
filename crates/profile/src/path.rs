@@ -4876,10 +4876,10 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
 /// The chord is normalized through [`Vec2::normalize`]'s exact
 /// power-of-two prescale, so no finite chord overflows its squares or
 /// loses them to the subnormal range, at a point scalar or in an
-/// enclosure. Two chords have no length to divide by. The zero chord (the authored point IS the tip) names no
-/// ray and stands in `+x` for one; a component past the range (a tip
-/// that overflowed) keeps `atan2`'s reading of its heading, the limit
-/// along its infinite axis.
+/// enclosure. Two chords have no length to divide by. The zero chord
+/// (the authored point IS the tip) names no ray and stands in `+x` for
+/// one; a component past the range (a tip that overflowed) keeps
+/// `atan2`'s reading of its heading, the limit along its infinite axis.
 fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
     let witness = d.norm_witness();
     if !is_finite_length(witness) {

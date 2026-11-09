@@ -1376,7 +1376,7 @@ pub fn certify_offset_over_at(
 pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<Point3<f64>> {
     let jet = base.ders(u, v);
     let m = jet.du.cross(jet.dv);
-    let len = m.checked_length().ok().filter(|&n| n > 0.0)?;
+    let len = m.checked_nonzero_length().ok()?;
     let p = jet.point + m * (d / len);
     (p.x.is_finite() && p.y.is_finite() && p.z.is_finite()).then_some(p)
 }
