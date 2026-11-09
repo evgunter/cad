@@ -886,7 +886,7 @@ pub enum ClassCarrier<T: Real> {
 }
 
 /// **Why a classified component has no carrier** ([`ClassCarrier::Unminted`],
-/// [`CarryError::Unminted`]).
+/// [`CarryRefusal::Unminted`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
 pub enum NoCarrier {
@@ -1911,9 +1911,9 @@ impl<T: Decide> PairSection<T> {
     ///
     /// # Errors
     ///
-    /// [`CarryError::NoLane`] off the march's scalar,
-    /// [`CarryError::Seat`] where the knot edit refuses, and the
-    /// certificate's refusal as [`CarryError::March`].
+    /// [`CarryRefusal::NoLane`] off the march's scalar,
+    /// [`CarryRefusal::Seat`] where the knot edit refuses, and the
+    /// certificate's refusal as [`CarryRefusal::March`].
     pub fn seat(
         &self,
         lane: Option<SsiLane<T>>,
@@ -2150,14 +2150,14 @@ impl Tube {
     ///   the carrier than from the nearest of [`PAD_SAMPLES`] carrier
     ///   points over the box's span ([`farthest`]). The carrier's limb-2
     ///   bound must lie within it too, so the carrier lies within the pad
-    ///   of each surface; otherwise it refuses [`CarryError::PadShort`].
+    ///   of each surface; otherwise it refuses [`CarryRefusal::PadShort`].
     /// - **The reach** bounds the witness's distance from the component:
     ///   a box whose span holds `at` holds the witness and a piece of the
     ///   component, so the farthest the box reaches from the witness
     ///   bounds it; the least over such boxes.
     ///
     /// An empty chain, or a box or carrier point that is refused, reads
-    /// no tube ([`CarryError::TubeUnread`], why by [`LoopTubeUnread`]).
+    /// no tube ([`CarryRefusal::TubeUnread`], why by [`LoopTubeRefusal`]).
     fn of(
         carrier: &Curve3<f64>,
         certificate: &SsiCertificate<f64>,
@@ -2178,7 +2178,7 @@ impl Tube {
         let chain = crate::ssi::certify::tube_chain(net, radius);
         if chain.is_empty() {
             return Err(CarryError::Refused(CarryRefusal::TubeUnread(
-                LoopTubeUnread::Empty,
+                LoopTubeRefusal::Empty,
             )));
         }
         let pad = chain.iter().try_fold(0.0f64, |acc, &(b, _, (lo, hi))| {
@@ -2198,7 +2198,7 @@ impl Tube {
                     Ok(acc.max(far))
                 } else {
                     Err(CarryError::Refused(CarryRefusal::TubeUnread(
-                        LoopTubeUnread::of(part, &samples),
+                        LoopTubeRefusal::of(part, &samples),
                     )))
                 }
             })
@@ -2229,7 +2229,7 @@ impl Tube {
                 ));
             };
             return Err(CarryError::Refused(CarryRefusal::TubeUnread(
-                LoopTubeUnread::of(b, core::slice::from_ref(&witness)),
+                LoopTubeRefusal::of(b, core::slice::from_ref(&witness)),
             )));
         }
         Ok(Self { chain, pad, reach })
@@ -2452,7 +2452,7 @@ pub enum CarryRefusal {
         hull_sup: f64,
     },
     /// A fitted loop's uniqueness tube could not be read ([`Tube::of`]).
-    TubeUnread(LoopTubeUnread),
+    TubeUnread(LoopTubeRefusal),
     /// A spline component's piece walk could not run
     /// ([`SiteRefusal::Unwalked`]).
     Unwalked(geom::PieceWalkRefusal),
@@ -2529,6 +2529,11 @@ crate::ended_by_write!(CarryRefusal);
 /// **Why a section was not carried**: decided ([`CarryRefusal`]), a
 /// reading in the band, or an invariant of the carry that does not hold.
 #[derive(Clone, Debug)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    any(test, feature = "test-support"),
+    strum_discriminants(name(CarryErrorKind), derive(strum::EnumIter))
+)]
 pub enum CarryError {
     /// The section's own refusal.
     Refused(CarryRefusal),
@@ -2573,10 +2578,10 @@ impl CarryError {
 crate::ended_by_write!(CarryError);
 
 /// **Why a marched loop's uniqueness tube could not be read**
-/// ([`CarryError::TubeUnread`]).
+/// ([`CarryRefusal::TubeUnread`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
-pub enum LoopTubeUnread {
+pub enum LoopTubeRefusal {
     /// The box chain is empty.
     Empty,
     /// A box or carrier point is certified but not finite: a coordinate
@@ -2587,7 +2592,7 @@ pub enum LoopTubeUnread {
     Uncertified,
 }
 
-impl LoopTubeUnread {
+impl LoopTubeRefusal {
     /// **The one sentence this refusal is rendered by.**
     #[must_use]
     pub const fn sentence(self) -> &'static str {
@@ -2634,7 +2639,7 @@ impl LoopTubeUnread {
     }
 }
 
-impl core::fmt::Display for LoopTubeUnread {
+impl core::fmt::Display for LoopTubeRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.sentence())
     }
@@ -2673,7 +2678,7 @@ pub struct CarriedComponent<T: Real> {
     ///   arc, the branch's own), and the pad bounds every point of every
     ///   padded box's distance from the carrier. And limbs 1 and 2
     ///   put the carrier within `hull_sup` of each surface, which the pad
-    ///   is checked to hold ([`CarryError::PadShort`]), so a point of the
+    ///   is checked to hold ([`CarryRefusal::PadShort`]), so a point of the
     ///   carrier lies within the pad of each surface too.
     /// - **Uniqueness**: limb 3's tube holds this loop's arc alone, so no
     ///   other component crosses it. A point read on two components
@@ -3104,7 +3109,7 @@ mod wiring {
     /// the kernel's, whichever of the box or the points holds it.
     #[test]
     fn an_unread_tube_box_names_overflow_apart_from_an_uncertified_read() {
-        use super::LoopTubeUnread;
+        use super::LoopTubeRefusal;
         use geom_core::{Interval, Point3};
         let unit = Interval::from_bounds(0.0, 1.0);
         let nai = Interval::from_bounds(f64::NAN, f64::NAN);
@@ -3122,18 +3127,18 @@ mod wiring {
             "the fixtures' decorations"
         );
         assert_eq!(
-            LoopTubeUnread::of(part, &[far]),
-            LoopTubeUnread::NotFinite,
+            LoopTubeRefusal::of(part, &[far]),
+            LoopTubeRefusal::NotFinite,
             "an overflowed point"
         );
         assert_eq!(
-            LoopTubeUnread::of(part, &[poison]),
-            LoopTubeUnread::Uncertified,
+            LoopTubeRefusal::of(part, &[poison]),
+            LoopTubeRefusal::Uncertified,
             "every point uncertified"
         );
         assert_eq!(
-            LoopTubeUnread::of(bad_part, &[far]),
-            LoopTubeUnread::Uncertified,
+            LoopTubeRefusal::of(bad_part, &[far]),
+            LoopTubeRefusal::Uncertified,
             "an uncertified box"
         );
     }

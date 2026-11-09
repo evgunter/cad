@@ -12,7 +12,8 @@ use super::{BooleanError, SectionUnbuilt, SectionUnbuiltKind};
 use geom::{PieceWalkRefusal, SurfaceKind};
 use geom_brep::recourse::Reading;
 use geom_brep::{
-    CarryError, CarryRefusal, CarryRefusalKind, LoopTubeUnread, NoCarrier, WindsRefusal,
+    CarryError, CarryErrorKind, CarryRefusal, CarryRefusalKind, LoopTubeRefusal, NoCarrier,
+    WindsRefusal,
 };
 use geom_core::spline::{KnotAlgebraError, KnotVectorIssue, SplineError};
 use strum::{IntoEnumIterator as _, VariantArray as _};
@@ -55,7 +56,7 @@ fn carried(kind: CarryRefusalKind) -> Vec<(String, SectionUnbuilt)> {
         ],
         CarryRefusalKind::TubeUnread => each(
             "TubeUnread",
-            LoopTubeUnread::VARIANTS,
+            LoopTubeRefusal::VARIANTS,
             CarryRefusal::TubeUnread,
         ),
         CarryRefusalKind::Unwalked => each(
@@ -94,34 +95,67 @@ fn samples(kind: SectionUnbuiltKind) -> Vec<(String, SectionUnbuilt)> {
     }
 }
 
-/// **A carry's own two endings** — a reading in the band and a broken
-/// invariant, which the Boolean refuses as the decision and as its desync
-/// rather than as [`SectionUnbuilt`] — hold to the standard as a caller
-/// of `PairSection::carry` reads them.
+/// **Every arm of [`CarryError`] ends on its own recourse**, as a caller
+/// of `PairSection::carry` reads it, walked by its compiler-derived kind:
+/// a reading in the band on the escalation's own ending, a broken
+/// invariant on the kernel's defect, and a decided refusal on its
+/// payload's (the gate above holds every payload).
 #[test]
-fn a_carrys_escalation_and_desync_end_on_one_recourse() {
-    let escalated = CarryError::Escalated(geom_core::Indeterminate {
+fn every_carry_error_arm_ends_on_its_own_recourse() {
+    let diag = geom_core::Indeterminate {
         margin: geom_core::MarginDiag::value(5e-9),
         band: geom_core::Band::new(1e-9, 1e-8).expect("a well-formed band"),
         predicate: Some("ssi_tube_graph"),
         terminal_sliver: false,
-    });
+    };
+    let refusal = CarryRefusal::NoLane { scalar: "Interval" };
     let mut problems = Vec::new();
-    for (name, e) in [
-        ("Escalated", escalated),
-        (
-            "Desync",
-            CarryError::Desync("a component's tube pads no band"),
-        ),
-        (
-            "Refused",
-            CarryError::Refused(CarryRefusal::NoLane { scalar: "Interval" }),
-        ),
-    ] {
+    for kind in CarryErrorKind::iter() {
+        let (e, ending) = match kind {
+            CarryErrorKind::Refused => (
+                CarryError::Refused(refusal.clone()),
+                refusal.render(Reading::Build),
+            ),
+            CarryErrorKind::Escalated => (CarryError::Escalated(diag), diag.to_string()),
+            CarryErrorKind::Desync => (
+                CarryError::Desync("a component's tube pads no band"),
+                geom_core::KERNEL_DEFECT_ENDING.to_owned(),
+            ),
+        };
+        let name = format!("{kind:?}");
         let text = e.render(Reading::Build);
-        problems.extend(test_utils::refusal::problems(name, &text, &[], false));
+        if !text.ends_with(&ending) {
+            problems.push(format!(
+                "{name} does not end on its own ending ({ending}): {text}"
+            ));
+        }
+        problems.extend(test_utils::refusal::problems(&name, &text, &[], false));
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// **A decided refusal reads the same held in a [`CarryError`]**: the
+/// wrapper adds nothing to its payload's text, at a run door and at the
+/// import door.
+#[test]
+fn a_refused_carry_renders_as_its_refusal() {
+    let file = geom_core::FileCoincidence::new(1e-6);
+    for refusal in [
+        CarryRefusal::PadShort {
+            pad: 1e-7,
+            hull_sup: 3e-7,
+        },
+        CarryRefusal::Unminted(NoCarrier::Touch),
+    ] {
+        let held = CarryError::Refused(refusal.clone());
+        assert_eq!(
+            held.render(Reading::Build),
+            refusal.render(Reading::Build),
+            "{refusal:?}"
+        );
+        assert_eq!(held.render(file), refusal.render(file), "{refusal:?}");
+        assert_eq!(held.to_string(), refusal.to_string(), "{refusal:?}");
+    }
 }
 
 /// **The spans of a door-ended arm's text a filed row owns**, admitted
