@@ -5193,7 +5193,7 @@ impl<T: Decide> MovedWall<T> {
                         Ok(Sign::Positive)
                     )
                 };
-                let mut split = from.0 + (phi - from.0).reduce_periodic(T::pi());
+                let mut split = geom_core::period::Period::new(T::pi()).at_or_above(phi, from.0);
                 while before(split, to.0) {
                     if before(from.0, split) {
                         let p = at(split);
@@ -5214,7 +5214,8 @@ impl<T: Decide> MovedWall<T> {
                     }
                     // A piece in the half-turn after `φ` holds `φ + root`,
                     // one in the half-turn before it `φ − root`.
-                    let half = (geom::mid_param(lo, hi) - phi).reduce_periodic(T::tau());
+                    let half = geom_core::period::Period::new(T::tau())
+                        .forward(phi, geom::mid_param(lo, hi));
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
                     crossings.push(line.height(at(theta)));
                 }

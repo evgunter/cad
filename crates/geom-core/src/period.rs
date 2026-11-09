@@ -384,6 +384,17 @@ impl<T: Decide> Period<T> {
         self.in_window(t, a, Closed::Lower)
     }
 
+    /// **The forward run from `from` to `to`**, in `[0, length)`: `to`'s
+    /// copy [`Period::at_or_above`] `from`, less `from`. A `to` equal to
+    /// `from` runs nothing, never a whole turn: a caller whose two ends
+    /// may name one point and mean a whole turn says so itself. An
+    /// extent formed from two angles is this, and only then read against
+    /// a period by the turn rule ([`Period::turn`]).
+    #[must_use]
+    pub fn forward(self, from: T, to: T) -> T {
+        self.at_or_above(to, from) - from
+    }
+
     /// The copy of `t` in the window of one period from `a`, closed at
     /// `closed`: `t`'s copy near `a`, lifted a period where it lies on
     /// the side of `a` the window excludes. A copy an ulp or so under `a`
@@ -1067,6 +1078,38 @@ mod period_rows {
             "at_or_above: an enclosure under a holds its lifted copy, {r:?}"
         );
         assert!(width(r) < 1e-11, "at_or_above: as narrow as t, {r:?}");
+    }
+
+    /// **`forward` runs `[0, P)` from its start**: nothing to the start
+    /// itself, a whole turn less the gap to a point just behind it, and a
+    /// point ahead by itself, a turn or more away included.
+    #[test]
+    fn forward_runs_from_its_start() {
+        let tau = f64::tau();
+        let period = Period::new(tau);
+        let a = 0.89_f64;
+        assert_eq!(
+            period.forward(a, a).to_bits(),
+            0.0_f64.to_bits(),
+            "to the start itself"
+        );
+        let behind = period.forward(a, a - 0.25);
+        assert!((behind - (tau - 0.25)).abs() < 1e-15, "behind: {behind}");
+        assert_eq!(
+            period.forward(a, a + 1.5),
+            (a + 1.5) - a,
+            "ahead, a copy of itself"
+        );
+        let far = period.forward(a, a + 1.5 + 3.0 * tau);
+        assert!((far - 1.5).abs() < 1e-14, "three turns ahead: {far}");
+        for (from, to) in [(0.3, 5.9), (5.9, 0.3), (-2.0, 2.0), (3.0, -40.0)] {
+            let r = period.forward(from, to);
+            assert!((0.0..tau).contains(&r), "{from} → {to}: {r}");
+            assert!(
+                (r - (to - from).reduce_periodic(tau)).abs() < 1e-13,
+                "{from} → {to}: the forward fold's value, {r}"
+            );
+        }
     }
 
     /// **A `t` that has no copy reads NaN**, rather than answering.
