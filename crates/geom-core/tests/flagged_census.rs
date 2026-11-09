@@ -171,6 +171,23 @@ fn calls_in(text: &str) -> Vec<(usize, String)> {
         .collect()
 }
 
+/// Whether `code` imports `name` from a module path ending in `path`: a
+/// `use` item naming `…path::name` or listing `name` in a `…path::{…}`
+/// group.
+fn imports(code: &str, path: &str, name: &str) -> bool {
+    code.match_indices("use ").any(|(at, _)| {
+        let item = &code[at..code[at..].find(';').map_or(code.len(), |e| at + e)];
+        let words = |t: &str| {
+            t.split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .any(|w| w == name)
+        };
+        item.contains(&format!("{path}::{name}"))
+            || item
+                .find(&format!("{path}::{{"))
+                .is_some_and(|g| words(&item[g..]))
+    })
+}
+
 /// What a door call cites as its ledger row.
 enum Cite {
     /// A string literal: the row itself.
@@ -193,11 +210,28 @@ fn door_calls_in(
 ) -> Vec<(usize, Cite)> {
     let code = test_utils::source::code_only(text);
     let bytes = code.as_bytes();
+    // A door spelled with its path (`k_stats::choose`) is a generic verb:
+    // only a call through that path, or of the name the file imports from
+    // it, is the door ([`imports`]); a method or another path's fn of the
+    // same name is not.
+    let (path, door) = match door.rsplit_once("::") {
+        Some((path, name)) => (Some(path), name),
+        None => (None, door),
+    };
+    let imported = path.is_some_and(|path| imports(&code, path, door));
     let mut out = Vec::new();
     let mut i = 0;
     while let Some(rel) = code[i..].find(door) {
         let at = i + rel;
         i = at + door.len();
+        if let Some(path) = path {
+            let before = code[..at].trim_end();
+            let through_path = before.ends_with(&format!("{path}::"));
+            let bare = !before.ends_with('.') && !before.ends_with("::");
+            if !(through_path || (imported && bare)) {
+                continue;
+            }
+        }
         // Not a longer identifier ending in this name, and not the
         // definition (`fn decide_flagged<T: Decide>(`, whose next
         // character is `<`).
@@ -324,7 +358,14 @@ fn unlogged_sites() -> Vec<Site> {
             }
         }
     }
-    door_sites(&files, &[("check_unlogged", 3), ("unlogged", 0)])
+    door_sites(
+        &files,
+        &[
+            ("check_unlogged", 3),
+            ("k_stats::choose", 2),
+            ("unlogged", 0),
+        ],
+    )
 }
 
 /// The sites of `doors` (each a name and its row's argument index) in
@@ -350,7 +391,12 @@ fn door_sites(files: &[(PathBuf, String)], doors: &[(&str, usize)]) -> Vec<Site>
                     }),
                     Cite::Forwarded { ident, at } => match forwarding_door(text, &code, at, &ident) {
                         Some(wrapper) => {
-                            if !known.contains(&wrapper) {
+                            // A door already known by its path is that
+                            // door, not a new bare one.
+                            let named = |(d, i): &(String, usize)| {
+                                d.rsplit("::").next() == Some(wrapper.0.as_str()) && *i == wrapper.1
+                            };
+                            if !known.iter().any(named) {
                                 known.push(wrapper);
                             }
                         }
@@ -529,5 +575,40 @@ fn a_forwarding_wrapper_is_a_door_and_its_callers_cite_their_rows() {
     assert!(
         !rows.iter().any(|(f, _)| f == "door.rs" || f == "wrap.rs"),
         "a forwarding wrapper's own body is a door, not a site: {rows:?}"
+    );
+}
+
+/// **A door spelled with its path is that path's fn, not the verb**: a
+/// `k_stats::choose` call and a `choose` the file imports from `k_stats`
+/// are sites; a method `.choose(..)` and another module's `choose` are not.
+#[test]
+fn a_path_keyed_door_is_its_paths_fn_and_not_the_verb() {
+    let file = |name: &str, text: &str| (PathBuf::from(name), text.to_string());
+    let files = [
+        file(
+            "qualified.rs",
+            "fn a() { geom_core::k_stats::choose(\"n\", m, \"F1\"); }\n",
+        ),
+        file(
+            "imported.rs",
+            "use geom_core::k_stats::{Pick, choose};\nfn b() { choose(\"n\", m, \"F2\"); }\n",
+        ),
+        file(
+            "elsewhere.rs",
+            "use rand::seq::SliceRandom;\nfn c() { v.choose(&mut rng); }\nfn d() { other::choose(1, 2); }\nfn e() { choose(n, k); }\n",
+        ),
+    ];
+    let sites = door_sites(&files, &[("k_stats::choose", 2)]);
+    let rows: Vec<(String, String)> = sites
+        .iter()
+        .map(|s| (s.file.display().to_string(), s.ledger_row.clone()))
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            ("imported.rs".to_string(), "F2".to_string()),
+            ("qualified.rs".to_string(), "F1".to_string()),
+        ],
+        "only the path's fn is the door"
     );
 }
