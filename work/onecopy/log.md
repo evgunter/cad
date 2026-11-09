@@ -925,3 +925,4 @@
 - 12:50Z Main added BooleanError::TouchesItself and ToolSeatCrossed, which 6576's exhaustive refusal() doesn't cover. Ruled: 6576 classes them when it merges main (the ladder lane's reading is row 2, Limit; check the producers). T2 waits on 6576, and T3's restack starts meanwhile.
 - 12:53Z PR 6622 fix pass (6af34753): TubeUnread is range recourse; a typed NoCarrier reason owns its sentence and recourse, with 7 string consts deleted; winding NaN now refuses; write is one match. Delta sent to the reviewer.
 - 12:58Z PR 6632 fix pass (9132dbbe): bracket_mid is generic in geom-core beside mid_param; new Point::mid; 25 sites routed with no bit moved; gate widened. Delta sent to the reviewer.
+- 13:00Z [ev] 6592's third check-in found no comment from Ev. It still merges clean with main (fork-log row 255), and so does 6625 (row 256). Check-ins on 6592 have stopped; the next GitHub event will bring it back.
