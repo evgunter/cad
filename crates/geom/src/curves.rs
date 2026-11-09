@@ -450,9 +450,122 @@ impl core::fmt::Display for EllipseInvalid {
 
 impl std::error::Error for EllipseInvalid {}
 
-/// Typed refusal of [`Curve3::spiric`] — the one place that decides a
-/// spiric's regime (one kind per configuration, D3; the constructor is
-/// the only decision point).
+/// **The section regime of an axis-parallel plane through a ring
+/// torus**, as [`spiric_regime`] decides it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpiricRegime {
+    /// `offset = 0`: the plane contains the axis, and cuts the two
+    /// meridian circles.
+    ThroughAxis,
+    /// `0 < |offset| < R − r`: the two ovals a [`Curve3::Spiric`]
+    /// carries.
+    TwoOvals,
+    /// `|offset| ≥ R − r`: a node, one folded loop or nothing.
+    PastInnerEquator,
+}
+
+/// **The site names one reader of [`spiric_regime`] decides under**, so a
+/// refusal and its `k_stats` stream name the reading that met them:
+/// three distinct names, one per margin ([`SpiricRegimeSites::new`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpiricRegimeSites {
+    off_axis: &'static str,
+    two_ovals: [&'static str; 2],
+}
+
+impl SpiricRegimeSites {
+    /// [`Curve3::spiric`]'s own rows.
+    pub const MINT: Self = Self::new(
+        "spiric_off_axis",
+        "spiric_two_ovals",
+        "spiric_two_ovals_floor",
+    );
+
+    /// The rows for the offset off zero (`off_axis`) and the two-oval
+    /// margin's far and floor rows ([`geom_core::k_stats::decide_across`]).
+    ///
+    /// # Panics
+    ///
+    /// Where two of the names are equal: each names its own margin. In a
+    /// `const` item the panic is a compile error.
+    #[must_use]
+    pub const fn new(off_axis: &'static str, far: &'static str, floor: &'static str) -> Self {
+        assert!(
+            !str_eq(off_axis, far) && !str_eq(off_axis, floor) && !str_eq(far, floor),
+            "a spiric regime's three rows need three names"
+        );
+        Self {
+            off_axis,
+            two_ovals: [far, floor],
+        }
+    }
+}
+
+/// `a == b`, in a `const` context.
+const fn str_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut k = 0;
+    while k < a.len() {
+        if a[k] != b[k] {
+            return false;
+        }
+        k += 1;
+    }
+    true
+}
+
+/// **Whether an axis-parallel plane at signed stand-off `offset` from
+/// the axis of ring torus `ring` cuts it in two ovals**,
+/// `0 < |offset| < R − r`: the regime's one statement, which
+/// [`Curve3::spiric`] mints under and every reader of a spiric's regime
+/// asks, each under its own `sites`.
+///
+/// - `sites.off_axis` — margin `offset` (m): Zero ⇒
+///   [`SpiricRegime::ThroughAxis`].
+/// - `sites.two_ovals` — margin `(R − r) − |offset|` (m), the length the
+///   regime closes by, decided before any root is taken, read with
+///   `swing` beside it ([`geom_core::k_stats::decide_across`]): Positive
+///   ⇒ [`SpiricRegime::TwoOvals`], else
+///   [`SpiricRegime::PastInnerEquator`].
+///
+/// `swing` is a length: the most a term the caller's own routing
+/// admitted (a plane's tilt off the axis, levered) moves the margin at a
+/// point the verdict serves. Zero where the plane and the torus are the
+/// carrier's own data.
+///
+/// # Errors
+///
+/// [`Indeterminate`], naming the row left in band.
+pub fn spiric_regime<T: Decide>(
+    ring: crate::RingTorus<T>,
+    offset: T,
+    swing: T,
+    sites: SpiricRegimeSites,
+    band: Band,
+) -> Result<SpiricRegime, Indeterminate> {
+    use geom_core::k_stats::{decide, decide_across};
+    if decide(sites.off_axis, Margin::of(offset), band)? == Sign::Zero {
+        return Ok(SpiricRegime::ThroughAxis);
+    }
+    Ok(
+        match decide_across(
+            sites.two_ovals,
+            (ring.major_radius() - ring.minor_radius()) - offset.abs(),
+            swing,
+            band,
+        )? {
+            Sign::Positive => SpiricRegime::TwoOvals,
+            Sign::Zero | Sign::Negative => SpiricRegime::PastInnerEquator,
+        },
+    )
+}
+
+/// Typed refusal of [`Curve3::spiric`], the one deciding door into the
+/// kind (one kind per configuration, D3); its regime is
+/// [`spiric_regime`]'s.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SpiricInvalid {
     /// The minor radius is not definitely positive (a degenerate tube,
@@ -474,7 +587,8 @@ pub enum SpiricInvalid {
     FrameNotOrthogonal,
     /// A constructor predicate landed in the ambiguity band or was
     /// poisoned (`spiric_minor_positive`, `ring_torus_convention`,
-    /// `spiric_off_axis`, `spiric_two_ovals`, `spiric_frame_orthogonal`).
+    /// `spiric_off_axis`, `spiric_two_ovals`, `spiric_two_ovals_floor`,
+    /// `spiric_frame_orthogonal`).
     Escalated(Indeterminate),
 }
 
@@ -1112,13 +1226,11 @@ impl<T: Decide> Curve3<T> {
     /// - `ring_torus_convention` ([`crate::ring_torus`], the convention's
     ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
-    /// - `spiric_off_axis` — margin `offset` (m): definitely nonzero
-    ///   required; else [`SpiricInvalid::ThroughAxis`] (one kind per
-    ///   configuration, most exact first: that oval is a `Circle`).
-    /// - `spiric_two_ovals` — margin `(major_radius − minor_radius) −
-    ///   |offset|` (m), the length the two-oval regime closes by,
-    ///   decided BEFORE any root is taken: Positive required; else
-    ///   [`SpiricInvalid::NotTwoOvals`].
+    /// - the regime, [`spiric_regime`] at no swing under
+    ///   [`SpiricRegimeSites::MINT`]: two ovals required;
+    ///   through the axis ⇒ [`SpiricInvalid::ThroughAxis`] (one kind per
+    ///   configuration, most exact first: that oval is a `Circle`); at
+    ///   or past the inner equator ⇒ [`SpiricInvalid::NotTwoOvals`].
     /// - `spiric_frame_orthogonal` — margin `axis · u_ref` levered at
     ///   `major_radius + minor_radius` (m, the farthest point the
     ///   frame places): Zero required; else
@@ -1147,20 +1259,16 @@ impl<T: Decide> Curve3<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::MinorNotPositive),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
-        let ring = major_radius - minor_radius;
         match crate::ring_torus(major_radius, minor_radius, band).map(|d| d.sign) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotARing),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
-        match decide("spiric_off_axis", Margin::of(offset), band) {
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Ok(Sign::Zero) => return Err(SpiricInvalid::ThroughAxis),
-            Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
-        }
-        match decide("spiric_two_ovals", Margin::of(ring - offset.abs()), band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotTwoOvals),
+        let ring = crate::RingTorus::decided(major_radius, minor_radius);
+        match spiric_regime(ring, offset, T::zero(), SpiricRegimeSites::MINT, band) {
+            Ok(SpiricRegime::TwoOvals) => {}
+            Ok(SpiricRegime::ThroughAxis) => return Err(SpiricInvalid::ThroughAxis),
+            Ok(SpiricRegime::PastInnerEquator) => return Err(SpiricInvalid::NotTwoOvals),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         match decide(
@@ -1187,6 +1295,25 @@ impl<T: Decide> Curve3<T> {
             minor_radius,
             offset,
         })
+    }
+}
+
+impl<T: Real> Curve3<T> {
+    /// A [`Curve3::Spiric`]'s torus; `None` for every other kind. It
+    /// rests on a premise, not a decision: that the spiric's data came
+    /// from its mint ([`Curve3::spiric`], the kind's one deciding door,
+    /// D3), which decided this torus a ring. A spiric spelled as a
+    /// literal past the mint carries no such verdict.
+    #[must_use]
+    pub fn spiric_torus(&self) -> Option<crate::RingTorus<T>> {
+        match *self {
+            Self::Spiric {
+                major_radius,
+                minor_radius,
+                ..
+            } => Some(crate::RingTorus::decided(major_radius, minor_radius)),
+            _ => None,
+        }
     }
 }
 
@@ -2324,6 +2451,50 @@ mod tests {
             mk(1.2, 0.225, 0.05, tilted).err(),
             Some(SpiricInvalid::FrameNotOrthogonal)
         );
+    }
+
+    /// **[`spiric_regime`] reads its two-oval margin across the swing.**
+    /// At `R − r = 0.975` beside a swing of `0.5`, a margin `0.6` holds
+    /// two ovals at every point served, a margin half a zero band past the
+    /// swing escalates on the caller's floor row, and a margin `−0.6`
+    /// reads past the inner equator; an offset in the zero band reads
+    /// through the axis under the caller's own name. Red on a swing
+    /// dropped (the half-band margin then reads two ovals) or on a row
+    /// decided under another caller's name.
+    #[test]
+    fn spiric_regime_reads_its_margin_across_the_swing() {
+        let ring = crate::RingTorus::decided(1.2, 0.225);
+        let sites =
+            SpiricRegimeSites::new("test_off_axis", "test_two_ovals", "test_two_ovals_floor");
+        let at = |margin: f64| spiric_regime(ring, 0.975 - margin, 0.5, sites, band());
+        assert_eq!(at(0.6), Ok(SpiricRegime::TwoOvals), "clear of the swing");
+        assert_eq!(
+            at(-0.6),
+            Ok(SpiricRegime::PastInnerEquator),
+            "past the equator by more than the swing"
+        );
+        let in_band = at(0.5 + 0.5 * band().zero()).expect_err("floor in band");
+        assert_eq!(
+            in_band.predicate,
+            Some("test_two_ovals_floor"),
+            "{in_band:?}"
+        );
+        assert_eq!(
+            spiric_regime(ring, 1e-12, 0.5, sites, band()),
+            Ok(SpiricRegime::ThroughAxis),
+            "an offset in the zero band"
+        );
+        let poison = spiric_regime(ring, f64::NAN, 0.0, sites, band()).expect_err("poison");
+        assert_eq!(poison.predicate, Some("test_off_axis"), "{poison:?}");
+    }
+
+    /// **A reader's three regime rows need three names**: one name on
+    /// two margins would merge them in the `k_stats` stream.
+    #[test]
+    #[should_panic(expected = "three rows need three names")]
+    fn spiric_regime_sites_refuse_a_shared_name() {
+        let shared = std::hint::black_box("shared");
+        let _ = SpiricRegimeSites::new(shared, shared, "floor");
     }
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {

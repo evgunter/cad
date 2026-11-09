@@ -524,10 +524,9 @@ fn a_near_square_rod_minus_a_box_builds() {
 /// The frustum of scale `S`: radius `r0 = S/2 + S/2` at `y = 0` and
 /// `r1 = S/2` at `y = S`, half-angle `atan ½`, apex above on `y`.
 struct Frustum {
-    /// `None` at 1 km, where the body reaches past the session box and is
-    /// refused by it; at ε = 1e-12 limb 2's kernel limit refuses it first,
-    /// its cone's rim rounding at its own extent past the band
-    /// (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+    /// `None` at 1 km, where the frustum's largest coordinate is the
+    /// session box's own edge: the section rows read only its cone there,
+    /// and no body is built.
     body: Option<Body<f64>>,
     cone: Surface<f64>,
     r0: f64,
@@ -540,32 +539,29 @@ fn frustum(scale: f64) -> Frustum {
     let alpha = 0.5_f64.atan();
     let (h, r1) = (scale, 0.5 * scale);
     let r0 = r1 + h * alpha.tan();
-    let body = sweep::test_support::try_revolved_about_y_at(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r0, 0.0), 0.0),
-            (Point2::new(r1, h), 0.0),
-            (Point2::new(0.0, h), 0.0),
-        ],
-        sweep::Revolution::Full,
-        tol(),
-    );
-    // At 1 km the frustum's top rim reaches `√(r1² + h²)` ≈ 1.12 km, past
-    // the session box, and the finished-body gate refuses it there (D4
-    // ¶4); at ε = 1e-12 limb 2's kernel limit refuses its rim first.
-    let body = if r0.max(r1.hypot(h)) > geom_core::tolerance::SESSION_BOX_EXTENT {
-        match body {
-            Err(e)
-                if format!("{e:?}").contains("OutsideSessionBox")
-                    || (tol().eps() <= 1e-12 && test_utils::kernel_limit::is_kernel_limit(&e)) =>
-            {
-                None
-            }
-            other => panic!("the {scale:e} frustum is past the session box: {other:?}"),
-        }
-    } else {
-        test_utils::kernel_limit::pinned(body, tol().eps(), &[], "the frustum")
-    };
+    // The session box bounds each coordinate (`[tolerance.units]`), and
+    // the frustum's largest is `max(r0, h) = S`. At the kilometre scale
+    // that is the box's own edge, decided by rounding, so the body is
+    // built only at the scales well inside it; the kilometre rows read
+    // the cone alone.
+    let body = (r0.max(h) <= 0.5 * geom_core::tolerance::SESSION_BOX_EXTENT).then(|| {
+        test_utils::kernel_limit::pinned(
+            sweep::test_support::try_revolved_about_y_at(
+                vec![
+                    (Point2::new(0.0, 0.0), 0.0),
+                    (Point2::new(r0, 0.0), 0.0),
+                    (Point2::new(r1, h), 0.0),
+                    (Point2::new(0.0, h), 0.0),
+                ],
+                sweep::Revolution::Full,
+                tol(),
+            ),
+            tol().eps(),
+            &[],
+            "the frustum",
+        )
+        .expect("a frustum well inside the box builds")
+    });
     let apex = h + r1 / alpha.tan();
     Frustum {
         body,
