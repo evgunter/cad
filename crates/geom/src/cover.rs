@@ -630,9 +630,12 @@ impl<T: Real> Cover<T> {
         self.0.distance_range(site)
     }
 
-    /// **A ball holding the region**, as `(centre, radius)`.
+    /// **A ball holding the region**, as `(centre, radius)`: the tree's
+    /// own ball, or the ball about the region's box where that is the
+    /// narrower (a hull of many small pieces, whose balls combine about
+    /// their centres' midpoints).
     pub fn ball(&self) -> (Point3<T>, T) {
-        self.0.ball()
+        smaller(self.0.ball(), box_ball(self.0.world_box()))
     }
 
     /// **The nearest and farthest the region stands from a circle**: the
@@ -776,14 +779,11 @@ impl<T: Real> Node<T> {
                 smaller(both[0].ball(), both[1].ball()),
                 box_ball(self.world_box()),
             ),
-            // The ball about the two balls' centres' midpoint holds both,
-            // and so does the ball about the hull's box, which is the
-            // narrower where the pieces are many and small.
             Node::Hull(both) => {
                 let ((c0, r0), (c1, r1)) = (both[0].ball(), both[1].ball());
                 let c = c0 + (c1 - c0) * T::from_f64(0.5);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
-                smaller((c, r), box_ball(self.world_box()))
+                (c, r)
             }
             Node::Convex(inner) => inner.ball(),
         }

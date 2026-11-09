@@ -1056,7 +1056,7 @@ mod pre_filter_tests {
     fn a_face_whose_carrier_bounds_no_region_refuses_the_reach() {
         let (mut body, faces) = brick_and_faces(Tol::witness());
         let aim = Point3::new(0.5, 0.5, 0.5);
-        let band = Band::linear(Tol::witness()).unwrap();
+        let band = Band::linear(Tol::witness()).expect("the witness tolerance is a band");
         assert!(
             selection_reach(&body, &faces, aim, band).is_ok(),
             "the planar brick has a reach"

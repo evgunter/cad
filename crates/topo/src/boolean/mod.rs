@@ -7773,6 +7773,7 @@ fn witness_pad<T: Real>(band: Band) -> T {
 /// [`geom::cover::Cover::range_along`]), which holds every point of the
 /// face. So extents meeting at one point meet at an end of each, where
 /// no interiors meet.
+#[allow(clippy::type_complexity)]
 fn witness_span<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
