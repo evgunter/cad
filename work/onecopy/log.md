@@ -840,3 +840,7 @@
   - Main overlapped it in 5 files, gate counts included. I merged main (e7cee1ba); run-gates passes on the merge. Gating.
   - 6624 keys the walk after this lands.
 - 09:24Z PR 6626 FULL review: FIX. F1: at_or_above's open end rounds to fl(a+P), and the row pins the excluded end; this is reachable at a seam start. F2: choose is unlogged, a wording fix. F3: the doc must say an extent rests on the pick. Sent to the lane, including routing camera.rs wrap_angle.
+- 09:30Z PR 6616's delta review: MERGE. The NOTE residue is filed as `the-breakpoints-gates-census-and-window-are-unpinned`; F7/F8 were already filed (ring-torus row). Gating 257f0049.
+- 09:30Z Merged PR 6604 (line-meets) at 76b92357. Its gate was green at 8c291cb0; main had moved 10 commits with no file overlap.
+  - I skipped the pre-merge workspace check for 6604 and 6607. I ran it afterwards on main 76b92357: cargo check --workspace --tests is clean.
+- 09:30Z 6576's gate is green at d94013a8; it waits on its delta review.
