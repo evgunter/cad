@@ -91,22 +91,21 @@ use crate::validate::decide;
 #[derive(Clone, Copy)]
 pub(crate) enum Quadric<T: Real> {
     Cylinder {
-        origin: Point3<T>,
-        axis: Vec3<T>,
+        axis: geom::Line<T>,
         radius: T,
     },
     Sphere {
         centre: Point3<T>,
         radius: T,
     },
+    /// `axis` from the apex.
     Cone {
-        apex: Point3<T>,
-        axis: Vec3<T>,
+        axis: geom::Line<T>,
         half_angle: T,
     },
+    /// `axis` from the centre.
     Torus {
-        centre: Point3<T>,
-        axis: Vec3<T>,
+        axis: geom::Line<T>,
         major: T,
         minor: T,
     },
@@ -116,53 +115,29 @@ impl<T: Decide> Quadric<T> {
     /// The quadric of `surface`; `None` for any other kind.
     pub(crate) fn of(surface: &geom::Surface<T>) -> Option<Self> {
         match *surface {
-            geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => Some(Self::Cylinder {
-                origin,
-                axis,
+            geom::Surface::Cylinder { radius, .. } => Some(Self::Cylinder {
+                axis: surface.axis_line()?,
                 radius,
             }),
             geom::Surface::Sphere { center, radius, .. } => Some(Self::Sphere {
                 centre: center,
                 radius,
             }),
-            geom::Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
-            } => Some(Self::Cone {
-                apex,
-                axis,
+            geom::Surface::Cone { half_angle, .. } => Some(Self::Cone {
+                axis: surface.axis_line()?,
                 half_angle,
             }),
             geom::Surface::Torus {
-                center,
-                axis,
                 major_radius,
                 minor_radius,
                 ..
             } => Some(Self::Torus {
-                centre: center,
-                axis,
+                axis: surface.axis_line()?,
                 major: major_radius,
                 minor: minor_radius,
             }),
             _ => None,
         }
-    }
-
-    /// `p`'s height along a cone's axis and its offset from the axis.
-    fn axial(apex: Point3<T>, axis: Vec3<T>, p: Point3<T>) -> (T, Vec3<T>) {
-        geom::Line {
-            origin: apex,
-            dir: axis,
-        }
-        .param_and_offset(p)
     }
 
     /// The length a dimensionless reading at `p` is levered by: the
@@ -173,17 +148,10 @@ impl<T: Decide> Quadric<T> {
         match *self {
             Self::Cylinder { radius, .. } => Lever::curvature_radius(radius.abs()),
             Self::Sphere { radius, .. } => Lever::curvature_radius(radius),
-            Self::Cone { apex, axis, .. } => {
-                Lever::curvature_radius(Self::axial(apex, axis, p).1.norm())
+            Self::Cone { axis, .. } => Lever::curvature_radius(axis.distance(p)),
+            Self::Torus { axis, minor, .. } => {
+                Lever::curvature_radius(minor).min(Lever::curvature_radius(axis.distance(p)))
             }
-            Self::Torus {
-                centre,
-                axis,
-                minor,
-                ..
-            } => Lever::curvature_radius(minor).min(Lever::curvature_radius(
-                Self::axial(centre, axis, p).1.norm(),
-            )),
         }
     }
 
@@ -194,37 +162,27 @@ impl<T: Decide> Quadric<T> {
     /// the core circle's nearest point, off the axis and the core.
     fn chart_normal(&self, p: Point3<T>) -> Vec3<T> {
         match *self {
-            Self::Cylinder {
-                origin,
-                axis,
-                radius,
-            } => Self::axial(origin, axis, p).1 / radius,
+            Self::Cylinder { axis, radius } => axis.offset(p) / radius,
             Self::Sphere { centre, radius } => (p - centre) / radius,
             Self::Cone {
-                apex,
-                axis,
+                axis: line @ geom::Line { dir: axis, .. },
                 half_angle,
             } => {
-                let (h, w) = Self::axial(apex, axis, p);
+                let (h, w) = line.param_and_offset(p);
                 let (s, c) = half_angle.sin_cos();
                 w.normalize() * c - axis * h.select_le_zero(-s, s)
             }
-            Self::Torus {
-                centre,
-                axis,
-                major,
-                ..
-            } => {
-                let tube = p - Self::core(centre, axis, major, p);
+            Self::Torus { axis, major, .. } => {
+                let tube = p - Self::core(axis, major, p);
                 tube.normalize()
             }
         }
     }
 
     /// The core circle's point at `p`'s azimuth, `p` off the axis.
-    fn core(centre: Point3<T>, axis: Vec3<T>, major: T, p: Point3<T>) -> Point3<T> {
-        let w = Self::axial(centre, axis, p).1;
-        centre + w.normalize() * major
+    fn core(axis: geom::Line<T>, major: T, p: Point3<T>) -> Point3<T> {
+        let w = axis.offset(p);
+        axis.origin + w.normalize() * major
     }
 
     /// The outward normal at `p` of a face of sense `sense`
@@ -240,15 +198,9 @@ impl<T: Decide> Quadric<T> {
     pub(crate) fn off_apex(&self, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
         match *self {
             Self::Cylinder { .. } | Self::Sphere { .. } => Ok(true),
-            Self::Cone { apex, axis, .. }
-            | Self::Torus {
-                centre: apex, axis, ..
-            } => Ok(decide(
+            Self::Cone { axis, .. } | Self::Torus { axis, .. } => Ok(decide(
                 "split_ring_path_off_apex",
-                Margin::of(charge(
-                    Self::axial(apex, axis, p).1.norm(),
-                    resolution(&[apex, p]),
-                )),
+                Margin::of(charge(axis.distance(p), resolution(&[axis.origin, p]))),
                 band,
             )? == Sign::Positive),
         }
@@ -285,12 +237,9 @@ impl<T: Decide> Quadric<T> {
         band: Band,
     ) -> Result<Vec<Path<T>>, Indeterminate> {
         match *self {
-            Self::Cylinder { origin, axis, .. } => self.ruled_paths(
-                geom::Line { origin, dir: axis },
-                (from, to),
-                resolution(&[from, to, origin]),
-                band,
-            ),
+            Self::Cylinder { axis, .. } => {
+                self.ruled_paths(axis, (from, to), resolution(&[from, to, axis.origin]), band)
+            }
             Self::Sphere { centre, radius } => {
                 let slack = resolution(&[from, to, centre]);
                 let a = (from - centre) / radius;
@@ -317,15 +266,15 @@ impl<T: Decide> Quadric<T> {
                     arrival: axis.cross(b),
                 }])
             }
-            Self::Cone { apex, axis, .. } => {
+            Self::Cone { axis, .. } => {
                 if !self.off_apex(from, band)? || !self.off_apex(to, band)? {
                     return Ok(Vec::new());
                 }
-                let slack = resolution(&[from, to, apex]);
+                let slack = resolution(&[from, to, axis.origin]);
                 let nappe = |p| {
                     decide(
                         "split_ring_path_nappe",
-                        Margin::of(charge(Self::axial(apex, axis, p).0, slack)),
+                        Margin::of(charge(axis.param(p), slack)),
                         band,
                     )
                 };
@@ -333,26 +282,21 @@ impl<T: Decide> Quadric<T> {
                 if side == Sign::Zero || nappe(to)? != side {
                     return Ok(Vec::new());
                 }
-                self.ruled_paths(
-                    geom::Line {
-                        origin: apex,
-                        dir: axis,
-                    },
-                    (from, to),
-                    slack,
-                    band,
-                )
+                self.ruled_paths(axis, (from, to), slack, band)
             }
             Self::Torus {
-                centre,
-                axis,
+                axis:
+                    line @ geom::Line {
+                        origin: centre,
+                        dir: axis,
+                    },
                 major,
                 ..
             } => {
                 if !self.off_apex(from, band)? || !self.off_apex(to, band)? {
                     return Ok(Vec::new());
                 }
-                let core = |p| Self::core(centre, axis, major, p);
+                let core = |p| Self::core(line, major, p);
                 let (kf, kt) = (core(from), core(to));
                 let (off_f, off_t) = ((from - kf).norm(), (to - kt).norm());
                 let slack = resolution(&[from, to, centre]);
@@ -385,8 +329,8 @@ impl<T: Decide> Quadric<T> {
                 };
                 let radial = |k: Point3<T>| (k - centre) / major;
                 let (ef, et) = (radial(kf), radial(kt));
-                let (hs, ws) = Self::axial(centre, axis, start);
-                let (ht, wt) = Self::axial(centre, axis, to);
+                let (hs, ws) = line.param_and_offset(start);
+                let (ht, wt) = line.param_and_offset(to);
                 let (rs, rt) = (ws.norm(), wt.norm());
                 let mut paths = Vec::with_capacity(2);
                 // Round the start's meridian to `to`'s parallel, then round.
@@ -894,7 +838,7 @@ impl<T: Real> LoopSplit<T> {
     /// The margin at `p`: positive on the split's positive loop.
     pub(crate) fn margin(&self, p: Point3<T>) -> T {
         match *self {
-            Self::Side { origin, dir } => (p - origin).dot(dir),
+            Self::Side { origin, dir } => geom::plane_offset(origin, dir, p),
             Self::Radius {
                 origin,
                 axis,
@@ -1046,8 +990,11 @@ impl<T: Decide> Quadric<T> {
     ) -> Result<Option<LoopArc<T>>, Indeterminate> {
         let (
             Self::Torus {
-                centre,
-                axis,
+                axis:
+                    geom::Line {
+                        origin: centre,
+                        dir: axis,
+                    },
                 major,
                 ..
             },
