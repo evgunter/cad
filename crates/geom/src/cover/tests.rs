@@ -1840,14 +1840,21 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
         let sites = cover.about();
         assert_eq!(sites.len(), 1, "the {name} proposes one site");
         let (o, d) = line(&sites[0]).unwrap_or_else(|| panic!("the {name}'s axis"));
-        assert_eq!((o, d), (xyz(frame.origin), (0.0, 0.0, 1.0)), "the {name}'s axis");
+        assert_eq!(
+            (o, d),
+            (xyz(frame.origin), (0.0, 0.0, 1.0)),
+            "the {name}'s axis"
+        );
     }
     assert!(cone.level().is_none(), "a frustum lies at no level");
     let centre = |c: &Cover<f64>| match c.about()[..] {
         [Around::Point(p)] => xyz(p),
         ref other => panic!("one centre: {other:?}"),
     };
-    assert_eq!(centre(&Cover::sphere(&frame, 0.7).unwrap()), xyz(frame.origin));
+    assert_eq!(
+        centre(&Cover::sphere(&frame, 0.7).unwrap()),
+        xyz(frame.origin)
+    );
     assert_eq!(
         centre(&Cover::torus(&frame, 0.0, 0.7).unwrap()),
         xyz(frame.origin)
@@ -1913,7 +1920,11 @@ fn a_cones_frustum_holds_its_surface_on_any_frame() {
     let steps = [-1.0, 0.0, 1.0];
     let dirs: Vec<Vec3<f64>> = steps
         .iter()
-        .flat_map(|&x| steps.iter().flat_map(move |&y| steps.map(|z| Vec3::new(x, y, z))))
+        .flat_map(|&x| {
+            steps
+                .iter()
+                .flat_map(move |&y| steps.map(|z| Vec3::new(x, y, z)))
+        })
         .filter(|e| e.norm_squared() > 0.0)
         .collect();
     let (s_a, c_a) = alpha.sin_cos();

@@ -349,9 +349,10 @@ fn face_cover_in<T: Decide>(
                 boundary
             }
             .map(Cover::convex);
-            let frustum = hull.as_ref().ok().and_then(|h| {
-                Cover::cone(&geom::Frame::new(*apex, *axis, *u_ref), *half_angle, h)
-            });
+            let frustum = hull
+                .as_ref()
+                .ok()
+                .and_then(|h| Cover::cone(&geom::Frame::new(*apex, *axis, *u_ref), *half_angle, h));
             and_proven(and_trim(carrier, hull), frustum)
         }
         Surface::Sphere { center, radius, .. } => {

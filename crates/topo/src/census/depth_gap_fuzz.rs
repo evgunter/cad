@@ -516,11 +516,7 @@ fn carrier(
         )
     };
     if i % 2 == 1 {
-        depth = cover_of(piece)
-            .about()
-            .first()
-            .copied()
-            .unwrap_or(depth);
+        depth = cover_of(piece).about().first().copied().unwrap_or(depth);
     }
     (depth, piece, samples, scale)
 }
