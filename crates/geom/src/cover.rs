@@ -635,7 +635,11 @@ impl<T: Real> Cover<T> {
     /// narrower (a hull of many small pieces, whose balls combine about
     /// their centres' midpoints).
     pub fn ball(&self) -> (Point3<T>, T) {
-        smaller(self.0.ball(), box_ball(self.0.world_box()))
+        match self.0 {
+            Node::Hull(_) | Node::Convex(_) => smaller(self.0.ball(), box_ball(self.0.world_box())),
+            // A piece and a meet weigh their box already.
+            Node::Piece(_) | Node::Meet(_) => self.0.ball(),
+        }
     }
 
     /// **The nearest and farthest the region stands from a circle**: the

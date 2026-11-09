@@ -354,6 +354,8 @@ fn nearest<T: Real>(d: T, levels: [T; 2]) -> T {
 /// One sweep's frame: what it reads and at which band.
 struct Sweep<'a, T: Real> {
     core: Core<T>,
+    /// The core circle's lever, its cover's ball read once.
+    core_lever: geom_core::Lever<T>,
     spine: Spine<T>,
     levels: [T; 2],
     rows: &'a GapRows,
@@ -380,10 +382,7 @@ impl<T: Decide> Sweep<'_, T> {
     /// deviation that turning the core by that angle moves.
     fn slope(&self, slope: T, d_hi: T) -> Margin<T> {
         let big = self.core.circle.radius;
-        Margin::levered(
-            slope / (T::from_f64(2.0) * d_hi * big),
-            crate::ExtentBall::of_covered(&geom::Curve3::Circle(self.core.circle).cover()).lever(),
-        )
+        Margin::levered(slope / (T::from_f64(2.0) * d_hi * big), self.core_lever)
     }
 
     /// **`G‴`'s bound over a window `reach` metres of core about a
@@ -582,6 +581,8 @@ pub(crate) fn critical_gap<T: Decide>(
 ) -> Result<Gap<T>, Indeterminate> {
     let sweep = Sweep {
         core,
+        core_lever: crate::ExtentBall::of_covered(&geom::Curve3::Circle(core.circle).cover())
+            .lever(),
         spine,
         levels: [ra + rb, (ra - rb).abs()],
         rows,

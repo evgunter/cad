@@ -252,20 +252,20 @@ fn eps_row(eps: f64) -> usize {
 /// here as `Plain/Decision` forms alone.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 976 forms 9789 frozen 0 digest 8858c21e7c09110b4a4a85bbf14ec889\n\
-     Plain/Assertion calls 532 forms 2827 frozen 0 digest 1e690da705f1ff979f6baa7ebd1b4117\n\
-     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4251 frozen 0 digest 6b3b7bf949a504555358aa0bb0aa7e70",
+     Plain/Decision calls 976 forms 9815 frozen 0 digest 193c741675d8d2590ab63e3f2f6bce90\n\
+     Plain/Assertion calls 532 forms 2861 frozen 0 digest b1d4249f5e85c168ea789ad0f961dcb0\n\
+     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
+     Early/Assertion calls 532 forms 4295 frozen 0 digest 5cd03583d61ff50459eb0c377d3045fa",
     "\
-     Plain/Decision calls 976 forms 9789 frozen 0 digest 08650e2e51b39ab8a7719732f4e2430a\n\
-     Plain/Assertion calls 532 forms 2827 frozen 0 digest c24c9cc21aa752ba8d607b8a2120d21f\n\
-     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4251 frozen 0 digest f9717af682f90b4f681bdb58875b7142",
+     Plain/Decision calls 976 forms 9815 frozen 0 digest fde81534e65d117b813a19782e7499f6\n\
+     Plain/Assertion calls 532 forms 2861 frozen 0 digest 6914abe6ff10c96464ddf4145f7e5308\n\
+     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
+     Early/Assertion calls 532 forms 4295 frozen 0 digest 27cfb266960f4ebacf8d0d109d6f0ea8",
     "\
-     Plain/Decision calls 976 forms 9789 frozen 0 digest 4b7556244d138ea5c634de0f542b7f0a\n\
-     Plain/Assertion calls 532 forms 2827 frozen 0 digest eae6aef0526c86d2529a6cee68bfb8f7\n\
-     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4251 frozen 0 digest 190715b1f2234c1dd0f536f3d786cbbc",
+     Plain/Decision calls 976 forms 9815 frozen 0 digest fcf1d16058eb4d2f2c4edd837849b3c7\n\
+     Plain/Assertion calls 532 forms 2861 frozen 0 digest 57bc0f8ddf4faf94be42d9d3ef799d45\n\
+     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
+     Early/Assertion calls 532 forms 4295 frozen 0 digest ebbc8b2d026f310a491f98b9912814eb",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
