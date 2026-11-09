@@ -811,3 +811,6 @@
   | 6618 | 6b06cb74 |
 
   6576 also waits on its delta review.
+- 08:40Z needle-tilts opened PR 6623 (fix A, head bfd3b71e, gate green). FULL review dispatched.
+  - The lane never got my 07:42 F/S/N ruling, so I re-sent it: F no, S yes, as the next unit `onecopy/needle-span`. After S, the lane takes the transverse-range row, also in pose.rs.
+  - Filed `circle-torus-plane-height-refuses-a-graze-the-pose-places-as-a-touch`.
