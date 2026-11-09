@@ -8,7 +8,9 @@
 use geom_brep::{ExtentBall, PairSide};
 use geom_core::{Band, Decide, Point3};
 
-use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict};
+use super::carrier_eq::{
+    CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, PairDoorReading,
+};
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
@@ -283,13 +285,15 @@ pub fn carrier_pair_decided<T: Decide>(
     let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
     let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
-    Ok(match super::carrier_eq::tori_coincidence(&ca, &cb, band) {
-        Some((geom_brep::TorusCoincidence::Apart { upper, .. }, relation)) => {
-            torus_pair_witnessed((a, fa, &ca), (b, fb, &cb), (relation, upper), band)
-        }
-        Some((coincidence, relation)) => super::carrier_eq::torus_verdict(coincidence, relation),
-        None => super::carrier_eq::pair_door_reading(&ca, &cb, &extent.consumed(), band),
-    })
+    Ok(
+        match super::carrier_eq::pair_door_reading(&ca, &cb, &extent.consumed(), band) {
+            Ok(PairDoorReading::RingApart {
+                relation, upper, ..
+            }) => torus_pair_witnessed((a, fa, &ca), (b, fb, &cb), (relation, upper), band),
+            Ok(PairDoorReading::Verdict(verdict)) => Ok(verdict),
+            Err(refusal) => Err(refusal),
+        },
+    )
 }
 
 /// The row a torus face's witness of two carriers is decided on
@@ -308,8 +312,9 @@ const TORUS_WITNESS_STRADDLE: &str = "carrier_torus_witness_straddle";
 /// they do not the two may stand in band of each other over every point
 /// they span. Each face's boundary points ([`face_witnesses`]) lie on
 /// it, and a point's distance to a torus is exact in closed form, so
-/// the farthest of them bounds from below how far the faces stand apart:
-/// past the band it witnesses two carriers here. The ring's `upper`
+/// the farthest of them bounds from below how far the faces themselves
+/// stand apart, which the ring's data, read over the whole carriers, do
+/// not: past the band it witnesses two carriers here. The ring's `upper`
 /// bounds that distance from above at every point of both tori, and is
 /// decided past the band wherever the ring reads apart; so a witness
 /// decided `Zero` straddles the band with it, and one in band is
@@ -643,8 +648,9 @@ mod lever_rows {
     /// sum, the reach, `1.8ε`, decides past `1.5ε`. The face-pair door
     /// and the contact door both read the straddle on
     /// `carrier_cyl_reach_straddle`, the enclosure from the first datum's
-    /// `Zero` (the axes agree exactly) to the reach, whose ending
-    /// subdivides and offers no tolerance.
+    /// `Zero` to the reach. The first datum is the tilt, and the axes
+    /// agree exactly, so the low end is 0 and the ending subdivides and,
+    /// for this pair, offers no tolerance.
     #[test]
     fn a_cylinder_pair_zero_by_its_data_and_past_the_band_by_its_reach_straddles() {
         let tol = Tol::witness();
@@ -681,7 +687,60 @@ mod lever_rows {
         let ending = at_door.ending(geom_core::COINCIDENCE_RECOURSE);
         assert!(
             !at_door.offers_tolerance() && ending.contains("subdivide"),
-            "a straddle's ending subdivides and offers no tolerance: {ending}"
+            "a straddle from a tilt of exactly 0 subdivides and offers no tolerance: {ending}"
+        );
+    }
+
+    /// **A sphere pair each of whose data decides `Zero` and whose reach
+    /// decides past the band straddles from its first datum**, at an
+    /// escalation factor of 1.5: a zone of the unit sphere against its
+    /// opposed twin, the centre slid `0.9ε` and the radius `0.9ε` larger.
+    /// The centre and the radius decide `Zero`; the reach, `1.8ε`, decides
+    /// past `1.5ε`. Both doors read `carrier_sphere_reach_straddle`, the
+    /// enclosure from the centre datum, the identity ladder's first, to
+    /// the reach. Its low end is `0.9ε`, so the ending offers the
+    /// tolerance below which that datum reads the spheres apart, besides
+    /// subdividing.
+    #[test]
+    fn a_sphere_pair_straddles_from_its_first_datum_and_offers_its_tolerance() {
+        use crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet;
+        let tol = Tol::witness();
+        let e = band().zero();
+        let pinned = Band::new(e, 1.5 * e).unwrap();
+        let (u, h) = ((0.3, 1.2), (-0.3, 0.3));
+        let (a, fa) = sphere_zone_sheet(u, h, tol);
+        let (mut b, fb) = sphere_zone_sheet(u, h, tol);
+        let key = b.get_face(fb).unwrap().surface;
+        b.surfaces[key] = geom::Surface::Sphere {
+            center: Point3::new(0.9 * e, 0.0, 0.0),
+            radius: 1.0 + 0.9 * e,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        let (centre, reach) = (0.9 * e, (1.0 + 0.9 * e - 1.0) + 0.9 * e);
+        let (at_door, at_contact) = straddled((&a, fa), (&b, fb), pinned);
+        assert_eq!(
+            at_door, at_contact,
+            "the contact door quotes the face-pair door"
+        );
+        assert_eq!(
+            at_door.predicate,
+            Some("carrier_sphere_reach_straddle"),
+            "{at_door:?}"
+        );
+        assert_eq!(
+            at_door.margin,
+            geom_core::MarginDiag::enclosure(centre, reach),
+            "from the centre datum to the reach: {at_door:?}"
+        );
+        let ending = at_door.ending(geom_core::COINCIDENCE_RECOURSE);
+        assert!(
+            at_door.offers_tolerance()
+                && ending.contains("subdivide")
+                && ending.contains("tighten the tolerance"),
+            "a straddle from a centre datum of 0.9ε offers its tolerance: {ending}"
         );
     }
 
@@ -721,38 +780,30 @@ mod lever_rows {
         );
         let sense = a.get_face(fa).unwrap().sense;
         b.set_face_sense(fb, !sense).unwrap();
-        let (ca, cb) = (face_carrier(&a, fa).unwrap(), face_carrier(&b, fb).unwrap());
-        let witness = face_witnesses(&a, fa)
-            .unwrap()
-            .into_iter()
-            .map(|p| torus_distance(&cb, p))
-            .chain(
-                face_witnesses(&b, fb)
-                    .unwrap()
-                    .into_iter()
-                    .map(|p| torus_distance(&ca, p)),
-            )
-            .fold(0.0, f64::max);
+        // The twin is the patch turned by θ about y; a point's distance
+        // to the untilted torus, exact in closed form, and each corner's
+        // to the other carrier: `a`'s turned back by θ, the twin's turned
+        // on by it.
+        let (sin, cos) = theta.sin_cos();
+        let turned = |[x, y, z]: [f64; 3], s: f64| [cos * x + s * z, y, cos * z - s * x];
+        let off_ring = |[x, y, z]: [f64; 3]| ((x.hypot(y) - 2.0).hypot(z) - 0.5).abs();
+        let mut witness: f64 = 0.0;
+        for uu in [u.0, u.1] {
+            for vv in [v.0, v.1] {
+                let rho = 2.0 + 0.5 * vv.cos();
+                let corner = [rho * uu.cos(), rho * uu.sin(), 0.5 * vv.sin()];
+                witness = witness
+                    .max(off_ring(turned(corner, -sin)))
+                    .max(off_ring(turned(corner, sin)));
+            }
+        }
         assert!(
             witness <= band().zero(),
             "the corners read Zero: {witness:e}"
         );
-        let ring = |c: CarrierDesc<f64>| match c {
-            CarrierDesc::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                ..
-            } => geom_brep::TorusData {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-            },
-            _ => panic!("a torus wall's carrier is a torus"),
-        };
-        let upper = geom_brep::TorusDisplacement::of(ring(ca), ring(cb)).upper;
+        // The ring's bound: the tilt alone, its chord `2·sin(θ/2)` levered
+        // at the major radius.
+        let upper = 2.0 * (2.0 * (theta / 2.0).sin()).max(sin);
         let (at_door, at_contact) = straddled((&a, fa), (&b, fb), band());
         assert_eq!(
             at_door, at_contact,
@@ -763,10 +814,14 @@ mod lever_rows {
             Some("carrier_torus_witness_straddle"),
             "{at_door:?}"
         );
-        assert_eq!(
-            at_door.margin,
-            geom_core::MarginDiag::enclosure(witness, upper),
-            "from the witness to the ring's bound: {at_door:?}"
+        let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+            at_door.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("a straddle's margin is an enclosure: {at_door:?}");
+        };
+        assert!(
+            (lo - witness).abs() <= 1e-14 && (hi - upper).abs() <= 1e-6 * upper,
+            "from the witness {witness:e} to the ring's bound {upper:e}: {at_door:?}"
         );
         let ending = at_door.ending(geom_core::COINCIDENCE_RECOURSE);
         assert!(

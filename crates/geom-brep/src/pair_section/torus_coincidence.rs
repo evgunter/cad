@@ -192,10 +192,12 @@ pub fn tori_coincide<T: Decide>(a: TorusData<T>, b: TorusData<T>, band: Band) ->
         }
         (IdentityLadder::Zero(data), upper) => {
             let data = data.unwrap_or_else(|| unreachable!("two tori are read on four data"));
-            match data_beneath_sum("tt_coincident_straddle", data, upper, band) {
-                Ok(margin) => TorusCoincidence::One(margin),
-                Err(diag) => TorusCoincidence::Undecided(diag),
-            }
+            TorusCoincidence::Undecided(data_beneath_sum(
+                "tt_coincident_straddle",
+                data,
+                upper,
+                band,
+            ))
         }
     }
 }

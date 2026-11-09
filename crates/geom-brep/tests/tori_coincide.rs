@@ -316,7 +316,8 @@ fn data_each_zero_beside_a_bound_past_the_band_straddle() {
             );
             assert!(
                 !diag.offers_tolerance() && !diag.terminal_sliver,
-                "a straddle offers no tolerance and is no sliver: {diag:?}"
+                "the first datum, the tilt, reads 0 (the axes agree), so this straddle offers \
+                 no tolerance, and no straddle is a sliver: {diag:?}"
             );
         }
         other => panic!("the straddle: {other:?}"),

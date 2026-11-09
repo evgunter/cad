@@ -36,8 +36,8 @@ C21 and the torus witness are funnel-minted straddles on the escalation log, pin
 
 C21 and the torus witness mint their straddles through `k_stats::straddle`, on the escalation log. The PR body has the per-site table (each ending before and after), the interval argument for `upper`, the sweep and the premise corrections.
 
-- **`geom_brep::ladder::data_beneath_sum`** is the one helper: data decided `Zero` as lower bounds, a sum as the upper. `tori_coincide` and `carrier_eq::coincident_over_extent` both call it. C21's rows are `bool_plane_reach_straddle` and `carrier_{sphere,cyl,cone}_reach_straddle`.
-- **`TorusCoincidence::Apart { datum, by, upper }`.** `TorusDisplacement::upper` sums `max(chord, sine)`. The face-pair door dispatches a torus pair itself (`carrier_eq::tori_coincidence`, `torus_verdict`) and hands `upper` to the witness, which mints `carrier_torus_witness_straddle`.
+- **`geom_brep::ladder::data_beneath_sum`** is the one helper: data decided `Zero` beside a sum that did not decide `Zero`. `tori_coincide` and `carrier_eq::coincident_over_extent` both call it. The data bound the carriers' separation, not the displacement over a partial extent, and the low end is the first datum's reading. C21's rows are `bool_plane_reach_straddle` and `carrier_{sphere,cyl,cone}_reach_straddle`.
+- **`TorusCoincidence::Apart { datum, by, upper }`.** `TorusDisplacement::upper` sums `max(chord, sine)`. The face-pair door (`carrier_eq::pair_door_reading`) hands the ring's apart back as `PairDoorReading::RingApart { upper, .. }`, and `carrier_pair_decided` passes `upper` to the witness, which mints `carrier_torus_witness_straddle`.
 - **Premise correction:** "apart ⇒ `upper` decided" holds for readable input only. A datum apart beside a non-finite datum leaves `upper` poisoned, and that pair now ends `Undecided` on the bound's poison, not `Apart`.
 - **The K note is C21's alone.** The witness straddle is reachable at any K.
 - **Pinned:**
