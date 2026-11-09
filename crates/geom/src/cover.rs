@@ -482,6 +482,19 @@ impl<T: Real> Cover<T> {
         })
     }
 
+    /// **The whole circle** of `radius` about `center` in the plane normal
+    /// to `axis`: its turn's region, which does not depend on where its
+    /// seam is, for a reader holding a circle's centre, axis and radius
+    /// and no seam. `None` for a datum that is not a finite number.
+    pub fn circle(center: Point3<T>, axis: Vec3<T>, radius: T) -> Option<Self> {
+        let frame = Frame::new(center, axis, axis.orthonormal_basis().0);
+        Self::arc(
+            &frame,
+            (radius, radius),
+            ParamWindow::new(T::zero(), T::tau()),
+        )
+    }
+
     /// The axial slab: the solid cylinder of radius `|radius|` about the
     /// axis from `origin + lo·axis` to `origin + hi·axis`. `None` for a
     /// datum that is not a finite number.

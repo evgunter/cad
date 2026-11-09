@@ -89,7 +89,6 @@ crates/geom-brep/tests/props_cone_vector_area.rs	test	3	oracle
 crates/geom-brep/tests/r1_pxn_probes.rs	test	1	oracle
 crates/geom-brep/tests/review_arceval_r1_probes.rs	test	1	oracle
 crates/geom-brep/tests/review_r1_rational_probes.rs	test	1	oracle
-crates/geom-brep/tests/span_reach_differential.rs	test	1	oracle
 crates/geom-brep/tests/span_reach_hunt.rs	test	1	oracle
 crates/geom-brep/tests/tori_coincide.rs	test	1	oracle
 crates/geom-brep/tests/torus_doors_ssi.rs	test	1	oracle

@@ -6176,9 +6176,8 @@ fn torus_meridian_orient<T: Decide>(
 ) -> Result<Sign, PropsError> {
     // The axis is a pure number, levered by the anchor meridian's reach
     // from the torus centre, where the frame it aims is consumed.
-    let meridian = crate::ExtentBall::of_covered(
-        &Curve3::circle(c_c, n_c, minor, n_c.orthonormal_basis().0).cover(),
-    );
+    let meridian =
+        crate::ExtentBall::of_covered(&geom::cover::Cover::circle(c_c, n_c, minor).ok_or(()));
     let reach = meridian.lever_from(center);
     let aim = UnitVec3::levered(axis, "props_torus_axis", band, reach).map_err(|e| match e {
         LeveredUnitError::Direction(e) => {
