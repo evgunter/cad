@@ -773,3 +773,12 @@
 - 08:20Z spiric-regime opened PR 6621 (head a43b5c58), with hosted CI green. It adds one predicate, geom::spiric_regime, and the three deciders route to it. FULL review dispatched; it also asks whether spiric_regime spells the ring question a third time.
 - 08:22Z gate-blind-spots opened PR 6620 (head ec30ddcd); scripts only, gate green. FULL review dispatched.
   - New row `transverse-range-charges-the-global-height-with-world-origin-noise`, held for the needle-tilts lane once its PR is up, since both are in pose.rs.
+- 08:30Z Branch-band fork decided after round 3. Both designers agree:
+  - The home is the ratified at-rest embedding gate; no ratified text changes. The row folds into the P0 unit `the-at-rest-gate-certifies-embedding`.
+  - The P0 unit gains three defects: by_kind on trimmed analytic faces, edge-key cross-face touching, and the same-surface spline residue. It also gains a named residual and pins.
+  - The split, K's admitted floor, went to Ev as [ev] PR 6625:
+    - The diff raises the floor to K ≥ 2 in [verdicts].
+    - A leans to raising it; B leans to recording the hole.
+    - Fork log row 256 carries the recommendation half.
+  - I'm subscribed to 6625.
+  - The branch-band lane lands the outcome on 6618: it closes the row, appends to the P0 unit, fixes two doc overstatements, and files a Hit::On naming row.
