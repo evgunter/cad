@@ -2,10 +2,12 @@
 id: a-callee-that-decides-hides-its-question-mark-from-the-gate
 kind: issue
 title: escalation-question-marks.sh cannot see a ? on a callee that decides inside it: about 265-295 band-reading ? lines in loops
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: H
+closed: 2026-11-06
+pr: 6574
 ---
 
 
@@ -53,3 +55,23 @@ Until then, the work is a pass over the 265 lines that dispositions each
 as needed-every-element, premise, or hand-rolled, with the hand-rolled
 ones ported or listed. Widen the gate's loop detection to `= loop {` and
 `= 'label: for` headers in the same pass.
+
+## Closed (2026-11-06, PR 6574)
+
+- **Swept:** 363 band-reading callee `?` lines in loops, skipping
+  `#[cfg(test)]` bodies.
+  - 237 sit in loops with no early answering exit, which read every
+    element.
+  - 126, in 85 loops, were read and dispositioned as HAND-ROLLED, WHICH
+    or NOT A SEARCH.
+- **Ported:** `solid_contain::point_in_faces`' boundary pre-pass,
+  `census::line_wedges` and `overlap::piece_witness`'s corners. Each is
+  pinned, and their reach was measured: 29 `point_in_faces` moves in
+  topo's `ci` set, none in sweep or step-import.
+- `sectors::partner_cuts` is not a search: every cut inside a sector is
+  applied.
+- **The gate** reads expression loops and registers this shape
+  (`escalation-question-marks-callee.counts`, 83 lines in 38 files), each
+  file dispositioned.
+- The remaining HAND-ROLLED sites are listed in
+  `question-mark-ladders-the-gate-registered`.

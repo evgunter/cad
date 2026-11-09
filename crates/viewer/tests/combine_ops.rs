@@ -24,6 +24,7 @@
 use crate::common;
 use pncad::document::AuthoredNode;
 use pncad::document::Bodies;
+use pncad::document::BodyRead;
 use pncad::topo::BooleanOp;
 use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
@@ -2343,7 +2344,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     boolean.pick(session.committed_doc(), a);
     assert!(matches!(
         boolean.op(),
-        Ok(SessionOp::AddBoolean { spec: BooleanSpec::Union(members), .. }) if members == [Operand::from(a)]
+        Ok(SessionOp::AddBoolean { spec: BooleanSpec::Union(members), .. }) if members == [BodyRead::from(a)]
     ));
     boolean.pick(session.committed_doc(), b);
     boolean.pick(session.committed_doc(), a);
@@ -2368,7 +2369,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
                 from: first,
                 tool: second,
             },
-        }) if first == Operand::from(a) && second == Operand::from(b)
+        }) if first == BodyRead::from(a) && second == BodyRead::from(b)
     ));
 
     // Deleting the REMOVED body's node empties that seat and leaves
@@ -3937,7 +3938,7 @@ fn the_boolean_tools_picks_carry_their_ports_across_the_operation() {
         },
     );
     let doc = session.committed_doc().clone();
-    let port = |h: SplitHalf| Operand::output(split, h.port());
+    let port = |h: SplitHalf| BodyRead::plain(Operand::output(split, h.port()));
     let mut tool = BooleanTool::new();
     tool.pick(&doc, split);
     tool.pick(&doc, split);
@@ -4069,7 +4070,7 @@ fn taking_over_one_half_of_a_split_leaves_the_other() {
 /// its copy no longer holds.
 #[test]
 fn a_combine_that_would_strand_a_pick_refuses_typed() {
-    use pncad::document::{BodyRead, VarId};
+    use pncad::document::VarId;
     let tol = Tol::witness();
     let mut session = session(tol);
     let a = common::xy_box_in(&mut session, A);
@@ -4116,4 +4117,535 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
         out.refusal
     );
     assert_eq!(session.history().len(), steps, "nothing recorded");
+}
+
+/// A face picked through the session's real ray path, looking straight
+/// up at `(x, y)` from below.
+fn picked_from_below(session: &DocSession, x: f64, y: f64) -> Selection {
+    Selection::Face(common::asm::pick_face(session, &common::asm::up_at(x, y)))
+}
+
+/// The boolean tool, opened under `op` and fed `picks` through the
+/// tools' own selection door, as the viewport and the tree feed it.
+fn boolean_fed(doc: &Doc<ProfileProgram>, op: BooleanOp, picks: Vec<Selection>) -> BooleanTool {
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Boolean);
+    if let Some(tool) = tools.boolean_mut() {
+        tool.set_operation(op);
+    }
+    let picks: Vec<SessionOp> = picks.into_iter().map(SessionOp::Select).collect();
+    let _ = tools.feed(doc, Err(viewer::pickcache::NotIndexed::Absent), &picks);
+    tools.boolean().expect("the boolean tool is open")
+}
+
+/// Member `at` of the family `pattern`, read by its index.
+fn member(pattern: RecipeNodeId, at: i64) -> BodyRead<Formula> {
+    BodyRead::indexed(Operand::Node(pattern), vec![Formula::count(at)])
+}
+
+/// **The union of a split's two halves, each clicked in the viewport**:
+/// the boolean tool reads one half by each pick's port, its line names
+/// both halves, and the union it commits is the whole box again.
+#[test]
+fn the_boolean_tool_unions_a_splits_two_halves_picked_in_the_viewport() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body.into(),
+            plane,
+        },
+    );
+    session.pump();
+    let picks = vec![
+        picked_from_above(&session, 0.0, 0.0),
+        picked_from_below(&session, 0.0, 0.0),
+    ];
+    let doc = session.committed_doc().clone();
+    let tool = boolean_fed(&doc, BooleanOp::Union, picks);
+    let port = |h: SplitHalf| BodyRead::plain(Operand::output(split, h.port()));
+    assert_eq!(
+        tool.spec().expect("both halves held"),
+        BooleanSpec::Union(vec![port(SplitHalf::Above), port(SplitHalf::Below)]),
+        "the ray from above met the upper half, the ray from below the lower"
+    );
+    let line = tool.line(Speaker::of(&doc));
+    assert!(
+        line.contains("above half") && line.contains("below half"),
+        "the panel names both halves: {line}"
+    );
+    let union = session_insert(&mut session, tool.op().expect("committable"));
+    let whole = A[0] * A[1] * A[2];
+    assert_volume(&mut session, union, whole, tol);
+}
+
+/// Box `B` moved to stand inside member 1 of [`box_and_pattern`]'s row
+/// (member 0 at the origin, member 1 `2·A[0]` along +x): the session,
+/// the pattern and the moved box.
+fn pattern_and_box_inside_member_one(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+    let (mut session, _, pattern) = box_and_pattern(tol);
+    let raw = common::xy_box_in(&mut session, B);
+    let inner = common::moved_to(&mut session, raw, [A[0] * 2.0, 0.0, 0.002]);
+    session.pump();
+    (session, pattern, inner)
+}
+
+/// **A pattern's member clicked in the viewport is read by its index**
+/// at every boolean seat: a union's member and a subtraction's kept
+/// body read `pattern[k]` for the member the ray met, the panel line
+/// spells that index, and the committed result's volume is that
+/// member's arithmetic — `B` stands inside member 1 alone, so the union
+/// of member 0 and `B` is the two volumes apart, and member 1 with `B`
+/// cut away is the box less `B`.
+#[test]
+fn a_boolean_reads_the_pattern_member_picked_in_the_viewport() {
+    let tol = Tol::witness();
+    let (one, small) = (A[0] * A[1] * A[2], B[0] * B[1] * B[2]);
+
+    let (mut session, pattern, inner) = pattern_and_box_inside_member_one(tol);
+    let doc = session.committed_doc().clone();
+    let picks = vec![
+        picked_from_above(&session, 0.0, 0.0),
+        Selection::Node(inner),
+    ];
+    let tool = boolean_fed(&doc, BooleanOp::Union, picks);
+    assert_eq!(
+        tool.spec().expect("both held"),
+        BooleanSpec::Union(vec![member(pattern, 0), inner.into()]),
+        "the member the ray met, by its index"
+    );
+    let line = tool.line(Speaker::of(&doc));
+    assert!(line.contains("[0]"), "the panel spells the index: {line}");
+    let union = session_insert(&mut session, tool.op().expect("committable"));
+    assert_volume(&mut session, union, one + small, tol);
+
+    let (mut session, pattern, inner) = pattern_and_box_inside_member_one(tol);
+    let doc = session.committed_doc().clone();
+    // Clear of `B`'s footprint, so the ray meets member 1's top.
+    let picks = vec![
+        picked_from_above(&session, A[0] * 2.0 - 0.015, 0.0),
+        Selection::Node(inner),
+    ];
+    let tool = boolean_fed(&doc, BooleanOp::Subtract, picks);
+    assert_eq!(
+        tool.spec().expect("both seated"),
+        BooleanSpec::Subtract {
+            from: member(pattern, 1),
+            tool: inner.into(),
+        },
+        "the body kept is the member the ray met"
+    );
+    let cut = session_insert(&mut session, tool.op().expect("committable"));
+    assert_volume(&mut session, cut, one - small, tol);
+}
+
+/// **A family picked in the tree is read whole, and a member chosen
+/// reads that member alone**: a tree pick names the node, so a boolean
+/// seat reads every member (`D10 [repetition]`) and the line says so;
+/// choosing a member, by the index values the family enumerates,
+/// re-reads the seat as that member, in a union and in a subtraction
+/// alike. A seat of another tool reads the family whole, as before.
+#[test]
+fn a_family_picked_in_the_tree_is_read_whole_until_a_member_is_chosen() {
+    let tol = Tol::witness();
+    let (session, _, pattern) = box_and_pattern(tol);
+    let doc = session.committed_doc().clone();
+    let mut tool = boolean_fed(&doc, BooleanOp::Union, vec![Selection::Node(pattern)]);
+    assert_eq!(tool.family_picks(), vec![(0, pattern)]);
+    assert_eq!(
+        tool.spec().expect("held whole"),
+        BooleanSpec::Union(vec![pattern.into()]),
+        "the family whole"
+    );
+    let line = tool.line(Speaker::of(&doc));
+    assert!(line.contains("every member"), "{line}");
+    let members = viewer::world::members_of(&doc, pattern).expect("a family of two");
+    assert_eq!(members, [vec![0], vec![1]], "one index, its two values");
+    tool.choose_member(0, members[1].clone());
+    assert_eq!(
+        tool.spec().expect("chosen"),
+        BooleanSpec::Union(vec![member(pattern, 1)])
+    );
+    assert!(tool.line(Speaker::of(&doc)).contains("[1]"));
+    tool.choose_member(0, members[0].clone());
+    assert_eq!(
+        tool.spec().expect("re-chosen"),
+        BooleanSpec::Union(vec![member(pattern, 0)]),
+        "a member read re-chooses"
+    );
+
+    let mut pair = boolean_fed(
+        &doc,
+        BooleanOp::Subtract,
+        vec![Selection::Node(pattern), Selection::Node(pattern)],
+    );
+    pair.choose_member(0, vec![0]);
+    pair.choose_member(1, vec![1]);
+    assert_eq!(
+        pair.spec().expect("both seated"),
+        BooleanSpec::Subtract {
+            from: member(pattern, 0),
+            tool: member(pattern, 1),
+        }
+    );
+
+    let mut patterned = PatternTool::new();
+    patterned.pick(&doc, pattern);
+    assert_eq!(
+        patterned.seats().read(0),
+        Some(Operand::Node(pattern)),
+        "a seat reading the family whole is unchanged"
+    );
+}
+
+/// Box `A` placed into the world, then patterned twice along +x: the
+/// world copy re-pointed to the family. Answers the session, the world
+/// copy and the pattern.
+fn world_copied_pattern(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+    let (mut session, (body, copy)) = session_with_box_in_world(tol);
+    let pattern = session_insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: body.into(),
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
+                spacing: len(A[0] * 2.0),
+            },
+        },
+    );
+    (session, copy, pattern)
+}
+
+/// **A member picked through a world copy of its family reads the
+/// family whole, and the combine takes the copy over**: what a member
+/// read should do to a copy of its family waits on DOORS' ruling
+/// (`work/doors/a-combine-of-a-world-copied-familys-member-leaves-the-copy-drawing-it.md`),
+/// so the seat reads what it read before member reads, and the world
+/// draws the result through the copy and nothing else.
+#[test]
+fn a_member_picked_through_a_world_copy_reads_the_family_whole_and_takes_the_copy_over() {
+    let tol = Tol::witness();
+    let (mut session, copy, pattern) = world_copied_pattern(tol);
+    let other = common::xy_box_in(&mut session, B);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let picks = vec![
+        picked_from_above(&session, A[0] * 2.0, 0.0),
+        Selection::Node(other),
+    ];
+    let tool = boolean_fed(&doc, BooleanOp::Union, picks);
+    assert_eq!(
+        tool.spec().expect("both held"),
+        BooleanSpec::Union(vec![pattern.into(), other.into()]),
+        "the family whole, past the copy"
+    );
+    assert!(tool.family_picks().is_empty(), "and no member row offered");
+    let union = session_insert(&mut session, tool.op().expect("committable"));
+    let doc = session.committed_doc();
+    let Some(Node::Place { source, .. }) = doc.node(copy) else {
+        panic!("the world copy stays a placement");
+    };
+    assert_eq!(
+        Some(source.read),
+        doc.output(union, 0),
+        "the copy taken over"
+    );
+    let picture = viewer::world::Picture::of(doc);
+    assert_eq!(
+        picture.drawn,
+        [viewer::world::Drawn::whole(copy)],
+        "the world draws the result through the copy, and nothing else"
+    );
+}
+
+/// **A split of a family reads one half of one member**: picked in the
+/// tree, the split waits for its half and reads every member; the half
+/// and the member are chosen in either order, and the read is the
+/// half's output at the member's index (`split.above[1]`). The door
+/// takes it; evaluation refuses it, `WrongOperand` on the union, since
+/// a split of a family evaluates to a family of splits whose halves no
+/// read reaches —
+/// `work/refs/a-split-of-a-family-has-no-halves-a-read-reaches.md`,
+/// whose fix turns this row's last assertion into the member's upper
+/// three quarters.
+#[test]
+fn a_split_of_a_family_reads_one_half_of_one_member_chosen_in_either_order() {
+    let tol = Tol::witness();
+    let (mut session, body, pattern) = box_and_pattern(tol);
+    let plane = common::cut_across(&session, body, A[2] / 4.0);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: pattern.into(),
+            plane,
+        },
+    );
+    let doc = session.committed_doc().clone();
+    let above = |at: i64| {
+        viewer::combine::member_read(Operand::output(split, SplitHalf::Above.port()), &[at])
+    };
+    let mut half_first = boolean_fed(&doc, BooleanOp::Union, vec![Selection::Node(split)]);
+    assert_eq!(half_first.awaiting_half(), vec![0], "the split waits");
+    assert_eq!(half_first.family_picks(), vec![(0, split)], "a family");
+    let line = half_first.line(Speaker::of(&doc));
+    assert!(
+        line.contains("every member, half not chosen"),
+        "both said: {line}"
+    );
+    half_first.choose_half(0, SplitHalf::Above);
+    half_first.choose_member(0, vec![1]);
+    let mut member_first = boolean_fed(&doc, BooleanOp::Union, vec![Selection::Node(split)]);
+    member_first.choose_member(0, vec![1]);
+    assert!(matches!(
+        member_first.spec(),
+        Err(SeatError::HalfUnchosen { seat: Seat::Member })
+    ));
+    member_first.choose_half(0, SplitHalf::Above);
+    for (order, tool) in [("half first", &half_first), ("member first", &member_first)] {
+        assert_eq!(
+            tool.spec().expect("chosen"),
+            BooleanSpec::Union(vec![above(1)]),
+            "{order}"
+        );
+    }
+    assert!(
+        half_first
+            .line(Speaker::of(&doc))
+            .contains("[1], above half"),
+        "{}",
+        half_first.line(Speaker::of(&doc))
+    );
+    let union = session_insert(&mut session, half_first.op().expect("committable"));
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    assert!(
+        matches!(
+            eval.result(union).and_then(NodeResult::error),
+            Some(NodeError {
+                kind: NodeErrorKind::WrongOperand { input, .. },
+                ..
+            }) if *input == split
+        ),
+        "{:?}",
+        eval.result(union)
+    );
+}
+
+/// **A grid's member is read at both its indices, in the order the
+/// family enumerates them**: box `C` stands inside member `(i, j) =
+/// (1, 2)` of a 2 × 3 grid alone, and the member a viewport pick there
+/// reads, with `C` cut away, is the box less `C` — red if the drawn
+/// body order, [`viewer::world::members_of`]'s order and the read's
+/// indices disagree, since any other member holds none of `C`.
+#[test]
+fn a_grid_member_is_read_at_both_its_indices() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let block = common::xy_box_in(&mut session, A);
+    let (i, j) = (
+        pncad::document::VarName::new("i").expect("a name"),
+        pncad::document::VarName::new("j").expect("a name"),
+    );
+    let mut doc = session.committed_doc().clone();
+    for (name, count, within) in [(&i, 2, None), (&j, 3, Some(&i))] {
+        doc = pncad::document::apply(
+            &doc,
+            &pncad::pattern::index_decl(name.clone(), Formula::count(count), within),
+            tol,
+        )
+        .expect("an index declares")
+        .doc;
+    }
+    let (step_i, step_j) = (A[0] * 2.0, A[1] * 2.0);
+    let space = doc.node_space(block).expect("the block's space");
+    let grid = pncad::pattern::grid(
+        (
+            &i,
+            (
+                pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::X),
+                len(step_i),
+            ),
+        ),
+        (
+            &j,
+            (
+                pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::Y),
+                len(step_j),
+            ),
+        ),
+        BodyRead::plain(Operand::from(block)),
+        Operand::Var(space),
+        None,
+    )
+    .expect("length pitches");
+    let (doc, grid) = common::inserted(&doc, grid, tol);
+    let mut session = crate::common::inline_without_door(doc, tol);
+    let raw = common::xy_box_in(&mut session, B);
+    let inner = common::moved_to(&mut session, raw, [step_i, 2.0 * step_j, 0.002]);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    assert_eq!(
+        viewer::world::members_of(&doc, grid).map(|members| members.len()),
+        Some(6),
+        "two by three"
+    );
+    let picks = vec![
+        picked_from_above(&session, step_i - 0.015, 2.0 * step_j),
+        Selection::Node(inner),
+    ];
+    let tool = boolean_fed(&doc, BooleanOp::Subtract, picks);
+    assert_eq!(
+        tool.spec().expect("both seated"),
+        BooleanSpec::Subtract {
+            from: viewer::combine::member_read(grid, &[1, 2]),
+            tool: inner.into(),
+        },
+        "the member the ray met, at (i, j)"
+    );
+    let cut = session_insert(&mut session, tool.op().expect("committable"));
+    let (one, small) = (A[0] * A[1] * A[2], B[0] * B[1] * B[2]);
+    assert_volume(&mut session, cut, one - small, tol);
+}
+
+/// **A member read keeps its index across a change of operation**, as a
+/// split's half keeps its port: a union's member re-seats as the body
+/// kept, and back.
+#[test]
+fn the_boolean_tools_member_reads_carry_across_the_operation() {
+    let tol = Tol::witness();
+    let (session, pattern, inner) = pattern_and_box_inside_member_one(tol);
+    let doc = session.committed_doc().clone();
+    let picks = vec![
+        picked_from_above(&session, A[0] * 2.0 - 0.015, 0.0),
+        Selection::Node(inner),
+    ];
+    let mut tool = boolean_fed(&doc, BooleanOp::Union, picks);
+    tool.set_operation(BooleanOp::Subtract);
+    assert_eq!(
+        tool.spec().expect("seated"),
+        BooleanSpec::Subtract {
+            from: member(pattern, 1),
+            tool: inner.into(),
+        },
+        "members to seats keep the index"
+    );
+    tool.set_operation(BooleanOp::Intersect);
+    assert_eq!(
+        tool.spec().expect("members"),
+        BooleanSpec::Intersect(vec![member(pattern, 1), inner.into()]),
+        "seats to members keep it"
+    );
+}
+
+/// **Every seat reads a member exactly where its door takes one**: a
+/// viewport pick on member 1 of a family nothing copies reads `[1]` at
+/// a seat [`Seat::reads_member`] says reads one, and the family whole at
+/// every other; and the boolean door commits a member read at each of
+/// its seats. The match is exhaustive, so a seat added to the
+/// vocabulary is a seat this row has to place.
+#[test]
+fn every_seat_reads_a_member_exactly_where_its_door_takes_one() {
+    let tol = Tol::witness();
+    let (mut session, body, pattern) = box_and_pattern(tol);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let Selection::Face(face) = picked_from_above(&session, A[0] * 2.0, 0.0) else {
+        unreachable!("the helper answers a face")
+    };
+    for seat in Seat::ALL {
+        let mut seats = viewer::seats::Seats::one(seat);
+        seats.pick_at(&doc, face.node, Some(face.body));
+        let read = seats.body_read(0).expect("seated");
+        let want = if seat.reads_member() {
+            member(pattern, 1)
+        } else {
+            pattern.into()
+        };
+        assert_eq!(read, want, "the {} seat", seat.name());
+        let spec = match seat {
+            Seat::Member => Some(BooleanSpec::Union(vec![read, body.into()])),
+            Seat::SubtractFrom => Some(BooleanSpec::Subtract {
+                from: read,
+                tool: body.into(),
+            }),
+            Seat::SubtractTool => Some(BooleanSpec::Subtract {
+                from: body.into(),
+                tool: read,
+            }),
+            // Each of these ops holds an `Operand`, which has no member.
+            Seat::SplitTarget
+            | Seat::PatternBody
+            | Seat::PartInstance
+            | Seat::MirrorBody
+            | Seat::ClearedFirst
+            | Seat::ClearedSecond => None,
+        };
+        if let Some(spec) = spec {
+            let mut session = crate::common::inline_without_door(doc.clone(), tol);
+            let out = session.perform(SessionOp::AddBoolean { spec });
+            assert!(
+                out.refusal.is_none(),
+                "the {} door takes the member: {:?}",
+                seat.name(),
+                out.refusal
+            );
+        }
+    }
+}
+
+/// **A pattern of a world copy stands in the world and is read as a
+/// copy of its source** — today's reading, pinned for
+/// `work/placing/a-pattern-of-a-copy-is-read-as-a-copy-of-its-source.md`:
+/// a viewport pick on its member 1 seats the undrawn world copy it
+/// replicates. The pattern tool never authors this document: a pick on
+/// the copy seats the body it places.
+#[test]
+fn a_pattern_of_a_world_copy_is_read_as_a_copy_of_its_source() {
+    let tol = Tol::witness();
+    let (mut session, (body, copy)) = session_with_box_in_world(tol);
+    let doc = session.committed_doc().clone();
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Pattern);
+    let _ = tools.feed(
+        &doc,
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[SessionOp::Select(picked_from_above(&session, 0.0, 0.0))],
+    );
+    assert_eq!(
+        tools.pattern().and_then(|t| t.input()),
+        Some(body),
+        "the pattern tool seats the body, not its copy"
+    );
+    let pattern = session_insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: copy.into(),
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
+                spacing: len(A[0] * 2.0),
+            },
+        },
+    );
+    let other = common::xy_box_in(&mut session, B);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    assert_eq!(doc.node_space(pattern), Some(pncad::document::VarId::WORLD));
+    let tool = boolean_fed(
+        &doc,
+        BooleanOp::Union,
+        vec![
+            picked_from_above(&session, A[0] * 2.0, 0.0),
+            Selection::Node(other),
+        ],
+    );
+    assert_eq!(
+        tool.spec().expect("both held"),
+        BooleanSpec::Union(vec![copy.into(), other.into()]),
+        "the member's pick seats the copy the pattern replicates"
+    );
 }
