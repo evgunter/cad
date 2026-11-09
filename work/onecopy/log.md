@@ -795,3 +795,4 @@
 - 08:26Z PR 6627 (census-rosters, head 54f61b09) is up. It closes three rows; k_stats' door signatures are the one home. FULL review dispatched.
 - 08:26Z The boolean-standing lane notes that fuzz seeds are printed on every run. The lost cone_fuzz seed was its own grep filter, so nothing to file.
 - 08:26Z [ev] 6625's CI suite is complete; it waits on Ev.
+- 08:30Z PR 6620 FULL review: FIX. It has an orphaned header fragment, three unplanted arms, an untested method look-behind and unnamed alias gaps. The root cause is that it still hand-spells the kind vocabulary and the ROOT spelling. Sent back to the lane.
