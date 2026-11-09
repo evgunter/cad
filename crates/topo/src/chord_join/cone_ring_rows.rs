@@ -90,10 +90,7 @@ fn sheet_up_to(
         a0 < a1,
         "a sheet's rulings run from {a0} to {a1}, in increasing azimuth"
     );
-    // The loop runs counterclockwise about the face's outward normal, so
-    // the face is the region between the rims and the rulings at either
-    // sense: a sense-`false` face's normal points the other way, and its
-    // loop is walked from the other ruling.
+    // The loop rule ([`super::island_rows`]).
     let (a0, a1) = if sense { (a0, a1) } else { (a1, a0) };
     let lo = 0.05;
     let mut body = Body::<f64>::new();
@@ -188,11 +185,11 @@ fn empty_ring(body: &mut Body<f64>, face: FaceKey, p: Point3<f64>) -> LoopKey {
 fn run_from(
     body: &mut Body<f64>,
     (face, surface): (FaceKey, SurfaceKey),
-    island: &Island,
+    (island, hair): (&Island, bool),
     r: usize,
 ) -> ((HalfEdgeKey, HalfEdgeKey), IslandEdge) {
     let n = island.edges.len();
-    assert_island_in_face(body, face, island);
+    assert_island_in_face(body, face, island, hair);
     let ring = empty_ring(body, face, island.corners[r]);
     let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
     for k in 0..n - 1 {
@@ -214,24 +211,20 @@ fn run_from(
     ((first, last), island.edges[(r + n - 1) % n].clone())
 }
 
-/// **The island lies in the sheet**, sampled: no corner of it, and no
-/// point of its edges at nine interior stations each, is placed outside
-/// the face by the face's own region door, read while the face holds
-/// only its outer loop. A ring whose island crosses the sheet's outer
-/// loop is no face of the sheet, and the winding's premise, that every
-/// outer-loop point is on the same side of the island, fails on it.
-fn assert_island_in_face(body: &Body<f64>, face: FaceKey, island: &Island) {
-    let stations = island.edges.iter().flat_map(|e| {
-        let (t0, t1) = e.params;
-        (1..10).map(move |k| e.carrier.eval(t0 + (t1 - t0) * f64::from(k) / 10.0))
-    });
-    for p in island.corners.iter().copied().chain(stations) {
-        let at = crate::boolean::curved_face_containment(body, face, p, band());
-        assert!(
-            !matches!(at, Ok(Some(crate::boolean::FaceContainment::Out))),
-            "the island leaves its sheet at {p:?}: {at:?}"
-        );
-    }
+/// The island's corners and three stations of each edge
+/// ([`super::island_rows::assert_in_face`]), a hair inside an edge of
+/// the sheet where `hair`.
+fn assert_island_in_face(body: &Body<f64>, face: FaceKey, island: &Island, hair: bool) {
+    let stations = island
+        .edges
+        .iter()
+        .flat_map(|e| super::island_rows::stations(&e.carrier, e.params, 3));
+    super::island_rows::assert_in_face(
+        body,
+        face,
+        island.corners.iter().copied().chain(stations),
+        hair,
+    );
 }
 
 /// `island` traversed the other way round.
@@ -310,7 +303,8 @@ fn a_cone_ring_run_winds_its_island_as_the_oracle_does() {
                         for r in 0..island.edges.len() {
                             let want = oracle_winding(&surface, sense, &island, r, step);
                             let (mut body, face, key) = sheet(f, surface.clone(), sense);
-                            let (run, closing) = run_from(&mut body, (face, key), &island, r);
+                            let (run, closing) =
+                                run_from(&mut body, (face, key), (&island, false), r);
                             let spec = edge_spec(&mut body, key, &closing);
                             let label = format!(
                                 "{name}, mirror {mirror}, sense {sense}, back {back}, from {r}"
@@ -375,7 +369,7 @@ fn a_ring_on_a_cone_face_is_re_homed_by_a_path() {
                     let (mut body, face, key) = sheet(f, surface.clone(), true);
                     let ring_in = empty_ring(&mut body, face, p_in);
                     let ring_out = empty_ring(&mut body, face, p_out);
-                    let (run, closing) = run_from(&mut body, (face, key), &island, r);
+                    let (run, closing) = run_from(&mut body, (face, key), (&island, false), r);
                     let after = body.get_half_edge(run.1).unwrap().next;
                     let site = MefSite::Chords {
                         he1: run.0,
@@ -447,7 +441,7 @@ fn a_path_escalating_by_a_corner_hands_the_winding_to_the_next() {
     let mut escalated = 0;
     for delta in offsets_through_the_band() {
         let (mut body, face, key) = sheet_to(f, surface.clone(), true, (az_c - delta / rho, 1.2));
-        let (run, closing) = run_from(&mut body, (face, key), &island, 2);
+        let (run, closing) = run_from(&mut body, (face, key), (&island, true), 2);
         assert!(
             closing.plane.is_none(),
             "the closing chord is the ruling at 0.9"
@@ -521,13 +515,13 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
     let quadric = Quadric::of(&surface).unwrap();
     let (lune, sector) = (lune(f, &surface, 1.0), sector(f, &surface));
     let mut escalated = [0; 2];
-    let mut read = |island: &Island,
+    let mut read = |(island, hair): (&Island, bool),
                     p: Point3<f64>,
                     (mut body, face, key): (Body<f64>, FaceKey, SurfaceKey),
                     label: String| {
         let inside = (island.inside)(p);
         let ring = empty_ring(&mut body, face, p);
-        let (run, closing) = run_from(&mut body, (face, key), island, 0);
+        let (run, closing) = run_from(&mut body, (face, key), (island, hair), 0);
         let (newf, remainder) = wall_off(&mut body, key, run, closing);
         let cycle = outer_cycle(&body, newf).unwrap().unwrap();
         let arcs = run_loop_arcs(&body, newf, (&surface, &quadric), &cycle, band()).unwrap();
@@ -558,7 +552,7 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
             let p = on_nappe(f, h, az_c - delta * h / (h_c * rho));
             let sheet = sheet(f, surface.clone(), true);
             read(
-                &lune,
+                (&lune, false),
                 p,
                 sheet,
                 format!("lune, offset {delta:e}, height {h}"),
@@ -571,7 +565,12 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
     for delta in offsets_through_the_band() {
         let p = on_nappe(f, 1.4, 0.15);
         let sheet = sheet_up_to(f, surface.clone(), true, ((-1.2, 1.2), top + delta));
-        read(&sector, p, sheet, format!("sector, offset {delta:e}"));
+        read(
+            (&sector, true),
+            p,
+            sheet,
+            format!("sector, offset {delta:e}"),
+        );
     }
     assert!(
         escalated.iter().all(|&n| n > 0),
@@ -597,7 +596,7 @@ fn the_arrival_arc_reads_its_second_meeting_with_the_closing_chord() {
         let surface = cone(f, false);
         let island = sector(f, &surface);
         let (mut body, face, key) = sheet(f, surface.clone(), true);
-        let (run, closing) = run_from(&mut body, (face, key), &island, 3);
+        let (run, closing) = run_from(&mut body, (face, key), (&island, false), 3);
         assert!(
             closing.plane.is_some(),
             "the closing chord is the low ellipse"

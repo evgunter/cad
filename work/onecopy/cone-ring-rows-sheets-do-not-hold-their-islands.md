@@ -68,12 +68,16 @@ and not in the reader.
   island sat in its hole. Each now walks its loop from the other ruling
   or meridian, so the face is the rectangle at either sense (PR 6607's
   review).
-- `run_from` asserts, sampled, that the island lies in the sheet before
-  it builds the ring (`assert_island_in_face`): no corner, and no point
-  of nine stations on each edge, is placed outside the face by the face's
-  own region door. The torus and sphere rows' `empty_ring` assert the
-  same of every ring they plant. The old narrow sheet, and the old
-  sense-`false` loops, turn them red.
+- The three files read one helper, `chord_join::island_rows::assert_in_face`.
+  Each row checks every island corner and three stations on each edge,
+  in `run_from` (cone, torus) or before the ring is planted (sphere),
+  against a copy of the face holding its outer loop alone. Bystander
+  rings planted earlier therefore leave the door no empty loop to refuse
+  on. A point must read `In`. On the boundary or in band passes only in
+  the rows that set an island a hair inside the sheet's edge (`hair`).
+  An `Out`, a refusal, or an escalation elsewhere fails. The old narrow
+  sheet and the old sense-`false` loops turn the rows red. The loop rule
+  is stated once, in the helper's module doc.
 - The old sense-`false` sheets were not passed at rest:
   `validate_geometric` reports `CurvedSenseInverted` on all twelve cone
   sheets, so check 6 refuses them.

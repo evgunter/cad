@@ -5571,6 +5571,9 @@ mod side_ladder_rows {
 mod cone_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod island_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

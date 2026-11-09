@@ -73,9 +73,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
 /// axis and the tube's outer side, top, bottom and most of its inner
 /// side.
 fn sheet(f: Frame, torus: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
-    // The loop runs counterclockwise about the face's outward normal, so
-    // the face is the chart rectangle at either sense: at sense `false` it
-    // is walked from the other meridian.
+    // The loop rule ([`super::island_rows`]).
     let u = if sense { U } else { -U };
     let mut body = Body::<f64>::new();
     let start = on_torus(f, -u, -V);
@@ -145,14 +143,7 @@ fn sheet(f: Frame, torus: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKe
 
 /// An empty ring of `face` at `p`, bridged from the outer loop's first
 /// vertex and the bridge killed.
-/// The ring lies in the face: its point is not placed outside it by the
-/// face's own region door, which a sheet built the wrong way round fails.
 fn empty_ring(body: &mut Body<f64>, face: FaceKey, p: Point3<f64>) -> LoopKey {
-    let at = crate::boolean::curved_face_containment(body, face, p, Band::linear(tol()).unwrap());
-    assert!(
-        !matches!(at, Ok(Some(crate::boolean::FaceContainment::Out))),
-        "a ring planted off its face at {p:?}: {at:?}"
-    );
     let outer = body.get_face(face).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("outer is a cycle");
@@ -183,6 +174,16 @@ fn run_from(
     r: usize,
 ) -> ((HalfEdgeKey, HalfEdgeKey), IslandEdge) {
     let n = island.edges.len();
+    let stations = island
+        .edges
+        .iter()
+        .flat_map(|e| super::island_rows::stations(&e.carrier, e.params, 3));
+    super::island_rows::assert_in_face(
+        body,
+        face,
+        island.corners.iter().copied().chain(stations),
+        false,
+    );
     let ring = empty_ring(body, face, island.corners[r]);
     let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
     for k in 0..n - 1 {

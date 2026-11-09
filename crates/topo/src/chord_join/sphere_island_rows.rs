@@ -99,9 +99,7 @@ fn spec(body: &mut Body<f64>, surface: SurfaceKey, a: &Arc3) -> EdgeCurveSpec<f6
 /// A face of the sphere between the latitudes ±0.97 and the meridians
 /// at azimuths ±2.9.
 fn sheet(s: Sph, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
-    // The loop runs counterclockwise about the face's outward normal, so
-    // the face is the region between the latitudes and the meridians at
-    // either sense: at sense `false` it is walked from the other meridian.
+    // The loop rule ([`super::island_rows`]).
     let (lo, hi, t) = (-0.97, 0.97, if sense { 2.9 } else { -2.9 });
     let mut body = Body::<f64>::new();
     let start = s.at(-t, lo);
@@ -185,14 +183,24 @@ fn sheet(s: Sph, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
     (body, face, surface)
 }
 
-/// The ring lies in the face: its point is not placed outside it by the
-/// face's own region door, which a sheet built the wrong way round fails.
-fn empty_ring(body: &mut Body<f64>, face: FaceKey, p: Point3<f64>) -> LoopKey {
-    let at = crate::boolean::curved_face_containment(body, face, p, Band::linear(tol()).unwrap());
-    assert!(
-        !matches!(at, Ok(Some(crate::boolean::FaceContainment::Out))),
-        "a ring planted off its face at {p:?}: {at:?}"
+/// `island`'s corners and three stations of each edge lie in `face`
+/// ([`super::island_rows::assert_in_face`]).
+fn assert_island_in_face(body: &Body<f64>, face: FaceKey, s: Sph, island: &Island) {
+    let edges: Vec<Arc3> = (0..island.corners.len())
+        .map(|k| island.edge(s, k))
+        .collect();
+    let stations = edges
+        .iter()
+        .flat_map(|a| super::island_rows::stations(&a.carrier, (0.0, a.end), 3));
+    super::island_rows::assert_in_face(
+        body,
+        face,
+        island.corners.iter().copied().chain(stations),
+        false,
     );
+}
+
+fn empty_ring(body: &mut Body<f64>, face: FaceKey, p: Point3<f64>) -> LoopKey {
     let outer = body.get_face(face).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("outer is a cycle");
@@ -376,6 +384,7 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
                         Sign::Negative
                     };
                     let (mut body, face, key) = sheet(s, sense);
+                    assert_island_in_face(&body, face, s, &island);
                     let ring = empty_ring(&mut body, face, island.corners[c]);
                     let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
                     for k in 0..n - 1 {
@@ -473,6 +482,7 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
         let n = island.corners.len();
         for c in 0..n {
             let (mut body, face, key) = sheet(s, true);
+            assert_island_in_face(&body, face, s, &island);
             let ring_in = empty_ring(&mut body, face, pin);
             let ring_out = empty_ring(&mut body, face, pout);
             let rring = empty_ring(&mut body, face, island.corners[c]);
@@ -578,6 +588,7 @@ fn a_winding_no_path_decides_escalates_with_the_first_reading() {
     for delta in thin_offsets() {
         let (island, _) = thin_lune(s, delta);
         let (mut body, face, key) = sheet(s, true);
+        assert_island_in_face(&body, face, s, &island);
         let ring = empty_ring(&mut body, face, island.corners[0]);
         let run_edge = spec(&mut body, key, &island.edge(s, 0));
         let h = body
@@ -647,6 +658,7 @@ fn a_re_homing_no_path_decides_escalates_with_the_first_reading() {
         let (island, _) = thin_lune(s, delta);
         let p = s.polar(0.3 + 0.5 * delta, 0.5 * PI);
         let (mut body, face, key) = sheet(s, true);
+        assert_island_in_face(&body, face, s, &island);
         empty_ring(&mut body, face, p);
         let ring = empty_ring(&mut body, face, island.corners[0]);
         let run_edge = spec(&mut body, key, &island.edge(s, 0));
