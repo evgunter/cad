@@ -673,8 +673,11 @@ fn rect_jet(
 }
 
 fn unit(v: Vec3<f64>) -> Option<Vec3<f64>> {
-    let (d, n) = v.direction_and_length();
-    (n.is_finite() && n > 0.0).then_some(d)
+    let (d, _) = v
+        .checked_direction_and_length()
+        .ok()
+        .filter(|&(_, n)| n > 0.0)?;
+    Some(d)
 }
 
 fn perp(v: Vec3<f64>, t: Vec3<f64>) -> Vec3<f64> {

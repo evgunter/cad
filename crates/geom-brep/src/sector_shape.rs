@@ -115,10 +115,7 @@
 
 use crate::OutwardNormal;
 use geom_core::k_stats::{decide, decide_negative, decide_positive};
-use geom_core::{
-    Band, Decide, Indeterminate, Lever, Margin, Real, Sign, Vec3, is_finite_length,
-    is_underflowed_length,
-};
+use geom_core::{Band, Decide, Indeterminate, LengthOutOfFormat, Lever, Margin, Real, Sign, Vec3};
 
 /// Rung 1's K name: the metering arm is positive. Private, as its two
 /// siblings are (module docs, "One K name per rung").
@@ -360,18 +357,19 @@ pub fn sector_arm<T: Decide>(
     dir_next: Vec3<T>,
     band: Band,
 ) -> Result<T, SectorFault> {
-    let (norm_own, norm_next) = (dir_own.norm(), dir_next.norm());
-    if !is_finite_length(norm_own) || !is_finite_length(norm_next) {
-        return Err(SectorFault::NonFiniteChord);
-    }
     // Per CHORD, against that chord's own witness — the arm below is
     // their `min`, which has no witness of its own and would hide the
-    // underflowed one behind the good one.
-    if is_underflowed_length(norm_own, dir_own.norm_witness())
-        || is_underflowed_length(norm_next, dir_next.norm_witness())
-    {
-        return Err(SectorFault::UnderflowedChord);
-    }
+    // underflowed one behind the good one. A non-finite chord is named
+    // before an underflowed one, whichever bound it is.
+    let (norm_own, norm_next) = match (dir_own.checked_length(), dir_next.checked_length()) {
+        (Ok(own), Ok(next)) => (own, next),
+        (Err(LengthOutOfFormat::NonFinite), _) | (_, Err(LengthOutOfFormat::NonFinite)) => {
+            return Err(SectorFault::NonFiniteChord);
+        }
+        (Err(LengthOutOfFormat::Underflowed), _) | (_, Err(LengthOutOfFormat::Underflowed)) => {
+            return Err(SectorFault::UnderflowedChord);
+        }
+    };
     let arm = norm_own.min(norm_next);
     decide_positive(SECTOR_ARM, Margin::of(arm), band).map_err(refused(SectorRung::Arm))?;
     Ok(arm)

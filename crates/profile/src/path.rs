@@ -4873,11 +4873,10 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
 /// validated or drawn; a question here would be a second one about the
 /// same length, pre-empting the refusals that name it.
 ///
-/// The chord is divided by its largest component before it is
-/// normalized, so its squares are of order one whatever its scale: no
-/// finite chord overflows them or loses them to the subnormal range, at
-/// a point scalar or in an enclosure. Two chords have no length to
-/// divide by. The zero chord (the authored point IS the tip) names no
+/// The chord is normalized through [`Vec2::normalize`]'s exact
+/// power-of-two prescale, so no finite chord overflows its squares or
+/// loses them to the subnormal range, at a point scalar or in an
+/// enclosure. Two chords have no length to divide by. The zero chord (the authored point IS the tip) names no
 /// ray and stands in `+x` for one; a component past the range (a tip
 /// that overflowed) keeps `atan2`'s reading of its heading, the limit
 /// along its infinite axis.
@@ -4889,8 +4888,7 @@ fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
     if geom_core::is_exact_zero(witness) {
         return Dir::from_unit(Vec2::new(T::one(), T::zero()));
     }
-    let scaled = d / witness;
-    Dir::from_unit(scaled.normalize())
+    Dir::from_unit(d.normalize())
 }
 
 /// The vector `v` rotated by `by` radians — the one spelling of a
@@ -6257,7 +6255,13 @@ mod tests {
         assert_eq!(ray(0.0, 1e-13), (0.0, 1.0), "a sub-ε chord");
         assert_eq!(ray(0.0, 0.0), (1.0, 0.0), "the zero chord");
         assert_eq!(ray(-3e300, 4e300), (-0.6, 0.8), "an overflowed length");
-        assert_eq!(ray(3e-300, -4e-300), (0.6, -0.8), "an underflowed length");
+        // The two doubles' true ray is (0.6000000000000000212…,
+        // −0.7999999999999999840…), which rounds to these, not to −0.8.
+        assert_eq!(
+            ray(3e-300, -4e-300),
+            (0.6, -0.799_999_999_999_999_9),
+            "an underflowed length"
+        );
         assert_eq!(
             ray(f64::NEG_INFINITY, 1e307).0,
             -1.0,
@@ -6277,8 +6281,8 @@ mod tests {
     }
 
     /// **The chord door at the interval scalar is sound, and narrow at
-    /// both ends of the range.** The prescale by the largest component
-    /// is the same arithmetic in an enclosure, so an overflowed or an
+    /// both ends of the range.** The prescale is by an exact power of
+    /// two in an enclosure too, so an overflowed or an
     /// underflowed chord's ray encloses `(−1, 0)` and is as narrow as
     /// one along −x of ordinary length; and a chord on `atan2`'s branch
     /// cut (`x < 0`, `y` straddling zero) reads a narrow ray.

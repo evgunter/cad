@@ -65,7 +65,9 @@
 //! rule.
 
 use crate::gate::{Escalation, Gate, decide};
-use geom_core::{Band, Bounds, Circles, Decide, Line2, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::{
+    Band, Bounds, Circles, Decide, LengthOutOfFormat, Line2, Margin, Point2, Real, Sign, Tol, Vec2,
+};
 
 use super::{
     ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, PathError, PathNoCornerReason,
@@ -1036,13 +1038,10 @@ pub(crate) fn carrier_tangent<T: Decide>(
     band: Band,
 ) -> Result<Dir<T>, PathError<T>> {
     let v = p - centre;
-    let radius = v.norm_squared().sqrt();
-    if !geom_core::is_finite_length(radius) {
-        return Err(PathError::NonFiniteDirection { dx: v.x, dy: v.y });
-    }
-    if geom_core::is_underflowed_length(radius, v.norm_witness()) {
-        return Err(PathError::UnderflowedDirection { dx: v.x, dy: v.y });
-    }
+    let radius = v.checked_length().map_err(|e| match e {
+        LengthOutOfFormat::NonFinite => PathError::NonFiniteDirection { dx: v.x, dy: v.y },
+        LengthOutOfFormat::Underflowed => PathError::UnderflowedDirection { dx: v.x, dy: v.y },
+    })?;
     match decide(Gate::PathArcCenterRadius, Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),

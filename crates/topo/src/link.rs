@@ -931,13 +931,9 @@ fn pairing<T: Decide>(
 /// [`TouchUnread::ChordScale`] refusal for an edge too long or too
 /// short to measure. The one home of that question in the analysis.
 fn chord<T: Real>(p: Point3<T>, q: Point3<T>) -> Result<T, TouchUnread> {
-    let v = q - p;
-    let len = v.norm();
-    if !geom_core::is_finite_length(len) || geom_core::is_underflowed_length(len, v.norm_witness())
-    {
-        return Err(TouchUnread::ChordScale);
-    }
-    Ok(len)
+    (q - p)
+        .checked_length()
+        .map_err(|_| TouchUnread::ChordScale)
 }
 
 /// A boundary edge of a face, as its two end points.

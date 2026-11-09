@@ -55,3 +55,8 @@ message.
 **A third seed from the same lane** (found by PR 6422's review):
 seed `0x5a8a9d9e82406bc6` at ε 1e-12 reports `cone 31, split`, the
 same message, and is red at that branch's merge base `dc4e9b279e` too.
+
+**Another, from ONECOPY's `onecopy/length-rule`**: seed
+`0x85b149a16ec6139e` with `CAD_FUZZ_EFFORT=30` reports `ε 1e-12,
+cone 806, split`, the same message, and is red identically with the
+branch's whole diff stashed (main `2fee45b9`).

@@ -8,7 +8,7 @@
 use core::convert::Infallible;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::real::{Real, pow2};
+use crate::real::{Real, is_finite_length, is_underflowed_length, pow2};
 
 /// A vector of the 2-D linear (tangent) space.
 #[derive(Clone, Copy, Debug)]
@@ -85,15 +85,89 @@ fn normalizing_scale<T: Real>(w: T) -> Option<f64> {
     }
 }
 
-/// **The one prescale**: `v`, whose largest `|component|` is `witness`,
-/// brought into the squares' range by [`normalizing_scale`]'s exact power
-/// of two through `scale` (the type's componentwise `scale_pow2`), with
-/// that power; `v` itself and `None` where it is already in range. Every
-/// reading that rescales a vector before its norm reads it here.
-fn prescaled<T: Real, V>(v: V, witness: T, scale: impl FnOnce(V, f64) -> V) -> (V, Option<f64>) {
+/// **The one prescale**: `v` brought into the squares' range by
+/// [`normalizing_scale`]'s exact power of two of its largest
+/// `|component|` `witness`, with that power; `v` itself and `None` where
+/// it is already in range. Every reading that rescales a vector before
+/// its norm reads it here.
+fn prescaled<T: Real, V: Prescale<T>>(v: V, witness: T) -> (V, Option<f64>) {
     match normalizing_scale(witness) {
         None => (v, None),
-        Some(k) => (scale(v, k), Some(k)),
+        Some(k) => (v.scale_pow2(k), Some(k)),
+    }
+}
+
+/// The reads [`prescaled`] and the direction-and-length readings make of
+/// a vector, so both dimensions share one body.
+trait Prescale<T: Real>: Copy + Div<T, Output = Self> {
+    fn witness(self) -> T;
+    fn scale_pow2(self, k: f64) -> Self;
+    fn length(self) -> T;
+}
+
+impl<T: Real> Prescale<T> for Vec2<T> {
+    fn witness(self) -> T {
+        self.norm_witness()
+    }
+    fn scale_pow2(self, k: f64) -> Self {
+        self.map(|c| c.scale_pow2(k))
+    }
+    fn length(self) -> T {
+        self.norm()
+    }
+}
+
+impl<T: Real> Prescale<T> for Vec3<T> {
+    fn witness(self) -> T {
+        self.norm_witness()
+    }
+    fn scale_pow2(self, k: f64) -> Self {
+        self.map(|c| c.scale_pow2(k))
+    }
+    fn length(self) -> T {
+        self.norm()
+    }
+}
+
+/// **Where a vector's length leaves the format**: the one rule a door
+/// that refuses a direction or a length reads, through
+/// [`Vec3::checked_direction_and_length`] or
+/// [`Vec2::checked_direction_and_length`]. Both are of the vector's
+/// PLAIN norm, the one [`Vec3::norm`] spells, read against its largest
+/// component ([`Vec3::norm_witness`]). The zero vector is neither: a
+/// length of exactly `0` is the door's own degeneracy question.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LengthOutOfFormat {
+    /// The plain norm overflowed or is poison ([`is_finite_length`]).
+    NonFinite,
+    /// The plain norm underflowed to zero for a vector with a nonzero
+    /// component ([`is_underflowed_length`]).
+    Underflowed,
+}
+
+/// `(direction, length)` through the one prescale.
+fn direction_and_length<T: Real, V: Prescale<T>>(v: V) -> (V, T) {
+    let (scaled, k) = prescaled(v, v.witness());
+    let n = scaled.length();
+    (scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip())))
+}
+
+/// [`direction_and_length`], or the rule's refusal. Inside the range
+/// the prescale is the identity, so the norm it reads IS the plain norm
+/// and is read once; past it the rule reads the plain norm itself.
+fn checked_direction_and_length<T: Real, V: Prescale<T>>(
+    v: V,
+) -> Result<(V, T), LengthOutOfFormat> {
+    let witness = v.witness();
+    let (scaled, k) = prescaled(v, witness);
+    let n = scaled.length();
+    let plain = if k.is_none() { n } else { v.length() };
+    if !is_finite_length(plain) {
+        Err(LengthOutOfFormat::NonFinite)
+    } else if is_underflowed_length(plain, witness) {
+        Err(LengthOutOfFormat::Underflowed)
+    } else {
+        Ok((scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip()))))
     }
 }
 
@@ -192,7 +266,7 @@ impl<T: Real> Vec2<T> {
         self.norm_squared().sqrt()
     }
 
-    /// The **witness** [`is_underflowed_length`](crate::is_underflowed_length)
+    /// The **witness** [`is_underflowed_length`]
     /// asks its question against: the largest `|component|`.
     ///
     /// That predicate's contract is that `witness` is the largest
@@ -259,9 +333,34 @@ impl<T: Real> Vec2<T> {
     /// length `0`; an infinite component yields the length `∞`; poison
     /// propagates into both.
     pub fn direction_and_length(self) -> (Self, T) {
-        let (scaled, k) = prescaled(self, self.norm_witness(), |v, k| v.map(|c| c.scale_pow2(k)));
-        let n = scaled.norm();
-        (scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip())))
+        direction_and_length(self)
+    }
+
+    /// [`direction_and_length`](Self::direction_and_length), or where
+    /// this vector's length leaves the format ([`LengthOutOfFormat`]):
+    /// the one door for a site that refuses such a vector, so the norm
+    /// the rule reads and the length it returns are one read in range.
+    /// The zero vector is `Ok` with an all-NaN direction and the length
+    /// `0`, which is the caller's own question.
+    ///
+    /// # Errors
+    ///
+    /// [`LengthOutOfFormat::NonFinite`] where the plain norm overflowed
+    /// or is poison, [`LengthOutOfFormat::Underflowed`] where it
+    /// underflowed to zero.
+    pub fn checked_direction_and_length(self) -> Result<(Self, T), LengthOutOfFormat> {
+        checked_direction_and_length(self)
+    }
+
+    /// The length half of
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
+    /// for a door that refuses such a vector and reads only its length.
+    ///
+    /// # Errors
+    ///
+    /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
+    pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
+        checked_direction_and_length(self).map(|(_, n)| n)
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -407,7 +506,7 @@ impl<T: Real> Vec3<T> {
         self.norm_squared().sqrt()
     }
 
-    /// The **witness** [`is_underflowed_length`](crate::is_underflowed_length)
+    /// The **witness** [`is_underflowed_length`]
     /// asks its question against: the largest `|component|`.
     ///
     /// That predicate's contract is that `witness` is the largest
@@ -476,9 +575,34 @@ impl<T: Real> Vec3<T> {
     /// length `0`; an infinite component yields the length `∞`; poison
     /// propagates into both.
     pub fn direction_and_length(self) -> (Self, T) {
-        let (scaled, k) = prescaled(self, self.norm_witness(), |v, k| v.map(|c| c.scale_pow2(k)));
-        let n = scaled.norm();
-        (scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip())))
+        direction_and_length(self)
+    }
+
+    /// [`direction_and_length`](Self::direction_and_length), or where
+    /// this vector's length leaves the format ([`LengthOutOfFormat`]):
+    /// the one door for a site that refuses such a vector, so the norm
+    /// the rule reads and the length it returns are one read in range.
+    /// The zero vector is `Ok` with an all-NaN direction and the length
+    /// `0`, which is the caller's own question.
+    ///
+    /// # Errors
+    ///
+    /// [`LengthOutOfFormat::NonFinite`] where the plain norm overflowed
+    /// or is poison, [`LengthOutOfFormat::Underflowed`] where it
+    /// underflowed to zero.
+    pub fn checked_direction_and_length(self) -> Result<(Self, T), LengthOutOfFormat> {
+        checked_direction_and_length(self)
+    }
+
+    /// The length half of
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
+    /// for a door that refuses such a vector and reads only its length.
+    ///
+    /// # Errors
+    ///
+    /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
+    pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
+        checked_direction_and_length(self).map(|(_, n)| n)
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -733,7 +857,7 @@ impl<T: Real> Vec3<T> {
     /// length.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let zero = T::zero();
-        let (n, _) = prescaled(self, self.norm_witness(), |v, k| v.map(|c| c.scale_pow2(k)));
+        let (n, _) = prescaled(self, self.norm_witness());
         let scale = n.norm().min(n.norm_witness());
         let vy = Self::new(n.z, zero, -n.x);
         let vz = Self::new(-n.y, n.x, zero);
@@ -1000,13 +1124,17 @@ mod tests {
         assert_eq!(n, f64::INFINITY);
     }
 
-    /// **Mixed magnitudes, every binade.** Out of range the pair is
-    /// within 2 ulps of the in-range pair scaled by the same power of two,
-    /// not exact: where the largest component lies just above `2⁻⁷⁶⁷` the
+    /// **Mixed magnitudes, every binade.** Out of range the pair is not
+    /// exact: where the largest component lies just above `2⁻⁷⁶⁷` the
     /// `2²⁵⁶` prescale lands it just above `2⁻⁵¹¹`, and the smaller
     /// components' squares go subnormal. The two pinned vectors (found by
-    /// a 200 000-draw search over that band) reach the 2 ulps there, so
-    /// the bound is met and not loose.
+    /// a 200 000-draw search over that band) are within 2 ulps of their
+    /// in-range pair scaled by the same power of two at every binade, and
+    /// reach the 2 there. That is a property of these two, not a bound:
+    /// the in-range pair rounds too, and some vectors sit 3 ulps from it
+    /// (Vec3 bits `10379168357661013866, 10296199369991661344,
+    /// 10343357683394100397`). The documented bound is against the true
+    /// length.
     #[test]
     fn direction_and_length_are_within_two_ulps_at_every_binade() {
         let ulps = |a: f64, b: f64| a.to_bits().abs_diff(b.to_bits());

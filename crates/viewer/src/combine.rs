@@ -1731,10 +1731,10 @@ pub fn measured_at_scale<M, E>(
         [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
             .map(|axis| width_along(&probe, axis).unwrap_or(0.0)),
     )
-    .norm();
-    if !(scale.is_finite() && scale > 0.0) {
+    .checked_length();
+    let Some(scale) = scale.ok().filter(|&s| s > 0.0) else {
         return Ok(None);
-    }
+    };
     let chord = scale * MEASURE_CHORD;
     Ok(Some((at(chord)?, chord)))
 }
@@ -1788,10 +1788,7 @@ impl StepClearFault {
 /// zero direction.
 fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) -> Option<f64> {
     let direction = Vec3::from_array(direction);
-    let norm = direction.norm();
-    if !(norm.is_finite() && norm > 0.0) {
-        return None;
-    }
+    let norm = direction.checked_length().ok().filter(|&n| n > 0.0)?;
     let mut along = points
         .iter()
         .map(|p| Vec3::new(p.x, p.y, p.z).dot(direction) / norm);
