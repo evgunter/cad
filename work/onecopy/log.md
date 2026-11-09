@@ -671,3 +671,4 @@
 - 2026-11-09 — PR 6602 delta: MERGE, after the lane merges main (the m10 repin turns green per the reviewer's trial merge). Filed the-least-band-gates-door-list-is-a-hand-copy-of-k-stats-doors (P3).
 - 2026-11-09 — The GitHub-releases 504 on lint's ruff download persists for runners (6552 at 06:25 failed again; my local curl gets 200). Holding re-triggers until it clears: 6552, 6605 and 6606 are waiting on a green lint.
 - 2026-11-09 — PR 6605 merged (pinch premise) on GATE GREEN at bc36a350; 6610 landed after, disjoint, workspace check of the merge clean.
+- 2026-11-09 — PR 6598 pass in (4ec53e77): one Rung::refused(e, standing, abort), refusing deleted, census:8513 ported; comments fixed; order pinned; nits; seed routed to honeroot. Delta review dispatched. 6598 still merges after 6576 (whose taxonomy pass is owed).
