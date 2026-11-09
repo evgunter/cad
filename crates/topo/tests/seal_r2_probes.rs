@@ -79,12 +79,19 @@ fn opd(name: &'static str, pieces: &[Piece], pose: &Pose, record: bool) -> Opd {
             &|s| groups.get(&s).copied(),
             0,
         );
-        assert!(recorded.findings.is_empty(), "{name}: {:?}", recorded.findings);
+        assert!(
+            recorded.findings.is_empty(),
+            "{name}: {:?}",
+            recorded.findings
+        );
         recorded.records
     } else {
         ContactRecords::default()
     };
-    let singles = pieces.iter().map(|p| build(std::slice::from_ref(p), pose)).collect();
+    let singles = pieces
+        .iter()
+        .map(|p| build(std::slice::from_ref(p), pose))
+        .collect();
     Opd {
         name,
         body,
@@ -206,7 +213,11 @@ fn samples(lo: [f64; 3], hi: [f64; 3], planes: &[f64], n: usize) -> Vec<[f64; 3]
     }
     for &z in planes {
         for _ in 0..n / 2 {
-            out.push([lo[0] + (hi[0] - lo[0]) * r(), lo[1] + (hi[1] - lo[1]) * r(), z]);
+            out.push([
+                lo[0] + (hi[0] - lo[0]) * r(),
+                lo[1] + (hi[1] - lo[1]) * r(),
+                z,
+            ]);
         }
     }
     out
@@ -289,7 +300,9 @@ fn probe(
                 mism += 1;
             }
             if mism + on_where_definite <= 3 {
-                bad.push(format!("{what}: at {q:?} want {w:?} got {got:?} (a {a:?} b {b:?})"));
+                bad.push(format!(
+                    "{what}: at {q:?} want {w:?} got {got:?} (a {a:?} b {b:?})"
+                ));
             }
         }
     }
@@ -446,7 +459,12 @@ fn p2_other_seats() {
             true,
         );
         // blocks
-        let p_in = opd("p_in", &[bx((0.7, 0.9), (-0.1, 0.1), (0.1, 0.4))], &pose, false);
+        let p_in = opd(
+            "p_in",
+            &[bx((0.7, 0.9), (-0.1, 0.1), (0.1, 0.4))],
+            &pose,
+            false,
+        );
         let p_edge = opd(
             "p_edge",
             &[bx((0.9, 1.1), (-0.1, 0.1), (0.1, 0.4))],
@@ -540,9 +558,24 @@ fn p4_ridges() {
     };
     for pose in the_poses().into_iter().take(3) {
         let seat = opd("seat", &[bolt(), plate()], &pose, true);
-        let up = opd("ridge_up", &[ridge(vec![(0.1, 0.35), (-0.1, 0.35), (0.0, 0.2)])], &pose, false);
-        let down = opd("ridge_down", &[ridge(vec![(-0.1, 0.05), (0.1, 0.05), (0.0, 0.2)])], &pose, false);
-        let cross = opd("ridge_cross", &[ridge(vec![(0.1, 0.35), (-0.1, 0.35), (0.0, 0.15)])], &pose, false);
+        let up = opd(
+            "ridge_up",
+            &[ridge(vec![(0.1, 0.35), (-0.1, 0.35), (0.0, 0.2)])],
+            &pose,
+            false,
+        );
+        let down = opd(
+            "ridge_down",
+            &[ridge(vec![(-0.1, 0.05), (0.1, 0.05), (0.0, 0.2)])],
+            &pose,
+            false,
+        );
+        let cross = opd(
+            "ridge_cross",
+            &[ridge(vec![(0.1, 0.35), (-0.1, 0.35), (0.0, 0.15)])],
+            &pose,
+            false,
+        );
         all_ops(&seat, &up, &pose, &pts, &mut bad);
         all_ops(&seat, &down, &pose, &pts, &mut bad);
         all_ops(&seat, &cross, &pose, &pts, &mut bad);
@@ -669,7 +702,10 @@ fn p6_recourses() {
                 Ok(BooleanResult::Empty) => "Empty".to_string(),
                 Err(e) => format!("Err {:?}", e.kind()),
             },
-            other => format!("first step {:?}", other.as_ref().map(|_| ()).map_err(|e| e.kind())),
+            other => format!(
+                "first step {:?}",
+                other.as_ref().map(|_| ()).map_err(|e| e.kind())
+            ),
         };
         eprintln!("RECOURSE (bolt ∪ plate) ∪ {name}: {out}");
     }
@@ -688,8 +724,18 @@ fn p7_stacked_seats() {
             &pose,
             true,
         );
-        let pin = opd("pin3", &[bx((-0.1, 0.1), (-0.1, 0.1), (-0.2, 0.5))], &pose, false);
-        let thru = opd("thru3", &[bx((-0.1, 0.1), (-0.1, 0.1), (-0.5, 1.5))], &pose, false);
+        let pin = opd(
+            "pin3",
+            &[bx((-0.1, 0.1), (-0.1, 0.1), (-0.2, 0.5))],
+            &pose,
+            false,
+        );
+        let thru = opd(
+            "thru3",
+            &[bx((-0.1, 0.1), (-0.1, 0.1), (-0.5, 1.5))],
+            &pose,
+            false,
+        );
         all_ops(&stack, &pin, &pose, &pts, &mut bad);
         all_ops(&stack, &thru, &pose, &pts, &mut bad);
     }
