@@ -996,3 +996,16 @@
 - 14:05Z Main reds forwarded to main-reds: shell_role_reader needle cavity, pcurve circle_lane seed 0xbb6048d2e37fd735, reach_split_gate_azimuth OutsideSessionBox (a sixth onehome row), the stale m10_di_dual_corpus pin.
 - 14:05Z boolean-standing → onecopy/boolean-standing-2: leftovers row, fold Rung::of_reading into Rung::answers, correct the onedoor move row's scope.
 - 14:05Z 6598 merge of main conflicts in ladder.rs (refused's abort map vs answers) and boolean mod/sectors/vtxfac → sent to its lane (session_013mPGJ2bhto1oBKSPNU7Sa4).
+- 14:20Z Merged PR 6640 (census-rosters-2) at gate-green be2a8253 → 04d857f2. Delta MERGE; disjoint; check and gates clean. The row_like header NOTE goes to the lane's next PR.
+- 14:20Z Reviews in:
+  - 6638 FULL: FIX. Correct the 1e4 claim; record the far +3e-6 pose at 1e3; doc the two refusal kinds; lens pins M2/M3 green; narrow the atrest lens row; the umbrella row double-schedules pose.rs. Sent to needle-tilts.
+  - 6632 delta: FIX. "No Interval bit moves" is false (1-ulp outward widening below ~2^-959). Ruled: keep the routing, correct the sentence at 3 places, file an exact-½-at-Interval row. Sent to bracket-mid.
+- 14:20Z New PRs and their FULL reviews:
+  - 6641 ring-torus → session_013mPGJ25j6HEPTxSvd8CXrd.
+  - 6643 face-placement (gate green; census/cell_region deviation under [topo.homes]) → session_013mPGJ3BVt7iJw5XModx26D.
+  - 6644 foot-and-pinch → session_013mPGJ3tyjcmbPeAmhwAP32.
+  - 6642 pose-arms (stacked on 6638) → after 6638's delta.
+- 14:20Z Next units:
+  - face-placement lane → onecopy/lone-vertices.
+  - foot-and-pinch lane → onecopy/pinch-side (not-crossed at a pinch; probe first).
+  - spiric lane → onecopy/line-placement (loose line tuples and plane/line tuples).
