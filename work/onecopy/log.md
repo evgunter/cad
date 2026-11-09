@@ -1106,3 +1106,4 @@
 - 18:20Z Follow-ups:
   - 6598 lane: merge main and re-gate.
   - unbuilt-recourse lane → onecopy/carry-notes: the Desync frame, Carry admitting unbuilt arms, two TubeRefusal enums, KnotVectorInvalid's two spellings, recourse return shapes.
+- 18:30Z 6632's gate went red at 733b0579 on the seed-dependent circle_lane_rows fuzz (not its code). Filed work/onecopy/main-red-the-circle-lane-coefficient-charge-row-fails-on-some-seeds.md and sent it to main-reds. rerun_failed_jobs is 403 for this integration. Main had moved and overlapped (6653: pair_section, join, mod) → merged main (66aecfb30563aa85680eaba5a507fd5bba993a85); check, gates, fmt and 4323 clean; re-gating.
