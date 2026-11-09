@@ -583,7 +583,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
     let (zone, surface, sense) = reverted
         .faces()
         .find_map(|(k, f)| {
-            let s = reverted.get_surface(f.surface)?;
+            let s = reverted.face_surface(k)?;
             matches!(s, geom::Surface::Sphere { .. }).then(|| (k, s.clone(), f.sense))
         })
         .expect("the wedge has a sphere face");

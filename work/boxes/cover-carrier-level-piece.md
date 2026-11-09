@@ -2,12 +2,12 @@
 id: cover-carrier-level-piece
 kind: unit
 title: geom::cover gains a carrier level (shell) piece, so depth_gap's 'a face lies exactly |r| from its carrier's axis, centre or core' is a cover method and carrier_depth's Surface match goes
-status: closed
+status: dispatched
 opened: 2026-11-08
-closed: 2026-11-09
 priority: P1
 cost: M
 refs: [cover-topo-faces]
+branch: boxes/cover-carrier-level-piece
 ---
 
 

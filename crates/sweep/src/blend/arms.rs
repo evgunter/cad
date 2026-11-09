@@ -925,7 +925,7 @@ impl<T: Real> Meridian<T> {
                 ..
             } => {
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let nappe = T::one().copysign((self.rim - apex).dot(axis) * axis.dot(self.axis));
+                let nappe = ((self.rim - apex).dot(axis) * axis.dot(self.axis)).unit_sign();
                 Some((
                     SupportTrace::Straight {
                         normal: radial * cos_a - self.axis * (nappe * sin_a),
@@ -1042,7 +1042,7 @@ impl<T: Real> Ruling<T> {
             // A cylinder about the ruling: the cross-section circle,
             // centred where the cylinder's axis crosses this sheet.
             Surface::Cylinder { axis, radius, .. } => {
-                let on_axis = s.frame()?.axis_line().foot(self.rim);
+                let on_axis = s.axis_line()?.foot(self.rim);
                 Some((
                     SupportTrace::Round {
                         center: geom::Line {

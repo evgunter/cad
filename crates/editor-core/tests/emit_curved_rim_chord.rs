@@ -159,9 +159,8 @@ fn within_sources(
         c.carrier().mid_point(t0, t1)
     };
     let ends_closed = |k: EdgeKey| {
-        let e = src_body.get_edge(k).unwrap();
-        let start = |he| src_body.get_half_edge(he).unwrap().start;
-        start(e.he_plus) == start(e.he_minus)
+        let (a, b) = src_body.edge_vertices(k).unwrap();
+        a == b
     };
     let mut on_top_arc = 0;
     for (name, entry) in published.iter() {

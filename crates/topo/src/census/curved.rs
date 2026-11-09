@@ -38,14 +38,18 @@ struct Read<T: Real> {
     span: (T, T),
 }
 
-/// The refusals this module pushes for one edge's reading, each named
-/// once, so a reader that maps them ([`edge_tangent_refusal`]) reads the
-/// same constants the pushes write.
-const NO_CURVE: &str = "a curved edge with no certified curve";
-const NO_REACH: &str = "a curved edge whose speed bound meters no reach over its span";
-const NO_LENGTH: &str = "a curved edge whose least speed meters no length over its span";
+/// Pushes `edge`'s reading refused for `why`, the reason carried whole,
+/// so [`edge_tangent_refusal`] reads it back as itself.
+fn refuse(edge: EdgeKey, why: crate::link::EdgeTangentUnread, errors: &mut Vec<ValidationError>) {
+    errors.push(ValidationError::CensusUnsupported {
+        subject: CensusSubject::Entity(EntityId::Edge(edge)),
+        cause: CensusUnsupportedCause::CurvedEdge(why),
+    });
+}
 
-fn refuse(edge: EdgeKey, what: &'static str, errors: &mut Vec<ValidationError>) {
+/// Pushes the meeting of two curved edges refused for `what`, a reason
+/// no edge-tangent reading carries.
+fn refuse_meeting(edge: EdgeKey, what: &'static str, errors: &mut Vec<ValidationError>) {
     errors.push(ValidationError::CensusUnsupported {
         subject: CensusSubject::Entity(EntityId::Edge(edge)),
         cause: CensusUnsupportedCause::ContactLane(
@@ -87,7 +91,7 @@ fn read<T: Decide>(
         .and_then(|d| body.curves.get(d.curve))
         .and_then(crate::null::CurveGeom::certified)
     else {
-        refuse(edge, NO_CURVE, errors);
+        refuse(edge, crate::link::EdgeTangentUnread::NoCurve, errors);
         return None;
     };
     let carrier = curve.carrier().clone();
@@ -95,12 +99,12 @@ fn read<T: Decide>(
     let span = curve.params();
     let span_reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
     if decided("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
-        refuse(edge, NO_REACH, errors);
+        refuse(edge, crate::link::EdgeTangentUnread::NoReach, errors);
         return None;
     }
     let length = Margin::metered((span.1 - span.0).abs(), lo);
     if decided("pm_census_curved_speed_floor", length, band, errors)? != Sign::Positive {
-        refuse(edge, NO_LENGTH, errors);
+        refuse(edge, crate::link::EdgeTangentUnread::NoLength, errors);
         return None;
     }
     Some(Read {
@@ -249,8 +253,10 @@ impl<T: Real> EdgeTangent<T> {
 /// A straight edge's is its line's direction ([`super::edge_line`]),
 /// the same at every point, so it answers for any `q` and the caller
 /// holds `q` on the edge. A curve's is its tangent, with its curvature
-/// vector, at the parameter its span certifies `q` on ([`Hit::On`]), so
-/// no reader of it rests on an uncertified foot. `Some(None)` where `q`
+/// vector, at the parameter its span certifies `q` on ([`Hit::On`]).
+/// That parameter is `q`'s own branch where the body's boundary is
+/// embedded at the band, which the at-rest gate certifies
+/// (`DESIGN.md` `[topology.tiers]`). `Some(None)` where `q`
 /// is not on a curve's interior; `None` where a decision escalated or
 /// the edge is not read (pushed, [`edge_tangent_refusal`]).
 pub(super) fn edge_tangent_at<T: Decide>(
@@ -276,28 +282,19 @@ pub(super) fn edge_tangent_at<T: Decide>(
 /// **What [`edge_tangent_at`] pushed when it did not read**, as a
 /// touch's refusal: an escalation is a sign in band
 /// ([`TouchUnread::InBand`]); a refusal is its typed reason
-/// ([`TouchUnread::EdgeTangent`]), read off the constants the pushes
-/// write. A refusal pushed with no reading here, or none pushed at all,
+/// ([`TouchUnread::EdgeTangent`]), carried on the refusal whole. A refusal pushed with no reading here, or none pushed at all,
 /// breaks this module's contract (every `None` pushes one of them), and
 /// reads as [`TouchUnread::Corrupt`].
 pub(super) fn edge_tangent_refusal(refused: &[ValidationError]) -> crate::link::TouchUnread {
-    use crate::link::{EdgeTangentUnread as Why, TouchUnread};
+    use crate::link::TouchUnread;
     refused
         .iter()
         .find_map(|r| match r {
             ValidationError::CensusEscalated { .. } => Some(TouchUnread::InBand),
             ValidationError::CensusUnsupported {
-                cause:
-                    CensusUnsupportedCause::ContactLane(
-                        crate::contact::ContactRefusal::NotCertifiable { what },
-                    ),
+                cause: CensusUnsupportedCause::CurvedEdge(why),
                 ..
-            } => match *what {
-                NO_CURVE => Some(Why::NoCurve),
-                NO_REACH | NO_LENGTH => Some(Why::Unmetered),
-                walk => geom::PieceWalkRefusal::of_sentence(walk).map(Why::Unwalked),
-            }
-            .map(TouchUnread::EdgeTangent),
+            } => Some(TouchUnread::EdgeTangent(*why)),
             _ => None,
         })
         .unwrap_or(TouchUnread::Corrupt)
@@ -318,7 +315,11 @@ fn on_interior_at<T: Decide>(
         Err(refusal) => {
             match refusal.escalation() {
                 Ok(cause) => errors.push(ValidationError::CensusEscalated { cause }),
-                Err(why) => refuse(r.edge, why.sentence(), errors),
+                Err(why) => refuse(
+                    r.edge,
+                    crate::link::EdgeTangentUnread::Unwalked(why),
+                    errors,
+                ),
             }
             None
         }
@@ -499,8 +500,8 @@ fn interior_meeting<T: Decide>(
             fault,
         ),
     };
-    refuse(ra.edge, what, errors);
-    refuse(rb.edge, what, errors);
+    refuse_meeting(ra.edge, what, errors);
+    refuse_meeting(rb.edge, what, errors);
     None
 }
 
@@ -516,43 +517,34 @@ mod tests {
     use super::{Read, curved_interiors_meet, interior_meeting, reads_meet};
     use crate::EdgeCurveSpec;
 
-    /// **A spline walk the census could not run reads back as itself**: the
-    /// refusal it pushes names the walk by its own sentence
-    /// ([`geom::PieceWalkRefusal::sentence`]), pinned here as text, and the
-    /// edge-tangent reading of that refusal is the same walk refusal, at
-    /// both of its kinds. The census's rendered message does not show
-    /// that name: `ContactRefusal::NotCertifiable` renders no `what`.
+    /// **Every reason the census refuses a curved edge for reads back as
+    /// itself**: the refusal carries the reason whole
+    /// ([`crate::CensusUnsupportedCause::CurvedEdge`]), the edge-tangent
+    /// reading of it is that reason, and a person reads it as the contact
+    /// lane's refusal it was carried as before.
     #[test]
-    fn an_unwalked_edge_reads_back_as_its_walk_refusal() {
+    fn a_curved_edge_refusal_reads_back_as_its_reason() {
         use crate::link::{EdgeTangentUnread, TouchUnread};
-        for (why, sentence) in [
-            (
-                geom::PieceWalkRefusal::Exhausted,
-                "a spline's piece walk ran past its budget",
-            ),
-            (
-                geom::PieceWalkRefusal::Unbounded,
-                "a spline's speed bound is zero or poison",
-            ),
+        for why in [
+            EdgeTangentUnread::NoCurve,
+            EdgeTangentUnread::NoReach,
+            EdgeTangentUnread::NoLength,
+            EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Exhausted),
+            EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Unbounded),
         ] {
             let mut errors = Vec::new();
-            super::refuse(EdgeKey::default(), why.sentence(), &mut errors);
-            assert!(
-                matches!(
-                    &errors[..],
-                    [crate::ValidationError::CensusUnsupported {
-                        cause: crate::CensusUnsupportedCause::ContactLane(
-                            crate::contact::ContactRefusal::NotCertifiable { what },
-                        ),
-                        ..
-                    }] if *what == sentence
-                ),
-                "{why:?}: the census names the walk by its sentence: {errors:?}"
-            );
+            super::refuse(EdgeKey::default(), why, &mut errors);
             assert_eq!(
                 super::edge_tangent_refusal(&errors),
-                TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(why)),
-                "{why:?}"
+                TouchUnread::EdgeTangent(why),
+                "{why:?}: the reason reads back as itself"
+            );
+            let mut lane = Vec::new();
+            super::refuse_meeting(EdgeKey::default(), why.sentence(), &mut lane);
+            assert_eq!(
+                errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                lane.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                "{why:?}: the refusal reads to a person as the contact lane's"
             );
         }
     }

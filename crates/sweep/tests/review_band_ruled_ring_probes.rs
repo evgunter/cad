@@ -194,9 +194,9 @@ fn a_bore_in_a_keyhole_creases_removed_sliver_goes_with_it_at_the_closed_form() 
     assert_eq!(creases.len(), 2, "the two disc/slot junctions");
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Cylinder { radius, .. }) if (radius - a).abs() < 1e-12
             )
         })
@@ -275,12 +275,9 @@ fn past_the_discs_radius_a_keyhole_crease_first_meets_the_support_screen() {
     assert!((dv - want).abs() < 1e-12, "r {r}: ΔV {dv} vs {want}");
     match fillet_edges(&body, &creases, 0.6, tol()).map_err(|e| e.error) {
         Err(BlendError::FaceClearanceUncertified { face, .. }) => {
-            let f = body
-                .get_face(face)
-                .expect("the refusal names a source face");
             assert!(
                 matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(face),
                     Some(geom::Surface::Cylinder { radius, .. }) if (*radius - BR).abs() < 1e-12
                 ),
                 "r 0.6: the face named is the disc's wall"
