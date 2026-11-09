@@ -2478,7 +2478,7 @@ struct Wedge<T: Real> {
 /// overlap. `Ok(Some(i))` names a pair that overlaps, `Ok(None)` says
 /// none does. Any definite overlap is a true fault, so which pair
 /// answers does not change the verdict: the index only names the fault
-/// (`ops::coincident_wedges_disjoint` reports `pairs[i]`'s edges), and a
+/// (the Boolean's result gate reports `pairs[i]`'s edges), and a
 /// pair read in band ahead of it does not refuse it ([`wedges_overlap`]). Each edge's census geometry is read once;
 /// its sheets are read per pair at the shared span, so a partial overlap
 /// on a face whose tangent plane turns along a ruling compares the two
@@ -2547,40 +2547,36 @@ pub(crate) fn line_wedges<T: Decide>(
 /// only where no later one overlaps, each refusal kept by its standing
 /// ([`WedgeRefusal::refusal`]). A pair's two wedges are its probes'
 /// premise.
-fn wedges_overlap<P, W, V>(
-    pairs: impl IntoIterator<Item = P>,
+fn wedges_overlap<P, W, D>(
+    pairs: &[P],
     mut wedge: impl FnMut(&P, usize) -> Result<W, WedgeRefusal>,
-    probes: impl Fn(&W) -> [V; 3],
-    inside: impl Fn(&W, V) -> Result<bool, WedgeRefusal>,
+    probes: impl Fn(&W) -> [D; 3],
+    inside: impl Fn(&W, D) -> Result<bool, WedgeRefusal>,
 ) -> Result<Option<usize>, (usize, WedgeRefusal)> {
     let kept = |e: (usize, WedgeRefusal)| Rung::refused(e, |e| e.1.refusal());
-    let climbed = climb(
-        Answering::Any,
-        pairs.into_iter().enumerate(),
-        |(i, pair)| {
-            let a = match wedge(&pair, 0) {
-                Ok(a) => a,
-                Err(r) => return kept((i, r)),
-            };
-            let b = match wedge(&pair, 1) {
-                Ok(b) => b,
-                Err(r) => return kept((i, r)),
-            };
-            let held = probes(&b)
-                .into_iter()
-                .map(|v| (&a, v))
-                .chain(probes(&a).into_iter().map(|v| (&b, v)));
-            let inner = climb(Answering::Any, held, |(w, v)| {
-                Rung::holds(inside(w, v).map_err(|r| (i, r)), (), |e| e.1.refusal())
-            });
-            match inner {
-                Climb::Answered { answer: Ok(()), .. } => Rung::Answers(Ok(i)),
-                Climb::Answered { answer: Err(e), .. } => Rung::Aborts(Err(e)),
-                Climb::Undecided(e) => kept(e),
-                Climb::Passed => Rung::Passes,
-            }
-        },
-    );
+    let climbed = climb(Answering::Any, pairs.iter().enumerate(), |(i, pair)| {
+        let a = match wedge(pair, 0) {
+            Ok(a) => a,
+            Err(r) => return kept((i, r)),
+        };
+        let b = match wedge(pair, 1) {
+            Ok(b) => b,
+            Err(r) => return kept((i, r)),
+        };
+        let held = probes(&b)
+            .into_iter()
+            .map(|v| (&a, v))
+            .chain(probes(&a).into_iter().map(|v| (&b, v)));
+        let inner = climb(Answering::Any, held, |(w, v)| {
+            Rung::holds(inside(w, v).map_err(|r| (i, r)), (), |e| e.1.refusal())
+        });
+        match inner {
+            Climb::Answered { answer: Ok(()), .. } => Rung::Answers(Ok(i)),
+            Climb::Answered { answer: Err(e), .. } => Rung::Aborts(Err(e)),
+            Climb::Undecided(e) => kept(e),
+            Climb::Passed => Rung::Passes,
+        }
+    });
     match climbed {
         Climb::Answered { answer, .. } => answer.map(Some),
         Climb::Passed => Ok(None),
@@ -21598,7 +21594,7 @@ mod line_wedges_ranking {
         probe: impl Fn(usize, usize) -> Result<bool, WedgeRefusal>,
     ) -> Result<Option<usize>, (usize, WedgeRefusal)> {
         wedges_overlap(
-            0..pairs,
+            &(0..pairs).collect::<Vec<_>>(),
             |&pair, side| Ok((pair, side)),
             |&(_, side)| [3 * (1 - side), 3 * (1 - side) + 1, 3 * (1 - side) + 2],
             |&(pair, _), k| probe(pair, k),
@@ -21645,7 +21641,7 @@ mod line_wedges_ranking {
     fn a_pair_whose_wedge_does_not_read_is_kept_and_a_later_pair_answers() {
         let read = |first: WedgeRefusal| {
             wedges_overlap(
-                [Some(first), None],
+                &[Some(first), None],
                 |pair, _| pair.map_or(Ok(()), Err),
                 |_| [0, 1, 2],
                 |_, k| Ok(k == 1),

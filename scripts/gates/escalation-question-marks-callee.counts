@@ -72,11 +72,11 @@ crates/topo/src/boolean/mod.rs 1
 crates/topo/src/boolean/overlap.rs 1
 # recl: recl_edges classifies every mention pair: NOT A SEARCH.
 crates/topo/src/boolean/recl.rs 3
-# reduce: first_unsupported_pair's boxes (2, a premise) and
-# arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2),
+# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2),
 # spline_wall_event (1) and wall_crossing (1), which crossing is the
-# event: WHICH.
-crates/topo/src/boolean/reduce.rs 7
+# event: WHICH. (first_unsupported_pair's two box reads left with main's
+# operand gate, e4516384d5.)
+crates/topo/src/boolean/reduce.rs 5
 # region: on_boundary, any edge holding the point answers: HAND-ROLLED.
 crates/topo/src/boolean/region.rs 1
 # rim_wedge: departures's two cover reads (either pair's departure
