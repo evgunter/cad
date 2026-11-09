@@ -1730,8 +1730,9 @@ fixed rule, where a rule that read values would choose by rounding
 between two descriptions within the band of each other), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
-whose one census number lies in band. A solid's only shell is its outer
-shell and poses no role question; a shell's role among several is read
+whose one census number lies in band. A finished solid's only shell is its outer
+shell and poses no role question to a door (the at-rest gate reads it:
+that reading is the orientation invariant's); a shell's role among several is read
 off a ray aimed from outside the shell at one of its faces, and off the
 certified sign of its volume where no ray reads. A ray that passes
 within the band of an edge meets it, half a crossing for each face the

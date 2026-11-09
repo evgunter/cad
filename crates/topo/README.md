@@ -729,13 +729,22 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    `src/one_region.rs`),
    **prefer-intrinsic
    enforcement** ([edges]) and the
-   **orientation invariant** (a solid's faces leave infinity outside
-   it, read by the reader of a shell's role, [coincidence.booleans]: a ray
-   aimed at one of its faces, the certified signed volume where no ray
-   reads; definitely inside-out by any reading ⇒ invalid (a certified
-   negative volume refuses even where a ray reads its side), and a solid
-   whose side no reading decides refuses — an orientation probe, not a
-   thinness gate, at every door). Laminae live here, not at
+   **orientation invariant** (a solid's shells leave infinity outside
+   it: a certified negative volume is inside out ⇒ invalid whatever a
+   ray reads; then every shell's role is read, one shell at a time, by
+   the reader of a shell's role, [coincidence.booleans] — a ray aimed
+   from outside the shell at one of its faces, the certified signed
+   volume where no ray reads — a solid's only shell included; no
+   `Outer` among them ⇒ inside out, more than one ⇒ two outer shells,
+   else the voids' nesting is check 10's; a shell whose role no reading
+   decides refuses — an orientation probe, not a thinness gate, at every
+   door). A solid's or a body's side at infinity is never read off its
+   faces as one selection: it follows from its shells' roles, and a
+   selection of several shells carries the side it was built with (a
+   finished body's is `Out`, its complement's `In`). A shell's role is
+   read behind the embedding check below: on an embedded shell every
+   aimed ray reads one side, and a shell that crosses itself has no side
+   to read. Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global
