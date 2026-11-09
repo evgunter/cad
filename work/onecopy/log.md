@@ -963,3 +963,4 @@
   - item 11 (B)(i): one `Undecided::Touch(TouchUnread)` whose backstop sentence lives on TouchUnread; OffInterior keeps waiting with its own sentence. Whether aborts should wait is to be filed as a row.
   - ring-torus S4: pointed at the 6609 reviewer's session for the text; otherwise route window's line arm and arc_trim only if they ask the same question, else narrow.
 - 12:50Z 6623 gate green at 044629e5, but main overlapped again (nextest.toml, on_carrier.rs, from-f64-sites.tsv) → merged main (321ae6d1560e7522f002375d972c0d30072e2e9d), build/run-gates/curve_pair 117/117 clean, re-gating.
+- 12:51Z PR 6576 delta (15f174ad): FIX. The pin detached from PointInLoopError (a re-spelled closure at ring_side stays green). Sent back: the standing becomes E's own by type, the pin drives ring_side with PointInLoopError's arms (take an honest engine-leaves rise if needed), and vertex_side vs Rung::holds. Its gate result is moot until the new head.
