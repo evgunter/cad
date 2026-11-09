@@ -261,6 +261,23 @@ pub(crate) enum Departure {
     EdgeKindUnread,
 }
 
+/// **Why [`departures`] read nothing**: a reading in band, its
+/// escalation whole, or a reading that contradicts the construction it
+/// was asked about, a fault.
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::boolean) enum RimUnread {
+    /// A margin the band does not decide.
+    InBand(Indeterminate),
+    /// A definite reading the construction rules out.
+    Fault(&'static str),
+}
+
+impl From<Indeterminate> for RimUnread {
+    fn from(diag: Indeterminate) -> Self {
+        Self::InBand(diag)
+    }
+}
+
 /// **Which way two faces leave a locus they are tangent along, wherever
 /// they TOUCH**, read from the boundary half-edges that run along it:
 /// the half of the wedge a pair of operands can get wrong and a body's
@@ -321,7 +338,7 @@ pub(crate) fn departures<T: Decide>(
     fb: FaceKey,
     locus: Locus<T>,
     band: Band,
-) -> Result<Departure, Indeterminate> {
+) -> Result<Departure, RimUnread> {
     let (Some(ra), Some(rb)) = (reach(a, fa, locus, band)?, reach(b, fb, locus, band)?) else {
         return Ok(Departure::EdgeKindUnread);
     };
@@ -483,7 +500,7 @@ impl<T: Decide> FaceOnLocus<T> {
         s: T,
         scale: T,
         band: Band,
-    ) -> Result<Cover, Indeterminate> {
+    ) -> Result<Cover, RimUnread> {
         let tau = T::from_f64(core::f64::consts::TAU);
         let wraps: &[f64] = match locus {
             Locus::Rim(_) => &[-1.0, 0.0, 1.0],
@@ -572,7 +589,7 @@ fn contains<T: Decide>(
     face: FaceKey,
     p: Point3<T>,
     band: Band,
-) -> Result<Option<bool>, Indeterminate> {
+) -> Result<Option<bool>, RimUnread> {
     let unread = Indeterminate {
         margin: geom_core::MarginDiag::INVALID,
         band,
@@ -589,14 +606,15 @@ fn contains<T: Decide>(
         Err(PlacementError::Door(ContainError::StaleFace(face))) => {
             super::contain::driver_face_stale(face)
         }
-        Err(PlacementError::OnPlane(diag)) => return Err(diag),
+        Err(PlacementError::OnPlane(diag)) => return Err(diag.into()),
         // Any other refusal, by its standing ([`ContainError::refusal`]):
         // a margin is the escalation, the rest leave the piece unread.
         Err(PlacementError::Door(e)) => {
             return Err(match e.refusal() {
                 Ok(geom_brep::ladder::Refusal::Margin(diag)) => diag,
                 _ => unread,
-            });
+            }
+            .into());
         }
     };
     match read {
@@ -605,14 +623,16 @@ fn contains<T: Decide>(
         // The midpoint lies on the locus, which runs on the face's carrier:
         // a reading off the carrier contradicts that, so it refuses, named,
         // rather than read as the face's `Out` ([`CurvedPlacement`]).
-        CurvedPlacement::OffCarrier => Err(Indeterminate {
-            predicate: Some("seam_cover_off_carrier"),
-            ..unread
-        }),
+        // The midpoint lies on the locus, which runs on the face's
+        // carrier: a reading definitely off the carrier contradicts that
+        // construction, a fault rather than a reading in band.
+        CurvedPlacement::OffCarrier => Err(RimUnread::Fault(
+            "rim wedge: a piece's midpoint on the locus read definitely off its face's carrier",
+        )),
         CurvedPlacement::Trim(Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))) => {
             Ok(None)
         }
-        CurvedPlacement::Trim(None) => Err(unread),
+        CurvedPlacement::Trim(None) => Err(unread.into()),
     }
 }
 
@@ -1547,7 +1567,7 @@ mod arc_end_rows {
         assert!(
             matches!(
                 contains(&body, cap, q, narrow),
-                Err(ref d) if straddle(d)
+                Err(RimUnread::InBand(ref d)) if straddle(d)
             ),
             "the band's parting escalates: {:?}",
             contains(&body, cap, q, narrow)
@@ -1573,7 +1593,7 @@ mod arc_end_rows {
         });
         let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
         assert!(
-            matches!(got, Err(ref d) if straddle(d)),
+            matches!(got, Err(RimUnread::InBand(ref d)) if straddle(d)),
             "the touch piece at the arc's end escalates: {got:?}"
         );
     }
@@ -1618,7 +1638,7 @@ mod boundary_midpoint_rows {
     /// placed, the door's own escalation naming `predicate`, and the
     /// geometry's answer `clear`.
     fn assert_rows(
-        got: [Result<Departure, Indeterminate>; 3],
+        got: [Result<Departure, RimUnread>; 3],
         predicate: &str,
         clear: Departure,
         what: &str,
@@ -1629,7 +1649,7 @@ mod boundary_midpoint_rows {
             "{what}: a midpoint on the boundary is not placed, never `NoEdge`"
         );
         assert!(
-            matches!(got[1], Err(Indeterminate { predicate: Some(p), .. }) if p == predicate),
+            matches!(got[1], Err(RimUnread::InBand(Indeterminate { predicate: Some(p), .. })) if p == predicate),
             "{what}: a midpoint in the band escalates on `{predicate}`, got {:?}",
             got[1]
         );
@@ -1771,10 +1791,10 @@ mod boundary_midpoint_rows {
             assert!(
                 matches!(
                     run,
-                    Err(Indeterminate {
+                    Err(RimUnread::InBand(Indeterminate {
                         predicate: Some("seam_cover_order"),
                         ..
-                    })
+                    }))
                 ),
                 "theta {theta}: at the run's K the piece escalates, got {run:?}"
             );

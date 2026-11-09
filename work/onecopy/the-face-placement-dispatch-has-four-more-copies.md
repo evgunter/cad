@@ -45,18 +45,34 @@ rather than one match. Sweep: callers of `contfp_decided(` and
 - `boolean/reduce.rs` (~5723 curved, ~5906 plane; and the planar-only
   ~1329, ~1472, ~1779; the curved-only ~3346, ~5161).
 
-The fix that retires both kinds is a decided form of `face_placement`,
-`(CurvedPlacement, Option<MarginDiag>)`, which the plain door projects,
-read by every site above.
+**The fix that retires both kinds** is a decided form of
+`face_placement`, which the plain door projects, read by every site
+above.
 
-Each of the four keeps its own error policy, and that may be right: the
+- **Its result is the curved door's triple**, `ChartedPlacement`
+  (`boolean::contain`: the placement, the margin that decided a boundary
+  verdict, and a spline face's in-trim chart foot, which
+  `boolean::reduce` ~5723 reads). A pair would drop that foot.
+- **On a plane it decides the on-plane margin itself and returns it**,
+  so no caller decides it again: today the planar halves (`reduce.rs`
+  ~5906, `vtxfac.rs` ~1971) are handed a margin the caller already
+  decided, and the decided door would take that decision's place.
+
+Each of the five keeps its own error policy, and that may be right: the
 census reports findings, the fate ladder ranks refusals, and a cell
-station refusing is no reading. What is copied is the dispatch. Read by `face_placement` (with an on-plane predicate, as `rim_wedge`
-does), each caller keeps a one-line decision on its errors and on
-`OffCarrier`. A point held on the carrier by construction refuses on
-`OffCarrier` rather than reading it as `Out`, as `rim_wedge` does: the
-reading contradicts the construction ([`CurvedPlacement`]'s doc). That,
-and not an arm that skips the on-plane decision, is the carrier-trusting
-form. Check first that a fate site's
-sense-folded normal and the plane's stored normal give `contfp` the same
-reading.
+station refusing is no reading. What is copied is the dispatch.
+
+**A carrier-held point should be a type, not a convention.** A point
+held on the face's carrier by construction refuses on `OffCarrier`
+rather than reading it as `Out` (`CurvedPlacement`'s doc), as
+`rim_wedge` does: it returns `ClassificationInvariant`, through its
+`RimUnread::Fault`. Left as a per-caller rule, five sites would each
+spell that again. The proposal is a point type that says it is held on
+its carrier, e.g. `OnCarrier<T>(Point3<T>)`, minted only where the
+construction holds it (a root, a locus point on the face's carrier, a
+vertex of the face). `face_placement` reads it, with `OffCarrier` mapped
+to the typed fault in one place and no on-plane decision repeated. A
+point not so held keeps today's door, where `OffCarrier` is a reading.
+
+Check first that a fate site's sense-folded normal and the plane's
+stored normal give `contfp` the same reading.
