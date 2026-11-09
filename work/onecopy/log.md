@@ -1130,3 +1130,4 @@
 - 19:25Z 6598 second delta: MERGE (F1 loud except kept-refused firsts; F2 oracle independent; N1 nit vertex_orbit_of). It overlaps 6632 → catch-up queued with 6652. 6654 delta: FIX M1 (ARM_RE misses a wrapped Ok(UncheckedLoop::…) arm) → lane.
 - 19:30Z PR 6664 FULL: FIX small (FIX-A corner.rs:212 unrouted; FIX-B gate blind to distance()==0 ×8, array-literal compares, assert_eq! to_array; FIX-C spliced doc; NOTE-C pins y/z) → point-equality lane.
 - 19:35Z PR 6656 FULL: MERGE (0 wrong over 10k; 4 band-edge flips at 1e3; N2: the coplanar sub_touch lens refuses 57%, the non-circular half of the atrest lens row) → notes to the coplanar lane. Its merge check waits on the worktree (no overlap with 6632).
+- 19:40Z Catch-ups pushed: 6658 6e2b9f82, 6659 d65359b7 (both gating). Background now: the 6656 merge check, then catch-ups for 6598, 6652 and 6655 (6655 green at 85f19ecf but overlapped 6632).
