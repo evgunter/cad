@@ -180,9 +180,9 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             Err(Aborts),
         ),
         (
-            "a chord past the format's scale",
+            "a chord with no finite length, not yet split",
             BooleanError::NonFiniteSectorChord { vertex, face },
-            Ok(Refusal::Limit),
+            Err(Aborts),
         ),
         (
             "a chart image that refused, not yet split",
@@ -209,9 +209,9 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             Ok(Refusal::InBand),
         ),
         (
-            "a meeting at a spline's crease",
+            "a meeting at a spline's crease, not yet split",
             unsettled(geom_brep::roots::Unsettled::Crease),
-            Ok(Refusal::Limit),
+            Err(Aborts),
         ),
         (
             "a line along a cone's generator",
@@ -227,6 +227,22 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
     for (label, error, want) in more {
         assert_eq!(error.refusal(), want, "{label}");
     }
+    let crease = |reading| BooleanError::NormalAtSplineCrease {
+        operand: op,
+        face,
+        band: band(),
+        reading,
+    };
+    assert_eq!(
+        crease(Err(diag())).refusal(),
+        Ok(Refusal::Margin(diag())),
+        "a crease in band is ranked by its margin"
+    );
+    assert_eq!(
+        crease(Ok(MarginDiag::value(0.0))).refusal(),
+        Ok(Refusal::Limit),
+        "a crease decided zero is a limit"
+    );
     assert_eq!(
         in_face(super::slit::EdgeInFaceGap::Tangent).refusal(),
         Ok(Refusal::Limit),

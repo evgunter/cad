@@ -5479,24 +5479,35 @@ fn ring_side<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let read = |v: VertexKey| match point_in_loop(
-        body,
-        run,
-        normal,
-        body.resolve_vertex_point(v, Proven),
-        band,
-    ) {
+    let read = |v: VertexKey| {
+        vertex_side(point_in_loop(
+            body,
+            run,
+            normal,
+            body.resolve_vertex_point(v, Proven),
+            band,
+        ))
+    };
+    match climb(Answering::Any, ring_vertices(body, ring)?, read) {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed => Ok(RingSide::OnRun),
+        Climb::Undecided(e) => Err(SplitJoinError::RingHoming(e)),
+    }
+}
+
+/// One ring vertex's containment as [`ring_side`]'s rung: a decided side
+/// answers, a vertex on the run passes, and a refusal stands by its own
+/// standing ([`PointInLoopError::refusal`]).
+fn vertex_side(
+    reading: Result<LoopContainment, PointInLoopError>,
+) -> Rung<Result<RingSide, SplitJoinError>, PointInLoopError> {
+    match reading {
         Ok(LoopContainment::In) => Rung::Answers(Ok(RingSide::In)),
         Ok(LoopContainment::Out) => Rung::Answers(Ok(RingSide::Out)),
         Ok(LoopContainment::OnBoundary) => Rung::Passes,
         Err(e) => {
             geom_brep::ladder::rung_or_abort(e.refusal(), e, |e| Err(SplitJoinError::from(e)))
         }
-    };
-    match climb(Answering::Any, ring_vertices(body, ring)?, read) {
-        Climb::Answered { answer, .. } => answer,
-        Climb::Passed => Ok(RingSide::OnRun),
-        Climb::Undecided(e) => Err(SplitJoinError::RingHoming(e)),
     }
 }
 
@@ -5590,6 +5601,8 @@ mod cone_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod island_rows;
+#[cfg(test)]
+mod ring_side_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;
