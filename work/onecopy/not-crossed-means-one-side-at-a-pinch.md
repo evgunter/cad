@@ -68,4 +68,4 @@ these ladders as a bystander.
 - a torus face's essential cycles in `one_region`, which are not probed.
 
 The same instrument found one real disagreement that is not a pinch, a
-miscounted path parity on a cone: `path-parity-miscounts-a-ruling-leg`.
+cone winding whose references disagreed because its fixture's island left its sheet: `cone-ring-rows-sheets-do-not-hold-their-islands` (PR 6607).
