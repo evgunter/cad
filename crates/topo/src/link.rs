@@ -6139,8 +6139,9 @@ mod tests {
                 );
             }
             assert!(
-                reading.contains("metric::settle_as("),
-                "bound_side's `{anchor}` decides through `metric::settle_as`"
+                reading.contains("metric::settle"),
+                "bound_side's `{anchor}` decides through `metric::settle_as` or \
+                 `metric::settle_reported`"
             );
         }
         assert!(
