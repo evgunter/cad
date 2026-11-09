@@ -165,6 +165,18 @@ enum Cell {
     Face(FaceKey),
 }
 
+impl Cell {
+    /// Its rung in the ladder's ascending dimension (module docs): a
+    /// vertex before an edge before a face.
+    fn rung(&self) -> usize {
+        match self {
+            Self::Vertex(_) => 0,
+            Self::Edge(_) => 1,
+            Self::Face(_) => 2,
+        }
+    }
+}
+
 /// The cells of the complex `faces` in ladder order (module docs), and
 /// the reader of each cell's witness: `None` for a cell already read or
 /// one that offers none.
@@ -321,22 +333,42 @@ pub(crate) fn ladder_agreeing<T: Decide, S, E: From<LadderRefusal>>(
     agree: impl Fn(&S, &S) -> bool,
 ) -> Result<Agreed<S>, E> {
     let (cells, mut witness) = cells(body, faces, band).map_err(E::from)?;
-    let climbed = geom_brep::ladder::climb_agreeing(
-        cells,
-        |cell| witness_rung(witness(cell), &mut probe, (&mut 0, &mut 0)),
-        |a, b| match (a, b) {
-            (Ok(a), Ok(b)) => agree(a, b),
-            _ => true,
-        },
-    );
-    match climbed {
-        Ok(Climb::Answered { answer, .. }) => answer.map(Agreed::Side),
-        Ok(Climb::Passed | Climb::Undecided(_)) => Ok(Agreed::Undecided),
-        Err(Disagree { first, other }) => Ok(Agreed::Disagree {
-            first: first?,
-            other: other?,
-        }),
+    // One rung at a time, in ascending dimension (module docs). A rung
+    // whose witnesses place decisively answers, and the next is never
+    // read: every one of a rung's witnesses is read (`climb_agreeing`
+    // does not stop at the first), so a crossing a rung can see is a
+    // disagreement within it, and a crossing it cannot — a face poking
+    // across between vertices all on one side — is a higher cell's,
+    // whose own check reads it (the census's, as a loop's edge crossing
+    // between agreeing vertices is in [`crate::one_region`]). Reading the
+    // next rung only where this one placed nothing is what keeps a valid
+    // body from probing every edge midpoint and face interior once its
+    // vertices agree.
+    let mut by_rung: [Vec<Cell>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    for cell in cells {
+        by_rung[cell.rung()].push(cell);
     }
+    for rung in by_rung {
+        let climbed = geom_brep::ladder::climb_agreeing(
+            rung,
+            |cell| witness_rung(witness(cell), &mut probe, (&mut 0, &mut 0)),
+            |a, b| match (a, b) {
+                (Ok(a), Ok(b)) => agree(a, b),
+                _ => true,
+            },
+        );
+        match climbed {
+            Ok(Climb::Answered { answer, .. }) => return answer.map(Agreed::Side),
+            Ok(Climb::Passed | Climb::Undecided(_)) => {}
+            Err(Disagree { first, other }) => {
+                return Ok(Agreed::Disagree {
+                    first: first?,
+                    other: other?,
+                });
+            }
+        }
+    }
+    Ok(Agreed::Undecided)
 }
 
 /// **A point certified strictly inside `face`, where `face` is planar**

@@ -358,11 +358,14 @@ fn an_ordinary_hollow_solid_certifies() {
 /// straddling one of its walls in `x`, half inside and half outside:
 /// across `x = 4`, the cavity's first corner `(3, 1, 1)` lies inside
 /// the outer brick; across `x = 0`, its first corner `(−1, 1, 1)` lies
-/// outside. The cavity's witnesses inside the outer brick read the
-/// winding `1` a `Void` needs, and those outside read `0`; the outer
-/// brick's witnesses read `0` outside the cavity and `−1` inside it. So
-/// no one witness speaks for either shell, and both are refused. The
-/// total stays positive (asserted), so check 7 alone would pass.
+/// outside. The cavity has corners inside the outer brick, winding `1`
+/// as a `Void` needs, and corners outside it, winding `0`; those corners
+/// disagree, so the cavity is refused whichever corner its walk reads
+/// first. The outer brick's own corners all lie outside the cavity and
+/// agree, so the wall is not refused here — its face poking into the
+/// cavity between agreeing corners is the residue a higher cell carries,
+/// not a vertex-level crossing. The total stays positive (asserted), so
+/// check 7 alone would pass.
 #[test]
 fn a_void_crossing_its_outers_wall_refuses_in_either_walk_order() {
     for (name, x) in [("across x = 4", (3.0, 5.0)), ("across x = 0", (-1.0, 1.0))] {
@@ -375,26 +378,17 @@ fn a_void_crossing_its_outers_wall_refuses_in_either_walk_order() {
         );
         positive_total(&body);
         let solid = only_solid(&body);
-        let wall = body.shells().next().expect("two shells").0;
         let cavity = body.shells().nth(1).expect("two shells").0;
         assert_eq!(
             topo::validate_geometric(&body, tol()),
-            Err(vec![
-                ValidationError::ShellWinding {
-                    solid,
-                    shell: wall,
-                    winding: -1,
-                    bounded: 0,
-                },
-                ValidationError::ShellWinding {
-                    solid,
-                    shell: cavity,
-                    winding: 0,
-                    bounded: -1,
-                },
-            ]),
-            "{name}: the wall's witnesses inside the cavity wind -1, and the \
-             cavity's outside the wall wind 0"
+            Err(vec![ValidationError::ShellWinding {
+                solid,
+                shell: cavity,
+                winding: 0,
+                bounded: -1,
+            }]),
+            "{name}: the cavity's corners outside the wall wind 0 where a \
+             Void needs 1, whichever corner the walk reads first"
         );
     }
 }
