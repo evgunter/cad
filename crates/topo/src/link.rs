@@ -1321,6 +1321,25 @@ fn wedge_distance<T: Decide>(
 
 /// Whether `x` lies ahead of `p` along the ray through `r` or behind it,
 /// read no further out than `r` (as [`wedge_side`]).
+///
+/// **Not [`geom::Ray::ahead`]**, whose question looks the same. That one
+/// decides a bare parameter a reader computed on its own ray, a root, in
+/// units of `|dir|`, against the run band alone. This one decides a
+/// *point's* offset across the plane through `p` square to the direction
+/// to `r`, in metres (the direction is normalized here), and it decides
+/// it as a touch verdict:
+/// - through [`metric::settle`]'s [`Reading`], whose slack must hold the
+///   sign over every sector within the tie. The ahead line turns with the
+///   ray through the tie ([`Reading::tied`]), and a metre slack moves
+///   only a margin in metres;
+/// - drawn in first to the ray's reach ([`within`]) unless the reading is
+///   the cone's own;
+/// - through the module's one verdict door ([`metric`], whose single
+///   `Margin::of` a row pins), which a `Ray::ahead` call would step
+///   around.
+///
+/// The cone-apex test in [`FaceSector::chord`]'s `past` closure reads under the
+/// same row and door on the plain band.
 fn ahead<T: Decide>(p: Point3<T>, r: Point3<T>, x: Point3<T>, rd: Reading<T>) -> Option<Sign> {
     ahead_settle(p, r, x, rd).ok()
 }

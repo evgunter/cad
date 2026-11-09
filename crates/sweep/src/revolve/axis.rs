@@ -25,7 +25,7 @@ use profile::SegmentKind;
 pub(super) const REVOLVE_AXIS_DIRECTION: &str = "revolve_axis_direction";
 
 /// The classified axis in both coordinate systems: the sketch-plane
-/// line plus its placed 3-D frame. `a3`/`u3` are the **shared
+/// line plus its placed 3-D frame. `line3.dir`/`u3` are the **shared
 /// azimuthal frame** every revolution surface of this call uses
 /// (module docs): `u3` points at the angle-0 (seam) meridian
 /// half-plane.
@@ -37,11 +37,10 @@ pub(super) struct AxisFrame<T: Real> {
     pub(super) dir_sk: Vec2<T>,
     /// The sketch placement (carried for convenience).
     pub(super) place: Affine3<T>,
-    /// Placed axis origin.
-    pub(super) o3: Point3<T>,
-    /// Placed unit axis direction.
-    pub(super) a3: Vec3<T>,
-    /// [`Self::a3`] as the witness it is: the sketch axis's decided
+    /// The placed axis line: its origin the sketch axis's origin placed,
+    /// its direction the unit [`Self::axis`].
+    pub(super) line3: geom::Line<T>,
+    /// [`Self::line3`]'s direction as the witness it is: the sketch axis's decided
     /// direction turned by the sketch frame, the axis the revolve
     /// turns about.
     pub(super) axis: UnitVec3<T>,
@@ -139,8 +138,10 @@ impl<T: Decide> AxisFrame<T> {
             origin_sk: axis.origin,
             dir_sk,
             place,
-            o3: place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero())),
-            a3: turn_axis.get(),
+            line3: geom::Line {
+                origin: place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero())),
+                dir: turn_axis.get(),
+            },
             axis: turn_axis,
             u3: place.linear * Vec3::new(e_r.x, e_r.y, T::zero()),
             n3: place.linear.c2,

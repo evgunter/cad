@@ -948,9 +948,16 @@ impl<T: Decide> Ray<T> {
     /// doc). The method takes the parameter, not a point, because every
     /// reader holds only a parameter computed on [`Ray::line`]: a root
     /// against a carrier (`line_*_roots`), or the closest-approach span of
-    /// an edge's passage. No point is minted before the forward test. The ray does not re-derive `at`; a
-    /// reader that passes a parameter of another line decides nothing
-    /// about this ray.
+    /// an edge's passage. No point is minted before the forward test. The
+    /// ray does not re-derive `at`; a reader that passes a parameter of
+    /// another line decides nothing about this ray.
+    ///
+    /// The touch analysis's ahead reading (`topo` `link.rs`, `LINK_AHEAD`)
+    /// is a different decision and does not come here. It reads a
+    /// point's offset in metres over a normalized direction, under a
+    /// slack that must hold across a set of sectors, through that
+    /// module's one verdict door. This method has no slack, and its
+    /// margin is in units of `|dir|`.
     ///
     /// # Errors
     ///

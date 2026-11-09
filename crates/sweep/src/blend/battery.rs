@@ -1563,22 +1563,13 @@ fn curved_arm<T: Decide + Bounds>(
     };
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            ..
-        }) => {
+        Curve3::Circle(geom::Circle { frame, .. }) => {
             let arm = coaxial_arm(sa, sb);
             if arm.is_none() && matches!(branch, Branch::Rim) {
                 return Err(unsupported(ARM_ROSTER));
             }
             let sheet = Meridian {
-                origin: center,
-                axis,
+                axis: frame.axis_line(),
                 rim: p,
             };
             let (Some((ta, da)), Some((tb, db))) = (
