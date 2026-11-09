@@ -331,8 +331,8 @@ This section is where that rule's parts live.
 - **The consumed extent** (`geom_brep::Reach`): the region a verdict
   is used over. It is one type, built only from the geometry consumed
   (an edge over its span, a face's region, two faces' meet, a bounded
-  carrier, each read as its cover), never from a length a caller vouches for. `ExtentBall` is
-  its ball payload.
+  carrier, each read as its cover), never from a length a caller
+  vouches for. `ExtentBall` is its ball payload.
 - **The session box** is one predicate over a body's consumed extent
   (its vertices, edges' spans and faces' boundaries, never a carrier's
   stored terms). The finished-body gate asks it, and the refusal names
