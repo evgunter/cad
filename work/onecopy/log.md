@@ -1149,3 +1149,4 @@
 - 20:40Z needle-tilts opened PR 6668 (local-heights, a97e90e1): LH3 C (one torus ceiling, gap Misses 0, liveness −680 disclosed), LH2 row closed, LH1 negative → FULL with session_013mPGJ5pxD6AT4GPvwns2YC; gating.
 - 20:45Z Merged PR 6659 (foot-followups) at gate-green d65359b7 (FULL MERGE; disjoint; merge check clean). 6671 to merge main. 6668 gate green, waiting on its FULL review.
 - 20:50Z 6641 delta fix at abbc61ea: checked by diff (one value-identical ±1 reroute plus 3 real rows opened, wording); gating, merge when green.
+- 20:55Z half-open-angles opened PR 6669 (held-points, stacked on 6654; Held<T> with constructed/decided/in_band; debug check unlogged under F38; placement_unheld; K dump identical) → FULL with session_013mPGJ3BVt7iJw5XModx26D. F38 collision with main-reds' unmerged carried_far → main-reds renumbers to F39.
