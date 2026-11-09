@@ -1146,3 +1146,4 @@
 - 20:25Z Catch-ups pushed: 6598 a5b3df2b, 6652 c99814d0, 6655 c6d6f3c8 (all gating).
 - 20:30Z Ladder lane: the 6637 reviewer's 'clears is nonnegative' invariant is false (the near-antipodal bisector normalize(q̂+ŵ) fires 7 tests) → its attempt reverted, doc honest. Ruled: it's a [simple.conditioned] defect, so file a re-posing row, not a refusal. T2 PR next.
 - 20:35Z 6641 delta: FIX light. N1 a fifth ±1 site (pcurve_chart_orientation, struct pattern); closed-row notes aren't schedules → open rows (by_kind fold, RingSites uniqueness, NonzeroSign placement); S1 wording; the evil-merge reroutes named in the body → lane.
+- 20:40Z needle-tilts opened PR 6668 (local-heights, a97e90e1): LH3 C (one torus ceiling, gap Misses 0, liveness −680 disclosed), LH2 row closed, LH1 negative → FULL with session_013mPGJ5pxD6AT4GPvwns2YC; gating.
