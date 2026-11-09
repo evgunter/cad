@@ -1043,3 +1043,10 @@
   - 6649 first-vertex-reads (59d52602, gate green): loop_side::inside_at_every_vertex at read_cycle and ring_nesting, cost −0.8% → FULL with session_013mPGJ3BVt7iJw5XModx26D.
   - 6651 review: FIX on the row only. Split read_cycle (a validator, taken by 6649) from the construction sites parked on 6592; the self-contradiction; pin doc → lane.
   - 6637 second fix at d9387e40 (LineUnread::NoReference limit; clears Zero in band; tally split) → third small delta; gating.
+- 16:15Z Rulings:
+  - ring-island K record: (a2), the rest read unlogged as a premise check, only if the audit ledger already has that class (precedent); otherwise (a1), re-pin and the K runbook.
+  - line-placement axis: (c). Frame::axis_line where a Frame is in hand, else from the arm's bindings; the (a)-sites are listed on the analytic-surfaces stage-3 row.
+- 16:15Z New PRs and reviews:
+  - 6653 unbuilt-recourse-2 (4f49253c, gate green) → FULL with session_013mPGJ3c41XYUDnxTmdvo5v.
+  - 6656 coplanar-subdivision (f4622a8c; its row closes after 6642) → FULL with session_013mPGJ5pxD6AT4GPvwns2YC after 6642. Foot-and-pinch lane → onecopy/foot-followups (6644 F1–F4).
+- 16:15Z main-reds: the divisor measure showed no row moved (~45 reds identical on base, all main's); the K sweep is running.
