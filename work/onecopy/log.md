@@ -1327,3 +1327,14 @@
 - 2026-11-09 23:20Z Merged, under the local-merge procedure:
   - PR 6667 (carry-notes) → 41551bce; 12734/12734 over geom-core, geom-brep, topo, sweep and editor-core.
   - PR 6685 (prose-census main red) → main; 7057/7057, plus pncad-py prose_census (slow) 19/19 on the merged tree.
+- 2026-11-09 23:45Z
+  - **Merged PR 6678 (any-witness):** 10136/10136 on the merged tree.
+    - The lane had pushed its own main merge meanwhile. I re-merged current main onto it; the tree equals my checked one but for STATUS.md.
+    - mergecheck.sh now fails on a rejected push.
+  - **Reviews:**
+    - 6683 FULL: FIX (light). The at-point corruption name a user sees (census_cell_solid, lone vertex has no emanating half-edge); `unchecked_face_cycles` folds a lone loop into Err for 9 callers, so fix the door; one standing for four names; the viewer row; the S7 recourse tier.
+    - 6676 FULL: FIX. F2: the cone nappe is decided three ways, giving a reachable definite flip off-surface at the apex plane (h=−1e-10). Decide once; pin the Interval arms; checked_direction should carry C6 at Interval; structure_nonzero moves to its core home; dedupe the test helpers. unit-axis is paused for it.
+  - **Rulings:**
+    - sign-homes: widen to 10 test files; gate A (counted per-file pin with reason words); B filed P3.
+    - normal-fault-kind: slit takes (b), `EdgeInFaceGap::DegenerateTorus(TorusRefusal)`. The dual-scalar finding (Replay is tier 2 only, so "tier 3 refuses it first" premises fail at dual) is to be swept across topo.
+  - main-reds lane is back: 6674 fixes, then 6663, then triage.
