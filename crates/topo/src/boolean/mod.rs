@@ -4598,7 +4598,11 @@ impl BooleanError {
 
     /// **A vertex of `operand` read twice by two pierces**, of `faces`
     /// in pierce order ([`BooleanError::VertexReadTwice`]).
-    pub(crate) fn pierced_twice(operand: Operand, vertex: VertexKey, faces: [FaceKey; 2]) -> Self {
+    pub(in crate::boolean) fn pierced_twice(
+        operand: Operand,
+        vertex: VertexKey,
+        faces: [FaceKey; 2],
+    ) -> Self {
         Self::VertexReadTwice {
             operand,
             vertex,
@@ -6103,7 +6107,7 @@ const UNREAD_FIRST_FACE: BooleanError = BooleanError::ClassificationInvariant {
 /// ([`BooleanError::ToolSeatCrossed`]): a cut whose tool, `B`, holds the
 /// record. Every other operation that holds the faces in one shell
 /// touches itself ([`BooleanError::TouchesItself`]).
-pub(super) fn seat_crossed(op: BooleanOp, holder: Operand) -> bool {
+pub(in crate::boolean) fn seat_crossed(op: BooleanOp, holder: Operand) -> bool {
     op == BooleanOp::Subtract && holder == Operand::B
 }
 
