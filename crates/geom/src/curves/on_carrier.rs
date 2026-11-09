@@ -257,6 +257,7 @@ impl CarrierEscalation {
 
 /// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
 pub enum PieceWalkRefusal {
     /// The walk ran past its budget.
     Exhausted,
