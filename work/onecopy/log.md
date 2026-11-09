@@ -850,3 +850,4 @@
 - 09:47Z Merged PR 6618 (branch-band: the pinned Span row, the fork outcome on the P0 unit, two doc corrections, the naming row) at its gate-green head 6b06cb74. No overlap with main; the workspace check of the merge is clean. The branch-band row is closed.
 - 09:47Z PR 6620's fix pass (170697bd): doors are derived from every pub item, and an unknown kind is UNRECOGNISED. Alias and qualified-path arms are counted; M1–M17 are red. Delta sent to the original reviewer.
 - 09:47Z [ev] 6625 check-in found no comment yet. Re-armed for 13:08Z.
+- 09:50Z PR 6617's fix-pass delta: MERGE. D1 goes in before merge: PropsError/ReplaceFaceError refusal() classify by wildcard, so row-2 unbuilt variants read as Abort. They must become exhaustive and cite their taxonomy rows. Also D2 (the map_kept spelling escapes the gate) and D3 (one doc sentence). Sent to the ladder lane.
