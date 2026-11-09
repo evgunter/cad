@@ -1167,6 +1167,20 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // Each parted edge now bounds a face of each operand, as a seam does.
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
+    {
+        let pad = super::boxes::sweep_pad(band);
+        let face_box = |body: &Body<T>, f| Some(super::boxes::face_box(body, f, pad, band));
+        crate::pieces::sort_into_pieces(&mut finished, band, tol, T::quad_lane(), Some(&face_box))
+            .map_err(BooleanError::Pieces)?;
+        for (x, y) in contacts.face_face() {
+            let solid = |f| crate::census::census_cell_solid(&finished, crate::Cell::Face(f));
+            if solid(x).is_some() && solid(x) == solid(y) {
+                return Err(BooleanError::JoinDesync {
+                    what: "PROBE: one solid holds both faces of a carried face-face record",
+                });
+            }
+        }
+    }
     let body = gate(finished, band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);

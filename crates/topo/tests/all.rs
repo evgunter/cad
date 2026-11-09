@@ -448,6 +448,8 @@ mod a_seamless_pipe_cut_by_an_oblique_plane_measures;
 mod a_vertex_read_again_classes_every_edge;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
 mod a_vertex_read_by_two_sector_passes;
+#[path = "a_vertex_through_a_declared_seat.rs"]
+mod a_vertex_through_a_declared_seat;
 #[path = "a_whole_spiric_oval_bounds_its_mirror_torus.rs"]
 mod a_whole_spiric_oval_bounds_its_mirror_torus;
 #[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]

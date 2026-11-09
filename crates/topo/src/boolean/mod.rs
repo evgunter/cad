@@ -6112,7 +6112,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut edge_classes = Vec::new();
     let mut unread_partners = Vec::new();
 
-    let rereads = vtxfac::pierced_and_paired(&contacts)?;
+    let (rereads, walls) =
+        vtxfac::pierced_and_paired(&contacts, [&decls.records_a, &decls.records_b])?;
+    let mut pristine: std::collections::BTreeMap<(Operand, VertexKey), Body<T>> =
+        std::collections::BTreeMap::new();
+    let mut wall_classes: std::collections::BTreeMap<
+        (Operand, VertexKey),
+        Vec<(HalfEdgeKey, SideCode)>,
+    > = std::collections::BTreeMap::new();
     // Each vertex that touches a face and pairs, its rows combined once
     // every pair is read, and each vertex in pairs alone, likewise
     // (`vtxfac::cone_classes`).
@@ -6133,6 +6140,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 Operand::A => (&mut a, &mut b),
                 Operand::B => (&mut b, &mut a),
             };
+            let wall = walls.get(&(operand, c.vertex)).copied();
+            if wall.is_some_and(|[first, _]| first == c.face) {
+                pristine.insert((operand, c.vertex), Body::clone(piercing_body));
+            }
+            let second = wall
+                .filter(|&[_, second]| second == c.face)
+                .and_then(|_| pristine.get(&(operand, c.vertex)))
+                .map(|pristine| vtxfac::WallRead { pristine });
             let out = match vtxfac::classify_vertex_on_face(
                 piercing_body,
                 pierced_body,
@@ -6146,6 +6161,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 charts.get(&(operand, c.vertex, c.face)).copied(),
                 &tips[usize::from(operand == Operand::B)],
                 band,
+                second,
             ) {
                 Ok(out) => out,
                 // **A definite refusal outranks an escalation in this
@@ -6184,6 +6200,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             charts.get(&(operand, c.vertex, c.face)).copied(),
                             &tips[usize::from(operand == Operand::B)],
                             band,
+                            None,
                         ) {
                             Ok(_) | Err(BooleanError::Escalated { .. }) => {}
                             Err(definite) => return Err(definite),
@@ -6217,6 +6234,34 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         pairs: Vec::new(),
                     },
                 );
+            } else if let Some([first, _]) = wall {
+                // A wall's two faces each own their side: an edge is In
+                // where either face reads it In.
+                if first == c.face {
+                    wall_classes.insert((operand, c.vertex), out.classes.clone());
+                } else {
+                    let held = wall_classes
+                        .remove(&(operand, c.vertex))
+                        .unwrap_or_default();
+                    let gathered: Vec<_> = out
+                        .classes
+                        .iter()
+                        .map(|&(he, class)| {
+                            let other = held.iter().find(|(h, _)| *h == he).map(|&(_, c)| c);
+                            match (class, other) {
+                                (SideCode::In, _) | (_, Some(SideCode::In)) => (he, SideCode::In),
+                                _ => (he, class),
+                            }
+                        })
+                        .collect();
+                    edge_classes.extend(piece_classes(
+                        piercing_body,
+                        operand,
+                        c.vertex,
+                        &gathered,
+                        &mints,
+                    )?);
+                }
             } else {
                 edge_classes.extend(piece_classes(
                     piercing_body,
