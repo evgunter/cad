@@ -33,8 +33,7 @@ crates/sweep/src/blend/reach.rs	sheet_clip	1	turn
 crates/sweep/src/blend/surgery.rs	attach_contact	1	turn
 # turn_past is arc_past's (0, τ] read at T: Real, where Azimuth::near (Decide) does not apply.
 crates/sweep/src/revolve/axis.rs	turn_past	1	past-at-real
-crates/topo/src/boolean/boxes.rs	sphere_window	1	chart
-crates/topo/src/boolean/boxes.rs	torus_rect_extent	2	chart
+crates/topo/src/cover.rs	sphere_window	1	chart
 crates/topo/src/boolean/conic_quadric/mod.rs	through_the_apex	1	harmonic
 crates/topo/src/boolean/fate.rs	tip_wraps	1	turn
 crates/topo/src/boolean/ops.rs	apply_cut_ins	1	turn

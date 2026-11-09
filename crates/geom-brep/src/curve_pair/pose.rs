@@ -1135,9 +1135,11 @@ enum Coplanar {
 
 /// The conic `k`'s height above the plane through `on` with unit normal
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
-pub(super) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
+/// The plane door's sinusoid is this one
+/// ([`crate::curve_face::plane_crossing`]).
+pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
-    ((k.frame().origin - on).dot(n), cp, sp)
+    (geom::plane_offset(on, n, k.frame().origin), cp, sp)
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).
@@ -1262,8 +1264,12 @@ pub(super) fn one_curve<T: Decide>(
 /// rounding, and the larger is taken, so the gap does not depend on the
 /// order of the pair.
 ///
-/// **The gap carries its own rounding charge**, so no reading of it is
-/// bare. With `m` a conic's larger semi-axis magnitude, the computed
+/// **The gap carries the rounding its conics' stored semi-axes
+/// amplify**, so no reading of it is bare: carrier terms, which the run's
+/// admission rule (`geom_core::tolerance::admissible`) does not cover,
+/// read here on this chain's own derived count rather than
+/// [`crate::carrier_resolution`]'s fitted one. With `m` a conic's larger
+/// semi-axis magnitude, the computed
 /// semi-axis vectors are off by `√17·u·m` (`v̂ = n̂ × û` by `4u`), the
 /// computed `Q`'s columns are unit to within about `4.5u`, and its
 /// products and the norms round by `4u·m` and `5u·g`: within

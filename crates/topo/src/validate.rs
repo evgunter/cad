@@ -394,6 +394,7 @@ use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{CertCheck, CertifyError};
 use geom_core::one_line::on_one_line;
+use geom_core::tolerance::SESSION_BOX_EXTENT;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
@@ -478,14 +479,16 @@ pub(crate) fn decide_positive<T: Decide>(
 
 /// **Whether a reading's own rounding leaves an in-band reading the
 /// input's**: the rounding, `K` times over, decided Zero under `name`, so
-/// it lies within the `ε/K` share of the band that K's noise headroom
-/// presumes (DESIGN.md Q1). A reading whose chain amplifies its rounding
-/// past a few ulp at the model's extent — a quotient by a small sine, a
-/// section carrier stored far from its arc — is typed as the input's,
-/// with its lever, only where this admits it; past it, no lever is
-/// offered. A reading whose rounding is a few ulp of coordinates (a
-/// line chord's residual, `merge_faces::edge_on_faces_reading`) is
-/// within that share by Q1's premise, and asks nothing here.
+/// it lies within an `ε/K` share of the band. This is an amplification
+/// share, kept until `work/oneround/site-rounding-charges-owed-a-re-posing.md`
+/// re-poses the readings that need it: a reading whose chain amplifies
+/// its rounding past the run's admission rule — a quotient by a small
+/// sine, a section carrier stored far from its arc — is typed as the
+/// input's, with its lever, only where this admits it; past it, no lever
+/// is offered. A reading whose rounding is a short chain on in-box
+/// coordinates (a line chord's residual,
+/// `merge_faces::edge_on_faces_reading`) is covered by the admission rule
+/// (`geom_core::tolerance::admissible`), and asks nothing here.
 ///
 /// # Errors
 ///
@@ -1020,6 +1023,14 @@ pub enum ContactMark {
     )
 )]
 pub enum ValidationError {
+    /// The body reaches definitely past the session box
+    /// (`session_box_reach`, D4 ¶4): no coordinate of a model is larger
+    /// in magnitude than `geom_core::tolerance::SESSION_BOX_EXTENT`.
+    /// Reported alone, before any check reads a margin on the geometry.
+    OutsideSessionBox {
+        /// The box's extent less the body's reach, metres (negative).
+        margin: geom_core::MarginDiag,
+    },
     /// Tier 3: the run's tolerance could not produce a valid
     /// classification band (absurd ε — see `Band::linear`). Reported
     /// alone; no geometric check can run without a band.
@@ -3124,6 +3135,11 @@ const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 /// ([`geom_brep::recourse::BAND_TOLERANCE_RECOURSE`]).
 pub(crate) const TOLERANCE: &str = geom_brep::recourse::BAND_TOLERANCE_RECOURSE;
 
+/// [`crate::FindingFamily::SessionBox`]'s one recourse: the box bounds
+/// the model, not the tolerance, so the geometry moves.
+pub(crate) const SESSION_BOX: &str =
+    "Recourse: place the geometry nearer the origin, or model it at a smaller size";
+
 /// The ending of a margin the band could not decide, where a coincidence
 /// between two things has an object to declare: the shared menu
 /// ([`geom_core::COINCIDENCE_RECOURSE`], which
@@ -4412,6 +4428,12 @@ impl ValidationError {
         use geom_brep::recourse::{read_at, undecided_at};
         let ended = |ending: Option<String>| ending.map(|e| format!(". {e}")).unwrap_or_default();
         match self {
+            Self::OutsideSessionBox { margin } => write!(
+                f,
+                "the body reaches {} m past the {SESSION_BOX_EXTENT:e} m session box, which no \
+                 coordinate of a model may exceed (D4 ¶4)",
+                margin.readable_below_zero()
+            ),
             Self::Band { error } => write!(
                 f,
                 "the tolerance the body was checked at is not usable: {}",
@@ -6300,6 +6322,8 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     };
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
+    let band = Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])?;
+    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
     let mut marks = slotmap::SecondaryMap::new();
     let (errors, certificate) = tier3_local_checks_marked(
         body,
@@ -8981,7 +9005,7 @@ pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeK
 /// edge's extent so a cross product over its length is a lever: a line
 /// by its chord, a conic or spiric arc by its walk tangent there at the
 /// arc's reach from that start, its edge cover's far distance from
-/// above (`boolean::boxes::edge_reach_bounds`). The
+/// above (`boolean::crate::cover::edge_reach_bounds`). The
 /// wedge acts on every sign, so its lever is the region's own measure
 /// from where it is read; where that is known only from both sides (an
 /// ellipse or spiric arc, whose bound from above can pass it many times
@@ -9000,7 +9024,7 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
         geom::Curve3::Line(_) => Some(Departure::Exact(p1 - p0)),
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
             let e = body.edges.get(h.edge)?;
-            let lever = crate::boolean::boxes::edge_reach_bounds(body, h.edge, e, p0)?;
+            let lever = crate::cover::edge_reach_bounds(body, h.edge, e, p0)?;
             Some(Departure::along(
                 curve.walk_tangents(plus).0.normalize(),
                 lever,
@@ -10393,17 +10417,18 @@ pub fn validate_pseudomanifold_certificate_structural<
     pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
-/// [`SCAFFOLDING_RECOURSE`], as a literal so [`SCAFFOLDING_REFUSAL`] can
-/// end in it.
-macro_rules! scaffolding_recourse {
-    () => {
-        "finish that edit first"
-    };
-}
-
 /// **A finished body at a scalar with certification rights**, and tier
 /// 3's verdict on it kept beside it — so a tier-3′ pass over the same
-/// body pays the census alone.
+/// body pays the census alone — with the certificate its check 7
+/// decided on, so a reader measures it through the rounds the gate ran
+/// ([`AtRestBody::measure`]).
+///
+/// **It keeps that certificate's quadrature runs alive**, one per face
+/// at the round check 7 stopped at, for as long as the body is held:
+/// they are what a measurement continues from, and the only place they
+/// exist once the finish returns. They are shared (`Arc`), so a clone of
+/// the finished body does not copy them, and [`AtRestBody::into_body`]
+/// drops them with the verdict.
 ///
 /// Its one constructor is the certifying scalars' [`AtRestPolicy::finish`]
 /// (`[topology.tiers]`), which runs [`validate_geometric`] and keeps its
@@ -10432,13 +10457,14 @@ macro_rules! scaffolding_recourse {
 /// relogs them where it takes the body. The box scalars' leaf is tier 2
 /// alone and its taker runs tier 3 there, logged, so both lanes log the
 /// finish at the taker (`docs/predicate-dimension-audit.md` F34).
-#[derive(Clone, Debug)]
-pub struct AtRestBody<T: Real> {
+#[derive(Clone)]
+pub struct AtRestBody<T: geom_core::Decide> {
     body: Body<T>,
+    sign: std::sync::Arc<crate::props::KeptSign<T>>,
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
 
-impl<T: Real> AtRestBody<T> {
+impl<T: geom_core::Decide> AtRestBody<T> {
     /// **[`validate_geometric`] over `body`, keeping the verdict** — the
     /// certifying scalars' [`crate::AtRestPolicy::finish`].
     ///
@@ -10451,8 +10477,12 @@ impl<T: Real> AtRestBody<T> {
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         crate::finish::count_finish();
-        validate_geometric_certificate(&body, tol)?;
-        Ok(Self { body, held: None })
+        let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
+        Ok(Self {
+            body,
+            sign,
+            held: None,
+        })
     }
 
     /// **This finished body holding its finish's record** for the taker
@@ -10460,8 +10490,8 @@ impl<T: Real> AtRestBody<T> {
     /// point scalars (F34).
     pub(crate) fn holding(self, record: geom_core::k_stats::Recorded) -> Self {
         Self {
-            body: self.body,
             held: Some(std::sync::Arc::new(record)),
+            ..self
         }
     }
 
@@ -10478,6 +10508,26 @@ impl<T: Real> AtRestBody<T> {
     #[must_use]
     pub fn into_body(self) -> Body<T> {
         self.body
+    }
+
+    /// **The body measured under `settle` through its finish's
+    /// certificate**: [`crate::SignCertificate::measure`] continued from
+    /// the rounds check 7 took, so it pays only the rounds the gate did
+    /// not run. The certificate is left as it was, so each call continues
+    /// from the gate's rounds; its band is `Band::linear` of the finish's
+    /// `tol`, and its lane the certified quadrature.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::SignCertificate::measure`].
+    pub fn measure(
+        &self,
+        settle: crate::Settle<T>,
+    ) -> Result<crate::MassMeasurement<T>, crate::MassPropsError>
+    where
+        T: geom_core::Bounds,
+    {
+        self.sign.of(&self.body).measure(settle)
     }
 
     /// **[`validate_pseudomanifold`] over this body**, the same pass with
@@ -10514,17 +10564,9 @@ impl<T: Real> AtRestBody<T> {
     }
 }
 
-/// What every door refusing an operand with scaffolding at rest says
-/// after naming the operand.
-pub const SCAFFOLDING_REFUSAL: &str = concat!(
-    "is not a finished solid: it still carries what an edit left behind, such as a \
-     strut or an empty loop, so it is refused. Recourse: ",
-    scaffolding_recourse!()
-);
-
-/// The advice [`SCAFFOLDING_REFUSAL`] ends in, for a refusal that meets
-/// the same scaffolding in a body no door gated.
-pub const SCAFFOLDING_RECOURSE: &str = scaffolding_recourse!();
+/// The advice a refusal that meets construction scaffolding in a body
+/// ends in.
+pub const SCAFFOLDING_RECOURSE: &str = "finish that edit first";
 
 /// What every door refusing an inside-out operand says after naming the
 /// operand: true of a solid check 7 decides negative, of a shell check 10
@@ -10536,25 +10578,20 @@ pub const INSIDE_OUT_REFUSAL: &str = concat!(
     crate::boolean::solid_contain::inside_out_recourse!()
 );
 
-/// **Tier 2's findings on a door's operand.** A tier-1 finding panics
-/// naming `subject` and the first finding: every public door keeps a
-/// body tier-1-valid, so only a kernel bug hands one in.
-pub(crate) fn operand_scaffolding<T: Real>(
-    body: &Body<T>,
-    subject: impl fmt::Display,
-) -> Vec<ValidationError> {
-    let (broken, scaffolding) = closed_by_tier(body);
-    if let Some(first) = broken.first() {
-        unreachable!(
-            "{subject} fails tier 1 ({} findings, the first {first:?}): every public door keeps \
-             the body tier-1-valid",
-            broken.len()
-        );
+impl<T: geom_core::Decide> fmt::Debug for AtRestBody<T> {
+    /// The body, its certificate as [`crate::SignCertificate`]'s render
+    /// reads it over this body, and whether it holds a finish record.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { body, sign, held } = self;
+        f.debug_struct("AtRestBody")
+            .field("body", body)
+            .field("sign", &sign.of(body))
+            .field("held", &held.is_some())
+            .finish()
     }
-    scaffolding
 }
 
-impl<T: Real> core::ops::Deref for AtRestBody<T> {
+impl<T: geom_core::Decide> core::ops::Deref for AtRestBody<T> {
     type Target = Body<T>;
 
     fn deref(&self) -> &Body<T> {

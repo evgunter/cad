@@ -1440,10 +1440,6 @@ BOUND_AS = {
     "SettleVerdict": "MassMeasurement.verdict",
     # A sign's verdict: `"outer"` or `"void"`, the same words.
     "ShellRole": "MassMeasurement.verdict",
-    # The imported body held with the import gate's certificate of it:
-    # Python's report hands out the body and measures through the pair,
-    # and never holds the pair apart from the report.
-    "CertifiedBody": ("ImportReport.body", "ImportReport.measure"),
     # `MassMeasurement::met`'s refusal: Python raises `ValidationError`
     # with `measure_refusal == "unmet"` and the `stop`.
     "Unmet": "MassMeasurement.met",
@@ -2696,6 +2692,8 @@ NOT_BOUND = {
     "Breach": INTERIOR,
     # The boolean doors' operand type: the evaluator finishes each
     # operand at the boolean seat, so Python hands it no body to finish.
+    # The import report holds the imported one and measures through it
+    # (`ImportReport.measure`), never handing it out apart from the report.
     "AtRestBody": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanResult": INTERIOR,
@@ -3953,6 +3951,7 @@ MEMBERS_BOUND_AS = {
     # the FINDING rather than the exception: `len(findings) ==
     # failure_count`, one `variant` each (`crates/pncad-py/src/
     # validation.rs`).
+    "ValidationError::OutsideSessionBox": "ValidationFinding.variant",
     "ValidationError::Band": "ValidationFinding.variant",
     "ValidationError::DanglingDescription": "ValidationFinding.variant",
     "ValidationError::UncertifiableSurface": "ValidationFinding.variant",

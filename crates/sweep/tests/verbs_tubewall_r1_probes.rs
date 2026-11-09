@@ -86,15 +86,14 @@ fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
 /// as `(t0, t1)` or `None` for a full period.
 type Case = (f64, f64, f64, Option<(f64, f64)>);
 
-/// None of them the unit fixture's, spanning ~5 decades of scale and
-/// a thin wall.
-const CASES: [Case; 6] = [
+/// None of them the unit fixture's, spanning ~2 decades of scale and
+/// a thin wall. The km-scale ring (R = 1300) this file's refusal arms
+/// record lies past the session box, and is not a case.
+const CASES: [Case; 4] = [
     (3.7, 0.9, 0.31, Some((-0.4, 2.9))),
     (0.02, 0.004, 0.0015, Some((0.1, 0.35))),
-    (1300.0, 2.5, 0.001, Some((1.0, 5.0))),
     (3.7, 0.9, 0.31, None),
     (0.02, 0.004, 0.0015, None),
-    (1300.0, 2.5, 0.001, None),
 ];
 
 /// The ε rows a case is pinned to refuse at as limb 2's kernel limit:
@@ -138,7 +137,7 @@ fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Opti
     // door finishes its result, and check 7's quadrature escalates there
     // on the rim span's winding (`props_rim_span_winding`, in band),
     // `VolumeUncomputable` alone. The P0 row
-    // `work/onehome/f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves.md`
+    // `work/boxfinish/f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves.md`
     // is the reader that lifts it; this pin turns red when it lands.
     if major > 1e3 && window_arg.is_none() && Tol::witness().eps() <= 1e-12 {
         match &got {

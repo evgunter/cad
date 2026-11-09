@@ -2752,7 +2752,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
 
     // ---- scalars and addresses ----
-    carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
+    carries(
+        &E::InvalidTolerance {
+            value: -1.0,
+            k: pncad::tolerance::DEFAULT_K,
+        },
+        &["value"],
+    );
     carries(
         &E::PinUnchanged {
             node: sp(1),
@@ -4453,7 +4459,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "result_pinched_at_cone_apex",
             "revert",
             "rim_cusp_arm_unbuilt",
-            "scaffolding_operand",
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
@@ -6155,6 +6160,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "orphan_entity",
             "orphan_geometry",
             "outer_listed_as_ring",
+            "outside_session_box",
             "parent_loop_mismatch",
             "pcurve",
             "pinch_corner_crossed",

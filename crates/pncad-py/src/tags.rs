@@ -1491,7 +1491,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
         BooleanErrorKind::PointInFaceRefused => "point_in_face_refused",
-        BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::InsideOutOperand => "inside_out_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
         BooleanErrorKind::CoplanarNeighbours => "coplanar_neighbours",
@@ -3084,6 +3083,7 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
 /// such a site, and the tag it mints is that answer.
 pub fn validation_error_tag(err: &ValidationError) -> &'static str {
     match err {
+        ValidationError::OutsideSessionBox { .. } => "outside_session_box",
         ValidationError::Band { .. } => "band",
         ValidationError::DanglingDescription { .. } => "dangling_description",
         ValidationError::UncertifiableSurface { .. } => "uncertifiable_surface",

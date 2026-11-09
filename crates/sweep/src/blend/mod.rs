@@ -1444,10 +1444,6 @@ pub enum Breach {
     /// ([`topo::SCAFFOLDING_RECOURSE`]): a direct battery
     /// caller hands in a body no door gated.
     Scaffolding,
-    /// The entity's stored carrier is degenerate: a length it is built on,
-    /// such as a cylinder's axis or radius, does not decide under the
-    /// run's band.
-    Degenerate,
 }
 
 /// The shared edge-blend refusal — both verbs' one error vocabulary,
@@ -1795,10 +1791,9 @@ pub enum BlendError {
     /// **Frontier** (D2 addendum row 2): a stored carrier, trimline or
     /// surface is not one of the shapes the surgery's closed forms
     /// cover (a circle rim carrier, a straight open trimline, a planar
-    /// support, a torus band). A carrier that is absent or degenerate is
-    /// no shape at all, and refuses [`BlendError::BodyNotIntact`]
-    /// ([`Breach::Scaffolding`], [`Breach::Degenerate`]): the shape
-    /// recourse does not reach it.
+    /// support, a torus band). A carrier that is absent is no shape at
+    /// all, and refuses [`BlendError::BodyNotIntact`]
+    /// ([`Breach::Scaffolding`]): the shape recourse does not reach it.
     UnsupportedGeometry {
         /// The entity whose stored geometry is not covered.
         at: EntityId,
@@ -2236,9 +2231,6 @@ impl BlendError {
                     Breach::Scaffolding => {
                         format!("{at} is construction scaffolding a finished body does not hold")
                     }
-                    Breach::Degenerate => {
-                        format!("{at}'s stored carrier is degenerate under the run's band")
-                    }
                 };
                 write!(f, "{detail} — {what}, so the body is not intact there. ")?;
                 match breach {
@@ -2652,11 +2644,6 @@ mod recourse_tests {
                 breach: Breach::Scaffolding,
                 detail: "a rim edge carries no certified carrier",
             },
-            BlendError::BodyNotIntact {
-                at: EntityId::Face(FaceKey::default()),
-                breach: Breach::Degenerate,
-                detail: "a face's stored surface, which the face box reads",
-            },
             BlendError::NotFinished {
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::NegativeVolume {
@@ -2784,11 +2771,6 @@ mod recourse_tests {
                 Breach::Scaffolding,
                 format!("{at} is construction scaffolding a finished body does not hold"),
                 &finish,
-            ),
-            (
-                Breach::Degenerate,
-                format!("{at}'s stored carrier is degenerate under the run's band"),
-                &none,
             ),
         ] {
             assert_eq!(
