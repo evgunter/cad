@@ -238,6 +238,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         SessionOp::SetLabel { .. }
         | SessionOp::SetProduct { .. }
         | SessionOp::AddToProduct { .. }
+        | SessionOp::RepointPlacements { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::Place { .. }
         | SessionOp::SetBundle { .. }

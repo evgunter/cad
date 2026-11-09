@@ -141,7 +141,7 @@ pub(super) fn composite_by<const N: usize, C>(
     let mut removable = [0.0_f64; N];
     for i in 0..pieces {
         let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
-        let x = p + (q - p) * 0.5;
+        let x = geom::bracket_mid((p, q));
         let (ri, le) = (pt(q) - pt(x), pt(p) - pt(x));
         // `∫_p^q (t − x)ᵏ dt`, `k = 0..=4`.
         let weight: [Interval; ORDER] = core::array::from_fn(|k| {
@@ -236,7 +236,7 @@ pub(super) fn trig_jets(t: Interval) -> (Jet, Jet, Jet) {
 /// enclosure here reads (a parameter bracket, a piece, an edge's span).
 /// Exact for `lo = hi`; the whole circle past a half-width of `1.5`.
 pub(super) fn trig_range(lo: f64, hi: f64) -> (Interval, Interval) {
-    let m = lo + (hi - lo) * 0.5;
+    let m = geom::bracket_mid((lo, hi));
     if !(m.is_finite() && lo <= hi) {
         return (Interval::refused(), Interval::refused());
     }

@@ -1160,7 +1160,7 @@ fn piece_rung(
             geom_brep::ladder::rung_or_abort(why.refusal(), unread(Some(why)), Err)
         }
         Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
-        Err(read) => Rung::refused(read, BooleanError::refusal),
+        Err(read) => Rung::refused(read, BooleanError::refusal, Err),
     }
 }
 
@@ -1931,10 +1931,7 @@ fn walls_inside<T: Decide>(
         .ok_or_else(desync)?;
     let (t0, t1) = curve.params();
     let mid = curve.mid_point();
-    let tangent = curve
-        .carrier()
-        .deriv((t0 + t1) * T::from_f64(0.5))
-        .normalize();
+    let tangent = curve.carrier().deriv(geom::mid_param(t0, t1)).normalize();
     let normal = |read: Result<
         Option<geom_brep::OutwardNormal<T>>,
         crate::face_normal::NormalAtError,
