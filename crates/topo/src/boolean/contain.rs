@@ -26,7 +26,7 @@ use crate::splitting::containment::{
     BoundaryRows, ConicRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
 };
 use crate::splitting::pieced_arc::ArcRows;
-use crate::splitting::{Escalation, LoopDecision, PointInLoopError, Uncrossable};
+use crate::splitting::{Escalation, LoopDecision, Uncrossable};
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -246,7 +246,7 @@ pub enum ContainError {
     /// point could be placed against.
     EmptyLoop(LoopKey),
     /// The in-plane walk refused a loop
-    /// ([`PointInLoopError::CorruptLoop`], carried).
+    /// ([`PointInLoopError::CorruptLoop`](crate::splitting::PointInLoopError::CorruptLoop), carried).
     LoopUnreadable(LoopKey),
     /// The walk could not read a loop at this point: an edge of it it
     /// could not cross stood in the way of every ray.
@@ -347,30 +347,6 @@ impl core::fmt::Display for ArcEndGaps {
                 f,
                 "each end lies within ±{zero:e} of one corner, a parting this K cannot resolve"
             ),
-        }
-    }
-}
-
-impl From<PointInLoopError> for ContainError {
-    fn from(e: PointInLoopError) -> Self {
-        match e {
-            PointInLoopError::Escalated {
-                decision,
-                escalation,
-                diag,
-                ..
-            } => Self::Escalated {
-                decision: Some(decision.into()),
-                escalation,
-                diag,
-            },
-            PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
-            PointInLoopError::CorruptLoop { r#loop } => Self::LoopUnreadable(r#loop),
-            PointInLoopError::LoneLoop { r#loop } => Self::EmptyLoop(r#loop),
-            PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
-            PointInLoopError::OffPlane(_) => {
-                unreachable!("contfp reads loops through carrier_loop, which certifies no plane")
-            }
         }
     }
 }
@@ -1416,7 +1392,7 @@ mod tests {
                 "{row}: the refusal renders its payload and the one ending"
             );
             if let Some(ContainDecision::Loop(decision)) = decision {
-                let walk = PointInLoopError::Escalated {
+                let walk = crate::splitting::PointInLoopError::Escalated {
                     r#loop: LoopKey::default(),
                     decision,
                     escalation,

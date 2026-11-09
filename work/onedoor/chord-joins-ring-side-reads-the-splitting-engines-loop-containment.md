@@ -29,5 +29,8 @@ reading the engine hosts and the crate root should.
 Move the in-plane loop containment (the reader, its answer and its
 error with its standing) out of `splitting/` to the crate root, as
 `[topo.homes]` asks of a reading that takes a body, and re-point
-`chord_join` and its rows at the root. Then drop the two pins' rises
-this row's citation carries.
+`chord_join` and its rows at the root. Then drop the pins' rises
+this row's citation carries: `chord_join.rs`, `chord_join/ring_side_rows.rs`,
+and `contain_loop.rs` (the containment door's `From<PointInLoopError> for
+ContainError`, moved out of `boolean/contain.rs` by `onecopy/small-sweeps`,
+whose `names-splitting` sites are `PointInLoopError`'s).
