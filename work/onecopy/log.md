@@ -1027,3 +1027,4 @@
 - 15:15Z 6637 delta (a6bd9336): FIX (small). recl's consumer re-classes the NoReference limit as InBand Unplaced (dead arm); pin the limit with the reviewer's whole-plane fixture; clears' Zero→Ok(false) seam; split cone_fuzz's tally. Sent to the ladder lane.
 - 15:20Z Merged PR 6647 (chord-length) at gate-green 8474df19 (FULL MERGE; disjoint; merge check clean). NOTEs (prescale value move, two stale zero-only texts, a point-equality home row, the clearance pin) → length-rule lane.
 - 15:25Z Merged PR 6643 (face-placement) at gate-green 0741cadf (FULL MERGE; disjoint since; merge check clean).
+- 15:35Z 6632 at 7849c458: the FIX sentence corrected in 3 places plus the exact-½ row (verified by diff; no re-review needed). Main overlapped in 3 topo files → merged main (afccf6d901a92115ac88435a8570c5dd9254e2d5); build, gates and topo 3747 clean; re-gating. 6638 and 6598 gates are green; they wait on their deltas. 6637 green but its FIX is pending.
