@@ -4401,7 +4401,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carry_refused",
             "classification_invariant",
             "coincident_shell",
-            "contact_contradicted",
             "containment",
             "coplanar_neighbours",
             "crossing_at_cone_apex",
@@ -6149,6 +6148,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "lone_vertex_with_incidence",
             "loop_cycle_overrun",
             "loop_role_inverted",
+            "material_on_both_sides",
             "missing_provenance",
             "mixed_dihedral",
             "multiply_owned",
@@ -6292,7 +6292,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.
     ("circle_circle", 2),
-    ("contact_contradicted", 2),
     ("containment", 2),
     ("corrupt", 3),
     ("cosurface_escalated", 2),

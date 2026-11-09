@@ -336,16 +336,48 @@ impl<T: Decide> Quadric<T> {
                 let mut paths = Vec::with_capacity(2);
                 // Round the start's meridian to `to`'s parallel, then round.
                 let turned = centre + axis * ht + ef * rt;
-                let meridian = parallel(kf, ef.cross(axis), off_t, start, turned);
-                let round = parallel(centre + axis * ht, axis, rt, turned, to);
+                let meridian = parallel(
+                    geom::Line {
+                        origin: kf,
+                        dir: ef.cross(axis),
+                    },
+                    off_t,
+                    start,
+                    turned,
+                );
+                let round = parallel(
+                    geom::Line {
+                        origin: centre + axis * ht,
+                        dir: axis,
+                    },
+                    rt,
+                    turned,
+                    to,
+                );
                 paths.push(Path {
                     pieces: vec![lead, Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
                 let turned = centre + axis * hs + et * rs;
-                let round = parallel(centre + axis * hs, axis, rs, start, turned);
-                let meridian = parallel(kt, et.cross(axis), off_t, turned, to);
+                let round = parallel(
+                    geom::Line {
+                        origin: centre + axis * hs,
+                        dir: axis,
+                    },
+                    rs,
+                    start,
+                    turned,
+                );
+                let meridian = parallel(
+                    geom::Line {
+                        origin: kt,
+                        dir: et.cross(axis),
+                    },
+                    off_t,
+                    turned,
+                    to,
+                );
                 paths.push(Path {
                     pieces: vec![lead, Piece::Arc(round), Piece::Meridian(meridian)],
                     arrival: meridian.tangent(meridian.span.1),
@@ -423,7 +455,15 @@ impl<T: Decide> Quadric<T> {
             Margin::of(charge(rise, slack)),
             band,
         )?;
-        let round_at_to = parallel(base + axis * ht, axis, rt, turned, to);
+        let round_at_to = parallel(
+            geom::Line {
+                origin: base + axis * ht,
+                dir: axis,
+            },
+            rt,
+            turned,
+            to,
+        );
         let turn = decide(
             "split_ring_path_turn",
             Margin::of(charge(
@@ -440,7 +480,15 @@ impl<T: Decide> Quadric<T> {
             });
         }
         if rise != Sign::Zero {
-            let round = parallel(base + axis * hf, axis, rf, from, below);
+            let round = parallel(
+                geom::Line {
+                    origin: base + axis * hf,
+                    dir: axis,
+                },
+                rf,
+                from,
+                below,
+            );
             paths.push(Path {
                 pieces: vec![Piece::Arc(round), piece(below, to, to)],
                 arrival: if rise == Sign::Positive {
@@ -458,12 +506,15 @@ impl<T: Decide> Quadric<T> {
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
 fn parallel<T: Decide>(
-    centre: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     radius: T,
     from: Point3<T>,
     to: Point3<T>,
 ) -> CircleArc<T> {
+    let geom::Line {
+        origin: centre,
+        dir: axis,
+    } = axis;
     let u = from - centre;
     let u = u.normalize();
     let w = to - centre;
@@ -1581,7 +1632,7 @@ fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>
     use geom_brep::curve_pair::MeetKind;
     match fault.kind() {
         MeetKind::Escalated(diag) => Err(diag),
-        MeetKind::Touch(_) | MeetKind::Unread => Ok(None),
+        MeetKind::Touch(_) | MeetKind::Unread(_) => Ok(None),
         MeetKind::Fault { what } => {
             unreachable!("the meeting of a path's piece and a spline arc faulted: {what}")
         }
@@ -2982,7 +3033,9 @@ mod tests {
     /// A carrier the arm does not read is the kernel's fault, not the
     /// path's silence.
     #[test]
-    #[should_panic(expected = "faulted: a carrier the meeting table misread")]
+    #[should_panic(
+        expected = "the meeting of a path's piece and a spline arc faulted: a carrier the meeting table misread"
+    )]
     fn a_spline_meeting_that_misreads_a_carrier_is_a_kernel_fault() {
         let _ = meet_refused(geom_brep::curve_pair::MeetFault::Desync);
     }
@@ -2990,7 +3043,9 @@ mod tests {
     /// Two readings that contradict are the kernel's fault, not the
     /// path's silence.
     #[test]
-    #[should_panic(expected = "faulted: two readings")]
+    #[should_panic(
+        expected = "the meeting of a path's piece and a spline arc faulted: two readings"
+    )]
     fn a_spline_meeting_whose_readings_contradict_is_a_kernel_fault() {
         let _ = meet_refused(geom_brep::curve_pair::MeetFault::Contradiction {
             readings: "two readings",

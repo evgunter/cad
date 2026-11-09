@@ -40,3 +40,7 @@ Nightly run 42567046151 shows the family is wider than the five rows above. Rows
 - Reading the box's extent rather than refusing on it: `crates/viewer/tests/docm9_range_vs_probe.rs` (`the probe reports its reach upward, never a proof: Edge { valid: 999.5, invalid: 1000.0 }`, where the probe now stops at the box's 1000), and `crates/topo/tests/rim_dim_boolean_twins.rs` under `--all-features` (`session_box_reach (worst rel dev 9.990e-1)` is outside the audited FLAG list: the box's extent does not scale with the model, by design).
 
 None is BOXES'. (BOXES nightly-reds triage, 2026-11-09)
+
+## Witness (ONECOPY, PR 6668's review, 2026-11-09)
+
+`torus_touch_off_faces`'s `the_off_face_touches_build_at_every_scale` (listed above) refuses `OutsideSessionBox` at margin −1500 on PR 6668's base as well as its head, so it is this family and not that PR.

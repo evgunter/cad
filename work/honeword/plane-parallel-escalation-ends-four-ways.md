@@ -37,3 +37,7 @@ so, the arm's subject should be the norm's, not the parallel rung's.
 Pick one kind for the parallel rung's escalation, and end it that way
 at every door. A door whose escalation is really a different decision
 (the declared rung's poisoned norm) states that decision's subject.
+
+## Since PR 6673 (SEAL)
+
+`Coincide::Planes`, the screen door's question, is gone with the glue door's conformal screen (`work/seal/a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted`), and its frontier ending with it. The parallel rung now ends three ways: `Coincide::OnPlanes`, `BooleanDecision::Neighbours` and `merge_faces`' `DeclaredPlanes`.

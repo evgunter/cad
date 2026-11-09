@@ -478,10 +478,11 @@ pub(crate) enum TouchVerdict {
 ///
 /// Each variant states its standing to a ladder over the faces or
 /// sectors that read it ([`Self::refusal`]), with its reason.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum TouchUnread {
     /// A sign the analysis needed is in band. In band.
+    #[default]
     InBand,
     /// A face's piece at the touch did not build: a choice in building
     /// it was in band, or its readings contradicted each other within
@@ -532,6 +533,21 @@ pub enum TouchUnread {
 }
 
 impl TouchUnread {
+    /// **The touch refusal a kept standing reads as**, for a reading whose
+    /// standing has its home elsewhere ([`Refusal::of_apex`]): a reading
+    /// in band, by margin or not, or unsettled, is [`Self::InBand`]; a
+    /// limit is [`Self::Unanalysed`]. **Lossy**, not an inverse of
+    /// [`Self::refusal`]: a margin's diagnostics are dropped (no arm here
+    /// carries one, and the type is `Eq`), and an unsettled reading reads
+    /// back as in band, ranked ahead of where it stood.
+    #[must_use]
+    pub const fn kept(standing: Refusal) -> Self {
+        match standing {
+            Refusal::Margin(_) | Refusal::InBand | Refusal::Unsettled => Self::InBand,
+            Refusal::Limit => Self::Unanalysed,
+        }
+    }
+
     /// What this refusal is to a ladder over the faces or sectors that
     /// read it, as each variant's docs state it.
     ///

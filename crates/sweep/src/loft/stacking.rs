@@ -435,7 +435,7 @@ fn arc_pair_meets<T: Decide>(
         Ok(met) => Ok(met.points.iter().any(off_shared)),
         Err(refusal) => match refusal.fault.kind() {
             MeetKind::Fault { what } => Err(what),
-            MeetKind::Escalated(_) | MeetKind::Touch(_) | MeetKind::Unread => {
+            MeetKind::Escalated(_) | MeetKind::Touch(_) | MeetKind::Unread(_) => {
                 Ok(refusal.found.iter().any(off_shared))
             }
         },

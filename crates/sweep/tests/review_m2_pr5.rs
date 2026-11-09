@@ -1136,8 +1136,10 @@ fn survives_near_full_period_rim_span_escalates() {
             geom_brep::MappedSource::RevolvedPoint {
                 point: Point2::new(1.0, 0.0),
                 place: geom_core::Affine3::identity(),
-                axis_origin: center,
-                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                axis: geom::Line {
+                    origin: center,
+                    dir: Vec3::new(0.0, 1.0, 0.0),
+                },
                 angle: span,
             },
         )),
