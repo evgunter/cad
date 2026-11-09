@@ -1557,9 +1557,24 @@ mod tests {
         let dot = implicit_outward_normal(&first, true, p)
             .vec()
             .dot(implicit_outward_normal(&second, true, p).vec());
-        assert!(dot > 0.1, "the next station reads the normals aligned: {dot}");
-        let read = tangency_reading(&first, true, &second, true, &circle, opposed, opposed + tau, b);
-        assert!(parallel(&read), "the aligned station is not tangent: {read:?}");
+        assert!(
+            dot > 0.1,
+            "the next station reads the normals aligned: {dot}"
+        );
+        let read = tangency_reading(
+            &first,
+            true,
+            &second,
+            true,
+            &circle,
+            opposed,
+            opposed + tau,
+            b,
+        );
+        assert!(
+            parallel(&read),
+            "the aligned station is not tangent: {read:?}"
+        );
     }
 
     /// **Mixed sides are a verdict a span can reach.** A schedule over the
