@@ -104,3 +104,7 @@
   - **The main red the implementer reported is the nightly's.** Nightly 87 (11-09) is red on several jobs, the slow-set full suites among them, and the newest `triage/nightly-*` branch is 10-29. That is GREEN's ground (act on the triage, not beside it), so I leave it to the triage and tell Ev at hand-back.
 - 2026-11-09 — **Glue step 1 dispatched:** `carrier-readings-keep-the-margins-they-decided-on` on `seal/carrier-readings-keep-margins`. Review tier single, FULL, for the reason in the row.
 - 2026-11-09 — **The duplicated `memories/` bullets went to Ev as `[ev]` PR 6633.** It deletes the first copies of the Express-lane and `-n` bullets, since the later copies say the same and more. It waits for Ev's sign-off, as any `memories/` change does.
+- 2026-11-09 — **Glue step 1 is PR 6634, CI `gate ok` green on `1de5db3b8b`.** Single FULL review dispatched on that frozen head (tier logged at dispatch in the row). The implementer's target is reclaimed. The lane's rulings to make at adjudication:
+  - `CarrierVerdict` grew a third variant, `TwoKinds`. My first read: right, since the kind-mismatch arm decides no datum, and the alternative is the hand mint the step removes.
+  - The plane ladder's orientation rung stays on `decide_nonzero`.
+  - I1/I2 wait on step 3's Rest verdict, but step 3's row does not name them yet. The fix pass records them there.
