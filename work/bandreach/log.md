@@ -17,3 +17,4 @@ the same commit. Band 17900-17999 is written here for bookkeeping;
 the model A/B is suspended, so nothing draws from it. Nothing
 dispatched. 18.5 points against 30.
 - 2026-11-02 — **Seam (BOXES):** filed `blend-sheet-clip-picks-its-coaxial-arm-on-a-bracket` on this slate, found by BOXES' extent-home fork. (BOXES orchestrator)
+- 2026-11-09 — **Seam (BOXES):** `blend-sheet-clip-picks-its-coaxial-arm-on-a-bracket` closed by BOXES `cover-app-readers` (PR 6588): `sheet_clip` reads topo's face cover, with no per-kind arm. (BOXES cover-app-readers lane)
