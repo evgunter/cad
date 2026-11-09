@@ -3969,7 +3969,11 @@ impl<T: Decide> IslandReading<T> {
     /// The paths to `q` from every outer-loop point of `face`
     /// ([`outer_references`]), in the order they are asked, each read by
     /// `read` until one decides: a side ladder ([`paths_rung`]), so a
-    /// path set aside ahead of one that decides is superseded.
+    /// path set aside ahead of one that decides is superseded. Its
+    /// premise is the input's: the ring lies in its face, so every
+    /// outer-loop point is on one side of the island (check 9's ring
+    /// nesting establishes it at rest), an input premise rather than a
+    /// theorem: `Alike` once `[ev]` PR 6592 lands.
     pub(crate) fn read_paths<R>(
         &self,
         body: &Body<T>,

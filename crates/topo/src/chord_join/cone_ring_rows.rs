@@ -64,18 +64,18 @@ fn rim(f: Frame, h: f64, (t0, t1): (f64, f64)) -> IslandEdge {
 /// **A face of `cone` between its rims at heights 0.05 and 3 and its
 /// rulings at azimuths ±1.2**, of sense `sense`, and its surface.
 fn sheet(f: Frame, cone: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
-    sheet_to(f, cone, sense, 1.2)
+    sheet_to(f, cone, sense, (-1.2, 1.2))
 }
 
-/// [`sheet`] between the rulings at azimuths `±t`, its first vertex on
-/// the rim at height 0.05 and azimuth `−t`.
+/// [`sheet`] between the rulings at azimuths `a0 < a1`, its first vertex
+/// on the rim at height 0.05 and azimuth `a0`.
 fn sheet_to(
     f: Frame,
     cone: geom::Surface<f64>,
     sense: bool,
-    t: f64,
+    azimuths: (f64, f64),
 ) -> (Body<f64>, FaceKey, SurfaceKey) {
-    sheet_up_to(f, cone, sense, (t, 3.0))
+    sheet_up_to(f, cone, sense, (azimuths, 3.0))
 }
 
 /// [`sheet_to`] with its high rim at height `hi`.
@@ -83,11 +83,11 @@ fn sheet_up_to(
     f: Frame,
     cone: geom::Surface<f64>,
     sense: bool,
-    (t, hi): (f64, f64),
+    ((a0, a1), hi): ((f64, f64), f64),
 ) -> (Body<f64>, FaceKey, SurfaceKey) {
     let lo = 0.05;
     let mut body = Body::<f64>::new();
-    let start = on_nappe(f, lo, -t);
+    let start = on_nappe(f, lo, a0);
     let seed = body.mvfs(start, sense).unwrap();
     let surface = body
         .set_face_surface(
@@ -98,13 +98,13 @@ fn sheet_up_to(
             },
         )
         .unwrap();
-    let low = edge_spec(&mut body, surface, &rim(f, lo, (-t, t)));
+    let low = edge_spec(&mut body, surface, &rim(f, lo, (a0, a1)));
     let first = body
         .mev(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            on_nappe(f, lo, t),
+            on_nappe(f, lo, a1),
             low,
             tol(),
         )
@@ -115,18 +115,18 @@ fn sheet_up_to(
                 he1: first.he_minus,
                 he2: first.he_minus,
             },
-            on_nappe(f, hi, t),
+            on_nappe(f, hi, a1),
             tol(),
         )
         .unwrap();
-    let high = edge_spec(&mut body, surface, &rim(f, hi, (t, -t)));
+    let high = edge_spec(&mut body, surface, &rim(f, hi, (a1, a0)));
     let last = body
         .mev(
             MevSite::Fan {
                 he1: up.he_minus,
                 he2: up.he_minus,
             },
-            on_nappe(f, hi, -t),
+            on_nappe(f, hi, a0),
             high,
             tol(),
         )
@@ -137,7 +137,7 @@ fn sheet_up_to(
                 he1: first.he_plus,
                 he2: last.he_minus,
             },
-            EdgeCurveSpec::line_between(start, on_nappe(f, hi, -t)),
+            EdgeCurveSpec::line_between(start, on_nappe(f, hi, a0)),
             FaceSurface::Shared {
                 key: surface,
                 sense,
@@ -182,6 +182,7 @@ fn run_from(
     r: usize,
 ) -> ((HalfEdgeKey, HalfEdgeKey), IslandEdge) {
     let n = island.edges.len();
+    assert_island_in_face(body, face, island);
     let ring = empty_ring(body, face, island.corners[r]);
     let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
     for k in 0..n - 1 {
@@ -201,6 +202,59 @@ fn run_from(
     }
     let (first, last) = (halves[0].he_plus, halves[n - 2].he_plus);
     ((first, last), island.edges[(r + n - 1) % n].clone())
+}
+
+/// **The island lies in the sheet**: every corner of it, and its edges at
+/// nine interior stations each, lie strictly between the sheet's rims
+/// and its rulings, read in the cone's own frame (height along its axis,
+/// azimuth from its `u_ref`) against its outer loop's corners. A ring
+/// whose island crosses the sheet's outer loop is no face of the sheet,
+/// and the winding's premise, that every outer-loop point lies on one
+/// side of the island, fails on it. Read off the geometry, not the
+/// face's region, which a sheet of sense `false` winds as its complement.
+fn assert_island_in_face(body: &Body<f64>, face: FaceKey, island: &Island) {
+    let view = body.passed_face(face).unwrap();
+    let geom::Surface::Cone {
+        apex, axis, u_ref, ..
+    } = *view.surface()
+    else {
+        panic!("a cone sheet");
+    };
+    let v = axis.cross(u_ref);
+    let read = |p: Point3<f64>| {
+        let w = p - apex;
+        (w.dot(axis), w.dot(v).atan2(w.dot(u_ref)))
+    };
+    let outer = body.get_face(face).unwrap().outer;
+    let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the sheet's outer loop is a cycle");
+    };
+    let corners: Vec<(f64, f64)> = body
+        .loop_cycle(first)
+        .unwrap()
+        .iter()
+        .map(|&he| read(body.half_edge_start_point(he).unwrap()))
+        .collect();
+    let range = |k: fn(&(f64, f64)) -> f64| {
+        corners
+            .iter()
+            .map(k)
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), x| {
+                (lo.min(x), hi.max(x))
+            })
+    };
+    let (h, a) = (range(|c| c.0), range(|c| c.1));
+    let stations = island.edges.iter().flat_map(|e| {
+        let (t0, t1) = e.params;
+        (1..10).map(move |k| e.carrier.eval(t0 + (t1 - t0) * f64::from(k) / 10.0))
+    });
+    for p in island.corners.iter().copied().chain(stations) {
+        let (ph, pa) = read(p);
+        assert!(
+            h.0 < ph && ph < h.1 && a.0 < pa && pa < a.1,
+            "the island leaves its sheet at {p:?}: height {ph} in {h:?}, azimuth {pa} in {a:?}"
+        );
+    }
 }
 
 /// `island` traversed the other way round.
@@ -398,7 +452,7 @@ fn offsets_through_the_band() -> impl Iterator<Item = f64> {
 /// **A path whose reading escalates by an island's corner says nothing,
 /// and the next path winds the island.** The sector's run from its
 /// corner on the low ellipse at 0.9, closed by its ruling at 0.9, on a
-/// sheet whose ruling at `−t` passes a hair outside the sector's corner
+/// sheet whose ruling at `a0` passes a hair outside the sector's corner
 /// at height 2.2 and azimuth −0.6. The first path, down that ruling from
 /// the sheet's first outer-loop point and round the parallel through the
 /// chord's midpoint (arriving across the ruling, so its lean is
@@ -415,7 +469,7 @@ fn a_path_escalating_by_a_corner_hands_the_winding_to_the_next() {
     let quadric = Quadric::of(&surface).unwrap();
     let mut escalated = 0;
     for delta in offsets_through_the_band() {
-        let (mut body, face, key) = sheet_to(f, surface.clone(), true, delta / rho - az_c);
+        let (mut body, face, key) = sheet_to(f, surface.clone(), true, (az_c - delta / rho, 1.2));
         let (run, closing) = run_from(&mut body, (face, key), &island, 2);
         assert!(
             closing.plane.is_none(),
@@ -539,7 +593,7 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
     let top = height_azimuth(f, sector.corners[0]).0;
     for delta in offsets_through_the_band() {
         let p = on_nappe(f, 1.4, 0.15);
-        let sheet = sheet_up_to(f, surface.clone(), true, (1.2, top + delta));
+        let sheet = sheet_up_to(f, surface.clone(), true, ((-1.2, 1.2), top + delta));
         read(&sector, p, sheet, format!("sector, offset {delta:e}"));
     }
     assert!(
