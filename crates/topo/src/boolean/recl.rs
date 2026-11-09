@@ -2364,6 +2364,21 @@ mod tests {
             ),
             Some(LineUnread::Unplaced)
         );
+        // An escalated cause is the caller's coincidence, and a side the
+        // cone contradicted is that contradiction, escalated or not.
+        let arc = Unread::<f64>::Arc {
+            sector: None,
+            why: crate::link::Unsettled::Unplaced,
+        };
+        assert_eq!(line_unread_of(&arc, true), None);
+        let contradicted = Unread::<f64>::Side {
+            sector: 0,
+            why: crate::link::Unsettled::Contradicted,
+        };
+        assert_eq!(
+            line_unread_of(&contradicted, true),
+            Some(LineUnread::Contradicted)
+        );
     }
 
     /// **A milliradian wedge's unread reading carries a cause** (review

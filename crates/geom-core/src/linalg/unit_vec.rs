@@ -168,14 +168,14 @@ impl core::fmt::Display for UnitVec3Error {
             Self::NonFiniteLength => write!(
                 f,
                 "a direction vector's length is not a finite number (a component \
-                 overflows the norm or is not a number). Recourse: {}",
-                crate::predicate::RANGE_RECOURSE
+                 overflows the norm or is not a number). {}",
+                crate::predicate::RANGE_ENDING
             ),
             Self::UnderflowedLength => write!(
                 f,
                 "a direction vector's length underflowed to zero, though it still \
-                 names a direction. Recourse: {}",
-                crate::predicate::RANGE_RECOURSE
+                 names a direction. {}",
+                crate::predicate::RANGE_ENDING
             ),
             // A direction's length has no declaration object at any
             // door that mints this witness, so the payload renders

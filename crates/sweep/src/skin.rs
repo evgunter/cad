@@ -95,7 +95,7 @@ use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, Knots, SpanLocate, SplineError};
 use geom_core::{
     Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag,
-    Point2, Point3, RANGE_RECOURSE, Real, RigidMotion, TurnError, Turns, UnitVec3, UnitVec3Error,
+    Point2, Point3, RANGE_ENDING, Real, RigidMotion, TurnError, Turns, UnitVec3, UnitVec3Error,
 };
 use profile::{
     CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,
@@ -454,7 +454,7 @@ impl core::fmt::Display for SkinError {
             Self::StationNotFinite { station } => write!(
                 f,
                 "the profile's placement at station {station} is not a finite number. \
-                 Recourse: {RANGE_RECOURSE}"
+                 {RANGE_ENDING}"
             ),
             Self::Band(e) => write!(f, "{e}"),
             Self::RowMotionUndecided { row } => write!(

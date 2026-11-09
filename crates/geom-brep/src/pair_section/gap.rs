@@ -164,8 +164,8 @@ pub(crate) enum Spine<T: Real> {
     Line(geom::Line<T>),
     /// A torus's core circle.
     Circle {
-        center: Point3<T>,
-        axis: Vec3<T>,
+        /// The circle's axis line, through its centre.
+        axis: geom::Line<T>,
         radius: T,
     },
 }
@@ -176,7 +176,7 @@ impl<T: Real> Spine<T> {
     fn anchor(self) -> (Point3<T>, T) {
         match self {
             Self::Line(line) => (line.origin, T::zero()),
-            Self::Circle { center, radius, .. } => (center, radius),
+            Self::Circle { axis, radius } => (axis.origin, radius),
         }
     }
 }
@@ -307,8 +307,11 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
             }
         }
         Spine::Circle {
-            center,
-            axis,
+            axis:
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
             radius,
         } => {
             // `G = |w|² ∓ 2R₂ρ + R₂²`, `ρ = √S` the distance from the

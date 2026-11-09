@@ -36,3 +36,12 @@ Readers:
 No production pose is known to hit it. The hole is in a box's reading only: `f64` and `Probe` read a point, where the held azimuth is the nearest. A ladder's `Interval` rung reads boxes of about rounding width, where the overshoot is of the box's width. Only a box astride the antipode within that width, or one reaching the axis, reads it at all.
 
 Fix: `distance_within` holds the azimuth and the azimuth a turn either side of it to the span, and takes the least of the three held distances, then `max` with the whole circle's clearance. Each point's copy about the middle lies in one of the three. At `f64` the turned two hold to the ends, which are no nearer. `ConicArc::distance_floor` reads it.
+
+## Since (PR 6666)
+
+The three translates were replaced by a test that reads no azimuth: the foot lies in the arc where `|v|·|m|·cos(min(half, π)) − v·m ≤ 0`. Here `v` is `q`'s offset in the circle's plane and `m` is the radius to the arc's middle. The test chooses by `select_le_zero` between the whole circle's clearance and the nearer end.
+- **Why.** PR 6645 had moved `solid_contain::edge_clearance`, which `side_reader`'s `loop_aim` reads, onto `distance_within`. A circle foot there broke `side_reader_aims_ask_nothing::the_aims_at_cylinder_walls_take_no_circle_foot`, because an aim must take no foot (`work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md`). The cosine test takes none.
+- **What it removes.** A cosine has no cut, so the turn-renamed class this row closed cannot arise in this reader.
+- **What pins it.** `ring_path::arc_floor_rows` holds:
+  - the pins for a near-full arc's gap and for arcs of more than a turn;
+  - a sweep that also draws near-full arcs (gaps down to 1e-7), arcs of a turn or more, near-axis boxes and reversed spans.

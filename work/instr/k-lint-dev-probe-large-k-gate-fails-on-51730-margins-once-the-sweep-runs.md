@@ -125,3 +125,18 @@ k-eps-1e-9.csv: 5177 flagged — rule 1 (undecided/invalid): 1512, rule 2 (near 
 ## The volume backstop left the operation path (2026-10-31)
 
 PR 5842, under `[ev]` PR 5780, deleted the volume backstop: `demo/table:volume_backstop`'s four flags cannot recur, and their row (`tally/table-union-backstop-margin-sits-under-the-k-lint-floor`) is closed. The floor those margins sat under is `k-lints-definite-floor-is-read-off-a-retired-predicate`.
+
+## Revalued (2026-11-09, `onecopy/main-reds-k-and-m10`)
+
+The sweep's dump half, run to its end on main (merged 2026-11-09) plus that branch (corpus, M2 corpus, E6 driver and demo scenes at all three ε; the demo tour's `probe` build fixed on the way), linted as the nightly lints it:
+
+```
+k-lint: 1e-6:  4162991 samples, 4159 flagged — rule 1: 2167, rule 2: 1992, rule 3: 1992
+k-lint: 1e-9:  4149904 samples, 5171 flagged — rule 1: 1830, rule 2: 2565, rule 3: 3341
+k-lint: 1e-12: 3693422 samples,  703 flagged — rule 1: 0,    rule 2: 703,  rule 3: 703
+k-lint: GATE FAILED — the margin distribution changed: 10033 margin(s) crowd a decision
+```
+
+51730 crowding margins on 2026-10-29 are 10033 now; rule 1 is 3997 (24045). The large-K gate still fails, as its nightly step pins (exit 2). Rule 1 by shape and predicate at 1e-9: `demo/lily_walls:bool_spline_region_carrier` 720, `demo/lily_walls:curve_pair_walk_foot_clear` 522, `demo/lily_walls:curve_pair_walk_foot_piece` 270, then `curve_pair_pose_parallel` on `lily` (72), `lily_walls` (62), `projectbox_cutaway` (48), `axis_projection` (40); at 1e-6 `bool_spline_region_carrier` is 1106. The lily's curve-pair walks are still the bulk of it, now beside the spline region's carrier read. The 1e-12 file still excludes the lily past its pinned stem.
+
+The driver lint (`--gate-rule-1-only`) passes: rule 1 is 0, with 342 advisory flags (108 / 117 / 117), the same 342 as before.

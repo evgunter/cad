@@ -403,7 +403,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
         for (c, k) in parts.iter().zip(carried.components()) {
             let w = c.witness.expect("a marched loop's witness");
             assert!(
-                (w - k.witness).norm() == 0.0,
+                w.equals_exactly(k.witness),
                 "{what}: the witness is the carrier's middle"
             );
             assert_eq!(
@@ -2111,7 +2111,9 @@ fn a_bow_tie_through_the_apex_twice_lifts_to_one_sheet() {
         .into_iter()
         .filter(|&he| {
             let v = body.get_half_edge(he).unwrap().start;
-            (crate::readback::vertex_point(&body, v).unwrap() - p(0.0, 0.0, 0.0)).norm() == 0.0
+            crate::readback::vertex_point(&body, v)
+                .unwrap()
+                .equals_exactly(p(0.0, 0.0, 0.0))
         })
         .count();
     assert_eq!(

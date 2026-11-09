@@ -497,7 +497,9 @@ pub enum Answering {
 pub enum Climb<A, E> {
     /// A rung answered: its index among the rungs, and its answer.
     Answered {
-        /// The answering rung's index.
+        /// The answering rung's index. Under [`Answering::Any`] it is a
+        /// diagnostic only: which rung answered rests on rung order, so no
+        /// caller branches on it.
         at: usize,
         /// Its answer.
         answer: A,

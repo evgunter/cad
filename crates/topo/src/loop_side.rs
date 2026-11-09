@@ -15,7 +15,7 @@
 //! premise (a ring the cut did not cross) are not this module's: they
 //! read the first vertex that places.
 
-use geom_brep::ladder::{self, Climb, Disagree, Rung};
+use geom_brep::ladder::{self, Climb, Disagree, Kept, Rung};
 
 use crate::entity::VertexKey;
 
@@ -38,26 +38,24 @@ pub(crate) enum EveryVertex<E> {
 }
 
 /// **Whether every vertex of a loop places inside a region**: `place`
-/// reads one vertex, answering `true` inside and `false` outside,
-/// passing a vertex it does not place, and keeping one it reads in band.
-/// `vertices` is every vertex of the loop. Every one is read, so a loop
+/// reads one vertex, `Some(true)` inside, `Some(false)` outside, `None`
+/// for a vertex it does not place, and the kept reading for one it does
+/// not decide. `place` has no way to stop the reading, so every vertex
+/// in `vertices` (every vertex of the loop) is read, and a loop
 /// placed inside at one vertex and outside at another is
 /// [`EveryVertex::Outside`] at the outside one, whichever comes first.
 /// A vertex kept in band beside a decided reading is superseded, as
 /// [`ladder::climb_agreeing`] records it.
 pub(crate) fn inside_at_every_vertex<E>(
     vertices: &[VertexKey],
-    mut place: impl FnMut(VertexKey) -> Rung<bool, E>,
+    mut place: impl FnMut(VertexKey) -> Result<Option<bool>, Kept<E>>,
 ) -> EveryVertex<E> {
     let read = ladder::climb_agreeing(
         vertices.iter().copied(),
         |v| match place(v) {
-            Rung::Answers(inside) => Rung::Answers((inside, v)),
-            Rung::Aborts(inside) => Rung::Aborts((inside, v)),
-            Rung::Passes => Rung::Passes,
-            Rung::InBand(e) => Rung::InBand(e),
-            Rung::Blocked(e) => Rung::Blocked(e),
-            Rung::Unsettled(e) => Rung::Unsettled(e),
+            Ok(Some(inside)) => Rung::Answers((inside, v)),
+            Ok(None) => Rung::Passes,
+            Err(kept) => kept.into(),
         },
         |a, b| a.0 == b.0,
     );
@@ -97,7 +95,7 @@ mod tests {
                 let walk: Vec<VertexKey> = order.iter().map(|&i| vs[i]).collect();
                 inside_at_every_vertex(&walk, |v| {
                     let i = vs.iter().position(|&w| w == v).expect("a vertex");
-                    sides[i].map_or(Rung::Passes, Rung::Answers)
+                    Ok(sides[i])
                 })
             })
             .collect()
@@ -115,7 +113,7 @@ mod tests {
                 "a crossing reads outside: {verdict:?}"
             );
         }
-        let crossing = inside_at_every_vertex(&vs, |v| Rung::<bool, ()>::Answers(v != vs[2]));
+        let crossing = inside_at_every_vertex(&vs, |v| Ok::<_, Kept<()>>(Some(v != vs[2])));
         assert_eq!(
             crossing,
             EveryVertex::Outside { at: vs[2] },
