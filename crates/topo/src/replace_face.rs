@@ -4197,6 +4197,26 @@ fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, Repla
         .map_err(|source| ReplaceFaceError::Escalated { source })
 }
 
+/// **Whether one corner's solved points are one point**: every pair
+/// within ε, any pair decided past it the disagreement, whatever an
+/// earlier pair read ([`gap_past_eps`]). `Some` of that pair's gap
+/// where one is past ε, `None` where every pair is within it.
+///
+/// # Errors
+///
+/// The kept reading, where no pair is past ε and one is in band.
+fn corner_apart<T: Decide>(
+    points: &[Point3<T>],
+    tol: Tol,
+    band: Band,
+) -> Result<Option<T>, Indeterminate> {
+    let pairs = points
+        .iter()
+        .enumerate()
+        .flat_map(|(i, a)| points[i + 1..].iter().map(move |b| a.distance(*b)));
+    climb(Answering::Any, pairs, |gap| gap_past_eps(gap, tol, band)).into_reading()
+}
+
 /// [`gap_within_eps`] as a rung, the file's one sign test of it: a gap
 /// decided past ε answers with the gap, one within it passes, and one
 /// in band is kept. A reader of "every gap within ε" climbs these under
@@ -4605,18 +4625,10 @@ fn solve_corners<T: Decide>(
             }
             points
         };
-        // One corner: every pair within ε, any pair past it the
-        // disagreement ([`gap_past_eps`]).
-        let pairs = points
-            .iter()
-            .enumerate()
-            .flat_map(|(i, a)| points[i + 1..].iter().map(move |b| a.distance(*b)));
-        match climb(Answering::Any, pairs, |gap| gap_past_eps(gap, tol, band)) {
-            Climb::Answered { answer: gap, .. } => {
-                return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
-            }
-            Climb::Undecided(source) => return Err(ReplaceFaceError::Escalated { source }),
-            Climb::Passed => {}
+        if let Some(gap) = corner_apart(&points, tol, band)
+            .map_err(|source| ReplaceFaceError::Escalated { source })?
+        {
+            return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
         }
         corners.groups.push((group, points[0]));
         corners.offsets.push(d);
@@ -6219,5 +6231,32 @@ mod refusal_rows {
         };
         assert_eq!(unbuilt.refusal(), Ok(Refusal::Limit));
         assert_eq!(ReplaceFaceError::<f64>::EmptyGroup.refusal(), Err(Aborts));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod corner_rows {
+    use geom_brep::ladder::Rung;
+    use geom_core::{Band, Point3, Tol};
+
+    use super::{corner_apart, gap_past_eps};
+
+    /// A corner whose first pair is in band and whose next pair is a unit
+    /// apart disagrees: the pair past ε answers past the pair in band.
+    #[test]
+    fn a_pair_past_eps_answers_past_a_pair_in_band() {
+        let (tol, band) = (Tol::witness(), Band::linear(Tol::witness()).unwrap());
+        let eps = tol.eps();
+        let in_band = (1..400)
+            .map(|k| eps * f64::from(k) * 0.05)
+            .find(|&g| matches!(gap_past_eps(g, tol, band), Rung::InBand(_)))
+            .expect("some gap between ε and its band's edge reads in band");
+        let points = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(in_band, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        assert_eq!(corner_apart(&points, tol, band).ok(), Some(Some(1.0)));
     }
 }

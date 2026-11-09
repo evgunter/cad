@@ -6149,3 +6149,27 @@ mod tests {
         );
     }
 }
+
+/// Each cone refusal's standing on a ladder, as its variant's doc
+/// states its `[failure.taxonomy]` row: a band reading is kept in band,
+/// a given side the cone contradicts aborts, and a cone with no
+/// reference is a limit.
+#[cfg(test)]
+mod standing_rows {
+    use geom_brep::ladder::{Aborts, Refusal};
+
+    use super::{Unread, Unsettled};
+
+    #[test]
+    fn a_band_reading_is_in_band_and_a_contradiction_aborts() {
+        assert_eq!(Unsettled::<f64>::Unplaced.refusal(), Ok(Refusal::InBand));
+        assert_eq!(Unsettled::<f64>::Slack.refusal(), Ok(Refusal::InBand));
+        assert_eq!(Unsettled::<f64>::Contradicted.refusal(), Err(Aborts));
+        let arc = Unread::<f64>::Arc {
+            sector: Some(1),
+            why: Unsettled::Unplaced,
+        };
+        assert_eq!(arc.refusal(), Ok(Refusal::InBand));
+        assert_eq!(Unread::<f64>::NoReference.refusal(), Ok(Refusal::Limit));
+    }
+}
