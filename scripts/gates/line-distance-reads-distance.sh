@@ -19,7 +19,8 @@
 # end) reads `geom::Line::distance_within` (`geom_core::Line2`'s in the
 # plane), not the norm of the point less its `foot_within`, spelled by
 # hand or through `Margin::norm2`/`norm3`. The two homes are the one
-# exemption: their own body is that norm, read on `self`.
+# exemption, by file (`geom/src/curves.rs`, `geom-core/src/line2.rs`):
+# their own body is that norm, read on `self`.
 #
 # KNOWN GAPS: production sources only (`#[cfg(test)]` items and
 # test-only mounts are skipped, so oracles may spell it their own way);
@@ -44,7 +45,7 @@ set -euo pipefail
 # THE ONE EXEMPTION: `emit_topo`'s segment row passes the area
 # `|w × d|` to `Margin::over_lever` over the segment's length, the door
 # that is the home of a measure over its lever.
-EXEMPT='crates/editor-core/src/names/emit_topo\.rs:[0-9]+: .*Margin::over_lever|[^:]+:[0-9]+: .*\(p - self\.foot_within\(p, span\)\)\.norm\(\)'
+EXEMPT='crates/editor-core/src/names/emit_topo\.rs:[0-9]+: .*Margin::over_lever|crates/(geom/src/curves|geom-core/src/line2)\.rs:[0-9]+: .*\(p - self\.foot_within\(p, span\)\)\.norm\(\)'
 # A span foot's arguments nest three parentheses deep (`(q, (t0.min(t1),
 # t0.max(t1)))`); its norm is the difference's either way round.
 NEST1='[^()]*(\([^()]*\)[^()]*)*'
@@ -116,6 +117,12 @@ plant_span_foot_reversed_deep() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+plant_home_text_elsewhere() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn d(&self, p: P, span: S) -> T { (p - self.foot_within(p, span)).norm() }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 plant_span_foot_as_point() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn m(l: L, p: P) -> P { l.foot_within(p, (0.0, 1.0)) }\n' \
@@ -132,10 +139,11 @@ gate_selftest() {
   gate_selftest_case "$want" plant_span_foot_norm
   gate_selftest_case "$want" plant_span_foot_margin
   gate_selftest_case "$want" plant_span_foot_reversed_deep
+  gate_selftest_case "$want" plant_home_text_elsewhere
   gate_selftest_passes "a span foot read as the point it is" plant_span_foot_as_point
   gate_selftest_passes "the norm of a vector expression holding an offset" plant_offset_inside_an_expression
   gate_selftest_passes "an offset read as the vector it is" plant_vector_use
-  printf '%s selftest OK: passes a clean fixture and an offset read as a vector; fires on offset(…).norm(), reject_from(…).norm(), a cross norm split over lines, the norm of a span foot split over lines and a span foot under Margin::norm3, and one less the point with its span three parentheses deep; passes a span foot read as a point and the norm of a vector expression; and stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and an offset read as a vector; fires on offset(…).norm(), reject_from(…).norm(), a cross norm split over lines, the norm of a span foot split over lines and a span foot under Margin::norm3, one less the point with its span three parentheses deep, and the text of a home outside its file; passes a span foot read as a point and the norm of a vector expression; and stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
