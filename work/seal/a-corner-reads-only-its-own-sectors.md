@@ -7,6 +7,7 @@ opened: 2026-11-09
 priority: P1
 cost: M
 closed: 2026-11-09
+pr: 6693
 parent: glue-disagreements-and-held-contradictions-after-stage-4
 ---
 
