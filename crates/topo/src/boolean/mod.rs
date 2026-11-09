@@ -1705,7 +1705,7 @@ fn read_cover_side<T: Decide>(
     let (mut pos, mut neg) = (false, false);
     for (_, curve) in rim_wedge::face_boundary_arcs(parent, face) {
         let (t0, t1) = curve.params();
-        for t in [t0, (t0 + t1) * T::from_f64(0.5), t1] {
+        for t in [t0, geom::mid_param(t0, t1), t1] {
             let r = geom_brep::implicit_residual(target, curve.carrier().eval(t));
             match crate::validate::decide("cover_side", Margin::of(r), band) {
                 Ok(Sign::Positive) => pos = true,
@@ -8595,7 +8595,7 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
         ) {
             continue;
         }
-        let p = locus.eval((run[0] + run[1]) * T::from_f64(0.5));
+        let p = locus.eval(geom::mid_param(run[0], run[1]));
         let mut station = Vec::new();
         let first = inside(0, p, &mut station);
         if settles(0, first, run) {

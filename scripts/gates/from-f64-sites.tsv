@@ -67,7 +67,7 @@ crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	constant	band.zero()	the
 crates/geom-brep/src/props/closure.rs	1	constant	VERTEX_SLACK * band.zero()	the vertex slack, a multiple of the band's zero width: a tolerance
 crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
 crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
-crates/geom-brep/src/ssi/certify.rs	1	constant	0.5 * (a + b)	a refined span's midpoint where the chain box's axis is read: a direction the certificate holds for whichever one it is handed
+crates/geom-brep/src/ssi/certify.rs	1	constant	geom::mid_param(a, b)	a refined span's midpoint where the chain box's axis is read: a direction the certificate holds for whichever one it is handed
 crates/geom-brep/src/ssi/certify.rs	1	constant	mid	a pair tube chain box's midpoint: a point the chain chose, steering which determinant the certified graph margin is asked for
 crates/geom-brep/src/ssi/certify.rs	1	constant	w.mid	a window's midpoint where the transverse chart direction is read: a selection through the bracket, which the transversality margin certifies for any direction
 crates/geom-brep/src/ssi/certify.rs	1	constant	tb	the image-miss tell's break: an interior point limb 2's subdivision chose, where the carrier's foot is read (the ends are the carrier's held ends)
@@ -162,8 +162,8 @@ crates/topo/src/clearance.rs	1	constant	f64::from(winding)	harmonic_of: an angle
 crates/topo/src/offset_derive.rs	1	constant	<fn>	certified_speed: an f64 carrier's stored net lifted to Interval (map_scalar) to read its certified speed bound
 crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/pcurves.rs	1	constant	1.0 / f64::from(n)	the step of an orbit, a period over its steps (1 or 2)
-crates/topo/src/replace_face.rs	1	constant	(u0 + u1) * 0.5	mid_domain_normal: the domain's centre, a sample point where the chart normal is read
-crates/topo/src/replace_face.rs	1	constant	(v0 + v1) * 0.5	mid_domain_normal: the domain's centre, a sample point where the chart normal is read
+crates/topo/src/replace_face.rs	1	constant	geom::mid_param(u0, u1)	mid_domain_normal: the domain's centre, a sample point where the chart normal is read
+crates/topo/src/replace_face.rs	1	constant	geom::mid_param(v0, v1)	mid_domain_normal: the domain's centre, a sample point where the chart normal is read
 crates/topo/src/replace_face.rs	1	constant	tol.eps()	the run's tolerance
 crates/topo/src/shell.rs	1	constant	2.0 * band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/shell.rs	1	constant	n as f64	a count

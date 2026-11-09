@@ -716,7 +716,7 @@ fn sampled_near<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T>
                 return Step::Settled;
             }
             budget -= 1;
-            let tm = (a + b) * T::from_f64(0.5);
+            let tm = geom::mid_param(a, b);
             let m = (tm, e.carrier.eval(tm), true);
             Step::Halve([(m, (b, pb, ib), depth + 1), ((a, pa, ia), m, depth + 1)])
         },
@@ -1058,7 +1058,7 @@ fn bisect<T: Decide>(
         if depth >= WALK_DEPTH || samples.len() >= WALK_BUDGET {
             continue;
         }
-        let Some(m) = read(s.edge, (s.t + q.t) * T::from_f64(0.5), depth + 1, false) else {
+        let Some(m) = read(s.edge, geom::mid_param(s.t, q.t), depth + 1, false) else {
             continue;
         };
         samples.insert(i + 1, m);

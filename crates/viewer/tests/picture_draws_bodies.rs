@@ -94,7 +94,7 @@ fn a_construction_nothing_places_is_drawn_tinted_and_goes_once_placed() {
         .expect("the pick answers")
         .expect("the ray meets the construction");
     assert_eq!(hit.node, body, "a pick on the construction is on it");
-    assert_eq!(world::seat_of(&doc, hit.node), body, "and seats it");
+    assert_eq!(world::original_of(&doc, hit.node), body, "and seats it");
     assert!(index.is_outside(body, 0), "the product reads nothing");
     assert_eq!(
         outside_flags(&index, &session),
@@ -588,17 +588,20 @@ fn the_products_body_is_drawn_whatever_reads_it() {
     );
 }
 
-/// **The copy-to-body door**, as a gesture reads it:
-/// - a row `P` of a world copy `W` is a copy of `W`: a pick on it seats
-///   `W`, and `W`'s copies are `[P]`;
-/// - a copy of member 1 of a family names member 1, and seats itself
-///   (the variable it reads is the family);
-/// - a copy of a body into that body's own space is no gesture's copy:
-///   the body's copies are its world copy alone.
+/// **The copy-to-body door**, and the seat beside it:
+/// - a row `P` of a world copy `W` is a copy of `W`: its original is
+///   the body at the end of its copies, `W`'s copies are `[P]`, and a
+///   pick on it seats `P` itself;
+/// - a copy of member 1 of a family names member 1, and is its own
+///   original (the variable it reads is the family);
+/// - a copy of a body into that body's own space is a copy as one in
+///   the world is: the body's copies are both, and its original is the
+///   body.
 ///
-/// *Breaks if* families are excluded from the copies (the row seats
-/// itself), the door drops a copy's member (it reads member 0), or a
-/// copy into its body's own space is taken over with the world's.
+/// *Breaks if* families are excluded from the copies, the door drops a
+/// copy's member (it reads member 0), a copy into its body's own space
+/// is left out of its copies, or a seat reads through a copy to its
+/// source.
 #[test]
 fn a_gesture_reads_a_copy_through_one_door() {
     let tol = Tol::witness();
@@ -606,7 +609,21 @@ fn a_gesture_reads_a_copy_through_one_door() {
     let (doc, w) = common::placed(&doc, body, tol);
     let (doc, row) = row_of(doc, w, "k", 2);
     let w_out = doc.output(w, 0).expect("a copy");
-    assert_eq!(world::seat_of(&doc, row), w, "a pick on the row seats W");
+    assert_eq!(
+        world::copy_source(&doc, row, 0).map(|source| source.operation),
+        Some(w),
+        "the row copies W"
+    );
+    assert_eq!(
+        world::original_of(&doc, row),
+        body,
+        "and its original is the body W copies"
+    );
+    assert_eq!(
+        world::seat_read(&doc, row, None).0,
+        row,
+        "a pick on the row seats it"
+    );
     assert_eq!(world::placed_var(&doc, row), Some(w_out));
     assert_eq!(world::placements_of_var(&doc, w_out), vec![row]);
 
@@ -621,8 +638,9 @@ fn a_gesture_reads_a_copy_through_one_door() {
         ),
         tol,
     );
-    assert_eq!(world::body_of(&doc, member, 0), (xs, 1), "member 1, not 0");
-    assert_eq!(world::seat_of(&doc, member), member);
+    let source = world::copy_source(&doc, member, 0).expect("a copy");
+    assert_eq!((source.operation, source.body), (xs, 1), "member 1, not 0");
+    assert_eq!(world::original_of(&doc, member), body, "through the family");
     assert_eq!(world::placed_var(&doc, member), None);
 
     // A copy of the body into its own space.
@@ -639,8 +657,9 @@ fn a_gesture_reads_a_copy_through_one_door() {
     let body_out = doc.output(body, 0).expect("a body");
     assert_eq!(
         world::placements_of_var(&doc, body_out),
-        vec![w],
-        "the copy into the body's own space is not a gesture's copy"
+        vec![w, xs, inside],
+        "the row and the copy into the body's own space are copies of the body"
     );
-    assert_eq!(world::seat_of(&doc, inside), inside);
+    assert_eq!(world::original_of(&doc, inside), body);
+    assert!(world::is_placed(&doc, body), "the body is badged placed");
 }
