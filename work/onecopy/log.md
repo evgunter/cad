@@ -758,3 +758,4 @@
   - Sent back to the lane, with F4, F6 and S2 as cheap additions.
   - F7 and F8 are filed as `the-ring-torus-question-has-two-homes`.
 - 08:10Z 6604's gate went red at 600e6b81 on the fast-set time check alone: viewer sketch_on_face::a_boss_sketched_on_a_side_lands took 1.000 s against a 1.0 s bound, already the tcost row a-boss-sketched-on-a-side-runs-at-the-fast-sets-one-second-bound. Added to the post-6619 queue.
+- 08:13Z 6619 now also moves the boss-on-a-side viewer test, which sits at the 1.0 s bound, to the slow set and closes its tcost row. Re-gating at e140a328. Stale gate watchers killed.
