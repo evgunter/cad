@@ -667,7 +667,7 @@ fn first_hit(
     // That window is a turn from the start only while `lead`, the band's
     // escalation over the circle's radius, is under a turn: a circle that
     // small is inside its own band.
-    debug_assert!(
+    assert!(
         !matches!(ray.carrier, Curve3::Circle(..)) || lead < core::f64::consts::TAU,
         "a ray circle within its own band (lead {lead})"
     );

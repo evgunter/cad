@@ -373,9 +373,12 @@ impl<T: Decide> Period<T> {
     /// window closed at `a`: a `t` equal to `a` reads itself, bit for bit,
     /// and one equal to `a + length` reads `a`'s copy. A tie (the copy's
     /// side of `a` decided zero or undecided) takes the closed end, the
-    /// copy at `a`, and so does a copy just under `a` whose lift rounds
-    /// onto `a + length`, the excluded end. The twin open at `a`, and what
-    /// rests on the pick, is [`Period::above`].
+    /// copy at `a`. A point copy just under `a` whose lift rounds onto
+    /// `a + length`, the excluded end, reads `a` too (at `f64`, every
+    /// finite value). An enclosure that ties there is not folded: it
+    /// keeps the lifted copy, which it encloses, and may reach past
+    /// `a + length`. The twin open at `a`, and what rests on the pick, is
+    /// [`Period::above`].
     #[must_use]
     pub fn at_or_above(self, t: T, a: T) -> T {
         self.in_window(t, a, Closed::Lower)
@@ -385,7 +388,7 @@ impl<T: Decide> Period<T> {
     /// `closed`: `t`'s copy near `a`, lifted a period where it lies on
     /// the side of `a` the window excludes. A copy an ulp or so under `a`
     /// lifts to a value that rounds onto `a + length`; closed at `a`, that
-    /// is the excluded end, and the copy reads `a` instead.
+    /// is the excluded end, and a point copy reads `a` instead.
     fn in_window(self, t: T, a: T, closed: Closed) -> T {
         use crate::k_stats::{Pick, choose};
         let n = self.near(t, a);
@@ -401,13 +404,16 @@ impl<T: Decide> Period<T> {
         }
         let lifted = n + self.length;
         let open_end = a + self.length;
+        // Only a point lands on the excluded end: an enclosure that ties
+        // there still holds the lifted copy, so it keeps it.
         match closed {
             Closed::Lower
-                if choose(
-                    "period_window_open_end",
-                    Margin::of(lifted - open_end),
-                    "F31",
-                ) != Pick::Negative =>
+                if lifted.point_value().is_some()
+                    && choose(
+                        "period_window_open_end",
+                        Margin::of(lifted - open_end),
+                        "F31",
+                    ) != Pick::Negative =>
             {
                 a
             }
@@ -1052,6 +1058,15 @@ mod period_rows {
             (a, a),
             "at_or_above: a decided zero is a itself"
         );
+        // Wholly under `a`, by less than `a + P`'s width: it ties on the
+        // excluded end, and still reads its own lifted copy, not `[a, a]`.
+        let under = Interval::from_bounds(a - 1e-12, a.next_down());
+        let r = period.at_or_above(under, ia);
+        assert!(
+            r.lo() <= under.lo() + tau && under.hi() + tau <= r.hi(),
+            "at_or_above: an enclosure under a holds its lifted copy, {r:?}"
+        );
+        assert!(width(r) < 1e-11, "at_or_above: as narrow as t, {r:?}");
     }
 
     /// **A `t` that has no copy reads NaN**, rather than answering.
