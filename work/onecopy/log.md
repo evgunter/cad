@@ -1081,3 +1081,4 @@
 - 17:20Z Ruled point-equality: A, two readers (equals_exactly for value, same_bits for representation), both cross-referenced with bit_identity; four production sites and the tests routed; a gate on the 4 spellings.
 - 17:20Z 6651 row fix in at 49963c2a (row split, contradiction fixed, pin doc, lone-ring premise named): the review's FIX was row-only, so it's checked by diff and gating.
 - 17:30Z PR 6649 FULL: MERGE (reader sound; 3 probes red on main and under the first-vertex mutant; no valid-fixture findings). Main overlapped topo/lib.rs → merged main; build, gates and topo 3759 clean; re-gating. Follow-ups (Aborts doc/type; check 10 shell_winding one-vertex premise) → gate-blind-spots lane on onecopy/shell-winding. 6659 gate green (waits on FULL).
+- 17:35Z Merged PR 6651 (pinch-side) at gate-green 49963c2a (row-only FIX checked by diff; disjoint; merge check clean).
