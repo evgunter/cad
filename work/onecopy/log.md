@@ -1351,3 +1351,9 @@
     - Every pin discriminates as claimed. M4 (6677's form) is caught only by the side_reader probe, as intended.
     - The merge check is running.
   - **6674's fix pass is in** (608c85e7); gating.
+- 2026-11-10 00:50Z
+  - **Merged PR 6666 (distance-homes), d6baf824.** Delta review MERGE; Interval-tightness disclosure added to the body; 10382/10382 on the merged tree. The census lane takes a-turn-renamed-parameter-is-placed-against-a-span-at-four-sites (onecopy/span-turns).
+  - **6687 (needle-basin, P0 fix + span membership) opened.** Adversarial FULL review: session_013mPGJ5aRL7fwvTjqV9LN93. The lane goes on to an-edges-end-vertices + held-angle-renames (onecopy/edge-ends-turns).
+  - **6686 (topo-forwarders) opened,** stacked on 6679: 689 names, 112 newly read, no CallIn. Its review waits for 6679's FIX fold.
+  - **torus-ring-names row 2: A,** reader enums in geom with private mints and a duplicate walk.
+  - 6674 gate green; merge check running.
