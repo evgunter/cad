@@ -3275,18 +3275,30 @@ fn carried_alike<T: Decide>(
             TransportError::Structure(error) => ReplaceFaceError::Structure { edge, error },
         })
     };
-    let (Some(on_a), Some((on_b, _))) = (transport(a)?, transport(b)?) else {
-        return Ok(None);
-    };
+    // A side with no image is no witness, whatever the other side read
+    // ([`climb`], [`Answering::Any`]): an escalation on one side is kept,
+    // and refuses only where the other side has an image.
+    let mut images = Vec::with_capacity(2);
+    let unwitnessed = climb(Answering::Any, [a, b], |c| match transport(c) {
+        Ok(Some(image)) => {
+            images.push(image);
+            Rung::Passes
+        }
+        Ok(None) => Rung::Answers(Ok(())),
+        Err(e) => Rung::refused(e, ReplaceFaceError::refusal),
+    });
+    match unwitnessed {
+        Climb::Answered { answer, .. } => return answer.map(|()| None),
+        Climb::Undecided(e) => return Err(e),
+        Climb::Passed => {}
+    }
+    let [on_a, (on_b, _)] = <[_; 2]>::try_from(images)
+        .unwrap_or_else(|_| unreachable!("every side passed, so each pushed its image"));
     let tm = (t0 + t1) * T::from_f64(0.5);
     // Alike at every sample: any sample decided past ε answers "not
-    // alike", whatever an earlier sample read ([`climb`],
-    // [`Answering::Any`]), as [`gap_within_eps`] reads each.
+    // alike", whatever an earlier sample read ([`gap_past_eps`]).
     let apart = climb(Answering::Any, [t0, tm, t1], |t| {
-        let gap = on_a.0.eval(t).distance(on_b.eval(t));
-        Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
-            (d.sign == Sign::Negative).then_some(())
-        })
+        gap_past_eps(on_a.0.eval(t).distance(on_b.eval(t)), tol, band)
     });
     match apart {
         Climb::Answered { .. } => Ok(None),
@@ -4179,9 +4191,41 @@ fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<
 /// 2ε reads coincident, one past ε + K·ε does not, and one between the
 /// two escalates by the predicate's name.
 fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, ReplaceFaceError<T>> {
-    decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band)
-        .map(|s| !matches!(s, Sign::Negative))
+    climb(Answering::Any, [gap], |gap| gap_past_eps(gap, tol, band))
+        .into_reading()
+        .map(|past| past.is_none())
         .map_err(|source| ReplaceFaceError::Escalated { source })
+}
+
+/// **Whether one corner's solved points are one point**: every pair
+/// within ε, any pair decided past it the disagreement, whatever an
+/// earlier pair read ([`gap_past_eps`]). `Some` of that pair's gap
+/// where one is past ε, `None` where every pair is within it.
+///
+/// # Errors
+///
+/// The kept reading, where no pair is past ε and one is in band.
+fn corner_apart<T: Decide>(
+    points: &[Point3<T>],
+    tol: Tol,
+    band: Band,
+) -> Result<Option<T>, Indeterminate> {
+    let pairs = points
+        .iter()
+        .enumerate()
+        .flat_map(|(i, a)| points[i + 1..].iter().map(move |b| a.distance(*b)));
+    climb(Answering::Any, pairs, |gap| gap_past_eps(gap, tol, band)).into_reading()
+}
+
+/// [`gap_within_eps`] as a rung, the file's one sign test of it: a gap
+/// decided past ε answers with the gap, one within it passes, and one
+/// in band is kept. A reader of "every gap within ε" climbs these under
+/// [`Answering::Any`]: any gap past ε is the disagreement, whatever an
+/// earlier gap read.
+fn gap_past_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Rung<T, Indeterminate> {
+    Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
+        (d.sign == Sign::Negative).then_some(gap)
+    })
 }
 
 /// [`gap_within_eps`]'s predicate name.
@@ -4581,13 +4625,10 @@ fn solve_corners<T: Decide>(
             }
             points
         };
-        for (i, a) in points.iter().enumerate() {
-            for b in &points[i + 1..] {
-                let gap = a.distance(*b);
-                if !gap_within_eps(gap, tol, band)? {
-                    return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
-                }
-            }
+        if let Some(gap) = corner_apart(&points, tol, band)
+            .map_err(|source| ReplaceFaceError::Escalated { source })?
+        {
+            return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
         }
         corners.groups.push((group, points[0]));
         corners.offsets.push(d);
@@ -4762,11 +4803,19 @@ fn read_ends<T: Decide>(
             }
         }
     };
-    for (vertex, point, t) in [(plan.start, p_start, t0), (plan.end, p_end, t1)] {
-        let gap = carrier.eval(t).distance(point);
-        if !gap_within_eps(gap, tol, band)? {
+    // Both ends on the carrier: either end past ε the disagreement
+    // ([`gap_past_eps`]).
+    let ends = [(plan.start, p_start, t0), (plan.end, p_end, t1)];
+    let off = climb(Answering::Any, ends, |(_, point, t)| {
+        gap_past_eps(carrier.eval(t).distance(point), tol, band)
+    });
+    match off {
+        Climb::Answered { at, answer: gap } => {
+            let (vertex, ..) = ends[at];
             return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
         }
+        Climb::Undecided(source) => return Err(ReplaceFaceError::Escalated { source }),
+        Climb::Passed => {}
     }
     plan.spec.param_start = t0;
     plan.spec.param_end = t1;
@@ -6182,5 +6231,32 @@ mod refusal_rows {
         };
         assert_eq!(unbuilt.refusal(), Ok(Refusal::Limit));
         assert_eq!(ReplaceFaceError::<f64>::EmptyGroup.refusal(), Err(Aborts));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod corner_rows {
+    use geom_brep::ladder::Rung;
+    use geom_core::{Band, Point3, Tol};
+
+    use super::{corner_apart, gap_past_eps};
+
+    /// A corner whose first pair is in band and whose next pair is a unit
+    /// apart disagrees: the pair past ε answers past the pair in band.
+    #[test]
+    fn a_pair_past_eps_answers_past_a_pair_in_band() {
+        let (tol, band) = (Tol::witness(), Band::linear(Tol::witness()).unwrap());
+        let eps = tol.eps();
+        let in_band = (1..400)
+            .map(|k| eps * f64::from(k) * 0.05)
+            .find(|&g| matches!(gap_past_eps(g, tol, band), Rung::InBand(_)))
+            .expect("some gap between ε and its band's edge reads in band");
+        let points = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(in_band, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        assert_eq!(corner_apart(&points, tol, band).ok(), Some(Some(1.0)));
     }
 }

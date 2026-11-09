@@ -78,7 +78,7 @@
 //! other reading takes such a link ([`rest::judge`] and
 //! [`rest::by_round`] refuse it).
 
-use geom_brep::ladder::{Aborts, Refusal};
+use geom_brep::ladder::{Aborts, Answering, Climb, Refusal, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -816,23 +816,54 @@ pub enum Material {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Unsettled<T> {
     /// Its distance lies in band: the gate's escalation, on the log.
+    /// Kept by its margin (`[failure.taxonomy]` row 1(b)).
     InBand(Indeterminate),
     /// The band decides its distance zero where only a side would do (a
     /// point drawn in onto a ray's line at the apex): the K row and the
     /// distance, its rejection minted only where it refuses the whole
-    /// reading ([`Unread::escalation`]).
+    /// reading ([`Unread::escalation`]). In band (row 1(b)): a tighter
+    /// band may part the distance from zero.
     Zero(&'static str, Distance<T>),
     /// The band decides it, and the tie's slack reads it another way
-    /// ([`metric::settle`]): no escalation.
+    /// ([`metric::settle`]): no escalation. In band (row 1(b)): a tighter
+    /// band shrinks the slack.
     Slack,
     /// Decided readings that leave a parity arc's crossing of a sector
     /// unplaced: the arc runs along its plane, meets it on one of its
     /// bounds, or meets its plane, in band, on a stretch that does not
-    /// miss the sector ([`Cone::crossing`]).
+    /// miss the sector ([`Cone::crossing`]). In band (row 1(b)): each
+    /// arm is a band decision ([`Unsettled::refusal`]).
     Unplaced,
     /// `q`'s side of the sector's plane was given, and the cone's own
-    /// reading decided another ([`Cone::reads_given`]).
+    /// reading decided another ([`Cone::reads_given`]). An abort: two
+    /// readings of one fact disagree (row 4).
     Contradicted,
+}
+
+impl<T> Unsettled<T> {
+    /// What this refusal is to a ladder over the cone's readings
+    /// ([`Sector::place`]'s wedges, [`Cone::reads_given`]'s references),
+    /// as each variant's docs state it. Every reading a band decided
+    /// nothing of, or decided zero where only a side would do, is in band:
+    /// a tighter band may part it (`[failure.taxonomy]` row 1(b)). That
+    /// holds for [`Unsettled::Unplaced`] too: each of its arms
+    /// ([`Cone::crossing`]) is the band reading an end on the sector's
+    /// plane or the crossing on its bound, and an arc running exactly
+    /// along the plane is read the same way, not split out. Exhaustive
+    /// with no catch-all arm, so an added variant states its standing
+    /// here before it compiles.
+    ///
+    /// # Errors
+    ///
+    /// [`Aborts`] for [`Unsettled::Contradicted`]: two readings of `q`'s
+    /// side disagree, which no later reading answers past.
+    pub(crate) const fn refusal(&self) -> Result<Refusal, Aborts> {
+        match self {
+            Self::InBand(diag) => Ok(Refusal::Margin(*diag)),
+            Self::Zero(..) | Self::Slack | Self::Unplaced => Ok(Refusal::InBand),
+            Self::Contradicted => Err(Aborts),
+        }
+    }
 }
 
 /// **Why a cone read nothing of a direction to `q`**
@@ -844,8 +875,9 @@ pub(crate) enum Unread<T> {
     /// `q` on this sector's plane: where in the sector it lies.
     Place { sector: usize, why: Unsettled<T> },
     /// The parity arc from `q` to a reference: its clearance of the apex
-    /// (`sector` `None`), or its crossing of this sector; the first
-    /// reference's at `q`'s distance, every reference passed over.
+    /// (`sector` `None`), or its crossing of this sector: a reference's
+    /// at `q`'s distance, ranked among them ([`Unread::refusal`],
+    /// `Evidence`), where no reference reads.
     Arc {
         sector: Option<usize>,
         why: Unsettled<T>,
@@ -857,6 +889,18 @@ pub(crate) enum Unread<T> {
 }
 
 impl<T: Decide> Unread<T> {
+    /// What this refusal is to a ladder: its reading's
+    /// ([`Unsettled::refusal`]), and a limit where no reference was
+    /// there to read by ([`Unread::NoReference`]: no reading is built for
+    /// such a cone, whatever the band).
+    ///
+    /// # Errors
+    ///
+    /// [`Aborts`], where its reading's standing does.
+    pub(crate) fn refusal(&self) -> Result<Refusal, Aborts> {
+        self.why().map_or(Ok(Refusal::Limit), Unsettled::refusal)
+    }
+
     /// Whether the refusal is a given side the cone's own reading
     /// decided against ([`Unsettled::Contradicted`]).
     pub(crate) fn contradicted(&self) -> bool {
@@ -1580,49 +1624,61 @@ impl<T: Decide> Sector<T> {
     /// its plane: each wedge `(p, a, b)` read by `x`'s side of its two
     /// rays (a wedge is under half a turn, so strictly left of `a` and
     /// right of `b` is strictly inside). Unsettled where a reading the
-    /// answer needs is in band: the first such reading's escalation.
+    /// answer needs is in band: the kept reading the ladder ranks first.
     fn place(&self, p: Point3<T>, x: Point3<T>, rd: Reading<T>) -> Result<Place, Unsettled<T>> {
         if self.whole() {
             return Ok(Place::Inside);
         }
         let m = self.outward;
         let last = self.wedges.len().saturating_sub(1);
-        let (mut in_band, mut bound) = (None, false);
-        for (k, &(a, b)) in self.wedges.iter().enumerate() {
-            // On a ray's line: ahead, a bound of the sector or a ray two
-            // wedges share; behind, the other ray's side puts it outside
-            // this wedge (under half a turn); at the apex, drawn in, no
-            // side of the ray places it.
-            let on = |outer: bool, r: Point3<T>| match ahead_settle(p, r, x, rd)? {
-                Sign::Positive if outer => Ok(Place::Bound),
-                Sign::Positive => Ok(Place::Inside),
-                Sign::Negative => Ok(Place::Outside),
-                Sign::Zero => Err(Unsettled::Zero(LINK_AHEAD, ahead_distance(p, r, x, rd))),
-            };
-            let got = match (wedge_settle(p, m, a, x, rd), wedge_settle(p, m, b, x, rd)) {
-                (Ok(Sign::Negative), _) | (_, Ok(Sign::Positive)) => continue,
-                (Ok(Sign::Positive), Ok(Sign::Negative)) => Ok(Place::Inside),
-                (Ok(Sign::Zero), Ok(Sign::Negative)) => on(k == 0 && !self.closed, a),
-                (Ok(Sign::Positive), Ok(Sign::Zero)) => on(k == last && !self.closed, b),
-                (Err(why), _) | (_, Err(why)) => Err(why),
-                // On both rays' lines: drawn in to them, `x` stands
-                // within zero of the apex, and no side of either ray
-                // places it.
-                _ => Err(Unsettled::Zero(LINK_WEDGE, wedge_distance(p, m, a, x, rd))),
-            };
-            match got {
-                Ok(Place::Inside) => return Ok(Place::Inside),
-                Ok(Place::Bound) => bound = true,
-                Ok(Place::Outside) => {}
-                Err(why) => {
-                    in_band.get_or_insert(why);
+        // A wedge holding `x` inside answers for the sector, whatever an
+        // earlier wedge read ([`climb`], [`Answering::Any`]): the wedges
+        // are the sector's parts. On a bound passes, remembered beside
+        // the climb; a reading in band is kept by its standing
+        // ([`Unsettled::refusal`]) and ranked ([`Evidence`]), refusing
+        // only where no wedge holds `x`, ahead of the bound.
+        let mut bound = false;
+        let climbed = climb(
+            Answering::Any,
+            self.wedges.iter().enumerate(),
+            |(k, &(a, b))| {
+                // On a ray's line: ahead, a bound of the sector or a ray two
+                // wedges share; behind, the other ray's side puts it outside
+                // this wedge (under half a turn); at the apex, drawn in, no
+                // side of the ray places it.
+                let on = |outer: bool, r: Point3<T>| match ahead_settle(p, r, x, rd)? {
+                    Sign::Positive if outer => Ok(Place::Bound),
+                    Sign::Positive => Ok(Place::Inside),
+                    Sign::Negative => Ok(Place::Outside),
+                    Sign::Zero => Err(Unsettled::Zero(LINK_AHEAD, ahead_distance(p, r, x, rd))),
+                };
+                let got = match (wedge_settle(p, m, a, x, rd), wedge_settle(p, m, b, x, rd)) {
+                    (Ok(Sign::Negative), _) | (_, Ok(Sign::Positive)) => return Rung::Passes,
+                    (Ok(Sign::Positive), Ok(Sign::Negative)) => Ok(Place::Inside),
+                    (Ok(Sign::Zero), Ok(Sign::Negative)) => on(k == 0 && !self.closed, a),
+                    (Ok(Sign::Positive), Ok(Sign::Zero)) => on(k == last && !self.closed, b),
+                    (Err(why), _) | (_, Err(why)) => Err(why),
+                    // On both rays' lines: drawn in to them, `x` stands
+                    // within zero of the apex, and no side of either ray
+                    // places it.
+                    _ => Err(Unsettled::Zero(LINK_WEDGE, wedge_distance(p, m, a, x, rd))),
+                };
+                match got {
+                    Ok(Place::Inside) => Rung::Answers(Ok(Place::Inside)),
+                    Ok(Place::Bound) => {
+                        bound = true;
+                        Rung::Passes
+                    }
+                    Ok(Place::Outside) => Rung::Passes,
+                    Err(why) => Rung::refused(why, Unsettled::refusal),
                 }
-            }
-        }
-        match (in_band, bound) {
-            (Some(why), _) => Err(why),
-            (None, true) => Ok(Place::Bound),
-            (None, false) => Ok(Place::Outside),
+            },
+        );
+        match climbed {
+            Climb::Answered { answer, .. } => answer,
+            Climb::Undecided(why) => Err(why),
+            Climb::Passed if bound => Ok(Place::Bound),
+            Climb::Passed => Ok(Place::Outside),
         }
     }
 }
@@ -1930,9 +1986,9 @@ impl<T: Decide> Cone<T> {
     /// reading is the cone's own.
     ///
     /// Where it reads nothing it says which reading refused ([`Unread`]):
-    /// `q`'s side of a sector's plane, or its place on it; the first
-    /// reference's arc where every reference is passed over; or no
-    /// reference at all.
+    /// `q`'s side of a sector's plane, or its place on it; a reference's
+    /// arc at `q`'s distance, ranked by its standing, where no reference
+    /// reads; or no reference at all.
     pub(crate) fn reads_given(
         &self,
         q: Point3<T>,
@@ -2016,61 +2072,67 @@ impl<T: Decide> Cone<T> {
                 Against::Inside | Against::Bound => (None, None),
             })
             .unzip();
-        // The first refusal of a reference, which a reading that ends
-        // with none names.
-        let mut first: Option<Unread<T>> = None;
-        // Every reference is read at `q`'s distance first; only where
-        // none reads there is each read again out at its wedge's reach
-        // ([`ArcReach::Out`]), so no reading taken at `q`'s distance is lost,
-        // and a refusal names the first reading at `q`'s distance.
-        for arc in [ArcReach::Near, ArcReach::Out] {
-            for (t, s0) in self.sectors.iter().enumerate() {
-                let Some(base) = sides[t].filter(|_| own[t]) else {
-                    continue;
-                };
+        // Every reference reads one material (the cone closes), so any
+        // reference that reads answers, whatever an earlier one refused
+        // ([`climb`], [`Answering::Any`]). Every reference is read at
+        // `q`'s distance first; only where none answers there is each read
+        // again out at its wedge's reach ([`ArcReach::Out`]). A reference
+        // refused at `q`'s distance is kept by its standing
+        // ([`Unread::refusal`]) and ranked ([`Evidence`]); one refused out
+        // at its reach passes, so a refusal names a reading at `q`'s
+        // distance. An arc decided to meet the apex passes.
+        let (sides_at, own_at) = (&sides, &own);
+        let references = [ArcReach::Near, ArcReach::Out]
+            .into_iter()
+            .flat_map(|arc| {
+                self.sectors.iter().enumerate().filter_map(move |(t, s0)| {
+                    let base = sides_at[t].filter(|_| own_at[t])?;
+                    Some((arc, t, base, s0))
+                })
+            })
+            .flat_map(|(arc, t, base, s0)| {
                 // Each wedge's centroid, then its rays' bisector: a needle
                 // wedge's centroid lies along its long ray, within the band
                 // of the sector across it.
-                let references = s0.wedges.iter().flat_map(|&(a, b)| {
+                s0.wedges.iter().flat_map(move |&(a, b)| {
                     let ray = (a - p).norm().min((b - p).norm());
-                    [(a - p) + (b - p), (a - p).normalize() + (b - p).normalize()].map(|c| (c, ray))
-                });
-                'reference: for (c, ray) in references {
-                    let w = arc.reference(p, q, c, ray);
-                    let mut refused = |why| {
-                        if arc == ArcReach::Near {
-                            first.get_or_insert(why);
-                        }
-                    };
-                    match arc.clears(p, q, w, rd) {
-                        Ok(true) => {}
-                        Ok(false) => continue 'reference,
-                        Err(why) => {
-                            refused(Unread::Arc { sector: None, why });
-                            continue 'reference;
-                        }
+                    [(a - p) + (b - p), (a - p).normalize() + (b - p).normalize()]
+                        .map(|c| (arc, t, base, c, ray))
+                })
+            });
+        let climbed = climb(Answering::Any, references, |(arc, t, base, c, ray)| {
+            let w = arc.reference(p, q, c, ray);
+            let refused = |why: Unread<T>| match arc {
+                ArcReach::Near => Rung::refused(why, Unread::refusal),
+                ArcReach::Out => Rung::Passes,
+            };
+            match arc.clears(p, q, w, rd) {
+                Ok(true) => {}
+                Ok(false) => return Rung::Passes,
+                Err(why) => return refused(Unread::Arc { sector: None, why }),
+            }
+            let mut held = base == Sign::Negative;
+            for (k, s) in self.sectors.iter().enumerate() {
+                if k == t {
+                    continue;
+                }
+                match self.crossing(s, sides[k], q, w, reach[k], rd) {
+                    Ok(crossed) => held ^= crossed != 0,
+                    Err(why) => {
+                        return refused(Unread::Arc {
+                            sector: Some(k),
+                            why,
+                        });
                     }
-                    let mut held = base == Sign::Negative;
-                    for (k, s) in self.sectors.iter().enumerate() {
-                        if k == t {
-                            continue;
-                        }
-                        match self.crossing(s, sides[k], q, w, reach[k], rd) {
-                            Ok(crossed) => held ^= crossed != 0,
-                            Err(why) => {
-                                refused(Unread::Arc {
-                                    sector: Some(k),
-                                    why,
-                                });
-                                continue 'reference;
-                            }
-                        }
-                    }
-                    return Ok(if held { Material::In } else { Material::Out });
                 }
             }
+            Rung::Answers(Ok(if held { Material::In } else { Material::Out }))
+        });
+        match climbed {
+            Climb::Answered { answer, .. } => answer,
+            Climb::Undecided(why) => Err(why),
+            Climb::Passed => Err(Unread::NoReference),
         }
-        Err(first.unwrap_or(Unread::NoReference))
     }
 
     /// **The arc from `w` to `q` against sector `s`**, as the winding it
@@ -6085,5 +6147,29 @@ mod tests {
             "`Distance::of`, `Distance::departure`, `Distance::off` and `Distance::at` are \
              `mod metric`'s only functions returning a `Distance`"
         );
+    }
+}
+
+/// Each cone refusal's standing on a ladder, as its variant's doc
+/// states its `[failure.taxonomy]` row: a band reading is kept in band,
+/// a given side the cone contradicts aborts, and a cone with no
+/// reference is a limit.
+#[cfg(test)]
+mod standing_rows {
+    use geom_brep::ladder::{Aborts, Refusal};
+
+    use super::{Unread, Unsettled};
+
+    #[test]
+    fn a_band_reading_is_in_band_and_a_contradiction_aborts() {
+        assert_eq!(Unsettled::<f64>::Unplaced.refusal(), Ok(Refusal::InBand));
+        assert_eq!(Unsettled::<f64>::Slack.refusal(), Ok(Refusal::InBand));
+        assert_eq!(Unsettled::<f64>::Contradicted.refusal(), Err(Aborts));
+        let arc = Unread::<f64>::Arc {
+            sector: Some(1),
+            why: Unsettled::Unplaced,
+        };
+        assert_eq!(arc.refusal(), Ok(Refusal::InBand));
+        assert_eq!(Unread::<f64>::NoReference.refusal(), Ok(Refusal::Limit));
     }
 }
