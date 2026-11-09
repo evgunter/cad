@@ -9,8 +9,9 @@
 //! runs this row at every ε row and the widened split must certify at
 //! each. The floor is MEASURED by the ladder row below, not inferred
 //! from DOCM-1's extrude floor: at the default ε the split of a
-//! widened box escalates at ε/10, and every rung from ε/16 down
-//! certifies; the assertion row sits two rungs under that floor.
+//! widened box escalates at ε/10, the union of its halves at ε/16 and
+//! ε/32, and every rung from ε/64 down certifies; the assertion row
+//! sits two rungs under that floor.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -170,8 +171,12 @@ enum Rung {
 /// certifies and the union of its halves does not: the glue door reads
 /// the cut faces' plane offset in band (`bool_plane_offset`, an
 /// enclosure across zero), so the pair is not glued, and the corner that
-/// reads it one carrier refuses with that reading, the one a narrower
-/// width clears: ε/32 and every narrower rung certify. Each
+/// reads it one carrier refuses with that reading, and so at ε/32. The
+/// offset is read at the pair's extent's centre, which the faces'
+/// boundary covers bound: each edge's carrier over its span, hulled
+/// with its ends, so the centre is as wide as the carriers read there
+/// and the enclosure halves with the width. ε/64 is the widest
+/// width that clears it, and every narrower rung certifies. Each
 /// rung is asserted, so a floor that moves — up or down — reds this
 /// row naming the rung.
 #[test]
@@ -195,7 +200,13 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
                 predicate: "bool_plane_offset",
             },
         ),
-        (32, Rung::Green),
+        (
+            32,
+            Rung::Escalates {
+                node: union,
+                predicate: "bool_plane_offset",
+            },
+        ),
         (64, Rung::Green),
         (128, Rung::Green),
         (256, Rung::Green),
@@ -238,7 +249,7 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
 
 /// The divisor of ε the assertion row is pinned at — two rungs under
 /// the floor the ladder measures at the default ε.
-const A7_DIVISOR: f64 = 128.0;
+const A7_DIVISOR: f64 = 256.0;
 
 /// **A7 — the corpus document at `Interval`, nominal and widened.** The
 /// height the split's body reads is widened by ε/`A7_DIVISOR`; the
