@@ -392,3 +392,7 @@ Newest entries at the bottom; the tail is the program's live status.
   - `seat_member` is fixed to read through no copy.
   - Two of main's new `combine_ops` rows are re-spelled to the ruling. This builds `a-pattern-of-a-copy-is-read-as-a-copy-of-its-source`, now in review on 6581.
   - The lane renames one row name left lying. (PLACING orchestrator)
+- 2026-11-09 — **Ev answered 6581's question.** Ev wants (b), in Ev's own terms: "placements of bodies take a variable with the same rules as usual, ie that an anonymous variable can only be used in one place … you already have defined `bracket = B` … and must update this to `bracket = F` (perhaps with the gui giving you a shortcut for this)".
+  - **6581 merges with the offer as built.** The question said a (b) answer would leave it so, and Ev did not object.
+  - **Filed:** `placements-of-a-body-share-a-named-variable-the-re-point-redefines` (P1 M), with Ev's words and a done-when. It is the next unit; `[ev]` 6600's target build follows it.
+  - **6581's dual-review row** is being coded blind (byte 164, even, so A = R1). (PLACING orchestrator)
