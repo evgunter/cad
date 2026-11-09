@@ -14,9 +14,9 @@
 //! SUM, never the two terms one at a time (each just inside the band
 //! would sum to nearly twice it). The section rows that serve a verdict
 //! beside such a datum read that sum on each verdict's own side
-//! (`decide_across` in `crate::intersect`): `pc_parallel_gap`,
+//! (`decide_across` in `geom_core::k_stats`): `pc_parallel_gap`,
 //! `cc_coaxial`, `cc_parallel_gap`, `tangent_locus_internal_gap`,
-//! `coc_coaxial`, `pt_spiric_two_ovals`, `pt_cap_gap` and
+//! `coc_coaxial`, `pt_spiric_two_ovals` (`geom::spiric_regime`), `pt_cap_gap` and
 //! `pn_apex_section`. The tightest lever reads the position
 //! datum at the pivot nearest the ball's centre ([`ExtentBall::foot_on`]
 //! for an axis), where the lever is little more than the ball's radius.
