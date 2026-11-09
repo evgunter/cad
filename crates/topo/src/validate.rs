@@ -5969,9 +5969,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     ([`ValidationError::SolidOuterShells`] for two or more), and the
 ///     solid's shells bound winding number 0 or 1 everywhere — an
 ///     `Outer` shell adds `+1` inside itself, a `Void` `-1` inside its
-///     cavity — decided at one vertex of each shell (the first that
-///     touches no other shell) from the other shells' point-in-solid
-///     answers ([`ValidationError::ShellWinding`]). An ordinary cavity
+///     cavity — read at every witness of each shell that touches no
+///     other shell, from the other shells' point-in-solid answers, so a
+///     shell crossing another stands at a wrong winding somewhere
+///     ([`ValidationError::ShellWinding`]). An ordinary cavity
 ///     passes; a `Void` outside the `Outer` and a `Void` inside a `Void`
 ///     refuse. Silent where the walk or a shell's sign cannot answer
 ///     (the list below).
@@ -6649,10 +6650,15 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 /// the `Outer` (`-1` in its cavity), or a `Void` inside another `Void`
 /// (`-1`). Check 7's per-solid total is positive on both.
 ///
-/// **One decisive witness per shell, under the no-crossing premise**
-/// ([`crate::stands::witness_insides`], the witness ladder): the winding
-/// the OTHER shells put on shell `s` is `Σ ±[s inside t]` over them,
-/// which must be `0` if `s` is `Outer` and `1` if `s` is a `Void`.
+/// **Every witness of each shell** ([`crate::stands::witness_insides_everywhere`],
+/// the witness ladder read at every witness): the winding the OTHER
+/// shells put on shell `s` is `Σ ±[s inside t]` over them, which must be
+/// `0` if `s` is `Outer` and `1` if `s` is a `Void`. No check before this
+/// one establishes that shells do not cross (the embedding certificate
+/// is not built), so no one witness is taken for the shell: where two
+/// read different insides, the shell crosses another, and one of them
+/// stands at a wrong winding (behind one `Outer`, only one set of
+/// insides winds what a role requires), which is the finding.
 ///
 /// **A shell whose role does not read refuses the solid**
 /// ([`ValidationError::ShellRoleUndecided`], naming the shell's
@@ -6683,7 +6689,7 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Vec<ValidationError> {
     use crate::props::ShellRole;
-    use crate::stands::{Insides, ShellRead, witness_insides};
+    use crate::stands::{EveryInside, ShellRead, witness_insides_everywhere};
 
     let mut errors = Vec::new();
     for (solid, record) in body.solids.iter() {
@@ -6708,31 +6714,45 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
             continue;
         }
         for (i, read) in reads.iter().enumerate() {
-            let Insides::Read(inside) = witness_insides(body, i, &reads, &|_| true, band, tol)
-            else {
-                continue;
+            let winding = |inside: &[bool]| -> i32 {
+                reads
+                    .iter()
+                    .zip(inside)
+                    .filter(|(_, inside)| **inside)
+                    .map(|(t, _)| match t.role {
+                        ShellRole::Outer => 1,
+                        ShellRole::Void => -1,
+                    })
+                    .sum()
             };
-            let winding: i32 = reads
-                .iter()
-                .zip(&inside)
-                .filter(|(_, inside)| **inside)
-                .map(|(t, _)| match t.role {
-                    ShellRole::Outer => 1,
-                    ShellRole::Void => -1,
-                })
-                .sum();
             // The winding the shell's own contribution puts just across
             // it, and the one place its role is read.
-            let (required, bounded) = match read.role {
-                ShellRole::Outer => (0, winding + 1),
-                ShellRole::Void => (1, winding - 1),
+            let (required, own) = match read.role {
+                ShellRole::Outer => (0, 1),
+                ShellRole::Void => (1, -1),
             };
-            if winding != required {
+            // A shell whose witnesses read different insides crosses
+            // another, and stands at a wrong winding at one of them: one
+            // `Outer` at most, so only one set of insides winds what the
+            // role requires.
+            let read_at = match witness_insides_everywhere(body, i, &reads, band, tol) {
+                EveryInside::Read(inside) => winding(&inside),
+                EveryInside::Crosses(first, other) => {
+                    let first = winding(&first);
+                    if first == required {
+                        winding(&other)
+                    } else {
+                        first
+                    }
+                }
+                EveryInside::Unread => continue,
+            };
+            if read_at != required {
                 errors.push(ValidationError::ShellWinding {
                     solid,
                     shell: read.shell,
-                    winding,
-                    bounded,
+                    winding: read_at,
+                    bounded: read_at + own,
                 });
             }
         }

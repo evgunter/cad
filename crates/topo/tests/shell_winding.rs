@@ -352,3 +352,49 @@ fn an_ordinary_hollow_solid_certifies() {
     assert_eq!(shells_of(&body, solid, ShellRole::Void).len(), 1);
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
 }
+
+/// **A `Void` crossing its `Outer`'s wall refuses whichever corner its
+/// walk reads first.** The outer brick `[0, 4]³` and a cavity brick
+/// straddling one of its walls in `x`, half inside and half outside:
+/// across `x = 4`, the cavity's first corner `(3, 1, 1)` lies inside
+/// the outer brick; across `x = 0`, its first corner `(−1, 1, 1)` lies
+/// outside. The cavity's witnesses inside the outer brick read the
+/// winding `1` a `Void` needs, and those outside read `0`; the outer
+/// brick's witnesses read `0` outside the cavity and `−1` inside it. So
+/// no one witness speaks for either shell, and both are refused. The
+/// total stays positive (asserted), so check 7 alone would pass.
+#[test]
+fn a_void_crossing_its_outers_wall_refuses_in_either_walk_order() {
+    for (name, x) in [("across x = 4", (3.0, 5.0)), ("across x = 0", (-1.0, 1.0))] {
+        let body = filed(
+            &[
+                [(0.0, 4.0), (0.0, 4.0), (0.0, 4.0)],
+                [x, (1.0, 3.0), (1.0, 3.0)],
+            ],
+            &[false, true],
+        );
+        positive_total(&body);
+        let solid = only_solid(&body);
+        let wall = body.shells().next().expect("two shells").0;
+        let cavity = body.shells().nth(1).expect("two shells").0;
+        assert_eq!(
+            topo::validate_geometric(&body, tol()),
+            Err(vec![
+                ValidationError::ShellWinding {
+                    solid,
+                    shell: wall,
+                    winding: -1,
+                    bounded: 0,
+                },
+                ValidationError::ShellWinding {
+                    solid,
+                    shell: cavity,
+                    winding: 0,
+                    bounded: -1,
+                },
+            ]),
+            "{name}: the wall's witnesses inside the cavity wind -1, and the \
+             cavity's outside the wall wind 0"
+        );
+    }
+}
