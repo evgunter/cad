@@ -1163,3 +1163,4 @@
 - 21:20Z 6660 FULL: MERGE, plus small fixes before merge (TouchNormalFault waits per 11(B)(i); pin the abort set; the ops.rs path premise). Class follow-up: one NormalAtError fault-kind method read by 6655 slit, 6648 HoldingUnread and 6660 census (DegenerateTorus aborts since 498685d1) → length-rule lane after 6655/6660. 6648 lane heads-up.
 - 21:20Z 6669 FULL: MERGE after 6654; fix census placed's premise (meets_at is in_band) and the unlevered check → lane.
 - 21:25Z 6648 head → 1a9b10d5 (a comment naming the DegenerateTorus gap); reviewer told; re-gating.
+- 21:30Z ladder lane opened PR 6675 (QML T2, fab85620; the lane misnumbered it 6643): crescent/walls_cross/path_parity ported; argmin filed; clears conditioning row → FULL with session_013mPGJ5anAaqvSq3TzpQnZG; gating.
