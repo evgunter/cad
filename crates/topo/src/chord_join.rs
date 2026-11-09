@@ -5446,7 +5446,12 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// the run. A vertex whose reading escalates says nothing either, and
 /// the next is asked; the first escalation escalates only where no
 /// vertex decides ([`climb`]). The vertices agree because the
-/// ring does not cross the run ([`paths_rung`]'s premise).
+/// ring does not cross the run ([`paths_rung`]'s premise): a simple ring
+/// that meets the run only at points lies on one side (crossing once
+/// forces a second crossing), and one that touches it at a vertex, where
+/// a ring switches lobes, was joined by the division there (an agreeing
+/// ladder: `a-ladder-that-checks-its-answers-agree-has-no-home`; the
+/// residual: `not-crossed-means-one-side-at-a-pinch`).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,

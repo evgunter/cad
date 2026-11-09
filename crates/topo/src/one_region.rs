@@ -219,7 +219,13 @@ pub(crate) fn door_side<T: Decide>(
 /// `cycle` read against the cycles `cut` at each of its vertices in walk
 /// order (module docs): the ladder ([`climb`]) whose answer is the first
 /// vertex placed. Every vertex of a cycle reads the one side
-/// ([`Answering::Any`]; the vertex an `Off` names is its witness), so a
+/// ([`Answering::Any`]; the vertex an `Off` names is its witness): a
+/// simple cycle that meets the cut only at points lies on one side
+/// (crossing once forces a second crossing), and a cycle switches lobes
+/// only at a vertex, which then lies on the cut (an agreeing ladder:
+/// `a-ladder-that-checks-its-answers-agree-has-no-home`; the residual,
+/// and a torus's essential cycles, unprobed:
+/// `not-crossed-means-one-side-at-a-pinch`). So a
 /// vertex read in band ahead of the answer is superseded. An unplaced
 /// vertex is exempt and passes, so a cycle no vertex places is exempt
 /// unless one read in band.
