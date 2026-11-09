@@ -343,7 +343,8 @@ pub enum Answering {
     /// not** (the one statement of the rule; PR 6553's `place_off`
     /// ruling). A consumer that reads WHICH rung answered asks one of two
     /// questions, and a site tells them apart by asking: *can two rungs
-    /// both answer truly?*
+    /// both answer, by the door's premise, within the band?* (Not "in
+    /// exact arithmetic": two answers a band apart are two answers.)
     ///
     /// - **At most one can** (the answer is unique by the door's premise:
     ///   `rim_wedge::shared_rim`'s one shared rim, where two would be no

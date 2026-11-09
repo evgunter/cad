@@ -253,6 +253,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// of `Band::linear`'s arms reach it from a tolerance the run's
     /// validator admits (an ε within a factor K of `f64::MAX`, or a
     /// subnormal ε with K near 1).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     Band {
         /// The band constructor's typed refusal.
         error: BandError,
@@ -260,12 +262,16 @@ pub enum ReplaceFaceError<T: Real> {
     /// `face`, a key the caller handed over, does not resolve in the
     /// body. A key the body's own records hold that does not resolve is
     /// a torn body, and the door panics naming the record (D2 row 4).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     StaleFace {
         /// The unresolvable face.
         face: FaceKey,
     },
     /// The analytic offset mint refused: the radius floor, the torus
     /// ring convention, non-closure, or an escalation.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Offset {
         /// The face whose surface refused.
         face: FaceKey,
@@ -275,6 +281,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// The approximating-surface fit refused: the regularity or
     /// collapse meter, a rational operand, the refinement budget, or a
     /// certificate limb.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Fit {
         /// The face whose fit refused.
         face: FaceKey,
@@ -287,6 +295,8 @@ pub enum ReplaceFaceError<T: Real> {
     ///
     /// Where `Some` comes from, and what its absence means:
     /// [`crate::AtRestPolicy::offset_fit_lane`].
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     ApproxLaneUnsupported {
         /// The face whose kind needs the (`f64`-only) fit door.
         face: FaceKey,
@@ -300,6 +310,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// them would name one face's surface and lie on the other's.
     /// Replacing a solid's wearers of a chart is a whole-group
     /// operation: name every one.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SharedSurfaceKey {
         /// The face the door was called on.
         face: FaceKey,
@@ -307,9 +319,13 @@ pub enum ReplaceFaceError<T: Real> {
         other: FaceKey,
     },
     /// No face was named.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     EmptyGroup,
     /// The named faces do not all carry ONE chart, so there is no
     /// single surface to offset.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     GroupChartsDiffer {
         /// The first named face.
         face: FaceKey,
@@ -318,6 +334,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// The face carries the "not yet described" placeholder surface,
     /// which has no locus to offset.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     PlaceholderSurface {
         /// The face carrying the placeholder.
         face: FaceKey,
@@ -326,6 +344,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// the cone offset's `d·cot α`, reaches or crosses the apex: the
     /// minted cone's nappe attribution flips inside the window, so the
     /// mint is not this face's offset.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ApexWindow {
         /// The face whose window crosses.
         face: FaceKey,
@@ -342,6 +362,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// one chart do not agree on a nappe — in both readings there is no
     /// single side for the offset's sign to be turned onto. Refused
     /// rather than guessed, at both offset doors.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     NappeStraddles {
         /// The face with no nappe, or the first group member that
         /// disagreed.
@@ -356,6 +378,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// The face carries a cone but has no boundary carrier to read a
     /// `v`-window off. Refusing is the only honest answer: inventing a
     /// window would decide the apex predicate on made-up data.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ApexWindowUnknown {
         /// The cone-faced face with no derivable window.
         face: FaceKey,
@@ -363,6 +387,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// **The C5 boundary.** An intrinsic description's pair — the moved
     /// surface's kind against the neighbour's — has no route arm, so
     /// the edge cannot be re-stated as an intersection of the two.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NeighborPairUnroutable {
         /// The edge that cannot be re-described.
         edge: EdgeKey,
@@ -379,6 +405,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// not serve — an offset wedge cap no longer through a cone's apex
     /// or a torus's axis, say — so the edge cannot be re-stated as an
     /// intersection of the two either.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NeighborPoseUnroutable {
         /// The edge that cannot be re-described.
         edge: EdgeKey,
@@ -403,6 +431,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// - a curve still under construction (a scaffold edge);
     /// - a seam the face shares with itself that is not described on
     ///   its own chart.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     FittedBoundaryUnsupported {
         /// The edge the fitted chart cannot carry.
         edge: EdgeKey,
@@ -413,6 +443,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// (surface kind, carrier kind) combination the edge presents. A
     /// scope statement, not a geometric verdict: the combination is
     /// named so the unit that needs it knows what to build.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     CarrierLaneUnsupported {
         /// The edge whose carrier this door cannot transport.
         edge: EdgeKey,
@@ -422,6 +454,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// The fitted chart's boundary-row extraction refused: an interior
     /// iso parameter, an escalated coincidence, or a row the spline
     /// layer would not build.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     IsoRow {
         /// The edge whose row could not be extracted.
         edge: EdgeKey,
@@ -429,6 +463,8 @@ pub enum ReplaceFaceError<T: Real> {
         error: geom_brep::IsoRowError<T>,
     },
     /// A NURBS structure operation on a carrier or a fit row refused.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Structure {
         /// The edge whose carrier could not be built.
         edge: EdgeKey,
@@ -438,6 +474,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// Two boundary edges meeting at one vertex transport it to
     /// definitely different points: the re-derivation is not coherent,
     /// so no point is written.
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     VertexDisagreement {
         /// The vertex the edges disagree about.
         vertex: VertexKey,
@@ -451,6 +489,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// is a tangency there. The edge is that section wherever the held
     /// surface is not carried onto itself by the move, so nothing else
     /// stands in for it.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     EdgeSection {
         /// The edge whose section was refused.
         edge: EdgeKey,
@@ -465,6 +505,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// edge meeting it** (or of a held surface along a moved edge): the
     /// surface grazes the edge's carrier, does not meet it near the
     /// corner, or meets it where this door solves no root.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     CornerSection {
         /// The corner.
         vertex: VertexKey,
@@ -480,6 +522,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// record does not describe and there is no other description to
     /// state it by. Unreachable at rest, where tier 3's transience
     /// fence refuses a scaffold.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     DeclaredEdgeTilted {
         /// The scaffolded edge.
         edge: EdgeKey,
@@ -489,6 +533,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// neighbour**, re-asked the must-carry rule after the move: the
     /// two bracket an in-band point the schedule did not sample, so the
     /// edge is certifiable as neither (D2's mixed edge).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     MixedEdge {
         /// The moved edge.
         edge: EdgeKey,
@@ -507,6 +553,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// moved face — a lofted wall's seam, whose carrier ends where its
     /// patch does, a carrier minted only as long as its edge, and a
     /// section of a fit no wider than its face.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ReanchorPastCarrierEnd {
         /// The edge whose carrier ends short of the moved vertex.
         edge: EdgeKey,
@@ -526,6 +574,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// wrong. A periodic carrier's non-forward span may be a turn chosen
     /// wrongly, so it stays the attach door's [`ReplaceFaceError::Op`],
     /// which that door refuses typed.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ReanchorCollapse {
         /// The edge the move collapses or reverses.
         edge: EdgeKey,
@@ -534,6 +584,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// A spline carrier's foot-point Newton did not converge from the
     /// moved endpoint's old parameter. No foot is offered in its place.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(b), a reading that did not settle: kept as unsettled.
     ReanchorInconclusive {
         /// The edge whose carrier the foot was sought on.
         edge: EdgeKey,
@@ -545,6 +597,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// point with ([`crate::AtRestPolicy::spline_foot`] answers `None`),
     /// or a spline edge's section or root needs the section lane the
     /// scalar does not hold. A fact about the scalar, not the body.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NurbsLaneUnsupported {
         /// The edge whose carrier needs the lane.
         edge: EdgeKey,
@@ -555,6 +609,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// move is not a plane. Its corner solve is three plane equations,
     /// and a curved face has no such equation;
     /// [`crate::offset_surfaces_together`] roots those corners.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherNonPlanar {
         /// The face that is not a plane.
         face: FaceKey,
@@ -565,6 +621,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// was not in the moving set. Every corner's answer depends on all
     /// the planes meeting it, so a set the door was not told about in
     /// full is a set it cannot solve against.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherPartialSet {
         /// A face of the body that no chart move named.
         face: FaceKey,
@@ -575,6 +633,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// concur after the offset, so no point satisfies them all. Refused
     /// rather than solved on a subset and hoped over: a corner placed
     /// off one of its own planes is a wrong body no tier catches.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherCorner {
         /// The vertex.
         vertex: VertexKey,
@@ -590,6 +650,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// names the OPERATION rather than one of them: a message that said
     /// `offset_planes_together` under a body of revolution would send a
     /// reader to the wrong file.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherChartMixed {
         /// The face whose surface differs.
         face: FaceKey,
@@ -598,6 +660,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The simultaneous door: a face was named by more than one chart
     /// move**, so its offset is two different numbers.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherFaceRepeated {
         /// The face named twice.
         face: FaceKey,
@@ -628,6 +692,8 @@ pub enum ReplaceFaceError<T: Real> {
     ///   was this meter, on the axis edge between its two moved caps —
     ///   the site an earlier draft of this doc misdescribed as an
     ///   endpoint disagreement.)
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     TogetherEdgeDisagreement {
         /// The edge whose re-derived geometry failed verification.
         edge: EdgeKey,
@@ -644,6 +710,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// centred `(R, h_c)`, the sphere's circle centred `(0, h_c)` with
     /// one more number. An off-axis torus refuses at the axis gate
     /// below, not here.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     TogetherAxialUnsupported {
         /// The face.
         face: FaceKey,
@@ -656,6 +724,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// plane cutting it obliquely. The meridian reduction has no coordinates
     /// for such a corner, so it refuses rather than solving in a frame
     /// the geometry does not live in.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherNotAxial {
         /// The face.
         face: FaceKey,
@@ -669,6 +739,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// through the axis over-determines. Refused rather than solved on
     /// a subset: a corner placed off one of its own surfaces is a wrong
     /// body no tier catches.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherAxialCorner {
         /// The vertex.
         vertex: VertexKey,
@@ -682,6 +754,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// carries — a mapped description on a chart whose motion is a
     /// radius change, a circular edge whose plane is not normal to the
     /// axis, a carrier that is neither a line nor a circle.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     TogetherAxialEdge {
         /// The edge.
         edge: EdgeKey,
@@ -701,6 +775,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// refused here, read off the re-chart's refusal of that edge
     /// (`EulerOpError::RechartFalsifies` with the cone's
     /// `NoTubeEnclosure`).
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     TogetherConicArc {
         /// The edge.
         edge: EdgeKey,
@@ -712,6 +788,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// refuses the shape before it reads any pose, in the half's own
     /// words. The door does not validate the body it is handed, so the
     /// neighbour's torus is whatever the body carries.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     DegenerateTorus {
         /// The edge whose section read the torus.
         edge: EdgeKey,
@@ -722,11 +800,15 @@ pub enum ReplaceFaceError<T: Real> {
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3). No
     /// offset door takes a declaration, so its ending offers the
     /// geometry lever alone ([`COINCIDENCE_RECOURSE`]).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(b), a precision limit: kept by its margin.
     Escalated {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
     /// An attach-layer door refused the planned mutation.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Op {
         /// The edge the attach door refused; absent for the re-chart,
         /// whose refusal names the edges itself.
@@ -735,6 +817,8 @@ pub enum ReplaceFaceError<T: Real> {
         error: EulerOpError,
     },
     /// The whole-body pcurve mint refused on the re-described body.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Pcurve {
         /// The mint's typed refusal.
         source: PcurveMintError,
@@ -742,6 +826,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// The join the public offset doors end with
     /// ([`Body::join_edges`](crate::construction::Construct::join_edges)) refused on the offset body. The body is
     /// untouched.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Join {
         /// Why the join refused.
         refusal: crate::boolean::JoinRefusal,
@@ -756,6 +842,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// always: under debug assertions it panics naming the door
     /// ([`crate::construction::Surgery::close_gated`]) instead of arriving here, and
     /// with them off it arrives here ahead of the tier-2 findings.
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     ResultNotClosed {
         /// The validator's report.
         errors: Vec<ValidationError>,
@@ -763,11 +851,16 @@ pub enum ReplaceFaceError<T: Real> {
 }
 
 impl<T: Real> ReplaceFaceError<T> {
-    /// **This refusal's standing** ([`geom_brep::ladder::Refusal`]): an
-    /// [`Escalated`](Self::Escalated) reading is kept by its margin.
-    /// Every other kind refuses the whole query: a face that does not
-    /// resolve, a nappe that straddles, a structural refusal, none of
-    /// which a later reading answers past.
+    /// **This refusal's standing** ([`geom_brep::ladder::Refusal`]), each
+    /// variant's `[failure.taxonomy]` row as its doc states it:
+    /// [`Escalated`](Self::Escalated), row 1(b), is kept by its margin and
+    /// [`ReanchorInconclusive`](Self::ReanchorInconclusive) as unsettled;
+    /// the unbuilt lanes, row 2 (`*Unsupported`, the C5 boundary's
+    /// `*Unroutable`), are limits; an invalid input (1(a)), a kernel or
+    /// stored-data fault (4) and a payload that mixes classes (`Offset`,
+    /// `Fit`, `IsoRow`, `Structure`, the sections, `Op`, `Pcurve`,
+    /// `Join`) abort until split. Exhaustive with no catch-all arm, so an
+    /// added variant states its standing here before it compiles.
     ///
     /// # Errors
     ///
@@ -777,7 +870,49 @@ impl<T: Real> ReplaceFaceError<T> {
     ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         match self {
             Self::Escalated { source } => Ok(geom_brep::ladder::Refusal::Margin(*source)),
-            _ => Err(geom_brep::ladder::Aborts),
+            Self::ReanchorInconclusive { .. } => Ok(geom_brep::ladder::Refusal::Unsettled),
+            Self::ApproxLaneUnsupported { .. }
+            | Self::NeighborPairUnroutable { .. }
+            | Self::NeighborPoseUnroutable { .. }
+            | Self::FittedBoundaryUnsupported { .. }
+            | Self::CarrierLaneUnsupported { .. }
+            | Self::NurbsLaneUnsupported { .. }
+            | Self::TogetherAxialUnsupported { .. } => Ok(geom_brep::ladder::Refusal::Limit),
+            Self::Band { .. }
+            | Self::StaleFace { .. }
+            | Self::SharedSurfaceKey { .. }
+            | Self::EmptyGroup
+            | Self::GroupChartsDiffer { .. }
+            | Self::PlaceholderSurface { .. }
+            | Self::ApexWindow { .. }
+            | Self::NappeStraddles { .. }
+            | Self::ApexWindowUnknown { .. }
+            | Self::DeclaredEdgeTilted { .. }
+            | Self::MixedEdge { .. }
+            | Self::ReanchorPastCarrierEnd { .. }
+            | Self::ReanchorCollapse { .. }
+            | Self::TogetherNonPlanar { .. }
+            | Self::TogetherPartialSet { .. }
+            | Self::TogetherCorner { .. }
+            | Self::TogetherChartMixed { .. }
+            | Self::TogetherFaceRepeated { .. }
+            | Self::TogetherNotAxial { .. }
+            | Self::TogetherAxialCorner { .. }
+            | Self::VertexDisagreement { .. }
+            | Self::TogetherEdgeDisagreement { .. }
+            | Self::ResultNotClosed { .. }
+            | Self::Offset { .. }
+            | Self::Fit { .. }
+            | Self::IsoRow { .. }
+            | Self::Structure { .. }
+            | Self::EdgeSection { .. }
+            | Self::CornerSection { .. }
+            | Self::TogetherAxialEdge { .. }
+            | Self::TogetherConicArc { .. }
+            | Self::DegenerateTorus { .. }
+            | Self::Op { .. }
+            | Self::Pcurve { .. }
+            | Self::Join { .. } => Err(geom_brep::ladder::Aborts),
         }
     }
 
@@ -6026,5 +6161,26 @@ mod from_computed_rows {
                 laundered: 0,
             }
         );
+    }
+}
+
+/// **`ReplaceFaceError`'s standing by row** ([`ReplaceFaceError::refusal`]):
+/// a lane not built (row 2) is a limit, and an invalid input (row 1(a))
+/// aborts.
+#[cfg(test)]
+mod refusal_rows {
+    use geom_brep::ladder::{Aborts, Refusal};
+
+    use super::ReplaceFaceError;
+    use crate::entity::FaceKey;
+
+    #[test]
+    fn an_unbuilt_lane_is_a_limit_and_invalid_input_aborts() {
+        let unbuilt = ReplaceFaceError::<f64>::ApproxLaneUnsupported {
+            face: FaceKey::default(),
+            scalar: "f64",
+        };
+        assert_eq!(unbuilt.refusal(), Ok(Refusal::Limit));
+        assert_eq!(ReplaceFaceError::<f64>::EmptyGroup.refusal(), Err(Aborts));
     }
 }
