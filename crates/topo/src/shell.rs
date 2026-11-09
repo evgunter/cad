@@ -5010,14 +5010,10 @@ struct BoundaryEdge<T: Real> {
 /// What an edge's carrier is, as [`MovedWall::cut`] reads it.
 enum EdgeArc<T: Real> {
     Line,
-    /// A circle or an ellipse, `center + u·(ru·cos θ) + v·(rv·sin θ)`
+    /// A circle or an ellipse, the edge's carrier read as its conic,
     /// over `from..to` (`from < to`), with the vertex at each end.
     Conic {
-        center: geom_core::Point3<T>,
-        u: geom_core::Vec3<T>,
-        v: geom_core::Vec3<T>,
-        ru: T,
-        rv: T,
+        conic: Box<dyn geom::Conic<T>>,
         from: (T, VertexKey),
         to: (T, VertexKey),
     },
@@ -5160,11 +5156,7 @@ impl<T: Decide> MovedWall<T> {
         let mut out = Vec::new();
         for edge in &self.edges {
             if let EdgeArc::Conic {
-                center,
-                u,
-                v,
-                ru,
-                rv,
+                ref conic,
                 from,
                 to,
             } = edge.curve
@@ -5174,19 +5166,20 @@ impl<T: Decide> MovedWall<T> {
                 // at `φ` and `φ + π`: split there, and each piece crosses
                 // once exactly when its two ends' sides differ, at the
                 // root of its own half-turn.
-                let (a, b) = (ru * u.dot(m), rv * v.dot(m));
-                let sc = (center - line.origin).dot(m);
+                let (frame, (ru, rv)) = (conic.frame(), conic.semi_axes());
+                let (a, b) = (ru * frame.u_ref.dot(m), rv * frame.v_ref().dot(m));
+                let sc = (frame.origin - line.origin).dot(m);
                 let phi = b.atan2(a);
                 let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
                     .max(-T::one())
                     .min(T::one())
                     .acos();
-                let at = |theta: T| center + u * (ru * theta.cos()) + v * (rv * theta.sin());
+                let at = |theta: T| conic.point_at(theta);
                 let mut ends: Vec<(T, bool)> = vec![(from.0, side_of((Some(from.1), at(from.0)))?)];
                 // Parameters are compared as arc lengths on the larger
                 // semi-axis, so a split at an end within the band is
                 // the end itself.
-                let r = ru.max(rv);
+                let r = conic.speed_hi();
                 let before = |x: T, y: T| {
                     matches!(
                         decide("shell_moved_wall_arc_split", Margin::of((y - x) * r), band),
@@ -5355,39 +5348,15 @@ fn moved_walls<T: Decide>(
                         } else {
                             (end.0, start.0)
                         };
-                        let conic =
-                            |center, axis: &geom_core::Vec3<T>, u: geom_core::Vec3<T>, ru, rv| {
-                                EdgeArc::Conic {
-                                    center,
-                                    u,
-                                    v: axis.cross(u),
-                                    ru,
-                                    rv,
-                                    from: (t0, v0),
-                                    to: (t1, v1),
-                                }
-                            };
+                        let conic = |conic: Box<dyn geom::Conic<T>>| EdgeArc::Conic {
+                            conic,
+                            from: (t0, v0),
+                            to: (t1, v1),
+                        };
                         match *curve.carrier() {
                             geom::Curve3::Line(_) => EdgeArc::Line,
-                            geom::Curve3::Circle(geom::Circle {
-                                frame:
-                                    geom::Frame {
-                                        origin: center,
-                                        ref axis,
-                                        u_ref,
-                                    },
-                                radius,
-                            }) => conic(center, axis, u_ref, radius, radius),
-                            geom::Curve3::Ellipse(geom::Ellipse {
-                                frame:
-                                    geom::Frame {
-                                        origin: center,
-                                        ref axis,
-                                        u_ref,
-                                    },
-                                semi_u,
-                                semi_v,
-                            }) => conic(center, axis, u_ref, semi_u, semi_v),
+                            geom::Curve3::Circle(c) => conic(Box::new(c)),
+                            geom::Curve3::Ellipse(e) => conic(Box::new(e)),
                             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                                 EdgeArc::Arc(ArcPiece::along(
                                     curve.carrier(),
@@ -5761,15 +5730,9 @@ mod tests {
             lo: o,
             hi: o,
         };
-        let conic = |ru, rv, from, to| EdgeArc::Conic {
-            center: o,
-            u: x,
-            v: y,
-            ru,
-            rv,
-            from,
-            to,
-        };
+        let frame = geom::Frame::new(o, z, x);
+        let conic = |conic: Box<dyn geom::Conic<f64>>, from, to| EdgeArc::Conic { conic, from, to };
+        let circle = |radius| Box::new(geom::Circle::new(frame, radius));
         let close = |got: Vec<(f64, f64)>, want: &[(f64, f64)], what: &str| match want {
             [] => assert!(got.is_empty(), "{what}: got {got:?}"),
             [one] => covers_exactly(&got, *one, 1e-12, what),
@@ -5781,7 +5744,7 @@ mod tests {
             edge: EdgeKey::default(),
             start: east,
             end: east,
-            curve: conic(1.0, 1.0, (0.0, east.0), (2.0 * pi, east.0)),
+            curve: conic(circle(1.0), (0.0, east.0), (2.0 * pi, east.0)),
         }]);
         close(
             disc.cut(
@@ -5814,7 +5777,7 @@ mod tests {
                 edge: EdgeKey::default(),
                 start: east,
                 end: west,
-                curve: conic(1.0, 1.0, (0.0, east.0), (pi, west.0)),
+                curve: conic(circle(1.0), (0.0, east.0), (pi, west.0)),
             },
             BoundaryEdge {
                 edge: EdgeKey::default(),
@@ -5854,7 +5817,11 @@ mod tests {
             edge: EdgeKey::default(),
             start: tip,
             end: tip,
-            curve: conic(2.0, 1.0, (0.0, tip.0), (2.0 * pi, tip.0)),
+            curve: conic(
+                Box::new(geom::Ellipse::new(frame, 2.0, 1.0)),
+                (0.0, tip.0),
+                (2.0 * pi, tip.0),
+            ),
         }]);
         let h = 0.75_f64.sqrt();
         close(
