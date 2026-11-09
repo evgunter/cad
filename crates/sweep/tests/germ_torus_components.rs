@@ -88,7 +88,7 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>, kind: Option<geom::Surfa
     };
     match got {
         Ok(r) => format!("body {:?}", r.body().map(|b| b.kind)),
-        Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
+        Err(BooleanError::ResultInvalid { findings: errors }) => match errors.as_slice() {
             [ValidationError::VolumeUncomputable { source, .. }] => match source {
                 MassPropsError::Face {
                     source: PropsError::QuadratureUnsupported { what },

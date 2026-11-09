@@ -18,3 +18,7 @@ read only the ball. `geom_brep::Reach` is the one consumed-extent type
 and `ExtentBall` its ball payload, so the wrapper is a third name for
 one thing: delete it for `ExtentBall` (or `Reach::Ball`) and repoint
 its 43 references.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.

@@ -2810,8 +2810,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
                 origin: apex,
                 dir: axis,
             }
-            .offset(p)
-            .norm();
+            .distance(p);
             if classify(
                 "props_cone_loop_vertex_sheet",
                 Margin::metered((a - b).abs() - T::pi(), InfSpeed::new(rho)),
@@ -4899,9 +4898,12 @@ fn sphere_boundary<T: Decide>(
     // A point's latitude, its sine and cosine each off its own offset
     // from the centre: along the axis, and out from it.
     let latitude = |p: Point3<T>| {
-        let w = p - center;
-        let h = w.dot(axis);
-        (h / radius, (w - axis * h).norm() / radius)
+        let (h, rho) = geom::Line {
+            origin: center,
+            dir: axis,
+        }
+        .height_and_distance(p);
+        (h / radius, rho / radius)
     };
     for e in edges {
         let Curve3::Circle(geom::Circle {
@@ -5037,9 +5039,11 @@ fn torus_ends<T: Real>(
     orient: Sign,
 ) -> (T, T, T, T) {
     // Anchor latitude from the meridian's t0 endpoint.
-    let wa = m0.anchor - center;
-    let ha = wa.dot(axis);
-    let rho_a = (wa - axis * ha).norm();
+    let (ha, rho_a) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(m0.anchor);
     let (sin_a, cos_a) = (ha / minor, (rho_a - major) / minor);
     // Rotate the anchor latitude by the signed span where needed.
     let (sd, cd) = m0.dt.sin_cos();
@@ -5474,9 +5478,13 @@ fn torus_chart_loop<T: Decide>(
 ) -> Result<ChartLoop<T, 2>, PropsError> {
     // A point's place on the tube: its distance out from the core
     // circle and its height, the tube angle's cosine and sine arms.
+    let core_axis = geom::Line {
+        origin: Point3::origin(),
+        dir: axis,
+    };
     let tube = |w: Vec3<T>| {
-        let h = w.dot(axis);
-        ((w - axis * h).norm() - major, h)
+        let (h, rho) = core_axis.height_and_distance(Point3::origin() + w);
+        (rho - major, h)
     };
     // The tube angle's arms from `a` to `b`: their dot and cross.
     let tube_arms = |a: Vec3<T>, b: Vec3<T>| {
@@ -5928,9 +5936,14 @@ fn torus_classify<'a, T: Decide>(
                 )?));
             }
             Sign::Zero => {
+                // The axis is not yet decided nonzero here (the orient
+                // that follows the classification decides it), so it is
+                // read unit by convention, not through `geom::Line`,
+                // whose readings divide by its length.
                 let w = c_c - center;
                 let h = w.dot(axis);
-                let rho = (w - axis * h).norm();
+                let off = w - axis * h;
+                let rho = off.norm();
                 require_zero(
                     "props_meridian_fit",
                     Margin::of(
@@ -5950,7 +5963,7 @@ fn torus_classify<'a, T: Decide>(
                 // tube-center distance (lever arm ρ ≈ R, meters).
                 require_zero(
                     "props_meridian_plane",
-                    Margin::of(n_c.dot(w - axis * h)),
+                    Margin::of(n_c.dot(off)),
                     band,
                     Premise::Inventory,
                 )?;

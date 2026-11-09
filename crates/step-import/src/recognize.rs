@@ -347,7 +347,7 @@ fn try_cylinder(
         dir: axis,
     };
     for p in control {
-        rho_max = rho_max.max(spine.offset(*p).norm());
+        rho_max = rho_max.max(spine.distance(*p));
     }
     let lipschitz = rho_max / radius;
     let residual = enveloped_residual_sup(patch, &cylinder, lipschitz);

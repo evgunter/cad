@@ -53,7 +53,7 @@ fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
         t,
     )
     .unwrap();
-    let mut body = ex.body;
+    let mut body = ex.body.into_body();
     for wall in &ex.walls[0] {
         let (y, xs) = match wall.segments[0] {
             0 => (0.0, bottom),

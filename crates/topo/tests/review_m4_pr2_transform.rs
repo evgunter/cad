@@ -176,14 +176,13 @@ fn rotation_composition_keeps_witness_residuals_honest() {
     assert!(worst < 1e-12, "witness residual degraded to {worst:e}");
 }
 
-/// R1a: near-ε margins — a long thin feature (10^7 aspect, 10^6
-/// coordinates) rotated by π/3. Rounding at 1e6 scale is ~1e-10,
-/// within 10x of the 1e-9 band: the op must either refuse typed or
-/// produce a body that re-validates geometrically. Silence with a
+/// R1a: near-ε margins — a long thin feature (9·10³ aspect, reaching to
+/// the session box's edge) rotated by π/3: the op must either refuse
+/// typed or produce a body that re-validates geometrically. Silence with a
 /// degraded body is the only failure mode.
 #[test]
 fn long_thin_feature_transform_is_honest_either_way() {
-    let mut b = brick((0.0, 1.0e6), (0.0, 0.1), (0.0, 0.1), Tol::witness());
+    let mut b = brick((0.0, 9.0e2), (0.0, 0.1), (0.0, 0.1), Tol::witness());
     describe_as_intersections(&mut b, Tol::witness());
     let map = Affine3::from_parts(
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
@@ -225,9 +224,9 @@ fn long_thin_feature_transform_is_honest_either_way() {
 
 /// R1a escalation: at 1e9 coordinates the rotation rounding (~1e-7)
 /// exceeds the escalate threshold (1e-8) — the door must FIRE typed
-/// (Certify or a decided refusal), or, if it passes, the result must
-/// still re-validate; silent degradation (Ok + tier-3 failure) is the
-/// falsifier.
+/// (Certify or a decided refusal), or, if it passes, the finished-body
+/// gate refuses the result by the session box, alone; silent
+/// degradation (Ok and any other finding) is the falsifier.
 #[test]
 fn extreme_scale_fires_the_certify_door_or_stays_valid() {
     let mut b = brick((1.0e9, 1.0e9 + 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
@@ -242,8 +241,14 @@ fn extreme_scale_fires_the_certify_door_or_stays_valid() {
         Tol::witness(),
     ) {
         Ok(t) => {
-            eprintln!("1e9 scale took the Ok path");
-            tiers_ok(&t);
+            let errors = validate_geometric(&t, Tol::witness()).unwrap_err();
+            assert!(
+                matches!(
+                    &errors[..],
+                    [topo::ValidationError::OutsideSessionBox { .. }]
+                ),
+                "a 1e9 m image is the box's to refuse, alone: {errors:?}"
+            );
         }
         Err(e) => {
             eprintln!("1e9 scale refused: {e:?}");

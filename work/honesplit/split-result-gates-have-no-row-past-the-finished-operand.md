@@ -52,3 +52,5 @@ ending). A gate one can reach wants a row built from that operand.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to HONESPLIT (`work/honesplit/`) by `git mv`, id and body unchanged: whose charter is split and carve bookkeeping, unproven walks and the reads nothing reaches. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+Note, 2026-11-08 (PR 6584): `BooleanError::ScaffoldingOperand` and `reduce::gate_operand` are deleted, along with `validate::operand_scaffolding` and `topo::SCAFFOLDING_REFUSAL`. A Boolean operand is a finished body (`T::Finished`), whose finish runs tiers 1 and 2. Nothing in the reduce re-reads tier 2. The sphere re-cut's derived operands `debug_assert` tiers 1 and 2 instead (`boolean/ops.rs`, `through_the_join`). A citation of these symbols above names code that is gone.

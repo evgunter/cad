@@ -24,7 +24,7 @@ use viewer::evalseam::{CertifyDone, CertifyRequest, CertifyService};
 use viewer::generation::Generation;
 use viewer::props::Notation;
 use viewer::session::{ClearedSeat, DocSession, SessionOp};
-use viewer::test_support::{CLEARANCE_GAP as GAP, CLEARANCE_SIDE as SIDE, len, two_blocks_apart};
+use viewer::test_support::{CLEARANCE_SIDE as SIDE, STEP_GAP as GAP, len, two_blocks_apart};
 use viewer::tree::{Certified, Readout, TreeRow};
 
 /// Millimetres, so every bound reads as written.

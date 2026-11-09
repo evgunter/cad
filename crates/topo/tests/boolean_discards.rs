@@ -159,10 +159,16 @@ fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
 #[test]
 fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
     let tol = Tol::witness();
-    let a: topo::AtRestBody<f64> =
-        finished("a", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
-    let b: topo::AtRestBody<f64> =
-        finished("b", brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol), tol);
+    let a: topo::AtRestBody<f64> = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b: topo::AtRestBody<f64> = finished(
+        "b",
+        brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
     let out = match topo::union(&a, &b, tol) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
@@ -214,14 +220,21 @@ fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
 #[test]
 fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
     let tol = Tol::witness();
-    let plate: topo::AtRestBody<f64> =
-        finished("plate", brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol), tol);
-    let pocket = finished(
-        "pocket",
-        brick((1.0, 3.0), (1.0, 3.0), (0.5, 2.0), tol),
+    let plate: topo::AtRestBody<f64> = finished(
+        "plate",
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol),
         tol,
     );
-    let slot = finished("slot", brick((2.0, 5.0), (1.5, 2.5), (0.5, 2.0), tol), tol);
+    let pocket = finished(
+        "pocket",
+        brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.5, 2.0), tol),
+        tol,
+    );
+    let slot = finished(
+        "slot",
+        brick::<f64>((2.0, 5.0), (1.5, 2.5), (0.5, 2.0), tol),
+        tol,
+    );
     let pocketed = match subtract(&plate, &pocket, tol) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the pocket cuts: {other:?}"),
@@ -292,7 +305,7 @@ fn an_edge_the_carve_kills_records_its_parent() {
     let mm = 1e-3;
     let block: topo::AtRestBody<f64> = finished(
         "block",
-        brick(
+        brick::<f64>(
             (-20.0 * mm, 20.0 * mm),
             (-10.0 * mm, 10.0 * mm),
             (0.0, 10.0 * mm),
@@ -302,7 +315,7 @@ fn an_edge_the_carve_kills_records_its_parent() {
     );
     let boss: topo::AtRestBody<f64> = finished(
         "boss",
-        brick(
+        brick::<f64>(
             (10.0 * mm, 20.0 * mm),
             (-5.0 * mm, 5.0 * mm),
             (10.0 * mm, 14.0 * mm),

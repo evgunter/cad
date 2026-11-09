@@ -267,7 +267,7 @@ fn lofted_cylinder_census() -> Vec<String> {
 /// The cavity, at rest.
 fn cavity() -> AtRestBody<f64> {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    AtRestBody::validate(cavity, Tol::witness()).expect("the cavity passes the at-rest gate")
+    topo::finish(cavity, Tol::witness()).expect("the cavity passes the at-rest gate")
 }
 
 /// The cavity's placements, in its own frame: the quarter `x ≥ 1/128`,

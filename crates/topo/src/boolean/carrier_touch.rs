@@ -155,9 +155,8 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
     // across it.
     let split = |origin: Point3<T>, axis: Vec3<T>| {
         let a = axis.normalize();
-        let w = q - origin;
-        let h = w.dot(a);
-        (a * h, w - a * h)
+        let (h, off) = geom::Line { origin, dir: a }.param_and_offset(q);
+        (a * h, off)
     };
     match *surface {
         geom::Surface::Sphere { center, radius, .. } => {

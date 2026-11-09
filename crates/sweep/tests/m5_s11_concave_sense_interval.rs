@@ -52,6 +52,7 @@ fn notched() -> Body<Interval> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 #[test]
@@ -74,7 +75,11 @@ fn interval_notch_door_reads_out() {
 #[test]
 fn interval_union_keeps_the_pellet() {
     let a = finished("the notched revolve", notched(), Tol::witness());
-    let b = finished("the pellet", pellet(), Tol::witness());
+    let b = finished(
+        "the pellet",
+        pellet::<geom_core::Interval>(),
+        Tol::witness(),
+    );
     let r = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let out = r.body().expect("union of two non-empty solids");
     assert_eq!(out.body.shells().count(), 2);

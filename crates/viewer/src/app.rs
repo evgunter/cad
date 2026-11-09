@@ -1318,7 +1318,7 @@ impl ViewerApp {
     fn survive_tools(&mut self) {
         let dropped = self
             .tools
-            .reconcile(self.session.doc(), self.session.name_run());
+            .reconcile(self.session.committed_doc(), self.session.name_run());
         // A tool's survival drop is provoked by the document transition
         // it did not survive, so the act that accepts the next one is
         // what retires it; `frame::tool_notice` reads from the event
@@ -1339,6 +1339,19 @@ impl ViewerApp {
         self.derived = DocumentDerived::owed();
         self.drafts.document_replaced();
         self.tools.document_replaced();
+    }
+
+    /// **Undo takes back the placement editor's held draft first**
+    /// (`Tools::undo_pending`), said with the profile editor's drops.
+    /// Answers whether it did.
+    fn undo_placement_draft(&mut self) -> bool {
+        let doc = self.session.committed_doc();
+        let Some(placement) = self.tools.undo_pending(doc) else {
+            return false;
+        };
+        let said = doc.spoken(placement).to_string();
+        self.drafts.placement_undone(said);
+        true
     }
 
     /// Perform one frame's whole batch of operations, keeping the
@@ -1386,6 +1399,16 @@ impl ViewerApp {
                 ops.remove(at);
             }
         }
+        // The placement editor's change, the same way.
+        if let Some(landing) = self.tools.mate_landing().cloned()
+            && let Some(undo) = ops.iter().position(|op| matches!(op, SessionOp::Undo))
+            && let Some(edit) = ops.iter().position(|op| *op == landing)
+            && self.undo_placement_draft()
+        {
+            for at in [undo.max(edit), undo.min(edit)] {
+                ops.remove(at);
+            }
+        }
         let mut refusal: Option<Refusal> = None;
         // The VERDICTS are `frame`'s, computed from the ops and the
         // refusal; this loop only performs and collects (`frame`'s
@@ -1395,7 +1418,9 @@ impl ViewerApp {
         for op in ops {
             // Undo takes back a pending profile draft first, and says
             // so; the next undo steps the history.
-            if matches!(op, SessionOp::Undo) && self.drafts.undo_pending() {
+            if matches!(op, SessionOp::Undo)
+                && (self.drafts.undo_pending() || self.undo_placement_draft())
+            {
                 continue;
             }
             performed.push(op.clone());
@@ -1438,6 +1463,15 @@ impl ViewerApp {
             // to learns its id here and nowhere else.
             let made = outcome.made;
             let committed = outcome.refusal.is_none();
+            // The placement editor opens on the placement a Place made,
+            // and settles the draft whose change landed or was refused.
+            if matches!(
+                accepted_op,
+                SessionOp::Place { .. } | SessionOp::SetBundle { .. }
+            ) {
+                self.tools
+                    .answered(&accepted_op, made, committed, self.session.committed_doc());
+            }
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -2426,6 +2460,9 @@ impl eframe::App for ViewerApp {
             self.picks.index_or_why(self.fit.as_ref()),
             &ops,
         );
+        // A pick that asked the placement editor for Place commits it
+        // in the batch of the click that asked.
+        ops.extend(self.tools.take_place());
         let landed = self.session.landed_pair();
         self.notices.extend(
             declined
@@ -4299,7 +4336,6 @@ mod properties_pane_tests {
             | ToolKind::Split
             | ToolKind::Pattern
             | ToolKind::Part
-            | ToolKind::Duplicate
             | ToolKind::Mirror => COMBINE_BODIES,
             ToolKind::Blend => BLEND_EDGES,
             ToolKind::Clearance => REQUIREMENTS,
@@ -4406,11 +4442,11 @@ mod properties_pane_tests {
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 
-    /// **The placement editor's value rows are fields**: the Edit door on
+    /// **The placement editor's value rows are fields**: the editor on
     /// the startup copy, its identity bundle loaded. Each row is drawn as
     /// its freedom's word and, next after it, a field showing the number
-    /// the bundle holds — never a variable's raw id — and typing into one
-    /// replaces that value in the draft.
+    /// the bundle holds — never a variable's raw id — and a value typed
+    /// into one lands in the bundle as the field commits.
     #[test]
     fn the_placement_editors_value_rows_are_editable_number_fields() {
         let key = |key| egui::Event::Key {
@@ -4471,15 +4507,17 @@ mod properties_pane_tests {
         driven.frame(vec![egui::Event::Text("5 mm".to_owned())]);
         driven.frame(vec![key(egui::Key::Enter)]);
         driven.quiet();
-        let typed = driven.app.tools.mate().map(|tool| tool.typed().to_vec());
+        let doc = driven.app.session.committed_doc();
+        let written = match doc.node(placement()).map(|node| node.written(doc)) {
+            Some(Node::Place { constraints, .. }) => constraints,
+            other => panic!("the startup copy is a placement: {other:?}"),
+        };
         assert!(
-            typed
-                .as_ref()
-                .is_some_and(|typed| typed.iter().any(|(coord, by)| {
-                    *coord == pncad::document::Coord::slide(pncad::document::TargetAxis::X)
-                        && by.literal_value() == Some(0.005)
-                })),
-            "typing replaces the slide along x in the draft: {typed:?}"
+            written.iter().filter_map(|c| c.value()).any(|v| {
+                v.coord == pncad::document::Coord::slide(pncad::document::TargetAxis::X)
+                    && v.by.literal_value() == Some(0.005)
+            }),
+            "the typed value lands live on the slide along x: {written:?}"
         );
     }
 
@@ -8753,27 +8791,124 @@ mod properties_pane_tests {
         );
     }
 
+    /// **Undo takes back the placement editor's held draft first, and
+    /// says so**, as the profile editor's: a mate row added and not yet
+    /// seated is held, and the first undo drops it without stepping the
+    /// history; the next undo is the history's.
+    #[test]
+    fn undo_takes_back_a_held_placement_draft_first_and_says_so() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let mut tool =
+            crate::matetool::MateTool::edit(driven.app.session.committed_doc(), placement())
+                .expect("the startup copy is a placement");
+        tool.add_mate(pncad::document::VarKind::Plane);
+        let (doc, ev) = driven.app.session.landed_pair().expect("landed");
+        let session = &driven.app.session;
+        assert!(
+            tool.offer(doc, ev, session.tol(), |op| session.bundle_door(op))
+                .is_none(),
+            "a row with empty seats writes no bundle"
+        );
+        assert!(tool.holds_changes(), "premise: the draft is held");
+        driven.app.tools.open_mate(tool);
+        let state = driven.app.session.history().current();
+        driven.app.perform_batch(vec![SessionOp::Undo]);
+        assert_eq!(
+            driven.app.session.history().current(),
+            state,
+            "the history did not step"
+        );
+        let editor = driven.app.tools.mate().expect("the editor stays open");
+        assert!(
+            editor.rows().is_empty() && !editor.holds_changes(),
+            "the draft went"
+        );
+        assert!(
+            status(&driven)
+                .is_some_and(|said| said
+                    .contains("placement editor were discarded — undo took them back first")),
+            "said: {:?}",
+            status(&driven)
+        );
+        driven.app.perform_batch(vec![SessionOp::Undo]);
+        assert!(
+            status(&driven).is_some_and(|said| said.contains("nothing to undo")),
+            "the next undo is the history's: {:?}",
+            status(&driven)
+        );
+    }
+
+    /// **An undo in the batch of the change it lands on takes the
+    /// change back before it lands**, as the profile editor's: the
+    /// history neither steps nor keeps a redo of it, and the value is
+    /// the one the document held.
+    #[test]
+    fn an_undo_in_the_batch_of_a_placement_change_takes_it_back_before_it_lands() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let slide_x = <pncad::document::Coord<pncad::document::Operand>>::slide(
+            pncad::document::TargetAxis::X,
+        );
+        let mut tool =
+            crate::matetool::MateTool::edit(driven.app.session.committed_doc(), placement())
+                .expect("the startup copy is a placement");
+        tool.type_value(slide_x.clone(), crate::test_support::len(0.005));
+        let (doc, ev) = driven.app.session.landed_pair().expect("landed");
+        let session = &driven.app.session;
+        let op = tool
+            .offer(doc, ev, session.tol(), |op| session.bundle_door(op))
+            .expect("a typed value passes");
+        driven.app.tools.open_mate(tool);
+        let (states, state) = (
+            driven.app.session.history().len(),
+            driven.app.session.history().current(),
+        );
+        driven.app.perform_batch(vec![op, SessionOp::Undo]);
+        let history = driven.app.session.history();
+        assert_eq!(
+            history.len(),
+            states,
+            "the change never entered the history"
+        );
+        assert_eq!(history.current(), state);
+        assert!(!history.can_redo(), "no redo of a change taken back");
+        let doc = driven.app.session.committed_doc();
+        let written = match doc.node(placement()).map(|node| node.written(doc)) {
+            Some(Node::Place { constraints, .. }) => constraints,
+            other => panic!("the startup copy is a placement: {other:?}"),
+        };
+        assert!(
+            written
+                .iter()
+                .filter_map(|c| c.value())
+                .any(|v| v.coord == slide_x && v.by.is_zero()),
+            "the slide is as the document held it: {written:?}"
+        );
+    }
+
     /// **An edge-on-edge direction mate committed at the panel's own
-    /// default sense does not turn its copy over**: the plate duplicated
-    /// beside itself, one vertical corner edge of each picked, the panel
-    /// switched to `direction` and committed untouched. The default is
-    /// the kind's own (`matetool::senses`), not a plane's rest carried
-    /// across, and the panel names the two senses.
+    /// default sense does not turn its copy over**: the plate placed a
+    /// second time, one vertical corner edge of each copy picked, the
+    /// panel switched to `direction`, which commits live — the copy moved
+    /// into the first copy's space where it stands in another. The
+    /// default is the kind's own (`matetool::senses`), not a plane's rest
+    /// carried across, and the panel names the two senses.
     #[test]
     fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
         let mut driven = Driven::with(Vec::new());
         driven.settle();
-        driven.perform(SessionOp::Duplicate {
-            input: pncad::document::Operand::Node(extrude()),
-            beside: Some(placement()),
+        driven.perform(SessionOp::Place {
+            body: pncad::document::Operand::Node(extrude()),
         });
         let doc = driven.app.session.committed_doc().clone();
-        let [copy] = crate::world::placements_of(&doc, extrude())
+        let [copy] = doc
+            .placements()
             .into_iter()
-            .filter(|&at| at != placement())
+            .filter(|&at| at != placement() && doc.copied_read(at) == doc.read_of_node(extrude()))
             .collect::<Vec<_>>()[..]
         else {
-            panic!("the duplicate is one more copy")
+            panic!("the second placement is one more copy")
         };
         let index = driven.on_screen();
         let vertical = |node| {
@@ -8807,8 +8942,14 @@ mod properties_pane_tests {
                 && !shown.iter().any(|t| t == "opposed"),
             "the direction's sense is named by its two values: {shown:?}"
         );
-        driven.click(&crate::tools::ToolKind::Mate.commit());
-        driven.quiet();
+        let mated = |driven: &Driven| {
+            matches!(driven.app.session.committed_doc().node(copy), Some(Node::Place { constraints, .. })
+                if constraints.iter().any(|c| c.mate().is_some()))
+        };
+        if !mated(&driven) {
+            driven.click("move the copy into the target's space");
+            driven.quiet();
+        }
         let (doc, ev) = driven.app.session.landed_pair().expect("landed");
         assert!(
             matches!(doc.node(copy), Some(Node::Place { constraints, .. })
@@ -12225,7 +12366,7 @@ mod properties_pane_tests {
             let clears = driven
                 .app
                 .session
-                .clearing_step(&extrude().into())
+                .step_clear_of(&extrude().into())
                 .expect("the plate is measured");
             driven.click(&ToolKind::Pattern.commit());
             driven.settle();
@@ -12236,7 +12377,7 @@ mod properties_pane_tests {
         }
 
         /// **`text` typed on `coord`'s value row of the placement editor
-        /// opened on `row`**, and its Apply performed.
+        /// opened on `row`**, and the change it forms performed.
         fn typed_on_row(
             driven: &mut Driven,
             row: RecipeNodeId,
@@ -12252,7 +12393,7 @@ mod properties_pane_tests {
             editor.type_value(coord, by);
             let op = editor
                 .proposal(doc, eval, session.tol())
-                .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
+                .unwrap_or_else(|error| panic!("the draft writes a bundle: {error}"))
                 .op();
             driven.app.perform_batch(vec![op]);
             driven.settle();
