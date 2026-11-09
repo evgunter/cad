@@ -927,3 +927,4 @@
 - 12:58Z PR 6632 fix pass (9132dbbe): bracket_mid is generic in geom-core beside mid_param; new Point::mid; 25 sites routed with no bit moved; gate widened. Delta sent to the reviewer.
 - 13:00Z [ev] 6592's third check-in found no comment from Ev. It still merges clean with main (fork-log row 255), and so does 6625 (row 256). Check-ins on 6592 have stopped; the next GitHub event will bring it back.
 - 13:12Z Main red: face_normal's hand-fold scan (slow set) flags two loop-rule fixtures that PR 6607 added. I fixed it myself: island_rows::loop_start, sanctioned once. Opened as onecopy/sense-fold-fixtures; gating 5d71c05f. Delta review of 6576's fix pass dispatched; its N5 is filed as `holding-face-normal-absorbs-a-refusal-as-no-holding-face`.
+- 13:20Z PR 6622 delta: MERGE. NOTEs filed as `no-carrier-touch-recourse-and-the-range-ending-left-by-6622`. Main overlapped it in boolean/mod.rs; merged main (ae22d63e), build and gates clean. Gating.
