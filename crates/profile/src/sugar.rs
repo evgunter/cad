@@ -1219,9 +1219,17 @@ impl<T: Real> Leg<T> {
         T: Decide,
     {
         let normal = left_normal(self.dir);
-        let on_offset = corner + normal * (sgn * radius);
+        let offset = geom_core::Line2 {
+            origin: corner + normal * (sgn * radius),
+            dir: self.dir,
+        };
         let rho = offset_radius(&arc, sgn, radius);
-        let h = (arc.center - on_offset).dot(normal);
+        // The centre's side of the offset line and the half-chord are
+        // `Line2`'s readings. The candidates stand on the centre's foot
+        // `C − n̂·h`, which keeps an axis-aligned corner exact (the
+        // `path_differential` line-by-arc row), where `origin + dir·t`
+        // at `Line2::circle_heights` would round it off by an ulp.
+        let h = offset.side(arc.center);
         let foot = arc.center - normal * h;
         match decide(
             Gate::FilletOffsetLineCircle,
@@ -1233,7 +1241,7 @@ impl<T: Real> Leg<T> {
             // powi(2)-discipline squares: ρ and h both straddle zero
             // in general (ci.yml's "interval-square powi(2) allowlist").
             Sign::Positive => {
-                let half = (rho.powi(2) - h.powi(2)).sqrt();
+                let half = offset.half_chord(arc.center, rho.powi(2));
                 Ok(OffsetCentres::crossing(vec![
                     foot + self.dir * half,
                     foot - self.dir * half,
