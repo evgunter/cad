@@ -235,11 +235,56 @@ impl Sign {
     /// The definite side, or `None` at `Zero`: where a caller that has
     /// decided a sign states its own refusal of `Zero`.
     #[must_use]
-    pub fn nonzero(self) -> Option<crate::k_stats::NonzeroSign> {
+    pub fn nonzero(self) -> Option<NonzeroSign> {
         match self {
-            Self::Negative => Some(crate::k_stats::NonzeroSign::Negative),
+            Self::Negative => Some(NonzeroSign::Negative),
             Self::Zero => None,
-            Self::Positive => Some(crate::k_stats::NonzeroSign::Positive),
+            Self::Positive => Some(NonzeroSign::Positive),
+        }
+    }
+}
+
+/// **A definite sign**: [`Sign`] without `Zero`, what a
+/// [`crate::k_stats::decide_nonzero`] decision admits and [`Sign::nonzero`]
+/// reads. `Zero` is not one of its values, which is what lets a caller
+/// match the gate's outcome exhaustively without an arm for an answer
+/// the gate escalated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NonzeroSign {
+    /// The margin classified definitely positive.
+    Positive,
+    /// The margin classified definitely negative.
+    Negative,
+}
+
+impl NonzeroSign {
+    /// **The decided side's unit value**, `+1` or `−1` at `T`: the one
+    /// spelling of a ±1 read off a sign already decided. Its hull twin,
+    /// read off a value rather than a decision, is
+    /// [`crate::Real::unit_sign`].
+    #[must_use]
+    pub fn unit<T: crate::Real>(self) -> T {
+        match self {
+            Self::Positive => T::one(),
+            Self::Negative => -T::one(),
+        }
+    }
+
+    /// The other side.
+    #[must_use]
+    pub fn flip(self) -> Self {
+        match self {
+            Self::Positive => Self::Negative,
+            Self::Negative => Self::Positive,
+        }
+    }
+}
+
+impl From<NonzeroSign> for Sign {
+    fn from(side: NonzeroSign) -> Self {
+        match side {
+            NonzeroSign::Positive => Self::Positive,
+            NonzeroSign::Negative => Self::Negative,
         }
     }
 }

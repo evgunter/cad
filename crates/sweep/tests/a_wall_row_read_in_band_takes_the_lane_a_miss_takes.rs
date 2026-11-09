@@ -118,12 +118,12 @@ fn a_seam_in_the_band_takes_its_general_image_at_interval() {
 /// moved `in_band()` along `z`, its rows' normal: every arc-rim candidate
 /// is undecided at the probe, so the rim is not shown on a row, and the
 /// lane choice ends as the wall's incidence read
-/// (`geom_brep::read_edge_incidence`), which is in band too: `Escalated`
-/// (`ChartIncidence`), its lever at every door, never a defect, for the
+/// (`geom_brep::read_edge_incidence`), which is in band too
+/// (`IncidenceRead::Undecided`), its lever at every door, never a defect, for the
 /// bottom rim, which the wall has left by the move. The top rim lies
 /// inside the moved wall, on its chart where no row holds it, and refuses
 /// "not yet". Moved a millimetre instead, the bottom rim's read is decided
-/// off and it ends `CarrierOffChart`, the defect ending of the door that
+/// off (`IncidenceRead::Off`), the defect ending of the door that
 /// reads it, and the top rim still refuses "not yet".
 fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
     let body = semicircle_prism::<T>();
@@ -167,24 +167,18 @@ fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
             );
             continue;
         }
-        let Err(
-            ref refused @ PcurveMintError::Certify {
-                error:
-                    ref error @ PcurveCertifyError::Escalated {
-                        check: geom_brep::PcurveCheck::ChartIncidence,
-                        ..
-                    },
-                ..
-            },
-        ) = got
-        else {
+        let Err(ref refused @ PcurveMintError::Certify { ref error, .. }) = got else {
             panic!(
                 "{h:?}: a rim in the band ends as its incidence read, at {}: {got:?}",
                 T::NAME
             )
         };
         let read = geom_brep::IncidenceRead::of(error).expect("an incidence refusal");
-        assert!(!read.is_definite(), "{h:?}: the read is in band");
+        assert!(
+            matches!(read, geom_brep::IncidenceRead::Undecided(_)),
+            "{h:?}: the read is in band, at {}: {read:?}",
+            T::NAME
+        );
         for at in [
             geom_brep::recourse::Reading::Build,
             geom_brep::recourse::Reading::AtRest,
@@ -197,17 +191,16 @@ fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
             );
         }
         let got = derived(&off, h);
+        let (carrier, _, wall) = edge_on_wall(&off, h);
+        assert!(
+            matches!(wall, geom::Surface::Nurbs(_)) && matches!(carrier, geom::Curve3::Circle(_)),
+            "{h:?}: the rim is a circle on the spline wall"
+        );
         assert!(
             matches!(
-                got,
-                Err(PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Nurbs,
-                        carrier: geom::CurveKind::Circle,
-                        ..
-                    },
-                    ..
-                })
+                &got,
+                Err(PcurveMintError::Certify { error, .. })
+                    if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
             ),
             "{h:?}: a rim its wall moved a millimetre from ends off the chart, at {}: {got:?}",
             T::NAME
