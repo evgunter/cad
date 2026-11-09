@@ -235,11 +235,11 @@ pub(crate) fn hull_of_covers<T: Real>(
 ///
 /// - **Plane**: the convex hull of its boundary (each edge's cover,
 ///   [`edge_cover`], and each isolated vertex).
-/// - **Cylinder**: the boundary's convex hull. The carrier is ruled
-///   along its axis, so the ruling through any point of the face leaves
-///   it at the boundary both ways; that needs only that the axis be a
-///   direction. (The slab of the radius over the boundary's axial
-///   window holds that hull already, so it would tighten no bound.)
+/// - **Cylinder**: the boundary's convex hull, met with the carrier's
+///   wall over the heights the hull spans ([`Cover::wall`]), which holds
+///   the face's level about its axis. The carrier is ruled along its
+///   axis, so the ruling through any point of the face leaves it at the
+///   boundary both ways; that needs only that the axis be a direction.
 /// - **Cone**: the convex hull of the boundary and, where the face may
 ///   hold the apex, the apex: the rulings run through it. A face holds
 ///   the apex only where a loop winds round the axis
@@ -314,11 +314,22 @@ fn face_cover_in<T: Decide>(
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
     match surface {
         Surface::Plane { .. } => and_trim(carrier, boundary_cover(body, f).map(Cover::convex)),
-        Surface::Cylinder { axis, .. } => {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => {
             if !crate::validate::is_direction(axis) {
                 return carrier;
             }
-            and_trim(carrier, boundary_cover(body, f).map(Cover::convex))
+            let frame = geom::Frame::new(*origin, *axis, *u_ref);
+            let hull = boundary_cover(body, f).map(Cover::convex);
+            let wall = hull
+                .as_ref()
+                .ok()
+                .and_then(|h| Cover::wall(&frame, *radius, h));
+            and_proven(and_trim(carrier, hull), wall)
         }
         Surface::Cone { apex, .. } => {
             let Some(at_apex) = Cover::points(vec![*apex]) else {

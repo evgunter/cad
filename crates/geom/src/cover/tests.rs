@@ -66,8 +66,7 @@ fn across(axis: Vec3<f64>, rng: &mut Rng) -> Vec3<f64> {
     }
 }
 
-/// The solid ball about `c` of radius `|r|`: a sphere's whole cover, the
-/// tube with no spine.
+/// The solid ball about `c` of radius `|r|`: the tube with no spine.
 fn ball<T: Real>(c: Point3<T>, r: T) -> Cover<T> {
     Cover::tube(&Frame::new(c, Vec3::unit_z(), Vec3::unit_x()), T::zero(), r).unwrap()
 }
@@ -1706,6 +1705,68 @@ fn a_tube_reads_its_core_at_its_minor_radius() {
     assert!(
         (near - 1.0).abs() < 1e-15 && (far - 5.0f64.sqrt()).abs() < 1e-15,
         "two points: {near}, {far}"
+    );
+}
+
+/// **A carrier's surface reads its level about its own site, and keeps
+/// it only through a meet**: a cylinder's wall of radius 0.8 about its
+/// axis, a sphere's of radius 0.7 about its centre, a torus's of minor
+/// radius 0.5 about its core, each exact on a unit orthogonal frame. A
+/// meet with a trim that holds the surface keeps the level; a hull with
+/// a point inside, and a convex hull, report none and read from below
+/// it. Red where a shell is read as its solid (every least is zero), or
+/// a hull or a convex hull keeps a level its region does not lie at.
+#[test]
+fn a_carriers_surface_reads_its_level_about_its_own_site() {
+    let frame = Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x());
+    let within = Cover::segment(Point3::new(1.0, 2.0, 2.0), Point3::new(1.0, 2.0, 5.0)).unwrap();
+    let wall = Cover::wall(&frame, -0.8, &within).unwrap();
+    let sphere = Cover::sphere(&frame, -0.7).unwrap();
+    let torus = Cover::torus(&frame, 2.0, 0.5).unwrap();
+    let trim = ball(frame.origin, 10.0);
+    let on_core = Point3::new(3.0, 2.0, 3.0);
+    for (name, shell, level, inside) in [
+        ("wall", wall, 0.8, frame.origin),
+        ("sphere", sphere, 0.7, frame.origin),
+        ("torus", torus, 0.5, on_core),
+    ] {
+        let site = shell
+            .level()
+            .unwrap_or_else(|| panic!("the {name} lies at a level"));
+        assert_eq!(shell.range_about(&site), (level, level), "the {name}");
+        let met = trim.clone().meet(shell.clone());
+        assert_eq!(
+            met.range_about(&site),
+            (level, level),
+            "the {name} met with a trim"
+        );
+        let inside = Cover::points(vec![inside]).unwrap();
+        let hull = shell.clone().hull(inside);
+        assert!(hull.level().is_none(), "the {name}'s hull reports no level");
+        assert!(
+            hull.range_about(&site).0 < level,
+            "the {name}'s hull reads below it"
+        );
+        let convex = shell.clone().convex();
+        assert!(
+            convex.level().is_none(),
+            "the {name}'s convex hull reports no level"
+        );
+        assert!(
+            convex.range_about(&site).0 < level,
+            "the {name}'s convex hull reads below it"
+        );
+    }
+    assert!(
+        Cover::tube(&frame, 2.0, 0.5).unwrap().level().is_none(),
+        "a solid tube lies at no level"
+    );
+    let spindle = Cover::torus(&frame, 0.4, 0.5).unwrap();
+    let site = spindle.level().expect("a spindle reports its core");
+    assert_eq!(
+        spindle.range_about(&site).0,
+        0.0,
+        "a spindle comes nearer its core"
     );
 }
 
