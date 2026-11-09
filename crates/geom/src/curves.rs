@@ -465,21 +465,56 @@ pub enum SpiricRegime {
 }
 
 /// **The site names one reader of [`spiric_regime`] decides under**, so a
-/// refusal and its `k_stats` stream name the reading that met them.
+/// refusal and its `k_stats` stream name the reading that met them:
+/// three distinct names, one per margin ([`SpiricRegimeSites::new`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SpiricRegimeSites {
-    /// The offset off zero.
-    pub off_axis: &'static str,
-    /// The two-oval margin's far and floor rows (`decide_across`).
-    pub two_ovals: [&'static str; 2],
+    off_axis: &'static str,
+    two_ovals: [&'static str; 2],
 }
 
 impl SpiricRegimeSites {
     /// [`Curve3::spiric`]'s own rows.
-    pub const MINT: Self = Self {
-        off_axis: "spiric_off_axis",
-        two_ovals: ["spiric_two_ovals", "spiric_two_ovals_floor"],
-    };
+    pub const MINT: Self = Self::new(
+        "spiric_off_axis",
+        "spiric_two_ovals",
+        "spiric_two_ovals_floor",
+    );
+
+    /// The rows for the offset off zero (`off_axis`) and the two-oval
+    /// margin's far and floor rows ([`geom_core::k_stats::decide_across`]).
+    ///
+    /// # Panics
+    ///
+    /// Where two of the names are equal: each names its own margin. In a
+    /// `const` item the panic is a compile error.
+    #[must_use]
+    pub const fn new(off_axis: &'static str, far: &'static str, floor: &'static str) -> Self {
+        assert!(
+            !str_eq(off_axis, far) && !str_eq(off_axis, floor) && !str_eq(far, floor),
+            "a spiric regime's three rows need three names"
+        );
+        Self {
+            off_axis,
+            two_ovals: [far, floor],
+        }
+    }
+}
+
+/// `a == b`, in a `const` context.
+const fn str_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut k = 0;
+    while k < a.len() {
+        if a[k] != b[k] {
+            return false;
+        }
+        k += 1;
+    }
+    true
 }
 
 /// **Whether an axis-parallel plane at signed stand-off `offset` from
@@ -1253,9 +1288,11 @@ impl<T: Decide> Curve3<T> {
 }
 
 impl<T: Real> Curve3<T> {
-    /// A [`Curve3::Spiric`]'s torus, decided a ring at its mint
-    /// ([`Curve3::spiric`], the kind's one deciding door, D3); `None` for
-    /// every other kind.
+    /// A [`Curve3::Spiric`]'s torus; `None` for every other kind. It
+    /// rests on a premise, not a decision: that the spiric's data came
+    /// from its mint ([`Curve3::spiric`], the kind's one deciding door,
+    /// D3), which decided this torus a ring. A spiric spelled as a
+    /// literal past the mint carries no such verdict.
     #[must_use]
     pub fn spiric_torus(&self) -> Option<crate::RingTorus<T>> {
         match *self {
@@ -2416,10 +2453,8 @@ mod tests {
     #[test]
     fn spiric_regime_reads_its_margin_across_the_swing() {
         let ring = crate::RingTorus::decided(1.2, 0.225);
-        let sites = SpiricRegimeSites {
-            off_axis: "test_off_axis",
-            two_ovals: ["test_two_ovals", "test_two_ovals_floor"],
-        };
+        let sites =
+            SpiricRegimeSites::new("test_off_axis", "test_two_ovals", "test_two_ovals_floor");
         let at = |margin: f64| spiric_regime(ring, 0.975 - margin, 0.5, sites, band());
         assert_eq!(at(0.6), Ok(SpiricRegime::TwoOvals), "clear of the swing");
         assert_eq!(
@@ -2440,6 +2475,15 @@ mod tests {
         );
         let poison = spiric_regime(ring, f64::NAN, 0.0, sites, band()).expect_err("poison");
         assert_eq!(poison.predicate, Some("test_off_axis"), "{poison:?}");
+    }
+
+    /// **A reader's three regime rows need three names**: one name on
+    /// two margins would merge them in the `k_stats` stream.
+    #[test]
+    #[should_panic(expected = "three rows need three names")]
+    fn spiric_regime_sites_refuse_a_shared_name() {
+        let shared = std::hint::black_box("shared");
+        let _ = SpiricRegimeSites::new(shared, shared, "floor");
     }
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {

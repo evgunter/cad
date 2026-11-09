@@ -1525,10 +1525,11 @@ fn clears_plane<T: Decide>(
 
 /// The rows [`spiric_on_curved`] reads a spiric's regime under
 /// ([`geom::spiric_regime`]): its offset off zero, and short of `R − r`.
-const RIDER_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricRegimeSites {
-    off_axis: "bool_rider_spiric_regime",
-    two_ovals: ["bool_rider_spiric_regime", "bool_rider_spiric_regime_floor"],
-};
+const RIDER_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricRegimeSites::new(
+    "bool_rider_spiric_off_axis",
+    "bool_rider_spiric_regime",
+    "bool_rider_spiric_regime_floor",
+);
 
 /// **Where spiric `carrier`, over `(t0, t1)`, lies against sphere,
 /// cylinder, cone or ring torus `surface`**: off it along every piece
@@ -3565,11 +3566,22 @@ mod spiric_quadric_rows {
     }
 
     /// **The mint, the plane × torus section and the rider read one
-    /// regime** ([`geom::spiric_regime`]): at each offset of an
-    /// axis-parallel plane through the torus about `z` (`R = 2`, `r = 1`),
-    /// the mint builds the oval exactly where the section serves two
-    /// ovals and the rider reads the oval off a ball about its `v = 0`
-    /// point. Red on any reader moving its boundary off the others'.
+    /// regime** ([`geom::spiric_regime`]), each under its own rows. At
+    /// offsets of a plane through the torus about `z` (`R = 2`, `r = 1`)
+    /// clear of the regime's boundary, or within a zero band of it, the
+    /// mint builds the oval exactly where the section serves two ovals
+    /// and the rider reads the oval off a ball about its `v = 0` point;
+    /// the section agrees again with its plane tilted off the axis by a
+    /// tenth of a zero band, read as the swing beside the margin. Where
+    /// the margin sits in the escalation sliver, each escalates, the mint
+    /// and the section on their own far row. Red on a reader whose
+    /// boundary sits inside the others' (a mint or rider admitting what
+    /// the section refuses). A section looser than the mint would still
+    /// pass here, since it mints through the mint: its own outer boundary
+    /// is pinned in `geom_brep`'s `intersect_table`
+    /// (`plane_torus_tilted_and_offset_route_to_rung_3`) and
+    /// `axis_rows_read_as_one_sum`
+    /// (`plane_torus_axis_in_plane_reads_each_row_as_it_moves`).
     #[test]
     fn the_mint_the_section_and_the_rider_read_one_regime() {
         let eps = Tol::witness().eps();
@@ -3580,17 +3592,8 @@ mod spiric_quadric_rows {
             minor_radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        for offset in [
-            0.0,
-            eps * 1e-3,
-            0.5,
-            -0.5,
-            1.0 - 1e-3,
-            1.0,
-            1.0 - eps * 1e-3,
-            1.5,
-        ] {
-            let mint = geom::Curve3::spiric(
+        let mint = |offset: f64| {
+            geom::Curve3::spiric(
                 Point3::origin(),
                 Vec3::unit_z(),
                 Vec3::unit_x(),
@@ -3598,21 +3601,21 @@ mod spiric_quadric_rows {
                 1.0,
                 offset,
                 band(),
-            );
+            )
+        };
+        let lever = geom_brep::ExtentBall::of_torus(Point3::origin(), 2.0, 1.0).lever();
+        let section = |offset: f64, tilt: f64| {
             let plane = geom::Surface::Plane {
                 origin: Point3::new(offset, 0.0, 0.0),
-                normal: Vec3::unit_x(),
+                normal: Vec3::new(tilt.cos(), 0.0, tilt.sin()),
                 u_ref: Vec3::unit_y(),
             };
-            let section = geom_brep::plane_torus_section(
-                &plane,
-                &torus,
-                geom_brep::ExtentBall::of_torus(Point3::origin(), 2.0, 1.0).lever(),
-                band(),
-            );
+            geom_brep::plane_torus_section(&plane, &torus, lever, band())
+        };
+        let rider = |offset: f64, on_carrier: bool| {
             let s = spiric(offset);
             // Out of the regime the carrier has no points to centre on.
-            let center = if mint.is_ok() {
+            let center = if on_carrier {
                 s.eval(0.0)
             } else {
                 Point3::origin()
@@ -3623,22 +3626,53 @@ mod spiric_quadric_rows {
                 u_ref: Vec3::unit_x(),
                 axis: Vec3::unit_z(),
             };
-            let rider = conic_or_line_on(&s, (-0.5, 0.5), &ball, band()).unwrap();
-            let two = mint.is_ok();
+            conic_or_line_on(&s, (-0.5, 0.5), &ball, band())
+        };
+        // A tenth of a zero band at the torus's reach, `R + r = 3`.
+        let tilt = 0.1 * band().zero() / 3.0;
+        for offset in [
+            0.0,
+            eps * 1e-3,
+            0.5,
+            -0.5,
+            1.0 - 1e-3,
+            1.0,
+            1.0 - eps * 1e-3,
+            1.5,
+        ] {
+            let two = mint(offset).is_ok();
+            for tilt in [0.0, tilt] {
+                let got = section(offset, tilt);
+                assert_eq!(
+                    matches!(got, Ok(geom_brep::PlaneTorusSection::SpiricOvals { .. })),
+                    two,
+                    "offset {offset:e}, tilt {tilt:e}: the section against the mint ({got:?})"
+                );
+            }
+            let read = rider(offset, two).unwrap();
             assert_eq!(
-                matches!(
-                    section,
-                    Ok(geom_brep::PlaneTorusSection::SpiricOvals { .. })
-                ),
+                read == Placed::Off,
                 two,
-                "offset {offset:e}: the section against the mint ({section:?})"
-            );
-            assert_eq!(
-                rider == Placed::Off,
-                two,
-                "offset {offset:e}: the rider against the mint ({rider:?})"
+                "offset {offset:e}: the rider against the mint ({read:?})"
             );
         }
+        let sliver = 1.0 - 0.5 * (band().zero() + band().escalate());
+        assert!(
+            matches!(mint(sliver), Err(geom::SpiricInvalid::Escalated(d))
+                if d.predicate == Some("spiric_two_ovals")),
+            "in the sliver the mint escalates on its own row: {:?}",
+            mint(sliver)
+        );
+        assert!(
+            matches!(section(sliver, 0.0), Err(geom_brep::SectionError::Escalated(d))
+                if d.predicate == Some("pt_spiric_two_ovals")),
+            "in the sliver the section escalates on its own row: {:?}",
+            section(sliver, 0.0)
+        );
+        assert!(
+            rider(sliver, false).is_err(),
+            "in the sliver the rider escalates"
+        );
     }
 
     /// **A spiric hugging a cylinder within the band over its whole span

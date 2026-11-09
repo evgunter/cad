@@ -146,22 +146,15 @@ impl TorusRefusal {
         minor: T,
         band: Band,
     ) -> Result<geom::RingTorus<T>, Self> {
-        let half = |convention, decided: Result<Decided, Indeterminate>| match decided {
-            Err(diag) => Err(Self {
-                convention,
-                verdict: TorusVerdict::Undecided(diag),
-            }),
-            Ok(decided) => Refused::of(decided, band).map_or(Ok(decided), |refused| {
-                Err(Self {
-                    convention,
-                    verdict: TorusVerdict::Refused(refused),
-                })
-            }),
-        };
-        let tube = half(TorusConvention::Tube, geom::torus_tube(minor, band))?;
-        let ring = half(TorusConvention::Ring, geom::ring_torus(major, minor, band))?;
-        Ok(geom::RingTorus::of_halves((major, minor), tube, ring)
-            .unwrap_or_else(|| unreachable!("both halves read Positive above")))
+        geom::RingTorus::of(major, minor, band).map_err(|not| {
+            let (convention, verdict) = match not {
+                geom::NotARing::Tube(verdict) => (TorusConvention::Tube, verdict),
+                geom::NotARing::Ring(verdict) => (TorusConvention::Ring, verdict),
+            };
+            Self::of(convention, verdict, band).unwrap_or_else(|| {
+                unreachable!("`RingTorus::of` refuses only a half that did not read Positive")
+            })
+        })
     }
 }
 

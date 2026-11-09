@@ -194,9 +194,10 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, bracket_mid,
 };
 pub use surfaces::{
-    AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate,
-    PLACEHOLDER_SURFACE, RingTorus, SheetApex, SpindleEnd, SpindleMiss, Surface, SurfaceData,
-    SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind, SurfacePairing,
-    SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, is_ring_torus,
-    meridian_side, require_ring_torus, ring_torus, sheet_apex, spindle_sheet, torus_tube,
+    AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
+    OffsetCertificate, PLACEHOLDER_SURFACE, RingTorus, SheetApex, SpindleEnd, SpindleMiss, Surface,
+    SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind,
+    SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
+    is_ring_torus, meridian_side, require_ring_torus, ring_torus, sheet_apex, spindle_sheet,
+    torus_tube,
 };
