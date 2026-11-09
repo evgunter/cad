@@ -507,3 +507,23 @@ Unparked:
 The lane survived a weekly usage-limit stop and a five-day gap: resumed, not restarted, with main merged twice. Its first merge dropped main's door bullets for three doors, which the inventory re-homing caught and restored. Class note: a large merge can silently drop the other side's prose, so read the merge's "missing from main's side" list.
 - 2026-11-08 — `cover-topo-faces` merged (PR 6579, `3b7794bb`). **Dispatched in parallel: `cover-levers` and `cover-app-readers`.** Both are single FULL review: neither changes the public cover type, and both move verdicts. They couple little (geom-brep, splitting and boolean ground against sweep and editor-core), and the disk holds two builds. `cover-carrier-level-piece` follows, then `cover-kind-match-gate`. Both lanes get one common brief (`~/.local/share/cad-work/boxes-cover-common-brief.md`, this box only) carrying the build's eight binding lessons. (BOXES orchestrator)
 - 2026-11-09 — A container restart stopped `cover-levers` and `cover-app-readers` mid-unit. Both clones survived: levers with three pushed commits and uncommitted work in nine files; app-readers clean, with PR 6588 open. Both lanes resumed, not restarted. The disk was at 2.2 GB free because app-readers' target had grown to 22 GB; deleting it freed the volume to 24 GB. (BOXES orchestrator)
+
+## 2026-11-09 — `cover-app-readers` (PR 6588) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Single FULL review of `c9cf149e`: APPROVE-WITH-FIXES, no MAJOR.
+
+Confirmed:
+- the line-site re-posing, exact in any frame (6000 cases at f64 and Interval, 0 failures);
+- dropping `sheet_clip`'s pad: it paid for a coaxial approximation, not a clearance tolerance;
+- `ρ_lo` sound;
+- the mate `Band`.
+
+Into the fix pass:
+- the aim and `ρ_lo`'s tightness have no red-capable row (two mutants survive the whole sweep ci set);
+- the aim's K decision logs on every face, so it is decided where used;
+- a zero-tolerance emptiness test granting clearance, to be read through a named decide;
+- `at_rest::beyond`'s plane/cylinder gate, whose stated reason this PR made false;
+- an overstated exactness claim in the PR body and a row note;
+- small docs.
+
+**Class instance:** the premise-excludes-the-failing-mode test (a pose row that skips the one kind the new code touches). The style lane's Q3 caught it.
