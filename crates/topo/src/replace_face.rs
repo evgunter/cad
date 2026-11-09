@@ -864,7 +864,8 @@ impl<T: Real> ReplaceFaceError<T> {
     ///
     /// # Errors
     ///
-    /// [`geom_brep::ladder::Aborts`] for every kind but `Escalated`.
+    /// [`geom_brep::ladder::Aborts`] for an invalid input, a kernel or
+    /// stored-data fault and a payload that mixes classes.
     pub(crate) const fn refusal(
         &self,
     ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
