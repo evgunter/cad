@@ -1885,7 +1885,7 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
         .map(|fd| {
             let (face, surface) = (fd.key(), fd.surface().clone());
             let cover = crate::cover::face_cover(body, face, band);
-            let bbox = boxes::face_box_of(&cover, pad);
+            let bbox = boxes::cover_box(cover.as_ref().ok(), pad);
             Ok(FaceRow {
                 face,
                 key: fd.record().surface,
