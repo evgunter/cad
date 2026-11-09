@@ -219,13 +219,16 @@ pub(crate) fn door_side<T: Decide>(
 /// `cycle` read against the cycles `cut` at each of its vertices in walk
 /// order (module docs): the ladder ([`climb`]) whose answer is the first
 /// vertex placed. Every vertex of a cycle reads the one side
-/// ([`Answering::Any`]; the vertex an `Off` names is its witness): a
-/// simple cycle that meets the cut only at points lies on one side
-/// (crossing once forces a second crossing), and a cycle switches lobes
-/// only at a vertex, which then lies on the cut (an agreeing ladder:
-/// `a-ladder-that-checks-its-answers-agree-has-no-home`; the residual,
-/// and a torus's essential cycles, unprobed:
-/// `not-crossed-means-one-side-at-a-pinch`). So a
+/// ([`Answering::Any`]; the vertex an `Off` names is its witness) where
+/// the cycle does not cross the cut: a cycle that only touches it, at a
+/// vertex it shares with a cycle of the cut (set aside), lies on one
+/// side (`chord_join::paths_rung`'s premise). Nothing joins here: the
+/// cycles are the face's own, so a crossing is the validator's to find.
+/// One inside two edges is the census's `EdgeEdgeCross`; one at a vertex
+/// the two cycles share reads as the first vertex placed says, and can
+/// pass a cycle off the face's side
+/// (`work/onecopy/one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex.md`).
+/// So a
 /// vertex read in band ahead of the answer is superseded. An unplaced
 /// vertex is exempt and passes, so a cycle no vertex places is exempt
 /// unless one read in band.

@@ -1351,13 +1351,10 @@ fn rehome<T: Decide>(
                 .collect(),
         };
         // The ladder ([`climb`]) whose answer is the first vertex placed:
-        // a ring the cut does not cross is on one side, so every vertex
-        // placed reads it alike ([`Answering::Any`]): a simple ring that
-        // meets the cut only at points lies on one side (crossing once
-        // forces a second crossing), and one that touches it at a vertex,
-        // where a ring switches lobes, was joined by the cut there (an
-        // agreeing ladder: `a-ladder-that-checks-its-answers-agree-has-no-home`;
-        // the residual: `not-crossed-means-one-side-at-a-pinch`). A vertex on the
+        // a ring the cut does not cross is on one side, and a touch
+        // switches no side, so every vertex placed reads it alike
+        // ([`Answering::Any`]; the premise and its residual, a vertex
+        // the cut did not identify: `chord_join::paths_rung`). A vertex on the
         // boundary passes; a limit and a vertex in band are kept, ranked,
         // and refuse only where no vertex places the ring.
         let placed = climb(Answering::Any, vertices, |v| {

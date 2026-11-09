@@ -4021,15 +4021,34 @@ impl<T: Decide> IslandReading<T> {
 /// **The premise**, which makes every side ladder [`Answering::Any`]:
 /// the decided readings agree. Every reading answers one question —
 /// which side of a curve a point lies on, the same whatever path or
-/// point reads it. For the winding's references and a ring's paths it
-/// holds by construction (each reads one point's side). For a ring's
-/// vertices it holds because the ring does not cross the curve it is
-/// read against: a ring crossing it would have decided vertices on both
-/// sides, and the walk would answer with the first. That is the premise
-/// `validate::ring_nesting` rests on, checked by check 9's contact arms
-/// on `Line` and `Circle` edges and assumed on `Ellipse`, `Spiric` and
-/// NURBS ones
-/// (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
+/// point reads it. For a ring's paths it holds by construction (each
+/// reads one point's side). For the points of a loop or the vertices of
+/// a ring or cycle — every ladder that reads a loop's side point by
+/// point cites this — it holds because the loop does not cross the
+/// curve it is read against:
+///
+/// - **A touch switches no side.** A simple loop that meets the curve
+///   only at touches that do not cross it lies on one side of it. A
+///   touch at a vertex the loop shares with the curve, or at a copy of
+///   one (a pinch, where the split's reduction keeps one vertex per
+///   piece), reads on the curve and passes, and every other point reads
+///   the one side.
+/// - **A crossing would read both sides**, and the walk would answer
+///   with the first. At rest that is excluded by the premise
+///   `validate::ring_nesting` rests on, checked by check 9's contact
+///   arms on `Line` and `Circle` edges and assumed on `Ellipse`,
+///   `Spiric` and NURBS ones
+///   (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
+///   Mid-operation it is excluded where the division identifies every
+///   vertex it passes through. A loop that touches or crosses the run at
+///   a vertex the division did not identify (fate's rehome,
+///   [`ChordJoiner`]'s `rehome_rings`; the split identifies every vertex
+///   within band) is the residual
+///   (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`). Its
+///   guard, the debug check on the `Any` ports that their answers agree
+///   (`work/onecopy/a-ladder-that-checks-its-answers-agree-has-no-home.md`),
+///   waits on `[ev]` PR 6592.
+///
 /// Under it, which decided reading is taken changes nothing.
 fn paths_rung<T: Decide, R>(
     quadric: &Quadric<T>,
@@ -4827,7 +4846,8 @@ impl RimSide {
                 .map_err(escalated)?;
                 // The first point read definitely off the plane decides,
                 // and any such point reads the one side (the loop does not
-                // cross its ring's plane); an escalation escalates only
+                // cross its ring's plane: [`paths_rung`]'s premise, the
+                // plane for the curve); an escalation escalates only
                 // where none does.
                 use geom_brep::ladder::{Answering, Climb, Rung, climb};
                 let points = loop_points(body, outer)?;
@@ -5446,12 +5466,8 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// the run. A vertex whose reading escalates says nothing either, and
 /// the next is asked; the first escalation escalates only where no
 /// vertex decides ([`climb`]). The vertices agree because the
-/// ring does not cross the run ([`paths_rung`]'s premise): a simple ring
-/// that meets the run only at points lies on one side (crossing once
-/// forces a second crossing), and one that touches it at a vertex, where
-/// a ring switches lobes, was joined by the division there (an agreeing
-/// ladder: `a-ladder-that-checks-its-answers-agree-has-no-home`; the
-/// residual: `not-crossed-means-one-side-at-a-pinch`).
+/// ring does not cross the run, and a touch switches no side
+/// ([`paths_rung`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
