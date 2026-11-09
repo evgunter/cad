@@ -132,7 +132,7 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use geom_brep::curve_pair::on_surface::SurfaceCurve;
+use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use super::region::{
     self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
@@ -161,6 +161,10 @@ const AIM_FRACTION: f64 = 1.0 - geom_core::GOLDEN_SECTION;
 /// the direction its loop traverses it.
 #[derive(Clone, Debug)]
 pub(crate) struct SphereFaceRegion<T: geom_core::Real> {
+    /// The face's surface record, its key and sphere: every leg is
+    /// charted on it and every edge keyed by it. The centre and radius
+    /// below are read off it ([`Self::on`]).
+    charted: Charted<T>,
     center: Point3<T>,
     radius: T,
     /// The face's sense bit: `false` points its outward normal at the
@@ -184,15 +188,15 @@ fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
     t.normalize()
 }
 
-/// `face`'s region on its sphere `(center, radius)`, or `None` when an
+/// `face`'s region on its own sphere, or `None` when an
 /// edge of it is not a circle arc — a spline or spiric carrier, whose
 /// crossings with a great circle have no closed form here, or an edge
 /// with no certified carrier at all.
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a key that does not resolve or
-/// an outer loop with no cycle.
+/// [`PointInSolidError::CorruptFace`] for a key that does not resolve, a
+/// surface that is not a sphere, or an outer loop with no cycle.
 ///
 /// # Panics
 ///
@@ -203,8 +207,6 @@ fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
 pub(crate) fn sphere_face_region<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    center: Point3<T>,
-    radius: T,
 ) -> Result<Option<SphereFaceRegion<T>>, PointInSolidError> {
     let f = body
         .get_face(face)
@@ -213,16 +215,45 @@ pub(crate) fn sphere_face_region<T: Decide>(
     let Some(edges) = region::boundary(body, face, Scaffolding::Refused, &circles)? else {
         return Ok(None);
     };
-    Ok(Some(SphereFaceRegion {
-        center,
-        radius,
-        sense: f.sense,
-        outer: f.outer,
+    // Read after the boundary, so a torn curve panics whatever the face's
+    // surface.
+    let surface = body.proven_face(face).surface();
+    let geom::Surface::Sphere { .. } = surface else {
+        return Err(PointInSolidError::CorruptFace { face });
+    };
+    // The sphere in a frame of the door's own, `z` and `x`: a foot's
+    // reading depends on no frame, and this one keeps the chart's poles
+    // where the door's rows were measured.
+    let (zero, one) = (T::zero(), T::one());
+    Ok(Some(SphereFaceRegion::on(
+        Charted::record(f.surface, surface)
+            .framed(Vec3::new(zero, zero, one), Vec3::new(one, zero, zero)),
+        f.sense,
+        f.outer,
         edges,
-    }))
+    )))
 }
 
 impl<T: Decide> SphereFaceRegion<T> {
+    /// The region on `charted`'s sphere bounded by `edges`.
+    ///
+    /// # Panics
+    ///
+    /// Where `charted` is not a sphere: the caller reads the record first.
+    fn on(charted: Charted<T>, sense: bool, outer: LoopKey, edges: Vec<Arc<T>>) -> Self {
+        let &geom::Surface::Sphere { center, radius, .. } = charted.surface() else {
+            unreachable!("a sphere region is built on a sphere record")
+        };
+        Self {
+            charted,
+            center,
+            radius,
+            sense,
+            outer,
+            edges,
+        }
+    }
+
     /// Is `p`, a point on the sphere, in the face: `Some(true)` inside,
     /// `Some(false)` outside, `None` on its boundary (module docs).
     ///
@@ -234,7 +265,7 @@ impl<T: Decide> SphereFaceRegion<T> {
         if self.edges.is_empty() {
             return Ok(Some(true));
         }
-        let foot = QueryFoot::read(&self.surface(), p, band);
+        let foot = QueryFoot::read(self.charted.surface(), p, band);
         if self.on_boundary(foot.at(), band)? {
             return Ok(None);
         }
@@ -341,7 +372,7 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, foot: QueryFoot<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        let curve = SurfaceCurve::great_circle(&self.surface(), foot.uv(), t);
+        let curve = SurfaceCurve::great_circle(&self.charted, foot.uv(), t);
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -426,9 +457,8 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         };
         // The parallel about `a` through the corner, starting along
         // `side`; the corner is a foot of its own, read on the sphere.
-        let surface = Legs::surface(self);
-        let corner = QueryFoot::read(&surface, corner, band);
-        let curve = SurfaceCurve::about(&surface, p.uv(), corner.uv(), then_forward);
+        let corner = QueryFoot::read(self.charted.surface(), corner, band);
+        let curve = SurfaceCurve::about(&self.charted, p.uv(), corner.uv(), then_forward);
         let then = move || Leg::whole(Round::on(region::built(curve)));
         Ok((first, end, then))
     }
@@ -473,16 +503,8 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         self.radius
     }
 
-    /// The sphere as a surface, in a frame of its own: a foot's reading
-    /// depends on no frame.
-    fn surface(&self) -> geom::Surface<T> {
-        let (zero, one) = (T::zero(), T::one());
-        geom::Surface::Sphere {
-            center: self.center,
-            radius: self.radius,
-            axis: Vec3::new(zero, zero, one),
-            u_ref: Vec3::new(one, zero, zero),
-        }
+    fn charted(&self) -> &Charted<T> {
+        &self.charted
     }
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
@@ -498,16 +520,30 @@ mod tests {
     use crate::entity::EdgeKey;
     use slotmap::KeyData;
 
+    /// The sphere `(center, radius)` charted about `z`, its seam at `x`,
+    /// under the fixtures' one record.
+    fn fixture_sphere<T: Decide>(center: Point3<T>, radius: T) -> Charted<T> {
+        let (zero, one) = (T::zero(), T::one());
+        Charted::record(
+            Default::default(),
+            &geom::Surface::Sphere {
+                center,
+                radius,
+                axis: Vec3::new(zero, zero, one),
+                u_ref: Vec3::new(one, zero, zero),
+            },
+        )
+    }
+
     /// The unit sphere's face on one side of the circle at polar angle
     /// 60°, one arc round the whole turn: the cap above it run
     /// `forward`, the rest of the sphere otherwise.
     fn carved(forward: bool) -> SphereFaceRegion<f64> {
-        SphereFaceRegion {
-            center: Point3::origin(),
-            radius: 1.0,
-            sense: true,
-            outer: LoopKey::default(),
-            edges: vec![RegionEdge {
+        SphereFaceRegion::on(
+            fixture_sphere(Point3::origin(), 1.0),
+            true,
+            LoopKey::default(),
+            vec![RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(1)),
                 r#loop: LoopKey::default(),
                 cycle: 0,
@@ -522,7 +558,7 @@ mod tests {
                 turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::TAU),
                 forward,
             }],
-        }
+        )
     }
 
     /// The point at polar angle `polar` and azimuth `az` on the unit sphere.
@@ -592,16 +628,15 @@ mod tests {
             turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::PI),
             forward,
         };
-        SphereFaceRegion {
-            center: Point3::origin(),
-            radius: 1.0,
-            sense: true,
-            outer: LoopKey::default(),
-            edges: vec![
+        SphereFaceRegion::on(
+            fixture_sphere(Point3::origin(), 1.0),
+            true,
+            LoopKey::default(),
+            vec![
                 meridian(0.0, true, 1),
                 meridian(core::f64::consts::FRAC_PI_2, false, 2),
             ],
-        }
+        )
     }
 
     /// An arc of the unit sphere's circle at polar angle `theta` about
@@ -648,13 +683,12 @@ mod tests {
 
     /// A unit-sphere face of `sense` bounded by `edges`.
     fn face(sense: bool, edges: Vec<RegionEdge<f64>>) -> SphereFaceRegion<f64> {
-        SphereFaceRegion {
-            center: Point3::origin(),
-            radius: 1.0,
+        SphereFaceRegion::on(
+            fixture_sphere(Point3::origin(), 1.0),
             sense,
-            outer: LoopKey::default(),
+            LoopKey::default(),
             edges,
-        }
+        )
     }
 
     /// **The aim lands in the face**, on the sphere, for both senses:
@@ -811,17 +845,13 @@ mod tests {
         };
         let (body, face) = sheet();
         assert!(
-            sphere_face_region(&body, face, Point3::origin(), 1.0)
-                .unwrap()
-                .is_some(),
+            sphere_face_region(&body, face).unwrap().is_some(),
             "the zone's region"
         );
         let (mut nulled, nulled_face) = sheet();
         super::region::with_null_edge(&mut nulled, nulled_face);
         assert!(
-            sphere_face_region(&nulled, nulled_face, Point3::origin(), 1.0)
-                .unwrap()
-                .is_none(),
+            sphere_face_region(&nulled, nulled_face).unwrap().is_none(),
             "a null edge refuses"
         );
     }
@@ -1031,17 +1061,16 @@ mod tests {
             lift(1f64.sin()),
             v(0.0, -1.0, 0.0),
         );
-        SphereFaceRegion {
-            center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
-            radius: lift(1.0),
-            sense: true,
-            outer: LoopKey::default(),
-            edges: vec![
+        SphereFaceRegion::on(
+            fixture_sphere(Point3::new(lift(0.0), lift(0.0), lift(0.0)), lift(1.0)),
+            true,
+            LoopKey::default(),
+            vec![
                 edge(meridian(pi), (1.0, pi), true, 1),
                 edge(parallel, (0.0, pi / 2.0), true, 2),
                 edge(meridian(1.5 * pi), (1.0, pi), false, 3),
             ],
-        }
+        )
     }
 
     /// **The door settles a pole at the certified scalar.** Every great
@@ -1104,7 +1133,7 @@ mod tests {
                 let toward = Vec3::new(lift(az.cos()), lift(az.sin()), lift(0.0));
                 let at_pole = Point3::origin() + pole * region.radius;
                 let leg = region.ray(
-                    QueryFoot::read(&Legs::surface(&region), at_pole, band),
+                    QueryFoot::read(Legs::charted(&region).surface(), at_pole, band),
                     toward,
                 );
                 let got = region::landings(&region, &region.edges[1], &leg, band);
@@ -1247,8 +1276,11 @@ mod tests {
                                     first_forward,
                                     then_forward,
                                 };
-                                let foot =
-                                    region::QueryFoot::read(&Legs::surface(&region), p, band);
+                                let foot = region::QueryFoot::read(
+                                    Legs::charted(&region).surface(),
+                                    p,
+                                    band,
+                                );
                                 if let Ok(got) = region::read_path(&region, foot, path, band) {
                                     settled += 1;
                                     assert_eq!(
@@ -1346,13 +1378,12 @@ mod tests {
                     }
                 })
                 .collect();
-            SphereFaceRegion {
-                center: p3(c),
-                radius: l(r),
+            SphereFaceRegion::on(
+                fixture_sphere(p3(c), l(r)),
                 sense,
-                outer: LoopKey::default(),
+                LoopKey::default(),
                 edges,
-            }
+            )
         }
 
         pub(super) fn sph(polar: f64, az: f64) -> V {
