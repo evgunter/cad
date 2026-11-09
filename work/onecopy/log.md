@@ -765,3 +765,4 @@
   - B conceded A's item 3 (whole-edge Near) as a P0 engine defect, and offered Ev three states on K<2.
   - Round 3 asks B to trace A's torus-waist case (analytic faces only), and asks A about the three-state K framing and its closed-form residual.
 - 08:12Z bracket-mid: (a) has two named forms, each with its reason. bracket_mid keeps projection's NaN exit at an infinite bracket.
+- 08:15Z Branch-band: A's round 3 is in. A converges: the gate is the home, two P0 defects, a named residual, K's floor goes to Ev (A leans to raising it to 2). B's round-2 addendum holds that by_kind on a trimmed analytic face is correct. The torus waist (round 3) remains the one open point.
