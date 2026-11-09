@@ -380,7 +380,9 @@ impl<A, E> Rung<Result<A, E>, E> {
         reading: Result<Option<A>, E>,
         standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
     ) -> Self {
-        Self::of_option(reading.map(|a| a.map(Ok)), |e| Self::refused(e, standing, Err))
+        Self::of_option(reading.map(|a| a.map(Ok)), |e| {
+            Self::refused(e, standing, Err)
+        })
     }
 }
 
