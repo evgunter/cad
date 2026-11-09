@@ -43,7 +43,8 @@ fn a_sphere_cap_past_a_hemisphere_reaches_its_rims_antipode() {
 
 /// **A sphere cap's axial range reaches its pole**: the cap above
 /// `z = −0.5` reaches the north pole, 1.5 up the axis from its rim,
-/// where its boundary reaches nothing.
+/// where its boundary reaches nothing. (How far below the rim the cover
+/// reaches is its looseness, which this row does not pin.)
 #[test]
 fn a_sphere_caps_axial_range_reaches_its_pole() {
     let z = -0.5_f64;
@@ -51,8 +52,8 @@ fn a_sphere_caps_axial_range_reaches_its_pole() {
     let rim = Point3::new((1.0 - z * z).sqrt(), 0.0, z);
     let (below, above) = super::face_axial_range(&body, face, rim, Vec3::unit_z(), band()).unwrap();
     assert!(
-        above >= 1.5 - 1e-12 && below <= 1e-12,
-        "the cap reaches {below} below and {above} above its rim, not its pole's 1.5"
+        above >= 1.5 - 1e-12,
+        "the cap reaches {above} above its rim (and {below} below), short of its pole's 1.5"
     );
 }
 

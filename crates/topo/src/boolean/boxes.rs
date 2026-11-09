@@ -1594,7 +1594,7 @@ pub(crate) mod tests {
         // `boolean/carrier_touch_rows.rs`' one: a spiric-edge witness
         // calls `edge_box` to show its ball lies inside the edge's box,
         // so that only the edge's own floor can clear it.
-        const PINNED: [(&str, usize); 27] = [
+        const PINNED: [(&str, usize); 28] = [
             ("boolean/carrier_pair.rs", 1),
             ("boolean/carrier_touch.rs", 1),
             ("boolean/carrier_touch_rows.rs", 1),
@@ -1612,6 +1612,7 @@ pub(crate) mod tests {
             ("census/in_plane.rs", 1),
             ("chart_region.rs", 1),
             ("chord_join.rs", 6),
+            ("cover_reach_rows.rs", 6),
             ("face_boxes.rs", 1),
             ("link.rs", 1),
             ("pieces.rs", 1),
