@@ -13,13 +13,12 @@
 # solid_contain: ray_crossings's denominator, a crossing count, which
 # needs every face (point_in_faces's on-face reads climb).
 crates/topo/src/boolean/solid_contain.rs 1
-# rim_wedge: departures's abut (either pair abutting answers) and rides
-# (either end off the line answers "not"), hand-rolled; sort_params, a
-# sort, needs every comparison; reach reads every arc's traversal.
-crates/topo/src/boolean/rim_wedge.rs 4
-# containment: certify_plane (any margin decided apart answers "off the
-# plane"), hand-rolled; conic_crossings, a crossing count, needs both roots.
-crates/topo/src/splitting/containment.rs 2
+# rim_wedge: sort_params, a sort, needs every comparison; reach reads
+# every arc's traversal. (departures's abut and rides climb.)
+crates/topo/src/boolean/rim_wedge.rs 2
+# containment: conic_crossings, a crossing count, needs both roots.
+# (certify_plane reads its data as one identity.)
+crates/topo/src/splitting/containment.rs 1
 # sectors: the crescent search's two reads (a crescent found answers),
 # hand-rolled.
 crates/topo/src/boolean/sectors.rs 2
@@ -29,9 +28,6 @@ crates/topo/src/splitting/join.rs 1
 # shell: the moved walls' overlap search (an overlap found answers),
 # hand-rolled.
 crates/topo/src/shell.rs 1
-# surface_group: Rim::holds (any coaxial margin decided apart answers "no"),
-# hand-rolled.
-crates/topo/src/boolean/surface_group.rs 1
 # reduce: the line-cone apex end search (an end at the apex answers),
 # hand-rolled.
 crates/topo/src/boolean/reduce.rs 1
@@ -42,9 +38,6 @@ crates/topo/src/ring_path.rs 1
 # leaves the minimum open unless a later candidate is decided nearer than
 # both; listed with the hand-rolled sites for that argument.
 crates/topo/src/offset_derive.rs 1
-# loft stacking: rim_pinned (any pair decided apart answers "not pinned"),
-# hand-rolled.
-crates/sweep/src/loft/stacking.rs 1
 # edge_join: joinable's chart-class read over the two surfaces (which
 # surface's chart class decides is the answer: First), hand-rolled.
 crates/topo/src/boolean/edge_join.rs 1

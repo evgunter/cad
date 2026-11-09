@@ -382,14 +382,18 @@ pub(crate) fn departures<T: Decide>(
         // traversals there compare the two banks locally.
         for &(alo, ahi, sa) in &ra.rides {
             for &(blo, bhi, sb) in &rb.rides {
-                let mut abut = false;
-                for (x, y) in [(ahi, blo), (alo, bhi)] {
+                // Either pair of ends at one point abuts ([`climb`],
+                // [`Answering::Any`]: every end pair decided at one point
+                // says the same "abut"), so one read in band refuses only
+                // where the other is not decided at one point.
+                let abut = climb(Answering::Any, [(ahi, blo), (alo, bhi)], |(x, y)| {
                     let gap = (locus_point(locus, x) - locus_point(locus, y)).norm();
-                    abut |= matches!(
-                        crate::validate::decide("seam_cover_abut", Margin::of(gap), band)?,
-                        geom_core::Sign::Zero
-                    );
-                }
+                    Rung::decide("seam_cover_abut", Margin::of(gap), band, |d| {
+                        (d.sign == geom_core::Sign::Zero).then_some(())
+                    })
+                })
+                .into_reading()?
+                .is_some();
                 if abut {
                     touched = true;
                     if sa == sb {
@@ -928,17 +932,19 @@ fn rides<T: Decide>(
             band,
         )
         .map(|one| one.is_some()),
+        // Both ends on the line, an identity: either end decided off it
+        // answers "not riding", whatever the other read
+        // ([`read_identity`]).
         (Locus::Line(line), geom::Curve3::Line(_)) => {
             let (t0, t1) = curve.params();
-            for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {
-                let off = line.distance(p);
-                if crate::validate::decide("seam_line_collinear", Margin::of(off), band)?
-                    != geom_core::Sign::Zero
-                {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
+            read_identity(
+                [t0, t1].map(|t| {
+                    let off = line.distance(curve.carrier().eval(t));
+                    ("seam_line_collinear", Margin::of(off))
+                }),
+                band,
+            )
+            .holds()
         }
         _ => Ok(false),
     }

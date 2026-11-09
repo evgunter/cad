@@ -222,6 +222,7 @@ use std::sync::Arc;
 
 use geom::SurfaceKind;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfacePair};
 use geom_core::k_stats::decide;
 use geom_core::{
@@ -3125,12 +3126,20 @@ fn carried_alike<T: Decide>(
         return Ok(None);
     };
     let tm = (t0 + t1) * T::from_f64(0.5);
-    for t in [t0, tm, t1] {
-        if !gap_within_eps(on_a.0.eval(t).distance(on_b.eval(t)), tol, band)? {
-            return Ok(None);
-        }
+    // Alike at every sample: any sample decided past ε answers "not
+    // alike", whatever an earlier sample read ([`climb`],
+    // [`Answering::Any`]), as [`gap_within_eps`] reads each.
+    let apart = climb(Answering::Any, [t0, tm, t1], |t| {
+        let gap = on_a.0.eval(t).distance(on_b.eval(t));
+        Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
+            (d.sign == Sign::Negative).then_some(())
+        })
+    });
+    match apart {
+        Climb::Answered { .. } => Ok(None),
+        Climb::Passed => Ok(Some(on_a)),
+        Climb::Undecided(source) => Err(ReplaceFaceError::Escalated { source }),
     }
-    Ok(Some(on_a))
 }
 
 /// An edge still scaffolded between two distinct surfaces, at least one
@@ -4017,13 +4026,17 @@ fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<
 /// 2ε reads coincident, one past ε + K·ε does not, and one between the
 /// two escalates by the predicate's name.
 fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, ReplaceFaceError<T>> {
-    decide(
-        "offset_vertex_agreement",
-        Margin::of(T::from_f64(tol.eps()) - gap),
-        band,
-    )
-    .map(|s| !matches!(s, Sign::Negative))
-    .map_err(|source| ReplaceFaceError::Escalated { source })
+    decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band)
+        .map(|s| !matches!(s, Sign::Negative))
+        .map_err(|source| ReplaceFaceError::Escalated { source })
+}
+
+/// [`gap_within_eps`]'s predicate name.
+const GAP_WITHIN_EPS: &str = "offset_vertex_agreement";
+
+/// [`gap_within_eps`]'s margin, `ε − gap`: negative where `gap` is past ε.
+fn gap_within_eps_margin<T: Decide>(gap: T, tol: Tol) -> Margin<T> {
+    Margin::of(T::from_f64(tol.eps()) - gap)
 }
 
 /// The parameter of `point`'s foot on the spline `carrier`, nearest

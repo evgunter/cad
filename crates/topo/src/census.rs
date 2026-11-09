@@ -4228,18 +4228,14 @@ pub(crate) fn points_on_surface<T: Decide>(
     name: &'static str,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    use geom_brep::ladder::{IdentityLadder, read_identity};
+    use geom_brep::ladder::read_identity;
     let residuals = points.iter().map(|&q| {
         (
             name,
             Margin::of(geom_brep::implicit::implicit_residual(surface, q)),
         )
     });
-    match read_identity(residuals, band) {
-        IdentityLadder::Apart { .. } => Ok(false),
-        IdentityLadder::Zero(_) => Ok(true),
-        IdentityLadder::Undecided(cause) => Err(cause),
-    }
+    read_identity(residuals, band).holds()
 }
 
 /// **One point definitely off a quadric decides that a line or a conic

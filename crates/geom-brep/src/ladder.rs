@@ -559,6 +559,22 @@ pub enum IdentityLadder {
     Undecided(Indeterminate),
 }
 
+impl IdentityLadder {
+    /// The identity as a yes-or-no reading: `true` where every datum
+    /// decided `Zero`, `false` where one decided apart.
+    ///
+    /// # Errors
+    ///
+    /// The kept reading, where none decided apart and one did not decide.
+    pub fn holds(self) -> Result<bool, Indeterminate> {
+        match self {
+            Self::Apart { .. } => Ok(false),
+            Self::Zero(_) => Ok(true),
+            Self::Undecided(cause) => Err(cause),
+        }
+    }
+}
+
 /// **Whether two descriptions are one**, read off `data` that are each
 /// zero exactly where the two agree, every datum decided on `band` under
 /// its own name: the ladder ([`climb`], [`Answering::Any`]: every datum
