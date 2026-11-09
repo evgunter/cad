@@ -162,7 +162,7 @@ where
 /// Every node of the evaluation, in order, with its full `T` payload.
 fn eval_deep<T>(ev: &Evaluation<T>) -> u64
 where
-    T: Decide + Bounds + geom_core::SpanLocate,
+    T: topo::AtRestPolicy + Decide + Bounds + geom_core::SpanLocate,
 {
     let mut d = D::new();
     for &id in &ev.order {

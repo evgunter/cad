@@ -34,7 +34,7 @@ fn a_line_kept_over_a_straight_spline_joins_either_way_round() {
         else {
             panic!("{name}: a solid");
         };
-        let b = body.body();
+        let b = &*body;
         assert_eq!(
             (b.faces().count(), b.edges().count(), b.vertices().count()),
             (4, 6, 4),

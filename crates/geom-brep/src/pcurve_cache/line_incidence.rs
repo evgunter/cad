@@ -149,7 +149,7 @@ struct Axial {
 
 impl Axial {
     fn of(o: Point3<f64>, u: Vec3<f64>, c: Point3<f64>, axis: Vec3<f64>) -> Self {
-        let a = axis / axis.norm();
+        let a = axis.normalize();
         let (h0, q_off) = axial_radial(o, c, a);
         let (w, u_off) = axial_radial(Point3::origin() + u, Point3::origin(), a);
         let star = Some(-q_off.dot(u_off) / u_off.dot(u_off)).filter(|t| t.is_finite());

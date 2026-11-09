@@ -605,7 +605,7 @@ fn the_stack_is_a_legal_operand() {
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
     finished(
         "the brick",
-        sweep::test_support::brick(x, y, z, tol()),
+        sweep::test_support::brick::<f64>(x, y, z, tol()),
         tol(),
     )
 }
@@ -705,9 +705,9 @@ type ContinuationRow = (
 /// The three ops, by name.
 type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 const OPS: [(&str, Op); 3] = [
-    ("union", topo::union::<f64>),
-    ("subtract", topo::subtract::<f64>),
-    ("intersect", topo::intersect::<f64>),
+    ("union", topo::union::<topo::AtRestBody<f64>>),
+    ("subtract", topo::subtract::<topo::AtRestBody<f64>>),
+    ("intersect", topo::intersect::<topo::AtRestBody<f64>>),
 ];
 
 /// **An overlapping continuation builds in every op.** C4: a

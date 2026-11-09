@@ -49,7 +49,7 @@
 //! tier 2 out, where a door whose argument means something about
 //! material takes an [`crate::AtRestBody`] (`crates/topo/README.md`,
 //! "Shell and offset surgery"). Its result becomes finished only
-//! through [`crate::AtRestBody::validate`]: on an inside-out solid the
+//! through the scalar's finish ([`crate::finish`]): on an inside-out solid the
 //! charts move as they would on any other, and the result refuses
 //! there as the operand would, `NegativeVolume`.
 //!
@@ -2199,7 +2199,7 @@ fn mint_carrier<T: Decide>(
                     }
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-                translate(e / n * ca.distance)
+                translate(e.normalize() * ca.distance)
             }
             // A sphere's seam is a GREAT circle about the sphere's own
             // centre, and the offset is concentric: same centre, same
@@ -2329,7 +2329,7 @@ fn mint_carrier<T: Decide>(
             let Some(line) = l.as_line() else {
                 unreachable!("{edge:?}: a generator pair is two lines")
             };
-            line.offset(q_mid).norm()
+            line.distance(q_mid)
         };
         let chosen = match decide(
             "offset_axial_generator_side",

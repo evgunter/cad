@@ -233,10 +233,13 @@ pub(crate) fn torus_door(
 ) -> Result<TorusDoor, String> {
     match run(op, x, y) {
         Ok(_) => return Ok(TorusDoor::Built),
-        Err(BooleanError::Escalated {
-            decision: topo::BooleanDecision::ShellRole { .. },
-            diag,
-        }) if diag.predicate == Some("positive_volume_exact") => return Ok(TorusDoor::Escalated),
+        Err(BooleanError::ResultInvalid { findings })
+            if findings
+                .iter()
+                .all(|f| f.family() == topo::FindingFamily::Orientation) =>
+        {
+            return Ok(TorusDoor::Escalated);
+        }
         Err(e) if names_the_torus(&e) => {}
         Err(e) if crate::germ_plane_torus_spiric::stops_past_the_join(&e) => {
             return Ok(TorusDoor::Stopped);

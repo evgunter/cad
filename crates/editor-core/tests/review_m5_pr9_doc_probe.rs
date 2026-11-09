@@ -80,7 +80,7 @@ fn boss_union_doc() -> (ProfileDoc, RecipeNodeId) {
     (r.doc, union)
 }
 
-fn union_body<T: geom_core::Decide>(
+fn union_body<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &editor_core::Evaluation<T>,
     id: RecipeNodeId,
 ) -> &topo::Body<T> {

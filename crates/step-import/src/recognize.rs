@@ -279,7 +279,7 @@ fn try_cylinder(
     if axis_norm / (nu as f64) <= eps_in {
         return Err(axis_norm / (nu as f64));
     }
-    let axis = axis_sum / axis_norm;
+    let axis = axis_sum.normalize();
     // Three fixed samples of the v-start boundary at u-fractions
     // 0, 3/8, 6/8 of the domain — distinct azimuths even on a
     // full-period patch (where u-start and u-end coincide).
@@ -304,7 +304,7 @@ fn try_cylinder(
     if !(chord_norm.is_finite() && chord_norm > 0.0) {
         return Ok(None);
     }
-    let chord_dir = chord / chord_norm;
+    let chord_dir = chord.normalize();
     let off = geom::Line {
         origin: q0,
         dir: chord_dir,
@@ -347,7 +347,7 @@ fn try_cylinder(
         dir: axis,
     };
     for p in control {
-        rho_max = rho_max.max(spine.offset(*p).norm());
+        rho_max = rho_max.max(spine.distance(*p));
     }
     let lipschitz = rho_max / radius;
     let residual = enveloped_residual_sup(patch, &cylinder, lipschitz);

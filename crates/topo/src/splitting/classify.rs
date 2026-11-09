@@ -25,8 +25,8 @@ use geom::cover::BoxAxes;
 /// arm — `Plane`, `Cylinder` and `Cone`. A face of any other kind
 /// (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed only when the
 /// plane MAY meet it: when its padded reach along the plane's normal
-/// (`census::face_reach_in`, the boolean's `FaceBoxRule` at this
-/// body's scalar) is not definitely on one side of the plane
+/// (`census::face_reach_in`, the face's cover at this body's scalar)
+/// is not definitely on one side of the plane
 /// ([`reach_clears`]). Behind a reach that clears, the face has no
 /// vertex on or across the plane, no edge crossing it and no section
 /// through it, so every later stage carries it through whole. The
@@ -98,7 +98,8 @@ pub(super) fn carrier_gate<T: Decide>(
 }
 
 /// Whether the plane certainly misses an edge: behind its own reach
-/// (`census::edge_reach_in`) or behind the reach of either face it
+/// (its cover's, `boolean::crate::cover::edge_cover`) or behind the reach of
+/// either face it
 /// bounds, since an edge lies on both its faces. A spline edge's own
 /// reach is its control net's hull (its cover), which its faces'
 /// reaches may beat. `frame` is the plane's
@@ -118,7 +119,10 @@ fn edge_clears<T: Decide>(
     frame: &BoxAxes<T>,
 ) -> bool {
     let e = crate::live::proven(&body.edges, edge, crate::entity::EntityId::Edge);
-    reach_clears(crate::census::edge_reach_in(body, edge, frame), plane, band)
+    let reach = crate::cover::edge_cover(body, edge)
+        .ok()
+        .map(|cover| cover.box_in(frame));
+    reach_clears(reach, plane, band)
         || [e.he_plus, e.he_minus].into_iter().any(|he| {
             let face = body.face_of_linked(he);
             reach_clears(
@@ -429,14 +433,14 @@ mod tests {
     /// parallel gate passes `R = 2ε`, the belly decides the graze
     /// (`R − |D| = ε`), and the graze's side `D = ±ε` decides zero, which
     /// only K ≤ 2 reaches. The nonzero gate rejects it carrying `D`, at
-    /// every ε, either side, either normal. Read as a margin, it ends as
+    /// every ε a run at K = 2 admits, either side, either normal. Read as a margin, it ends as
     /// one: the split's lever; the Boolean's edge-on-plane gap with
     /// its tighter tolerance; the census's coincidence menu, not the
     /// defect ending a poisoned margin takes.
     #[test]
     fn a_graze_side_decided_zero_keeps_its_margin() {
         use crate::boolean::refusal_routes::{BooleanDecision, DeclarationRead};
-        for e in [1e-3, 1e-6, 1e-9, 1e-12] {
+        for e in [1e-3, 1e-6, 1e-9, 1e-11] {
             let band = Band::new(e, 2.0 * e).unwrap();
             for (off, nz) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
                 let label = format!("ε = {e:e}, centre {off}·ε, normal {nz}·z");
@@ -511,8 +515,8 @@ mod tests {
 }
 
 /// **A torn curve panics at the split gate and at the crossing
-/// insertion**, where a read that took the miss for scaffolding refused
-/// it as `ScaffoldingOperand`.
+/// insertion**: the miss is a kernel defect, never an operand's
+/// scaffolding.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_rows {

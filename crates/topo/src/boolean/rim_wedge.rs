@@ -700,11 +700,14 @@ fn curve_sense<T: Decide>(
 /// Whether `p` lies on the locus.
 fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
     let off = match locus {
-        Locus::Line(line) => line.offset(p).norm(),
+        Locus::Line(line) => line.distance(p),
         Locus::Rim(rim) => {
-            let d = p - rim.center;
-            let h = d.dot(rim.axis);
-            let radial = (d - rim.axis * h).norm() - rim.radius;
+            let (h, rho) = geom::Line {
+                origin: rim.center,
+                dir: rim.axis,
+            }
+            .height_and_distance(p);
+            let radial = rho - rim.radius;
             (h.powi(2) + radial.powi(2)).sqrt()
         }
     };
@@ -820,7 +823,7 @@ fn crossings<T: Decide>(
             let (ce, ae, re) = (*center, *axis, *radius);
             let e1 = {
                 let d = p0 - ce;
-                d / d.norm()
+                d.normalize()
             };
             let e2 = ae.cross(e1);
             let at = |phi: T| {
@@ -928,7 +931,7 @@ fn rides<T: Decide>(
         (Locus::Line(line), geom::Curve3::Line(_)) => {
             let (t0, t1) = curve.params();
             for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {
-                let off = line.offset(p).norm();
+                let off = line.distance(p);
                 if crate::validate::decide("seam_line_collinear", Margin::of(off), band)?
                     != geom_core::Sign::Zero
                 {
