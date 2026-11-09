@@ -940,3 +940,4 @@
   - State-branch rows are checked out into its branch.
   - Cone reads_given classes ruled (A): InBand→Margin; Zero, Slack, Unplaced→InBand (all band decisions); Contradicted→Aborts. The class goes on link::Unsettled::refusal() first.
 - 14:00Z PR 6629 re-confirmed MERGE at 271244b7. My main merge (30e8a9eb) is gating; merges on green.
+- 14:04Z PR 6632 delta: MERGE plus FIX-A (the Sym form of the 5 /2 sites changes, so keep one form and correct the 'no bit moves' claim) and FIX-B (lerp(q, ½) is a second door for mid; route its 6 sites and gate it). Sent to the lane.
