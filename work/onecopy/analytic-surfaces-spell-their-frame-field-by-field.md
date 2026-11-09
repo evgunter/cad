@@ -112,7 +112,7 @@ PR 6665 gave the doors and holders below a `geom::Line`. Where the line came fro
 - `topo/src/boolean/section_cert/ruling.rs`: (closure), `assemble`
 - `topo/src/boolean/solid_contain.rs`: `face_geo_arms` ×4, `root_outward`, `sphere_chart_trim` ×2, `unread_refusal` ×9
 - `topo/src/boolean/surface_group.rs`: `wrap_rims`
-- `topo/src/census/depth_gap.rs`: `across`, `carrier_depth` ×2
+- `topo/src/census/depth_gap.rs`: `across` (its `carrier_depth` ×2 left with main's BOXES redesign, which reads a carrier's site through `geom::cover`'s `Cover::about`)
 - `topo/src/face_normal.rs`: `face_outward_normal_at` ×2, `face_outward_normal_at_foot`
 - `topo/src/offset_axial.rs`: `clamp_unit` ×3, `surface_residual`
 - `topo/src/offset_nappe.rs`: `corner_stations`

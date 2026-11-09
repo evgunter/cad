@@ -313,7 +313,7 @@ fn passes<T: Decide>(
         r = ray.foot(carrier.eval(near));
     }
     let s = ray.param(r);
-    use geom_brep::curve_pair::{Reading, SpanReading, SpanRefusal};
+    use geom_brep::curve_pair::{Reading, SpanRefusal};
     match span.span().read(r, near, band) {
         Ok(Reading::On { .. }) => Passes::Met(s, Gap::Zero),
         // Off the carrier, or past the span clear of both ends, whatever
@@ -323,15 +323,8 @@ fn passes<T: Decide>(
         // In band of an end, or undecided against one, whatever the
         // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.
-        Ok(Reading::End(_))
-        | Err(SpanRefusal {
-            of: SpanReading::Place,
-            ..
-        }) => Passes::End(s),
-        Err(SpanRefusal {
-            refused,
-            of: SpanReading::Carrier,
-        }) => refused
+        Ok(Reading::End(_)) | Err(SpanRefusal::Place(_) | SpanRefusal::Both(_)) => Passes::End(s),
+        Err(SpanRefusal::Carrier(refused)) => refused
             .escalation()
             .map_or(Passes::Undecided, |diag| Passes::Met(s, Gap::InBand(diag))),
     }
@@ -441,10 +434,7 @@ mod straddle_rows {
         assert!(
             matches!(
                 arc.span().read(at, 0.5, band),
-                Err(geom_brep::curve_pair::SpanRefusal {
-                    of: geom_brep::curve_pair::SpanReading::Place,
-                    ..
-                })
+                Err(geom_brep::curve_pair::SpanRefusal::Place(_))
             ),
             "the span's place refuses the point"
         );
