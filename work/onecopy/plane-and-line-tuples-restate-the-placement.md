@@ -13,7 +13,7 @@ Found by the blind-spot pass of the frame-readings unit's holder sweep (the fiel
 
 - `crates/geom-brep/src/intersect.rs` `SectionPlane::site` (a plane's point and normal);
 - `crates/topo/src/census/depth_gap.rs` `Read::plane`, and `least_point`'s `(o, n)` argument;
-- `crates/topo/src/boolean/solid_contain.rs` (the function returning `Option<(Point3<T>, Vec3<T>)>`);
+- `crates/topo/src/boolean/solid_contain.rs` `FaceGeo::Plane(Point3<T>, Vec3<T>)` (~`:740`), a planar face's point and outward normal;
 - `crates/topo/src/ring_path.rs` `plane_roots`' `(origin, e)` argument.
 
 The line half is done (`onecopy/line-tuples`): every tuple that stood for a line now carries a `geom::Line`, among them `reach.rs`'s `frame()` and `sheet` field and `offset_axial.rs`'s `seed`, first listed here. The line holders that unit left are filed as `a-line-still-travels-as-loose-arguments-or-a-frame-pair`.
