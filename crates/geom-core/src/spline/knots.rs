@@ -140,6 +140,10 @@ pub enum SplineError {
     },
 }
 
+/// What [`SplineError::KnotVectorInvalid`] says before its issue, in its
+/// fact and its rendering alike.
+const INVALID_VECTOR: &str = "the clamped knot vector is invalid";
+
 impl SplineError {
     /// **What was refused, without the recourse**: the sentence a holder
     /// renders when the spline is the kernel's own, so the recourse
@@ -148,7 +152,7 @@ impl SplineError {
     pub fn fact(&self) -> impl core::fmt::Display + '_ {
         core::fmt::from_fn(move |f| match self {
             SplineError::KnotVectorInvalid { reason } => {
-                write!(f, "the clamped knot vector is invalid: {}", reason.fact())
+                write!(f, "{INVALID_VECTOR}: {}", reason.fact())
             }
             SplineError::NonPositiveWeight { index, weight } => write!(
                 f,
@@ -222,9 +226,8 @@ impl core::fmt::Display for SplineError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let fact = self.fact();
         match self {
-            SplineError::KnotVectorInvalid { reason } => {
-                write!(f, "invalid clamped knot vector: {reason}")
-            }
+            // The issue ends itself, fact then recourse.
+            SplineError::KnotVectorInvalid { reason } => write!(f, "{INVALID_VECTOR}: {reason}"),
             SplineError::NonPositiveWeight { .. } => write!(
                 f,
                 "{fact}. Recourse: supply a strictly positive weight there rather than a \

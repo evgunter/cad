@@ -1952,6 +1952,14 @@ fn placed<T: Decide>(
     }
 }
 
+/// [`in_overlap_closure`]'s refusal where the normal of a face it placed
+/// the touch in aborts ([`normal_aborts`]).
+const OVERLAP_CLOSURE_NORMAL_FAULT: &str = concat!(
+    "a touch of two faces' boundaries, the faces a pair the census decided, where the \
+     kernel cannot read one face's normal at all. ",
+    geom_core::kernel_defect_ending!()
+);
+
 /// **Whether `q` lies in the closure of a confirmed pair's overlap**
 /// (`[assertions]`): the closed region of each face holds it, and the
 /// overlap reaches it ([`pair_contact`] says which overlap):
@@ -1975,7 +1983,9 @@ fn placed<T: Decide>(
 /// and where the reading is not built — a contact [`pair_contact`] does
 /// not read, a face no containment door reads, or a cone [`face_cone`]
 /// does not read — refused as [`ValidationError::CensusUndecidable`]
-/// naming the two `cells`.
+/// naming the two `cells`; and so refused, as a kernel defect
+/// ([`OVERLAP_CLOSURE_NORMAL_FAULT`]), where `x`'s normal at `q` aborts
+/// ([`normal_aborts`]).
 #[allow(clippy::too_many_arguments)] // the pair, the touch and the run's state
 fn in_overlap_closure<T: Decide>(
     body: &Body<T>,
@@ -2032,7 +2042,17 @@ fn in_overlap_closure<T: Decide>(
             errors.push(ValidationError::CensusEscalated { cause: diag });
             return None;
         }
-        Ok(None) | Err(_) => return unbuilt(errors),
+        Ok(None) => return unbuilt(errors),
+        Err(why) if normal_aborts(&why) => {
+            errors.push(ValidationError::CensusUndecidable {
+                a,
+                b,
+                what: OVERLAP_CLOSURE_NORMAL_FAULT,
+                reason: Undecidable::MayOverlap,
+            });
+            return None;
+        }
+        Err(_) => return unbuilt(errors),
     };
     let Some(dir) = along else {
         return match cones_meet(
@@ -2466,8 +2486,9 @@ impl WedgeRefusal {
 
 /// Every reason [`WedgeRefusal::Unread`] carries, for the samples.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) const WEDGE_UNREAD: [TouchUnread; 3] = [
+pub(crate) const WEDGE_UNREAD: [TouchUnread; 4] = [
     TouchUnread::Unreadable,
+    TouchUnread::NormalFault,
     TouchUnread::Degenerate,
     TouchUnread::ChordScale,
 ];
@@ -2557,7 +2578,10 @@ pub(crate) fn line_wedges<T: Decide>(
 /// **[`line_wedges`]' ladder**: over the pairs, and within each over its
 /// probes ([`climb`], [`Answering::Any`]: every wedge holding another's
 /// probe strictly inside is a definite overlap, a true fault whichever
-/// pair it is). `wedge(pair, side)` reads one of a pair's two wedges,
+/// pair it is). The pair's index is a witness its callers read only to
+/// name the fault's edges (`ValidationError::CoincidentWedgesOverlap`,
+/// `BooleanError::LineWedges`), so which overlapping pair answers does
+/// not matter to them. `wedge(pair, side)` reads one of a pair's two wedges,
 /// `probes` a wedge's three directions, and `inside` whether a direction
 /// lies strictly inside a wedge. A pair or a probe read in band refuses
 /// only where no later one overlaps, each refusal kept by its standing
@@ -2614,7 +2638,15 @@ fn wedge<T: Decide>(
             Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
                 Err(WedgeRefusal::Undecided(diag))
             }
-            Ok(None) | Err(_) => Err(WedgeRefusal::Unread(e.key, TouchUnread::Unreadable)),
+            Ok(None) => Err(WedgeRefusal::Unread(e.key, TouchUnread::Unreadable)),
+            Err(why) => Err(WedgeRefusal::Unread(
+                e.key,
+                if normal_aborts(&why) {
+                    TouchUnread::NormalFault
+                } else {
+                    TouchUnread::Unreadable
+                },
+            )),
         };
     // The plus half runs along `e.dir` on `f_plus`, the minus half back
     // on `f_minus`; each sheet is the face's normal crossed with its
@@ -4472,7 +4504,9 @@ fn edge_in_curved_face<T: Decide>(
         Err(crate::face_normal::NormalAtError::Escalated { .. }) => {
             return Some(undecided(TouchUnread::InBand));
         }
-        Ok(None) | Err(_) => return Some(undecided(TouchUnread::Unreadable)),
+        Ok(None) => return Some(undecided(TouchUnread::Unreadable)),
+        Err(why) if normal_aborts(&why) => return Some(undecided(TouchUnread::NormalFault)),
+        Err(_) => return Some(undecided(TouchUnread::Unreadable)),
     };
     let w = match wedge(body, e, p, band) {
         Ok(w) => w,
@@ -7613,6 +7647,132 @@ mod self_touch;
 #[cfg(test)]
 mod self_touch_curved;
 
+/// **A face normal's abort at a census reader renders as the kernel's**:
+/// the point read off a face's surface, or a torus tier 3 refuses first,
+/// is [`TouchUnread::NormalFault`], [`InteriorsUnread::NormalFault`] and
+/// the overlap closure's own sentence, each ending with the kernel-defect
+/// ending and aborting a ladder; a refusal that keeps its query reads as
+/// before.
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod normal_fault_rows {
+    use super::{
+        FLUSH_NORMAL_FAULT, InteriorsUnread, OVERLAP_CLOSURE_NORMAL_FAULT, TouchUnread, Undecided,
+        normal_aborts,
+    };
+    use crate::face_normal::NormalAtError;
+    use geom_core::{Band, KERNEL_DEFECT_ENDING};
+
+    #[test]
+    fn an_aborting_normal_is_the_kernels_fault() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("{e:?}"));
+        assert!(normal_aborts(&NormalAtError::OffSurface), "off the surface");
+        let horn = NormalAtError::DegenerateTorus {
+            convention: geom_brep::TorusConvention::Ring,
+            verdict: geom_brep::recourse::Refused::Negative {
+                margin: geom_core::MarginDiag::INVALID,
+            },
+        };
+        assert!(normal_aborts(&horn), "a torus tier 3 refuses first");
+        assert!(
+            !normal_aborts(&NormalAtError::AtConeApex { band }),
+            "a cone's apex keeps its query"
+        );
+        assert!(
+            TouchUnread::NormalFault.refusal().is_err(),
+            "a touch's fault aborts"
+        );
+        assert!(
+            InteriorsUnread::NormalFault.refusal().is_err(),
+            "a meeting's fault aborts"
+        );
+    }
+
+    /// **The aborting set is the two the census's premise names**: a new
+    /// variant of [`NormalAtError`] fails to compile here until it is
+    /// sorted, and one that aborts reds the assertion before the census
+    /// labels it the kernel's.
+    #[test]
+    fn exactly_the_off_surface_point_and_the_degenerate_torus_abort() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("{e:?}"));
+        let diag = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band,
+            predicate: Some("t"),
+            terminal_sliver: false,
+        };
+        let samples = [
+            NormalAtError::Escalated {
+                decision: crate::face_normal::NormalDecision::OnSurface,
+                diag,
+            },
+            NormalAtError::DegenerateTorus {
+                convention: geom_brep::TorusConvention::Ring,
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: geom_core::MarginDiag::INVALID,
+                },
+            },
+            NormalAtError::OffSurface,
+            NormalAtError::AtConeApex { band },
+            NormalAtError::SplineCrease {
+                band,
+                reading: Err(diag),
+            },
+            NormalAtError::SplineIrregular {
+                band,
+                reading: Ok(geom_core::MarginDiag::value(0.0)),
+            },
+        ];
+        for why in samples {
+            let aborts = match why {
+                NormalAtError::OffSurface | NormalAtError::DegenerateTorus { .. } => true,
+                NormalAtError::Escalated { .. }
+                | NormalAtError::AtConeApex { .. }
+                | NormalAtError::SplineCrease { .. }
+                | NormalAtError::SplineIrregular { .. } => false,
+            };
+            assert_eq!(why.refusal().is_err(), aborts, "{why:?}");
+        }
+    }
+
+    #[test]
+    fn a_normals_fault_ends_with_the_kernel_defect_ending() {
+        for (what, text) in [
+            ("a touch", TouchUnread::NormalFault.sentence()),
+            (
+                "the backstop",
+                Undecided::Touch(TouchUnread::NormalFault).what(),
+            ),
+            ("a flush pair", FLUSH_NORMAL_FAULT),
+            ("an overlap closure", OVERLAP_CLOSURE_NORMAL_FAULT),
+        ] {
+            assert!(text.ends_with(KERNEL_DEFECT_ENDING), "{what}: {text}");
+        }
+    }
+}
+
+/// **Whether a face's outward normal at a census point refused as the
+/// kernel's fault**: its standing aborts
+/// ([`crate::face_normal::NormalAtError::refusal`]). At the census
+/// either abort is the kernel's. The point read off the face's surface
+/// breaks the door's caller's invariant (DESIGN `[failure.taxonomy]` row
+/// 4). A torus outside the ring convention is an invalid input (row
+/// 1(a)) that tier 3 refuses before the census runs at rest
+/// (`ValidationError::DegenerateTorus`, in `tier3_local_checks`, which
+/// `census_verdict` follows only clean), so on that path one reaching a
+/// reader passed the kernel's own gate. A refusal that keeps its query is
+/// a reading the census does not build.
+///
+/// The premise covers the census run at rest (`census_verdict`) alone.
+/// The Boolean also reads a result's line wedges through [`wedge`]
+/// (`boolean::ops::coincident_wedges_disjoint` → [`line_wedges`]) on
+/// operands only tier 2 admitted, so a degenerate torus can reach it
+/// there and read as the kernel's: filed on
+/// `work/onecopy/a-normals-abort-is-labelled-the-kernels-without-its-kind.md`.
+fn normal_aborts(why: &crate::face_normal::NormalAtError) -> bool {
+    why.refusal().is_err()
+}
+
 impl TouchUnread {
     /// The cross-solid backstop's reason for a touch left unread.
     fn undecided(self) -> Undecided {
@@ -7624,7 +7784,8 @@ impl TouchUnread {
             | Self::Degenerate
             | Self::ChordScale
             | Self::EdgeTangent(_)
-            | Self::OffInterior => Undecided::Touch(self),
+            | Self::OffInterior
+            | Self::NormalFault => Undecided::Touch(self),
             Self::Corrupt => Undecided::CorruptInstance,
         }
     }
@@ -7685,6 +7846,11 @@ impl TouchUnread {
             Self::OffInterior => concat!(
                 "they touch on a curved edge where two readings of where the touch lies on \
                  it disagree. ",
+                geom_core::kernel_defect_ending!()
+            ),
+            Self::NormalFault => concat!(
+                "they touch at a point where the kernel cannot read one of their faces' \
+                 normals at all. ",
                 geom_core::kernel_defect_ending!()
             ),
             Self::Corrupt => Undecided::CorruptInstance.what(),
@@ -7758,6 +7924,10 @@ impl TouchUnread {
             Self::OffInterior => concat!(
                 "a curved edge meets the point, and two readings of where the point lies on \
                  it disagree. ",
+                geom_core::kernel_defect_ending!()
+            ),
+            Self::NormalFault => concat!(
+                "a face meets the point, and the kernel cannot read its normal there at all. ",
                 geom_core::kernel_defect_ending!()
             ),
             Self::Corrupt => concat!(
@@ -9073,7 +9243,9 @@ pub(crate) enum Probe {
 /// **The material test of one ordering**: each of `vertices`, the
 /// vertices of `inner`, placed against `outer`'s material by `place`, in
 /// turn. Every vertex strictly inside says the same, so any answers
-/// ([`Answering::Any`]); a vertex `exempt` names is passed; a refusal is
+/// ([`Answering::Any`]). The vertex is a witness its consumer reads only to
+/// name in `ValidationError::InstanceInterference`, where any vertex
+/// decided strictly inside is a true one; a vertex `exempt` names is passed; a refusal is
 /// kept by its standing (`PointInSolidError::refusal`) with its reason
 /// ([`Undecided::of_point_in_solid`]), and one of the whole query stops
 /// the probe with its reason.
@@ -11117,6 +11289,14 @@ const FLUSH_MEETING_UNDECIDED: &str = "they lie on one surface facing the same w
     their boundaries meet, and so whether their interiors do, is within the tolerance band. \
     Move one of them clear of the other's boundary by more than the band, or onto it";
 
+/// [`FLUSH_UNREAD`]'s kernel-defect twin: the normal of a face read to
+/// hold a point of the meeting aborts ([`InteriorsUnread::NormalFault`]).
+const FLUSH_NORMAL_FAULT: &str = concat!(
+    "they lie on one surface facing the same way with their boundaries meeting, and the \
+     kernel cannot read a face's normal at all at a point of that meeting. ",
+    geom_core::kernel_defect_ending!()
+);
+
 /// What [`flush_at_rest`] says of a pair whose boundaries or interiors
 /// it cannot read ([`InteriorsUnread::Unbuilt`]).
 const FLUSH_UNREAD: &str = "they lie on one surface facing the same way with their \
@@ -11246,6 +11426,11 @@ fn flush_pairs<T: Decide>(
                         .push(unread(FLUSH_UNREAD, Undecidable::MayOverlap));
                     continue;
                 }
+                Err(InteriorsUnread::NormalFault) => {
+                    out.findings
+                        .push(unread(FLUSH_NORMAL_FAULT, Undecidable::MayOverlap));
+                    continue;
+                }
             }
             let reading = match planar {
                 Some((x, y)) => {
@@ -11288,6 +11473,9 @@ fn flush_pairs<T: Decide>(
                 Err(SameSideUnread::Interiors(InteriorsUnread::Unbuilt)) => out
                     .findings
                     .push(unread(FLUSH_UNREAD, Undecidable::MayOverlap)),
+                Err(SameSideUnread::Interiors(InteriorsUnread::NormalFault)) => out
+                    .findings
+                    .push(unread(FLUSH_NORMAL_FAULT, Undecidable::MayOverlap)),
                 Err(SameSideUnread::Region(cause)) => {
                     out.findings.push(ValidationError::CensusUnsupported {
                         subject: CensusSubject::FacePair(fa, fb),
@@ -11344,21 +11532,30 @@ enum InteriorsUnread {
     /// curved carrier, an edge or a pair of edges whose meetings are not
     /// read ([`arc_interiors_meet`]).
     Unbuilt,
+    /// A face's normal at a point it was read to hold refuses the whole
+    /// reading ([`normal_aborts`]): the kernel's fault.
+    NormalFault,
 }
 
 impl InteriorsUnread {
     /// What this refusal is to a ladder: a reading in band, or a
     /// reading not built, a limit no tolerance moves.
-    const fn refusal(self) -> Refusal {
+    ///
+    /// # Errors
+    ///
+    /// [`Aborts`] for a point read off a face's surface.
+    const fn refusal(self) -> Result<Refusal, Aborts> {
         match self {
-            Self::Undecided => Refusal::InBand,
-            Self::Unbuilt => Refusal::Limit,
+            Self::Undecided => Ok(Refusal::InBand),
+            Self::Unbuilt => Ok(Refusal::Limit),
+            Self::NormalFault => Err(Aborts),
         }
     }
 
-    /// This refusal as a ladder's rung ([`Self::refusal`]).
-    fn rung<A>(self) -> Rung<A, Self> {
-        self.refusal().rung(self)
+    /// This refusal as a ladder's rung ([`Self::refusal`]), an abort
+    /// stopping the search on itself.
+    fn rung<V>(self) -> Rung<Result<V, Self>, Self> {
+        Rung::refused(self, |why| why.refusal(), Err)
     }
 
     /// A meeting reading's refusal: an escalation or a touch undecided,
@@ -11379,7 +11576,7 @@ impl InteriorsUnread {
 fn meeting_rung(
     reading: Result<bool, InteriorsUnread>,
 ) -> Rung<Result<bool, InteriorsUnread>, InteriorsUnread> {
-    Rung::holds(reading, true, |why| Ok(why.refusal()))
+    Rung::holds(reading, true, |why| why.refusal())
 }
 
 /// What a search for a meeting read: its answer (a meeting, or a
@@ -11636,9 +11833,7 @@ fn arc_interiors_meet<T: Decide>(
     // What the cuts' readings kept, ranked with the pieces' own: no cut
     // answers, so each is kept as it is read.
     let mut kept = Evidence::default();
-    let mut note = |why: InteriorsUnread| {
-        kept.keep(why.refusal(), why);
-    };
+    let mut note = |why: InteriorsUnread| kept.keep_or_abort(why.refusal(), why);
     let spans = |f| -> Result<Vec<_>, InteriorsUnread> {
         let edges = body.proven_face(f).edge_set();
         if edges.is_empty() {
@@ -11676,20 +11871,20 @@ fn arc_interiors_meet<T: Decide>(
                                 match on.contact(end, near, band) {
                                     Ok(Some(hit)) => cuts.push(on.at(hit)),
                                     Ok(None) => {}
-                                    Err(refusal) => note(InteriorsUnread::of(refusal.into())),
+                                    Err(refusal) => note(InteriorsUnread::of(refusal.into()))?,
                                 }
                             }
                         }
                     }
                 }
-                Err(refusal) => note(InteriorsUnread::of(refusal.fault)),
+                Err(refusal) => note(InteriorsUnread::of(refusal.fault))?,
             }
         }
     }
     for (spans, cuts, other) in [(&sa, &mut cuts_a, fb), (&sb, &mut cuts_b, fa)] {
         for &v in &face_vertices(body, other) {
             let Some(&q) = geo.vmap.get(&v) else {
-                note(InteriorsUnread::Unbuilt);
+                note(InteriorsUnread::Unbuilt)?;
                 continue;
             };
             for ((_, s), cut) in spans.iter().zip(cuts.iter_mut()) {
@@ -11697,7 +11892,7 @@ fn arc_interiors_meet<T: Decide>(
                 match span.contact(q, s.middle(), band) {
                     Ok(Some(hit)) => cut.push(span.at(hit)),
                     Ok(None) => {}
-                    Err(refusal) => note(InteriorsUnread::of(refusal.into())),
+                    Err(refusal) => note(InteriorsUnread::of(refusal.into()))?,
                 }
             }
         }
@@ -11825,7 +12020,9 @@ fn normal_at<T: Decide>(
             read.push(ValidationError::CensusEscalated { cause: diag });
             Err(InteriorsUnread::Undecided)
         }
-        Ok(None) | Err(_) => Err(InteriorsUnread::Unbuilt),
+        Ok(None) => Err(InteriorsUnread::Unbuilt),
+        Err(why) if normal_aborts(&why) => Err(InteriorsUnread::NormalFault),
+        Err(_) => Err(InteriorsUnread::Unbuilt),
     }
 }
 
@@ -13589,7 +13786,7 @@ mod tests {
                     .find(|e| {
                         let far = e.p1;
                         [(a, b), (b, a)].iter().any(|&(p, q)| {
-                            (e.p0 - p).norm() == 0.0 && (far - q).norm() <= 1e-3 * band.zero()
+                            e.p0.equals_exactly(p) && (far - q).norm() <= 1e-3 * band.zero()
                         })
                     })
                     .unwrap_or_else(|| panic!("{what}: the edge {a:?} → {b:?}"))
@@ -18084,7 +18281,7 @@ mod tests {
             .vertices()
             .filter(|(_, v)| {
                 let p = above.points[v.point];
-                (p.x, p.y, p.z) == (tip.x, tip.y, tip.z)
+                p.equals_exactly(tip)
             })
             .map(|(k, _)| k)
             .collect();
@@ -21018,7 +21215,7 @@ mod edge_pairs_as_segments {
                 ..seg(b, at_v)
             };
             assert!(
-                (ee_cross_point(&ea, &eb) - pt(at_v)).norm() == 0.0,
+                ee_cross_point(&ea, &eb).equals_exactly(pt(at_v)),
                 "{label}: the crossing is the shared point"
             );
             assert_eq!(meet(&ea, &eb, at), (Some(false), 0), "{label}, band {at:?}");

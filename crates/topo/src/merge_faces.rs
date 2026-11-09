@@ -3520,7 +3520,7 @@ mod tests {
                 let p = body
                     .get_point(body.get_vertex(v).expect("live").point)
                     .expect("live");
-                p.to_array() == at
+                p.equals_exactly(geom_core::Point3::from_array(at))
             })
             .expect("a half-edge starts there")
     }
