@@ -235,3 +235,20 @@ segment-by-segment correspondence, the one remaining cost, filed on
 LATHE as `loft-corresponds-sections-by-segment-not-by-run` (P2). PR 6547
 answered Ev's two questions (the side door; the anchor lever now states
 its target distance) and waits on Ev.
+
+## 2026-11-09 — the extensions unit is up (PR 6682)
+
+The implementer opened PR 6682 with CI green. It deletes the merges and
+the identity gate and constructs the tip joint for every `r`. The pins
+it re-baselined are listed in the PR: the corpus hash (one row moved),
+`path_program`, editor-core `sym_9`, the pncad-py vertex counts and the
+tour rocker doc. Single FULL review dispatched on head `6988cd9f9f`.
+
+The PR also turned up a pre-existing editor-core gap: the strand report
+reads drawn pieces, not run walls. The implementer reproduced it on
+main and filed it on DOCTAIL as
+`a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing` (P1),
+with the two affected rows pinned red. Main's 2026-11-09 nightly is red
+across editor-core, sweep and the m10_9 pins, independently of this
+unit. The PR does not re-pin m10_9 `r2_rounded_pad`, which this unit
+moves further and which is already red on main.
