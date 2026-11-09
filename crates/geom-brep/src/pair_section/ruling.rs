@@ -444,7 +444,8 @@ impl<T: Real> RuledCylinders<T> {
     /// a root's numerator of `ρ + r`, divided by `β`; a ruling nearly
     /// parallel to the partner's axis levers both by `1/|β|`.
     fn charge(&self) -> (T, T) {
-        let size = (self.frame.origin - Point3::origin()).norm() + self.rho + self.r + self.gap.abs();
+        let size =
+            (self.frame.origin - Point3::origin()).norm() + self.rho + self.r + self.gap.abs();
         let t = rounding_charge(size + self.rho + self.r) * self.tilt().abs();
         (rounding_charge(size), t)
     }

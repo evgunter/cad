@@ -194,20 +194,12 @@ const CLOSING_SLACK: f64 = 0.25;
 /// box clearing it.
 #[derive(Clone, Copy, Debug)]
 enum Channel {
-    /// About the axis through `origin` along `axis`, in the frame
-    /// `(e1, e2)` square to it.
-    Axis {
-        origin: Point3<f64>,
-        e1: Vec3<f64>,
-        e2: Vec3<f64>,
-    },
-    /// About the core circle of radius `big_r` about `axis` through
-    /// `center`.
-    Core {
-        center: Point3<f64>,
-        axis: Vec3<f64>,
-        big_r: f64,
-    },
+    /// About the surface's axis, read in its frame (`u_ref`, `v_ref`).
+    Axis(geom::Frame<f64>),
+    /// About a torus's core circle: the circle of its major radius on
+    /// its frame. Its seam is the torus's own and no reading here reads
+    /// it.
+    Core(geom::Circle<f64>),
 }
 
 /// A computed value lifted to its point interval: the scalar's own lift
@@ -229,18 +221,11 @@ fn clears(x: Interval) -> bool {
 impl Channel {
     fn azimuth(self, p: Point3<f64>) -> geom::Azimuth<f64> {
         match self {
-            Self::Axis { origin, e1, e2 } => {
-                let w = p - origin;
-                geom::Azimuth::of(w.dot(e2), w.dot(e1))
-            }
-            Self::Core {
-                center,
-                axis,
-                big_r,
-            } => {
-                let w = p - center;
-                let (_, rho) = super::square_part(w, axis);
-                geom::Azimuth::tube(w.dot(axis), rho, big_r)
+            Self::Axis(frame) => frame.azimuth(p),
+            Self::Core(circle) => {
+                let frame = circle.frame;
+                let (_, rho) = super::square_part(p - frame.origin, frame.axis);
+                geom::Azimuth::tube(frame.height(p), rho, circle.radius)
             }
         }
     }
@@ -250,18 +235,15 @@ impl Channel {
         let b = Point3::new(b.x, b.y, b.z);
         let w = |o: Point3<f64>| Vec3::new(b.x - lift(o.x), b.y - lift(o.y), b.z - lift(o.z));
         match self {
-            Self::Axis { origin, e1, e2 } => {
-                let w = w(origin);
-                clears(w.dot(lift3(e1))) || clears(w.dot(lift3(e2)))
+            Self::Axis(frame) => {
+                let w = w(frame.origin);
+                clears(w.dot(lift3(frame.u_ref))) || clears(w.dot(lift3(frame.v_ref())))
             }
-            Self::Core {
-                center,
-                axis,
-                big_r,
-            } => {
+            Self::Core(circle) => {
                 use geom_core::Real as _;
-                let w = w(center);
-                let a = lift3(axis);
+                let (frame, big_r) = (circle.frame, circle.radius);
+                let w = w(frame.origin);
+                let a = lift3(frame.axis);
                 let h = w.dot(a);
                 let perp = a.cross(w.cross(a));
                 let rho = perp.dot(perp).sqrt();
@@ -273,34 +255,11 @@ impl Channel {
 
 /// The essential channels of `surface`.
 fn channels(surface: &Surface<f64>) -> Vec<Channel> {
-    match *surface {
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => vec![Channel::Axis {
-            origin,
-            e1: u_ref,
-            e2: axis.cross(u_ref),
-        }],
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            u_ref,
-            ..
-        } => vec![
-            Channel::Axis {
-                origin: center,
-                e1: u_ref,
-                e2: axis.cross(u_ref),
-            },
-            Channel::Core {
-                center,
-                axis,
-                big_r: major_radius,
-            },
+    match (surface, surface.frame()) {
+        (Surface::Cylinder { .. }, Some(frame)) => vec![Channel::Axis(frame)],
+        (Surface::Torus { major_radius, .. }, Some(frame)) => vec![
+            Channel::Axis(frame),
+            Channel::Core(geom::Circle::new(frame, *major_radius)),
         ],
         _ => Vec::new(),
     }
