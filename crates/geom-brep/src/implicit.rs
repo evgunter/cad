@@ -136,12 +136,15 @@ pub(crate) fn axial_radial<T: Real>(
 /// LOWER bound on the distance `√(ρ² + s²)` (Cauchy–Schwarz), which is
 /// all a carrier verdict needs: definitely off stays definitely off.
 pub fn cone_elevation<T: Real>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     half_angle: T,
     nappe: Option<crate::Nappe>,
     p: Point3<T>,
 ) -> T {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let (s_a, c_a) = half_angle.sin_cos();
     let (h, w) = axial_radial(p, apex, axis);
     let s = match nappe {
@@ -187,7 +190,15 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             axis,
             half_angle,
             ..
-        } => cone_elevation(apex, axis, half_angle, None, p),
+        } => cone_elevation(
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            half_angle,
+            None,
+            p,
+        ),
         Surface::Torus {
             center,
             axis,

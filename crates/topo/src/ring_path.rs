@@ -335,16 +335,48 @@ impl<T: Decide> Quadric<T> {
                 let mut paths = Vec::with_capacity(2);
                 // Round the start's meridian to `to`'s parallel, then round.
                 let turned = centre + axis * ht + ef * rt;
-                let meridian = parallel(kf, ef.cross(axis), off_t, start, turned);
-                let round = parallel(centre + axis * ht, axis, rt, turned, to);
+                let meridian = parallel(
+                    geom::Line {
+                        origin: kf,
+                        dir: ef.cross(axis),
+                    },
+                    off_t,
+                    start,
+                    turned,
+                );
+                let round = parallel(
+                    geom::Line {
+                        origin: centre + axis * ht,
+                        dir: axis,
+                    },
+                    rt,
+                    turned,
+                    to,
+                );
                 paths.push(Path {
                     pieces: vec![lead, Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
                 let turned = centre + axis * hs + et * rs;
-                let round = parallel(centre + axis * hs, axis, rs, start, turned);
-                let meridian = parallel(kt, et.cross(axis), off_t, turned, to);
+                let round = parallel(
+                    geom::Line {
+                        origin: centre + axis * hs,
+                        dir: axis,
+                    },
+                    rs,
+                    start,
+                    turned,
+                );
+                let meridian = parallel(
+                    geom::Line {
+                        origin: kt,
+                        dir: et.cross(axis),
+                    },
+                    off_t,
+                    turned,
+                    to,
+                );
                 paths.push(Path {
                     pieces: vec![lead, Piece::Arc(round), Piece::Meridian(meridian)],
                     arrival: meridian.tangent(meridian.span.1),
@@ -422,7 +454,15 @@ impl<T: Decide> Quadric<T> {
             Margin::of(charge(rise, slack)),
             band,
         )?;
-        let round_at_to = parallel(base + axis * ht, axis, rt, turned, to);
+        let round_at_to = parallel(
+            geom::Line {
+                origin: base + axis * ht,
+                dir: axis,
+            },
+            rt,
+            turned,
+            to,
+        );
         let turn = decide(
             "split_ring_path_turn",
             Margin::of(charge(
@@ -439,7 +479,15 @@ impl<T: Decide> Quadric<T> {
             });
         }
         if rise != Sign::Zero {
-            let round = parallel(base + axis * hf, axis, rf, from, below);
+            let round = parallel(
+                geom::Line {
+                    origin: base + axis * hf,
+                    dir: axis,
+                },
+                rf,
+                from,
+                below,
+            );
             paths.push(Path {
                 pieces: vec![Piece::Arc(round), piece(below, to, to)],
                 arrival: if rise == Sign::Positive {
@@ -457,12 +505,15 @@ impl<T: Decide> Quadric<T> {
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
 fn parallel<T: Decide>(
-    centre: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     radius: T,
     from: Point3<T>,
     to: Point3<T>,
 ) -> CircleArc<T> {
+    let geom::Line {
+        origin: centre,
+        dir: axis,
+    } = axis;
     let u = from - centre;
     let u = u.normalize();
     let w = to - centre;

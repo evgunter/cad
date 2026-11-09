@@ -65,11 +65,8 @@ pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>
 /// name, because the names are its door's rows: [`WrapRims`]
 /// (`bool_wrap_rim`) and the sphere trim's latitude-rim class
 /// (`bool_sphere_iso_rim`).
-pub(super) fn coaxial_margins<T: Decide>(
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    rim: &Rim<T>,
-) -> [Margin<T>; 2] {
+pub(super) fn coaxial_margins<T: Decide>(axis: geom::Line<T>, rim: &Rim<T>) -> [Margin<T>; 2] {
+    let geom::Line { origin, dir: axis } = axis;
     [
         Margin::levered(
             rim.axis.cross(axis).norm(),
@@ -96,7 +93,8 @@ impl<T: Decide> WrapRims<T> {
     fn holds(self, rim: &Rim<T>, band: Band) -> Result<bool, Indeterminate> {
         let Self { origin, axis } = self;
         read_identity(
-            coaxial_margins(origin, axis, rim).map(|margin| ("bool_wrap_rim", margin)),
+            coaxial_margins(geom::Line { origin, dir: axis }, rim)
+                .map(|margin| ("bool_wrap_rim", margin)),
             band,
         )
         .holds()

@@ -877,9 +877,14 @@ fn torus_pair<T: Decide>(
     }
     let a = axis.normalize();
     match *p {
-        geom::Surface::Plane { origin, normal, .. } => {
-            torus_plane(c, a, big_r, r, origin, normal.normalize(), band)
-        }
+        geom::Surface::Plane { origin, normal, .. } => torus_plane(
+            geom::Line { origin: c, dir: a },
+            big_r,
+            r,
+            origin,
+            normal.normalize(),
+            band,
+        ),
         geom::Surface::Cone {
             apex,
             axis: d,
@@ -943,14 +948,14 @@ fn torus_pair<T: Decide>(
 
 /// **Torus × plane**, the plane through `p0` with unit normal `n`.
 fn torus_plane<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
+    axis: geom::Line<T>,
     big_r: T,
     r: T,
     p0: Point3<T>,
     n: Vec3<T>,
     band: Band,
 ) -> Section<T> {
+    let geom::Line { origin: c, dir: a } = axis;
     let h = n.dot(p0 - c);
     let na = n.dot(a);
     let (s, in_pi) = meridian(c, a, n);
@@ -1116,9 +1121,16 @@ fn cone_pair<T: Decide>(
             }
             // The ruling charts read the pose as it stands, with nothing
             // bridged, so an offset neither reading claims is theirs.
-            AxisPose::Undecided(_) | AxisPose::Other => {
-                cone_cylinder(&cone, origin, d.normalize(), rc, reach, band)
-            }
+            AxisPose::Undecided(_) | AxisPose::Other => cone_cylinder(
+                &cone,
+                geom::Line {
+                    origin,
+                    dir: d.normalize(),
+                },
+                rc,
+                reach,
+                band,
+            ),
         },
         geom::Surface::Cone {
             apex: apex2,
@@ -1209,7 +1221,15 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
 
     /// A point's signed distance from the double carrier, in metres.
     fn elevation(&self, p: Point3<T>) -> T {
-        geom_brep::cone_elevation(self.apex, self.a, self.alpha, None, p)
+        geom_brep::cone_elevation(
+            geom::Line {
+                origin: self.apex,
+                dir: self.a,
+            },
+            self.alpha,
+            None,
+            p,
+        )
     }
 
     /// The generator lines as a ruling chart: the azimuth `θ` from
@@ -1274,12 +1294,12 @@ fn charted<T: Real>(
 /// the apex.
 fn cone_cylinder<T: Decide>(
     cone: &Cone<T>,
-    o: Point3<T>,
-    d: Vec3<T>,
+    wall: geom::Line<T>,
     rc: T,
     reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
+    let geom::Line { origin: o, dir: d } = wall;
     let (_, c) = cone.sc;
     let (off, dist) = perp_to(cone.apex - o, d);
     let foot = cone.apex - off;

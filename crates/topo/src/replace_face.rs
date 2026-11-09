@@ -2112,8 +2112,16 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
             ..
         } = old_surface
         {
-            let (v_min, v_max) = group_cone_v_window(body, faces, apex, axis, half_angle.cos())
-                .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
+            let (v_min, v_max) = group_cone_v_window(
+                body,
+                faces,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle.cos(),
+            )
+            .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
             // The nappe decides which end of the window is the one
             // nearest the apex; the window decides whether that end has
             // CLEARED the apex. One predicate, on the near end alone,
@@ -2231,8 +2239,10 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 &plan.spec.carrier,
                 plan.spec.param_start,
                 plan.spec.param_end,
-                apex,
-                axis,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
                 half_angle.cos(),
             );
             window = Some(match window {
@@ -2447,16 +2457,28 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
 fn group_cone_v_window<T: Decide>(
     body: &Body<T>,
     group: &[FaceKey],
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     cos_a: T,
 ) -> Option<(T, T)> {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let mut window: Option<(T, T)> = None;
     for edge in group_boundary(body, group) {
         let edge_data = proven(&body.edges, edge, EntityId::Edge);
         let curve = body.edge_curve_linked(edge, edge_data).certified()?;
         let (t0, t1) = curve.params();
-        let (lo, hi) = cone_v_range(curve.carrier(), t0, t1, apex, axis, cos_a);
+        let (lo, hi) = cone_v_range(
+            curve.carrier(),
+            t0,
+            t1,
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            cos_a,
+        );
         window = Some(match window {
             None => (lo, hi),
             Some((a, b)) => (a.min(lo), b.max(hi)),
@@ -2471,10 +2493,13 @@ fn cone_v_range<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
     t1: T,
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     cos_a: T,
 ) -> (T, T) {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let v_of = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
     match carrier {
         // `v` is affine in `t`, so the endpoints are the extremes.

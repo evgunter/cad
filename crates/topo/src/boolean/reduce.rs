@@ -4828,7 +4828,15 @@ fn place_crossing<T: Decide>(
     band: Band,
 ) -> Result<Placed, BooleanError> {
     if let Some((apex, axis, half_angle, nappe)) = nappe {
-        let off = geom_brep::cone_elevation(apex, axis, half_angle, Some(nappe), p);
+        let off = geom_brep::cone_elevation(
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            half_angle,
+            Some(nappe),
+            p,
+        );
         match decide("bool_cone_root_nappe", Margin::of(off), band) {
             Ok(Sign::Positive) => return Ok(Placed::OffNappe),
             Ok(Sign::Zero) => {}

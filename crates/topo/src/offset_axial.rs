@@ -2149,15 +2149,10 @@ fn mint_carrier<T: Decide>(
     // certifies its own posture.
     if ca.old_key == cb.old_key {
         if let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: cc,
-                    axis,
-                    u_ref,
-                },
+            frame: circle @ geom::Frame { axis, u_ref, .. },
             ..
         }) = old
-            && latitude_posture(frame, *cc, *axis, band)?.is_none()
+            && latitude_posture(frame, circle.axis_line(), band)?.is_none()
         {
             return Ok(latitude_circle(frame, p_start, *axis, *u_ref));
         }
@@ -2502,17 +2497,12 @@ fn mint_carrier<T: Decide>(
             Ok(Curve3::line(*origin + delta, *dir))
         }
         Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: circle @ geom::Frame { axis, u_ref, .. },
             ..
         }) => {
             // A LATITUDE circle: coaxial with the body, so its centre
             // stays on the axis and its radius is the corner's own.
-            if let Some(what) = latitude_posture(frame, *center, *axis, band)? {
+            if let Some(what) = latitude_posture(frame, circle.axis_line(), band)? {
                 return Err(refuse(what));
             }
             Ok(latitude_circle(frame, p_start, *axis, *u_ref))
@@ -2669,10 +2659,13 @@ fn centre_on_axis<T: Decide>(
 /// the two apart.
 fn latitude_posture<T: Decide>(
     frame: &Frame<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     band: Band,
 ) -> Result<Option<&'static str>, ReplaceFaceError<T>> {
+    let geom::Line {
+        origin: center,
+        dir: axis,
+    } = axis;
     let escalated = |source| ReplaceFaceError::Escalated { source };
     if !centre_on_axis(frame, center, band).map_err(escalated)? {
         return Ok(Some(
@@ -2973,7 +2966,15 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
         // double-cone reading is symmetric in it).
         Surface::Cone {
             apex, half_angle, ..
-        } => geom_brep::cone_elevation(*apex, frame.axis.dir, *half_angle, None, p),
+        } => geom_brep::cone_elevation(
+            geom::Line {
+                origin: *apex,
+                dir: frame.axis.dir,
+            },
+            *half_angle,
+            None,
+            p,
+        ),
         // The torus's own meridian distance, in the same `(ρ, h)`
         // half-plane the corner solve works in. Without it the
         // edge-on-surface meter would read `zero` on every torus chart

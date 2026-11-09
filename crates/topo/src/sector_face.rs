@@ -420,7 +420,14 @@ pub(crate) fn resolve<T: Decide>(
             u_ref,
         } => {
             let p = point();
-            match crate::face_normal::cone_point(apex, axis, p, band) {
+            match crate::face_normal::cone_point(
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                p,
+                band,
+            ) {
                 Ok(ConePoint::OffAxis) => charted(
                     geom_brep::implicit_gradient(s, p).normalize(),
                     SectorCarrier::Cone,
