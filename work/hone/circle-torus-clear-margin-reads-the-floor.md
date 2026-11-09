@@ -66,9 +66,24 @@ under `10ε`:
   3–6 and `≥ 6`). The review of PR 4600, on its own pose family,
   saw 114 of 4,500 at 5.6–10ε, all true, most at `R/r ≈ 1`.
 
-That is the liveness side the floor buys, not a wrong answer: a
-definite answer between ε and `Kε` is what the trilean permits. The
+That is the liveness side the floor buys, not a wrong answer within ε.
+(Corrected 2026-11-09: a definite answer between ε and `Kε` is not what
+the trilean permits. `docs/DESIGN.md` `[verdicts]`: "margins within K·ε
+escalate", and "soundness rests on escalate-never-guess". A `Miss` read
+there is a guess.) The
 row is `conic_quadric::in_band_sweep::a_circle_grazing_a_torus_is_answered_truly_or_not_at_all`
 (slow set; red if any pose under ε is answered or any answer is
 false). It does not settle the sound-and-local bound this item asks
 for.
+
+## The ceiling is read; L remains (2026-11-09, `onecopy/local-heights`)
+
+Measured first. 60,000 random circles tangent to a torus (R 1, r 0.25), set off its surface by 0.5 to 15 picometres at ε 1e-12, over 3 seeds, each `Miss` judged by a dense and golden-section oracle of the true least distance:
+- no `Miss` within the zero band;
+- about 2,000 of about 3,200 `Miss` answers per seed have their true distance in the band's gap.
+
+The orchestrator ruled (option C) by `[verdicts]`. The circle × torus door now reads its clear margin through the torus's ceiling, exactly as the ellipse × torus door does (`f_per_metre_hi: f_per_metre_surface`, `residual_reach: Some(r/2)`), so the two torus doors read one ceiling.
+- Pinned by `circle_torus::tests::a_circle_passing_the_tube_in_the_bands_gap_is_no_miss`, which is red on the floor with 16 misses in the gap.
+- **Liveness cost**, in that near-graze family on seed 7: `Miss` answers go from 3,187 to 509, so about 680 of about 1,190 true misses past the escalation now refuse.
+
+**What remains is L**, the sound and local bound this row's "What a fix needs" describes: `Q` read over each piece, by its own reach, rather than the whole shell. The liveness cost above is the reason to do it.
