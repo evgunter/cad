@@ -1393,7 +1393,11 @@ impl ArcReach {
     /// escalation where it is in band, and [`Unsettled::Zero`] where the
     /// band reads the clearance zero (in band: a tighter band may part it
     /// from the apex), so a decided "does not clear" is only a negative
-    /// clearance.
+    /// clearance. One is reachable: with the two ends' directions nearly
+    /// opposite, their bisector is rounding noise, an end's distance
+    /// along it may be decided negative, and the segment does run by the
+    /// apex (a `debug_assert` that no clearance reads negative fails on
+    /// `a_doubled_line_does_not_revert`'s pinch).
     fn clears<T: Decide>(
         self,
         p: Point3<T>,
