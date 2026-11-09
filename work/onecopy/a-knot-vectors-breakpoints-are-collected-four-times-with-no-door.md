@@ -2,11 +2,7 @@
 id: a-knot-vectors-breakpoints-are-collected-four-times-with-no-door
 kind: issue
 title: A knot vector's distinct breakpoints are collected by hand at four sites, with no Knots::breakpoints door
-<<<<<<< HEAD
-status: dispatched
-=======
 status: closed
->>>>>>> origin/main
 opened: 2026-11-04
 priority: P3
 cost: E

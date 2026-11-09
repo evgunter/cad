@@ -2,11 +2,7 @@
 id: a-conic-locus-refused-member-gets-no-located-window
 kind: issue
 title: On a non-line span the boundary pass's undecided window is the whole span, so a refused conic edge piece is read In-or-refuse
-<<<<<<< HEAD
-status: dispatched
-=======
 status: closed
->>>>>>> origin/main
 opened: 2026-11-03
 priority: P2
 cost: E

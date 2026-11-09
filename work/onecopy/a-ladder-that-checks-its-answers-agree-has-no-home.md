@@ -2,11 +2,7 @@
 id: a-ladder-that-checks-its-answers-agree-has-no-home
 kind: issue
 title: Two searches read every rung and refuse where two answers disagree, and ladder has no climb for that shape
-<<<<<<< HEAD
-status: dispatched
-=======
 status: closed
->>>>>>> origin/main
 opened: 2026-11-05
 priority: P2
 cost: M

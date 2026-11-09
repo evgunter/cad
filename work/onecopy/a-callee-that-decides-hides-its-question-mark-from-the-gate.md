@@ -2,20 +2,12 @@
 id: a-callee-that-decides-hides-its-question-mark-from-the-gate
 kind: issue
 title: escalation-question-marks.sh cannot see a ? on a callee that decides inside it: about 265-295 band-reading ? lines in loops
-<<<<<<< HEAD
-status: dispatched
-opened: 2026-11-06
-priority: P2
-cost: H
-branch: onecopy/refusal-standing
-=======
 status: closed
 opened: 2026-11-06
 priority: P2
 cost: H
 closed: 2026-11-06
 pr: 6574
->>>>>>> origin/main
 ---
 
 

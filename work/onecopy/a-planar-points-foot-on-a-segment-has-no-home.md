@@ -2,11 +2,7 @@
 id: a-planar-points-foot-on-a-segment-has-no-home
 kind: issue
 title: A planar point's foot on a segment has no home beside geom::Line, so ray_walk's RaySpace, step-import's chart and the viewer's picker each spell it
-<<<<<<< HEAD
-status: dispatched
-=======
 status: closed
->>>>>>> origin/main
 opened: 2026-11-06
 closed: 2026-11-09
 pr: 6594
