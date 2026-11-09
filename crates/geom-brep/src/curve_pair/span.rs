@@ -164,7 +164,7 @@ pub enum Reading<T> {
 
 /// **Why [`Span::read`] refused**: which of its two readings refused,
 /// each refusal its own.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SpanRefusal {
     /// The place read the foot inside the span, and the carrier's
     /// reading refused.
@@ -172,13 +172,9 @@ pub enum SpanRefusal {
     /// The place against the span's ends refused, and the carrier read.
     Place(CarrierRefusal),
     /// The place against the span's ends refused, and so did the
-    /// carrier's reading.
-    Both {
-        /// The carrier's refusal.
-        carrier: CarrierRefusal,
-        /// The place's refusal.
-        place: Box<CarrierRefusal>,
-    },
+    /// carrier's reading: the carrier's refusal, which the answer is
+    /// ranked by ([`Self::refused`]).
+    Both(CarrierRefusal),
 }
 
 impl SpanRefusal {
@@ -190,8 +186,7 @@ impl SpanRefusal {
     #[must_use]
     pub const fn refused(&self) -> CarrierRefusal {
         match self {
-            Self::Carrier(refused) | Self::Place(refused) => *refused,
-            Self::Both { carrier, .. } => *carrier,
+            Self::Carrier(refused) | Self::Place(refused) | Self::Both(refused) => *refused,
         }
     }
 
@@ -599,10 +594,7 @@ impl<'a, T: Decide> Span<'a, T> {
             Err(place) => {
                 return Err(match on {
                     Ok(_) => SpanRefusal::Place(place),
-                    Err(carrier) => SpanRefusal::Both {
-                        carrier,
-                        place: Box::new(place),
-                    },
+                    Err(carrier) => SpanRefusal::Both(carrier),
                 });
             }
         })

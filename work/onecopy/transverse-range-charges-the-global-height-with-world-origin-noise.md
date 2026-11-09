@@ -2,10 +2,12 @@
 id: transverse-range-charges-the-global-height-with-world-origin-noise
 kind: issue
 title: conic_conic's world-origin noise is charged into the PARALLEL screen, coplanar_circles and transverse's Range
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 cost: M
+closed: 2026-11-09
+pr: 6638
 ---
 
 
@@ -38,3 +40,15 @@ Delete the mint. All three readings then take the heights as exact, per `[simple
 ## Evidence elsewhere
 
 `meet-refuses-a-near-tangent-tilt-in-both-orders`: at a shared end tilted ±1e-5 about the cross, `transverse`'s extreme escalates at −5.0e-12 through this charge.
+
+## Resolved (PR 6638)
+
+- **The charge.** Deleted. The PARALLEL screen, `coplanar_circles` and `transverse`'s `Range` read their local differences uncharged.
+- **Measured at the needle's shared end turned ±1e-5 about the cross:** the charge was 1.2e-14 there, against a true extreme of −5.0e-12. That pose's escalation was not the charge's; PR 6623 settled it. Far from the origin the charge was what refused:
+  - the far vertex turned 3.16e-5 about its tangent refuses at 1e2 and at 1e3, while it reads apart at the origin;
+  - at 1e3, 8 of 60 grid poses (the half-decade grid at both pivots and three axes) read other than at the origin with the charge, and 1 without it, a pose that escalates at the origin. That grid samples; it is not the class. PR 6638's review found the far vertex turned +3e-6 about its tangent refusing at 1e3 on base and head alike, filed as `a-needle-pose-at-the-zeros-edge-refuses-on-the-basin-far-from-the-origin`;
+  - **1e4 is out of the band's reach.** At 1e4 a coordinate rounds at about 1.8e-12, above the 1e-12 zero, so a meeting within the zero cannot be read there at all: 134 of 2,220 poses refuse where the origin decides, on head as on base. The pinned row moves by 1e2 and 1e3 only.
+  - `order_rows::the_needle_far_from_the_origin_reads_as_at_it` pins this.
+- **`least`.** Deleted, by the orchestrator's ruling (T): an extreme in the zero band reads its touch at the extreme (C5). The root gap decides only between two definite crossings, so there is no 0/0 path left.
+- **The line router's two mints** are not this row's. They are filed as `the-line-router-charges-its-margins-with-world-origin-noise`.
+- `pose.rs`'s row in `scripts/gates/bare-rounding-sites.tsv` drops from 8 to 7.

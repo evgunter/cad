@@ -37,6 +37,7 @@
 #![allow(clippy::expect_used)] // one fixed band, well-formed by construction
 
 use geom_brep::certify::{CertCheck, CertifyError};
+use geom_brep::curve_pair::MeetFault;
 use geom_brep::edge_nurbs::PlaneNurbsRefusal;
 use geom_brep::offset_fit::{OFFSET_FIT_SAMPLE_CAP, OFFSET_FIT_WORK, OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedEnding, FittedMagnitude, PcurveCertifyError, PcurveCheck};
@@ -1891,20 +1892,25 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "CensusUnsupported/FaceUnboundable".to_owned(),
         CensusUnsupportedCause::FaceUnboundable,
     ));
-    for why in crate::validate::EdgeTangentUnread::ALL {
+    for why in edge_tangent_reasons() {
         causes.push((
             format!("CensusUnsupported/CurvedEdge/{why:?}"),
             CensusUnsupportedCause::CurvedEdge(why),
         ));
     }
     for why in [
-        geom_brep::curve_pair::MeetUnread::Unsettled(geom_brep::roots::Unsettled::Exhausted),
-        geom_brep::curve_pair::MeetUnread::Unwalked(geom::PieceWalkRefusal::Exhausted),
-        geom_brep::curve_pair::MeetUnread::Unwalked(geom::PieceWalkRefusal::Unbounded),
-        geom_brep::curve_pair::MeetUnread::Unsupported {
+        MeetFault::Unsettled(geom_brep::roots::Unsettled::Exhausted),
+        MeetFault::Unsettled(geom_brep::roots::Unsettled::AtApex),
+        MeetFault::Unsettled(geom_brep::roots::Unsettled::Crease),
+        MeetFault::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        MeetFault::Unwalked(geom::PieceWalkRefusal::Unbounded),
+        MeetFault::Unsupported {
             pose: "a pose the meeting table has no closed form for",
         },
-    ] {
+    ]
+    .into_iter()
+    .filter_map(geom_brep::curve_pair::MeetUnread::of)
+    {
         causes.push((
             format!("CensusUnsupported/Meeting/{why:?}"),
             CensusUnsupportedCause::Meeting(why),
@@ -1933,7 +1939,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     let touches = crate::link::TouchUnread::iter()
         .filter(|why| !matches!(why, crate::link::TouchUnread::Corrupt))
         .chain(
-            crate::validate::EdgeTangentUnread::ALL
+            edge_tangent_reasons()
                 .into_iter()
                 .map(crate::link::TouchUnread::EdgeTangent),
         )
@@ -2926,4 +2932,17 @@ mod tests {
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
+}
+
+/// Every reason the census refuses a curved edge for, each walk refusal
+/// its own: the samples' list, which a new reason joins.
+fn edge_tangent_reasons() -> [crate::validate::EdgeTangentUnread; 5] {
+    use crate::validate::EdgeTangentUnread as E;
+    [
+        E::NoCurve,
+        E::NoReach,
+        E::NoLength,
+        E::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        E::Unwalked(geom::PieceWalkRefusal::Unbounded),
+    ]
 }

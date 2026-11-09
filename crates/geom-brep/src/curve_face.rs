@@ -503,7 +503,7 @@ impl BoundaryRefusal {
     /// # Errors
     ///
     /// [`crate::ladder::Aborts`] for a kernel fault.
-    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+    pub fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
         match self {
             Self::Escalated(diag) => Ok(crate::ladder::Refusal::Margin(*diag)),
             Self::Met(kind) => kind.refusal(),

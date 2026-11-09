@@ -3758,7 +3758,7 @@ pub(super) fn section_unbuilt(
             }
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
-        Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Tangent(why)),
+        Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Unminted(*why)),
         Uncarried::Carry(CarryError::Winds(e)) => unbuilt(SectionUnbuilt::Winds(*e)),
         Uncarried::Carry(CarryError::PadShort { pad, hull_sup }) => {
             unbuilt(SectionUnbuilt::PadShort {
@@ -5667,22 +5667,34 @@ fn seam_germ_side<T: Decide>(
                         "a section chord's region no longer resolves",
                     )));
                 }
-                // A normal refused in band or at a limit is kept; a point
-                // off the region's own surface is a kernel defect.
+                // A normal refused in band or at a limit is kept. A point off
+                // the region's own surface is a kernel defect, and so is a
+                // region on a torus outside the ring convention: the germ
+                // pair's frame refuses that torus before any chord is joined.
                 Err(why) => {
-                    return rung_or_abort(why.refusal(), (), |()| {
+                    return rung_or_abort(why.refusal(), why, |why| {
                         Err(BooleanError::ClassificationInvariant {
-                            what: "a section chord's point reads off the surface of the region it bounds",
+                            what: match why {
+                                NormalAtError::DegenerateTorus { .. } => {
+                                    "a section chord's region is a torus outside the ring \
+                                     convention, which the germ pair's frame refuses first"
+                                }
+                                _ => {
+                                    "a section chord's point reads off the surface of the \
+                                      region it bounds"
+                                }
+                            },
                         })
-                    });
+                    })
+                    .map_kept(|_| ());
                 }
             };
             let into_region = crate::stands::inward(n_r, d.normalize());
-            let n_f = match holding_face_normal(other, mid, band) {
+            let n_f = match holding_face_normal((other, other_is), mid, band) {
                 Ok(Ok(Some(n_f))) => n_f,
                 Ok(Ok(None)) => return Rung::Passes,
                 Ok(Err(why)) => {
-                    return rung_or_abort(why.refusal(), why, |why| Err(why.aborted(other_is)))
+                    return rung_or_abort(why.refusal(), why, |why| Err(why.aborted()))
                         .map_kept(|_| ());
                 }
                 Err(e) => return Rung::Aborts(Err(e)),
@@ -5743,7 +5755,7 @@ const SEAM_GERM_ON_PLANE: &str = "bool_join_seam_germ_on_plane";
 ///
 /// On a stale face, as [`super::ops::place_witness`] does.
 fn holding_face_normal<T: Decide>(
-    other: &Body<T>,
+    (other, other_is): (&Body<T>, Operand),
     q: Point3<T>,
     band: Band,
 ) -> Result<Result<Option<Vec3<T>>, HoldingUnread>, BooleanError> {
@@ -5765,7 +5777,13 @@ fn holding_face_normal<T: Decide>(
             Err(PlacementError::Door(super::ContainError::StaleFace(face))) => {
                 super::contain::driver_face_stale(face)
             }
-            Err(why) => return Ok(Err(HoldingUnread::Placement { face: f, why })),
+            Err(why) => {
+                return Ok(Err(HoldingUnread::Placement {
+                    operand: other_is,
+                    face: f,
+                    why,
+                }));
+            }
         }
     }
     let Some(held) = held else {
@@ -5786,8 +5804,10 @@ fn holding_face_normal<T: Decide>(
 /// read.
 #[derive(Debug)]
 enum HoldingUnread {
-    /// Placing the point in this face refused.
+    /// Placing the point in this face of this operand refused.
     Placement {
+        /// The operand the face is of.
+        operand: Operand,
         /// The face.
         face: FaceKey,
         /// The placement's refusal.
@@ -5821,13 +5841,14 @@ impl HoldingUnread {
     }
 
     /// The answer the ladder stops with where this refusal aborts
-    /// ([`Self::refusal`]): the door's refusal on `operand`'s face, or a
-    /// holding face that reads the point off the surface it was placed
-    /// on.
-    fn aborted(self, operand: Operand) -> BooleanError {
+    /// ([`Self::refusal`]): the door's refusal on the operand's face it
+    /// was read on, or a holding face that reads the point off the
+    /// surface it was placed on.
+    fn aborted(self) -> BooleanError {
         use super::contain::PlacementError;
         match self {
             Self::Placement {
+                operand,
                 face,
                 why: PlacementError::Door(refusal),
             } => BooleanError::PointInFaceRefused {
@@ -5925,7 +5946,7 @@ mod holding_rows {
     fn a_chord_held_at_a_cones_apex_refuses() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (body, _) = crate::test_support_fixtures::cone_cap(0.5, 1.0, Tol::witness());
-        let held = holding_face_normal(&body, Point3::origin(), band);
+        let held = holding_face_normal((&body, super::Operand::A), Point3::origin(), band);
         assert!(
             matches!(
                 held,
@@ -5942,41 +5963,87 @@ mod holding_rows {
         }
     }
 
-    /// **A placement door's refusal stands as the door states it, and an
-    /// abort refuses on the other operand's face**: a stale face aborts
-    /// with the door's refusal on that operand ([`super::Operand`]); an
-    /// empty loop is a limit, kept. Red where an abort is passed, or
-    /// answered on the wrong operand.
+    /// **A placement in a holding face that refuses is that refusal,
+    /// standing as the door states it**, read through the reader on the
+    /// public operators' bodies:
+    /// - a point at a half-disc cap's arc end, off both its corners at a
+    ///   band finer than the run's (`contain`'s
+    ///   `a_point_at_an_arc_end_clear_of_its_corners_is_a_finding`): the
+    ///   door's `ArcEndClearOfCorners`, an abort, answered as the door's
+    ///   refusal on the operand the face was read on;
+    /// - a point half the band off the cap: the cap's wall, a face whose
+    ///   trim the door does not read (`Trim(None)`), a limit;
+    /// - a point half the band off a block's top face: the placement in
+    ///   band of the plane, ranked by its margin.
+    ///
+    /// Red where a placement's refusal is read as no holding face, or the
+    /// abort is answered on another operand.
     #[test]
-    fn a_holding_faces_door_refusal_stands_as_the_door_states_it() {
+    fn a_holding_faces_placement_refusal_stands_as_the_door_states_it() {
         use super::super::contain::PlacementError;
         use super::super::{BooleanError, ContainError, Operand};
-        use crate::entity::{FaceKey, LoopKey};
-        let face = FaceKey::default();
-        let stale = HoldingUnread::Placement {
-            face,
-            why: PlacementError::Door(ContainError::StaleFace(face)),
+        use crate::test_support_fixtures::half_disc_cap;
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let off = zero / 2.0;
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        let (body, _, end) = half_disc_cap(off, tol);
+        let held = holding_face_normal((&body, Operand::B), end, fine);
+        let Ok(Err(why)) = held else {
+            panic!("the arc end's placement refuses: {held:?}");
         };
-        assert_eq!(stale.refusal(), Err(geom_brep::ladder::Aborts));
         assert!(
             matches!(
-                stale.aborted(Operand::B),
-                BooleanError::PointInFaceRefused {
-                    operand: Operand::B,
-                    refusal: ContainError::StaleFace(_),
+                why,
+                HoldingUnread::Placement {
+                    why: PlacementError::Door(ContainError::ArcEndClearOfCorners(_)),
                     ..
                 }
             ),
-            "a door's abort refuses on the other operand's face"
+            "the door's finding: {why:?}"
         );
-        let empty = HoldingUnread::Placement {
-            face,
-            why: PlacementError::Door(ContainError::EmptyLoop(LoopKey::default())),
-        };
-        assert_eq!(empty.refusal(), Ok(geom_brep::ladder::Refusal::Limit));
-        assert_eq!(
-            HoldingUnread::Trim.refusal(),
-            Ok(geom_brep::ladder::Refusal::Limit)
+        assert_eq!(why.refusal(), Err(geom_brep::ladder::Aborts));
+        let aborted = why.aborted();
+        assert!(
+            matches!(
+                aborted,
+                BooleanError::PointInFaceRefused {
+                    operand: Operand::B,
+                    refusal: ContainError::ArcEndClearOfCorners(_),
+                    ..
+                }
+            ),
+            "the abort refuses on the operand the face was read on: {aborted:?}"
+        );
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let half = 0.5 * (band.zero() + band.escalate());
+        let (body, _, _) = half_disc_cap(0.0, tol);
+        let held = holding_face_normal((&body, Operand::A), Point3::new(0.0, 0.5, half), band);
+        assert!(
+            matches!(&held, Ok(Err(why @ HoldingUnread::Trim))
+                if why.refusal() == Ok(geom_brep::ladder::Refusal::Limit)),
+            "a face whose trim the door does not read, a limit: {held:?}"
+        );
+        let block = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let held = holding_face_normal(
+            (&block.body, Operand::A),
+            Point3::new(0.5, 0.5, 1.0 + half),
+            band,
+        );
+        assert!(
+            matches!(
+                &held,
+                Ok(Err(why @ HoldingUnread::Placement {
+                    why: PlacementError::OnPlane(_),
+                    ..
+                })) if matches!(why.refusal(), Ok(geom_brep::ladder::Refusal::Margin(_)))
+            ),
+            "a point in band of a face's plane, by its margin: {held:?}"
         );
     }
 }

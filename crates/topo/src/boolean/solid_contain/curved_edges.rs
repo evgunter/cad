@@ -322,9 +322,7 @@ fn passes<T: Decide>(
         // In band of an end, or undecided against one, whatever the
         // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.
-        Ok(Reading::End(_)) | Err(SpanRefusal::Place(_) | SpanRefusal::Both { .. }) => {
-            Passes::End(s)
-        }
+        Ok(Reading::End(_)) | Err(SpanRefusal::Place(_) | SpanRefusal::Both(_)) => Passes::End(s),
         Err(SpanRefusal::Carrier(refused)) => refused
             .escalation()
             .map_or(Passes::Undecided, |diag| Passes::Met(s, Gap::InBand(diag))),

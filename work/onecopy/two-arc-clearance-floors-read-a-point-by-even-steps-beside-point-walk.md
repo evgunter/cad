@@ -2,8 +2,10 @@
 id: two-arc-clearance-floors-read-a-point-by-even-steps-beside-point-walk
 kind: issue
 title: Two circle-arc clearance floors read a point against an arc by 32 even steps beside Curve3::point_walk
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6645
 ---
 
 

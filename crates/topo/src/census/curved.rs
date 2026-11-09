@@ -565,9 +565,6 @@ mod tests {
                 why.sentence()
             );
         }
-        for (i, why) in EdgeTangentUnread::ALL.into_iter().enumerate() {
-            assert_eq!(why.listed(), i, "{why:?} stands at its place in the list");
-        }
     }
 
     /// **The cross-solid backstop carries a touch's reason whole**
@@ -621,55 +618,70 @@ mod tests {
     }
 
     /// **A refused meeting of two curved edges carries its reading's
-    /// reason and reads as it**: the reason is the meeting's own
-    /// ([`geom_brep::curve_pair::MeetKind::Unread`]), the cause renders the
-    /// reading and the reason's sentence, and a person reads the reason's
-    /// recourse after it. Red where a sentence or recourse is rewritten or
-    /// swapped, or the cause renders through anything but its reason.
+    /// reason and reads as it**: the reason is the meeting's own fault
+    /// ([`geom_brep::curve_pair::MeetUnread`]), the cause renders the
+    /// reading and the reason's sentence (a pose its own phrase), and a
+    /// person reads the recourse its standing gives
+    /// ([`geom_brep::ladder::Refusal::recourse`]): the kernel limit's
+    /// lever for a reading a coarser band or a budget may settle, moving
+    /// the geometry for one in band (a cone's apex), and no way through
+    /// yet for one not built, or a crease's mixed payload not yet split. Red where a sentence or recourse is rewritten or swapped,
+    /// or the cause renders through anything but its reason.
     #[test]
     fn a_refused_curved_meeting_reads_as_its_reason() {
         use geom::PieceWalkRefusal::{Exhausted, Unbounded};
         use geom_brep::curve_pair::{MeetFault, MeetUnread};
         use geom_brep::roots::Unsettled;
         use geom_core::{KERNEL_LIMIT_RECOURSE, NOT_YET_ENDING};
-        for (fault, why, sentence, recourse) in [
+        let settle = "the meeting reading of two edges did not settle:";
+        for (fault, reading, recourse) in [
             (
                 MeetFault::Unwalked(Exhausted),
-                MeetUnread::Unwalked(Exhausted),
-                "a spline's piece walk ran past its budget",
+                format!("{settle} a spline's piece walk ran past its budget"),
                 KERNEL_LIMIT_RECOURSE,
             ),
             (
                 MeetFault::Unwalked(Unbounded),
-                MeetUnread::Unwalked(Unbounded),
-                "a spline's speed bound is zero or poison",
+                format!("{settle} a spline's speed bound is zero or poison"),
                 NOT_YET_ENDING,
             ),
             (
                 MeetFault::Unsettled(Unsettled::Exhausted),
-                MeetUnread::Unsettled(Unsettled::Exhausted),
-                "the walk ran past its piece budget",
-                NOT_YET_ENDING,
+                format!("{settle} the walk ran past its piece budget"),
+                KERNEL_LIMIT_RECOURSE,
             ),
             (
                 MeetFault::Unsettled(Unsettled::Tangency),
-                MeetUnread::Unsettled(Unsettled::Tangency),
-                "a double root",
+                format!("{settle} a double root"),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                MeetFault::Unsettled(Unsettled::AtApex),
+                format!("{settle} a root at a cone's apex"),
+                "Recourse: move the geometry",
+            ),
+            (
+                MeetFault::Unsettled(Unsettled::Degenerate),
+                format!("{settle} a residual whose leading term vanishes"),
+                NOT_YET_ENDING,
+            ),
+            (
+                MeetFault::Unsettled(Unsettled::Crease),
+                format!("{settle} a meeting at a spline's crease"),
                 NOT_YET_ENDING,
             ),
             (
                 MeetFault::Unsupported { pose: "a pose" },
-                MeetUnread::Unsupported { pose: "a pose" },
-                "a pose",
+                "the meeting reading of two edges has no closed form for a pose".to_owned(),
                 NOT_YET_ENDING,
             ),
         ] {
+            let why = MeetUnread::of(fault).unwrap();
             assert_eq!(
                 super::meeting_unread(fault, format_args!("a pair")),
                 Ok(why),
                 "{fault:?}: the reason is the meeting's"
             );
-            let reading = format!("the meeting reading of two edges did not settle: {sentence}");
             assert_eq!(
                 crate::CensusUnsupportedCause::Meeting(why).to_string(),
                 reading,

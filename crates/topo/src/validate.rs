@@ -720,30 +720,6 @@ pub enum EdgeTangentUnread {
 }
 
 impl EdgeTangentUnread {
-    /// **Every reason**, for a reader that renders each once (the touch
-    /// lane's sentences). [`Self::listed`] matches every arm, so a new
-    /// one does not compile until it is added here.
-    pub const ALL: [Self; 5] = [
-        Self::NoCurve,
-        Self::NoReach,
-        Self::NoLength,
-        Self::Unwalked(geom::PieceWalkRefusal::Exhausted),
-        Self::Unwalked(geom::PieceWalkRefusal::Unbounded),
-    ];
-
-    /// Where this reason stands in [`Self::ALL`]: the exhaustive match
-    /// that keeps the list whole.
-    #[must_use]
-    pub const fn listed(self) -> usize {
-        match self {
-            Self::NoCurve => 0,
-            Self::NoReach => 1,
-            Self::NoLength => 2,
-            Self::Unwalked(geom::PieceWalkRefusal::Exhausted) => 3,
-            Self::Unwalked(geom::PieceWalkRefusal::Unbounded) => 4,
-        }
-    }
-
     /// What this reason is to a ladder, as each variant's docs state it.
     /// It never refuses the whole query.
     #[must_use]
@@ -765,64 +741,75 @@ impl EdgeTangentUnread {
         }
     }
 
-    /// The touch lane's recourse: [`Self::recourse`], with "for this
-    /// shape" on a reading not built yet.
-    fn touch_recourse(self) -> String {
-        let recourse = self.recourse();
-        if recourse == NOT_YET_ENDING {
-            format!("{recourse} for this shape")
-        } else {
-            recourse.to_owned()
-        }
-    }
-
     /// **A touch point's sentence for this reason**
     /// ([`crate::link::TouchUnread::EdgeTangent`]): the touch, and the
-    /// touch lane's recourse. Built once over [`Self::ALL`].
+    /// touch lane's ending of its recourse ([`touch_ending`]).
     pub(crate) fn touch_sentence(self) -> &'static str {
-        static SENTENCES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
-            EdgeTangentUnread::ALL
-                .iter()
-                .map(|why| {
-                    format!(
-                        "a curved edge meets the point, and the check could not read its \
-                         direction there. {}",
-                        why.touch_recourse()
-                    )
-                })
-                .collect()
-        });
-        SENTENCES[self.listed()].as_str()
+        static HELD: Held = std::sync::Mutex::new(Vec::new());
+        once_per_recourse(&HELD, self.recourse(), |recourse| {
+            format!(
+                "a curved edge meets the point, and the check could not read its direction \
+                 there. {}",
+                touch_ending(recourse)
+            )
+        })
     }
 
     /// **The cross-solid backstop's sentence for this reason**: the
-    /// touch, the touch lane's recourse, then the distance that clears
-    /// the pair. Built once over [`Self::ALL`].
+    /// touch, the touch lane's ending of its recourse ([`touch_ending`]),
+    /// then the distance that clears the pair.
     pub(crate) fn backstop_sentence(self) -> &'static str {
-        static SENTENCES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
-            EdgeTangentUnread::ALL
-                .iter()
-                .map(|why| {
-                    format!(
-                        "they touch on a curved edge whose direction there the check could \
-                         not read, so it cannot tell whether they overlap. {}; otherwise \
-                         move them until their bounding boxes no longer overlap",
-                        why.touch_recourse()
-                    )
-                })
-                .collect()
-        });
-        SENTENCES[self.listed()].as_str()
+        static HELD: Held = std::sync::Mutex::new(Vec::new());
+        once_per_recourse(&HELD, self.recourse(), |recourse| {
+            format!(
+                "they touch on a curved edge whose direction there the check could not read, \
+                 so it cannot tell whether they overlap. {}; {}",
+                touch_ending(recourse),
+                crate::census::MOVE_APART
+            )
+        })
     }
 
-    /// The recourse its rendering ends with: a curve the kernel does not
-    /// read yet, or the walk's own ([`geom::PieceWalkRefusal::recourse`]).
+    /// The recourse its rendering ends with: its standing's
+    /// ([`geom_brep::ladder::Refusal::recourse`]).
     #[must_use]
-    pub const fn recourse(self) -> &'static str {
-        match self {
-            Self::NoCurve | Self::NoReach | Self::NoLength => NOT_YET_ENDING,
-            Self::Unwalked(why) => why.recourse(),
-        }
+    pub const fn recourse(self) -> geom_brep::ladder::Ending {
+        self.refusal().recourse()
+    }
+}
+
+/// The sentences [`once_per_recourse`] has built, each beside the
+/// ending it ends with.
+type Held = std::sync::Mutex<Vec<(geom_brep::ladder::Ending, &'static str)>>;
+
+/// **A sentence built once for each ending it ends with**, and kept: a
+/// finding's words are a `&'static str`, and a reason's sentence differs
+/// by its ending alone. A new reason needs no list: its ending is its
+/// standing's. The endings a reason without a margin stands by are four
+/// at most; one that carried a margin would hold one sentence per margin
+/// read.
+fn once_per_recourse(
+    held: &'static Held,
+    ending: geom_brep::ladder::Ending,
+    build: impl FnOnce(geom_brep::ladder::Ending) -> String,
+) -> &'static str {
+    let mut held = held
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(&(_, sentence)) = held.iter().find(|(e, _)| *e == ending) {
+        return sentence;
+    }
+    let sentence: &'static str = Box::leak(build(ending).into_boxed_str());
+    held.push((ending, sentence));
+    sentence
+}
+
+/// The touch lane's words for `ending`: "for this shape" after a
+/// reading not built yet.
+fn touch_ending(ending: geom_brep::ladder::Ending) -> String {
+    match ending {
+        geom_brep::ladder::Ending::NotYet => format!("{NOT_YET_ENDING} for this shape"),
+        other => other.render().into_owned(),
     }
 }
 
@@ -1021,7 +1008,7 @@ impl CensusUnsupportedCause {
             Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
             Self::CurvedEdge(why) => f.write_str(why.sentence()),
-            Self::Meeting(why) => f.write_str(&meeting_unread(*why)),
+            Self::Meeting(why) => f.write_str(&meeting_words(*why)),
             // The containment door's reading, at a build, whichever door
             // reads the census.
             Self::Containment(e) => write!(
@@ -4424,12 +4411,16 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
 }
 
 /// [`CensusUnsupportedCause::Meeting`]'s words: the meeting reading,
-/// and the reason's own sentence.
-fn meeting_unread(why: geom_brep::curve_pair::MeetUnread) -> String {
-    format!(
-        "the meeting reading of two edges did not settle: {}",
-        why.sentence()
-    )
+/// and the reason's own sentence: a pose it has no closed form for, or
+/// what kept it from settling.
+fn meeting_words(why: geom_brep::curve_pair::MeetUnread) -> String {
+    match why.pose() {
+        Some(pose) => format!("the meeting reading of two edges has no closed form for {pose}"),
+        None => format!(
+            "the meeting reading of two edges did not settle: {}",
+            why.sentence()
+        ),
+    }
 }
 
 fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, Cow<'static, str>) {
@@ -4439,9 +4430,9 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
             let (why, recourse) = classify_contact_lane(e);
             (why.into(), recourse.into())
         }
-        CensusUnsupportedCause::CurvedEdge(why) => (why.sentence().into(), why.recourse().into()),
+        CensusUnsupportedCause::CurvedEdge(why) => (why.sentence().into(), why.recourse().render()),
         CensusUnsupportedCause::Meeting(why) => {
-            (meeting_unread(*why).into(), why.recourse().into())
+            (meeting_words(*why).into(), why.recourse().render())
         }
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (

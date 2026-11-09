@@ -16,7 +16,9 @@
 //!   ladder reads a non-finite margin as a definite answer.
 //! - [`read_identity`] is the **identity ladder**, the ladder over banded
 //!   data each required `Zero` for two descriptions to be one, so any
-//!   datum decided apart answers.
+//!   datum decided apart answers. [`data_beneath_sum`] reads its data,
+//!   every one decided `Zero`, beside a sum of them that did not decide
+//!   `Zero`: the two straddle the band where the sum decides past it.
 //! - [`climb_agreeing`] is the **agreeing ladder**: it reads every rung
 //!   rather than stopping at the first answer, and hands back
 //!   [`Disagree`] where two decided answers differ. Its caller says what
@@ -112,10 +114,34 @@ impl Kept<Indeterminate> {
 /// - one that never refuses the whole query returns `Refusal`, and is a
 ///   rung by [`Refusal::rung`] alone: no answer is needed, so none can
 ///   be supplied;
-/// - one with a variant that does (a corrupt input, two readings that
-///   contradict, a refusal every point reads alike) returns
+/// - one with a variant that does (an invalid input, a kernel fault,
+///   two readings that contradict) returns
 ///   `Result<Refusal, Aborts>`, and its caller names the answer the
 ///   ladder stops with ([`rung_or_abort`]).
+///
+/// **A standing reads DESIGN `[failure.taxonomy]`'s rows.** Row 1 is
+/// read here in two parts, 1(a) and 1(b). That split is this code's
+/// reading of row 1's own bullets, not a sub-row of DESIGN's:
+///
+/// > *Row 1 absorbs the terminal indeterminates*, but the axis is
+/// > curable-vs-terminal, not bug-vs-invalid
+///
+/// > A site whose firing a correct kernel can reach is not a defect but a
+/// > precision limit the model controls (row 1, a lever and
+/// > `KERNEL_LIMIT_RECOURSE`)
+///
+/// - **1(a)**, the terminal half: an invalid input no lever cures,
+///   including a request whose result the kernel's model never
+///   represents (manifold only, bounded). It aborts.
+/// - **1(b)**, the curable half: a precision limit the model controls,
+///   which a lever or a tolerance cures. It is ranked by its margin where
+///   it carries one, kept in band where a tighter tolerance may decide
+///   it, and a limit otherwise.
+///
+/// Row 2 (valid input, unbuilt) is a limit, and row 4 (a kernel fault)
+/// aborts. Row 3's poison flows through values: where it reaches a
+/// decision, that refusal is 1(b) where input causes it and row 4 where
+/// none can. A payload that mixes classes aborts until it is split.
 ///
 /// [`Kept`] is not a standing: it is what a margin's reading leaves
 /// ([`decided`]), which is never unsettled and never aborts.
@@ -131,12 +157,86 @@ pub enum Refusal {
     Unsettled,
 }
 
+/// **The ending a rendering of a standing composes**
+/// ([`Refusal::recourse`]): which recourse, kept as a value until it is
+/// rendered, since a margin's sizes its own words.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Ending {
+    /// The tolerance this margin sizes, then moving the geometry
+    /// ([`Indeterminate::ending`]).
+    Sized(Indeterminate),
+    /// Moving the geometry ([`geom_core::COINCIDENCE_RECOURSE`]).
+    Move,
+    /// A kernel approximation limit's lever
+    /// ([`geom_core::KERNEL_LIMIT_RECOURSE`]).
+    KernelLimit,
+    /// No way through yet ([`geom_core::NOT_YET_ENDING`]).
+    NotYet,
+}
+
+impl Ending {
+    /// The ending's words.
+    #[must_use]
+    pub fn render(self) -> std::borrow::Cow<'static, str> {
+        match self {
+            Self::Sized(diag) => diag.ending(geom_core::COINCIDENCE_RECOURSE).into(),
+            Self::Move => concat!("Recourse: ", geom_core::coincidence_move_arm!()).into(),
+            Self::KernelLimit => geom_core::KERNEL_LIMIT_RECOURSE.into(),
+            Self::NotYet => geom_core::NOT_YET_ENDING.into(),
+        }
+    }
+}
+
 /// A refusal of the whole query ([`Refusal`]'s docs): the ladder stops
 /// on it ([`Rung::Aborts`]) with the answer its caller names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Aborts;
 
 impl Refusal {
+    /// **The recourse a rendering of this standing ends with** (D4 ¶1
+    /// (i), DESIGN `[failure.taxonomy]` as this type's docs read it):
+    /// - a reading ranked by its margin offers the tolerance that margin
+    ///   sizes, then moving the geometry ([`Ending::Sized`]);
+    /// - one in band with no margin, moving the geometry
+    ///   ([`Ending::Move`]);
+    /// - one a coarser band or a budget may settle, the kernel limit's
+    ///   lever ([`Ending::KernelLimit`]);
+    /// - a valid input the kernel does not read yet (row 2), no way
+    ///   through yet ([`Ending::NotYet`]).
+    ///
+    /// An abort has no ending here: its caller names its answer.
+    #[must_use]
+    pub const fn recourse(self) -> Ending {
+        match self {
+            Self::Margin(diag) => Ending::Sized(diag),
+            Self::InBand => Ending::Move,
+            Self::Unsettled => Ending::KernelLimit,
+            Self::Limit => Ending::NotYet,
+        }
+    }
+
+    /// **A crease reading's standing**, stated once for every reader of
+    /// one (a spline chart's normal at a point within the band of a line
+    /// its normal is not continuous across, or of a pole): a distance in
+    /// band is ranked by its margin, and one decided zero is a limit no
+    /// tolerance moves, the pose not read (`[failure.taxonomy]` row 2).
+    #[must_use]
+    pub const fn of_crease(reading: crate::CreaseReading) -> Self {
+        match reading {
+            Err(diag) => Self::Margin(diag),
+            Ok(_) => Self::Limit,
+        }
+    }
+
+    /// **A reading within the band of a cone's apex**, stated once for
+    /// every reader of one: in band. It carries no reading to tell a point
+    /// at the apex from one in band of the axis, and a tighter tolerance
+    /// may part the latter from it (row 1(b) above).
+    #[must_use]
+    pub const fn of_apex() -> Self {
+        Self::InBand
+    }
+
     /// **A spline walk's refusal's standing**, stated once for every
     /// reader of one: a walk past its budget is unsettled (no margin, and
     /// a coarser band may settle it); a spline with no speed bound is a
@@ -303,16 +403,27 @@ impl<A, E> Rung<A, E> {
 impl<A, E> Rung<Result<A, E>, E> {
     /// **A reading of whether one rung holds** as its rung: holding
     /// answers `Ok(yes)`, not holding passes, and a refusal stands by
-    /// `standing` ([`Self::refused`]). The one home of the reader that
+    /// `standing` ([`Self::answers`]). The one home of the reader that
     /// answers a `bool` over a refusal with a standing.
     pub fn holds(
         reading: Result<bool, E>,
         yes: A,
         standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
     ) -> Self {
+        Self::answers(reading.map(|held| held.then_some(yes)), standing)
+    }
+
+    /// **A reading that answers `Some(a)`** as its rung: `Some` answers
+    /// `Ok(a)`, `None` passes, and a refusal stands by `standing`
+    /// ([`Self::refused`]): [`Self::holds`] where the answer is read
+    /// rather than fixed.
+    pub fn answers(
+        reading: Result<Option<A>, E>,
+        standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
+    ) -> Self {
         match reading {
-            Ok(true) => Self::Answers(Ok(yes)),
-            Ok(false) => Self::Passes,
+            Ok(Some(a)) => Self::Answers(Ok(a)),
+            Ok(None) => Self::Passes,
             Err(e) => Self::refused(e, standing),
         }
     }
@@ -577,15 +688,18 @@ pub fn climb_agreeing<I, A, E>(
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum IdentityLadder {
     /// A datum decided past the band: the identity does not hold. `at` is
-    /// its index in the data, `sign` its sign.
+    /// its index in the data, `decided` its reading.
     Apart {
         /// The answering datum's index.
         at: usize,
-        /// Its sign (never [`Sign::Zero`]).
-        sign: Sign,
+        /// Its reading: the sign (never [`Sign::Zero`]) and the margin
+        /// it was decided on.
+        decided: Decided,
     },
-    /// Every datum decided `Zero`: the identity holds, with the data's
-    /// decided margins taken jointly (`None` for no data).
+    /// Every datum decided `Zero`: the identity holds. Its margin is the
+    /// first datum's reading, proven only where every datum's is
+    /// ([`MarginDiag::jointly`]); not the largest of them (`None` for no
+    /// data).
     Zero(Option<MarginDiag>),
     /// No datum decided past the band and one did not decide: the first
     /// that cannot be read (its margin poisoned), else the first in band.
@@ -613,6 +727,14 @@ impl IdentityLadder {
 /// its own name: the ladder ([`climb`], [`Answering::Any`]: every datum
 /// decided apart says the same "not one") whose answer is a datum decided
 /// apart.
+///
+/// **A datum's name is spelled once, as a literal at the datum**, as a
+/// `decide*` call's is. `test_utils::source::predicate_census` reads
+/// names at `decide*` calls only, so a crate whose roster runs it
+/// (sweep's `recourse_roster`) carries each identity datum's name in a
+/// `const` and declares it (`NameCarrier::Const`, sweep's
+/// `LOFT_RIM_PINNED`). A crate with no such roster (topo) writes the
+/// literal.
 pub fn read_identity<T: Decide>(
     data: impl IntoIterator<Item = (&'static str, Margin<T>)>,
     band: Band,
@@ -620,7 +742,7 @@ pub fn read_identity<T: Decide>(
     let mut joint: Option<MarginDiag> = None;
     let climbed = climb(Answering::Any, data, |(name, margin)| {
         Rung::decide(name, margin, band, |decided| match decided.sign {
-            Sign::Positive | Sign::Negative => Some(decided.sign),
+            Sign::Positive | Sign::Negative => Some(decided),
             Sign::Zero => {
                 joint = Some(joint.map_or(decided.margin, |first| first.jointly(decided.margin)));
                 None
@@ -628,9 +750,54 @@ pub fn read_identity<T: Decide>(
         })
     });
     match climbed {
-        Climb::Answered { at, answer: sign } => IdentityLadder::Apart { at, sign },
+        Climb::Answered {
+            at,
+            answer: decided,
+        } => IdentityLadder::Apart { at, decided },
         Climb::Passed => IdentityLadder::Zero(joint),
         Climb::Undecided(cause) => IdentityLadder::Undecided(cause),
+    }
+}
+
+/// **An identity's data beneath a sum that did not decide `Zero`.**
+/// Every datum decided `Zero`, and each bounds from below how far the two
+/// descriptions stand apart somewhere on the whole carriers, their
+/// separation; `upper`, the reading of a sum of the data's magnitudes,
+/// bounds the displacement from above. Past the band it straddles the
+/// band with the data, under the site's `straddle` row
+/// ([`geom_core::k_stats::straddle`]); short of deciding, it is its own
+/// reading. `data` is the data's `Zero` as [`IdentityLadder::Zero`] keeps
+/// it, the first datum's reading, so the straddle's low end is that
+/// datum's reading and not the largest of them.
+///
+/// A datum bounds the carriers' separation, not the displacement over a
+/// part of them: two spheres tangent inside each other stand within the
+/// band near the tangency while their centre datum reads the whole
+/// offset. So over a consumed extent the low end is the carriers', and
+/// the straddle says only that neither bound answers for the extent.
+///
+/// # Panics
+///
+/// Where `upper` decided `Zero`, the caller's one carrier, or
+/// `Negative`, which a sum of magnitudes never reads
+/// ([`geom_core::k_stats::straddle`]'s panic).
+pub fn data_beneath_sum(
+    straddle: &'static str,
+    data: MarginDiag,
+    upper: Result<Decided, Indeterminate>,
+    band: Band,
+) -> Indeterminate {
+    match upper {
+        Ok(upper) => geom_core::k_stats::straddle(
+            straddle,
+            Decided {
+                sign: Sign::Zero,
+                margin: data,
+            },
+            upper,
+            band,
+        ),
+        Err(diag) => diag,
     }
 }
 
@@ -967,12 +1134,14 @@ mod tests {
     #[test]
     fn a_later_definite_datum_answers_past_an_in_band_one() {
         let (got, verdicts, escalations) = read(&[("a", 0.0), ("b", 5e-9), ("c", 0.0), ("d", 1.0)]);
+        let IdentityLadder::Apart { at: 3, decided } = got else {
+            panic!("the last datum answers: {got:?}")
+        };
+        assert_eq!(decided.sign, Sign::Positive);
         assert_eq!(
-            got,
-            IdentityLadder::Apart {
-                at: 3,
-                sign: Sign::Positive
-            }
+            decided.margin,
+            geom_core::MarginDiag::value(1.0),
+            "the answer keeps the margin it was decided on"
         );
         assert_eq!(
             verdicts,
@@ -1004,13 +1173,11 @@ mod tests {
     #[test]
     fn the_first_definite_datum_answers_and_all_zero_holds() {
         let (got, verdicts, _) = read(&[("a", -1.0), ("b", 5e-9), ("c", 1.0)]);
-        assert_eq!(
-            got,
-            IdentityLadder::Apart {
-                at: 0,
-                sign: Sign::Negative
-            }
-        );
+        let IdentityLadder::Apart { at: 0, decided } = got else {
+            panic!("the first datum answers: {got:?}")
+        };
+        assert_eq!(decided.sign, Sign::Negative);
+        assert_eq!(decided.margin, geom_core::MarginDiag::value(-1.0));
         assert_eq!(verdicts, ["a"], "nothing past the answer is read");
         let (got, _, _) = read(&[("a", 0.0), ("b", 5e-10)]);
         assert!(matches!(got, IdentityLadder::Zero(Some(_))), "{got:?}");

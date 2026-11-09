@@ -464,7 +464,8 @@ fn a_refusal_names_the_reading_it_rests_on() {
     let both = past + (past - centre).normalize() * (half / 2.0);
     let read = span.read(both, 0.5, band());
     assert!(
-        matches!(&read, Err(r @ SpanRefusal::Both { carrier, .. }) if r.refused() == *carrier),
+        matches!(read, Err(SpanRefusal::Both(refused))
+            if refused.escalation().is_ok_and(|d| d.predicate == Some("curve_carrier_gap"))),
         "off the carrier in band, in band of the start: {read:?}"
     );
 }
@@ -499,6 +500,48 @@ fn a_window_piece_at_the_balls_reach_or_astride_it_is_kept() {
         recorded.verdicts.is_empty() && recorded.escalations.is_empty(),
         "the halving choice reached the verdict log"
     );
+}
+
+/// **A standing's ending is its row's** ([`crate::ladder::Refusal::recourse`]):
+/// a margin sizes the tolerance it offers before moving the geometry, a
+/// reading in band with no margin moves the geometry, one a band or a
+/// budget may settle takes the kernel limit's lever, and a limit has no
+/// way through yet. Red where an ending is swapped between standings, or
+/// a margin's is flattened to a fixed one.
+#[test]
+fn a_standings_ending_is_its_rows() {
+    use crate::ladder::{Ending, Refusal};
+    let diag = geom_core::k_stats::decide(
+        "curve_carrier_gap",
+        geom_core::Margin::of(0.5 * (band().zero() + band().escalate())),
+        band(),
+    )
+    .unwrap_err();
+    for (standing, ending, words) in [
+        (
+            Refusal::Margin(diag),
+            Ending::Sized(diag),
+            diag.ending(geom_core::COINCIDENCE_RECOURSE),
+        ),
+        (
+            Refusal::InBand,
+            Ending::Move,
+            "Recourse: move the geometry".to_owned(),
+        ),
+        (
+            Refusal::Unsettled,
+            Ending::KernelLimit,
+            geom_core::KERNEL_LIMIT_RECOURSE.to_owned(),
+        ),
+        (
+            Refusal::Limit,
+            Ending::NotYet,
+            geom_core::NOT_YET_ENDING.to_owned(),
+        ),
+    ] {
+        assert_eq!(standing.recourse(), ending, "{standing:?}");
+        assert_eq!(ending.render(), words, "{standing:?}: its words");
+    }
 }
 
 /// **A meeting's kernel fault names what faulted** ([`super::MeetKind`]):
@@ -670,23 +713,25 @@ fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
 
 /// **A span over a hairpin closer than the band reads `On` at the
 /// seed's branch at `Interval`**. The whole span of a hairpin whose
-/// branches lie 3e-10 apart, inside the 1e-9 zero, read the way an edge's
+/// branches lie 1e-10 apart, inside the 1e-9 zero, read the way an edge's
 /// span is read: at a ±1e-10 box about a point of the near branch
 /// (`t = 0.08`) seeded on the far branch, it reads `On` at `t ≈ 0.92`,
-/// where the tangent is reversed, with nothing logged; seeded at the
-/// span's middle (the census's seed) it escalates; at `f64` it reads the
-/// near branch from either seed.
+/// where the tangent is reversed, with nothing logged (the two branches'
+/// gaps tie on the box, and the polish keeps the seed's); seeded at the
+/// span's middle (the census's seed) it reads `On` at the near branch;
+/// at `f64` it reads the near branch from either seed.
 ///
 /// The carrier is not one an edge can hold: its tip speed is `1.5·h`, so
 /// `EdgeCurve::certify` refuses it `SpanMeterCollapsed`. The row pins the
-/// reader on a bare carrier. A fix that gates edges at the certificate
-/// leaves it green, and one that certifies the branch at the reader turns
-/// it red (`a-carriers-branches-within-the-band-of-each-other`).
+/// reader on a bare carrier: what a reader of the branch rests on is
+/// the at-rest gate's embedding certificate (`DESIGN.md`
+/// `[topology.tiers]`), and a reader that certifies the branch itself
+/// turns it red.
 #[test]
 fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
     use super::Reading;
     use geom_core::{Bounds, Interval, Real};
-    let c = cubic_hairpin(3e-10);
+    let c = cubic_hairpin(1e-10);
     let p = c.eval(0.08);
     for seed in [0.5, 0.92] {
         let read = Span::new(&c, (0.0, 1.0)).read(p, seed, band());
@@ -704,10 +749,7 @@ fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
     );
     let mid = span.read(boxed(p, 1e-10), Interval::from_f64(0.5), band());
     assert!(
-        matches!(
-            &mid,
-            Err(r) if matches!(r.refused(), geom::CarrierRefusal::Escalated(_))
-        ),
-        "Interval, the span's middle: escalates: {mid:?}"
+        matches!(&mid, Ok(Reading::On { t, .. }) if t.hi() < 0.5),
+        "Interval, the span's middle: on at the near branch: {mid:?}"
     );
 }
