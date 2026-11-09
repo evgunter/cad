@@ -2031,7 +2031,7 @@ fn arc_arc<T: Decide>(
             let tangency = |s1: T, s2: T| {
                 let u = circles.direction();
                 let (p1, p2) = (g1.arc.centre + u * s1, g2.arc.centre + u * s2);
-                p1 + (p2 - p1) * T::from_f64(0.5)
+                p1.mid(p2)
             };
             // Either arc certainly off the other's circle is no contact,
             // however the carriers' clearances read; the identity margin
