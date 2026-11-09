@@ -3693,7 +3693,7 @@ fn pair_edge_face<T: Decide>(
 /// and the side `r` itself lies on, read at the least band. Where that
 /// side cannot be read (an enclosure across zero), all three.
 fn undecided_signs<T: Decide>(r: T) -> Vec<Sign> {
-    match decide("pm_census_ef_residual_side", Margin::of(r), Band::least()) {
+    match geom_core::k_stats::prove("pm_census_ef_residual_side", Margin::of(r)) {
         Ok(side @ (Sign::Positive | Sign::Negative)) => vec![Sign::Zero, side],
         Ok(Sign::Zero) | Err(_) => vec![Sign::Negative, Sign::Zero, Sign::Positive],
     }

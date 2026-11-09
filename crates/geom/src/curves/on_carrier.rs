@@ -87,7 +87,7 @@
 //! escalates.
 
 use geom_core::bisect::{Step, bisect};
-use geom_core::k_stats::{check_unlogged, decide, decide_reported, straddle};
+use geom_core::k_stats::{Pick, choose, decide, decide_reported, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed,
 };
@@ -573,7 +573,7 @@ impl<T: Decide> Curve3<T> {
     ) -> Result<Clearance, CarrierRefusal> {
         let hi = crate::carrier_speed::speed_range(self).1;
         if !geom_core::is_finite_length(hi.get())
-            || decide("curve_carrier_speed", Margin::of(hi.get()), Band::least())
+            || geom_core::k_stats::prove("curve_carrier_speed", Margin::of(hi.get()))
                 != Ok(Sign::Positive)
         {
             return Err(PieceWalkRefusal::Unbounded.into());
@@ -648,14 +648,17 @@ fn spline_starts<T: Decide>(samples: &[Foot<'_, T>]) -> Vec<usize> {
     starts
 }
 
-/// Whether `a` is decided smaller than `b`: a heuristic's choice, read
-/// on the least band so it takes the sign alone, and decided outside the
-/// log (ledger row F32). An undecided pick keeps the candidate already
-/// held, which can lie on another branch of a spline; no reader rests on
+/// Whether `a` is decided smaller than `b`: a heuristic's choice
+/// ([`geom_core::k_stats::choose`], ledger row F32). **At a tie the
+/// candidate already held is kept** (`a` is not smaller): sound because
+/// the pick can lie on another branch of a spline, and no reader rests on
 /// which, since a foot's parameter is read only where something
 /// certifies it ([`OnCarrier::On`], [`Foot::nearest`]).
 fn smaller<T: Decide>(a: T, b: T) -> bool {
-    check_unlogged("curve_foot_polish", b - a, Band::least(), "F32") == Ok(Sign::Positive)
+    match choose("curve_foot_polish", Margin::of(b - a), "F32") {
+        Pick::Positive => true,
+        Pick::Negative | Pick::Tie => false,
+    }
 }
 
 #[cfg(test)]

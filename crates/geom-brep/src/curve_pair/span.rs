@@ -310,7 +310,7 @@ impl<'a, T: Decide> Span<'a, T> {
     /// [`Self::window_near`] off a line, by the carrier's piece walk
     /// ([`Curve3::point_walk`]) about the cover's ball's centre: a piece is
     /// cleared where its floor on that distance, less the ball's radius,
-    /// is decided past the escalation on an exact order; halved while its
+    /// is proved past the escalation (a proof's inequality); halved while its
     /// reach exceeds the ball's radius and the escalation; and kept once
     /// its reach is within them, so the window's ends are resolved to the
     /// member's own size, or the escalation for a point. The whole span
@@ -319,12 +319,7 @@ impl<'a, T: Decide> Span<'a, T> {
     fn pieces_near(&self, cover: &Cover<T>, (lo, hi): (T, T), band: Band) -> (T, T) {
         let (centre, radius) = cover.ball();
         let reach = radius + T::from_f64(band.escalate());
-        let positive = |row, m: T| {
-            matches!(
-                k_stats::decide(row, Margin::of(m), Band::least()),
-                Ok(Sign::Positive)
-            )
-        };
+        let positive = |row, m: T| matches!(k_stats::prove(row, Margin::of(m)), Ok(Sign::Positive));
         if !geom_core::is_finite_length(self.hi.get())
             || !positive("curve_pair_window_speed", self.hi.get())
         {
