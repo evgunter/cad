@@ -132,7 +132,7 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
         let (lo, hi) = net
             .iter()
             .fold((net[0], net[0]), |(lo, hi), &c| (lo.min(c), hi.max(c)));
-        let center = lo + (hi - lo) * T::from_f64(0.5);
+        let center = lo.mid(hi);
         let reach = net
             .iter()
             .fold(T::zero(), |r, c| r.max((*c - center).norm()));

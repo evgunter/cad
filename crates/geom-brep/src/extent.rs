@@ -411,7 +411,7 @@ impl<T: Real> ExtentBall<T> {
                 Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
             )
         });
-        let center = lo + (hi - lo) * T::from_f64(0.5);
+        let center = lo.mid(hi);
         Self::new(center, control_net_reach(net, center))
     }
 

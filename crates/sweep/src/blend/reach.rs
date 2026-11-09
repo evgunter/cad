@@ -593,7 +593,7 @@ fn sheet_fn<T: Decide + Bounds>(
     let one = T::one();
     let off_axis = |p: Point3<T>| sheet_of(axis, p);
     let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
-    let centre = lo + (hi - lo) / T::from_f64(2.0);
+    let centre = lo.mid(hi);
     Some(match s {
         Surface::Plane { normal, .. } => {
             let n = normal.normalize();

@@ -1690,7 +1690,7 @@ fn segment_misses<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let half = (to - from).norm() * T::from_f64(0.5);
-    let mid = from + (to - from) * T::from_f64(0.5);
+    let mid = from.mid(to);
     Ok(decide(
         "split_ring_path_segment_apart",
         Margin::of(charge(conic.distance_floor(mid) - half, slack)),

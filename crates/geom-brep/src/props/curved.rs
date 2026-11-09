@@ -1409,7 +1409,7 @@ fn cylinder_chart<T: Decide>(
             what: "curved face without a rim (non-sphere)",
         });
     }
-    let anchor = lo + (hi - lo) * T::from_f64(0.5);
+    let anchor = geom::bracket_mid((lo, hi));
     // One loop's anchored chart area and boundary length.
     let loop_chart = |rims: &[(T, T)], lines: T| {
         rims.iter().fold((T::zero(), lines), |(a, l), &(v, du)| {

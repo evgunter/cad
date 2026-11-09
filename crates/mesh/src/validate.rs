@@ -218,11 +218,7 @@ pub fn signed_volume(mesh: &Mesh) -> f64 {
         .positions
         .iter()
         .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
-    let o = geom_core::Point3::new(
-        geom::bracket_mid((lo.x, hi.x)),
-        geom::bracket_mid((lo.y, hi.y)),
-        geom::bracket_mid((lo.z, hi.z)),
-    );
+    let o = lo.mid(hi);
     let mut six_v = 0.0;
     for patch in &mesh.patches {
         for tri in &patch.triangles {

@@ -162,6 +162,19 @@ fn poisoned_input_is_a_typed_refusal_never_a_foot_point() {
     }
 }
 
+/// **The form is the home's, by name.** `geom::bracket_mid` is
+/// `lo + ½(hi − lo)` and not `geom::mid_param`'s `½(lo + hi)`: at an
+/// infinite point the first is NaN, which
+/// `an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot`
+/// reads as projection's refusal, and the second is that infinity.
+#[test]
+fn bracket_mid_is_nan_at_an_infinite_point_where_mid_param_is_not() {
+    for x in [f64::INFINITY, f64::NEG_INFINITY] {
+        assert!(geom::bracket_mid((x, x)).is_nan(), "bracket_mid({x}, {x})");
+        assert_eq!(geom::mid_param(x, x), x, "mid_param({x}, {x})");
+    }
+}
+
 /// An **overflowing residual refuses**, and the inputs that produce
 /// one are all finite.
 ///
@@ -181,18 +194,6 @@ fn poisoned_input_is_a_typed_refusal_never_a_foot_point() {
 /// `Ok { distance: inf }`. This row exists so the change cannot
 /// silently revert: `mid` is what makes it happen, and nothing else in
 /// the suite reaches an overflowing residual.
-/// **The form is the home's, by name.** `geom::bracket_mid` is
-/// `lo + ½(hi − lo)` and not `geom::mid_param`'s `½(lo + hi)`: at an
-/// infinite point the first is NaN, which the row below reads as
-/// projection's refusal, and the second is that infinity.
-#[test]
-fn bracket_mid_is_nan_at_an_infinite_point_where_mid_param_is_not() {
-    for x in [f64::INFINITY, f64::NEG_INFINITY] {
-        assert!(geom::bracket_mid((x, x)).is_nan(), "bracket_mid({x}, {x})");
-        assert_eq!(geom::mid_param(x, x), x, "mid_param({x}, {x})");
-    }
-}
-
 #[test]
 fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
     let huge = 1.0e200;

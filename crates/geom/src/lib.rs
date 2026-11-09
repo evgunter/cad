@@ -182,14 +182,13 @@ pub use curves::{
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use frame::{Frame, plane_offset, plane_offset_rounded};
-pub use geom_core::mid_param;
+pub use geom_core::{bracket_mid, mid_param};
 pub use periodic::periodic_window_may_hold;
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
-// public names both halves' callers have always used, and its bracket
-// midpoint is the one a selection outside this crate reads.
+// public names both halves' callers have always used.
 pub use projection_policy::{
-    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, bracket_mid,
+    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
     AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate,

@@ -2476,7 +2476,7 @@ fn turn_at<T: Decide + Bounds>(
     let requested = [l1.edge, l2.edge];
     let (foot, run_out) = match turn_verdict(vertex, gap, chords, band)? {
         TurnVerdict::Mitre(margin) => (
-            feet[0] + (feet[1] - feet[0]) * T::from_f64(0.5),
+            feet[0].mid(feet[1]),
             TurnRunOut::Mitre(row(
                 requested.map(|e| topo::RowCell::edge(topo::Operand::A, e)),
                 topo::Relation::CommonFoot,

@@ -2488,7 +2488,7 @@ fn line_off_cone_sup<T: Decide>(
             if depth == LEVER_DEPTH {
                 return Step::Stop(sector_refused(piece_of(sa, sb), SectorChannel::Lever));
             }
-            let mid = sa + (sb - sa) * T::from_f64(0.5);
+            let mid = geom::bracket_mid((sa, sb));
             return Step::Halve([(sa, mid, depth + 1), (mid, sb, depth + 1)]);
         }
         match closed_form_meters(

@@ -66,7 +66,7 @@ pub use linalg::{
     length_out_of_format, not_rigid_reading,
 };
 pub use line2::{Line2, LineMeet};
-pub use param::mid_param;
+pub use param::{bracket_mid, mid_param};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING, DEFAULT_K,
     DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading, FileCoincidence,

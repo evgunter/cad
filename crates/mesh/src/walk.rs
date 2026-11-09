@@ -865,11 +865,7 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
     let (lo, hi) = pts
         .iter()
         .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
-    let o = Point3::new(
-        geom::bracket_mid((lo.x, hi.x)),
-        geom::bracket_mid((lo.y, hi.y)),
-        geom::bracket_mid((lo.z, hi.z)),
-    );
+    let o = lo.mid(hi);
     let mut area = Vec3::new(0.0, 0.0, 0.0);
     for (i, p) in pts.iter().enumerate() {
         let q = pts[(i + 1) % pts.len()];

@@ -1775,7 +1775,7 @@ fn settle_in_plane<T: Decide>(
                 .into_iter()
                 .any(|w| contacts.rests_in(lie.x_is, w, lie.face))
                 || {
-                    let mid = p0 + (p1 - p0) * T::from_f64(0.5);
+                    let mid = p0.mid(p1);
                     let (at, _) = contfp_decided(y, lie.face, plane.normal, mid, band)
                         .map_err(|e| esc(e, lie.x_is.other(), lie.face))?;
                     matches!(at, FaceContainment::In)

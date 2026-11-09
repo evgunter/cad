@@ -857,7 +857,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         ];
         // The end curve's centre, and on a round end the section's frame.
         let (center, round) = match curve {
-            EndCurve::Chord => (foot_a + (foot_b - foot_a) * T::from_f64(0.5), None),
+            EndCurve::Chord => (foot_a.mid(foot_b), None),
             EndCurve::Round(arc) => {
                 // The frame with the major semi-axis first
                 // (`Curve3::major_frame`).

@@ -3932,11 +3932,7 @@ impl<T: Decide> IslandReading<T> {
                     ))
                 };
                 let (from, to) = (at(after)?, at(h1)?);
-                (
-                    LoopArc::segment(from, to),
-                    from + (to - from) * T::from_f64(0.5),
-                    to - from,
-                )
+                (LoopArc::segment(from, to), from.mid(to), to - from)
             }
         };
         match quadric.off_apex(q, band) {

@@ -108,6 +108,17 @@ impl<T: Real> Point2<T> {
         self + (other - self) * t
     }
 
+    /// The middle of the segment to `other`: [`crate::bracket_mid`] of
+    /// each coordinate's pair, so a box's centre from its two corners is
+    /// the same read.
+    #[must_use]
+    pub fn mid(self, other: Self) -> Self {
+        Self::new(
+            crate::bracket_mid((self.x, other.x)),
+            crate::bracket_mid((self.y, other.y)),
+        )
+    }
+
     /// The componentwise minimum — the lower bounding-box corner of two
     /// points. Inherits [`Real::min`]'s lattice-not-control-flow
     /// contract: ties keep `self`'s coordinate, and **NaN propagates**
@@ -226,6 +237,18 @@ impl<T: Real> Point3<T> {
     /// above; it is not an oversight.
     pub fn lerp(self, other: Self, t: T) -> Self {
         self + (other - self) * t
+    }
+
+    /// The middle of the segment to `other`: [`crate::bracket_mid`] of
+    /// each coordinate's pair, so a box's centre from its two corners is
+    /// the same read.
+    #[must_use]
+    pub fn mid(self, other: Self) -> Self {
+        Self::new(
+            crate::bracket_mid((self.x, other.x)),
+            crate::bracket_mid((self.y, other.y)),
+            crate::bracket_mid((self.z, other.z)),
+        )
     }
 
     /// The componentwise minimum — the lower bounding-box corner of two

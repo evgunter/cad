@@ -2534,7 +2534,7 @@ pub(crate) fn line_wedges<T: Decide>(
     wedges_overlap(
         pairs,
         |pair, side| {
-            let at = pair.ends[0] + (pair.ends[1] - pair.ends[0]) * T::from_f64(0.5);
+            let at = pair.ends[0].mid(pair.ends[1]);
             wedge(body, &geo[&pair.edges[side]], at, band)
         },
         |w| [w.own, w.next, w.inside],
