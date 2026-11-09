@@ -343,66 +343,46 @@ fn a_refused_creation_applies_no_label() {
 }
 
 /// **A labelled creation nets the maintenance its own run reports**:
-/// a union takes over the first block's world copy and deletes the
-/// second's, which strands the paint keyed on that copy (and retires
-/// the copy's anonymous values). The label is
-/// one more edit of the same run, so the outcome carries the run's
-/// netted row and nothing of the label's own.
+/// a fillet picked on a block's world copy that the product reads. The
+/// label is one more edit of the same run, so the outcome carries the
+/// run's netted rows and nothing of the label's own
+/// ([`labelled_as_one_undo`] holds the two equal). No creation's run
+/// strands anything now that no gesture deletes a copy, so the rows
+/// compared are empty: the residue is filed as
+/// `work/placing/a-labelled-creation-has-no-maintenance-witness.md`.
 #[test]
 fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
-    use editor_core::{Attr, Rgba8};
-    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
-
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("viewer-node-labels-maintenance", tol);
     let mut session = DocSession::inline(doc, tol);
-    let block = |session: &mut DocSession, x: f64| {
-        let made = session.perform(SessionOp::AddProfile {
-            loops: vec![common::rectangle_loop([x, 0.0], 0.02, 0.02)],
-        });
-        let [profile] = made.minted[..] else {
-            panic!("one profile minted: {:?}", made.minted);
-        };
-        let made = session.perform(SessionOp::AddExtrude {
-            profile,
-            distance: common::len(0.01),
-        });
-        made.made.expect("an extrude")
+    let made = session.perform(SessionOp::AddProfile {
+        loops: vec![common::rectangle_loop([0.0, 0.0], 0.02, 0.02)],
+    });
+    let [profile] = made.minted[..] else {
+        panic!("one profile minted: {:?}", made.minted);
     };
-    let kept = block(&mut session, 0.0);
-    let joined = block(&mut session, 0.05);
-    // Both blocks placed into the world by hand: a new body lands
-    // unplaced.
-    let (doc, _) = common::placed(session.committed_doc(), kept, tol);
-    let (doc, placement) = common::placed(&doc, joined, tol);
-    let copy = doc.outputs(placement)[0];
-    let (doc, _) = common::edited(
-        &doc,
-        DocEdit::SetAppearance {
-            body: copy,
-            name: StableName {
-                kind: EntityKind::Face,
-                node: joined,
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
-            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
-        },
-        tol,
-    );
-    let mut session = DocSession::inline(doc, tol);
+    let made = session.perform(SessionOp::AddExtrude {
+        profile,
+        distance: common::len(0.01),
+    });
+    let block = made.made.expect("an extrude");
+    let (mut session, copy) = common::world_copy_in(&session, block, tol);
     session.pump();
-    let (_, maintenance) = labelled_as_one_undo(
+    let edge = pncad::select::all_edges(session.evaluation().expect("landed"), copy)[0].clone();
+    let (fillet, maintenance) = labelled_as_one_undo(
         &mut session,
-        SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![kept.into(), joined.into()]),
+        SessionOp::AddFillet {
+            target: copy,
+            radius: common::len(0.001),
+            selection: vec![edge],
         },
-        "joined",
+        "rounded",
     );
-    assert!(
-        maintenance
-            .iter()
-            .any(|row| matches!(row, Maintenance::StrandedAppearance { .. })),
-        "the deleted copy's paint is stranded: {maintenance:?}"
+    assert!(maintenance.is_empty(), "{maintenance:?}");
+    assert_eq!(
+        session.committed_doc().product(),
+        session.committed_doc().output(fillet, 0),
+        "the fillet took the product slot over"
     );
 }
 

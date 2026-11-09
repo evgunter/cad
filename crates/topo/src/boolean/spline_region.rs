@@ -391,7 +391,7 @@ impl Rect {
     }
 
     fn centre(self) -> (f64, f64) {
-        (mid(self.u), mid(self.v))
+        (geom::bracket_mid(self.u), geom::bracket_mid(self.v))
     }
 
     fn size(self) -> (f64, f64) {
@@ -411,10 +411,6 @@ impl Rect {
             v: (self.v.0 + dv, self.v.1 + dv),
         }
     }
-}
-
-fn mid((a, b): (f64, f64)) -> f64 {
-    a + (b - a) * 0.5
 }
 
 /// The gap between two closed intervals, zero where they meet.
@@ -710,8 +706,7 @@ fn point_rounding<T: Decide, const N: usize>((h, e): &Control<T, N>) -> [f64; N]
 /// The middle of a value's bracket, the value an `f64` rounding bound is
 /// read at; NaN for the poison.
 fn middle<T: Decide>(x: T) -> f64 {
-    x.structure_bracket()
-        .map_or(f64::NAN, |(lo, hi)| lo + (hi - lo) * 0.5)
+    x.structure_bracket().map_or(f64::NAN, geom::bracket_mid)
 }
 
 /// **A homogeneous row refined along `knots`** by inserting `add`,
@@ -786,9 +781,9 @@ fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Patch<T>>> {
         }
     }
     let centre = Vec3::new(
-        T::from_computed(mid((lo[0], hi[0]))),
-        T::from_computed(mid((lo[1], hi[1]))),
-        T::from_computed(mid((lo[2], hi[2]))),
+        T::from_computed(geom::bracket_mid((lo[0], hi[0]))),
+        T::from_computed(geom::bracket_mid((lo[1], hi[1]))),
+        T::from_computed(geom::bracket_mid((lo[2], hi[2]))),
     );
     // Moved and out to homogeneous form: the difference and the product
     // round each coordinate by `u` of it.
