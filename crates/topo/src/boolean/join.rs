@@ -5861,6 +5861,9 @@ impl HoldingUnread {
                 ..
             }
             | Self::Trim
+            // Gap: `NormalAtError::DegenerateTorus` aborts too, an invalid
+            // input, and reads here as a kernel defect. The ending an abort
+            // carries is not yet stated by `NormalAtError` itself.
             | Self::Normal(_) => BooleanError::ClassificationInvariant {
                 what: "a section chord's holding face reads it off the surface it was placed on",
             },
