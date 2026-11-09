@@ -278,7 +278,7 @@ impl core::error::Error for HitTestError {}
 /// # Errors
 ///
 /// [`UnnamedEntity`], the lookup's one refusal.
-pub(super) fn lookup<T: Decide>(
+pub(super) fn lookup<T: topo::AtRestPolicy + Decide>(
     eval: &Evaluation<T>,
     node: RecipeNodeId,
     entity: EntityRef,
@@ -297,7 +297,7 @@ pub(super) fn lookup<T: Decide>(
 /// [`HitTestError::Standing`] for a node with no value; an
 /// evaluated-but-unnamed entity is the loud
 /// [`HitTestError::Unnamed`] bug report.
-pub fn entity_name<T: Decide>(
+pub fn entity_name<T: topo::AtRestPolicy + Decide>(
     eval: &Evaluation<T>,
     node: RecipeNodeId,
     entity: EntityRef,
@@ -311,7 +311,7 @@ pub fn entity_name<T: Decide>(
 /// # Errors
 ///
 /// See [`entity_name`].
-pub fn face_name<T: Decide>(
+pub fn face_name<T: topo::AtRestPolicy + Decide>(
     eval: &Evaluation<T>,
     node: RecipeNodeId,
     body: u32,
@@ -332,7 +332,7 @@ pub fn face_name<T: Decide>(
 /// # Errors
 ///
 /// See [`entity_name`].
-pub fn edge_name<T: Decide>(
+pub fn edge_name<T: topo::AtRestPolicy + Decide>(
     eval: &Evaluation<T>,
     node: RecipeNodeId,
     body: u32,
@@ -353,7 +353,7 @@ pub fn edge_name<T: Decide>(
 /// # Errors
 ///
 /// See [`entity_name`].
-pub fn vertex_name<T: Decide>(
+pub fn vertex_name<T: topo::AtRestPolicy + Decide>(
     eval: &Evaluation<T>,
     node: RecipeNodeId,
     body: u32,
@@ -374,7 +374,7 @@ pub fn vertex_name<T: Decide>(
 /// # Errors
 ///
 /// See [`entity_name`].
-pub fn body_name<T: Decide>(
+pub fn body_name<T: topo::AtRestPolicy + Decide>(
     eval: &Evaluation<T>,
     node: RecipeNodeId,
     body: u32,

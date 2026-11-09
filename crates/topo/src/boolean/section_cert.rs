@@ -228,8 +228,8 @@
 //! parallel or coaxial reading is taken. `decide` meters in metres, so
 //! each is levered by the distance over which the tilt can act on the
 //! section. The section matters only inside the pair's **reach**
-//! ([`Reach`]): the ball about the centre of the overlap of the two
-//! faces' certified boxes, radius its half-diagonal.
+//! ([`Reach`]): the ball where the two faces' covers meet, widened by
+//! the band's sweep tolerance (`cover::meet_within`).
 //!
 //! - **The pivot.** An offset between two nearly parallel axes is read
 //!   at the partner axis's point nearest the reach's centre, never at

@@ -474,8 +474,7 @@ fn a_cone_faces_scale_bounds_its_reach_from_the_apex() {
         "the far point is between the three: {sampled} {three}"
     );
     let (t0, t1) = (arc.t0, arc.t1);
-    let cover =
-        crate::boolean::boxes::edge_cover_over(&arc.carrier, (t0, t1), (arc.at(t0), arc.at(t1)));
+    let cover = crate::cover::edge_cover_over(&arc.carrier, (t0, t1), (arc.at(t0), arc.at(t1)));
     let scale = reach_bound(&cone_surface(), &[cover]);
     assert!(scale >= sampled, "scale {scale} under the reach {sampled}");
 }

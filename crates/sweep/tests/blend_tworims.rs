@@ -119,7 +119,8 @@ fn lantern_sequential(order: &[(f64, f64)], r: f64) -> f64 {
             .unwrap_or_else(|e| {
                 panic!("the ({rim_r}, {rim_y}) rim fillets sequentially, got {e:?}")
             })
-            .body;
+            .body
+            .into_body();
     }
     validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("sequential tier 3, got {e:?}"));
     volume(&body)

@@ -1135,9 +1135,12 @@ fn arc_rim_on_wall_boundary(
             let w = q - center;
             // The axial component, bound by name (the tripwire note
             // in [`line_frame`], same shape).
-            let axial = w.dot(a_hat);
-            let radial = w - a_hat * axial;
-            let ring = (radial.norm() - radius).hypot(axial);
+            let (axial, rho) = geom::Line {
+                origin: center,
+                dir: a_hat,
+            }
+            .height_and_distance(q);
+            let ring = (rho - radius).hypot(axial);
             // Within half a turn of the window's middle, `t0 − slack + π`.
             let theta = geom::Azimuth::of(w.dot(v_hat), w.dot(u_hat)).near(t0 - slack + tau / 2.0);
             if !(ring.is_finite() && theta.is_finite()) {

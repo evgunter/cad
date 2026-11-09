@@ -61,7 +61,7 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
         },
         Tol::witness(),
     )
-    .map(|e| e.body)
+    .map(|e| e.body.into_body())
 }
 
 /// A ring whose bore cylinder of radius `r_bore` meets a torus of
@@ -89,7 +89,7 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&profile, axis, Revolution::Full, Tol::witness()).map(|r| r.body)
+    revolve(&profile, axis, Revolution::Full, Tol::witness()).map(|r| r.body.into_body())
 }
 
 /// What a verb did with a smooth join at one margin, as one value the

@@ -101,7 +101,10 @@ fn poison_vec<T: Real>() -> Vec3<T> {
 /// The axial/radial decomposition `(h, w)` of `p` relative to an anchor
 /// point and unit axis: `q = p − anchor`, `h = q·axis`,
 /// `w = q − axis·h`. Shared by every axisymmetric form below (fixed
-/// order, D9).
+/// order, D9). The forms' running twins ([`conic_cone_residual`] and
+/// its siblings) repeat this order term for term to stay bit-identical
+/// to it, so it is not [`geom::Line::param_and_offset`], whose division
+/// by `|axis|²` the twins do not carry.
 pub(crate) fn axial_radial<T: Real>(
     p: Point3<T>,
     anchor: Point3<T>,
@@ -109,8 +112,7 @@ pub(crate) fn axial_radial<T: Real>(
 ) -> (T, Vec3<T>) {
     let q = p - anchor;
     let h = q.dot(axis);
-    let w = q - axis * h;
-    (h, w)
+    (h, q - axis * h)
 }
 
 /// **A point's elevation off a cone, in metres** — the cone's residual
@@ -703,6 +705,16 @@ fn harmonic_curvature_bound<T: Real>(h: &ResidualHarmonics<T>) -> T {
 /// to, never `(|C₀| + D)²`: a point a kilometre out against a
 /// micrometre ball rounds its coordinates at a kilometre's ulp, but
 /// squares only the micrometre offset.
+///
+/// **The point is summed from the conic's stored terms**, its centre and
+/// semi-axes, so it rounds at their scale, not the point's: a section
+/// ellipse centred megametres out sums an in-box point from megametre
+/// terms. That is a carrier's stored terms amplifying, which the run's
+/// admission rule (`geom_core::tolerance::admissible`) does not cover,
+/// and is charged here until
+/// `work/oneround/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`
+/// evaluates the point from its vertex. The share over in-box
+/// coordinates is not separated out of it.
 fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
     let two = T::from_f64(2.0);
     let a = conic.speed_hi();

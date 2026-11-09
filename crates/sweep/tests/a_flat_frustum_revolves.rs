@@ -6,6 +6,11 @@
 //! `a-flat-frustums-revolve-refuses-its-rim-image-at-1e-12`'s table,
 //! each of which refused the seam's chart image at ε = 1e-12.
 //!
+//! Three rows reach past the 1 km session box — `(1.5, 100)`,
+//! `(1.55, 30)` and `(1.55, 100)`, their base rims at about 1.46, 1.46
+//! and 4.86 km — and assert its refusal (`OutsideSessionBox`) wherever
+//! their construction builds.
+//!
 //! One row is not this door's: at `(1.55, 100)` the far cap rim is 4858
 //! across, and its return half ends `r·2·(π − fl(π))` from its start
 //! vertex, past the band at ε = 1e-12
@@ -53,6 +58,17 @@ fn a_flat_frustum_revolves_at_every_eps() {
                 )),
                 Ok(_) => wrong.push(format!(
                     "{what}: revolves at ε {eps:e}, below {builds_from:e}: lower its least ε"
+                )),
+            }
+            continue;
+        }
+        // A frustum whose base rim reaches past the 1 km session box is
+        // refused there, by the box and nothing else (D4 ¶4).
+        if r0.hypot(scale) > geom_core::tolerance::SESSION_BOX_EXTENT {
+            match got {
+                Err(e) if format!("{e:?}").contains("OutsideSessionBox") => {}
+                other => wrong.push(format!(
+                    "{what}: its rim at {r0:.0} m is past the session box, but: {other:?}"
                 )),
             }
             continue;

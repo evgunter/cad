@@ -16,7 +16,7 @@ use topo::construction::Construct;
 
 use geom::Surface;
 use geom_core::{Band, Tol};
-use topo::{AtRestBody, Body, ChartMove, FaceKey, ValidationError};
+use topo::{Body, ChartMove, FaceKey, ValidationError};
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
 /// when `ccw` (`inside_out_operand.rs`'s wedge).
@@ -114,7 +114,7 @@ fn top_normal_z(body: &Body<f64>) -> f64 {
 fn volume(body: &Body<f64>, right_way: bool) -> f64 {
     if right_way {
         topo::mass_properties(
-            &AtRestBody::validate(body.clone(), Tol::witness()).expect("the body is finished"),
+            &topo::finish(body.clone(), Tol::witness()).expect("the body is finished"),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -134,7 +134,7 @@ fn volume(body: &Body<f64>, right_way: bool) -> f64 {
 /// `body` finishes when `right_way`, and refuses on check 7 alone when
 /// not.
 fn finishes_iff(what: &str, body: &Body<f64>, right_way: bool) {
-    match AtRestBody::validate(body.clone(), Tol::witness()) {
+    match topo::finish(body.clone(), Tol::witness()) {
         Ok(_) => assert!(right_way, "{what}: the inside-out body finished"),
         Err(errors) => assert!(
             !right_way

@@ -40,6 +40,7 @@ fn tube_donut() -> Body<f64> {
     )
     .expect("the tube-door donut builds")
     .body
+    .into_body()
 }
 
 /// The revolve-door donut of the same torus (the corpus `donut()`
@@ -59,6 +60,7 @@ fn revolve_donut() -> Body<f64> {
     revolve::<f64>(&vp, axis, Revolution::Full, Tol::witness())
         .expect("the revolve donut builds")
         .body
+        .into_body()
 }
 
 fn census(body: &Body<f64>) -> (usize, usize, usize, usize) {

@@ -161,8 +161,9 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // node-result reader census over every src tree, code view
     },
     Entry {
-        path: "crates/editor-core/tests/product_gate_attribution.rs",
-        disposition: Shared, // product.rs gates once and attributes on refusal, code view
+        path: "crates/editor-core/tests/product_finishes_once.rs",
+        disposition: Shared, // product.rs finishes its aggregate once and censuses at
+                             // one site, code view (`blanked`)
     },
     Entry {
         path: "crates/editor-core/tests/refusal_concision_chains.rs",
@@ -174,6 +175,15 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // operand-door and expected-phrase census over
                              // eval/wire.rs and verbs/split.rs, code and
                              // code-and-literals views
+    },
+    Entry {
+        path: "crates/geom-brep/src/curve_face/rows.rs",
+        disposition: Shared, // door-name prefix census (`predicate_census`), code and
+                             // literal views
+    },
+    Entry {
+        path: "crates/geom-brep/src/sector_shape.rs",
+        disposition: Shared, // the rung names spelled in one module, code-and-literals view
     },
     Entry {
         path: "crates/geom-brep/tests/all.rs",
@@ -207,6 +217,10 @@ const LEDGER: &[Entry] = &[
         path: "crates/geom-core/tests/sym_rule_f_rows.rs",
         disposition: Shared, // `copysign` mint-site register over crates/*/src,
                              // code view, each file cut at its test module
+    },
+    Entry {
+        path: "crates/geom/src/curves/on_carrier/rows.rs",
+        disposition: Shared, // on-carrier seed-read census over crates/*/src, code view
     },
     Entry {
         path: "crates/geom/tests/all.rs",
@@ -253,14 +267,9 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
-        path: "crates/profile/tests/fillet_recourse_followability.rs",
-        disposition: Shared, // the fillet gate census takes the nine predicate
-                             // names from sugar.rs, code+literal view
-    },
-    Entry {
-        path: "crates/profile/tests/generic_replay.rs",
-        disposition: Shared, // the stored-form exemption held against seg.rs's
-                             // own predicate names, code+literal view
+        path: "crates/profile/tests/gate_kinds_followed.rs",
+        disposition: Shared, // fillet_recourse.rs's gate rows against its prose,
+                             // code-and-literals and prose views
     },
     Entry {
         path: "crates/profile/tests/r2_bool9_review_probes.rs",

@@ -304,6 +304,7 @@ fn block_with_d_bore(big_r: f64, flat: f64, len: f64) -> Body<f64> {
     )
     .expect("the D-bore extrudes")
     .body
+    .into_body()
 }
 
 /// **The D-bore's concave crease carves in its caps' RINGS**, requested
@@ -422,7 +423,8 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
         tol(),
     )
     .expect("the die extrudes")
-    .body;
+    .body
+    .into_body();
     let edges = query::all_edges(&die);
     k_stats::start_recording();
     let out = fillet_edges(
@@ -497,6 +499,13 @@ fn pair_edges(body: &Body<f64>) -> usize {
 fn r1_a_slim_wedges_corner_arcs_are_the_intrinsic_tangency() {
     let b = band();
     let scale = b.zero() / 1e-9;
+    if scale > 1e2 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-7",
+            "the skewed cavity scales with eps, and past 1e-7 it leaves the session box",
+        );
+        return;
+    }
     let r = 8.7e-5 * scale;
     for theta in [(1.5 * b.escalate() / r).sqrt(), (b.zero() / r).sqrt()] {
         let (body, edges) = skewed_cavity_edges(theta, scale);

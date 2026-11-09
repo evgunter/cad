@@ -492,7 +492,7 @@ fn a_near_square_rod_minus_a_box_builds() {
     for r in SCALES {
         let cutter = finished(
             "the box",
-            brick(
+            brick::<f64>(
                 (-2.0 * r, 2.0 * r),
                 (-2.0 * r, 2.0 * r),
                 (0.5 * r, 2.0 * r),
@@ -524,9 +524,9 @@ fn a_near_square_rod_minus_a_box_builds() {
 /// The frustum of scale `S`: radius `r0 = S/2 + S/2` at `y = 0` and
 /// `r1 = S/2` at `y = S`, half-angle `atan ½`, apex above on `y`.
 struct Frustum {
-    /// `None` where the body is pinned to refuse as limb 2's kernel
-    /// limit: at 1 km and ε = 1e-12, where its cone's rim rounds at its
-    /// own extent past the band
+    /// `None` at 1 km, where the body reaches past the session box and is
+    /// refused by it; at ε = 1e-12 limb 2's kernel limit refuses it first,
+    /// its cone's rim rounding at its own extent past the band
     /// (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
     body: Option<Body<f64>>,
     cone: Surface<f64>,
@@ -550,8 +550,22 @@ fn frustum(scale: f64) -> Frustum {
         sweep::Revolution::Full,
         tol(),
     );
-    let pinned: &[f64] = if scale >= 1e3 { &[1e-12] } else { &[] };
-    let body = test_utils::kernel_limit::pinned(body, tol().eps(), pinned, "the frustum");
+    // At 1 km the frustum's top rim reaches `√(r1² + h²)` ≈ 1.12 km, past
+    // the session box, and the finished-body gate refuses it there (D4
+    // ¶4); at ε = 1e-12 limb 2's kernel limit refuses its rim first.
+    let body = if r0.max(r1.hypot(h)) > geom_core::tolerance::SESSION_BOX_EXTENT {
+        match body {
+            Err(e)
+                if format!("{e:?}").contains("OutsideSessionBox")
+                    || (tol().eps() <= 1e-12 && test_utils::kernel_limit::is_kernel_limit(&e)) =>
+            {
+                None
+            }
+            other => panic!("the {scale:e} frustum is past the session box: {other:?}"),
+        }
+    } else {
+        test_utils::kernel_limit::pinned(body, tol().eps(), &[], "the frustum")
+    };
     let apex = h + r1 / alpha.tan();
     Frustum {
         body,
@@ -708,7 +722,7 @@ fn a_near_square_frustum_minus_a_box_builds() {
         let y0 = 0.5 * scale;
         let cutter = finished(
             "the box",
-            brick(
+            brick::<f64>(
                 (-4.0 * scale, 4.0 * scale),
                 (y0, 4.0 * scale),
                 (-4.0 * scale, 4.0 * scale),

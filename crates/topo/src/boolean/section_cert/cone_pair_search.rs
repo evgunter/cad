@@ -576,7 +576,7 @@ fn cylinder_near_apex(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let beta = rng.range(0.1, FRAC_PI_2);
     let d = leaning(rng, k, beta);
     let o = k.apex + unit_vec(rng) * (sc * rng.range(0.2, 1.5));
-    let dist = (k.apex - o).cross(d).norm();
+    let dist = geom::Line { origin: o, dir: d }.distance(k.apex);
     let shift = sc * offset(rng);
     let r = dist + shift;
     (r > 0.05 * sc).then(|| Pose {
@@ -819,9 +819,12 @@ fn must_answer(scale: f64) -> f64 {
 fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
     let lever = 4.0 * reach_of(k).ball().radius();
     let off_cone = |apex: Point3<f64>, a: Vec3<f64>, alpha: f64, q: Point3<f64>| {
-        let w = q - apex;
-        let h = w.dot(a);
-        ((w - a * h).norm() * alpha.cos() - h.abs() * alpha.sin()).abs()
+        let (h, rho) = geom::Line {
+            origin: apex,
+            dir: a,
+        }
+        .height_and_distance(q);
+        (rho * alpha.cos() - h.abs() * alpha.sin()).abs()
     };
     match *partner {
         Surface::Cylinder {
@@ -831,7 +834,7 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
             ..
         } => {
             let d = axis.normalize();
-            let apex = (geom::Line { origin, dir: d }.offset(k.apex).norm() - radius).abs();
+            let apex = (geom::Line { origin, dir: d }.distance(k.apex) - radius).abs();
             let aperture = (d.dot(k.a).abs().acos() - k.alpha).abs() * lever;
             apex.min(aperture)
         }

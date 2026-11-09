@@ -81,6 +81,7 @@ pub fn full_turn_collar(bore: f64, outer: f64, (y0, y1): (f64, f64)) -> Body<f64
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// `body` turned a quarter about `x`, taking its `z` axis to `y` and a

@@ -249,6 +249,7 @@ fn dome() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The block `|x|, |z| ≤ 2`, `−2 ≤ y ≤ y0`.

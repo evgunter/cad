@@ -229,6 +229,7 @@ enum Node<T: Real> {
     Piece(Piece<T>),
     Meet(Box<[Node<T>; 2]>),
     Hull(Box<[Node<T>; 2]>),
+    Convex(Box<Node<T>>),
 }
 
 /// The closed set of shapes. A frame a piece holds is read as the
@@ -416,14 +417,18 @@ fn box_range<T: Real>((lo, hi): (Point3<T>, Point3<T>), q: Point3<T>) -> (T, T) 
 
 /// A ball's distance range from a site.
 fn ball_range<T: Real>((c, r): Ball<T>, site: &Site<T>) -> (T, T) {
-    let delta = site.offset(c);
+    let delta = site.distance(c);
     ((delta - r).max(T::zero()), delta + r)
 }
 
 impl<T: Real> Site<T> {
-    /// How far `p` stands from the site.
-    fn offset(&self, p: Point3<T>) -> T {
-        self.relative(vec_of(p)).norm()
+    /// How far `p` stands from the site: from the point, or from the line
+    /// ([`Line::distance`]).
+    fn distance(&self, p: Point3<T>) -> T {
+        match self {
+            Site::Point(q) => (p - *q).norm(),
+            Site::Line(line) => line.distance(p),
+        }
     }
 
     /// `p`, as a vector from the site: from the point, or off the line.
@@ -578,6 +583,14 @@ impl<T: Real> Cover<T> {
         Self(Node::Hull(Box::new([self.0, other.0])))
     }
 
+    /// **The region's convex hull**: what lies on a segment between two
+    /// of its points. A face of a ruled carrier lies in its boundary's,
+    /// which [`Cover::hull`] of the boundary's pieces does not hold.
+    #[must_use]
+    pub fn convex(self) -> Self {
+        Self(Node::Convex(Box::new(self.0)))
+    }
+
     /// **The support along `dir`**: an upper bound on `x·dir` over the
     /// region. `dir` need not be unit; the support is linear in it.
     pub fn support(&self, dir: Vec3<T>) -> T {
@@ -608,24 +621,92 @@ impl<T: Real> Cover<T> {
     pub fn ball(&self) -> (Point3<T>, T) {
         self.0.ball()
     }
+
+    /// **The nearest and farthest the region stands from a circle**: the
+    /// circle of radius `radius` about `center` in the plane normal to
+    /// `axis`, which need not be unit. A point `ρ` from the axis line and
+    /// `t` along it stands `√((ρ − R)² + t²)` from the circle, so any
+    /// region is bounded through its distance range from the axis line
+    /// and its support along the axis; a tube about a spine is bounded
+    /// through its spine's, within its minor radius.
+    pub fn circle_range(&self, center: Point3<T>, axis: Vec3<T>, radius: T) -> (T, T) {
+        self.0.circle_range(&Core {
+            center,
+            axis,
+            radius,
+        })
+    }
+}
+
+/// A circle a distance is read from ([`Cover::circle_range`]).
+struct Core<T: Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+}
+
+impl<T: Real> Core<T> {
+    /// The circle's distance range over a region read through its range
+    /// from the axis line (`line`) and its support (`support`).
+    fn through(&self, line: impl Fn(&Site<T>) -> (T, T), support: impl Fn(Vec3<T>) -> T) -> (T, T) {
+        let (near, far) = line(&Site::Line(Line {
+            origin: self.center,
+            dir: self.axis,
+        }));
+        let a = self.axis.normalize();
+        let base = vec_of(self.center).dot(a);
+        let (below, above) = (T::zero() - support(-a) - base, support(a) - base);
+        let r = self.radius;
+        let outside = |x: T, lo: T, hi: T| (lo - x).max(x - hi).max(T::zero());
+        let radial = (near - r).abs().max((far - r).abs());
+        let height = below.abs().max(above.abs());
+        (
+            (outside(r, near, far).powi(2) + outside(T::zero(), below, above).powi(2)).sqrt(),
+            (radial.powi(2) + height.powi(2)).sqrt(),
+        )
+    }
+
+    /// The exact distance of a point from the circle.
+    fn offset(&self, p: Point3<T>) -> T {
+        let (t, rho) = Line {
+            origin: self.center,
+            dir: self.axis,
+        }
+        .height_and_distance(p);
+        ((rho - self.radius).powi(2) + t.powi(2)).sqrt()
+    }
 }
 
 impl<T: Bounds> Cover<T> {
     /// **The world box, bracketed and padded by `pad`**: each end of
     /// [`Cover::box_in`] at [`BoxAxes::World`] taken at its bracket's outer
-    /// end, then [`Aabb::padded`]. Poison anywhere reaches a NaN bound,
-    /// which overlaps everything.
+    /// end, then [`Aabb::padded`]. A bound that is not a number in any
+    /// lane makes the whole box the poison box ([`whole_poison`]), which
+    /// overlaps everything.
     pub fn aabb(&self, pad: f64) -> Aabb {
         let (lo, hi) = self.box_in(&BoxAxes::World);
-        Aabb {
+        whole_poison(Aabb {
             min_x: lo.x.lo(),
             min_y: lo.y.lo(),
             min_z: lo.z.lo(),
             max_x: hi.x.hi(),
             max_y: hi.y.hi(),
             max_z: hi.z.hi(),
-        }
+        })
         .padded(pad)
+    }
+}
+
+/// The box, or [`Aabb::poison`] where any of its bounds is NaN: a box
+/// NaN in one lane alone still prunes on the others
+/// (`Aabb::overlaps` is six comparisons), so poison in one lane is made
+/// poison in all.
+fn whole_poison(b: Aabb) -> Aabb {
+    let bounds = [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z];
+    if bounds.iter().any(|x| x.is_nan()) {
+        Aabb::poison()
+    } else {
+        b
     }
 }
 
@@ -635,7 +716,12 @@ impl<T: Real> Node<T> {
             Node::Piece(p) => p.support(e),
             Node::Meet(both) => both[0].support(e).min(both[1].support(e)),
             Node::Hull(both) => both[0].support(e).max(both[1].support(e)),
+            Node::Convex(inner) => inner.support(e),
         }
+    }
+
+    fn world_box(&self) -> (Point3<T>, Point3<T>) {
+        rows_box(&BoxAxes::World, |e| self.support(e))
     }
 
     fn distance_range(&self, site: &Site<T>) -> (T, T) {
@@ -651,19 +737,58 @@ impl<T: Real> Node<T> {
                     (both[0].distance_range(site), both[1].distance_range(site));
                 (n0.min(n1), f0.max(f1))
             }
+            // A distance from a point or a line is convex, so its
+            // greatest over the hull is its greatest over the region; its
+            // least is the hull's box's or ball's.
+            Node::Convex(inner) => {
+                let far = inner.distance_range(site).1;
+                let near = match site {
+                    Site::Point(q) => box_range(self.world_box(), *q)
+                        .0
+                        .max(ball_range(inner.ball(), site).0),
+                    Site::Line(_) => ball_range(inner.ball(), site).0,
+                };
+                (near, far)
+            }
         }
     }
 
     fn ball(&self) -> Ball<T> {
         match self {
             Node::Piece(p) => p.ball(),
-            Node::Meet(both) => smaller(both[0].ball(), both[1].ball()),
+            // Both balls hold the region, and so does the ball about the
+            // meet's box, which is narrower than either piece's where the
+            // two overlap only in part.
+            Node::Meet(both) => smaller(
+                smaller(both[0].ball(), both[1].ball()),
+                box_ball(self.world_box()),
+            ),
             Node::Hull(both) => {
                 let ((c0, r0), (c1, r1)) = (both[0].ball(), both[1].ball());
                 let c = c0 + (c1 - c0) * T::from_f64(0.5);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
                 (c, r)
             }
+            Node::Convex(inner) => inner.ball(),
+        }
+    }
+}
+
+impl<T: Real> Node<T> {
+    fn circle_range(&self, core: &Core<T>) -> (T, T) {
+        match self {
+            Node::Piece(p) => p.circle_range(core),
+            Node::Meet(both) => {
+                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
+                (n0.max(n1), f0.min(f1))
+            }
+            Node::Hull(both) => {
+                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
+                (n0.min(n1), f0.max(f1))
+            }
+            // A circle's distance is not convex, so the hull is read
+            // whole.
+            Node::Convex(_) => core.through(|site| self.distance_range(site), |e| self.support(e)),
         }
     }
 }
@@ -717,16 +842,29 @@ impl<T: Real> Tube<T> {
         (self.frame.origin, r)
     }
 
-    /// The spine circle's range ([`Arc::range`], which holds any frame),
-    /// less and plus the longest tube offset.
-    fn range(&self, site: &Site<T>) -> (T, T) {
-        let spine = Arc {
+    /// The spine circle's range from a circle, read through the spine
+    /// alone ([`Core::through`]), less and plus the longest tube offset.
+    fn circle_range(&self, core: &Core<T>) -> (T, T) {
+        let spine = self.spine();
+        let (near, far) = core.through(|site| spine.range(site), |e| spine.support(e));
+        let tube = self.minor * self.reaches().1;
+        ((near - tube).max(T::zero()), far + tube)
+    }
+
+    /// The spine circle, whole.
+    fn spine(&self) -> Arc<T> {
+        Arc {
             frame: self.frame,
             semi_u: self.major,
             semi_v: self.major,
             window: ParamWindow::new(T::zero(), T::tau()),
-        };
-        let (near, far) = spine.range(site);
+        }
+    }
+
+    /// The spine circle's range ([`Arc::range`], which holds any frame),
+    /// less and plus the longest tube offset.
+    fn range(&self, site: &Site<T>) -> (T, T) {
+        let (near, far) = self.spine().range(site);
         let tube = self.minor * self.reaches().1;
         ((near - tube).max(T::zero()), far + tube)
     }
@@ -765,9 +903,11 @@ impl<T: Real> Slab<T> {
     /// as unit.
     fn point_range(&self, q: Point3<T>) -> (T, T) {
         let (lo, hi) = self.window.ordered();
-        let w = q - self.origin;
-        let h = w.dot(self.axis);
-        let rho = w.cross(self.axis).norm();
+        let (h, rho) = crate::Line {
+            origin: self.origin,
+            dir: self.axis,
+        }
+        .height_and_distance(q);
         let dh = (lo - h).max(h - hi).max(T::zero());
         let fh = (h - lo).abs().max((h - hi).abs());
         let near = (dh.powi(2) + (rho - self.radius).max(T::zero()).powi(2)).sqrt();
@@ -1014,6 +1154,25 @@ impl<T: Real> Piece<T> {
         }
     }
 
+    fn circle_range(&self, core: &Core<T>) -> (T, T) {
+        let whole = || core.through(|site| self.distance_range(site), |e| self.support(e));
+        match self {
+            Piece::Points(points) => {
+                let d0 = core.offset(points[0]);
+                points[1..].iter().fold((d0, d0), |(near, far), &p| {
+                    let d = core.offset(p);
+                    (near.min(d), far.max(d))
+                })
+            }
+            Piece::Tube(tube) => tube.circle_range(core),
+            Piece::Patch(patch) => {
+                let ((n0, f0), (n1, f1)) = (patch.tube.circle_range(core), whole());
+                (n0.max(n1), f0.min(f1))
+            }
+            _ => whole(),
+        }
+    }
+
     fn ball(&self) -> Ball<T> {
         match self {
             Piece::Points(points) | Piece::Net(points) => points_ball(points),
@@ -1040,9 +1199,9 @@ fn points_support<T: Real>(points: &[Point3<T>], e: Vec3<T>) -> T {
 /// greatest is also a net's hull's: a distance from a point or a line is convex, so its greatest over a
 /// hull is at a point of it.
 fn points_range<T: Real>(points: &[Point3<T>], site: &Site<T>) -> (T, T) {
-    let d0 = site.offset(points[0]);
+    let d0 = site.distance(points[0]);
     points[1..].iter().fold((d0, d0), |(near, far), &p| {
-        let d = site.offset(p);
+        let d = site.distance(p);
         (near.min(d), far.max(d))
     })
 }

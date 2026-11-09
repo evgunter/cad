@@ -66,6 +66,7 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The D-shaped prism: the half disc of radius `r` about `(d, 0)` on
@@ -85,6 +86,7 @@ fn d_prism(d: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// `b` turned by `deg` about the line through `(0, 0, 1)` along `x`.
