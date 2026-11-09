@@ -2,8 +2,11 @@
 id: incidence-pins-in-three-rows-name-the-variant
 kind: issue
 title: Three rows pick out an incidence read by its PcurveCertifyError or CertifyError variant instead of the classifier
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+branch: onecopy/sign-homes
+pr: 6688
 ---
 
 
@@ -42,3 +45,13 @@ is the likely spelling.
 Match each through the classifier (`Off(_)`, `Undecided(_)`). Check the
 chart and carrier kinds on the body's own face and edge where the row
 means them.
+
+## Closed
+
+PR 6688. The three rows, and seven more test files the sweep found, read the
+classifier (`IncidenceRead::of`, `CertifyError::incidence_read`). The kinds
+are checked on the body's face and edge through
+`topo::test_support::incidence_kinds`. The gate
+`scripts/gates/incidence-variant-sites.sh` holds every other naming outside
+geom-brep at a count that only falls, and refuses a pin row. The stronger fix
+is filed: `incidence-variants-are-matchable-outside-geom-brep`.
