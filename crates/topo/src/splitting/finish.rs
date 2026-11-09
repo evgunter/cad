@@ -138,7 +138,7 @@ pub(crate) enum RawPart<T: Real> {
     Empty,
 }
 
-pub(crate) use raw::{RawSplit, ReducedRows};
+pub(in crate::splitting) use raw::{RawSplit, ReducedRows};
 
 /// [`RawSplit`] and the one way to make one: its record is the reduce's
 /// rows, so its constructor takes them as [`ReducedRows`], which only a
@@ -152,11 +152,11 @@ mod raw {
     /// split records, on the cut path and the uncut one alike, since
     /// the reduce decides each the same way on either.
     #[derive(Debug)]
-    pub(crate) struct ReducedRows(Vec<crate::Coincidence>);
+    pub(in crate::splitting) struct ReducedRows(Vec<crate::Coincidence>);
 
     impl ReducedRows {
         /// `red`'s rows, moved out of it.
-        pub(crate) fn take<T: Real>(red: &mut SplitReduction<T>) -> Self {
+        pub(in crate::splitting) fn take<T: Real>(red: &mut SplitReduction<T>) -> Self {
             Self(core::mem::take(&mut red.coincidences))
         }
     }
@@ -164,16 +164,16 @@ mod raw {
     /// The split pipeline's own result: [`super::SplitResult`] before
     /// its sides are gated at rest (`super::super::split`).
     #[derive(Debug)]
-    pub(crate) struct RawSplit<T: Real> {
-        pub(crate) above: RawPart<T>,
-        pub(crate) below: RawPart<T>,
-        pub(crate) naming: SplitNaming,
+    pub(in crate::splitting) struct RawSplit<T: Real> {
+        pub(in crate::splitting) above: RawPart<T>,
+        pub(in crate::splitting) below: RawPart<T>,
+        pub(in crate::splitting) naming: SplitNaming,
         coincidences: Vec<crate::Coincidence>,
     }
 
     impl<T: Real> RawSplit<T> {
         /// The split's two sides and naming, recording `rows`.
-        pub(crate) fn from_reduction(
+        pub(in crate::splitting) fn from_reduction(
             rows: ReducedRows,
             (above, below): (RawPart<T>, RawPart<T>),
             naming: SplitNaming,
@@ -187,7 +187,7 @@ mod raw {
         }
 
         /// Its sides, naming and record.
-        pub(crate) fn into_parts(
+        pub(in crate::splitting) fn into_parts(
             self,
         ) -> (RawPart<T>, RawPart<T>, SplitNaming, Vec<crate::Coincidence>) {
             (self.above, self.below, self.naming, self.coincidences)
