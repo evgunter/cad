@@ -2010,12 +2010,17 @@ pub(crate) fn loop_reach<T: Decide>(
 /// **The ray's plane is built, not read off `face`'s record**: the plane
 /// through `q` with `u_ref = d` and the caller's `normal`
 /// ([`Charted::held`](geom_brep::curve_pair::on_surface::Charted::held)),
-/// under `face`'s key. That it carries the loop's arcs is
-/// [`point_in_loop`]'s premise, which [`certify_plane`] holds there: the
-/// loop and `q` lie in the plane through the loop of normal `normal`. On
-/// the projected read it is that read's own premise, above. Both readings
-/// of the pair check the key (C5); the walk reads the one, the arc across
-/// the ray's square plane.
+/// under `face`'s key. That it carries the loop's arcs is the premise
+/// that the loop and `q` lie in the plane through the loop of normal
+/// `normal`, and each way in holds it differently:
+/// - [`point_in_loop`] certifies it ([`certify_plane`]).
+/// - On the projected read it is that read's own premise, above.
+/// - [`contfp`](crate::boolean::contain::contfp), through
+///   [`carrier_loop_side`], takes it unchecked from its caller: "`q`
+///   already on the plane of `face`, with unit plane normal `normal`".
+///
+/// Both readings of the pair check the key (C5); the walk reads the one,
+/// the arc across the ray's square plane.
 ///
 /// # Errors
 ///

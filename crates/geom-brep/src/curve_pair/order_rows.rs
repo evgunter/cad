@@ -1171,6 +1171,52 @@ fn the_needle_tilted_on_a_half_decade_grid_reads_its_oracle_in_either_order() {
     assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
 }
 
+/// **A long thin ellipse and a small circle touching at its major vertex
+/// meet once, in either order, read on the level about the piece**: a
+/// `100 × 1` ellipse and a unit circle outside its vertex, at the origin
+/// and moved `10²` along `(1, −0.7, 0.3)`, at the needle band. Red where the
+/// circle's distance is read from the ellipse's harmonics posed about the
+/// circle's centre: their rounding charge, `ε·((|w| + a + b)² + r²)` with
+/// `|w| ≈ 10²`, is past the zero band per metre of the unit radius, and
+/// every piece about the touch refuses (`curve_pair_coplanar_sub_side`).
+#[test]
+fn a_thin_ellipse_and_a_small_circle_touching_at_its_vertex_meet_once() {
+    let at = needle_band();
+    let (a, b) = (100.0, 1.0);
+    for off in [0.0, 1e2] {
+        let o = Point3::new(off, -0.7 * off, 0.3 * off);
+        let normal = Vec3::new(0.0, 0.0, 1.0);
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(o, normal, Vec3::new(1.0, 0.0, 0.0)),
+            a,
+            b,
+        ));
+        let c = Curve3::circle(
+            o + Vec3::new(a + 1.0, 0.0, 0.0),
+            normal,
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let (se, sc) = ((-0.5, 0.5), (PI - 1.0, PI + 1.0));
+        let (got, back) = (read((&e, se), (&c, sc), at), read((&c, sc), (&e, se), at));
+        for (order, r) in [("ellipse first", &got), ("circle first", &back)] {
+            let met = r
+                .as_ref()
+                .unwrap_or_else(|e| panic!("moved {off}, {order}: refused: {e:?}"));
+            assert!(
+                met.shared.is_none()
+                    && met.points.len() == 1
+                    && (met.points[0].point - (o + Vec3::new(a, 0.0, 0.0))).norm() < 1e-6,
+                "moved {off}, {order}: one meeting, at the vertex: {met:?}"
+            );
+        }
+        assert_eq!(
+            agree(&format!("moved {off}"), (&e, &c), &got, &back, at),
+            None
+        );
+    }
+}
+
 /// **The needle read far from the origin reads as at it.** The near-circle
 /// turned about the shared end, about the tangent, the long ellipse's
 /// normal and their cross, by up to `10⁻⁴` either way, and about the far

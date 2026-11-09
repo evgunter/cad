@@ -46,3 +46,10 @@ the box's width. Pinned:
 `a_box_reads_on_from_a_seed_on_the_far_branch` and
 `a_box_reads_on_from_a_knot_spans_sample`
 (`geom::curves::on_carrier::rows`). Both are red with the snap removed.
+
+**Disclosed by the review (F2).** At `Dual<Interval>` the snap also
+fires where the value part is wider than a point. `from_computed` then
+gives the iterate a zero tangent, so `On`'s `t` there carries no
+derivative. No suite reads a foot at `Dual<Interval>` today. A reader of
+`t`'s derivative at that scalar would read zero, not the foot's
+sensitivity.
