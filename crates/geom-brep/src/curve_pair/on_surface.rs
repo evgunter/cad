@@ -20,10 +20,9 @@
 //! A [`SurfaceCurve`] is built from a surface record's surface and chart
 //! coordinates and from nothing else: its centre, radius and direction
 //! are that surface's own at those coordinates, so no curve off it can be
-//! built as one. The surface is the record's as stored, turned about its
-//! own axis onto another seam ([`Charted::turned`]: the sphere cut-in's
-//! meridian), or a sphere on a frame of the caller's ([`Charted::framed`]:
-//! the sphere door's), each the same surface.
+//! built as one. The surface is the record's as stored, or turned about
+//! its own axis onto another seam ([`Charted::turned`]: the sphere
+//! cut-in's meridian), the same surface on another chart.
 //!
 //! A curve and an edge are tied by record: a curve carries the key of the
 //! surface record it was charted from ([`Charted`]), an edge the key of
@@ -87,12 +86,12 @@ pub struct SurfaceCurve<T: Real> {
 
 /// **A surface record's surface and its key**: what a [`SurfaceCurve`]
 /// is built on. It is the record's own surface as stored
-/// ([`Self::record`]), that surface turned about its own axis
-/// ([`Self::turned`]), or a sphere on another frame ([`Self::framed`]):
-/// the same surface on another chart. A surface a caller builds instead
-/// is [`Self::held`], its premise the caller's. The key names the record, so a curve built on it
-/// is read only against edges of faces on that record
-/// ([`OnSurface::across`], [`OnSurface::under`]).
+/// ([`Self::record`]), or that surface turned about its own axis
+/// ([`Self::turned`]): the same surface on another chart. A surface a
+/// caller builds instead is [`Self::held`], its premise the caller's.
+/// The key names the record, so a curve built on it is read only against
+/// edges of faces on that record ([`OnSurface::across`],
+/// [`OnSurface::under`]).
 #[derive(Clone, Debug)]
 pub struct Charted<T: Real> {
     key: SurfaceKey,
@@ -178,31 +177,6 @@ impl<T: Real> Charted<T> {
             other => unreachable!("only a surface of revolution is turned: {:?}", other.kind()),
         };
         Self { surface, ..self }
-    }
-
-    /// **A sphere on a frame of the caller's**, its pole along `axis` and
-    /// its seam at `u_ref` (unit and square to each other, conventional as
-    /// a surface's own are): every frame of a sphere charts the same
-    /// sphere, so its centre and radius stay the record's.
-    ///
-    /// # Panics
-    ///
-    /// On any other surface, whose axis is part of what it is: a fault in
-    /// the caller.
-    #[must_use]
-    pub fn framed(self, axis: Vec3<T>, u_ref: Vec3<T>) -> Self {
-        let geom::Surface::Sphere { center, radius, .. } = self.surface else {
-            unreachable!("only a sphere is charted on a frame of the caller's")
-        };
-        Self {
-            surface: geom::Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            },
-            ..self
-        }
     }
 
     /// The record's key.
@@ -1067,7 +1041,7 @@ mod tests {
     }
 
     #[test]
-    fn a_turned_or_framed_record_is_the_same_surface_on_another_chart() {
+    fn a_turned_record_is_the_same_surface_on_another_chart() {
         let torus = torus();
         let turned = Charted::record(key(), &torus).turned(Vec3::new(0.0, 1.0, 0.0));
         let geom::Surface::Torus { u_ref, .. } = *turned.surface() else {
@@ -1082,13 +1056,6 @@ mod tests {
             "{w:?}"
         );
         assert_eq!(turned.key(), key());
-        // A sphere on a frame of the caller's keeps the record's centre
-        // and radius.
-        let framed = Charted::record(key(), &sphere()).framed(x(), z());
-        let geom::Surface::Sphere { axis, radius, .. } = *framed.surface() else {
-            unreachable!()
-        };
-        assert_eq!((axis.x, axis.y, axis.z, radius), (1.0, 0.0, 0.0, 3.0));
     }
 
     /// **A plane's line crosses a circle of the plane where the circle
