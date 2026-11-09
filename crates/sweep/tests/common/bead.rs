@@ -35,5 +35,8 @@ pub fn bead(plane: SketchPlane<f64>, big_r: f64, r: f64, turn: Revolution<f64>) 
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, turn, Tol::witness()).unwrap().body
+    revolve(&vp, axis, turn, Tol::witness())
+        .unwrap()
+        .body
+        .into_body()
 }

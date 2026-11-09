@@ -54,6 +54,14 @@ impl<T: Real> Frame<T> {
         Self::new(motion.origin(), motion.w().get(), motion.u().get())
     }
 
+    /// **The unit radial direction at azimuth `u`**, `u_ref·cos u +
+    /// v_ref·sin u`: the azimuthal frame's own reading
+    /// ([`crate::azimuth`]'s `Radial`), for a caller outside the crate.
+    #[must_use]
+    pub fn radial(&self, u: T) -> Vec3<T> {
+        crate::azimuth::frame(self, u).radial.0
+    }
+
     /// `axis × u_ref`, the second axis.
     #[must_use]
     pub fn v_ref(&self) -> Vec3<T> {
@@ -161,7 +169,7 @@ impl<T: Real> Frame<T> {
     /// the stored `u_ref`, taken as `a × (u_ref × a)` over the unit `a`.
     #[must_use]
     pub fn square(&self) -> SquareFrame<T> {
-        let axis = self.axis / self.axis.norm();
+        let axis = self.axis.normalize();
         let across = axis.cross(self.u_ref.cross(axis));
         let len = across.norm();
         SquareFrame {

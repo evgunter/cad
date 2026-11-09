@@ -28,7 +28,7 @@ use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
 use crate::{
-    Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    Dimension, DocEdit, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
     ProfileProgram, RecipeNodeId,
 };
 
@@ -82,7 +82,7 @@ pub fn len2(v: [f64; 2]) -> [Formula; 2] {
 /// # Panics
 ///
 /// At a member that is a boolean's empty result.
-pub fn every_body<T: geom_core::Decide>(
+pub fn every_body<T: geom_core::Decide + topo::AtRestPolicy>(
     members: &[Option<crate::Framed<T>>],
 ) -> Vec<&crate::Framed<T>> {
     members
@@ -101,22 +101,12 @@ pub fn scratch(tol: geom_core::Tol) -> ProfileDoc {
     ProfileDoc::empty_derived("scratch", tol)
 }
 
-/// The stored node `node` lowers to in `doc`: what the edit door would
-/// write for it, every variable it mints minted into `doc`, for a row
-/// that places a node in a document by hand.
-///
-/// # Panics
-///
-/// If `node` does not lower in `doc`.
-pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileProgram> {
-    crate::edit::lower_node_into(doc, node).expect("a node the document can answer lowers")
-}
-
 /// **A stored node read as given**: every slot lowered into `doc` as
-/// [`stored`] lowers it, and every operand stored as the read it names
-/// with no door around it — a variable by id as itself, a node or a
-/// port as the id `read` hands for it — for a row about a node's own
-/// shape, whose operands need name no live output.
+/// the edit door lowers it, every variable it mints minted into `doc`,
+/// and every operand stored as the read it names with no door around
+/// it — a variable by id as itself, a node or a port as the id `read`
+/// hands for it — for a row about a node's own shape, whose operands
+/// need name no live output.
 ///
 /// # Panics
 ///
@@ -217,15 +207,6 @@ pub fn as_written(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> crate::Autho
     node.written(doc)
 }
 
-/// The stored expression `formula` lowers to where no name is held.
-///
-/// # Panics
-///
-/// If `formula` reads a variable by name.
-pub fn stored_expr(formula: &Formula) -> Expr {
-    Expr::try_from(formula).expect("a formula with no name leaf lowers in any scope")
-}
-
 /// The stored program `program` lowers to in `doc`, its plane read as
 /// given ([`stored_reading`]): a plane naming node `n` is stored as the
 /// read with `n`'s own id, for a row about a program's own shape,
@@ -243,7 +224,8 @@ pub fn stored_program(doc: &mut ProfileDoc, program: &ProfileProgram<Formula>) -
     }
 }
 
-/// The stored loop `program` lowers to in `doc` ([`stored`]).
+/// The stored loop `program` lowers to in `doc`, every variable it
+/// mints minted into `doc`.
 ///
 /// # Panics
 ///
@@ -613,10 +595,10 @@ pub fn axes_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
     use geom_core::linalg::Vec3 as V;
     let u = V::new(u[0], u[1], u[2]);
     let v = V::new(v[0], v[1], v[2]);
-    let x = u * (1.0 / u.norm());
+    let x = u.normalize();
     let y = v - x * v.dot(x);
     assert!(y.norm() > 0.0, "the frame's axes span a plane");
-    let y = y * (1.0 / y.norm());
+    let y = y.normalize();
     let z = x.cross(y);
     crate::Frame {
         columns: [[x.x, x.y, x.z], [y.x, y.y, y.z], [z.x, z.y, z.z]],
@@ -664,7 +646,7 @@ pub fn plane_on(
         crate::mate::corner::read_of(doc, &ev, &body).expect("the body has a value");
     let solid = framed.body();
     let n = V::new(normal[0], normal[1], normal[2]);
-    let n = n * (1.0 / n.norm());
+    let n = n.normalize();
     let o = Point3::new(origin[0], origin[1], origin[2]);
     let parallel: Vec<_> = solid
         .faces()
@@ -1414,18 +1396,6 @@ pub fn assemble_world_copies_edits(
         },
     );
     (doc, log)
-}
-
-/// **What the at-rest check could not look at in one gathered
-/// `product`**, read as the `AtRest` resident reads it: for a row at a
-/// scalar the checks registry cannot run at (a dual, which carries no
-/// chart-coherence lane), whose census is structurally absent
-/// ([`crate::AtRestEvidence::NotRun`]).
-pub fn at_rest_could_not_look<T: crate::checks::at_rest::LocalizeLane>(
-    product: &crate::Product<T>,
-    tol: geom_core::Tol,
-) -> Vec<crate::AtRestEvidence> {
-    crate::checks::at_rest::reading(product, tol).could_not_look
 }
 
 /// The judgement whose naming [`with_judgement_naming_fault`] refuses,

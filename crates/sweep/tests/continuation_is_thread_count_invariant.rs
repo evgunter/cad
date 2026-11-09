@@ -45,6 +45,7 @@ fn sym_arc_loft(s: f64) -> Body<Sym<f64>> {
     )
     .expect("the arc loft lofts at Sym")
     .body
+    .into_body()
 }
 
 fn counts_line(refused: bool, c: &SymCounts, shapes: usize) -> String {

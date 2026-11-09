@@ -2,10 +2,13 @@
 id: a-direction-is-normalised-by-hand-beside-vec3-normalize
 kind: issue
 title: a direction is normalised by hand, v / v.norm(), at about 200 sites beside Vec3::normalize, and three files keep a fn unit of their own
-status: open
+status: closed
 opened: 2026-11-06
 priority: P3
 cost: M
+closed: 2026-11-06
+pr: 6572
+branch: onecopy/normalize
 ---
 
 
@@ -31,3 +34,7 @@ Found by `onecopy/curve-pair-tidy`'s sweep, while routing `polish::bound`'s clos
 ## Owed
 
 Route each kernel site to `Vec3::normalize`, delete the three function copies, and add a gate (`scripts/gates/`) that refuses the first-pass shape in `crates/*/src`. Fixtures are exempt. Each site moves in its own crate's run, and a moved test outcome is read as a change in the extreme-magnitude behaviour, not restored.
+
+## Closed
+
+PR 6572 routed every production first-pass site and the copies of `unit` (including `geom-brep` `intersect/section_bounds.rs`'s, spelled through `norm_squared().sqrt()`) to `normalize`. `scripts/gates/normalize-by-hand.sh` refuses the shape; its header states its blind spots. Second-pass sites whose length feeds other arithmetic keep their division, listed in the PR body. The residue `profile` `chord_director`'s witness prescale is `work/onecopy/profile-chord-director-prescales-by-its-witness-beside-normalize.md`.

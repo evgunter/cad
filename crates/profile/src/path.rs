@@ -4878,7 +4878,7 @@ fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
         return Dir::from_unit(Vec2::new(T::one(), T::zero()));
     }
     let scaled = d / witness;
-    Dir::from_unit(scaled / scaled.norm_squared().sqrt())
+    Dir::from_unit(scaled.normalize())
 }
 
 /// The vector `v` rotated by `by` radians — the one spelling of a

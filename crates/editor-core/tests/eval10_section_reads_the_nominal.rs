@@ -31,7 +31,7 @@ fn p() -> VarName {
 }
 
 /// The probe's one variable in `doc`.
-fn var(doc: &ProfileDoc) -> editor_core::VarId {
+pub(crate) fn var(doc: &ProfileDoc) -> editor_core::VarId {
     doc.var_named("p").expect("the probe declares p")
 }
 
@@ -53,7 +53,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
 /// [`loft_doc`] with rectangles for circles: the lower section
 /// `[0, p] × [0, 1]`, the upper the unit square. Every value is a line
 /// endpoint, so at `Interval` with no box the sections are points.
-fn square_loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn square_loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
     let rect = |w: Formula| {
         let at = |x: Formula, y: f64| {
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([

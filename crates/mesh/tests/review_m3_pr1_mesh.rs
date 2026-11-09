@@ -41,7 +41,8 @@ fn tessellate_refuses_null_scaffold_typed() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     let mesh_before = tessellate(&body, 0.01, Tol::witness()).unwrap();
     let v = body.vertices().next().map(|(k, _)| k).unwrap();
     let he = body.get_vertex(v).unwrap().emanating.unwrap();

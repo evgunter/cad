@@ -254,7 +254,8 @@ fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
     };
     let mut body = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
-        .body;
+        .body
+        .into_body();
     let sphere = body
         .faces()
         .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))

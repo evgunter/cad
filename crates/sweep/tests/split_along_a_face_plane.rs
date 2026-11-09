@@ -31,6 +31,7 @@ fn extruded(points: &[((f64, f64), f64)]) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn revolved(points: &[(f64, f64)]) -> Body<f64> {
@@ -45,6 +46,7 @@ fn revolved(points: &[(f64, f64)]) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Splits `body` by the plane through `origin` along `normal`, and holds

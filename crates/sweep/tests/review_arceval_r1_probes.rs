@@ -62,7 +62,12 @@ mod certified {
     fn block(z0: f64, len: f64) -> AtRestBody<Interval> {
         finished(
             "the block",
-            sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (z0, z0 + len), Tol::witness()),
+            sweep::test_support::brick::<geom_core::Interval>(
+                (-1.0, 1.0),
+                (-1.0, 1.0),
+                (z0, z0 + len),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
     }
