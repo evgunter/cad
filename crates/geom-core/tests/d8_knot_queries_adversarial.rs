@@ -325,7 +325,7 @@ fn enumerated() -> Vec<(String, KnotVector)> {
     // side, a width of exactly `f64::MAX`), and a degree whose clamps
     // dominate the vector.
     push(
-        "extreme/p2/full f64 span".to_string(),
+        "extreme/p2/widest admitted span".to_string(),
         build(
             2,
             -geom_core::spline::KNOT_MAGNITUDE_MAX,
@@ -334,7 +334,7 @@ fn enumerated() -> Vec<(String, KnotVector)> {
         ),
     );
     push(
-        "extreme/p1/full f64 span, least slack".to_string(),
+        "extreme/p1/widest admitted span, least slack".to_string(),
         build(
             1,
             -geom_core::spline::KNOT_MAGNITUDE_MAX,
@@ -720,14 +720,8 @@ fn simulate_decomposition(name: &str, kv: &KnotVector, extra: &[f64]) {
     // near the domain's width is exact in rationals: it keeps every
     // knot a short dyadic whatever the domain's magnitude, which is what
     // keeps the oracle's arithmetic cheap at 1e300 and at subnormals.
-    let width = hi - lo;
-    // A width that overflows (a domain across the whole range) keeps
-    // the unscaled knots: correct, only slower.
-    let e = if width.is_finite() {
-        width.log2().floor()
-    } else {
-        0.0
-    };
+    // Finite: no admitted knot lies past `KNOT_MAGNITUDE_MAX`.
+    let e = (hi - lo).log2().floor();
     #[allow(clippy::cast_possible_truncation)]
     let shift = e.abs() as usize;
     let scale = if e >= 0.0 {

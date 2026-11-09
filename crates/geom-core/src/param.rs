@@ -32,15 +32,17 @@ use crate::Real;
 /// Both are the same real number and agree with this bit for bit
 /// wherever no half is subnormal and both ends lie within
 /// `f64::MAX / 2`. Neither is a second home: past those extremes each
-/// rounds differently from this generic formula, and DESIGN [scalars]
+/// rounds differently from this generic formula, and DESIGN `[scalars]`
 /// has a formula round the same way at every scalar, so that the `f64`
 /// build and a dual's value channel agree. An `f64`-only override would
 /// break that. The overflow safety they buy holds no ground here: a
-/// coordinate lies inside the session box, and a parameter either is a
-/// length or angle of such geometry (an analytic carrier's) or lies
-/// within a knot vector's domain, whose knots are admitted only within
-/// `spline::KNOT_MAGNITUDE_MAX` (`f64::MAX / 2`). Both keep a bracket's
-/// ends summing finitely, so its middle is finite.
+/// coordinate lies inside the session box; an analytic carrier's
+/// parameter is an angle, or a length in units of `|dir|` along such
+/// geometry; and a spline's lies within its knot vector's domain, whose
+/// knots the knot door admits only within
+/// [`KNOT_MAGNITUDE_MAX`](crate::spline::KNOT_MAGNITUDE_MAX)
+/// (`f64::MAX / 2`), so that a bracket's ends sum finitely and its
+/// middle is finite.
 pub fn mid_param<T: Real>(t0: T, t1: T) -> T {
     (t0 + t1) * T::from_f64(0.5)
 }

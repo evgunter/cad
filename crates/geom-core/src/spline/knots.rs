@@ -405,8 +405,8 @@ impl KnotVectorIssue {
             ),
             KnotVectorIssue::PastHalfMax { index } => write!(
                 f,
-                "knot {index} lies past half the largest finite number in magnitude, where \
-                 the middle of a span reaching it is not representable"
+                "knot {index} lies past half the largest finite number in magnitude, the bound \
+                 that keeps every span's middle representable"
             ),
             KnotVectorIssue::Decreasing { index } => {
                 write!(f, "knot {index} decreases, which a knot vector never does")
@@ -544,7 +544,9 @@ impl core::error::Error for KnotMirrorError {}
 ///
 /// # Invariants (established at construction, relied on by indexing)
 ///
-/// - `degree ≥ 1`; `knots.len() ≥ 2·(degree + 1)`; all knots finite.
+/// - `degree ≥ 1`; `knots.len() ≥ 2·(degree + 1)`; all knots finite
+///   and none past [`KNOT_MAGNITUDE_MAX`] in magnitude, so every span's
+///   width and middle are finite.
 /// - Non-decreasing; first and last values have multiplicity **exactly**
 ///   `degree + 1` (clamped-v1 — periodic/unclamped forms are a designed
 ///   absence until a consumer exists); interior multiplicities ≤
@@ -1038,7 +1040,7 @@ impl KnotVector {
     /// # Errors
     ///
     /// As [`KnotVector::clamped`]: degree zero, or ends that are not
-    /// finite and ordered.
+    /// finite and ordered or that lie past [`KNOT_MAGNITUDE_MAX`].
     pub fn bezier(degree: usize, (s0, s1): (f64, f64)) -> Result<Self, SplineError> {
         let mut knots = vec![s0; degree + 1];
         knots.extend(core::iter::repeat_n(s1, degree + 1));
@@ -1137,8 +1139,10 @@ impl KnotVector {
     /// `hi > lo` (each of `− a`, `/ (b − a)`, `· (hi − lo)`, `+ lo` is a
     /// monotone rounding of a monotone step), so the images keep the
     /// source's order and end runs of exactly `degree + 1` copies each
-    /// of `lo < hi`; every knot is finite because `hi − lo` is (the
-    /// guard refuses a width that overflows). What rounding can still
+    /// of `lo < hi`, each between them. An interval with an end past
+    /// [`KNOT_MAGNITUDE_MAX`] is refused by that clause of
+    /// [`KnotVector::clamped`] (`PastHalfMax`), and the guard refuses a
+    /// width that overflows first. What rounding can still
     /// do is collapse two DISTINCT interior knots onto one value
     /// (`InteriorMultiplicityTooHigh`), an interior knot onto an end
     /// value (`StartNotClamped`/`EndNotClamped`), or an interior knot
@@ -1158,8 +1162,10 @@ impl KnotVector {
     /// # Errors
     ///
     /// [`SplineError::DomainInvalid`] when `lo` or `hi` is not finite,
-    /// `hi ≤ lo`, or `hi − lo` overflows; otherwise whatever clause of
-    /// [`KnotVector::clamped`] a rounding collapse trips (above).
+    /// `hi ≤ lo`, or `hi − lo` overflows; [`SplineError::KnotVectorInvalid`]
+    /// with `PastHalfMax` when an end lies past [`KNOT_MAGNITUDE_MAX`];
+    /// otherwise whatever clause of [`KnotVector::clamped`] a rounding
+    /// collapse trips (above).
     pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
         let span = hi - lo;
         if !(lo.is_finite() && hi.is_finite() && lo < hi && span.is_finite()) {
@@ -1209,9 +1215,9 @@ impl KnotVector {
     /// carries `0.0` is accepted as the symmetric vector it really is.)
     /// Every step is one correctly-rounded binary64 operation, so the
     /// verdict is a function of the knots' bits alone: the same answer
-    /// on every target and at every optimization level. The one case
-    /// the arithmetic cannot decide is a `lo + hi` that overflows, and
-    /// that is refused rather than answered.
+    /// on every target and at every optimization level. Two knots' sum
+    /// never overflows, since no knot lies past [`KNOT_MAGNITUDE_MAX`],
+    /// so every vector is answered.
     ///
     /// Knots are finite by construction; a NaN or infinite knot would
     /// in any case give a residual that compares equal to nothing, so
@@ -1231,7 +1237,7 @@ impl KnotVector {
     ///
     /// [`two_sum`]: crate::exact::two_sum
     pub fn mirror_symmetric(&self) -> Result<(), KnotMirrorError> {
-        let Some(index) = self.first_unreflected(self)? else {
+        let Some(index) = self.first_unreflected(self) else {
             return Ok(());
         };
         let (lo, hi) = self.domain();
@@ -1257,11 +1263,12 @@ impl KnotVector {
     /// mirror as `fl(lo + hi − k)` and comparing knots both admits a
     /// vector an ulp off the mirror and refuses an exact one.
     ///
-    /// An `S` that overflows decides nothing, and reads as `false`.
+    /// `S` is finite: no knot of either vector lies past
+    /// [`KNOT_MAGNITUDE_MAX`].
     pub fn is_reflection_of(&self, other: &Self) -> bool {
         self.degree == other.degree
             && self.knots.len() == other.knots.len()
-            && matches!(self.first_unreflected(other), Ok(None))
+            && self.first_unreflected(other).is_none()
     }
 
     /// This vector reflected through 0, `k'_i = −k_{m−i}` on
@@ -1281,18 +1288,14 @@ impl KnotVector {
     /// exactly to `S`, this vector's first knot plus `other`'s last —
     /// the one reflection rule, read by [`Self::mirror_symmetric`] and
     /// [`Self::is_reflection_of`]. `other` has this vector's length.
-    /// The refusal's `lo` and `hi` are those two knots, so for
-    /// `other = self`, the only caller that surfaces it, they are the
-    /// domain's ends.
-    fn first_unreflected(&self, other: &Self) -> Result<Option<usize>, KnotMirrorError> {
+    fn first_unreflected(&self, other: &Self) -> Option<usize> {
         // Indexing justified: a clamped vector is never empty.
         let (lo, hi) = (self.knots[0], other.knots[other.knots.len() - 1]);
         let reflection = two_sum(lo, hi);
-        Ok(self
-            .knots
+        self.knots
             .iter()
             .zip(other.knots.iter().rev())
-            .position(|(&k, &mirror)| two_sum(k, mirror) != reflection))
+            .position(|(&k, &mirror)| two_sum(k, mirror) != reflection)
     }
 
     /// The index of the first (nonempty) span: `degree`.
@@ -1653,11 +1656,6 @@ pub(crate) fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
     knots.get(1..knots.len().saturating_sub(1)).unwrap_or(&[])
 }
 
-/// The clauses a clamped knot list keeps at every degree, its interior
-/// aside: at least `2·(degree + 1)` knots, all finite, non-decreasing,
-/// and both end runs exactly `degree + 1` long ([`end_runs_clamped`]).
-/// [`KnotVector::clamped`] adds its degree and interior clauses to
-/// these; [`LooseKnots::new`] is these alone.
 /// **The largest magnitude a knot may have**, `f64::MAX / 2`. Below it
 /// every parameter a knot vector bounds has a finite middle
 /// ([`crate::mid_param`]: two ends' sum stays finite) and a finite
@@ -1667,6 +1665,20 @@ pub(crate) fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
 /// revalidation) or `Knots::new`, which both refuse past it.
 pub const KNOT_MAGNITUDE_MAX: f64 = f64::MAX / 2.0;
 
+/// Whether a knot's bracket `(lo, hi)` reaches past
+/// [`KNOT_MAGNITUDE_MAX`] at either end: the one spelling of the
+/// magnitude clause, which [`end_clamped`] reads on each knot (its
+/// bracket the knot itself) and `Knots::new` on each run's bracket.
+pub(crate) fn past_half_max((lo, hi): (f64, f64)) -> bool {
+    lo.abs() > KNOT_MAGNITUDE_MAX || hi.abs() > KNOT_MAGNITUDE_MAX
+}
+
+/// The clauses a clamped knot list keeps at every degree, its interior
+/// aside: at least `2·(degree + 1)` knots, all finite and none past
+/// [`KNOT_MAGNITUDE_MAX`] ([`past_half_max`]), non-decreasing, and both
+/// end runs exactly `degree + 1` long ([`end_runs_clamped`]).
+/// [`KnotVector::clamped`] adds its degree and interior clauses to
+/// these; [`LooseKnots::new`] is these alone.
 fn end_clamped(knots: &[f64], degree: usize) -> Result<(), SplineError> {
     let issue = |reason| Err(SplineError::KnotVectorInvalid { reason });
     // Ahead of the value clauses: a short list is refused as short.
@@ -1677,7 +1689,7 @@ fn end_clamped(knots: &[f64], degree: usize) -> Result<(), SplineError> {
         if !k.is_finite() {
             return issue(KnotVectorIssue::NonFinite { index });
         }
-        if k.abs() > KNOT_MAGNITUDE_MAX {
+        if past_half_max((*k, *k)) {
             return issue(KnotVectorIssue::PastHalfMax { index });
         }
     }
@@ -1732,7 +1744,7 @@ impl LooseKnots {
     ///
     /// [`SplineError::KnotVectorInvalid`] naming the violated clause,
     /// as [`KnotVector::clamped`] names it: `TooShort`, `NonFinite`,
-    /// `Decreasing`, `StartNotClamped` or `EndNotClamped`.
+    /// `PastHalfMax`, `Decreasing`, `StartNotClamped` or `EndNotClamped`.
     pub fn new(knots: Vec<f64>, degree: usize) -> Result<Self, SplineError> {
         end_clamped(&knots, degree)?;
         Ok(Self { knots, degree })

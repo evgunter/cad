@@ -1638,7 +1638,8 @@ mod tests {
     /// families chosen to break it (non-dyadic ratios, ulp-scale knot
     /// spans, cancelling 1e17 coefficients, ratios an ulp from either
     /// end, subnormals, already-wide inputs, a degree-5 fold over a
-    /// clustered vector, spans that overflow or go subnormal, a
+    /// clustered vector, spans as wide as the knot door admits or
+    /// subnormal, a
     /// numerator that underflows across 1e300, equal-magnitude
     /// straddling wide inputs, and a degree-7 fold clustered at an ulp
     /// of 0.5).
@@ -1660,7 +1661,7 @@ mod tests {
     /// that given the schedule, the ring combination encloses the real
     /// one.
     ///
-    /// **A REFUSAL is sound and is treated as such.** On the overflow
+    /// **A REFUSAL is sound and is treated as such.** On the widest-span
     /// and subnormal families a quotient can legitimately refuse (D4);
     /// the row counts those and requires that a slot which does NOT
     /// refuse contains the truth. A row that demanded certification

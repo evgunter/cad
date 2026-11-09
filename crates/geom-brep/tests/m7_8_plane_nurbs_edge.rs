@@ -533,11 +533,15 @@ fn a_non_lane_defect_on_this_class_is_reported() {
 ///   the schedule's 32 steps: every foot converges and the
 ///   interpolation succeeds, and re-expressing the image on that domain
 ///   collapses its knots under `f64` rounding;
-/// - `[−f64::MAX, f64::MAX]`, whose ends lie past half the largest
-///   finite number: no knot vector admits it, so the spline cannot be
-///   built on it, and a line's image over it is refused at the door
-///   with the interval's fault, before the schedule, rather than as a
-///   foot that did not converge at a NaN parameter.
+/// - `[−f64::MAX, f64::MAX]`, whose width overflows: no knot vector
+///   admits it, and a line's image over it is refused at the door with
+///   the interval's fault (`DomainInvalid`, the span check), before the
+///   schedule, rather than as a foot that did not converge at a NaN
+///   parameter;
+/// - `[6e307, 1.7e308]`, of finite width with an end past half the
+///   largest finite number: no knot vector admits it either, and a
+///   line's image over it is refused with the same fault, from the
+///   knots' magnitude rule (`PastHalfMax`).
 ///
 /// The plane × NURBS lane and the pcurve mint both refuse with the
 /// door's fault and the carrier's exact domain, never the
@@ -555,6 +559,12 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
             f64::MAX,
             false,
             "not a finite increasing interval",
+        ),
+        (
+            6.0e307,
+            1.7e308,
+            false,
+            "within half the largest finite number",
         ),
     ];
     for (lo, hi, collapse, says) in rows {
