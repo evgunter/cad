@@ -1167,3 +1167,4 @@
 - 21:35Z 6648 delta: MERGE, but dirty vs main → lane merges main again and folds NOTE-2 (exhaustive guard on edge_tangent_reasons), the 4 'move the geometry' spellings → COINCIDENCE_RECOURSE, optionally a const match instead of the memo, and the sample wording.
 - 21:38Z 6648 at 1a9b10d5: MERGE stands (comment-only). The DegenerateTorus gap is scheduled via a normal-fault-kind row the length-rule lane files now. 6648 still dirty vs main (lane merging).
 - 21:40Z 6663 review: FIX filing/prose (6594 moved m10_9 r2_rounded_pad 1684→1660 symbolic, unfiled; the BOXES row misses the corpus-wide freezes and 4 Add nodes past degree 128; prose narrowed) → main-reds lane.
+- 21:50Z 6641 at abbc61ea had no CI run → merged main (engine-leaves.counts conflict resolved to the lower pins: containment 46, finish 6; the gate confirms) at 79e1e5f4; check, gates, fmt and 5818 clean; gating. 6665 line-placement (b7b5f34c) → FULL with session_013mPGJ3ms7cGcUadcrES7LL.
