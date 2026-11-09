@@ -120,3 +120,20 @@ once at its hit lines and its exits.
 A unique-holder read is not the agreeing shape: two holders are a
 contradiction, so the read needs every element, and a `?` in band
 refuses what the uniqueness needs.
+
+## Other agreeing copies (PR 6606's review)
+
+Loops that read every element and compare the answers, beside the
+three in the table above. Each is a candidate for `ladder::climb_agreeing`;
+read each before porting it. In two of them a disagreement is a valid
+answer of its own, not a fault (`climb_agreeing` leaves that to its
+caller):
+
+- `geom_brep::second_order` (≈`second_order.rs:151`);
+- `geom_brep::curve_face::composite::one_signed` (≈`composite.rs:462`);
+- `geom_brep::ssi::section` (≈`ssi/section.rs:424`);
+- `topo::boolean::vtxfac` (≈`vtxfac.rs:301`): a disagreement maps to a
+  valid answer;
+- `topo::boolean::rim_wedge` (≈`rim_wedge.rs:500`): a disagreement maps
+  to a valid answer.
+

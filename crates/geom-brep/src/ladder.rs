@@ -17,6 +17,10 @@
 //! - [`read_identity`] is the **identity ladder**, the ladder over banded
 //!   data each required `Zero` for two descriptions to be one, so any
 //!   datum decided apart answers.
+//! - [`climb_agreeing`] is the **agreeing ladder**: it reads every rung
+//!   rather than stopping at the first answer, and hands back
+//!   [`Disagree`] where two decided answers differ. Its caller says what
+//!   a disagreement means.
 //! - [`Evidence`] is **the one ranking of what a ladder kept** when nothing
 //!   answered: a limit no tolerance moves ahead of an in-band reading.
 //! - [`Refusal`] is **a refusal's standing**, stated by its own type: a
@@ -26,13 +30,18 @@
 //!   the answer an abort stops the ladder with ([`rung_or_abort`]). The
 //!   return type is the type's claim about whether it can abort.
 //!
-//! [`climb`] owns the recording, and the caller declares what an answer
-//! may do with the kept readings ahead of it ([`Answering`]): where every
-//! answering rung gives one answer, a kept reading's run is spliced
-//! superseded ([`geom_core::k_stats::splice_superseded`]), since the
-//! answer does not rest on it; where which rung answers chooses the
+//! The ladders own the recording, through one private discipline (`Held`)
+//! that [`climb_evidence`] (and so [`climb`]) and [`climb_agreeing`]
+//! share: each rung's run is held until the outcome is known, and a pass
+//! ahead of every kept rung is spliced at once. The caller declares what
+//! an answer may do with the kept readings ahead of it ([`Answering`]):
+//! where every answering rung gives one answer, a kept reading's run is
+//! spliced superseded ([`geom_core::k_stats::splice_superseded`]), since
+//! the answer does not rest on it; where which rung answers chooses the
 //! answer, it stays live, since a kept rung ahead may truly have answered
-//! first. Every run is spliced in rung order.
+//! first. An agreeing ladder's answer supersedes its kept rungs as `Any`
+//! does; its disagreement and an abort keep every run live. Every run is
+//! spliced in rung order.
 
 use geom_core::k_stats::{
     Detached, Magnitude, decide_magnitude_reported, decide_reported, detached, splice,
@@ -486,17 +495,20 @@ pub struct Disagree<A> {
 /// **The ladder that reads every rung and checks its answers agree**:
 /// [`Answering::Any`]'s premise, every answering rung gives one answer,
 /// read rather than assumed: `agree` says whether two answers are one.
-/// Every rung is read (an abort still stops it); where every answer
-/// agrees, that answer, with the readings kept
-/// beside it spliced superseded, since none could have given another;
-/// where none answers, the kept readings ranked ([`Evidence`]) or
-/// [`Climb::Passed`].
+/// Every rung is read (an abort still stops it). Where every decided
+/// answer agrees, that answer. A rung kept in band beside it is spliced
+/// superseded: the agreement was checked among the decided rungs only,
+/// and the kept rung's own answer is unread, so the record says the
+/// answer does not rest on it, not that it agreed. Where none answers,
+/// the kept readings ranked ([`Evidence`]) or [`Climb::Passed`].
 ///
 /// # Errors
 ///
-/// [`Disagree`] where two answers differ: two readings that contradict,
-/// a refusal of the whole query, which the caller maps to its own abort.
-/// Every run read is spliced live.
+/// [`Disagree`] where two decided answers differ, with every run read
+/// spliced live. What a disagreement means is the caller's: a fault where
+/// the answers are readings of one fact (`seam_germ_side`, `tangent_lump`,
+/// which map it to `ClassificationInvariant`), or a valid answer of its
+/// own where two answers differing is the answer (a mixed departure).
 pub fn climb_agreeing<I, A, E>(
     rungs: impl IntoIterator<Item = I>,
     mut read: impl FnMut(I) -> Rung<A, E>,

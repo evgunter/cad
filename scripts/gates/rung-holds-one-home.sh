@@ -18,22 +18,29 @@
 # `crates/geom-brep/src/ladder.rs`, in the statement view (comments and
 # literals blanked, one record per statement, so a call rustfmt splits
 # over lines is read whole), for:
-#   * an arm `Ok(true) => Rung::Answers`, the hand-rolled `Rung::holds`;
-#   * `rung_or_abort(X.refusal(), X, Err)` (or `X.1.refusal()`, or the
-#     abort written `|e| Err(e)`), the hand-rolled `Rung::refused`: the
-#     standing read off the payload, or a field of it, that the ladder
-#     then keeps;
+#   * an arm `Ok(true) => Rung::Answers`, the hand-rolled `Rung::holds`
+#     (the path written `ladder::Rung` or `geom_brep::ladder::Rung`, the
+#     body a `return`), in either order against its `Ok(false)` arm, since
+#     a match is one record;
+#   * `rung_or_abort(X.refusal(), X, Err)` (or `X.1.refusal()`; the abort
+#     written `Result::Err`, `|e| Err(e)` or `|e: E| Err(e)`), the
+#     hand-rolled `Rung::refused`: the standing read off the payload, or
+#     a field of it, that the ladder then keeps;
 #   * the same with the standing read by path, `E::refusal(&X)`;
 #   * `rung_or_abort` spelled out as a match, an arm
-#     `Err(Aborts) => Rung::Aborts(Err(..))`.
+#     `Err(Aborts) => Rung::Aborts(Err(x))` or `Err(_) => …`, with `x` a
+#     bare binding: as in the call form, an abort that maps its payload
+#     (`Rung::Aborts(Err(wrap(e)))`) is not the home's and passes.
 # There is no register: each shape has a home that takes it.
 #
 # WHAT IT CANNOT SEE, each a pass where a copy exists:
-#   * the two `Ok` arms in another order (`Ok(false) => Rung::Passes`
-#     first, then `Ok(true)`), or one arm on a binding,
-#     `Ok(b) => if b { .. } else { .. }`: that shape is every `if` on a
-#     read `bool`, and the statement view cuts it at its `{`, so a line
-#     grep cannot tell a rung from any other branch;
+#   * one arm on a binding, `Ok(b) => if b { .. } else { .. }`: that shape
+#     is every `if` on a read `bool`, so a grep cannot tell a rung from
+#     any other branch;
+#   * a braced arm (`Ok(true) => { Rung::Answers(..) }`), a braced closure
+#     abort (`|e| { Err(e) }`), or the standing read by
+#     `if let Err(Aborts) = e.refusal() { .. }`: the statement view cuts a
+#     record at every `{` and `}`, so the arm and its body are two records;
 #   * a payload whose refusal is read through another binding
 #     (`rung_or_abort(standing, e, Err)` with `standing` bound above);
 #   * a `Rung::Answers` or `rung_or_abort` behind an alias or a `use … as`.
@@ -43,12 +50,15 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 HOME_FILE=crates/geom-brep/src/ladder.rs
-HOLDS_RE='Ok\(true\)[[:space:]]*=>[[:space:]]*(geom_brep::ladder::)?Rung::Answers'
-# The abort the ladder hands back as the answer: `Err`, or `|e| Err(e)`.
-ABORT='(Err|\|[a-z_][a-z0-9_]*\|[[:space:]]*Err\([a-z_][a-z0-9_]*\))[[:space:]]*,?[[:space:]]*\)'
+# A path to the ladder's `Rung`: bare, `ladder::` or `geom_brep::ladder::`.
+LADDER='((geom_brep::)?ladder::)?'
+HOLDS_RE='Ok\(true\)[[:space:]]*=>[[:space:]]*(return[[:space:]]+)?'"$LADDER"'Rung::Answers'
+# The abort the ladder hands back as the answer: `Err` (or `Result::Err`),
+# or a closure `|e| Err(e)`, its binding typed or not.
+ABORT='((Result::)?Err|\|[a-z_][a-z0-9_]*([[:space:]]*:[^|]*)?\|[[:space:]]*(Result::)?Err\([a-z_][a-z0-9_]*\))[[:space:]]*,?[[:space:]]*\)'
 REFUSED_RE='rung_or_abort\([[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[A-Za-z0-9_.]*\.refusal\(\)[[:space:]]*,[[:space:]]*\1[[:space:]]*,[[:space:]]*'"$ABORT"
 REFUSED_PATH_RE='rung_or_abort\([[:space:]]*[A-Za-z_][A-Za-z0-9_:]*::refusal\([[:space:]]*&[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[A-Za-z0-9_.]*[[:space:]]*\)[[:space:]]*,[[:space:]]*\1[[:space:]]*,[[:space:]]*'"$ABORT"
-REFUSED_MATCH_RE='Err\((geom_brep::ladder::)?Aborts\)[[:space:]]*=>[[:space:]]*(geom_brep::ladder::)?Rung::Aborts\([[:space:]]*Err\('
+REFUSED_MATCH_RE='Err\(('"$LADDER"'Aborts|_)\)[[:space:]]*=>[[:space:]]*(return[[:space:]]+)?'"$LADDER"'Rung::Aborts\([[:space:]]*(Result::)?Err\([[:space:]]*[a-z_][a-z0-9_]*[[:space:]]*\)[[:space:]]*\)'
 
 gate() {
   gate_require_crate_sources
@@ -106,6 +116,30 @@ plant_refused_as_a_match() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+plant_holds_by_path_in_another_order() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(r: Result<bool, E>) -> R { match r { Ok(false) => ladder::Rung::Passes, Ok(true) => return geom_brep::ladder::Rung::Answers(Ok(())), Err(e) => e.rung() } }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_refused_typed_closure() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(e: E) -> R { rung_or_abort(e.refusal(), e, |e: E| Result::Err(e)) }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_refused_match_wildcard() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(e: E) -> R { match e.refusal() { Ok(r) => r.rung(e), Err(_) => return ladder::Rung::Aborts(Err(e)), } }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_mapped_match() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(e: E) -> R { match e.refusal() { Ok(r) => r.rung(wrap(e)), Err(Aborts) => Rung::Aborts(Err(wrap(e))), } }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 plant_in_the_home() {
   mkdir -p "$1/crates/geom-brep/src"
   printf 'pub fn holds(r: Result<bool, E>) -> Rung<Result<(), E>, E> { match r { Ok(true) => Rung::Answers(Ok(())),\n _ => Rung::Passes } }\n' \
@@ -133,10 +167,14 @@ gate_selftest() {
   gate_selftest_case "$want" plant_refused_split
   gate_selftest_case "$want" plant_refused_by_path
   gate_selftest_case "$want" plant_refused_as_a_match
+  gate_selftest_case "$want" plant_holds_by_path_in_another_order
+  gate_selftest_case "$want" plant_refused_typed_closure
+  gate_selftest_case "$want" plant_refused_match_wildcard
   gate_selftest_passes "the home's own spelling" plant_in_the_home
   gate_selftest_passes "a refusal whose payload is mapped" plant_mapped_payload
+  gate_selftest_passes "a match whose abort maps its payload" plant_mapped_match
   gate_selftest_passes "a spelling inside a #[cfg(test)] module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, the home, a mapped payload and a test module; fires on a hand-rolled holds arm and on a hand-rolled refused (on one line, split over lines, by path with a closure abort, and as a match), and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, the home, a mapped payload (in the call and the match form) and a test module; fires on a hand-rolled holds arm (in either order, by path, as a return) and on a hand-rolled refused (on one line, split over lines, by path, with a closure abort typed or not, and as a match on Aborts or _), and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

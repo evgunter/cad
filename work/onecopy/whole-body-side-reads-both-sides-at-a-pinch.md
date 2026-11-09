@@ -2,15 +2,17 @@
 id: whole-body-side-reads-both-sides-at-a-pinch
 kind: issue
 title: whole_body_side reads vertices on both sides of the split plane at a pinch: production takes the first, so the side depends on vertex order
-status: open
+status: closed
 opened: 2026-11-06
 priority: P1
 cost: M
+closed: 2026-11-09
+pr: 6595
 ---
 
 
 Found by `a-ladder-that-checks-its-answers-agree-has-no-home`
-(`onecopy/refusal-standing`), whose first form wired a debug check of
+(`onecopy/refusal-standing`), whose first form (commit `a8e175f9`, on the lane's local branch) wired a debug check of
 the `Answering::Any` premise (`climb_any`: read every rung after the
 answer and assert each agrees) into the `Any` ladders. That wiring is
 held while the design fork on `Any`'s premise goes to Ev (`Any` kept for
@@ -68,3 +70,12 @@ The body that reaches `whole_body_side` lies on one side (the cut at a
 pinch is made upstream), and the site passes the every-rung audit; or a body
 read on both sides refuses (`ladder::climb_agreeing`) and the split
 takes the refusal.
+
+## Closed (2026-11-09, PR 6595)
+
+PR 6595 reads `whole_body_side` one shell at a time, so the pinch's two
+shells each read their own side. Re-run on main after it, with the site
+swapped to `ladder::climb_agreeing` and a panic on `Err(Disagree)`:
+topo `ci` gives no disagreement at `whole_body_side`, and
+`census::split_wedge_tests::a_split_through_a_pinch_keeps_its_wedges_disjoint`
+passes.

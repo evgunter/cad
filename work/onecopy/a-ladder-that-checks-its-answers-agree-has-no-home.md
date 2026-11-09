@@ -16,10 +16,10 @@ Two door searches read EVERY rung, and refuse where two decided readings
 disagree. `geom_brep::ladder::climb` stops at the first answer, so it
 cannot hold them, and each spells its own copy of keep, rank and agree:
 
-- **`topo::boolean::join::seam_germ_side`** (`crates/topo/src/boolean/join.rs:5605`).
+- **`topo::boolean::join::seam_germ_side`** (`crates/topo/src/boolean/join.rs`, ≈5617 on main at closing).
   It reads every chord, and refuses `ClassificationInvariant` where two
   chords read the loop's regions on opposite sides. A region normal
-  refused in band (`Err(_) => continue`, line 5647, registered in
+  refused in band (`Err(_) => continue`, gone with the port, registered in
   `scripts/gates/escalation-discards.counts`) and an in-band germ
   (`germ_side`'s `Ok(Sign::Zero) | Err(_) => None`) are dropped, not
   kept. "No chord decides" is `Ok(None)`, which leaves the loop to the
@@ -81,7 +81,7 @@ did.
   is kept, and refuses only where neither bound shows a side, as before.
 
 **The debug check on the `Any` ladders is not in this row's PR.** It
-was built (`climb_any`: `climb(Any)` in production, and in a debug build
+was built in commit `a8e175f9` on the lane's local branch (`climb_any`: `climb(Any)` in production, and in a debug build
 every rung after the answer read off the record and asserted to agree),
 and wired at five sites whose premise held. It cost about 25% on topo
 `ci` with every `Any` site wired. It found two premises false, filed P1

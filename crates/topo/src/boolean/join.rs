@@ -5688,6 +5688,10 @@ fn seam_germ_side<T: Decide>(
     let same = |a: &Result<SideCode, BooleanError>, b: &Result<SideCode, BooleanError>| matches!((a, b), (Ok(x), Ok(y)) if x == y);
     match climb_agreeing(pairs, chord, same) {
         Ok(Climb::Answered { answer, .. }) => answer.map(Some),
+        // No chord decided: the loop is left to `loop_roles`, whose
+        // refusal `SectionLoopUndecided` carries no reading, so the ranked
+        // one kept here is dropped (registered on
+        // `work/onecopy/value-discards-read-a-refusal-as-nothing-found.md`).
         Ok(Climb::Passed | Climb::Undecided(_)) => Ok(None),
         Err(_) => Err(BooleanError::ClassificationInvariant {
             what: "a section loop's chords read its regions on both sides of the other operand",
