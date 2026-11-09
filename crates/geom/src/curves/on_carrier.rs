@@ -28,7 +28,12 @@
 //! its opposite where the point lies definitely behind it, so an
 //! enclosure of the point's direction never crosses the angle's own cut.
 //! Each polish step is kept only where it decides the gap smaller, so
-//! the foot's gap is never worse than its seed's.
+//! the foot's gap is never worse than its seed's. At a scalar that holds
+//! enclosures, each polish iterate is a point, its bracket's midpoint.
+//! The parameter certifies nothing, so it encloses nothing, and the gap
+//! read at a point carries only the width of `q` and of the carrier.
+//! An iterate held as an enclosure would carry that width into every
+//! later step and compound it.
 //!
 //! **Nearest.** On a line and a circle the foot is the point's nearest
 //! point of the whole carrier ([`Foot::nearest`]). On an ellipse, a
@@ -458,7 +463,8 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// Gauss–Newton from `from`, each step kept only where it decides the
-    /// gap smaller, held to `domain` where there is one.
+    /// gap smaller, held to `domain` where there is one. Each iterate is a
+    /// point where the scalar can hold a wider value (module docs).
     fn polish<'c>(
         &'c self,
         q: Point3<T>,
@@ -471,6 +477,11 @@ impl<T: Decide> Curve3<T> {
             let mut t = best.t - (p - q).dot(d) / d.dot(d);
             if let Some((lo, hi)) = domain {
                 t = t.max(lo).min(hi);
+            }
+            if t.point_value().is_none()
+                && let Some((lo, hi)) = t.structure_bracket()
+            {
+                t = T::from_computed(0.5 * (lo + hi));
             }
             let next = self.foot_at(q, t);
             if !smaller(next.gap, best.gap) {
