@@ -2517,8 +2517,8 @@ fn a_candidate_with_no_window_reads_as_its_point_alone() {
                     c.point,
                     || {
                         super::both(
-                            a.contact(c.point, c.ta, band()).map_err(|r| r.refused),
-                            b.contact(c.point, c.tb, band()).map_err(|r| r.refused),
+                            a.contact(c.point, c.ta, band()).map_err(|r| r.refused()),
+                            b.contact(c.point, c.tb, band()).map_err(|r| r.refused()),
                         )
                     },
                     band(),

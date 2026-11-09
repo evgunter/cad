@@ -1797,11 +1797,22 @@ Flagged, NOT fixed here (dispositions):
     the span within the escalation of the member.
   - The window bounds where the boundary pass reads a refused member
     (`curve_face::located`); a wider one costs reads, never a meeting.
+  - Measured as F35's was (`ci` profile, instrumented locally and not
+    kept): over the `geom-brep`, `topo` and `editor-core` suites, 2,397
+    choices were made, all at `f64`. 2,354 halved and 43 kept, and no
+    piece tied outside the row below. No suite reaches the window at
+    `Interval`.
+    `curve_pair::span_rows::a_window_piece_at_the_balls_reach_or_astride_it_is_kept`
+    pins the tie: an exact tie at `f64`, and an `Interval` reach astride
+    the ball's, each keep the piece, and none of it reaches the verdict
+    log.
 
   **Carried as `k_stats::choose(.., "F37")`**, its tie (a decided zero
-  or an undecided difference) keeping the piece. Its K samples reach
-  the sink under `curve_pair_window_halve`. Not a `decide_flagged`
-  site; `LEDGER_FLAGGED_SITES` does not move.
+  or an undecided difference) keeping the piece. Before this row the
+  choice was a logged `decide` at `Band::least()`. Its verdicts no longer
+  reach the log; its K samples still reach the sink under
+  `curve_pair_window_halve`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
 
 - **F38** (added by ONECOPY's held-points unit) `held_on_carrier` —
   `topo/src/held.rs` `Held::check`: in debug builds, the premise of a

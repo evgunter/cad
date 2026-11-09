@@ -3421,6 +3421,7 @@ fn twin_edge<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     use geom_brep::curve_face::{BoundaryRefusal, shares_a_run};
+    use geom_brep::curve_pair::MeetKind;
     use geom_brep::curve_pair::{Span, meet};
     let vertex = |p| {
         super::vertex_at(y, p, band)
@@ -3451,7 +3452,7 @@ fn twin_edge<T: Decide>(
         let met = match meet(swept, &Span::new(curve.carrier(), curve.params()), band) {
             Ok(met) => met,
             Err(refusal) => match BoundaryRefusal::of(refusal.fault) {
-                BoundaryRefusal::Unread(_) => continue,
+                BoundaryRefusal::Met(MeetKind::Unread(_)) => continue,
                 refused => {
                     super::carrier_cross::boundary_refusal(refused, (x_is, face, edge_key), false)?;
                     continue;
@@ -4011,7 +4012,7 @@ fn circle_refusal(
 ///
 /// [`BooleanError::ClassificationInvariant`] where `face`, a key the
 /// caller carries, does not resolve, or where the pass reports a kernel
-/// fault ([`geom_brep::curve_face::BoundaryRefusal::Fault`]).
+/// fault ([`geom_brep::curve_pair::MeetKind::Fault`]).
 ///
 /// # Panics
 ///
@@ -4027,6 +4028,7 @@ fn boundary_meets_circle_only_at<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     use geom_brep::curve_face::{BoundaryRefusal, OnBoundary};
+    use geom_brep::curve_pair::MeetKind;
     use geom_brep::curve_pair::{Hit, Span, SpanEnd};
     let Some(boundary) = super::carrier_cross::face_boundary(y, face)? else {
         return Ok(false);
@@ -4034,14 +4036,12 @@ fn boundary_meets_circle_only_at<T: Decide>(
     let whole = Span::new(circle, (T::zero(), T::tau())).endless();
     let reading = match boundary.read(&whole, band) {
         Ok(reading) => reading,
-        Err(BoundaryRefusal::Fault { what }) => {
+        Err(BoundaryRefusal::Met(MeetKind::Fault { what })) => {
             return Err(BooleanError::ClassificationInvariant { what });
         }
         Err(
             BoundaryRefusal::Escalated(_)
-            | BoundaryRefusal::Meeting(_)
-            | BoundaryRefusal::Touch(_)
-            | BoundaryRefusal::Unread(_),
+            | BoundaryRefusal::Met(MeetKind::Escalated(_) | MeetKind::Touch(_) | MeetKind::Unread(_)),
         ) => return Ok(false),
     };
     let only_at = reading.meetings.iter().all(|m| {
