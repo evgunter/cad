@@ -83,8 +83,19 @@ impl<T: Real> Line2<T> {
     #[must_use]
     pub fn circle_heights(&self, centre: Point2<T>, r_sq: T) -> [T; 2] {
         let along = self.height(centre);
-        let half = (r_sq - self.side(centre).powi(2)).sqrt();
+        let half = self.half_chord(centre, r_sq);
         [along - half, along + half]
+    }
+
+    /// **Half the chord the line cuts from the circle** about `centre` of
+    /// squared radius `r_sq`: `√(r² − s²)`, `s` the centre's
+    /// [`Self::side`], metres either way of the centre's foot.
+    /// [`Self::circle_heights`] is the centre's height `∓` this; a caller
+    /// that already holds that height reads this alone. NaN where the line
+    /// misses the circle.
+    #[must_use]
+    pub fn half_chord(&self, centre: Point2<T>, r_sq: T) -> T {
+        (r_sq - self.side(centre).powi(2)).sqrt()
     }
 }
 

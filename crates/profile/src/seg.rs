@@ -1389,7 +1389,8 @@ pub(crate) fn joint_tangency<T: Decide>(
 ///
 /// Every reader of this clearance goes through here — the pair contact
 /// and the ray cast — and both place their crossings by
-/// [`Line2::circle_heights`], which reads the same `h`, so the
+/// [`Line2::circle_heights`] (or its [`Line2::half_chord`]), which reads
+/// the same `h`, so the
 /// clearance and the crossings cannot drift apart.
 pub(crate) fn carrier_line_circle_margin<T: Real>(line: Line2<T>, g: &ArcGeom<T>) -> (T, T) {
     let h = line.distance(g.arc.centre);
@@ -1752,9 +1753,10 @@ fn line_arc<T: Decide>(
             )?;
         }
         Sign::Positive => {
-            let crossings = chord_line
-                .circle_heights(g.arc.centre, g.arc.radius.powi(2))
-                .map(|t| chord_line.at(t));
+            // The centre's height `tc` is read once, above; the crossings
+            // stand the half-chord either way of it (`Line2::circle_heights`).
+            let half = chord_line.half_chord(g.arc.centre, g.arc.radius.powi(2));
+            let crossings = [tc - half, tc + half].map(|t| chord_line.at(t));
             candidates(
                 &mut contacts,
                 (line, arc),
