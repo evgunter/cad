@@ -70,8 +70,10 @@ rather than reading it as `Out` (`CurvedPlacement`'s doc), as
 spell that again. The proposal is a point type that says it is held on
 its carrier, e.g. `OnCarrier<T>(Point3<T>)`, minted only where the
 construction holds it (a root, a locus point on the face's carrier, a
-vertex of the face). `face_placement` reads it, with `OffCarrier` mapped
-to the typed fault in one place and no on-plane decision repeated. A
+vertex of the face). `face_placement` reads it and still decides the
+on-plane margin once (decide and fault, not trust and skip), with a
+definite `OffCarrier` mapped to the typed fault in one place, carrying
+that decided margin. A
 point not so held keeps today's door, where `OffCarrier` is a reading.
 
 Check first that a fate site's sense-folded normal and the plane's

@@ -620,9 +620,6 @@ fn contains<T: Decide>(
     match read {
         CurvedPlacement::Trim(Some(FaceContainment::In)) => Ok(Some(true)),
         CurvedPlacement::Trim(Some(FaceContainment::Out)) => Ok(Some(false)),
-        // The midpoint lies on the locus, which runs on the face's carrier:
-        // a reading off the carrier contradicts that, so it refuses, named,
-        // rather than read as the face's `Out` ([`CurvedPlacement`]).
         // The midpoint lies on the locus, which runs on the face's
         // carrier: a reading definitely off the carrier contradicts that
         // construction, a fault rather than a reading in band.
