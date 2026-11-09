@@ -2,10 +2,12 @@
 id: the-exact-unit-sign-of-a-value-has-no-home
 kind: issue
 title: T::one().copysign(x), the exact ±1 sign of a value, is spelled at 7 sites with no home; and PR 6610's census-fix leftovers
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6615
 ---
 
 
