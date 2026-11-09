@@ -483,10 +483,10 @@ pub(crate) trait RaySpace<T: Decide>: Copy {
     /// (`Margin::norm2` / `Margin::norm3`).
     fn length_margin(d: Self::Disp) -> Margin<T>;
 
-    /// **`q`'s foot on the segment `a → b`**, this space's line held to
-    /// its span `(0, 1)`: [`geom::Line::foot_within`] in space,
-    /// [`geom_core::Line2::foot_within`] in the plane.
-    fn segment_foot(a: Self, b: Self, q: Self) -> Self;
+    /// **`q`'s distance from the segment `a → b`**, this space's line's
+    /// span `(0, 1)`: [`geom::Line::distance_within`] in space,
+    /// [`geom_core::Line2::distance_within`] in the plane.
+    fn segment_distance(a: Self, b: Self, q: Self) -> T;
 }
 
 impl<T: Decide> RaySpace<T> for Point3<T> {
@@ -504,12 +504,12 @@ impl<T: Decide> RaySpace<T> for Point3<T> {
         Margin::norm3(d)
     }
 
-    fn segment_foot(a: Self, b: Self, q: Self) -> Self {
+    fn segment_distance(a: Self, b: Self, q: Self) -> T {
         geom::Line {
             origin: a,
             dir: b - a,
         }
-        .foot_within(q, (T::zero(), T::one()))
+        .distance_within(q, (T::zero(), T::one()))
     }
 }
 
@@ -528,12 +528,12 @@ impl<T: Decide> RaySpace<T> for Point2<T> {
         Margin::norm2(d)
     }
 
-    fn segment_foot(a: Self, b: Self, q: Self) -> Self {
+    fn segment_distance(a: Self, b: Self, q: Self) -> T {
         geom_core::Line2 {
             origin: a,
             dir: b - a,
         }
-        .foot_within(q, (T::zero(), T::one()))
+        .distance_within(q, (T::zero(), T::one()))
     }
 }
 
@@ -659,16 +659,17 @@ where
     T: Decide,
     P: RaySpace<T>,
 {
+    // A point's distance is a displacement's norm, taken inside the norm
+    // door (`Margin::norm2`/`norm3`); a span's is its line's home
+    // (`segment_distance`), a length upstream geometry states in metres,
+    // which `Margin::of` admits. The two are the same norm, bit for bit.
     let gap = match decide(rows.segment, P::length_margin(b.disp(a)), band)? {
-        Sign::Zero => q.disp(a),
-        _ => q.disp(P::segment_foot(a, b, q)),
+        Sign::Zero => P::length_margin(q.disp(a)),
+        _ => Margin::of(P::segment_distance(a, b, q)),
     };
-    // The distance stays a DISPLACEMENT until the door, so the
-    // norm is taken inside `Margin::norm2`/`norm3` rather than
-    // handed to `Margin::of` already rooted.
     // Zero ⇒ on boundary; Positive (Negative unreachable for a
     // distance) ⇒ strictly off this segment.
-    let decided = geom_core::k_stats::decide_reported(rows.boundary, P::length_margin(gap), band)?;
+    let decided = geom_core::k_stats::decide_reported(rows.boundary, gap, band)?;
     Ok((decided.sign == Sign::Zero).then_some(decided.margin))
 }
 
