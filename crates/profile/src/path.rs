@@ -6163,8 +6163,7 @@ mod tests {
             // The mutation this row exists to kill.
             let via_angle = Dir::from_angle(u.y.atan2(u.x) + core::f64::consts::PI);
             assert!(
-                via_angle.unit.x.to_bits() != reversed.unit.x.to_bits()
-                    || via_angle.unit.y.to_bits() != reversed.unit.y.to_bits(),
+                !via_angle.unit.same_bits(reversed.unit),
                 "`θ + π` must NOT reproduce the negation ({u:?}) — if it does, this \
                  guard is vacuous and the door's promise is untestable here"
             );

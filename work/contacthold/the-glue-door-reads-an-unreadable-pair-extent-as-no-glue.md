@@ -31,3 +31,7 @@ not measured: no fixture is known to reach it.
 Measure whether any fixture reaches the arm; then refuse it as
 `unreadable_extent` does, or say in the module docs why an unreadable
 extent may be left to a later stage.
+
+## Since PR 6673 (SEAL)
+
+The conformal screen is gone (`work/seal/a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted`): the door reads the pair's carriers once, in `glue::decided_glue`, and the tangency check is asked only of a pair that read apart, two kinds or outside the inventory. The second half the row compared against no longer exists; the door's own `Err(PairUnread::Extent(_)) => None` arm, and what this row owes about it, stand.

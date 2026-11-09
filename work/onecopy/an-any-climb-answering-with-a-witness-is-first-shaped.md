@@ -24,6 +24,7 @@ Under `Answering::Any`, a kept rung ahead of the answer is spliced superseded: i
 | `topo::census::wedges_overlap` (≈2558) | `Ok(i)`, the overlapping pair's index | **yes** |
 | `topo::census` vertex probe (≈9046) | `Ok(v)`, the vertex found inside | **yes** |
 | `geom_brep::edge_nurbs` analytic rung 3 (≈2137) | `AnalyticRung3Refusal::Limb { operand, margin }` | **yes**: names the end decided off and its margin |
+| `topo::shell::walls_cross` (QML T2) | the crossing piece's overlap, named in the refusal | **yes**: the overlap names which piece crossed |
 | `topo::boolean::rim_wedge::rims` (≈165, with `Any` from `shares_rim`) | `Option<(Rim, MarginDiag)>`, read as `is_some()` at that caller | the rim is a witness, discarded by that caller; check the other callers |
 | `topo::offset_nappe::face_nappe_reading` | `Nappe` | no: the two answering rungs are exclusive (`station_min ≤ station_max`) |
 | `topo::splitting::finish` (≈2102), `topo::ray_walk` (≈175), `topo::stands` (≈223), `topo::side_reader` (≈656), `topo::one_region` (≈251) | a side or verdict | no, where the premise that every rung reads one fact holds (`Alike` once [ev] 6592 lands) |

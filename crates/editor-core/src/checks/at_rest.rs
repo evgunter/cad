@@ -1353,7 +1353,7 @@ pub(crate) fn finding_solids<T: Decide>(
         // door already censused, it is that door's.
         E::BoundaryCrossesItself { solid, .. }
         | E::BoundaryCrossesItselfUndecided { solid, .. } => (*solid, *solid),
-        E::ContactContradicted { declaration, .. } => (face(declaration.a)?, face(declaration.b)?),
+        E::ContactContradicted { record, .. } => (face(record.a)?, face(record.b)?),
         E::CensusUnsupported { subject, .. } | E::CensusLaneUnsupported { subject } => {
             match subject {
                 topo::CensusSubject::FacePair(a, b) => (face(*a)?, face(*b)?),
@@ -1433,6 +1433,7 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::SolidOuterShells { .. }
         | E::ShellRoleUndecided { .. }
         | E::CuspEdgesMissing { .. }
+        | E::MaterialOnBothSides { .. }
         | E::DanglingTopology { .. }
         | E::DanglingGeometry { .. }
         | E::NextPrevMismatch { .. }

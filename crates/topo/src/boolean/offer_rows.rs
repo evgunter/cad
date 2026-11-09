@@ -660,10 +660,14 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
 fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     let z = Vec3::new(0.0, 0.0, 1.0);
     super::super::solid_contain::line_wall_roots(
-        Point3::new(0.5, 0.0, 0.0),
-        Vec3::new(drift, 0.0, 1.0),
-        Point3::new(0.0, 0.0, 0.0),
-        z,
+        geom::Line {
+            origin: Point3::new(0.5, 0.0, 0.0),
+            dir: Vec3::new(drift, 0.0, 1.0),
+        },
+        geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: z,
+        },
         1.0,
         1.0,
         band(),
@@ -2144,7 +2148,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord
-        | BooleanErrorKind::ContactContradicted
         | BooleanErrorKind::TangencyUnsupported
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::HeldPierceUnbuilt
