@@ -76,13 +76,6 @@ re-widens if the hardware changes; batteries then take ALL slots
 `test-fast.sh` self-acquires; wrap
 raw `cargo` invocations yourself.
 
-- **Express lane** (`--express [SECS]`): jobs under a ~10 min declared
-  budget get their own slot with a self-enforcing timeout so they never
-  starve behind a battery. Its cost model is unverified — express/main
-  overlap on a memory-tight box is the leading suspect for pathological
-  build waits, ahead of any compiler flag.
-- Prefer `-n` (grab-or-exit-75, then retry) over the default blocking
-  wait for long queues; a blocking wait can eat a Bash call's cap.
 - **Kill a detached job the moment its evidence is SUPERSEDED**, not at
   its natural end — a still-running job holds the mutex against every
   queued lane. RECORD THE PID AT LAUNCH so stopping it is a one-liner;
