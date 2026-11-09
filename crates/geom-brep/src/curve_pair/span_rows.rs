@@ -485,12 +485,12 @@ fn a_point_on_span_refusal_stands_as_its_carrier_refusal() {
     use crate::curve_face::BoundaryRefusal;
     use crate::ladder::Refusal;
     use geom::{CarrierEscalation, CarrierRefusal, PieceWalkRefusal};
-    let diag = geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::value(0.5 * band().escalate()),
-        band: band(),
-        predicate: Some("curve_carrier_gap"),
-        terminal_sliver: false,
-    };
+    let diag = geom_core::k_stats::decide(
+        "curve_carrier_gap",
+        geom_core::Margin::of(0.5 * (band().zero() + band().escalate())),
+        band(),
+    )
+    .unwrap_err();
     for (refused, standing) in [
         (
             CarrierRefusal::Escalated(CarrierEscalation::InBand(diag)),
