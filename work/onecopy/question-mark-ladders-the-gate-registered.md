@@ -129,7 +129,7 @@ read each before porting it. In two of them a disagreement is a valid
 answer of its own, not a fault (`climb_agreeing` leaves that to its
 caller):
 
-- `geom_brep::second_order` (≈`second_order.rs:151`);
+- `topo::link::second_order` (≈`link/second_order.rs:151`);
 - `geom_brep::curve_face::composite::one_signed` (≈`composite.rs:462`);
 - `geom_brep::ssi::section` (≈`ssi/section.rs:424`);
 - `topo::boolean::vtxfac` (≈`vtxfac.rs:301`): a disagreement maps to a
