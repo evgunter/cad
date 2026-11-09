@@ -25,7 +25,10 @@ Build an `OnSurface` from a face (its record and edge), and give a `SurfaceCurve
 
 ## Closed (2026-11-09, PR 6624)
 
-- A `SurfaceCurve` is charted on a `Charted`, which owns the record's key and surface. The surface is either as stored (`Charted::record`) or turned about its own axis onto another seam (`Charted::turned`).
+- A `SurfaceCurve` is charted on a `Charted`, which owns the record's key and surface. The surface is one of:
+  - as stored (`Charted::record`);
+  - turned about its own axis onto another seam (`Charted::turned`);
+  - a sphere on a frame of the caller's (`Charted::framed`, the sphere door's, which keeps the chart's poles where its rows were measured).
 - `OnSurface::edge` takes its face record's key. Both readings of a pair, `across` (the edge across the curve's plane) and `under` (the curve across the edge's own plane), refuse a pair on two records (`AcrossRefusal::OffRecord`).
 - Every caller reads the key and the surface off one face:
   - Each region door holds its face's `Charted`, and its geometry is read off it. The sphere door no longer takes a centre and radius from its callers. `landings` keys each edge by the door's record.

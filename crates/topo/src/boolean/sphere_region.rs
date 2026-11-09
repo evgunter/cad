@@ -225,8 +225,13 @@ pub(crate) fn sphere_face_region<T: Decide>(
     let geom::Surface::Sphere { .. } = surface else {
         return Err(PointInSolidError::CorruptFace { face });
     };
+    // The sphere in a frame of the door's own, `z` and `x`: a foot's
+    // reading depends on no frame, and this one keeps the chart's poles
+    // where the door's rows were measured.
+    let (zero, one) = (T::zero(), T::one());
     Ok(Some(SphereFaceRegion::on(
-        Charted::record(f.surface, surface),
+        Charted::record(f.surface, surface)
+            .framed(Vec3::new(zero, zero, one), Vec3::new(one, zero, zero)),
         f.sense,
         f.outer,
         edges,
