@@ -2,10 +2,11 @@
 id: cover-app-readers
 kind: unit
 title: sweep's blend reach and surgery and editor-core's mate and measure reaches read topo's exported covers
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: boxes/cover-app-readers
 ---
 
 

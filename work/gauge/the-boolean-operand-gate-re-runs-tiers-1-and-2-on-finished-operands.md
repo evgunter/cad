@@ -2,11 +2,13 @@
 id: the-boolean-operand-gate-re-runs-tiers-1-and-2-on-finished-operands
 kind: issue
 title: The boolean's operand gate re-runs tiers 1 and 2 on operands the door's type already guarantees finished
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
 refs: [3987]
+closed: 2026-11-08
+pr: 6584
 ---
 
 
@@ -37,3 +39,5 @@ through `AtRestBody::gate_unverdicted`, which the split's door shares:
 tiers 1–2, then check 7 per solid); `gate_operand_pairs` then runs
 tiers 1–2 a second time on the merged body, with the edge carriers, as
 main did. Only the `Validated` operand's pass is redundant.
+
+**Closed (2026-11-08, PR 6584, ONEHOME orchestrator).** This was resolved as ONEHOME's duplicate row `the-boolean-operand-gate-re-reads-tier-2-on-a-finished-operand`. `reduce::gate_operand` and `ScaffoldingOperand` are deleted. The public Boolean doors take the scalar's finished body (PR 6371). The sphere re-cut's derived operands carry a `debug_assert!` that tiers 1 and 2 hold.

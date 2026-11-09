@@ -38,7 +38,7 @@ impl<T: geom_core::Real> LoftedBody<T> for topo::Replay<T> {
     }
 }
 
-impl<T: geom_core::Real> LoftedBody<T> for topo::AtRestBody<T> {
+impl<T: geom_core::Decide> LoftedBody<T> for topo::AtRestBody<T> {
     fn body_of(&self) -> &topo::Body<T> {
         self
     }

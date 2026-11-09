@@ -22,7 +22,7 @@ crates/geom-brep/src/carrier_net.rs	test	1	oracle
 crates/geom-brep/src/carrier_resolution.rs	prod	2	far-centre
 crates/geom-brep/src/carrier_resolution.rs	test	1	oracle
 crates/geom-brep/src/chart_singularity.rs	prod	1	re-pose
-crates/geom-brep/src/curve_face/circle_roots.rs	prod	2	re-pose
+crates/geom-brep/src/curve_face/circle_roots.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/circle_torus.rs	prod	3	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	test	1	oracle

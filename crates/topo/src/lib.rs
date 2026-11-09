@@ -1484,11 +1484,11 @@ pub use pcurves::{
     pcurve_of,
 };
 pub use props::{
-    AtRestPolicy, CertifiedBody, Certifier, MassMeasurement, MassProperties, MassPropsError,
-    QuadLane, RoleNames, Settle, SettleVerdict, ShellClassification, ShellClassifyError,
-    ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit, SignNames, Stop, Unmet,
-    VolumeEnclosure, classify_shells, classify_shells_of, classify_shells_structural,
-    mass_properties, mass_properties_structural,
+    AtRestPolicy, MassMeasurement, MassProperties, MassPropsError, QuadLane, RoleNames, Settle,
+    SettleVerdict, ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor,
+    ShellRole, SignCertificate, SignLimit, SignNames, Stop, Unmet, VolumeEnclosure,
+    classify_shells, classify_shells_of, classify_shells_structural, mass_properties,
+    mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
@@ -1534,10 +1534,9 @@ pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,
-    SCAFFOLDING_RECOURSE, SCAFFOLDING_REFUSAL, SingularityLies, StaleDeclaration, Undecidable,
-    ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
-    validate_closed, validate_geometric, validate_geometric_certificate,
-    validate_geometric_certificate_structural, validate_geometric_structural,
-    validate_pseudomanifold, validate_pseudomanifold_certificate,
+    SCAFFOLDING_RECOURSE, SingularityLies, StaleDeclaration, Undecidable, ValidationError,
+    WedgeCheck, contact_marks, contact_marks_structural, validate, validate_closed,
+    validate_geometric, validate_geometric_certificate, validate_geometric_certificate_structural,
+    validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };
