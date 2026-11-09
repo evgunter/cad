@@ -526,6 +526,13 @@ pub enum TouchUnread {
     /// interior, where the touch was held inside the edge: two readings
     /// of one fact disagree. An abort.
     OffInterior,
+    /// A face's outward normal at the touch point refuses the whole
+    /// reading ([`crate::face_normal::NormalAtError::refusal`] aborts): the
+    /// point read off the face's surface, or a torus outside the ring
+    /// convention, which tier 3 refuses before the census runs
+    /// (`ValidationError::DegenerateTorus`). Either is the kernel's: an
+    /// abort.
+    NormalFault,
     /// The topology around the touch did not read. The census runs only
     /// on bodies tier 1 admits (loops closed, every key resolving), so
     /// this is a kernel defect. An abort.
@@ -560,7 +567,7 @@ impl TouchUnread {
             Self::InBand | Self::PieceInBand => Ok(Refusal::InBand),
             Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
             Self::EdgeTangent(why) => Ok(why.refusal()),
-            Self::Unreadable | Self::OffInterior | Self::Corrupt => Err(Aborts),
+            Self::Unreadable | Self::OffInterior | Self::NormalFault | Self::Corrupt => Err(Aborts),
         }
     }
 }
