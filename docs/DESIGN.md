@@ -269,7 +269,7 @@ of them is a defect.
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one constructor of a finished body; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and three evaluator doors: the computing frame's twist, the mirror, and the `⊔` graft; so at the box scalars a twisted or mirrored Boolean result is a `Replay` too. A body read into another frame through a placement's map is construction state (`ReadIn::Mapped`), which a reader reads and a taker finishes once | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one constructor of a finished body; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and three evaluator doors: the computing frame's twist, the mirror, and the `⊔` graft; so at the box scalars a twisted or mirrored Boolean result is a `Replay` too. A body read into another frame through a placement's map is construction state (`ReadIn::Mapped`), which a reader reads and a taker finishes once | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -296,7 +296,8 @@ residual, distance, foot and chart coordinates); of a carrier pair's
 parallel axes, point touch, line tangent, generic, in band), whose
 trileans are its parts and are decided once; or of a pair *outcome*
 (the section's carrier, C5; the section's components and their
-witnesses; two spans' meetings; a curve's crossings of a surface).
+witnesses; two spans' meetings; a curve's crossings of a surface;
+where two curves on one surface meet).
 **Total**: a reading is one exhaustive match over its kind or kind
 pair. An unlisted arm refuses typed, naming what it lacks; no arm
 answers a default value; one method is fixed per arm at write time, and

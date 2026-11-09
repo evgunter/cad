@@ -175,7 +175,7 @@
 
 use geom::{Curve3, NurbsCurve3};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Vec3, length_out_of_format};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
@@ -293,15 +293,14 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     let control = curve.control();
     let (first, last) = (control.first()?, control.last()?);
     let chord = *last - *first;
-    let len = chord.norm();
+    let (dir, len) = chord.direction_and_length();
     // The complement of the circle limb's closure gate (module docs,
     // "Kind scope"): ends within ε_in determine no direction, and
     // that carrier is the closed class anyway — a segment shorter
     // than the interpretation budget can never promote to a line.
-    if !(len > eps_in) || !len.is_finite() {
+    if length_out_of_format(chord).is_some() || len <= eps_in {
         return None;
     }
-    let dir = chord.normalize();
     // INV-C3: the zero-radius cylinder composite is `dist(P, line)²`
     // over the whole domain — meters², exact, whole-domain, no
     // schedule. NaN (a refused hull, or a structural refusal) fails the
@@ -392,11 +391,10 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     // collinear-at-ε_in samples determine no finite radius (the
     // surface recognizer's near-flat class, verbatim).
     let chord = s2 - s0;
-    let chord_norm = chord.norm();
-    if !(chord_norm.is_finite() && chord_norm > 0.0) {
+    let (chord_dir, chord_norm) = chord.direction_and_length();
+    if length_out_of_format(chord).is_some() || chord_norm <= 0.0 {
         return Ok(None);
     }
-    let chord_dir = chord.normalize();
     let off = geom::Line {
         origin: s0,
         dir: chord_dir,
@@ -412,11 +410,10 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     // The plane through the three samples, oriented by the
     // INCREASING-PARAMETER winding.
     let normal = (s1 - s0).cross(s2 - s0);
-    let normal_norm = normal.norm();
-    if !(normal_norm.is_finite() && normal_norm > 0.0) {
+    let (axis, normal_norm) = normal.direction_and_length();
+    if length_out_of_format(normal).is_some() || normal_norm <= 0.0 {
         return Ok(None);
     }
-    let axis = normal.normalize();
     // The exact circumcenter of three coplanar points (the surface
     // recognizer's closed form).
     let u = s1 - s0;
@@ -425,11 +422,10 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     let denom = 2.0 * uxv.norm_squared();
     let center = s0 + (uxv.cross(u) * v.norm_squared() + v.cross(uxv) * u.norm_squared()) / denom;
     let radial = s0 - center;
-    let radius = radial.norm();
-    if !(radius.is_finite() && radius > eps_in) {
+    let (u_ref, radius) = radial.direction_and_length();
+    if length_out_of_format(radial).is_some() || radius <= eps_in {
         return Ok(None);
     }
-    let u_ref = radial / radius;
     // The certificate. INV-C1 + INV-C2, both in metres at the end.
     let plane_sup = composite_sup(
         curve,

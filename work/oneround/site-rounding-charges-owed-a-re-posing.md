@@ -103,7 +103,7 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `geom_brep::carrier_resolution` and `profile::seg::resolution_headroom`
   (with `BelowSceneResolution`), which guard a carrier stored far from the
   arc it serves: they wait on
-  `work/onehome/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`.
+  `work/oneround/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`.
 - The gate's `far-centre` rows, which wait on the same row:
   `topo::ring_path` (`resolution`'s spread about the reading's own point,
   and `path_resolution`'s conic arcs through `carrier_resolution`),

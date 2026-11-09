@@ -2456,10 +2456,10 @@ pub(crate) struct ImportReport {
     /// rest, checked before it was handed out.
     #[pyo3(get)]
     body: Body,
-    /// The body held with the at-rest gate's own certificate of it
-    /// (`topo::CertifiedBody`): what `measure` measures through. `body`
+    /// The finished body, holding the at-rest gate's own certificate of
+    /// it (`topo::AtRestBody`): what `measure` measures through. `body`
     /// is its body, handed out as a handle like any other.
-    certified: topo::CertifiedBody,
+    certified: topo::AtRestBody<f64>,
     /// The import's input tolerance in metres: the file's declared
     /// uncertainty, which is a separate quantity from the kernel's ε.
     #[pyo3(get)]
@@ -2575,7 +2575,7 @@ pub(crate) fn import_step(
             // document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::recorded(Arc::new(body.body().clone()), Arc::new(contacts)),
+            body: Body::recorded(Arc::new(topo::Body::clone(&body)), Arc::new(contacts)),
             certified: body,
             eps_in,
             normalizations: normalizations

@@ -1657,10 +1657,7 @@ fn seed_params(base: &NurbsSurface<f64>) -> (Vec<f64>, Vec<f64>) {
 /// premise where it is used.
 fn seed_direction(kv: &KnotVector) -> Vec<f64> {
     debug_assert_eq!(
-        (
-            kv.knot_runs().next().map(|(t, _)| t),
-            kv.knot_runs().next_back().map(|(t, _)| t)
-        ),
+        (kv.breakpoints().next(), kv.breakpoints().next_back()),
         (Some(kv.domain().0), Some(kv.domain().1)),
         "the distinct knot values do not run from the domain's start to its end"
     );
@@ -1668,7 +1665,7 @@ fn seed_direction(kv: &KnotVector) -> Vec<f64> {
         .into_iter()
         .peekable();
     let mut out = Vec::new();
-    for (end, _) in kv.knot_runs() {
+    for end in kv.breakpoints() {
         while let Some(t) = interior.next_if(|t| *t < end) {
             out.push(t);
         }

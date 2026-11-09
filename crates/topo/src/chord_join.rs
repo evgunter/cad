@@ -2448,7 +2448,7 @@ fn chord_spec<T: Decide>(
             let (t1, t2) = (ruling.param(p1), ruling.param(p2));
             // The ruling's speed: it meters a parameter span in metres
             // and makes the plane's `u_ref` unit.
-            let len = ruling.dir.norm();
+            let (ruling_hat, len) = ruling.dir.direction_and_length();
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw
@@ -2477,7 +2477,7 @@ fn chord_spec<T: Decide>(
                         normal: ctx.normal.get(),
                         // Honest u_ref: the ruling direction lies in
                         // the plane by the tangency classification.
-                        u_ref: ruling.dir / len,
+                        u_ref: ruling_hat,
                     });
                     ctx.plane_key = Some(k);
                     k
@@ -7393,8 +7393,9 @@ mod cone_window_rows {
     /// is a patch.** Patches `u ∈ [0, u1] × z ∈ [z0, z1]` of the cone of
     /// half-angle `1/2` about `z` from the origin
     /// (`boxes::tests::cone_wall`), read from a corner: the window is
-    /// `[z0, z1]` to rounding under three quarters of a turn, and holds
-    /// the apex past it, where a boundary may enclose it. A window that
+    /// `[z0, z1]` to rounding at every span, past three quarters of a turn
+    /// too, since the patch's loop closes in the chart and so leaves the
+    /// apex out (`cover::cone_may_hold_apex`). A window that
     /// misses any of the face lets the arm serve a line pair over points
     /// nearer the apex than it reads.
     #[test]
@@ -7425,18 +7426,10 @@ mod cone_window_rows {
                     lo <= z0 + 1e-12 && hi >= z1 - 1e-12,
                     "{label}, from {at:?}: the window [{lo}, {hi}] misses some of the face"
                 );
-                if u1 < 1.5 * core::f64::consts::PI {
-                    assert!(
-                        lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
-                        "{label}, from {at:?}: the window [{lo}, {hi}] reaches past the face"
-                    );
-                } else {
-                    assert!(
-                        lo <= 0.0,
-                        "{label}, from {at:?}: past three quarters of a turn the window \
-                         [{lo}, {hi}] holds the apex"
-                    );
-                }
+                assert!(
+                    lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
+                    "{label}, from {at:?}: the window [{lo}, {hi}] reaches past the face"
+                );
             }
         }
     }

@@ -19,9 +19,8 @@
 //! 1. **Gates**: per-arm since M5 PR 9 (C12.1 —
 //!    [`BooleanError::CurvedBooleanUnsupported`] retires per C5 table
 //!    arm; every kind but `Approx` passes, `Nurbs` under ∪ only);
-//!    each operand a closed solid by tier 2's own verdict
-//!    ([`crate::validate_closed`]; no scaffolding operands); **maximal
-//!    faces (F7)** via the
+//!    each operand is a finished body, so no gate re-reads its tier 2;
+//!    **maximal faces (F7)** via the
 //!    coincidence ladder — adjacent faces sharing a surface key or with
 //!    bit-equal oriented planes ([`plane_eq`]) refuse as
 //!    [`BooleanError::NonMaximalFaces`]; *numeric* coplanarity never
@@ -141,7 +140,6 @@ pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
 mod slit;
-pub use boxes::EdgeUncovered;
 pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
@@ -338,15 +336,16 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
         crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
-        | boxes::BOX_CYLINDER_AXIS
-        | boxes::BOX_SPHERE_AXIS
-        | boxes::BOX_SPHERE_SEAM_UNIT
+        | crate::cover::SPHERE_AXIS
+        | crate::cover::SPHERE_SEAM_UNIT
         | separating::PAIR_AXIS
         | separating::PAIR_NORMAL
         | solid_contain::POINT_AXIS => geom_core::DIRECTION_LENGTH_SUBJECT,
-        boxes::BOX_SPHERE_SEAM => "whether a sphere's seam direction is square to its polar axis",
+        crate::cover::SPHERE_SEAM => {
+            "whether a sphere's seam direction is square to its polar axis"
+        }
         // `geom_core`'s lever on a dimensionless direction, which the
-        // narrow phase's normals and the cylinder box's axis read.
+        // narrow phase's normals read.
         geom_core::UNIT_DIRECTION_ARM => {
             "whether the reach a direction is read over has any length"
         }
@@ -3269,17 +3268,6 @@ pub enum BooleanError {
         /// The face door's refusal.
         refusal: ContainError,
     },
-    /// An operand is well-formed but not a closed solid at rest: tier 2
-    /// ([`crate::validate_closed`]) refuses it for construction
-    /// scaffolding an edit left behind — a strut's valence-1 vertex, an
-    /// empty loop, a null edge, a shell in pieces. The Boolean serves
-    /// finished solids only.
-    ScaffoldingOperand {
-        /// The offending operand.
-        operand: Operand,
-        /// The validator's tier-2 findings, each naming its entity.
-        errors: Vec<ValidationError>,
-    },
     /// An operand holds material wound negative: a solid whose signed
     /// volume tier 3's check 7 decides definitely negative
     /// ([`ValidationError::NegativeVolume`]), or a shell check 10 finds
@@ -4326,8 +4314,6 @@ pub enum BooleanErrorKind {
     ArcLoopContainmentUnsupported,
     /// [`BooleanError::PointInFaceRefused`].
     PointInFaceRefused,
-    /// [`BooleanError::ScaffoldingOperand`].
-    ScaffoldingOperand,
     /// [`BooleanError::InsideOutOperand`].
     InsideOutOperand,
     /// [`BooleanError::NonMaximalFaces`].
@@ -4599,7 +4585,6 @@ impl BooleanError {
                 BooleanErrorKind::ArcLoopContainmentUnsupported
             }
             Self::PointInFaceRefused { .. } => BooleanErrorKind::PointInFaceRefused,
-            Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::InsideOutOperand { .. } => BooleanErrorKind::InsideOutOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
             Self::CoplanarNeighbours { .. } => BooleanErrorKind::CoplanarNeighbours,
@@ -4989,12 +4974,6 @@ impl BooleanError {
                     }
                 }
             }
-            Self::ScaffoldingOperand { operand, .. } => write!(
-                f,
-                "the {} operand {}",
-                operand_word(*operand),
-                crate::validate::SCAFFOLDING_REFUSAL,
-            ),
             Self::InsideOutOperand { operand, .. } => write!(
                 f,
                 "the {} operand {}",
@@ -6265,7 +6244,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 .filter(|&k| crate::face_normal::face_plane(piercing_body, k).is_none())
                 .collect();
             for face in curved {
-                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);
+                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band));
             }
         }
         let box_holds = |face: FaceKey, p: Point3<T>| {
@@ -9172,12 +9151,6 @@ mod tests {
                 face,
                 refusal: ContainError::RayExhausted,
             },
-            BooleanError::ScaffoldingOperand {
-                operand: Operand::A,
-                errors: vec![ValidationError::ScaffoldingStrutVertex {
-                    vertex: VertexKey::default(),
-                }],
-            },
             BooleanError::InsideOutOperand {
                 operand: Operand::B,
                 errors: vec![ValidationError::NegativeVolume {
@@ -9461,7 +9434,6 @@ mod tests {
                 BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::PointInFaceRefused => "PointInFaceRefused",
-                BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
                 BooleanErrorKind::CoplanarNeighbours => "CoplanarNeighbours",

@@ -199,8 +199,8 @@ fn the_raw_battery_refuses_a_null_strut_as_scaffolding_with_the_doors_advice() {
             );
             let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
-                text.ends_with(&advice) && topo::SCAFFOLDING_REFUSAL.ends_with(&advice),
-                "{what}, {kind:?}: the battery and the gate give one advice: {text}"
+                text.ends_with(&advice),
+                "{what}, {kind:?}: the battery ends in the scaffolding advice: {text}"
             );
         }
     }

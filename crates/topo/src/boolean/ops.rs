@@ -1385,6 +1385,18 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // entity's key (`splitting::finish`'s `carve`), so those
         // names still hold on `a2` and `b2`.
         let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
+        // The re-entry's operands are not finished (the cut-ins leave
+        // joinable vertices), but they hold tiers 1 and 2: carved, turned,
+        // grafted and cut from finished operands by operators that each
+        // keep both. A finding here is a kernel defect.
+        for (what, body) in [("A", &a2), ("B", &b2)] {
+            debug_assert_eq!(
+                crate::validate_closed(body),
+                Ok(()),
+                "re-cut operand {what} fails tier 1 or 2, though every operator that made it \
+                 keeps both on a finished operand (kernel bug)"
+            );
+        }
         let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
         if let BooleanResult::Body(out) = &mut result {
             // A row names the cells of the op's inputs, not of the
@@ -1850,11 +1862,12 @@ pub(crate) fn place_witness<T: Decide>(
 }
 
 /// One face as the section certificate reads it: its key, its surface's
-/// key and description, and its certified box.
+/// key and description, its cover and its certified box.
 pub(crate) struct FaceRow<T: Real> {
     face: FaceKey,
     key: SurfaceKey,
     surface: geom::Surface<T>,
+    cover: crate::cover::FaceCovered<T>,
     bbox: bvh::Aabb,
 }
 
@@ -1871,20 +1884,28 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
     body.face_views()
         .map(|fd| {
             let (face, surface) = (fd.key(), fd.surface().clone());
+            let cover = crate::cover::face_cover(body, face, band);
+            let bbox = boxes::cover_box(cover.as_ref().ok(), pad);
             Ok(FaceRow {
                 face,
                 key: fd.record().surface,
                 surface,
-                bbox: boxes::face_box(body, face, pad, band)?,
+                cover,
+                bbox,
             })
         })
         .collect()
 }
 
-/// The section certificate's [`Reach`](geom_brep::Reach) of
-/// two overlapping face boxes ([`super::glue::overlap_ball`]).
-fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> geom_brep::Reach<T> {
-    geom_brep::Reach::Ball(super::glue::overlap_ball(box_a, box_b))
+/// The section certificate's [`Reach`](geom_brep::Reach) of two faces
+/// whose boxes overlap: the ball where their covers meet, within the
+/// band's sweep tolerance ([`crate::cover::meet_within`]).
+fn overlap_reach<T: Real>(
+    a: &crate::cover::FaceCovered<T>,
+    b: &crate::cover::FaceCovered<T>,
+    band: Band,
+) -> geom_brep::Reach<T> {
+    geom_brep::Reach::Ball(crate::cover::meet_within(a, b, boxes::sweep_pad(band)))
 }
 
 /// **The section certificate's per-pair rule** for A's face `fa` (the
@@ -1935,7 +1956,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         None => classify_known(
             &fa.surface,
             &fb.surface,
-            &overlap_reach(&fa.bbox, &fb.bbox),
+            &overlap_reach(&fa.cover, &fb.cover, band),
             sections.region_for(&fa.surface, &fb.surface),
             T::ssi_lane(),
             band,
@@ -5597,7 +5618,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 ) -> Result<T::Finished, BooleanError> {
     let mut body = body;
     let pad = super::boxes::sweep_pad(band);
-    let face_box = |body: &Body<T>, f| super::boxes::face_box(body, f, pad, band).ok();
+    let face_box = |body: &Body<T>, f| Some(super::boxes::face_box(body, f, pad, band));
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
     pinched_at_cone_apex(&body, band)?;
@@ -6822,13 +6843,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CutsPerOperand, BooleanError> {
-    const ROWS: geom_brep::curve_face::circle_roots::FirstHarmonicRows =
-        geom_brep::curve_face::circle_roots::FirstHarmonicRows {
-            noise: "bool_sphere_cut_roots_noise",
-            coaxial: "bool_sphere_cut_roots_coaxial",
-            extreme: "bool_sphere_cut_roots_extreme",
-            root_slack: "bool_sphere_cut_roots_slack",
-        };
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
@@ -6871,6 +6885,24 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         }
         let k = k.normalize();
         let h = k.cross(axis);
+        // The cut's half-meridian, a curve on the face's sphere: its chart
+        // framed on `h`, its meridian at azimuth `0`. A boundary arc lies
+        // on the same sphere, so it meets the meridian where it crosses
+        // the meridian's plane on the half-plane `h`
+        // ([`geom_brep::curve_pair::on_surface`]).
+        let meridian = match geom_brep::curve_pair::on_surface::SurfaceCurve::meridian(
+            &geom::Surface::Sphere {
+                center: cut.center,
+                radius: r,
+                axis,
+                u_ref: h,
+            },
+            geom_core::Point2::new(T::zero(), T::zero()),
+            true,
+        ) {
+            Ok(meridian) => meridian,
+            Err(_) => unreachable!("a sphere has meridians"),
+        };
         // A point of the half-meridian by its coordinates across and
         // along the axis, `r·(cos φ, sin φ)`.
         let latitude = |p: Point3<T>| (h.dot(p - cut.center), axis.dot(p - cut.center));
@@ -7004,64 +7036,56 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
                 let (t0, t1) = curve.params();
-                let geom::Curve3::Circle(edge_circle @ geom::Circle { radius: cr, .. }) =
-                    *curve.carrier()
-                else {
+                let carrier = curve.carrier();
+                let &geom::Curve3::Circle(geom::Circle { radius: cr, .. }) = carrier else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
-                let roots = geom_brep::curve_face::circle_roots::first_harmonic_roots(
-                    &geom_brep::curve_face::circle_roots::FirstHarmonic::conic_off_plane(
-                        &edge_circle,
-                        (cut.center, k),
-                    ),
-                    cr,
-                    t0,
-                    t1,
-                    &ROWS,
-                    band,
-                )
-                .map_err(BooleanError::of_door_refusal(
-                    BooleanDecision::Sphere(SphereQuestion::CutIn),
-                ))?;
-                let thetas = match roots {
-                    Ok(geom_brep::roots::Roots::Miss) => continue,
-                    Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
-                    Ok(geom_brep::roots::Roots::On(_)) | Err(_) => {
-                        return Err(refuse(
-                            "a boundary arc of the sphere face meets the cut's meridian plane \
-                             where its roots are not certified",
-                        ));
-                    }
+                let uncertified = || {
+                    refuse(
+                        "a boundary arc of the sphere face meets the cut's meridian plane where \
+                         its roots are not certified",
+                    )
                 };
+                let roots =
+                    match geom_brep::curve_pair::on_surface::OnSurface::edge(carrier, (t0, t1))
+                        .across(&meridian, "bool_sphere_cut_in_plane", band)
+                    {
+                        Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
+                        Ok(
+                            geom_brep::curve_pair::on_surface::CoSurface::InPlane
+                            | geom_brep::curve_pair::on_surface::CoSurface::Touch
+                            | geom_brep::curve_pair::on_surface::CoSurface::Unlaned,
+                        ) => return Err(uncertified()),
+                        // A rung of the plane door escalated: the cut-in's own
+                        // question, in band.
+                        Err(diag) => return Err(esc(diag)),
+                    };
                 let rising = sign(
                     "bool_sphere_cut_span",
                     Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
                 )? == Sign::Positive;
-                let (lo_t, hi_t) = if rising { (t0, t1) } else { (t1, t0) };
-                for theta in thetas {
-                    let into = |end: T| Margin::metered(theta - end, geom_core::InfSpeed::new(cr));
-                    let (from_lo, to_hi) = (
-                        sign("bool_sphere_cut_span", into(lo_t))?,
-                        sign(
-                            "bool_sphere_cut_span",
-                            Margin::metered(hi_t - theta, geom_core::InfSpeed::new(cr)),
-                        )?,
-                    );
-                    if from_lo == Sign::Negative || to_hi == Sign::Negative {
-                        continue;
-                    }
-                    let p = curve.carrier().eval(theta);
+                for (root, p) in roots {
+                    let theta = root.t;
+                    let at_end = match root.place {
+                        geom_brep::curve_face::plane_crossing::RootPlace::Inside => false,
+                        geom_brep::curve_face::plane_crossing::RootPlace::AtEnd => true,
+                        geom_brep::curve_face::plane_crossing::RootPlace::Undecided(_) => {
+                            return Err(uncertified());
+                        }
+                    };
                     let at_pole = sign(
                         "bool_sphere_cut_pole",
                         Margin::of(axis.cross(p - cut.center).norm()),
                     )? == Sign::Zero;
                     if !at_pole
-                        && sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))?
+                        && meridian
+                            .section_of(p, "bool_sphere_cut_half", band)
+                            .map_err(esc)?
                             != Sign::Positive
                     {
                         continue;
                     }
-                    let vertex = if from_lo == Sign::Zero || to_hi == Sign::Zero {
+                    let vertex = if at_end {
                         let start = hd.start;
                         let end = proven(&body.half_edges, hd.next, EntityId::HalfEdge).start;
                         let at = |v| {
@@ -10134,7 +10158,7 @@ mod tests {
             // Each brick its own cell: the axes are read off this pair.
             let axes = crate::boolean::separating::OperandAxes::new(boxes::axis_key);
             for (yf, _) in other.faces() {
-                let face_box = boxes::face_box(&other, yf, pad, band).unwrap();
+                let face_box = boxes::face_box(&other, yf, pad, band);
                 assert!(face_box.overlaps(&ball_box), "{what}: the boxes overlap");
                 assert_eq!(
                     ball_may_reach(
@@ -10306,28 +10330,69 @@ mod from_computed_rows {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::overlap_reach;
     use crate::revalue_pin::S;
+    use geom_core::Real;
 
-    /// The reach enters as computed values: built at `Sym<f64>` from two
-    /// boxes the face walk would measure from geometry the parameter
-    /// moves, neither its centre nor its radius re-values to the ball
-    /// `p0` measured.
+    /// **The reach is the meet of the two faces' covers, within the
+    /// band, read in the body's scalar**: built at `Sym<f64>` from two
+    /// corner sets the parameter moves, its centre and radius re-value
+    /// to the `p1` build's own bits, and none is laundered through an
+    /// `f64` box. Two unit cubes overlapping in `[0.5, 1]` along `x`
+    /// read the overlap's ball, centre `(0.75, 0.5, 0.5)` and radius
+    /// `0.75` widened by the sweep's pad. One face with no cover leaves
+    /// the other's ball; both leave no ball. Red where the reach is read
+    /// off the two `f64` boxes, or off one face's cover alone, or where a
+    /// refusal poisons the meet.
     #[test]
-    fn the_reach_takes_its_ball_as_computed() {
-        let found = crate::revalue_pin::revalued([1.0, 1.0 + 1.0e-3], |p, _| {
-            let cube = |lo: f64, hi: f64| bvh::Aabb {
-                min_x: lo,
-                min_y: lo,
-                min_z: lo,
-                max_x: hi,
-                max_y: hi,
-                max_z: hi,
+    fn the_reach_is_the_covers_meet_in_the_bodys_scalar() {
+        use geom::cover::Cover;
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let pad = crate::boolean::boxes::sweep_pad(band);
+        let found = crate::revalue_pin::revalued([1.0, 1.0 + 1.0e-3], |_, p| {
+            let cube = |lo: S, hi: S| {
+                Cover::points(vec![
+                    geom_core::Point3::new(lo, lo, lo),
+                    geom_core::Point3::new(hi, hi, hi),
+                ])
+                .unwrap()
             };
-            let reach = overlap_reach::<S>(&cube(0.0, p), &cube(0.5 * p, 2.0 * p));
+            let half = S::from_f64(0.5);
+            let two = S::from_f64(2.0);
+            let reach =
+                overlap_reach::<S>(&Ok(cube(S::zero(), p)), &Ok(cube(half * p, two * p)), band);
             let ball = reach.ball();
             vec![ball.center().x, ball.radius()]
         });
         assert_eq!(found.laundered, 0, "{found:?}");
-        assert_eq!(found.opaque, 2, "{found:?}");
+        assert_eq!(found.kept, 2, "{found:?}");
+        let brick = |x0: f64, x1: f64| {
+            Cover::points(vec![
+                geom_core::Point3::new(x0, 0.0, 0.0),
+                geom_core::Point3::new(x1, 1.0, 1.0),
+            ])
+            .unwrap()
+            .convex()
+        };
+        let cube = brick(0.0, 1.0);
+        let met = overlap_reach::<f64>(&Ok(cube.clone()), &Ok(brick(0.5, 1.5)), band).ball();
+        assert!(
+            (met.center().x - 0.75).abs() < 1e-15 && (met.radius() - (0.75 + pad)).abs() < 1e-15,
+            "the overlap's ball within the band: {met:?}"
+        );
+        let uncovered = || {
+            Err(crate::cover::FaceUncovered::of_carrier(
+                geom::cover::Uncovered::new(
+                    geom::cover::Entity::Surface(geom::SurfaceKind::Plane),
+                    geom::cover::Unknown::Unbounded,
+                ),
+            ))
+        };
+        let one = overlap_reach::<f64>(&Ok(cube.clone()), &uncovered(), band).ball();
+        assert!(
+            one.center().x == 0.5 && (one.radius() - (0.75f64.sqrt() + pad)).abs() < 1e-15,
+            "one face uncovered: the other's ball, {one:?}"
+        );
+        let none = overlap_reach::<f64>(&uncovered(), &uncovered(), band).ball();
+        assert!(none.radius().is_nan(), "both uncovered: no ball");
     }
 }
 

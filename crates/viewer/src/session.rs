@@ -3610,16 +3610,30 @@ impl DocSession {
     }
 
     /// Insert one boolean of existing bodies ([`SessionOp::AddBoolean`]).
+    /// An operand reading one member of a family (`xs[i]`) is gated on
+    /// its read being a family ([`NodeKindWanted::Instances`]), the
+    /// part door's gate; a member out of range refuses at evaluation.
     fn add_boolean(&self, spec: BooleanSpec) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
         let spec = spec.with_operands(
             spec.operands()
                 .into_iter()
-                .map(|read| as_body(doc, read))
+                .map(|read| {
+                    if read.is_indexed() {
+                        read
+                    } else {
+                        pncad::document::BodyRead::plain(as_body(doc, read.read))
+                    }
+                })
                 .collect(),
         );
         for seat in spec.operands() {
-            self.require_read(&seat, NodeKindWanted::Body)?;
+            let wanted = if seat.is_indexed() {
+                NodeKindWanted::Instances
+            } else {
+                NodeKindWanted::Body
+            };
+            self.require_read(&seat.read, wanted)?;
         }
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
@@ -3699,7 +3713,7 @@ impl DocSession {
             // image keeps the body's frame, and what is mated on it
             // stays where it stood
             // (`takeovers::the_mirrors_merged_top_keeps_the_old_tops_frame`).
-            let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
+            let part = run.insert(BooleanSpec::Union(vec![body.into(), image.into()]).node())?;
             Ok(Wrote {
                 made: image,
                 replacement: part,
@@ -4118,15 +4132,20 @@ impl DocSession {
     /// `⊔` seats are dropped and whose product slot the result takes,
     /// since its material is in the result. So a combine of the product's
     /// bodies leaves `[result]`, and no placement is written. A repeated
-    /// operand counts once; operands nothing reads re-point nothing. Read
-    /// off the committed document before the operands are placed, the
-    /// one takeover the run then makes.
-    fn combine_in_world(&self, operands: &[Operand]) -> Result<Takeover, Refusal> {
+    /// operand counts once; operands nothing reads re-point nothing, and
+    /// nor does a member read (`xs[i]`): what reads the family reads it
+    /// whole, so re-pointing it would lose the other members. Read off
+    /// the committed document before the operands are placed, the one
+    /// takeover the run then makes.
+    fn combine_in_world(
+        &self,
+        operands: &[pncad::document::BodyRead<Formula>],
+    ) -> Result<Takeover, Refusal> {
         let doc = self.committed_doc();
         let mut distinct: Vec<&Operand> = Vec::new();
-        for operand in operands {
-            if !distinct.contains(&operand) {
-                distinct.push(operand);
+        for operand in operands.iter().filter(|read| !read.is_indexed()) {
+            if !distinct.contains(&&operand.read) {
+                distinct.push(&operand.read);
             }
         }
         let mut read = distinct
@@ -5637,15 +5656,17 @@ fn reads_its_space(c: &pncad::document::Constraint<Formula>) -> bool {
 /// operand in no space, or a copy whose bundle holds a mate or a value
 /// reading a direction or an axis (each reads its body's space,
 /// [`reads_its_space`]), is read as it is: the combine then refuses
-/// `SpaceMismatch` at the edit door, in the kernel's words.
+/// `SpaceMismatch` at the edit door, in the kernel's words. A member
+/// read (`xs[i]`) in another space is placed as the member, never by
+/// re-targeting its family, which would move every member.
 fn in_one_space(
     run: &mut Recording<'_, ProfileProgram>,
-    operands: &[Operand],
-) -> Result<Vec<Operand>, EditError> {
+    operands: &[pncad::document::BodyRead<Formula>],
+) -> Result<Vec<pncad::document::BodyRead<Formula>>, EditError> {
     let Some((first, rest)) = operands.split_first() else {
         return Ok(Vec::new());
     };
-    let Some(home) = run.doc().operand_space(first) else {
+    let Some(home) = run.doc().operand_space(&first.read) else {
         return Ok(operands.to_vec());
     };
     let node_of = |doc: &Doc<ProfileProgram>, read: &Operand| {
@@ -5653,21 +5674,22 @@ fn in_one_space(
     };
     let mut read = vec![first.clone()];
     for operand in rest {
-        let Some(node) = node_of(run.doc(), operand) else {
+        let Some(node) = node_of(run.doc(), &operand.read) else {
             read.push(operand.clone());
             continue;
         };
-        if run.doc().operand_space(operand) == Some(home) {
+        if run.doc().operand_space(&operand.read) == Some(home) {
             read.push(operand.clone());
             continue;
         }
         // A copy placed into its own body's space.
-        let self_placed = match run.doc().node(node) {
-            Some(Node::Place { source, .. }) => {
-                run.doc().space_of(source.read) == run.doc().node_space(node)
-            }
-            _ => false,
-        };
+        let self_placed = !operand.is_indexed()
+            && match run.doc().node(node) {
+                Some(Node::Place { source, .. }) => {
+                    run.doc().space_of(source.read) == run.doc().node_space(node)
+                }
+                _ => false,
+            };
         if self_placed {
             if held_bundle(run.doc(), node).iter().any(reads_its_space) {
                 read.push(operand.clone());
@@ -5683,7 +5705,7 @@ fn in_one_space(
         } else {
             // A body never placed stands where it stands.
             let placement = run.insert(Node::place(
-                pncad::document::BodyRead::plain(operand.clone()),
+                operand.clone(),
                 Operand::Var(home),
                 pncad::document::stand().bundle(),
             ))?;
@@ -5842,8 +5864,8 @@ pub(crate) fn picked_body(
     let on = pick.on();
     let name = pick.name().clone();
     let body = match crate::world::seat_read(doc, on.node(), Some(on.body())) {
-        (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),
+        (at, port) => crate::seats::Output::named(port).read(at),
     };
     (body, name)
 }

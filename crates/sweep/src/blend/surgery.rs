@@ -282,13 +282,6 @@ pub(super) fn scaffolding(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::BodyNotIntact { at, breach, detail }
 }
 
-/// **Row 1**, a stored carrier at `at` whose defining length does not
-/// decide under the run's band.
-pub(super) fn degenerate(at: EntityId, detail: &'static str) -> BlendError {
-    let breach = Breach::Degenerate;
-    BlendError::BodyNotIntact { at, breach, detail }
-}
-
 /// **Row 4, announced rather than panicked** — a step of this carve
 /// reached a state its own earlier steps rule out. The input was fine;
 /// the surgery contradicted itself. Row 4's other sites panic because
@@ -2293,7 +2286,7 @@ pub(super) fn strip_frame<T: Decide>(
     face: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>, T), BlendError> {
     let mid = certified_curve(body, l.edge)?.mid_point();
-    let (origin, _) = open_trimline(l, face)?;
+    let origin = open_trimline(l, face)?.origin;
     let m = (origin - mid).normalize();
     Ok((origin, m, (origin - mid).dot(m)))
 }
@@ -3267,11 +3260,10 @@ fn co_requested_trim<T: Decide>(
         .map(AdmittedOpen::link)
         .find(|l| l.edge == edge)
     {
-        let (origin, dir) = open_trimline(l, face)?;
-        let line = geom::Line { origin, dir };
+        let line = open_trimline(l, face)?;
         let at = |p: Point3<T>| line.param(p);
         let window = (at(stored.eval(ta)), at(stored.eval(tb)));
-        return Ok(Some((Curve3::Line(geom::Line { origin, dir }), window)));
+        return Ok(Some((Curve3::Line(line), window)));
     }
     if let Some(l) = rims
         .iter()
@@ -3284,16 +3276,16 @@ fn co_requested_trim<T: Decide>(
     Ok(None)
 }
 
-/// **An open link's trimline on its support `face`**, as the line's
-/// `(origin, dir)`. Every open band's trims are lines
+/// **An open link's trimline on its support `face`**, as its line.
+/// Every open band's trims are lines
 /// (`arms::plane_plane_blend` and the ruled arms mint them so), and
 /// one that is not refuses here rather than being read as one.
 pub(super) fn open_trimline<T: Real>(
     l: &Link<T>,
     face: FaceKey,
-) -> Result<(Point3<T>, Vec3<T>), BlendError> {
+) -> Result<geom::Line<T>, BlendError> {
     match l.trim_on(face) {
-        Some((Curve3::Line(geom::Line { origin, dir }), _)) => Ok((*origin, *dir)),
+        Some((Curve3::Line(line), _)) => Ok(*line),
         Some(_) => Err(unbuilt_geometry(
             EntityId::Edge(l.edge),
             "an open link's trimline is not a line",
@@ -5687,72 +5679,6 @@ mod tests {
             "{text}"
         );
     }
-
-    /// **A degenerate carrier refuses as its own breach**, never as a
-    /// disagreement or an unsupported shape with the shape recourse: a
-    /// cube face re-charted onto a cylinder whose axis has no length
-    /// reaches the band reach's face boxes. No door reaches it — the
-    /// at-rest gate refuses the chart, and the battery passes it — so
-    /// the row is crate-internal. Scaffolding's row is public
-    /// (`scaffolding_on_a_blend_support_face_does_not_finish`).
-    #[test]
-    fn a_degenerate_carrier_refuses_as_its_own_breach() {
-        let tail = "so the body is not intact there. There is no way through";
-        let shape = crate::blend::FILLET3_GEOMETRY_RECOURSE;
-
-        let mut body = cube(L, Tol::witness());
-        let link = crate::test_support::all_links(&body, Tol::witness())
-            .into_iter()
-            .next()
-            .expect("a cube has links");
-        let off = body
-            .faces()
-            .map(|(k, _)| k)
-            .find(|f| *f != link.face_a && *f != link.face_b)
-            .expect("a cube has a face off the link");
-        // Lifts RechartUnvouched: the face's edges do not lie on the degenerate chart, which is the row's premise.
-        body.set_face_surface_unvouched_for_tests(
-            off,
-            topo::construction::FaceSurface::New {
-                surface: geom::Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: Vec3::zero(),
-                    radius: L,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                },
-                sense: true,
-            },
-        )
-        .expect("the face takes the degenerate chart");
-        let band = geom_core::Band::linear(Tol::witness()).expect("the witness band");
-        let req = crate::blend::BlendRequest {
-            body: &body,
-            edges: vec![link.edge],
-            size: 0.1 * L,
-        };
-        let Err(e) = super::super::reach::band_reach_for_tests(&req, band) else {
-            panic!("a face whose cylinder has no axis cannot be boxed");
-        };
-        assert!(
-            matches!(
-                e,
-                BlendError::BodyNotIntact {
-                    at: topo::EntityId::Face(f),
-                    breach: Breach::Degenerate,
-                    ..
-                } if f == off
-            ),
-            "a zero-axis cylinder is Degenerate at its face: {e:?}"
-        );
-        let text = e.render(geom_brep::recourse::Reading::Build);
-        assert!(
-            text.ends_with(&format!(
-                "stored carrier is degenerate under the run's band, {tail}"
-            )) && !text.contains(shape),
-            "{text}"
-        );
-    }
-
     fn open_chain(link: super::Link<f64>) -> super::Chain<f64> {
         let (head, tail) = (link.start, link.end);
         super::Chain::new(

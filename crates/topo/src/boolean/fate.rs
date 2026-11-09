@@ -432,7 +432,7 @@ pub(super) struct Leaving<T: geom_core::Real, R = LeverBounds<T>> {
     /// The unit direction: the edge's tangent, or its secant.
     pub(super) dir: Vec3<T>,
     /// How far the edge reaches from the vertex, its edge cover's far
-    /// distance from above (`boxes::edge_reach_bounds`): a corner's reading acts on
+    /// distance from above (`crate::cover::edge_reach_bounds`): a corner's reading acts on
     /// every sign, so its lever is the region's own measure from where
     /// it is read, and where that is known only from both sides (a curve
     /// other than a line or circle, whose bound from above can pass it
@@ -494,7 +494,7 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
         geom::Curve3::Line(_) => {
             LeverBounds::Exact(geom_brep::ExtentBall::point(end).lever_from(base))
         }
-        _ => super::boxes::edge_reach_bounds(body, h.edge, edge, base)?,
+        _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
     };
     let (dir, bend) = match curve.carrier() {
         _ if secant => (curve.mid_point() - base, None),
@@ -562,9 +562,9 @@ pub(super) fn bisector<T: Decide>(
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     let mid = s.middle();
-    let len = mid.norm();
+    let (dir, len) = mid.direction_and_length();
     match sign(len, T::one(), band)? {
-        Sign::Positive => Ok(mid.normalize()),
+        Sign::Positive => Ok(dir),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
             what: "a sector a half-turn wide reached the fate reading, whose bounds name no inside",
         }),

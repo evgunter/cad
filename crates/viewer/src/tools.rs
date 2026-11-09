@@ -1024,6 +1024,27 @@ impl Tools {
         }
     }
 
+    /// **The member pick `seat` of the open boolean tool reads**, by
+    /// its index values, where it reads a family nothing copies, whole
+    /// or one member ([`crate::combine::BooleanTool::choose_member`]); a
+    /// no-op for every other tool, whose seats read a family whole.
+    pub fn choose_member(&mut self, seat: usize, at: Vec<i64>) {
+        match &mut self.open {
+            None
+            | Some(
+                OpenTool::Mate(_)
+                | OpenTool::Blend(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Part(_)
+                | OpenTool::Clearance(_)
+                | OpenTool::Split(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Mirror(_),
+            ) => {}
+            Some(OpenTool::Boolean(tool)) => tool.choose_member(seat, at),
+        }
+    }
+
     /// **The survival step, once per frame** — the consumer obligation
     /// every tool's module docs state, discharged in one place.
     ///

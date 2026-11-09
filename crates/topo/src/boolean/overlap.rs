@@ -41,7 +41,7 @@ use std::sync::Arc;
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::Span;
-use geom_brep::ladder::Evidence;
+use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
@@ -445,13 +445,12 @@ fn half_plane<T: Decide>(
             what: "a boundary edge whose carrier places no parameter",
         })?;
     let d = carrier.deriv(t);
-    let speed = d.norm();
-    let unit = if forward { d / speed } else { -(d / speed) };
+    let (u, speed) = d.direction_and_length();
+    let unit = if forward { u } else { -u };
     let bend = match carrier {
         geom::Curve3::Line(_) => Some(Vec3::new(T::zero(), T::zero(), T::zero())),
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let dd = carrier.deriv2(t);
-            let u = d / speed;
             Some((dd - u * dd.dot(u)) / speed.powi(2))
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
@@ -475,7 +474,7 @@ fn half_plane<T: Decide>(
         geom::Curve3::Line(_) => {
             LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p))
         }
-        _ => super::boxes::piece_reach_bounds(carrier, (ta, tb), (p, end), p),
+        _ => crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p),
     };
     let (ahead, behind) = if forward {
         ((t1, at_t1), (t0, at_t0))
@@ -565,12 +564,26 @@ fn piece_witness<T: Decide>(
     }
     let n = turned(normal_at(x, q, band)?, x_rev);
     let mine = as_read(half_plane(x.0, he, q)?, x_rev);
-    for cy in ys {
-        if corners_meet(mine, as_read(cy, y_rev), n, band)? {
-            return Ok(true);
-        }
+    any_corner_meets(ys, |cy| corners_meet(mine, as_read(cy, y_rev), n, band))
+}
+
+/// **Whether any of `corners` meets the piece** ([`piece_witness`]'s
+/// ladder, each corner read by `meets`): a ladder over them ([`climb`],
+/// [`Answering::Any`]: every corner meeting the piece says the same "a
+/// witness"), so a corner read in band refuses only where no later one
+/// meets it, each refusal kept by its standing
+/// ([`OverlapRefusal::refusal`]).
+fn any_corner_meets<C>(
+    corners: impl IntoIterator<Item = C>,
+    mut meets: impl FnMut(C) -> Result<bool, OverlapRefusal>,
+) -> Result<bool, OverlapRefusal> {
+    match climb(Answering::Any, corners, |c| {
+        Rung::holds(meets(c), true, OverlapRefusal::refusal)
+    }) {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed => Ok(false),
+        Climb::Undecided(r) => Err(r),
     }
-    Ok(false)
 }
 
 /// Keeps a piece's refusal `r` in `kept` by its standing
@@ -736,6 +749,33 @@ mod piece_ranking {
             keep_piece_refusal(&mut kept, corner).is_err(),
             "a corner refusal that did not escalate is never kept: BooleanError states \
              no standing to tell a limit from a fault, so it stops the search"
+        );
+    }
+
+    /// **A corner meeting the piece answers past a corner read in band**
+    /// (`piece_witness` climbs `y`'s corners through
+    /// [`super::any_corner_meets`]). The readings are fed to the
+    /// production ladder through its reader.
+    #[test]
+    fn a_corner_that_meets_answers_past_one_in_band() {
+        let read = |r: Vec<Result<bool, OverlapRefusal>>| super::any_corner_meets(r, |r| r);
+        assert!(
+            matches!(read(vec![Err(in_band()), Ok(true)]), Ok(true)),
+            "a later corner that meets answers past an earlier one in band"
+        );
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Err(unread())]),
+                Err(OverlapRefusal::Unread { .. })
+            ),
+            "a limit outranks the corner in band read before it"
+        );
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Ok(false)]),
+                Err(OverlapRefusal::OnPlane(_))
+            ),
+            "with no corner meeting the piece, the corner in band refuses"
         );
     }
 }

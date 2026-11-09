@@ -521,7 +521,7 @@ fn rotate_box<T: Real>(q: Quarter, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
 pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<ParamRange>> {
     let (a, b) = (range.start(), range.end());
     let mut breaks = vec![a];
-    breaks.extend(kv.knot_runs().map(|(k, _)| k).filter(|&k| k > a && k < b));
+    breaks.extend(kv.breakpoints().filter(|&k| k > a && k < b));
     breaks.push(b);
     breaks
         .windows(2)
@@ -1349,11 +1349,7 @@ pub(crate) fn project<T: Decide>(
     // The top-level pieces: a net's knot spans (a piece's hull is one
     // span's Bézier restriction), a circle's or a line's one interval.
     let tops: Vec<f64> = match &image.carrier {
-        FramedCarrier::Net(net) => net
-            .knots_f64_interim()
-            .knot_runs()
-            .map(|(k, _)| k)
-            .collect(),
+        FramedCarrier::Net(net) => net.knots_f64_interim().breakpoints().collect(),
         FramedCarrier::Circle { .. } | FramedCarrier::Line { .. } => vec![0.0, 1.0],
     };
     if matches!(image.chart, ProjectedChart::Plane) {

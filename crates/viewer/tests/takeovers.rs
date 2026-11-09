@@ -1277,7 +1277,7 @@ fn a_combine_with_its_own_earlier_half_keeps_the_mate() {
     let (_, outcome) = taken_over(
         &mut session,
         SessionOp::AddBoolean {
-            spec: viewer::session::BooleanSpec::Union(vec![block.into(), above]),
+            spec: viewer::session::BooleanSpec::Union(vec![block.into(), above.into()]),
         },
     );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
