@@ -2,11 +2,12 @@
 id: a-carriers-branches-within-the-band-of-each-other
 kind: issue
 title: A carrier whose branches lie within the band of each other near a point certifies On on either branch: no door excludes an edge that comes within the band of itself
-status: open
+status: closed
 opened: 2026-11-04
 priority: P2
 cost: M
-design: true
+closed: 2026-11-09
+pr: 6618
 ---
 
 
@@ -45,4 +46,23 @@ Readers that can hand `Span::read` or `Foot::on_carrier` a seed other than the s
 
 No door refuses such an edge where its fold stays fast (the semicircle above); the cubic is refused only by its meter. Tier 3 names global self-intersection and minimum clearance as deferred (`topo::validate`'s tier-3 docs), and the clearance engine runs at no gate at rest.
 
-What remains is the fork, which awaits its designers: a self-clearance check in `EdgeCurve::certify` (a gate, and a change to its check sequence), a branch certificate on `Foot` that branch readers take (a reading), or doc only.
+
+## Closed (PR 6618)
+
+The fork is decided, and this row closes into the P0 unit
+`the-at-rest-gate-certifies-embedding`.
+
+- **The home is the ratified at-rest embedding gate** (`DESIGN.md`
+  `[topology.tiers]`, ruled at PR 6301). An edge or face that comes
+  within the band of itself away from its own neighbourhood is a body
+  whose boundary is not embedded. That gate refuses it, and every
+  reader of a branch rests on it. There is no `certify` check, no `On`
+  arm, and no ratified text change.
+- **This row's "tier 1 refuses" option was a mis-statement.** Tier 1 is
+  structural and reads no geometry. The option meant the embedding
+  gate.
+- **K's floor**, the one point the designers did not settle, goes to Ev
+  at PR 6625.
+
+The defects the fork found in the engine that gate runs on, the residual
+and the pins for when it lands are now on the unit's own row.
