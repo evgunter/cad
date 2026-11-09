@@ -1935,6 +1935,13 @@ fn placed<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
+    if let Some(view) = body.face(f) {
+        crate::held::Held::constructed(
+            q,
+            "the touch of a confirmed pair's cells, on both carriers",
+        )
+        .check(view.surface(), band);
+    }
     match planar_face(geo, f) {
         Some(g) => contain(body, g, q, band, errors).map(Some),
         None => read_containment(

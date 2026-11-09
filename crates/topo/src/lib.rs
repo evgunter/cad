@@ -163,6 +163,7 @@ pub(crate) mod source_walk;
 
 #[cfg(test)]
 pub(crate) mod cert_m3r1_probes;
+pub(crate) mod held;
 pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]

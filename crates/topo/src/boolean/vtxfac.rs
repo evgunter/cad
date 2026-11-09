@@ -2168,9 +2168,25 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 {
                     return Ok(None);
                 }
+                // Held where the residual above decided it (`Zero`, or in
+                // band); a spline face's trim decides its own carrier.
+                let placed = match &side {
+                    Some(Ok(d)) => super::contain::placement_on_carrier(
+                        piercing_body,
+                        face,
+                        crate::held::Held::decided(p, d.margin),
+                        band,
+                    ),
+                    Some(Err(_)) => super::contain::placement_on_carrier(
+                        piercing_body,
+                        face,
+                        crate::held::Held::in_band(p),
+                        band,
+                    ),
+                    None => super::contain::placement_unheld(piercing_body, face, p, band),
+                };
                 let (placement, _, _) =
-                    super::contain::placement_on_carrier(piercing_body, face, p, band)
-                        .map_err(|e| super::reduce::esc(e, piercing, face))?;
+                    placed.map_err(|e| super::reduce::esc(e, piercing, face))?;
                 let kind = kind_of(piercing_body, face);
                 match placement {
                     super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {}
@@ -2219,8 +2235,13 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 // point lies in the face. On the face's boundary the point
                 // is a vertex or an edge of the piercing body: the sweep's
                 // pierces and splits hold it.
-                let (at, _, _) = super::contain::placement_on_carrier(piercing_body, face, p, band)
-                    .map_err(|e| super::reduce::esc(e, piercing, face))?;
+                let held = match &side {
+                    Ok(d) => crate::held::Held::decided(p, d.margin),
+                    Err(_) => crate::held::Held::in_band(p),
+                };
+                let (at, _, _) =
+                    super::contain::placement_on_carrier(piercing_body, face, held, band)
+                        .map_err(|e| super::reduce::esc(e, piercing, face))?;
                 // OffCarrier → not held (the side above decided `p` on the plane).
                 if at != super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) {
                     return Ok(None);

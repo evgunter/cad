@@ -1801,6 +1801,24 @@ Flagged, NOT fixed here (dispositions):
   the sink under `curve_pair_window_halve`. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F38** (added by ONECOPY's held-points unit) `held_on_carrier` —
+  `topo/src/held.rs` `Held::check`: in debug builds, the premise of a
+  point its caller holds on a face's carrier, the point's implicit
+  residual against the carrier read `Zero` (or, held in band, never
+  definitely off). It checks a premise the caller's construction or
+  decision already holds, and decides nothing a reading rests on: a
+  release build does not run it, and a debug build that finds it false
+  panics on a defect. A probe of every trusting site over topo, sweep
+  and editor-core at both ε read it `Zero` in every one of about 51,000
+  calls (`work/onecopy/carrier-held-points-are-trusted-not-decided.md`).
+  Logged, it would add a sample per placement for no information, and
+  the K counts would differ between debug and release.
+
+  **Carried as `k_stats::check_unlogged(.., "F38")`**, skipped where the
+  residual is poison (a spline or approximated carrier, which has no
+  implicit form). Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
+  does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

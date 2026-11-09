@@ -1143,7 +1143,9 @@ fn lies<T: Decide>(
     let unplaced = |e| contained(e, "a fate cut's end is not placed in its face");
     let (mut inside, mut corners, mut on_edge) = (Vec::new(), Vec::new(), Vec::new());
     for f in pieces(body, root, divisions) {
-        let at = match super::contain::placement_on_carrier(body, f, p, band)
+        let end =
+            crate::held::Held::constructed(p, "a fate cut's end, a point of the face it divides");
+        let at = match super::contain::placement_on_carrier(body, f, end, band)
             .map_err(unplaced)?
             .0
         {
@@ -1368,13 +1370,18 @@ fn rehome<T: Decide>(
             else {
                 return Rung::Aborts(Err(desync("a ring's vertex has no point")));
             };
-            let at = super::contain::placement_on_carrier(body, new, p, band).map(|(at, _, _)| {
-                match at {
-                    // OffCarrier → Out (trusted on carrier).
-                    super::CurvedPlacement::OffCarrier => Some(super::FaceContainment::Out),
-                    super::CurvedPlacement::Trim(at) => at,
-                }
-            });
+            let held = crate::held::Held::constructed(
+                p,
+                "a vertex of a ring of the face divided into this one",
+            );
+            let at =
+                super::contain::placement_on_carrier(body, new, held, band).map(|(at, _, _)| {
+                    match at {
+                        // OffCarrier → Out (trusted on carrier).
+                        super::CurvedPlacement::OffCarrier => Some(super::FaceContainment::Out),
+                        super::CurvedPlacement::Trim(at) => at,
+                    }
+                });
             match at {
                 Ok(Some(super::FaceContainment::In)) => Rung::Answers(Ok(true)),
                 Ok(Some(super::FaceContainment::Out)) => Rung::Answers(Ok(false)),
