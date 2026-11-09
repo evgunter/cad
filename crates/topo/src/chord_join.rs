@@ -4846,7 +4846,11 @@ impl RimSide {
                 // and any such point reads the one side (the loop does not
                 // cross its ring's plane: [`paths_rung`]'s premise, the
                 // plane for the curve); an escalation escalates only
-                // where none does.
+                // where none does. The division establishes it: the ring
+                // meets the pierced face's boundary only at its one site,
+                // the section's identified crossing, and on the sphere the
+                // ring's plane meets the surface in the ring alone, so a
+                // loop crossing the plane would cross the ring.
                 use geom_brep::ladder::{Answering, Climb, Rung, climb};
                 let points = loop_points(body, outer)?;
                 let read = climb(Answering::Any, points, |w| {

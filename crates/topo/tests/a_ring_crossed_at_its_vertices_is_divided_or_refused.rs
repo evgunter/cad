@@ -19,6 +19,11 @@
 //!   `VertexOnFace`, the split's `SliverVertex`).
 //! - **`d` past the band**: the cut misses the corners and crosses two
 //!   of the ring's edges, which it divides.
+//!
+//! It guards the division, not the side ladders: a division that skipped
+//! a corner would leave a ring that crosses the cut. The operation's
+//! at-rest finish refuses that ring by check 9, so the row turns red on
+//! the refused result, before any volume is read.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use crate::common;
 use common::{
