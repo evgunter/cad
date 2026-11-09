@@ -2558,7 +2558,7 @@ fn wedges_overlap<P, W, D>(
     probes: impl Fn(&W) -> [D; 3],
     inside: impl Fn(&W, D) -> Result<bool, WedgeRefusal>,
 ) -> Result<Option<usize>, (usize, WedgeRefusal)> {
-    let kept = |e: (usize, WedgeRefusal)| Rung::refused(e, |e| e.1.refusal());
+    let kept = |e: (usize, WedgeRefusal)| Rung::refused(e, |e| e.1.refusal(), Err);
     let climbed = climb(Answering::Any, pairs.iter().enumerate(), |(i, pair)| {
         let a = match wedge(pair, 0) {
             Ok(a) => a,
@@ -8521,7 +8521,7 @@ fn sectors_of_faces<F>(
 ) -> Option<TouchUnread> {
     let climbed = climb(Answering::First, faces, |face| match read(face) {
         Ok(()) => Rung::Passes,
-        Err(why) => geom_brep::ladder::rung_or_abort(why.refusal(), why, |why| why),
+        Err(why) => Rung::refused(why, |why| why.refusal(), core::convert::identity),
     });
     match climbed {
         Climb::Passed => None,

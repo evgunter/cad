@@ -138,14 +138,61 @@ pub(crate) enum RawPart<T: Real> {
     Empty,
 }
 
-/// The split pipeline's own result: [`SplitResult`] before its sides are
-/// gated at rest (`super::split`).
-#[derive(Debug)]
-pub(crate) struct RawSplit<T: Real> {
-    pub(crate) above: RawPart<T>,
-    pub(crate) below: RawPart<T>,
-    pub(crate) naming: SplitNaming,
-    pub(crate) coincidences: Vec<crate::Coincidence>,
+pub(in crate::splitting) use raw::{RawSplit, ReducedRows};
+
+/// [`RawSplit`] and the one way to make one: its record is the reduce's
+/// rows, so its constructor takes them as [`ReducedRows`], which only a
+/// [`SplitReduction`] gives, and its record field is private to this
+/// module.
+mod raw {
+    use super::{RawPart, SplitNaming, SplitReduction};
+    use geom_core::Real;
+
+    /// **The reduce's coincidence rows, taken once** (D10): what a
+    /// split records, on the cut path and the uncut one alike, since
+    /// the reduce decides each the same way on either.
+    #[derive(Debug)]
+    pub(in crate::splitting) struct ReducedRows(Vec<crate::Coincidence>);
+
+    impl ReducedRows {
+        /// `red`'s rows, moved out of it.
+        pub(in crate::splitting) fn take<T: Real>(red: &mut SplitReduction<T>) -> Self {
+            Self(core::mem::take(&mut red.coincidences))
+        }
+    }
+
+    /// The split pipeline's own result: [`super::SplitResult`] before
+    /// its sides are gated at rest (`super::super::split`).
+    #[derive(Debug)]
+    pub(in crate::splitting) struct RawSplit<T: Real> {
+        pub(in crate::splitting) above: RawPart<T>,
+        pub(in crate::splitting) below: RawPart<T>,
+        pub(in crate::splitting) naming: SplitNaming,
+        coincidences: Vec<crate::Coincidence>,
+    }
+
+    impl<T: Real> RawSplit<T> {
+        /// The split's two sides and naming, recording `rows`.
+        pub(in crate::splitting) fn from_reduction(
+            rows: ReducedRows,
+            (above, below): (RawPart<T>, RawPart<T>),
+            naming: SplitNaming,
+        ) -> Self {
+            Self {
+                above,
+                below,
+                naming,
+                coincidences: rows.0,
+            }
+        }
+
+        /// Its sides, naming and record.
+        pub(in crate::splitting) fn into_parts(
+            self,
+        ) -> (RawPart<T>, RawPart<T>, SplitNaming, Vec<crate::Coincidence>) {
+            (self.above, self.below, self.naming, self.coincidences)
+        }
+    }
 }
 
 /// The result of a plane split: both sides, functionally.
@@ -1222,7 +1269,7 @@ impl std::error::Error for SplitFinishError {}
 /// [`SplitFinishError`]; the scratch body is discarded on `Err` (the
 /// operand was never touched).
 pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
-    red: SplitReduction<T>,
+    mut red: SplitReduction<T>,
     completed: &[CompletedSection],
     face_fragments: crate::lineage::FaceDivisions,
     tol: Tol,
@@ -1246,6 +1293,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // tier-1 sweep over the reassembled body before it is carved into
     // the two sides. The guard owns the borrow, so a refusal on the
     // way closes the scope by dropping it.
+    let rows = ReducedRows::take(&mut red);
     let mut reassembled = red.body;
     let mut body = reassembled.begin_surgery();
     let solid = single_solid(&body)?;
@@ -1254,13 +1302,16 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // one side (an ON-touching contact mints no null faces).
     if completed.is_empty() {
         body.sweep_and_close();
-        let (above, below) = whole_body_side(reassembled, &red.sides, &red.plane, tol)?;
-        return Ok(RawSplit {
-            above,
-            below,
-            naming: SplitNaming::default(),
-            coincidences: red.coincidences,
-        });
+        // The record is the reduce's, as on the cut path. No fixture
+        // reaches a reduce row here: one needs two runs of a side about
+        // an ON vertex, which crosses the plane and mints a section
+        // (`work/onecopy/an-uncut-split-at-a-shared-non-manifold-vertex-is-unbuilt.md`).
+        let sides = whole_body_side(reassembled, &red.sides, &red.plane, tol)?;
+        return Ok(RawSplit::from_reduction(
+            rows,
+            sides,
+            SplitNaming::default(),
+        ));
     }
     let mut naming = SplitNaming {
         sections: Vec::with_capacity(completed.len() * 2),
@@ -1459,12 +1510,11 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     body.sweep_and_close();
     let above = carve(&reassembled, solid, &above_shells)?;
     let below = carve(&reassembled, solid, &below_shells)?;
-    Ok(RawSplit {
-        above: RawPart::Body(above),
-        below: RawPart::Body(below),
+    Ok(RawSplit::from_reduction(
+        rows,
+        (RawPart::Body(above), RawPart::Body(below)),
         naming,
-        coincidences: red.coincidences,
-    })
+    ))
 }
 
 /// Each section face that is a hole — sense `false`: its loop winds

@@ -2676,10 +2676,26 @@ impl<T: Decide> CarriedComponent<T> {
     /// ([`at_node`]): one decided off the node and reaching here lies
     /// within the band of two arcs crossing there, and escalates, as an
     /// undecided one does. Any other component's foot is its own.
+    ///
+    /// **`t` is the reading's witness** ([`geom::OnCarrier::On`]): a
+    /// parameter where the carrier passes within the zero of the site,
+    /// not its foot. Any point of the carrier within the zero of the site
+    /// lies within twice the zero of the witness's, so the witness is
+    /// read past the span only where the site is, past the band's
+    /// escalation. That holds because a conic component is a closed
+    /// form, which carries no pad: a pad widens the witness's reach by
+    /// twice itself, and only a fitted component has one, on a spline
+    /// carrier, which returns above.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
         if self.closed() || !matches!(self.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
             return Ok(Some(t));
         }
+        debug_assert!(
+            self.pad <= 0.0,
+            "a conic component carries a pad of {}: its witness can stand past the band from \
+             its foot",
+            self.pad
+        );
         let (lo, hi) = self.span;
         let t = lo + (t - lo).reduce_periodic(T::pi() * T::from_f64(2.0));
         let speed = self.carrier.ders1(t).1.norm();
