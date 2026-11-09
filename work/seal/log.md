@@ -28,3 +28,23 @@
   - **Sequencing call (mine, with recommendation; the alternative was sending the crack rule back to the designers first):** land step 2 now for everything shown sound, with `X − S` held to a typed refusal, and file the crack as its own P1 H design row. Reason: the landed part is sound and gives the design's outcomes for every op but one, and nothing is half-built. The crack is a finish-layer question the design text did not reach.
 - 2026-11-09 — **`vertex-reads-one-interface` is PR 6613, CI `gate ok` green on `a8d19a96b7e9`.** Dual review dispatched on that frozen head, protocol `db69dd9d5a`. Difficulty letter H, so the arm is CONCURRENT: R1 and R2 have the same brief and claims, and each is pointed at the style lane. The lane's own premise corrections and its two new rows are in the PR body. I reclaimed the implementer's 23 GB target before dispatch, because two review targets would not fit beside it.
 - 2026-11-09 — **`glue-disagreements-and-held-contradictions-after-stage-4` re-censused.** Stage 4 PR F (PR 4641) and `mates-declare-no-contact` (PR 5637) landed, which releases the row. A read-only census against main `b3363f462e` is written into the row: 22 of the 35 held arms are retired and 13 survive. C21 and C22 are not settled by the glue door, and stage 4 added six sites of the same shapes. I split the work into a mechanical unit and a design question: what a reading carries when two decided readings disagree, or a decided reading breaks a convention. The question went to fork `glue-disagreements-carry`, two designers (drawn arm; bytes on its analysis branch), problem only. The mechanical unit waits for the fork, since the fork may reshape the types it would write.
+- 2026-11-09 — **Fork `glue-disagreements-carry`: two first reports, agreeing on the premise and split on four points.**
+  - **Both reject the brief's "two decided readings disagree":**
+    - C21 is a straddle (data as lower bounds, the extent sum as the upper), for the funnel's `k_stats::straddle`, as `tori_coincide` already does;
+    - `off_ring` carries geom-brep's torus refusal and lever, not `PoisonedCarrierDatum`;
+    - the margins `IdentityLadder::Apart` and `NotTangent` drop are mechanical;
+    - the census's predicate-string dispatch goes (D4 ¶1 (ii));
+    - the glue door decides a tangency once;
+    - no `Definite` type;
+    - the parent row's item 7 is unratified agent text.
+  - **A:**
+    - the torus witness is a straddle;
+    - a reading's definite "no" is a typed verdict (`Ruled { row, by: Decided }`), a contradiction only against a record at rest;
+    - `sides_mixed` is a typed verdict;
+    - C22 is the corner's own decided Zero through `gate_rejection`.
+  - **B:**
+    - the witness Zero is a gate rejection;
+    - `Contradicted { fact, evidence: Option<Decided> }` at the reading, with `Decided` gaining a predicate;
+    - `sides_mixed` is an `unreachable!` invariant;
+    - C22 is one level up: the glue door keeps one verdict table for every pair it reads (Glued / InBand / Apart), and the corner reads it rather than re-deciding the pair, retiring README C4's agent-written corner sentence.
+  - Round 1 is running, each designer shown the other's `For Ev`.
