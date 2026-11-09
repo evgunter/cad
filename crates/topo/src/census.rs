@@ -2166,6 +2166,10 @@ fn pair_contact<T: Decide>(
             }),
         ) => return Some(PairContact::Area { aligned: true }),
         Ok(Ok(CarrierRelation::Distinct)) if !planes => {}
+        // A torus off its ring convention (`CarrierEqError::OffRing`)
+        // lands here too: tier 3 refuses such a face first
+        // (`ValidationError::DegenerateTorus`), so no validated body
+        // reaches it.
         _ => return None,
     }
     // A point touch on the point lane's own carriers ([`point::face_face`]):
@@ -6503,6 +6507,8 @@ fn in_band_reading<T: Decide>(
     band: Band,
 ) -> InBand {
     use crate::boolean::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
+    // A torus off its ring convention read no coincidence at all, in band
+    // or decided, so the pair is unread whatever its convention's margin.
     let CarrierEqError::Undecided {
         coincidence: CoincidenceMeasure::Undecided(diag),
         relation,

@@ -289,13 +289,11 @@ disclosed rather than discovered.
 **These names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 255 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
-- five through `predicate: Some("…")`: `carrier_unglued_coincidence`,
-  `contact_rest_ladder_invariant`, `contact_rest_senses_opposed`,
+- three through `predicate: Some("…")`: `carrier_unglued_coincidence`,
   `contact_tangent_independent`, `tangency_sides_mixed`;
 - four through a helper that fills that field for its caller:
-  `carrier_kind` (`carrier_eq::definite`),
-  `continuation_senses_aligned` (`boolean::sense_contradiction`, which
-  names `contact_rest_senses_opposed` too), `tangency_conformal`
+  `contact_rest_senses_opposed` and `contact_rest_one_carrier`
+  (`rest_pair_verdict`'s `definite`), `tangency_conformal`
   (`verify_tangency`'s `label`), and
   `bool_join_torus_section_touching_under_a_germ`
   (`invalid_margin::invalid`, through a `const`);

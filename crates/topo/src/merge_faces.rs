@@ -480,8 +480,10 @@ pub enum MergeCoplanarError {
     /// A face either side of a shared edge has no extent to compare the
     /// pair's carriers over: its box has no claim to make, or its
     /// boundary cannot be walked. Tier 2 does not read either, and the
-    /// merge's own entry gate is tier 2, so a body that reaches the
-    /// comparison with such a face is one the kernel built wrong.
+    /// merge's own entry gate is tier 2. It ends in the defect ending,
+    /// and whether only the kernel can build such a face, or a stored
+    /// body can carry one, is open
+    /// (`work/topo/merge-faces-undescribed-ending-is-a-typed-kernel-defect.md`).
     PairExtentUnread {
         /// The face whose extent does not read.
         face: FaceKey,

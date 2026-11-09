@@ -27,7 +27,7 @@
 //! extent would price the same error twice. The torus is the exception:
 //! its coincidence reads the whole ring, its tilt levered at the larger
 //! major radius, so a datum past the band moves the ring by that much
-//! somewhere, not necessarily on the faces. Its `Distinct` is the ring's;
+//! somewhere, not necessarily on the faces. Its `Apart` is the ring's;
 //! the face-pair door asks the faces for a witness of it
 //! ([`super::carrier_pair::carrier_pair_decided`]).
 //!

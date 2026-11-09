@@ -46,10 +46,16 @@ Each reading on the row's list keeps the `geom_core::Decided` it decided on. The
   - `TorusCoincidence::OffRing { torus, refusal }`.
 - **`CarrierEqError::OffRing { torus, refusal }`.** At the Boolean it ends as the pierce normal does (`boolean::off_ring_torus`: `DegenerateTorus` when decided, `Escalated { Torus(half) }` in band), in the half's lever.
 - **`BoolSector::bounds_off`** returns its `Decided`.
-- **I7** goes through `decide_positive`, and **`seam_traversal_unread`** through `decide_nonzero`.
+- **I7** is decided through `decide_reported`, and its refusal on a decided reading is `k_stats::gate_rejection` under `SizedPass::Positive`, the gate `decide_positive` stands for. Deciding first keeps the deferred arm's log a verdict, as on main.
+- **`seam_traversal_unread`** goes through `decide_nonzero`.
 - **Typed structural arms** for the extent and cover reads:
   - The merge refuses `MergeCoplanarError::PairExtentUnread` (defect ending), and `MergeDecision::PairReach` is gone.
   - `seam_cover_unread` is now `RimUnread::Unplaced`, ending as the tangent line's own placement does: `PointInFaceRefused` / `CurvedBooleanUnsupported`.
 - **Not done here:**
   - **I1/I2's evidence** (`contact_rest_senses_opposed` / `contact_rest_one_carrier` still mint `Contradicted{INVALID}`). Their evidence `None` has no spelling until step 3's Rest verdict replaces `ContactRefusal::Contradicted { diag: Indeterminate }`.
   - **The plane ladder's orientation rung** stays on `decide_nonzero`. The settled design gives its margin no reader (I1's evidence is `None`), and joining it into `One`'s margin would unprove every Sym Zero.
+- **Filed from the review:**
+  - `a-torus-refusals-ending-is-dispatched-by-hand-at-four-doors`
+  - `a-one-carrier-verdict-can-still-hold-distinct`
+  - `plane-only-readers-hold-a-dead-off-ring-arm`
+  - `the-corners-senses-decide-the-plane-orientation-a-second-time`
