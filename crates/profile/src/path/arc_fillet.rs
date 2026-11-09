@@ -65,7 +65,7 @@
 //! rule.
 
 use crate::gate::{Escalation, Gate, decide};
-use geom_core::{Band, Bounds, Circles, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::{Band, Bounds, Circles, Decide, Line2, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::{
     ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, PathError, PathNoCornerReason,
@@ -236,10 +236,10 @@ fn structure<T: Real>(refusal: StructureRefusal) -> PathError<T> {
 
 /// The corners of a **ray × circle** pair, in increasing ray parameter.
 ///
-/// Squared-radius form: the signed perpendicular offset of the centre
-/// from the ray is exact in metres (`u` is unit), so the discriminant
-/// is `R² − offset²` with `powi(2)` — no `√(R²)²` anywhere on the path
-/// to a coordinate. The metre gate `R − |offset|` is a classification
+/// Squared-radius form, read by [`Line2::circle_heights`]: the
+/// discriminant is `R² − offset²` with `powi(2)`, the offset the
+/// centre's [`Line2::side`] — no `√(R²)²` anywhere on the path to a
+/// coordinate. The metre gate `R − |offset|` is a classification
 /// margin and is allowed its `sqrt`.
 fn ray_circle<T: Decide>(
     origin: Point2<T>,
@@ -249,10 +249,8 @@ fn ray_circle<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<[Point2<T>; 2], PathError<T>> {
-    let w = centre - origin;
-    let along = w.dot(u);
-    let offset = w.perp_dot(u);
-    let margin = r_sq.sqrt() - offset.abs();
+    let ray = Line2 { origin, dir: u };
+    let margin = r_sq.sqrt() - ray.distance(centre);
     match decide(Gate::PathCarrierMeet, Margin::of(margin), band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero) => {
@@ -263,8 +261,7 @@ fn ray_circle<T: Decide>(
         }
         Err(source) => return Err(PathError::escalated(source)),
     }
-    let h = (r_sq - offset.powi(2)).sqrt();
-    Ok([origin + u * (along - h), origin + u * (along + h)])
+    Ok(ray.circle_heights(centre, r_sq).map(|t| ray.at(t)))
 }
 
 /// The corners of a **circle × circle** pair, in fixed order (the

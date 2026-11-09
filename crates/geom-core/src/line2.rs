@@ -1,13 +1,16 @@
 //! The planar line carrier: `origin + dir·t` in the plane, the sibling
 //! of [`crate::Arc2`] and the planar counterpart of `geom::Line`.
 //!
-//! Its readings follow `geom::Line`'s. The **parameter readings**
+//! [`Line2::at`] is the point at `t`. The **parameter readings**
 //! ([`Line2::param`], [`Line2::param_within`], [`Line2::foot_within`])
-//! divide by `|dir|²`, so they hold for any nonzero `dir`, a chord
-//! `b − a` read over the span `(0, 1)` among them. The **metric readings**
-//! ([`Line2::height`], [`Line2::distance`]) divide by `|dir|`, metres for
-//! any nonzero `dir`. **`dir` must be nonzero**: on a zero `dir` every
-//! reading divides `0/0`.
+//! divide by `|dir|²`, as `geom::Line`'s do, so they hold for any
+//! nonzero `dir`, a chord `b − a` read over the span `(0, 1)` among
+//! them. The **metric readings** ([`Line2::height`], [`Line2::side`],
+//! [`Line2::distance`], and [`Line2::circle_heights`] from them)
+//! divide by `|dir|`, metres for any nonzero `dir`; `side` is the
+//! planar one `geom::Line` has no counterpart of, signed by the
+//! perp-dot. **`dir` must be nonzero**: on a zero `dir` every reading
+//! divides `0/0`.
 
 use crate::Real;
 use crate::linalg::{Point2, Vec2};
@@ -68,5 +71,88 @@ impl<T: Real> Line2<T> {
     #[must_use]
     pub fn distance(&self, p: Point2<T>) -> T {
         self.side(p).abs()
+    }
+
+    /// **The heights at which the line meets the circle** about `centre`
+    /// of squared radius `r_sq`, lower first: the centre's
+    /// [`Self::height`] `∓ √(r² − s²)`, `s` its [`Self::side`]. The
+    /// squared radius goes in as given, so no `√(r²)²` is taken on the
+    /// way. Where `dir` is unit the heights are parameters for
+    /// [`Self::at`]. The root is NaN where the line misses the circle:
+    /// the caller decides the clearance `r − |s|` first.
+    #[must_use]
+    pub fn circle_heights(&self, centre: Point2<T>, r_sq: T) -> [T; 2] {
+        let along = self.height(centre);
+        let half = (r_sq - self.side(centre).powi(2)).sqrt();
+        [along - half, along + half]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A line through `(1, 2)` along a non-unit `(3, 4)`, `|dir| = 5`.
+    fn slanted() -> Line2<f64> {
+        Line2 {
+            origin: Point2::new(1.0, 2.0),
+            dir: Vec2::new(3.0, 4.0),
+        }
+    }
+
+    #[test]
+    fn side_is_positive_on_the_left_of_dir_in_metres() {
+        let line = slanted();
+        // The left normal of (3, 4) is (−4, 3); 2 m along it, and 2 m
+        // along the right normal (4, −3).
+        let left = line.at(0.5) + Vec2::new(-4.0, 3.0) * (2.0 / 5.0);
+        let right = line.at(0.5) + Vec2::new(4.0, -3.0) * (2.0 / 5.0);
+        assert!((line.side(left) - 2.0).abs() < 1e-15, "{}", line.side(left));
+        assert!(
+            (line.side(right) + 2.0).abs() < 1e-15,
+            "{}",
+            line.side(right)
+        );
+        assert!((line.distance(right) - 2.0).abs() < 1e-15);
+        assert!(line.side(line.at(-7.0)).abs() < 1e-14);
+    }
+
+    #[test]
+    fn param_within_clamps_to_the_span_and_foot_within_lands_there() {
+        let line = slanted();
+        let off = Vec2::new(-4.0, 3.0);
+        for (t, held) in [(-0.5, 0.0), (0.25, 0.25), (1.75, 1.0)] {
+            let p = line.at(t) + off;
+            assert!((line.param(p) - t).abs() < 1e-15, "param {t}");
+            let got = line.param_within(p, (0.0, 1.0));
+            assert!((got - held).abs() < 1e-15, "param_within {t}: {got}");
+            let foot = line.foot_within(p, (0.0, 1.0));
+            assert!(
+                (foot - line.at(held)).norm() < 1e-14,
+                "foot_within {t}: {foot:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn height_is_metres_and_circle_heights_meet_the_circle() {
+        let line = slanted();
+        assert!((line.height(line.at(2.0)) - 10.0).abs() < 1e-14);
+        // A circle of radius 5 about a point 3 m left of the line, 5 m
+        // along it: the meetings stand 4 m either side.
+        let unit = Line2 {
+            origin: line.origin,
+            dir: line.dir / 5.0,
+        };
+        let centre = unit.at(5.0) + Vec2::new(-4.0, 3.0) * (3.0 / 5.0);
+        let [lo, hi] = line.circle_heights(centre, 25.0);
+        assert!(
+            (lo - 1.0).abs() < 1e-14 && (hi - 9.0).abs() < 1e-14,
+            "{lo} {hi}"
+        );
+        for h in [lo, hi] {
+            assert!(((unit.at(h) - centre).norm() - 5.0).abs() < 1e-14);
+        }
+        assert!(line.circle_heights(centre, 4.0)[0].is_nan());
     }
 }

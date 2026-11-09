@@ -255,9 +255,12 @@ fn validated<T: profile::ArcCarrierScalar>(lp: &ConstructedLoop<T>) -> Result<()
 /// the vertex (it was 2e-11 wide, then `[−2π, 2π]`). Validation answers
 /// the clearance rule: at the default ε the 1.37e8 arc is short of a
 /// full circle by 3.3e-9 m, inside the band, and escalates on that
-/// rather than reading `NearFullArc` wherever the replay stores it; at
-/// `f64` the 1.36e4 arc, clear and inside the scene's resolution,
-/// validates.
+/// rather than reading `NearFullArc` wherever the replay stores it. A
+/// clear arc has to validate at `f64` only where the chord home's
+/// near-tangent crossing with it resolves inside ε, about `r·δh/half`
+/// with `δh` a few ulps of `r`: at 1.36e4 that is ~3e-8 m, coarser than
+/// ε, so the row pins no outcome there (row
+/// `a-line-arc-near-tangent-crossing-resolves-coarser-than-eps`).
 #[test]
 fn the_rows_three_radii_keep_their_end_vertex() {
     let a = Point2::new(0.0, 0.0);
@@ -314,7 +317,13 @@ fn the_rows_three_radii_keep_their_end_vertex() {
                     "{what}: f64 validation {result:?} does not answer the clearance \
                      {clearance:e} m ({class:?})"
                 );
-                if class == Clearance::Clear && 64.0 * r * ULP <= eps {
+                // The chord home crosses the arc's carrier near tangency,
+                // where a crossing resolves to about `r·δh/half`: `δh` the
+                // centre's offset from the chord, read to a few ulps of
+                // `r`, `half` the half-chord. Validation owes an answer
+                // only where that resolves inside ε.
+                let half = 0.5 * (p - a).norm();
+                if class == Clearance::Clear && r * (64.0 * r * ULP) / half <= eps {
                     assert!(result.is_ok(), "{what}: f64 validation refused: {result:?}");
                 }
             }

@@ -3508,6 +3508,10 @@ fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc
 /// angle about it is 2δ, whose quarter-tangent X is.
 fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
     let d = b - a;
+    // Read on the stored `u`, not through `Line2::height`/`side`: the
+    // centre below is built as `a + perp(u)·ρ` on the same `u`, and the
+    // endpoint theorems need `across` read on it
+    // (row `tangent-arcs-construction-reads-across-on-its-stored-unit`).
     let (along, across) = (u.dot(d), u.perp_dot(d));
     let x = crate::sugar::split_half_tan(across, along, d.norm());
     let rho = d.norm_squared() / (T::from_f64(2.0) * across);
@@ -3544,8 +3548,8 @@ fn tangent_arc_geom<T: Decide>(
 ) -> Result<TangentArcGeom<T>, PathError<T>> {
     let d = p - at;
     let u = dep.unit;
-    let along = u.dot(d);
-    let across = u.perp_dot(d);
+    let departure = geom_core::Line2 { origin: at, dir: u };
+    let (along, across) = (departure.height(p), departure.side(p));
     // A target ON the departure line is not a carrier question —
     // the 2026-09-02 ruling took those away — but it is still a
     // GEOMETRY one, and only forward of the tip is it answerable:

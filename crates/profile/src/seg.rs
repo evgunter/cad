@@ -1379,9 +1379,8 @@ pub(crate) fn joint_tangency<T: Decide>(
 }
 
 /// **`carrier_line_circle`'s margin, in one place**: the clearance
-/// `r − |h|` between a line's carrier and a circle's, where
-/// `h = perp_dot(û, C − a)` is the centre's signed offset from the
-/// line. Returned with the SCALE its arithmetic passes through — the
+/// `r − |h|` between a line's carrier and a circle's, where `h` is the
+/// centre's signed offset from the line, [`Line2::side`]. Returned with the SCALE its arithmetic passes through — the
 /// radius and the two points' own coordinate magnitudes — because both
 /// the subtraction and the `C − a` inside `h` cancel first-order in
 /// that magnitude, and the clearance therefore resolves only to about
@@ -1389,7 +1388,9 @@ pub(crate) fn joint_tangency<T: Decide>(
 /// then say how finely this margin could have been read at all.
 ///
 /// Every reader of this clearance goes through here — the pair contact
-/// and the ray cast — so the two cannot drift apart.
+/// and the ray cast — and both place their crossings by
+/// [`Line2::circle_heights`], which reads the same `h`, so the
+/// clearance and the crossings cannot drift apart.
 pub(crate) fn carrier_line_circle_margin<T: Real>(line: Line2<T>, g: &ArcGeom<T>) -> (T, T) {
     let h = line.distance(g.arc.centre);
     (
@@ -1697,14 +1698,15 @@ fn line_line<T: Decide>(
 }
 
 /// Line/arc contacts via the **`carrier_line_circle`** predicate —
-/// margin: r − |h| where h = perp_dot(û, C − a) is the center's signed
-/// distance to the carrier line (meters: the clearance between the line
+/// margin: r − |h| where h is the center's signed distance to the
+/// carrier line ([`Line2::side`]) (meters: the clearance between the line
 /// and the circle; this is the tangency question, and its lever-arm
 /// story is the D4 ¶1 one — an angular tangency deviation φ at contact
 /// radius r displaces the carriers by ≈ r·φ²/2, so the *displacement*
 /// is the honest margin). Negative = the carriers miss; Zero = tangent
 /// (one candidate point, the foot of the perpendicular); Positive =
-/// secant (two candidates, foot ± √(r² − h²) along the line — the
+/// secant (two candidates, foot ± √(r² − h²) along the line,
+/// [`Line2::circle_heights`] — the
 /// radicand is a product of two definitely-positive factors
 /// (r − |h|)(r + |h|), so it cannot poison in this branch).
 ///
@@ -1721,13 +1723,6 @@ fn line_arc<T: Decide>(
     band: Band,
 ) -> Result<PairOutcome<T>, Escalation> {
     let chord_line = line.chord_line();
-    // `h` is read on the unit chord as stored, not through
-    // `Line2::side`'s division by `|unit|`: it feeds the crossings'
-    // `√(r² − h²)`, which cancels near tangency, so a last-place move in
-    // `h` moves a crossing by about `√(2r·δh)`. At R 1.36e4 that turns the
-    // tangent-arc row's validated loop into a touch
-    // (`tangent_arc_near_a_full_turn`).
-    let h = line.unit.perp_dot(g.arc.centre - line.a);
     let tc = chord_line.height(g.arc.centre);
     let foot = chord_line.at(tc);
     let (clearance, _) = carrier_line_circle_margin(chord_line, g);
@@ -1757,8 +1752,9 @@ fn line_arc<T: Decide>(
             )?;
         }
         Sign::Positive => {
-            let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
-            let crossings = [tc - half, tc + half].map(|t| chord_line.at(t));
+            let crossings = chord_line
+                .circle_heights(g.arc.centre, g.arc.radius.powi(2))
+                .map(|t| chord_line.at(t));
             candidates(
                 &mut contacts,
                 (line, arc),
@@ -2460,18 +2456,13 @@ pub(crate) fn ray_crossings<T: Decide>(
         }
         SegKind::Arc(g) => {
             let ray = Line2 { origin, dir };
-            // Read on the unit `dir` as given, for the line×arc pair's
-            // reason: `h` feeds a cancelling `√(r² − h²)`.
-            let h = dir.perp_dot(g.arc.centre - origin);
             let (clearance, _) = carrier_line_circle_margin(ray, g);
             match decide(Gate::CarrierLineCircle, Margin::of(clearance), band).map_err(|_| Graze)? {
                 Sign::Negative => Ok(0),
                 Sign::Zero => Err(Graze),
                 Sign::Positive => {
-                    let tc = ray.height(g.arc.centre);
-                    let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
                     let mut count = 0;
-                    for t in [tc - half, tc + half] {
+                    for t in ray.circle_heights(g.arc.centre, g.arc.radius.powi(2)) {
                         match decide(Gate::RayAdvance, Margin::of(t), band) {
                             Ok(Sign::Negative) => {}
                             Ok(Sign::Positive) => {

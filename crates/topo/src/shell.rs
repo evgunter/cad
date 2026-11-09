@@ -5110,7 +5110,8 @@ impl<T: Decide> ArcPiece<T> {
 
 impl<T: Decide> MovedWall<T> {
     /// The intervals of the line `L` (its `dir` unit, in this face's
-    /// plane) the face covers, as `(lo, hi)` in `L`'s parameter (module
+    /// plane) the face covers, as `(lo, hi)` in heights along `L`
+    /// ([`geom::Line::height`], its parameter where `dir` is unit; module
     /// docs of [`moved_walls_cross`] for the reading): the union of the
     /// two readings that count a point on `L` with one side and with the
     /// other. Each reading holds the boundary stretches on `L` of a face
@@ -5221,7 +5222,7 @@ impl<T: Decide> MovedWall<T> {
                     // one in the half-turn before it `φ − root`.
                     let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
-                    crossings.push(line.param(at(theta)));
+                    crossings.push(line.height(at(theta)));
                 }
                 continue;
             }
@@ -5267,7 +5268,7 @@ impl<T: Decide> MovedWall<T> {
                     if side_of(a)? != side_of(b)? {
                         let (sp, sq) = ((a.1 - line.origin).dot(m), (b.1 - line.origin).dot(m));
                         let x = a.1 + (b.1 - a.1) * (sp / (sp - sq));
-                        crossings.push(line.param(x));
+                        crossings.push(line.height(x));
                     }
                 }
                 continue;
@@ -5276,7 +5277,7 @@ impl<T: Decide> MovedWall<T> {
             if side_of(key(edge.start))? != side_of(key(edge.end))? {
                 let (sp, sq) = ((p - line.origin).dot(m), (q - line.origin).dot(m));
                 let x = p + (q - p) * (sp / (sp - sq));
-                crossings.push(line.param(x));
+                crossings.push(line.height(x));
             }
         }
         // Ordered by decided comparisons, a selection rather than a
