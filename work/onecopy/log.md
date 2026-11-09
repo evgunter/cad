@@ -1209,3 +1209,9 @@
     - Standing is routed to tier 2's `ScaffoldingEmptyLoop` (expected: a row-2 Limit with a not-yet ending; not loosen, not Aborts), not picked fresh.
   - **topo-roster: B.** Prefix-keyed door table plus EXCEPTIONS with reasons; overlapping prefixes are a failure. A (a ~330-row copy) and C (no door attribution) are rejected.
     - `predicate_census` also reports unreadable `read_identity(` data as indirect; sweep's roster is updated in the same PR.
+- 2026-11-09 19:05Z Rulings:
+  - **topo-roster:** two steps. This PR carries the B table, identity consts (with `decision_words` routed through them), reported `read_identity(` sites and INDIRECT entries with reasons. A P3 follow-up row renames the generic forwarders (`decided`, `read`, `zero` …) so they can be declared `Call` carriers, with `CallIn(file, token)` as the fallback.
+  - **kernel-built-recourse: B.** `geom_core::spline::Built<E>` over a `Fact` trait; Display is `fact()` only, with no ending; holders keep their door's ending (D4 ¶1).
+    - `SplineError::payload()` retires into `fact()`.
+    - Mixed arms are split.
+    - (C) is rejected: an ending in the wrapper would be a third spelling, and wrong at the stored and import doors.
