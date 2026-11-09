@@ -4,6 +4,8 @@ kind: issue
 title: Decide-and-fault for carrier-held points (OnCarrier): the trusting placement_on_carrier sites skip the on-plane decision and read a curved OffCarrier by their own policy
 status: open
 opened: 2026-11-09
+priority: P3
+cost: M
 ---
 
 
@@ -30,7 +32,12 @@ as Out):
   These two still spell their own split over `contfp` and
   `curved_face_containment`, because the dispatch is engine-private
   until the containment door moves to the root
-  (`work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement.md`);
+  (`work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement.md`).
+  `crate::boolean::face_placement`, which census already reads from
+  the root (`census::face_holds`, `census/in_plane.rs`), is not
+  theirs: it decides the on-plane margin, and these two trust the point
+  on the plane (the follow-up row's subject); making them decide it is
+  that row's outcome-moving change, not a reroute.;
 - `topo/src/boolean/fate.rs`, a fate cut's end in a divided face's
   pieces;
 - `topo/src/boolean/fate.rs`, the ring-vertex ladder;
@@ -42,7 +49,7 @@ in, not decided twice):
 - `topo/src/boolean/reduce.rs` `vertex_on_face` (the caller's
   vertex-vs-plane classification, `on_plane`) and
   `vertex_on_curved_face_at` (`on_carrier`);
-- `topo/src/boolean/vtxfac.rs` `read_face`'s two arms
+- `topo/src/boolean/vtxfac.rs` `held_reads`' two arms (its `read_face`)
   (`bool_vertex_face_side`, `bool_curved_contain_carrier`).
 
 **What it costs.** A new logged decision on every trusting planar arm.

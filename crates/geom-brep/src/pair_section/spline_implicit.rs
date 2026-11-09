@@ -550,7 +550,7 @@ fn witness(
     else {
         return None;
     };
-    let mid = 0.5 * (b.params.0 + b.params.1);
+    let mid = geom::mid_param(b.params.0, b.params.1);
     let window = crate::ssi::certify::chart_tube_windows(pcurve, (pad_u, pad_v))?
         .into_iter()
         .find(|w| w.ends.0 <= mid && mid <= w.ends.1)?;
@@ -634,7 +634,7 @@ fn bracket<'p>(
         return None;
     }
     for _ in 0..BRACKET_HALVINGS {
-        let middle = 0.5 * (low + high);
+        let middle = geom::mid_param(low, high);
         if middle <= low || middle >= high {
             break;
         }

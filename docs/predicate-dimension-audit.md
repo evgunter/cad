@@ -387,6 +387,8 @@ which is what actually moves the number.
 | geom-brep/src/intersect.rs `plane_torus_section` (SHELL axial-closed; through `geom::spiric_regime`) | pt_spiric_off_axis / pt_spiric_two_ovals / pt_spiric_two_ovals_floor | `d`, the axis-parallel plane's stand-off, then `(R − r) − \|d\|` — the length the two-oval regime closes by, decided before the spiric is minted — read with `pt_axis_in_plane`'s sin×extent beside it (`decide_across`) | m | OK (new in SHELL axial-closed) |
 | topo/src/boolean/slit.rs `spiric_on_curved` (through `geom::spiric_regime`) | bool_rider_spiric_off_axis | a spiric carrier's `offset` — a length; `Zero` leaves the carrier unread | m | OK |
 | topo/src/boolean/slit.rs `spiric_on_curved` (through `geom::spiric_regime`) | bool_rider_spiric_regime / bool_rider_spiric_regime_floor | `(R − r) − \|offset\|` of a spiric carrier, at no swing (`decide_across`) | m | OK |
+| topo/src/boolean/slit.rs `carrier_on_surface` (through `geom_brep::variety::Variety::of` → `geom::RingTorus::of_at`) | bool_rider_torus_tube / bool_rider_ring_torus | a torus face's `r`, then `R − r`: the certificate holds only on a ring | m | OK |
+| topo/src/boolean/reduce.rs `spline_off_carrier` (through `Variety::of` → `geom::RingTorus::of_at`) | bool_spline_sheet_torus_tube / bool_spline_sheet_ring_torus | a torus carrier's `r`, then `R − r` | m | OK |
 | geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_frame_orthogonal | `axis · u_ref`, a cosine of unit vectors, levered at `major_radius + minor_radius` (the farthest point the frame places) | m | OK (new in CURVED-SPIRIC) |
 | dihedral.rs:140 | dihedral_arm | min(curvature arms, extent) | m | OK |
 | dihedral.rs:151 | dihedral_wedge | sinθ (unit-gradient cross) × arm | m | OK |
@@ -810,7 +812,7 @@ which is what actually moves the number.
 | cell_region.rs (CHART) | cell_region_conic_gap | a lower bound on the distance from the station to a circular or elliptic edge: its whole annulus between the semi-axes, then its arc's floor (`ring_path::Conic::distance_floor`), each asked under this name, either clearing, less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
 | cell_region.rs (CHART) | cell_region_ball_gap | the distance from the station to the ball a spiric or spline edge's arc lies in (its cover over the span, `geom::Curve3::cover_over`, nearest distance), less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
 | cell_region.rs (CHART) | cell_region_singular_gap | the distance from the station to the carrier's singular set: a cone's apex, a torus's axis, less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
-| injective.rs (SELFX, `by_kind`) | self_intersection_ring_torus | `R − r`, the torus's major radius less its minor radius | m | OK (new in SELFX). Only a definite `Positive` discharges the face by kind; anything else refuses `TorusNotRing` |
+| injective.rs (SELFX, `by_kind`, through `geom::RingTorus::of_at`) | self_intersection_torus_tube / self_intersection_ring_torus | `r`, then `R − r`, the torus's major radius less its minor radius | m | OK (new in SELFX). Only both halves decided `Positive` discharge the face by kind; anything else refuses `TorusNotRing` |
 | injective.rs (SELFX, `is_zero`, read by `sign_on`) | self_intersection_on_shared | a presented side's (or corner's) separator value, a signed distance (below): for a linear separator on a spline chart (ZEROSIDE, `on_side`), the hull of its values at the side's restricted control points (`NurbsSurface::rect_net`), and elsewhere, or where a restricted weight is not certified positive, its centred form over the side; on a curved side (CURVEDEP), a bound of it along the curve: the linear separator's value in `{1, cos t, sin t}` coefficients, a quadric carrier's squared form `Q = ψ·D` over a lower bound of `D` (`r`, or `ν·h·sin α` on a cone), the graph separator's Lipschitz bound times the side's distance from the edge's carrier plus its overhang past the graph's piece; on a spiric's wall image (SPIRIC), the linear separator's value along the torus's image of the chart curve in `{1, f(t), cos t, sin t}` coefficients, the torus's drift from the carrier's radii carried as a closed-form term over `ρ = R + r·cos t` | m | OK (new in SELFX). Only a definite `Zero` reads the side as lying on the separator; anything else fails the arm |
 | injective.rs (SELFX, `present_chart`; SPIRIC, `present_line_corner`) | self_intersection_sliver | a rectangle clipped to a shared line: its extent across, `Δ × sup \|S_∂\|` (`rect_jet`'s enclosure of the partial, so a metred sup) | m | OK (new in SELFX's fix pass, split off `self_intersection_on_shared`, which decided this and the side value under one name). Only a definite `Zero` reads the strip as holding no point of the face off the line, and only once the rectangle's sides and corners are proven the face's own — one of the presentation's ε concessions, stated at the site and listed in `injective.rs`'s module docs |
 | injective.rs (SELFX, `sign_on`) | self_intersection_departure | the separator `ψ`, a signed distance in metres (`n̂·(p − q)` with `n̂` a unit normal; a cylinder's `ρ − r`; a sphere's `\|p − c\| − r`; a cone's `ρ·cos α − h·sin α`; the graph arm's `h − γ̃(s)`), as its centred form over the rectangle, or its derivative across a shared side (m per chart unit) times the rectangle's extent across it (chart units) | m | OK (new in SELFX). Only a definite `Positive`/`Negative` certifies; `Zero`, in-band and poison fail the arm and the pair splits |
@@ -1795,11 +1797,22 @@ Flagged, NOT fixed here (dispositions):
     the span within the escalation of the member.
   - The window bounds where the boundary pass reads a refused member
     (`curve_face::located`); a wider one costs reads, never a meeting.
+  - Measured as F35's was (`ci` profile, instrumented locally and not
+    kept): over the `geom-brep`, `topo` and `editor-core` suites, 2,397
+    choices were made, all at `f64`. 2,354 halved and 43 kept, and no
+    piece tied outside the row below. No suite reaches the window at
+    `Interval`.
+    `curve_pair::span_rows::a_window_piece_at_the_balls_reach_or_astride_it_is_kept`
+    pins the tie: an exact tie at `f64`, and an `Interval` reach astride
+    the ball's, each keep the piece, and none of it reaches the verdict
+    log.
 
   **Carried as `k_stats::choose(.., "F37")`**, its tie (a decided zero
-  or an undecided difference) keeping the piece. Its K samples reach
-  the sink under `curve_pair_window_halve`. Not a `decide_flagged`
-  site; `LEDGER_FLAGGED_SITES` does not move.
+  or an undecided difference) keeping the piece. Before this row the
+  choice was a logged `decide` at `Band::least()`. Its verdicts no longer
+  reach the log; its K samples still reach the sink under
+  `curve_pair_window_halve`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

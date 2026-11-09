@@ -478,10 +478,11 @@ pub(crate) enum TouchVerdict {
 ///
 /// Each variant states its standing to a ladder over the faces or
 /// sectors that read it ([`Self::refusal`]), with its reason.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum TouchUnread {
     /// A sign the analysis needed is in band. In band.
+    #[default]
     InBand,
     /// A face's piece at the touch did not build: a choice in building
     /// it was in band, or its readings contradicted each other within
@@ -532,6 +533,21 @@ pub enum TouchUnread {
 }
 
 impl TouchUnread {
+    /// **The touch refusal a kept standing reads as**, for a reading whose
+    /// standing has its home elsewhere ([`Refusal::of_apex`]): a reading
+    /// in band, by margin or not, or unsettled, is [`Self::InBand`]; a
+    /// limit is [`Self::Unanalysed`]. **Lossy**, not an inverse of
+    /// [`Self::refusal`]: a margin's diagnostics are dropped (no arm here
+    /// carries one, and the type is `Eq`), and an unsettled reading reads
+    /// back as in band, ranked ahead of where it stood.
+    #[must_use]
+    pub const fn kept(standing: Refusal) -> Self {
+        match standing {
+            Refusal::Margin(_) | Refusal::InBand | Refusal::Unsettled => Self::InBand,
+            Refusal::Limit => Self::Unanalysed,
+        }
+    }
+
     /// What this refusal is to a ladder over the faces or sectors that
     /// read it, as each variant's docs state it.
     ///
@@ -1641,7 +1657,7 @@ impl<T: Decide> Sector<T> {
                         Rung::Passes
                     }
                     Ok(Place::Outside) => Rung::Passes,
-                    Err(why) => Rung::refused(why, Unsettled::refusal),
+                    Err(why) => Rung::refused(why, Unsettled::refusal, Err),
                 }
             },
         );
@@ -2084,7 +2100,7 @@ impl<T: Decide> Cone<T> {
         let climbed = climb(Answering::First, references, |(arc, t, base, c, ray)| {
             let w = arc.reference(p, q, c, ray);
             let mut refused = |why: Unread<T>| match arc {
-                ArcReach::Near => Rung::refused(why, Unread::refusal),
+                ArcReach::Near => Rung::refused(why, Unread::refusal, Err),
                 ArcReach::Out => {
                     in_band = true;
                     Rung::Passes
@@ -3923,7 +3939,7 @@ pub(crate) mod rest {
             let cut: Vec<usize> = all[1 - side].iter().map(|(k, _)| *k).collect();
             for (k, pieces) in &all[side] {
                 for &(c0, c1) in pieces {
-                    let probe = c0 + (c1 - c0) * T::from_f64(0.5);
+                    let probe = c0.mid(c1);
                     // On another face of its own link (a slit or a face
                     // doubled, no boundary the probe can stand on and no
                     // material behind it), or in band of one: the piece
@@ -4415,7 +4431,7 @@ pub(crate) mod rest {
                     }
                     notes.in_band = true;
                 }
-                let probe = c0 + (c1 - c0) * T::from_f64(0.5);
+                let probe = c0.mid(c1);
                 for &j in &others {
                     let t = &link.cone.sectors[j];
                     if link.cone.side(t, probe, rd) != Some(Sign::Zero) {

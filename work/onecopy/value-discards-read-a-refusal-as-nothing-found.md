@@ -74,3 +74,8 @@ a refusal as nothing found:
   reads as "no normal"). Both are value discards of the same kind: the
   chord then passes rather than being kept.
 
+- `crates/topo/src/boolean/factored_crossing.rs`, the conic lane's
+  `ConicPlaneMeet::Parallel` arm: `Ok(Sign::Zero) | Err(_) => return
+  Ok(None)` on `bool_conic_face_plane_offset`, a decide folded into
+  "no factored crossing" (named by `two-boolean-normal-readers-absorb-a-normals-refusal-as-no-normal`,
+  added here by `onecopy/normal-refusals`).
