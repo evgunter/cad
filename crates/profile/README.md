@@ -521,13 +521,16 @@ tangency condition is linear in the radius on both leg kinds, so it is
 a closed form at the site, not a search; it is `None` only where that
 form degenerates.
 
-The two numbers meter the two levers. A leg's `setback − available` is
-the extent it lacks, which moving its anchor along a carrier that stays
-put supplies one for one; `radius_at_anchor` is this corner's anchor
-bound for the radius. The sentence names each overrunning leg's
-shortfall and the radius, rendered strictly below the exact value (an
-exact boundary radius typed back lands in the band): "give that leg E m
-more extent, or use a radius of X m or less". It promises this corner's
+The two numbers meter the two levers, each stated as the value to set
+rather than an amount to add. A leg fits when its anchor lies at least
+`setback` from the corner along the side, and moving the anchor along a
+carrier that stays put changes `available` one for one, so `setback` is
+the anchor's target; `radius_at_anchor` is this corner's bound for the
+radius. The sentence names, for each overrunning leg, where its anchor
+must lie, and the radius, each rendered strictly on the fitting side of
+the exact value (an exact boundary value typed back lands in the band):
+"anchor that leg at least S m from the corner (it is A m now), or use a
+radius of X m or less". It promises this corner's
 anchor fit and nothing more; a smaller radius can still refuse at
 another gate, in that gate's own words. Where `radius_at_anchor` is
 `None` the radius lever is named without a value. A corner's recourse
