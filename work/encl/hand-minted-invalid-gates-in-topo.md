@@ -278,3 +278,5 @@ INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
 above as blocked by the D10 hold (#3–#7, #15–#19, #21, #22) no longer
 wait on it. Stage 4 has retired declared pairs, so a unit re-reads
 those sites against main before it fixes them; some may be gone.
+
+2026-11-09 (SEAL, `carrier-readings-keep-the-margins-they-decided-on`'s sweep): #20 still stands on main, `chart_region.rs`'s `chart_region_cyl_axis_sense` arm, a decided Zero minted `INVALID` by hand. It is the gate shape that PR routed `rim_wedge`'s `seam_traversal_unread` through (`decide_nonzero`). #13 (`plane_eq::unreadable_norm`) also stands, and TOPO's row owns its ending.

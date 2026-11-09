@@ -8,7 +8,7 @@
 use geom_brep::ExtentBall;
 use geom_core::{Band, Decide, Point3};
 
-use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
+use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict};
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
@@ -61,6 +61,16 @@ pub enum PairFace {
     First,
     /// The second face.
     Second,
+}
+
+impl PairFace {
+    /// This face's entry of `pair`, given in the door's order.
+    pub fn of<X>(self, [first, second]: [X; 2]) -> X {
+        match self {
+            Self::First => first,
+            Self::Second => second,
+        }
+    }
 }
 
 /// Why a face pair has no carrier reading: the door's input, not a
@@ -265,15 +275,15 @@ pub fn carrier_pair_relation<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Result<CarrierRelation, CarrierEqError>, PairUnread> {
-    Ok(carrier_pair_decided(a, fa, b, fb, band)?.map(|(rel, _)| rel))
+    Ok(carrier_pair_decided(a, fa, b, fb, band)?.map(CarrierVerdict::relation))
 }
 
-/// [`carrier_pair_relation`] with the margin that decided a coincidence
-/// ([`super::carrier_eq::CarrierReading`]): the margin the glue door
+/// [`carrier_pair_relation`] with the reading that decided it
+/// ([`CarrierVerdict`]): a coincidence's margin is the one the glue door
 /// records, and the reading the coincidence door runs on two cells'
 /// carriers in a replay at `Sym`, where the margin says whether the
 /// symbolic tier proved every Zero the verdict stands on
-/// ([`geom_core::MarginDiag::proven`]). `None` beside `Distinct`.
+/// ([`geom_core::MarginDiag::proven`]).
 ///
 /// # Errors
 ///
@@ -288,13 +298,13 @@ pub fn carrier_pair_decided<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Result<(CarrierRelation, Option<geom_core::MarginDiag>), CarrierEqError>, PairUnread> {
+) -> Result<Result<CarrierVerdict, CarrierEqError>, PairUnread> {
     let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
     let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
     Ok(
         match super::carrier_eq::pair_door_reading(&ca, &cb, &extent.consumed(), band) {
-            Ok((CarrierRelation::Distinct, _))
+            Ok(CarrierVerdict::Apart(_))
                 if matches!(
                     (ca, cb),
                     (CarrierDesc::Torus { .. }, CarrierDesc::Torus { .. })
@@ -331,7 +341,7 @@ fn torus_pair_witnessed<T: Decide>(
     (a, fa, ca): (&Body<T>, FaceKey, &CarrierDesc<T>),
     (b, fb, cb): (&Body<T>, FaceKey, &CarrierDesc<T>),
     band: Band,
-) -> Result<super::carrier_eq::CarrierReading, CarrierEqError> {
+) -> Result<CarrierVerdict, CarrierEqError> {
     use super::carrier_eq::CoincidenceMeasure;
     use geom_core::{Decided, Indeterminate, Margin, Sign};
     let on = |body: &Body<T>, f: FaceKey| {
@@ -358,10 +368,12 @@ fn torus_pair_witnessed<T: Decide>(
         relation,
     };
     match CoincidenceMeasure::decide(TORUS_WITNESS, Margin::of(farthest), band) {
-        Ok(Decided {
-            sign: Sign::Positive,
-            ..
-        }) => Ok((CarrierRelation::Distinct, None)),
+        Ok(
+            witness @ Decided {
+                sign: Sign::Positive,
+                ..
+            },
+        ) => Ok(CarrierVerdict::Apart(witness)),
         Ok(Decided { margin, .. }) => {
             Err(undecided(CoincidenceMeasure::Undecided(Indeterminate {
                 margin,

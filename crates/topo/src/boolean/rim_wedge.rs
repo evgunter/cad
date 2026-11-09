@@ -41,6 +41,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
+use super::carrier_pair::PairFace;
 use super::contain::{
     ContainError, CurvedPlacement, FaceContainment, PlacementError, face_placement,
 };
@@ -262,12 +263,22 @@ pub(crate) enum Departure {
 }
 
 /// **Why [`departures`] read nothing**: a reading in band, its
-/// escalation whole, or a reading that contradicts the construction it
-/// was asked about, a fault.
+/// escalation whole; a face whose containment door placed a touch
+/// piece's midpoint on no margin; or a reading that contradicts the
+/// construction it was asked about, a fault.
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::boolean) enum RimUnread {
     /// A margin the band does not decide.
     InBand(Indeterminate),
+    /// A face's containment door gave a piece's midpoint no verdict and
+    /// read no margin: the door's own refusal, carried whole, or `None`
+    /// where the face's curved trim is one the chart door does not read.
+    Unplaced {
+        /// The face's side of the pair, in [`departures`]' order.
+        side: PairFace,
+        /// The door's refusal.
+        refusal: Option<ContainError>,
+    },
     /// A definite reading the construction rules out.
     Fault(&'static str),
 }
@@ -327,10 +338,9 @@ impl From<Indeterminate> for RimUnread {
 ///
 /// # Errors
 ///
-/// [`Indeterminate`]: the deciding predicate when a riding, crossing,
-/// containment or traversal margin lands in the band, or
-/// `seam_cover_unread` (a label) when a face's containment door has no
-/// verdict for a curved face's chart.
+/// [`RimUnread`]: the deciding predicate when a riding, crossing,
+/// containment or traversal margin lands in the band, or the face whose
+/// containment door has no verdict for a piece and reads no margin.
 pub(crate) fn departures<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -378,8 +388,8 @@ pub(crate) fn departures<T: Decide>(
             continue;
         }
         let mid = (s0 + s1) * T::from_f64(0.5);
-        let ca = ra.at(a, fa, locus, mid, scale, band)?;
-        let cb = rb.at(b, fb, locus, mid, scale, band)?;
+        let ca = ra.at((a, fa, PairFace::First), locus, mid, scale, band)?;
+        let cb = rb.at((b, fb, PairFace::Second), locus, mid, scale, band)?;
         if !(ca.contains() && cb.contains()) {
             continue;
         }
@@ -494,8 +504,7 @@ impl<T: Decide> FaceOnLocus<T> {
     /// (`scale`, as [`sort_params`]).
     fn at(
         &self,
-        body: &Body<T>,
-        face: FaceKey,
+        (body, face, side): (&Body<T>, FaceKey, PairFace),
         locus: Locus<T>,
         s: T,
         scale: T,
@@ -526,7 +535,7 @@ impl<T: Decide> FaceOnLocus<T> {
         }
         Ok(match seen {
             Some(sign) => Cover::Rides(sign),
-            None => match contains(body, face, locus_point(locus, s), band)? {
+            None => match contains((body, face, side), locus_point(locus, s), band)? {
                 Some(inside) => Cover::Contains(inside),
                 None => Cover::Unread,
             },
@@ -585,17 +594,11 @@ const RIM_ON_PLANE: &str = "bool_rim_wedge_on_plane";
 /// midpoint. Neither says the locus runs through the face's interior,
 /// nor that it misses the face.
 fn contains<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
+    (body, face, side): (&Body<T>, FaceKey, PairFace),
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<bool>, RimUnread> {
-    let unread = Indeterminate {
-        margin: geom_core::MarginDiag::INVALID,
-        band,
-        predicate: Some("seam_cover_unread"),
-        terminal_sliver: false,
-    };
+    let unread = |refusal| RimUnread::Unplaced { side, refusal };
     let read = match face_placement(body, face, p, band, RIM_ON_PLANE) {
         Ok(read) => read,
         // The boundary pass placed the point at an arc's end and clear of
@@ -611,10 +614,9 @@ fn contains<T: Decide>(
         // a margin is the escalation, the rest leave the piece unread.
         Err(PlacementError::Door(e)) => {
             return Err(match e.refusal() {
-                Ok(geom_brep::ladder::Refusal::Margin(diag)) => diag,
-                _ => unread,
-            }
-            .into());
+                Ok(geom_brep::ladder::Refusal::Margin(diag)) => diag.into(),
+                _ => unread(Some(e)),
+            });
         }
     };
     match read {
@@ -629,7 +631,7 @@ fn contains<T: Decide>(
         CurvedPlacement::Trim(Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))) => {
             Ok(None)
         }
-        CurvedPlacement::Trim(None) => Err(unread.into()),
+        CurvedPlacement::Trim(None) => Err(unread(None)),
     }
 }
 
@@ -669,15 +671,12 @@ fn reach<T: Decide>(
                 Locus::Rim(_) => "seam_rim_traversal",
                 Locus::Line(_) => "seam_line_traversal",
             };
-            let sign = crate::validate::decide(name, Margin::of(cos), band)?;
-            if sign == geom_core::Sign::Zero {
-                return Err(Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band,
-                    predicate: Some("seam_traversal_unread"),
-                    terminal_sliver: false,
-                });
-            }
+            // A riding edge runs the locus one way or the other: a
+            // traversal decided square to it has no direction to read.
+            let sign = match crate::validate::decide_nonzero(name, Margin::of(cos), band)? {
+                geom_core::k_stats::NonzeroSign::Positive => geom_core::Sign::Positive,
+                geom_core::k_stats::NonzeroSign::Negative => geom_core::Sign::Negative,
+            };
             let span = match locus {
                 Locus::Line(_) => {
                     let (u, w) = (locus_param(locus, p0), locus_param(locus, p1));
@@ -1150,7 +1149,7 @@ mod cover_rows {
                 rides,
                 cuts: Vec::new(),
             }
-            .at(&body, face, line, 0.5, 1.0, band)
+            .at((&body, face, PairFace::First), line, 0.5, 1.0, band)
             .unwrap()
         };
         use geom_core::Sign::{Negative, Positive};
@@ -1556,18 +1555,22 @@ mod arc_end_rows {
             ),
             "the end lies off both corners at the finer band"
         );
-        assert_eq!(contains(&body, cap, end, fine), Ok(None), "off its corner");
+        assert_eq!(
+            contains((&body, cap, PairFace::First), end, fine),
+            Ok(None),
+            "off its corner"
+        );
         let (body, cap, end) = half_disc_cap(0.0, tol);
         let q = beside_the_arc_end(end, zero);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
         let straddle = |d: &Indeterminate| d.predicate == Some("curve_pair_span_end_straddle");
         assert!(
             matches!(
-                contains(&body, cap, q, narrow),
+                contains((&body, cap, PairFace::First), q, narrow),
                 Err(RimUnread::InBand(ref d)) if straddle(d)
             ),
             "the band's parting escalates: {:?}",
-            contains(&body, cap, q, narrow)
+            contains((&body, cap, PairFace::First), q, narrow)
         );
         // The line crosses the unit circle at `x = -sqrt(1 - y²)`, `delta`
         // past the point; the block's left edge stands `delta` before it.
@@ -1692,7 +1695,11 @@ mod boundary_midpoint_rows {
                 let delta = (8.0 * gap * zero).sqrt();
                 if gap < 1.0 {
                     assert_eq!(
-                        contains(&cap_body, cap, at(delta / 2.0, 0.0), band),
+                        contains(
+                            (&cap_body, cap, PairFace::First),
+                            at(delta / 2.0, 0.0),
+                            band
+                        ),
                         Ok(None),
                         "theta {theta}: the cap's door reads the midpoint on its arc"
                     );
@@ -1767,7 +1774,7 @@ mod boundary_midpoint_rows {
                     "theta {theta}: {which}'s door reads the midpoint at its corner"
                 );
                 assert_eq!(
-                    contains(body, face, mid, narrow),
+                    contains((body, face, PairFace::First), mid, narrow),
                     Ok(None),
                     "theta {theta}: {which}"
                 );

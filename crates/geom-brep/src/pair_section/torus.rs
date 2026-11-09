@@ -1103,8 +1103,10 @@ impl<T: Decide> TorusTorusPose<T> {
             match tori_coincide(r1.data(), r2.data(), band) {
                 TorusCoincidence::One(_) => return Err(TorusPoseRefusal::Coincident),
                 TorusCoincidence::Undecided(diag) => return Err(undecided_symmetry(diag)),
-                TorusCoincidence::OffRing(t) => return Err(TorusPoseRefusal::Torus(t)),
-                TorusCoincidence::Apart => {}
+                TorusCoincidence::OffRing { refusal, .. } => {
+                    return Err(TorusPoseRefusal::Torus(refusal));
+                }
+                TorusCoincidence::Apart { .. } => {}
             }
             // Both balls hold the section: the smaller is the tighter
             // reach, and where the comparison is not decided either
