@@ -289,14 +289,11 @@ disclosed rather than discovered.
 **These names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 255 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
-- eight through `predicate: Some("…")`: `carrier_unglued_coincidence`,
-  `contact_rest_ladder_invariant`, `contact_rest_senses_opposed`,
-  `contact_tangent_independent`, `merge_pair_extent`,
-  `seam_cover_unread`, `seam_traversal_unread`, `tangency_sides_mixed`;
+- three through `predicate: Some("…")`: `carrier_unglued_coincidence`,
+  `contact_tangent_independent`, `tangency_sides_mixed`;
 - four through a helper that fills that field for its caller:
-  `carrier_kind` (`carrier_eq::definite`),
-  `continuation_senses_aligned` (`boolean::sense_contradiction`, which
-  names `contact_rest_senses_opposed` too), `tangency_conformal`
+  `contact_rest_senses_opposed` and `contact_rest_one_carrier`
+  (`rest_pair_verdict`'s `definite`), `tangency_conformal`
   (`verify_tangency`'s `label`), and
   `bool_join_torus_section_touching_under_a_germ`
   (`invalid_margin::invalid`, through a `const`);
@@ -385,9 +382,11 @@ which is what actually moves the number.
 |---|---|---|---|---|
 | geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC; the kind's deciding door, registered here because `topo`'s rim mint decides through it) | spiric_minor_positive | the minor radius | m | OK (new in CURVED-SPIRIC) |
 | geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | ring_torus_convention (`geom::ring_torus`, the convention's one home) | `major_radius − minor_radius` — the ring convention's length | m | OK (new in CURVED-SPIRIC) |
-| geom/src/curves.rs `Curve3::spiric` (SHELL axial-closed) | spiric_off_axis | `offset`, the plane's signed stand-off from the axis — a length; `Zero` refuses, the oval being a meridian `Circle` (C1, most exact kind first) | m | OK (new in SHELL axial-closed) |
-| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_two_ovals | `(major_radius − minor_radius) − \|offset\|` — the length the two-oval regime closes by, decided before any root (the `offset_axial_rim_torus_reach` comparand, re-decided at the kind's own door) | m | OK (new in CURVED-SPIRIC) |
-| geom-brep/src/intersect.rs `plane_torus_section` (SHELL axial-closed) | pt_spiric_two_ovals / pt_spiric_two_ovals_floor | `(R − r) − \|d\|` for the axis-parallel plane's stand-off `d` — the length the two-oval regime closes by, decided before the spiric is minted (`spiric_two_ovals`' comparand at the section's own arm) — read with `pt_axis_in_plane`'s sin×extent beside it (`decide_across`) | m | OK (new in SHELL axial-closed) |
+| geom/src/curves.rs `Curve3::spiric` (SHELL axial-closed; through `spiric_regime`, the regime's one predicate, under `SpiricRegimeSites::MINT`) | spiric_off_axis | `offset`, the plane's signed stand-off from the axis — a length; `Zero` refuses, the oval being a meridian `Circle` (C1, most exact kind first) | m | OK (new in SHELL axial-closed) |
+| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC; through `spiric_regime`) | spiric_two_ovals / spiric_two_ovals_floor | `(major_radius − minor_radius) − \|offset\|` — the length the two-oval regime closes by, decided before any root, at no swing (`decide_across`) | m | OK (new in CURVED-SPIRIC) |
+| geom-brep/src/intersect.rs `plane_torus_section` (SHELL axial-closed; through `geom::spiric_regime`) | pt_spiric_off_axis / pt_spiric_two_ovals / pt_spiric_two_ovals_floor | `d`, the axis-parallel plane's stand-off, then `(R − r) − \|d\|` — the length the two-oval regime closes by, decided before the spiric is minted — read with `pt_axis_in_plane`'s sin×extent beside it (`decide_across`) | m | OK (new in SHELL axial-closed) |
+| topo/src/boolean/slit.rs `spiric_on_curved` (through `geom::spiric_regime`) | bool_rider_spiric_off_axis | a spiric carrier's `offset` — a length; `Zero` leaves the carrier unread | m | OK |
+| topo/src/boolean/slit.rs `spiric_on_curved` (through `geom::spiric_regime`) | bool_rider_spiric_regime / bool_rider_spiric_regime_floor | `(R − r) − \|offset\|` of a spiric carrier, at no swing (`decide_across`) | m | OK |
 | geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_frame_orthogonal | `axis · u_ref`, a cosine of unit vectors, levered at `major_radius + minor_radius` (the farthest point the frame places) | m | OK (new in CURVED-SPIRIC) |
 | dihedral.rs:140 | dihedral_arm | min(curvature arms, extent) | m | OK |
 | dihedral.rs:151 | dihedral_wedge | sinθ (unit-gradient cross) × arm | m | OK |
@@ -1559,12 +1558,27 @@ Flagged, NOT fixed here (dispositions):
   site; `LEDGER_FLAGGED_SITES` does not move.
 
 - **F31** (added by ONECOPY's foot-and-angle unit, widened by its
-  angle-reads unit) — **a renaming between copies equal modulo a
-  period.** Two sites, each choosing between names of one value:
+  angle-reads unit, and by its half-open-angles unit) — **a renaming
+  between copies equal modulo a period.** Three sites, each choosing
+  between names of one value:
   - `geom_core::Period::near` (`period_near_mark`): the half-period
     marks about a reference that pick which copy `t + k·P` of a value
     lies within half a period of it. A tie, a mark decided zero or
     undecided, takes the upper copy.
+  - `geom_core::Period::above` and `Period::at_or_above`
+    (`period_window_end`, a `k_stats::choose` under this row): the side of `a` on which `near`'s copy about
+    `a` lies, which decides whether it is lifted a period into
+    `(a, a + P]` or `[a, a + P)`. A tie, the side decided zero or
+    undecided, takes the window's closed end. Closed at `a`, a point
+    lift that rounds onto `a + P` (`period_window_open_end`, the same
+    door) reads `a`: at `f64`, every finite value. An enclosure that
+    ties there keeps its lifted copy, which it encloses. Step-import's conic edge
+    intervals, its rim split and its ray walk read here.
+    Those three read at `f64`, where the side of `a` is a float
+    difference's sign and is exact. An extent formed off the window
+    (an arc's `t1 − t0`: a whole turn or none at a tie) is a reading
+    of the decision, so an enclosure caller that forms one would need
+    the side logged at its own band, as `pcurve_chart_cut_side` is.
   - `geom::Azimuth::near` (`azimuth_near_cut_side`): which of the angle
     window's two `atan2` formulas, equal modulo a turn, reads the
     direction, before `Period::near` renames the read. A harmonic's
@@ -1584,8 +1598,9 @@ Flagged, NOT fixed here (dispositions):
   the driver an escalation no box answers, on every angle read half a
   turn from its reference.
 
-  **Carried as `k_stats::unlogged("F31", ..)`**, both at `Band::least()`.
-  Their K samples still reach the sink under the two names above. A
+  **Carried as `k_stats::unlogged("F31", ..)`**, and the window end as
+  `k_stats::choose(.., "F31")`, all at `Band::least()`. Their K samples
+  still reach the sink under the three names above. A
   margin decided at `Band::least()` is not a length against ε, and its
   sample says so (`MarginSample::reads_sign_only`), so a reader that
   asks how margins scale with the model, such as the twin suites, reads
@@ -1720,12 +1735,15 @@ Flagged, NOT fixed here (dispositions):
   - So the logged tie was never the driver's only cue. Where a dropped
     step leaves a meeting unproved, the window's escalation is the cue,
     on a row a box answers.
-  - Measured on this unit's head (`ci` profile, instrumented locally and
-    not kept): over the `geom-brep` and `topo` suites, 17,883 steps
-    were dropped at `Interval`, every one decided, and no step tied at
-    either scalar; `editor-core`'s suite reaches no polish step. The
-    move changes no outcome those suites reach; it is argued on the
-    tie's soundness, which
+  - Measured (`ci` profile, default ε, instrumented locally and not
+    kept), over the `geom-brep` and `topo` suites: `step_taken` is read
+    31,304 times at `f64`, which keeps 25,997 steps and drops 5,305 (one
+    of them a tie), and twice at `Interval`, which keeps one and drops
+    one, a tie. A dropped step ends the polish (`polish::pair`): the
+    iterate has not moved, so the next step would be the same one.
+    `editor-core`'s suite reaches no polish step. The move changes no
+    outcome those suites reach; it is argued on the tie's soundness,
+    which
     `curve_pair::walk::tests::a_polish_step_at_its_bound_or_astride_it_is_dropped`
     pins (an exact `16·slack` and an enclosure astride it are dropped,
     off the verdict log).
@@ -1763,6 +1781,25 @@ Flagged, NOT fixed here (dispositions):
   samples still reach the sink under `pn_conic_span_weight`; the verdict
   log no longer carries it. Not a `decide_flagged` site;
   `LEDGER_FLAGGED_SITES` does not move.
+
+- **F37** (added by ONECOPY's carrier-standing unit)
+  `curve_pair_window_halve` — `geom-brep/src/curve_pair/span.rs`
+  `Span::pieces_near`: whether a piece of the carrier's piece walk, not
+  proved clear of a refused member's ball, is halved again or kept in
+  the window, on whether its reach is past the ball's radius plus the
+  escalation. What keeps it off the logged doors is that **no outcome is
+  a reading, only the window's resolution**:
+  - A kept piece only widens the window; a halved one is read again,
+    each half cleared only on its own proof (`curve_pair_window_clear`,
+    logged). So either answer leaves the window holding every point of
+    the span within the escalation of the member.
+  - The window bounds where the boundary pass reads a refused member
+    (`curve_face::located`); a wider one costs reads, never a meeting.
+
+  **Carried as `k_stats::choose(.., "F37")`**, its tie (a decided zero
+  or an undecided difference) keeping the piece. Its K samples reach
+  the sink under `curve_pair_window_halve`. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
@@ -1903,3 +1940,17 @@ Notes (verified honest, kept for the design conversation):
   side test a direction-pair comparand and the extent a geodesic
   `Δv`-scaled one; both are lever changes at one site each, N1/N7's
   family. No arithmetic moved here.
+
+- **N10** `session_box_reach` (`topo/src/session_box.rs`
+  `in_session_box`, asked at the finished-body gate) is
+  `SESSION_BOX_EXTENT − body_reach(body)`, the box's extent less the
+  body's largest `|coordinate|` (the box bounds each coordinate,
+  `[tolerance.units]`): two lengths in metres, so the margin is a length
+  and the band is the linear one, as D4 asks. It
+  is the one decision measured against a FIXED extent, the session box
+  (DESIGN `[tolerance.epsilon]`), not against the model's own geometry.
+  So it does not scale with the model: at a millimetre and at a metre
+  it reads about `SESSION_BOX_EXTENT` both times, a twin ratio near 1.
+  That is its dimension, not a defect. The model-scale twin suites
+  (`topo`'s `rim_dim_boolean_twins`) list it in `KNOWN_NONLINEAR`,
+  citing this note.
