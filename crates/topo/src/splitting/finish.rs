@@ -1415,8 +1415,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // ---- Classification + the degenerate net. ----
-    let mut above_shells = Vec::new();
-    let mut below_shells = Vec::new();
+    let mut binned = ShellSides::default();
     for shell in all_shells {
         let faces = &body
             .get_shell(shell)
@@ -1440,11 +1439,12 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         if !has_real_face {
             return Err(SplitFinishError::DegenerateSide { shell, side });
         }
-        match side {
-            PlaneSide::Above => above_shells.push(shell),
-            _ => below_shells.push(shell),
-        }
+        binned.bin(shell, side);
     }
+    let ShellSides {
+        above: above_shells,
+        below: below_shells,
+    } = binned;
     if above_shells.is_empty() || below_shells.is_empty() {
         // With ≥1 completed section both sides must hold material.
         return Err(SplitFinishError::Corrupt);
@@ -2000,22 +2000,24 @@ fn whole_body_side<T: Decide>(
 ) -> Result<RawSplit<T>, SplitFinishError> {
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let solid = single_solid(&body)?;
-    let (mut above, mut below) = (Vec::new(), Vec::new());
+    let mut binned = ShellSides::default();
     for &shell in body
         .shells_of_solid(solid)
         .ok_or(SplitFinishError::Corrupt)?
     {
         match shell_side(&body, shell, sides, plane, band)? {
-            Some(PlaneSide::Above) => above.push(shell),
-            Some(_) => below.push(shell),
+            Some(side) => binned.bin(shell, side),
             // Every vertex and every curved edge ON: a zero-volume
             // shell, which no closed solid holds; the operand is never
             // validated, so this refuses here.
             None => return Err(SplitFinishError::Corrupt),
         }
     }
+    let ShellSides { above, below } = binned;
     let (above, below) = match (above.is_empty(), below.is_empty()) {
-        (_, true) => (RawPart::Body(body), RawPart::Empty),
+        // A solid with no shell holds no material to place.
+        (true, true) => return Err(SplitFinishError::Corrupt),
+        (false, true) => (RawPart::Body(body), RawPart::Empty),
         (true, false) => (RawPart::Empty, RawPart::Body(body)),
         (false, false) => (
             RawPart::Body(carve(&body, solid, &above)?),
@@ -2026,8 +2028,30 @@ fn whole_body_side<T: Decide>(
         above,
         below,
         naming: SplitNaming::default(),
+        // The reduce's pinch coincidences are not carried here, as the
+        // cut path carries them: whether an uncut split should is
+        // `an-uncut-split-drops-its-pinch-coincidences`.
         coincidences: Vec::new(),
     })
+}
+
+/// The shells of each side of a split, as the distribution bins them
+/// ([`ShellSides::bin`]): the cut path's components and the uncut
+/// path's shells alike.
+#[derive(Default)]
+struct ShellSides {
+    above: Vec<ShellKey>,
+    below: Vec<ShellKey>,
+}
+
+impl ShellSides {
+    /// Bins `shell` on `side`: `Above`, or `Below` for every other side.
+    fn bin(&mut self, shell: ShellKey, side: PlaneSide) {
+        match side {
+            PlaneSide::Above => self.above.push(shell),
+            _ => self.below.push(shell),
+        }
+    }
 }
 
 /// **The side of a shell no section touches**: every off-plane point of
@@ -2944,17 +2968,19 @@ mod joined_lineage_rows {
     }
 }
 
-/// `shell_side`'s ladder over the curved edges of a body whose
-/// every vertex reads ON: an edge read in band refuses typed, and only
-/// where no other edge decides the side.
+/// `shell_side`'s ladder over the curved edges of a shell whose every
+/// vertex reads ON, through both its readers (the uncut split and a cut
+/// split's uncut component): an edge read in band refuses typed, and
+/// only where no other edge decides the side.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod whole_body_side_rows {
     use geom_core::{Band, Point3, Tol, Vec3};
     use slotmap::SecondaryMap;
 
-    use super::{RawPart, SplitFinishError, whole_body_side};
+    use super::{RawPart, SplitFinishError, classify_shell, whole_body_side};
     use crate::body::Body;
+    use crate::splitting::PlaneSide;
     use crate::splitting::SplitPlane;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, split_plane};
 
@@ -3021,5 +3047,30 @@ mod whole_body_side_rows {
             panic!("an infinite offset escalates the side: {got:?}")
         };
         assert!(diag.margin.is_invalid(), "{diag:?}");
+    }
+
+    /// **A cut split's uncut component is placed by its curved edges**
+    /// where every vertex reads ON: the wall's vertices lie on the plane
+    /// `y = 0` and its arcs' midpoints above it, so the component is
+    /// `Above`. Red when the component's fallback reads its vertices
+    /// alone, which places nothing here.
+    #[test]
+    fn an_uncut_component_with_every_vertex_on_reads_its_curved_edges() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let body = wall(tol);
+        let (shell, _) = body.shells().next().expect("the wall's shell");
+        let got = classify_shell(
+            &body,
+            shell,
+            &SecondaryMap::new(),
+            &SecondaryMap::new(),
+            &plane(Vec3::unit_y(), 1.0, tol),
+            band,
+        );
+        assert!(
+            matches!(got, Ok((PlaneSide::Above, true))),
+            "the arcs place the component Above: {got:?}"
+        );
     }
 }
