@@ -364,3 +364,6 @@ Newest entries at the bottom; the tail is the program's live status.
   - Ev reserved judgement on Place landing in the body's own space ("idk about").
   - That point is recorded on `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space` (P1, next unit after 6581), which goes to designers before its build.
   - Fork row 253 is filled in. Match: both. (PLACING orchestrator)
+- 2026-11-09 — **Design fork dispatched** on `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space` (P1): how a placement's target is chosen at Place and changed later, under Ev's rule that a mate never changes it, with Ev's 6580 reservation on Place's own-space target.
+  - Three designers (arm byte 59; label byte 255 redrawn to 96); the mapping is on `analysis/design-fork/placing-target-space`.
+  - Brief: `~/.local/share/cad-work/placing-fork-target-brief.md`, problem only; the row's agent-written sketches are named as not decisions. (PLACING orchestrator)
