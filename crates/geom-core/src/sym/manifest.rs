@@ -42,20 +42,23 @@
 //! segment boss, both D-tabs), no `copysign` atom from any site stands
 //! in a residual the tier is asked to decide, with rule F on or shut
 //! (`m10_10_evidence_interval`'s
-//! `sym12_the_copysign_census_at_the_nominal`): the bracket renders 33
-//! early forms, the rounded pad 12, the link 52, the boss 8, the
-//! literal D-tab 72 and the parameter D-tab 80, the plate and the
-//! annulus none, and not one of them carries a `copysign` atom. On the
-//! five cheap documents the gating half
+//! `sym12_the_copysign_census_at_the_nominal`). On the five cheap
+//! documents (the plate, the annulus, the boss, both D-tabs) the
+//! gating half
 //! (`sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`)
-//! asserts it. So the reach either arm has MEASURED is still the
+//! asserts it. On the other three (the bracket, the rounded pad, the
+//! link) it is UNGUARDED: only the `#[ignore]`d census reads them, left
+//! out of the gate for their replay's cost, so there it is a
+//! measurement at the head that last ran it and nothing reds when it
+//! stops holding. So the reach either arm has MEASURED is still the
 //! orthonormal basis's atoms alone; `geom-brep/src/quartic.rs`'s
 //! Cardano root's `(A − B).copysign(−Q)` is among the sites so
 //! measured.
 //! (2) The sites the tree holds at
 //! this commit, outside this module and the scalar impls that merely
-//! forward the function (a `Real::unit_sign` call is a `copysign` of
-//! one, a site where it is called): `linalg/svd.rs`'s Householder (`f64`
+//! forward the function. Each `Real::unit_sign` call counts as a site:
+//! the method is a `copysign` of one, so the atom is minted where it is
+//! called. The sites: `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom/src/curves/banded.rs`'s dropped `L` zero, which takes
 //! its pivot's sign (`f64` only); `geom-brep/src/implicit.rs`'s cone
 //! gradient;

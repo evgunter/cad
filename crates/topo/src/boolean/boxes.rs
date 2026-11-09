@@ -272,12 +272,10 @@ pub(crate) fn face_box<T: Decide + Bounds>(
 /// edge's and a section circle's box each read it off the cover they
 /// hold.
 ///
-/// The GRANTING direction refuses instead of poisoning, and its readers
-/// keep their own spelling because each refuses a different box:
-/// `sweep`'s blend reach (`sheet_clip`'s edge box, refused where a
-/// coordinate is not finite), `step-import`'s `piece_box` (refused where
-/// a bracket is not ordered) and `geom-brep`'s `quadric_readout` (the
-/// two operands' meet, read as brackets whatever they hold).
+/// A GRANTING reader refuses where there is no cover instead of
+/// poisoning, and then refuses the box by its own test, so it reads
+/// [`Cover::aabb`], the one home of a cover's box, directly rather than
+/// through this door.
 pub(in crate::boolean) fn cover_box<T: Bounds, E>(cover: &Result<Cover<T>, E>, pad: f64) -> Aabb {
     cover
         .as_ref()

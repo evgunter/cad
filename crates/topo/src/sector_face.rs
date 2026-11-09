@@ -183,8 +183,11 @@ impl<T: Decide> ConeApex<T> {
     /// The unit ruling along the line through the apex along `d`, on the
     /// nappe `like` (a ruling the face leaves the apex along) lies on: the
     /// line holds one ruling of each nappe, opposite in azimuth. Turned
-    /// toward `like`'s axial part, `a(a·like)`, which agrees with `d̂`
-    /// exactly where the nappe axis does, so the turn reads one sign.
+    /// toward `like`'s axial part, `a(a·like)`, rather than toward
+    /// [`ConeApex::nappe_axis`], so the turn reads one sign: in real
+    /// arithmetic `d̂` agrees with the one where it agrees with the
+    /// other, and over an enclosure both hull where `a·like` holds a
+    /// zero.
     pub(crate) fn onto_nappe_of(&self, d: Vec3<T>, like: Vec3<T>) -> Vec3<T> {
         d.normalize().turned_toward(self.axis * like.dot(self.axis))
     }
