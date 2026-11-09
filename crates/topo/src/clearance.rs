@@ -4285,7 +4285,7 @@ fn support_separation(
     (x, a): (&Window<'_, impl Real>, Cell),
     (y, b): (&Window<'_, impl Real>, Cell),
 ) -> Option<Interval> {
-    let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+    let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
     let normal = |s: &Surface<Interval>, c: Cell| {
         let (u, v) = centre(c.u, c.v);
         let n = s.point_normal(u, v);
