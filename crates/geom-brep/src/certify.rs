@@ -3937,8 +3937,18 @@ fn decide_turn<T: Decide>(
                 turn: wound(turn)?,
             })
         }
-        Curve3::Line(_) => {
-            forward(Margin::of(span))?;
+        // A line's span is forward in metres, at its speed `|dir|`
+        // (`geom::carrier_speed::speed_range`, exact on a line): a line
+        // whose `dir` is the zero vector names a point at every parameter,
+        // so no span on it is forward, and it refuses here as
+        // `IntervalNotForward` rather than certifying a direction its
+        // readers take as nonzero
+        // (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
+        line @ Curve3::Line(_) => {
+            forward(Margin::metered(
+                span,
+                geom::carrier_speed::speed_range(line).0,
+            ))?;
             None
         }
         // Rung-3 carriers (M5 PR 9): the span is metered through the
@@ -6420,6 +6430,52 @@ mod tests {
             NurbsLane::certified(),
         )
         .unwrap();
+    }
+
+    /// **A line's span is forward in metres, at its speed `|dir|`**: a
+    /// line of zero direction names one point at every parameter, so its
+    /// span of one parameter unit refuses as the caller's stated interval,
+    /// not forward on the zero side, where a parameter-only read certified
+    /// it; a line at
+    /// speed two certifies a span of half a unit, one metre long.
+    #[test]
+    fn a_lines_span_is_forward_in_metres() {
+        use geom_core::{Affine3, Point2};
+        let certify = |spec: EdgeCurveSpec<f64>, p1: Point3<f64>| {
+            EdgeCurve::certify(
+                spec,
+                Point3::origin(),
+                p1,
+                |_| None,
+                geom_core::test_support::fixture_lever(1.0),
+                band(),
+                NurbsLane::certified(),
+            )
+        };
+        let along = |dir: Vec3<f64>, param_end: f64| EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                crate::mapped::MappedSource::ExtrudedPoint {
+                    point: Point2::new(0.0, 0.0),
+                    place: Affine3::translation(Vec3::zero()),
+                    vec: dir * param_end,
+                },
+            )),
+            carrier: Curve3::line(Point3::origin(), dir),
+            param_start: 0.0,
+            param_end,
+        };
+        let err = certify(along(Vec3::zero(), 1.0), Point3::origin()).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CertifyError::StatedInterval {
+                    refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Zero(_)))
+                }
+            ),
+            "{err:?}"
+        );
+        let fast = Vec3::new(2.0, 0.0, 0.0);
+        assert!(certify(along(fast, 0.5), Point3::new(1.0, 0.0, 0.0)).is_ok());
     }
 
     #[test]

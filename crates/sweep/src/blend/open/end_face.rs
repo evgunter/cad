@@ -528,7 +528,12 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let one = T::one();
         let pa = origin + dir * ta;
         let chord = origin + dir * tb - pa;
-        // An edge has positive length, so `len` is no divisor of zero.
+        // `len` is no divisor of zero: the window is a certified edge's,
+        // decided forward at certification, and its line carrier's `dir`
+        // is the zero vector nowhere a body holds it, so `chord` has a
+        // direction with no decision here. Certification checks the span
+        // in metres (`EdgeCurve::certify`'s Line arm), so a surgery-minted
+        // line of zero direction cannot reach this reading.
         let len = chord.norm();
         let e = chord * (one / len);
         let q0 = pa - self.center;
