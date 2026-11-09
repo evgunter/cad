@@ -11477,7 +11477,7 @@ impl InteriorsUnread {
     /// This refusal as a ladder's rung ([`Self::refusal`]), an abort
     /// stopping the search on itself.
     fn rung<V>(self) -> Rung<Result<V, Self>, Self> {
-        geom_brep::ladder::rung_or_abort(self.refusal(), self, Err)
+        Rung::refused(self, |why| why.refusal())
     }
 
     /// A meeting reading's refusal: an escalation or a touch undecided,
