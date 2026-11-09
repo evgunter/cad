@@ -1159,9 +1159,9 @@ pub enum EulerOpError {
         curve: CurveKey,
     },
     /// [`Body::split_edge`](crate::construction::Construct::split_edge)'s parameter is **definitely not interior**
-    /// to the edge's certified interval: one of the two sub-spans
-    /// `t − t₀` / `t₁ − t` classified non-positive (metered in meters,
-    /// like the certification span gate). Splitting at an endpoint (or
+    /// to the edge's certified interval: the span's reading of it
+    /// (`geom_brep::curve_pair::Span::place_param_read`) puts it at an end,
+    /// by its chord, or past one. Splitting at an endpoint (or
     /// outside the interval) is refused — the split point must be a
     /// genuinely interior locus point.
     SplitParamNotInterior {
@@ -1890,7 +1890,7 @@ pub(crate) fn every_euler_op_error_once()
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("split_edge_param_interior"),
+                predicate: Some("curve_pair_span_end_chord"),
                 terminal_sliver: false,
             },
         },

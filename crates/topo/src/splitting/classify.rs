@@ -301,7 +301,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   are not enough: a spline's belly can cross between them.
 ///
 /// Both crossing lanes are certified by `split_edge` itself (the
-/// `split_edge_param_interior` trilean + full child re-certification —
+/// span's place of the parameter (`curve_pair::Span::place_param_read`) + full child re-certification —
 /// the honest lane the raw book formula lacks). New vertices are ON by
 /// the decision that placed them: a crossing root lies on the plane, and
 /// a graze root within ε of it by `plane_crossing_belly_graze`'s Zero.

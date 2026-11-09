@@ -1557,12 +1557,12 @@ pub trait Construct<T: geom_core::Real> {
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — `mev`'s
     /// vector (an edge split IS a mev, applied mid-edge).
     ///
-    /// **Interiority is trilean** (Q1): the two sub-spans `t − t₀` and
-    /// `t₁ − t` are metered into meters exactly like the certification
-    /// span gate (`·radius` for circle carriers) and each must classify
-    /// **definitely positive** through the
-    /// `split_edge_param_interior` predicate — at/outside an endpoint
-    /// refuses ([`EulerOpError::SplitParamNotInterior`]), in-band
+    /// **Interiority is trilean** (Q1): the edge's span reads the
+    /// parameter (`geom_brep::curve_pair::Span::place_param_read`): the
+    /// split point within the band of an end's point, by their chord, is
+    /// that end; otherwise its side of each end, metered at the carrier's
+    /// greatest speed, decides. Only a point inside splits — at/outside an
+    /// endpoint refuses ([`EulerOpError::SplitParamNotInterior`]), in-band
     /// escalates ([`EulerOpError::SplitParamEscalated`]; a poisoned
     /// margin, e.g. an unmeterable carrier, escalates the same way).
     ///

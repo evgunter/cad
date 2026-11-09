@@ -27,7 +27,7 @@
 
 use geom_brep::recourse::{Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{CertifyError, EdgeCurveSpec};
-use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Tol};
+use geom_core::{Band, Decide, Point3, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
