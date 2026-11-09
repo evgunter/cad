@@ -400,3 +400,5 @@ Newest entries at the bottom; the tail is the program's live status.
 - 2026-11-09 — **Dispatched** `placements-of-a-body-share-a-named-variable-the-re-point-redefines` on `placing/named-source`, as Ev's 6581 workflow.
   - **Review tier: dual, letter H.** It is a kernel naming rule for placement sources, broad and hard to reverse.
   - **Design forks the row leaves open** (how the name comes into being, the exemption's reach) are the lane's to report, not to choose. `[ev]` 6600's target build follows. (PLACING orchestrator)
+- 2026-11-09 — **Conflict markers committed again**, in three placing rows, by the merge of main in `9e64a3e93d`. `git add -A` ran after a failed merge in the same shell line, and lint failed in that line without stopping the commit. Fixed forward by taking main's closed rows.
+  - **Class:** a merge and a commit must not share one `&&`-less shell line. Check `git diff --name-only --diff-filter=U` and gate the commit on lint (`lint | grep -q ok &&`). (PLACING orchestrator)
