@@ -1082,3 +1082,12 @@
 - 17:20Z 6651 row fix in at 49963c2a (row split, contradiction fixed, pin doc, lone-ring premise named): the review's FIX was row-only, so it's checked by diff and gating.
 - 17:30Z PR 6649 FULL: MERGE (reader sound; 3 probes red on main and under the first-vertex mutant; no valid-fixture findings). Main overlapped topo/lib.rs → merged main; build, gates and topo 3759 clean; re-gating. Follow-ups (Aborts doc/type; check 10 shell_winding one-vertex premise) → gate-blind-spots lane on onecopy/shell-winding. 6659 gate green (waits on FULL).
 - 17:35Z Merged PR 6651 (pinch-side) at gate-green 49963c2a (row-only FIX checked by diff; disjoint; merge check clean).
+- 17:50Z Reviews:
+  - 6648 FULL: MERGE, with F1 (validate.rs's ALL/listed census can panic at render, so the claim is false), F2–F7 and Q1 copies. Merging main conflicts in 4 files (curve_pair, span_rows, roots, join) → sent back to the lane with the findings.
+  - 6653 FULL: MERGE (NOTEs: Desync frame, two TubeRefusal enums, recourse return shapes). Main overlapped boolean/mod.rs → merged (55d5dd6b); check, gates and 5807 clean; re-gating.
+  - 6654 FULL: FIX L1 (the discard moved to UncheckedLoop, invisible to loop-boundary-discards; its register entry was retired) plus NOTEs → lane.
+- 17:50Z 6632 green at ffb22b29, overlapped 6651 (chord_join.rs) → merged main (733b0579); check, gates and 5805 clean; re-gating.
+- 17:50Z Fix passes in:
+  - 6598 at c189cd03 (F1 loud UNREAD_FIRST_FACE except kept-refused firsts; F2 orbit oracle) → second delta with session_013mPGJ573ZArAPJK7YjyBga.
+  - 6652 at 030afada (crease reverted and filed; TorusRefusal::refusal() is the home; F3 NonFiniteSectorChord→Limit argued via check 2) → delta with session_013mPGJ3tP1vesXb7WfFmp5N.
+- 17:50Z on-surface-ties opened PR 6650 (sphere-door-frame, 9bc64fbc: radial foot instead of the chart round trip; framed removed; 5-frame pin) → FULL with session_013mPGJ5KkXm97vmbV9jqkx7.
