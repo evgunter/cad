@@ -951,9 +951,15 @@ impl SaidFinding<'_> {
                  is a kernel finding"
             }
             CheckEvidence::ChartCoherenceUnexamined { unexamined } => match unexamined.why {
-                topo::Unexaminable::Corrupt { .. } | topo::Unexaminable::LoneLoop { .. } => {
+                topo::Unexaminable::Corrupt { .. } => {
                     "the body's structural validation names the defect this read could not \
                      get past"
+                }
+                // Tier 1 admits a lone loop; tier 2 names it at rest
+                // (`ScaffoldingEmptyLoop`).
+                topo::Unexaminable::LoneLoop { .. } => {
+                    "the body's closed-solid validation names this loop as construction \
+                     scaffolding left at rest"
                 }
                 // A scaffolding edge and a trimmed face are lane
                 // boundaries, not defects: the report names them so

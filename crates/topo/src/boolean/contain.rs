@@ -243,7 +243,8 @@ pub enum ContainError {
     /// The face the caller passed does not resolve in this body.
     StaleFace(FaceKey),
     /// A loop of the face is a lone vertex: it bounds no region a
-    /// point could be placed against.
+    /// point could be placed against. Its standing is the crate's one
+    /// lone-loop standing (`live::LONE_LOOP_REFUSAL`).
     EmptyLoop(LoopKey),
     /// The in-plane walk refused a loop
     /// ([`PointInLoopError::CorruptLoop`](crate::splitting::PointInLoopError::CorruptLoop), carried).
@@ -277,9 +278,8 @@ impl ContainError {
         match self {
             Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
             Self::RayExhausted => Ok(Refusal::InBand),
-            Self::EmptyLoop(_) | Self::LoopUnreadable(_) | Self::Uncrossable(_) => {
-                Ok(Refusal::Limit)
-            }
+            Self::EmptyLoop(_) => Ok(crate::live::LONE_LOOP_REFUSAL),
+            Self::LoopUnreadable(_) | Self::Uncrossable(_) => Ok(Refusal::Limit),
             Self::Curved(e) => e.refusal(),
             Self::StaleFace(_) | Self::ArcEndClearOfCorners(_) => Err(Aborts),
         }

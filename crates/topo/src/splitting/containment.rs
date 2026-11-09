@@ -352,8 +352,8 @@ pub enum PointInLoopError {
     /// The loop is a lone vertex, which bounds no region to place a point
     /// in. Tier 1 admits it; tier 2 refuses it at rest
     /// ([`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)).
-    /// A limit, standing and ending as the boolean's containment door's
-    /// lone-loop refusal does.
+    /// Its standing is the crate's one lone-loop standing
+    /// (`live::LONE_LOOP_REFUSAL`).
     LoneLoop {
         /// The loop.
         r#loop: LoopKey,
@@ -381,7 +381,8 @@ impl PointInLoopError {
         match self {
             Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
             Self::RayExhausted { .. } => Ok(Refusal::InBand),
-            Self::Uncrossable(_) | Self::LoneLoop { .. } => Ok(Refusal::Limit),
+            Self::Uncrossable(_) => Ok(Refusal::Limit),
+            Self::LoneLoop { .. } => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::CorruptLoop { .. } | Self::OffPlane(_) => Err(Aborts),
         }
     }

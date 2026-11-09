@@ -2442,7 +2442,8 @@ pub const TIP_MARK_PX: f64 = 20.0;
 /// **A separation that is not a finite length has no direction
 /// either**, which is the second thing the `None` arm says: two
 /// flattened points far enough apart that a component of the
-/// separation overflows, or a poisoned point. A zero vector handed out
+/// separation overflows, or a finite separation whose length does
+/// (`(1.5e308, 1.5e308)`), or a poisoned point. A zero vector handed out
 /// under the name of a unit one is this arm not being taken — the
 /// caller would draw its tip mark along nothing and could not tell that
 /// from a mark it drew.
@@ -3285,19 +3286,24 @@ mod tests {
 
     #[test]
     fn a_heading_is_a_unit_direction_at_every_finite_separation() {
+        let d = core::f64::consts::FRAC_1_SQRT_2;
+        // Exact subnormal multiples, so the 3-4-5 ratio is exact.
+        let tiny = f64::from_bits(1);
         for (to, want) in [
-            ([1.0e-320, 1.0e-320], core::f64::consts::FRAC_1_SQRT_2),
-            ([5.0e-324, 5.0e-324], core::f64::consts::FRAC_1_SQRT_2),
-            ([1.0e300, 1.0e300], core::f64::consts::FRAC_1_SQRT_2),
-            ([3.0e-320, 0.0], 1.0),
+            ([1.0e-320, 1.0e-320], [d, d]),
+            ([5.0e-324, 5.0e-324], [d, d]),
+            ([1.0e300, 1.0e300], [d, d]),
+            ([3.0e-320, 0.0], [1.0, 0.0]),
+            ([0.0, -3.0e-320], [0.0, -1.0]),
+            ([-3072.0 * tiny, 4096.0 * tiny], [-0.6, 0.8]),
         ] {
-            let [x, y] = super::heading(&[[0.0, 0.0], to], 0, false).expect("a heading");
+            let got = super::heading(&[[0.0, 0.0], to], 0, false).expect("a heading");
             assert!(
-                (x - want).abs() <= 1.0e-15 && x.hypot(y) - 1.0 <= 1.0e-15,
-                "the separation {to:?} heads ({x}, {y}), not a unit direction along it"
+                got.iter().zip(want).all(|(&g, w)| (g - w).abs() <= 1.0e-15),
+                "the separation {to:?} heads {got:?}, not {want:?}"
             );
         }
-        for to in [[0.0, 0.0], [f64::MAX, f64::NAN]] {
+        for to in [[0.0, 0.0], [f64::MAX, f64::NAN], [1.5e308, 1.5e308]] {
             assert_eq!(
                 super::heading(&[[0.0, 0.0], to], 0, false),
                 None,

@@ -6334,9 +6334,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge_edge_point", 2),
     ("empty", 2),
     ("empty_boolean", 2),
-    // Not one fact: a profile loop authored with no vertex, refused at
-    // validation; and one fact, a body face's empty (scaffolding) loop,
-    // refused by the tessellator and out of the coherence check's reach.
+    // Shared by coincidence: the profile validator's word for a loop
+    // authored with no vertex. Shared as one fact: the tessellator and the
+    // coherence check each name a body face's lone-vertex (scaffolding)
+    // loop with it.
     ("empty_loop", 3),
     // One fact: the extrude, the revolve and the loft or path sweep each
     // refuse a profile with no loops at their own door;

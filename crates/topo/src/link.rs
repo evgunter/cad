@@ -542,8 +542,8 @@ pub enum TouchUnread {
     /// the touch point, or in a planar face read as the polygon its
     /// rings bound. Tier 1 admits the loop; tier 2 refuses it at rest
     /// ([`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)).
-    /// A limit, standing and ending as the boolean's containment door's
-    /// lone-loop refusal does.
+    /// Its standing is the crate's one lone-loop standing
+    /// (`live::LONE_LOOP_REFUSAL`).
     LoneLoop,
 }
 
@@ -573,9 +573,8 @@ impl TouchUnread {
     pub const fn refusal(self) -> Result<Refusal, Aborts> {
         match self {
             Self::InBand | Self::PieceInBand => Ok(Refusal::InBand),
-            Self::Unanalysed | Self::Degenerate | Self::ChordScale | Self::LoneLoop => {
-                Ok(Refusal::Limit)
-            }
+            Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
+            Self::LoneLoop => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::EdgeTangent(why) => Ok(why.refusal()),
             Self::Unreadable | Self::OffInterior | Self::NormalFault | Self::Corrupt => Err(Aborts),
         }
@@ -2442,7 +2441,7 @@ pub(crate) struct Planar<'a, T: Real> {
 }
 
 /// Vertex `v`'s position in `body`.
-fn position<T: Real>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, TouchUnread> {
+pub(crate) fn position<T: Real>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, TouchUnread> {
     let point = body.vertices.get(v).ok_or(TouchUnread::Corrupt)?.point;
     body.points.get(point).copied().ok_or(TouchUnread::Corrupt)
 }
