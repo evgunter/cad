@@ -10,7 +10,11 @@
 //! it, for the boundary reading; and whether a ray crosses the piece,
 //! for the count. A piece that settles neither way is halved, until its
 //! ball is within the band's coincidence threshold (the boundary
-//! reading), [`MAX_DEPTH`], or [`geom_core::bisect`]'s piece budget. A
+//! reading), [`MAX_DEPTH`], or [`geom_core::bisect`]'s piece budget.
+//! The boundary reading is its own walk over that ball cover, not
+//! [`geom::Curve3::point_walk`]: a piece's ball is what the carrier says
+//! over the piece, tighter than the walk's speed-bound reach, and its
+//! question is where the point sits (an end, on, clear), not a distance. A
 //! reading that runs out of depth or budget is not a reading in the
 //! band: the walk names it as the edge it could not cross
 //! ([`super::containment::Uncrossable`]).

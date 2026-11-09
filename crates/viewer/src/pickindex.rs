@@ -3176,20 +3176,24 @@ fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64
 /// same magnitude, so the guard fires where the arithmetic actually
 /// stops meaning anything.
 fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point3<f64>) {
-    let along = ray.dir;
-    let segment = b - a;
-    let offset = a - ray.origin;
-    let (aa, ab, bb) = (along.dot(along), along.dot(segment), segment.dot(segment));
-    let denominator = aa * bb - ab.powi(2);
-    // Cauchy-Schwarz puts `denominator` in `[0, aa * bb]`, so the
-    // comparison is one-sided and the scale is the product itself.
-    let t_segment = if denominator > aa * bb * PARALLEL_REL && bb > 0.0 {
-        (ab * along.dot(offset) - aa * segment.dot(offset)) / denominator
+    let segment = pncad::geom::Line {
+        origin: a,
+        dir: b - a,
+    };
+    let pair = segment.closest_params(&pncad::geom::Line {
+        origin: ray.origin,
+        dir: ray.dir,
+    });
+    // A pick's policy, not the kernel's: a segment within PARALLEL_REL of
+    // the ray's direction (or of no length, NaN) answers its own start,
+    // since any end will do.
+    let t_segment = if pair.sin2 > PARALLEL_REL {
+        pair.s
     } else {
         0.0
     }
     .clamp(0.0, 1.0);
-    (t_segment, a + segment * t_segment)
+    (t_segment, segment.at(t_segment))
 }
 
 /// Why a cursor produced no answer (closed enum, D4 ¶3).

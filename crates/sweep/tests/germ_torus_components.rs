@@ -103,7 +103,10 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>, kind: Option<geom::Surfa
         },
         Err(BooleanError::GermSectionSpiric { .. }) => "spiric".to_owned(),
         Err(BooleanError::GermSectionUnbuilt {
-            why: topo::SectionUnbuilt::March(geom_brep::SsiError::TubeStraddles { .. }),
+            why:
+                topo::SectionUnbuilt::Carry(geom_brep::CarryError::March(
+                    geom_brep::SsiError::TubeStraddles { .. },
+                )),
             ..
         }) => "tube straddles".to_owned(),
         Err(BooleanError::Escalated {

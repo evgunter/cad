@@ -25,6 +25,7 @@ pub mod k_stats;
 pub mod linalg;
 pub mod line2;
 pub mod one_line;
+mod param;
 pub mod period;
 pub mod predicate;
 pub mod readable;
@@ -65,6 +66,7 @@ pub use linalg::{
     decide_unit_direction, not_rigid_reading,
 };
 pub use line2::{Line2, LineMeet};
+pub use param::{bracket_mid, mid_param};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING, DEFAULT_K,
     DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading, FileCoincidence,
