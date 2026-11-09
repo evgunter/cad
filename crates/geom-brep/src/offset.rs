@@ -171,18 +171,17 @@ impl Nappe {
 /// one answer ([`Nappe::turn`]).
 #[derive(Clone, Copy, Debug)]
 pub struct ConeOffset<T: geom_core::Real> {
-    apex: geom_core::Point3<T>,
-    axis: geom_core::Vec3<T>,
+    /// The cone's axis line from its apex.
+    axis: geom::Line<T>,
     half_angle: T,
     d: T,
 }
 
 impl<T: geom_core::Real> ConeOffset<T> {
-    /// The action of offsetting the cone `(apex, axis, half_angle)` by
-    /// the signed distance `d`.
-    pub fn new(apex: geom_core::Point3<T>, axis: geom_core::Vec3<T>, half_angle: T, d: T) -> Self {
+    /// The action of offsetting the cone about `axis` (from its apex) of
+    /// `half_angle` by the signed distance `d`.
+    pub fn new(axis: geom::Line<T>, half_angle: T, d: T) -> Self {
         Self {
-            apex,
             axis,
             half_angle,
             d,
@@ -196,7 +195,7 @@ impl<T: geom_core::Real> ConeOffset<T> {
     /// trip's only slack is one rounded operation per leg: the apex
     /// coordinate addition here and the matching subtraction back.
     pub fn apex(&self) -> geom_core::Point3<T> {
-        self.apex - self.axis * (self.d / self.half_angle.sin())
+        self.axis.origin - self.axis.dir * (self.d / self.half_angle.sin())
     }
 
     /// The chart parameter shift: `v ↦ v + d·cot α` at matched `u`.
@@ -221,8 +220,10 @@ impl<T: geom_core::Real> ConeOffset<T> {
     /// answer: the apex has no tangent plane to push along.
     pub fn displacement(&self, nappe: Nappe, p: geom_core::Point3<T>) -> geom_core::Vec3<T> {
         let (sin_a, cos_a) = self.half_angle.sin_cos();
-        let radial = (p - self.apex).reject_from(self.axis).normalize();
-        (radial * nappe.turn(cos_a) - self.axis * sin_a) * self.d
+        let radial = (p - self.axis.origin)
+            .reject_from(self.axis.dir)
+            .normalize();
+        (radial * nappe.turn(cos_a) - self.axis.dir * sin_a) * self.d
     }
 }
 
@@ -380,7 +381,15 @@ pub fn offset_surface<T: geom_core::Decide>(
             // consumer moving a curve or a parameter with this mint
             // reads: one derivation, three faces, no copy to drift.
             Ok(Surface::Cone {
-                apex: ConeOffset::new(*apex, *axis, *half_angle, d).apex(),
+                apex: ConeOffset::new(
+                    geom::Line {
+                        origin: *apex,
+                        dir: *axis,
+                    },
+                    *half_angle,
+                    d,
+                )
+                .apex(),
                 axis: *axis,
                 half_angle: *half_angle,
                 u_ref: *u_ref,
