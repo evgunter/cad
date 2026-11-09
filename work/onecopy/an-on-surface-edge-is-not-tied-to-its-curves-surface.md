@@ -35,4 +35,4 @@ Build an `OnSurface` from a face (its record and edge), and give a `SurfaceCurve
   - `apply_cut_ins` turns the face's own sphere onto the cut's meridian.
 - A mismatch in either caller is a fault in its wiring (one record per door; every cut-in piece inherits the face's record), so it panics naming both keys.
 - The premise left to a caller is that the key and the surface it hands `Charted::record` are one record's.
-- The loop walk's `u_line` (PR 6609, open at closing) is keyed when the two meet. Its ray plane is synthesised, not read off the face's record, and its premise is named at `conic_crossings`.
+- The loop walk (PR 6609, merged in) keys its arc and its ray by the loop's face record (`CarrierLoop.face`). Its ray plane is built, not read off the record, so it is charted with `Charted::held`. Its premise (`certify_plane`'s, or the projected read's own) is named at `conic_crossings`.
