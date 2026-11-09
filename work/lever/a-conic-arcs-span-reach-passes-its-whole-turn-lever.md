@@ -2,8 +2,9 @@
 id: a-conic-arcs-span-reach-passes-its-whole-turn-lever
 kind: issue
 title: span_reach_hunt finds a thin ellipse arc of nearly two turns whose span reach passes its whole-turn lever (Reach::span_reach_from > Reach::lever_from)
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-09
 priority: P3
 cost: E
 ---
@@ -69,3 +70,7 @@ CAD_FUZZ_EFFORT=1` (`--features test-support`): a thin ellipse
 over `[6.778616771278262, 18.0108665539107]`, from the origin, fails the
 same third assertion. Neither side of the comparison reads anything that
 branch changed.
+
+## Closed (BOXES, `boxes/nightly-reds`, 2026-11-09)
+
+Caused by BOXES' PR 6399 (`boxes/cover-edge-doors`). It made `Reach::span_reach` read the span's cover (`cover_far`) and dropped the clamp to the whole turn's reach (`.min(|c − p| + r)`) that the circle and ellipse arms had held, and with it the doc's "never past `lever_from`". At `c036d7ae88^1` the hunt is green on 400 of 400 seeds; at `c036d7ae88` it is red on 400 of 400. `span_reach` now takes the lesser of the span's cover and the whole conic's (`reach_from`), both sound upper bounds of the arc's far distance. The hunt is green on 400 of 400 seeds and on every seed recorded in these rows. Two witnesses from the 11-09 nightly are pinned as `span_reach_hunt::an_arc_read_from_its_centre_is_never_past_the_whole_turn`, red without the clamp.
