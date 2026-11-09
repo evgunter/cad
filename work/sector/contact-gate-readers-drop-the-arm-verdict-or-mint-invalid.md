@@ -47,3 +47,4 @@ The seven `contact_verify` sites are SEAL's I1–I7 (`work/seal/glue-disagreemen
 
 - **I7 `contact_tangent_second_order` is closed by PR 6634.** The decided arm is now the funnel's gate rejection (`k_stats::gate_rejection` on the decided reading, under `SizedPass::Positive`), not `INVALID`.
 - **I1–I6 belong to `work/seal/a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted`** (step 3), and close with it.
+- **I1–I6 are closed by PR 6673** (`a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted`). The tangent table's rows return `TangentVerdict::Ruled { row, by: Decided }` on the reading that decided them, and the `Rest` door's `RestVerdict::Ruled { row, by: Option<Decided> }`; none mints `MarginDiag::INVALID`. The contact_verify half of this row is closed; the census-dihedral half above stays open.
