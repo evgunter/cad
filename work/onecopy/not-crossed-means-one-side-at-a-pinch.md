@@ -1,7 +1,7 @@
 ---
 id: not-crossed-means-one-side-at-a-pinch
 kind: issue
-title: a ring that touches or crosses the run at a vertex the division did not identify reads both sides through the 'not crossed, so one side' ladders (fate's rehome, chord_join's rehome_rings); a torus's essential cycles unprobed
+title: a ring that crosses the run at a vertex the division did not identify reads both sides through the 'not crossed, so one side' ladders (fate's rehome, chord_join's rehome_rings); a torus's essential cycles unprobed
 status: open
 opened: 2026-11-09
 priority: P3
@@ -45,10 +45,10 @@ premise doc. Fate's rehome, `one_region::read_cycle`, chord_join's
 
 **What remains** is not specific to figure-eights:
 
-- **A loop that touches or crosses the run at a vertex the division did
-  not identify.** Such a loop reads both sides through the same
-  mechanism: a crossing it should have joined, or a touch read as a
-  crossing. The paths that can produce it are fate's rehome (the
+- **A loop that crosses the run at a vertex the division did not
+  identify.** Such a loop reads both sides, where the division should
+  have joined it. A touch there still reads one side and passes. The
+  paths that can produce it are fate's rehome (the
   boolean's cut through a divided face) and `ChordJoiner::rehome_rings`.
   The plane split identifies every vertex within band of the plane, so
   it cannot. No probe of this case is built. Its guard is the debug check
@@ -58,11 +58,12 @@ premise doc. Fate's rehome, `one_region::read_cycle`, chord_join's
 - **A torus face's essential cycles** in `one_region`, which are not
   probed.
 
-`one_region` is a validator, and nothing joins there. A cycle that
-crosses another at a point they share is check 9's to refuse
-(`RingMeetsOuter` / `RingMeetsRing`, or `PinchCornerCrossed`), as
-`one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex`
-found and closed.
+`one_region` is a validator, and nothing joins there. Two distinct loops
+of one face meeting at a point are check 9's contact arm 1
+(`RingMeetsOuter` / `RingMeetsRing` `Vertex`, any carrier, shared keys
+not exempt). What may survive is two surface cycles of one loop, split by
+a seam or a strut, that share a vertex. That is its own row:
+`one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex`.
 
 **Evidence that a touch at a pinch reads one side.**
 

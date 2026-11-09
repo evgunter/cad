@@ -1,12 +1,11 @@
 ---
 id: one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex
 kind: issue
-title: one_region::read_cycle reads a curved face's cycle that crosses another at a vertex they share by its first placed vertex (Answering::Any), so a CycleOffFaceSide can pass unreported
-status: closed
+title: one_region::read_cycle reads two surface cycles of one loop (split by a seam or strut) that cross at a vertex they share by its first placed vertex (Answering::Any), so a CycleOffFaceSide can pass unreported
+status: open
 opened: 2026-11-09
 priority: P3
 cost: M
-closed: 2026-11-09
 ---
 
 
@@ -23,45 +22,20 @@ does not cross the cut, and a touch at a shared vertex switches no side
 a validator: nothing upstream joins the face's own cycles.
 
 - A crossing inside two edges is the census's `EdgeEdgeCross`.
-- A crossing at a vertex the two cycles share is not shown to be any
-  check's. Check 9's `PinchCornerCrossed` reads one loop passing a point
-  twice, not two loops at one vertex, and `surface_cycles` walks each
-  loop on its own (it merges no cycles that share a vertex).
+- Two distinct loops meeting at a point are check 9's contact arm 1
+  (`validate::ring_outer_contact_about`, any carrier, shared keys not
+  exempt: `RingMeetsOuter` / `RingMeetsRing` `Vertex`, per Ev's rule at
+  PR 4057).
+- What may survive is **two surface cycles of ONE loop**, split by a seam
+  or a strut, that share a vertex and cross there. It is not shown to be
+  any check's.
 
 Such a cycle has placed vertices on both sides. Which one answers depends
 on walk order, so `CycleOffFaceSide` can be missed.
 
-**Probe:** a curved face, for instance a cylinder wall sheet, with two
-cycles that share a vertex and cross there, read by `region_errors` in
+**Probe:** a curved face (a cylinder sheet with a seam) whose one loop
+walks as two surface cycles sharing a vertex that cross there, read by `region_errors` in
 every walk order. If another check refuses the body, record which check
 and close this row. If not, make the site read every vertex (the agreeing
 check, `a-ladder-that-checks-its-answers-agree-has-no-home`, after
 `[ev]` PR 6592) or refuse a crossing at the shared vertex.
-
-## Closed (`onecopy/shared-vertex-crossing`): check 9 catches it
-
-No check is missing. Two of a face's cycles can share a point in only two
-ways, and check 9 refuses both on a curved face as on a plane:
-
-- **Two loops at one point.** Check 9's contact half,
-  `validate::ring_outer_contact_about`, runs over every ring against its
-  outer loop and over every pair of rings, on every face. Its arm 1
-  ("kind-agnostic: it reads points") refuses a vertex of one loop
-  standing on a vertex of the other, with a key shared or two keys at one
-  point: `RingMeetsOuter` / `RingMeetsRing` with `Vertex`. It refuses the
-  touch whether or not it crosses, so a crossing there never reaches
-  `one_region` alone.
-- **One loop passing a point twice**, which `surface_cycles` can walk as
-  two cycles meeting at the pinch vertex. That is check 9's
-  `PinchCornerCrossed`.
-
-A strut, an edge the face lies on both sides of, joins its loops into one
-surface cycle (`surface_cycles` walks across it), so it adds no shared
-vertex between two cycles.
-
-**Probe:** `one_region::tests::a_ring_crossing_its_outer_loop_at_shared_points_is_check_9s`.
-A cylinder sheet carries a ring through two of its outer corners, with
-one corner of the ring inside the sheet and one outside, so the ring
-crosses the outer loop at exactly those two shared points.
-`validate_geometric` refuses it with `RingMeetsOuter { contact: Vertex }`.
-`one_region::read_cycle`'s doc now names these checks.

@@ -223,12 +223,14 @@ pub(crate) fn door_side<T: Decide>(
 /// the cycle does not cross the cut: a cycle that only touches it, at a
 /// vertex it shares with a cycle of the cut (set aside), lies on one
 /// side (`chord_join::paths_rung`'s premise). Nothing joins here: the
-/// cycles are the face's own, so a crossing is the validator's to find,
-/// and none reaches this read alone. One inside two edges is the
-/// census's `EdgeEdgeCross`. One at a point two loops share is check 9's
-/// contact half, whose first arm reads points on any carrier
-/// (`RingMeetsOuter`, `RingMeetsRing`), and one where a single loop
-/// passes a point twice is check 9's `PinchCornerCrossed`. So a
+/// cycles are the face's own, so a crossing is the validator's to find.
+/// One inside two edges is the census's `EdgeEdgeCross`, and two loops
+/// meeting at a point are check 9's contact arm 1 (`RingMeetsOuter`,
+/// `RingMeetsRing`). Two surface cycles of one loop, split by a seam or
+/// a strut, that share a vertex and cross there would read as the first
+/// vertex placed says
+/// (`work/onecopy/one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex.md`).
+/// So a
 /// vertex read in band ahead of the answer is superseded. An unplaced
 /// vertex is exempt and passes, so a cycle no vertex places is exempt
 /// unless one read in band.

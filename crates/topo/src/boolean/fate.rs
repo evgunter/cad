@@ -562,9 +562,9 @@ pub(super) fn bisector<T: Decide>(
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     let mid = s.middle();
-    let len = mid.norm();
+    let (dir, len) = mid.direction_and_length();
     match sign(len, T::one(), band)? {
-        Sign::Positive => Ok(mid.normalize()),
+        Sign::Positive => Ok(dir),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
             what: "a sector a half-turn wide reached the fate reading, whose bounds name no inside",
         }),

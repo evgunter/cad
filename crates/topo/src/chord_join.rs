@@ -2448,7 +2448,7 @@ fn chord_spec<T: Decide>(
             let (t1, t2) = (ruling.param(p1), ruling.param(p2));
             // The ruling's speed: it meters a parameter span in metres
             // and makes the plane's `u_ref` unit.
-            let len = ruling.dir.norm();
+            let (ruling_hat, len) = ruling.dir.direction_and_length();
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw
@@ -2477,7 +2477,7 @@ fn chord_spec<T: Decide>(
                         normal: ctx.normal.get(),
                         // Honest u_ref: the ruling direction lies in
                         // the plane by the tangency classification.
-                        u_ref: ruling.dir / len,
+                        u_ref: ruling_hat,
                     });
                     ctx.plane_key = Some(k);
                     k
@@ -4040,14 +4040,10 @@ impl<T: Decide> IslandReading<T> {
 ///   `Spiric` and NURBS ones
 ///   (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
 ///   Mid-operation it is excluded where the division identifies every
-///   vertex it passes through. A loop that touches or crosses the run at
-///   a vertex the division did not identify (fate's rehome,
-///   [`ChordJoiner`]'s `rehome_rings`; the split identifies every vertex
-///   within band) is the residual
-///   (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`). Its
-///   guard, the debug check on the `Any` ports that their answers agree
-///   (`work/onecopy/a-ladder-that-checks-its-answers-agree-has-no-home.md`),
-///   waits on `[ev]` PR 6592.
+///   vertex it passes through. A loop that crosses the run at a vertex
+///   the division did not identify (fate's rehome, [`ChordJoiner`]'s
+///   `rehome_rings`; the split identifies every vertex within band) is
+///   the residual (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
 ///
 /// Under it, which decided reading is taken changes nothing.
 fn paths_rung<T: Decide, R>(
