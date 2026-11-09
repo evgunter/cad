@@ -10056,11 +10056,21 @@ fn arc_trim<T: Decide>(
     }
     decide(
         rows.trim,
-        Margin::of(crate::splitting::containment::arc_trim_margin(
-            p, a, apex, anti,
-        )),
+        Margin::of(arc_trim_margin(p, a, apex, anti)),
         band,
     )
+}
+
+/// [`arc_trim`]'s step 2, the sum of two chordal defects,
+/// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`: positive on the arc,
+/// and never compressed below the angle to the nearer end.
+fn arc_trim_margin<T: Decide>(
+    p: geom_core::Point3<T>,
+    a: geom_core::Point3<T>,
+    apex: geom_core::Point3<T>,
+    anti: geom_core::Point3<T>,
+) -> T {
+    ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
 }
 
 /// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
