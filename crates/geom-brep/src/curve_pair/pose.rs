@@ -1135,9 +1135,11 @@ enum Coplanar {
 
 /// The conic `k`'s height above the plane through `on` with unit normal
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
-pub(super) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
+/// The plane door's sinusoid is this one
+/// ([`crate::curve_face::plane_crossing`]).
+pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
-    ((k.frame().origin - on).dot(n), cp, sp)
+    (geom::plane_offset(on, n, k.frame().origin), cp, sp)
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).

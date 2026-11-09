@@ -6843,13 +6843,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CutsPerOperand, BooleanError> {
-    const ROWS: geom_brep::curve_face::circle_roots::FirstHarmonicRows =
-        geom_brep::curve_face::circle_roots::FirstHarmonicRows {
-            noise: "bool_sphere_cut_roots_noise",
-            coaxial: "bool_sphere_cut_roots_coaxial",
-            extreme: "bool_sphere_cut_roots_extreme",
-            root_slack: "bool_sphere_cut_roots_slack",
-        };
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
@@ -6892,6 +6885,24 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         }
         let k = k.normalize();
         let h = k.cross(axis);
+        // The cut's half-meridian, a curve on the face's sphere: its chart
+        // framed on `h`, its meridian at azimuth `0`. A boundary arc lies
+        // on the same sphere, so it meets the meridian where it crosses
+        // the meridian's plane on the half-plane `h`
+        // ([`geom_brep::curve_pair::on_surface`]).
+        let meridian = match geom_brep::curve_pair::on_surface::SurfaceCurve::meridian(
+            &geom::Surface::Sphere {
+                center: cut.center,
+                radius: r,
+                axis,
+                u_ref: h,
+            },
+            geom_core::Point2::new(T::zero(), T::zero()),
+            true,
+        ) {
+            Ok(meridian) => meridian,
+            Err(_) => unreachable!("a sphere has meridians"),
+        };
         // A point of the half-meridian by its coordinates across and
         // along the axis, `r·(cos φ, sin φ)`.
         let latitude = |p: Point3<T>| (h.dot(p - cut.center), axis.dot(p - cut.center));
@@ -7025,64 +7036,56 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
                 let (t0, t1) = curve.params();
-                let geom::Curve3::Circle(edge_circle @ geom::Circle { radius: cr, .. }) =
-                    *curve.carrier()
-                else {
+                let carrier = curve.carrier();
+                let &geom::Curve3::Circle(geom::Circle { radius: cr, .. }) = carrier else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
-                let roots = geom_brep::curve_face::circle_roots::first_harmonic_roots(
-                    &geom_brep::curve_face::circle_roots::FirstHarmonic::conic_off_plane(
-                        &edge_circle,
-                        (cut.center, k),
-                    ),
-                    cr,
-                    t0,
-                    t1,
-                    &ROWS,
-                    band,
-                )
-                .map_err(BooleanError::of_door_refusal(
-                    BooleanDecision::Sphere(SphereQuestion::CutIn),
-                ))?;
-                let thetas = match roots {
-                    Ok(geom_brep::roots::Roots::Miss) => continue,
-                    Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
-                    Ok(geom_brep::roots::Roots::On(_)) | Err(_) => {
-                        return Err(refuse(
-                            "a boundary arc of the sphere face meets the cut's meridian plane \
-                             where its roots are not certified",
-                        ));
-                    }
+                let uncertified = || {
+                    refuse(
+                        "a boundary arc of the sphere face meets the cut's meridian plane where \
+                         its roots are not certified",
+                    )
                 };
+                let roots =
+                    match geom_brep::curve_pair::on_surface::OnSurface::edge(carrier, (t0, t1))
+                        .across(&meridian, "bool_sphere_cut_in_plane", band)
+                    {
+                        Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
+                        Ok(
+                            geom_brep::curve_pair::on_surface::CoSurface::InPlane
+                            | geom_brep::curve_pair::on_surface::CoSurface::Touch
+                            | geom_brep::curve_pair::on_surface::CoSurface::Unlaned,
+                        ) => return Err(uncertified()),
+                        // A rung of the plane door escalated: the cut-in's own
+                        // question, in band.
+                        Err(diag) => return Err(esc(diag)),
+                    };
                 let rising = sign(
                     "bool_sphere_cut_span",
                     Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
                 )? == Sign::Positive;
-                let (lo_t, hi_t) = if rising { (t0, t1) } else { (t1, t0) };
-                for theta in thetas {
-                    let into = |end: T| Margin::metered(theta - end, geom_core::InfSpeed::new(cr));
-                    let (from_lo, to_hi) = (
-                        sign("bool_sphere_cut_span", into(lo_t))?,
-                        sign(
-                            "bool_sphere_cut_span",
-                            Margin::metered(hi_t - theta, geom_core::InfSpeed::new(cr)),
-                        )?,
-                    );
-                    if from_lo == Sign::Negative || to_hi == Sign::Negative {
-                        continue;
-                    }
-                    let p = curve.carrier().eval(theta);
+                for (root, p) in roots {
+                    let theta = root.t;
+                    let at_end = match root.place {
+                        geom_brep::curve_face::plane_crossing::RootPlace::Inside => false,
+                        geom_brep::curve_face::plane_crossing::RootPlace::AtEnd => true,
+                        geom_brep::curve_face::plane_crossing::RootPlace::Undecided(_) => {
+                            return Err(uncertified());
+                        }
+                    };
                     let at_pole = sign(
                         "bool_sphere_cut_pole",
                         Margin::of(axis.cross(p - cut.center).norm()),
                     )? == Sign::Zero;
                     if !at_pole
-                        && sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))?
+                        && meridian
+                            .section_of(p, "bool_sphere_cut_half", band)
+                            .map_err(esc)?
                             != Sign::Positive
                     {
                         continue;
                     }
-                    let vertex = if from_lo == Sign::Zero || to_hi == Sign::Zero {
+                    let vertex = if at_end {
                         let start = hd.start;
                         let end = proven(&body.half_edges, hd.next, EntityId::HalfEdge).start;
                         let at = |v| {
