@@ -2,12 +2,12 @@
 id: glue-disagreements-and-held-contradictions-after-stage-4
 kind: unit
 title: after D10 stage 4: type the glue door's disagreements and whatever declared-pair contradiction survives (mints C20-C22, C24, and the 35 held arms)
-status: open
+status: parked
 opened: 2026-10-10
 priority: P1
-cost: M
-design: true
+cost: H
 parent: topo-mints-indeterminates-outside-the-funnel
+blocked_on: [carrier-readings-keep-the-margins-they-decided-on, a-reach-straddle-goes-through-the-straddle-door, a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted, a-corner-reads-only-its-own-sectors]
 refs: [decided-coincidence-carries-a-synthetic-invalid-margin, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid, 4641]
 ---
 
@@ -157,6 +157,37 @@ dispatch.
   readings disagree, or when a decided reading breaks a convention. That
   covers C21, `torus_pair_witnessed`, C22, `off_ring`, `sides_mixed`, the
   margins `IdentityLadder::Apart` and `NotTangent` drop, and I1 for planes.
+
+## Design (fork `glue-disagreements-carry`, 2026-11-09)
+
+Two designers converged after two rounds, with no question for Ev. DESIGN.md is unchanged. The text this retires is agent-written: the parent row's 2026-10-03 items, item 7 among them, and two topo README C4 sentences from `c7571919b0`. Neither was ratified.
+
+**The premise was wrong.** No site here is "two decided readings that disagree". Each site is one of three things:
+- **The funnel's `Indeterminate`:** in band, poison, a straddle (two decided bounds on one quantity bracketing the band), or a gate rejection.
+- **A typed verdict:** a `geom_core::Decided` beside a closed row enum.
+- **A typed structural fact** with no margin.
+
+The design adds no new type, no verdict table at the glue door, and no predicate field on `Decided`. A contradiction exists only at rest, against a record. Once the glue door decides a tangency once, the Boolean mints none.
+
+**The steps, one PR each, in this order:**
+1. `carrier-readings-keep-the-margins-they-decided-on`: the dropped margins kept, `CarrierVerdict`, `off_ring`, and the census's mechanical survivors.
+2. `a-reach-straddle-goes-through-the-straddle-door`: C21 and the torus witness.
+3. `a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted`: the tangent and Rest verdicts, `SidesMixed`, the census re-pin, and deciding the glue tangency once.
+4. `a-corner-reads-only-its-own-sectors`: C22 and the corner.
+
+C24 stays here; it waits on the seal's public poison reading.
+
+**The two ref rows:**
+- TWICE's `decided-coincidence-carries-a-synthetic-invalid-margin` closes into step 4 (C22).
+- SECTOR's `contact-gate-readers-drop-the-arm-verdict-or-mint-invalid` has a `contact_verify` half that closes with steps 1 and 3; its census-dihedral half stays open.
+- Each step's lane claims what it closes.
+
+**Rejected:**
+- Keeping "Contradicted" at the reading with `(predicate, Decided)` evidence. That keeps readings shaped around a claim stage 4 removed, and keeps the census's string dispatch.
+- A gate rejection for the torus witness. It quotes the lower bound alone as the reading, and both bounds are right.
+- `SidesMixed` as `unreachable!`. The lane admits a Villarceau rim.
+- A glue-door verdict table. No reader decides on the door's Apart.
+- `Decided.predicate`. The name would then be held twice; D4 ¶1 (ii) wants a closed type at the site.
 
 ## Overlap
 

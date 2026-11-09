@@ -60,3 +60,19 @@
     - does the lane admit a rim where n1·n2 varies;
     - does any reader need the door's Apart for a decision or recourse;
     - with row enums, does the predicate field have a reader.
+- 2026-11-09 — **Fork `glue-disagreements-carry` converged in round 2, with no question for Ev, so it has no fork-log row.**
+  - **Seat replacements.** Both round-1 lanes were stopped by an API safeguard flag (`reasoning_extraction`) after I asked each to copy its own report into a file. Fresh lanes of the same models took seats A and B for round 2, each handed its seat's round-1 text as its starting position. The note is on the fork's analysis branch. Lesson: never ask a lane to re-emit its own output; transcribe it myself.
+  - **Round 2.** Seat A moved to B's positions on all four crossed points, and seat B held them, each on a fact read from the tree:
+    - `TorusDisplacement::upper` bounds every point of both tori, so the witness is a straddle;
+    - `tangent_certificate_lane` admits Villarceau rims, so `SidesMixed` is typed;
+    - no corner branches on the door's Apart, so there is no table;
+    - no reader of a `Decided`'s name, so there is no field.
+  - **My adjudication of the residue.** The open corner case (`ReadOn::Faces`: near arm Zero, far bound off) ends `Coincide::Sectors` with `Off(Decided)`. I checked B's objection to A's gate rejection: `k_stats::gate_rejection` hits `unreachable!` when `passes` admits the sign, and `Sectors` passes `AnySign`. For `TorusCoincidence::Apart` I took B's `max(chord, sine)` guard over A's `Result` upper.
+  - **The design is in the row, cut into four P1 steps:**
+    - `carrier-readings-keep-the-margins-they-decided-on` (M);
+    - `a-reach-straddle-goes-through-the-straddle-door` (M);
+    - `a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted` (H);
+    - `a-corner-reads-only-its-own-sectors` (M, parked on step 1).
+
+    The umbrella row is parked on them; its design flag is cleared and it is re-costed H.
+  - Next, serially: step 1 once PR 6613 merges.
