@@ -820,3 +820,4 @@
   - The review checks the tie rule (the closed end) and the logged choice. The least-band gate forced `choose`, versus F31's unlogged near.
 - 08:50Z PR 6616's fix pass is at 257f0049. The gate's lists are now arrays, and the matchers, OK line and plants derive from them. Delta review sent to the original reviewer.
 - 08:50Z The step-import dm1-id-214 main red (3 tests, new refusal text) went to the main-reds lane to bisect.
+- 08:56Z PR 6615's fix pass (ed94e4e5): docs, the sweep record, census blind spots, the decided_sense rename. I read the delta myself; no further review needed. Gate was green, but main overlapped it in conic_arc.rs, so I merged main (56319d41) and am re-gating.
