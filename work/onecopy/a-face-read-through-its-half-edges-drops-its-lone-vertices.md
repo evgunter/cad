@@ -2,8 +2,10 @@
 id: a-face-read-through-its-half-edges-drops-its-lone-vertices
 kind: issue
 title: glue's face closures, lineage's face cell and the census's face boundary read a face's vertices off its half-edges, so a face's lone vertices are missing from all three
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6654
 ---
 
 
