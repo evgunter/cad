@@ -357,9 +357,11 @@ pub struct SplitReduction<T: Real> {
 
 /// **The reduce's coincidence rows** (D10): what a split records, on the
 /// cut path and the uncut one alike, since the reduce decides each the
-/// same way on either. Minted by the reduce alone; with no `Default` and
-/// no `take`, a split's record moves out of its reduction once, by value
-/// (`finish::RawSplit::from_reduction`).
+/// same way on either. Its tuple field is private, so it is mintable
+/// anywhere in `crate::splitting`'s subtree, the same scope as
+/// `finish::RawSplit::from_reduction`; outside tests the reduce is the
+/// one site that mints it. With no `Default` and no `take`, a split's
+/// record moves out of its reduction once, by value.
 #[derive(Debug)]
 pub struct ReducedRows(Vec<crate::Coincidence>);
 
