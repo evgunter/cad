@@ -1107,3 +1107,13 @@
   - 6598 lane: merge main and re-gate.
   - unbuilt-recourse lane → onecopy/carry-notes: the Desync frame, Carry admitting unbuilt arms, two TubeRefusal enums, KnotVectorInvalid's two spellings, recourse return shapes.
 - 18:30Z 6632's gate went red at 733b0579 on the seed-dependent circle_lane_rows fuzz (not its code). Filed work/onecopy/main-red-the-circle-lane-coefficient-charge-row-fails-on-some-seeds.md and sent it to main-reds. rerun_failed_jobs is 403 for this integration. Main had moved and overlapped (6653: pair_section, join, mod) → merged main (66aecfb30563aa85680eaba5a507fd5bba993a85); check, gates, fmt and 4323 clean; re-gating.
+- 18:45Z Reviews MERGE:
+  - 6655: class remainders noted — slit's kept refusals all read NoNormal; of_pierced_normal's misnamed site; slit ×2, join HoldingUnread and fate normal_at partially copy of_pierced_normal; no pins (a fixture row is owed).
+  - 6650: region.rs:187 stale; leg/uv frame half left to the sibling row.
+  - 6652 delta: F3 argument holds; one torus home; F1 no gate move.
+- 18:45Z All three overlap main → merging main into each in the background (6652 pushed b006ea4c).
+- 18:45Z New PRs to review:
+  - 6663 (main-reds: plate pin re-pinned 28→38; movers 6568/6594/6588 undisclosed) → session_013mPGJ5wZaNYYCF5mFEqecS.
+  - 6664 (point-equality) → session_013mPGJ51wDjzTLeTSQjXSqC.
+  - 6660 (census-normal-refusals; normal_faulted check) → session_013mPGJ5AURPj9f5Uzr4HKv7.
+- 18:45Z 6598 re-gating at 574d204b. 6658 green at 61381a3c; its merge check waits on the worktree.
