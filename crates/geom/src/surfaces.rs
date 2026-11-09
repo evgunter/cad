@@ -547,9 +547,9 @@ pub fn torus_tube<T: geom_core::Decide>(
     )
 }
 
-/// **Both halves of the ring convention, as a requirement**: the tube
-/// (`r > 0`) and then the ring (`R − r > 0`), each through the funnel's
-/// collapsed-arm gate ([`geom_core::k_stats::decide_positive`]), so a
+/// **Both halves of the ring convention, as a requirement**: the ring
+/// [`RingTorus::of`] decides, a half it refuses stated as the funnel's
+/// collapsed-arm gate states it ([`NotARing::escalation`]), so a
 /// decided non-positive half is the funnel's recorded escalation under
 /// the half's own name — for a door whose only answer to a non-ring
 /// torus is to decline the query.
@@ -562,31 +562,110 @@ pub fn require_ring_torus<T: geom_core::Decide>(
     major_radius: T,
     minor_radius: T,
     band: Band,
-) -> Result<(), geom_core::Indeterminate> {
-    geom_core::k_stats::decide_positive(
-        "torus_tube_positive",
-        geom_core::Margin::of(minor_radius),
-        band,
-    )?;
-    geom_core::k_stats::decide_positive(
-        "ring_torus_convention",
-        geom_core::Margin::of(major_radius - minor_radius),
-        band,
-    )
+) -> Result<RingTorus<T>, geom_core::Indeterminate> {
+    RingTorus::of(major_radius, minor_radius, band).map_err(|not| not.escalation(band))
 }
 
 /// **Whether a torus is a ring, as a reading**: both halves of the
 /// convention decided positive, the tube first ([`ring_torus`] says
-/// why), through [`torus_tube`] and [`ring_torus`]. For a door that
+/// why), through [`RingTorus::of`]. For a door that
 /// takes a coarser construction where the convention does not hold,
 /// so a non-ring torus is an answer it has rather than an escalation
 /// it mints ([`require_ring_torus`] is the declining form). At a
 /// bracketed scalar a decided positive margin is positive over the
 /// whole bracket, so every torus the brackets admit is a ring.
 pub fn is_ring_torus<T: geom_core::Decide>(major_radius: T, minor_radius: T, band: Band) -> bool {
-    let positive = |d: Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == geom_core::Sign::Positive);
-    positive(torus_tube(minor_radius, band))
-        && positive(ring_torus(major_radius, minor_radius, band))
+    RingTorus::of(major_radius, minor_radius, band).is_ok()
+}
+
+/// **A torus's radii, decided a ring**: `R > r > 0`, the tube half
+/// ([`torus_tube`]) and then the ring half ([`ring_torus`]) decided
+/// `Positive` on these radii ([`RingTorus::of`]). The fields are private.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RingTorus<T> {
+    major_radius: T,
+    minor_radius: T,
+}
+
+/// **Radii that are not a ring**, by the first half of the convention
+/// that did not read `Positive`: its verdict, decided non-positive or
+/// left undecided.
+#[derive(Clone, Debug, PartialEq)]
+pub enum NotARing {
+    /// The tube half, `r > 0` (`torus_tube_positive`).
+    Tube(Result<geom_core::Decided, geom_core::Indeterminate>),
+    /// The ring half, `R − r > 0` (`ring_torus_convention`).
+    Ring(Result<geom_core::Decided, geom_core::Indeterminate>),
+}
+
+impl NotARing {
+    /// The refusal as the collapsed-arm gate states it
+    /// ([`geom_core::k_stats::gate_rejection`]): an undecided half's own
+    /// escalation, or a decided non-positive half's rejection under the
+    /// half's name.
+    #[must_use]
+    pub fn escalation(self, band: Band) -> geom_core::Indeterminate {
+        let (name, verdict) = match self {
+            Self::Tube(verdict) => ("torus_tube_positive", verdict),
+            Self::Ring(verdict) => ("ring_torus_convention", verdict),
+        };
+        match verdict {
+            Err(diag) => diag,
+            Ok(decided) => geom_core::k_stats::gate_rejection(
+                name,
+                decided,
+                band,
+                geom_core::SizedPass::Positive,
+            ),
+        }
+    }
+}
+
+impl<T: geom_core::Decide> RingTorus<T> {
+    /// **Decides radii `(major_radius, minor_radius)` a ring**: the tube
+    /// half first ([`ring_torus`] says why), then the ring half.
+    ///
+    /// # Errors
+    ///
+    /// [`NotARing`], naming the first half that does not read
+    /// `Positive`, with its verdict.
+    pub fn of(major_radius: T, minor_radius: T, band: Band) -> Result<Self, NotARing> {
+        let positive = |d: &Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == geom_core::Sign::Positive);
+        let tube = torus_tube(minor_radius, band);
+        if !positive(&tube) {
+            return Err(NotARing::Tube(tube));
+        }
+        let ring = ring_torus(major_radius, minor_radius, band);
+        if !positive(&ring) {
+            return Err(NotARing::Ring(ring));
+        }
+        Ok(Self {
+            major_radius,
+            minor_radius,
+        })
+    }
+}
+
+impl<T: Real> RingTorus<T> {
+    /// Radii this crate has decided a ring on its own rows.
+    pub(crate) fn decided(major_radius: T, minor_radius: T) -> Self {
+        Self {
+            major_radius,
+            minor_radius,
+        }
+    }
+
+    /// `R`.
+    #[must_use]
+    pub fn major_radius(self) -> T {
+        self.major_radius
+    }
+
+    /// `r`.
+    #[must_use]
+    pub fn minor_radius(self) -> T {
+        self.minor_radius
+    }
 }
 
 /// What a refusal of the placeholder chart
@@ -690,7 +769,7 @@ pub fn spindle_sheet<T: geom_core::Decide>(
 /// gives it a zero, and at `Interval` an enclosure of `R` that holds
 /// no zero gives the point `±1`, never the hull.
 pub fn meridian_side<T: Real>(major_radius: T) -> T {
-    T::one().copysign(major_radius)
+    major_radius.unit_sign()
 }
 
 /// A spindle sheet's apexes, as [`sheet_apex`] places them: their
@@ -2484,7 +2563,7 @@ mod tests {
         assert!(ring.contains("tighten the tolerance below"), "{ring}");
         let offered = Band::new(1e-11, 1e-10).unwrap();
         assert_eq!(
-            require_ring_torus(1.0 + 5e-10, 1.0, offered),
+            require_ring_torus(1.0 + 5e-10, 1.0, offered).map(|_| ()),
             Ok(()),
             "the offered tolerance decides the ring"
         );

@@ -496,9 +496,12 @@ impl<T: Decide> Window<'_, T> {
         let level = level_on(self.a, self.b);
         let tau = T::tau();
         // The turns of `t` from the one nearest the span's start up to
-        // the span's end, at most `MAX_TURNS`; `None` past that.
+        // the span's end, at most `MAX_TURNS`; `None` past that. A copy
+        // half a turn or more below the start meets the span only through
+        // a reach past half a turn, so under that the tie side
+        // `Period::near` takes is moot.
         let copies = |t: T, reach: T| -> Option<Vec<T>> {
-            let mut at = t0 + (t - t0).reduce_periodic_centred(tau);
+            let mut at = geom_core::period::Period::new(tau).near(t, t0);
             let mut out = Vec::new();
             while positive("curve_pair_window_width", t1 - (at - reach)) {
                 if out.len() == MAX_TURNS {

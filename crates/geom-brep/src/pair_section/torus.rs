@@ -54,8 +54,9 @@ use super::{
     SectionDecision, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
-use crate::intersect::{SectionError, SectionRadius, decide_across_reported};
+use crate::intersect::{SectionError, SectionRadius};
 use crate::torus_convention::TorusRefusal;
+use geom_core::k_stats::decide_across_reported;
 
 // ---------------------------------------------------------------------
 // The axis pose
@@ -268,7 +269,7 @@ impl<T: Decide> Ring<T> {
         Some(
             TorusRefusal::require(major_radius + defect, minor_radius + defect, band)
                 .map_err(TorusPoseRefusal::Torus)
-                .map(|()| Self {
+                .map(|_| Self {
                     center,
                     axis,
                     u_ref,
