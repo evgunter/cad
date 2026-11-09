@@ -26,7 +26,7 @@
 //! (D10, Coincidence). A pair an operation glued is read through its
 //! record, never through this ladder (`[coincidence.booleans]`).
 
-use super::carrier_eq::{CoincidenceMeasure, ConsumedExtent};
+use super::carrier_eq::{CarrierVerdict, CoincidenceMeasure, ConsumedExtent};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::validate::{decide, decide_nonzero, decide_reported};
@@ -114,7 +114,7 @@ pub fn oriented_plane_eq<T: Decide>(
     extent: &ConsumedExtent<T>,
     band: Band,
 ) -> Result<PlaneRelation, PlaneEqError> {
-    plane_ladder(p1, p2, extent, band).map(|(rel, _)| rel)
+    plane_ladder(p1, p2, extent, band).map(CarrierVerdict::relation)
 }
 
 /// The ladder itself (module docs), with the margin that decided a
@@ -124,7 +124,7 @@ pub(super) fn plane_ladder<T: Decide>(
     p2: &PlaneDesc<T>,
     extent: &ConsumedExtent<T>,
     band: Band,
-) -> Result<super::carrier_eq::CarrierReading, PlaneEqError> {
+) -> Result<CarrierVerdict, PlaneEqError> {
     // Offsets read at the extent's centre (`d = n̂·(origin − c)`) for
     // the geometric rungs, which lever the angular data at its radius.
     let centre = extent.reach.center();
@@ -137,10 +137,12 @@ pub(super) fn plane_ladder<T: Decide>(
     // The offset's Zero below decides one plane only with this one, so
     // the row's margin stands for both.
     let parallel = match decide_reported("bool_plane_parallel", parallel_margin, band) {
-        Ok(Decided {
-            sign: Sign::Positive,
-            ..
-        }) => return Ok((PlaneRelation::Distinct, None)),
+        Ok(
+            tilt @ Decided {
+                sign: Sign::Positive,
+                ..
+            },
+        ) => return Ok(CarrierVerdict::Apart(tilt)),
         Ok(Decided {
             sign: Sign::Zero,
             margin,
@@ -181,15 +183,20 @@ pub(super) fn plane_ladder<T: Decide>(
     };
     let offset_margin = Margin::of(d1 - sigma * d2);
     match CoincidenceMeasure::decide("bool_plane_offset", offset_margin, band) {
-        Ok(Decided {
-            sign: Sign::Positive | Sign::Negative,
-            ..
-        }) => Ok((PlaneRelation::Distinct, None)),
+        Ok(
+            offset @ Decided {
+                sign: Sign::Positive | Sign::Negative,
+                ..
+            },
+        ) => Ok(CarrierVerdict::Apart(offset)),
         // Rung 2: one plane, decided by its margin — Zero glues.
         Ok(Decided {
             sign: Sign::Zero,
             margin,
-        }) => Ok((relation, Some(margin.jointly(parallel)))),
+        }) => Ok(CarrierVerdict::One {
+            relation,
+            margin: margin.jointly(parallel),
+        }),
         Err(coincidence) => Err(PlaneEqError::Undecided {
             coincidence,
             relation,
@@ -273,12 +280,11 @@ mod tests {
                 origin: Point3::new(k(0.0), k(0.0), k(0.0)),
                 normal: Vec3::new(k(0.0), t, k(1.0)),
             };
-            let (rel, margin) =
-                plane_ladder(&flat, &leaning, &ConsumedExtent::arm(k(1.0)), band()).unwrap();
-            (
-                rel,
-                discharge(margin.expect("a Zero verdict carries its margin")),
-            )
+            let (rel, margin) = plane_ladder(&flat, &leaning, &ConsumedExtent::arm(k(1.0)), band())
+                .unwrap()
+                .one()
+                .expect("one plane");
+            (rel, discharge(margin))
         });
         assert_eq!(got, (PlaneRelation::SameOriented, false));
     }
@@ -294,27 +300,39 @@ mod tests {
             (p1, PlaneRelation::SameOriented),
             (p1_rev, PlaneRelation::SameOpposite),
         ] {
-            let (rel, margin) =
-                plane_ladder(&p1, &other, &ConsumedExtent::arm(1.0), band()).unwrap();
+            let got = plane_ladder(&p1, &other, &ConsumedExtent::arm(1.0), band()).unwrap();
+            let Some((rel, margin)) = got.one() else {
+                panic!("one plane: {got:?}");
+            };
             assert_eq!(rel, want);
-            let margin = margin.expect("a Zero verdict carries the margin it was decided on");
             assert_eq!(margin.kind(), geom_core::MarginKind::Value, "{margin:?}");
         }
     }
 
-    /// Definitely different planes: non-parallel, and parallel-offset.
+    /// **Definitely different planes keep the reading that parted
+    /// them**: non-parallel on the tilt, parallel-offset on the offset,
+    /// each with its sign and the margin it was decided on.
     #[test]
     fn distinct_rungs() {
         let p1 = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let read = |p2| plane_ladder(&p1, &p2, &ConsumedExtent::arm(1.0), band());
         let tilted = plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
         assert_eq!(
-            oriented_plane_eq(&p1, &tilted, &ConsumedExtent::arm(1.0), band()).unwrap(),
-            PlaneRelation::Distinct
+            read(tilted),
+            Ok(CarrierVerdict::Apart(Decided {
+                sign: Sign::Positive,
+                margin: MarginDiag::value(1.0),
+            })),
+            "the tilt parts them"
         );
         let offset = plane([0.0, 0.0, 4.0], [0.0, 0.0, 1.0]);
         assert_eq!(
-            oriented_plane_eq(&p1, &offset, &ConsumedExtent::arm(1.0), band()).unwrap(),
-            PlaneRelation::Distinct
+            read(offset),
+            Ok(CarrierVerdict::Apart(Decided {
+                sign: Sign::Negative,
+                margin: MarginDiag::value(-4.0),
+            })),
+            "the offset parts them"
         );
         // Opposite-oriented offset plane is also distinct.
         let offset_flip = plane([0.0, 0.0, 4.0], [0.0, 0.0, -1.0]);
@@ -334,11 +352,13 @@ mod tests {
         let eps = geom_core::Tol::witness().get().eps;
         let read = |p2: PlaneDesc<f64>| plane_ladder(&p1, &p2, &ConsumedExtent::arm(1.0), band());
         let (rel, margin) = read(plane([0.0, 0.0, 5.0 + 0.25 * eps], [0.0, 0.0, 1.0]))
-            .expect("a quarter-ε offset decides zero");
+            .expect("a quarter-ε offset decides zero")
+            .one()
+            .expect("one plane");
         assert_eq!(rel, PlaneRelation::SameOriented);
         assert_eq!(
-            margin.map(|m| m.kind()),
-            Some(geom_core::MarginKind::Value),
+            margin.kind(),
+            geom_core::MarginKind::Value,
             "the decided margin rides: {margin:?}"
         );
         let err = read(plane([f64::NAN, 0.0, 5.0], [0.0, 0.0, 1.0])).unwrap_err();

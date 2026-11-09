@@ -1892,12 +1892,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         CensusUnsupportedCause::FaceUnboundable,
     ));
     for why in [
-        crate::link::EdgeTangentUnread::OffInterior,
-        crate::link::EdgeTangentUnread::NoCurve,
-        crate::link::EdgeTangentUnread::NoReach,
-        crate::link::EdgeTangentUnread::NoLength,
-        crate::link::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Exhausted),
-        crate::link::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Unbounded),
+        crate::validate::EdgeTangentUnread::NoCurve,
+        crate::validate::EdgeTangentUnread::NoReach,
+        crate::validate::EdgeTangentUnread::NoLength,
+        crate::validate::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        crate::validate::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Unbounded),
     ] {
         causes.push((
             format!("CensusUnsupported/CurvedEdge/{why:?}"),

@@ -23,19 +23,15 @@ use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeEnd, NodeEnds,
     NodeLine, NodeSet, PairPose, PairSection, PairSide, RaySense, SectionComponent,
-    SectionDecision, SectionNode, TANGENT_COMPONENT, ZeroVerdict,
+    SectionDecision, SectionNode, ZeroVerdict,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
 use crate::intersect::{
-    SectionError, SectionRadius, cylinder_axes_parallel_reported, decide_across_reported,
-    parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, tilted_section_major,
+    SectionError, SectionRadius, cylinder_axes_parallel_reported, parallel_axes_at,
+    parallel_cylinder_gap_reported, parallel_swing, tilted_section_major,
 };
-
-/// The note the pinch's lobes carry: their arcs end at the node, and no
-/// march that starts at a node is built.
-pub const PINCH: &str = "the thinner wall touches the fatter one from inside, a node its two \
-                         lobes end at, and no march that starts at a node is built";
+use geom_core::k_stats::decide_across_reported;
 
 /// **The questions the cylinder pair's pose decides**, each on one
 /// margin in metres.
@@ -899,7 +895,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         cut,
                         [false, false],
                         Some(witness),
-                        ClassCarrier::Unminted(TANGENT_COMPONENT),
+                        ClassCarrier::Unminted(super::NoCarrier::Tangent),
                     )
                 })
                 .into_iter()
@@ -925,7 +921,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         ComponentShape::Point,
                         [false, false],
                         Some(at),
-                        ClassCarrier::Unminted(TANGENT_COMPONENT),
+                        ClassCarrier::Unminted(super::NoCarrier::Tangent),
                     )],
                 })
             }
@@ -999,7 +995,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                                 },
                                 [false, false],
                                 None,
-                                ClassCarrier::Unminted(PINCH),
+                                ClassCarrier::Unminted(super::NoCarrier::Pinch),
                             )
                         })
                         .collect(),

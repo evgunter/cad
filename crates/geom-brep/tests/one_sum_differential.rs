@@ -1,6 +1,6 @@
 //! **The one-sum differential**: one deterministic pose stream over the
 //! eight families whose served rows read a position and a tilt as one
-//! sum (`decide_across` in `geom_brep::intersect`), printed one line per
+//! sum (`decide_across` in `geom_core::k_stats`), printed one line per
 //! pose as `P <family> <i> <verdict> <truth…>` in zero bands, so two
 //! checkouts' runs can be joined line by line and bucketed.
 //!

@@ -1225,6 +1225,10 @@ mod tests {
             // chart coordinate.
             ("crates/topo/src/injective.rs", "side"),
             ("crates/topo/src/shell.rs", "thickness"),
+            // The loop rule's start: a test sheet's loop is walked from
+            // the mirrored chart coordinate at sense `false`
+            // (`chord_join::island_rows`), a chart coordinate, no normal.
+            ("crates/topo/src/chord_join/island_rows.rs", "at"),
         ]
         .into_iter()
         .map(|(f, a)| (f.to_string(), a.to_string()))
