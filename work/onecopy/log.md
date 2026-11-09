@@ -829,3 +829,4 @@
   - one uncovered edge poisons the whole box with NaN.
 
   F5 filed: `the-session-box-reads-no-curved-face-so-an-interior-extreme-pokes-out`.
+- 09:03Z Ladder lane: 6617's fix pass is committed locally. F1 (the Kept::of table) is refused by the gate; F2's rule now lives in Answering::First's doc. Redirected T2 off `BooleanError::margin_or_abort` onto 6576's `BooleanError::refusal()` (one standing per type). ring_side was already ported in 6576. T2 stacks on 6576.
