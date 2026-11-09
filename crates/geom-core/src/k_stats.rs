@@ -13,8 +13,10 @@
 //! `<unnamed>` is unreachable from shipped decide paths.
 //!
 //! Every classifying door — [`decide`], [`decide_reported`],
-//! [`decide_flagged`], [`decide_magnitude`] and the
-//! gates ([`decide_positive`], [`decide_negative`], [`decide_nonzero`]) —
+//! [`decide_flagged`], [`decide_magnitude`], the
+//! gates ([`decide_positive`], [`decide_negative`], [`decide_nonzero`]),
+//! and the least-band doors [`prove`] (a proof's inequality, logged) and
+//! [`choose`] (a heuristic's choice, unlogged) —
 //! delegates to one private `classify`. The name write and the verdict
 //! push therefore happen in exactly one place, so no door can carry one
 //! channel and miss the other, and the doors classify identically
