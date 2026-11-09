@@ -45,29 +45,14 @@ fn band() -> Band {
 /// A site: its point and its unit tangent along the walk.
 type Site = (Point3<f64>, Vec3<f64>);
 
-/// The conic's `(centre, axis)`, the frame its turn is read about.
-fn frame(conic: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>) {
-    match *conic {
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            ..
-        })
-        | Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            ..
-        }) => (center, axis),
-        _ => panic!("not a conic: {conic:?}"),
+/// The conic's axis line, through its centre: the frame its turn is
+/// read about.
+fn frame(conic: &Curve3<f64>) -> geom::Line<f64> {
+    match conic {
+        Curve3::Ellipse(_) | Curve3::Circle(_) => conic.frame().map(|f| f.axis_line()),
+        _ => None,
     }
+    .unwrap_or_else(|| panic!("not a conic: {conic:?}"))
 }
 
 /// The point at eccentric anomaly `t` and the unit tangent `sense`
@@ -167,7 +152,7 @@ fn lanes(wall: &Surface<f64>, conic: &Curve3<f64>, ts: &[f64], sense: f64, off: 
     let site = |i: usize| {
         let (p, ahead) = at(conic, ts[i], sense);
         let side = if i.is_multiple_of(2) { off } else { -off };
-        let across = frame(conic).1.cross(ahead).normalize();
+        let across = frame(conic).dir.cross(ahead).normalize();
         (p + across * (side * band().zero()), ahead)
     };
 

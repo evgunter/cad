@@ -3135,11 +3135,7 @@ fn reauthor<T: Decide>(
             }
         }
         geom_brep::MappedSource::RevolvedPoint {
-            place,
-            axis_origin,
-            axis_dir,
-            angle,
-            ..
+            place, axis, angle, ..
         } => {
             // A corner read on the sketch plane turned `theta` about
             // the axis: turned back on its offset from the axis, then
@@ -3152,8 +3148,8 @@ fn reauthor<T: Decide>(
                 inv.transform_point(match theta {
                     None => p,
                     Some(theta) => geom_core::Affine3::rotate_point_about_axis(
-                        axis_origin,
-                        axis_dir,
+                        axis.origin,
+                        axis.dir,
                         -theta,
                         p,
                     ),
@@ -3163,10 +3159,7 @@ fn reauthor<T: Decide>(
                 azimuth_turn(
                     name,
                     read(theta, moved).z,
-                    geom::Line {
-                        origin: axis_origin,
-                        dir: axis_dir,
-                    },
+                    axis,
                     mapped.eval(s),
                     moved,
                     band,
@@ -3207,8 +3200,7 @@ fn reauthor<T: Decide>(
                 source: geom_brep::MappedSource::RevolvedPoint {
                     point: geom_core::Point2::new(q.x, q.y),
                     place,
-                    axis_origin,
-                    axis_dir,
+                    axis,
                     angle,
                 },
                 range,
@@ -3449,8 +3441,10 @@ mod tests {
         geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
             point: geom_core::Point2::new(lift(2.0), lift(2.0)),
             place: Affine3::translation(Vec3::new(lift(x), lift(y), lift(z))),
-            axis_origin: Point3::new(lift(1.0 + x), lift(2.0 + y), lift(z)),
-            axis_dir: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            axis: geom::Line {
+                origin: Point3::new(lift(1.0 + x), lift(2.0 + y), lift(z)),
+                dir: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            },
             angle: lift(core::f64::consts::TAU),
         })
     }
@@ -3469,8 +3463,10 @@ mod tests {
         geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
             point: geom_core::Point2::new(lift(2.0), lift(2.0)),
             place,
-            axis_origin: place.transform_point(Point3::new(lift(0.5), lift(1.0), lift(0.0))),
-            axis_dir: place.transform_vec(Vec3::new(lift(1.0), lift(0.4), lift(0.0))),
+            axis: geom::Line {
+                origin: place.transform_point(Point3::new(lift(0.5), lift(1.0), lift(0.0))),
+                dir: place.transform_vec(Vec3::new(lift(1.0), lift(0.4), lift(0.0))),
+            },
             angle: lift(1.9),
         })
     }
@@ -3484,8 +3480,7 @@ mod tests {
                 geom_brep::MappedSource::RevolvedPoint {
                     point,
                     place,
-                    axis_origin,
-                    axis_dir,
+                    axis,
                     angle,
                     ..
                 },
@@ -3507,8 +3502,10 @@ mod tests {
                 ),
                 v3(place.translation),
             ),
-            axis_origin: p3(axis_origin),
-            axis_dir: v3(axis_dir),
+            axis: geom::Line {
+                origin: p3(axis.origin),
+                dir: v3(axis.dir),
+            },
             angle: iv(angle),
         })
     }
@@ -3518,8 +3515,7 @@ mod tests {
     struct Rim<T: Real> {
         point: geom_core::Point2<T>,
         place: Affine3<T>,
-        axis_origin: Point3<T>,
-        axis_dir: Vec3<T>,
+        axis: geom::Line<T>,
         angle: T,
     }
 
@@ -3529,8 +3525,7 @@ mod tests {
                 geom_brep::MappedSource::RevolvedPoint {
                     point,
                     place,
-                    axis_origin,
-                    axis_dir,
+                    axis,
                     angle,
                     ..
                 },
@@ -3542,8 +3537,7 @@ mod tests {
         Rim {
             point,
             place,
-            axis_origin,
-            axis_dir,
+            axis,
             angle,
         }
     }
@@ -3578,20 +3572,20 @@ mod tests {
     /// `rim`'s placed point turned `theta` about its own axis — a start
     /// corner an offset moved round the axis.
     fn turned<T: Decide>(rim: &Rim<T>, theta: T) -> Point3<T> {
-        Affine3::rotate_point_about_axis(rim.axis_origin, rim.axis_dir, theta, placed(rim))
+        Affine3::rotate_point_about_axis(rim.axis.origin, rim.axis.dir, theta, placed(rim))
     }
 
     /// The turn main read off a moved start: the azimuth about the axis
     /// from the radial of its start sample — the placed point under the
     /// rotation by `0·angle` — to the corner's.
     fn main_turn<T: Decide>(rim: &Rim<T>, corner: Point3<T>) -> T {
-        let a = rim.axis_dir.normalize();
+        let a = rim.axis.dir.normalize();
         let radial = |p: Point3<T>| {
-            let v = p - rim.axis_origin;
+            let v = p - rim.axis.origin;
             v - a * v.dot(a)
         };
         let start =
-            Affine3::rotation_about_axis(rim.axis_origin, rim.axis_dir, T::zero() * rim.angle)
+            Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir, T::zero() * rim.angle)
                 .transform_point(placed(rim));
         let (from, to) = (radial(start), radial(corner));
         a.dot(from.cross(to)).atan2(from.dot(to))
@@ -3600,7 +3594,7 @@ mod tests {
     /// Main's reading of a start turned by `phi`: the turn composed into
     /// the placement and the corner read back through that composite.
     fn composed_reading<T: Decide>(rim: &Rim<T>, phi: T, p: Point3<T>) -> (Point3<T>, Affine3<T>) {
-        let plane = Affine3::rotation_about_axis(rim.axis_origin, rim.axis_dir, phi) * rim.place;
+        let plane = Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir, phi) * rim.place;
         (plane.inverse().transform_point(p), plane)
     }
 
@@ -3730,7 +3724,7 @@ mod tests {
                     iv(place.translation.z),
                 ),
             );
-            let (q, n) = (rim.axis_origin, rim.axis_dir);
+            let (q, n) = (rim.axis.origin, rim.axis.dir);
             let (mut ours, mut composite) = (0.0f64, 0.0f64);
             for k in 0..200 {
                 let theta = -3.0 + 6.0 * f64::from(k) / 199.0;

@@ -953,8 +953,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
                     point: wire.points[i],
                     place,
-                    axis_origin: frame.o3,
-                    axis_dir: frame.a3,
+                    axis: geom::Line {
+                        origin: frame.o3,
+                        dir: frame.a3,
+                    },
                     angle: theta,
                 })
                 .restrict(T::from_f64(0.5), T::one()),

@@ -1048,16 +1048,16 @@ fn plane_cut<T: Decide>(big_r: T, r: T, h: T, s: T, band: Band) -> PlaneCut {
 /// margins, so a refusal naming them and the certificate read one
 /// decision: `Ok(None)` where those margins decide a tangency or no
 /// section, and the diagnostics of the first margin they leave
-/// undecided. The plane runs through `p0` with normal `n`, the torus is
-/// `(c, a, R, r)`; neither direction need be unit.
+/// undecided. The plane runs through `p0` with normal `n`, the torus
+/// about `axis` has radii `(R, r)`; neither direction need be unit.
 pub(super) fn torus_plane_loops<T: Decide>(
-    (c, a, big_r, r): (Point3<T>, Vec3<T>, T, T),
+    (axis, big_r, r): (geom::Line<T>, T, T),
     (p0, n): (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let (a, n) = (a.normalize(), n.normalize());
+    let (a, n) = (axis.dir.normalize(), n.normalize());
     let (_, s) = perp_to(n, a);
-    match plane_cut(big_r, r, n.dot(p0 - c), s, band) {
+    match plane_cut(big_r, r, n.dot(p0 - axis.origin), s, band) {
         PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
         PlaneCut::AroundTube => Ok(Some(super::SpiricLoops::AroundTube)),
         PlaneCut::Null { .. } => Ok(Some(super::SpiricLoops::Null)),
