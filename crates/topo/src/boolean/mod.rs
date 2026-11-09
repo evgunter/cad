@@ -4450,7 +4450,7 @@ impl BooleanError {
     /// # Errors
     ///
     /// [`geom_brep::ladder::Aborts`] for every kind but `Escalated`.
-    pub(crate) const fn margin_or_abort(
+    pub(in crate::boolean) const fn margin_or_abort(
         &self,
     ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         match self {
