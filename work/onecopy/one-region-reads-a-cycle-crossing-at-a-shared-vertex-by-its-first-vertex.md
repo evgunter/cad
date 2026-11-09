@@ -43,33 +43,50 @@ check, `a-ladder-that-checks-its-answers-agree-has-no-home`, after
 
 ## Closed (`onecopy/shared-vertex-crossing`): check 9 catches it
 
-Check 9 covers both shapes.
+Check 9 covers both shapes, past the residue named below.
 
 - **Two distinct loops meeting at a point** are its contact arm 1
   (`RingMeetsOuter` / `RingMeetsRing` `Vertex`, on any carrier).
   Probe: `one_region::tests::a_ring_crossing_its_outer_loop_at_shared_points_is_check_9s`.
   A cylinder sheet's ring passes through two of its outer corners and
   crosses the outer loop there. `validate_geometric` refuses it with
-  `RingMeetsOuter { contact: Vertex }`.
-- **Two surface cycles of one loop sharing a point.** A cycle is a run
-  of the loop's own half-edges, so a point both cycles pass is a point
-  the loop passes at two or more corners. `pinch_corner_errors` groups
-  exactly those (`loop_point_groups`, by point key) and reads each
-  corner's wedge against the loop's other sides there, the dropped
-  seam or strut half-edges among them, on a curved face in its tangent
-  plane. A crossing there is `PinchCornerCrossed`.
+  `RingMeetsOuter { contact: Vertex }`. Only arm 1's verdict is read:
+  the ring's edges are straight chords, so the body is otherwise
+  ill-formed.
+- **Two surface cycles of one loop sharing a point key.** A cycle is a
+  run of the loop's own half-edges, so a point key both cycles pass is
+  one the loop passes at two or more corners. `pinch_corner_errors`
+  groups exactly those (`loop_point_groups`, by point-key equality). It
+  reads each corner's wedge against the loop's other sides there,
+  including the seam or strut half-edges the surface boundary drops, on a
+  curved face in its tangent plane. A crossing there is
+  `PinchCornerCrossed`, and so is a touch: the loop pairs each cycle's
+  edges with each other, so each corner holds the other's sides, as two
+  loops touching are refused by arm 1.
   Probe: `one_region::tests::two_surface_cycles_of_one_loop_crossing_at_a_shared_point_are_check_9s`.
-  - A cylinder sheet's outer loop carries a strut to an inner polygon
-    closed by a membrane, the strut kept. That is one loop, which
+  - A cylinder sheet, its sense set so its loop bounds its rectangle,
+    has an outer loop carrying a strut to an inner polygon closed by a
+    membrane, with the strut kept. That is one loop, which
     `surface_cycles` walks as two cycles (asserted).
-  - One polygon corner is moved onto the outer corner's point, with its
-    neighbours one inside the sheet and one outside, so the cycles cross
-    there.
-  - `validate_geometric` refuses it with `PinchCornerCrossed` at that
-    point.
+  - With the cycles apart, nothing is refused at the outer corner.
+  - With the polygon's corner moved onto the outer corner's point key,
+    crossing or touching, `validate_geometric` refuses
+    `PinchCornerCrossed` there.
+  - A first version of this probe read an unsensed sheet, which check 6
+    refuses (`CurvedSenseInverted`). Its corners were complements, so
+    the corner arm fired with the cycles apart too. The apart case now
+    guards against that.
+  - Only the corner arm's verdict at that point is read: the edges are
+    straight chords, so the body is otherwise ill-formed.
 
-**Not this row's:** two cycles at one location through distinct point
-keys. `loop_point_groups` groups by key, so the corner arm does not read
-them. They are a vertex–vertex contact, which tier 3′'s census reads
-(`UnrecordedContact`, then `BoundaryCrossesItself` where a record
-admits it).
+A strut is an edge the face lies on both sides of. `surface_cycles` drops
+it, so it adds no point the two cycles share.
+
+**What the corner arm does not cover,** where `one_region` reads alone:
+- `pinch_corner_errors`' stated residue: a cone's apex, which
+  `one_region` does read; a NURBS or `Approx` face; a side along a NURBS
+  edge; two sides leaving along one tangent.
+- **Two distinct point keys within band** of one place, which
+  `loop_point_groups` does not group. Measured: neither the corner arm
+  nor arm 1 refuses it. That is the real residual, filed as
+  `a-loop-through-one-place-at-two-point-keys-is-read-by-its-first-vertex`.
