@@ -689,8 +689,12 @@ pub fn decide<T: Decide>(
 /// so only an enclosure that straddles zero fails to decide. It is for
 /// an inequality a generator's argument rests on, such as a basin's
 /// sine over its curvature or the order of two parameters, where a
-/// refusal is an outcome a narrower box can answer, and for nothing
-/// read in metres of gap, which [`decide`] reads against the band.
+/// refusal is an outcome a narrower box can answer. A gap in metres
+/// asked whether it is in band is [`decide`]'s, read against the band;
+/// it is `prove`'s only as a bound's own inequality against a fixed
+/// level, such as a floor the band left undecided asked whether it
+/// clears the band's zero exactly (`gap − zero`: the cell holds no point
+/// within the zero band, `geom-brep`'s spline incidence `past_zero`).
 /// There is no `Band` parameter, so such a margin cannot be read
 /// against the band by mistake. A heuristic's choice between sound
 /// candidates is neither: it is [`choose`]'s.

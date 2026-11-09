@@ -515,8 +515,10 @@ impl<'a, T: Decide> Net<'a, T> {
 
 /// Whether an in-band floor is shown past the band's zero, so its cell
 /// holds no point within the zero band of the sample: an exact order
-/// ([`Band::least`]), since an enclosure straddling the zero is in band
-/// too and may hold such a point.
+/// ([`geom_core::k_stats::prove`]), since an enclosure straddling the
+/// zero is in band too and may hold such a point. Not a reading of the
+/// gap against the band: it is asked only where that reading
+/// ([`decide`] at `band`) refused, and the band would refuse it again.
 fn past_zero<T: Decide>(gap: T, band: Band) -> bool {
     matches!(
         geom_core::k_stats::prove(HULL, Margin::of(gap - T::from_f64(band.zero()))),
