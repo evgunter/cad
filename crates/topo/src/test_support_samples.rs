@@ -1905,7 +1905,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         MeetFault::Unwalked(geom::PieceWalkRefusal::Exhausted),
         MeetFault::Unwalked(geom::PieceWalkRefusal::Unbounded),
         MeetFault::Unsupported {
-            pose: "a pose the meeting table has no closed form for",
+            pose: "one curve whose two runs read square to each other",
         },
     ]
     .into_iter()
@@ -2170,16 +2170,33 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
 }
 
 /// Every reason the census refuses a curved edge for, each walk refusal
-/// its own: the samples' list, which a new reason joins.
+/// its own: the samples' list, kept whole by [`listed`].
 fn edge_tangent_reasons() -> [crate::validate::EdgeTangentUnread; 5] {
     use crate::validate::EdgeTangentUnread as E;
-    [
+    let reasons = [
         E::NoCurve,
         E::NoReach,
         E::NoLength,
         E::Unwalked(geom::PieceWalkRefusal::Exhausted),
         E::Unwalked(geom::PieceWalkRefusal::Unbounded),
-    ]
+    ];
+    for why in reasons {
+        listed(why);
+    }
+    reasons
+}
+
+/// [`edge_tangent_reasons`]'s guard: a match over every reason, so a new
+/// one does not compile until it is matched here, beside the list it
+/// must join.
+const fn listed(why: crate::validate::EdgeTangentUnread) {
+    use crate::validate::EdgeTangentUnread as E;
+    match why {
+        E::NoCurve
+        | E::NoReach
+        | E::NoLength
+        | E::Unwalked(geom::PieceWalkRefusal::Exhausted | geom::PieceWalkRefusal::Unbounded) => {}
+    }
 }
 
 #[cfg(test)]

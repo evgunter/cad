@@ -165,7 +165,7 @@ pub enum Ending {
     /// The tolerance this margin sizes, then moving the geometry
     /// ([`Indeterminate::ending`]).
     Sized(Indeterminate),
-    /// Moving the geometry ([`geom_core::COINCIDENCE_RECOURSE`]).
+    /// Moving the geometry ([`geom_core::MOVE_RECOURSE`]).
     Move,
     /// A kernel approximation limit's lever
     /// ([`geom_core::KERNEL_LIMIT_RECOURSE`]).
@@ -180,7 +180,7 @@ impl Ending {
     pub fn render(self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Sized(diag) => diag.ending(geom_core::COINCIDENCE_RECOURSE).into(),
-            Self::Move => concat!("Recourse: ", geom_core::coincidence_move_arm!()).into(),
+            Self::Move => geom_core::MOVE_RECOURSE.into(),
             Self::KernelLimit => geom_core::KERNEL_LIMIT_RECOURSE.into(),
             Self::NotYet => geom_core::NOT_YET_ENDING.into(),
         }

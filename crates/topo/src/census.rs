@@ -7176,6 +7176,7 @@ macro_rules! until_apart {
         "move them until their bounding boxes no longer overlap"
     };
 }
+pub(crate) use until_apart;
 
 /// The recourse for an edge too long or too short to measure.
 macro_rules! rescale {
@@ -7183,9 +7184,6 @@ macro_rules! rescale {
         "Recourse: rescale the model so every edge length is an ordinary number"
     };
 }
-
-/// [`until_apart!`] as the recourse after another: "otherwise …".
-pub(crate) const MOVE_APART: &str = concat!("otherwise ", until_apart!());
 
 /// **Why the cross-solid backstop left a pair undecided** — the one
 /// source of every `what` a [`ValidationError::CensusUndecidable`]
