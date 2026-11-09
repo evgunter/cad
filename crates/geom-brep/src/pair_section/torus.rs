@@ -51,7 +51,7 @@ use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, Sq
 use super::torus_coincidence::{TorusCoincidence, TorusData, tori_coincide};
 use super::{
     ClassCarrier, Coincident, ComponentShape, Components, PairPose, PairSection, SectionComponent,
-    SectionDecision, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
+    SectionDecision, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
 use crate::intersect::{SectionError, SectionRadius, decide_across_reported};
@@ -516,7 +516,7 @@ fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> Sec
         shape,
         winds,
         touch,
-        ClassCarrier::Unminted(TANGENT_COMPONENT),
+        ClassCarrier::Unminted(super::NoCarrier::Tangent),
     )
 }
 

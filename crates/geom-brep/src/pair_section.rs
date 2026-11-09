@@ -874,7 +874,98 @@ pub enum ClassCarrier<T: Real> {
     General,
     /// None mints: the component is classification data, for the reason
     /// given.
-    Unminted(&'static str),
+    Unminted(NoCarrier),
+}
+
+/// **Why a classified component has no carrier** ([`ClassCarrier::Unminted`],
+/// [`CarryError::Unminted`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
+pub enum NoCarrier {
+    /// The surfaces are tangent along the component or at it, a C7
+    /// construction the section does not mint.
+    Tangent,
+    /// The thinner cylinder touches the fatter one from inside, at a node
+    /// the two lobes end at; no march that starts at a node is built.
+    Pinch,
+    /// A spline × implicit touch decided Zero at a critical point of the
+    /// composite: the surfaces meet at one point within the band.
+    Touch,
+    /// A spline × implicit section runs along a side of the wall's
+    /// rectangle, or leaves it at a corner, within the band.
+    WallRegion,
+    /// A spline pair's section is a handed-in row, or leaves the domain at
+    /// a handed-in corner.
+    RowRegion,
+    /// A spline × implicit section is read whole for its certificate
+    /// alone, which carries none of its components: the glue door's table
+    /// never holds it, and no seat certifies against a wall's chart.
+    SplineImplicitWhole,
+    /// A spline pair's section is read whole for its certificate alone,
+    /// which carries none of its components.
+    SplinePairWhole,
+}
+
+impl NoCarrier {
+    /// **The one sentence this reason is rendered by.**
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::Tangent => {
+                "the surfaces are tangent along it or at it, a C7 construction the section does \
+                 not mint"
+            }
+            Self::Pinch => {
+                "the thinner wall touches the fatter one from inside, a node its two lobes end \
+                 at, and no march that starts at a node is built"
+            }
+            Self::Touch => {
+                "a touch decided Zero at a critical point of the composite: the surfaces meet at \
+                 one point within the band, and no carrier is minted for it"
+            }
+            Self::WallRegion => {
+                "a Side or Corner region: the section runs along a side of the wall's rectangle, \
+                 or leaves it at a corner, within the band, and no carrier is minted for it"
+            }
+            Self::RowRegion => {
+                "a Side or Corner region of a handed-in row or corner: the section there is the \
+                 row, or leaves the domain at the corner, and no carrier is minted for it"
+            }
+            Self::SplineImplicitWhole => {
+                "a spline × implicit section is read whole for the section certificate alone, \
+                 which carries none of its components"
+            }
+            Self::SplinePairWhole => {
+                "a spline pair's section is read whole for the section certificate alone, which \
+                 carries none of its components"
+            }
+        }
+    }
+
+    /// **The recourse every rendering of this reason ends with.** A
+    /// tangency, an inner pinch and a touch within the band are each a
+    /// meeting the surfaces can be moved off, to cross or to part clearly.
+    /// A section read whole is a pair whose components the kernel does
+    /// not carry yet, and a section along a wall's side or a handed-in
+    /// row is one it mints no carrier for yet.
+    #[must_use]
+    pub const fn recourse(self) -> &'static str {
+        match self {
+            Self::Tangent | Self::Pinch | Self::Touch => {
+                "Recourse: move one face so the surfaces clearly cross or clearly part"
+            }
+            Self::WallRegion
+            | Self::RowRegion
+            | Self::SplineImplicitWhole
+            | Self::SplinePairWhole => geom_core::NOT_YET_ENDING,
+        }
+    }
+}
+
+impl core::fmt::Display for NoCarrier {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.sentence())
+    }
 }
 
 /// One connected component of a section, as classified.
@@ -1268,10 +1359,6 @@ pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
     residual(a) && residual(b)
 }
 
-/// The C7 note a tangent component carries.
-const TANGENT_COMPONENT: &str =
-    "the surfaces are tangent along it or at it, a C7 construction the section does not mint";
-
 /// The cylinder × sphere arm over its decided pose.
 fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     // `winds` is read in the order the pose was asked of.
@@ -1313,7 +1400,7 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
                         ring(ClassCarrier::Closed(circle(T::zero() - station))),
                     ]
                 }
-                Sign::Zero => vec![ring(ClassCarrier::Unminted(TANGENT_COMPONENT))],
+                Sign::Zero => vec![ring(ClassCarrier::Unminted(NoCarrier::Tangent))],
                 Sign::Negative => Vec::new(),
             }
         }
@@ -1323,7 +1410,7 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
                 ComponentShape::Point,
                 [false, false],
                 Some(pose.nearest_ruling(toward)),
-                ClassCarrier::Unminted(TANGENT_COMPONENT),
+                ClassCarrier::Unminted(NoCarrier::Tangent),
             )],
             // One loop, witnessed on the ruling nearest the centre,
             // `√((R − |d − r|)(R + |d − r|))` above the foot.
@@ -1332,7 +1419,7 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
                 let t = ((pose.big_r - q) * (pose.big_r + q)).sqrt();
                 let carrier = match far.map(|f| f.sign) {
                     Some(Sign::Negative) => ClassCarrier::General,
-                    _ => ClassCarrier::Unminted(TANGENT_COMPONENT),
+                    _ => ClassCarrier::Unminted(NoCarrier::Tangent),
                 };
                 vec![SectionComponent::closed_form(
                     ComponentShape::Loop,
@@ -1518,7 +1605,7 @@ impl<T: Decide> PairSection<T> {
                 band,
             )?,
             Components::Reaching(_) => {
-                return Err(CarryError::Unminted(spline_implicit::UNCARRIED));
+                return Err(CarryError::Unminted(NoCarrier::SplineImplicitWhole));
             }
             Components::Counted(listed) => {
                 for c in listed {
@@ -1695,7 +1782,7 @@ impl<T: Decide> PairSection<T> {
                 (ClassCarrier::General, None) => Err(CarryError::Desync(
                     "the march found no branch on a component the classification names",
                 )),
-                (ClassCarrier::Unminted(why), _) => Err(CarryError::Unminted(why)),
+                (ClassCarrier::Unminted(why), _) => Err(CarryError::Unminted(*why)),
             })
             .collect()
     }
@@ -1972,10 +2059,10 @@ fn march_over_the_ball(
         // Its components are read whole when the section is built, and
         // none is carried.
         PairPose::SplineImplicit(_) => {
-            return Err(CarryError::Unminted(spline_implicit::UNCARRIED));
+            return Err(CarryError::Unminted(NoCarrier::SplineImplicitWhole));
         }
         PairPose::SplinePair(_) => {
-            return Err(CarryError::Unminted(spline_pair::UNCARRIED));
+            return Err(CarryError::Unminted(NoCarrier::SplinePairWhole));
         }
     }
     .map_err(CarryError::March)?;
@@ -2155,9 +2242,9 @@ fn seat_at(
 ) -> Result<CarriedComponent<f64>, CarryError> {
     match pose {
         PairPose::SplineImplicit(_) => {
-            return Err(CarryError::Unminted(spline_implicit::UNCARRIED));
+            return Err(CarryError::Unminted(NoCarrier::SplineImplicitWhole));
         }
-        PairPose::SplinePair(_) => return Err(CarryError::Unminted(spline_pair::UNCARRIED)),
+        PairPose::SplinePair(_) => return Err(CarryError::Unminted(NoCarrier::SplinePairWhole)),
         _ => {}
     }
     let Curve3::Nurbs(net) = &component.carrier else {
@@ -2286,8 +2373,8 @@ fn rotated(
 /// **Why a section was not carried.**
 #[derive(Clone, Debug)]
 pub enum CarryError {
-    /// A component has no carrier: a tangency, classification only (C7).
-    Unminted(&'static str),
+    /// A component has no carrier: classification only.
+    Unminted(NoCarrier),
     /// The general rung is not marched at this scalar.
     NoLane {
         /// The scalar, by name.

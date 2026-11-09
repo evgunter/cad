@@ -10,6 +10,7 @@ use super::{BooleanError, SectionUnbuilt, SectionUnbuiltKind};
 use geom::{PieceWalkRefusal, SurfaceKind};
 use geom_brep::recourse::Reading;
 use strum::{IntoEnumIterator as _, VariantArray as _};
+use test_utils::refusal::Admission;
 
 fn samples(kind: SectionUnbuiltKind) -> Vec<(String, SectionUnbuilt)> {
     let one = |e| vec![(format!("{kind:?}"), e)];
@@ -19,9 +20,10 @@ fn samples(kind: SectionUnbuiltKind) -> Vec<(String, SectionUnbuilt)> {
                 what: "a cone's half-angle is not definitely positive",
             },
         )),
-        SectionUnbuiltKind::Tangent => one(SectionUnbuilt::Tangent(
-            "a component of the section is tangent",
-        )),
+        SectionUnbuiltKind::Unminted => geom_brep::NoCarrier::VARIANTS
+            .iter()
+            .map(|&why| (format!("Unminted({why:?})"), SectionUnbuilt::Unminted(why)))
+            .collect(),
         SectionUnbuiltKind::NoLane => one(SectionUnbuilt::NoLane { scalar: "Interval" }),
         SectionUnbuiltKind::March => one(SectionUnbuilt::March(
             geom_brep::SsiError::InvalidMarchTol { value: -1.0 },
@@ -57,27 +59,28 @@ fn samples(kind: SectionUnbuiltKind) -> Vec<(String, SectionUnbuilt)> {
     }
 }
 
-/// **The shortfalls of a door-ended arm's payload that a filed row owns**:
-/// the row's name, a fragment of the problem, and the item that fixes it.
-/// An entry whose problem no longer turns up is itself a problem, so the
-/// list cannot outlive what it names.
-const FILED: &[(&str, &str, &str)] = &[
-    (
-        "Refused",
-        "states no recourse",
-        "work/germtail/a-section-refused-at-the-glue-door-ends-on-no-recourse.md",
-    ),
-    (
-        "March",
-        "stage prefix \"ssi:\"",
-        "work/ssiarith/ssi-refusals-reach-the-boolean-under-their-stage-prefix.md",
-    ),
-];
+/// **The spans of a door-ended arm's text a filed row owns**, admitted
+/// the shared way (`test_utils::refusal::problems_admitting`): an
+/// admission whose span the text no longer holds is itself a problem.
+const ADMITTED: &[Admission<'static>] = &[Admission {
+    row: "March",
+    span: "ssi:",
+    filed: "work/ssiarith/ssi-refusals-reach-the-boolean-under-their-stage-prefix.md",
+}];
+
+/// **The door-ended arms a filed row owns a missing recourse for.** An
+/// admission masks a span of text, and a missing recourse has none, so
+/// these are named apart: the row must still state no recourse, or its
+/// entry is a problem.
+const NO_RECOURSE_FILED: &[(&str, &str)] = &[(
+    "Refused",
+    "work/germtail/a-section-refused-at-the-glue-door-ends-on-no-recourse.md",
+)];
 
 #[test]
 fn every_section_unbuilt_arm_ends_on_one_recourse() {
     let mut problems = Vec::new();
-    let mut claimed = vec![false; FILED.len()];
+    let mut names = Vec::new();
     for (name, why) in SectionUnbuiltKind::iter().flat_map(samples) {
         let text = BooleanError::GermSectionUnbuilt {
             a_face: crate::FaceKey::default(),
@@ -87,20 +90,26 @@ fn every_section_unbuilt_arm_ends_on_one_recourse() {
             why,
         }
         .render(Reading::Build);
-        for problem in test_utils::refusal::problems(&name, &text, &[], false) {
-            match FILED
-                .iter()
-                .position(|(row, what, _)| *row == name && problem.contains(what))
-            {
-                Some(k) => claimed[k] = true,
-                None => problems.push(problem),
-            }
+        let filed = NO_RECOURSE_FILED.iter().find(|(row, _)| *row == name);
+        let found = test_utils::refusal::problems_admitting(&name, &text, &[], false, ADMITTED);
+        let unstated = format!("{name} states no recourse: {text}");
+        match filed {
+            Some((_, item)) if !found.contains(&unstated) => problems.push(format!(
+                "{name} now states a recourse ({item}): drop its entry: {text}"
+            )),
+            Some(_) => problems.extend(found.into_iter().filter(|p| *p != unstated)),
+            None => problems.extend(found),
+        }
+        names.push(name);
+    }
+    for (row, item) in NO_RECOURSE_FILED {
+        if !names.iter().any(|n| n == row) {
+            problems.push(format!("the entry for {row} names no sampled row ({item})"));
         }
     }
-    for ((row, what, filed), claimed) in FILED.iter().zip(claimed) {
-        if !claimed {
-            problems.push(format!("{row} no longer {what} ({filed}): drop its entry"));
-        }
-    }
+    problems.extend(test_utils::refusal::unclaimed_admissions(
+        ADMITTED,
+        names.iter().map(String::as_str),
+    ));
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }

@@ -29,3 +29,7 @@ Decide what a refused elevation or union refinement of valid sections
 means for the loft: a kernel defect, or a section shape the loft cannot
 yet carry. Render it with that ending, as the payload's own recourse.
 Do not pass the knot-API sentence through.
+
+`geom_core::spline::KnotAlgebraError::fact` renders the refusal without
+its caller-facing recourse (PR 6622 added it for `SectionUnbuilt::Seat`),
+so a holder can keep the diagnostics and end on its own recourse.

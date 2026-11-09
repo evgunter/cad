@@ -2798,15 +2798,16 @@ pub fn forget_branches(on: bool) {
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names
 /// this rung; the disposition table cites this paragraph as its home).
 /// A Rust caller can already name and match it — `pncad` re-exports
-/// `topo` whole — and the refusal's sentence names the case and states
-/// its own recourse: move a face so the surfaces clearly cross or part,
-/// or run the operation at `f64`. Carrying it would add the CUR3
-/// property row and a Python word with no reader that acts on the
-/// difference.
+/// `topo` whole — and the refusal's sentence names the case and ends on
+/// its payload's recourse: a geometry lever where the surfaces can be
+/// moved off a tangency, `f64` where the scalar has no lane, and
+/// otherwise the kernel's limit, its defect, or "not yet". Carrying it
+/// would add the CUR3 property row and a Python word with no reader that
+/// acts on the difference.
 ///
 /// **The falsifier is a caller that acts on the case by itself**: a
 /// driver that re-runs an operation at `f64` when it reads `NoLane`,
-/// or nudges a part when it reads `Tangent`. Then
+/// or nudges a part when it reads a tangent `Unminted`. Then
 /// carry it and delete this paragraph and the disposition row with it.
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(strum::EnumDiscriminants))]
@@ -2818,9 +2819,9 @@ pub enum SectionUnbuilt {
     /// The pair's section refused at the glue door, decided: an operand
     /// whose radius is not definitely positive.
     Refused(geom_brep::SectionError),
-    /// A component is tangent, which C7 constructs and the section only
-    /// classifies.
-    Tangent(&'static str),
+    /// A component has no carrier: classification only, for the reason
+    /// given.
+    Unminted(geom_brep::NoCarrier),
     /// The general rung is not marched at this scalar.
     NoLane {
         /// The scalar, by name.
@@ -2838,9 +2839,8 @@ pub enum SectionUnbuilt {
         /// The certificate's limb-2 bound, in metres.
         hull_sup: f64,
     },
-    /// A marched loop's uniqueness tube could not be read: an empty box
-    /// chain, or a refused box or carrier point
-    /// (`geom_brep::CarryError::TubeUnread`).
+    /// A marched loop's uniqueness tube could not be read: a box or
+    /// carrier point of it is refused (`geom_brep::CarryError::TubeUnread`).
     TubeUnread,
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
@@ -2851,82 +2851,77 @@ pub enum SectionUnbuilt {
 }
 
 impl SectionUnbuilt {
-    /// **The recourse this refusal ends with**, where it is the
-    /// refusal's own: `None` exactly on the arms whose payload is ended
-    /// at the door that reads it ([`geom_brep::recourse::Ended`]).
-    ///
-    /// A carrier bound past its pad is a certified bound outrunning what
-    /// is read, the kernel's approximation limit; a NaN bound, or a tube
-    /// that cannot be read at all, is unreadable, which no tolerance
-    /// repairs. A loop's seat is a knot edit at a parameter the kernel
-    /// chose strictly inside the carrier, so its refusal is the kernel's.
-    #[must_use]
-    pub fn recourse(&self) -> Option<&'static str> {
-        match self {
-            Self::Refused(_) | Self::March(_) => None,
-            Self::Tangent(_) => {
-                Some("Recourse: move one face so the surfaces clearly cross or clearly part")
-            }
-            Self::NoLane { .. } => Some("Recourse: run the operation at f64"),
-            Self::Winds(why) => Some(why.recourse()),
-            Self::PadShort { hull_sup, .. } if hull_sup.is_nan() => {
-                Some(geom_core::KERNEL_DEFECT_ENDING)
-            }
-            Self::PadShort { .. } => Some(geom_core::KERNEL_LIMIT_RECOURSE),
-            // Unreadable, which no tolerance repairs. Unreached by any row:
-            // a certified fit's refined net is never empty (`tube_chain`'s
-            // insertion chain holds its count by construction) and its
-            // points are finite, so only an overflowing coordinate gets here.
-            Self::TubeUnread => Some(geom_core::KERNEL_DEFECT_ENDING),
-            Self::Seat(_) => Some(geom_core::KERNEL_DEFECT_ENDING),
-            Self::Unwalked(why) => Some(why.recourse()),
-        }
-    }
-
+    /// The refusal's sentence, then its one recourse. `Refused` and
+    /// `March` are the arms whose payload ends itself at the door that
+    /// reads it ([`geom_brep::recourse::Ended`]); every other arm states
+    /// its sentence and the recourse decided beside it.
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
-        match self {
+        use std::borrow::Cow;
+        let (sentence, recourse): (String, Cow<'static, str>) = match self {
             Self::Refused(e) => return write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::March(e) => return write!(f, "{}", geom_brep::recourse::read_at(e, at)),
-            Self::Tangent(why) => write!(f, "{why}"),
-            Self::NoLane { scalar } => write!(
-                f,
-                "the section is marched on the general rung, which is written at f64 and not at \
-                 {scalar}"
+            Self::Unminted(why) => (why.sentence().to_owned(), why.recourse().into()),
+            Self::NoLane { scalar } => (
+                format!(
+                    "the section is marched on the general rung, which is written at f64 and \
+                     not at {scalar}"
+                ),
+                "Recourse: run the operation at f64".into(),
             ),
-            Self::Winds(why) => write!(
-                f,
-                "a marched loop's turns about an operand's axis or core could not be read: {}",
-                why.sentence()
+            Self::Winds(why) => (
+                format!(
+                    "a marched loop's turns about an operand's axis or core could not be read: {}",
+                    why.sentence()
+                ),
+                why.recourse().into(),
             ),
-            Self::TubeUnread => write!(
-                f,
-                "a marched loop's uniqueness tube could not be read (an empty box chain, or a \
-                 refused box or carrier point)"
+            // The box chain is never empty here: limb 3 certified the loop
+            // over the same `box_chain` of its carrier, and refuses an empty
+            // one (`ssi::certify::probe_tube_analytic`). What is left is a
+            // box or carrier point that is not finite, a coordinate past
+            // the format's range.
+            Self::TubeUnread => (
+                "a marched loop's uniqueness tube could not be read: a box or carrier point of \
+                 it is not finite"
+                    .to_owned(),
+                concat!("Recourse: ", geom_core::range_recourse!()).into(),
             ),
-            Self::PadShort { pad, hull_sup } => write!(
-                f,
-                "a marched loop's carrier lies {hull_sup:e} m from the surfaces, past the {pad:e} m \
-                 its points are read within"
+            Self::PadShort { pad, hull_sup } => (
+                format!(
+                    "a marched loop's carrier lies {hull_sup:e} m from the surfaces, past the \
+                     {pad:e} m its points are read within"
+                ),
+                // A NaN bound is unread by any row: limb 2 decides its sup
+                // on a margin, and a poisoned margin refuses the limb
+                // (`ssi::certify::hull_limb`) before any certificate holds it.
+                if hull_sup.is_nan() {
+                    geom_core::KERNEL_DEFECT_ENDING.into()
+                } else {
+                    geom_core::KERNEL_LIMIT_RECOURSE.into()
+                },
             ),
-            Self::Seat(_) => write!(
-                f,
-                "the section's closed loop could not be opened at its first site: the knot edit \
-                 refused"
+            // The seat is a knot edit at a parameter the kernel chose
+            // strictly inside the carrier, so its refusal is the kernel's.
+            Self::Seat(e) => (
+                format!(
+                    "the section's closed loop could not be opened at its first site: {}",
+                    e.fact()
+                ),
+                geom_core::KERNEL_DEFECT_ENDING.into(),
             ),
-            Self::Unwalked(why) => write!(
-                f,
-                "whether a marched loop's points lie on its fitted carrier could not be read: \
-                 {why}"
+            Self::Unwalked(why) => (
+                format!(
+                    "whether a marched loop's points lie on its fitted carrier could not be \
+                     read: {why}"
+                ),
+                why.recourse().into(),
             ),
-        }?;
-        if let Some(recourse) = self.recourse() {
-            write!(f, ". {recourse}")?;
-        }
-        Ok(())
+        };
+        write!(f, "{sentence}. {recourse}")
     }
 }
 

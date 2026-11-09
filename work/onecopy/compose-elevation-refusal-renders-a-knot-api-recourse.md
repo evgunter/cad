@@ -27,3 +27,7 @@ ending may be decided for the enum as a whole.
 
 Give `ElevationRefused` its own ending, decided on the payload, and stop
 rendering the knot-API sentence through it.
+
+`geom_core::spline::KnotAlgebraError::fact` renders the refusal without
+its caller-facing recourse (PR 6622 added it for `SectionUnbuilt::Seat`),
+so a holder can keep the diagnostics and end on its own recourse.
