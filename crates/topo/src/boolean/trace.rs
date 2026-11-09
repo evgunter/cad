@@ -164,7 +164,11 @@ fn unsettled(why: Unsettled) -> TraceFault {
     }
 }
 
-fn sign(name: &'static str, margin: Margin<impl Decide>, band: Band) -> Result<Sign, TraceFault> {
+fn sign_as(
+    name: &'static str,
+    margin: Margin<impl Decide>,
+    band: Band,
+) -> Result<Sign, TraceFault> {
     decide(name, margin, band).map_err(TraceFault::Escalated)
 }
 
@@ -190,7 +194,7 @@ pub fn ray_crossings<T: Decide>(
     let arm = geom_core::Lever::unsourced(reach);
     let on_carrier = || -> Result<Vec<Crossing<T>>, TraceFault> {
         let residual = geom_brep::implicit_residual(surface, origin);
-        match sign(TRACE_ON_CARRIER, Margin::of(residual), band)? {
+        match sign_as(TRACE_ON_CARRIER, Margin::of(residual), band)? {
             Sign::Zero => Err(TraceFault::OnCarrier),
             Sign::Positive | Sign::Negative => Ok(Vec::new()),
         }
@@ -200,7 +204,7 @@ pub fn ray_crossings<T: Decide>(
             origin: o, normal, ..
         } => {
             let lead = normal.dot(dir);
-            match sign(TRACE_PLANE_LEAD, Margin::levered(lead, arm), band)? {
+            match sign_as(TRACE_PLANE_LEAD, Margin::levered(lead, arm), band)? {
                 Sign::Zero => return on_carrier(),
                 Sign::Positive | Sign::Negative => {}
             }
@@ -230,7 +234,7 @@ pub fn ray_crossings<T: Decide>(
     };
     let mut out = Vec::new();
     for t in roots {
-        match sign(TRACE_CROSSING_AHEAD, Margin::of(t), band)? {
+        match sign_as(TRACE_CROSSING_AHEAD, Margin::of(t), band)? {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => continue,
         }
@@ -265,16 +269,16 @@ pub fn circle_crossings<T: Decide>(
             let k = geom::plane_offset(origin, normal, center);
             let r2 = a.powi(2) + b.powi(2);
             let r = r2.sqrt();
-            match sign(TRACE_PLANE_LEAD, Margin::of(r), band)? {
+            match sign_as(TRACE_PLANE_LEAD, Margin::of(r), band)? {
                 Sign::Zero => {
-                    return match sign(TRACE_ON_CARRIER, Margin::of(k), band)? {
+                    return match sign_as(TRACE_ON_CARRIER, Margin::of(k), band)? {
                         Sign::Zero => Err(TraceFault::OnCarrier),
                         Sign::Positive | Sign::Negative => Ok(Vec::new()),
                     };
                 }
                 Sign::Positive | Sign::Negative => {}
             }
-            match sign(TRACE_PLANE_DEPTH, Margin::of(r - k.abs()), band)? {
+            match sign_as(TRACE_PLANE_DEPTH, Margin::of(r - k.abs()), band)? {
                 Sign::Zero => return Err(TraceFault::Grazing),
                 Sign::Negative => return Ok(Vec::new()),
                 Sign::Positive => {}
@@ -340,7 +344,7 @@ pub fn circle_crossings<T: Decide>(
         let half_turn = c.max(T::zero() - T::one()).min(T::one()).acos();
         let theta = s.select_le_zero(tau - half_turn, half_turn);
         // A crossing a whole turn on is the pen itself.
-        match sign(
+        match sign_as(
             TRACE_CROSSING_AHEAD,
             Margin::metered(tau - theta, rate),
             band,
@@ -348,7 +352,7 @@ pub fn circle_crossings<T: Decide>(
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => continue,
         }
-        match sign(TRACE_CROSSING_AHEAD, Margin::metered(theta, rate), band)? {
+        match sign_as(TRACE_CROSSING_AHEAD, Margin::metered(theta, rate), band)? {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => continue,
         }
@@ -401,12 +405,12 @@ fn crossing<T: Decide>(
     // `conic_quadric`'s "Through the apex"), has no outward normal and
     // no sense to read: the piece crosses at the apex.
     if let Surface::Cone { apex, .. } = *surface
-        && sign(TRACE_CROSSING_APEX, Margin::norm3(point - apex), band)? != Sign::Positive
+        && sign_as(TRACE_CROSSING_APEX, Margin::norm3(point - apex), band)? != Sign::Positive
     {
         return Err(TraceFault::Apex);
     }
     let outward = crate::face_normal::surface_outward_normal(surface, point, sense).vec();
-    let passage = match sign(
+    let passage = match sign_as(
         TRACE_CROSSING_SENSE,
         Margin::levered(outward.dot(velocity) / outward.norm(), lever),
         band,
@@ -434,7 +438,7 @@ fn order<T: Decide>(
     for i in 1..crossings.len() {
         let mut j = i;
         while j > 0 {
-            match sign(
+            match sign_as(
                 TRACE_CROSSING_ORDER,
                 gap(crossings[j - 1].along, crossings[j].along),
                 band,
@@ -479,7 +483,7 @@ pub fn plane_misses<T: Decide>(
         carrier: surface.kind(),
     };
     let beyond =
-        |gap: T| sign(TRACE_PLANE_MISSES, Margin::of(gap), band).map(|s| s == Sign::Positive);
+        |gap: T| sign_as(TRACE_PLANE_MISSES, Margin::of(gap), band).map(|s| s == Sign::Positive);
     // How far the plane stands off a parallel carrier reaching `reach`
     // from `anchor` across it.
     let off = |anchor: Point3<T>, reach: T| beyond((anchor - point).dot(normal).abs() - reach);
@@ -489,7 +493,7 @@ pub fn plane_misses<T: Decide>(
         } => {
             // A tilted plane meets it; a parallel one misses it off it.
             let tilt = n.cross(normal).norm();
-            match sign(
+            match sign_as(
                 TRACE_PLANE_LEAD,
                 // Unsourced lever: the plane carrier's stored origin's
                 // distance from `point`, a carrier term and no extent.
@@ -520,7 +524,7 @@ pub fn plane_misses<T: Decide>(
             axis,
             radius,
             ..
-        } => match sign(
+        } => match sign_as(
             TRACE_PLANE_LEAD,
             Margin::levered(axis.dot(normal), geom_core::Lever::curvature_radius(radius)),
             band,

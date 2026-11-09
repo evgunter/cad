@@ -1351,7 +1351,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     };
     // A definite class miss is `None` (the honest remainder); an
     // in-band one escalates — the two-tolerance pair.
-    let zero = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
+    let zero_as = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
         match decide(name, m, band).map_err(escalate)? {
             Sign::Zero => Ok(true),
             Sign::Positive | Sign::Negative => Ok(false),
@@ -1408,7 +1408,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
         // and is levered by the radius; a length difference is already
         // metres.
-        if zero(
+        if zero_as(
             "bool_sphere_iso_meridian",
             Margin::levered(
                 n_c.dot(axis),
@@ -1417,8 +1417,8 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         )? {
             // A meridian GREAT circle: centred at the sphere centre,
             // at the sphere's own radius.
-            if !zero("bool_sphere_iso_meridian", Margin::of(w.norm()))?
-                || !zero("bool_sphere_iso_meridian", Margin::of(r_c - radius))?
+            if !zero_as("bool_sphere_iso_meridian", Margin::of(w.norm()))?
+                || !zero_as("bool_sphere_iso_meridian", Margin::of(r_c - radius))?
             {
                 return Ok(None);
             }
@@ -1473,9 +1473,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     u_ref: u_c,
                 },
             );
-            if !zero("bool_sphere_iso_rim", tilt)?
-                || !zero("bool_sphere_iso_rim", off)?
-                || !zero(
+            if !zero_as("bool_sphere_iso_rim", tilt)?
+                || !zero_as("bool_sphere_iso_rim", off)?
+                || !zero_as(
                     "bool_sphere_iso_rim",
                     Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
                 )?
@@ -1546,7 +1546,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                 .map(|rim| ((rim.center - center).dot(axis), rim.radius))
                 .collect();
             for level in levels {
-                if zero("bool_sphere_trim_pole_end", Margin::of(level.1))? {
+                if zero_as("bool_sphere_trim_pole_end", Margin::of(level.1))? {
                     bounding.push(level);
                 }
             }

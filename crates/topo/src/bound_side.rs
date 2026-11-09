@@ -36,7 +36,7 @@
 //! [`Tie::descend`] too.
 //!
 //! Both orders are decided at the link's metric door
-//! ([`crate::link::metric::settle`]) on the [`Reading`] the caller
+//! ([`crate::link::metric::settle_as`]) on the [`Reading`] the caller
 //! passes: the run band alone about the bound's own vertex, or a cone's
 //! reading over its tie where the side is handed to that cone
 //! ([`crate::link::Cone::reading`]). Over a slack, a side the band decides
@@ -604,7 +604,7 @@ type Settled<T> = Result<(Side, T, &'static str, Decided), Tie<T>>;
 
 /// The first order of [`read`] before its charge: a side with the
 /// bound's displacement off the face's tangent plane in metres, or a tie.
-/// The displacement is decided on `rd` ([`metric::settle`]): a side the
+/// The displacement is decided on `rd` ([`metric::settle_as`]): a side the
 /// band decides and the slack does not is tied, its slack the tie's.
 fn first_order<T: Decide>(
     dir: Vec3<T>,
@@ -762,7 +762,7 @@ pub(crate) fn read<T: Decide>(
     // where the distance is a large fraction of the radius. Dropping
     // the ½ gives `l²/R`, an upper bound unconditionally (`l* ≤ R/2`
     // here, inside the circle's reach).
-    // Over a slack the separation clears it too ([`metric::settle`]), or
+    // Over a slack the separation clears it too ([`metric::settle_as`]), or
     // the side is the slack's tie, read one order down.
     let slope = displacement / length;
     let charge = Distance::departure(
@@ -901,7 +901,7 @@ impl<T: Decide> Tie<T> {
     /// a plane rides it.
     ///
     /// The parting is decided on the reading the tie was decided on
-    /// ([`metric::settle`]): one the band decides and the slack does not
+    /// ([`metric::settle_as`]): one the band decides and the slack does not
     /// is [`Unresolved::Slack`]. A tie the slack made
     /// ([`TiedBy::Slack`]) descends by its rise at the arm and its parting
     /// together ([`Departure::Jet`]), its point's displacement to second
@@ -990,7 +990,7 @@ impl<T: Decide> Tie<T> {
             n,
             arm,
         );
-        let leading = match metric::settle("tangent_sector_order2", parting, rd) {
+        let leading = match metric::settle_as("tangent_sector_order2", parting, rd) {
             Ok(Sign::Zero) => return Ok(rides),
             Ok(Sign::Negative) => Some(Side::Below),
             Ok(Sign::Positive) => Some(Side::Above),

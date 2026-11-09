@@ -1527,9 +1527,12 @@ pub struct PredicateCensus {
     pub names: std::collections::BTreeSet<String>,
     /// `<file>: <expression>` per call whose name-bearing argument is
     /// not a plain literal, and per declared carrier call that holds no
-    /// literal argument. Each is a site whose carrier the caller must
-    /// declare — declaring it makes that carrier's own call sites part
-    /// of the census, so the chain terminates at literals or stays red.
+    /// literal argument — named by each `const` argument it holds, else
+    /// by its first argument. One entry stands for every site of a file
+    /// that spells the same expression. Each is a site whose carrier the
+    /// caller must declare — declaring it makes that carrier's own call
+    /// sites part of the census, so the chain terminates at literals or
+    /// stays red.
     pub indirect: std::collections::BTreeSet<String>,
     /// `<file>: <text>` per `decide*` occurrence this reader cannot
     /// even find an argument list for — a spelling it does not know.
@@ -1609,21 +1612,33 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                             continue;
                         };
                         let literals = direct_literals(&code[open + 1..end]);
-                        if literals.is_empty() {
-                            out.indirect
-                                .insert(format!("{rel}: {}", one_line(&code[open..=end])));
-                        } else {
+                        let consts = const_arguments(&bare[open + 1..end]);
+                        if !literals.is_empty() {
                             out.names.extend(literals);
+                        } else if !consts.is_empty() {
+                            // A name handed on in a `const`: reported as the
+                            // const, as a `decide*` call's is, so a roster
+                            // holds it to a declared carrier.
+                            for name in consts {
+                                out.indirect.insert(format!("{rel}: {name}"));
+                            }
+                        } else {
+                            // A name handed on from elsewhere, named by the
+                            // group's first argument as a `decide*` site is.
+                            let inner = &code[open + 1..end];
+                            let head = top_level_split(&bare[open + 1..end], ',')
+                                .into_iter()
+                                .next()
+                                .map_or(inner, |r| &inner[r]);
+                            out.indirect
+                                .insert(format!("{rel}: {}", one_line(head.trim())));
                         }
                     }
                 }
                 NameCarrier::Const(token) => {
                     for decl in const_decls(&bare, token) {
                         match const_literal(&code[decl..]) {
-                            Some(Some(name)) => {
-                                out.names.insert(name);
-                            }
-                            Some(None) => {}
+                            Some(names) => out.names.extend(names),
                             None => {
                                 out.unreadable.insert(format!("{rel}: const {token}"));
                             }
@@ -1872,28 +1887,67 @@ fn direct_literals(inner: &str) -> Vec<String> {
     out
 }
 
-/// The first plain literal of a `const NAME: &str = "…";` declaration
-/// whose head starts at the front of `text`.
+/// The direct arguments of a bracket group that are a `const`'s path
+/// (`LINK_PLANE`, `super::CROSS_SIDE`), in a blanked view.
+fn const_arguments(inner: &str) -> Vec<String> {
+    top_level_split(inner, ',')
+        .into_iter()
+        .map(|r| inner[r].trim())
+        .filter(|arg| {
+            let last = arg.rsplit("::").next().unwrap_or(arg);
+            last.starts_with(|c: char| c.is_ascii_uppercase())
+                && last
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+                && arg.split("::").all(|seg| {
+                    !seg.is_empty() && seg.chars().all(|c| c.is_alphanumeric() || c == '_')
+                })
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+/// The names a `const NAME: &str = "…";` declaration whose head starts
+/// at the front of `text` holds — one, or each of a tuple of them
+/// (`const SIDE: (&str, &str) = ("row", "row_straddle");`).
 ///
-/// `Some(None)` where the declaration is not a name: a `const` of the
-/// same identifier and another type (a tuple, a number), or a trait's
-/// declaration with no value, whose implementations carry the names.
-/// `None` where it is a `&str` this reader cannot read.
-fn const_literal(text: &str) -> Option<Option<String>> {
+/// `Some` and empty where the declaration is not a name: a `const` of
+/// the same identifier and another type (a number, a struct), or a
+/// trait's declaration with no value, whose implementations carry the
+/// names. `None` where it is a `&str` or a tuple of them this reader
+/// cannot read.
+fn const_literal(text: &str) -> Option<Vec<String>> {
+    const STR: [&str; 2] = ["&str", "&'staticstr"];
     let end = text.find(';')?;
     let decl = &text[..end];
     let Some((head, value)) = decl.split_once('=') else {
-        return Some(None);
+        return Some(Vec::new());
     };
     let ty: String = head
         .split_once(':')
         .map_or("", |(_, ty)| ty)
         .split_whitespace()
         .collect();
-    if ty != "&str" && ty != "&'staticstr" {
-        return Some(None);
+    if STR.contains(&ty.as_str()) {
+        return plain_string_literal(value).map(|name| vec![name.to_string()]);
     }
-    plain_string_literal(value).map(|name| Some(name.to_string()))
+    let parts = ty
+        .strip_prefix('(')
+        .and_then(|t| t.strip_suffix(')'))
+        .map(|t| t.split(',').filter(|p| !p.is_empty()).collect::<Vec<_>>());
+    match parts {
+        Some(parts) if !parts.is_empty() && parts.iter().all(|p| STR.contains(p)) => {
+            let inner = value.trim().strip_prefix('(')?.strip_suffix(')')?;
+            let names: Vec<String> = inner
+                .split(',')
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .map(|item| plain_string_literal(item).map(str::to_string))
+                .collect::<Option<_>>()?;
+            (names.len() == parts.len()).then_some(names)
+        }
+        _ => Some(Vec::new()),
+    }
 }
 
 /// The offset of every `const <token>` declaration, as a whole word, in
@@ -2219,11 +2273,11 @@ mod tests {
         assert_eq!(sites, ["[(\"lit\", m)]", "xs.map(|x| (NAME, x))"], "{raw}");
     }
 
-    /// **A `Const` carrier reads every `&str` declaration of its name
-    /// and only those**: a longer identifier is not it, a same-named
-    /// const of another type or a trait's valueless declaration is not
-    /// a name, and a `&str` whose value is not a plain literal is
-    /// unreadable.
+    /// **A `Const` carrier reads every `&str` declaration of its name,
+    /// or tuple of them, and only those**: a longer identifier is not
+    /// it, a same-named const of another type or a trait's valueless
+    /// declaration is not a name, and a `&str` whose value is not a
+    /// plain literal is unreadable.
     #[test]
     fn a_const_carrier_reads_each_str_declaration_of_its_name() {
         let raw = "const APEX_DOWN: &str = \"no\";\n\
@@ -2231,19 +2285,24 @@ mod tests {
                    mod b { const APEX: &'static str = \"two\"; }\n\
                    mod t { const APEX: (f64, f64) = (0.0, 1.0); }\n\
                    trait R { const APEX: &'static str; }\n\
-                   const APEX: &str = concat!(\"a\", \"b\");\n";
+                   const APEX: &str = concat!(\"a\", \"b\");\n\
+                   const APEX: (&str, &'static str) = (\"row\", \"row_straddle\");\n\
+                   const APEX: (&str, &str) = (\"row\", other);\n";
         let (bare, code) = (code_only(raw), code_and_literals(raw));
-        let read: Vec<Option<Option<String>>> = super::const_decls(&bare, "APEX")
+        let read: Vec<Option<Vec<String>>> = super::const_decls(&bare, "APEX")
             .into_iter()
             .map(|at| super::const_literal(&code[at..]))
             .collect();
+        let names = |n: &[&str]| Some(n.iter().map(|s| s.to_string()).collect::<Vec<_>>());
         assert_eq!(
             read,
             [
-                Some(Some("one".to_string())),
-                Some(Some("two".to_string())),
-                Some(None),
-                Some(None),
+                names(&["one"]),
+                names(&["two"]),
+                names(&[]),
+                names(&[]),
+                None,
+                names(&["row", "row_straddle"]),
                 None,
             ],
             "{raw}"
@@ -2284,6 +2343,34 @@ mod tests {
             .map(|(kind, s)| (matches!(kind, super::SiteKind::Name), s.as_str()))
             .collect();
         assert_eq!(read, [(false, "name"), (true, "lit")], "{raw}");
+    }
+
+    /// **A declared carrier's call is read for its literals, else named
+    /// by its `const` arguments, else by its first argument**, so a
+    /// forwarding hop is named as a `decide*` site's is and the same
+    /// hop twice in one file is one entry.
+    #[test]
+    fn a_carrier_call_is_named_by_its_consts_or_its_first_argument() {
+        let dir = std::env::temp_dir().join(format!("tu-carrier-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn f() { sign_as(\"lit\", d); sign_as(super::ROW, d); \
+             sign_as(name, d); sign_as(name, e); }\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[super::NameCarrier::Call("sign_as")]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.names.iter().collect::<Vec<_>>(),
+            ["lit"],
+            "{census:?}"
+        );
+        assert_eq!(
+            census.indirect.iter().collect::<Vec<_>>(),
+            ["a.rs: name", "a.rs: super::ROW"],
+            "{census:?}"
+        );
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the

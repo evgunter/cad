@@ -141,14 +141,14 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
         <Interval as geom_core::Real>::from_computed(mv),
     );
     let reach = (surface.eval(span(u), span(v)) - station).norm();
-    let clear = |row: &'static str, distance: Interval| {
+    let clear_as = |row: &'static str, distance: Interval| {
         matches!(
             decide(row, Margin::of(distance - reach), band),
             Ok(Sign::Positive)
         )
     };
-    if !(clear_of_singular(surface, station, &clear)
-        && clear_of_boundary(boundary, station, &clear))
+    if !(clear_of_singular(surface, station, &clear_as)
+        && clear_of_boundary(boundary, station, &clear_as))
     {
         return CellRegion::Undecided;
     }
@@ -220,7 +220,7 @@ impl Ball {
         self.reach
     }
 
-    fn clear(self, row: &'static str, distance: Interval, band: Band) -> bool {
+    fn clear_as(self, row: &'static str, distance: Interval, band: Band) -> bool {
         matches!(
             decide(row, Margin::of(distance - self.reach), band),
             Ok(Sign::Positive)
@@ -229,7 +229,7 @@ impl Ball {
 
     /// Is the point decided clear of the ball?
     pub(crate) fn clear_of_point(self, p: Point3<Interval>, band: Band) -> bool {
-        self.clear(VERTEX, (p - self.centre).norm(), band)
+        self.clear_as(VERTEX, (p - self.centre).norm(), band)
     }
 
     /// Is the arc of `carrier` over `params` decided clear of the ball?
@@ -245,7 +245,7 @@ impl Ball {
                 ArcFloor::Conic { .. } => CONIC,
                 ArcFloor::Ball { .. } => BALL,
             };
-            floor.clears(|d| self.clear(row, d, band))
+            floor.clears(|d| self.clear_as(row, d, band))
         })
     }
 }
@@ -257,16 +257,16 @@ impl Ball {
 fn clear_of_singular(
     surface: &Surface<Interval>,
     station: Point3<Interval>,
-    clear: &dyn Fn(&'static str, Interval) -> bool,
+    clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     match *surface {
-        Surface::Cone { apex, .. } => clear(SINGULAR, (station - apex).norm()),
+        Surface::Cone { apex, .. } => clear_as(SINGULAR, (station - apex).norm()),
         Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
             let axis_line = geom::Line {
                 origin: center,
                 dir: axis,
             };
-            clear(SINGULAR, axis_line.distance(station))
+            clear_as(SINGULAR, axis_line.distance(station))
         }
         _ => true,
     }
@@ -329,17 +329,17 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
 fn clear_of_boundary(
     stops: &[BoundaryStop],
     station: Point3<Interval>,
-    clear: &dyn Fn(&'static str, Interval) -> bool,
+    clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     stops.iter().all(|stop| match stop {
-        BoundaryStop::Vertex(p) => clear(VERTEX, (*p - station).norm()),
+        BoundaryStop::Vertex(p) => clear_as(VERTEX, (*p - station).norm()),
         BoundaryStop::Arc(arc) => arc_distance_floor(&arc.0, arc.1, station).is_some_and(|floor| {
             let row = match floor {
                 ArcFloor::Segment(_) => SEGMENT,
                 ArcFloor::Conic { .. } => CONIC,
                 ArcFloor::Ball { .. } => BALL,
             };
-            floor.clears(|d| clear(row, d))
+            floor.clears(|d| clear_as(row, d))
         }),
         BoundaryStop::Unreadable => false,
     })

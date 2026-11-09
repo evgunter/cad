@@ -3097,7 +3097,7 @@ fn reauthor<T: Decide>(
                 }
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
-            let shift = |name: &'static str, p: Point3<T>, station: Option<T>| {
+            let shift_as = |name: &'static str, p: Point3<T>, station: Option<T>| {
                 let height = inv.transform_point(p).z;
                 let off = match station {
                     None => height,
@@ -3110,12 +3110,12 @@ fn reauthor<T: Decide>(
                 }
             };
             let range = range.moved(
-                shift(
+                shift_as(
                     "offset_axial_reauthor_extrude_start",
                     p_start,
                     range.start(),
                 )?,
-                shift(
+                shift_as(
                     "offset_axial_reauthor_extrude_end",
                     p_end,
                     Some(range.at(T::one())),

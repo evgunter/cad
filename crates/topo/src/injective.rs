@@ -691,7 +691,7 @@ fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
     unit(unit(perp(hx, t))? - unit(perp(hy, t))?)
 }
 
-fn sign_of(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
+fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
     match decide(row, Margin::of(x), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         _ => None,
@@ -1447,7 +1447,7 @@ fn nappe(b: &Boundary, apex: Point3<Interval>, axis: Vec3<Interval>, band: Band)
     let mut signs = b
         .vertices
         .values()
-        .filter_map(|&q| sign_of((q - apex).dot(axis), NAPPE, band));
+        .filter_map(|&q| interval_sign_as((q - apex).dot(axis), NAPPE, band));
     let first = signs.next()?;
     signs.all(|s| s == first).then_some(first == Sign::Positive)
 }
@@ -1993,7 +1993,7 @@ fn present_plane<'a>(
             }
             let len = len2.sqrt();
             let inside = (x * len).min((at(1.0) - x) * len);
-            if sign_of(inside, SPAN, band) != Some(Sign::Positive) {
+            if interval_sign_as(inside, SPAN, band) != Some(Sign::Positive) {
                 return Err(Unpresented::Local);
             }
             let zero = if near_edges.contains(e) {
@@ -2050,8 +2050,8 @@ fn present_plane<'a>(
             let lean = |n: [Interval; 2], w: [Interval; 2]| {
                 (n[0] * w[0] + n[1] * w[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt()
             };
-            if sign_of(lean(n1, bv), CORNER, band) != Some(Sign::Positive)
-                || sign_of(lean(n2, a), CORNER, band) != Some(Sign::Positive)
+            if interval_sign_as(lean(n1, bv), CORNER, band) != Some(Sign::Positive)
+                || interval_sign_as(lean(n2, a), CORNER, band) != Some(Sign::Positive)
             {
                 return Err(Unpresented::Local);
             }
@@ -2064,8 +2064,8 @@ fn present_plane<'a>(
             }
             let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
             let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
-            if sign_of((at(1.0) - x) * la, SPAN, band) != Some(Sign::Positive)
-                || sign_of((at(1.0) - y) * lb, SPAN, band) != Some(Sign::Positive)
+            if interval_sign_as((at(1.0) - x) * la, SPAN, band) != Some(Sign::Positive)
+                || interval_sign_as((at(1.0) - y) * lb, SPAN, band) != Some(Sign::Positive)
             {
                 return Err(Unpresented::Local);
             }
@@ -3953,7 +3953,7 @@ fn monotone_run(
 ) -> Option<(Run, bool)> {
     let sign = |t: Interval| {
         let advance = p.chart.rate(p.column, t) * at(t.hi() - t.lo()) * at(lever);
-        sign_of(advance, COLUMN, band)
+        interval_sign_as(advance, COLUMN, band)
     };
     let first = sign(p.params(run.first()?))?;
     // Every piece, not the first alone. On the charts read today — a
@@ -4366,12 +4366,12 @@ fn sign_on(
         Axis::V => grad.dot(fy) * at(p.span(Axis::V)),
     };
     match &p.zero {
-        Zero::None => sign_of(centred(psi, p, p.x, p.y)?, DEPARTURE, band),
+        Zero::None => interval_sign_as(centred(psi, p, p.x, p.y)?, DEPARTURE, band),
         &Zero::Side(s) => {
             if !zero_on(s) {
                 return None;
             }
-            sign_of(across(s.axis()) * at(s.into()), DEPARTURE, band)
+            interval_sign_as(across(s.axis()) * at(s.into()), DEPARTURE, band)
         }
         &Zero::Past(s) => {
             let exact = against.is_some_and(|q| !matches!(q.zero, Zero::Past(_)));
@@ -4379,7 +4379,7 @@ fn sign_on(
             if !(exact && checked && analytic && zero_on(s)) {
                 return None;
             }
-            sign_of(across(s.axis()) * at(s.into()), DEPARTURE, band)
+            interval_sign_as(across(s.axis()) * at(s.into()), DEPARTURE, band)
         }
         &Zero::Corner(s, t) => {
             let n = psi.linear()?;
@@ -4387,20 +4387,20 @@ fn sign_on(
                 return None;
             }
             let g = n.dot(fxy) * at(p.span(Axis::U) * p.span(Axis::V) * s.into() * t.into());
-            sign_of(g, DEPARTURE, band)
+            interval_sign_as(g, DEPARTURE, band)
         }
         Zero::Curve(s, c) => {
             if !c.psi(psi).is_some_and(|v| is_zero(v, band)) {
                 return None;
             }
-            sign_of(across(s.axis()) * at((*s).into()), DEPARTURE, band)
+            interval_sign_as(across(s.axis()) * at((*s).into()), DEPARTURE, band)
         }
         &Zero::Point(s, t) => {
             if !checked || !psi.value(p.corner(s, t)).is_some_and(|v| is_zero(v, band)) {
                 return None;
             }
-            let a = sign_of(across(s.axis()) * at(s.into()), DEPARTURE, band)?;
-            let b = sign_of(across(t.axis()) * at(t.into()), DEPARTURE, band)?;
+            let a = interval_sign_as(across(s.axis()) * at(s.into()), DEPARTURE, band)?;
+            let b = interval_sign_as(across(t.axis()) * at(t.into()), DEPARTURE, band)?;
             (a == b).then_some(a)
         }
     }
@@ -4739,7 +4739,7 @@ fn graph_of(
     let (t, m) = (lift(t), lift(m));
     let d = arc_deriv(carrier, piece);
     let advance = t.dot(d);
-    if sign_of(advance * at(piece.1 - piece.0), GRAPH, band) != Some(Sign::Positive) {
+    if interval_sign_as(advance * at(piece.1 - piece.0), GRAPH, band) != Some(Sign::Positive) {
         return None;
     }
     Some(Psi::Graph {
@@ -7195,18 +7195,18 @@ mod presentation_rows {
             crossed.lo() < 0.0 && crossed.hi() > 0.0 && !is_zero(crossed, band()),
             "x + y = 1.2 crosses the iso between its ends, which read -0.2: {crossed:?}"
         );
-        assert_eq!(sign_of(crossed, DEPARTURE, band()), None, "mixed");
+        assert_eq!(interval_sign_as(crossed, DEPARTURE, band()), None, "mixed");
         let half = plane_psi((1.0, 0.0, 0.0), (0.5, 0.0, 0.0));
         let beside = on_iso(&half, &wall, (0.0, 0.1));
         assert_eq!(
-            sign_of(beside, DEPARTURE, band()),
+            interval_sign_as(beside, DEPARTURE, band()),
             Some(Sign::Positive),
             "the cell's piece of the iso is beyond x = 0.5, which the whole iso crosses: \
              {beside:?}"
         );
         let below = plane_psi((0.0, 0.0, 1.0), (0.0, 0.0, -0.01));
         assert_eq!(
-            sign_of(on_iso(&below, &wall, cell), DEPARTURE, band()),
+            interval_sign_as(on_iso(&below, &wall, cell), DEPARTURE, band()),
             Some(Sign::Positive),
             "the iso 0.01 above z = -0.01"
         );

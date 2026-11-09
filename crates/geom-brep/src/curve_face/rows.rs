@@ -520,19 +520,19 @@ fn every_door_name_carries_a_listed_prefix() {
     assert_eq!(
         indirect,
         [
-            "circle_roots.rs: (c0, a1 + noise, rows.extreme, band)",
-            "circle_roots.rs: (row, value, spread, band)",
+            "circle_roots.rs: c0",
+            "circle_roots.rs: row",
             "circle_roots.rs: rows.coaxial",
             "circle_roots.rs: rows.noise",
             "circle_roots.rs: rows.root_slack",
             "composite.rs: PAST_THE_BAND",
             "composite.rs: row",
-            "spline_face.rs: (exact(m[0]), w)",
-            "spline_face.rs: (x.interval(0), w)",
             "spline_face.rs: AT_THE_END",
             "spline_face.rs: PAST_THE_BAND",
             "spline_face.rs: PAST_THE_END",
+            "spline_face.rs: exact(m[0])",
             "spline_face.rs: row",
+            "spline_face.rs: x.interval(0)",
         ],
         "the census's indirect sites"
     );
