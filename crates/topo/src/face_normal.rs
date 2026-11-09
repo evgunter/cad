@@ -423,12 +423,27 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             ..
         } => {
             let nappe = face_nappe_or_double(body, face, band);
-            let elevation = geom_brep::cone_elevation(*apex, *axis, *half_angle, nappe, p);
+            let elevation = geom_brep::cone_elevation(
+                geom::Line {
+                    origin: *apex,
+                    dir: *axis,
+                },
+                *half_angle,
+                nappe,
+                p,
+            );
             let on = decide("bool_pierce_normal_on_cone", Margin::of(elevation), band);
             if let Ok(Sign::Positive | Sign::Negative) = on {
                 return Err(NormalAtError::OffSurface);
             }
-            cone_axis_clearance(*apex, *axis, p, band)?;
+            cone_axis_clearance(
+                geom::Line {
+                    origin: *apex,
+                    dir: *axis,
+                },
+                p,
+                band,
+            )?;
             match on {
                 Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense()))),
                 Err(diag) => Err(NormalAtError::Escalated {
@@ -496,8 +511,15 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
         }
         geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
         geom::Surface::Cone { apex, axis, .. } => {
-            cone_axis_clearance(apex, axis, p, band)
-                .map_err(|_| FootNormalError::NoFoot { band })?;
+            cone_axis_clearance(
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                p,
+                band,
+            )
+            .map_err(|_| FootNormalError::NoFoot { band })?;
             clear(Margin::of((p - apex).dot(axis)))?;
         }
         geom::Surface::Torus {
@@ -667,11 +689,14 @@ pub(crate) enum ConePoint {
 ///
 /// The escalation of either reading.
 pub(crate) fn cone_point<T: Decide>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     p: Point3<T>,
     band: Band,
 ) -> Result<ConePoint, geom_core::Indeterminate> {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let radial = geom::Line {
         origin: apex,
         dir: axis,
@@ -694,12 +719,11 @@ pub(crate) fn cone_point<T: Decide>(
 /// tangent plane, definitely or in band, has no normal to answer with
 /// ([`NormalAtError::AtConeApex`]).
 pub(crate) fn cone_axis_clearance<T: Decide>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     p: Point3<T>,
     band: Band,
 ) -> Result<(), NormalAtError> {
-    match cone_point(apex, axis, p, band) {
+    match cone_point(axis, p, band) {
         Ok(ConePoint::OffAxis) => Ok(()),
         Ok(ConePoint::NearAxis | ConePoint::Apex) | Err(_) => {
             Err(NormalAtError::AtConeApex { band })

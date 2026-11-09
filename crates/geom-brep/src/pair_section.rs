@@ -318,7 +318,7 @@ impl<T: Decide> CylinderSpherePose<T> {
             return None;
         };
         Some(
-            Self::decide_stance(origin, axis, center, r, big_r, band).map(
+            Self::decide_stance(geom::Line { origin, dir: axis }, center, r, big_r, band).map(
                 |(foot, offset, stance)| Self {
                     cylinder: cylinder.clone(),
                     sphere: sphere.clone(),
@@ -338,13 +338,13 @@ impl<T: Decide> CylinderSpherePose<T> {
 
     #[allow(clippy::type_complexity)] // (foot, offset, stance) — one pose
     fn decide_stance(
-        origin: Point3<T>,
-        axis: Vec3<T>,
+        axis: geom::Line<T>,
         center: Point3<T>,
         r: T,
         big_r: T,
         band: Band,
     ) -> Result<(Point3<T>, T, CsStance<T>), PoseRefusal> {
+        let geom::Line { origin, dir: axis } = axis;
         let read = |name: &'static str, value: T| {
             geom_core::k_stats::decide_reported(name, Margin::of(value), band)
         };
