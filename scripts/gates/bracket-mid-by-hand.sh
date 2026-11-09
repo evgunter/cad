@@ -14,13 +14,12 @@
 #     reads. A point pair's middle is `p.mid(q)` (`Point2`/`Point3`),
 #     `bracket_mid` per coordinate.
 # A hand spelling of either form is refused and named with the home of
-# ITS form, so moving a site onto its home moves no `f64`, `Sym` or
-# `Interval` value and never widens an enclosure: the `Interval` product
-# by ½ is exact at every normal magnitude, so where the halving was a
-# division by 2 it reads the same bits, or the exact half inside a
-# division that padded under the 2Prod floor. Such a halving's `Sym`
-# form differs (its digest, and which denominators `Form::add` shares).
-# The home's own file is exempt.
+# ITS form, so moving a site onto its home moves no `f64` or `Sym`
+# value; at `Interval` an enclosure can only narrow, by one ulp under the
+# 2Prod floor where the halving was a division, and never widens (the
+# product by ½ is exact at every normal magnitude). Where the halving
+# was a division by 2 its `Sym` form differs (its digest, and which
+# denominators `Form::add` shares). The home's own file is exempt.
 #
 # WHAT IS REFUSED, in production code under `crates/*/src` (comments and
 # string literals out, `#[cfg(test)]` modules and test-only mounts out,
