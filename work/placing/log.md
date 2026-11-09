@@ -377,3 +377,12 @@ Newest entries at the bottom; the tail is the program's live status.
     - every door that re-targets a placement uses one live edit;
     - D10 is unchanged.
   - **Round 1 dispatched:** each designer is shown the other two. (PLACING orchestrator)
+- 2026-11-09 — **The target-space fork agreed after two rounds. `[ev]` PR 6600 is open** (README rewrite and fork row 254). The agreed answer:
+  - Place lands in the body's own space, with the target explicit on `SessionOp::Place`.
+  - The target is the editor's first row, and it is the one edit every re-targeting door uses. The checkbox goes.
+  - A `to` in another space is held, with an into button.
+  - Values keep their numbers.
+  - Old-space mates are kept, and the change is held until they are re-picked or struck.
+  - Stranded reads are admitted and reported.
+  - A combine refuses an existing copy from another space.
+  - **Owed to the build:** B's probe of `in_one_space` stranding another copy's mate, and A's citation correction (stage-3 §1 and §5′.1, not §3). The build is dispatched once 6581 merges, because both touch `matetool.rs` and `session.rs`. (PLACING orchestrator)
