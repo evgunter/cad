@@ -46,7 +46,7 @@ fn half_torus(big_r: f64, r: f64, tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
             .0
     };
     let (wall, cap) = (of(true), of(false));
-    (body, wall, cap)
+    (body.into_body(), wall, cap)
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn a_ring_half_in_band_reads_as_at_rest() {
     body.set_face_surfaces_describing(charts, &carried, tol)
         .expect("every edge certifies on the re-charted wall");
 
-    let at_rest = topo::AtRestBody::validate(body.clone(), tol)
+    let at_rest = topo::finish(body.clone(), tol)
         .expect_err("tier 3 refuses the ring half in band")
         .iter()
         .find(|e| matches!(e, topo::ValidationError::DegenerateTorusEscalated { .. }))

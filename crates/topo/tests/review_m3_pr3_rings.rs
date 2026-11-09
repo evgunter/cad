@@ -14,12 +14,14 @@ use geom_core::{Point3, Real, Vec3};
 use topo::readback::euler_counts;
 use topo::{Body, SplitPart, SplitPlane, mass_properties, split, validate_closed};
 
-fn body_of<T: Real>(part: &SplitPart<T>) -> &Body<T> {
+fn body_of<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
+    part: &SplitPart<T>,
+) -> &Body<T> {
     part.body().expect("side has material")
 }
 
 /// The holed block, described and finished.
-fn holed<T: geom_core::Decide + topo::AtRestPolicy>(
+fn holed<T: geom_core::Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     len: f64,
     holes: &[f64],
 ) -> topo::AtRestBody<T> {

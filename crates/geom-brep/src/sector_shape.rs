@@ -935,8 +935,9 @@ mod tests {
     /// stop guarding its old retired spellings, and whoever renames one
     /// carries them forward by hand.
     ///
-    /// The check is textual over the quoted forms, so a doc comment
-    /// that quotes a retired name reds it too; backticks do not.
+    /// The check reads each file's code and string literals
+    /// (`test_utils::source::code_and_literals`), where a predicate name
+    /// is spelled; a name quoted in prose is not a spelling.
     #[test]
     fn the_rungs_are_decided_in_one_place() {
         let (pooled, retired) = rung_rosters();
@@ -949,7 +950,17 @@ mod tests {
             files.len()
         );
         for path in &files {
-            let text = std::fs::read_to_string(path).expect("a readable source file");
+            let raw = std::fs::read_to_string(path).expect("a readable source file");
+            // A file whose text holds no rung name cannot spell one in a
+            // literal, so only the files that do are lexed.
+            if !pooled
+                .iter()
+                .chain(&retired)
+                .any(|name| raw.contains(name.as_str()))
+            {
+                continue;
+            }
+            let text = test_utils::source::code_and_literals(&raw);
             for name in &retired {
                 assert!(
                     !text.contains(name.as_str()),
@@ -969,7 +980,9 @@ mod tests {
                 );
             }
         }
-        let here = std::fs::read_to_string(&home).expect("the home module is readable");
+        let here = test_utils::source::code_and_literals(
+            &std::fs::read_to_string(&home).expect("the home module is readable"),
+        );
         for name in &pooled {
             assert!(
                 here.contains(name.as_str()),

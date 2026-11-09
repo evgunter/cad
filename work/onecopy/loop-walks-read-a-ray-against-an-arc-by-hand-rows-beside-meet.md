@@ -22,3 +22,7 @@ Fix:
 
 Before either move, check what each caller needs: the loop walk counts crossings and reads a tangency as a graze, and the cut-in needs each arc's root parameter for a split.
 
+
+## 2026-11-06: the cut-in half is done
+
+`apply_cut_ins` reads its arcs against the half-meridian through the co-surface arm, `geom_brep::curve_pair::on_surface` (`OnSurface::across`, the plane door with each root's place on its arc reported, then `SurfaceCurve::section_of`). Its root parameters still feed the split. `FirstHarmonic::conic_off_plane` and the `bool_sphere_cut_roots_*` rows are gone. What is left is the planar loop walk's ray against a conic arc (`splitting/containment.rs` `conic_crossings`).

@@ -30,7 +30,7 @@ fn main() {
         Ok(()) => println!("validate_geometric: Ok"),
         Err(errs) => println!("validate_geometric: {} error(s): {errs:?}", errs.len()),
     }
-    let body = pncad::topo::AtRestBody::validate(body, tol).expect("the loft prism passes tier 3");
+    let body = pncad::topo::finish(body, tol).expect("the loft prism passes tier 3");
     // 1.024e-6 m is 1024·ε at the witness tolerance, the resolution the
     // suites' pinned numbers are stated at. A literal on purpose: this
     // program compares bits across heads, so its resolution is a number

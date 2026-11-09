@@ -2,8 +2,10 @@
 id: no-door-rejects-geometry-past-eps-f64-resolution
 kind: issue
 title: D4 ¶4's size range is unenforced: past 2^52·ε a certification residual reads rounding, and the f64 lane's Zero is luck
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-11-08
+pr: 6380
 ---
 
 
@@ -140,3 +142,5 @@ For whoever builds the box gate:
   along it, each a far dot product.
 - **(c)** The ruling and both designers' in-box measurements are in
   the GERM item above.
+
+**Closed (2026-11-08, PR 6380, ONEHOME orchestrator).** The session box is enforced at the finished-body gate: `topo::session_box`, asked first in the structural pass. It decides on a true lower bound of the body's reach, read over its vertices and over its edges' covers (`Body::edge_cover`, from below), and refuses `ValidationError::OutsideSessionBox` in the `SessionBox` finding family. The run's admission rule makes the floor a checked fact, with `eps_min(K) = max(ADMISSION_FLOOR/(K−1), u·box)` (Ev, PR 6380). Rows that built geometry past 1 km were moved into the box with their subjects kept, or became box-refusal rows. One gap remains: a curved face's bulge that no edge rides, filed as `work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md`.

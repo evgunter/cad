@@ -42,6 +42,7 @@ fn oblique_clip() -> Body<Dual64> {
         )
         .unwrap()
         .body
+        .into_body()
     };
     let v = |x: f64, y: f64, z: f64| Vec3::new(lift(x), lift(y), lift(z));
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);

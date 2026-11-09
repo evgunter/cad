@@ -453,8 +453,8 @@ impl PointInSolidError {
     /// **What a solid read inside-out is owed**, whichever reader found
     /// its material holding the side at infinity: this door
     /// ([`Self::InsideOut`]), the Boolean's per-solid read of an operand
-    /// ([`crate::ValidationError::SliverInsideOut`]), or an unverdicted
-    /// door's check 7 and check 10 ([`crate::Unfinished::InsideOut`]). The
+    /// ([`crate::ValidationError::SliverInsideOut`]), or the finish's
+    /// check 7 and check 10 ([`crate::ValidationError::NegativeVolume`]). The
     /// lever is the solid's orientation, so every such refusal ends in it.
     pub const INSIDE_OUT_RECOURSE: &'static str = inside_out_recourse!();
 
@@ -1223,9 +1223,11 @@ pub(super) fn torus_elevation<T: Decide>(
     minor_radius: T,
     p: Point3<T>,
 ) -> T {
-    let w = p - center;
-    let h = w.dot(axis);
-    let rho = (w - axis * h).norm();
+    let (h, rho) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(p);
     ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
 }
 
@@ -1360,10 +1362,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut levels: Vec<(T, T)> = Vec::new();
     // A point's own exact meridian-half-plane pair.
-    let pair = |p: Point3<T>| -> (T, T) {
-        let w = p - center;
-        let h = w.dot(axis);
-        (h, (w - axis * h).norm())
+    let axis_line = geom::Line {
+        origin: center,
+        dir: axis,
     };
     for he in body
         .loop_cycle(first)
@@ -1377,7 +1378,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             .get_vertex(he_data.start)
             .and_then(|v| body.get_point(v.point))
             .ok_or(PointInSolidError::CorruptFace { face })?;
-        levels.push(pair(v));
+        levels.push(axis_line.height_and_distance(v));
         let edge = linked(
             &body.edges,
             he_data.edge,
@@ -2956,7 +2957,7 @@ fn ray_passes_beside<T: Decide>(
     let (verts, covers) = crate::splitting::containment::loop_hull(body, f.outer)
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
     let m = normal.cross(d);
-    let m = m / m.norm();
+    let m = m.normalize();
     let base = (q - Point3::origin()).dot(m);
     let (mut above, mut below) = (None::<T>, None::<T>);
     // Each part's least height above the plane, and least depth below it:
@@ -3440,10 +3441,9 @@ impl<T: Decide> EdgeMeets<T> {
     /// **Reads vertex `v`** of an edge between `faces` against the ray
     /// segment `ray` along `d`, once per vertex: within the band of the
     /// ray it is a corner, on it a graze, marked where the ray comes
-    /// closest to it. Its distance from the ray is enclosed by its
-    /// rounding charge ([`geom_core::rounding_charge`] over the lengths
-    /// it is read from), and the enclosure's lower end is decided, as an
-    /// edge's gap is.
+    /// closest to it. Its distance from the ray, a short chain on in-box
+    /// coordinates, is decided as read: its rounding is the run's
+    /// (`geom_core::tolerance::admissible`), not charged here.
     #[allow(clippy::too_many_arguments)] // the vertex, its faces, the ray and the rows
     fn vertex(
         &mut self,
@@ -3468,14 +3468,10 @@ impl<T: Decide> EdgeMeets<T> {
             }))?;
         let ray = geom::Line { origin: q, dir: d };
         let along = ray.param(at);
-        let gap = (at - ray.foot_within(at, (T::zero(), top))).norm();
-        // The distance is a short chain (differences, a projection, a
-        // norm), each rounding under half an ulp of the lengths it is
-        // read from: the kernel's one charge for such a chain.
-        let low = gap - geom_core::rounding_charge((at - q).norm() + gap);
+        let distance = (at - ray.foot_within(at, (T::zero(), top))).norm();
         match geom_core::k_stats::decide_magnitude(
             rows.vertex,
-            Margin::of(low.max(T::zero())),
+            Margin::of(distance.max(T::zero())),
             band,
         ) {
             Ok(geom_core::k_stats::Magnitude::Positive) => {}
@@ -3564,13 +3560,11 @@ fn wall_crosses_by_turn<T: Decide>(
     ray: TurnRay,
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
     let band = ray.band;
-    let axis = axis / axis.norm();
+    let axis = axis.normalize();
     let radius = radius.abs();
     let split = |x: Point3<T>| {
-        let w = x - origin;
-        let h = w.dot(axis);
-        let radial = w - axis * h;
-        (h, radial / radial.norm())
+        let (h, radial) = geom::Line { origin, dir: axis }.param_and_offset(x);
+        (h, radial.normalize())
     };
     let (h_p, e1) = split(p);
     let e2 = axis.cross(e1);
@@ -3630,8 +3624,8 @@ fn wall_crosses_by_turn<T: Decide>(
                     },
                 radius: r,
             }) => {
-                r.abs() * (normal / normal.norm()).cross(axis).norm()
-                    + geom::Line { origin, dir: axis }.offset(center).norm()
+                r.abs() * normal.normalize().cross(axis).norm()
+                    + geom::Line { origin, dir: axis }.distance(center)
             }
             _ => return Ok(None),
         };

@@ -43,9 +43,8 @@ use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y_at};
 use topo::construction::Construct;
 use topo::{
-    AtRestPolicy, Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SplitError,
-    SplitJoinError, SplitReduceError, SweepStrategy, ValidationError, face_azimuth_window_traces,
-    point_in_solid, validate, validate_closed,
+    Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SplitJoinError, SweepStrategy,
+    ValidationError, face_azimuth_window_traces, point_in_solid, validate, validate_closed,
 };
 
 fn f<T: Real>(x: f64) -> T {
@@ -285,11 +284,11 @@ fn assert_refused_at_the_gate<T: Decide + topo::AtRestPolicy + Bounds>(
     slit: &Body<T>,
     poles: &[(f64, f64, f64)],
 ) {
-    let Err(errors) = T::gate_at_rest_kept(slit.clone(), Tol::witness()) else {
+    let Err(errors) = topo::finish(slit.clone(), Tol::witness()) else {
         panic!("{what}: a slit body is not a finished body");
     };
     assert_eq!(
-        Err(errors.clone()),
+        Err(errors.clone().into_findings()),
         validate_closed(slit),
         "{what}: the payload is tier 2's verdict on the operand"
     );
@@ -359,87 +358,29 @@ fn a_slit_operand_refuses_at_the_boolean_gate_at_interval() {
     slit_operands_refuse_at_the_gate::<Interval>("Interval");
 }
 
-/// **The split's door reads tier 2 where no verdict rides the slit.** At
-/// a dual the at-rest gate runs nothing, so the slit reaches `split`
-/// carrying no verdict, and the door refuses it before any stage with
-/// tier 2's findings, the strut tip at the pole — whether the plane
-/// meets the dome or clears it. Red without that read: a plane through
-/// the dome refused for its sphere face, and a plane clear of it carried
-/// the slit whole to its side and refused that side at the result gate,
-/// as a kernel defect.
+/// **A slit body does not finish at a dual**: the dual's finish is tier
+/// 2, and the slit is tier 2's scaffolding, so no door is handed it. The
+/// refusal is tier 2's verdict, finding for finding. The control follows
+/// the refusal's recourse: the dome with its edit not left half-way (no
+/// slit) finishes, and the fillet blends its base rim.
 #[test]
-fn a_slit_operand_refuses_at_the_split_door_at_a_dual() {
-    let tol = Tol::witness();
-    for (i, slit) in slits::<Dual64>().iter().enumerate() {
-        let operand =
-            Dual64::gate_at_rest_kept(slit.clone(), tol).expect("a dual gate runs nothing");
-        for (y, cut) in [(0.5, "through the dome"), (2.0, "clear of the dome")] {
-            let plane = topo::test_support::split_plane(
-                Point3::new(f(0.0), f(y), f(0.0)),
-                Vec3::new(f(0.0), f(1.0), f(0.0)),
-                tol,
-            );
-            match topo::split(&operand, &plane, tol) {
-                Err(SplitError::Reduce(SplitReduceError::ScaffoldingOperand { errors })) => {
-                    assert_eq!(
-                        Err(errors),
-                        validate_closed(slit),
-                        "slit {i}, {cut}: the payload is tier 2's verdict on the operand"
-                    );
-                }
-                other => panic!(
-                    "slit {i}, {cut}: want the door's tier-2 refusal, got {:?}",
-                    other.map(|_| ())
-                ),
-            }
-        }
-    }
-}
-
-/// **The blend doors read tier 2 at a dual too.** Every edge of every
-/// slit, filleted and chamfered: each refusal is the door's own tier-2
-/// read, carrying `validate_closed`'s verdict. Red without that read:
-/// the doors refused with reasons about the edge (a valence-2 corner,
-/// tangential supports, a chart-seam vertex). The control follows the
-/// refusal's recourse: the dome with its edit not left half-way (no
-/// slit) passes the same read, and the fillet blends its base rim.
-#[test]
-fn a_slit_operand_refuses_at_both_blend_doors_at_a_dual() {
+fn a_slit_body_does_not_finish_at_a_dual() {
     let tol = Tol::witness();
     let whole = dome::<Dual64>();
     let rim = sweep::test_support::rim_arcs_at(&whole, 1.0, 0.0);
-    let whole = Dual64::gate_at_rest_kept(whole, tol).expect("a dual gate runs nothing");
+    let whole = topo::finish(whole, tol).expect("the unslit dome passes tier 2");
     let filleted = sweep::blend::fillet_edges(&whole, &rim, f(0.05), tol).map(|_| ());
     assert!(
         filleted.is_ok(),
         "the unslit dome's rim fillets: {filleted:?}"
     );
     for (i, slit) in slits::<Dual64>().iter().enumerate() {
-        let operand =
-            Dual64::gate_at_rest_kept(slit.clone(), tol).expect("a dual gate runs nothing");
-        let want = validate_closed(slit);
-        for (edge, _) in slit.edges() {
-            for (verb, refused) in [
-                (
-                    "fillet",
-                    sweep::blend::fillet_edges(&operand, &[edge], f(0.05), tol).map(|_| ()),
-                ),
-                (
-                    "chamfer",
-                    sweep::chamfer::chamfer_edges(&operand, &[edge], f(0.05), tol).map(|_| ()),
-                ),
-            ] {
-                match refused.map_err(|r| r.error) {
-                    Err(sweep::blend::BlendError::ScaffoldingOperand { errors }) => assert_eq!(
-                        Err(errors),
-                        want,
-                        "slit {i}, {verb} {edge:?}: the payload is tier 2's verdict"
-                    ),
-                    other => {
-                        panic!("slit {i}, {verb} {edge:?}: want the tier-2 refusal, got {other:?}")
-                    }
-                }
-            }
-        }
+        assert_eq!(
+            topo::finish(slit.clone(), tol)
+                .map(|_| ())
+                .map_err(topo::NotFinished::into_findings),
+            validate_closed(slit),
+            "slit {i}: the refusal is tier 2's verdict"
+        );
     }
 }

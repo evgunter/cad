@@ -4334,7 +4334,7 @@ pub(crate) fn joint_arm<T: Real>(
 /// axis.
 fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point3<T>) -> Option<T> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
-        geom::Line { origin, dir: axis }.offset(vertex).norm()
+        geom::Line { origin, dir: axis }.distance(vertex)
     };
     match *chart.surface() {
         Surface::Cylinder { radius, .. } => Some(radius),
@@ -5698,12 +5698,6 @@ pub(crate) mod staleness_posture {
                 Neither,
                 "a fixture builder composed of `Neither` operators, minting no row of its \
              own; `cyl_wall_sheet` is the door that runs the pass over what it grew",
-            ),
-            (
-                "validate_pseudomanifold",
-                Neither,
-                "`Certifier`'s gate pass: it reads the body through a shared borrow, and its \
-                 `&mut self` keeps the certificate the pass derived; no body is written",
             ),
             (
                 "restate_surface",

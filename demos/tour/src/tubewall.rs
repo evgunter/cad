@@ -348,7 +348,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         bodies: vec![SceneBody::plain(
             "hollowelbow",
             [0.72, 0.55, 0.38],
-            elbow.body,
+            elbow.body.into_body(),
         )],
     });
 
@@ -470,7 +470,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             up: 'y',
         },
         bodies: vec![
-            SceneBody::plain("hollowtorus", [0.52, 0.60, 0.78], torus.body)
+            SceneBody::plain("hollowtorus", [0.52, 0.60, 0.78], torus.body.into_body())
                 .transparent(45)
                 .step_at_frontier(
                     |e| {

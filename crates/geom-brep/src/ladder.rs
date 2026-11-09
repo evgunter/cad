@@ -128,6 +128,19 @@ pub enum Refusal {
 pub struct Aborts;
 
 impl Refusal {
+    /// **A spline walk's refusal's standing**, stated once for every
+    /// reader of one: a walk past its budget is unsettled (no margin, and
+    /// a coarser band may settle it); a spline with no speed bound is a
+    /// limit no tolerance moves. Here rather than on
+    /// [`geom::PieceWalkRefusal`], whose crate does not see a ladder.
+    #[must_use]
+    pub const fn of_walk(why: geom::PieceWalkRefusal) -> Self {
+        match why {
+            geom::PieceWalkRefusal::Exhausted => Self::Unsettled,
+            geom::PieceWalkRefusal::Unbounded => Self::Limit,
+        }
+    }
+
     /// The rung a reading refused with `e` stands as: kept by its kind.
     pub fn rung<A, E>(self, e: E) -> Rung<A, E> {
         self.kept(e).map_or_else(Rung::Unsettled, Rung::from)
