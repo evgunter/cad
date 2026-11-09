@@ -2700,7 +2700,8 @@ impl<T: Decide> CarriedComponent<T> {
         let (lo, hi) = self.span;
         let t = lo + (t - lo).reduce_periodic(T::pi() * T::from_f64(2.0));
         let speed = self.carrier.ders1(t).1.norm();
-        use geom_core::k_stats::{NonzeroSign, decide_nonzero};
+        use geom_core::NonzeroSign;
+        use geom_core::k_stats::decide_nonzero;
         let inside = Margin::metered(hi - t, geom_core::InfSpeed::new(speed));
         match decide_nonzero(SITE_IN_SPAN, inside, band) {
             Ok(NonzeroSign::Positive) => Ok(Some(t)),

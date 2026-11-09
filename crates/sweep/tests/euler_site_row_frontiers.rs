@@ -258,8 +258,10 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
             } if matches!(
                 geom_brep::IncidenceRead::of(error),
                 Some(geom_brep::IncidenceRead::Off(_))
-            ) && topo::test_support::incidence_kinds(&body, half_edge).1
-                == geom::CurveKind::Circle =>
+            ) && topo::readback::edge_carrier_kind(
+                &body,
+                body.get_half_edge(half_edge).unwrap().edge,
+            ) == Ok(geom::CurveKind::Circle) =>
             {
                 why.push(half_edge);
             }
@@ -360,10 +362,22 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     // store it.
     for h in [strut.he_plus, strut.he_minus] {
         let got = topo::pcurve_of(&body, h, band());
+        let kinds = (
+            topo::readback::face_carrier_kind(&body, &body.face_of_half_edge(h).unwrap()).unwrap(),
+            topo::readback::edge_carrier_kind(&body, &body.get_half_edge(h).unwrap().edge).unwrap(),
+        );
         assert_eq!(
-            topo::test_support::incidence_kinds(&body, h),
+            kinds,
             (geom::SurfaceKind::Nurbs, geom::CurveKind::Line),
             "{h:?}: the strut is a line on the spline wall"
+        );
+        assert!(
+            matches!(
+                &got,
+                Err(topo::PcurveMintError::Certify { error, .. })
+                    if geom_brep::IncidenceRead::kinds_of(error) == Some(kinds)
+            ),
+            "{h:?}: the refusal names the strut's chart and carrier: {got:?}"
         );
         assert!(
             matches!(

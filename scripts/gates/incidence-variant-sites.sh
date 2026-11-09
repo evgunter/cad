@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# incidence-variant-sites.sh — every file outside geom-brep that names an
+# incidence-variant-sites.sh — every file outside geom-brep's src that names an
 # incidence refusal's variant (`CarrierOffChart`, or the check
 # `ChartIncidence`) in code has a row in a site table, with its count
 # and the reasons it names it. A row is meant only to be lowered; that
@@ -17,19 +17,21 @@
 # moves it silently; one that pins the variant's `chart`/`carrier` kinds
 # reads them off the refusal rather than off the body. Such a row reads
 # the classifier, and the kinds on the body's own face and edge
-# (`topo::test_support::incidence_kinds`). This gate is a backstop for
-# that rule: a new naming anywhere outside geom-brep raises its file
+# (`topo::readback::face_carrier_kind` / `edge_carrier_kind`). This gate is a backstop for
+# that rule: a new naming anywhere outside geom-brep's src raises its file
 # above its row and fails, and a naming that went away lowers it and
 # fails until the row is lowered, so the slack cannot let one back in
 # unseen.
 #
 # THE STRONGER FIX, filed: a typed incidence payload behind accessors,
-# which would make a match by shape outside geom-brep fail to compile
+# which would make a match by shape outside geom-brep's src fail to compile
 # and retire this gate
 # (`work/onecopy/incidence-variants-are-matchable-outside-geom-brep.md`).
 #
-# EXEMPT, not in the table: `crates/geom-brep/`, the variants' and the
-# classifier's home, where reading the variant is the classification.
+# EXEMPT, not in the table: `crates/geom-brep/src/`, the variants' and
+# the classifier's home, where reading the variant is the classification.
+# geom-brep's own tests are read like any other crate's: a miss pin there
+# reads the classifier too.
 #
 # THE REASONS. Each row names one or more, comma-separated; they say why
 # the file names the variant and is not a classifier read:
@@ -40,7 +42,8 @@
 #             rendered refusal, `test_support_samples`), never matched
 #   door      a pin of a door's own field that no read answers: a
 #             refusal's `decision()` naming the check it was decided
-#             under (the incidence read, never the residual's meter)
+#             under (the incidence read, never the residual's meter),
+#             its `why` in the mint's words, or its margin's value
 # There is NO pin class: a test that tells a miss from an in-band read,
 # or reads a refusal's chart and carrier kinds, reads the classifier and
 # the body, and a row naming `pin` is refused.
@@ -51,7 +54,7 @@
 # in review, and that is where it is held.
 #
 # WHAT IS READ: the words `CarrierOffChart` and `ChartIncidence` in every
-# `crates/*/{src,tests,examples,benches}/**/*.rs` outside geom-brep,
+# `crates/*/{src,tests,examples,benches}/**/*.rs` outside geom-brep's src,
 # comments and literals out (`gate_rust_code`), test modules IN — the
 # pins this gate exists for are tests. BLIND SPOTS: a glob import
 # (`use geom_brep::PcurveCertifyError::*`) or an alias (`use ... as C`
@@ -69,7 +72,7 @@ gate() {
   gate_require_crate_sources
   local files report
   mapfile -t files < <(find crates/*/src crates/*/tests crates/*/examples crates/*/benches \
-    -type f -name '*.rs' -not -path 'crates/geom-brep/*' 2>/dev/null | sort)
+    -type f -name '*.rs' -not -path 'crates/geom-brep/src/*' 2>/dev/null | sort)
   if ! report=$(gate_rust_code "${files[@]}" | python3 -c '
 import re, sys
 
@@ -97,11 +100,11 @@ with open(table_path, encoding="utf-8") as fh:
         path, n, reasons = fields
         for r in reasons.split(","):
             if r == "pin":
-                bad.append(f"{table_path}:{number}: {path}: a pin of a miss, an in-band read or the kinds reads geom_brep::IncidenceRead::of / CertifyError::incidence_read and topo::test_support::incidence_kinds, never a table row")
+                bad.append(f"{table_path}:{number}: {path}: a pin of a miss, an in-band read or the kinds reads geom_brep::IncidenceRead::of / CertifyError::incidence_read and the readback kinds, never a table row")
             elif r not in REASONS:
                 bad.append(f"{table_path}:{number}: {path}: `{r}` is not a reason (the header lists them)")
-        if path.startswith("crates/geom-brep/"):
-            bad.append(f"{table_path}:{number}: {path}: geom-brep is the home, exempt, never a row")
+        if path.startswith("crates/geom-brep/src/"):
+            bad.append(f"{table_path}:{number}: {path}: the geom-brep src tree is the home, exempt, never a row")
         if path in table:
             bad.append(f"{table_path}:{number}: {path}: one row per file")
         table[path] = int(n)
@@ -126,7 +129,7 @@ print(f"TOTAL {sum(counts.values())}")
   fi
   if grep -q '^ROSE ' <<<"$report"; then
     grep '^ROSE ' <<<"$report"
-    gate_error "an incidence variant was named outside geom-brep — read a miss or an in-band read through geom_brep::IncidenceRead::of / CertifyError::incidence_read, and the kinds on the body (topo::test_support::incidence_kinds), not a new table row: a row is meant only to be lowered"
+    gate_error "an incidence variant was named outside geom-brep's src — read a miss or an in-band read through geom_brep::IncidenceRead::of / CertifyError::incidence_read, and the kinds on the body (topo::readback::face_carrier_kind / edge_carrier_kind) against the refusal's (IncidenceRead::kinds_of / CertifyError::incidence_kinds), not a new table row: a row is meant only to be lowered"
     exit 1
   fi
   if grep -q '^FELL ' <<<"$report"; then
@@ -134,7 +137,7 @@ print(f"TOTAL {sum(counts.values())}")
     gate_error "incidence variant namings went away — lower (or delete) their rows in $TABLE, so the ratchet holds them there"
     exit 1
   fi
-  gate_ok "incidence variant namings outside geom-brep at their table ($(sed -n 's/^TOTAL //p' <<<"$report") in all)"
+  gate_ok "incidence variant namings outside geom-brep's src at their table ($(sed -n 's/^TOTAL //p' <<<"$report") in all)"
 }
 
 gate_plant_clean() {
@@ -167,6 +170,12 @@ plant_at_table() {
   plant_new_pin "$1"
 }
 
+# A naming in geom-brep's own tests is read: only its src is the home.
+plant_home_tests() {
+  mkdir -p "$1/crates/geom-brep/tests"
+  printf 'fn f(e: &E) -> bool { matches!(e, E::CarrierOffChart { .. }) }\n' > "$1/crates/geom-brep/tests/rows.rs"
+}
+
 # A comment, a string and the home are not namings.
 plant_not_sites() {
   printf '// E::CarrierOffChart\npub const S: &str = "ChartIncidence";\n' >> "$1/crates/clean/src/lib.rs"
@@ -176,13 +185,14 @@ plant_not_sites() {
 
 gate_selftest() {
   gate_selftest_clean
-  gate_selftest_case "named outside geom-brep" plant_new_pin
+  gate_selftest_case "named outside geom-brep's src" plant_new_pin
   gate_selftest_case "went away" plant_fell
   gate_selftest_case "never a table row" plant_pin_row
   gate_selftest_case "is not a reason" plant_unknown_reason
+  gate_selftest_case "named outside geom-brep's src" plant_home_tests
   gate_selftest_passes "a naming at its row" plant_at_table
   gate_selftest_passes "a comment, a string and the home" plant_not_sites
-  printf '%s selftest OK: passes a clean fixture, a naming at its row, and namings in comments, strings and the home; fires on a new naming in a test, an unrecorded fall, a pin row and an unknown reason\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a naming at its row, and namings in comments, strings and the home; fires on a new naming in a test (the geom-brep tests included), an unrecorded fall, a pin row and an unknown reason\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

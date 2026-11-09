@@ -183,9 +183,14 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
         "the re-mint reads the degraded chart's carriers off it: {minted:?}"
     );
     assert_eq!(
-        topo::test_support::incidence_kinds(&body, half_edge).0,
-        geom::SurfaceKind::Approx,
+        topo::readback::face_carrier_kind(&body, body.face_of_half_edge(half_edge).unwrap()),
+        Ok(geom::SurfaceKind::Approx),
         "the row read off is on the degraded chart"
+    );
+    assert_eq!(
+        geom_brep::IncidenceRead::kinds_of(error).map(|(chart, _)| chart),
+        Some(geom::SurfaceKind::Approx),
+        "the refusal names the degraded chart: {minted:?}"
     );
     let errors = topo::validate_geometric(&body, Tol::witness())
         .expect_err("a degraded fit must not validate");

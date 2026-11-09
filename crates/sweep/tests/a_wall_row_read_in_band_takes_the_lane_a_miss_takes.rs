@@ -191,9 +191,13 @@ fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
             );
         }
         let got = derived(&off, h);
-        let (carrier, _, wall) = edge_on_wall(&off, h);
-        assert!(
-            matches!(wall, geom::Surface::Nurbs(_)) && matches!(carrier, geom::Curve3::Circle(_)),
+        let kinds = (
+            topo::readback::face_carrier_kind(&off, off.face_of_half_edge(h).unwrap()).unwrap(),
+            topo::readback::edge_carrier_kind(&off, off.get_half_edge(h).unwrap().edge).unwrap(),
+        );
+        assert_eq!(
+            kinds,
+            (geom::SurfaceKind::Nurbs, geom::CurveKind::Circle),
             "{h:?}: the rim is a circle on the spline wall"
         );
         assert!(
@@ -201,6 +205,7 @@ fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
                 &got,
                 Err(PcurveMintError::Certify { error, .. })
                     if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
+                        && geom_brep::IncidenceRead::kinds_of(error) == Some(kinds)
             ),
             "{h:?}: a rim its wall moved a millimetre from ends off the chart, at {}: {got:?}",
             T::NAME

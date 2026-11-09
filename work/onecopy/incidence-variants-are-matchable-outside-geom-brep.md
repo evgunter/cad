@@ -44,3 +44,26 @@ gate and its table can be deleted, and the ending maps read the payload's
 `IncidenceRead`. Touches every site in the table. It is a refactor of a
 public error type, so weigh it against the gate, which already holds the
 rule.
+
+## Two more findings for this fix
+
+Both were found by the FULL review of PR 6688 (S5, S6).
+
+- **One arm, two answers for a read that never reaches it.** The
+  classifier reads an incidence refusal before either map is reached,
+  so both maps list `CarrierOffChart` for exhaustiveness only. They
+  answer differently:
+  - `walk_certify_refusal` (`crates/topo/src/boolean/ops.rs:1701`) puts
+    it in the `WalkRefusal::Torn` arm (`ops.rs:1705`);
+  - `validate.rs`'s reason map (`crates/topo/src/validate.rs:4095`)
+    calls it `unreachable!`.
+
+  A typed payload would take the variant out of both maps, so neither
+  answer would need writing.
+- **A bare `Escalated { .. }` / `ResidualExceeded { .. }` pin is
+  invisible to the gate.** Such a pin names neither `CarrierOffChart`
+  nor `ChartIncidence`, so `scripts/gates/incidence-variant-sites.sh`
+  never counts it, yet it can stand for an in-band or a residual
+  incidence read. Under a typed payload the incidence check would be the
+  payload's, not a field of the general `Escalated` arm, so such a pin
+  could no longer stand for an incidence read.

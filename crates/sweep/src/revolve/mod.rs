@@ -146,7 +146,7 @@ mod upgrade;
 use core::fmt;
 
 use crate::swept::CapPlaneError;
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;

@@ -435,17 +435,24 @@ fn refused_on_the_relabelled_face(
     );
     (
         finding.clone(),
-        topo::test_support::incidence_kinds(&kept, half_edge),
+        (
+            topo::readback::face_carrier_kind(&kept, &kept.face_of_half_edge(half_edge).unwrap())
+                .unwrap(),
+            topo::readback::edge_carrier_kind(&kept, &kept.get_half_edge(half_edge).unwrap().edge)
+                .unwrap(),
+        ),
     )
 }
 
 /// Whether `finding` is a certification refusal whose incidence read
-/// shows its carrier off the chart (`geom_brep::IncidenceRead::Off`).
-fn read_off(finding: &topo::PcurveMintError) -> bool {
+/// shows its carrier off the chart (`geom_brep::IncidenceRead::Off`),
+/// naming the chart and carrier `kinds` the body holds.
+fn read_off(finding: &topo::PcurveMintError, kinds: (geom::SurfaceKind, geom::CurveKind)) -> bool {
     matches!(
         finding,
         topo::PcurveMintError::Certify { error, .. }
             if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
+                && geom_brep::IncidenceRead::kinds_of(error) == Some(kinds)
     )
 }
 
@@ -472,7 +479,7 @@ fn tilted_cone_brick() -> (Body<f64>, topo::FaceKey) {
 fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
     let (a, face) = tilted_cone_brick();
     let (finding, kinds) = refused_on_the_relabelled_face(a, face, &[]);
-    assert!(read_off(&finding), "{finding:?}");
+    assert!(read_off(&finding, kinds), "{finding:?}");
     assert_eq!(
         kinds,
         (geom::SurfaceKind::Cone, geom::CurveKind::Line),
@@ -510,7 +517,7 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
             },
         ],
     );
-    assert!(read_off(&finding), "{finding:?}");
+    assert!(read_off(&finding, kinds), "{finding:?}");
     assert_eq!(
         kinds,
         (geom::SurfaceKind::Torus, geom::CurveKind::Line),
@@ -526,7 +533,7 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
 fn a_cone_relabelled_brick_clear_of_the_probe_is_refused_at_rest() {
     let (a, face) = tilted_cone_brick();
     let (finding, kinds) = refused_on_the_relabelled_face(a, face, &[]);
-    assert!(read_off(&finding), "{finding:?}");
+    assert!(read_off(&finding, kinds), "{finding:?}");
     assert_eq!(
         kinds,
         (geom::SurfaceKind::Cone, geom::CurveKind::Line),

@@ -48,10 +48,24 @@ means them.
 
 ## Closed
 
-PR 6688. The three rows, and seven more test files the sweep found, read the
-classifier (`IncidenceRead::of`, `CertifyError::incidence_read`). The kinds
-are checked on the body's face and edge through
-`topo::test_support::incidence_kinds`. The gate
-`scripts/gates/incidence-variant-sites.sh` holds every other naming outside
-geom-brep at a count that only falls, and refuses a pin row. The stronger fix
-is filed: `incidence-variants-are-matchable-outside-geom-brep`.
+PR 6688. Nine files changed: the row's three, and six more test files the
+sweep found. A tenth, `a_curve_off_its_face_at_a_build_is_the_kernels`,
+was already routed; it keeps only a `decision()` door pin. All read the
+classifier (`IncidenceRead::of`, `CertifyError::incidence_read`).
+
+The kinds are checked two ways:
+- on the body's face and edge, through `topo::readback::face_carrier_kind`
+  and `edge_carrier_kind`;
+- in the refusal's own payload, through `IncidenceRead::kinds_of` and
+  `CertifyError::incidence_kinds`, so a refusal naming the wrong face
+  kind fails a test.
+
+geom-brep's own tests were routed the same way, except their door
+pins.
+
+The gate `scripts/gates/incidence-variant-sites.sh` lists every other
+naming outside `crates/geom-brep/src/` in a table and refuses a pin row.
+A count that rises above its row, or falls below it, fails until the
+row is changed. A raised row passes the gate and is held in review.
+
+The stronger fix is filed: `incidence-variants-are-matchable-outside-geom-brep`.

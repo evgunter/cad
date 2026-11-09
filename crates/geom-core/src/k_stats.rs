@@ -917,7 +917,7 @@ pub fn decide_negative<T: Decide>(
     )
 }
 
-pub use crate::predicate::NonzeroSign;
+use crate::predicate::NonzeroSign;
 
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling
 /// for a predicate that reads a SIDE off the margin's sign and has no

@@ -313,38 +313,6 @@ pub mod test_support {
         pub const UNSHOWN: &str = crate::validate::incidence_reasons::UNSHOWN;
     }
 
-    /// **The kinds an incidence read is of, read on the body**: the chart
-    /// kind of the face `h` bounds and the carrier kind of `h`'s edge. A
-    /// row that pins a refusal's incidence read (`geom_brep::IncidenceRead`)
-    /// checks what it was read of here, on the body's own face and edge,
-    /// rather than on the refusal's fields.
-    ///
-    /// # Panics
-    ///
-    /// Where `h` bounds no face with a surface, or its edge has no
-    /// certified carrier.
-    #[must_use]
-    #[allow(clippy::expect_used)]
-    pub fn incidence_kinds<T: Real>(
-        body: &Body<T>,
-        h: crate::HalfEdgeKey,
-    ) -> (geom::SurfaceKind, geom::CurveKind) {
-        let chart = body
-            .face_of_half_edge(h)
-            .and_then(|f| body.face_surface(f))
-            .expect("the half-edge bounds a face with a surface")
-            .kind();
-        let carrier = body
-            .get_half_edge(h)
-            .and_then(|he| body.get_edge(he.edge))
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(crate::CurveGeom::certified)
-            .expect("the half-edge's edge has a certified carrier")
-            .carrier()
-            .kind();
-        (chart, carrier)
-    }
-
     /// **The resolution the suites' pinned numbers are stated at**:
     /// [`crate::Settle::Resolution`] of 1024·ε of mean boundary
     /// displacement. A test that reads a volume or an area as a number,

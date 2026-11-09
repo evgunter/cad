@@ -153,7 +153,12 @@ fn derived(radius: f64) -> Vec<Result<geom_brep::Pcurve<f64>, PcurveMintError>> 
         // The kinds the read is of, on the body's own face and edge: a
         // line on the spline wall.
         assert_eq!(
-            topo::test_support::incidence_kinds(&moved, h),
+            (
+                topo::readback::face_carrier_kind(&moved, &moved.face_of_half_edge(h).unwrap())
+                    .unwrap(),
+                topo::readback::edge_carrier_kind(&moved, &moved.get_half_edge(h).unwrap().edge)
+                    .unwrap(),
+            ),
             (geom::SurfaceKind::Nurbs, geom::CurveKind::Line),
             "{h:?}: the seam is a line on the spline wall"
         );
@@ -183,6 +188,15 @@ fn a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read() {
         assert!(
             matches!(read(&got), Some(geom_brep::IncidenceRead::Off(_))),
             "a seam a millimetre inside the wall ends off it: {got:?}"
+        );
+        // The refusal names the face and edge it was read of: the line
+        // on the spline wall the body holds.
+        assert_eq!(
+            error(&got)
+                .as_ref()
+                .and_then(geom_brep::IncidenceRead::kinds_of),
+            Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Line)),
+            "the refusal names the seam's chart and carrier: {got:?}"
         );
     }
     let b = band();
