@@ -25,6 +25,7 @@ pub mod k_stats;
 pub mod linalg;
 pub mod line2;
 pub mod one_line;
+mod param;
 pub mod period;
 pub mod predicate;
 pub mod readable;
@@ -59,12 +60,13 @@ pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{
-    Affine3, Angle, FrameError, FrameInput, LeveredUnitError, Mat3, MotionPart, OrthoAxis,
-    OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, TurnError, Turns,
-    UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
-    length_out_of_format, not_rigid_reading,
+    Affine3, Angle, FrameError, FrameInput, LengthOutOfFormat, LeveredUnitError, Mat3, MotionPart,
+    NoDirection, OrthoAxis, OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError,
+    TurnError, Turns, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3,
+    decide_unit_direction, not_rigid_reading,
 };
-pub use line2::Line2;
+pub use line2::{Line2, LineMeet};
+pub use param::{bracket_mid, mid_param};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING, DEFAULT_K,
     DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading, FileCoincidence,

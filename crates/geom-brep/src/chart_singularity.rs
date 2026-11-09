@@ -587,7 +587,12 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
     let Some(t) = foot(&e.carrier, x, t0) else {
         return sampled_near(e, x, band);
     };
-    let speed = e.carrier.deriv(t).norm();
+    let Some(speed) = geom::carrier_speed::speed_at(&e.carrier, t) else {
+        unreachable!(
+            "`foot` places a closed-form foot only on a line or a circle (`Curve3::nearest`), \
+             whose speed `speed_at` reads in closed form"
+        )
+    };
     if !(strictly_inside(t - t0, speed) && strictly_inside(t1 - t, speed)) {
         return Near::Off;
     }
@@ -599,11 +604,7 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
 /// vertices, read before it.
 fn strictly_inside<T: Decide>(m: T, speed: T) -> bool {
     matches!(
-        decide(
-            "chart_singularity_in_span",
-            Margin::of(m * speed),
-            Band::least()
-        ),
+        geom_core::k_stats::prove("chart_singularity_in_span", Margin::of(m * speed)),
         Ok(Sign::Positive)
     )
 }
@@ -715,7 +716,7 @@ fn sampled_near<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T>
                 return Step::Settled;
             }
             budget -= 1;
-            let tm = (a + b) * T::from_f64(0.5);
+            let tm = geom::mid_param(a, b);
             let m = (tm, e.carrier.eval(tm), true);
             Step::Halve([(m, (b, pb, ib), depth + 1), ((a, pa, ia), m, depth + 1)])
         },
@@ -1057,7 +1058,7 @@ fn bisect<T: Decide>(
         if depth >= WALK_DEPTH || samples.len() >= WALK_BUDGET {
             continue;
         }
-        let Some(m) = read(s.edge, (s.t + q.t) * T::from_f64(0.5), depth + 1, false) else {
+        let Some(m) = read(s.edge, geom::mid_param(s.t, q.t), depth + 1, false) else {
             continue;
         };
         samples.insert(i + 1, m);

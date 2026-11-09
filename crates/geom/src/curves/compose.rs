@@ -499,8 +499,7 @@ fn endpoint_speed(curve: &NurbsCurve3<f64>, end: EndpointEnd) -> Option<f64> {
         EndpointEnd::First => lo,
         EndpointEnd::Last => hi,
     };
-    let speed = curve.deriv(t).norm();
-    (speed.is_finite() && speed > 0.0).then_some(speed)
+    curve.deriv(t).checked_nonzero_length().ok()
 }
 
 /// The per-leg weight scale `λ_i`: a rational curve is invariant under

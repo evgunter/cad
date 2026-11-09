@@ -170,11 +170,12 @@ use crate::chord_join::{
     SplitJoinError,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::face_normal::face_outward_normal;
+use crate::face_normal::{NormalAtError, face_outward_normal};
 use crate::loop_winding::{RunClosing, RunMissesEnd, Unwound};
 use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
 use crate::validate::{decide, decide_positive};
+use geom_brep::ladder::{Climb, Rung, climb_agreeing, rung_or_abort};
 use geom_core::Tol;
 
 /// The K funnel name of a germ plane's normal-length decision: the
@@ -3757,25 +3758,11 @@ pub(super) fn section_unbuilt(
             }
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
-        Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Tangent(why)),
-        Uncarried::Carry(CarryError::Winds(e)) => unbuilt(SectionUnbuilt::Winds(*e)),
-        Uncarried::Carry(CarryError::PadShort { pad, hull_sup }) => {
-            unbuilt(SectionUnbuilt::PadShort {
-                pad: *pad,
-                hull_sup: *hull_sup,
-            })
-        }
-        Uncarried::Carry(CarryError::TubeUnread) => unbuilt(SectionUnbuilt::TubeUnread),
-        Uncarried::Carry(CarryError::NoLane { scalar }) => {
-            unbuilt(SectionUnbuilt::NoLane { scalar })
-        }
-        Uncarried::Carry(CarryError::March(e)) => unbuilt(SectionUnbuilt::March(e.clone())),
-        Uncarried::Carry(CarryError::Seat(e)) => unbuilt(SectionUnbuilt::Seat(e.clone())),
-        Uncarried::Carry(CarryError::Unwalked(why)) => unbuilt(SectionUnbuilt::Unwalked(*why)),
+        Uncarried::Carry(CarryError::Desync(what)) => BooleanError::JoinDesync { what },
+        Uncarried::Carry(e) => unbuilt(SectionUnbuilt::Carry(e.clone())),
         Uncarried::Component => BooleanError::JoinDesync {
             what: "a germ's branch names a component its carried section does not have",
         },
-        Uncarried::Carry(CarryError::Desync(what)) => BooleanError::JoinDesync { what },
     }
 }
 
@@ -5621,57 +5608,90 @@ fn seam_germ_side<T: Decide>(
     band: Band,
 ) -> Result<Option<SideCode>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let mut side = None;
-    for (mate, region) in region_halves(body, face, l)? {
-        let m = body
-            .get_half_edge(mate)
-            .ok_or(desync("section mate no longer resolves"))?;
-        let edge = body
-            .get_edge(m.edge)
-            .ok_or(desync("section mate's edge no longer resolves"))?;
+    // Every chord is read and every decided chord must give one side
+    // ([`climb_agreeing`]); a chord that reads nothing (a strut, a region
+    // normal or a germ in band, no face of `other` holding its point)
+    // passes or is kept, and where none decides the loop is left to the
+    // witness ladder.
+    let chord = |(mate, region): (HalfEdgeKey, FaceKey)| -> Rung<Result<SideCode, BooleanError>, NormalAtError> {
+        let resolved = (|| {
+            let m = body
+                .get_half_edge(mate)
+                .ok_or(desync("section mate no longer resolves"))?;
+            let edge = body
+                .get_edge(m.edge)
+                .ok_or(desync("section mate's edge no longer resolves"))?;
+            let curve = body
+                .get_curve_geom(edge.curve)
+                .ok_or(desync("section mate's edge carries no curve"))?
+                .certified();
+            Ok((edge.he_plus, curve))
+        })();
+        let (he_plus, curve) = match resolved {
+            Ok(read) => read,
+            Err(e) => return Rung::Aborts(Err(e)),
+        };
         // A null edge is a strut's scaffolding: it has no carrier and
         // lies on neither boundary, so it is no chord of the seam.
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .ok_or(desync("section mate's edge carries no curve"))?
-            .certified()
-        else {
-            continue;
+        let Some(curve) = curve else {
+            return Rung::Passes;
         };
         let (t0, t1) = curve.params();
-        let tm = (t0 + t1) * T::from_f64(0.5);
+        let tm = geom::mid_param(t0, t1);
         let mid = curve.carrier().eval(tm);
         let d = curve.carrier().deriv(tm);
-        let d = if mate == edge.he_plus { d } else { -d };
+        let d = if mate == he_plus { d } else { -d };
         // The chord's extent along its carrier, exact for a line and a
         // circle: the lever its germ is read at. A closed chord, its two
         // ends one point, reads by it as any other.
         let extent = d.norm() * (t1 - t0).abs();
         let n_r = match crate::face_normal::face_outward_normal_at(body, region, mid, band) {
             Ok(Some(n_r)) => n_r.vec(),
-            Ok(None) => return Err(desync("a section chord's region no longer resolves")),
-            Err(crate::face_normal::NormalAtError::OffSurface) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a section chord's point reads off the surface of the region it bounds",
+            Ok(None) => {
+                return Rung::Aborts(Err(desync(
+                    "a section chord's region no longer resolves",
+                )));
+            }
+            // A normal refused in band or at a limit is kept. A point off
+            // the region's own surface is a kernel defect, and so is a
+            // region on a torus outside the ring convention: the germ
+            // pair's frame refuses that torus before any chord is joined.
+            Err(why) => {
+                return rung_or_abort(why.refusal(), why, |why| {
+                    Err(BooleanError::ClassificationInvariant {
+                        what: match why {
+                            NormalAtError::DegenerateTorus { .. } => {
+                                "a section chord's region is a torus outside the ring \
+                                 convention, which the germ pair's frame refuses first"
+                            }
+                            _ => "a section chord's point reads off the surface of the region \
+                                  it bounds",
+                        },
+                    })
                 });
             }
-            Err(_) => continue,
         };
         let into_region = crate::stands::inward(n_r, d.normalize());
-        let Some(n_f) = holding_face_normal(other, mid, band)? else {
-            continue;
+        let n_f = match holding_face_normal(other, mid, band) {
+            Ok(Some(n_f)) => n_f,
+            Ok(None) => return Rung::Passes,
+            Err(e) => return Rung::Aborts(Err(e)),
         };
-        let Some(read) = germ_side(into_region, n_f, extent, band) else {
-            continue;
-        };
-        if side.is_some_and(|s| s != read) {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a section loop's chords read its regions on both sides of the other operand",
-            });
-        }
-        side = Some(read);
+        germ_side(into_region, n_f, extent, band).map_or(Rung::Passes, |read| Rung::Answers(Ok(read)))
+    };
+    let pairs = region_halves(body, face, l)?;
+    let same = |a: &Result<SideCode, BooleanError>, b: &Result<SideCode, BooleanError>| matches!((a, b), (Ok(x), Ok(y)) if x == y);
+    match climb_agreeing(pairs, chord, same) {
+        Ok(Climb::Answered { answer, .. }) => answer.map(Some),
+        // No chord decided: the loop is left to `loop_roles`, whose
+        // refusal `SectionLoopUndecided` carries no reading, so the ranked
+        // one kept here is dropped (registered on
+        // `work/onecopy/value-discards-read-a-refusal-as-nothing-found.md`).
+        Ok(Climb::Passed | Climb::Undecided(_)) => Ok(None),
+        Err(_) => Err(BooleanError::ClassificationInvariant {
+            what: "a section loop's chords read its regions on both sides of the other operand",
+        }),
     }
-    Ok(side)
 }
 
 /// The side of a face of outward normal `n_f` a region leaves a chord
@@ -7877,7 +7897,7 @@ mod of_join_rows {
                 matches!(
                     &got,
                     BooleanError::GermSectionUnbuilt {
-                        why: super::super::SectionUnbuilt::Unwalked(w),
+                        why: super::super::SectionUnbuilt::Carry(geom_brep::CarryError::Unwalked(w)),
                         ..
                     } if *w == why
                 ),

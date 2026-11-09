@@ -396,3 +396,7 @@ Newest entries at the bottom; the tail is the program's live status.
   - **6581 merges with the offer as built.** The question said a (b) answer would leave it so, and Ev did not object.
   - **Filed:** `placements-of-a-body-share-a-named-variable-the-re-point-redefines` (P1 M), with Ev's words and a done-when. It is the next unit; `[ev]` 6600's target build follows it.
   - **6581's dual-review row** is being coded blind (byte 164, even, so A = R1). (PLACING orchestrator)
+- 2026-11-09 — **PR 6581 merged** (`10159f74c8`). Four rows closed. Dual-review row PR-6581: tally 2 (R2's M2 and M3, demonstrated, unilateral; R1 raised no MAJOR).
+- 2026-11-09 — **Dispatched** `placements-of-a-body-share-a-named-variable-the-re-point-redefines` on `placing/named-source`, as Ev's 6581 workflow.
+  - **Review tier: dual, letter H.** It is a kernel naming rule for placement sources, broad and hard to reverse.
+  - **Design forks the row leaves open** (how the name comes into being, the exemption's reach) are the lane's to report, not to choose. `[ev]` 6600's target build follows. (PLACING orchestrator)

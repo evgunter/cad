@@ -151,8 +151,8 @@ pub use enters::{
     tied_germ_turn,
 };
 pub use extent::{
-    ExtentBall, LeverBounds, Reach, edge_extent_inf, edge_extent_sup, edge_reach_bounds,
-    points_diameter, points_lever_from, polygon_half_perimeter,
+    ExtentBall, LeverBounds, Reach, edge_coordinate_reach_below, edge_extent_inf, edge_extent_sup,
+    edge_reach_bounds, points_diameter, points_lever_from, polygon_half_perimeter,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -199,18 +199,22 @@ pub use offset_fit::{
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use offset_meters::ChartArmRefusal;
+/// [`CarryError`]'s compiler-derived kinds, for a roster that samples
+/// every arm.
+#[cfg(any(test, feature = "test-support"))]
+pub use pair_section::CarryErrorKind;
 pub use pair_section::{
     ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
     ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
     CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
-    Gap, KnownPair, KnownRow, NodeEnd, NodeEnds, NodeLine, NodeSet, PairPose, PairSection,
-    PairSide, PoseRefusal, RaySense, Reached, RegionPlacement, Ring, Seated, SectionComponent,
-    SectionDecision, SectionNode, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd,
-    SphereTorusPose, SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance,
-    TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement,
-    TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding,
-    WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section,
-    square_part, tori_coincide,
+    Gap, KnownPair, KnownRow, NoCarrier, NodeEnd, NodeEnds, NodeLine, NodeSet, PairPose,
+    PairSection, PairSide, PoseRefusal, RaySense, Reached, RegionPlacement, Ring, Seated,
+    SectionComponent, SectionDecision, SectionNode, SectionRead, SiteFoot, SiteReading,
+    SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose, SplinePairPose, SquareWall, SsiLane,
+    StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum,
+    TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance,
+    TubeRefusal, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt,
+    pair_section, spline_pair_section, square_part, tori_coincide,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

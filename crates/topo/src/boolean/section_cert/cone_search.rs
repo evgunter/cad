@@ -185,6 +185,10 @@ pub(super) struct Frame {
 }
 
 impl Frame {
+    /// The radial direction at azimuth `u`, spelled here rather than read
+    /// off `geom::Frame::radial`: this search is an oracle against the
+    /// cone arms, which chart through geom's azimuth, so its own frame
+    /// keeps a spelling of its own.
     pub(super) fn radial(&self, u: f64) -> Vec3<f64> {
         self.e1 * u.cos() + self.e2 * u.sin()
     }

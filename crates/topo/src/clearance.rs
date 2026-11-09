@@ -3268,7 +3268,7 @@ impl RegionMemo {
         }
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
-            Region::Trimmed => match w.body.passed_face(w.face).map(|f| f.surface()) {
+            Region::Trimmed => match w.body.face(w.face).map(|f| f.surface()) {
                 None => CellRegion::Undecided,
                 Some(stored) => {
                     // The carrier is the window's own lift, which
@@ -3386,7 +3386,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             side,
         })
     };
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return unsupported("an unreadable face");
     };
     let stored = f.surface();
@@ -3398,8 +3398,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         Interval::from_bounds(bounds.min_y, bounds.max_y),
         Interval::from_bounds(bounds.min_z, bounds.max_z),
     );
+    // The box's range of a chart parameter that the carrier evaluates
+    // as `origin + dir·v`: `Line::param`, correct for any `dir`.
     let along = |origin: Point3<Interval>, dir: Vec3<Interval>| -> (f64, f64) {
-        let d = (extent - origin).dot(dir);
+        let d = geom::Line { origin, dir }.param(extent);
         (d.lo(), d.hi())
     };
     match stored {
@@ -3741,7 +3743,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     face: FaceKey,
 ) -> Option<(Aabb, Boundary)> {
     certified_lift(|lift: Lift<'_, T>| -> Option<(Aabb, Boundary)> {
-        let f = body.passed_face(face)?;
+        let f = body.face(face)?;
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
         let mut out = Boundary {
@@ -3811,8 +3813,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
             pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
-            let ends = [e.he_plus, e.he_minus]
-                .map(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start);
+            let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
                 .map(|he| {
@@ -4284,7 +4285,7 @@ fn support_separation(
     (x, a): (&Window<'_, impl Real>, Cell),
     (y, b): (&Window<'_, impl Real>, Cell),
 ) -> Option<Interval> {
-    let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+    let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
     let normal = |s: &Surface<Interval>, c: Cell| {
         let (u, v) = centre(c.u, c.v);
         let n = s.point_normal(u, v);
@@ -4298,7 +4299,7 @@ fn support_separation(
     let (ha, hb) = (Hull::of(&x.surface, a), Hull::of(&y.surface, b));
     [normal(&x.surface, a), normal(&y.surface, b), centres]
         .into_iter()
-        .filter(|n| [n.x, n.y, n.z].iter().all(|c| c.is_finite()) && n.norm() > 0.0)
+        .filter(|n| n.checked_nonzero_length().is_ok())
         .filter_map(|n| {
             let n = n.map(Interval::from_f64);
             let (sa, sb) = (ha.support(n), hb.support(n));

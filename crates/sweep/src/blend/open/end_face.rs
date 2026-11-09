@@ -135,15 +135,12 @@ impl<T: Decide + Bounds> EndCut<T> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let stored = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .ok_or_else(|| {
-                unresolved(
-                    EntityId::Face(face),
-                    "a cut-off's end face's stored surface",
-                )
-            })?;
+        let stored = body.face_surface(face).ok_or_else(|| {
+            unresolved(
+                EntityId::Face(face),
+                "a cut-off's end face's stored surface",
+            )
+        })?;
         let Surface::Plane {
             origin: po,
             normal: n,
@@ -857,7 +854,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         ];
         // The end curve's centre, and on a round end the section's frame.
         let (center, round) = match curve {
-            EndCurve::Chord => (foot_a + (foot_b - foot_a) * T::from_f64(0.5), None),
+            EndCurve::Chord => (foot_a.mid(foot_b), None),
             EndCurve::Round(arc) => {
                 // The frame with the major semi-axis first
                 // (`Curve3::major_frame`).

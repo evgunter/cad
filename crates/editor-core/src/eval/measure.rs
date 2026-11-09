@@ -339,7 +339,7 @@ fn plane_of<T: Decide>(
     k: topo::entity::FaceKey,
 ) -> Option<(Point3<T>, Vec3<T>, Vec3<T>)> {
     let face = body.get_face(k)?;
-    match body.get_surface(face.surface)? {
+    match body.face_surface(k)? {
         Surface::Plane { origin, normal, .. } => Some((
             *origin,
             *normal,
@@ -352,12 +352,15 @@ fn plane_of<T: Decide>(
 /// Reads the carrier a resolved entity sits on, out of the body its
 /// reference lands in.
 ///
-/// A dangling arena key is a KERNEL BUG, not a document fault: the
+/// A dangling entity key is a KERNEL BUG, not a document fault: the
 /// entity came out of the very table this evaluation emitted for this
 /// body. It comes back as [`Carrier::Other`] naming the state rather
 /// than as a panic, so the refusal ladder above still gets to say
-/// which measurement could not be taken.
-pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'_, T> {
+/// which measurement could not be taken. A torn link inside a live
+/// entity (a face's surface, a vertex's point) is not that: it panics in
+/// topo's door (`Body::face_surface`, `topo::readback::vertex_point`;
+/// D2 row 4).
+pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) -> Carrier<'_, T> {
     match ent.key {
         EntityKey::Body => Carrier::Other("a whole body"),
         EntityKey::Vertex(v) => match topo::readback::vertex_point(body, v) {
@@ -372,8 +375,8 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                 return Carrier::Other("an unreadable face");
             };
             if let Some((origin, normal, outward)) = plane_of(body, k) {
-                let Some(reach) = reach_of(body, k, origin) else {
-                    return Carrier::Other("a face with no readable boundary");
+                let Some(reach) = reach_of(body, k, origin, band) else {
+                    return Carrier::Other("a face with no cover");
                 };
                 return Carrier::Plane {
                     origin,
@@ -382,7 +385,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                     reach,
                 };
             }
-            let surface = body.get_surface(face.surface);
+            let surface = body.face_surface(k);
             let round = surface.and_then(|s| topo::Round::of(s, face.sense));
             match (surface, round) {
                 (
@@ -394,8 +397,8 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                     }),
                     Some(round),
                 ) => {
-                    let Some(reach) = reach_of(body, k, *origin) else {
-                        return Carrier::Other("a face with no readable boundary");
+                    let Some(reach) = reach_of(body, k, *origin, band) else {
+                        return Carrier::Other("a face with no cover");
                     };
                     Carrier::Cylinder {
                         origin: *origin,
@@ -655,64 +658,23 @@ fn reference<T: Decide>(c: &Carrier<'_, T>) -> (Point3<T>, T) {
 }
 
 /// **An upper bound on the distance from `origin` to any point of face
-/// `k`** — the face's reach ([`arm`]).
+/// `k`** — the face's reach ([`arm`]): the farthest the face's cover
+/// stands from `origin` (`topo`'s reading of the region the face can
+/// occupy, [`topo::face_cover`], read under `band`). `None` for a face
+/// with no cover — a refusal, never a guess, because an under-estimate
+/// here would price a tilt too low and certify a parallelism that does
+/// not hold.
 ///
-/// The walk is the face's own boundary: every loop, every edge, each
-/// edge bounded from `origin` by [`curve_reach`]. A trimmed region is
-/// contained in the region its boundary bounds for every carrier in the
-/// v1 table (a plane patch and a cylinder patch are both bounded by
-/// their own rims), so the maximum over the boundary bounds the face.
-///
-/// `None` when the boundary cannot be walked or an edge's carrier has
-/// no bound this module can state — a refusal, never a guess, because
-/// an under-estimate here would price a tilt too low and certify a
-/// parallelism that does not hold.
-///
-/// Crate-visible because the mate solve's lever reads the same walk
-/// for a part body's faces (`mate::reach`): one boundary walk, one
-/// bound, read at both lever sites.
+/// Crate-visible because the mate solve's lever reads the same bound
+/// for a part body's faces (`mate::reach`).
 pub(crate) fn reach_of<T: Decide>(
     body: &Body<T>,
     k: topo::entity::FaceKey,
     origin: Point3<T>,
+    band: Band,
 ) -> Option<T> {
-    let face = body.get_face(k)?;
-    let mut reach = T::zero();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        let (edges, _) = topo::props::loop_edges(body, lk).ok()?;
-        for e in &edges {
-            reach = reach.max(curve_reach(&e.carrier, e.t0, e.t1, origin)?);
-        }
-    }
-    Some(reach)
-}
-
-/// An upper bound on `‖c(t) − origin‖` over `t ∈ [t0, t1]`.
-///
-/// Exact for a line (the maximum of its two ends); the containing
-/// circle or ellipse for the conics, which bounds any TRIM of them; the
-/// control polygon for a NURBS, which contains the curve by the convex
-/// hull property (positive weights, the same assumption
-/// `geom::surfaces::boxes::nurbs_surface_aabb` states). `None` for a
-/// NURBS with an empty control net, which describes no locus to bound.
-fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Option<T> {
-    let from = |p: Point3<T>| (p - origin).norm();
-    match c {
-        Curve3::Line(_) => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
-        // The reach is the larger semi-axis, whichever is stored first.
-        Curve3::Circle(_) | Curve3::Ellipse(_) => {
-            c.conic().map(|k| from(k.frame().origin) + k.speed_hi())
-        }
-        // Every point of the spiric lies on its torus, within `R + r` of
-        // the torus centre.
-        Curve3::Spiric {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(from(*center) + *major_radius + *minor_radius),
-        Curve3::Nurbs(n) => n.control().iter().map(|p| from(*p)).reduce(|a, b| a.max(b)),
-    }
+    let cover = topo::face_cover(body, k, band).ok()?;
+    Some(cover.distance_range(&geom::cover::Site::Point(origin)).1)
 }
 
 /// `distance(a, b)` -> Length. Unsigned throughout: a distance is a
@@ -1391,7 +1353,7 @@ fn link_reads<T: Decide>(
 ) -> Result<T, PrimitiveRefusal> {
     let link = match reading {
         Cell::Vertex(at, cell) => cell.link(at, band),
-        Cell::Edge([start, end], cell) => cell.link(start + (end - start) * T::from_f64(0.5), band),
+        Cell::Edge([start, end], cell) => cell.link(start.mid(end), band),
     };
     let got = link.map_err(LinkRefusal::from).and_then(|link| match read {
         Cell::Vertex(at, _) => link.offset(at, band),
@@ -1418,7 +1380,7 @@ fn link_reads<T: Decide>(
             LinkRefusal::Unread(TouchUnread::ChordScale) => {
                 "a cell with an edge too long or too short to measure"
             }
-            LinkRefusal::Unread(TouchUnread::EdgeTangent(_)) => {
+            LinkRefusal::Unread(TouchUnread::EdgeTangent(_) | TouchUnread::OffInterior) => {
                 "a cell on a curved edge whose direction does not read there"
             }
             LinkRefusal::Unread(TouchUnread::Corrupt) => "a cell whose topology does not read",
@@ -1619,36 +1581,6 @@ mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use super::*;
-
-    /// **`curve_reach` bounds an ellipse in either stored order.** An
-    /// ellipse stored with `minor` the larger reaches as far as its larger
-    /// semi-axis. Read at the stored `major` it under-reached —
-    /// and an under-estimate here certifies a parallelism that does not
-    /// hold. Dense samples of the whole ellipse against the bound.
-    #[test]
-    fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
-        let origin = Point3::new(0.3, -0.2, 0.1);
-        let center = Point3::new(1.0, 2.0, -0.5);
-        for (major, minor) in [(0.5, 3.0), (3.0, 0.5)] {
-            let e = Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(
-                    center,
-                    geom_core::Vec3::new(0.0, 0.0, 1.0),
-                    geom_core::Vec3::new(1.0, 0.0, 0.0),
-                ),
-                major,
-                minor,
-            ));
-            let reach = curve_reach(&e, 0.0, core::f64::consts::TAU, origin).expect("a conic");
-            let far = (0..=4000)
-                .map(|k| (e.eval(core::f64::consts::TAU * f64::from(k) / 4000.0) - origin).norm())
-                .fold(0.0_f64, f64::max);
-            assert!(
-                far <= reach,
-                "({major}, {minor}): a point {far} out against a reach of {reach}"
-            );
-        }
-    }
 
     fn band() -> Band {
         Band::linear(geom_core::Tol::witness()).expect("the witness tolerance is a band")

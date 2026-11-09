@@ -1289,7 +1289,7 @@ fn beyond_reach<T: CertifiedBounds>(
         (rise / run).next_up()
     };
     let (a, b) = along(side, r);
-    [a, 0.5 * (a + b), b].into_iter().any(|t| {
+    [a, geom::mid_param(a, b), b].into_iter().any(|t| {
         let least = super::enclose::zero_free_lower_bound(reader.over((t, t)));
         least / steepest > eps
     })

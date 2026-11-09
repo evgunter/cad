@@ -2,10 +2,11 @@
 id: placements-of-a-body-share-a-named-variable-the-re-point-redefines
 kind: issue
 title: Placements of a body read a variable under the usual naming rule, so several placements share a named one (bracket = B) and the re-point redefines it (bracket = F)
-status: open
+status: dispatched
 opened: 2026-11-09
 priority: P1
 cost: M
+branch: placing/named-source
 ---
 
 

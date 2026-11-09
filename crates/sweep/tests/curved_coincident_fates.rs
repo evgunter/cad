@@ -73,10 +73,7 @@ fn live(out: &BooleanBody<f64>, rows: &[(topo::VertexKey, topo::VertexKey)]) -> 
         let p = topo::readback::vertex_point(body, v).expect("a live end");
         rounded(&format!("({:.3},{:.3},{:.3})", p.x, p.y, p.z))
     };
-    let ends = |e: topo::EdgeKey| {
-        let d = body.get_edge(e).expect("a live edge");
-        [d.he_plus, d.he_minus].map(|h| body.get_half_edge(h).expect("a live half").start)
-    };
+    let ends = |e: topo::EdgeKey| <[_; 2]>::from(body.edge_vertices(e).expect("a live edge"));
     let mut v: Vec<String> = rows
         .iter()
         .filter_map(|&(u, w)| {

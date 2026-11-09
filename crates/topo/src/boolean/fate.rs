@@ -1143,13 +1143,17 @@ fn lies<T: Decide>(
     let unplaced = |e| contained(e, "a fate cut's end is not placed in its face");
     let (mut inside, mut corners, mut on_edge) = (Vec::new(), Vec::new(), Vec::new());
     for f in pieces(body, root, divisions) {
-        let at = match crate::face_normal::face_outward_normal(body, f) {
-            Some(normal) => super::contfp(body, f, normal.vec(), p, band).map_err(unplaced)?,
-            None => super::curved_face_containment(body, f, p, band)
-                .map_err(unplaced)?
-                .ok_or(BooleanError::ClassificationInvariant {
+        let at = match super::contain::placement_on_carrier(body, f, p, band)
+            .map_err(unplaced)?
+            .0
+        {
+            // OffCarrier → Out (trusted on carrier).
+            super::CurvedPlacement::OffCarrier => super::FaceContainment::Out,
+            super::CurvedPlacement::Trim(at) => {
+                at.ok_or(BooleanError::ClassificationInvariant {
                     what: "a fate cut's end lies in a curved face its chart cannot place it in",
-                })?,
+                })?
+            }
         };
         match at {
             super::FaceContainment::In => inside.push(f),
@@ -1332,7 +1336,6 @@ fn rehome<T: Decide>(
         .ok_or_else(|| desync("a divided face no longer resolves"))?
         .rings
         .clone();
-    let normal = crate::face_normal::face_outward_normal(body, new);
     // Every ring is read before any moves: the reading cannot walk a
     // lone vertex's loop in `new`.
     let mut moved = Vec::new();
@@ -1351,8 +1354,10 @@ fn rehome<T: Decide>(
                 .collect(),
         };
         // The ladder ([`climb`]) whose answer is the first vertex placed:
-        // a ring the cut does not cross is on one side, so every vertex
-        // placed reads it alike ([`Answering::Any`]). A vertex on the
+        // a ring the cut does not cross is on one side, and a touch
+        // switches no side, so every vertex placed reads it alike
+        // ([`Answering::Any`]; the premise and its residual, a vertex
+        // the cut did not identify: `chord_join::paths_rung`). A vertex on the
         // boundary passes; a limit and a vertex in band are kept, ranked,
         // and refuse only where no vertex places the ring.
         let placed = climb(Answering::Any, vertices, |v| {
@@ -1363,10 +1368,13 @@ fn rehome<T: Decide>(
             else {
                 return Rung::Aborts(Err(desync("a ring's vertex has no point")));
             };
-            let at = match normal {
-                Some(n) => super::contfp(body, new, n.vec(), p, band).map(Some),
-                None => super::curved_face_containment(body, new, p, band),
-            };
+            let at = super::contain::placement_on_carrier(body, new, p, band).map(|(at, _, _)| {
+                match at {
+                    // OffCarrier → Out (trusted on carrier).
+                    super::CurvedPlacement::OffCarrier => Some(super::FaceContainment::Out),
+                    super::CurvedPlacement::Trim(at) => at,
+                }
+            });
             match at {
                 Ok(Some(super::FaceContainment::In)) => Rung::Answers(Ok(true)),
                 Ok(Some(super::FaceContainment::Out)) => Rung::Answers(Ok(false)),

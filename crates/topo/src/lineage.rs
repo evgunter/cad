@@ -381,12 +381,13 @@ impl Shape {
     /// carriers of its boundary. None where `body` does not hold it.
     fn of<T: geom_core::Real>(body: &crate::Body<T>, cell: Cell) -> Option<Self> {
         let point = |v| body.get_vertex(v).map(|d| d.point);
-        let start = |h| body.get_half_edge(h).and_then(|h| point(h.start));
         match cell {
             Cell::Vertex(v) => point(v).map(Self::Vertex),
             Cell::Edge(e) => {
                 let edge = body.get_edge(e)?;
-                let mut ends = [start(edge.he_plus), start(edge.he_minus)];
+                let mut ends = body
+                    .edge_vertices(e)
+                    .map_or([None, None], |(a, b)| [point(a), point(b)]);
                 ends.sort();
                 Some(Self::Edge(edge.curve, ends))
             }

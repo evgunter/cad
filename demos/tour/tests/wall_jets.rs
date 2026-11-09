@@ -29,9 +29,9 @@ fn tol() -> Tol {
 /// Each spline face of `body`.
 fn walls<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface).expect("a live surface"),
+                body.face_surface(*fk).expect("a live surface"),
                 Surface::Nurbs(_)
             )
         })
@@ -135,8 +135,7 @@ fn the_klein_loops_walls_hold_against_themselves() {
 /// The widest coordinate of each of `rect_jet`'s three partials over each
 /// cell of an `8 × 32` grid of `wall`'s chart.
 fn grid_widths(body: &Body<f64>, wall: FaceKey) -> Vec<[f64; 3]> {
-    let face = body.get_face(wall).expect("a live face");
-    let Some(Surface::Nurbs(net)) = body.get_surface(face.surface) else {
+    let Some(Surface::Nurbs(net)) = body.face_surface(wall) else {
         panic!("a blade wall is a spline")
     };
     let net = net.map_scalar(Interval::from_f64);

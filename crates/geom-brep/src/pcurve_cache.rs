@@ -8935,17 +8935,13 @@ impl<T: Decide> Placement<T> {
     /// Placement of `carrier`'s image on `surface` over the edge's span
     /// `[t0, t1]`, its levers read there ([`Levers`]).
     pub(crate) fn over((t0, t1): (T, T), carrier: &Curve3<T>, surface: &Surface<T>) -> Self {
-        let mid = (t0 + t1) * T::from_f64(0.5);
+        let mid = geom::mid_param(t0, t1);
         let azimuth = projected::chart_frame(surface).map_or_else(T::one, |(origin, e)| {
             let reach = |t: T| {
                 let q = carrier.eval(t) - origin;
                 (q - e[2] * q.dot(e[2])).norm()
             };
-            let at = |(a, b): (T, T)| {
-                reach(a)
-                    .max(reach((a + b) * T::from_f64(0.5)))
-                    .max(reach(b))
-            };
+            let at = |(a, b): (T, T)| reach(a).max(reach(geom::mid_param(a, b))).max(reach(b));
             let over_span = at((t0, t1));
             // A span on the axis (a vertex at a pole or the apex, read over
             // no length) still has its carrier's direction: the reach of
@@ -11116,7 +11112,7 @@ fn identity_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// `±r`) and along the azimuth (`pcurve_chart_orientation`,
 /// `±√(R² − r²)`), each levered at `R`; each magnitude is first decided
 /// positive, which fails only where the tube `r`, or `√(R² − r²)`, is at
-/// the band's scale (the comment at `unit_sign`).
+/// the band's scale (the comment at `decided_sense`).
 ///
 /// # Errors
 ///
@@ -11127,7 +11123,7 @@ fn identity_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// the incidence test lands in the sliver band
 /// ([`PcurveCheck::ChartIncidence`]), or a tangent's sign is not decided:
 /// [`PcurveCheck::ChartClass`], the class not shown (the comment at
-/// `unit_sign`).
+/// `decided_sense`).
 fn torus_oblique_circle<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -11243,7 +11239,7 @@ fn torus_oblique_circle<T: Decide>(
     // (check 4's re-read of a class in band ends `ChartClass` too,
     // `check_4_class_rows`).
     let reread = |cause| incidence::class_escalated(shown, cause);
-    let unit_sign = |name, along: Vec3<T>| -> Result<T, PcurveCertifyError> {
+    let decided_sense = |name, along: Vec3<T>| -> Result<T, PcurveCertifyError> {
         let part = tangent.dot(along);
         // Unsourced lever: `R·part` is the carrier's speed along `along`
         // (metres per radian), a rate with no span to meter, at the
@@ -11267,8 +11263,8 @@ fn torus_oblique_circle<T: Decide>(
             Sign::Zero => unreachable!("a part whose magnitude decided positive decides a sign"),
         }
     };
-    let vl = unit_sign("pcurve_torus_villarceau_tube_rate", axis)?;
-    let sense = unit_sign("pcurve_chart_orientation", axis.cross(d))?;
+    let vl = decided_sense("pcurve_torus_villarceau_tube_rate", axis)?;
+    let sense = decided_sense("pcurve_chart_orientation", axis.cross(d))?;
     let Some(form) = carrier_harmonic(carrier) else {
         unreachable!("carrier_harmonic: a circle has its harmonic form")
     };
@@ -11550,7 +11546,7 @@ mod incidence {
     ) -> Option<(Curve3<T>, Surface<T>, T, T)> {
         use geom_core::running::{Rounded, cross, exact_vec};
         let mid = match carrier {
-            Curve3::Line(_) => (t0 + t1) * T::from_f64(0.5),
+            Curve3::Line(_) => geom::mid_param(t0, t1),
             _ => T::zero(),
         };
         let k = match *carrier {

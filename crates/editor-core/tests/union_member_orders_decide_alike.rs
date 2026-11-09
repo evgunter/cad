@@ -331,15 +331,10 @@ fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrie
             let [u, w] = crate::fixture::ends(body, k).map(|v| crate::fixture::point(body, v));
             Some(Carrier::Line(u, w - u))
         }
-        editor_core::EntityKey::Face(f) => {
-            let (_, face) = body.faces().find(|&(k, _)| k == f)?;
-            match body.get_surface(face.surface)? {
-                topo::Surface::Plane { origin, normal, .. } => {
-                    Some(Carrier::Plane(*origin, *normal))
-                }
-                _ => None,
-            }
-        }
+        editor_core::EntityKey::Face(f) => match body.face_surface(f)? {
+            topo::Surface::Plane { origin, normal, .. } => Some(Carrier::Plane(*origin, *normal)),
+            _ => None,
+        },
         editor_core::EntityKey::Body => None,
     }
 }

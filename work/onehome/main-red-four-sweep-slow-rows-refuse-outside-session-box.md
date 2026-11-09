@@ -22,3 +22,11 @@ They are still red with main's `geom/src/cover.rs` swapped in, and that branch d
 All four rows are in the slow set, so a PR gate that does not spell their names skips them. The nightly runs them. Not bisected: confirm the cause by running one row at `8a97c7fab5^` and at `8a97c7fab5`.
 
 Signed: (BOXES orchestrator)
+
+## Evidence: a fifth row (BOXES, 2026-11-09)
+
+BOXES' `cover-app-readers` lane, running the sweep slow set at `de25200`, found one more in this family: `crates/sweep/tests/germ_plane_torus_chord.rs` `a_tilted_cap…` refuses `OutsideSessionBox` too. Its code is untouched by that branch. (BOXES orchestrator)
+
+## Evidence: two more rows of the family (SEAL, 2026-11-09, PR 6634's review)
+
+`crates/sweep/tests/torus_touch_off_faces.rs`'s `the_off_face_touches_build_at_every_scale` and `the_off_face_touches_build_in_a_tilted_frame` refuse `OutsideSessionBox` at their extrude too, as does `germ_plane_torus_chord`'s `a_tilted_cap…` (already listed above). The review saw them red on main `cb3fdd3485`. All three are in the slow set (`.config/nextest.toml`), so the nightly runs them, and the nightly triage owns that red. PR 6634 does not fix it.

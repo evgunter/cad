@@ -30,8 +30,8 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
 use super::{
-    BooleanError, DeclarationRead, Glue, GluedPair, InBandPair, Operand, PairUnread,
-    TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
+    BooleanError, CarrierVerdict, DeclarationRead, Glue, GluedPair, InBandPair, Operand,
+    PairUnread, TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
 use crate::contact::GlueClass;
@@ -85,16 +85,10 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
             continue;
         }
         let glued = match carrier_pair_decided(a, fa, b, fb, band) {
-            Ok(Ok((relation, Some(margin)))) => GlueClass::of_senses(relation)
+            Ok(Ok(CarrierVerdict::One { relation, margin })) => GlueClass::of_senses(relation)
                 .map(|class| GluedPair::decided(fa, fb, class, margin)),
-            // One carrier on no margin is no decision this door makes:
-            // every rung that reads one carrier reads it on a margin.
-            Ok(Ok((relation, None))) if GlueClass::of_senses(relation).is_some() => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "the glue door: a pair read one carrier on no margin",
-                });
-            }
-            Ok(Ok(_)) | Err(PairUnread::OutsideInventory) => {
+            Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
+            | Err(PairUnread::OutsideInventory) => {
                 tangency(a, fa, b, fb, band)?.then(|| GluedPair::new(fa, fb, GlueClass::Tangent))
             }
             Ok(Err(reading)) => {
@@ -289,7 +283,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     let boxed = |covers: &[(FaceKey, crate::cover::FaceCovered<T>)]| -> Vec<(FaceKey, bvh::Aabb)> {
         covers
             .iter()
-            .map(|(k, c)| (*k, boxes::cover_box(c.as_ref().ok(), pad)))
+            .map(|(k, c)| (*k, boxes::cover_box(c, pad)))
             .collect()
     };
     let (a_boxes, b_boxes) = (boxed(&a_covers), boxed(&b_covers));

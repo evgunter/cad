@@ -435,6 +435,22 @@ pub enum Refusal {
         /// The copy, as the document held it at the refusal.
         copy: SpokenNode,
     },
+    /// A re-point of a body's placements asked of a body nothing places
+    /// ([`super::SessionOp::RepointPlacements`]).
+    NothingPlaced {
+        /// The body, as the document held it at the refusal.
+        body: SpokenVar,
+    },
+    /// **A delete that cannot splice** (DM6,
+    /// `editor_core::continuation::SpliceFault`): one member of a family
+    /// would land where no edit writes one.
+    Unspliced {
+        /// The reader that would be handed the member, or the deleted
+        /// node, as the document held it at the refusal.
+        node: SpokenNode,
+        /// Which.
+        fault: editor_core::continuation::SpliceFault,
+    },
     /// The tree's `remove` asked of a value: a freedom is always set,
     /// and its only edit is its number.
     ValueNotRemoved {
@@ -493,6 +509,13 @@ impl Refusal {
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
             Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
+            Self::NothingPlaced { body } => Self::NothingPlaced {
+                body: body.respoken(doc),
+            },
+            Self::Unspliced { node, fault } => Self::Unspliced {
+                node: again(node),
+                fault,
+            },
             Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
             Self::PlacementFails { fault } => Self::PlacementFails { fault },
@@ -577,6 +600,8 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::NothingPlaced { .. }
+            | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -624,6 +649,8 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::NothingPlaced { .. }
+            | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -958,6 +985,35 @@ impl Refusal {
                 "{copy} is a copy; move it by its own placement in the placement editor, not \
                  by a copy of it"
             ),
+            Self::Unspliced { node, fault } => match fault {
+                editor_core::continuation::SpliceFault::MemberAtSeat { .. } => write!(
+                    f,
+                    "deleting this would hand {node} one member of a family at a seat that \
+                     reads a whole body, which no edit can write; delete or re-point {node} \
+                     first"
+                ),
+                editor_core::continuation::SpliceFault::MemberAtProduct => write!(
+                    f,
+                    "deleting {node} would hand the product one member of a family, and the \
+                     product reads a whole body; set the product first"
+                ),
+                editor_core::continuation::SpliceFault::MemberOfAMember { .. } => write!(
+                    f,
+                    "deleting this would hand a reader of one member of {node} a member of a \
+                     member, which no read spells; delete that reader first"
+                ),
+                editor_core::continuation::SpliceFault::ContinuationCycle { .. } => write!(
+                    f,
+                    "the delete's continuations came back to {node}, which an acyclic recipe \
+                     cannot do; nothing was deleted"
+                ),
+            },
+            Self::NothingPlaced { body } => {
+                write!(
+                    f,
+                    "nothing places {body}, so there is no placement to re-point"
+                )
+            }
             Self::ValueNotRemoved { node } => write!(
                 f,
                 "a value of {node} sets a freedom its mates leave, and a freedom is always set; \

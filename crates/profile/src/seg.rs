@@ -1198,6 +1198,16 @@ pub(crate) fn arc_lever<T: Real>(radius: T, chord: T) -> T {
 }
 
 impl<T: Real> Seg<T> {
+    /// **The segment as the span `(0, 1)` of a planar line**: from `a`
+    /// along the chord `b − a`, so [`Line2::at`] at a parameter is the
+    /// point that fraction of the way to `b`.
+    pub(crate) fn span_line(&self) -> Line2<T> {
+        Line2 {
+            origin: self.a,
+            dir: self.chord,
+        }
+    }
+
     /// **The segment's chord as a planar line**: from `a` along the unit
     /// chord direction, so its [`Line2::height`] is a point's arc length
     /// along the chord from `a` and [`Line2::side`] its signed offset.
@@ -1668,13 +1678,15 @@ fn line_line<T: Decide>(
     };
     let mut contacts = Vec::new();
     if opposite(o_c, o_d) && opposite(o_a, o_b) {
-        // Proper crossing, interior to both; the crossing parameter is
-        // well-conditioned here (definite sides bound the transversal
-        // angle away from zero).
-        let denom = s2.chord.perp_dot(s1.chord);
-        let t = s2.chord.perp_dot(s2.a - s1.a) / denom;
+        // Proper crossing, interior to both. The sides just decided settle
+        // the determinant: `s1.chord × s2.chord` is `|s1|` times the rise
+        // from `s2.a`'s side of `s1`'s line to `s2.b`'s, decided opposite
+        // through the band, so it is definitely nonzero
+        // (`Line2::meet_transversal`).
+        let line1 = s1.span_line();
+        let (t, _) = line1.meet_transversal(&s2.span_line());
         contacts.push(Contact {
-            point: s1.a + s1.chord * t,
+            point: line1.at(t),
             kind: CKind::Crossing,
         });
     } else {
@@ -2019,7 +2031,7 @@ fn arc_arc<T: Decide>(
             let tangency = |s1: T, s2: T| {
                 let u = circles.direction();
                 let (p1, p2) = (g1.arc.centre + u * s1, g2.arc.centre + u * s2);
-                p1 + (p2 - p1) * T::from_f64(0.5)
+                p1.mid(p2)
             };
             // Either arc certainly off the other's circle is no contact,
             // however the carriers' clearances read; the identity margin
@@ -2445,9 +2457,12 @@ pub(crate) fn ray_crossings<T: Decide>(
                 (Sign::Positive, Sign::Positive) | (Sign::Negative, Sign::Negative) => Ok(0),
                 _ => {
                     // Endpoints strictly straddle the ray line: one
-                    // carrier crossing; count it if strictly ahead.
-                    let denom = seg.chord.perp_dot(dir);
-                    let s = seg.chord.perp_dot(seg.a - origin) / denom;
+                    // carrier crossing; count it if strictly ahead. The
+                    // sides just decided settle the determinant: `dir ×
+                    // chord` is `|dir|` times the rise from `seg.a`'s side
+                    // of the ray's line to `seg.b`'s, decided opposite, so
+                    // it is definitely nonzero (`Line2::meet_transversal`).
+                    let (s, _) = Line2 { origin, dir }.meet_transversal(&seg.span_line());
                     match decide(Gate::RayAdvance, Margin::of(s), band) {
                         Ok(Sign::Positive) => Ok(1),
                         Ok(Sign::Negative) => Ok(0),
