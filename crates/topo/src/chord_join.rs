@@ -3969,7 +3969,15 @@ impl<T: Decide> IslandReading<T> {
     /// The paths to `q` from every outer-loop point of `face`
     /// ([`outer_references`]), in the order they are asked, each read by
     /// `read` until one decides: a side ladder ([`paths_rung`]), so a
-    /// path set aside ahead of one that decides is superseded.
+    /// path set aside ahead of one that decides is superseded. Its
+    /// premise is the input's, not a theorem: the island lies in the
+    /// face, so every outer-loop point is on the same side of it. The
+    /// boolean's ring lane reads it mid-operation (`boolean::join`'s
+    /// `ring_run_ccw`), on a run of a ring of the operand's face, which
+    /// check 9 placed in the face at rest, closed by a section piece the
+    /// reduction kept where the face holds it. That is the construction's
+    /// guarantee: no check re-reads the island against the outer loop
+    /// there (`work/onecopy/the-ring-lanes-island-is-not-checked-in-its-face.md`).
     pub(crate) fn read_paths<R>(
         &self,
         body: &Body<T>,
@@ -5579,6 +5587,9 @@ mod side_ladder_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod island_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;
