@@ -912,7 +912,6 @@ mod tests {
         );
     }
 
-
     /// **A later definite datum answers past an earlier in-band one**,
     /// and the kept reading's escalation leaves the log, since the
     /// answer does not rest on it.

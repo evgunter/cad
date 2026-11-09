@@ -15,20 +15,28 @@
 #
 # WHAT IS READ: production sources (`crates/*/src`, less test-only mounts
 # and `#[cfg(test)]` items) other than the home,
-# `crates/geom-brep/src/ladder.rs`, in the code view (comments and
-# literals blanked), for:
+# `crates/geom-brep/src/ladder.rs`, in the statement view (comments and
+# literals blanked, one record per statement, so a call rustfmt splits
+# over lines is read whole), for:
 #   * an arm `Ok(true) => Rung::Answers`, the hand-rolled `Rung::holds`;
-#   * `rung_or_abort(X.refusal(), X, Err)` (or `X.1.refusal()`), the
-#     hand-rolled `Rung::refused`: the standing read off the payload, or
-#     a field of it, that the ladder then keeps.
-# There is no register: either shape has a home that takes it.
+#   * `rung_or_abort(X.refusal(), X, Err)` (or `X.1.refusal()`, or the
+#     abort written `|e| Err(e)`), the hand-rolled `Rung::refused`: the
+#     standing read off the payload, or a field of it, that the ladder
+#     then keeps;
+#   * the same with the standing read by path, `E::refusal(&X)`;
+#   * `rung_or_abort` spelled out as a match, an arm
+#     `Err(Aborts) => Rung::Aborts(Err(..))`.
+# There is no register: each shape has a home that takes it.
 #
 # WHAT IT CANNOT SEE, each a pass where a copy exists:
-#   * an arm whose body is on the next line, or the two arms in another
-#     order (`Ok(false) => Rung::Passes` first, then `Ok(true)`);
+#   * the two `Ok` arms in another order (`Ok(false) => Rung::Passes`
+#     first, then `Ok(true)`), or one arm on a binding,
+#     `Ok(b) => if b { .. } else { .. }`: that shape is every `if` on a
+#     read `bool`, and the statement view cuts it at its `{`, so a line
+#     grep cannot tell a rung from any other branch;
 #   * a payload whose refusal is read through another binding
 #     (`rung_or_abort(standing, e, Err)` with `standing` bound above);
-#   * a `Rung::Answers` behind an alias or a `use … as`.
+#   * a `Rung::Answers` or `rung_or_abort` behind an alias or a `use … as`.
 # A reviewer's, those.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
@@ -36,7 +44,11 @@ set -euo pipefail
 
 HOME_FILE=crates/geom-brep/src/ladder.rs
 HOLDS_RE='Ok\(true\)[[:space:]]*=>[[:space:]]*(geom_brep::ladder::)?Rung::Answers'
-REFUSED_RE='rung_or_abort\([[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[A-Za-z0-9_.]*\.refusal\(\)[[:space:]]*,[[:space:]]*\1[[:space:]]*,[[:space:]]*Err[[:space:]]*\)'
+# The abort the ladder hands back as the answer: `Err`, or `|e| Err(e)`.
+ABORT='(Err|\|[a-z_][a-z0-9_]*\|[[:space:]]*Err\([a-z_][a-z0-9_]*\))[[:space:]]*,?[[:space:]]*\)'
+REFUSED_RE='rung_or_abort\([[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[A-Za-z0-9_.]*\.refusal\(\)[[:space:]]*,[[:space:]]*\1[[:space:]]*,[[:space:]]*'"$ABORT"
+REFUSED_PATH_RE='rung_or_abort\([[:space:]]*[A-Za-z_][A-Za-z0-9_:]*::refusal\([[:space:]]*&[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[A-Za-z0-9_.]*[[:space:]]*\)[[:space:]]*,[[:space:]]*\1[[:space:]]*,[[:space:]]*'"$ABORT"
+REFUSED_MATCH_RE='Err\((geom_brep::ladder::)?Aborts\)[[:space:]]*=>[[:space:]]*(geom_brep::ladder::)?Rung::Aborts\([[:space:]]*Err\('
 
 gate() {
   gate_require_crate_sources
@@ -47,12 +59,14 @@ gate() {
     [ "$f" = "$HOME_FILE" ] || files+=("$f")
   done
   local view hits
-  view=$(gate_rust_code --skip-cfg-test "${files[@]}")
-  # Two scans, not one alternation: the back reference in REFUSED_RE
-  # counts its groups from the start of the whole pattern.
+  view=$(gate_rust_code --skip-cfg-test --statements "${files[@]}")
+  # One scan per shape, not one alternation: a back reference counts its
+  # groups from the start of the whole pattern.
   hits=$(
-    printf '%s\n' "$view" | gate_grep -E "$HOLDS_RE"
-    printf '%s\n' "$view" | gate_grep -E "$REFUSED_RE"
+    local re
+    for re in "$HOLDS_RE" "$REFUSED_RE" "$REFUSED_PATH_RE" "$REFUSED_MATCH_RE"; do
+      printf '%s\n' "$view" | gate_grep -E "$re"
+    done
   )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
@@ -71,6 +85,24 @@ plant_holds() {
 plant_refused() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn f(e: (usize, E)) -> Rung<Result<(), (usize, E)>, (usize, E)> { rung_or_abort(e.1.refusal(), e, Err) }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_refused_split() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(e: E) -> R {\n    rung_or_abort(\n        e.refusal(),\n        e,\n        Err,\n    )\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_refused_by_path() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(e: E) -> R { rung_or_abort(E::refusal(&e), e, |e| Err(e)) }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_refused_as_a_match() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(e: E) -> R {\n    match e.refusal() {\n        Ok(r) => r.rung(e),\n        Err(Aborts) => Rung::Aborts(Err(e)),\n    }\n}\n' \
     > "$1/crates/planted/src/lib.rs"
 }
 
@@ -98,10 +130,13 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_holds
   gate_selftest_case "$want" plant_refused
+  gate_selftest_case "$want" plant_refused_split
+  gate_selftest_case "$want" plant_refused_by_path
+  gate_selftest_case "$want" plant_refused_as_a_match
   gate_selftest_passes "the home's own spelling" plant_in_the_home
   gate_selftest_passes "a refusal whose payload is mapped" plant_mapped_payload
   gate_selftest_passes "a spelling inside a #[cfg(test)] module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, the home, a mapped payload and a test module; fires on a hand-rolled holds arm and on a hand-rolled refused, and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, the home, a mapped payload and a test module; fires on a hand-rolled holds arm and on a hand-rolled refused (on one line, split over lines, by path with a closure abort, and as a match), and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -107,7 +107,7 @@ once at its hit lines and its exits.
 | `topo::boolean::insert::mint_plans` | 932 | NOT A SEARCH: every plan is keyed |
 | `topo::boolean::insert::fan_germ_dir` | 2590 | NOT A SEARCH: a unique-holder read (two rays within one pair refuse) |
 | `topo::boolean::join::surface_pair_reach` | 2976 | NOT A SEARCH: a maximum over every pair |
-| `topo::boolean::join::seam_germ_side` | 5653 | **HAND-ROLLED, the agreeing shape**: ported to `ladder::climb_agreeing` by `a-ladder-that-checks-its-answers-agree-has-no-home` |
+| `topo::boolean::join::seam_germ_side` | 5653 | **HAND-ROLLED, the agreeing shape**: ported to `ladder::climb_agreeing` (`a-ladder-that-checks-its-answers-agree-has-no-home`); its `?` is now a rung |
 | `topo::boolean::ops::apply_cut_ins` | 7211, 7212 | NOT A SEARCH: a unique-holder read (a second holder is unread) |
 | `topo::boolean::recl::resolve_edge_edge` | 1614 | NOT A SEARCH: each slot is filled from its own face |
 | `topo::boolean::reduce::face_tree` | 918 | NOT A SEARCH: every face's box is collected |

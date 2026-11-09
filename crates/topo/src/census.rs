@@ -2478,11 +2478,12 @@ struct Wedge<T: Real> {
 /// overlap. `Ok(Some(i))` names a pair that overlaps, `Ok(None)` says
 /// none does. Any definite overlap is a true fault, so which pair
 /// answers does not change the verdict: the index only names the fault
-/// (the Boolean's result gate reports `pairs[i]`'s edges), and a
-/// pair read in band ahead of it does not refuse it ([`wedges_overlap`]). Each edge's census geometry is read once;
-/// its sheets are read per pair at the shared span, so a partial overlap
-/// on a face whose tangent plane turns along a ruling compares the two
-/// wedges at one point (restread's
+/// (the Boolean's result gate reports `pairs[i]`'s edges), and a pair
+/// read in band ahead of it does not refuse it ([`wedges_overlap`]).
+/// Each edge's census geometry is read once; its sheets are read per
+/// pair at the shared span, so a partial overlap on a face whose tangent
+/// plane turns along a ruling compares the two wedges at one point
+/// (restread's
 /// `coincident-line-wedges-are-read-at-one-point-of-a-turning-face`).
 ///
 /// A wedge is the material between an edge's two face sheets, CCW
@@ -2505,8 +2506,11 @@ struct Wedge<T: Real> {
 ///
 /// # Errors
 ///
-/// The pair, by its index, whose reading refused ([`WedgeRefusal`]): an
-/// in-band reading, or an edge whose wedge has no reading.
+/// Where no pair overlaps and a reading refused: the refusal the ladder
+/// ranks first by its standing ([`WedgeRefusal::refusal`]: a limit
+/// ahead of a reading in band), with the index of the pair it was read
+/// at. A refusal of the whole query (`TouchUnread::Unreadable`) stops
+/// the read where it is met.
 pub(crate) fn line_wedges<T: Decide>(
     body: &Body<T>,
     pairs: &[CollinearOverlap<T>],

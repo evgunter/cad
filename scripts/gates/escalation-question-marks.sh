@@ -25,8 +25,9 @@
 #     a call that reads `band` and no `decide*(` call (a callee that
 #     decides inside it), inside a loop whose outermost loop has an early
 #     answering exit (a `break`, a `return` of a value other than
-#     `Ok(())` or an error, or a `return` of a bare binding,
-#     `return found;`, which may carry either). A loop with no such exit reads every element,
+#     `Ok(())` or an error, or a `return` of a binding or a field,
+#     `return found;`, `=> return yes,`, `return self.yes;`, or of a
+#     method on a binding, `return hit.map(..)`, which may carry either). A loop with no such exit reads every element,
 #     so a `?` in it refuses what every element needs.
 #
 # WHAT IS READ: production sources (`crates/*/src`, less test-only mounts
@@ -110,7 +111,8 @@ callee_question_marks() {
               u = line[j]
               if (u ~ /(^|[^a-z_])break([^a-z_]|$)/) exits = 1
               if (u ~ /return[[:space:]]+(Some[(]|true|false|[A-Z][A-Za-z]*::|Ok[(])/ && u !~ /return[[:space:]]+Ok[(][(][)][)]/) exits = 1
-              if (u ~ /return[[:space:]]+[a-z_][a-z0-9_]*[[:space:]]*;/) exits = 1
+              if (u ~ /return[[:space:]]+[a-z_][a-z0-9_.]*[[:space:]]*[;,]/) exits = 1
+              if (u ~ /return[[:space:]]+[a-z_][a-z0-9_]*[.][a-z_][a-z0-9_]*[(]/) exits = 1
             }
             for (j = st; j <= i; j++) { outer[j] = exits ? 2 : 1 }
           }
@@ -171,6 +173,12 @@ plant_callee_returning_a_binding() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+plant_callee_returning_a_method() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(v: &[f64], band: f64) -> Result<Option<f64>, ()> {\n    for x in v {\n        let hit = pick(*x, band)?;\n        if hit.is_some() {\n            return hit.map(Some);\n        }\n    }\n    Ok(None)\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 plant_callee_in_a_fold() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn f(v: &[f64], band: f64) -> Result<f64, ()> {\n    let mut s = 0.0;\n    for x in v {\n        s += read(*x, band)?;\n    }\n    Ok(s)\n}\n' \
@@ -225,11 +233,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_callee_in_a_search
   gate_selftest_case "$want" plant_in_an_expression_loop
   gate_selftest_case "$want" plant_callee_returning_a_binding
+  gate_selftest_case "$want" plant_callee_returning_a_method
   gate_selftest_passes "a callee read in a loop that answers nothing early" plant_callee_in_a_fold
   gate_selftest_passes "a registered site" plant_registered
   gate_selftest_passes "a ? outside any loop" plant_outside_a_loop
   gate_selftest_passes "a site inside a #[cfg(test)] module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, a registered site, one outside any loop and one in a test module; fires on an unregistered site in a for, a while or an expression loop body, on a callee read in band inside a loop that answers early (by a value or by a binding), and on a register entry the tree no longer carries; passes a callee read in a loop that answers nothing early\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, a registered site, one outside any loop and one in a test module; fires on an unregistered site in a for, a while or an expression loop body, on a callee read in band inside a loop that answers early (by a value, a binding or a method on one), and on a register entry the tree no longer carries; passes a callee read in a loop that answers nothing early\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
