@@ -1407,3 +1407,7 @@
       - Gate gaps on lifted stem/tuple pairs; the second-pass grep rotted.
     - 6679's fix pass (194b6e8) → delta by its original reviewer. 6686 merges 6679 forward first.
     - 6683's fix pass (2c453451: `unchecked_face_cycles` deleted, one shared LONE_LOOP_REFUSAL) → delta by its original reviewer.
+- 2026-11-10 03:05Z
+  - **Merged PR 6683 (small-sweeps: hypot routings, lone loops), b5743060.** Delta review MERGE (every census verdict identical; wording only); 11219/11219 on the merged tree. Follow-ups N1 (the at-point arm doc is now false, so find what refuses first or pin the live arm) and S8 go to onecopy/lone-loop-followups, then the a-walk-refusals-standing residue.
+  - **6689 backstop fork: (d).** The census backstop runs only at rest at certifying scalars after tier 3 is clean, so a degenerate torus there renders as the kernel-fault backstop. One premise, in at_rest_fault's doc; no torus text in the census. (a), a public `what` Cow change, and (b), a static per-half copy that drifts from SizedDecision::recourse, are rejected.
+  - **6695 (torus-ring-names) opened:** by_kind escalates via require_at; RingReader/SpiricReader registries with a const duplicate assert. FULL review: session_013mPGJ62pL6qyYKJNMVwxZS.
