@@ -70,18 +70,19 @@ use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
 use geom_brep::ladder::{Answering, Climb, Disagree, Rung, climb_evidence};
 
-/// What one witness read against the probed surfaces.
+/// What one witness read against the probed surfaces, `K` the refusal a
+/// probe keeps (the point-in-solid walk's).
 #[derive(Debug)]
-pub(crate) enum Witness<S> {
+pub(crate) enum Witness<S, K = PointInSolidError> {
     /// A decisive reading.
     Side(S),
     /// The witness lies on a probed surface.
     On,
-    /// A limit met near the witness ([`PointInSolidError::confined`],
-    /// [`PointInSolidError::sideless`]).
-    Blocked(PointInSolidError),
-    /// The reading was in band ([`PointInSolidError::in_band`]).
-    InBand(PointInSolidError),
+    /// A limit met near the witness (the walk's `confined` and
+    /// `sideless` refusals).
+    Blocked(K),
+    /// The reading was in band (the walk's `in_band` refusal).
+    InBand(K),
 }
 
 /// A decisive point-in-solid reading: the point is off the surface.
@@ -218,11 +219,11 @@ fn cells<'a, T: Decide>(
 /// surface passes, an inconclusive reading is kept, and a refusal about
 /// the complex or the probed surface aborts. `on_boundary` and
 /// `in_band` count the witnesses read on a surface and in band.
-fn witness_rung<T: Decide, S, E: From<LadderRefusal>>(
+fn witness_rung<T: Decide, S, K, E: From<LadderRefusal>>(
     witness: Result<Option<Point3<T>>, LadderRefusal>,
-    probe: &mut impl FnMut(Point3<T>) -> Result<Witness<S>, E>,
+    probe: &mut impl FnMut(Point3<T>) -> Result<Witness<S, K>, E>,
     (on_boundary, in_band): (&mut usize, &mut usize),
-) -> Rung<Result<S, E>, PointInSolidError> {
+) -> Rung<Result<S, E>, K> {
     let q = match witness {
         Ok(Some(q)) => q,
         Ok(None) => return Rung::Passes,

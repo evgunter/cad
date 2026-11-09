@@ -162,7 +162,7 @@ names-boolean              39  shell.rs
 names-boolean              79  side_reader.rs
 names-boolean               1  source_walk.rs
 names-boolean               1  split.rs
-names-boolean              22  stands.rs
+names-boolean              21  stands.rs
 names-boolean               1  star.rs
 names-boolean               2  surgery.rs
 names-boolean               2  test_support_fixtures.rs
