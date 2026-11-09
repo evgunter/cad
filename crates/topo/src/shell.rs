@@ -741,7 +741,7 @@ impl<T: Real> ShellError<T> {
                 "whether the thin solid's inner walls stay clear of each other could not be \
                  certified: {}. {}",
                 cavity_refusal_said(refusal),
-                cavity_refusal_ending(refusal)
+                cavity_refusal_ending(refusal, at)
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
@@ -906,6 +906,7 @@ fn cavity_refusal_said(
 /// op's defect, since the op built every chart it hands the engine.
 fn cavity_refusal_ending(
     refusal: &crate::clearance::EngineRefusal,
+    at: Option<geom_brep::recourse::ReadAt>,
 ) -> std::borrow::Cow<'static, str> {
     use crate::clearance::EngineRefusal as R;
     match refusal {
@@ -913,7 +914,9 @@ fn cavity_refusal_ending(
             format!("Recourse: {WALL_OR_GEOMETRY}").into()
         }
         // A convention half the band cannot decide ends in its own lever,
-        // as the convention ends it at every door (`TorusConvention::sized`).
+        // as the convention ends it at the door that reads it
+        // (`TorusConvention::sized`); read as the payload alone, in the
+        // lever, as this map's other arms are.
         R::TorusNotRing {
             refusal:
                 geom_brep::TorusRefusal {
@@ -921,13 +924,15 @@ fn cavity_refusal_ending(
                     verdict: geom_brep::TorusVerdict::Undecided(diag),
                 },
             ..
-        } => convention
-            .sized()
-            .recourse(
-                geom_brep::recourse::RefusedArm::Undecided(diag),
-                geom_brep::recourse::Reading::Build,
-            )
-            .into(),
+        } => {
+            let sized = convention.sized();
+            match at {
+                Some(at) => sized
+                    .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at)
+                    .into(),
+                None => format!("Recourse: {}", sized.lever).into(),
+            }
+        }
         R::Unsupported { .. }
         | R::Uncertified { .. }
         | R::CollapsedChart { .. }
@@ -3762,13 +3767,20 @@ mod cavity_torus_endings {
         };
         let undecided = wall(1.0 + 0.5 * (band.zero() + band.escalate()));
         let lever = geom_brep::TorusConvention::Ring.sized().lever;
-        let ending = cavity_refusal_ending(&undecided);
+        let ending = cavity_refusal_ending(
+            &undecided,
+            Some(geom_brep::recourse::Reading::Build.into()),
+        );
         assert!(ending.contains(lever), "{ending}");
         assert!(
             !cavity_refusal_said(&undecided).contains("meets itself"),
             "an undecided torus is never said to meet itself"
         );
-        assert_eq!(cavity_refusal_ending(&wall(0.5)), NOT_YET_ENDING);
+        assert!(
+            cavity_refusal_ending(&undecided, None).contains(lever),
+            "the payload alone ends in the lever too"
+        );
+        assert_eq!(cavity_refusal_ending(&wall(0.5), None), NOT_YET_ENDING);
     }
 }
 
