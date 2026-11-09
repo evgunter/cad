@@ -1133,3 +1133,4 @@
 - 19:40Z Catch-ups pushed: 6658 6e2b9f82, 6659 d65359b7 (both gating). Background now: the 6656 merge check, then catch-ups for 6598, 6652 and 6655 (6655 green at 85f19ecf but overlapped 6632).
 - 19:45Z 6656 re-checked at 8712b428: MERGE stands (clean conflict resolution). 6641 fix pass at 39a391a1 (F1 disclosed; S1 spindle_horn_end via ring_half; S2 Variety::ruled; 4 more ±1 sites; a 309-commit main merge) → delta with session_013mPGJ25j6HEPTxSvd8CXrd; gating. Spiric lane → line-placement (6665).
 - 19:50Z PR 6661 FULL: MERGE (exact u128 oracle, 6M products; 0 wider workspace-wide; baseline row tighter). NOTE: the workspace narrowing count is 7811/16 tests → body. Lane to merge main, restore the sentences, push.
+- 19:55Z Merged PR 6656 (coplanar-subdivision) at gate-green 8712b428 (FULL MERGE twice; merge check clean). 6650 green at 7ca16ca0, disjoint since; its merge check runs next on the worktree.
