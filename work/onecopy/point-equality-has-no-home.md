@@ -97,3 +97,19 @@ point against two scalars.
   from its impl, and now sits before it.
 
 The geom-core pin now reads each coordinate in turn.
+
+**The delta review** found one more spelling: tuple compares.
+- **A sixth production site**, `viewer` `sketch::closed_on_start`
+  (`(at.x, at.y) != (start.x, start.y)`). It is routed to
+  `!equals_exactly`.
+- **Topo's test helper `same`** in `test_support_meeting.rs` is deleted
+  and its callers read `equals_exactly`. Its doc said "bit for bit", but
+  it was value equality.
+- **Four more test sites:** `census.rs`, `records_cite_their_decision.rs`
+  ×2 and `profile`'s `validated_map`.
+
+The gate now reads tuples and `distance_squared`. A tuple or array
+compare fires only when both sides are a point's coordinates; a point
+against literal coordinates passes. The norm shape now skips a call's
+arguments (`c.eval(t + 1.0).norm() == 0.0`). The header lists the gate's
+known false fires.
