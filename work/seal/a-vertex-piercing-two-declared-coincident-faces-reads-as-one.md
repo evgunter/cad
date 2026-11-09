@@ -5,6 +5,7 @@ title: A vertex piercing two faces a recorded face–face contact declares one i
 status: open
 opened: 2026-10-24
 priority: P1
+cost: H
 ---
 
 

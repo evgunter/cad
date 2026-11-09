@@ -1,6 +1,6 @@
 # SEAL — the plan
 
-No orchestrator yet. Live state is `work/seal/log.md`'s tail and the
+Live state is `work/seal/log.md`'s tail and the
 item files beside this plan.
 
 Branch prefix **`seal/`**; away-channel tag `(SEAL orchestrator)`.
