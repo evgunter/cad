@@ -100,7 +100,9 @@ fn r1_dyadic_box_hides_defect() {
         m
     };
     let v0 = origin_fold(&mesh_at(SketchPlane::xy()));
-    for offset in [1.0e3, 1.0e6, 1.0e8] {
+    // Offsets inside the 1 km session box (D4 ¶4), whose gate refuses a
+    // body past it at the extrude.
+    for offset in [1.0e2, 3.0e2, 5.7e2] {
         let v = origin_fold(&mesh_at(plane_at(offset)));
         println!(
             "dyadic box OLD fold at {offset:e}: v = {v}, drift = {:e}",

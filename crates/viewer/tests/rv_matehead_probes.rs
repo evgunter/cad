@@ -84,11 +84,11 @@ fn the_kind_refusal_says_the_entity_and_what_the_kind_reads() {
 }
 
 /// **A face name at an instance that its copy does not carry is the
-/// placement's refusal, judged before Apply.** A hand-built selection
+/// placement's refusal, judged before it lands.** A hand-built selection
 /// naming a face at the instance that its part's product holds no row
 /// of proposes; the instance's copy holds only its part's rows, so the
-/// mate's `on` does not evaluate. The verdict is `SideUnevaluated` on
-/// the `on` side, and Apply is withheld with it — never a placement
+/// mate's `on` does not evaluate. The door refuses `SideUnevaluated` on
+/// the `on` side, and the bundle is not written — never a placement
 /// that silently stands somewhere, and never one committed failing.
 #[test]
 fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates() {
@@ -123,7 +123,7 @@ fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates
                 }
             ) => {}
         other => {
-            panic!("a face name its copy does not carry is withheld at Apply, got {other:?}")
+            panic!("a face name its copy does not carry is refused at the door, got {other:?}")
         }
     }
     assert_eq!(session.history().len(), states, "nothing is recorded");

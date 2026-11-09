@@ -54,7 +54,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
         else {
             panic!("{name} is a solid");
         };
-        let b = body.body();
+        let b = &*body;
         assert_eq!(
             (b.faces().count(), b.edges().count(), b.vertices().count()),
             (7, 15, 10),
@@ -195,7 +195,7 @@ fn a_knot_vertex_nothing_else_meets_survives_the_closing_join() {
     else {
         panic!("seam_edge is a solid");
     };
-    let b = body.body();
+    let b = &*body;
     assert_eq!(
         (b.faces().count(), b.edges().count(), b.vertices().count()),
         (6, 13, 9),
@@ -238,7 +238,7 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
     else {
         panic!("the half cone is a solid");
     };
-    let b = body.body();
+    let b = &*body;
     assert_eq!(
         (b.faces().count(), b.edges().count(), b.vertices().count()),
         (5, 9, 6),

@@ -26,9 +26,9 @@ use topo::{
 /// What every shell door answers at `f64`.
 type Answer = Result<Shelled<f64>, ShellError<f64>>;
 /// The sealed door's operand type at a certifying scalar.
-const _: fn(&AtRestBody<f64>, f64, Tol) -> Answer = shell::<f64>;
+const _: fn(&AtRestBody<f64>, f64, Tol) -> Answer = shell::<AtRestBody<f64>>;
 /// The opened door's.
-const _: fn(&AtRestBody<f64>, f64, &[FaceKey], Tol) -> Answer = topo::shell_open::<f64>;
+const _: fn(&AtRestBody<f64>, f64, &[FaceKey], Tol) -> Answer = topo::shell_open::<AtRestBody<f64>>;
 /// The seat's door, which hands its operand to `shell_open`.
 type Door = ShellDoor<f64>;
 const _: fn(Door, &AtRestBody<f64>, f64, &[FaceKey], Tol) -> Answer = Door::open;
@@ -55,8 +55,8 @@ fn wedge(ccw: bool) -> Body<f64> {
 fn the_clockwise_wedge_is_refused_before_the_shell() {
     let body = wedge(false);
     let (solid, _) = body.solids().next().expect("the wedge is one solid");
-    let errors = AtRestBody::validate(body, Tol::witness())
-        .expect_err("an inside-out wedge is not a finished body");
+    let errors =
+        topo::finish(body, Tol::witness()).expect_err("an inside-out wedge is not a finished body");
     assert_eq!(
         errors,
         vec![ValidationError::NegativeVolume { solid }],
@@ -80,7 +80,7 @@ fn the_counterclockwise_wedge_shells_to_its_closed_form_wall() {
     let height = 0.5;
     let wall = area * height - area * scale * scale * (height - 2.0 * t);
 
-    let operand = AtRestBody::validate(wedge(true), tol).expect("the wedge is a finished body");
+    let operand = topo::finish(wedge(true), tol).expect("the wedge is a finished body");
     let shelled = shell(&operand, t, tol).expect("the counterclockwise wedge shells");
     let volume = mass_properties(
         &topo::test_support::finished("the measured body", shelled.body.clone(), tol),

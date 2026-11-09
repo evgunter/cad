@@ -61,7 +61,7 @@ use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::{AtRestBody, Body, FaceKey};
+use pncad::topo::{Body, FaceKey};
 
 use crate::{SceneBody, TourStop, View};
 use pncad::authoring::validated;
@@ -161,6 +161,7 @@ fn sleeve(tol: Tol) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// How many faces of each surface kind a body carries.
@@ -231,7 +232,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         want_solid,
         "the meridian mints every analytic kind once, the plane and the cylinder twice"
     );
-    let solid = AtRestBody::validate(solid, tol).expect("the operand: tier 3");
+    let solid = pncad::topo::finish(solid, tol).expect("the operand: tier 3");
 
     // ---- the hollow ----
     let sealed = pncad::topo::shell(&solid, WALL, tol)
@@ -413,7 +414,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             up: 'y',
         },
         bodies: vec![
-            SceneBody::plain("fivewall", [0.55, 0.63, 0.78], sealed)
+            SceneBody::plain("fivewall", [0.55, 0.63, 0.78], sealed.into_body())
                 .transparent(55)
                 .step_at_frontier(
                     |e| {

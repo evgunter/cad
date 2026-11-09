@@ -19,15 +19,11 @@
 //!
 //! # The operand is at rest
 //!
-//! Both doors take a finished body ([`AtRestBody`]), the Boolean's,
-//! the split's and the shell's operand type. The blend answers for the
-//! material the operand bounds, so an inside-out solid (check 7) or
-//! shell (check 10) would be blended as its complement. A body tier 3
-//! passed has neither; one that carries no verdict (a dual's scalar
-//! runs no at-rest gate) is read at the door
-//! ([`AtRestBody::gate_unverdicted`]) before anything else, refusing
-//! [`BlendError::ScaffoldingOperand`], [`BlendError::InsideOutOperand`] or
-//! [`BlendError::UnjoinedOperand`].
+//! Both doors take the scalar's finished body
+//! ([`topo::AtRestPolicy::Finished`]), the Boolean's, the split's and the
+//! shell's operand type, and return one: the blended body is finished at
+//! the door's end ([`topo::AtRestPolicy::finish`]), its refusal
+//! [`BlendError::NotFinished`].
 //!
 //! # The assembly front door
 //!
@@ -70,8 +66,8 @@
 
 use geom::Surface;
 use geom_brep::OutwardNormal;
-use geom_core::{Band, Bounds, Decide, Real, Vec3};
-use topo::{AtRestBody, Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey};
+use geom_core::{Band, Bounds, Decide, Vec3};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey};
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::arms::corner_chart;
@@ -84,10 +80,10 @@ use geom_core::Tol;
 /// carved body plus the keys of the faces the blend introduced.
 /// [`Filleted`] and [`Chamfered`] alias it for call-site readability.
 #[derive(Clone, Debug)]
-pub struct Blended<T: Real> {
-    /// The blended body: every solid and shell of the source, with the
-    /// requested chains carved into the shells they lie in.
-    pub body: Body<T>,
+pub struct Blended<T: topo::AtRestPolicy> {
+    /// The blended body, finished: every solid and shell of the source,
+    /// with the requested chains carved into the shells they lie in.
+    pub body: T::Finished,
     /// The shells the blend carved, ascending, each one a shell of the
     /// source under its own key. Every other shell is the source's,
     /// entity for entity.
@@ -125,7 +121,7 @@ pub struct Blended<T: Real> {
     pub coincidences: Vec<topo::Coincidence>,
 }
 
-impl<T: Decide> Blended<T> {
+impl<T: topo::AtRestPolicy> Blended<T> {
     /// `records`, the operand's, carried onto the blended body
     /// ([`super::naming::BlendNaming::carry_contacts`]). A body with no
     /// birth records carries through [`Self::lineage`]'s read-everything
@@ -173,9 +169,6 @@ impl<T: Decide> Blended<T> {
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
-/// [`BlendError::ScaffoldingOperand`], [`BlendError::InsideOutOperand`] or
-/// [`BlendError::UnjoinedOperand`] when the operand carries no
-/// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `radius` is not definitely
 /// positive; any refusal the battery produces;
 /// [`BlendError::RepeatedEdge`] when the request names one edge
@@ -192,12 +185,15 @@ impl<T: Decide> Blended<T> {
 /// typed refusal, when an Euler operator refuses;
 /// [`BlendError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
-pub fn fillet_edges<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &AtRestBody<T>,
+pub fn fillet_edges<F: topo::FinishedBody>(
+    body: &F,
     edges: &[EdgeKey],
-    radius: T,
+    radius: F::Scalar,
     tol: Tol,
-) -> Result<Filleted<T>, BlendRefusal> {
+) -> Result<Filleted<F::Scalar>, BlendRefusal>
+where
+    F::Scalar: Bounds,
+{
     fillet_edges_inner(body, edges, radius, tol).map_err(|error| BlendRefusal {
         verb: BlendKind::Fillet,
         error,
@@ -208,12 +204,12 @@ pub fn fillet_edges<T: Decide + Bounds + topo::AtRestPolicy>(
 /// through the shared verb-neutral vocabulary. The door above is the
 /// one place the fillet's verb is attached.
 fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &AtRestBody<T>,
+    body: &T::Finished,
     edges: &[EdgeKey],
     radius: T,
     tol: Tol,
 ) -> Result<Filleted<T>, BlendError> {
-    let (body, band) = operand_gate(body, BlendKind::Fillet, tol)?;
+    let (body, band) = operand_gate::<T>(body, tol)?;
     nonpositive_size_gate(radius)?;
     repeated_edge_gate(edges)?;
 
@@ -229,18 +225,14 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     super::surgery::blend_surgery(body, &verdict, band, tol)
 }
 
-/// **Both doors' operand gate** (module docs): the band the request is
-/// read at, and the operand read through
-/// [`AtRestBody::gate_unverdicted`] where it carries no verdict. One
-/// home, for the reason the preamble below gives.
+/// **Both doors' operand read** (module docs): the finished body as a
+/// body, and the band the request is read at. One home, for the reason
+/// the preamble below gives.
 fn operand_gate<T: Decide + topo::AtRestPolicy>(
-    body: &AtRestBody<T>,
-    verb: BlendKind,
+    body: &T::Finished,
     tol: Tol,
 ) -> Result<(&Body<T>, Band), BlendError> {
-    let band = Band::linear(tol)?;
-    body.gate_unverdicted(format_args!("the {verb}'s operand"), band, tol)?;
-    Ok((body, band))
+    Ok((body, Band::linear(tol)?))
 }
 
 /// **Both doors' shared request preamble**: a repeated edge is
@@ -452,9 +444,6 @@ pub type Chamfered<T> = Blended<T>;
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
-/// [`BlendError::ScaffoldingOperand`], [`BlendError::InsideOutOperand`] or
-/// [`BlendError::UnjoinedOperand`] when the operand carries no
-/// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `distance` is not definitely
 /// positive; [`BlendError::RepeatedEdge`] when the request names one
 /// edge twice; [`BlendError::ChamferArmUnsupported`] when a requested
@@ -470,12 +459,15 @@ pub type Chamfered<T> = Blended<T>;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
 /// clear a trimline; [`BlendError::Op`] / [`BlendError::Certify`]
 /// carrying an operator's or the pcurve pass's own typed refusal.
-pub fn chamfer_edges<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &AtRestBody<T>,
+pub fn chamfer_edges<F: topo::FinishedBody>(
+    body: &F,
     edges: &[EdgeKey],
-    distance: T,
+    distance: F::Scalar,
     tol: Tol,
-) -> Result<Chamfered<T>, BlendRefusal> {
+) -> Result<Chamfered<F::Scalar>, BlendRefusal>
+where
+    F::Scalar: Bounds,
+{
     chamfer_edges_inner(body, edges, distance, tol).map_err(|error| BlendRefusal {
         verb: BlendKind::Chamfer,
         error,
@@ -486,12 +478,12 @@ pub fn chamfer_edges<T: Decide + Bounds + topo::AtRestPolicy>(
 /// through the shared verb-neutral vocabulary. The door above is the
 /// one place the chamfer's verb is attached.
 fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &AtRestBody<T>,
+    body: &T::Finished,
     edges: &[EdgeKey],
     distance: T,
     tol: Tol,
 ) -> Result<Chamfered<T>, BlendError> {
-    let (body, band) = operand_gate(body, BlendKind::Chamfer, tol)?;
+    let (body, band) = operand_gate::<T>(body, tol)?;
     nonpositive_size_gate(distance)?;
     repeated_edge_gate(edges)?;
 

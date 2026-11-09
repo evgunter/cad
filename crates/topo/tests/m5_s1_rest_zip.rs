@@ -30,18 +30,20 @@ use topo::{
 };
 
 /// The brick `x × y × z`, finished.
-fn finished_brick<T: Decide + topo::AtRestPolicy>(
+fn finished_brick<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
-) -> AtRestBody<T> {
+) -> topo::AtRestBody<T> {
     let tol = Tol::witness();
     finished("brick", brick::<T>(x, y, z, tol), tol)
 }
 
-fn glue<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
+fn glue<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
 ) -> BooleanBody<T> {
     match union(a, b, Tol::witness()).expect("the REST union builds") {
         BooleanResult::Body(body) => body,
@@ -54,13 +56,12 @@ fn glue<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 /// surviving records, rest records consumed (3′ ≡ tier 3). Exact
 /// volume equality is asserted by the f64 rows (the Interval lane has
 /// no scalar equality by design — NaI ≠ NaI).
-fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(g: &BooleanBody<T>) {
+fn assert_glued<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
+    g: &BooleanBody<T>,
+) {
     assert_eq!(g.kind, BooleanResultKind::Seamed);
-    assert_eq!(
-        g.body.outcome(),
-        topo::AtRestOutcome::Validated,
-        "the door gates its result at tier 3"
-    );
     assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
     assert_eq!(
         validate_pseudomanifold(&g.body, &g.contacts, Tol::witness()),
@@ -76,8 +77,9 @@ fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(g: 
 /// Stacked plates, full-face REST contact: the union is ONE body with
 /// the contact faces gone; the glued same-oriented side planes merge in
 /// the output stage, leaving the plain brick's six faces.
-fn stacked_plates_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
--> BooleanBody<T> {
+fn stacked_plates_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() -> BooleanBody<T> {
     let bot = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let top = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
     let g = glue(&bot, &top);
@@ -153,8 +155,9 @@ fn three_plate_chain() {
 /// one interior corner (a pierce-ring vertex the seam chords consume).
 /// The union BUILDS, one body; ∖ stays operand A (no
 /// join door was ever reached).
-fn corner_flush_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
--> (BooleanBody<T>, BooleanBody<T>) {
+fn corner_flush_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() -> (BooleanBody<T>, BooleanBody<T>) {
     let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let corner = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
     let g = glue(&slab, &corner);

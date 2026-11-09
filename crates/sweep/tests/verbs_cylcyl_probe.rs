@@ -54,6 +54,7 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
@@ -240,7 +241,7 @@ fn the_bracket_rounds_at_every_radius_and_meters_exactly() {
         // the corpus `rounded_plate` above carries.
         let pocket = finished(
             "the pocket",
-            brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+            brick::<f64>((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
             tol,
         );
         let out = topo::subtract(&plate, &pocket, tol)
@@ -271,7 +272,7 @@ fn the_bracket_rounds_at_six_millimetres() {
         // the corpus `rounded_plate` above carries.
         &finished(
             "the pocket",
-            brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+            brick::<f64>((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
             tol,
         ),
         tol,
@@ -421,6 +422,7 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 // ---------------------------------------------------------------- D3 --

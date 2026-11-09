@@ -107,6 +107,7 @@ fn arc_prism(s: f64) -> Body<f64> {
     )
     .expect("the arc prism lofts")
     .body
+    .into_body()
 }
 
 /// The arc prism at scale `s`, translated `dx·s` along `+x` — a solid
@@ -120,6 +121,7 @@ fn arc_prism_at(s: f64, dx: f64) -> Body<f64> {
     )
     .expect("the translated arc prism lofts")
     .body
+    .into_body()
 }
 
 /// `solids` grafted into one body, in the order given — each its own
@@ -221,6 +223,7 @@ fn ball() -> Body<f64> {
     )
     .expect("the ball revolves")
     .body
+    .into_body()
 }
 
 /// Every face's sense inverted — the whole-body inversion.

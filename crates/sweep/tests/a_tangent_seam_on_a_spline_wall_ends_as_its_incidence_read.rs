@@ -51,7 +51,8 @@ fn filleted() -> (Body<f64>, topo::SurfaceKey, Surface<f64>, Vec<HalfEdgeKey>) {
         .expect("the block has its top front edge");
     let body = fillet_edges(&at_rest(&body, tol()), &[edge], RADIUS, tol())
         .unwrap_or_else(|r| panic!("{}", r.render(geom_brep::recourse::Reading::Build)))
-        .body;
+        .body
+        .into_body();
     let (face, key, cylinder) = body
         .faces()
         .find_map(|(k, f)| match body.get_surface(f.surface) {

@@ -140,6 +140,7 @@ pub fn ball() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The cone: right triangle (base radius 1, height 1) revolved fully
@@ -158,6 +159,7 @@ pub fn cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A PARTIAL revolve of the cone profile — base radius `s`, height 1,
@@ -179,6 +181,7 @@ pub fn cone_wedge(s: f64, theta: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A PARTIAL revolve of the unit half-disc — the ball's profile swept
@@ -199,6 +202,7 @@ pub fn sphere_wedge(theta: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The washer: rectangle [1,2]×[0,1] revolved fully (genus 1, slit
@@ -218,6 +222,7 @@ pub fn washer() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The donut: circle of radius 0.5 centered at (2, 0) (two arc
@@ -236,6 +241,7 @@ pub fn donut() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Partial wedge: rectangle [1,2]×[0,1] revolved by +π/2.
@@ -254,6 +260,7 @@ pub fn wedge() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Axis-touching partial wedge: unit square [0,1]×[0,1] revolved by
@@ -274,6 +281,7 @@ pub fn axis_wedge() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 // ---- oracles ----------------------------------------------------------

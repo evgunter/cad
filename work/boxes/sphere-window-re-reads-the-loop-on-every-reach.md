@@ -2,11 +2,10 @@
 id: sphere-window-re-reads-the-loop-on-every-reach
 kind: issue
 title: The sphere window re-walks the loop, the material sign and the chart trim on every reach read, with no memo
-status: parked
+status: open
 opened: 2026-10-06
 priority: P3
 cost: M
-blocked_on: [cover-topo-faces]
 ---
 
 
@@ -33,3 +32,13 @@ reads it once. Make no cache that can outlive the body it was read
 from.
 
 **Re-cited (onedoor/carrier-and-window, 2026-11-03).** `chord_join::face_azimuth_window` is now `topo::chart_window::face_azimuth_window`.
+
+## Since `cover-topo-faces` (2026-11-08)
+
+The face cover is frame-free, so a reader that reads many frames off
+one face reads the window once (`Cover::box_in` per frame). The readers
+that read a cover per direction still re-read it: the narrow phase
+(`boolean::separating::apart_by`, a cover per item per direction) and
+the census backstop's aimed covers (`cover::face_cover_toward`), whose
+pole-side cut is aim-specific. The measurement this row asks for
+stands.

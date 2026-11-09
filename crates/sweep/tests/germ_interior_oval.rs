@@ -69,6 +69,7 @@ fn bracket_xz(pts: &[(f64, f64)], half_y: f64) -> Body<f64> {
     )
     .expect("the bracket extrudes")
     .body
+    .into_body()
 }
 
 fn half_donut() -> AtRestBody<f64> {
@@ -113,7 +114,8 @@ fn dome() -> AtRestBody<f64> {
     let vp = validated(vec![lp]);
     let mut up = revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .expect("the dome revolves")
-        .body;
+        .body
+        .into_body();
     up.merge_coplanar_faces(Tol::witness())
         .expect("the split base disc merges");
     finished("the dome", up, Tol::witness())
@@ -140,6 +142,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     )
     .expect("the box extrudes")
     .body
+    .into_body()
 }
 
 /// The cap direction: azimuth 90° off the dome's seam, latitude 30°.
@@ -847,7 +850,7 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
         vec!["Plane × Nurbs: Err(Undecided)".to_string()],
         "the same with the operands swapped"
     );
-    let errors = topo::AtRestBody::validate(a, Tol::witness())
+    let errors = topo::finish(a, Tol::witness())
         .expect_err("the stranded bump block is not a finished body");
     assert_eq!(
         errors
