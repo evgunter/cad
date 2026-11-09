@@ -51,10 +51,7 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
-    matches!(
-        body.get_surface(body.get_face(f).unwrap().surface).unwrap(),
-        Surface::Plane { .. }
-    )
+    matches!(body.face_surface(f).unwrap(), Surface::Plane { .. })
 }
 
 fn plane_host(body: &Body<f64>, arcs: &[EdgeKey]) -> FaceKey {

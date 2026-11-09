@@ -89,9 +89,7 @@ fn census(body: &Body<f64>) -> (usize, usize, usize) {
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64) {
-    let s = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap();
+    let s = body.face_surface(face).unwrap();
     let Surface::Torus {
         major_radius,
         minor_radius,
@@ -173,10 +171,7 @@ fn the_bud_mouth_rim_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
         "the spine radius is the ball centre's own radial coordinate {cx}, got {major}"
     );
     // The band's torus sits on the axis at the ball centre's level.
-    let s = out
-        .body
-        .get_surface(out.body.get_face(out.band_faces[0]).unwrap().surface)
-        .unwrap();
+    let s = out.body.face_surface(out.band_faces[0]).unwrap();
     let Surface::Torus { center, .. } = *s else {
         panic!("torus")
     };
@@ -376,14 +371,11 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
     // Plant the tilt on the cone wall, apex and half-angle verbatim.
     let (cone_face, apex, half_angle) = source
         .faces()
-        .find_map(|(k, _)| {
-            let fd = source.get_face(k)?;
-            match *source.get_surface(fd.surface)? {
-                Surface::Cone {
-                    apex, half_angle, ..
-                } => Some((k, apex, half_angle)),
-                _ => None,
-            }
+        .find_map(|(k, _)| match *source.face_surface(k)? {
+            Surface::Cone {
+                apex, half_angle, ..
+            } => Some((k, apex, half_angle)),
+            _ => None,
         })
         .expect("the bud carries one cone wall");
     let tilt = 0.05f64;

@@ -334,8 +334,8 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
     let body = block::<f64>(1.0, 1.0, 1.0, Tol::witness());
     let bottom = body
         .faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(geom::Surface::Plane { normal, .. })
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(geom::Surface::Plane { normal, .. })
                 if normal.z.abs() > 0.9)
         })
         .map(|(k, _)| k)

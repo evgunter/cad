@@ -606,8 +606,7 @@ pub fn face_rows(
         .enumerate()
         .map(|(ordinal, patch)| {
             let surface = body
-                .get_face(patch.face)
-                .and_then(|f| body.get_surface(f.surface))
+                .face_surface(patch.face)
                 .expect("the mesh's patches name this body's faces");
             let chart = surface.kind();
             FaceRow {
