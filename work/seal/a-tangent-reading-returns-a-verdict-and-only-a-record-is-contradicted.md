@@ -2,7 +2,7 @@
 id: a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted
 kind: unit
 title: the tangent table and the Rest door return typed verdicts; only a record read at rest is contradicted; the glue door decides a tangency once
-status: open
+status: dispatched
 opened: 2026-11-09
 priority: P1
 cost: H
@@ -43,3 +43,7 @@ Step 3 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09).
 No reading on this ground builds a `Contradicted` with an `Indeterminate`. The Boolean mints no contradiction. The census has no predicate-string dispatch, and the probe below has been run:
 
 - **The probe:** two tori sharing a Villarceau circle, with the parallel check first. Does any pair of samples read tangent with opposite senses? Record the result beside `SidesMixed`.
+
+## Dispatch (2026-11-09)
+
+Branch `seal/tangent-verdict`. Review tier: **single, FULL**. Fork `glue-disagreements-carry` settled the types this step builds and the architecture they belong to. What is at risk is correctness: deciding a tangency once, reordering `tangent_pass`, and moving the census off strings. A FULL review's claims target exactly that, so the step does not take the dual tier.
