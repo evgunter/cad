@@ -77,3 +77,5 @@ ci --ignore-default-filter -E 'test(/^review_4781_r[12]_probes::/)'`.
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind it: r1's `RayExhausted` (`charttail/main-red-ringed-curved-doors-reds-four-sweep-rows`) and r2's `curve_pair_pose_offset` escalation (`cpair/a-same-side-touch-pose-escalates-the-curve-pair-extreme-at-1e-12`).
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
+
+**Rescaled (2026-11-09, `onecopy/main-reds-stations`).** The ×1e3 fixtures reached 3 km, past the session box (`[tolerance.units]`: no coordinate past 1 km), and the finished-body gate now refuses them `OutsideSessionBox`. `r2_every_same_side_touch_pose_answers_as_a_touch` runs at ×3e2. At ε = 1e-12 it still stops on limb 2's kernel limit, now at extent 670.8 with bound 1.33e-12, and its pin says so.

@@ -709,13 +709,37 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     }
 }
 
-/// The farthest of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
-/// `k = 0..=16`, from `pivot`: each a point of the edge, so the edge's
-/// reach from `pivot` is never below it.
-fn sampled_reach<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T), pivot: Point3<T>) -> T {
+/// The largest `measure` of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
+/// `k = 0..=16`: each a point of the edge, so the edge's largest
+/// `measure` is never below it.
+fn sampled_reach<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+    measure: impl Fn(Point3<T>) -> T,
+) -> T {
     schedule(carrier, span, EXTENT_PIECES)
         .into_iter()
-        .fold(T::zero(), |far, x| far.max((x - pivot).norm()))
+        .fold(T::zero(), |far, x| far.max(measure(x)))
+}
+
+/// **An edge's largest `|coordinate|`, bounded from below**: the session
+/// box's measure (`[tolerance.units]`: no coordinate of a model is larger
+/// in magnitude than the box). On a line or a circle arc it is `within`,
+/// the largest `|coordinate|` of the region the edge occupies, which the
+/// caller reads off that region (topo reads its edge's cover, exact on
+/// those kinds as [`edge_reach_bounds`] reads its far distance);
+/// otherwise the samples' largest, each a point of the edge.
+pub fn edge_coordinate_reach_below<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+    within: T,
+) -> T {
+    match carrier {
+        Curve3::Line(_) | Curve3::Circle(..) => within,
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+            sampled_reach(carrier, span, |x| (x - Point3::origin()).norm_inf())
+        }
+    }
 }
 
 /// **A lever known exactly, or only between two bounds.** A reading
@@ -794,7 +818,9 @@ pub fn edge_reach_bounds<T: SpanLocate>(
     match carrier {
         Curve3::Line(_) | Curve3::Circle(..) => LeverBounds::Exact(above),
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => LeverBounds::Between {
-            below: Lever::of_consumed_extent(sampled_reach(carrier, (t0, t1), pivot)),
+            below: Lever::of_consumed_extent(sampled_reach(carrier, (t0, t1), |x| {
+                (x - pivot).norm()
+            })),
             above,
         },
     }

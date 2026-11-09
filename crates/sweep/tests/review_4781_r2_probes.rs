@@ -666,16 +666,16 @@ fn review_4781_r2_record_survives() {
 #[test]
 fn r2_every_same_side_touch_pose_answers_as_a_touch() {
     // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a
-    // cylinder fixture (extent 2236) refuses as limb 2's kernel limit,
-    // bound 3.67e-12
+    // cylinder fixture (extent 671 at the ×3e2 scale) refuses as limb
+    // 2's kernel limit, bound 1.33e-12
     // (`work/shell/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the review 4781 touch rows",
         &[
-            "Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 3.667082637548463e-12",
-            "extent: 2236.067977499794",
+            "Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 1.333925562600302e-12",
+            "extent: 670.8203932499385",
         ],
         r2_every_same_side_touch_pose_answers_as_a_touch_row,
     );
@@ -683,7 +683,9 @@ fn r2_every_same_side_touch_pose_answers_as_a_touch() {
 
 /// The row [`r2_every_same_side_touch_pose_answers_as_a_touch`] runs, under its pin.
 fn r2_every_same_side_touch_pose_answers_as_a_touch_row() {
-    for s in [1.0, 1e-3, 1e3] {
+    // The large scale is ×3e2: the fixtures reach 3 units, and the
+    // session box admits no coordinate past 1 km (`[tolerance.units]`).
+    for s in [1.0, 1e-3, 3e2] {
         for turned in [false, true] {
             let map = turned.then(|| {
                 Affine3::rotation_about_axis(
@@ -709,12 +711,12 @@ fn r2_every_same_side_touch_pose_answers_as_a_touch_row() {
                     Shape::Box((1.0, 3.0), (-2.0, 0.0), (0.0, 1.0)),
                 ),
             ] {
-                // Fixture limits, not the Boolean's: the ×1e3 turned
+                // Fixture limits, not the Boolean's: the large-scale turned
                 // operands do not finish at every ε
-                // (`VolumeUncomputable`), and the radius-2000 disc does
+                // (`VolumeUncomputable`), and the large unequal disc does
                 // not extrude at ε = 1e-12 (a pcurve certification), so
                 // those corners are left out.
-                if s == 1e3 && (turned || name == "cc unequal") {
+                if s == 3e2 && (turned || name == "cc unequal") {
                     continue;
                 }
                 let (a, b) = (a.scaled(s), b.scaled(s));

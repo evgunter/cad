@@ -550,10 +550,12 @@ fn frustum(scale: f64) -> Frustum {
         sweep::Revolution::Full,
         tol(),
     );
-    // At 1 km the frustum's top rim reaches `√(r1² + h²)` ≈ 1.12 km, past
-    // the session box, and the finished-body gate refuses it there (D4
-    // ¶4); at ε = 1e-12 limb 2's kernel limit refuses its rim first.
-    let body = if r0.max(r1.hypot(h)) > geom_core::tolerance::SESSION_BOX_EXTENT {
+    // The session box bounds each coordinate (`[tolerance.units]`): the
+    // frustum's largest is `max(r0, h)`, which at 1 km is the box's own
+    // edge, inside it. There, at ε = 1e-12, limb 2's kernel limit refuses
+    // its rim.
+    let kernel_rows: &[f64] = if scale >= 1e3 { &[1e-12] } else { &[] };
+    let body = if r0.max(h) > geom_core::tolerance::SESSION_BOX_EXTENT {
         match body {
             Err(e)
                 if format!("{e:?}").contains("OutsideSessionBox")
@@ -564,7 +566,7 @@ fn frustum(scale: f64) -> Frustum {
             other => panic!("the {scale:e} frustum is past the session box: {other:?}"),
         }
     } else {
-        test_utils::kernel_limit::pinned(body, tol().eps(), &[], "the frustum")
+        test_utils::kernel_limit::pinned(body, tol().eps(), kernel_rows, "the frustum")
     };
     let apex = h + r1 / alpha.tan();
     Frustum {

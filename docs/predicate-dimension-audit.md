@@ -1829,8 +1829,10 @@ Notes (verified honest, kept for the design conversation):
 
 - **N10** `session_box_reach` (`topo/src/session_box.rs`
   `in_session_box`, asked at the finished-body gate) is
-  `SESSION_BOX_EXTENT − body_reach(body)`: two lengths in metres, so
-  the margin is a length and the band is the linear one, as D4 asks. It
+  `SESSION_BOX_EXTENT − body_reach(body)`, the box's extent less the
+  body's largest `|coordinate|` (the box bounds each coordinate,
+  `[tolerance.units]`): two lengths in metres, so the margin is a length
+  and the band is the linear one, as D4 asks. It
   is the one decision measured against a FIXED extent, the session box
   (DESIGN `[tolerance.epsilon]`), not against the model's own geometry.
   So it does not scale with the model: at a millimetre and at a metre

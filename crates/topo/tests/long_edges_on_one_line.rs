@@ -17,8 +17,9 @@ use common::{FaceGeometry, describe_as_intersections, prism_ops};
 use geom_core::Tol;
 use topo::{Body, ValidationError, validate_geometric};
 
-/// **A 1.2 km bar, turned off every axis, is refused by the box**: its
-/// far end lies 1.2 km out, and the gate's one finding is the box's.
+/// **A 1.5 km bar, turned off the axes, is refused by the box**: its far
+/// end's `x` is about 1194 m, past the box's kilometre (its `y`, 909 m,
+/// is not), and the gate's one finding is the box's.
 #[test]
 fn a_kilometre_bar_is_refused_by_the_session_box() {
     let tol = Tol::witness();
@@ -26,7 +27,7 @@ fn a_kilometre_bar_is_refused_by_the_session_box() {
     let mut body = Body::<f64>::new();
     prism_ops(
         &mut body,
-        &[(0.0, 0.0), (1200.0, 0.0), (1200.0, 1.0), (0.0, 1.0)],
+        &[(0.0, 0.0), (1500.0, 0.0), (1500.0, 1.0), (0.0, 1.0)],
         (0.0, 1.0),
         |x, y, z| pose.at([x, y, z]),
         FaceGeometry::Certified,

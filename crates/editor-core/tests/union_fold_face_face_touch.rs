@@ -387,7 +387,7 @@ fn far_origin_rod(
     )
 }
 
-/// The rod's carrier origin 300 and 3000 behind the touch, leaning a
+/// The rod's carrier origin 300 and 900 behind the touch, leaning a
 /// tenth of ε: a line rebuilt from the carrier's origin would stand
 /// tens of ε off the plate's face at the touch. Every order carries the
 /// pair's one record.
@@ -395,9 +395,10 @@ fn far_origin_rod(
 fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
     let eps = Tol::witness().eps();
     let lean = 0.1 * eps;
-    // A rod 3000 long is no finished body at ε 1e-12 (its volume's
-    // off-axis reading escalates), so the far row reads 1000 there.
-    let far = if eps < 1e-10 { 1000.0 } else { 3000.0 };
+    // The far row stays in the session box, which admits no coordinate
+    // past 1 km (`[tolerance.units]`); 900 behind, the lean still puts a
+    // line rebuilt from the origin 90 ε off the face.
+    let far = 900.0;
     for back in [300.0, far] {
         let (doc, plate) = plate();
         let (doc, rod) = far_origin_rod(doc, plate, lean, back);
