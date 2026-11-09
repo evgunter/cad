@@ -2,8 +2,10 @@
 id: the-breakpoints-gates-census-and-window-are-unpinned
 kind: issue
 title: breakpoints-by-hand derives its plants from its arrays, so the census itself, the window bound and each entry's call are unguarded
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6640
 ---
 
 

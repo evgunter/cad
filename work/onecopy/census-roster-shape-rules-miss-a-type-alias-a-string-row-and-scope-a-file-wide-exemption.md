@@ -2,8 +2,10 @@
 id: census-roster-shape-rules-miss-a-type-alias-a-string-row-and-scope-a-file-wide-exemption
 kind: issue
 title: The census rosters' shape rules miss a Band type alias and a String row, and the census's elsewhere exemption is file-wide and fires on a struct field
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6640
 ---
 
 

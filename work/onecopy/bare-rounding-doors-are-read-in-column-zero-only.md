@@ -2,8 +2,10 @@
 id: bare-rounding-doors-are-read-in-column-zero-only
 kind: issue
 title: bare-rounding reads running.rs's pub items in column 0 only, so an attributed one-line or macro-made door is missed silently
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6640
 ---
 
 
