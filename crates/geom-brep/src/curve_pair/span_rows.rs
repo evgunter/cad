@@ -411,7 +411,7 @@ fn a_refused_members_window_on_an_arc_is_its_stretch() {
             // A circle arc's cover reads its distance exactly, so the
             // window is the piece `at` is on and its neighbours; an
             // ellipse arc's bound is looser, and clears some piece.
-            let piece = (t1 - t0) / super::span::WINDOW_PIECES as f64;
+            let piece = (t1 - t0) / f64::from(super::span::WINDOW_PIECES);
             let widest = if kind == "circle" {
                 3.0 * piece
             } else {

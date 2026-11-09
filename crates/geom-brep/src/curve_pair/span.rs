@@ -71,7 +71,7 @@ use geom_core::{Decided, SupSpeed};
 
 /// **How many equal pieces [`Span::window_near`] reads a span off a line
 /// in**: the window it returns is a hull of whole pieces.
-pub const WINDOW_PIECES: usize = 32;
+pub const WINDOW_PIECES: u32 = 32;
 
 /// A carrier and a parameter interval on it (module docs).
 #[derive(Clone, Copy)]
@@ -329,7 +329,9 @@ impl<'a, T: Decide> Span<'a, T> {
     fn pieces_near(&self, cover: &Cover<T>, (lo, hi): (T, T), band: Band) -> (T, T) {
         let (centre, radius) = cover.ball();
         let reach = radius + T::from_f64(band.escalate());
-        let at = |i: usize| lo + (hi - lo) * T::from_f64(i as f64 / WINDOW_PIECES as f64);
+        let at = |i: u32| {
+            lo + (hi - lo) * T::from_f64(f64::from(i)) / T::from_f64(f64::from(WINDOW_PIECES))
+        };
         let mut kept: Option<(T, T)> = None;
         for i in 0..WINDOW_PIECES {
             let (a, b) = (at(i), at(i + 1));
