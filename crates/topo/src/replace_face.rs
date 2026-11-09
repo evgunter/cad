@@ -3292,7 +3292,7 @@ fn carried_alike<T: Decide>(
                 Rung::Passes
             }
             Ok(None) => Rung::Answers(Ok(())),
-            Err(e) => Rung::refused(e, ReplaceFaceError::refusal),
+            Err(e) => Rung::refused(e, ReplaceFaceError::refusal, Err),
         },
     );
     let (on_a, (on_b, _)) = match (unwitnessed, on_a, on_b) {

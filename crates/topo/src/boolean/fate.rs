@@ -9,7 +9,7 @@
 //! kept copy's sector runs into the dropped copy's sector
 //! (`recl::recl_sectors`), and a vertex-on-face site where a lumped
 //! sector of the kept copy lies on the pierced dropped face
-//! (`vtxfac::classify_vertex_on_face`). Each records the kept edge
+//! (`vtxfac::read_vertex_on_face`). Each records the kept edge
 //! ([`FateEdge`]): on its one side the dropped face is substituted, on
 //! its other side not.
 //!

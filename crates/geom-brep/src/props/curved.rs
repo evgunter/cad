@@ -1289,7 +1289,7 @@ fn unanimous_rim_side<T: Decide>(
         &b.rims,
         |rim| match rim_side(rim, lo, hi, b.arms, band) {
             Ok(s) => Rung::Answers(Ok(s)),
-            Err(e) => Rung::refused(e, PropsError::refusal),
+            Err(e) => Rung::refused(e, PropsError::refusal, Err),
         },
         |a, b| matches!((a, b), (Ok(x), Ok(y)) if x == y),
     );

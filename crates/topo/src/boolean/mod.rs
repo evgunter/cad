@@ -176,6 +176,7 @@ use crate::merge_faces::MergeCoplanarError;
 #[cfg(feature = "sweep-testing")]
 use crate::sweep_trace::SweepPairs;
 use crate::validate::ValidationError;
+use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
 
 pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
@@ -2823,7 +2824,7 @@ thread_local! {
 /// Makes every boolean on this thread read its pierces as though the
 /// sweep had recorded no bisector plane for any of them, until called with
 /// `false`: each pierce then reads the pierced face's tangent plane, the
-/// fallback a missing record takes (`vtxfac::classify_vertex_on_face`).
+/// fallback a missing record takes (`vtxfac::read_vertex_on_face`).
 /// `sweep-testing` only.
 #[cfg(feature = "sweep-testing")]
 pub fn forget_branches(on: bool) {
@@ -6546,115 +6547,111 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut touches = std::collections::BTreeMap::new();
     // Each vertex's own sectors, with its pairs.
     let mut paired = std::collections::BTreeMap::new();
-    // Vertex-on-face classification (sonva then sonvb, as 15.5). Each
-    // pierce inserts its piercing side's null edges as it is read; the
-    // rings follow, one per face and point (`vtxfac::mint_ring`).
+    // Vertex-on-face classification (sonva then sonvb, as 15.5). **Each
+    // operand's pierces are read before any is minted**, and the reads
+    // are one ladder that nothing answers: a refusal of the whole query
+    // (`BooleanError::refusal`'s `Aborts`) stops the pass, and every
+    // other refusal is kept until every later pierce of both operands is
+    // read, the pass refusing on the ranked one (`Evidence`). So which
+    // operand's vertices are read first does not choose the class of the
+    // refusal reported (an abort anywhere outranks every kept refusal,
+    // a limit anywhere one in band); it chooses only which refusal of
+    // that class, the first in A-then-B order. The rings follow, one
+    // per face and point (`vtxfac::mint_ring`).
+    let read_pierces =
+        |operand: Operand,
+         a: &Body<T>,
+         b: &Body<T>|
+         -> Result<(Vec<vtxfac::PierceRead<T>>, Evidence<BooleanError>), BooleanError> {
+            let (piercing_body, pierced_body, pierced) = match operand {
+                Operand::A => (a, b, &contacts.a_on_b),
+                Operand::B => (b, a, &contacts.b_on_a),
+            };
+            let mut reads = Vec::with_capacity(pierced.len());
+            // Each wall's first face's read, which its second face reads
+            // against (`vtxfac::WallRead`).
+            let mut firsts: std::collections::BTreeMap<VertexKey, vtxfac::FirstFace> =
+                std::collections::BTreeMap::new();
+            // Each wall vertex whose first face's refusal was kept.
+            let mut refused_firsts = std::collections::BTreeSet::new();
+            let climbed = climb_evidence(Answering::First, pierced.iter().map(|c| c.record), |c| {
+                let wall = walls.get(&(operand, c.vertex)).copied();
+                let second = match wall {
+                    Some(wall) if wall.faces[1] == c.face => match firsts.get(&c.vertex) {
+                        Some(first) => Some(vtxfac::WallRead { wall, first }),
+                        // Its first face's refusal is kept, so the pass
+                        // refuses; the second face has nothing to read
+                        // against.
+                        None if refused_firsts.contains(&c.vertex) => return Rung::Passes,
+                        // A first face never read: the pierce order is not
+                        // the walls' own.
+                        None => return Rung::Aborts(UNREAD_FIRST_FACE),
+                    },
+                    _ => None,
+                };
+                match vtxfac::read_vertex_on_face(
+                    piercing_body,
+                    pierced_body,
+                    operand,
+                    c,
+                    op,
+                    &declared,
+                    &contacts,
+                    rereads.get(&(operand, c.vertex)).copied(),
+                    planes.get(&(operand, c.vertex)).copied(),
+                    charts.get(&(operand, c.vertex, c.face)).copied(),
+                    &tips[usize::from(operand == Operand::B)],
+                    band,
+                    second,
+                ) {
+                    Ok(read) => {
+                        if wall.is_some_and(|w| w.faces[0] == c.face) {
+                            firsts.insert(c.vertex, read.first_face());
+                        }
+                        reads.push(read);
+                        Rung::Passes
+                    }
+                    Err(e) => {
+                        if wall.is_some_and(|w| w.faces[0] == c.face) {
+                            refused_firsts.insert(c.vertex);
+                        }
+                        Rung::refused(e, BooleanError::refusal, core::convert::identity)
+                    }
+                }
+            });
+            match climbed {
+                Ok((_, definite)) => Err(definite),
+                Err(kept) => Ok((reads, kept)),
+            }
+        };
     for (operand, pierced) in [
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
+        let (reads, kept) = read_pierces(operand, &a, &b)?;
+        let kept = if operand == Operand::A && !kept.is_empty() {
+            kept.then(read_pierces(Operand::B, &a, &b)?.1)
+        } else {
+            kept
+        };
+        if let Some(escalated) = kept.refusal() {
+            return Err(escalated);
+        }
         let mut minted = Vec::with_capacity(pierced.len());
-        // A wall's second face reads its vertex's orbit on the operand as
-        // this pass began (`vtxfac::WallRead`), held only where a vertex
-        // of it pierces a wall; and each wall's first face's moved halves
-        // and edge classes, which the second reads against and gathers.
-        let unwritten = walls
-            .keys()
-            .any(|&(o, _)| o == operand)
-            .then(|| match operand {
-                Operand::A => Body::clone(&a),
-                Operand::B => Body::clone(&b),
-            });
+        // Each wall's first face's moved halves and edge classes, which
+        // its second face's classes gather.
         let mut first_faces: std::collections::BTreeMap<VertexKey, vtxfac::FirstFace> =
             std::collections::BTreeMap::new();
-        for (k, c) in pierced.iter().map(|c| c.record).enumerate() {
+        for read in reads {
+            let c = read.contact();
             let reread = rereads.get(&(operand, c.vertex)).copied();
-            let (piercing_body, pierced_body) = match operand {
-                Operand::A => (&mut a, &mut b),
-                Operand::B => (&mut b, &mut a),
-            };
             let wall = walls.get(&(operand, c.vertex)).copied();
-            let second = match (wall, &unwritten) {
-                (Some(wall), Some(unwritten)) if wall.faces[1] == c.face => {
-                    Some(vtxfac::WallRead {
-                        unwritten,
-                        wall,
-                        first: first_faces.get(&c.vertex).ok_or(UNREAD_FIRST_FACE)?,
-                    })
-                }
-                _ => None,
+            let piercing_body = match operand {
+                Operand::A => &mut a,
+                Operand::B => &mut b,
             };
-            let out = match vtxfac::classify_vertex_on_face(
-                piercing_body,
-                pierced_body,
-                operand,
-                c,
-                op,
-                &declared,
-                &contacts,
-                reread,
-                planes.get(&(operand, c.vertex)).copied(),
-                charts.get(&(operand, c.vertex, c.face)).copied(),
-                &tips[usize::from(operand == Operand::B)],
-                band,
-                second,
-            ) {
-                Ok(out) => out,
-                // **A definite refusal outranks an escalation in this
-                // pass**: a pierce read in band refuses only once every
-                // later pierce of both operands is read, and one of them
-                // refusing definitely is the pass's answer. So which
-                // operand's vertices are read first does not choose
-                // between the two.
-                Err(escalated @ BooleanError::Escalated { .. }) => {
-                    let later = pierced[k + 1..]
-                        .iter()
-                        .map(|c| (operand, c.record))
-                        .chain(
-                            (operand == Operand::A)
-                                .then_some(&contacts.b_on_a)
-                                .into_iter()
-                                .flatten()
-                                .map(|c| (Operand::B, c.record)),
-                        )
-                        .collect::<Vec<_>>();
-                    for (operand, c) in later {
-                        // A wall's second face reads against its first
-                        // face's mint, which this pass may not have made.
-                        if walls
-                            .get(&(operand, c.vertex))
-                            .is_some_and(|w| w.faces[1] == c.face)
-                        {
-                            continue;
-                        }
-                        let (piercing_body, pierced_body) = match operand {
-                            Operand::A => (&mut a, &mut b),
-                            Operand::B => (&mut b, &mut a),
-                        };
-                        match vtxfac::classify_vertex_on_face(
-                            piercing_body,
-                            pierced_body,
-                            operand,
-                            c,
-                            op,
-                            &declared,
-                            &contacts,
-                            rereads.get(&(operand, c.vertex)).copied(),
-                            planes.get(&(operand, c.vertex)).copied(),
-                            charts.get(&(operand, c.vertex, c.face)).copied(),
-                            &tips[usize::from(operand == Operand::B)],
-                            band,
-                            None,
-                        ) {
-                            Ok(_) | Err(BooleanError::Escalated { .. }) => {}
-                            Err(definite) => return Err(definite),
-                        }
-                    }
-                    return Err(escalated);
-                }
-                Err(e) => return Err(e),
-            };
-            // `classify_vertex_on_face` refuses a re-read vertex that
+            let out = vtxfac::mint_pierce(piercing_body, read)?;
+            // `read_vertex_on_face` refuses a re-read vertex that
             // would write, so a re-read one touched: its orbit, and the
             // pierced face, are as the operands gave them.
             debug_assert!(
