@@ -34,4 +34,9 @@ The fallback to the other conic's reading where the chosen one refuses is not th
 
 ## What remains
 
-The near-circle turned +1e-5 about the cross, then moved 1e-6 along the line the two planes share, parts from the long ellipse by 1.19e-11 (`span_gap`), past the escalation by 1.9e-12, and escalates on its height's extreme in both orders where the answer is none. The window's pieces stop at the band's zero (`curve_pair_window_width`), and the span's walk at a piece whose reach is within it, so a margin under about two zero widths past the escalation is not resolved. Whether the windows' floor should be finer than the zero, or a near-miss that close is the band's to escalate, is open.
+Measured against `span_gap`, in both orders:
+
+- **Past the escalation by under two zero widths.** The near-circle turned +1e-5 about the cross, then moved 1e-6 along the line the two planes share, parts from the long ellipse by 1.19e-11 (1.9e-12 past the escalation) and escalates on its height's extreme where the answer is none. The window's pieces stop at the band's zero (`curve_pair_window_width`), and the span's walk at a piece whose reach is within it, so a margin that small is not resolved.
+- **A foot inside the span, on a wide window.** Turned ±1e-5 about the cross and moved +1e-5 along that line (gaps 4.95e-10 and 3.30e-10), it escalates the same way. The window reads off `b`'s span only where a piece's foot on `b`'s carrier is not read inside the span (`Span::place`); a piece of an arc no ring bounds whose foot is inside, and which reads neither off nor on, ends the window and the root goes to the polish, whose basin the near-parallel tangents leave unproved. Halving such pieces decides these poses but costs `plane_rows::a_seam_vertex_at_a_far_turn_leaves_the_meeting_before_the_seam` 60 times its time (0.03 s to 1.9 s), where the polish decides cheaply.
+
+Open: a cheaper certificate for a wide arc whose foot stays inside the span (the carrier's distance is the span's there), or a basin that survives near-parallel tangents.
