@@ -2,10 +2,11 @@
 id: the-side-readers-curved-aim-foot-is-unguarded
 kind: issue
 title: side_reader_aims_ask_nothing no longer sees a curved aim's foot: curve_foot_branch is unlogged (F31)
-status: open
+status: closed
 opened: 2026-11-03
 priority: P3
 cost: E
+closed: 2026-11-09
 ---
 
 
@@ -20,3 +21,10 @@ Fix, the cheap way: read the path's samples, which still reach the sink under `c
 `azimuth_near_cut_side` (the window's cut side) and `period_near_mark`
 (the rename's half-period marks), both F31; `curve_foot_branch` is no
 longer recorded.
+
+Closed (`onecopy/face-holds`): `side_reader_aims_ask_nothing`'s
+`the_rods_aims_take_no_circle_foot` (`probe`) runs the rod's aims at
+`Probe` and asserts that no sample reaches the sink under
+`azimuth_near_cut_side` or `period_near_mark`. Its witness is a point
+inside the same rod, which does take them. A foot injected into the
+cylinder arm of `aim_at` turns it red. A cone wall is not in the row.
