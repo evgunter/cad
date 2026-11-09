@@ -79,3 +79,190 @@ pub fn refused_point(x: f64) -> crate::Interval {
 pub fn fixture_lever<T: crate::Real>(length: T) -> crate::Lever<T> {
     crate::Lever(length)
 }
+
+/// **The reading of a scale twin's margin streams**: one body at two
+/// model scales, each run's [`MarginSample`](crate::k_stats::MarginSample)s
+/// grouped by predicate in recording order, and the two read side by side.
+/// A twin compares verdict streams sample for sample, and pairs only the
+/// decisive margins that have a scale ([`Twins::decisive_pairs`]).
+#[cfg(feature = "probe")]
+pub mod twins {
+    use crate::Sign;
+    use crate::k_stats::{MarginSample, SampleOutcome};
+    use std::collections::BTreeMap;
+
+    /// One run's samples by predicate, each list in recording order.
+    pub type Streams = BTreeMap<&'static str, Vec<MarginSample>>;
+
+    /// `samples` grouped by predicate, in recording order.
+    #[must_use]
+    pub fn streams(samples: impl IntoIterator<Item = MarginSample>) -> Streams {
+        let mut out = Streams::new();
+        for s in samples {
+            out.entry(s.predicate).or_default().push(s);
+        }
+        out
+    }
+
+    /// One predicate's streams in the smaller twin and the larger.
+    #[derive(Clone, Copy, Debug)]
+    pub struct Twins<'a> {
+        /// The predicate both streams are of, for the messages.
+        pub predicate: &'a str,
+        /// The smaller twin's samples, in recording order.
+        pub small: &'a [MarginSample],
+        /// The larger twin's samples, in recording order.
+        pub large: &'a [MarginSample],
+    }
+
+    impl<'a> Twins<'a> {
+        /// `predicate`'s streams in both runs; an empty stream where a run
+        /// did not fire it.
+        #[must_use]
+        pub fn of(predicate: &'a str, small: &'a Streams, large: &'a Streams) -> Self {
+            let read = |s: &'a Streams| s.get(predicate).map_or(&[][..], Vec::as_slice);
+            Twins {
+                predicate,
+                small: read(small),
+                large: read(large),
+            }
+        }
+
+        /// Each twin's verdict stream, in recording order.
+        #[must_use]
+        pub fn outcomes(&self) -> (Vec<SampleOutcome>, Vec<SampleOutcome>) {
+            let read = |l: &[MarginSample]| l.iter().map(|s| s.outcome).collect();
+            (read(self.small), read(self.large))
+        }
+
+        /// **The decisive margins with a scale, paired by rank**: each
+        /// twin's definite nonzero samples not decided on their sign
+        /// alone ([`MarginSample::reads_sign_only`]), as `|margin|`,
+        /// those `keep` admits, sorted (recording order pairs unrelated
+        /// sites when a predicate fires on several entities), then
+        /// paired `(small, large)`.
+        ///
+        /// # Panics
+        ///
+        /// When the twins' sign-only masks differ (a sample read on its
+        /// sign in one twin and against the band in the other), or the
+        /// two decisive lists differ in length: pairing them would drop
+        /// the excess unread.
+        #[must_use]
+        pub fn decisive_pairs(&self, keep: impl Fn(f64) -> bool) -> Vec<(f64, f64)> {
+            let mask = |l: &[MarginSample]| {
+                l.iter()
+                    .map(MarginSample::reads_sign_only)
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                mask(self.small),
+                mask(self.large),
+                "{}: the twins read different samples on their sign alone",
+                self.predicate
+            );
+            let decisive = |l: &[MarginSample]| {
+                let mut v: Vec<f64> = l
+                    .iter()
+                    .filter(|s| {
+                        matches!(
+                            s.outcome,
+                            SampleOutcome::Definite(Sign::Positive | Sign::Negative)
+                        ) && !s.reads_sign_only()
+                    })
+                    .map(|s| s.margin.abs())
+                    .filter(|m| keep(*m))
+                    .collect();
+                v.sort_by(f64::total_cmp);
+                v
+            };
+            let (small, large) = (decisive(self.small), decisive(self.large));
+            assert_eq!(
+                small.len(),
+                large.len(),
+                "{}: the twins hold different numbers of decisive margins ({small:?} against \
+                 {large:?})",
+                self.predicate
+            );
+            small.into_iter().zip(large).collect()
+        }
+    }
+
+    #[cfg(test)]
+    #[allow(clippy::panic)]
+    mod tests {
+        use super::*;
+        use crate::Band;
+
+        fn sample(margin: f64, band: (f64, f64), outcome: SampleOutcome) -> MarginSample {
+            MarginSample {
+                predicate: "p",
+                margin,
+                band_zero: band.0,
+                band_escalate: band.1,
+                outcome,
+            }
+        }
+
+        const POS: SampleOutcome = SampleOutcome::Definite(Sign::Positive);
+
+        fn least() -> (f64, f64) {
+            (Band::least().zero(), Band::least().escalate())
+        }
+
+        #[test]
+        fn the_pairs_are_the_decisive_margins_with_a_scale_by_rank() {
+            let linear = (1e-9, 1e-6);
+            let small = [
+                sample(-2e-3, linear, SampleOutcome::Definite(Sign::Negative)),
+                sample(5e-7, least(), POS),
+                sample(1e-3, linear, POS),
+                sample(0.0, linear, SampleOutcome::Definite(Sign::Zero)),
+            ];
+            let large = [
+                sample(1.0, linear, POS),
+                sample(9.0, least(), POS),
+                sample(-2.0, linear, SampleOutcome::Definite(Sign::Negative)),
+                sample(0.0, linear, SampleOutcome::Definite(Sign::Zero)),
+            ];
+            let twins = Twins {
+                predicate: "p",
+                small: &small,
+                large: &large,
+            };
+            assert_eq!(
+                twins.decisive_pairs(|_| true),
+                [(1e-3, 1.0), (2e-3, 2.0)],
+                "sign-only and zero samples drop out, and the rest pair by rank"
+            );
+        }
+
+        #[test]
+        #[should_panic(expected = "read different samples on their sign alone")]
+        fn twins_whose_sign_only_masks_differ_are_refused() {
+            let linear = (1e-9, 1e-6);
+            let small = [sample(1e-3, linear, POS), sample(5e-7, least(), POS)];
+            let large = [sample(1.0, linear, POS), sample(9.0, linear, POS)];
+            let _ = Twins {
+                predicate: "p",
+                small: &small,
+                large: &large,
+            }
+            .decisive_pairs(|_| true);
+        }
+
+        #[test]
+        #[should_panic(expected = "different numbers of decisive margins")]
+        fn twins_with_unequal_decisive_lists_are_refused() {
+            let linear = (1e-9, 1e-6);
+            let small = [sample(1e-3, linear, POS), sample(2e-3, linear, POS)];
+            let large = [sample(1.0, linear, POS), sample(2.0, linear, POS)];
+            let _ = Twins {
+                predicate: "p",
+                small: &small,
+                large: &large,
+            }
+            .decisive_pairs(|m| m < 1.5);
+        }
+    }
+}
