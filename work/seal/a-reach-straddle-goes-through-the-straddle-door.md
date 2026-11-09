@@ -2,7 +2,7 @@
 id: a-reach-straddle-goes-through-the-straddle-door
 kind: unit
 title: a carrier pair read Zero by its data and past the band by its extent bound is a straddle (C21, the torus witness), minted by k_stats::straddle through one geom-brep helper
-status: open
+status: dispatched
 opened: 2026-11-09
 priority: P1
 cost: M
@@ -29,3 +29,7 @@ CONTACTHOLD's `the-torus-witness-reads-only-vertices-two-tori-share` is orthogon
 ## Done when
 
 C21 and the torus witness are funnel-minted straddles on the escalation log, pinned at a K that reaches them, and no hand-built `Undecided` carries a decided margin on either path.
+
+## Dispatch (2026-11-09)
+
+Branch `seal/reach-straddle`. Review tier: **single, FULL**. The step joins two straddle sites through one geom-brep helper and widens an interval bound (`max(chord, sine)`), whose soundness is to be checked rather than read. It is no design decision: the fork settled the shapes.
