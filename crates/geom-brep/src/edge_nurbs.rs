@@ -432,7 +432,12 @@ impl CarrierDomainRefusal {
     /// that collide before a clamp clause could.
     fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
         let fault = match e {
-            SplineError::DomainInvalid { .. } => CarrierDomainFault::Interval,
+            // An end past half the largest finite number: no knot
+            // vector admits the domain, which is the interval's fault.
+            SplineError::DomainInvalid { .. }
+            | SplineError::KnotVectorInvalid {
+                reason: geom_core::spline::KnotVectorIssue::PastHalfMax { .. },
+            } => CarrierDomainFault::Interval,
             SplineError::KnotVectorInvalid { .. }
             | SplineError::NonPositiveWeight { .. }
             | SplineError::NonFiniteWeight { .. }
@@ -470,7 +475,7 @@ impl CarrierDomainRefusal {
             CarrierDomainFault::Interval => write!(
                 f,
                 "the carrier's parameter domain [{lo}, {hi}] is not a finite increasing interval \
-                 of finite width"
+                 of finite width within half the largest finite number"
             )?,
             CarrierDomainFault::Merge => write!(
                 f,

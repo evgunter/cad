@@ -1543,15 +1543,20 @@ mod tests {
             ]),
         ));
 
-        // Spans that overflow, go subnormal, or whose numerator
-        // underflows: the regimes where the two quotients are least
+        // The widest span a knot vector admits (its ends at
+        // `KNOT_MAGNITUDE_MAX`, a width of exactly `f64::MAX`), spans
+        // that go subnormal, or whose numerator underflows: the regimes
+        // where the two quotients are least
         // like each other and a refusal is the sound answer. A REFUSAL
         // is fine (loud); an escape is not, and the row below treats
         // them differently.
         out.push((
-            "overflowing knot span",
+            "widest knot span",
             2,
-            vec![-1e308, -1e308, -1e308, 0.0, 1e308, 1e308, 1e308],
+            {
+                let m = super::super::KNOT_MAGNITUDE_MAX;
+                vec![-m, -m, -m, 0.0, m, m, m]
+            },
             pts(&[1.0, -1.0, 2.0, 3.0]),
         ));
         out.push((
@@ -1564,7 +1569,16 @@ mod tests {
             "numerator underflow across 1e300",
             3,
             vec![
-                0.0, 0.0, 0.0, 0.0, 1e-308, 1e300, 1e308, 1e308, 1e308, 1e308,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1e-308,
+                1e300,
+                super::super::KNOT_MAGNITUDE_MAX,
+                super::super::KNOT_MAGNITUDE_MAX,
+                super::super::KNOT_MAGNITUDE_MAX,
+                super::super::KNOT_MAGNITUDE_MAX,
             ],
             pts(&[1.0, -2.0, 4.0, -8.0, 16.0, -32.0]),
         ));

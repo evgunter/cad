@@ -321,20 +321,26 @@ fn enumerated() -> Vec<(String, KnotVector)> {
         "signed zero/p3/−0.0, +0.0, −0.0 — one run, three total_cmp values".to_string(),
         build(3, -1.0, 1.0, &[(-0.0, 1), (0.0, 1), (-0.0, 1)]),
     );
-    // The widest domain the type admits, and a degree whose clamps
+    // The widest domain the type admits (`KNOT_MAGNITUDE_MAX` on each
+    // side, a width of exactly `f64::MAX`), and a degree whose clamps
     // dominate the vector.
     push(
         "extreme/p2/full f64 span".to_string(),
         build(
             2,
-            -f64::MAX,
-            f64::MAX,
+            -geom_core::spline::KNOT_MAGNITUDE_MAX,
+            geom_core::spline::KNOT_MAGNITUDE_MAX,
             &[(-1.0e300, 1), (0.0, 2), (1.0e300, 1)],
         ),
     );
     push(
         "extreme/p1/full f64 span, least slack".to_string(),
-        build(1, -f64::MAX, f64::MAX, &[(0.0, 1)]),
+        build(
+            1,
+            -geom_core::spline::KNOT_MAGNITUDE_MAX,
+            geom_core::spline::KNOT_MAGNITUDE_MAX,
+            &[(0.0, 1)],
+        ),
     );
     push(
         "extreme/p64/clamps dominate".to_string(),
