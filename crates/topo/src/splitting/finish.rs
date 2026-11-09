@@ -1254,7 +1254,13 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // one side (an ON-touching contact mints no null faces).
     if completed.is_empty() {
         body.sweep_and_close();
-        return whole_body_side(reassembled, &red.sides, &red.plane, tol);
+        let (above, below) = whole_body_side(reassembled, &red.sides, &red.plane, tol)?;
+        return Ok(RawSplit {
+            above,
+            below,
+            naming: SplitNaming::default(),
+            coincidences: red.coincidences,
+        });
     }
     let mut naming = SplitNaming {
         sections: Vec::with_capacity(completed.len() * 2),
@@ -1982,17 +1988,17 @@ pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitF
     }
 }
 
-/// The un-cut case: no section, so each shell lies whole on one side
-/// ([`shell_side`]). Where every shell reads one side the whole body
-/// lands there; where they differ (two lumps that meet only within the
-/// plane, a pinch on it) each side is carved from its own shells, as a
-/// cut body's are.
+/// The un-cut case's two sides, above then below: no section, so each
+/// shell lies whole on one side ([`shell_side`]). Where every shell
+/// reads one side the whole body lands there; where they differ (two
+/// lumps that meet only within the plane, a pinch on it) each side is
+/// carved from its own shells, as a cut body's are.
 fn whole_body_side<T: Decide>(
     body: Body<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     plane: &super::SplitPlane<T>,
     tol: Tol,
-) -> Result<RawSplit<T>, SplitFinishError> {
+) -> Result<(RawPart<T>, RawPart<T>), SplitFinishError> {
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let solid = single_solid(&body)?;
     let mut binned = ShellSides::default();
@@ -2009,7 +2015,7 @@ fn whole_body_side<T: Decide>(
         }
     }
     let ShellSides { above, below } = binned;
-    let (above, below) = match (above.is_empty(), below.is_empty()) {
+    Ok(match (above.is_empty(), below.is_empty()) {
         // A solid with no shell holds no material to place.
         (true, true) => return Err(SplitFinishError::Corrupt),
         (false, true) => (RawPart::Body(body), RawPart::Empty),
@@ -2018,15 +2024,6 @@ fn whole_body_side<T: Decide>(
             RawPart::Body(carve(&body, solid, &above)?),
             RawPart::Body(carve(&body, solid, &below)?),
         ),
-    };
-    Ok(RawSplit {
-        above,
-        below,
-        naming: SplitNaming::default(),
-        // The reduce's pinch coincidences are not carried here, as the
-        // cut path carries them: whether an uncut split should is
-        // `an-uncut-split-drops-its-pinch-coincidences`.
-        coincidences: Vec::new(),
     })
 }
 
@@ -3017,8 +3014,8 @@ mod whole_body_side_rows {
         assert_eq!(diag.predicate, Some("split_edge_side"), "{diag:?}");
         let tilted = plane(Vec3::new(0.0, 1.0, 0.1), in_band, tol);
         match whole_body_side(wall(tol), &on, &tilted, tol) {
-            Ok(split) => assert!(
-                matches!(split.above, RawPart::Body(_)) && matches!(split.below, RawPart::Empty),
+            Ok((above, below)) => assert!(
+                matches!(above, RawPart::Body(_)) && matches!(below, RawPart::Empty),
                 "the decided arc answers Above"
             ),
             Err(e) => panic!("the arc at height 1 decides Above: {e:?}"),
