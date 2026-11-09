@@ -835,10 +835,11 @@ impl SectorFaceError {
                 face,
                 kind,
             },
-            Self::Crease { face, .. } => BooleanError::NormalAtSplineCrease {
+            Self::Crease { face, reading, .. } => BooleanError::NormalAtSplineCrease {
                 operand,
                 face,
                 band,
+                reading,
             },
             // A spline face whose rows are not owed (C4's exemption)
             // stores no chart image of the edge, which the arm reads the
@@ -5228,7 +5229,7 @@ mod spline_refusal_rows {
         assert!(
             matches!(
                 got,
-                Err(BooleanError::NormalAtSplineCrease { operand: Operand::B, face, band: b })
+                Err(BooleanError::NormalAtSplineCrease { operand: Operand::B, face, band: b, .. })
                     if face == top && b == band()
             ),
             "{got:?}"

@@ -3969,7 +3969,15 @@ impl<T: Decide> IslandReading<T> {
     /// The paths to `q` from every outer-loop point of `face`
     /// ([`outer_references`]), in the order they are asked, each read by
     /// `read` until one decides: a side ladder ([`paths_rung`]), so a
-    /// path set aside ahead of one that decides is superseded.
+    /// path set aside ahead of one that decides is superseded. Its
+    /// premise is the input's, not a theorem: the island lies in the
+    /// face, so every outer-loop point is on the same side of it. The
+    /// boolean's ring lane reads it mid-operation (`boolean::join`'s
+    /// `ring_run_ccw`), on a run of a ring of the operand's face, which
+    /// check 9 placed in the face at rest, closed by a section piece the
+    /// reduction kept where the face holds it. That is the construction's
+    /// guarantee: no check re-reads the island against the outer loop
+    /// there (`work/onecopy/the-ring-lanes-island-is-not-checked-in-its-face.md`).
     pub(crate) fn read_paths<R>(
         &self,
         body: &Body<T>,
@@ -5471,24 +5479,35 @@ fn ring_side<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let read = |v: VertexKey| match point_in_loop(
-        body,
-        run,
-        normal,
-        body.resolve_vertex_point(v, Proven),
-        band,
-    ) {
+    let read = |v: VertexKey| {
+        vertex_side(point_in_loop(
+            body,
+            run,
+            normal,
+            body.resolve_vertex_point(v, Proven),
+            band,
+        ))
+    };
+    match climb(Answering::Any, ring_vertices(body, ring)?, read) {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed => Ok(RingSide::OnRun),
+        Climb::Undecided(e) => Err(SplitJoinError::RingHoming(e)),
+    }
+}
+
+/// One ring vertex's containment as [`ring_side`]'s rung: a decided side
+/// answers, a vertex on the run passes, and a refusal stands by its own
+/// standing ([`PointInLoopError::refusal`]).
+fn vertex_side(
+    reading: Result<LoopContainment, PointInLoopError>,
+) -> Rung<Result<RingSide, SplitJoinError>, PointInLoopError> {
+    match reading {
         Ok(LoopContainment::In) => Rung::Answers(Ok(RingSide::In)),
         Ok(LoopContainment::Out) => Rung::Answers(Ok(RingSide::Out)),
         Ok(LoopContainment::OnBoundary) => Rung::Passes,
         Err(e) => {
             geom_brep::ladder::rung_or_abort(e.refusal(), e, |e| Err(SplitJoinError::from(e)))
         }
-    };
-    match climb(Answering::Any, ring_vertices(body, ring)?, read) {
-        Climb::Answered { answer, .. } => answer,
-        Climb::Passed => Ok(RingSide::OnRun),
-        Climb::Undecided(e) => Err(SplitJoinError::RingHoming(e)),
     }
 }
 
@@ -5579,6 +5598,11 @@ mod side_ladder_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod island_rows;
+#[cfg(test)]
+mod ring_side_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;

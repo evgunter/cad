@@ -175,25 +175,33 @@ impl Unsettled {
     /// What this refusal is to a ladder ([`crate::ladder::Refusal`]), per
     /// case and exhaustive, so a case added here states its own:
     ///
-    /// - a meeting within the band of a cone's apex is in band, as the
-    ///   normal at a cone's apex is (`topo`'s `NormalAtError::refusal`);
-    /// - a meeting at a spline's crease, and a line along a cone's
-    ///   generator, are limits: the crossing layer reads neither pose
-    ///   (`DESIGN [failure.taxonomy]` row 2), as a decided crease is to
-    ///   the normal;
+    /// - a meeting within the band of a cone's apex stands as every such
+    ///   reading does ([`crate::ladder::Refusal::of_apex`]);
+    /// - a line along a cone's generator is a limit, its lead decided
+    ///   zero: a pose the crossing layer does not read (row 2);
+    /// - a meeting at a spline's crease aborts until it is split: its
+    ///   producers name a floor refusal near a crease, and a meeting not
+    ///   decided apart from one (in band, or decided zero), so the abort
+    ///   is not the class of every case it carries, and a ladder that
+    ///   reads one splits it first;
     /// - every other case did not settle on no margin and in a way the
     ///   band or a budget moves ([`crate::ladder::Rung::Unsettled`]).
-    #[must_use]
-    pub const fn refusal(self) -> crate::ladder::Refusal {
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a meeting at a crease, not yet split.
+    pub const fn refusal(self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        use crate::ladder::{Aborts, Refusal};
         match self {
-            Self::AtApex => crate::ladder::Refusal::InBand,
-            Self::Crease | Self::Degenerate => crate::ladder::Refusal::Limit,
+            Self::AtApex => Ok(Refusal::of_apex()),
+            Self::Degenerate => Ok(Refusal::Limit),
+            Self::Crease => Err(Aborts),
             Self::Tangency
             | Self::Meter { .. }
             | Self::Exhausted
             | Self::Floor
             | Self::Resolvent
-            | Self::CountDisagrees { .. } => crate::ladder::Refusal::Unsettled,
+            | Self::CountDisagrees { .. } => Ok(Refusal::Unsettled),
         }
     }
 }
