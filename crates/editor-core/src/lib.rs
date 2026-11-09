@@ -21,6 +21,7 @@ pub mod appearance;
 pub mod checks;
 pub mod clearance;
 pub mod coincide;
+pub mod continuation;
 mod decision;
 pub mod diff;
 pub mod distribution;

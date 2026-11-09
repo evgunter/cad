@@ -3932,11 +3932,7 @@ impl<T: Decide> IslandReading<T> {
                     ))
                 };
                 let (from, to) = (at(after)?, at(h1)?);
-                (
-                    LoopArc::segment(from, to),
-                    from + (to - from) * T::from_f64(0.5),
-                    to - from,
-                )
+                (LoopArc::segment(from, to), from.mid(to), to - from)
             }
         };
         match quadric.off_apex(q, band) {
@@ -4047,11 +4043,13 @@ impl<T: Decide> IslandReading<T> {
 ///   arms on `Line` and `Circle` edges and assumed on `Ellipse`,
 ///   `Spiric` and NURBS ones
 ///   (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
-///   Mid-operation it is excluded where the division identifies every
-///   vertex it passes through. A loop that crosses the run at a vertex
-///   the division did not identify (fate's rehome, [`ChordJoiner`]'s
-///   `rehome_rings`; the split identifies every vertex within band) is
-///   the residual (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
+///   Mid-operation it is excluded by the division: a vertex within the
+///   zero of the cut is identified and the ring divided there, and one
+///   in its band refuses (the boolean's `VertexOnFace` coincidence, the
+///   split's `SliverVertex`), so a ring left a bystander ([`ChordJoiner`]'s
+///   `rehome_rings`, fate's rehome) does not cross it. The premise is the
+///   division's, and the ladders do not check it
+///   (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
 ///
 /// Under it, which decided reading is taken changes nothing.
 fn paths_rung<T: Decide, R>(
@@ -4844,7 +4842,11 @@ impl RimSide {
                 // and any such point reads the one side (the loop does not
                 // cross its ring's plane: [`paths_rung`]'s premise, the
                 // plane for the curve); an escalation escalates only
-                // where none does.
+                // where none does. The division establishes it: the ring
+                // meets the pierced face's boundary only at its one site,
+                // the section's identified crossing, and on the sphere the
+                // ring's plane meets the surface in the ring alone, so a
+                // loop crossing the plane would cross the ring.
                 use geom_brep::ladder::{Answering, Climb, Rung, climb};
                 let points = loop_points(body, outer)?;
                 let read = climb(Answering::Any, points, |w| {
