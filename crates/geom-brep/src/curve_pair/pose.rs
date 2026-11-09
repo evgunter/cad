@@ -45,17 +45,21 @@
 //!   reads, and the pair is [`Pose::Apart`]. A piece's gap is at least
 //!   the whole's, so a pair read Apart whole is read Parallel or Apart in
 //!   every split. A gap read zero or in the escalation gap says nothing,
-//!   and the reading goes on. Both screens' margins are charged with the
-//!   rounding the projections and the offset carry, sized by the
-//!   carriers' origins and the spans' ends as evaluated, so a coordinate
-//!   large by its parameter is charged as one large by its origin.
+//!   and the reading goes on. The projections carry the rounding of the
+//!   spans' ends as evaluated ([`OnOneLine`]), so a coordinate large by
+//!   its parameter is charged as one large by its origin; the offset is a
+//!   local difference, read as it is.
 //!   Only where neither decides does the tilt route: levered
 //!   by the longer span (`curve_pair_pose_tilt`), definite is a crossing;
 //!   read zero over the overlap `s·(L + 2e)`, or zero over the longer
 //!   span, the pair is level where it can meet, and the offset at the
 //!   overlap's middle (`curve_pair_pose_offset`) decides: zero is level,
-//!   and otherwise the parallel margin having not decided refuses
-//!   [`Unsettled::Meter`]. A tilt over the longer span in its band
+//!   definite refuses [`Unsettled::Meter`], the parallel margin having
+//!   not decided, and in the gap what the offset measures decides
+//!   (`Offset`): a second line's distance escalates, and a line's height
+//!   above a conic's plane, only a lower bound on its distance from the
+//!   conic, is level, read by the arm in the plane with its candidates
+//!   read on both spans. A tilt over the longer span in its band
 //!   escalates.
 //! - **Two lines.** Crossing, the candidate is the first line's point
 //!   nearest the second. Level, the lines are [`Pose::Coincident`] only
@@ -83,11 +87,13 @@
 //!   pair is [`Pose::Apart`]. Only then are the two swings read
 //!   (`curve_pair_pose_swing`), both before either is acted on. One
 //!   read zero lies in a plane parallel to the other's, its height
-//!   constant to within that swing: the screen's one reading of that
-//!   height, acted on again, decides it. Zero all round, the conics lie
-//!   in one plane to within the slant `|c₀|` plus the swing (the larger
-//!   slant where both read zero), below; in the gap, its escalation is
-//!   the pair's. Only where neither
+//!   constant to within that swing, and the screen has not cleared it:
+//!   the conics lie in one plane to within the slant `|c₀|` plus the
+//!   swing (the larger slant where both read zero), below. A slant in the
+//!   gap is no meeting of its own: a height only bounds the distance from
+//!   below, so the arms in one plane read the pair and every candidate
+//!   they place is read on both spans, the slant included. Only where
+//!   neither
 //!   swing reads zero does one in the gap escalate. Both definite: the
 //!   height of one conic above the other's plane, a first harmonic whose
 //!   roots are where it crosses that plane, places the candidates, each
@@ -120,21 +126,19 @@
 //!     distance from the second circle has those extremes less `r₂`,
 //!     exactly; and its square is a first harmonic in the first circle's
 //!     angle, whose roots are read from the extremes (below);
-//!   - **a circle and an ellipse**: the ellipse's distance from the
-//!     circle, `|E(θ) − c| − r`, whose square less `r²` is of degree two in
-//!     the ellipse's angle, goes to the certified subdivision
-//!     ([`crate::half_angle::certified_subdivision`]);
-//!   - **two ellipses**: the first's level on the second, of degree two
-//!     in the first's angle, goes to the certified subdivision in the
-//!     metres of the lower bound on a point's distance from an ellipse
-//!     ([`geom::ellipse_level_clearance`], [`Curve3::clearance`]'s), with
-//!     a ceiling on the level per metre of it (`coplanar_ellipses`).
+//!   - **two ellipses, or an ellipse and a circle**: the first's level on
+//!     the second, of degree two in the first's angle, goes to the
+//!     certified subdivision ([`crate::half_angle::certified_subdivision`])
+//!     in the metres of the lower bound on a point's distance from an
+//!     ellipse ([`geom::ellipse_level_clearance`], [`Curve3::clearance`]'s),
+//!     with a ceiling on the level per metre of it (`coplanar_ellipses`).
+//!     A circle is the ellipse of its equal semi-axes, its level
+//!     `(|q − c|² − r²)/r²`; the ellipse is the one parametrized.
 //!
 //! # A first harmonic's roots, and a double root
 //!
 //! A residual `R(θ)` whose range is `[lo, hi]` is decided on its extremes
-//! (`curve_pair_pose_extreme`), each read as the interval its rounding
-//! spans ([`crate::roots::extreme_sign`]): definitely one-signed is
+//! (`curve_pair_pose_extreme`): definitely one-signed is
 //! [`Pose::Apart`], definitely straddling is two crossings, an end of a
 //! distance in the escalation gap escalates (a height's, below), and an
 //! extreme in the zero band is a touch there (below). Two definite
@@ -196,8 +200,7 @@
 //! the arc between the piece's roots is read
 //! (`curve_pair_coplanar_sub_touch`): the most `|F|` convexity leaves
 //! there, over the frame's floor on `|F|` per metre. Neither door charges
-//! a jet's rounding: the coplanar ellipses read `F` locally and exactly
-//! ([`Level`]), the circle and ellipse from their harmonics.
+//! a jet's rounding: `F` is read locally and exactly ([`Level`]).
 //! - **Zero** is one touch. The arc lies everywhere within the zero band
 //!   of the other carrier, so by C5 (`crates/geom-brep/README.md`: a
 //!   meeting is a longest interval of one span everywhere definitely on
@@ -423,10 +426,9 @@ use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 use super::span::Span;
 use super::{Arm, MeetFault, Method};
 use crate::half_angle::{
-    DegreeTwo, Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows,
-    certified_subdivision_touching,
+    Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows, certified_subdivision_touching,
 };
-use crate::roots::{Roots, Unsettled, arc_past, extreme_sign};
+use crate::roots::{Roots, Unsettled, arc_past};
 use geom::Conic;
 
 /// How two carriers read as one curve run: their parameters increase the
@@ -542,7 +544,7 @@ mod row {
     pub(super) const ACROSS: &str = "curve_pair_pose_across";
 }
 
-/// The coplanar circle × ellipse subdivision's rows.
+/// The coplanar conic subdivision's rows.
 const COPLANAR_ROWS: SubdivisionRows = SubdivisionRows {
     clear: "curve_pair_coplanar_sub_clear",
     monotone: "curve_pair_coplanar_sub_monotone",
@@ -593,11 +595,11 @@ pub(super) fn closed<T: Decide>(
         Arm::LineConic => line_conic(a, b, known, band),
         Arm::ConicLine => Ok(swapped(line_conic(b, a, &flipped, band)?)),
         Arm::CircleCircle => conic_conic(a, b, Coplanar::Circles, known, band),
-        Arm::EllipseCircle => conic_conic(a, b, Coplanar::EllipseCircle, known, band),
+        Arm::EllipseCircle => conic_conic(a, b, Coplanar::Ellipses, known, band),
         Arm::CircleEllipse => Ok(swapped(conic_conic(
             b,
             a,
-            Coplanar::EllipseCircle,
+            Coplanar::Ellipses,
             &flipped,
             band,
         )?)),
@@ -915,9 +917,8 @@ enum Route {
 /// docs, "The router"): `tilt` the sine of the pair's angle, `rate` the
 /// most metres the offset moves per metre along the first line, `offset`
 /// the second's distance (or the plane's height) at the overlap's middle,
-/// `at` the overlap ([`OnOneLine`], carrying its own rounding), `lever`
-/// the longer span's metres and `noise` the rounding the offset carries,
-/// charged against the parallel screen's margin.
+/// `at` the overlap ([`OnOneLine`], carrying its own rounding) and `lever`
+/// the longer span's metres.
 ///
 /// The parallel argument runs first: where the offset less its most
 /// variation over the overlap and the escalation either side decides
@@ -936,15 +937,15 @@ enum Route {
 fn route<T: Decide>(
     tilt: T,
     rate: T,
-    offset: T,
+    (offset, offset_is): (T, Offset),
     at: OnOneLine<T>,
-    (lever, noise): (Lever<T>, T),
+    lever: Lever<T>,
     band: Band,
 ) -> Result<Route, MeetFault> {
     let length = at.extent().max(T::zero());
     let e = T::from_f64(band.escalate());
     let half = length * T::from_f64(0.5) + e;
-    let parallel = Margin::of(offset - rate * half - noise);
+    let parallel = Margin::of(offset - rate * half);
     if decide(row::PARALLEL, parallel, band) == Ok(Sign::Positive) {
         return Ok(Route::Parallel);
     }
@@ -963,10 +964,27 @@ fn route<T: Decide>(
     if !level {
         return Ok(Route::Crossing);
     }
-    if definite(row::OFFSET, Margin::of(offset), band)? {
-        return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::OFFSET }));
+    let offset = decide(row::OFFSET, Margin::of(offset), band);
+    match (offset, offset_is) {
+        (Ok(Sign::Positive | Sign::Negative), _) => {
+            Err(MeetFault::Unsettled(Unsettled::Meter { row: row::OFFSET }))
+        }
+        (Ok(Sign::Zero), _) | (Err(_), Offset::Height) => Ok(Route::Level),
+        (Err(gap), Offset::Distance) => Err(MeetFault::Escalated(gap)),
     }
-    Ok(Route::Level)
+}
+
+/// **What the router's offset measures**, which fixes what a level offset
+/// in the band's gap reads (module docs, "The router").
+#[derive(Clone, Copy)]
+enum Offset {
+    /// The second line's distance from the first: in the gap, the band's
+    /// escalation.
+    Distance,
+    /// The line's height above the conic's plane, a lower bound on its
+    /// distance from the conic: in the gap the line is level, and the arm
+    /// in the plane reads it, its candidates read on both spans.
+    Height,
 }
 
 /// Whether two lines are one curve within the band over both whole spans
@@ -1036,10 +1054,6 @@ fn line_line<T: Decide>(
     // sup speed (`reach`), a metered span; the extent home's read of the
     // span (`edge_extent_sup`) has different bits.
     let arm = geom_core::Lever::unsourced(lever);
-    let origin = Point3::origin();
-    let noise = geom_core::rounding_charge(
-        (o1 - origin).norm() + (o2 - origin).norm() + ends(ends_a) + ends(ends_b) + lever + lever,
-    );
     let crossing = || {
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
         let point = o1 + u1 * along;
@@ -1050,7 +1064,14 @@ fn line_line<T: Decide>(
             bound: None,
         }])
     };
-    match route(s, s / u1.dot(u2).abs(), off, at, (arm, noise), band)? {
+    match route(
+        s,
+        s / u1.dot(u2).abs(),
+        (off, Offset::Distance),
+        at,
+        arm,
+        band,
+    )? {
         Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
@@ -1088,12 +1109,7 @@ fn line_conic<T: Decide>(
     // (`reach`), folded with the conic's size; the span's part fits no
     // extent read with the same bits.
     let arm = geom_core::Lever::unsourced(lever);
-    let origin = Point3::origin();
-    let noise = geom_core::rounding_charge(
-        (o - origin).norm() + (k.frame().origin - origin).norm() + lever + k.speed_hi(),
-    );
     let ends_a = line_ends(a)?;
-    let screened = noise + geom_core::rounding_charge(ends(ends_a));
     // A conic's extent is no second span: its projection is read from the
     // line's origin, charged as the router's screens are. That anchor
     // charges the carrier origin's metres once, where a read from the
@@ -1102,10 +1118,17 @@ fn line_conic<T: Decide>(
     let at = OnOneLine::of(
         on_line(unit, ends_a),
         (c - k.speed_hi(), c + k.speed_hi()),
-        screened,
+        geom_core::rounding_charge(ends(ends_a)),
     );
     let height = (o + u * at.mid() - k.frame().origin).dot(n);
-    match route(den, den.abs(), height.abs(), at, (arm, screened), band)? {
+    match route(
+        den,
+        den.abs(),
+        (height.abs(), Offset::Height),
+        at,
+        arm,
+        band,
+    )? {
         Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
         Route::Crossing => {
@@ -1113,7 +1136,7 @@ fn line_conic<T: Decide>(
             // so it is within the band's escalation `e/|d̂·n̂|` either side
             // of the crossing.
             let point = o + u * ((k.frame().origin - o).dot(n) / den);
-            let e = T::from_f64(band.escalate()) + noise;
+            let e = T::from_f64(band.escalate());
             let polish = Polish {
                 a: Side::Line(line),
                 b: Side::Conic(&k),
@@ -1141,7 +1164,6 @@ fn line_conic<T: Decide>(
         c0,
         swing,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
-        noise,
     );
     let place = |theta: T| {
         let point = k.point_at(theta);
@@ -1166,9 +1188,8 @@ fn line_conic<T: Decide>(
 enum Coplanar {
     /// Two circles.
     Circles,
-    /// An ellipse, then a circle.
-    EllipseCircle,
-    /// Two ellipses.
+    /// Two conics, not both circles: an ellipse and a circle are read as
+    /// two ellipses, the circle's level that of its equal semi-axes.
     Ellipses,
 }
 
@@ -1199,29 +1220,25 @@ fn conic_conic<T: Decide>(
     let sides = [(swing_a, ha), (swing_b, hb)];
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
-    let mut heights = Vec::with_capacity(2);
     for (swing, (c0, _, _)) in sides {
-        let height = constant(row::PARALLEL, c0, swing, band);
-        if matches!(height, Ok(true)) {
+        if matches!(constant(row::PARALLEL, c0, swing, band), Ok(true)) {
             return Ok(Pose::Apart);
         }
-        heights.push(height);
     }
     // Both swings are read before either is acted on, so the route does
     // not depend on which conic comes first. A conic whose swing reads
     // zero lies in a plane parallel to the other's, in it to within the
     // slant `|c₀|` plus its swing (the larger of the two where both are
-    // level); its height in the gap escalates. Only where neither reads
-    // zero does a swing in the gap escalate.
+    // level). A height the screen did not clear is a slant, not a
+    // meeting: the arms in one plane read the pair, and each candidate
+    // they place is read on both spans, the slant included. Only where
+    // neither reads zero does a swing in the gap escalate.
     let swings = sides.map(|(swing, _)| decide(row::SWING, Margin::of(swing), band));
     let mut slant: Option<T> = None;
-    for ((read, height), (swing, (c0, _, _))) in swings.iter().zip(heights).zip(sides) {
+    for (read, (swing, (c0, _, _))) in swings.iter().zip(sides) {
         if *read != Ok(Sign::Zero) {
             continue;
         }
-        // The screen's own reading: not clear, so in the zero band all
-        // round or escalated.
-        height?;
         let level = c0.abs() + swing;
         slant = Some(slant.map_or(level, |other| other.max(level)));
     }
@@ -1274,7 +1291,6 @@ fn conic_conic<T: Decide>(
     };
     match coplanar {
         Coplanar::Circles => coplanar_circles(&ka, &kb, slant, &place, known, band),
-        Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
         Coplanar::Ellipses => coplanar_ellipses(a, &ka, &kb, &place, band),
     }
 }
@@ -1370,7 +1386,6 @@ fn transverse<T: Decide>(
         c0,
         swing,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
-        T::zero(),
     );
     let window = window::Window {
         a: ka,
@@ -1496,7 +1511,6 @@ fn coplanar_circles<T: Decide>(
         at_hi: toward,
         cross_lo: (T::zero() - lo) * (near + rb) / swing,
         cross_hi: hi * (far + rb) / swing,
-        noise: T::zero(),
     };
     let found: Vec<T> = known.iter().map(|c| c.ta).collect();
     Ok(match owed(ka, &range, &found, band)? {
@@ -1504,47 +1518,6 @@ fn coplanar_circles<T: Decide>(
         Harmonic::Touch(theta) => Pose::Tangent(place(theta)),
         Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
-}
-
-/// An ellipse `ke` (the span `e`) and a circle `kc` in one plane, not one
-/// curve (module docs): the ellipse's distance from the circle, through
-/// the certified subdivision in the ellipse's angle.
-fn coplanar_ellipse_circle<T: Decide>(
-    e: &Span<'_, T>,
-    ke: &dyn Conic<T>,
-    kc: &dyn Conic<T>,
-    place: &impl Fn(T) -> Candidate<T>,
-    band: Band,
-) -> Result<Pose<T>, MeetFault> {
-    let r = kc.speed_hi();
-    let w = ke.frame().origin - kc.frame().origin;
-    let (a, b) = ke.semi_axes();
-    let two = T::from_f64(2.0);
-    // `|E(θ) − c|² − r²` in the ellipse's angle.
-    let poly = DegreeTwo::new(
-        w.norm_squared() + (a.powi(2) + b.powi(2)) / two - r.powi(2),
-        two * a * w.dot(ke.frame().u_ref),
-        two * b * w.dot(ke.frame().v_ref()),
-        (a.powi(2) - b.powi(2)) / two,
-        T::zero(),
-    )
-    .poly();
-    let terms = (w.norm() + a.abs() + b.abs()).powi(2) + r.powi(2);
-    let (t0, t1) = e.params();
-    // `F = (ρ − r)(ρ + r)` in the distance `ρ` from the centre: `|F|` per
-    // metre of `ρ − r` is `ρ + r`, at least `r`, and at most `3r` within
-    // `r` of the circle.
-    let frame = SubdivisionFrame {
-        t0,
-        t1,
-        speed_hi: ke.speed_hi(),
-        noise: geom_core::rounding_charge(terms),
-        f_per_metre: r,
-        f_per_metre_hi: T::from_f64(3.0) * r,
-        residual_reach: Some(r),
-    };
-    let residual = |theta: T| (ke.point_at(theta) - kc.frame().origin).norm() - r;
-    subdivided(Terms::Harmonics(&poly), &residual, &frame, place, band)
 }
 
 /// A coplanar pair's roots and touches from the certified subdivision
@@ -1755,20 +1728,18 @@ pub(super) fn level_ceiling<T: Decide>(small: T) -> (T, T) {
 /// are read from (module docs): `lo` and `hi` are its extremes, `at_hi`
 /// the angle of `hi` (`lo` is half a turn on), `cross_lo` and `cross_hi`
 /// how far each extreme has crossed zero over the swing, in the units the
-/// roots solve in (positive where it has crossed), and `noise` a bound on
-/// each extreme's rounding.
+/// roots solve in (positive where it has crossed).
 struct Range<T> {
     lo: T,
     hi: T,
     at_hi: T,
     cross_lo: T,
     cross_hi: T,
-    noise: T,
 }
 
 impl<T: Decide> Range<T> {
     /// `c₀ + A·cos(θ − at_hi)`, `A ≥ 0`, solved in itself.
-    fn first_harmonic(c0: T, swing: T, at_hi: T, noise: T) -> Self {
+    fn first_harmonic(c0: T, swing: T, at_hi: T) -> Self {
         let (lo, hi) = (c0 - swing, c0 + swing);
         let two = swing + swing;
         Self {
@@ -1777,13 +1748,10 @@ impl<T: Decide> Range<T> {
             at_hi,
             cross_lo: (T::zero() - lo) / two,
             cross_hi: hi / two,
-            noise,
         }
     }
 
-    /// **Its extremes `lo` and `hi`, each read** as the interval its
-    /// noise spans (`curve_pair_pose_extreme`,
-    /// [`crate::roots::extreme_sign`]). What an extreme in the band's gap
+    /// **Its extremes `lo` and `hi`, each read** (`curve_pair_pose_extreme`). What an extreme in the band's gap
     /// decides is the caller's: a distance's escalates ([`owed`]), a
     /// height's places a touch ([`height_extremes`]).
     fn extremes(
@@ -1793,17 +1761,17 @@ impl<T: Decide> Range<T> {
         Result<Sign, geom_core::Indeterminate>,
         Result<Sign, geom_core::Indeterminate>,
     ) {
-        let read = |x: T| extreme_sign(row::EXTREME, x, self.noise, band);
+        let read = |x: T| decide(row::EXTREME, Margin::of(x), band);
         (read(self.lo), read(self.hi))
     }
 
     /// `ℓ` in radians (module docs, "Across planes"): how far from `theta`
     /// the arc about it runs on which the harmonic, a metre residual,
-    /// stays within the band's escalation and its own rounding.
+    /// stays within the band's escalation.
     fn band_arc(&self, theta: T, band: Band) -> T {
         let two = T::from_f64(2.0);
         let (c0, swing) = ((self.lo + self.hi) / two, (self.hi - self.lo) / two);
-        let e = T::from_f64(band.escalate()) + self.noise;
+        let e = T::from_f64(band.escalate());
         let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
         let phi = geom::separation(theta, self.at_hi);
         let inner = unit_cos((e - c0) / swing).acos();

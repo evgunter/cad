@@ -3538,10 +3538,7 @@ fn strictly_inside<T: Decide>(
     band: Band,
 ) -> Result<Option<T>, ShellError<T>> {
     let (s0, s1) = (stretch.param_start, stretch.param_end);
-    let Some(s) = stretch
-        .carrier
-        .param_near(corner, (s0 + s1) / T::from_f64(2.0))
-    else {
+    let Some(s) = stretch.carrier.param_near(corner, geom::mid_param(s0, s1)) else {
         return Ok(None);
     };
     let scale = (to - from).norm() / (s1 - s0);
@@ -3572,7 +3569,7 @@ fn along<T: Decide>(
         unreachable!("{edge:?} is a seam of a finished wall, and a finished wall has no null edge")
     };
     let (t0, t1) = curve.params();
-    let near = (t0 + t1) / T::from_f64(2.0);
+    let near = geom::mid_param(t0, t1);
     // Whether the carrier runs forward from `from` to `to`: the
     // parameter gap, metered at the stretch's average speed (the chord
     // over the gap) so the margin is a length.
@@ -4669,7 +4666,7 @@ impl<T: Real> InPlane<T> {
 
 /// **`face`'s footprint in `frame`**: the `(u, v)` box holding its
 /// whole boundary — every vertex, and every edge's arc on its carrier
-/// ([`carrier_box`]). The vertices alone are not enough: an arc bowing
+/// ([`edge_box_in`]). The vertices alone are not enough: an arc bowing
 /// out of the vertex hull carries region past it, and an extruded
 /// disc's cap has its two vertices on one diameter. A poisoned term
 /// poisons all four ends. `None` for a face with no boundary member to
@@ -4681,18 +4678,12 @@ fn footprint<T: Decide>(
     frame: &InPlane<T>,
 ) -> Option<((T, T), (T, T))> {
     let mut points = Vec::new();
-    for he in body.proven_face(face).half_edges() {
-        let h = proven(&body.half_edges, he, EntityId::HalfEdge);
-        let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
-        points.push((start.x, start.y));
-        let edge = linked(
-            &body.edges,
-            h.edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        points.extend(edge_box_in(body, h.edge, edge, frame));
+    for member in body.proven_face(face).boundary() {
+        let at = frame.point(body.member_point(&member));
+        points.push((at.x, at.y));
+        if let crate::live::BoundaryMember::Edge { ek, edge, .. } = member {
+            points.extend(edge_box_in(body, ek, edge, frame));
+        }
     }
     let poison = points
         .iter()
@@ -4915,7 +4906,7 @@ fn walls_cross<T: Decide>(
     // and position below is a short difference.
     let d = cross.normalize();
     let k = a.normal.dot(b.normal);
-    let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
+    let q = a.lo.mid(a.hi);
     let r_a = a.normal.dot(a.origin - q);
     let r_b = b.normal.dot(b.origin - q);
     let det = cross.norm_squared();
@@ -5102,7 +5093,7 @@ impl<T: Decide> ArcPiece<T> {
     /// The two halves of this piece and the carrier point between them.
     fn split(&self) -> (Self, geom_core::Point3<T>, Self) {
         let (t0, t1) = self.window;
-        let mid = (t0 + t1) * T::from_f64(0.5);
+        let mid = geom::mid_param(t0, t1);
         let half = |window| Self {
             window,
             ..self.clone()
@@ -5223,7 +5214,7 @@ impl<T: Decide> MovedWall<T> {
                     }
                     // A piece in the half-turn after `φ` holds `φ + root`,
                     // one in the half-turn before it `φ − root`.
-                    let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
+                    let half = (geom::mid_param(lo, hi) - phi).reduce_periodic(T::tau());
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
                     crossings.push(line.height(at(theta)));
                 }
