@@ -805,8 +805,7 @@ pub fn bends_into_material<T: Decide>(
     crate::dihedral::decide_positive("wall_bend_order2_arm", Margin::of(arm), band)
         .map_err(|d| WallBendError::Lever(LeverEscalation::arm(d)))?;
     let g = crate::implicit_gradient(surface, p);
-    let g_norm = g.norm();
-    let g_hat = g / g_norm;
+    let (g_hat, g_norm) = g.direction_and_length();
     let trace = crate::implicit::implicit_restricted_trace(surface, p, g_hat);
     let fold = g_hat.dot(outward_normal.vec());
     let mean_into = trace / g_norm * fold / T::from_f64(2.0);
