@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# spline-refusal-holders.sh — a holder of a bare spline-layer refusal is
+# registered as one whose input its caller built. ONE home; ci.yml's
+# `lint` job runs every gate in this directory.
+#
+# THE RULE. `geom_core::spline::SplineError` and `KnotAlgebraError` end
+# on a recourse addressed to whoever supplied the spline or asked for
+# the knot edit. A holder whose input the kernel built (or adopted from
+# a file) holds `geom_core::spline::Built<E>` instead, set at the
+# `map_err` of the kernel's own build: its `Display` is the refused fact
+# alone, so the caller-facing recourse cannot reach a user who never
+# wrote that input, and the holder ends it at its own door. A holder
+# that keeps the bare type passes its caller's own input back to that
+# caller, and says so with a row in the register below.
+#
+# WHAT THE MATCHER SEES: an enum tuple arm `Name(SplineError),` or a
+# field `name: SplineError,` (either type, bare, through `spline::`, or
+# through `geom_core::spline::`) in production code, test modules
+# skipped. WHAT IT CANNOT SEE: a holder through a type alias, a generic
+# parameter, a wrapper enum of its own, a field declared on two lines,
+# or one that stringifies the refusal (`String`). Nor does the register
+# say WHICH arm of a file is the registered one: a second bare holder in
+# a registered file raises its count and fails, but a swap within one
+# file does not, and is held in review.
+set -euo pipefail
+# shellcheck source=scripts/gates/lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+REGISTER=scripts/gates/spline-refusal-holders.counts
+HOLDER_RE='^[^:]*:[0-9]+:[[:space:]]*(pub(\([a-z]+\))?[[:space:]]+)?([A-Z][A-Za-z0-9]*\(|[a-z_][a-z0-9_]*:[[:space:]]*)((pncad::)?geom_core::)?(spline::)?(SplineError|KnotAlgebraError)\)?,$'
+
+gate() {
+  gate_require_crate_sources
+  gate_require_file "$REGISTER" "the bare spline-refusal holder register"
+  gate_production_sources
+  local view
+  view=$(gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}")
+  local live want
+  live=$(printf '%s\n' "$view" | gate_grep -E "$HOLDER_RE" | gate_record_file | sort | uniq -c \
+    | awk '{ print $2, $1 }')
+  want=$(awk '!/^[[:space:]]*(#|$)/ { print $1, $2 }' "$REGISTER" | sort)
+  local diff
+  diff=$(diff <(printf '%s\n' "$live" | sed '/^$/d' | sort) <(printf '%s\n' "$want" | sed '/^$/d') || true)
+  if [ -n "$diff" ]; then
+    printf '%s\n' "$diff"
+    gate_error "bare spline-refusal holders differ from $REGISTER ('<' is the tree, '>' the register): hold geom_core::spline::Built where the kernel built the input, or register the holder with why its caller built it"
+    exit 1
+  fi
+  gate_ok "every bare spline-refusal holder is registered as passing its caller's own input back"
+}
+
+gate_plant_clean() {
+  gate_plant_clean_sources "$1"
+  mkdir -p "$1/scripts/gates"
+  printf '# none\n' > "$1/$REGISTER"
+}
+
+plant_unregistered() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub enum E {\n    Structure(geom_core::spline::SplineError),\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_unregistered_field() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub enum E {\n    Seat {\n        source: KnotAlgebraError,\n    },\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_stale_entry() {
+  printf 'crates/clean/src/lib.rs 1\n' >> "$1/$REGISTER"
+}
+
+plant_registered() {
+  plant_unregistered "$1"
+  printf 'crates/planted/src/lib.rs 1 the caller supplied it\n' >> "$1/$REGISTER"
+}
+
+plant_built() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub enum E {\n    Structure(Built<SplineError>),\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_in_a_test_module() {
+  mkdir -p "$1/crates/planted/src"
+  printf '#[cfg(test)]\nmod rows {\n    pub enum E {\n        Structure(SplineError),\n    }\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+gate_selftest() {
+  local want="bare spline-refusal holders differ"
+  gate_selftest_clean
+  gate_selftest_without_tool grep "it is grep saying it could not search"
+  gate_selftest_case "$want" plant_unregistered
+  gate_selftest_case "$want" plant_unregistered_field
+  gate_selftest_case "$want" plant_stale_entry
+  gate_selftest_passes "a registered holder" plant_registered
+  gate_selftest_passes "a Built holder" plant_built
+  gate_selftest_passes "a holder inside a #[cfg(test)] module" plant_in_a_test_module
+  printf '%s selftest OK: passes a clean tree, a registered holder, a Built one and one in a test module; fires on an unregistered tuple arm and field, and on a register entry the tree no longer carries, and stays RED when grep cannot run\n' "$(gate_name)"
+}
+
+gate_parse_args "$@"
+gate_main

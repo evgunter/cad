@@ -1,0 +1,6 @@
+# file count  why the holder's caller built the refused input
+# (scripts/gates/spline-refusal-holders.sh; a kernel-built input is
+# held as geom_core::spline::Built instead).
+crates/geom-core/src/spline/algebra.rs 1 KnotAlgebraError::Structure: the knot API's caller supplied the curve
+crates/geom-core/src/spline/compose.rs 1 ComposeError::Structure: the compose API's caller supplied the curve data
+crates/geom/src/curves/fit.rs 1 FitError::Structure: the caller asked for degree 0
