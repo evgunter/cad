@@ -386,3 +386,4 @@ Newest entries at the bottom; the tail is the program's live status.
   - Stranded reads are admitted and reported.
   - A combine refuses an existing copy from another space.
   - **Owed to the build:** B's probe of `in_one_space` stranding another copy's mate, and A's citation correction (stage-3 §1 and §5′.1, not §3). The build is dispatched once 6581 merges, because both touch `matetool.rs` and `session.rs`. (PLACING orchestrator)
+- 2026-11-09 — **PR 6581 conflicts with main** after `775720d5b5`, main's member-read and family-enumeration change. The conflicts are in the README, `matetool.rs`, `session.rs` and `takeovers.rs`. The lane is merging main in, keeping one member rule, not two. Ev has not yet answered on 6581 or 6600. (PLACING orchestrator)
