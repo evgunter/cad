@@ -3971,7 +3971,7 @@ impl<T: Decide> Segment<T> {
             Margin::over_lever(self.d.dot(other.d), self.len),
             bnd,
         )
-        .map_err(|source| NamingError::Escalated { predicate, source })?;
+        .map_err(|source| NamingError::Escalated { source })?;
         match way {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
@@ -3996,7 +3996,7 @@ impl<T: Decide> Segment<T> {
             Margin::over_lever((p - self.q0).cross(self.d).norm(), self.len),
             bnd,
         )
-        .map_err(|source| NamingError::Escalated { predicate, source })?;
+        .map_err(|source| NamingError::Escalated { source })?;
         Ok(off == Sign::Zero)
     }
 
@@ -4015,7 +4015,7 @@ impl<T: Decide> Segment<T> {
             return Ok(OnSegment::Off);
         }
         let sign = |m: Margin<T>| {
-            decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { predicate, source })
+            decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { source })
         };
         let past0 = sign(Margin::over_lever((p - self.q0).dot(self.d), self.len))?;
         let past1 = sign(Margin::over_lever((self.q1 - p).dot(self.d), self.len))?;
@@ -4041,7 +4041,7 @@ impl<T: Decide> Segment<T> {
             Margin::over_lever((p - q).dot(self.d), self.len),
             bnd,
         )
-        .map_err(|source| NamingError::Escalated { predicate, source })
+        .map_err(|source| NamingError::Escalated { source })
     }
 
     /// **How this segment lies along `candidates`**, each a key and its
@@ -4237,7 +4237,7 @@ impl<T: Decide> Track<T> {
         bnd: geom_core::Band,
     ) -> Result<Sign, NamingError> {
         decide(predicate, Margin::metered_sup(x, self.rate), bnd)
-            .map_err(|source| NamingError::Escalated { predicate, source })
+            .map_err(|source| NamingError::Escalated { source })
     }
 
     /// `p`'s offset from the start along the carrier, where `p` lies on
@@ -4265,7 +4265,7 @@ impl<T: Decide> Track<T> {
     ) -> Result<Option<T>, NamingError> {
         let gap = |q: Point3<T>| {
             decide(predicate, Margin::of((p - q).norm()), bnd)
-                .map_err(|source| NamingError::Escalated { predicate, source })
+                .map_err(|source| NamingError::Escalated { source })
         };
         let anchor = match self.period {
             Some(per) => {
@@ -5898,7 +5898,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let mut body = built.body.clone();
+        let mut body = built.body.clone().into_body();
         let e0 = body.edges().next().map(|(k, _)| k).unwrap();
         let e1 = body
             .split_edge(e0, 0.25, Tol::witness())
@@ -5980,7 +5980,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let mut body = built.body.clone();
+        let mut body = built.body.clone().into_body();
         let e0 = body.edges().next().map(|(k, _)| k).unwrap();
         let e1 = body
             .split_edge(e0, 0.25, Tol::witness())

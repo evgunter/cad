@@ -53,7 +53,7 @@ fn fixtures(tol: Tol) -> Vec<(&'static str, AtRestBody<f64>)> {
     let block = || {
         finished(
             "the block",
-            brick((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+            brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
             tol,
         )
     };

@@ -99,6 +99,12 @@ enum Governed {
     /// A unit struct, a tuple struct, or an enum all of whose variants
     /// are unit or tuple variants. The attribute is inert.
     NothingToDeny,
+    /// A declaration serde deserializes through another type
+    /// (`#[serde(try_from = …)]` or `#[serde(from = …)]`): the derived
+    /// reader is that type's, so this one's container attributes,
+    /// `deny_unknown_fields` among them, are never read. The attribute
+    /// is inert; the other type's is the one that refuses.
+    Delegated,
     /// The reader could not resolve the site to a declaration. **This
     /// is a red, never a skip**: a walk that cannot parse a site and
     /// shrugs is the failure a census exists to prevent.
@@ -178,6 +184,13 @@ fn verdict(code: &str, at: usize) -> Governed {
             None => return Governed::Unreadable("an attribute before the head never closes"),
         }
     }
+    // The declaration's whole attribute block lies between the previous
+    // item's end and the head, so a delegating attribute on either side
+    // of the needle's is in that span.
+    let block = code[..hash].rfind([';', '}']).map_or(0, |end| end + 1);
+    if delegates(&code[block..i]) {
+        return Governed::Delegated;
+    }
     // The head is read TOKEN BY TOKEN from here — a visibility, the
     // keyword, the name, then the generic parameter list — rather than
     // by searching a slice cut at the first `{`. The cut is what reads
@@ -241,6 +254,23 @@ fn verdict(code: &str, at: usize) -> Governed {
     }
 }
 
+/// Whether an attribute block names a serde conversion door
+/// (`try_from = …` or `from = …`), which hands deserialization to
+/// another type.
+fn delegates(block: &str) -> bool {
+    ["try_from", "from"].iter().any(|key| {
+        let mut rest = block;
+        while let Some(at) = word(rest, key) {
+            let after = skip_ws(rest, at + key.len());
+            if rest[after..].starts_with('=') {
+                return true;
+            }
+            rest = &rest[at + key.len()..];
+        }
+        false
+    })
+}
+
 /// Every attribute site in the tree: `path:line`, and its verdict.
 fn sites(root: &Path) -> Vec<(String, Governed)> {
     let mut out = Vec::new();
@@ -297,6 +327,10 @@ fn offence(site: &str, verdict: &Governed) -> Option<String> {
             "{site} — the declaration has no named field anywhere, so the attribute \
              denies nothing"
         )),
+        Governed::Delegated => Some(format!(
+            "{site} — the declaration deserializes through another type (`try_from` or \
+             `from`), whose reader runs instead, so the attribute denies nothing"
+        )),
         Governed::Unreadable(why) => Some(format!("{site} — unreadable: {why}")),
     }
 }
@@ -339,7 +373,7 @@ const ATTRIBUTE_SITES_TODAY: [(&str, usize); 23] = [
     ("crates/editor-core/src/ident.rs", 1),
     ("crates/editor-core/src/mate.rs", 3),
     ("crates/editor-core/src/mate/orient.rs", 1),
-    ("crates/editor-core/src/measure.rs", 1),
+    ("crates/editor-core/src/measure.rs", 3),
     ("crates/editor-core/src/mint.rs", 1),
     ("crates/editor-core/src/names/nest.rs", 1),
     ("crates/editor-core/src/names/nest_reference.rs", 4),
@@ -433,7 +467,7 @@ fn the_walk_still_sees_every_attribute_site() {
 /// tree.
 #[test]
 fn the_classifier_answers_each_declaration_shape() {
-    let cases: [(&str, Governed, &str); 16] = [
+    let cases: [(&str, Governed, &str); 19] = [
         ("unit struct", Governed::NothingToDeny, "pub struct U;"),
         (
             "tuple struct",
@@ -511,6 +545,21 @@ fn the_classifier_answers_each_declaration_shape() {
             Governed::NothingToDeny,
             "enum E { r#fn(u8), B }",
         ),
+        (
+            "a named struct read through `try_from`",
+            Governed::Delegated,
+            "#[serde(try_from = \"W\")]\npub struct N { a: u8 }",
+        ),
+        (
+            "a struct-variant enum read through `from`",
+            Governed::Delegated,
+            "#[serde(from = \"W\", into = \"W\")]\nenum E { A { w: f64 } }",
+        ),
+        (
+            "a serialize-side `into` alone",
+            Governed::NamedField,
+            "#[serde(into = \"W\")]\npub struct N { a: u8 }",
+        ),
     ];
     for (what, want, decl) in cases {
         let src = format!("#[derive(Deserialize)]\n#[serde({NEEDLE})]\n{decl}\n");
@@ -518,6 +567,17 @@ fn the_classifier_answers_each_declaration_shape() {
         let at = word(&code, NEEDLE).expect("the fixture carries the needle");
         assert_eq!(verdict(&code, at), want, "{what}: {decl}");
     }
+    // A conversion door on EITHER side of the needle's attribute
+    // delegates: the block is read back to the previous item's end.
+    let before = code_only(&format!(
+        "fn f() {{}}\n#[serde(try_from = \"W\")]\n#[serde({NEEDLE})]\npub struct N {{ a: u8 }}\n"
+    ));
+    let at = word(&before, NEEDLE).expect("the fixture carries the needle");
+    assert_eq!(
+        verdict(&before, at),
+        Governed::Delegated,
+        "a `try_from` attribute above the needle's"
+    );
     // The needle in prose is not an attribute site at all, which is the
     // half of the population the code view removes.
     let prose = code_only(&format!(

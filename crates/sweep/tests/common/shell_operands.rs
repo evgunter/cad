@@ -84,6 +84,7 @@ fn revolved_full(lp: ProfileLoop<f64>) -> Body<f64> {
     sweep::revolve(&profile, axis, Revolution::Full, tol)
         .expect("the meridian revolves")
         .body
+        .into_body()
 }
 
 /// **The capped vessel**: a cylinder of radius `r` and height `h`
@@ -126,7 +127,7 @@ pub fn hollow_capped_vessel() -> (Body<f64>, Vec<topo::FaceKey>, f64) {
         })
         .map(|(k, _)| k)
         .collect();
-    (hollow, cap, rho)
+    (hollow.into_body(), cap, rho)
 }
 
 /// **The domed vessel**: a cylinder of radius `r` and height `h` under
@@ -201,6 +202,7 @@ pub fn d_section(r: f64, h: f64) -> Body<f64> {
     )
     .expect("the half disc extrudes")
     .body
+    .into_body()
 }
 
 /// **The dome sector**: [`sweep::test_support::dome`]'s bored zone
@@ -277,7 +279,7 @@ pub fn hollow_box() -> Body<f64> {
     topo::shell(
         &finished(
             "the operand",
-            block(2.0, 3.0, 4.0, Tol::witness()),
+            block::<f64>(2.0, 3.0, 4.0, Tol::witness()),
             Tol::witness(),
         ),
         0.25,
@@ -285,6 +287,7 @@ pub fn hollow_box() -> Body<f64> {
     )
     .expect("the first shell is the sealed row's own green")
     .body
+    .into_body()
 }
 
 /// **The two-void box**: a `6 × 4 × 4` box with two voids of

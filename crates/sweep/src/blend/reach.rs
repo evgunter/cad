@@ -96,7 +96,7 @@ use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
     Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
 };
-use super::surgery::{degenerate, disagrees, loop_walk, unresolved, unwalked};
+use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -290,9 +290,8 @@ enum Bound<T: Real> {
 /// The axial coordinate and the distance from the axis of `x`, about
 /// the unit axis `a` through `o`, as `(ρ, z)`.
 fn sheet_of<T: Real>(o: Point3<T>, a: Vec3<T>, x: Point3<T>) -> (T, T) {
-    let v = x - o;
-    let z = v.dot(a);
-    ((v - a * z).norm(), z)
+    let (z, rho) = geom::Line { origin: o, dir: a }.height_and_distance(x);
+    (rho, z)
 }
 
 /// The largest of a box's eight corner values of `f`.
@@ -360,8 +359,11 @@ fn sheet_box<T: Real>(o: Point3<T>, a: Vec3<T>, cell: &Cell<T>) -> Rect<T> {
     let (rc, zc) = sheet_of(o, a, cell.c);
     let dz = cell.spread(a);
     let across = corner_max(cell.lo, cell.hi, |x| {
-        let v = x - cell.c;
-        (v - a * v.dot(a)).norm()
+        geom::Line {
+            origin: cell.c,
+            dir: a,
+        }
+        .distance(x)
     });
     let top = corner_max(cell.lo, cell.hi, |x| sheet_of(o, a, x).0);
     [(rc - across).max(T::zero()), top, zc - dz, zc + dz]
@@ -1188,8 +1190,12 @@ fn straight_reach<T: Decide + Bounds>(
             .map(|(_, b)| b)
             .collect();
         b.push(tube.clone());
-        let off = foot - st.p;
-        let n = (off - tau * off.dot(tau)).normalize();
+        let n = geom::Line {
+            origin: st.p,
+            dir: tau,
+        }
+        .offset(foot)
+        .normalize();
         let across = half_space(st.p - n * slab, n, foot);
         let gap = |p: Point3<T>| tube.at(p) + chord;
         if !screened(body, (request, taken), f, &b, Some(&across), gap, band)? {
@@ -2643,12 +2649,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         r.skip.dedup();
         reaches.push(r);
     }
-    let boxes = FaceBoxes::of(body, band).map_err(|e| {
-        degenerate(
-            EntityId::Face(e.0),
-            "a face's stored surface, which its box reads",
-        )
-    })?;
+    let boxes = FaceBoxes::of(body, band);
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.

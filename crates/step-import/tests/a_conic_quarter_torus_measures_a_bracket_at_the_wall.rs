@@ -303,9 +303,8 @@ fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
         panic!("the conic torus segment imports as a solid");
     };
     let walls = body
-        .body()
         .faces()
-        .filter(|(fk, _)| matches!(body.body().face_surface(*fk), Some(geom::Surface::Nurbs(_))))
+        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
         .count();
     // The import splits each wall at its C⁰ knots (`docs/DESIGN.md`
     // [topology]); the measure then reads one-span walls.

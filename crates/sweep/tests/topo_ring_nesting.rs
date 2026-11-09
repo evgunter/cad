@@ -51,6 +51,7 @@ fn plate(loops: &[&[(f64, f64, f64)]], h: f64) -> Body<f64> {
     )
     .expect("the plate extrudes")
     .body
+    .into_body()
 }
 
 fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<(f64, f64, f64)> {

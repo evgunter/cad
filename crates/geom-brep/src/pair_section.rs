@@ -1365,6 +1365,17 @@ pub enum SiteRefusal {
     /// The site lies on no component, or on two: the site was not read
     /// from this section.
     Desync(&'static str),
+    /// A spline component's piece walk could not run: a limit, not a
+    /// fault.
+    Unwalked(geom::PieceWalkRefusal),
+}
+
+impl From<geom::CarrierRefusal> for SiteRefusal {
+    fn from(refusal: geom::CarrierRefusal) -> Self {
+        refusal
+            .escalation()
+            .map_or_else(Self::Unwalked, Self::Escalated)
+    }
 }
 
 impl<T: Decide> PairSection<T> {
@@ -2301,6 +2312,9 @@ pub enum CarryError {
     TubeUnread,
     /// The march and the classification disagree.
     Desync(&'static str),
+    /// A spline component's piece walk could not run
+    /// ([`SiteRefusal::Unwalked`]).
+    Unwalked(geom::PieceWalkRefusal),
     /// A closed fitted component could not be opened at its first site
     /// ([`PairSection::seat`]): the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
@@ -2381,10 +2395,7 @@ impl<T: Decide> CarriedComponent<T> {
         match self.carrier.on_carrier(p, self.span.0, padded) {
             Ok(OnCarrier::On { t, .. }) => self.within_span(t, band),
             Ok(OnCarrier::Off) => Ok(None),
-            Err(refusal) => Err(refusal.escalation().map_or(
-                SiteRefusal::Desync("a point's distance from a fitted component could not be read"),
-                SiteRefusal::Escalated,
-            )),
+            Err(refusal) => Err(refusal.into()),
         }
     }
 
@@ -2476,6 +2487,7 @@ impl<T: Decide> CarriedComponent<T> {
             .map_err(|e| match e {
                 SiteRefusal::Escalated(diag) => CarryError::Escalated(diag),
                 SiteRefusal::Desync(what) => CarryError::Desync(what),
+                SiteRefusal::Unwalked(why) => CarryError::Unwalked(why),
             })
     }
 }
@@ -2770,6 +2782,42 @@ mod wiring {
             return Err("spline_pair is not `spline_pair::section`");
         }
         Ok(())
+    }
+
+    /// **A spline component whose walk cannot run refuses on a limit**: a
+    /// point off a spline whose control points coincide has no foot gap
+    /// in the band, and the carrier's zero speed bound gives its piece
+    /// walk no reach to clear by, so [`super::CarriedComponent::reads`]
+    /// refuses `Unwalked`, never a desync.
+    #[test]
+    fn a_component_whose_walk_cannot_run_refuses_unwalked() {
+        use geom_core::{Band, Point3, Tol};
+        let at = Point3::new(0.3, -0.2, 0.1);
+        let net = geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![at, at],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net));
+        let component = super::CarriedComponent {
+            witness: at,
+            carrier,
+            span: (0.0, 1.0),
+            shape: super::ComponentShape::Loop,
+            certificate: None,
+            winds: [false, false],
+            pad: 0.0,
+            reach: 0.0,
+        };
+        let band = Band::linear(Tol::witness()).unwrap();
+        assert_eq!(
+            component.reads(Point3::new(1.0, 0.0, 0.0), band),
+            Err(super::SiteRefusal::Unwalked(
+                geom::PieceWalkRefusal::Unbounded
+            )),
+            "a walk with no speed bound is a limit of the reading"
+        );
     }
 
     /// **An undecided nearness to the start refuses**: a seat one band

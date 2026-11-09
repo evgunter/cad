@@ -116,10 +116,13 @@ fn a_conical_ended_football_revolves() {
         ("the lemon", LEMON),
         ("the apple", APPLE),
         ("the lemon near its apexes", near_apex),
+        // Far out, but inside the 1 km session box: at (1e3, 1e3) it
+        // reached about 1.41 km, past it, and the finished-body gate
+        // refuses that (`OutsideSessionBox`).
         (
-            "the lemon a thousand out",
+            "the lemon 920 m out",
             Band {
-                at: (1e3, 1e3),
+                at: (650.0, 650.0),
                 ..LEMON
             },
         ),
@@ -158,8 +161,7 @@ fn a_conical_ended_football_revolves() {
             .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
         mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{what}: the mesh: {e:?}"));
         crate::common::differential::assert_meshed_geometry(what, &built.body, &mesh, delta);
-        let body = topo::AtRestBody::validate(built.body, tol)
-            .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
+        let body = built.body;
         let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("{what}: {e:?}"));
         let (volume, area) = band.exact();
@@ -213,7 +215,7 @@ fn frustum((r0, z0): (f64, f64), (r1, z1): (f64, f64)) -> (f64, f64) {
 /// A built body's tier 3, props against `(volume, area)` within `rel`
 /// plus the enclosure's pads, and its mesh: closed, wound outward on
 /// every curved face, its volume within the chordal deficit.
-fn holds_exact(what: &str, body: topo::Body<f64>, (volume, area): (f64, f64), rel: f64) {
+fn holds_exact(what: &str, body: topo::AtRestBody<f64>, (volume, area): (f64, f64), rel: f64) {
     let tol = Tol::witness();
     let delta = 1e-2;
     let mesh =
@@ -225,8 +227,6 @@ fn holds_exact(what: &str, body: topo::Body<f64>, (volume, area): (f64, f64), re
         (mv - volume).abs() <= delta * area,
         "{what}: mesh volume {mv} against {volume}"
     );
-    let body =
-        topo::AtRestBody::validate(body, tol).unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
     let p = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{what}: props: {e:?}"));
     let g = p.enclosure;
@@ -385,8 +385,7 @@ fn the_wide_apple_measures_and_its_mesh_refuses_typed() {
         "the wide apple's mesh: {:?}",
         mesh.map(|_| "meshed")
     );
-    let body = topo::AtRestBody::validate(built.body, tol)
-        .unwrap_or_else(|e| panic!("the wide apple: tier 3: {e:?}"));
+    let body = built.body;
     let g = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("the wide apple: props: {e:?}"))
         .enclosure;
@@ -464,8 +463,7 @@ fn props_meets_an_independent_quadrature_on_every_band() {
             tol,
         )
         .unwrap_or_else(|e| panic!("{what}: {e}"));
-        let body = topo::AtRestBody::validate(built.body, tol)
-            .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
+        let body = built.body;
         let g = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("{what}: props: {e:?}"))
             .enclosure;

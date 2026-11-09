@@ -106,7 +106,7 @@ fn r1_every_donut_split_is_the_donut_bitwise() {
         for fracs in [&[0.5][..], &[0.3129, 0.15645][..]] {
             let body = split_donut(i, fracs);
             let r = receipts(&body);
-            let mp = match topo::AtRestBody::validate(body.clone(), tol) {
+            let mp = match topo::finish(body.clone(), tol) {
                 Ok(finished) => topo::mass_properties(
                     &finished,
                     tol,
@@ -419,7 +419,7 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
                     continue;
                 }
                 let r = receipts(&body);
-                let mp = match topo::AtRestBody::validate(body.clone(), tol) {
+                let mp = match topo::finish(body.clone(), tol) {
                     Ok(finished) => topo::mass_properties(
                         &finished,
                         tol,

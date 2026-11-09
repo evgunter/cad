@@ -63,6 +63,7 @@ fn cone_wedge(s: f64, theta: f64) -> Body<f64> {
     revolve(&profile, axis, Revolution::Partial(theta), Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// Exact distance to the complete cone locus (both nappes; apex

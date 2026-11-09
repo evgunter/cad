@@ -5,6 +5,7 @@ title: A part's name enters the host verbatim, so its node id is the part's, rea
 status: open
 priority: P2
 opened: 2026-10-23
+cost: M
 ---
 
 

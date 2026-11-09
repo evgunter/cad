@@ -51,7 +51,10 @@ fn lune(turn: Revolution<f64>) -> Body<f64> {
         origin: geom_core::Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, turn, Tol::witness()).unwrap().body
+    revolve(&vp, axis, turn, Tol::witness())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 /// A unit ball pierced by a tiny flat disc at the SOUTH pole, so its
@@ -98,7 +101,10 @@ fn rimmed_ball(u_r: f64, turn: Revolution<f64>) -> Body<f64> {
         origin: geom_core::Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, turn, Tol::witness()).unwrap().body
+    revolve(&vp, axis, turn, Tol::witness())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {

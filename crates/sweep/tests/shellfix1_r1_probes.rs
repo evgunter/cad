@@ -45,6 +45,7 @@ fn revolved_full(pts: &[(f64, f64)]) -> Body<f64> {
     )
     .expect("meridian revolves")
     .body
+    .into_body()
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
@@ -61,6 +62,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     )
     .expect("profile extrudes")
     .body
+    .into_body()
 }
 
 /// Every planar face whose plane origin sits at height `y` about the

@@ -591,7 +591,7 @@ fn ruling_pairs<T: Decide>(
             dir: dir.normalize(),
         });
     }
-    let off = |p: Point3<T>, line: geom::Line<T>| (p - line.origin).cross(line.dir).norm();
+    let off = |p: Point3<T>, line: geom::Line<T>| line.distance(p);
     let mut on: [Vec<&Crossing<T>>; 2] = [Vec::new(), Vec::new()];
     for c in crossings {
         let reading = match c.germ {

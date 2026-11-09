@@ -69,6 +69,7 @@ mod certified {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn encloses(vol: Interval, analytic: f64, what: &str) {
@@ -123,7 +124,11 @@ mod certified {
     #[test]
     fn interval_curved_subtract_and_intersect_decide_definitely() {
         let a = finished("the plate", plate(), Tol::witness());
-        let b = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
+        let b = finished(
+            "the boss",
+            m5_boss::<geom_core::Interval>(3, 0.3, 1.0),
+            Tol::witness(),
+        );
         let cut =
             topo::subtract(&a, &b, Tol::witness()).expect("curved subtract decides at Interval");
         let cut = &cut.body().expect("a body").body;
@@ -301,7 +306,11 @@ mod certified {
             }
             // The cylinder class is unaffected by the arc-chain width
             // and still decides at this scalar.
-            let boss = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
+            let boss = finished(
+                "the boss",
+                m5_boss::<geom_core::Interval>(3, 0.3, 1.0),
+                Tol::witness(),
+            );
             assert!(topo::subtract(&plate, &boss, Tol::witness()).is_ok());
             return;
         }
@@ -335,7 +344,11 @@ mod certified {
         );
         // And the cylinder class still decides at this scalar (S13
         // opens a class, it does not trade one away).
-        let boss = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
+        let boss = finished(
+            "the boss",
+            m5_boss::<geom_core::Interval>(3, 0.3, 1.0),
+            Tol::witness(),
+        );
         assert!(topo::subtract(&plate, &boss, Tol::witness()).is_ok());
     }
 }

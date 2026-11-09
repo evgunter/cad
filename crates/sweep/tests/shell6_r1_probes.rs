@@ -53,6 +53,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 fn frustum(r0: f64, r1: f64) -> Body<f64> {

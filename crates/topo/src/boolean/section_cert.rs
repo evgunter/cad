@@ -228,8 +228,8 @@
 //! parallel or coaxial reading is taken. `decide` meters in metres, so
 //! each is levered by the distance over which the tilt can act on the
 //! section. The section matters only inside the pair's **reach**
-//! ([`Reach`]): the ball about the centre of the overlap of the two
-//! faces' certified boxes, radius its half-diagonal.
+//! ([`Reach`]): the ball where the two faces' covers meet, widened by
+//! the band's sweep tolerance (`cover::meet_within`).
 //!
 //! - **The pivot.** An offset between two nearly parallel axes is read
 //!   at the partner axis's point nearest the reach's centre, never at
@@ -472,7 +472,8 @@ pub(crate) enum Section<T: Real> {
         single: bool,
     },
     /// A classification margin is `Zero` or undecided: R-tan, naming the
-    /// predicate.
+    /// predicate ([`geom_core::UNNAMED_PREDICATE`] for an escalation that
+    /// named none).
     Tangent(&'static str),
     /// A crossing of the carriers the classification cannot place on
     /// either side of a line it reads the section by: R-order, naming the
@@ -636,11 +637,6 @@ impl Refusal {
     }
 }
 
-/// The unit vector along `v`.
-fn unit<T: Real>(v: Vec3<T>) -> Vec3<T> {
-    v / v.norm()
-}
-
 use geom_brep::square_part as perp_to;
 
 /// **The meridian half-plane `Π` of the torus `(c, a)` toward `v`**: the
@@ -782,10 +778,10 @@ pub(crate) fn classify_known<T: Decide>(
         (S::Cylinder { .. }, S::Plane { .. }) => cylinder_plane(),
         (S::Plane { .. }, S::Cylinder { .. }) => swapped(cylinder_plane()),
         (&S::Sphere { center, radius, .. }, &S::Plane { origin, normal, .. }) => {
-            sphere_plane(center, radius, origin, unit(normal), band)
+            sphere_plane(center, radius, origin, normal.normalize(), band)
         }
         (&S::Plane { origin, normal, .. }, &S::Sphere { center, radius, .. }) => {
-            sphere_plane(center, radius, origin, unit(normal), band)
+            sphere_plane(center, radius, origin, normal.normalize(), band)
         }
         (
             &S::Sphere {
@@ -879,10 +875,10 @@ fn torus_pair<T: Decide>(
     if geom::require_ring_torus(big_r, r, band).is_err() {
         return Section::Intractable;
     }
-    let a = unit(axis);
+    let a = axis.normalize();
     match *p {
         geom::Surface::Plane { origin, normal, .. } => {
-            torus_plane(c, a, big_r, r, origin, unit(normal), band)
+            torus_plane(c, a, big_r, r, origin, normal.normalize(), band)
         }
         geom::Surface::Cone {
             apex,
@@ -890,7 +886,7 @@ fn torus_pair<T: Decide>(
             half_angle,
             ..
         } => {
-            let d = unit(d);
+            let d = d.normalize();
             // `z` is read along the cone's axis from its own apex: the
             // turn onto the torus axis moves it by the torus centre's
             // station from the pivot times `1 − cos` (at most `sin²`),
@@ -927,7 +923,7 @@ fn torus_pair<T: Decide>(
                     }
                 }
                 AxisPose::Undecided(diag) => {
-                    Section::Tangent(diag.predicate.unwrap_or("section_axes_offset"))
+                    Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
                 }
                 AxisPose::Parallel { .. } | AxisPose::Other => Section::Intractable,
             }
@@ -1050,7 +1046,7 @@ pub(super) fn torus_plane_loops<T: Decide>(
     (p0, n): (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let (a, n) = (unit(a), unit(n));
+    let (a, n) = (a.normalize(), n.normalize());
     let (_, s) = perp_to(n, a);
     match plane_cut(big_r, r, n.dot(p0 - c), s, band) {
         PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
@@ -1083,7 +1079,7 @@ fn cone_pair<T: Decide>(
     let cone = Cone::new(apex, axis, half_angle, u_ref);
     match *p {
         geom::Surface::Plane { origin, normal, .. } => {
-            cone_plane(&cone, origin, unit(normal), reach, band)
+            cone_plane(&cone, origin, normal.normalize(), reach, band)
         }
         geom::Surface::Sphere { center, radius, .. } => cone_sphere(&cone, center, radius, band),
         geom::Surface::Cylinder {
@@ -1093,7 +1089,7 @@ fn cone_pair<T: Decide>(
             ..
         } => match axis_pose(
             (apex, cone.a),
-            (origin, unit(d)),
+            (origin, d.normalize()),
             |_| T::zero(),
             reach.ball(),
             band,
@@ -1106,7 +1102,7 @@ fn cone_pair<T: Decide>(
             // The ruling charts read the pose as it stands, with nothing
             // bridged, so an offset neither reading claims is theirs.
             AxisPose::Undecided(_) | AxisPose::Other => {
-                cone_cylinder(&cone, origin, unit(d), rc, reach, band)
+                cone_cylinder(&cone, origin, d.normalize(), rc, reach, band)
             }
         },
         geom::Surface::Cone {
@@ -1116,11 +1112,11 @@ fn cone_pair<T: Decide>(
             u_ref: u_ref2,
         } => match axis_pose(
             (apex, cone.a),
-            (apex2, unit(d)),
+            (apex2, d.normalize()),
             // The apexes' gap is read off `apex2` itself, which the turn
             // onto the first axis moves along it by its station from the
             // pivot times `1 − cos`, at most `sin²`.
-            |t| (apex2 - t.at).dot(unit(d)).abs() * t.tilt.powi(2),
+            |t| (apex2 - t.at).dot(d.normalize()).abs() * t.tilt.powi(2),
             reach.ball(),
             band,
         ) {
@@ -1422,7 +1418,7 @@ fn cone_plane_pair<T: Decide>(
     let delta = one.apex - two.apex;
     let w = one.a * one.a.dot(delta) - delta * one.sc.1.powi(2);
     let mid = two.apex + delta * T::from_f64(0.5);
-    match cone_plane(one, mid, unit(w), reach, band) {
+    match cone_plane(one, mid, w.normalize(), reach, band) {
         Section::Components { parts, single } => Section::Components {
             parts: parts
                 .into_iter()
@@ -1770,11 +1766,8 @@ pub(super) fn of_pair_section<T: Decide>(
                 single: false,
             };
         }
-        // Every row the value decides goes through `k_stats`, which names
-        // the predicate it escalates; one with no name is the value's
-        // door itself.
         Err(SectionError::Escalated(diag)) => {
-            return Section::Tangent(diag.predicate.unwrap_or("pair_section"));
+            return Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE));
         }
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
@@ -1945,7 +1938,8 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::TubeUnread
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
-            | CarryError::Seat(_),
+            | CarryError::Seat(_)
+            | CarryError::Unwalked(_),
         ) => return Section::Unmarched,
     };
     let components = section.components();

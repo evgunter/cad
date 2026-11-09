@@ -49,7 +49,7 @@
 //! tier 2 out, where a door whose argument means something about
 //! material takes an [`crate::AtRestBody`] (`crates/topo/README.md`,
 //! "Shell and offset surgery"). Its result becomes finished only
-//! through [`crate::AtRestBody::validate`]: on an inside-out solid the
+//! through the scalar's finish ([`crate::finish`]): on an inside-out solid the
 //! charts move as they would on any other, and the result refuses
 //! there as the operand would, `NegativeVolume`.
 //!
@@ -317,26 +317,25 @@ use slotmap::SecondaryMap;
 /// being judged.
 #[derive(Clone, Copy)]
 struct Frame<T: Real> {
-    origin: Point3<T>,
-    dir: Vec3<T>,
+    /// The axis, its `dir` unit.
+    axis: geom::Line<T>,
     extent: Lever<T>,
 }
 
 impl<T: Real> Frame<T> {
     /// `p`'s station along the axis.
     fn station(&self, p: Point3<T>) -> T {
-        (p - self.origin).dot(self.dir)
+        self.axis.param(p)
     }
 
     /// `p`'s radial offset vector from the axis.
     fn radial(&self, p: Point3<T>) -> Vec3<T> {
-        let v = p - self.origin;
-        v - self.dir * v.dot(self.dir)
+        self.axis.offset(p)
     }
 
     /// `p` rebuilt from axial coordinates and an azimuth direction.
     fn place(&self, rho: T, h: T, e: Vec3<T>) -> Point3<T> {
-        self.origin + self.dir * h + e * rho
+        self.axis.at(h) + e * rho
     }
 }
 
@@ -1060,7 +1059,11 @@ fn axial_frame<T: Real>(
     // station of `0.2` came back `0.19999999999999996` purely from
     // subtracting and re-adding `2.0`. Measured on the byte-dump
     // harness, which now reports the curved fixtures unchanged.
-    let origin = seed_origin - dir * (vec_of(seed_origin)).dot(dir);
+    let origin = geom::Line {
+        origin: seed_origin,
+        dir,
+    }
+    .foot(Point3::origin());
     // The extent is the SCOPE's own furthest vertex from the axis
     // point: the length a direction error would move a corner by, which
     // is the geometry every alignment verdict here is about. A box
@@ -1089,8 +1092,7 @@ fn axial_frame<T: Real>(
             far.max(ExtentBall::point(origin).lever_from(body.point_of(key, vertex)))
         });
     Ok(Frame {
-        origin,
-        dir,
+        axis: geom::Line { origin, dir },
         extent,
     })
 }
@@ -1125,7 +1127,7 @@ fn classify<T: Decide>(
     let on_axis = |p: Point3<T>| {
         centre_on_axis(frame, p, band).map_err(|source| ReplaceFaceError::Escalated { source })
     };
-    let parallel = |v: Vec3<T>| v.normalize().cross(frame.dir).norm();
+    let parallel = |v: Vec3<T>| v.normalize().cross(frame.axis.dir).norm();
     Ok(match surface {
         Surface::Plane { origin, normal, .. } => {
             let n = normal.normalize();
@@ -1137,7 +1139,7 @@ fn classify<T: Decide>(
                 // else cuts the body obliquely to its own axis of
                 // revolution — a corner this reduction has no
                 // coordinates for.
-                if !sine(n.dot(frame.dir).abs(), "offset_axial_axis_parallel")? {
+                if !sine(n.dot(frame.axis.dir).abs(), "offset_axial_axis_parallel")? {
                     return Err(not_axial(
                         "a plane neither normal to the axis nor parallel to it",
                     ));
@@ -1529,7 +1531,7 @@ fn solve_corner<T: Decide>(
                     )? * r
                 }
             };
-            return Ok(frame.origin + frame.dir * h);
+            return Ok(frame.axis.at(h));
         }
     }
 
@@ -1607,10 +1609,10 @@ fn solve_corner<T: Decide>(
         // to a line's `t = 0` anchor.
         [] => Ok(frame.place(rho, h, e_old)),
         [(m, c)] => {
-            let w = frame.dir.cross(e_old);
+            let w = frame.axis.dir.cross(e_old);
             let a_co = rho * m.dot(e_old);
             let b_co = rho * m.dot(w);
-            let rhs = c - m.dot(vec_of(frame.origin)) - m.dot(frame.dir) * h;
+            let rhs = c - m.dot(vec_of(frame.axis.origin)) - m.dot(frame.axis.dir) * h;
             let amp = Vec3::new(a_co, b_co, T::zero()).norm();
             // The two azimuths are `φ₀ ± Δ`, and the points they name are
             // `2ρ·sin Δ` apart — a LENGTH, which dies exactly as the
@@ -1734,8 +1736,8 @@ fn cap_pair_corner<T: Decide>(
     // pair's transversality is the sine between their cross-section
     // normals, levered by the corner's own arms exactly as the profile
     // pairs' is: the solve divides by it, so it is decided first.
-    let mp0 = m0 - frame.dir * m0.dot(frame.dir);
-    let mp1 = m1 - frame.dir * m1.dot(frame.dir);
+    let mp0 = m0 - frame.axis.dir * m0.dot(frame.axis.dir);
+    let mp1 = m1 - frame.axis.dir * m1.dot(frame.axis.dir);
     let (n0, n1) = (mp0.norm(), mp1.norm());
     // The divisors are certified UPSTREAM, not here: `m0`/`m1` are unit
     // meridian normals whose axial component `classify` decided Zero at
@@ -1743,7 +1745,7 @@ fn cap_pair_corner<T: Decide>(
     // each cross-section projection keeps norm ~1 — a certified
     // distance from zero this division stands on, cited rather than
     // re-decided (one derivation, the module's own law).
-    let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.dir);
+    let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.axis.dir);
     for &arm in arms {
         match decide(
             "offset_axial_cap_pair",
@@ -1761,9 +1763,9 @@ fn cap_pair_corner<T: Decide>(
         }
     }
     let e1 = mp0 / n0;
-    let e2 = frame.dir.cross(e1);
-    let rhs0 = c0 - m0.dot(vec_of(frame.origin));
-    let rhs1 = c1 - m1.dot(vec_of(frame.origin));
+    let e2 = frame.axis.dir.cross(e1);
+    let rhs0 = c0 - m0.dot(vec_of(frame.axis.origin));
+    let rhs1 = c1 - m1.dot(vec_of(frame.axis.origin));
     let alpha = rhs0 / n0;
     let beta = (rhs1 - alpha * mp1.dot(e1)) / (n1 * sine);
     let rho_line = Vec3::new(alpha, beta, T::zero()).norm();
@@ -2189,7 +2191,7 @@ fn mint_carrier<T: Decide>(
                     }
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-                translate(e / n * ca.distance)
+                translate(e.normalize() * ca.distance)
             }
             // A sphere's seam is a GREAT circle about the sphere's own
             // centre, and the offset is concentric: same centre, same
@@ -2319,7 +2321,7 @@ fn mint_carrier<T: Decide>(
             let Some(line) = l.as_line() else {
                 unreachable!("{edge:?}: a generator pair is two lines")
             };
-            line.offset(q_mid).norm()
+            line.distance(q_mid)
         };
         let chosen = match decide(
             "offset_axial_generator_side",
@@ -2497,8 +2499,11 @@ fn mint_carrier<T: Decide>(
             // carries no line. A cone and a plane parallel to its axis,
             // the pair whose section leaves the line, take their own
             // section above.
-            let shift = p_start - old.eval(t0_old);
-            let delta = shift - *dir * shift.dot(*dir);
+            let delta = geom::Line {
+                origin: old.eval(t0_old),
+                dir: *dir,
+            }
+            .offset(p_start);
             Ok(Curve3::line(*origin + delta, *dir))
         }
         Curve3::Circle(geom::Circle {
@@ -2679,7 +2684,7 @@ fn latitude_posture<T: Decide>(
             "a circular edge between two charts whose centre is off the axis",
         ));
     }
-    let tilt = axis.normalize().cross(frame.dir).norm();
+    let tilt = axis.normalize().cross(frame.axis.dir).norm();
     match decide(
         "offset_axial_latitude_tilt",
         Margin::levered(tilt, frame.extent),
@@ -2705,7 +2710,7 @@ fn latitude_circle<T: Real>(
     u_ref: Vec3<T>,
 ) -> Curve3<T> {
     Curve3::circle(
-        frame.origin + frame.dir * frame.station(p_start),
+        frame.axis.foot(p_start),
         axis,
         frame.radial(p_start).norm(),
         u_ref,
@@ -2809,10 +2814,11 @@ fn param_on<T: Decide>(
             ..
         }) => {
             let n = axis.normalize();
-            let ray = |x: Point3<T>| {
-                let v = x - *center;
-                v - n * v.dot(n)
+            let axis_line = geom::Line {
+                origin: *center,
+                dir: n,
             };
+            let ray = |x: Point3<T>| axis_line.offset(x);
             let (a, b) = (ray(q), ray(p));
             anchor + a.cross(b).dot(n).atan2(a.dot(b))
         }
@@ -2964,15 +2970,15 @@ fn keep_turn<T: Decide>(
 /// norm minus a radius.
 fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T>) -> T {
     match surface {
-        Surface::Plane { origin, normal, .. } => normal.dot(p - *origin),
+        Surface::Plane { origin, normal, .. } => geom::plane_offset(*origin, *normal, p),
         Surface::Cylinder { radius, .. } => frame.radial(p).norm() - *radius,
         Surface::Sphere { center, radius, .. } => p.distance(*center) - *radius,
         // The double cone's elevation about the frame's own axis line
-        // (`frame.dir` is the cone's axis up to sign, and the
+        // (`frame.axis.dir` is the cone's axis up to sign, and the
         // double-cone reading is symmetric in it).
         Surface::Cone {
             apex, half_angle, ..
-        } => geom_brep::cone_elevation(*apex, frame.dir, *half_angle, None, p),
+        } => geom_brep::cone_elevation(*apex, frame.axis.dir, *half_angle, None, p),
         // The torus's own meridian distance, in the same `(ρ, h)`
         // half-plane the corner solve works in. Without it the
         // edge-on-surface meter would read `zero` on every torus chart
@@ -3230,10 +3236,8 @@ fn azimuth_turn<T: Decide>(
         Ok(Sign::Zero) => Ok(None),
         Ok(_) => {
             let a = dir.normalize();
-            let radial = |p: Point3<T>| {
-                let v = p - origin;
-                v - a * v.dot(a)
-            };
+            let axis_line = geom::Line { origin, dir: a };
+            let radial = |p: Point3<T>| axis_line.offset(p);
             let (from, to) = (radial(old), radial(moved));
             Ok(Some(a.dot(from.cross(to)).atan2(from.dot(to))))
         }

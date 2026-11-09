@@ -24,14 +24,15 @@ use topo::{
 };
 
 /// A public boolean op as a value.
-type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> =
+    fn(&topo::AtRestBody<T>, &topo::AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Runs one op functionally, checking the operands stayed bitwise untouched and the
 /// result passes tier 1 + 2.
-fn run<T: Decide + geom_core::Bounds>(
+fn run<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Decide + geom_core::Bounds>(
     op: BoolOp<T>,
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
 ) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let out = op(a, b, Tol::witness()).unwrap();
@@ -45,16 +46,18 @@ fn run<T: Decide + geom_core::Bounds>(
 }
 
 /// The brick `x × y × z`, finished.
-fn finished_brick<T: Decide + topo::AtRestPolicy>(
+fn finished_brick<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
-) -> AtRestBody<T> {
+) -> topo::AtRestBody<T> {
     let tol = Tol::witness();
     finished("brick", brick::<T>(x, y, z, tol), tol)
 }
 
-fn body_of<T: Decide + geom_core::Bounds>(r: &BooleanResult<T>) -> &BooleanBody<T> {
+fn body_of<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Decide + geom_core::Bounds>(
+    r: &BooleanResult<T>,
+) -> &BooleanBody<T> {
     r.body().expect("non-empty boolean result")
 }
 
@@ -85,7 +88,9 @@ fn assert_tier3_posture(body: &Body<f64>) {
 /// Generic op-runner for the interval lane: censuses + kinds only
 /// (exact-value oracles are the f64 lane's; Interval has no PartialEq
 /// by design).
-fn generic_scenarios<T: Decide + geom_core::Bounds + topo::AtRestPolicy>() {
+fn generic_scenarios<
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     let (a, b) = two_bricks::<T>();
     for (op, faces) in [
         (topo::intersect as BoolOp<T>, 6),
@@ -126,8 +131,9 @@ mod interval {
     }
 }
 
-fn two_bricks<T: Decide + geom_core::Bounds + topo::AtRestPolicy>() -> (AtRestBody<T>, AtRestBody<T>)
-{
+fn two_bricks<
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() -> (topo::AtRestBody<T>, topo::AtRestBody<T>) {
     (
         finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
         finished_brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0)),
@@ -412,12 +418,12 @@ fn subtract_and_intersect_partition_a_and_a_complement_is_unfinished() {
     let corpus: Vec<(&str, AtRestBody<f64>, AtRestBody<f64>)> = vec![
         (
             "two-brick",
-            finished_brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
-            finished_brick((1.0, 3.0), (1.0, 3.0), (1.0, 3.0)),
+            finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
+            finished_brick::<f64>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0)),
         ),
         (
             "pocket",
-            finished_brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
+            finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
             finished_brick((0.75, 1.25), (0.75, 1.25), (1.5, 2.5)),
         ),
         (
@@ -495,7 +501,7 @@ pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRe
     .expect("the pinned resolution is met")
     .volume;
     assert_eq!(minus + meet, whole, "{name}: A∖B and A∩B partition A");
-    let refused = AtRestBody::validate(b.revert().unwrap(), Tol::witness())
+    let refused = topo::finish(b.revert().unwrap(), Tol::witness())
         .expect_err("a complement is not a finished body");
     assert!(
         !refused.is_empty()

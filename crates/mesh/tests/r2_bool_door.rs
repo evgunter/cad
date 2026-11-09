@@ -19,7 +19,8 @@ use geom_core::Tol;
 use topo::{BooleanInputs, BooleanOp, boolean_op_with};
 
 fn slab(y0: f64) -> topo::AtRestBody<f64> {
-    let body = sweep::test_support::brick((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness());
+    let body =
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness());
     topo::test_support::finished("the slab", body, Tol::witness())
 }
 

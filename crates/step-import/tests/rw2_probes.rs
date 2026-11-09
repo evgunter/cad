@@ -56,7 +56,7 @@ fn half_circle_section(s: f64) -> sweep::Section {
     ])]
 }
 
-fn native_arc_loft() -> topo::Body<f64> {
+fn native_arc_loft() -> topo::AtRestBody<f64> {
     loft_body::<f64>(
         &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],
         &stacked(&[0.0, 1.0, 2.0], 1.0),

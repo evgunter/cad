@@ -45,6 +45,7 @@ fn ball() -> Body<f64> {
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn donut() -> Body<f64> {
@@ -60,6 +61,7 @@ fn donut() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// `b` turned by `angle` about `axis` through the origin, then moved by `t`.
@@ -89,7 +91,7 @@ fn placed(b: &Body<f64>, axis: Vec3<f64>, angle: f64, t: Vec3<f64>) -> AtRestBod
 fn trim_refusal_on(e: &BooleanError, face: &str) -> bool {
     matches!(
         e,
-        BooleanError::ResultInvalid { errors } if matches!(
+        BooleanError::ResultInvalid { findings: errors } if matches!(
             errors.as_slice(),
             [ValidationError::VolumeUncomputable {
                 source: MassPropsError::Face {
@@ -157,7 +159,7 @@ fn a_ball_against_a_donut_carries_onto_the_torus_and_stops_at_the_volume() {
             .unwrap_or_else(|| panic!("about the axis, {order}: the union built; re-pin it"));
         let trims = matches!(
             &e,
-            BooleanError::ResultInvalid { errors } if matches!(
+            BooleanError::ResultInvalid { findings: errors } if matches!(
                 errors.as_slice(),
                 [ValidationError::VolumeUncomputable {
                     source: MassPropsError::Face {

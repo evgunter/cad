@@ -92,8 +92,8 @@ use pncad::analysis::{
     AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets, summarize,
 };
 use pncad::document::{
-    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId,
-    ValuePayload, VarId, apply, evaluate,
+    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId, VarId,
+    apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -141,9 +141,10 @@ struct Sample {
 
 /// The body a node evaluated to.
 fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        other => panic!("a hole extrude evaluates to a body, got {other:?}"),
+    let payload = &ev.value(id).expect("the node evaluated").payload;
+    match payload.one_body() {
+        Some(Some(b)) => crate::world::in_its_space(b, tol),
+        _ => panic!("a hole extrude evaluates to a body, got {payload:?}"),
     }
 }
 

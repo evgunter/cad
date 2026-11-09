@@ -34,6 +34,7 @@ fn wavy(a: f64, tol: Tol) -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0, 2.0, 3.0]), 2, tol)
         .expect("the wavy loft skins")
         .body
+        .into_body()
 }
 
 fn carrier(body: &Body<f64>, e: EdgeKey) -> (&geom::Curve3<f64>, (f64, f64)) {

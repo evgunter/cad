@@ -1,7 +1,7 @@
 ---
 id: census-interiors-fold-a-meetings-fault-into-unbuilt
 kind: issue
-title: census: arc_interiors_meet folds a meeting's kernel fault (Desync, Contradiction) into InteriorsUnread::Unbuilt, the census's frontier
+title: census: InteriorsUnread::of files MeetFault::Unsettled as Unbuilt, a limit, where a coarser band may settle it (its fault fold is gone)
 status: open
 opened: 2026-10-29
 priority: P3
@@ -52,3 +52,29 @@ So the repair has two parts:
 
 This section leaves the row's verdict as it stands. No row in the
 topo + geom-brep `ci` set reaches a search that keeps both kinds.
+
+## 2026-11-06: `MeetFault` states its standing (onecopy/refusal-standing)
+
+`MeetFault::refusal` (`crates/geom-brep/src/curve_pair.rs`) now states
+each variant's standing beside its definition, for `boolean::overlap`'s
+witness search, which reads it through `BoundaryRefusal::refusal`:
+- `Escalated` and `Touch` are ranked by their margin;
+- `Unsettled` is unsettled, ranked after in band, as this row's dispute
+  above argues;
+- `Unsupported` is a limit;
+- `Desync` and `Contradiction` abort, as kernel faults.
+
+**Census does not read it yet.** Routing `InteriorsUnread::of` through
+`MeetFault::refusal` would move census's outcomes:
+- `Unsettled` would rank after an in-band escalation instead of ahead
+  of it (as `Unbuilt`);
+- `Desync` and `Contradiction` would stop the search instead of being
+  kept as `Unbuilt`.
+
+That is this row's decision to take, not a port's, so census is left as
+it is. Closing this row means `InteriorsUnread` reading
+`MeetFault::refusal` (with an abort kind, `Result<Refusal, Aborts>`)
+rather than re-ranking each fault in `InteriorsUnread::of`.
+## 2026-11-06: the fault half is done (onecopy/engine-leaves-pins)
+
+`InteriorsUnread::of` now panics on `Desync` and `Contradiction` (`census.rs` `meet_fault`), by `[failure.taxonomy]` row 4. That replaces the kernel-defect ending this row asked for, which `[failure]` forbids for a state only a bug reaches. What is left is the second part above: `Unsettled`'s standing.

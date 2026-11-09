@@ -64,7 +64,7 @@ fn is_reach(e: &BlendError) -> bool {
 }
 
 /// The solid drum `ρ ≤ 1`, `y ∈ [0, 2]` about `y`, at `T`.
-fn drum<T: geom_core::Decide + topo::AtRestPolicy>() -> Body<T> {
+fn drum<T: geom_core::Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>() -> Body<T> {
     revolved_about_y_at::<T>(
         corners(&[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.0, 2.0)]),
         Revolution::Full,
@@ -72,7 +72,9 @@ fn drum<T: geom_core::Decide + topo::AtRestPolicy>() -> Body<T> {
     )
 }
 
-fn subtract<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn subtract<
+    T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     a: Body<T>,
     b: Body<T>,
 ) -> AtRestBody<T> {
@@ -90,7 +92,9 @@ fn subtract<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// The drum with a sealed `0.1` box void at `x ∈ [x0, x0 + 0.1]`,
 /// `y ∈ [y0, y0 + 0.1]`, `z ∈ [−0.05, 0.05]`: four of its walls are
 /// planes parallel to the rim band's axis.
-fn drum_with_box_void<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn drum_with_box_void<
+    T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     x0: f64,
     y0: f64,
 ) -> AtRestBody<T> {
@@ -326,6 +330,7 @@ fn bulged(pts: Vec<(Point2<f64>, f64)>, z0: f64, z1: f64) -> Body<f64> {
     )
     .expect("the extrusion")
     .body
+    .into_body()
 }
 
 /// **A straight link whose end face is tangent to its spine** — an

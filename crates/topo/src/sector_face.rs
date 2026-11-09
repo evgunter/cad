@@ -368,13 +368,15 @@ pub(crate) fn resolve<T: Decide>(
         });
     }
     match surface {
-        geom::Surface::Cylinder { origin, axis, .. } => {
-            let w = point() - *origin;
-            charted(
-                (w - *axis * w.dot(*axis)).normalize(),
-                SectorCarrier::Cylinder,
-            )
-        }
+        geom::Surface::Cylinder { origin, axis, .. } => charted(
+            geom::Line {
+                origin: *origin,
+                dir: *axis,
+            }
+            .offset(point())
+            .normalize(),
+            SectorCarrier::Cylinder,
+        ),
         geom::Surface::Sphere { center, .. } => {
             charted((point() - *center).normalize(), SectorCarrier::Sphere)
         }

@@ -344,7 +344,7 @@ pub(super) fn face_face<T: Decide>(
     let touch = match surface(body, a).zip(surface(body, b))? {
         (Plane { origin, normal }, Sphere { center, radius })
         | (Sphere { center, radius }, Plane { origin, normal }) => {
-            let foot = center - normal * normal.dot(center - origin);
+            let foot = center - normal * geom::plane_offset(origin, normal, center);
             on_sphere((center, radius), foot, band, errors)
         }
         (

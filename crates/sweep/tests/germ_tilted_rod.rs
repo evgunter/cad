@@ -253,7 +253,7 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>, kind: Option<SurfaceK
             carrier: geom::CurveKind::Nurbs,
             ..
         }) => "spline join".to_owned(),
-        Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
+        Err(BooleanError::ResultInvalid { findings: errors }) => match errors.as_slice() {
             [
                 ValidationError::VolumeUncomputable {
                     source: MassPropsError::RingOnCurvedFace { .. },

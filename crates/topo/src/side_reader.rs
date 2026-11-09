@@ -391,7 +391,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
         step = Some(step.map_or(room, |s: T| s.min(room)));
     }
     let into = crate::stands::inward(normal, tau);
-    Some(m + into / into.norm() * step.unwrap_or(T::zero()).max(T::zero()))
+    Some(m + into.normalize() * step.unwrap_or(T::zero()).max(T::zero()))
 }
 
 /// **How far from `aim` any face of the selection reaches**: the loops'

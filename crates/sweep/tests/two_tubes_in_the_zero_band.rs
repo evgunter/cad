@@ -27,7 +27,7 @@ fn band() -> Band {
 }
 
 fn at_rest(b: topo::Body<f64>) -> topo::AtRestBody<f64> {
-    topo::AtRestBody::validate(b, tol()).unwrap()
+    topo::finish(b, tol()).unwrap()
 }
 
 /// A point rounded far above the band, so both orders' cells compare.

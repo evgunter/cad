@@ -77,6 +77,7 @@ fn ball_at(cy: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The first face of `body` in arena order.
@@ -732,6 +733,7 @@ fn washer() -> Body<f64> {
     )
     .expect("the washer extrudes")
     .body
+    .into_body()
 }
 
 /// **A ring carrying an arc refuses too.** Each cap of the extruded
@@ -808,6 +810,7 @@ fn notched_slab() -> Body<f64> {
     )
     .expect("the notched slab extrudes")
     .body
+    .into_body()
 }
 
 /// **The arc term's magnitude is pinned, not only its sign.** The

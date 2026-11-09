@@ -451,7 +451,7 @@ fn tip_axis(body: &pncad::topo::Body<f64>) -> Vec3<f64> {
         for q in &ps[i + 1..] {
             let d = *p - *q;
             if d.norm() > best.0 {
-                best = (d.norm(), d / d.norm());
+                best = (d.norm(), d.normalize());
             }
         }
     }
@@ -908,7 +908,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             )),
             view: loft_view(),
             bodies: vec![
-                SceneBody::plain("loft_prism", [0.55, 0.72, 0.52], prism),
+                SceneBody::plain("loft_prism", [0.55, 0.72, 0.52], prism.into_body()),
                 SceneBody::plain("nonuniform_loft", [0.45, 0.62, 0.78], nonuniform),
                 SceneBody::plain("twisted_loft", [0.80, 0.62, 0.42], twisted),
             ],
@@ -959,7 +959,11 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 azim: 15.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("s_duct", [0.72, 0.45, 0.30], s_duct)],
+            bodies: vec![SceneBody::plain(
+                "s_duct",
+                [0.72, 0.45, 0.30],
+                s_duct.into_body(),
+            )],
         },
     ];
 
@@ -1042,7 +1046,11 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             azim,
             up: 'z',
         },
-        bodies: vec![SceneBody::plain(name, twisted_color, twisted.clone())],
+        bodies: vec![SceneBody::plain(
+            name,
+            twisted_color,
+            twisted.clone().into_body(),
+        )],
     };
 
     // ---- The twisted TUBE: the same spine, said as a LOFT --------
@@ -1208,7 +1216,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         bodies: vec![SceneBody::plain(
             "twisted_tube",
             [0.44, 0.55, 0.68],
-            twisted_tube,
+            twisted_tube.into_body(),
         )],
     });
 
@@ -1264,7 +1272,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         bodies: vec![SceneBody::plain(
             "twisted_duct",
             twisted_color,
-            twisted.clone(),
+            twisted.clone().into_body(),
         )],
     });
     stops.push(shadow(

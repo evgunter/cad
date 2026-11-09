@@ -6,51 +6,66 @@ status: open
 opened: 2026-11-06
 priority: P2
 cost: M
+pr: 6553
 ---
 
-
 Found by `kept-refusal-loops-the-ladder-row-never-listed`'s second pass
-(`onecopy/refusal-standing`). It is a class the `get_or_insert` and
-`= Some(why)` patterns cannot see: nothing is kept. The first
-escalation is returned by `?`, so a later reading that would answer
-definitely is never read. That breaks the ladder's rule outright
-(`geom_brep::ladder` module docs: "a ladder that returned on its first
-undecided reading would escalate where a reading it had not yet read
-already answers").
+(`onecopy/refusal-standing`). The class: a reading's first escalation
+returned by `?`, so a later reading that would answer definitely is
+never read (`geom_brep::ladder`'s module docs: "a ladder that returned on
+its first undecided reading would escalate where a reading it had not
+yet read already answers").
 
-## Witnesses
+## Done (PR for `onecopy/refusal-standing`, tranche 4)
 
-- **`splitting::pieced_arc::PiecedArc::contact`**: each end is read by
-  `decide(rows.end, …)?` before the piece walk. An end in band refuses,
-  even where the walk would place the point on the arc definitely
-  (`ArcHit::On`) or the other end at zero.
-- **`splitting::containment::CarrierLoop::place_off`**: edges are read
-  in turn by `edge.contact(…)?`, "to the first that places it on the
-  edge". The first edge's escalation refuses, even where a later edge
-  places the point on itself definitely.
+- `splitting::pieced_arc::PiecedArc::contact` climbs its two ends as one
+  ladder (`Any`: either end at the point is `End`).
+- `splitting::pieced_arc::PiecedArc::contact`'s ends are the walk's
+  premise (PR 6553's review): an end in band blocks `On`, which says the
+  point is clear of both ends. So only the other end answers past it.
+- `splitting::containment::CarrierLoop::place_off` **keeps its early
+  return, by its consumers** (PR 6553's review). The answering edge's key
+  is the face door's `FaceContainment::OnEdge`
+  (`boolean::contain::boundary_pre_pass`, the `OnEdge::On` arm). An edge
+  read in band may be the true holder, so no later edge answers past it.
+  The site says so.
+- **The gate:** `scripts/gates/escalation-question-marks.sh` registers
+  every production `decide*(…)?` inside a loop body, per file, with each
+  file's disposition in `escalation-question-marks.counts`. Its blind
+  spots are stated in its header. The first is a `?` on a callee that
+  decides inside it, which is how `place_off` hid.
 
-## What closing it takes
+## What remains: `boolean::contain::boundary_pre_pass`'s two caller `?`s
 
-1. Port each onto `climb`:
-   - `contact`: the two ends then the walk, under `Any`, since each
-     definite contact is the answer;
-   - `place_off`: under `First`, since which edge holds the point is
-     the answer.
+**Read these first under `place_off`'s ruling.** The face door's answer
+names the cell that holds the point (`OnVertex(v)`, `OnEdge(e)`). A cell
+read in band may then be the true holder, and both `?`s may be right as
+they stand. A port is owed only where a later cell answers something
+the earlier cell in band could not also be.
 
-   **Both move outcomes** where an in-band reading precedes a definite
-   one. Measure the reach and pin each change.
-2. **A gate, so the next instance is seen.** A register gate in
-   `escalation-discards.sh`'s form is feasible. Its shape: `?` applied to
-   a `decide*(…)` call inside a `for`/`while`/`loop` body, read in the
-   code view with brace tracking, registered per file at a pinned count.
-   - A rough scan at this branch's merge base (single-line calls, test
-     mounts excluded) finds **34 hits in 21 files**. Most are in
-     `boolean/solid_contain.rs` (7) and `boolean/rim_wedge.rs` (4).
-     That is a register a lane can disposition in one pass.
-   - **What it cannot see:** a `?` on a call that decides inside its
-     callee (`place_off`'s `edge.contact(…)?` is one), and a `?` ahead of
-     a later read outside a loop (`contact`'s ends are in a two-element
-     `for`, so they are seen). The callee case is not line-greppable. It
-     wants the callee's error type to say it is a kept reading (a
-     standing: `ladder`'s module docs), which would make a `?` on it the
-     visible shape.
+`boundary_pre_pass` (the face containment door's boundary pass) is the
+same class one level up, in two places:
+
+1. **A vertex's escalation**, `one_vertex_at(…)?` in the vertex pass,
+   returns ahead of every edge. A point within the band of a vertex can
+   lie definitely on an adjacent edge, which would answer
+   `FaceContainment::OnEdge`.
+2. **Each loop's `place_off(…)?`** returns ahead of every later loop. An
+   escalation on the outer loop refuses where a hole's boundary would
+   place the point.
+
+**The constraint a port must keep: the vertex-then-edge order.** The
+`OnEdge::End` arm's agreement argument rests on it. The vertex pass
+has placed the point definitely clear of both of the edge's vertices
+before an edge's carrier end is read in band of the point, so the two
+passes disagree only by as much as a carrier's end sits off its stored
+vertex (`bool_contact_arc_end_vertex`, `ArcEndGaps`). A ladder over the
+vertices and the loops' edges therefore cannot reorder them. An edge's
+`End` reading after a vertex kept in band, rather than decided clear,
+needs its own argument before it can answer.
+
+So the port is one ladder over the vertices then each loop's edges
+(`First`, which cell holds the point), with `PrePass` restructured to
+carry the kept readings. It moves outcomes wherever a vertex or an outer
+loop is read in band ahead of a definite placement. Measure that and pin
+each move.

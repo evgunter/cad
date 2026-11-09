@@ -90,8 +90,7 @@ fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, (volume, area): 
         .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{what}: the mesh: {e:?}"));
     crate::common::differential::assert_meshed_geometry(what, &built.body, &mesh, delta);
-    let body = topo::AtRestBody::validate(built.body, tol)
-        .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
+    let body = built.body;
     let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{what}: {e:?}"));
     let got = props.enclosure;
@@ -200,7 +199,7 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
             tol,
         )
         .unwrap();
-        let mut body = built.body;
+        let mut body = built.body.into_body();
         let keys: Vec<_> = body
             .surfaces()
             .filter(|(_, s)| matches!(s, geom::Surface::Spindle { .. }))
@@ -231,7 +230,7 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
                 )
                 .unwrap();
         }
-        let errors = topo::AtRestBody::validate(body, tol).expect_err(what);
+        let errors = topo::finish(body, tol).expect_err(what);
         let off_sheet = |e: &topo::ValidationError| {
             matches!(
                 e,
@@ -326,8 +325,7 @@ fn measures(what: &str, lp: profile::ProfileLoop<f64>, ax: RevolveAxis<f64>, (v,
     let tol = Tol::witness();
     let built = revolve(&validated(vec![lp]), ax, Revolution::Full, tol)
         .unwrap_or_else(|e| panic!("{what}: {e}"));
-    let body = topo::AtRestBody::validate(built.body, tol)
-        .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
+    let body = built.body;
     let g = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{what}: {e:?}"))
         .enclosure;
@@ -541,11 +539,11 @@ fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
         .unwrap();
         let sheet: Vec<_> = built.body.faces().map(|(k, _)| k).collect();
         for keys in [vec![sheet[0]], sheet.clone()] {
-            let mut body = built.body.clone();
+            let mut body = built.body.clone().into_body();
             for &k in &keys {
                 body = body.flipped_face_sense_for_tests(k).unwrap();
             }
-            let errors = topo::AtRestBody::validate(body, tol).expect_err("a flipped bit");
+            let errors = topo::finish(body, tol).expect_err("a flipped bit");
             let refused = if keys.len() == 1 {
                 errors
                     .iter()

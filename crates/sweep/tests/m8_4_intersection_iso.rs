@@ -66,6 +66,7 @@ fn prism(scale: f64) -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
+        .into_body()
 }
 
 /// Is this face's surface a described NURBS wall whose control net lies

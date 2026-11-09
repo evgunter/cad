@@ -598,9 +598,14 @@ pub enum CurveData<'a, T: Real> {
 /// centre), whose readings against a point are [`Self::param`] and
 /// [`Self::foot`].
 ///
-/// `dir` is unit by the carriers' convention; the readings divide by
-/// `dir·dir`, so they hold for any nonzero `dir`. **`dir` must be
-/// nonzero**: on a zero `dir` they divide `0/0`. Nothing here checks it;
+/// `dir` is unit by the carriers' convention. The parameter readings
+/// ([`Self::param`], [`Self::foot`], [`Self::offset`] and their kin)
+/// divide by `|dir|²`, so they hold for any nonzero `dir`, a chord `b − a`
+/// among them. The metric readings of a point against an axis
+/// ([`Self::height`], [`Self::distance`]) divide by `|dir|`, in metres
+/// for any nonzero `dir`. **`dir` must be
+/// nonzero**: on a zero `dir` the parameter readings divide `0/0`. Nothing
+/// here decides it;
 /// at rest, `topo`'s tier-3 check 1 refuses a zero direction on every
 /// edge carrier (crate docs, "Unit-vector and orthogonality fields").
 #[derive(Clone, Copy, Debug)]
@@ -612,33 +617,142 @@ pub struct Line<T: Real> {
 }
 
 impl<T: Real> Line<T> {
-    /// The parameter of `p`'s foot: `(p − origin)·dir / (dir·dir)`.
+    /// **The line's point at `t`**: `origin + dir·t`, the carrier's own
+    /// parameterization ([`Curve3::eval`] on a line).
+    #[must_use]
+    pub fn at(&self, t: T) -> Point3<T> {
+        self.origin + self.dir * t
+    }
+
+    /// The parameter of `p`'s foot: `(p − origin)·dir / |dir|²`, the
+    /// coefficient of [`Vec3::project_onto`] in its association.
     #[must_use]
     pub fn param(&self, p: Point3<T>) -> T {
-        (p - self.origin).dot(self.dir) / self.dir.dot(self.dir)
+        self.coefficient(p - self.origin)
+    }
+
+    /// `w`'s coefficient along `dir`, `w·dir / |dir|²`: the one spelling
+    /// [`Self::param`] and [`Self::param_and_offset`] read.
+    fn coefficient(&self, w: Vec3<T>) -> T {
+        w.dot(self.dir) / self.dir.norm_squared()
     }
 
     /// **`p`'s foot**: the point of the line nearest `p`.
     #[must_use]
     pub fn foot(&self, p: Point3<T>) -> Point3<T> {
-        self.origin + self.dir * self.param(p)
+        self.at(self.param(p))
     }
 
-    /// **`p`'s offset from its foot**, square to the line:
-    /// `(p − origin) − dir·((p − origin)·dir / (dir·dir))`, whose norm is
-    /// `p`'s distance from the line.
+    /// **The parameter of `p`'s nearest point of the span `(t0, t1)`**
+    /// of the line, `t0 ≤ t1`: [`Self::param`] held to the span by
+    /// `max`/`min`, no comparison. A segment from `a` to `b` is the span
+    /// `(0, 1)` of `Line { origin: a, dir: b − a }`, and an edge its own
+    /// parameter span. A ray is held at one end ([`Self::foot_from`]).
+    #[must_use]
+    pub fn param_within(&self, p: Point3<T>, (t0, t1): (T, T)) -> T {
+        self.param(p).max(t0).min(t1)
+    }
+
+    /// **`p`'s foot on the span `(t0, t1)`**: the line's point at
+    /// [`Self::param_within`].
+    #[must_use]
+    pub fn foot_within(&self, p: Point3<T>, span: (T, T)) -> Point3<T> {
+        self.at(self.param_within(p, span))
+    }
+
+    /// **`p`'s foot on the ray from `t0`**, the points `t ≥ t0`:
+    /// [`Self::param`] held at `t0` by `max`.
+    #[must_use]
+    pub fn foot_from(&self, p: Point3<T>, t0: T) -> Point3<T> {
+        self.at(self.param(p).max(t0))
+    }
+
+    /// **`p`'s offset from its foot**, square to the line: `w = p − origin`
+    /// less its [projection](Vec3::project_onto) onto `dir`, the vector a
+    /// reader of a radial direction needs; its norm is `p`'s distance from
+    /// the line, which a reader of the distance alone reads as
+    /// [`Self::distance`]. It divides by `|dir|²`, so it holds
+    /// for any nonzero `dir` and a unit `dir`'s reading can move in the
+    /// last place against `w − dir·(w·dir)`. Subtractive rather than
+    /// [`Vec3::reject_from`]'s triple product, which amplifies a `dir`
+    /// carrying width: a computed carrier direction is that case.
     #[must_use]
     pub fn offset(&self, p: Point3<T>) -> Vec3<T> {
+        self.param_and_offset(p).1
+    }
+
+    /// **`p`'s distance from the line**: `|(p − origin) × dir| / |dir|`,
+    /// correct for any nonzero `dir`. The metric reading of a point
+    /// against an axis, beside [`Self::height`]; a reader of the distance
+    /// alone reads this rather than [`Self::offset`]'s norm.
+    ///
+    /// Its width at `Interval`, against the other spellings (mean widths
+    /// over 2000 random tilted axes normalized at `Interval`, origins to
+    /// ±500 m): tight where the point carries width, since the cross
+    /// product names `w = p − origin` once per component; about twice a
+    /// unit read's where only the axis does, since it divides by `|dir|`.
+    /// The unit read (`|w × dir|` alone) is no option here: a stored
+    /// carrier axis is unit only to the convention's ~1e-10 in `|dir|²`,
+    /// and a unit read of one is wrong by more than the band.
+    ///
+    /// | point | axis | this | `\|w × dir\|` (unit read) | `offset(p).norm()` |
+    /// |---|---|---|---|---|
+    /// | exact | rounding | 3.4e-15 | 1.9e-15 | 2.9e-15 |
+    /// | exact | ±1e-12 | 5.5e-12 | 3.2e-12 | 5.5e-12 |
+    /// | ±1e-9 | rounding | 3.3e-9 | 3.3e-9 | 5.2e-9 |
+    /// | ±1e-9 | ±1e-12 | 3.3e-9 | 3.3e-9 | 5.2e-9 |
+    #[must_use]
+    pub fn distance(&self, p: Point3<T>) -> T {
+        self.height_and_distance(p).1
+    }
+
+    /// **`p`'s height along the line**: `(p − origin)·dir / |dir|`,
+    /// metres from `origin`, correct for any nonzero `dir`. Where `dir`
+    /// is unit it is [`Self::param`]; it divides by `|dir|` where `param`
+    /// divides by `|dir|²`. Where only the axis carries width it is
+    /// between the two, about 1.5× a unit read; where the point does,
+    /// all three agree:
+    ///
+    /// | point | axis | this | `w·dir` (unit read) | `w·dir / \|dir\|²` |
+    /// |---|---|---|---|---|
+    /// | exact | rounding | 2.2e-15 | 1.2e-15 | 2.7e-15 |
+    /// | exact | ±1e-12 | 4.4e-12 | 3.0e-12 | 5.9e-12 |
+    /// | ±1e-9 | rounding | 3.1e-9 | 3.1e-9 | 3.1e-9 |
+    /// | ±1e-9 | ±1e-12 | 3.1e-9 | 3.1e-9 | 3.1e-9 |
+    #[must_use]
+    pub fn height(&self, p: Point3<T>) -> T {
+        self.height_and_distance(p).0
+    }
+
+    /// **`p`'s height and distance together** ([`Self::height`],
+    /// [`Self::distance`]) from one `w = p − origin` and one `|dir|`: a
+    /// point's place on an axis and its radius about it.
+    #[must_use]
+    pub fn height_and_distance(&self, p: Point3<T>) -> (T, T) {
         let w = p - self.origin;
-        w - self.dir * (w.dot(self.dir) / self.dir.dot(self.dir))
+        let len = self.dir.norm();
+        (w.dot(self.dir) / len, w.cross(self.dir).norm() / len)
+    }
+
+    /// **`p`'s parameter and offset together**: [`Self::param`]'s `t` and
+    /// [`Self::offset`]'s `w − dir·t`, from one `w = p − origin` and one
+    /// `t`, so a reader of both (a point's height on an axis and its
+    /// radial part) reads them consistent with each other and with the
+    /// two readings alone, bit for bit. `t` is a length along the line
+    /// only where `dir` is unit.
+    #[must_use]
+    pub fn param_and_offset(&self, p: Point3<T>) -> (T, Vec3<T>) {
+        let w = p - self.origin;
+        let t = self.coefficient(w);
+        (t, w - self.dir * t)
     }
 
     /// **`p`'s foot on the plane through `origin` square to the line**:
-    /// `p − dir·((p − origin)·dir / (dir·dir))`, the line read as that
-    /// plane's normal.
+    /// `p` less `p − origin` [projected](Vec3::project_onto) onto `dir`,
+    /// the line read as that plane's normal.
     #[must_use]
     pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
-        p - self.dir * ((p - self.origin).dot(self.dir) / self.dir.dot(self.dir))
+        p - (p - self.origin).project_onto(self.dir)
     }
 }
 
@@ -869,7 +983,11 @@ fn tube_section<T: Decide>(
     major_radius: T,
     p: Point3<T>,
 ) -> Azimuth<T> {
-    let (h, rho) = on_carrier::height_and_radius(p - center, axis);
+    let (h, rho) = Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(p);
     Azimuth::tube(h, rho, major_radius)
 }
 
@@ -1355,7 +1473,7 @@ impl<T: SpanLocate> Curve3<T> {
     ///   the sealed seam; all-poison for the placeholder state).
     pub fn eval(&self, t: T) -> Point3<T> {
         match self {
-            Curve3::Line(Line { origin, dir }) => *origin + *dir * t,
+            Curve3::Line(line) => line.at(t),
             Curve3::Circle(c) => c.point_at(t),
             Curve3::Ellipse(e) => e.point_at(t),
             Curve3::Spiric {
@@ -1454,7 +1572,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// passes and are not projections of this one.
     pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Curve3::Line(Line { origin, dir }) => (*origin + *dir * t, *dir),
+            Curve3::Line(line) => (line.at(t), line.dir),
             Curve3::Circle(c) => c.jet_at(t),
             Curve3::Ellipse(e) => e.jet_at(t),
             Curve3::Spiric {

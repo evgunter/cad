@@ -143,6 +143,7 @@ impl Shape {
         )
         .unwrap()
         .body
+        .into_body()
     }
 }
 

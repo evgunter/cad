@@ -635,8 +635,8 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
 /// patches `u ∈ [0, u1] × z ∈ [z0, z1]` of the cone of half-angle `1/2`
 /// about `z` from the origin (`boxes::tests::cone_wall`), read from a
 /// corner in both member orders: its [`FrameExtent::Cone`] window is
-/// `[z0, z1]` to rounding under three quarters of a turn, and holds the
-/// apex past it. A window that misses any of the face lets the frame
+/// `[z0, z1]` to rounding at every span, since each patch's loop closes
+/// in the chart and leaves the apex out. A window that misses any of the face lets the frame
 /// serve a line pair over points nearer the apex than it reads.
 #[test]
 fn the_frames_cone_window_holds_its_face() {
@@ -662,14 +662,10 @@ fn the_frames_cone_window_holds_its_face() {
                 lo <= z0 + 1e-12 && hi >= z1 - 1e-12,
                 "{label}: the window [{lo}, {hi}] misses some of the face"
             );
-            if u1 < 1.5 * core::f64::consts::PI {
-                assert!(
-                    lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
-                    "{label}: the window [{lo}, {hi}] reaches past the face"
-                );
-            } else {
-                assert!(lo <= 0.0, "{label}: the window [{lo}, {hi}] holds the apex");
-            }
+            assert!(
+                lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
+                "{label}: the window [{lo}, {hi}] reaches past the face"
+            );
         }
     }
 }

@@ -452,7 +452,10 @@ fn eval_digest(ev: &Evaluation<f64>) -> String {
                     }
                     ValuePayload::Instances(v) => {
                         for b in v {
-                            let _ = writeln!(s, "inst\n{}", fingerprint(b.body()));
+                            let _ = match b {
+                                Some(b) => writeln!(s, "inst\n{}", fingerprint(b.body())),
+                                None => writeln!(s, "inst empty"),
+                            };
                         }
                     }
                     other => {

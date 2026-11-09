@@ -764,7 +764,9 @@ fn block(label: &str) -> ProfileDoc {
 /// A part's evaluated body, through the ordinary doors.
 fn body_of(part: &ProfileDoc) -> topo::Body<f64> {
     let ev = run(part, &EvalOptions::default());
-    product(part, &ev, Tol::witness()).expect("the part's product")
+    product(part, &ev, Tol::witness())
+        .expect("the part's product")
+        .into_body()
 }
 
 /// The TRUE maximum distance from the origin over the body's rims:

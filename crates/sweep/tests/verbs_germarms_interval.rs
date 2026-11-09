@@ -67,7 +67,7 @@ fn the_ring_lane_builds_at_the_certified_scalar() {
         &pipe(),
         &finished(
             "the bar",
-            brick((-1.125, 1.125), (-0.25, 0.25), (-0.25, 0.25), tol),
+            brick::<geom_core::Interval>((-1.125, 1.125), (-0.25, 0.25), (-0.25, 0.25), tol),
             tol,
         ),
         tol,
@@ -103,7 +103,7 @@ fn a_clear_bar_still_answers_and_the_enclosure_is_narrow() {
         &pipe(),
         &finished(
             "the bar",
-            brick((1.5, 2.5), (-0.25, 0.25), (-0.25, 0.25), tol),
+            brick::<geom_core::Interval>((1.5, 2.5), (-0.25, 0.25), (-0.25, 0.25), tol),
             tol,
         ),
         tol,

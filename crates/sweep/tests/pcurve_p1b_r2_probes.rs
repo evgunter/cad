@@ -88,6 +88,7 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A profile with an ARC segment, extruded — the arc scaffolding door
@@ -113,6 +114,7 @@ fn arc_prism() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Revolves the closed `(r, y)` polygon about the `y` axis.
@@ -137,6 +139,7 @@ fn revolved(points: &[(f64, f64)], revolution: Revolution<f64>) -> Body<f64> {
     )
     .expect("the polygon revolves")
     .body
+    .into_body()
 }
 
 // ---------------------------------------------------------------
@@ -222,28 +225,32 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
 
     // Shell.
     if let Ok(topo::Shelled { body, .. }) = topo::shell(
-        &finished("the operand", cube(1.0, Tol::witness()), Tol::witness()),
+        &finished(
+            "the operand",
+            cube::<f64>(1.0, Tol::witness()),
+            Tol::witness(),
+        ),
         0.1,
         Tol::witness(),
     ) {
-        bodies.push(("shell cube", body));
+        bodies.push(("shell cube", body.into_body()));
     }
     if let Ok(topo::Shelled { body, .. }) = topo::shell(
         &finished("the operand", tube(0.4, 0.8, 0.6), Tol::witness()),
         0.05,
         Tol::witness(),
     ) {
-        bodies.push(("shell tube", body));
+        bodies.push(("shell tube", body.into_body()));
     }
 
     // Chamfer and fillet of the cube — the two verbs built on the
     // strut surgery whose six conversion sites the unit reverted.
-    let c = sweep::test_support::finished("c", cube(1.0, Tol::witness()), Tol::witness());
+    let c = sweep::test_support::finished("c", cube::<f64>(1.0, Tol::witness()), Tol::witness());
     if let Ok(f) = sweep::chamfer::chamfer_edges(&c, &query::all_edges(&c), 0.1, Tol::witness()) {
-        bodies.push(("chamfer cube (all edges)", f.body));
+        bodies.push(("chamfer cube (all edges)", f.body.into_body()));
     }
     if let Ok(f) = fillet_edges(&c, &query::all_edges(&c), 0.15, Tol::witness()) {
-        bodies.push(("fillet cube (all edges)", f.body));
+        bodies.push(("fillet cube (all edges)", f.body.into_body()));
     }
     // A PARTIAL fillet: one face's four edges. Its struts run out onto
     // untouched planar supports, which is the configuration the unit's
@@ -261,7 +268,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
             .collect()
     };
     match fillet_edges(&c, &one_face, 0.12, Tol::witness()) {
-        Ok(f) => bodies.push(("fillet cube (one face's four edges)", f.body)),
+        Ok(f) => bodies.push(("fillet cube (one face's four edges)", f.body.into_body())),
         Err(e) => println!("[R2-S1] the one-face fillet refused: {e:?}"),
     }
 
@@ -589,7 +596,7 @@ fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
         .map(|(k, _)| k)
         .collect();
 
-    let mut body = ball.clone();
+    let mut body = ball.clone().into_body();
     let outcome = topo::replace_faces_offset(&mut body, &group, 0.05, Tol::witness());
     println!("[R2-S6] offsetting the sphere chart: {outcome:?}");
     match outcome {

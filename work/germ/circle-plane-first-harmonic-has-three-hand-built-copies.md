@@ -2,10 +2,12 @@
 id: circle-plane-first-harmonic-has-three-hand-built-copies
 kind: issue
 title: The circle x plane first-harmonic door (FirstHarmonic::circle_off_plane) carries one uniform rounding charge, no phase or frame-defect charge, unaudited
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
+closed: 2026-11-06
+pr: 6566
 ---
 
 Found by the dual review of PR 4044 (`analysis/reach-dual/4044-r1`,
@@ -55,3 +57,16 @@ The charge it carries is still the one this row questions: one uniform
 the noise audit of that one door, not the consolidation.
 
 Moved from ROOTS to GERM on 2026-11-02, by `git mv`, when ROOTS merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Evidence (2026-11-03, ONECOPY `onecopy/meet-pose`)
+
+`sphere_region`'s copy is gone. The region landings read each arc against a leg's plane through the plane door (`geom_brep::curve_face::plane_crossing::span_plane_meet`, in `region::landings`), and `circle_roots::first_harmonic_root_directions` went with it.
+
+The `apply_cut_ins` copy remains. It reads two co-surface circles, an arc against the cut's half-meridian on one sphere. Per the 2026-11-06 landings decision, such a pair meets as a crossing of a plane section, never as a 3D gap. So its home is the plane door, or the co-surface arm `curve_pair` would grow (`work/onecopy/co-surface-carriers-have-no-home-of-their-own-in-curve-pair.md`), not `meet`. ONECOPY's `loop-walks-read-a-ray-against-an-arc-by-hand-rows-beside-meet` carries it.
+
+
+## Closed (2026-11-06, ONECOPY `onecopy/meet-pose`): the door it audits has no caller left
+
+`apply_cut_ins`, the last plane caller, reads the cut's half-meridian through the co-surface arm (`geom_brep::curve_pair::on_surface`), which reads the arc across the meridian's plane through the plane door (`curve_face::plane_crossing::span_plane_meet`). So no site builds a `FirstHarmonic` against a plane any more, and `FirstHarmonic::conic_off_plane` is deleted with its charge.
+
+The plane door decides its rungs on `decide` margins of its own arithmetic. Its sinusoid is `curve_pair::pose::height`, the generator `meet`'s transverse reading is built on. A frame-defect charge for that generator is a question about `pose::height`, read by both. It is not this door's, so it is not carried over.

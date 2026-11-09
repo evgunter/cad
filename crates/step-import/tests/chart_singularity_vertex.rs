@@ -171,7 +171,7 @@ fn every_chart_singularity_a_file_puts_in_a_face_imports_as_a_pole_form_vertex()
         assert_eq!(found, row.found, "{name}: the reported dispositions");
         // Every record's deltas sum to the body's own counts change, so
         // the census pair is a mapping and not decoration.
-        let b = body.body();
+        let b = &*body;
         let census = (
             b.faces().count(),
             b.edges().count(),
@@ -240,7 +240,7 @@ fn a_singularity_record_maps_the_census_it_changes() {
             sum.1 = sum.1 + n.kernel_census.edges - n.file_census.edges;
             sum.2 = sum.2 + n.kernel_census.vertices - n.file_census.vertices;
         }
-        let b = body.body();
+        let b = &*body;
         assert_eq!(
             sum,
             (

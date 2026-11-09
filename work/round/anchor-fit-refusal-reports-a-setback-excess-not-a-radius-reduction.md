@@ -2,11 +2,13 @@
 id: anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction
 kind: issue
 title: The anchor-fit refusal's number meters the setback, and the recourse an author follows is un-metered
-status: open
+status: parked
 opened: 2026-09-13
 priority: P1
 cost: M
 design: true
+pr: 6547
+blocked_on: [6547]
 ---
 
 

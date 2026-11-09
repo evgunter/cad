@@ -228,9 +228,10 @@ struct Sample {
 
 /// The body a node evaluated to.
 fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        other => panic!("a placed link evaluates to a body, got {other:?}"),
+    let payload = &ev.value(id).expect("the node evaluated").payload;
+    match payload.one_body() {
+        Some(Some(b)) => crate::world::in_its_space(b, tol),
+        _ => panic!("a placed link evaluates to a body, got {payload:?}"),
     }
 }
 

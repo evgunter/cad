@@ -1311,6 +1311,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     /// A partial-revolve sphere band — the pole-to-pole wedge whose
@@ -1329,6 +1330,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn cone_body() -> Body<f64> {
@@ -1345,6 +1347,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn washer() -> Body<f64> {
@@ -1362,6 +1365,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn donut() -> Body<f64> {
@@ -1377,6 +1381,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn wedge(theta: f64) -> Body<f64> {
@@ -1394,6 +1399,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     /// Axis-touching partial wedge (`tests/common::axis_wedge`): the
@@ -1415,6 +1421,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     /// The mirror-nappe diamond (`review_m2_pr6_walk_shapes.rs`'s
@@ -1435,6 +1442,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn rounded_prism() -> Body<f64> {
@@ -1461,6 +1469,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     /// The die pip (`sweep`'s `m5_s13_pips` shape): a 4 × 4 × 1 slab
@@ -2205,7 +2214,8 @@ mod tests {
             Tol::witness(),
         )
         .unwrap()
-        .body;
+        .body
+        .into_body();
         let ek = body.edges().map(|(k, _)| k).next().unwrap();
         let (t0, t1) = body
             .get_curve_geom(body.get_edge(ek).unwrap().curve)

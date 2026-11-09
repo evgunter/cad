@@ -2,11 +2,13 @@
 id: fillet-step-discoverability-six-door-refusals
 kind: issue
 title: the Fillet chain step is hard to discover: six door refusals before a reviewer's rounded pad built
-status: open
+status: closed
+closed: 2026-11-06
 opened: 2026-09-05
 refs: [1828]
 priority: P1
 cost: M
+branch: round/fillet-step-discoverable
 ---
 
 **Found by M10-8's R2 review, by authoring.** To build a document of
@@ -40,3 +42,10 @@ is the reference shape.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to BLEND (the sweep crate and the profile fillet door are BLEND's charter; crates/sweep/src/loft.rs passes to BLEND at this exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (2026-11-06)
+
+A lattice refusal now ends in a `Recourse:` naming what its tip state
+takes, read off the transition table (`profile::TipState::takes`); the
+`Fillet`-family `ProgramStep` docs name the legs on both sides. The
+newcomer's walk to the pad is `crates/editor-core/tests/fillet_step_walk.rs`.

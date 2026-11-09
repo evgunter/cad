@@ -266,6 +266,7 @@ fn quarter_cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The path's certificates refuse, naming the cone face, with the

@@ -101,7 +101,9 @@ fn validated<T: Decide>(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> Va
 
 /// The A prism: profile on world xy, extruded z ∈ [-1/16, 2 + 1/16]
 /// (strictly covers Z's z-extent [0, 2]).
-fn a_prism<T: Decide + topo::AtRestPolicy>(loops: Vec<ProfileLoop<T>>) -> AtRestBody<T> {
+fn a_prism<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    loops: Vec<ProfileLoop<T>>,
+) -> AtRestBody<T> {
     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(
         T::from_f64(0.0),
         T::from_f64(0.0),
@@ -117,14 +119,14 @@ fn a_prism<T: Decide + topo::AtRestPolicy>(loops: Vec<ProfileLoop<T>>) -> AtRest
     )
     .expect("extrude A")
     .body;
-    finished("the A prism", a, Tol::witness())
+    sweep::test_support::taken::<T>(a, Tol::witness()).expect("the A prism is a finished body")
 }
 
 /// The Z prism: profile in (u, v) = (y, z) — bars z ∈ [0, 0.4375] and
 /// [1.5625, 2] spanning y ∈ [-0.0625, 2.5625] (strictly covers A's
 /// y-extent), diagonal at slope 3/5 — extruded x ∈ [-1/16, 2 + 1/16]
 /// (strictly covers A's x-extent).
-fn z_prism<T: Decide + topo::AtRestPolicy>() -> AtRestBody<T> {
+fn z_prism<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>() -> AtRestBody<T> {
     let z_poly = [
         (-0.0625, 0.0),
         (2.5625, 0.0),
@@ -152,7 +154,7 @@ fn z_prism<T: Decide + topo::AtRestPolicy>() -> AtRestBody<T> {
     )
     .expect("extrude Z")
     .body;
-    finished("the Z prism", z, Tol::witness())
+    sweep::test_support::taken::<T>(z, Tol::witness()).expect("the Z prism is a finished body")
 }
 
 /// Tiers 1/2/3′ + exact-oracle volume (1e-12: the oracles are exact

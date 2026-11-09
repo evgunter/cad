@@ -219,6 +219,14 @@ impl<T: Real> Azimuth<T> {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
 
+    /// **The direction's component along `reference`**: `x·x_r + y·y_r`,
+    /// in the product of their units, positive on `reference`'s side of
+    /// the line square to it. A reading of which half-plane a point lies
+    /// in, with no angle in it.
+    pub fn along(self, reference: Self) -> T {
+        self.x * reference.x + self.y * reference.y
+    }
+
     /// The angle named on the branch within half a turn of `centre`:
     /// `θ + atan2(R(−θ)·(x, y))` with `θ = centre.angle()`. It decides
     /// nothing; the caller has decided the branch (`geom_brep`'s

@@ -45,7 +45,8 @@ fn main() {
         Tol::witness(),
     )
     .expect("the square extrudes")
-    .body;
+    .body
+    .into_body();
 
     let planes = blank
         .faces()

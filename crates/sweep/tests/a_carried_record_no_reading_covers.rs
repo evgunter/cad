@@ -43,7 +43,8 @@ fn rod() -> AtRestBody<f64> {
         tol(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     finished("rod", body, tol())
 }
 

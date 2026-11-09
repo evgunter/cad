@@ -805,6 +805,35 @@ fn a_tubes_wall_opens_to_two_seamed_bands() {
                 "{what}: each ring's twin circle bounds its own band"
             );
         }
+        // The cavity counterpart's seam dies in the band's surgery: a
+        // twin, which the operand never carried, so the lineage, a map
+        // of the operand's cells, states no fate for it.
+        let retired_twins: Vec<topo::EdgeKey> = shelled
+            .naming
+            .dead
+            .edges
+            .iter()
+            .copied()
+            .filter(|&e| {
+                shelled
+                    .naming
+                    .inner_edges
+                    .iter()
+                    .any(|&(twin, _)| twin == e)
+            })
+            .collect();
+        assert!(
+            !retired_twins.is_empty(),
+            "{what}: the counterpart's seam, a twin, is retired"
+        );
+        let lineage = shelled.lineage();
+        for e in retired_twins {
+            assert!(
+                matches!(lineage.fate(topo::Cell::Edge(e)), topo::Fate::Kept { at, .. } if at == topo::Cell::Edge(e)),
+                "{what}: the twin {e:?} is no operand cell and has no fate: {:?}",
+                lineage.fate(topo::Cell::Edge(e))
+            );
+        }
 
         let want = outer - cavity;
         let props = topo::mass_properties(&cut, tol, topo::test_support::pinned_resolution(tol))

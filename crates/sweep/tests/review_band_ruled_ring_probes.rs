@@ -69,6 +69,7 @@ fn keyhole_block_with(extra: Vec<ProfileLoop<f64>>) -> Body<f64> {
     )
     .expect("the keyholed profile extrudes")
     .body
+    .into_body()
 }
 
 /// The area the convex band removes at one keyhole junction, per unit

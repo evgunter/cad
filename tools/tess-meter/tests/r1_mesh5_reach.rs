@@ -73,7 +73,7 @@ fn frustum_wedge(r0: f64, r1: f64, h: f64, theta: f64) -> Result<Body<f64>, Stri
         Revolution::Partial(theta),
         Tol::witness(),
     )
-    .map(|r| r.body)
+    .map(|r| r.body.into_body())
     .map_err(|e| format!("revolve: {e:?}"))
 }
 

@@ -467,9 +467,8 @@ pub enum NamingError {
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
     Escalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered: the discriminator's name is the
+        /// one its funnel recorded ([`Indeterminate::predicate`]).
         source: Indeterminate,
     },
 }
@@ -960,14 +959,14 @@ impl crate::spoken::Say for NamingError {
                 "the naming band could not be built from the ambient tolerance, so no \
                  name can be decided: {error}"
             ),
-            Self::Escalated { predicate, source } => {
-                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+            Self::Escalated { source } => {
+                let what = crate::decision::subject(source);
                 write!(
                     f,
                     "{}",
                     source.undecided(
                         format_args!("{what}, which a name rests on,"),
-                        crate::decision::ending(predicate, source)
+                        crate::decision::ending(source.predicate, source)
                     )
                 )
             }
@@ -1274,11 +1273,12 @@ pub(crate) fn to_u32(n: usize, what: &'static str) -> u32 {
 /// own output body, the members in index order. The wrapping is
 /// uniform: it wraps every name of a member, body rows included, so a
 /// name of one member is the same selector on every member but its
-/// `at`.
+/// `at`. A member with no body (`None` in `bodies`, a boolean's empty
+/// result) names nothing and keeps its place.
 pub(crate) fn name_family<T: geom_core::Real>(
     node: RecipeNodeId,
     members: &[(super::role::MemberAt, &NameTable)],
-    bodies: &[&Body<T>],
+    bodies: &[Option<&Body<T>>],
 ) -> Result<Arc<NameTable>, NamingError> {
     let mut t = NameTable::new();
     for (at_body, (at, member)) in members.iter().enumerate() {
@@ -1314,7 +1314,9 @@ pub(crate) fn name_family<T: geom_core::Real>(
         }
     }
     for (i, body) in bodies.iter().enumerate() {
-        check_total(&t, body, narrow(i, Numbered::OutputBody)?)?;
+        if let Some(body) = body {
+            check_total(&t, body, narrow(i, Numbered::OutputBody)?)?;
+        }
     }
     Ok(Arc::new(t))
 }
@@ -1939,8 +1941,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: crate::names::discriminate::ON_MEMBER_EDGE,
-                    source: escalation(),
+                    source: Indeterminate {
+                        predicate: Some(crate::names::discriminate::ON_MEMBER_EDGE),
+                        ..escalation()
+                    },
                 },
                 vec!["a point's place along an edge"],
             ),

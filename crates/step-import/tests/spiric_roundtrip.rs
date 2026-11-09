@@ -98,7 +98,7 @@ fn vessel_cavity() -> topo::Body<f64> {
             }
         })
         .collect();
-    let mut cavity = quarter.clone();
+    let mut cavity = quarter.clone().into_body();
     topo::offset_charts_together(
         &mut cavity,
         &moves,

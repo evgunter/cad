@@ -263,7 +263,7 @@ fn r2_drum_reverted_cavity_alone_is_the_reason() {
 /// The refusal the shell's operand gate gives `body`
 /// (`AtRestBody::validate`), every finding a pcurve one, as text.
 fn refused_on_rows(body: Body<f64>) -> Vec<String> {
-    let errors = topo::AtRestBody::validate(body, tol())
+    let errors = topo::finish(body, tol())
         .expect_err("an operand that fails the tier-3 pcurve pass is not a finished body");
     errors
         .iter()

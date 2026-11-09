@@ -55,6 +55,7 @@ fn cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A frustum clear of its (virtual) apex at `(0, 2, 0)`: base radius
@@ -75,6 +76,7 @@ fn frustum() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The triangle through a quarter turn: ONE cone face over the quadrant
@@ -88,6 +90,7 @@ fn quarter_cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn faces_where(body: &Body<f64>, pred: impl Fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {
@@ -292,6 +295,7 @@ fn swept(frustum_profile: bool, theta: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// **Partial revolves partition their swept window and hold nothing

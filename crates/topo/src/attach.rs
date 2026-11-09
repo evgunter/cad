@@ -595,7 +595,7 @@ impl<T: Decide> Body<T> {
     ) -> Result<(), EulerOpError> {
         let on_plane = |p: Point3<T>, on: EntityId| match decide(
             "rechart_boundary_residual",
-            Margin::of((p - origin).dot(normal)),
+            Margin::of(geom::plane_offset(origin, normal, p)),
             band,
         ) {
             Ok(Sign::Zero) => Ok(()),
