@@ -1826,3 +1826,15 @@ Notes (verified honest, kept for the design conversation):
   side test a direction-pair comparand and the extent a geodesic
   `Δv`-scaled one; both are lever changes at one site each, N1/N7's
   family. No arithmetic moved here.
+
+- **N10** `session_box_reach` (`topo/src/session_box.rs`
+  `in_session_box`, asked at the finished-body gate) is
+  `SESSION_BOX_EXTENT − body_reach(body)`: two lengths in metres, so
+  the margin is a length and the band is the linear one, as D4 asks. It
+  is the one decision measured against a FIXED extent, the session box
+  (DESIGN `[tolerance.epsilon]`), not against the model's own geometry.
+  So it does not scale with the model: at a millimetre and at a metre
+  it reads about `SESSION_BOX_EXTENT` both times, a twin ratio near 1.
+  That is its dimension, not a defect. The model-scale twin suites
+  (`topo`'s `rim_dim_boolean_twins`) list it in `KNOWN_NONLINEAR`,
+  citing this note.

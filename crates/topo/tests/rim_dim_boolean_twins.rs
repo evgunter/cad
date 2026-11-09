@@ -61,14 +61,19 @@ use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use topo::{BooleanResult, subtract};
 
-/// Audited, documented non-length comparands still awaiting their own
-/// units (docs/predicate-dimension-audit.md FLAG rows). Everything
-/// else must scale linearly. EMPTY: F3 and F4 were on this list until
-/// their unit (the module docs record what retired them), and F2's
-/// ray-caster denominators until they were levered by the selection's
-/// reach. These bricks have no curved wall, so the wall arm's two rungs
+/// Audited comparands whose margins do not scale with the model
+/// (`docs/predicate-dimension-audit.md`): a non-length FLAG row still
+/// awaiting its unit, or a length measured against a fixed extent
+/// rather than the model's geometry. Everything else must scale
+/// linearly. F3 and F4 were on this list until their unit (the module
+/// docs record what retired them), and F2's ray-caster denominators
+/// until they were levered by the selection's reach. These bricks have no curved wall, so the wall arm's two rungs
 /// are pinned by `sweep`'s `ray_wall_margin_twins`, on a pipe.
-const KNOWN_NONLINEAR: &[&str] = &[];
+const KNOWN_NONLINEAR: &[&str] = &[
+    // A length against the fixed session-box extent, not the model's
+    // geometry (`docs/predicate-dimension-audit.md` note N10).
+    "session_box_reach",
+];
 
 /// Predicates whose DECISION COUNT may differ between the twins.
 /// EMPTY since the F3 fix: the only entry was
