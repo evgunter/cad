@@ -1240,7 +1240,7 @@ pub(crate) fn coverage(
     let Some(frame) = ruled.frame().map(|f| f.square()) else {
         return Err([0.0, core::f64::consts::TAU]);
     };
-    let (u, v) = (frame.u_ref, frame.v_ref());
+    let (u, v) = (frame.u_ref, frame.axis.cross(frame.u_ref));
     let (o, q, a, b, u, v) = (p3(o), p3(q), v3(a), v3(b), v3(u), v3(v));
     let (rho, r) = (lift(rho), lift(r));
     let ab = a.cross(b);
