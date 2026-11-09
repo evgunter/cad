@@ -443,3 +443,4 @@
   - S2 and S3.
   - A P3 class row for three clearance walks, two `SiteRefusal` sorts and the census's `WALK_*`.
 - 2026-11-09 — [ev] PR 6592 opened (onecopy/ev-side-at-infinity) from fork9's agreed recommendation: topo README tier-3 orientation plus one [coincidence.booleans] clause, fork-log row 253 (labels only). Subscribed.
+- 2026-11-09 — PR 6575 FULL review: MERGE. Fix pass sent: frame.rs:170 mixes a prescaled len with a plain norm; two policies for an out-of-range direction (step-import guards now admit both ends while UnitVec3::new refuses both), so give it one home; the prescale is spelled 3× in vec.rs; 'exact' overclaims; gate blind spots, including a live viewer camera.rs:910 instance, false positives, stale text, count 30.
