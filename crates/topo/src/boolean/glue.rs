@@ -153,9 +153,7 @@ fn tangency<T: Decide>(
         Ok(tangency) => Ok(Some(tangency)),
         Err(TangencyFailure::Refused(e)) => Err(e),
         Err(
-            TangencyFailure::NotTangent
-            | TangencyFailure::Unsupported
-            | TangencyFailure::Unrouted,
+            TangencyFailure::NotTangent | TangencyFailure::Unsupported | TangencyFailure::Unrouted,
         ) => Ok(None),
     }
 }

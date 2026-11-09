@@ -2995,11 +2995,22 @@ mod tests {
         );
         let (fa, fb) = (pa.side_faces[1], pb.side_faces[3]);
         assert!(
-            crate::boolean::rest_pair_verdict(&pa.body, fa, &pb.body, fb, band).is_ok(),
+            matches!(
+                crate::boolean::rest_pair_verdict(&pa.body, fa, &pb.body, fb, band),
+                Ok(crate::contact::RestVerdict::Rest(_))
+            ),
             "the door verifies Rest on the planar flanks"
         );
         assert!(
-            crate::boolean::verify_tangent_declaration(&pa.body, fa, &pb.body, fb, band).is_err(),
+            crate::boolean::glued_tangency(
+                &pa.body,
+                fa,
+                &pb.body,
+                fb,
+                crate::boolean::DeclarationRead::Spent(GlueClass::Tangent),
+                band
+            )
+            .is_err(),
             "the door refuses Tangent on the planar flanks"
         );
         for (arm, label) in arms {
@@ -3070,7 +3081,15 @@ mod tests {
         });
         let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
         assert!(
-            crate::boolean::verify_tangent_declaration(&ca, fca, &cb, fcb, band).is_err(),
+            crate::boolean::glued_tangency(
+                &ca,
+                fca,
+                &cb,
+                fcb,
+                crate::boolean::DeclarationRead::Spent(GlueClass::Tangent),
+                band
+            )
+            .is_err(),
             "the door refuses Tangent on the curved flanks"
         );
         for (arm, label) in arms {

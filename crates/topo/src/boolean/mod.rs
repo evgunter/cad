@@ -131,9 +131,8 @@ pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
-    BooleanDecision, Coincide, CrossingDecision, DeclarationRead, LeverArm,
-    PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion, TorusConvention,
-    WallRung,
+    BooleanDecision, Coincide, CrossingDecision, DeclarationRead, LeverArm, PlaneRung,
+    SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion, TorusConvention, WallRung,
 };
 pub(crate) mod region;
 mod rim_wedge;
@@ -9287,12 +9286,12 @@ mod tests {
         );
     }
 
-    /// **The tangency check's conformal screen refuses a carrier datum
-    /// that is not finite as poison**, not as the one carrier that
-    /// contradicts the claim: two stacked bricks' caps on `z = 1`, the
-    /// lower one re-charted parallel through `z = +∞`.
+    /// **The glue door keeps a carrier datum that is not finite as
+    /// poison**, read once, and never hands the pair to the tangency
+    /// lane: two stacked bricks' caps on `z = 1`, the lower one
+    /// re-charted parallel through `z = +∞`.
     #[test]
-    fn the_tangency_screen_refuses_an_infinite_offset_as_poison() {
+    fn the_glue_door_keeps_an_infinite_offset_as_poison() {
         let tol = geom_core::Tol::witness();
         let mut a = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let b = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol);
@@ -9331,12 +9330,33 @@ mod tests {
         // the row's premise, and no edge certifies against it.
         a.set_face_surface_unvouched_for_tests(fa, surface).unwrap();
         let band = Band::linear(tol).unwrap();
-        let err = verify_tangent_declaration(&a, fa, &b, fb, band)
-            .expect_err("the screen reads no carrier through an infinite offset");
-        let BooleanError::PoisonedCarrierDatum { pair, diag } = err else {
-            panic!("the screen refuses the poisoned datum: {err:?}");
+        let none = Glue::none();
+        let door = glue::decided_glue(&a, &b, &none, band).expect("the door reads every pair");
+        assert!(
+            !door.pairs.iter().any(|p| (p.a, p.b) == (fa, fb)),
+            "the poisoned pair is glued under no class: {:?}",
+            door.pairs
+        );
+        let held: Vec<_> = door
+            .in_band
+            .iter()
+            .filter(|p| (p.a, p.b) == (fa, fb))
+            .collect();
+        let [
+            InBandPair {
+                reading: carrier_eq::CarrierEqError::Undecided { coincidence, .. },
+                ..
+            },
+        ] = held[..]
+        else {
+            panic!("the door keeps the pair's one undecided reading: {held:?}");
         };
-        assert_eq!(pair, [(Operand::A, fa), (Operand::B, fb)]);
+        let pair = [(Operand::A, fa), (Operand::B, fb)];
+        let Err(BooleanError::PoisonedCarrierDatum { diag, .. }) =
+            readable_coincidence(*coincidence, pair)
+        else {
+            panic!("the reading is the poisoned datum: {coincidence:?}");
+        };
         assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
     }
 
@@ -9466,24 +9486,24 @@ mod tests {
     #[test]
     fn a_declared_face_that_does_not_resolve_refuses_typed() {
         let empty = Body::<f64>::new();
-        let err = verify_tangent_declaration(
+        let read = glued_tangency(
             &empty,
             FaceKey::default(),
             &empty,
             FaceKey::default(),
+            DeclarationRead::Moot,
             Band::new(1e-9, 1e-8).unwrap(),
-        )
-        .expect_err("a key with no face behind it cannot be verified");
+        );
         assert!(
             matches!(
-                err,
-                BooleanError::InvalidInput {
+                read,
+                Err(TangencyFailure::Refused(BooleanError::InvalidInput {
                     operand: Operand::A,
                     what: "a glued face's key does not resolve",
-                }
+                }))
             ),
             "a missing declared face is a caller bug, not a classification, and the \
-             refusal says which caller bug it is: {err:?}"
+             refusal says which caller bug it is"
         );
     }
 

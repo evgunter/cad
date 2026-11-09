@@ -1285,9 +1285,7 @@ impl BooleanDecision {
             (PlaneDoor::OnPair(read), PlaneRung::Parallel) => {
                 Self::Coincidence(Coincide::OnPlanes, read)
             }
-            (PlaneDoor::OnPair(_), PlaneRung::Orientation) => {
-                Self::PlaneOrientation
-            }
+            (PlaneDoor::OnPair(_), PlaneRung::Orientation) => Self::PlaneOrientation,
             (PlaneDoor::Neighbours, rung) => Self::Neighbours(rung),
         }
     }

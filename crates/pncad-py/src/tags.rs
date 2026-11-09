@@ -1498,7 +1498,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
         BooleanErrorKind::PoisonedCarrierDatum => "poisoned_carrier_datum",
-        BooleanErrorKind::ContactContradicted => "contact_contradicted",
         BooleanErrorKind::TangencyUnsupported => "tangency_unsupported",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::HeldPierceUnbuilt => "held_pierce_unbuilt",

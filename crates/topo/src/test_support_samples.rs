@@ -162,10 +162,12 @@ fn contact_verdicts() -> Vec<ContactVerdict> {
             by: by(Sign::Positive),
         }),
     );
-    v.extend([Sign::Positive, Sign::Negative].map(|sign| ContactVerdict::Ruled {
-        row: TangentRow::Gap,
-        by: by(sign),
-    }));
+    v.extend(
+        [Sign::Positive, Sign::Negative].map(|sign| ContactVerdict::Ruled {
+            row: TangentRow::Gap,
+            by: by(sign),
+        }),
+    );
     v
 }
 

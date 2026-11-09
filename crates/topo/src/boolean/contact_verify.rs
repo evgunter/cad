@@ -467,9 +467,11 @@ fn tangent_pass<T: Decide>(
             Margin::levered(n1.dot(n2), extent),
             band,
         ) {
-            Ok(by @ Decided {
-                sign: Sign::Zero, ..
-            }) => return Err(ruled(TangentRow::Independent, by)),
+            Ok(
+                by @ Decided {
+                    sign: Sign::Zero, ..
+                },
+            ) => return Err(ruled(TangentRow::Independent, by)),
             Ok(by) => by,
             Err(diag) => return Err(TangentVerdict::InBand(diag).into()),
         };
@@ -575,10 +577,12 @@ fn tangent_pass<T: Decide>(
         }
         geom_core::k_stats::splice(first_order_log);
         match first_order {
-            Ok(by @ Decided {
-                sign: Sign::Positive | Sign::Negative,
-                ..
-            }) => return Err(ruled(TangentRow::Parallel, by)),
+            Ok(
+                by @ Decided {
+                    sign: Sign::Positive | Sign::Negative,
+                    ..
+                },
+            ) => return Err(ruled(TangentRow::Parallel, by)),
             Ok(_) => {}
             // First-order tangency is must-verify-DEFINITE (C4's first
             // list): an in-band angular defect escalates.
@@ -814,16 +818,15 @@ mod tests {
         // Cylinder outward points away from its axis, so at z = 0 it
         // is −ẑ; the plane's face normal is +ẑ. Opposed.
         let read = tangent_locus_relation(&cyl, true, &flat, true, &ruling, -1.0, 1.0, band());
-        assert!(read.is_ok(), "{read:?}");
+        assert!(matches!(read, TangentVerdict::Touch(_)), "{read:?}");
     }
 
-    /// The contradiction row: a sphere and a plane through its
-    /// equator. The locus lies on BOTH surfaces, so nothing is
-    /// separated — but the normals there are definitely INDEPENDENT
-    /// (radial versus axial), which is a transverse intersection, not
-    /// a tangency.
+    /// The independence row: a sphere and a plane through its equator.
+    /// The locus lies on BOTH surfaces, so nothing is separated — but the
+    /// normals there are definitely INDEPENDENT (radial versus axial),
+    /// which is a transverse intersection, not a tangency.
     #[test]
-    fn definite_normal_independence_contradicts_the_contact() {
+    fn definite_normal_independence_rules_the_contact_out() {
         let sphere = Surface::Sphere {
             center: Point3::origin(),
             radius: 1.0,
@@ -837,7 +840,7 @@ mod tests {
             1.0,
             Vec3::new(1.0, 0.0, 0.0),
         );
-        let err = tangent_locus_relation(
+        let read = tangent_locus_relation(
             &sphere,
             true,
             &flat,
@@ -846,16 +849,15 @@ mod tests {
             0.0,
             std::f64::consts::TAU,
             band(),
-        )
-        .unwrap_err();
-        match err {
-            ContactRefusal::Contradicted { diag, .. } => assert_eq!(
-                diag.predicate,
-                Some("contact_tangent_independent"),
-                "the refusal must name the margin that decided"
-            ),
-            other => panic!("expected Contradicted, got {other:?}"),
-        }
+        );
+        let TangentVerdict::Ruled {
+            row: TangentRow::Independent,
+            by,
+        } = read
+        else {
+            panic!("expected the independence row, got {read:?}");
+        };
+        assert_eq!(by.sign, Sign::Zero, "perpendicular normals: {by:?}");
     }
 
     /// **An exactly zero relative curvature escalates.** Two coincident
@@ -868,12 +870,8 @@ mod tests {
         let up = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let down = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let along = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
-        let refusal =
-            tangent_locus_relation(&up, true, &down, false, &along, -1.0, 1.0, band()).unwrap_err();
-        assert!(
-            matches!(refusal, ContactRefusal::Escalated { .. }),
-            "{refusal:?}"
-        );
+        let read = tangent_locus_relation(&up, true, &down, false, &along, -1.0, 1.0, band());
+        assert!(matches!(read, TangentVerdict::InBand(_)), "{read:?}");
     }
 
     /// Outside the certified lane there is no verdict at all — the
@@ -891,7 +889,7 @@ mod tests {
         let along = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
         assert!(matches!(
             tangent_locus_relation(&cone, true, &flat, true, &along, -1.0, 1.0, band()),
-            Err(ContactRefusal::NotCertifiable { .. })
+            TangentVerdict::NotCertifiable(Uncertified::OutsideLane)
         ));
     }
 
@@ -910,7 +908,7 @@ mod tests {
         enum Want {
             On,
             Escalated,
-            Contradicted,
+            Off,
             SagInBand,
             SagBeyond,
         }
@@ -932,15 +930,10 @@ mod tests {
             (
                 big,
                 1.5 * big,
-                Want::Contradicted,
+                Want::Off,
                 "a definite miss under a larger sag",
             ),
-            (
-                -big,
-                0.0,
-                Want::Contradicted,
-                "a definite miss on the other side",
-            ),
+            (-big, 0.0, Want::Off, "a definite miss on the other side"),
             (
                 0.6 * eps,
                 big,
@@ -960,24 +953,37 @@ mod tests {
                 "an in-band sample under no sag",
             ),
         ] {
-            let got = match on_surface(["probe_on", "probe_off"], r, sag, b) {
+            let off = TangentRow::Off(PairSide::Second);
+            let got = match on_surface(("probe_on", PairSide::Second), r, sag, b) {
                 Ok(()) => Want::On,
-                Err(Unsettled::Refused(ContactRefusal::Escalated { diag })) => {
-                    assert_eq!(diag.predicate, Some("probe_off"), "{why}: the sample's own");
+                Err(Unsettled::Ended(TangentVerdict::InBand(diag))) => {
+                    assert_eq!(
+                        diag.predicate,
+                        Some(off.predicate()),
+                        "{why}: the sample's own"
+                    );
                     assert!(!diag.margin.is_invalid(), "{why}: the in-band reading");
                     Want::Escalated
                 }
-                Err(Unsettled::Refused(ContactRefusal::Contradicted { diag, .. })) => {
-                    assert_eq!(diag.predicate, Some("probe_off"), "{why}");
-                    assert!(!diag.margin.is_invalid(), "{why}: the measured margin");
-                    Want::Contradicted
+                Err(Unsettled::Ended(TangentVerdict::Ruled { row, by })) => {
+                    assert_eq!(row, off, "{why}: the surface's own row");
+                    assert!(!by.margin.is_invalid(), "{why}: the measured margin");
+                    assert_eq!(
+                        by.sign,
+                        if r > 0.0 {
+                            Sign::Positive
+                        } else {
+                            Sign::Negative
+                        }
+                    );
+                    Want::Off
                 }
                 Err(Unsettled::Sag(Some(diag))) => {
                     assert_eq!(diag.predicate, Some("probe_on"), "{why}: the far side's");
                     Want::SagInBand
                 }
                 Err(Unsettled::Sag(None)) => Want::SagBeyond,
-                Err(Unsettled::Refused(other)) => panic!("{why}: {other:?}"),
+                Err(Unsettled::Ended(other)) => panic!("{why}: {other:?}"),
             };
             assert_eq!(got, want, "{why}: r = {r:e}, sag = {sag:e}");
         }
@@ -1055,9 +1061,11 @@ mod tests {
             "the nine-sample sag stands past the band: {nine:e}"
         );
         let read = |t1: f64| tangency_reading(&near, true, &far, true, &meridian, 0.0, t1, b);
-        if let Err(e) = read(short) {
-            panic!("the finer schedule verifies the short span: {e:?}");
-        }
+        let short_read = read(short);
+        assert!(
+            matches!(short_read, TangentVerdict::Touch(_)),
+            "the finer schedule verifies the short span: {short_read:?}"
+        );
         // The arc about the outer equator, a quarter radian short of each
         // pole.
         let arc = core::f64::consts::PI - 0.5;
@@ -1078,7 +1086,10 @@ mod tests {
         let span = tangency_reading(&near, true, &far, true, &meridian, -0.5 * arc, 0.5 * arc, b);
         let log = bracket.finish();
         assert!(
-            matches!(span, Err(TableRefusal::SagUnreached)),
+            matches!(
+                span,
+                TangentVerdict::NotCertifiable(Uncertified::SagUnreached)
+            ),
             "the arc about the equator is past the finest schedule: {span:?}"
         );
         // The schedule left the second order to the span bound: the
@@ -1098,7 +1109,7 @@ mod tests {
         assert!(
             matches!(
                 tangency_reading(&near, true, &far, true, &outside, 0.0, 0.1, b),
-                Err(TableRefusal::Refused(ContactRefusal::NotCertifiable { .. }))
+                TangentVerdict::NotCertifiable(Uncertified::OutsideLane)
             ),
             "a line on two tori is outside the lane"
         );
@@ -1106,7 +1117,7 @@ mod tests {
         let whole = read(tau);
         let log = bracket.finish();
         match whole {
-            Err(TableRefusal::Refused(ContactRefusal::Escalated { diag })) => {
+            TangentVerdict::InBand(diag) => {
                 assert!(
                     log.escalations.iter().any(|e| e.source == diag),
                     "the rejection the refusal quotes is on the log: {diag:?}"
@@ -1187,7 +1198,7 @@ mod tests {
                 core::f64::consts::TAU,
                 b,
             ) {
-                Err(TableRefusal::Refused(ContactRefusal::Escalated { diag })) => {
+                TangentVerdict::InBand(diag) => {
                     assert_eq!(diag.predicate, Some("contact_tangent_gap"));
                 }
                 other => panic!("the touch along the rim: {other:?}"),
@@ -1199,10 +1210,7 @@ mod tests {
     /// to `z = 1 + gap` (a negative gap sinks it in), read along the
     /// line at height `z = witness` under the ruling: the pair's touch
     /// and the witness's place are set apart.
-    fn lifted_cylinder_on_plane(
-        gap: f64,
-        witness: f64,
-    ) -> Result<geom_core::MarginDiag, ContactRefusal> {
+    fn lifted_cylinder_on_plane(gap: f64, witness: f64) -> TangentVerdict {
         let cyl = Surface::Cylinder {
             origin: Point3::new(0.0, 0.0, 1.0 + gap),
             axis: Vec3::new(1.0, 0.0, 0.0),
@@ -1214,14 +1222,6 @@ mod tests {
         tangent_locus_relation(&cyl, true, &flat, true, &along, -1.0, 1.0, band())
     }
 
-    /// The signed margin a refusal's reading carries.
-    fn margin_of(diag: &Indeterminate) -> f64 {
-        diag.margin
-            .diagnostic_f64_for_error_text()
-            .value()
-            .expect("a decided point margin")
-    }
-
     /// **The touch is read on the pair, not on each half of it.** A
     /// witness halfway between two surfaces stands within each by half
     /// their gap, so two residual rows each pass where the gap is under
@@ -1230,7 +1230,7 @@ mod tests {
     /// - 1.8ε apart: each residual is 0.9ε, within ε; the gap is in
     ///   band and escalates under its own name.
     /// - 15ε apart: the gap is definite, a separation (positive), and
-    ///   contradicts. Each residual (7.5ε) is in band, so a
+    ///   rules the pair out. Each residual (7.5ε) is in band, so a
     ///   decider reading only the residuals escalates here.
     /// - 15ε into each other: the gap is definite and negative, a
     ///   crossing.
@@ -1238,7 +1238,7 @@ mod tests {
     fn a_witness_between_the_surfaces_reads_their_whole_gap() {
         let eps = band().zero();
         match lifted_cylinder_on_plane(1.8 * eps, 0.9 * eps) {
-            Err(ContactRefusal::Escalated { diag }) => {
+            TangentVerdict::InBand(diag) => {
                 assert_eq!(
                     diag.predicate,
                     Some("contact_tangent_gap"),
@@ -1247,20 +1247,22 @@ mod tests {
             }
             other => panic!("1.8ε apart escalates on the gap: {other:?}"),
         }
-        for (gap, sign, what) in [(15.0, 1.0, "separation"), (-15.0, -1.0, "crossing")] {
+        for (gap, sign, what) in [
+            (15.0, Sign::Positive, "separation"),
+            (-15.0, Sign::Negative, "crossing"),
+        ] {
             match lifted_cylinder_on_plane(gap * eps, 0.5 * gap * eps) {
-                Err(ContactRefusal::Contradicted { diag }) => {
-                    assert_eq!(
-                        diag.predicate,
-                        Some("contact_tangent_gap"),
-                        "{what}: {diag:?}"
-                    );
+                TangentVerdict::Ruled {
+                    row: TangentRow::Gap,
+                    by,
+                } => {
+                    assert_eq!(by.sign, sign, "{what}: the reading's sign names it: {by:?}");
                     assert!(
-                        margin_of(&diag) * sign > 0.0,
-                        "{what}: the margin's sign names it: {diag:?}"
+                        !by.margin.is_invalid(),
+                        "{what}: the measured margin: {by:?}"
                     );
                 }
-                other => panic!("{what} by 15ε contradicts on the gap: {other:?}"),
+                other => panic!("{what} by 15ε is ruled out on the gap: {other:?}"),
             }
         }
     }
@@ -1268,19 +1270,20 @@ mod tests {
     /// **A witness off a touching pair is a bad witness, not a gap.**
     /// Displaced 11ε along the shared normal, the witness is 11ε out of
     /// the cylinder and 11ε above the plane, and the two heights cancel
-    /// in the gap: the pair touches. The residual row contradicts,
+    /// in the gap: the pair touches. The residual row rules it out,
     /// naming the first surface it reads.
     #[test]
-    fn a_witness_off_a_touching_pair_contradicts_as_a_bad_witness() {
+    fn a_witness_off_a_touching_pair_is_a_bad_witness() {
         let eps = band().zero();
         match lifted_cylinder_on_plane(0.0, 11.0 * eps) {
-            Err(ContactRefusal::Contradicted { diag }) => {
-                assert_eq!(diag.predicate, Some("contact_tangent_off_1"), "{diag:?}");
+            TangentVerdict::Ruled { row, by } => {
+                assert_eq!(row, TangentRow::Off(PairSide::First), "{by:?}");
+                assert_eq!(row.predicate(), "contact_tangent_off_1");
             }
-            other => panic!("a witness 11ε off contradicts on its residual: {other:?}"),
+            other => panic!("a witness 11ε off is ruled out on its residual: {other:?}"),
         }
         assert!(
-            lifted_cylinder_on_plane(0.0, 0.0).is_ok(),
+            matches!(lifted_cylinder_on_plane(0.0, 0.0), TangentVerdict::Touch(_)),
             "the same pair read along its ruling"
         );
     }
@@ -1313,8 +1316,8 @@ mod tests {
 
     /// The second-order reading is decided first and acted on last, so
     /// its escalation reaches the frame's log only when the outcome
-    /// rests on it: a definite first-order defect contradicts with an
-    /// empty escalation log, and an in-band one is the log's only
+    /// rests on it: a definite first-order defect rules the pair out with
+    /// an empty escalation log, and an in-band one is the log's only
     /// escalation. Where the outcome does rest on it (the first order
     /// verified), the refusal carries the reading itself.
     #[test]
@@ -1340,20 +1343,22 @@ mod tests {
             let escalations: Vec<_> = log.escalations.iter().map(|e| e.source).collect();
             (out, escalations)
         };
-        // A definite crossing: the parallelism defect contradicts.
+        // A definite crossing: the parallelism defect rules it out.
         let (out, escalations) = read(1e-3);
         assert!(
             matches!(
                 out,
-                Err(ContactRefusal::Contradicted { diag, .. })
-                    if diag.predicate == Some("contact_tangent_parallel")
+                TangentVerdict::Ruled {
+                    row: TangentRow::Parallel,
+                    ..
+                }
             ),
-            "a definite defect contradicts: {out:?}"
+            "a definite defect rules the pair out: {out:?}"
         );
-        assert_eq!(escalations, vec![], "a contradiction leaves no escalation");
+        assert_eq!(escalations, vec![], "a ruling leaves no escalation");
         // An in-band crossing: the parallel reading is the refusal.
         let (out, escalations) = read((3.0 * b.zero()).asin());
-        let Err(ContactRefusal::Escalated { diag }) = out else {
+        let TangentVerdict::InBand(diag) = out else {
             panic!("an in-band defect escalates: {out:?}");
         };
         assert_eq!(diag.predicate, Some("contact_tangent_parallel"));
@@ -1364,7 +1369,7 @@ mod tests {
         );
         // A touch: the second-order reading is the refusal.
         let (out, escalations) = read(0.0);
-        let Err(ContactRefusal::Escalated { diag }) = out else {
+        let TangentVerdict::InBand(diag) = out else {
             panic!("an in-band κ_rel escalates: {out:?}");
         };
         assert_eq!(diag.predicate, Some("contact_tangent_second_order"));
@@ -1395,7 +1400,10 @@ mod tests {
         let (fat, small) = (cyl(0.0, 2.0), cyl(1.0, 1.0));
         let at_two = line([2.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let read = |s1, sense1, s2, sense2, along| {
-            tangency_reading(s1, sense1, s2, sense2, along, 0.0, 1.0, b).is_ok()
+            matches!(
+                tangency_reading(s1, sense1, s2, sense2, along, 0.0, 1.0, b),
+                TangentVerdict::Touch(_)
+            )
         };
         assert!(
             read(&fat, true, &small, true, &at_two),
@@ -1404,10 +1412,12 @@ mod tests {
         assert!(
             matches!(
                 tangent_locus_relation(&fat, true, &small, true, &at_two, 0.0, 1.0, b),
-                Err(ContactRefusal::Contradicted { diag, .. })
-                    if diag.predicate == Some("contact_tangent_opposed")
+                TangentVerdict::Ruled {
+                    row: TangentRow::Opposed,
+                    ..
+                }
             ),
-            "the nested discs as a contact: contradicted on the senses"
+            "the nested discs as a contact: ruled out on the senses"
         );
         assert!(
             read(&fat, true, &small, false, &at_two),
@@ -1416,10 +1426,12 @@ mod tests {
         assert!(
             matches!(
                 tangent_locus_relation(&fat, true, &small, false, &at_two, 0.0, 1.0, b),
-                Err(ContactRefusal::Contradicted { diag, .. })
-                    if diag.predicate == Some("contact_tangent_overlap")
+                TangentVerdict::Ruled {
+                    row: TangentRow::Overlap,
+                    ..
+                }
             ),
-            "the bore in the disc as a contact: contradicted on the crescent"
+            "the bore in the disc as a contact: ruled out on the crescent"
         );
         let at_one = line([1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         assert!(
@@ -1440,7 +1452,7 @@ mod tests {
                     1.0,
                     b
                 ),
-                Err(TableRefusal::Refused(ContactRefusal::Contradicted { .. }))
+                TangentVerdict::Ruled { .. }
             ),
             "discs a gap apart: the line is off one of them"
         );
@@ -1456,7 +1468,7 @@ mod tests {
                     1.0,
                     b
                 ),
-                Err(TableRefusal::Refused(ContactRefusal::Contradicted { .. }))
+                TangentVerdict::Ruled { .. }
             ),
             "overlapping discs: the line is off one of them"
         );

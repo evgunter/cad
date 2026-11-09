@@ -4,17 +4,17 @@
 //! (`geom_brep::tangent_certificate_lane`'s docs). The sag there is
 //! tenths of a metre over the whole circle, past the band even on the
 //! table's finest schedule, so the gate can neither verify nor, on the
-//! exact locus, contradict: every reading is definite and the refusal
+//! exact locus, rule it out: every reading is definite and the refusal
 //! rests on the sag alone, so the certificate does not reach the span. A
 //! witness lifted definitely off the locus is a measured miss whatever
-//! the sag, and contradicts.
+//! the sag, and is ruled out.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::contact::ContactRefusal;
+use topo::contact::{TangentRow, TangentVerdict, Uncertified};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -46,7 +46,7 @@ fn meridian(lift: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     (torus, sphere, circle)
 }
 
-fn read(lift: f64) -> Result<geom_core::MarginDiag, ContactRefusal> {
+fn read(lift: f64) -> TangentVerdict {
     let (torus, sphere, circle) = meridian(lift);
     let whole = core::f64::consts::TAU;
     // The table's finest schedule: `2^REFINE_HALVINGS` spans to each
@@ -69,7 +69,10 @@ fn read(lift: f64) -> Result<geom_core::MarginDiag, ContactRefusal> {
 fn the_exact_meridian_is_not_certifiable_on_its_sample() {
     let out = read(0.0);
     assert!(
-        matches!(out, Err(ContactRefusal::NotCertifiable { .. })),
+        matches!(
+            out,
+            TangentVerdict::NotCertifiable(Uncertified::SagUnreached)
+        ),
         "on the locus, an unbounded span neither verifies nor contradicts, and no \
          reading is in band: {out:?}"
     );
@@ -79,20 +82,23 @@ fn the_exact_meridian_is_not_certifiable_on_its_sample() {
 fn a_meridian_lifted_inside_the_zero_band_is_not_certifiable() {
     let out = read(0.5 * band().zero());
     assert!(
-        matches!(out, Err(ContactRefusal::NotCertifiable { .. })),
+        matches!(
+            out,
+            TangentVerdict::NotCertifiable(Uncertified::SagUnreached)
+        ),
         "a sample within ε is not a miss: {out:?}"
     );
 }
 
 #[test]
-fn a_meridian_lifted_beyond_the_band_contradicts_under_the_sag() {
+fn a_meridian_lifted_beyond_the_band_is_ruled_out_under_the_sag() {
     let out = read(3.0 * band().escalate());
-    let Err(ContactRefusal::Contradicted { diag, .. }) = out else {
+    let TangentVerdict::Ruled { row, .. } = out else {
         panic!("a sample definitely off the surface is a miss whatever the sag: {out:?}");
     };
     assert_eq!(
-        diag.predicate,
-        Some("contact_tangent_off_1"),
+        row,
+        TangentRow::Off(geom_brep::PairSide::First),
         "the sample is the miss"
     );
 }
@@ -108,7 +114,10 @@ fn the_span_too_wide_refusal_is_not_on_the_escalation_log() {
     let out = read(0.0);
     let log = bracket.finish();
     assert!(
-        matches!(out, Err(ContactRefusal::NotCertifiable { .. })),
+        matches!(
+            out,
+            TangentVerdict::NotCertifiable(Uncertified::SagUnreached)
+        ),
         "{out:?}"
     );
     assert!(
@@ -137,7 +146,7 @@ fn finest_spans() -> f64 {
 /// definitely off the torus. Started on the shared point or off it,
 /// the table reads every sample and the measured miss answers.
 #[test]
-fn a_sag_on_one_sample_does_not_mask_a_later_contradiction() {
+fn a_sag_on_one_sample_does_not_mask_a_later_ruling() {
     let (torus, sphere, _) = meridian(0.0);
     let alpha: f64 = 0.3;
     let turned = Curve3::circle(
@@ -158,7 +167,7 @@ fn a_sag_on_one_sample_does_not_mask_a_later_contradiction() {
             band(),
         );
         assert!(
-            matches!(out, Err(ContactRefusal::Contradicted { .. })),
+            matches!(out, TangentVerdict::Ruled { .. }),
             "started at {start}: the circle leaves the torus: {out:?}"
         );
     }

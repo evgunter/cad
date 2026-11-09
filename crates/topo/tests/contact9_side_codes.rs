@@ -378,8 +378,14 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
     );
     let door = topo::boolean::rest_pair_verdict(&block, top, &wedge, bottom, band);
     assert!(
-        matches!(door, Err(topo::ContactRefusal::Contradicted { .. })),
-        "the door reads the tilt across the faces and contradicts it: {door:?}"
+        matches!(
+            door,
+            Ok(topo::RestVerdict::Ruled {
+                row: topo::RestRow::TwoCarriers,
+                by: Some(_),
+            })
+        ),
+        "the door reads the tilt across the faces and rules the pair two carriers: {door:?}"
     );
 }
 
@@ -389,7 +395,7 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
 /// ball about the mean of the two faces' box centres, `(2.5, 0.25, 0)`,
 /// out to the top's far corner: radius `√200 + |(2.5, 0.25)| ≈
 /// 16.655 m`.
-fn wedge_on_the_top(rise: f64, lift: f64) -> Result<geom_core::MarginDiag, topo::ContactRefusal> {
+fn wedge_on_the_top(rise: f64, lift: f64) -> Result<topo::RestVerdict, topo::ContactRefusal> {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let block = common::finished(
@@ -436,12 +442,12 @@ fn a_declared_offset_and_tilt_each_in_band_do_not_bridge_their_sum() {
     );
 }
 
-/// **A tilt in band escalates, and a tilt past it contradicts.** The
+/// **A tilt in band escalates, and a tilt past it is two carriers.** The
 /// wedge pivots on its near edge so its far corner stands `d` off the
 /// top, for `d` across `0.3…1.5·Kε`. The door reads the tilt levered at
 /// the extent's radius, `d·16.655/10 ≈ 1.67·d`: in band, so the pair
-/// escalates, below `d ≈ 0.6·Kε`, and past it, two carriers the `Rest`
-/// contact contradicts, above.
+/// escalates, below `d ≈ 0.6·Kε`, and past it, two carriers on the datum
+/// decided apart, above.
 #[test]
 fn a_wedge_sweep_bridges_then_escalates_then_contradicts() {
     let k = Band::linear(Tol::witness()).unwrap().escalate();
@@ -449,15 +455,18 @@ fn a_wedge_sweep_bridges_then_escalates_then_contradicts() {
         (0.3, "escalated"),
         (0.4, "escalated"),
         (0.5, "escalated"),
-        (0.75, "contradicted"),
-        (0.9, "contradicted"),
-        (1.1, "contradicted"),
-        (1.5, "contradicted"),
+        (0.75, "apart"),
+        (0.9, "apart"),
+        (1.1, "apart"),
+        (1.5, "apart"),
     ] {
         let door = wedge_on_the_top(d * k, 0.0);
         let read = match door {
             Err(topo::ContactRefusal::Escalated { .. }) => "escalated",
-            Err(topo::ContactRefusal::Contradicted { .. }) => "contradicted",
+            Ok(topo::RestVerdict::Ruled {
+                row: topo::RestRow::TwoCarriers,
+                by: Some(_),
+            }) => "apart",
             ref other => panic!("d = {d}·Kε: unexpected {other:?}"),
         };
         assert_eq!(read, expect, "d = {d}·Kε");

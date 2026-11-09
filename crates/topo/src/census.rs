@@ -10454,7 +10454,9 @@ fn confirm_face_pair<T: Decide>(
     use crate::contact::{ContactVerdict, TangentVerdict};
     match crate::boolean::tangent_table_at_rest(&line, band) {
         TangentVerdict::Touch(_) => {}
-        TangentVerdict::Ruled { row, by } => errors.push(contradicted(ContactVerdict::Ruled { row, by })),
+        TangentVerdict::Ruled { row, by } => {
+            errors.push(contradicted(ContactVerdict::Ruled { row, by }))
+        }
         TangentVerdict::SidesMixed { at } => {
             errors.push(contradicted(ContactVerdict::SidesMixed { at }));
         }
@@ -13597,9 +13599,9 @@ mod tests {
             );
             assert!(
                 errors.iter().any(|e| matches!(e,
-                    ValidationError::ContactContradicted { declaration, .. }
-                        if [declaration.a, declaration.b] == [fa, fb]
-                            || [declaration.a, declaration.b] == [fb, fa])),
+                    ValidationError::ContactContradicted { record, .. }
+                        if [record.a, record.b] == [fa, fb]
+                            || [record.a, record.b] == [fb, fa])),
                 "{what}: the confirm pass reports the declaration: {errors:?}"
             );
         }
@@ -18493,8 +18495,8 @@ mod records_by_carrier {
             errors
                 .iter()
                 .filter(|e| match e {
-                    ValidationError::ContactContradicted { declaration, .. } => {
-                        [declaration.a, declaration.b] == [a, b]
+                    ValidationError::ContactContradicted { record, .. } => {
+                        [record.a, record.b] == [a, b]
                     }
                     ValidationError::CensusUnsupported {
                         subject: CensusSubject::FacePair(x, y),
@@ -18517,7 +18519,7 @@ mod records_by_carrier {
             named(&errors, a, b).iter().any(|e| matches!(
                 e,
                 ValidationError::ContactContradicted {
-                    declaration: crate::contact::ContactPair {
+                    record: crate::contact::ContactPair {
                         class: crate::contact::GlueClass::Tangent,
                         ..
                     },
@@ -18720,9 +18722,7 @@ mod two_carrier_records {
     fn names(errors: &[ValidationError], a: FaceKey, b: FaceKey) -> bool {
         let is = |x: FaceKey, y: FaceKey| (x, y) == (a, b) || (x, y) == (b, a);
         errors.iter().any(|e| match e {
-            ValidationError::ContactContradicted { declaration, .. } => {
-                is(declaration.a, declaration.b)
-            }
+            ValidationError::ContactContradicted { record, .. } => is(record.a, record.b),
             ValidationError::CensusUnsupported {
                 subject: CensusSubject::FacePair(x, y),
                 ..
@@ -19303,9 +19303,9 @@ mod two_carrier_records {
             errors.iter().any(|e| {
                 matches!(
                     e,
-                    ValidationError::ContactContradicted { declaration, .. }
-                        if [declaration.a, declaration.b] == [a, b]
-                            || [declaration.a, declaration.b] == [b, a]
+                    ValidationError::ContactContradicted { record, .. }
+                        if [record.a, record.b] == [a, b]
+                            || [record.a, record.b] == [b, a]
                 )
             })
         }
@@ -19339,12 +19339,25 @@ mod two_carrier_records {
                         ValidationError::StaleContactDeclaration {
                             declaration: StaleDeclaration::Patch { face_a, face_b },
                         } if is(*face_a, *face_b) => Some("stale".to_owned()),
-                        ValidationError::ContactContradicted {
-                            declaration,
-                            margin,
-                            ..
-                        } if is(declaration.a, declaration.b) => {
-                            Some(format!("contradicted({:?})", margin.predicate))
+                        ValidationError::ContactContradicted { record, verdict }
+                            if is(record.a, record.b) =>
+                        {
+                            Some(format!(
+                                "contradicted({})",
+                                match verdict {
+                                    crate::contact::ContactVerdict::Ruled { row, .. } => {
+                                        row.predicate()
+                                    }
+                                    crate::contact::ContactVerdict::NotTangent {
+                                        predicate,
+                                        ..
+                                    } => predicate,
+                                    crate::contact::ContactVerdict::SidesMixed { .. } => {
+                                        "sides mixed"
+                                    }
+                                    crate::contact::ContactVerdict::Rest { .. } => "rest",
+                                }
+                            ))
                         }
                         ValidationError::CensusEscalated { cause } => {
                             Some(format!("escalated({:?})", cause.predicate))
@@ -19825,6 +19838,9 @@ mod two_carrier_records {
                     }
                     Ok(crate::boolean::RestTangent::Apart) => "Apart".to_owned(),
                     Ok(crate::boolean::RestTangent::NoLine) => "NoLine".to_owned(),
+                    Ok(crate::boolean::RestTangent::NotTangent(verdict)) => {
+                        format!("NotTangent {verdict:?}")
+                    }
                     Err(e) => format!("Err {e:?}"),
                 };
                 let errors = census_and_certify(

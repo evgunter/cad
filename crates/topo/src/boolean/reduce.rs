@@ -6720,9 +6720,15 @@ mod declaration_order_rows {
         band: Band,
     ) -> bool {
         match class {
-            GlueClass::Rest => crate::boolean::rest_pair_verdict(x, xw, y, yw, band).is_ok(),
+            GlueClass::Rest => matches!(
+                crate::boolean::rest_pair_verdict(x, xw, y, yw, band),
+                Ok(crate::contact::RestVerdict::Rest(_))
+            ),
             GlueClass::Tangent => witness.is_some_and(|(carrier, t0, t1)| {
-                crate::boolean::tangent_pair_relation(x, xw, y, yw, carrier, t0, t1, band).is_ok()
+                matches!(
+                    crate::boolean::tangent_pair_relation(x, xw, y, yw, carrier, t0, t1, band),
+                    Ok(crate::contact::TangentVerdict::Touch(_))
+                )
             }),
             GlueClass::Continuation => unreachable!("a continuation is no contact"),
         }
@@ -7127,9 +7133,15 @@ mod declaration_order_rows {
         );
         for class in [GlueClass::Rest, GlueClass::Tangent] {
             let door = match class {
-                GlueClass::Tangent => {
-                    crate::boolean::verify_tangent_declaration(&x, xw, &y, yw, b).is_ok()
-                }
+                GlueClass::Tangent => crate::boolean::glued_tangency(
+                    &x,
+                    xw,
+                    &y,
+                    yw,
+                    crate::boolean::DeclarationRead::Spent(GlueClass::Tangent),
+                    b,
+                )
+                .is_ok(),
                 _ => contact_door((&x, xw), (&y, yw), class, None, b),
             };
             assert!(
