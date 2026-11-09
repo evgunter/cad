@@ -295,16 +295,36 @@ const NON_ROW_DOORS: [&str; 2] = ["in_family", "identity_pass_set"];
 /// Whether a parameter reads as a ledger row: a name holding `row`, or,
 /// under any name but the predicate's `name`, a type that names `str` or
 /// `String` (`&'static str`, `&str`, `String`, `Cow<str>`) or one of
-/// `texts`, the home's aliases of those. An array or a slice of text
-/// (`[&'static str; 2]`, `&[&str]`) is predicate names, as `name` is.
+/// `texts`, the home's aliases of those, and is no list ([`is_list`]).
+/// A list of text, `[&'static str; 2]` or `&'static [String]`, is
+/// predicate names, as `name` is, unless its name holds `row`.
 fn row_like((name, ty): &(String, String), texts: &[String]) -> bool {
-    let names = ty.starts_with('[') || ty.trim_start_matches('&').trim_start().starts_with('[');
     name.contains("row")
         || (name != "name"
-            && !names
+            && !is_list(ty)
             && ty
                 .split(|c: char| !(c.is_alphanumeric() || c == '_'))
                 .any(|w| w == "str" || w == "String" || texts.iter().any(|t| t == w)))
+}
+
+/// Whether `ty` is an array or a slice: `[` once its references, their
+/// lifetimes and `mut` are read off the front, whatever they are.
+fn is_list(ty: &str) -> bool {
+    let mut rest = ty.trim_start();
+    loop {
+        if let Some(r) = rest.strip_prefix('&') {
+            rest = r.trim_start();
+        } else if let Some(r) = rest.strip_prefix('\'') {
+            let end = r
+                .find(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .unwrap_or(r.len());
+            rest = r[end..].trim_start();
+        } else if let Some(r) = rest.strip_prefix("mut ") {
+            rest = r.trim_start();
+        } else {
+            return rest.starts_with('[');
+        }
+    }
 }
 
 /// The home's `type` aliases of a text type (`str`, `String`, or another
@@ -1125,6 +1145,10 @@ fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
          pub fn in_family(family: &'static str) {}\n\
          pub fn across(names: [&'static str; 2], band: Band) {}\n\
          pub fn listed(names: &[&str], band: Band) {}\n\
+         pub fn one(label: [&'static str; 1]) {}\n\
+         pub fn owned_list(labels: &[String]) {}\n\
+         pub fn static_list(labels: &'static [&'static str]) {}\n\
+         pub fn row_list(rows: &'static [&'static str]) {}\n\
          impl Bracket {\n    pub fn cite(&self, ledger_row: &'static str) {}\n}\n\
          #[cfg(test)]\nmod tests {\n    pub fn in_a_test(ledger_row: &'static str) {}\n}\n",
         &["in_family"],
@@ -1145,6 +1169,7 @@ fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
             ("owned", 1, false),
             ("aliased", 1, false),
             ("constant", 0, false),
+            ("row_list", 0, false),
             ("cite", 0, true),
         ],
         "the home's row-citing doors"
