@@ -2,11 +2,11 @@
 id: a-sphere-or-torus-pair-extent-skips-the-face-box-rule
 kind: issue
 title: carrier_pair's face ball takes a sphere or torus face's whole carrier, bypassing the face box rule its other kinds read
-status: parked
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: E
-blocked_on: [cover-levers]
+closed: 2026-11-09
 ---
 
 
@@ -43,3 +43,7 @@ Whether the radial reach should read the rule too is the survey's call.
 Read the rule for every face, and where the carrier's own ball is the
 smaller keep it as a meet rather than a kind match (both enclose the
 face). Re-measure the pair levers it moves.
+
+## Closed (2026-11-09)
+
+`boolean::carrier_pair::face_ball` now reads every face's cover (`topo::face_cover`) and takes its ball (`ExtentBall::of_cover`), with no kind match: a sphere or torus face's ball is its carrier's met with its chart window, a planar face's its boundary hull's. `geom::cover`'s hull ball now also takes the ball about the hull's box where that is narrower, so no face's ball is looser than the old box rule's. (BOXES `cover-levers`)
