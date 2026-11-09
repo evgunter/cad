@@ -10,7 +10,9 @@
 #     every `T: Real`; at `Interval` each end enters once, so its
 #     enclosure is tight.
 #   * `lo + ½(hi − lo)` is `geom::bracket_mid`
-#     (`crates/geom/src/projection_policy.rs`), the `f64` tuple door.
+#     (`crates/geom/src/projection_policy.rs`), at `f64`; at an infinite
+#     point it is NaN where `½(lo + hi)` is `∞`, which projection's
+#     poison exit reads (`projection_policy::mid`).
 # A hand spelling of either form is refused and named with the home of
 # ITS form, so moving a site onto its home changes no bit. The two homes'
 # own files are exempt.

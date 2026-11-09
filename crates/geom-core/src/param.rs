@@ -9,7 +9,8 @@ use crate::Real;
 /// as the ends allow (`t0 + (t1 − t0)·½` reads `t0` twice and widens by
 /// its width). At `f64` the result lies in `[t0, t1]`; it overflows only
 /// when `t0 + t1` does (two same-sign ends near the range limit), which
-/// no curve parameter approaches.
+/// no curve parameter approaches. The other form of a bracket's middle,
+/// `lo + ½(hi − lo)`, is `geom::bracket_mid`'s.
 pub fn mid_param<T: Real>(t0: T, t1: T) -> T {
     (t0 + t1) * T::from_f64(0.5)
 }
