@@ -31,6 +31,16 @@ fields, built literally by each reader:
 - `geom_brep::curve_face::circle_roots::FirstHarmonicRows` (`circle_roots.rs:222`), 1;
 - `geom_core::period::TurnRows` (`crates/geom-core/src/period.rs:678`).
 
+**The partial answer that exists today** is the `predicate_census`
+rosters (`test_utils::source::predicate_census`). Each lists the
+predicate names one crate decides and why:
+- `crates/sweep/tests/recourse_roster.rs`;
+- `crates/profile/tests/recourse_roster.rs`;
+- `geom-brep`'s `ladder.rs` and `curve_face/rows.rs`.
+
+Each is per crate, and none checks one name across two crates' readers.
+topo has no such roster (`geom-brep/src/ladder.rs:757` notes it).
+
 Beyond bundles, a plain `&'static str` site passed to a `k_stats` door can
 be spelled by two readers alike. `crates/geom-core/tests/flagged_census.rs`
 checks that every shipped site cites a ledger row. It does not check that

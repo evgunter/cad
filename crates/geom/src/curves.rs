@@ -523,6 +523,12 @@ impl SpiricRegimeSites {
 /// ([`Self::sites`]): a new reader is a variant here, which the roster
 /// (`reader_rows`, in this crate's root) reads off this enum, so its names are
 /// checked against every other reader's when this crate compiles.
+///
+/// **This enum is the registry of who reads the spiric regime.** It spells
+/// its callers' row names, `topo`'s and `geom-brep`'s, as strings only:
+/// those names are global to the `k_stats` stream and the ledger
+/// (`docs/predicate-dimension-audit.md`) already, and this crate depends
+/// on nothing of its callers to hold them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
 pub enum SpiricReader {
     /// [`Curve3::spiric`]'s mint.
