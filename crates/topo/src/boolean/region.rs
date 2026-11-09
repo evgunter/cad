@@ -193,8 +193,17 @@ pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
 }
 
 impl<T: Decide> QueryFoot<T> {
-    /// `p`'s foot on `surface`, read through its chart
+    /// `p`'s foot on `surface`, its coordinates read through its chart
     /// ([`geom::Surface::chart_point`]) once.
+    ///
+    /// On a sphere the foot's point is read along the radius,
+    /// `c + R·(p − c)/|p − c|`, not back through the chart. The chart's
+    /// round trip lands within a few ulps of it, and which ulps depends on
+    /// the chart's frame, so a door's answer for a `p` placed at a band's
+    /// edge would move with the frame. The point read off the radius
+    /// depends on no frame. A `p` at the centre names no radius (every
+    /// point of the sphere is a foot of it), and there the chart's point
+    /// stands.
     ///
     /// # Panics
     ///
@@ -204,7 +213,16 @@ impl<T: Decide> QueryFoot<T> {
         let Ok(chart) = surface.chart_point(p, band) else {
             unreachable!("a region door reads an analytic surface")
         };
-        Self::of_chart(surface, chart.uv)
+        let on_chart = Self::of_chart(surface, chart.uv);
+        match *surface {
+            geom::Surface::Sphere { center, radius, .. } => (p - center)
+                .checked_direction()
+                .map_or(on_chart, |(toward, _)| Self {
+                    uv: chart.uv,
+                    at: center + toward * radius,
+                }),
+            _ => on_chart,
+        }
     }
 
     /// The point at chart coordinates `uv` on `surface`: a corner a door

@@ -38,7 +38,7 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
     if !x.is_certified() {
         return (f64::NAN, f64::NAN);
     }
-    ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
+    (geom::mid_param(x.lo(), x.hi()), (x.hi() - x.lo()) * 0.5)
 }
 
 /// **The carrier of a harmonic image, as the cylinder lane reads it**: a

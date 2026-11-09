@@ -842,8 +842,7 @@ pub(crate) enum CurvedPlacement {
 /// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
 /// decision's nonzero, then [`placement_on_carrier`] places it; on a
 /// curved face that door places it outright. `Trim(None)` is the curved
-/// door's remainder, a face it does not read. The projection of
-/// [`face_placement_decided`].
+/// door's remainder, a face it does not read.
 ///
 /// # Errors
 ///
@@ -856,22 +855,6 @@ pub(crate) fn face_placement<T: Decide>(
     band: Band,
     on_plane: &'static str,
 ) -> Result<CurvedPlacement, PlacementError> {
-    face_placement_decided(body, face, q, band, on_plane).map(|(at, _, _)| at)
-}
-
-/// [`face_placement`], with the margin that decided a boundary verdict
-/// and a spline face's in-trim foot ([`ChartedPlacement`]).
-///
-/// # Errors
-///
-/// As [`face_placement`].
-fn face_placement_decided<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    q: Point3<T>,
-    band: Band,
-    on_plane: &'static str,
-) -> Result<ChartedPlacement, PlacementError> {
     if let geom::Surface::Plane { origin, normal, .. } = *body.proven_face(face).surface() {
         match decide(
             on_plane,
@@ -879,13 +862,13 @@ fn face_placement_decided<T: Decide>(
             band,
         ) {
             Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => {
-                return Ok((CurvedPlacement::OffCarrier, None, None));
-            }
+            Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
             Err(diag) => return Err(PlacementError::OnPlane(diag)),
         }
     }
-    placement_on_carrier(body, face, q, band).map_err(PlacementError::Door)
+    placement_on_carrier(body, face, q, band)
+        .map(|(at, _, _)| at)
+        .map_err(PlacementError::Door)
 }
 
 /// **Where a point the caller holds on `face`'s carrier lies against

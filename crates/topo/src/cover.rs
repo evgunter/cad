@@ -867,7 +867,7 @@ pub(crate) fn harmonic_travel<T: Real>(
 }
 
 /// **The face's loops, as [`WindowStep`]s**, read a loop at a time
-/// through [`crate::body::Body::face_boundary_by_loop`]: the window
+/// through [`FaceView::boundary_by_loop`]: the window
 /// steps the face cover's torus arm and the construction rows read.
 ///
 /// A lone-vertex loop yields an EMPTY loop, which [`torus_chart_window`]
@@ -947,9 +947,10 @@ pub(crate) fn torus_chart_window<T: SpanLocate>(
 /// ([`geom::Curve3::cover_over`], which holds the one kind match),
 /// hulled with its two end vertices, which sit on the carrier only to
 /// its certification residual. Every bound on where an edge is reads
-/// this ([`edge_box`], the census's and the narrow phase's reads in a
-/// frame, the containment, shell and reduction doors) through the cover's methods, and none
-/// matches on the carrier's kind.
+/// this ([`edge_box`](crate::boolean::boxes::edge_box), the census's
+/// and the narrow phase's reads in a frame, the containment, shell and
+/// reduction doors) through the cover's methods, and none matches on
+/// the carrier's kind.
 ///
 /// # Errors
 ///

@@ -481,7 +481,7 @@ impl<T: Decide> Curve3<T> {
             if t.point_value().is_none()
                 && let Some((lo, hi)) = t.structure_bracket()
             {
-                t = T::from_computed(0.5 * (lo + hi));
+                t = T::from_computed(crate::mid_param(lo, hi));
             }
             let next = self.foot_at(q, t);
             if !smaller(next.gap, best.gap) {
@@ -555,24 +555,35 @@ impl<T: Decide> Curve3<T> {
     ///
     /// On a circle, the distance to the circle's point at an angle grows
     /// with the angle's distance from `q`'s azimuth, so the arc's nearest
-    /// point is `q`'s foot on the whole circle where its azimuth, read
-    /// about the arc's middle, lies within half the span of it, and the
-    /// nearer end otherwise. The choice is
-    /// [`select_le_zero`](geom_core::Real::select_le_zero) on that
-    /// angular offset less the half span: exact at `f64`, and where the
-    /// test straddles at `Interval` it hulls both arms, whose low end is
-    /// the whole circle's [`Self::clearance`], so the reading is still a
-    /// lower bound on the distance. An arc of a turn or more is all
-    /// inside.
+    /// point is at `q`'s azimuth, read about the arc's middle, held to the
+    /// span by `max`/`min`: `q`'s foot on the whole circle where it falls
+    /// in the arc, and the end on `q`'s side otherwise. At `f64` that is
+    /// the reading; the azimuth a turn either side of it holds to the
+    /// ends, which are no nearer, so the `min` over the three changes
+    /// nothing past rounding.
+    ///
+    /// At `Interval` the azimuth ([`crate::azimuth::Azimuth::near`]) encloses each
+    /// direction of a box by one name of its angle, the box's names
+    /// renamed by one whole number of turns, so where the box's
+    /// directions reach the antipode of the arc's middle some of them are
+    /// named a turn from their copy about the middle: the box astride the
+    /// antipode, and a box near the axis, whose directions span much of a
+    /// turn. Each point's copy about the middle lies in the azimuth's
+    /// enclosure or a turn either side of it, so the least of the three
+    /// held distances is a lower bound on every point's. The whole
+    /// circle's [`Self::clearance`] is one too, and is taken by `max`: at
+    /// `f64` it moves nothing past rounding, and it keeps a wide box's low
+    /// end off the arc's ends. No comparison is taken. An arc of a turn or
+    /// more is all inside.
     pub fn distance_within(&self, q: Point3<T>, (t0, t1): (T, T)) -> Option<T> {
         match self {
             Self::Line(line) => Some((q - line.foot_within(q, (t0.min(t1), t0.max(t1)))).norm()),
             Self::Circle(_) => {
-                let mid = crate::mid_param(t0, t1);
-                let off = (self.param_near(q, mid)? - mid).abs();
-                let half = (t1 - t0).abs() * T::from_f64(0.5);
-                let ends = (q - self.eval(t0)).norm().min((q - self.eval(t1)).norm());
-                Some((off - half).select_le_zero(self.clearance(q)?, ends))
+                let (lo, hi) = (t0.min(t1), t0.max(t1));
+                let at = self.param_near(q, crate::mid_param(lo, hi))?;
+                let held = |s: T| (q - self.eval(s.max(lo).min(hi))).norm();
+                let named = held(at).min(held(at - T::tau())).min(held(at + T::tau()));
+                Some(named.max(self.clearance(q)?))
             }
             Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
         }

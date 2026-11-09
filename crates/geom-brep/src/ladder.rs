@@ -372,15 +372,25 @@ impl<A, E> Rung<Result<A, E>, E> {
         match reading {
             Ok(Some(a)) => Self::Answers(Ok(a)),
             Ok(None) => Self::Passes,
-            Err(e) => Self::refused(e, standing),
+            Err(e) => Self::refused(e, standing, Err),
         }
     }
+}
 
-    /// The rung a reading refused with `e` stands as, read off `e`
-    /// itself: kept by its kind, or, where it refuses the whole query,
-    /// stopping the ladder with `Err(e)` ([`rung_or_abort`]).
-    pub fn refused(e: E, standing: impl FnOnce(&E) -> Result<Refusal, Aborts>) -> Self {
-        rung_or_abort(standing(&e), e, Err)
+impl<A, E> Rung<A, E> {
+    /// **The rung a reading refused with `e` stands as**, its standing
+    /// read off `e` itself: kept by its kind, or, where it refuses the
+    /// whole query, stopping the ladder with `abort(e)`
+    /// ([`rung_or_abort`]). The one home of a rung whose kept reading
+    /// and whose standing are one value; `abort` is `Err` for a ladder
+    /// answering `Result`, the identity for one whose abort is the
+    /// refusal itself.
+    pub fn refused(
+        e: E,
+        standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
+        abort: impl FnOnce(E) -> A,
+    ) -> Self {
+        rung_or_abort(standing(&e), e, abort)
     }
 }
 
@@ -849,6 +859,13 @@ impl<E> Evidence<E> {
         }
     }
 
+    /// Whether nothing was kept: [`Self::ranked`] reads
+    /// [`Ranked::Neither`].
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.blocked.is_none() && self.in_band.is_none() && self.unsettled.is_none()
+    }
+
     /// Whether a limit was kept: [`Self::ranked`] reads
     /// [`Ranked::Blocked`].
     #[must_use]
@@ -863,6 +880,19 @@ impl<E> Evidence<E> {
         match self.ranked() {
             Ranked::Blocked(e) | Ranked::InBand(e) | Ranked::Unsettled(e) => Some(e),
             Ranked::Neither => None,
+        }
+    }
+
+    /// **The evidence as one rung** of an outer ladder, for a ladder
+    /// read inside one reading: the ranked kept reading as what it was
+    /// kept as, and a pass where nothing was kept.
+    #[must_use]
+    pub fn into_rung<A>(self) -> Rung<A, E> {
+        match self.ranked() {
+            Ranked::Blocked(e) => Rung::Blocked(e),
+            Ranked::InBand(e) => Rung::InBand(e),
+            Ranked::Unsettled(e) => Rung::Unsettled(e),
+            Ranked::Neither => Rung::Passes,
         }
     }
 
@@ -979,6 +1009,87 @@ mod tests {
             Rung::Aborts(Err("corrupt")),
             "an abort stops the ladder with its caller's answer"
         );
+    }
+
+    /// **A refused reading stands as its own standing says**, whatever
+    /// the ladder's abort map: kept by its kind, or stopping the ladder
+    /// with the map of the refusal itself, `Err` for a ladder answering
+    /// `Result` and the identity for one whose abort is the refusal.
+    #[test]
+    fn a_refused_reading_stands_by_its_own_standing() {
+        use super::{Aborts, Refusal};
+        let standing = |e: &&str| match *e {
+            "corrupt" => Err(Aborts),
+            "limit" => Ok(Refusal::Limit),
+            _ => Ok(Refusal::InBand),
+        };
+        assert_eq!(
+            Rung::<Result<(), &str>, &str>::refused("corrupt", standing, Err),
+            Rung::Aborts(Err("corrupt")),
+            "an abort under Err stops with Err(refusal)"
+        );
+        assert_eq!(
+            Rung::<&str, &str>::refused("corrupt", standing, core::convert::identity),
+            Rung::Aborts("corrupt"),
+            "an abort under the identity stops with the refusal"
+        );
+        assert_eq!(
+            Rung::<&str, &str>::refused("limit", standing, core::convert::identity),
+            Rung::Blocked("limit"),
+            "a limit is kept, under either map"
+        );
+        assert_eq!(
+            Rung::<Result<(), &str>, &str>::refused("near", standing, Err),
+            Rung::InBand("near"),
+            "an in-band refusal is kept in band"
+        );
+    }
+
+    /// **A kept limit does not stop a ladder no reading answers**: a
+    /// later reading that refuses the whole query is its outcome; with
+    /// none, the limit is, ranked ahead of an in-band reading kept before
+    /// it.
+    #[test]
+    fn a_later_abort_outranks_a_kept_limit() {
+        use super::climb_evidence;
+        let rungs = |later: Rung<&'static str, &'static str>| {
+            [Rung::InBand("near"), Rung::Blocked("limit"), later]
+        };
+        assert_eq!(
+            climb_evidence(Answering::First, rungs(Rung::Aborts("corrupt")), |r| r).ok(),
+            Some((2, "corrupt")),
+            "the later abort is the outcome"
+        );
+        let kept = climb_evidence(Answering::First, rungs(Rung::Passes), |r| r)
+            .expect_err("no reading answers or aborts");
+        assert!(!kept.is_empty(), "the kept readings are evidence");
+        assert_eq!(
+            kept.refusal(),
+            Some("limit"),
+            "the limit ranks ahead of in band"
+        );
+    }
+
+    /// **Evidence as one rung** keeps its ranked reading as what it was
+    /// kept as, and passes where nothing was kept; only empty evidence
+    /// is empty.
+    #[test]
+    fn evidence_is_one_rung_of_its_ranked_kind() {
+        let mut e = Evidence::default();
+        assert!(e.is_empty(), "nothing kept");
+        assert_eq!(Evidence::<&str>::default().into_rung::<()>(), Rung::Passes);
+        e.unsettled("unsettled");
+        assert!(!e.is_empty(), "an unsettled reading kept");
+        e.in_band("in band");
+        let mut in_band = Evidence::default();
+        in_band.unsettled("unsettled");
+        in_band.in_band("in band");
+        assert_eq!(in_band.into_rung::<()>(), Rung::InBand("in band"));
+        e.blocked("limit");
+        assert_eq!(e.into_rung::<()>(), Rung::Blocked("limit"));
+        let mut unsettled = Evidence::default();
+        unsettled.unsettled("unsettled");
+        assert_eq!(unsettled.into_rung::<()>(), Rung::Unsettled("unsettled"));
     }
 
     /// **An agreeing ladder reads every rung**: answers that agree give
