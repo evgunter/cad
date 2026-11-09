@@ -108,3 +108,10 @@
   - `CarrierVerdict` grew a third variant, `TwoKinds`. My first read: right, since the kind-mismatch arm decides no datum, and the alternative is the hand mint the step removes.
   - The plane ladder's orientation rung stays on `decide_nonzero`.
   - I1/I2 wait on step 3's Rest verdict, but step 3's row does not name them yet. The fix pass records them there.
+- 2026-11-09 — **PR 6634 review in: APPROVE-WITH-FIXES, no MAJOR** (267,451 tokens, 37 min). Fix pass sent to the implementer.
+  - **Rulings:** `TwoKinds` is confirmed. The orientation rung stays on `decide_nonzero`: `jointly` keeps a Zero tag only where both inputs are Zeros, so carrying the rung in `One` would unprove Sym Zeros.
+  - **Class findings and their homes:**
+    - **Routing behind new endings goes unpinned** when rows test the ending function rather than the arm that reaches it. Six mutants survived (face and side swaps, a dropped door refusal). Fix pass, item 1.
+    - **"Closing a duplication adds a copy":** the PairSide/PairFace matches, two `NonzeroSign`→`Sign` conversions, the `TorusVerdict` dispatch written four times. Fixed, or filed as rows, in the fix pass.
+    - **A pre-existing blind spot:** `plane_eq::senses` decides `bool_plane_orient` a second time. The fix pass files it as a row.
+    - **Two sweep tests fail `OutsideSessionBox` on main too.** The fix pass checks whether they are in the slow set; the nightly is GREEN's.
