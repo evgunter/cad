@@ -108,7 +108,8 @@
 //!   clear (`bool4r1_probes::probe_d`).
 //! - `census::depth_gap`, arm 1's clear on a gap in depth, GRANTS: it
 //!   reads each face's cover's distance range from an axis or a centre
-//!   ([`face_cover`]), and its boundary's ([`boundary_cover`]) where a
+//!   ([`face_cover`]), and its boundary's
+//!   ([`boundary_cover`](crate::cover::boundary_cover)) where a
 //!   plane face's least lies on it. A cover that holds more than its
 //!   face can only raise a face's greatest depth and lower its least,
 //!   so a looser reading REFUSES a pair that is apart and can never

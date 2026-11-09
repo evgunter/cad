@@ -4672,7 +4672,7 @@ impl<T: Real> InPlane<T> {
 
 /// **`face`'s footprint in `frame`**: the `(u, v)` box holding its
 /// whole boundary — every vertex, and every edge's arc on its carrier
-/// ([`carrier_box`]). The vertices alone are not enough: an arc bowing
+/// ([`edge_box_in`]). The vertices alone are not enough: an arc bowing
 /// out of the vertex hull carries region past it, and an extruded
 /// disc's cap has its two vertices on one diameter. A poisoned term
 /// poisons all four ends. `None` for a face with no boundary member to
