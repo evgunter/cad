@@ -118,3 +118,9 @@
 - 2026-11-09 — **PR 6634 merged** (`ad8371a76f`). Glue step 1 is done, and step 4 (`a-corner-reads-only-its-own-sectors`) is open now. Lane, target and scratch reclaimed. Next, serially:
   1. REFS `the-reference-path-reads-every-node-from-mint-to-read`.
   2. Glue step 2 (`a-reach-straddle-goes-through-the-straddle-door`).
+- 2026-11-09 — **PR 6634 fix pass in (`4c33cb1f81`, `gate ok` green); state-synced for merge.**
+  - **Routing pins:** all six surviving mutants are now pinned, each shown red. Census ~6290's table row is corrected.
+  - **I7:** its deferred arm's log is restored to main's.
+  - **Leftovers recorded:** I1/I2 on step 3's row, I7 on SECTOR's row.
+  - **Filed in `work/seal/`, all P3:** four rows, three from the review's style findings and the `plane_eq::senses` second decision.
+  - **The two `OutsideSessionBox` slow-set rows** are evidence on ONEHOME's existing `main-red-four-sweep-slow-rows-refuse-outside-session-box`. The nightly red is GREEN's.

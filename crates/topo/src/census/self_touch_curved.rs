@@ -466,12 +466,7 @@ fn an_elliptic_edges_direction_reads_at_its_certified_parameter_or_refuses_as_it
         let off = on + Vec3::new(T::zero(), T::zero(), T::from_f64(0.1));
         let refused = half_edge_tangent(&body, edge.he_plus, off, band());
         assert!(
-            matches!(
-                refused,
-                Err(TouchUnread::EdgeTangent(
-                    crate::link::EdgeTangentUnread::OffInterior
-                ))
-            ),
+            matches!(refused, Err(TouchUnread::OffInterior)),
             "{scalar}: a point the span does not certify refuses as itself, got {refused:?}"
         );
     }
