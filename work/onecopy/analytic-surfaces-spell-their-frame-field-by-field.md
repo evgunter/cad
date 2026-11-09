@@ -57,7 +57,7 @@ Stages 1 and 2 are `the-frame-carries-every-placement-reading`.
 - `geom::cover::readings`' sphere, torus and spiric arms;
 - `Curve3`'s spiric evaluator arms (`azimuth::basis(&Frame::new(..))`);
 - `topo::boolean::section_cert::Cone::new` (a loose-argument door whose second caller passes a turned axis, so it waits for the cone struct);
-- geom-brep `pair_section/torus.rs` `Ring` (`Frame::new(self.center, self.axis, self.u_ref)` three times) and `topo::boolean::section_cert::square_search`'s ring (`Frame::new(ring.c, ring.a, ring.b1)`): torus holders;
+- geom-brep `pair_section/torus.rs` `Ring` (`Frame::new(self.center, self.axis, self.u_ref)`, once, in `Ring::frame`) and `topo::boolean::section_cert::square_search`'s ring (`Frame::new(ring.c, ring.a, ring.b1)`): torus holders;
 - `pair_section.rs` `CylinderSpherePose`.
 
 The other `Frame::new` sites outside test code mint a new frame rather than rebuild a carrier's: the constructors (`Curve3::circle`, `Curve3::ellipse`, `Round::new`), the squared core (`gap::Core::of`), a reflection's image (`topo::transform`), step-import's placements, ring_path's new arcs, and a section's shape ellipse at the origin (`sweep::blend::open::end_face`).
@@ -75,8 +75,10 @@ its own.
 
 The axis-line sweep found these holders. Each carries a full placement (a point, an axis and a seam), not just a line, so they were left for this stage's `Frame` rather than split into a `Line` plus a loose seam:
 - `topo`: `boolean/ruled_region.rs` `Ruled`, `boolean/torus_region.rs` `TorusFaceRegion`, `chord_join.rs` `WallChart`, `boolean/section_cert.rs` `Cone`, `ring_path.rs` `Oval`;
-- `geom-brep`: `pair_section/torus.rs` `Ring`, `pair_section/torus_arms.rs` `SphereMeridian`, `curve_face/circle_torus.rs` `roots_of`, `tangent.rs` `circle_span_bounds`;
+- `geom-brep`: `pair_section/torus_arms.rs` `SphereMeridian`, `curve_face/circle_torus.rs` `roots_of`, `tangent.rs` `circle_span_bounds`;
 - `sweep`: `test_support.rs` `tube_frame`.
+
+`pair_section/torus.rs` `Ring` is not on this list. It has one door to its placement, `Ring::frame()`, and every axis reader in the file now reads `ring.frame().axis_line()` (PR 6665's review fix). So `Ring` waits on nothing here: its readers already hold the one spelling.
 
 `geom/src/cover.rs`'s `Slab` and `Frustum` hold the axis as a `UnitVec3`. A `Line` would drop that unit typing, so they stay too.
 
@@ -92,7 +94,6 @@ PR 6665 gave the doors and holders below a `geom::Line`. Where the line came fro
 - `geom-brep/src/offset.rs`: `offset_surface`
 - `geom-brep/src/pair_section.rs`: `line_tilt`
 - `geom-brep/src/pair_section/gap.rs`: `read`
-- `geom-brep/src/pair_section/torus.rs`: `circle`, `cylinder_torus` ×3, `torus_torus`
 - `geom-brep/src/pcurve_cache.rs`: `chart_distance`
 - `geom-brep/src/pcurve_cache/projected.rs`: `projected_envelope`
 - `geom-brep/src/props/curved.rs`: `agreed_side`

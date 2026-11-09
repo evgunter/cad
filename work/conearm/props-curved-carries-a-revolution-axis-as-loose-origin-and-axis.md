@@ -4,6 +4,8 @@ kind: issue
 title: props/curved.rs's cylinder, cone and torus readers carry the axis as loose (origin, axis) pairs, about thirty functions in one family
 status: open
 opened: 2026-11-09
+priority: P2
+cost: M
 ---
 
 Filed by ONECOPY's `onecopy/line-placement` lane, which gave every other axis holder it swept a `geom::Line` (`a-line-still-travels-as-loose-arguments-or-a-frame-pair`). This family was left whole on purpose: porting half of it would leave two spellings at one boundary.

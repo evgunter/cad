@@ -43,7 +43,7 @@ The sweep cannot see a line passed as two loose arguments under other names, or 
 
 ## Closed (2026-11-09, PR 6665)
 
-- **The ray question.** It is ruled as `geom::Ray { line }`, with one plain reading `advance(p)` and one decided reading `ahead(at, site, band)` under the reader's own row.
+- **The ray question.** It is ruled as `geom::Ray { line }`, with one decided reading `ahead(at, site, band)` under the reader's own row. A plain reading `advance(p)` was minted too, and deleted in review: it had no caller.
   - The solid_contain ray doors, `curved_edges`, `trace::ray_crossings` and test-support `ray_counts` take `&Ray`.
   - Every hand-spelled forward test reads `Ray::ahead` under its existing row, so the K stream is unchanged.
   - The line × surface root doors take `geom::Line`s.
