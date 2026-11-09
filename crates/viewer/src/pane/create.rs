@@ -209,11 +209,7 @@ pub(crate) fn member_rows(
             }
             let id = ui.id().with(("member row", i));
             let mut position = ui.data_mut(|d| *d.get_temp_mut_or(id, 0_usize));
-            ui.add(
-                egui::DragValue::new(&mut position)
-                    .range(0..=members.len() - 1)
-                    .speed(COUNT_DRAG_SPEED),
-            );
+            ui.add(number_field(&mut position, COUNT_DRAG_SPEED).range(0..=members.len() - 1));
             ui.data_mut(|d| d.insert_temp(id, position));
             ui.label(format!("of {}", members.len()));
             if let Some(at) = members.get(position)
