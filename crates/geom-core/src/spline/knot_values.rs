@@ -84,7 +84,7 @@ impl<T: SpanLocate> Knots<T> {
             let (lo, hi) = value
                 .structure_bracket()
                 .ok_or(SplineError::KnotIsPoison { index })?;
-            knots.extend(core::iter::repeat_n(f64::midpoint(lo, hi), m));
+            knots.extend(core::iter::repeat_n(crate::mid_param(lo, hi), m));
         }
         Ok(Cow::Owned(KnotVector::from_algebra(knots, self.degree())))
     }

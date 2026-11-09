@@ -13,7 +13,7 @@ refs: [3987]
 Found by REACH's `boolean-door-adopts-the-finished-body-type` (the
 boolean door takes finished operands).
 
-`verify_tangent_declaration` (`crates/topo/src/boolean/mod.rs`) hands
+`route_rim` (`crates/topo/src/boolean/mod.rs`, the glue door's rim routing) hands
 `classify_shared_rim` one sense bit per declared face: two adjacent
 `bool`s, so a call site passing the first face's bit twice compiles.
 `sweep/tests/mate7a_torus_rest.rs`'s
