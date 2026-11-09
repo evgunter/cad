@@ -20,10 +20,14 @@
 # matcher's alternations and the OK line are built from them. THE
 # SELF-TEST DOES NOT READ THEM: each intended entry is a fixture written
 # out on its own (`plant_fixture`, the `FIXTURES` table), red or quiet by
-# what the rule says of it, so an array entry deleted, moved between
-# REFUSED and PASSED, or misspelt reds the self-test; and every array
-# entry must be named by a fixture of its own kind, so an entry added
-# without one reds too.
+# what the rule says of it. The two are tied both ways
+# (`fixtures_cover`): every array entry is named by a fixture of its own
+# kind, and every fixture's name is an entry of its kind's array. So a
+# REFUSED entry deleted or moved to PASSED reds by its fixture going
+# quiet, a PASSED entry deleted or moved reds by its fixture naming an
+# entry its array lacks, and an entry added without a fixture reds too.
+# PASSED does not feed the matcher, which refuses only REFUSED: it is the
+# list of adapters ruled quiet, each pinned by a fixture.
 #
 # WHAT IS REFUSED, in production code under `crates/*/src` (comments and
 # string literals out, `#[cfg(test)]` modules and test-only mounts out,
@@ -133,7 +137,7 @@ gate() {
   local dropped='&?[[:space:]]*\([[:space:]]*&?[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*,[[:space:]]*(_[A-Za-z0-9_]*|\.\.)[[:space:]]*\)'
   local adapter
   adapter="($(names_of "${REFUSED_ADAPTERS[@]}" | paste -sd'|' -))"
-  local closure="$runs[^;]*\.$adapter[[:space:]]*\([^|;]*\|[^|;]*(move[[:space:]]+)?$dropped"
+  local closure="$runs[^;]*\.$adapter[[:space:]]*\([^|;]*\|[^|;]*$dropped"
   local for_loop="(^|[^A-Za-z0-9_])for[[:space:]]+$dropped[[:space:]]+in[[:space:]][^;{]*(knot_)?runs[[:space:]]*\("
   local unzipped="(^|[^A-Za-z0-9_])let[[:space:]]+$dropped[^=;]*=[^;]*(knot_)?runs[[:space:]]*\([^;]*\.unzip[[:space:]]*\("
   local stream hits
@@ -169,6 +173,7 @@ gate_plant_clean() {
 # array entry the fixture stands for, and the code must spell it.
 FIXTURES=(
   'refused~~map~~pub fn b(k: &K) -> Vec<f64> { k.runs().map(|(v, _)| v).collect() }'
+  'refused~~map~~pub fn b(k: &K) -> Vec<f64> { k.runs().map(move |(v, _)| v).collect() }'
   'refused~~filter_map~~pub fn b(k: &K) -> Vec<f64> { k.runs().filter_map(|(v, _)| f(v)).collect() }'
   'refused~~find_map~~pub fn b(k: &K) -> Option<f64> { k.runs().find_map(|(v, _)| f(v)) }'
   'refused~~flat_map~~pub fn b(k: &K) -> Vec<f64> { k.runs().flat_map(|(v, _)| g(v)).collect() }'
@@ -230,6 +235,14 @@ fixtures_cover() {
     done
     [ $ok = 1 ] || { printf 'SELFTEST FAILED: %s: copy form `%s` has no fixture of its own\n' "$(gate_name)" "$name" >&2; exit 1; }
   done < <(names_of "${COPY_FORMS[@]}")
+  for e in "${FIXTURES[@]}"; do
+    kind=${e%%~~*}; name=${e#*~~}; name=${name%%~~*}
+    if [ "$kind" = copy ]; then
+      names_of "${COPY_FORMS[@]}" | grep -qxF -- "$name"
+    else
+      case " ${arrays[$kind]} " in *" $name "*) true ;; *) false ;; esac
+    fi || { printf 'SELFTEST FAILED: %s: the %s fixture names `%s`, which its array lacks\n' "$(gate_name)" "$kind" "$name" >&2; exit 1; }
+  done
   for e in "${FIXTURES[@]}"; do
     kind=${e%%~~*}; name=${e#*~~}; name=${name%%~~*}; code=${e#*~~}; code=${code#*~~}
     case "$kind" in
