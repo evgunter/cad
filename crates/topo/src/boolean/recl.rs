@@ -1543,6 +1543,31 @@ fn common_line<T: geom_core::Real>(
     }
 }
 
+/// **The line's own refusal for a cone's unread reading**, where it is
+/// not a margin a coincidence names ([`resolve_edge_edge`]): a held
+/// face's side the cone decided against, that contradiction; no
+/// reference that any band gives ([`crate::link::Unread::NoReference`]),
+/// that limit; and where no gate's margin refused (a reference a tighter
+/// band may give, an unplaced crossing), the line's faces too close to
+/// place it. `None` where the cause escalated on a margin, which the
+/// caller names as a coincidence.
+fn line_unread_of<T: Decide>(
+    cause: &crate::link::Unread<T>,
+    escalated: bool,
+) -> Option<super::LineUnread> {
+    use super::LineUnread;
+    use crate::link::Unread;
+    match cause {
+        _ if cause.contradicted() => Some(LineUnread::Contradicted),
+        // No reference no band gives: a limit, not a sliver.
+        Unread::NoReference => Some(LineUnread::NoReference),
+        // A reference a tighter band may give: the faces too close.
+        Unread::ReferenceInBand => Some(LineUnread::Unplaced),
+        _ if escalated => None,
+        _ => Some(LineUnread::Unplaced),
+    }
+}
+
 /// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
 /// angular sort and its Table I ties): around the common line, each
 /// solid's material is the region its faces holding the line bound. A
@@ -1827,28 +1852,28 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             // on a flank's plane, where in it in band, the two flanks' sense;
             // its side of a face's plane, that side; the parity arc, the
             // sectors' coincidence; the held face's side the cone decided
-            // against, that contradiction; and where no gate's margin
-            // refused (no reference, an unplaced crossing), the line's faces
+            // against, that contradiction; no reference that any band gives,
+            // that limit; and where no gate's margin refused (a reference a
+            // tighter band may give, an unplaced crossing), the line's faces
             // too close to place it.
             let unread_of = |cause: crate::link::Unread<T>| {
                 use crate::link::Unread;
                 let sheet = cause.sector().map(|k| from[k]);
-                if cause.contradicted() {
-                    return unread(super::LineUnread::Contradicted);
+                let escalation = cause.escalation(band);
+                if let Some(why) = line_unread_of(&cause, escalation.is_some()) {
+                    return unread(why);
                 }
-                match (cause, sheet, cause.escalation(band)) {
+                match (cause, sheet, escalation) {
                     (Unread::Place { .. }, Some(Sheet::Sector(oi)), Some(diag)) => {
                         flank_sense(own, own_idx, oi, diag)
                     }
                     (Unread::Place { .. } | Unread::Side { .. }, _, Some(diag)) => {
                         BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
                     }
-                    (
-                        Unread::Arc { .. } | Unread::NoReference | Unread::ReferenceInBand,
-                        _,
-                        Some(diag),
-                    ) => BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
-                    (_, _, None) => unread(super::LineUnread::Unplaced),
+                    (_, _, Some(diag)) => {
+                        BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+                    }
+                    (_, _, None) => unreachable!("`line_unread_of` takes every unescalated cause"),
                 }
             };
             match cone.reads_tied(reach.point(points[own], dir), &given, band) {
@@ -2451,6 +2476,37 @@ mod tests {
                 })
             ),
             "a typed refusal with its recourse: {got:?}"
+        );
+    }
+
+    /// **A cone with no reference that any band gives refuses as a limit
+    /// on the line, not as a sliver** (PR 6637's delta review): the line's
+    /// own refusal for each unescalated cause ([`line_unread_of`]).
+    /// `resolve_edge_edge` cannot build a line cone of whole planes alone:
+    /// each wedge's flanks add their sectors, and only the held face is a
+    /// whole plane. So the mapping is read here, by the function the site
+    /// calls.
+    #[test]
+    fn no_reference_is_a_limit_on_the_line_and_one_in_band_a_sliver() {
+        use super::super::LineUnread;
+        use crate::link::Unread;
+        assert_eq!(
+            line_unread_of(&Unread::<f64>::NoReference, false),
+            Some(LineUnread::NoReference)
+        );
+        assert_eq!(
+            line_unread_of(&Unread::<f64>::ReferenceInBand, false),
+            Some(LineUnread::Unplaced)
+        );
+        assert_eq!(
+            line_unread_of(
+                &Unread::<f64>::Arc {
+                    sector: None,
+                    why: crate::link::Unsettled::Unplaced
+                },
+                false
+            ),
+            Some(LineUnread::Unplaced)
         );
     }
 

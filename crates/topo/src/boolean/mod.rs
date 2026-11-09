@@ -2605,6 +2605,11 @@ pub enum LineUnread {
     /// along its own extent and on the other at its point there: the two
     /// stand within the input tolerance of each other near the line.
     Contradicted,
+    /// The other operand's faces about the line give no reference to read
+    /// the face's side by: they are whole planes about it, or every arc
+    /// to a reference decidedly meets the line, whatever the band
+    /// (`link::Unread::NoReference`). A limit.
+    NoReference,
 }
 
 /// One sector read of a vertex, named in
@@ -3652,8 +3657,9 @@ pub enum BooleanError {
     /// against the other's faces holding it (`recl::resolve_edge_edge`,
     /// through the other's line cone): `why` says what stopped it.
     ///
-    /// A limit where the bound runs along the line ([`LineUnread::Along`], row 2); in band
-    /// otherwise (row 1(b)), a reading within the input tolerance.
+    /// A limit where the bound runs along the line ([`LineUnread::Along`], row 2) or the
+    /// other's faces give no reference to read by ([`LineUnread::NoReference`], row 2); in
+    /// band otherwise (row 1(b)), a reading within the input tolerance.
     LineMaterialUnread {
         /// A's vertex on the line: a key of A's working copy.
         a_vertex: VertexKey,
@@ -5023,7 +5029,7 @@ impl BooleanError {
                 }
             },
             Self::LineMaterialUnread { why, .. } => Ok(match why {
-                LineUnread::Along => Refusal::Limit,
+                LineUnread::Along | LineUnread::NoReference => Refusal::Limit,
                 LineUnread::Unplaced | LineUnread::Contradicted => Refusal::InBand,
             }),
             Self::VertexReadTwice { in_band, .. } => Ok(if in_band.is_some() {
@@ -5739,6 +5745,10 @@ impl BooleanError {
                     LineUnread::Contradicted => {
                         "a face's edge reads on one side of a face of the other solid along \
                          itself and on the other at its end"
+                    }
+                    LineUnread::NoReference => {
+                        "the other solid's faces about it give no direction to read that side \
+                         by"
                     }
                 }
             ),

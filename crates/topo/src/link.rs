@@ -840,7 +840,9 @@ pub(crate) enum Unread<T> {
     },
     /// No reference to read by, and no tighter band gives one: the cone
     /// has no wedge (a whole-plane sector), or every reference's arc to
-    /// `q` decidedly meets the apex. A limit (`[failure.taxonomy]` row 2).
+    /// `q` decidedly meets the apex (a clearance decided negative; one the
+    /// band reads zero is a refusal of its own, [`ArcReach::clears`]). A
+    /// limit (`[failure.taxonomy]` row 2).
     NoReference,
     /// No reference read, where a tighter band may give one: a plane `q`
     /// reads in band of outside its sector (`Against::Off`), a side given
@@ -1388,7 +1390,10 @@ impl ArcReach {
     /// plane normal to their bisector is that clearance; with the ends
     /// at two distances it is the segment's nearest point's
     /// ([`foot`]). `Ok(false)` where it decidedly does not clear; the
-    /// escalation where it is in band.
+    /// escalation where it is in band, and [`Unsettled::Zero`] where the
+    /// band reads the clearance zero (in band: a tighter band may part it
+    /// from the apex), so a decided "does not clear" is only a negative
+    /// clearance.
     fn clears<T: Decide>(
         self,
         p: Point3<T>,
@@ -1398,7 +1403,8 @@ impl ArcReach {
     ) -> Result<bool, Unsettled<T>> {
         let ends = |name, d: Distance<T>| match metric::settle(name, d, rd)? {
             Sign::Positive => Ok(true),
-            _ => Ok(false),
+            Sign::Negative => Ok(false),
+            Sign::Zero => Err(Unsettled::Zero(name, d)),
         };
         match self {
             Self::Near => {
@@ -6129,6 +6135,40 @@ mod tests {
             "`Distance::of`, `Distance::departure`, `Distance::off` and `Distance::at` are \
              `mod metric`'s only functions returning a `Distance`"
         );
+    }
+}
+
+/// **A lone whole plane has no reference to read by, whatever the
+/// band** (PR 6637's delta review): a cone of one whole plane (no wedge),
+/// read off its plane with and without a given side, refuses
+/// [`Unread::NoReference`], the limit, never [`Unread::ReferenceInBand`].
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod no_reference_rows {
+    use geom_core::{Band, Point3, Sign, Tol, Vec3};
+
+    use super::{Cone, Reading, Unread};
+
+    #[test]
+    fn a_lone_whole_plane_has_no_reference_whatever_the_band() {
+        let band = Band::linear(Tol::witness()).expect("a band");
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let cone = Cone::gathered(o, Vec::new(), [Vec3::new(0.0, 0.0, 1.0)]).expect("a cone");
+        for z in [1.0, -1.0] {
+            let q = Point3::new(1.0, 0.0, z);
+            let side = if z > 0.0 {
+                Sign::Positive
+            } else {
+                Sign::Negative
+            };
+            for given in [vec![], vec![(0, side)]] {
+                let got = cone.reads_given(q, &given, Reading::plain(band));
+                assert!(
+                    matches!(got, Err(Unread::NoReference)),
+                    "at {q:?}, given {given:?}: {got:?}"
+                );
+            }
+        }
     }
 }
 
