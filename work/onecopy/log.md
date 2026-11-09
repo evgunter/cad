@@ -1013,3 +1013,4 @@
 - 14:27Z census-rosters lane opened PR 6645 (point-walk-floors, fcd1a3cb): distance_within, plus closest_params → FULL review with session_013mPGJ3ykyNSXEK99MX4U6Q; gating. Lane → onecopy/ring-island.
 - 14:32Z Ruled line-placement Q1: (b) geom::Ray { line } with advance and a decided ahead (RingSites shape); every door's hand s>0 goes. Q2: (c) no Plane type now. The placement fork's decided final state is Surface::Plane(Plane { frame }) in stage 3; a seamless Plane{origin,normal} would collide with it. The plane sites are narrowed onto stage 3.
 - 14:35Z 6645 head → 3b699da3 (main merged; the row_like is_list NOTE folded in); reviewer told; re-gating.
+- 14:40Z Merged PR 6624 (on-surface-ties) at gate-green 04edc5ff. Main moved since (6576, 6640) but disjoint; the merge's check and gates were clean. The lane is on onecopy/sphere-door-frame (D2).
