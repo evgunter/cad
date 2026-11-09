@@ -2172,7 +2172,7 @@ fn pair_contact<T: Decide>(
     // a sphere and a plane, or two spheres. A sphere against any other
     // carrier (a ball seated in a bore meets it along a circle) is the
     // line lane's, which derives no line for it.
-    let kind = |f: FaceKey| body.passed_face(f).map(|d| d.surface().kind());
+    let kind = |f: FaceKey| body.face(f).map(|d| d.surface().kind());
     match (kind(fx), kind(fy)) {
         (
             Some(geom::SurfaceKind::Sphere),
@@ -2249,10 +2249,7 @@ fn line_edges<T: Real>(body: &Body<T>) -> Vec<EdgeGeo<T>> {
 /// One edge's census geometry ([`line_edges`]); `None` where a link
 /// does not resolve.
 fn edge_geo<T: Real>(body: &Body<T>, key: EdgeKey) -> Option<EdgeGeo<T>> {
-    let edge = body.edges.get(key)?;
-    let plus = body.half_edges.get(edge.he_plus)?;
-    let v0 = plus.start;
-    let v1 = body.half_edge_end(edge.he_plus)?;
+    let (v0, v1) = body.edge_vertices(key)?;
     let (k0, k1) = (body.vertices.get(v0)?.point, body.vertices.get(v1)?.point);
     let p0 = *body.points.get(k0)?;
     let p1 = *body.points.get(k1)?;
@@ -3056,9 +3053,7 @@ fn sweep_vertex_curved_edge<T: Decide>(
         .curved
         .iter()
         .map(|&ek| {
-            let edge = body.edges.get(ek)?;
-            let v0 = body.half_edges.get(edge.he_plus)?.start;
-            let v1 = body.half_edge_end(edge.he_plus)?;
+            let (v0, v1) = body.edge_vertices(ek)?;
             let point = |v| {
                 body.vertices
                     .get(v)
@@ -4397,7 +4392,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.passed_face(f).map(|f| f.surface()) else {
+    let Some(surface) = body.face(f).map(|f| f.surface()) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -4858,12 +4853,7 @@ fn meetings<T: Decide>(
 /// Whether edge `g` has an end on one of `e`'s ends' points.
 fn shares_an_end<T: Real>(body: &Body<T>, e: &EdgeGeo<T>, g: EdgeKey) -> bool {
     let point = |v: VertexKey| body.vertices.get(v).map(|d| d.point);
-    let ends = body.get_edge(g).and_then(|g| {
-        Some([
-            body.half_edges.get(g.he_plus)?.start,
-            body.half_edge_end(g.he_plus)?,
-        ])
-    });
+    let ends = body.edge_vertices(g).map(<[_; 2]>::from);
     ends.is_some_and(|ends| {
         ends.iter().any(|&w| {
             [e.v0, e.v1]
@@ -6896,7 +6886,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
         edges: BTreeSet<EdgeKey>,
     }
     let read = |face: FaceKey| -> Option<Candidate> {
-        let f = body.passed_face(face)?;
+        let f = body.face(face)?;
         Some(Candidate {
             face,
             solid: body.solid_of_face(face)?,
@@ -8348,7 +8338,7 @@ impl<T: Decide> FaceSector<T> {
         // A face that does not resolve, or a loop that does not walk, is
         // a defect (tier 1 admits none); a face that resolves off a plane
         // is curved.
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
         if !fg.walked {
@@ -8889,7 +8879,7 @@ impl<T: Decide> Link<T> {
                 }
                 continue;
             }
-            let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+            let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
             // The face's other edges, which end on the edge's ends too, but
             // for a cone's seam through its apex (a loop `[e, circle, e⁻¹]`):
             // there the lever stays under `ρ/2`, short of the apex.
@@ -8951,7 +8941,7 @@ fn round_face<T: Decide>(
     f: FaceKey,
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
-    let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+    let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
     let surface = face.surface();
     let Some(round) = crate::link::Round::of(surface, face.sense()) else {
         return Ok(None);
@@ -11150,7 +11140,7 @@ fn flush_pairs<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.passed_face(f)?.surface().kind());
+    let kind = |f: FaceKey| Some(body.face(f)?.surface().kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
     let edges: Vec<BTreeSet<EdgeKey>> = faces
         .iter()
@@ -11254,7 +11244,7 @@ fn flush_pairs<T: Decide>(
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
 /// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
-    body.passed_face(f)
+    body.face(f)
         .map(|f| f.surface())
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
 }
@@ -12673,9 +12663,8 @@ mod tests {
             .vertices()
             .map(|(k, _)| k)
             .find(|&v| {
-                let d = body.get_edge(rim).unwrap();
-                v != body.get_half_edge(d.he_plus).unwrap().start
-                    && v != body.get_half_edge(d.he_minus).unwrap().start
+                let (a, b) = crate::query::edge_ends(&body, rim);
+                v != a && v != b
             })
             .expect("a vertex off the rim");
         let records: ContactRecords = [crate::Cited::new(
@@ -15140,9 +15129,8 @@ mod tests {
         };
         let (edge, v0, v1) = body
             .edges()
-            .find_map(|(k, e)| {
-                let v0 = body.get_half_edge(e.he_plus)?.start;
-                let v1 = body.half_edge_end(e.he_plus)?;
+            .find_map(|(k, _)| {
+                let (v0, v1) = body.edge_vertices(k)?;
                 (x_of(&body, v0) <= 1.0 && x_of(&body, v1) <= 1.0).then_some((k, v0, v1))
             })
             .expect("an edge of the near cube");
@@ -17464,8 +17452,7 @@ mod tests {
             let side = body
                 .edges()
                 .find_map(|(k, e)| {
-                    let v0 = body.get_half_edge(e.he_plus)?.start;
-                    let v1 = body.half_edge_end(e.he_plus)?;
+                    let (v0, v1) = body.edge_vertices(k)?;
                     let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
                     let (p0, p1): (Point3<f64>, Point3<f64>) = (p(v0), p(v1));
                     (p0.x == 0.3 && p1.x == 0.3 && p0.z == 0.5 && p1.z == 0.5)
@@ -18304,12 +18291,11 @@ mod records_by_carrier {
             [r.x, r.y, r.z]
         };
         body.edges()
-            .find(|(_, e)| {
-                let ends =
-                    [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+            .map(|(k, _)| k)
+            .find(|&k| {
+                let ends = <[_; 2]>::from(crate::query::edge_ends(body, k)).map(at);
                 ends == [p, q] || ends == [q, p]
             })
-            .map(|(k, _)| k)
             .expect("the edge")
     }
 
@@ -18584,12 +18570,11 @@ mod incident_after_an_edit {
         let edge_from = |v: VertexKey| {
             let m = at(&body, [1.0, 0.5, 1.0]);
             body.edges()
-                .find(|(_, e)| {
-                    let ends =
-                        [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).unwrap().start);
+                .map(|(k, _)| k)
+                .find(|&k| {
+                    let ends = <[_; 2]>::from(crate::query::edge_ends(&body, k));
                     ends.contains(&v) && ends.contains(&m)
                 })
-                .map(|(k, _)| k)
                 .unwrap()
         };
         let (e_near, e_far) = (edge_from(near), edge_from(far));
@@ -18891,11 +18876,11 @@ mod two_carrier_records {
         let (v0, v1) = (at([0.5, 0.25, 1.0]), at([1.5, 0.25, 1.0]));
         let edge = body
             .edges()
-            .find(|(_, e)| {
-                let ends = [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).unwrap().start);
+            .map(|(k, _)| k)
+            .find(|&k| {
+                let ends = <[_; 2]>::from(crate::query::edge_ends(&body, k));
                 ends == [v0, v1] || ends == [v1, v0]
             })
-            .map(|(k, _)| k)
             .unwrap();
         let a_top = body
             .faces()
@@ -20059,12 +20044,11 @@ mod edge_face_residual {
         let (p, q) = ([0.5, 0.25, 2.0], [1.5, 0.25, 2.0]);
         let edge = body
             .edges()
-            .find(|(_, e)| {
-                let ends =
-                    [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+            .map(|(k, _)| k)
+            .find(|&k| {
+                let ends = <[_; 2]>::from(crate::query::edge_ends(&body, k)).map(at);
                 ends == [p, q] || ends == [q, p]
             })
-            .map(|(k, _)| k)
             .unwrap();
         let face = body
             .faces()
@@ -20128,12 +20112,11 @@ mod point_touch {
         let at = |v: VertexKey| xyz(*body.get_point(body.get_vertex(v).unwrap().point).unwrap());
         let rim = body
             .edges()
-            .find(|(_, e)| {
-                let ends =
-                    [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+            .map(|(k, _)| k)
+            .find(|&k| {
+                let ends = <[_; 2]>::from(crate::query::edge_ends(&body, k)).map(at);
                 ends == [p, q] || ends == [q, p]
             })
-            .map(|(k, _)| k)
             .expect("the bottom rim");
         let block = brick::<f64>((x, x + 1.0), y, z, tol);
         let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
@@ -20359,11 +20342,9 @@ mod curved_edge_edge {
         let at = |v: VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let near = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() < 1e-12;
         body.edges()
-            .find(|(_, e)| {
-                let (a, b) = (
-                    at(body.get_half_edge(e.he_plus).unwrap().start),
-                    at(body.get_half_edge(e.he_minus).unwrap().start),
-                );
+            .find(|&(k, _)| {
+                let (a, b) = crate::query::edge_ends(body, k);
+                let (a, b) = (at(a), at(b));
                 (near(a, p) && near(b, q)) || (near(a, q) && near(b, p))
             })
             .map(|(k, _)| k)

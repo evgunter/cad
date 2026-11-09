@@ -399,11 +399,8 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
             .unwrap();
         let walls: Vec<_> = body
             .faces()
-            .filter(|(_, f)| {
-                matches!(
-                    body.get_surface(f.surface),
-                    Some(geom::Surface::Cylinder { .. })
-                )
+            .filter(|(fk, _)| {
+                matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. }))
             })
             .map(|(k, _)| k)
             .collect();
@@ -455,7 +452,7 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
     let elbow = sweep::test_support::swept_elbow(tol);
     let (face, vertex) = elbow
         .faces()
-        .filter(|(_, f)| matches!(elbow.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .filter(|(fk, _)| matches!(elbow.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
         .find_map(|(face, _)| {
             elbow
                 .vertex_points()

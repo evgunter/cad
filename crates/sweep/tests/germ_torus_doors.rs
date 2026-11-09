@@ -125,7 +125,7 @@ fn half(sign: f64, handle: Handle) -> AtRestBody<f64> {
 }
 
 fn surface(body: &Body<f64>, f: FaceKey) -> &geom::Surface<f64> {
-    body.get_surface(body.get_face(f).unwrap().surface).unwrap()
+    body.face_surface(f).unwrap()
 }
 
 fn faces_where(body: &Body<f64>, pred: impl Fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {

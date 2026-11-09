@@ -64,7 +64,7 @@ mod rounded_mate {
     fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceKey {
         let hits: Vec<_> = body
             .faces()
-            .filter(|(_, f)| match body.get_surface(f.surface) {
+            .filter(|(fk, _)| match body.face_surface(*fk) {
                 Some(pncad::geom::Surface::Plane { origin, normal, .. }) => {
                     (origin.z.f() - z).abs() < 1e-12 && (normal.z.f() > 0.5) == up
                 }
