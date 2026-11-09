@@ -46,6 +46,10 @@ No reading on this ground builds a `Contradicted` with an `Indeterminate`. The B
 
 - **The probe:** two tori sharing a Villarceau circle, with the parallel check first. Does any pair of samples read tangent with opposite senses? Record the result beside `SidesMixed`.
 
+## Dispatch (2026-11-09)
+
+Branch `seal/tangent-verdict`. Review tier: **single, FULL**. Fork `glue-disagreements-carry` settled the types this step builds and the architecture they belong to. What is at risk is correctness: deciding a tangency once, reordering `tangent_pass`, and moving the census off strings. A FULL review's claims target exactly that, so the step does not take the dual tier.
+
 ## Closed (2026-11-09, PR 6673)
 
 The tangent table and the `Rest` door return verdicts, and only a record read at rest is contradicted. The PR body has the per-site table (each ending before and after), the probe, the sweep and the premise corrections.
