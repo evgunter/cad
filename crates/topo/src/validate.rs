@@ -10308,13 +10308,13 @@ fn ring_nesting<T: Decide>(
     // contact half's question, not this one.
     match crate::loop_side::inside_at_every_vertex(&queries, |rv| {
         let Some(rp) = vertex_point(body, rv) else {
-            return geom_brep::ladder::Rung::Passes;
+            return Ok(None);
         };
         match crate::splitting::containment::point_in_loop(body, outer, normal, rp, band) {
-            Ok(crate::splitting::LoopContainment::In) => geom_brep::ladder::Rung::Answers(true),
-            Ok(crate::splitting::LoopContainment::Out) => geom_brep::ladder::Rung::Answers(false),
-            Ok(crate::splitting::LoopContainment::OnBoundary) => geom_brep::ladder::Rung::Passes,
-            Err(source) => geom_brep::ladder::Rung::InBand(ContainError::from(source)),
+            Ok(crate::splitting::LoopContainment::In) => Ok(Some(true)),
+            Ok(crate::splitting::LoopContainment::Out) => Ok(Some(false)),
+            Ok(crate::splitting::LoopContainment::OnBoundary) => Ok(None),
+            Err(source) => Err(geom_brep::ladder::Kept::InBand(ContainError::from(source))),
         }
     }) {
         crate::loop_side::EveryVertex::Inside | crate::loop_side::EveryVertex::Unplaced => {
