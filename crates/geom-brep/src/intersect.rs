@@ -902,7 +902,9 @@ pub enum PlaneCylinderSection<T: Real> {
     /// Axis ∥ normal: the rung-1 rim `Circle` (the M2 case, unchanged —
     /// carrier axis is the CYLINDER axis, u_ref the cylinder's seam).
     Rim(Curve3<T>),
-    /// Axis in-plane, axis-to-plane gap definitely < r: two rulings.
+    /// Axis in-plane, axis-to-plane gap definitely < r: two rulings,
+    /// each along the cylinder's stored axis (nonzero at rest, tier 3's
+    /// check 1), as is [`Self::TangentLine`].
     ParallelLines {
         /// The ruling on the `+axis×normal`-ish side.
         l1: Curve3<T>,
@@ -1915,7 +1917,9 @@ pub(crate) fn parallel_cylinder_gap_reported<T: Decide>(
 pub enum PlaneConeSection<T: Real> {
     /// Apex on the plane, plane cutting inside the cone, and the real
     /// plane's section starting within the zero band of the apex on both
-    /// nappes: two generator lines through the apex.
+    /// nappes: two generator lines through the apex, each along a ruling
+    /// over the cone's squared frame, unit to rounding and never the zero
+    /// vector, so a reader needs no decision that it has a direction.
     ApexLinePair {
         /// The generator at azimuth `φ + δ`.
         l1: Curve3<T>,
@@ -1996,7 +2000,13 @@ impl<T: Real> ApexFan<T> {
         self.v.dot(n).atan2(self.u.dot(n))
     }
 
-    /// The ruling at azimuth `phi`.
+    /// The ruling at azimuth `phi`: `a·cos α + (u·cos φ + v·sin φ)·sin α`
+    /// over the [squared](geom::Frame::square) frame, whose `a`, `u` and
+    /// `v` are orthonormal, so it is unit to rounding at every `φ` and
+    /// never the zero vector. A line built along it names a direction
+    /// with no decision (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`):
+    /// [`PlaneConeSection::ApexLinePair`]'s and
+    /// [`PlaneConeSection::ApexTangentLine`]'s readers rely on it.
     fn ruling(&self, phi: T) -> Vec3<T> {
         let (s, c) = phi.sin_cos();
         self.a * self.cos_a + (self.u * c + self.v * s) * self.sin_a
