@@ -958,3 +958,7 @@
   - 6628 at c117c1d0 (gate green; checked_direction/checked_nonzero_length refuse zero at the home) → delta review with session_013mPGJ51wDjzTLeTSQjXSqC. Ruled NOTE-3: keep the prescaled length (an Interval chord past 2^510 escalating is a refusal, not a wrong answer).
   - 6576 at 15f174ad (vertex_side generic over E; engine-leaves back to main's counts) → gating; small delta with session_013mPGJ3tP1vesXb7WfFmp5N.
 - 12:42Z Ruled census-rosters-2 row 1 item 4: (a), keep the two signature readers under k_stats' contract and close the gaps; no declared DOORS table (it would be a second list a signature reader must police).
+- 12:44Z Ruled carrier-standing-2:
+  - item 7 (C): `SpanRefusal` becomes Carrier/Place/Both, with `refused()` the one ranking (carrier first, today's answer; no outcome moves).
+  - item 11 (B)(i): one `Undecided::Touch(TouchUnread)` whose backstop sentence lives on TouchUnread; OffInterior keeps waiting with its own sentence. Whether aborts should wait is to be filed as a row.
+  - ring-torus S4: pointed at the 6609 reviewer's session for the text; otherwise route window's line arm and arc_trim only if they ask the same question, else narrow.
