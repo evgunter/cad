@@ -34,3 +34,7 @@ The bare-rounding gate counts the mint as one site in `pose.rs`'s row. It cannot
 ## Proposed fix
 
 Delete the mint. All three readings then take the heights as exact, per `[simple.conditioned]`. Guard `least` so that an extreme in the zero band reads its touch at the extreme itself, with no NaN path. This changes what the zero-band touch arm decides. `meet_rows::coplanar_conic_rims_tangent_at_a_vertex_meet_once_there` refused at ε = 1e-9 on an exact jet when PR 6541 moved `coplanar_ellipses` the same way (see the closed `coplanar-ellipses-reads-the-level-from-its-global-harmonics`). So the lane runs `geom-brep`'s `curve_pair` meet rows and `sweep`'s prism rows at both ε, and treats a touch-arm refusal as the evidence that decides the guard. Once all three consumers are gone, lower `pose.rs`'s row in `scripts/gates/bare-rounding-sites.tsv`.
+
+## Evidence elsewhere
+
+`meet-refuses-a-near-tangent-tilt-in-both-orders`: at a shared end tilted ±1e-5 about the cross, `transverse`'s extreme escalates at −5.0e-12 through this charge.

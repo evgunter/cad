@@ -37,6 +37,6 @@ So four are owed: two basin refusals, where near-parallel tangents leave `polish
 ## Owed
 
 - **The basin.** Where the tangents are near-parallel, the polish's basin `sin φ − 2K·span > 0` fails. Either the window should read the root, here a meeting beside a found joint, which the ring should already answer, or the basin wants a premise that survives tangency.
-- **The extreme.** `transverse`'s `Range` reads the height's first harmonic charged with the pose's `noise` (`Range::first_harmonic(.., noise)` → `band_arc`, `extreme_sign(row::EXTREME, …, r.noise)`). At the shared end by ±1e-5 about the cross, it escalates at −5.0e-12. See `a-rounding-charge-through-rounding-charge-escapes-the-bare-epsilon-gate`.
+- **The extreme.** `transverse`'s `Range` reads the height's first harmonic charged with the pose's `noise` (`Range::first_harmonic(.., noise)` → `band_arc`, `extreme_sign(row::EXTREME, …, r.noise)`). At the shared end by ±1e-5 about the cross, it escalates at −5.0e-12. See `transverse-range-charges-the-global-height-with-world-origin-noise`.
 
 The spun row lists the three shared-end residues by `(axis, tilt)` and accepts a refusal only there. A residue that comes to decide must read one meeting.
