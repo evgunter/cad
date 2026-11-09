@@ -75,6 +75,7 @@
 use geom_brep::LeverBounds;
 #[cfg(test)]
 use geom_brep::enters_material;
+use geom_brep::ladder::{Climb, Rung, climb_agreeing};
 use geom_brep::{ConicDeparture, EntersMaterial, OutwardNormal};
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Lever, Margin, Point3, Sign, Vec3};
@@ -772,10 +773,12 @@ pub(super) fn orbit_corners<T: Decide>(
             .unwrap_or_else(|| {
                 unreachable!(
                     "{operand:?}'s vertex {vertex:?} has the null edge {:?} in its orbit: a \
-                     gated operand holds none, and the boolean reads a vertex's sectors once, \
+                     gated operand holds none, and the boolean reads a vertex's sectors \
                      before it hangs one there (`vtxfac::pierced_and_paired` refuses a \
-                     vertex that pierces two faces, and `classify_vertex_on_face` one that \
-                     crosses a face it also pairs on)",
+                     vertex that pierces two faces no record declares one wall, a wall's \
+                     second face reads the orbit as its pass began, `vtxfac::WallRead`, and \
+                     `classify_vertex_on_face` refuses one that crosses a face it also pairs \
+                     on)",
                     he_data.edge
                 )
             });
@@ -1375,10 +1378,12 @@ pub(super) fn tangent_lump<T: Decide>(
         }
     };
     let n_ref = other_outward.vec();
-    let mut shown: Option<SideCode> = None;
-    let mut in_band = None;
-    for (dir, reached) in bounds {
-        match tangent_relative_side(
+    // Both bounds are read, and every bound that shows a side must show
+    // one side ([`climb_agreeing`]); an in-band bound is kept, refusing
+    // only where neither shows one.
+    let climbed = climb_agreeing(
+        bounds,
+        |(dir, reached)| match tangent_relative_side(
             sector_surface,
             other_surface,
             other_outward,
@@ -1388,26 +1393,21 @@ pub(super) fn tangent_lump<T: Decide>(
             read,
             band,
         ) {
-            Ok(SideCode::On) => {}
-            Ok(code) => match shown {
-                Some(seen) if seen != code => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "a tangent sector's two bounds curve to opposite sides",
-                    });
-                }
-                _ => shown = Some(code),
-            },
-            Err(escalation) => {
-                in_band.get_or_insert(escalation);
-            }
-        }
-    }
-    match (shown, in_band) {
-        (Some(code), _) => Ok(code),
-        (None, Some(escalation)) => Err(escalation),
+            Ok(SideCode::On) => Rung::Passes,
+            Ok(code) => Rung::Answers(code),
+            Err(escalation) => Rung::InBand(escalation),
+        },
+        PartialEq::eq,
+    );
+    match climbed {
+        Err(_) => Err(BooleanError::ClassificationInvariant {
+            what: "a tangent sector's two bounds curve to opposite sides",
+        }),
+        Ok(Climb::Answered { answer, .. }) => Ok(answer),
+        Ok(Climb::Undecided(escalation)) => Err(escalation),
         // The exact-zero osculating residue (doc above): locally
         // conformal, so the pair's sense bit picks the Eq. 15.3 posture.
-        (None, None) => {
+        Ok(Climb::Passed) => {
             let relation = match crate::validate::decide(
                 "tangent_lump_senses",
                 Margin::levered(sector_outward.vec().dot(n_ref), arm),
@@ -2196,7 +2196,7 @@ fn on_planar_face<T: Decide>(
     let Some((origin, normal)) = crate::face_normal::face_plane(body, face) else {
         return Ok(PlaneRead::NotPlane);
     };
-    let height = Margin::of((p - origin).dot(normal));
+    let height = Margin::of(geom::plane_offset(origin, normal, p));
     match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
         BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
     })? {

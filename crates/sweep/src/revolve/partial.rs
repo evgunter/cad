@@ -43,7 +43,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     reverse: bool,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let place = frame.place;
     let far = Placing::turned(place, frame.o3, frame.axis, theta).map_err(RevolveError::Turn)?;
     let place_end = far.map();
@@ -348,6 +348,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
             start_meridians: start_mer,
             end_meridians: end_mer,
         },
+        scalar: core::marker::PhantomData,
     })
 }
 

@@ -5898,7 +5898,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let mut body = built.body.clone();
+        let mut body = built.body.clone().into_body();
         let e0 = body.edges().next().map(|(k, _)| k).unwrap();
         let e1 = body
             .split_edge(e0, 0.25, Tol::witness())
@@ -5980,7 +5980,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let mut body = built.body.clone();
+        let mut body = built.body.clone().into_body();
         let e0 = body.edges().next().map(|(k, _)| k).unwrap();
         let e1 = body
             .split_edge(e0, 0.25, Tol::witness())
@@ -7146,11 +7146,7 @@ mod wavy_loft {
         // A face is read in the loft, the first member, and the B face
         // in the box.
         assert!(
-            matches!(
-                body.get_face(*face)
-                    .and_then(|f| body.get_surface(f.surface)),
-                Some(geom::Surface::Nurbs(_))
-            ),
+            matches!(body.face_surface(*face), Some(geom::Surface::Nurbs(_))),
             "the refusal names a spline wall of the loft"
         );
         let block = ev
@@ -7161,10 +7157,7 @@ mod wavy_loft {
             .expect("the placed box");
         // Where the placed box stands: its body is its source's, in its
         // own coordinates, under its frame (D10 `[placement.frame]`).
-        let plane = block
-            .body()
-            .get_face(*pierced)
-            .and_then(|f| block.body().get_surface(f.surface));
+        let plane = block.body().face_surface(*pierced);
         assert!(
             matches!(
                 plane,

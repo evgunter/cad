@@ -94,7 +94,8 @@ pub(super) fn critical_fractions<T: SpanLocate>(
     if !(length > 0.0 && length.is_finite()) {
         return Vec::new();
     }
-    let centre_foot = |c: Point3<f64>| -(o - c).dot(u) / u.dot(u);
+    let mid_line = geom::Line { origin: o, dir: u };
+    let centre_foot = |c: Point3<f64>| mid_line.param(c);
     let ts = match *surface {
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
         Surface::Sphere { center, .. } => vec![centre_foot(mid_point(center))],
@@ -148,7 +149,7 @@ struct Axial {
 
 impl Axial {
     fn of(o: Point3<f64>, u: Vec3<f64>, c: Point3<f64>, axis: Vec3<f64>) -> Self {
-        let a = axis / axis.norm();
+        let a = axis.normalize();
         let (h0, q_off) = axial_radial(o, c, a);
         let (w, u_off) = axial_radial(Point3::origin() + u, Point3::origin(), a);
         let star = Some(-q_off.dot(u_off) / u_off.dot(u_off)).filter(|t| t.is_finite());

@@ -673,8 +673,8 @@ fn rect_jet(
 }
 
 fn unit(v: Vec3<f64>) -> Option<Vec3<f64>> {
-    let n = v.norm();
-    (n.is_finite() && n > 0.0).then(|| v * (1.0 / n))
+    let (d, n) = v.direction_and_length();
+    (n.is_finite() && n > 0.0).then_some(d)
 }
 
 fn perp(v: Vec3<f64>, t: Vec3<f64>) -> Vec3<f64> {
@@ -4205,8 +4205,12 @@ impl Psi {
             Self::Linear { n, q } => n.dot(p - q),
             Self::Carrier(Implicit::Plane { o, n }) => n.dot(p - o),
             Self::Carrier(Implicit::Cylinder { o, axis, r }) => {
-                let w = p - o;
-                (w - axis * w.dot(axis)).norm() - r
+                geom::Line {
+                    origin: o,
+                    dir: axis,
+                }
+                .distance(p)
+                    - r
             }
             Self::Carrier(Implicit::Sphere { c, r }) => (p - c).norm() - r,
             Self::Carrier(Implicit::Cone {
@@ -4216,9 +4220,12 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let w = p - apex;
-                let h = w.dot(axis);
-                (w - axis * h).norm() * cos - nappe * h * sin
+                let (h, rho) = geom::Line {
+                    origin: apex,
+                    dir: axis,
+                }
+                .height_and_distance(p);
+                rho * cos - nappe * h * sin
             }
             Self::Graph { .. } => return None,
         })
@@ -4229,8 +4236,11 @@ impl Psi {
         match *self {
             Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n,
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
-                let w = p - o;
-                let radial = w - axis * w.dot(axis);
+                let radial = geom::Line {
+                    origin: o,
+                    dir: axis,
+                }
+                .offset(p);
                 radial * (at(1.0) / radial.norm())
             }
             Self::Carrier(Implicit::Sphere { c, .. }) => {
@@ -4244,8 +4254,11 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let w = p - apex;
-                let radial = w - axis * w.dot(axis);
+                let radial = geom::Line {
+                    origin: apex,
+                    dir: axis,
+                }
+                .offset(p);
                 radial * (cos / radial.norm()) - axis * (nappe * sin)
             }
             Self::Graph { m, t, slope, .. } => m - t * slope,

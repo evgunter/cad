@@ -19,12 +19,12 @@
 //! carrier), or nothing. Ray casting ([`ray_crossings`]) reuses the same
 //! carrier closed forms for the containment forest's parity test.
 
-use geom_core::k_stats::{check_unlogged, decide, decide_reported};
+use crate::gate::{Escalation, Gate, check_unlogged, decide, decide_reported};
 use geom_core::one_line::on_one_line_2d;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
-    Arc2, Band, Circles2, Decide, Decided, Indeterminate, InfSpeed, Margin, MarginDiag, Point2,
-    Real, Sign, Vec2,
+    Arc2, Band, Circles2, Decide, Decided, InfSpeed, Line2, Margin, MarginDiag, Point2, Real, Sign,
+    Vec2,
 };
 
 use crate::Segment;
@@ -124,7 +124,7 @@ pub(crate) enum ShapeIssue<T: Real> {
         margin: T,
     },
     /// A classification landed in the ambiguity band or was poisoned.
-    Escalated(Indeterminate),
+    Escalated(Escalation),
 }
 
 impl<T: Real> ShapeIssue<T> {
@@ -133,10 +133,10 @@ impl<T: Real> ShapeIssue<T> {
     /// the classification named.
     pub(crate) fn predicate(&self) -> &'static str {
         match self {
-            Self::Degenerate { .. } => "vertex_separation",
-            Self::DegenerateTurn { .. } => "full_turn_reach",
-            Self::NearFull { .. } => "arc_diameter_clearance",
-            Self::Escalated(source) => source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
+            Self::Degenerate { .. } => Gate::VertexSeparation.predicate(),
+            Self::DegenerateTurn { .. } => Gate::FullTurnReach.predicate(),
+            Self::NearFull { .. } => Gate::ArcDiameterClearance.predicate(),
+            Self::Escalated(e) => e.gate().predicate(),
         }
     }
 }
@@ -179,7 +179,7 @@ impl<T: Real> From<ShapeIssue<T>> for SegIssue<T> {
 
 impl<T: Real> SegIssue<T> {
     /// An escalation, as a table segment's refusal.
-    fn escalated(source: Indeterminate) -> Self {
+    fn escalated(source: Escalation) -> Self {
         Self::Shape(ShapeIssue::Escalated(source))
     }
 
@@ -189,7 +189,7 @@ impl<T: Real> SegIssue<T> {
         match self {
             Self::Shape(issue) => issue.predicate(),
             Self::Inconsistent { check } => check.predicate(),
-            Self::BelowSceneResolution { .. } => "arc_carrier_resolution",
+            Self::BelowSceneResolution { .. } => Gate::ArcCarrierResolution.predicate(),
         }
     }
 }
@@ -389,11 +389,11 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
     let escalated = |source| E::from(ShapeIssue::Escalated(source));
     let reach = Margin::metered(arc.sweep / T::tau(), InfSpeed::new(arc.radius + arc.radius));
     let m = reach.value();
-    match decide("full_turn_reach", Margin::of(m.abs()), band).map_err(escalated)? {
+    match decide(Gate::FullTurnReach, Margin::of(m.abs()), band).map_err(escalated)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(ShapeIssue::DegenerateTurn { margin: m }.into()),
     }
-    let turn = match decide("full_turn_sense", reach, band).map_err(escalated)? {
+    let turn = match decide(Gate::FullTurnSense, reach, band).map_err(escalated)? {
         Sign::Zero => return Err(ShapeIssue::DegenerateTurn { margin: m }.into()),
         turn @ (Sign::Positive | Sign::Negative) => turn,
     };
@@ -450,7 +450,7 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
     let escalated = |source| E::from(ShapeIssue::Escalated(source));
     let frame = ChordFrame::of(a, b);
     let len = frame.len;
-    match decide("vertex_separation", Margin::of(len), band).map_err(escalated)? {
+    match decide(Gate::VertexSeparation, Margin::of(len), band).map_err(escalated)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
             return Err(ShapeIssue::Degenerate { margin: len }.into());
@@ -467,7 +467,7 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
         }
     };
     let straightness =
-        decide("segment_straightness", sagitta(bow, len), band).map_err(escalated)?;
+        decide(Gate::SegmentStraightness, sagitta(bow, len), band).map_err(escalated)?;
     let kind = match segment {
         Segment::Line => SegKind::Line,
         Segment::Arc(..) if straightness == Sign::Zero => SegKind::Line,
@@ -488,7 +488,7 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
             let quarter = span * T::from_f64(0.25);
             let clearance =
                 (arc.radius + arc.radius) * quarter.cos().powi(2) / (T::one() + quarter.sin());
-            match decide("arc_diameter_clearance", Margin::of(clearance), band)
+            match decide(Gate::ArcDiameterClearance, Margin::of(clearance), band)
                 .map_err(escalated)?
             {
                 Sign::Positive => {}
@@ -564,7 +564,7 @@ fn resolves<T: Decide>(
     band: Band,
 ) -> Result<(), SegIssue<T>> {
     let gate = decide_reported(
-        "arc_carrier_resolution",
+        Gate::ArcCarrierResolution,
         Margin::of(resolution_headroom(scale, ulps, band)),
         band,
     )
@@ -607,7 +607,7 @@ fn check_carrier<T: Decide>(
     // small at the magnitude it was taken at ([`resolves`]).
     let scale = arc.radius.max(reach(arc.centre));
     let on_carrier = arc.rim(a) - arc.radius;
-    let read = decide_reported("arc_start_on_carrier", Margin::of(on_carrier), band)
+    let read = decide_reported(Gate::ArcStartOnCarrier, Margin::of(on_carrier), band)
         .map_err(SegIssue::escalated)?;
     match read.sign {
         Sign::Zero => {}
@@ -623,8 +623,8 @@ fn check_carrier<T: Decide>(
         }
     }
     let landing = arc.landing(a).distance(b);
-    let read =
-        decide_reported("arc_landing", Margin::of(landing), band).map_err(SegIssue::escalated)?;
+    let read = decide_reported(Gate::ArcLanding, Margin::of(landing), band)
+        .map_err(SegIssue::escalated)?;
     match read.sign {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => {
@@ -645,9 +645,8 @@ fn check_carrier<T: Decide>(
 /// the band ([`read_back`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ArcMiss<T: Real> {
-    /// The read's funnel name: [`START_READ`], [`LANDING_READ`],
-    /// [`THROUGH_POINT_READ`] or [`BRANCH_READ`].
-    pub(crate) predicate: &'static str,
+    /// Which read missed.
+    pub(crate) read: ArcRead,
     /// How far the stored arc is off what was authored, meters.
     pub(crate) miss: T,
     /// The magnitude the read was taken at, meters.
@@ -667,22 +666,49 @@ pub(crate) enum ReadBackIssue<T: Real> {
     /// point scalar cannot tell apart.
     BelowSceneResolution(ArcMiss<T>),
     /// A read, or its resolution gate, in the band or poisoned.
-    Escalated(Indeterminate),
+    Escalated(Escalation),
 }
 
-/// The start read's funnel name: ‖a − centre‖ − r.
-pub(crate) const START_READ: &str = "path_arc_start_on_carrier";
+/// **Which read of a constructed arc's read-back** (`seg::read_back_arc`),
+/// closed: each read's own gate and its resolution gate's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArcRead {
+    /// The start on the carrier: ‖a − centre‖ − r.
+    Start,
+    /// The landing: ‖landing(a) − b‖, less the radial part an inline
+    /// decision admitted.
+    Landing,
+    /// A `Via` arc's carrier through its authored point: ‖q − centre‖ − r.
+    ThroughPoint,
+    /// The branch: the stored arc's length, signed by the authored turn
+    /// sense.
+    Branch,
+}
 
-/// The landing read's funnel name: ‖landing(a) − b‖, less the radial
-/// part an inline decision admitted.
-pub(crate) const LANDING_READ: &str = "path_arc_landing";
+impl ArcRead {
+    /// The read's own gate.
+    #[must_use]
+    pub const fn gate(self) -> Gate {
+        match self {
+            Self::Start => Gate::PathArcStartOnCarrier,
+            Self::Landing => Gate::PathArcLanding,
+            Self::ThroughPoint => Gate::PathArcThroughPoint,
+            Self::Branch => Gate::PathArcBranch,
+        }
+    }
 
-/// The through-point read's funnel name: ‖q − centre‖ − r.
-pub(crate) const THROUGH_POINT_READ: &str = "path_arc_through_point";
-
-/// The branch read's funnel name: the stored arc's length, signed by
-/// the authored turn sense.
-pub(crate) const BRANCH_READ: &str = "path_arc_branch";
+    /// The gate that decides whether a miss of this read is a defect the
+    /// scene resolves.
+    #[must_use]
+    pub const fn resolution_gate(self) -> Gate {
+        match self {
+            Self::Start => Gate::PathArcStartOnCarrierResolution,
+            Self::Landing => Gate::PathArcLandingResolution,
+            Self::ThroughPoint => Gate::PathArcThroughPointResolution,
+            Self::Branch => Gate::PathArcBranchResolution,
+        }
+    }
+}
 
 /// **A segment's signed sagitta**, `(|b − a|/2)·tan(Δθ/4)` meters: the
 /// apex's offset from the chord, `bow` (tan(Δθ/4), zero for a line)
@@ -700,10 +726,10 @@ fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
 /// stored arc against what its construction authored, each read through
 /// [`read_back`].
 ///
-/// - **Start on the carrier** ([`START_READ`], ‖a − centre‖ − r,
+/// - **Start on the carrier** ([`ArcRead::Start`], ‖a − centre‖ − r,
 ///   [`READ_BACK_RIM_ULPS`]): the stored radius against the vertex the
 ///   arc leaves.
-/// - **Landing** ([`LANDING_READ`], [`LANDING_ULPS`]): ‖landing(a) − b‖.
+/// - **Landing** ([`ArcRead::Landing`], [`LANDING_ULPS`]): ‖landing(a) − b‖.
 ///   For an arc whose end is on its carrier only to an inline
 ///   ε-decision the door made ([`crate::Facts::Decided`]), the landing
 ///   against `b` moved along its ray from the centre onto the landing's
@@ -711,9 +737,9 @@ fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
 ///   distance from the centre, which that decision admitted, left out.
 ///   An in-band sweep error escalates there exactly as on a registered
 ///   arc.
-/// - **Through-point** ([`THROUGH_POINT_READ`], [`READ_BACK_RIM_ULPS`]):
+/// - **Through-point** ([`ArcRead::ThroughPoint`], [`READ_BACK_RIM_ULPS`]):
 ///   a `Via` arc's carrier against its authored `q`.
-/// - **Branch** ([`BRANCH_READ`], [`LANDING_ULPS`]): the stored arc's
+/// - **Branch** ([`ArcRead::Branch`], [`LANDING_ULPS`]): the stored arc's
 ///   length `r·Δθ`, signed by the turn sense the construction states
 ///   ([`crate::BuiltArc::sense`]). Positive passes; Negative is the
 ///   other arc on the same carrier between the same ends, which lands
@@ -748,7 +774,7 @@ pub(crate) fn read_back_arc<T: Decide>(
     let len = a.distance(b);
     let bow = sagitta(arc.quarter_tan(), len).value();
     if built.bulge_authored {
-        match check_unlogged("segment_straightness", bow, band, "F24") {
+        match check_unlogged(Gate::SegmentStraightness, bow, band, "F24") {
             Ok(Sign::Positive | Sign::Negative) => {}
             Ok(Sign::Zero) => return Ok(()),
             Err(_) if !bow.is_poison() => return Ok(()),
@@ -757,8 +783,7 @@ pub(crate) fn read_back_arc<T: Decide>(
     }
     let carrier = || arc.radius.max(reach(arc.centre));
     read_back(
-        START_READ,
-        "path_arc_start_on_carrier_resolution",
+        ArcRead::Start,
         Reading::Difference(arc.rim(a) - arc.radius),
         || reach(a),
         || carrier().max(reach(a)),
@@ -777,8 +802,7 @@ pub(crate) fn read_back_arc<T: Decide>(
         arc.landing(a).distance(b)
     };
     read_back(
-        LANDING_READ,
-        "path_arc_landing_resolution",
+        ArcRead::Landing,
         Reading::Difference(landing),
         || reach(a).max(reach(b)),
         || carrier().max(reach(a)).max(reach(b)),
@@ -787,8 +811,7 @@ pub(crate) fn read_back_arc<T: Decide>(
     )?;
     if let Some(q) = built.through {
         read_back(
-            THROUGH_POINT_READ,
-            "path_arc_through_point_resolution",
+            ArcRead::ThroughPoint,
             Reading::Difference(arc.rim(q) - arc.radius),
             || reach(a).max(reach(b)).max(reach(q)),
             || carrier().max(reach(q)),
@@ -803,14 +826,13 @@ pub(crate) fn read_back_arc<T: Decide>(
         // Positive, the other Negative.
         let signed =
             Margin::metered(arc.sweep * sense.sign::<T>(), InfSpeed::new(arc.radius)).value();
-        let reading = match check_unlogged(BRANCH_READ, signed, band, "F24") {
+        let reading = match check_unlogged(ArcRead::Branch.gate(), signed, band, "F24") {
             Ok(Sign::Positive) => Reading::Passed,
             Ok(Sign::Zero | Sign::Negative) => Reading::Off(signed),
             Err(source) => return Err(ReadBackIssue::Escalated(source)),
         };
         read_back(
-            BRANCH_READ,
-            "path_arc_branch_resolution",
+            ArcRead::Branch,
             reading,
             || reach(a).max(reach(b)),
             || carrier().max(reach(a)).max(reach(b)),
@@ -883,8 +905,7 @@ enum Reading<T> {
 /// unlogged cross-checks at the witness lane, whose door reports a
 /// sign.
 fn read_back<T: Decide>(
-    predicate: &'static str,
-    resolution_predicate: &'static str,
+    read: ArcRead,
     reading: Reading<T>,
     authored: impl FnOnce() -> T,
     stored: impl FnOnce() -> T,
@@ -894,7 +915,7 @@ fn read_back<T: Decide>(
     let miss = match reading {
         Reading::Passed => return Ok(()),
         Reading::Off(miss) => miss,
-        Reading::Difference(miss) => match check_unlogged(predicate, miss, band, "F24") {
+        Reading::Difference(miss) => match check_unlogged(read.gate(), miss, band, "F24") {
             Ok(Sign::Zero) => return Ok(()),
             Ok(Sign::Positive | Sign::Negative) => miss,
             Err(source) => return Err(ReadBackIssue::Escalated(source)),
@@ -903,7 +924,7 @@ fn read_back<T: Decide>(
     let authored = authored();
     let scale = stored().max(authored);
     let found = ArcMiss {
-        predicate,
+        read,
         miss: miss.abs(),
         scale,
         resolution: scale * T::from_f64(ulps * f64::EPSILON),
@@ -913,7 +934,7 @@ fn read_back<T: Decide>(
     }
     let clearance = found.miss - found.resolution;
     let margin = resolution_headroom(authored, ulps, band).min(clearance);
-    match check_unlogged(resolution_predicate, margin, band, "F24") {
+    match check_unlogged(read.resolution_gate(), margin, band, "F24") {
         Ok(Sign::Positive) => Err(ReadBackIssue::Defect(found)),
         Ok(Sign::Zero | Sign::Negative) => Err(ReadBackIssue::BelowSceneResolution(found)),
         Err(source) => Err(ReadBackIssue::Escalated(source)),
@@ -936,23 +957,23 @@ pub(crate) fn sweep_range<T: Decide>(
         check: ArcCheck::SweepRange,
     };
     let rate = InfSpeed::new(arc.radius);
-    let (_, sweep) =
-        Extent::decide_signed("arc_sweep_length", arc.sweep, rate, band).map_err(|source| {
-            match source.margin.rejected_sign() {
-                Some(Sign::Zero) => inconsistent(),
-                _ => SegIssue::escalated(source),
-            }
+    let (_, sweep) = Gate::ArcSweepLength
+        .read(|name| Extent::decide_signed(name, arc.sweep, rate, band))
+        .map_err(|e| match e.source().margin.rejected_sign() {
+            Some(Sign::Zero) => inconsistent(),
+            _ => SegIssue::escalated(e),
         })?;
-    let (one_turn, rows, rate) = (
-        Period::new(T::tau()),
-        TurnRows::exact("arc_sweep_range"),
-        Exact::new(arc.radius),
-    );
-    let accepted = match range {
-        Range::Chord => one_turn.strictly_partial(rows, sweep, rate, band),
-        Range::FullTurn => one_turn.whole_turn(rows, sweep, rate, band),
-    }
-    .map_err(|undecided| SegIssue::escalated(undecided.diag))?;
+    let (one_turn, rate) = (Period::new(T::tau()), Exact::new(arc.radius));
+    let accepted = Gate::ArcSweepRange
+        .read(|name| {
+            let rows = TurnRows::exact(name);
+            match range {
+                Range::Chord => one_turn.strictly_partial(rows, sweep, rate, band),
+                Range::FullTurn => one_turn.whole_turn(rows, sweep, rate, band),
+            }
+            .map_err(|undecided| undecided.diag)
+        })
+        .map_err(SegIssue::escalated)?;
     if accepted {
         Ok(())
     } else {
@@ -970,7 +991,7 @@ pub(crate) fn sweep_range<T: Decide>(
 /// deliberately: their question is which side, and a distance they
 /// neither read nor render would be a second value to keep in step
 /// with the first.
-fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<(Sign, T), Indeterminate> {
+fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<(Sign, T), Escalation> {
     chord_side_reported(s, q, band).map(|(decided, margin)| (decided.sign, margin))
 }
 
@@ -979,10 +1000,10 @@ fn chord_side_reported<T: Decide>(
     s: &Seg<T>,
     q: Point2<T>,
     band: Band,
-) -> Result<(Decided, T), Indeterminate> {
-    let margin = s.unit.perp_dot(q - s.a);
+) -> Result<(Decided, T), Escalation> {
+    let margin = s.chord_line().side(q);
     Ok((
-        decide_reported("chord_side", Margin::of(margin), band)?,
+        decide_reported(Gate::ChordSide, Margin::of(margin), band)?,
         margin,
     ))
 }
@@ -990,8 +1011,12 @@ fn chord_side_reported<T: Decide>(
 /// **`circle_side`** — which side of an arc's carrier circle a point
 /// lies on. Margin: |q − c| − r, the rim through [`Arc2::rim`]
 /// (meters; positive = outside).
-fn circle_side<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
-    decide("circle_side", Margin::of(g.arc.rim(q) - g.arc.radius), band)
+fn circle_side<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Escalation> {
+    decide(
+        Gate::CircleSide,
+        Margin::of(g.arc.rim(q) - g.arc.radius),
+        band,
+    )
 }
 
 /// **`line_span`** — whether a point *known to lie on the carrier line*
@@ -999,9 +1024,9 @@ fn circle_side<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Si
 /// t = (q − a)·û is the arc-length parameter (meters along the carrier;
 /// positive = strictly interior, Zero = at an endpoint, negative =
 /// outside).
-fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
-    let t = (q - s.a).dot(s.unit);
-    decide("line_span", Margin::of(t.min(s.len - t)), band)
+fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, Escalation> {
+    let t = s.chord_line().height(q);
+    decide(Gate::LineSpan, Margin::of(t.min(s.len - t)), band)
 }
 
 /// **`arc_span`** — whether a point *known to lie on the carrier
@@ -1039,25 +1064,27 @@ fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, In
 ///
 /// [`arc_clear_of_carrier`] passes a point off the carrier, under its
 /// own argument.
-fn arc_span<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
+fn arc_span<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Escalation> {
     match g.span {
-        ArcSpan::Chord { apex, span_chord } => {
-            decide("arc_span", Margin::of(span_chord - q.distance(apex)), band)
-        }
+        ArcSpan::Chord { apex, span_chord } => decide(
+            Gate::ArcSpan,
+            Margin::of(span_chord - q.distance(apex)),
+            band,
+        ),
         ArcSpan::FullTurn => Ok(Sign::Positive),
     }
 }
 
 /// **`contact_at_shared_vertex`** (and other point-coincidence
-/// questions, per the passed name) — margin: |p − q| (meters, a direct
+/// questions, per the passed gate) — margin: |p − q| (meters, a direct
 /// displacement). Zero = coincident (D4's positive claim).
 pub(crate) fn coincident<T: Decide>(
-    name: &'static str,
+    gate: Gate,
     p: Point2<T>,
     q: Point2<T>,
     band: Band,
-) -> Result<Sign, Indeterminate> {
-    decide(name, Margin::of(p.distance(q)), band)
+) -> Result<Sign, Escalation> {
+    decide(gate, Margin::of(p.distance(q)), band)
 }
 
 /// How the two carriers of a *joint* — adjacent segments at their
@@ -1134,10 +1161,10 @@ pub(crate) fn junction_reverses<T: Decide>(
     departing: Vec2<T>,
     arm: T,
     band: Band,
-) -> Result<bool, Indeterminate> {
+) -> Result<bool, Escalation> {
     Ok(matches!(
         decide(
-            "path_junction_side",
+            Gate::PathJunctionSide,
             // Unsourced lever: the leg's arm ([`Seg::arm`]: a line's length, an arc's lesser of
             // radius and chord), a length of the consumed leg with no extent home in `profile`.
             Margin::levered(arriving.dot(departing), geom_core::Lever::unsourced(arm)),
@@ -1171,6 +1198,26 @@ pub(crate) fn arc_lever<T: Real>(radius: T, chord: T) -> T {
 }
 
 impl<T: Real> Seg<T> {
+    /// **The segment as the span `(0, 1)` of a planar line**: from `a`
+    /// along the chord `b − a`, so [`Line2::at`] at a parameter is the
+    /// point that fraction of the way to `b`.
+    pub(crate) fn span_line(&self) -> Line2<T> {
+        Line2 {
+            origin: self.a,
+            dir: self.chord,
+        }
+    }
+
+    /// **The segment's chord as a planar line**: from `a` along the unit
+    /// chord direction, so its [`Line2::height`] is a point's arc length
+    /// along the chord from `a` and [`Line2::side`] its signed offset.
+    pub(crate) fn chord_line(&self) -> Line2<T> {
+        Line2 {
+            origin: self.a,
+            dir: self.unit,
+        }
+    }
+
     /// The leg's lever arm at a junction: a line's length, an arc's
     /// [`arc_lever`], a full turn's radius.
     pub(crate) fn arm(&self) -> T {
@@ -1223,18 +1270,18 @@ pub(crate) enum TurnSense {
 /// or a reversal, which [`junction_reverses`] tells apart); definite = a
 /// corner; in band escalates. The one home of that question: the path
 /// door asks it of every junction it builds, and of a declared seam
-/// arrival under that check's own `name` (`path_seam_arrival_turn`);
+/// arrival under that check's own gate (`path_seam_arrival_turn`);
 /// [`joint_tangency`] asks it of every joint validation judges and
 /// every stored fillet joint the door verifies. Returned with the
 /// signed levered turn, which a refusal quotes.
 pub(crate) fn junction_turn<T: Decide>(
-    name: &'static str,
+    gate: Gate,
     arriving: Vec2<T>,
     departing: Vec2<T>,
     arm: T,
     sense: TurnSense,
     band: Band,
-) -> Result<(Decided, T), Indeterminate> {
+) -> Result<(Decided, T), Escalation> {
     let turn = arriving.perp_dot(departing);
     let read = match sense {
         TurnSense::Signed => turn,
@@ -1242,7 +1289,7 @@ pub(crate) fn junction_turn<T: Decide>(
     };
     Ok((
         decide_reported(
-            name,
+            gate,
             // Unsourced lever: the shorter leg's arm ([`Seg::arm`]: a line's length, an arc's
             // lesser of radius and chord), a length of the consumed legs with no extent home in
             // `profile`.
@@ -1284,9 +1331,9 @@ fn heading_scale<T: Real>(s: &Seg<T>) -> T {
 pub(crate) fn joint_tangency<T: Decide>(
     prev: &Seg<T>,
     next: &Seg<T>,
-    turn_name: &'static str,
+    turn_gate: Gate,
     band: Band,
-) -> Result<JointReading<T>, Indeterminate> {
+) -> Result<JointReading<T>, Escalation> {
     let scale = heading_scale(prev).max(heading_scale(next));
     let ulp = scale * T::from_f64(f64::EPSILON);
     match (&prev.kind, &next.kind) {
@@ -1295,7 +1342,7 @@ pub(crate) fn joint_tangency<T: Decide>(
             if side.sign == Sign::Zero {
                 return Ok(JointReading {
                     class: JointClass::SameCarrier,
-                    predicate: "chord_side",
+                    predicate: Gate::ChordSide.predicate(),
                     margin,
                     diag: side.margin,
                     scale,
@@ -1305,11 +1352,11 @@ pub(crate) fn joint_tangency<T: Decide>(
         }
         (SegKind::Arc(g1), SegKind::Arc(g2)) => {
             let identity = carrier_pair(g1, g2).pair().identity();
-            let same = decide_reported("carrier_circles_identity", Margin::of(identity), band)?;
+            let same = decide_reported(Gate::CarrierCirclesIdentity, Margin::of(identity), band)?;
             if same.sign != Sign::Positive {
                 return Ok(JointReading {
                     class: JointClass::SameCarrier,
-                    predicate: "carrier_circles_identity",
+                    predicate: Gate::CarrierCirclesIdentity.predicate(),
                     margin: identity,
                     diag: same.margin,
                     scale,
@@ -1321,7 +1368,7 @@ pub(crate) fn joint_tangency<T: Decide>(
     }
     let arm = prev.arm().min(next.arm());
     let (turn, margin) = junction_turn(
-        turn_name,
+        turn_gate,
         prev.heading_at(prev.b),
         next.heading_at(next.a),
         arm,
@@ -1333,7 +1380,7 @@ pub(crate) fn joint_tangency<T: Decide>(
             Sign::Zero => JointClass::Tangent,
             Sign::Positive | Sign::Negative => JointClass::Transversal,
         },
-        predicate: turn_name,
+        predicate: turn_gate.predicate(),
         margin,
         diag: turn.margin,
         scale,
@@ -1342,9 +1389,8 @@ pub(crate) fn joint_tangency<T: Decide>(
 }
 
 /// **`carrier_line_circle`'s margin, in one place**: the clearance
-/// `r − |h|` between a line's carrier and a circle's, where
-/// `h = perp_dot(û, C − a)` is the centre's signed offset from the
-/// line. Returned with the SCALE its arithmetic passes through — the
+/// `r − |h|` between a line's carrier and a circle's, where `h` is the
+/// centre's signed offset from the line, [`Line2::side`]. Returned with the SCALE its arithmetic passes through — the
 /// radius and the two points' own coordinate magnitudes — because both
 /// the subtraction and the `C − a` inside `h` cancel first-order in
 /// that magnitude, and the clearance therefore resolves only to about
@@ -1352,16 +1398,18 @@ pub(crate) fn joint_tangency<T: Decide>(
 /// then say how finely this margin could have been read at all.
 ///
 /// Every reader of this clearance goes through here — the pair contact
-/// and the ray cast — so the two cannot drift apart.
-pub(crate) fn carrier_line_circle_margin<T: Real>(
-    unit: Vec2<T>,
-    from: Point2<T>,
-    g: &ArcGeom<T>,
-) -> (T, T) {
-    let h = unit.perp_dot(g.arc.centre - from).abs();
+/// and the ray cast — and both place their crossings by
+/// [`Line2::circle_heights`] (or its [`Line2::half_chord`]), which reads
+/// the same `h`, so the
+/// clearance and the crossings cannot drift apart.
+pub(crate) fn carrier_line_circle_margin<T: Real>(line: Line2<T>, g: &ArcGeom<T>) -> (T, T) {
+    let h = line.distance(g.arc.centre);
     (
         g.arc.radius - h,
-        g.arc.radius.max(reach(g.arc.centre)).max(reach(from)),
+        g.arc
+            .radius
+            .max(reach(g.arc.centre))
+            .max(reach(line.origin)),
     )
 }
 
@@ -1415,7 +1463,7 @@ pub(crate) fn pair_contacts<T: Decide>(
     s2: &Seg<T>,
     shared: Option<Point2<T>>,
     band: Band,
-) -> Result<PairOutcome<T>, Indeterminate> {
+) -> Result<PairOutcome<T>, Escalation> {
     match (&s1.kind, &s2.kind) {
         (SegKind::Line, SegKind::Line) => line_line(s1, s2, shared, band),
         (SegKind::Line, SegKind::Arc(g2)) => line_arc(s1, s2, g2, band),
@@ -1436,9 +1484,9 @@ enum Joint {
 /// whatever the other span reads, so `m2` is not read past a definite
 /// miss of `m1`; only then does an indeterminate reading escalate.
 fn joint(
-    m1: Result<Sign, Indeterminate>,
-    m2: impl FnOnce() -> Result<Sign, Indeterminate>,
-) -> Result<Option<Joint>, Indeterminate> {
+    m1: Result<Sign, Escalation>,
+    m2: impl FnOnce() -> Result<Sign, Escalation>,
+) -> Result<Option<Joint>, Escalation> {
     if let Ok(Sign::Negative) = m1 {
         return Ok(None);
     }
@@ -1459,7 +1507,7 @@ fn joint(
 fn gaps_apart<T: Decide>(s1: &Seg<T>, s2: &Seg<T>, band: Band) -> bool {
     let apart = |a: &Seg<T>, b: &Seg<T>| {
         let along = on_one_line_2d(a.unit, (a.a, a.b), (b.a, b.b), T::zero());
-        decide("segment_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+        decide(Gate::SegmentGap, Margin::of(along.apart()), band) == Ok(Sign::Positive)
     };
     apart(s1, s2) || apart(s2, s1)
 }
@@ -1495,7 +1543,7 @@ fn touches_only_near_the_shared_end<T: Decide>(host: &Seg<T>, other: &Seg<T>, ba
     let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
     matches!(
         decide(
-            "collinear_overlap",
+            Gate::CollinearOverlap,
             Margin::of(along.extent() + along.noise),
             band
         ),
@@ -1516,10 +1564,10 @@ fn collinear_overlap<T: Decide>(
     host: &Seg<T>,
     other: &Seg<T>,
     band: Band,
-) -> Result<PairOutcome<T>, Indeterminate> {
+) -> Result<PairOutcome<T>, Escalation> {
     let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
     let lower = decide_reported(
-        "collinear_overlap",
+        Gate::CollinearOverlap,
         Margin::of(along.extent() - along.noise),
         band,
     )?;
@@ -1527,7 +1575,7 @@ fn collinear_overlap<T: Decide>(
         return Ok(PairOutcome::Overlap);
     }
     let upper = decide_reported(
-        "collinear_overlap",
+        Gate::CollinearOverlap,
         Margin::of(along.extent() + along.noise),
         band,
     )?;
@@ -1538,8 +1586,8 @@ fn collinear_overlap<T: Decide>(
             kind: CKind::Touch,
         }]),
         _ => {
-            return Err(geom_core::k_stats::straddle(
-                "collinear_overlap",
+            return Err(crate::gate::straddle(
+                Gate::CollinearOverlap,
                 lower,
                 upper,
                 band,
@@ -1579,14 +1627,14 @@ fn line_line<T: Decide>(
     s2: &Seg<T>,
     shared: Option<Point2<T>>,
     band: Band,
-) -> Result<PairOutcome<T>, Indeterminate> {
+) -> Result<PairOutcome<T>, Escalation> {
     if shared.is_none() && gaps_apart(s1, s2, band) {
         return Ok(PairOutcome::Contacts(Vec::new()));
     }
     let side = |host: &Seg<T>, q: Point2<T>| chord_side(host, q, band).map(|(sign, _)| sign);
     let on_1 = [side(s1, s2.a), side(s1, s2.b)];
     let on_2 = [side(s2, s1.a), side(s2, s1.b)];
-    let separated = |pair: &[Result<Sign, Indeterminate>; 2]| {
+    let separated = |pair: &[Result<Sign, Escalation>; 2]| {
         matches!(
             pair,
             [Ok(Sign::Positive), Ok(Sign::Positive)] | [Ok(Sign::Negative), Ok(Sign::Negative)]
@@ -1599,7 +1647,7 @@ fn line_line<T: Decide>(
     // put all of it there, so the overlap along that carrier decides the
     // pair, whatever the other pair of sides reads.
     let collinear =
-        |pair: &[Result<Sign, Indeterminate>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
+        |pair: &[Result<Sign, Escalation>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
     if collinear(&on_1) {
         return collinear_overlap(s1, s2, band);
     }
@@ -1630,13 +1678,15 @@ fn line_line<T: Decide>(
     };
     let mut contacts = Vec::new();
     if opposite(o_c, o_d) && opposite(o_a, o_b) {
-        // Proper crossing, interior to both; the crossing parameter is
-        // well-conditioned here (definite sides bound the transversal
-        // angle away from zero).
-        let denom = s2.chord.perp_dot(s1.chord);
-        let t = s2.chord.perp_dot(s2.a - s1.a) / denom;
+        // Proper crossing, interior to both. The sides just decided settle
+        // the determinant: `s1.chord × s2.chord` is `|s1|` times the rise
+        // from `s2.a`'s side of `s1`'s line to `s2.b`'s, decided opposite
+        // through the band, so it is definitely nonzero
+        // (`Line2::meet_transversal`).
+        let line1 = s1.span_line();
+        let (t, _) = line1.meet_transversal(&s2.span_line());
         contacts.push(Contact {
-            point: s1.a + s1.chord * t,
+            point: line1.at(t),
             kind: CKind::Crossing,
         });
     } else {
@@ -1661,14 +1711,15 @@ fn line_line<T: Decide>(
 }
 
 /// Line/arc contacts via the **`carrier_line_circle`** predicate —
-/// margin: r − |h| where h = perp_dot(û, C − a) is the center's signed
-/// distance to the carrier line (meters: the clearance between the line
+/// margin: r − |h| where h is the center's signed distance to the
+/// carrier line ([`Line2::side`]) (meters: the clearance between the line
 /// and the circle; this is the tangency question, and its lever-arm
 /// story is the D4 ¶1 one — an angular tangency deviation φ at contact
 /// radius r displaces the carriers by ≈ r·φ²/2, so the *displacement*
 /// is the honest margin). Negative = the carriers miss; Zero = tangent
 /// (one candidate point, the foot of the perpendicular); Positive =
-/// secant (two candidates, foot ± √(r² − h²) along the line — the
+/// secant (two candidates, foot ± √(r² − h²) along the line,
+/// [`Line2::circle_heights`] — the
 /// radicand is a product of two definitely-positive factors
 /// (r − |h|)(r + |h|), so it cannot poison in this branch).
 ///
@@ -1683,14 +1734,13 @@ fn line_arc<T: Decide>(
     arc: &Seg<T>,
     g: &ArcGeom<T>,
     band: Band,
-) -> Result<PairOutcome<T>, Indeterminate> {
-    let to_center = g.arc.centre - line.a;
-    let h = line.unit.perp_dot(to_center);
-    let tc = to_center.dot(line.unit);
-    let foot = line.a + line.unit * tc;
-    let (clearance, _) = carrier_line_circle_margin(line.unit, line.a, g);
+) -> Result<PairOutcome<T>, Escalation> {
+    let chord_line = line.chord_line();
+    let tc = chord_line.height(g.arc.centre);
+    let foot = chord_line.at(tc);
+    let (clearance, _) = carrier_line_circle_margin(chord_line, g);
     let mut contacts = Vec::new();
-    let carriers = match decide("carrier_line_circle", Margin::of(clearance), band) {
+    let carriers = match decide(Gate::CarrierLineCircle, Margin::of(clearance), band) {
         Ok(sign) => sign,
         Err(_)
             if arc_clear_of_carrier(line, arc, g, foot, band)
@@ -1715,8 +1765,10 @@ fn line_arc<T: Decide>(
             )?;
         }
         Sign::Positive => {
-            let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
-            let crossings = [tc - half, tc + half].map(|t| line.a + line.unit * t);
+            // The centre's height `tc` is read once, above; the crossings
+            // stand the half-chord either way of it (`Line2::circle_heights`).
+            let half = chord_line.half_chord(g.arc.centre, g.arc.radius.powi(2));
+            let crossings = [tc - half, tc + half].map(|t| chord_line.at(t));
             candidates(
                 &mut contacts,
                 (line, arc),
@@ -1791,7 +1843,7 @@ fn arc_clear_of_carrier<T: Decide>(
 fn segment_clear_of_circle<T: Decide>(line: &Seg<T>, g: &ArcGeom<T>, tc: T, band: Band) -> bool {
     let made = (g.arc.centre - line.a).norm() + reach(line.a) + reach(g.arc.centre) + line.len;
     let miss = tc.min(line.len - tc) + geom_core::rounding_charge(made);
-    decide("circle_foot_past_segment", Margin::of(miss), band) == Ok(Sign::Negative)
+    decide(Gate::CircleFootPastSegment, Margin::of(miss), band) == Ok(Sign::Negative)
         && [line.a, line.b]
             .into_iter()
             .all(|q| end_clear_of_circle(g, q, true, band))
@@ -1815,7 +1867,7 @@ fn end_clear_of_circle<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, outside: bool, b
     } else {
         (rim + charge, Sign::Negative)
     };
-    decide("circle_end_clear", Margin::of(margin), band) == Ok(side)
+    decide(Gate::CircleEndClear, Margin::of(margin), band) == Ok(side)
 }
 
 /// Whether an arc certainly keeps off another circle, read from the
@@ -1856,7 +1908,7 @@ fn arc_clear_of_circle<T: Decide>(
     let excludes = |q: Point2<T>| {
         let made = reach(g.arc.centre) + reach(q) + g.arc.radius * T::from_f64(5.0);
         let miss = span_chord - q.distance(apex) + geom_core::rounding_charge(made);
-        decide("circle_extreme_past_arc", Margin::of(miss), band) == Ok(Sign::Negative)
+        decide(Gate::CircleExtremePastArc, Margin::of(miss), band) == Ok(Sign::Negative)
     };
     let arm = toward * g.arc.radius;
     (excludes(g.arc.centre + arm) && ends(true)) || (excludes(g.arc.centre - arm) && ends(false))
@@ -1935,11 +1987,11 @@ fn arc_arc<T: Decide>(
     s2: &Seg<T>,
     g2: &ArcGeom<T>,
     band: Band,
-) -> Result<PairOutcome<T>, Indeterminate> {
+) -> Result<PairOutcome<T>, Escalation> {
     let circles = carrier_pair(g1, g2);
     let pair = circles.pair();
     match decide(
-        "carrier_circles_identity",
+        Gate::CarrierCirclesIdentity,
         Margin::of(pair.identity()),
         band,
     )? {
@@ -1963,7 +2015,7 @@ fn arc_arc<T: Decide>(
             // one never reaches here: the loop above found an overlap.
             if let (ArcSpan::Chord { apex: apex1, .. }, ArcSpan::Chord { apex: apex2, .. }) =
                 (&g1.span, &g2.span)
-                && coincident("arc_apex_identity", *apex1, *apex2, band)? == Sign::Zero
+                && coincident(Gate::ArcApexIdentity, *apex1, *apex2, band)? == Sign::Zero
             {
                 // Same endpoints AND same apex: identical spans.
                 return Ok(PairOutcome::Overlap);
@@ -1991,7 +2043,7 @@ fn arc_arc<T: Decide>(
             };
             let no_contact = || Ok(PairOutcome::Contacts(Vec::new()));
             let external = match decide(
-                "carrier_circles_external",
+                Gate::CarrierCirclesExternal,
                 Margin::of(pair.external()),
                 band,
             ) {
@@ -2016,7 +2068,7 @@ fn arc_arc<T: Decide>(
                 }
                 Sign::Negative => {
                     let internal = match decide(
-                        "carrier_circles_internal",
+                        Gate::CarrierCirclesInternal,
                         Margin::of(pair.internal()),
                         band,
                     ) {
@@ -2055,7 +2107,7 @@ fn arc_arc<T: Decide>(
                             // band changes the reading, so a foot outside
                             // the circles reads as the tangency it is.
                             let chord = decide(
-                                "carrier_circles_chord",
+                                Gate::CarrierCirclesChord,
                                 Margin::of(depth.max(T::zero())),
                                 band,
                             );
@@ -2141,10 +2193,10 @@ fn candidates<T: Decide>(
     (s1, s2): (&Seg<T>, &Seg<T>),
     points: &[Point2<T>],
     interior: CKind,
-    spans: impl Fn(Point2<T>) -> (Result<Sign, Indeterminate>, Result<Sign, Indeterminate>),
+    spans: impl Fn(Point2<T>) -> (Result<Sign, Escalation>, Result<Sign, Escalation>),
     settle: Settle,
     band: Band,
-) -> Result<(), Indeterminate> {
+) -> Result<(), Escalation> {
     let mut missed = false;
     for (i, &q) in points.iter().enumerate() {
         let (m1, m2) = spans(q);
@@ -2242,8 +2294,8 @@ fn end_in_stretch<T: Decide>(
 ) -> bool {
     let half = seg.len * T::from_f64(0.5);
     let end = match decide(
-        "nearer_end",
-        Margin::of((q - seg.a).dot(seg.unit) - half),
+        Gate::NearerEnd,
+        Margin::of(seg.chord_line().height(q) - half),
         band,
     ) {
         Ok(Sign::Negative) => seg.a,
@@ -2253,7 +2305,7 @@ fn end_in_stretch<T: Decide>(
     let own = rival.is_none_or(|&rival| {
         matches!(
             decide(
-                "own_candidate",
+                Gate::OwnCandidate,
                 Margin::of(end.distance(rival) - end.distance(q)),
                 band
             ),
@@ -2263,7 +2315,7 @@ fn end_in_stretch<T: Decide>(
     let apart = || {
         [other.a, other.b].into_iter().all(|e| {
             matches!(
-                coincident("contact_at_shared_vertex", end, e, band),
+                coincident(Gate::ContactAtSharedVertex, end, e, band),
                 Ok(Sign::Positive)
             )
         })
@@ -2277,7 +2329,7 @@ fn end_in_stretch<T: Decide>(
 
 /// Which side of `host`'s carrier the point `p` lies on: `chord_side`
 /// for a line, `circle_side` for an arc.
-fn carrier_side<T: Decide>(host: &Seg<T>, p: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
+fn carrier_side<T: Decide>(host: &Seg<T>, p: Point2<T>, band: Band) -> Result<Sign, Escalation> {
     match &host.kind {
         SegKind::Line => chord_side(host, p, band).map(|(side, _)| side),
         SegKind::Arc(g) => circle_side(g, p, band),
@@ -2315,7 +2367,7 @@ fn end_touches<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
     band: Band,
-) -> Result<(), Indeterminate> {
+) -> Result<(), Escalation> {
     for (host, other) in [(s1, s2), (s2, s1)] {
         for end in [other.a, other.b] {
             if touches(host, end, band)? {
@@ -2332,7 +2384,7 @@ fn end_touches<T: Decide>(
 /// Whether the point `p` touches the segment `host`: it lies on the
 /// host's carrier (`chord_side`, or `circle_side` for an arc), and the
 /// host's span holds its projection onto that carrier.
-fn touches<T: Decide>(host: &Seg<T>, p: Point2<T>, band: Band) -> Result<bool, Indeterminate> {
+fn touches<T: Decide>(host: &Seg<T>, p: Point2<T>, band: Band) -> Result<bool, Escalation> {
     touches_from(host, p, carrier_side(host, p, band), band)
 }
 
@@ -2345,9 +2397,9 @@ fn touches<T: Decide>(host: &Seg<T>, p: Point2<T>, band: Band) -> Result<bool, I
 fn touches_from<T: Decide>(
     host: &Seg<T>,
     p: Point2<T>,
-    side: Result<Sign, Indeterminate>,
+    side: Result<Sign, Escalation>,
     band: Band,
-) -> Result<bool, Indeterminate> {
+) -> Result<bool, Escalation> {
     let on = side.map(|side| match side {
         Sign::Zero => Sign::Positive,
         Sign::Positive | Sign::Negative => Sign::Negative,
@@ -2389,7 +2441,12 @@ pub(crate) fn ray_crossings<T: Decide>(
     band: Band,
 ) -> Result<usize, Graze> {
     let side = |q: Point2<T>| -> Result<Sign, Graze> {
-        decide("ray_side", Margin::of(dir.perp_dot(q - origin)), band).map_err(|_| Graze)
+        decide(
+            Gate::RaySide,
+            Margin::of(Line2 { origin, dir }.side(q)),
+            band,
+        )
+        .map_err(|_| Graze)
     };
     match &seg.kind {
         SegKind::Line => {
@@ -2400,10 +2457,13 @@ pub(crate) fn ray_crossings<T: Decide>(
                 (Sign::Positive, Sign::Positive) | (Sign::Negative, Sign::Negative) => Ok(0),
                 _ => {
                     // Endpoints strictly straddle the ray line: one
-                    // carrier crossing; count it if strictly ahead.
-                    let denom = seg.chord.perp_dot(dir);
-                    let s = seg.chord.perp_dot(seg.a - origin) / denom;
-                    match decide("ray_advance", Margin::of(s), band) {
+                    // carrier crossing; count it if strictly ahead. The
+                    // sides just decided settle the determinant: `dir ×
+                    // chord` is `|dir|` times the rise from `seg.a`'s side
+                    // of the ray's line to `seg.b`'s, decided opposite, so
+                    // it is definitely nonzero (`Line2::meet_transversal`).
+                    let (s, _) = Line2 { origin, dir }.meet_transversal(&seg.span_line());
+                    match decide(Gate::RayAdvance, Margin::of(s), band) {
                         Ok(Sign::Positive) => Ok(1),
                         Ok(Sign::Negative) => Ok(0),
                         Ok(Sign::Zero) | Err(_) => Err(Graze),
@@ -2412,18 +2472,15 @@ pub(crate) fn ray_crossings<T: Decide>(
             }
         }
         SegKind::Arc(g) => {
-            let to_center = g.arc.centre - origin;
-            let h = dir.perp_dot(to_center);
-            let (clearance, _) = carrier_line_circle_margin(dir, origin, g);
-            match decide("carrier_line_circle", Margin::of(clearance), band).map_err(|_| Graze)? {
+            let ray = Line2 { origin, dir };
+            let (clearance, _) = carrier_line_circle_margin(ray, g);
+            match decide(Gate::CarrierLineCircle, Margin::of(clearance), band).map_err(|_| Graze)? {
                 Sign::Negative => Ok(0),
                 Sign::Zero => Err(Graze),
                 Sign::Positive => {
-                    let tc = to_center.dot(dir);
-                    let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
                     let mut count = 0;
-                    for t in [tc - half, tc + half] {
-                        match decide("ray_advance", Margin::of(t), band) {
+                    for t in ray.circle_heights(g.arc.centre, g.arc.radius.powi(2)) {
+                        match decide(Gate::RayAdvance, Margin::of(t), band) {
                             Ok(Sign::Negative) => {}
                             Ok(Sign::Positive) => {
                                 let q = origin + dir * t;
@@ -2551,7 +2608,7 @@ mod pair_contact_tests {
     fn the_collinear_arm_reads_the_old_arms_projections_and_verdict() {
         let band = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"));
         let mut rng = test_utils::fuzz::start("seg-collinear-home");
-        let sign = |s: Result<Sign, Indeterminate>| s.map_err(|_| ());
+        let sign = |s: Result<Sign, Escalation>| s.map_err(|_| ());
         for _ in 0..test_utils::fuzz::scaled(20_000) {
             let far = 10f64.powf(rng.range(0.0, 6.0));
             let a0 = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
@@ -2598,7 +2655,7 @@ mod pair_contact_tests {
             if edges.iter().any(|&e| (margin.abs() - e).abs() <= reach) {
                 continue;
             }
-            let old = sign(decide("collinear_overlap", Margin::of(margin), band));
+            let old = sign(decide(Gate::CollinearOverlap, Margin::of(margin), band));
             let new = match collinear_overlap(&s1, &s2, band) {
                 Ok(PairOutcome::Overlap) => Ok(Sign::Positive),
                 Ok(PairOutcome::Contacts(c)) if c.is_empty() => Ok(Sign::Negative),
@@ -2640,7 +2697,7 @@ mod pair_contact_tests {
                 Ok(PairOutcome::Contacts(c)) if c.is_empty() => {}
                 Ok(PairOutcome::Contacts(c)) => panic!("{name}: {} contacts", c.len()),
                 Ok(PairOutcome::Overlap) => panic!("{name}: an overlap"),
-                Err(e) => panic!("{name}: escalated on {:?}", e.predicate),
+                Err(e) => panic!("{name}: escalated on {:?}", e.source().predicate),
             }
         }
     }
@@ -2773,7 +2830,7 @@ mod pair_contact_tests {
             band,
         );
         match collinear_overlap(&s1, &s2, band) {
-            Err(e) => assert_eq!(e.predicate, Some("collinear_overlap")),
+            Err(e) => assert_eq!(e.source().predicate, Some("collinear_overlap")),
             Ok(PairOutcome::Overlap) => panic!("read an overlap"),
             Ok(PairOutcome::Contacts(c)) => panic!("read {} contacts", c.len()),
         }
@@ -2877,7 +2934,7 @@ mod pair_contact_tests {
         let s2 = line::<f64>((-86069.63265372172, 327087.8555196004), end, band);
         let along = on_one_line_2d(s1.unit, (s1.a, s1.b), (s2.a, s2.b), 0.0);
         assert_eq!(
-            decide("collinear_overlap", Margin::of(along.extent()), band),
+            decide(Gate::CollinearOverlap, Margin::of(along.extent()), band),
             Ok(Sign::Zero),
             "the overlap as computed reads within the band's zero"
         );
@@ -2906,18 +2963,25 @@ mod pair_contact_tests {
         let leaving = line::<f64>(v, (5051.600599898648, 719.9751542338354), band);
         let arriving = line::<f64>((-483370.8154819185, 251392.89144105796), v, band);
         assert!(touches_only_near_the_shared_end(&leaving, &arriving, band));
-        match joint_tangency(&arriving, &leaving, "path_junction_turn", band) {
+        match joint_tangency(&arriving, &leaving, crate::Gate::PathJunctionTurn, band) {
             Ok(reading) => assert!(
                 matches!(reading.class, JointClass::SameCarrier),
                 "the joint reads a continuation, got {:?}",
                 reading.class
             ),
-            Err(e) => panic!("the joint decides, got an escalation on {:?}", e.predicate),
+            Err(e) => panic!(
+                "the joint decides, got an escalation on {:?}",
+                e.source().predicate
+            ),
         }
         for (host, other) in [(&leaving, &arriving), (&arriving, &leaving)] {
             for shared in [None, Some(pt(v))] {
                 match pair_contacts(host, other, shared, band) {
-                    Err(e) => assert_eq!(e.predicate, Some("collinear_overlap"), "{shared:?}"),
+                    Err(e) => assert_eq!(
+                        e.source().predicate,
+                        Some("collinear_overlap"),
+                        "{shared:?}"
+                    ),
                     Ok(_) => panic!("{shared:?}: the straddle must escalate"),
                 }
             }
@@ -2984,7 +3048,9 @@ mod pair_contact_tests {
                     continue;
                 }
                 rescued += 1;
-                if let Ok(reading) = joint_tangency(&prev, &next, "path_junction_turn", band) {
+                if let Ok(reading) =
+                    joint_tangency(&prev, &next, crate::Gate::PathJunctionTurn, band)
+                {
                     panic!(
                         "rescued, and the joint decided {:?} on {}: prev {:?}→{:?}, \
                          next {:?}→{:?} — {}",
@@ -3071,7 +3137,7 @@ mod pair_contact_tests {
         match line_arc(line, arc, g, band) {
             Ok(PairOutcome::Contacts(contacts)) => Ok(contacts.len()),
             Ok(PairOutcome::Overlap) => panic!("a line and an arc overlapped"),
-            Err(source) => Err(source.predicate),
+            Err(source) => Err(source.source().predicate),
         }
     }
 
@@ -3082,7 +3148,7 @@ mod pair_contact_tests {
         match arc_arc(s1, g1, s2, g2, band) {
             Ok(PairOutcome::Contacts(contacts)) => Ok(contacts.len()),
             Ok(PairOutcome::Overlap) => panic!("two arcs on distinct carriers overlapped"),
-            Err(source) => Err(source.predicate),
+            Err(source) => Err(source.source().predicate),
         }
     }
 
@@ -3534,7 +3600,7 @@ mod pair_contact_tests {
                             Ok(contacts.iter().map(|c| c.kind).collect())
                         }
                         Ok(PairOutcome::Overlap) => Err(Some("overlap")),
-                        Err(source) => Err(source.predicate),
+                        Err(source) => Err(source.source().predicate),
                     }
                 });
                 reads.push((format!("{name}{order}"), read));
@@ -3652,7 +3718,7 @@ mod pair_contact_tests {
                 Ok(contacts.into_iter().map(|c| (c.kind, c.point)).collect())
             }
             Ok(PairOutcome::Overlap) => Err(Some("overlap")),
-            Err(source) => Err(source.predicate),
+            Err(source) => Err(source.source().predicate),
         }
     }
 

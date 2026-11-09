@@ -172,9 +172,9 @@ impl ImplicitForm {
             chart_frame(surface).ok_or("only an analytic surface has a chart frame")?;
         let vector = |v: Vec3<f64>| v.map(Interval::point);
         let (u_ref, axis) = (vector(u_ref), vector(axis));
-        let e2 = axis / axis.norm();
+        let e2 = axis.normalize();
         let radial = u_ref - e2 * u_ref.dot(e2);
-        let e0 = radial / radial.norm();
+        let e0 = radial.normalize();
         let frame = [e0, e2.cross(e0), e2];
         if !frame
             .iter()

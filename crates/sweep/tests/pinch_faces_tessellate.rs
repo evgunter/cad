@@ -107,7 +107,7 @@ const LBOT: Prism = Prism {
 };
 
 fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"))
+    topo::finish(body, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"))
 }
 
 /// The side-4 cube with `v` inside its near face (`face`), on its edge
@@ -178,9 +178,9 @@ const REFUSES_AT_1E6: &[(&str, &str)] = &[(
 fn faces_through_two_vertices_on_one_point(body: &Body<f64>) -> usize {
     let at: Vec<_> = body.vertex_points().collect();
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             let mut met = Vec::new();
-            for &l in std::iter::once(&f.outer).chain(&f.rings) {
+            for (l, _, _) in body.face(*fk).expect("a live face").loops() {
                 if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
                     for he in body.loop_cycle(first).unwrap() {
                         let v = body.get_half_edge(he).unwrap().start;
@@ -373,12 +373,11 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
         mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{tag}: check_mesh: {e:?}"));
         // A planar body's mesh is the body: its volume is exact. A
         // curved wall's falls short by its chords.
-        if bb.body.faces().all(|(_, f)| {
-            matches!(
-                bb.body.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        }) {
+        if bb
+            .body
+            .faces()
+            .all(|(fk, _)| matches!(bb.body.face_surface(fk), Some(geom::Surface::Plane { .. })))
+        {
             let (got, want) = (
                 mesh::validate::signed_volume(&mesh),
                 topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume,

@@ -174,11 +174,17 @@ impl<T: Decide> ConeApex<T> {
         OutwardNormal::from_chart(chart.normalize(), self.sense)
     }
 
+    /// The cone's unit axis turned toward the nappe `like` (a ruling the
+    /// face leaves the apex along) lies on.
+    pub(crate) fn nappe_axis(&self, like: Vec3<T>) -> Vec3<T> {
+        self.axis.turned_toward(like)
+    }
+
     /// The unit ruling along the line through the apex along `d`, on the
     /// nappe `like` (a ruling the face leaves the apex along) lies on: the
     /// line holds one ruling of each nappe, opposite in azimuth.
     pub(crate) fn onto_nappe_of(&self, d: Vec3<T>, like: Vec3<T>) -> Vec3<T> {
-        d.normalize() * T::one().copysign(d.dot(self.axis) * like.dot(self.axis))
+        d.normalize().turned_toward(self.nappe_axis(like))
     }
 
     /// Which way round the axis the face's interior leaves the ruling
@@ -216,7 +222,7 @@ impl<T: Decide> ConeApex<T> {
     /// `from`'s nappe.
     pub(crate) fn ruling_from(&self, from: Vec3<T>, azimuth: T) -> Vec3<T> {
         let (e1, e2) = self.sweep_frame(from);
-        let along = self.axis * self.half_angle.cos().copysign(from.dot(self.axis));
+        let along = self.nappe_axis(from) * self.half_angle.cos();
         along + (e1 * azimuth.cos() + e2 * azimuth.sin()) * self.half_angle.sin()
     }
 
@@ -368,13 +374,15 @@ pub(crate) fn resolve<T: Decide>(
         });
     }
     match surface {
-        geom::Surface::Cylinder { origin, axis, .. } => {
-            let w = point() - *origin;
-            charted(
-                (w - *axis * w.dot(*axis)).normalize(),
-                SectorCarrier::Cylinder,
-            )
-        }
+        geom::Surface::Cylinder { origin, axis, .. } => charted(
+            geom::Line {
+                origin: *origin,
+                dir: *axis,
+            }
+            .offset(point())
+            .normalize(),
+            SectorCarrier::Cylinder,
+        ),
         geom::Surface::Sphere { center, .. } => {
             charted((point() - *center).normalize(), SectorCarrier::Sphere)
         }

@@ -73,3 +73,12 @@ The reductions in `splitting::classify`, `geom_brep::curve_pair` and
 `half_angle`, which centre on other anchors: each has its own cut.
 
 Moved from ROOTS to GERM on 2026-11-02, by `git mv`, when ROOTS merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Since PR 6491 (2026-11-06, ONECOPY)
+
+The region doors' items in the list above changed with the landings move to the plane door:
+- `ruled_region`'s `Conic::angle` is gone;
+- the sphere's arc landings no longer read `first_harmonic_root_directions` or `region::span_at_nearer_end` (both retired);
+- the torus meridian-leg × circle arm is gone.
+
+Every edge root the doors read is now the plane door's, renamed onto the span by `Period::near`, which keeps an enclosure at its input's width at the middle's antipode (`plane_crossing.rs`, `near_span`). The torus door's placement of a leg root is `Azimuth::near` (`TorusFaceRegion::arc_place`). `sphere_region::a_root_opposite_its_arcs_middle_or_on_its_phase_cut_reads_tight` still passes on that route. `circle_torus.rs` reads `Period::near` too (main's angle-reads). Whether the row closes is GERM's to judge.

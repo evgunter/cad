@@ -64,7 +64,7 @@ fn assert_tier3_after_upgrade(body: &Body<f64>) {
     assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
-fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
+fn body_of<T: topo::AtRestPolicy>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
 }
 
@@ -106,7 +106,7 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> Vec<topo::VertexKey>
 /// `n` and origin `o` — the section-face identification (mirror pin).
 fn section_faces_with(body: &Body<f64>, o: Point3<f64>, n: Vec3<f64>) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
+        .filter(|(fk, _)| match body.face_surface(*fk) {
             Some(Surface::Plane { origin, normal, .. }) => {
                 origin.x == o.x
                     && origin.y == o.y
@@ -368,7 +368,7 @@ fn notched_block_end_to_end() {
     }
     let up_faces = below
         .faces()
-        .filter(|(_, f)| match below.get_surface(f.surface) {
+        .filter(|(fk, _)| match below.face_surface(*fk) {
             Some(Surface::Plane { normal, .. }) => {
                 normal.x == 0.0 && normal.y == 1.0 && normal.z == 0.0
             }
@@ -1124,28 +1124,17 @@ fn no_split_refusal_names_a_stage() {
     }
 }
 
-/// `body`'s tier-2 findings, where no split door takes it: a scalar
-/// whose at-rest gate runs refuses to finish it, and at one whose gate
-/// runs nothing (a dual), `split` reads tier 2 itself and refuses it as
-/// [`SplitReduceError::ScaffoldingOperand`] with the same findings.
+/// `body`'s tier-2 findings, where no split door takes it: every
+/// scalar's finish refuses it (tier 2 is the first act of tier 3, and the
+/// whole of a dual's finish).
 fn refused_at_the_door<T: geom_core::Decide + topo::AtRestPolicy>(
     what: &str,
     body: &Body<T>,
-    plane: &SplitPlane<T>,
+    _plane: &SplitPlane<T>,
 ) -> Vec<topo::ValidationError> {
-    let kept = T::gate_at_rest_kept(body.clone(), Tol::witness());
-    let errors = match kept {
-        Err(errors) => errors,
-        Ok(operand) if operand.outcome() == topo::AtRestOutcome::NotRunAtThisScalar => {
-            match split(&operand, plane, Tol::witness()) {
-                Err(SplitError::Reduce(SplitReduceError::ScaffoldingOperand { errors })) => errors,
-                other => panic!(
-                    "{what}: expected the door's tier-2 refusal, got {:?}",
-                    other.map(|_| ())
-                ),
-            }
-        }
-        Ok(_) => panic!("{what}: the at-rest gate ran and finished a body tier 2 refuses"),
+    let errors = match topo::finish(body.clone(), Tol::witness()) {
+        Err(errors) => errors.into_findings(),
+        Ok(_) => panic!("{what}: the finish took a body tier 2 refuses"),
     };
     assert_eq!(
         Err(errors.clone()),
@@ -1245,46 +1234,20 @@ fn a_strut_bearing_operand_refuses_at_the_door() {
     }
 }
 
-/// **The other doors refuse the strut at a dual too**: `split_reduce`,
-/// `vertex_sides` and `plane_section` read tier 2 first, as `split` does,
-/// so none reaches its carrier gate or vertex sweep with the strut tip.
+/// **A dual's finish refuses the strut**: tier 2 is the whole of it, so
+/// no split door is handed the strut tip.
 #[test]
-fn a_strut_bearing_operand_refuses_at_every_door_at_a_dual() {
-    let tol = Tol::witness();
-    let operand = <geom_core::Dual64 as topo::AtRestPolicy>::gate_at_rest_kept(
-        strutted_brick::<geom_core::Dual64>(),
-        tol,
-    )
-    .expect("a dual's gate runs nothing");
-    let plane = plane_y(0.5);
-    for (door, refusal) in [
-        (
-            "split_reduce",
-            topo::split_reduce(&operand, &plane, tol).err(),
+fn a_strut_bearing_body_does_not_finish_at_a_dual() {
+    let errors = topo::finish(strutted_brick::<geom_core::Dual64>(), Tol::witness())
+        .map(|_| ())
+        .expect_err("a strut is tier 2's scaffolding");
+    assert!(
+        matches!(
+            &errors[..],
+            [topo::ValidationError::ScaffoldingStrutVertex { .. }]
         ),
-        (
-            "vertex_sides",
-            topo::vertex_sides(&operand, &plane, tol).err(),
-        ),
-        (
-            "plane_section",
-            match topo::plane_section(&operand, &plane, tol) {
-                Err(topo::SectionError::Split(SplitError::Reduce(e))) => Some(e),
-                _ => None,
-            },
-        ),
-    ] {
-        match refusal {
-            Some(SplitReduceError::ScaffoldingOperand { errors }) => assert!(
-                matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::ScaffoldingStrutVertex { .. }]
-                ),
-                "{door}: the strut tip is the one finding: {errors:?}"
-            ),
-            other => panic!("{door}: want ScaffoldingOperand, got {other:?}"),
-        }
-    }
+        "the strut tip is the one finding: {errors:?}"
+    );
 }
 
 /// `above` with every chart offset by zero save the one plane `pick`
@@ -1301,8 +1264,7 @@ fn offset_one_plane(
     let moves: Vec<topo::ChartMove<f64>> = by_surface
         .into_values()
         .map(|faces| {
-            let f = above.get_face(faces[0]).unwrap();
-            let hit = match above.get_surface(f.surface) {
+            let hit = match above.face_surface(faces[0]) {
                 Some(Surface::Plane { origin, normal, .. }) => pick(*origin, *normal),
                 _ => false,
             };

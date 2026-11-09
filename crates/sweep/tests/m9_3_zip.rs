@@ -35,7 +35,7 @@ fn body_of(r: BooleanResult<f64>) -> AtRestBody<f64> {
 fn plate_with_pegs() -> AtRestBody<f64> {
     let tol = Tol::witness();
     let peg = |cx: f64| finished("a peg", plate6_cyl(cx, 0.4, 1.6, 0.5), tol);
-    let p0 = finished("plate P", plate(0.0), tol);
+    let p0 = finished("plate P", plate::<f64>(0.0), tol);
     let p1 = body_of(topo::union(&p0, &peg(2.0), tol).unwrap());
     body_of(topo::union(&p1, &peg(4.0), tol).unwrap())
 }
@@ -45,7 +45,7 @@ fn plate_with_pegs() -> AtRestBody<f64> {
 fn plate_with_bores() -> AtRestBody<f64> {
     let tol = Tol::witness();
     let bore = |cx: f64| finished("a bore", plate6_cyl(cx, 0.8, 1.4, 0.5), tol);
-    let q0 = finished("plate Q", plate(1.0), tol);
+    let q0 = finished("plate Q", plate::<f64>(1.0), tol);
     let q1 = body_of(topo::subtract(&q0, &bore(2.0), tol).unwrap());
     body_of(topo::subtract(&q1, &bore(4.0), tol).unwrap())
 }
@@ -97,10 +97,8 @@ fn two_peg_plate_union_is_exactly_additive() {
     // The bore walls vanished with full engagement: no cylinder
     // surface survives anywhere in the result.
     assert!(
-        body.faces().all(|(_, f)| !matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Cylinder { .. })
-        )),
+        body.faces()
+            .all(|(fk, _)| !matches!(body.face_surface(fk), Some(geom::Surface::Cylinder { .. }))),
         "full-engagement patch removal deletes every wall face"
     );
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
@@ -245,8 +243,7 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     let face_kind = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))
-            .and_then(|l| body.get_face(l.face))
-            .and_then(|f| body.get_surface(f.surface))
+            .and_then(|l| body.face_surface(l.face))
             .map(geom::Surface::kind)
     };
     let mut rim_edges = Vec::new();

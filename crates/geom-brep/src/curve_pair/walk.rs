@@ -48,7 +48,7 @@
 
 use geom::{Curve3, PieceStep};
 use geom_core::bisect::{Step, bisect};
-use geom_core::k_stats::decide;
+use geom_core::k_stats::{Pick, choose, decide};
 use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::span::Span;
@@ -137,16 +137,21 @@ fn surely<T: Decide>(name: &'static str, margin: T, band: Band, sign: Sign) -> b
 /// along the carrier is dropped. A polished parameter is read, never
 /// trusted, so the bound can lose a meeting's foot but never invent one.
 ///
-/// The comparison is a decision, not a `<`, because an enclosure that
-/// straddles it is neither taken nor dropped by a `<`; the band is the
-/// least pair of positive `f64`s, so it reads the sign alone.
+/// A heuristic's choice ([`geom_core::k_stats::choose`], ledger row F35),
+/// not a `<`, because an enclosure that straddles it is neither taken nor
+/// dropped by a `<`. **At a tie the step is dropped**: sound for the
+/// reason above. A dropped step leaves the point unpolished, and the
+/// window read at it (module docs) prunes only where its premise is proved,
+/// so an unproved premise escalates the Off rather than losing a meeting.
 fn step_taken<T: Decide>(moved: T, slack: T) -> bool {
-    surely(
+    match choose(
         "curve_pair_walk_polish_step",
-        slack * T::from_f64(16.0) - moved,
-        Band::least(),
-        Sign::Positive,
-    )
+        Margin::of(slack * T::from_f64(16.0) - moved),
+        "F35",
+    ) {
+        Pick::Positive => true,
+        Pick::Negative | Pick::Tie => false,
+    }
 }
 
 /// Whether a piece of reach `reach` is small enough to stop at, decided on
@@ -309,7 +314,7 @@ fn pieces_apart<T: Decide>(
     // separation rather than their offset along it.
     let across = |d: Vec3<T>| gap - d * (gap.dot(d) / d.dot(d));
     [gap, across(da), across(db)].into_iter().any(|n| {
-        let n = n / n.norm();
+        let n = n.normalize();
         clear(n.dot(gap).abs() - n.dot(da).abs() * ha - n.dot(db).abs() * hb - bend)
     })
 }
@@ -443,8 +448,30 @@ mod tests {
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Point3, Sign, Vec3};
 
-    use super::{Read, witnesses};
+    use super::{Read, step_taken, witnesses};
     use crate::curve_pair::Span;
+
+    /// **F35's tie drops the step.** A step that moves its point exactly
+    /// `16·slack` is a decided zero against its bound at `f64`, and an
+    /// enclosure astride the bound is undecided: each is dropped, as a
+    /// step past the bound is, while one short of it is taken. None of
+    /// it reaches the verdict log. Red where the tie keeps the step.
+    #[test]
+    fn a_polish_step_at_its_bound_or_astride_it_is_dropped() {
+        use geom_core::Interval;
+        let bracket = geom_core::k_stats::Bracket::open();
+        assert!(step_taken(15.0_f64, 1.0));
+        assert!(!step_taken(16.0_f64, 1.0), "at the bound");
+        assert!(!step_taken(17.0_f64, 1.0));
+        let one = Interval::from_bounds(1.0, 1.0);
+        assert!(step_taken(Interval::from_bounds(15.0, 15.5), one));
+        assert!(
+            !step_taken(Interval::from_bounds(15.5, 16.5), one),
+            "astride the bound"
+        );
+        let recorded = bracket.finish();
+        assert!(recorded.verdicts.is_empty() && recorded.escalations.is_empty());
+    }
 
     /// **The walk's witnesses stand on polished feet.** A quadratic spline
     /// ending at the origin, which no closed form inverts, and a segment

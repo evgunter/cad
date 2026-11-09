@@ -546,7 +546,7 @@ fn clear_of(
     // The region's knot cells: an enclosure is tightest inside one.
     let breaks = |kv: &Knots<f64>, (a, b): (f64, f64)| -> Vec<f64> {
         let mut out = vec![a];
-        out.extend(kv.runs().map(|(k, _)| k).filter(|&k| a < k && k < b));
+        out.extend(kv.breakpoints().filter(|&k| a < k && k < b));
         out.push(b);
         out
     };
@@ -654,7 +654,11 @@ fn iso_row(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<Vec<Point3
 /// length.
 fn segment_reach(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
     let chord = b - a;
-    let t = ((p - a).dot(chord) / chord.dot(chord)).clamp(0.0, 1.0);
+    let t = geom::Line {
+        origin: a,
+        dir: chord,
+    }
+    .param_within(p, (0.0, 1.0));
     if !t.is_finite() {
         return f64::NAN;
     }

@@ -78,6 +78,7 @@
 //! other reading takes such a link ([`rest::judge`] and
 //! [`rest::by_round`] refuse it).
 
+use geom_brep::ladder::{Aborts, Refusal};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -472,14 +473,18 @@ pub(crate) enum TouchVerdict {
 /// (no way through yet) from a reading in band (move the parts)**
 /// without reading the sentence. When the façade carries the reason,
 /// delete this paragraph and the disposition row with it.
+///
+/// Each variant states its standing to a ladder over the faces or
+/// sectors that read it ([`Self::refusal`]), with its reason.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum TouchUnread {
-    /// A sign the analysis needed is in band.
+    /// A sign the analysis needed is in band. In band.
     InBand,
     /// A face's piece at the touch did not build: a choice in building
     /// it was in band, or its readings contradicted each other within
-    /// ε. The smallest piece of all, which refuses.
+    /// ε. The smallest piece of all, which refuses. In band: within ε,
+    /// a tighter tolerance may build it.
     PieceInBand,
     /// A curved face or edge takes part: a face off a plane, or a planar
     /// face with an edge that is not a line where [`FaceSector::cleared`]
@@ -493,46 +498,84 @@ pub enum TouchUnread {
     /// resolve reads the same; tier 1, which the census runs behind,
     /// admits none. A face whose surface or loops do not resolve reads
     /// [`Self::Corrupt`].)
+    ///
+    /// An abort: no later face rescues a germ one face makes unreadable,
+    /// so it decides the outcome now.
     Unreadable,
     /// A face's piece at the touch point does not close on decided
     /// readings (a gap between neighbouring turns of half a turn or
     /// more, or no edge met across one, [`face_piece`]); or a link's
-    /// sectors do not pair up at their bounds ([`Cone::closes`]).
+    /// sectors do not pair up at their bounds ([`Cone::closes`]). A
+    /// limit: a fact about this piece on decided readings, which no
+    /// tolerance moves.
     Unanalysed,
     /// Two faces of one solid lie on each other at the touch (a slit,
-    /// or a face doubled).
+    /// or a face doubled). A limit.
     Degenerate,
-    /// A link's extent is too long or too short to be a number.
+    /// A link's extent is too long or too short to be a number. A limit.
     ChordScale,
     /// A curved edge's tangent at the touch point did not read, for the
     /// reason it carries. It is no tangency a reading of second order
-    /// would part ([`Self::Unreadable`]).
+    /// would part ([`Self::Unreadable`]). Its standing is the reason's
+    /// ([`EdgeTangentUnread::refusal`]).
     EdgeTangent(EdgeTangentUnread),
     /// The topology around the touch did not read. The census runs only
     /// on bodies tier 1 admits (loops closed, every key resolving), so
-    /// this is a kernel defect.
+    /// this is a kernel defect. An abort.
     Corrupt,
+}
+
+impl TouchUnread {
+    /// What this refusal is to a ladder over the faces or sectors that
+    /// read it, as each variant's docs state it.
+    ///
+    /// # Errors
+    ///
+    /// [`Aborts`], for an unreadable germ, a corrupt body, or an edge
+    /// tangent whose two readings disagree.
+    pub const fn refusal(self) -> Result<Refusal, Aborts> {
+        match self {
+            Self::InBand | Self::PieceInBand => Ok(Refusal::InBand),
+            Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
+            Self::EdgeTangent(why) => why.refusal(),
+            Self::Unreadable | Self::Corrupt => Err(Aborts),
+        }
+    }
 }
 
 /// Why a curved edge's tangent at a touch point did not read
 /// ([`TouchUnread::EdgeTangent`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum EdgeTangentUnread {
     /// The edge's span does not certify the point on its interior: two
     /// readings of one fact (the touch held inside the edge, and the
-    /// span) disagree.
+    /// span) disagree. An abort.
     #[default]
     OffInterior,
-    /// The edge carries no certified curve.
+    /// The edge carries no certified curve. A limit.
     NoCurve,
     /// The edge's speed bounds meter no reach or no length over its
-    /// span.
+    /// span. A limit.
     Unmetered,
-    /// A spline edge's piece walk ran past its budget.
-    Exhausted,
-    /// A spline edge's speed bound is zero or poison.
-    Unbounded,
+    /// A spline edge's piece walk could not run: unsettled where it ran
+    /// past its budget, a limit where it has no speed bound
+    /// ([`Refusal`]'s `From<geom::PieceWalkRefusal>`).
+    Unwalked(geom::PieceWalkRefusal),
+}
+
+impl EdgeTangentUnread {
+    /// What this reason is to a ladder, as each variant's docs state it.
+    ///
+    /// # Errors
+    ///
+    /// [`Aborts`], where the edge's two readings of the touch disagree.
+    pub const fn refusal(self) -> Result<Refusal, Aborts> {
+        match self {
+            Self::OffInterior => Err(Aborts),
+            Self::NoCurve | Self::Unmetered => Ok(Refusal::Limit),
+            Self::Unwalked(why) => Ok(Refusal::of_walk(why)),
+        }
+    }
 }
 
 impl From<TouchUnread> for TouchVerdict {
@@ -1271,14 +1314,14 @@ fn within<T: Real>(p: Point3<T>, q: Point3<T>, r: T) -> Point3<T> {
     p + (q - p) * (r / (q - p).norm()).min(T::from_f64(1.0))
 }
 
-/// The point of the segment `a`–`b` nearest `p`: its foot on the
-/// segment's line, held to the segment.
+/// The point of the segment `a`–`b` nearest `p`: the span `(0, 1)` of
+/// the line from `a` to `b` ([`geom::Line::foot_within`]).
 fn foot<T: Real>(p: Point3<T>, (a, b): Segment<T>) -> Point3<T> {
-    let ab = b - a;
-    let t = ((p - a).dot(ab) / ab.dot(ab))
-        .max(T::zero())
-        .min(T::from_f64(1.0));
-    a + ab * t
+    geom::Line {
+        origin: a,
+        dir: b - a,
+    }
+    .foot_within(p, (T::zero(), T::one()))
 }
 
 /// `p`'s distance from the segment `a`–`b` ([`foot`]).
@@ -2315,7 +2358,7 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(TouchUnread::Unreadable);
@@ -2385,7 +2428,7 @@ impl<T: Decide> FaceSector<T> {
         p: Point3<T>,
         holds: &[Hold],
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         let geom::Surface::Plane { u_ref, .. } = surface else {
             return Err(TouchUnread::Unreadable);
@@ -2736,15 +2779,13 @@ impl<T: Decide> FaceSector<T> {
         band: Band,
     ) -> Result<RuledChord<T>, TouchUnread> {
         use Sign::{Negative, Positive, Zero};
-        let (centre, axis, apex) = match face.surface {
-            geom::Surface::Cylinder { origin, axis, .. } => {
-                (origin + axis * axis.dot(p - origin), axis, None)
-            }
-            geom::Surface::Cone { apex, axis, .. } => {
-                (apex + axis * axis.dot(p - apex), axis, Some(apex))
-            }
+        let apex = match face.surface {
+            geom::Surface::Cylinder { .. } => None,
+            geom::Surface::Cone { apex, .. } => Some(apex),
             _ => return Err(TouchUnread::Unreadable),
         };
+        let line = face.surface.axis_line().ok_or(TouchUnread::Unreadable)?;
+        let (centre, axis) = (line.foot(p), line.dir);
         let (along, m0) = (face.along, face.outward);
         let radial = p - centre;
         let rho = radial.norm();
@@ -3397,8 +3438,11 @@ impl<T: Decide> Link<T> {
     ) -> (T, Option<bool>) {
         let (c, m) = (s.apex, s.outward);
         let ray = |r: Point3<T>| {
-            let (u, v) = ((r - c).normalize(), q - c);
-            (v - u * u.dot(v).max(T::zero())).norm()
+            let ray = geom::Line {
+                origin: c,
+                dir: r - c,
+            };
+            (q - ray.foot_from(q, T::zero())).norm()
         };
         let side = |r: Point3<T>, inner: Sign| match wedge_side(c, m, r, q, rd) {
             Some(Sign::Zero) | None => match ahead(c, r, q, rd) {
@@ -3436,8 +3480,11 @@ impl<T: Decide> Link<T> {
                     && near(Distance::of(q, s.apex, s.outward), LINK_PLANE);
                 plane
                     || [a, b].into_iter().any(|r| {
-                        let u = (r - s.apex).normalize();
-                        let foot = s.apex + u * u.dot(q - s.apex).max(T::zero());
+                        let ray = geom::Line {
+                            origin: s.apex,
+                            dir: r - s.apex,
+                        };
+                        let foot = ray.foot_from(q, T::zero());
                         near(Distance::of(q, foot, (q - foot).normalize()), LINK_TIE)
                     })
             })
@@ -3527,7 +3574,7 @@ impl<T: Real> Germ<T> {
 #[derive(Clone, Copy, Debug)]
 enum Axis<T: Real> {
     Centre(Point3<T>),
-    Line(Point3<T>, Vec3<T>),
+    Line(geom::Line<T>),
 }
 
 impl<T: Decide> Round<T> {
@@ -3561,7 +3608,10 @@ impl<T: Decide> Round<T> {
     /// `axis`, normalised here, `convex` a pin's.
     pub fn cylinder(origin: Point3<T>, axis: Vec3<T>, radius: T, convex: bool) -> Self {
         Self {
-            at: Axis::Line(origin, axis.normalize()),
+            at: Axis::Line(geom::Line {
+                origin,
+                dir: axis.normalize(),
+            }),
             radius,
             convex,
         }
@@ -3583,14 +3633,14 @@ impl<T: Decide> Round<T> {
     fn across(&self, v: Vec3<T>) -> Vec3<T> {
         match self.at {
             Axis::Centre(_) => v,
-            Axis::Line(_, axis) => v - axis * axis.dot(v),
+            Axis::Line(geom::Line { dir: axis, .. }) => v - axis * axis.dot(v),
         }
     }
 
     /// `q` less the centre, or less the axis's origin.
     fn off_centre(&self, q: Point3<T>) -> Vec3<T> {
         match self.at {
-            Axis::Centre(c) | Axis::Line(c, _) => q - c,
+            Axis::Centre(c) | Axis::Line(geom::Line { origin: c, .. }) => q - c,
         }
     }
 
@@ -3678,6 +3728,7 @@ pub(crate) mod rest {
     };
     use super::{Distance, Germ, LINK_PLANE, LINK_ROUND, Round, metric};
     use super::{LINK_NORMAL, ahead, on_plane, pairing, wedge_side, within};
+    use geom_brep::ladder::Evidence;
 
     /// The certificate of a rest: every piece of both links read, on
     /// decided readings, as no crossing.
@@ -3786,7 +3837,7 @@ pub(crate) mod rest {
             return open;
         }
         let mut notes = Notes::default();
-        let mut refused = None;
+        let mut kept = Evidence::default();
         let ball = a.ball.min(b.ball);
         let rays: Vec<_> = a.cone.rays().into_iter().chain(b.cone.rays()).collect();
         let mut all: [Vec<(usize, Vec<Segment<T>>)>; 2] = [Vec::new(), Vec::new()];
@@ -3794,8 +3845,13 @@ pub(crate) mod rest {
             for (k, s) in link.cone.sectors.iter().enumerate() {
                 match link.pieces(s, &rays, rd) {
                     Ok(pieces) => all[side].push((k, pieces)),
+                    // A piece refuses only in band today, so the abort
+                    // return is unreached; it stays the total reading of
+                    // the standing.
                     Err(v) => {
-                        refused.get_or_insert(v);
+                        if let Err(v) = kept.keep_or_abort(v.refusal(), v) {
+                            return TouchVerdict::Unread(v);
+                        }
                     }
                 }
             }
@@ -3904,15 +3960,58 @@ pub(crate) mod rest {
                 }
             }
         }
-        if let Some(v) = refused {
-            TouchVerdict::Unread(v)
-        } else if notes.degenerate {
-            TouchVerdict::Unread(TouchUnread::Degenerate)
-        } else if notes.in_band {
-            TouchVerdict::Unread(TouchUnread::InBand)
-        } else {
-            TouchVerdict::Rest(Rest { _sealed: () })
+        unread_or_rest(kept, notes)
+    }
+
+    /// **What a pair of links read where no piece crossed**: the pieces'
+    /// kept refusals, then the notes the crossing pass took, ranked as one
+    /// run ([`Evidence`]: a slit or a face doubled, a limit, ahead of any
+    /// reading in band); a rest where nothing was kept.
+    fn unread_or_rest(mut kept: Evidence<TouchUnread>, notes: Notes) -> TouchVerdict {
+        let noted = [
+            (notes.degenerate, TouchUnread::Degenerate),
+            (notes.in_band, TouchUnread::InBand),
+        ];
+        for (_, why) in noted.into_iter().filter(|(noted, _)| *noted) {
+            if kept.keep_or_abort(why.refusal(), why).is_err() {
+                unreachable!(
+                    "a note is a slit or a face doubled, or a reading in band: neither refuses \
+                     the whole query (TouchUnread::refusal)"
+                );
+            }
         }
+        kept.refusal().map_or(
+            TouchVerdict::Rest(Rest { _sealed: () }),
+            TouchVerdict::Unread,
+        )
+    }
+
+    /// **A slit or a face doubled outranks a piece read in band**
+    /// ([`unread_or_rest`]): the notes are kept with the pieces' refusals
+    /// as one run, ranked by their standing.
+    #[cfg(test)]
+    #[test]
+    fn a_degenerate_note_outranks_a_piece_in_band() {
+        let mut pieces = Evidence::default();
+        pieces.keep(geom_brep::ladder::Refusal::InBand, TouchUnread::InBand);
+        let notes = Notes {
+            in_band: false,
+            degenerate: true,
+        };
+        assert!(
+            matches!(
+                unread_or_rest(pieces, notes),
+                TouchVerdict::Unread(TouchUnread::Degenerate)
+            ),
+            "the limit a note found outranks the pieces' in-band refusal"
+        );
+        assert!(
+            matches!(
+                unread_or_rest(Evidence::default(), Notes::default()),
+                TouchVerdict::Rest(_)
+            ),
+            "nothing kept is a rest"
+        );
     }
 
     /// **A polygonal cone against a round face**, at a touch point `p`

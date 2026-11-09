@@ -132,6 +132,8 @@
 
 use geom_core::{Point2, Real, Sign, Tol};
 
+use crate::gate::Gate;
+
 use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
@@ -158,7 +160,7 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     tol: Tol,
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
-    verbs::gate_positive("path_fillet_radius", radius, band, |r| {
+    verbs::gate_positive(Gate::PathFilletRadius, radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
     })?;
     let meta = PendingMeta {
@@ -202,7 +204,7 @@ pub(super) fn open_arc_from_tip<T: ArcCarrierScalar>(
     tol: Tol,
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
-    verbs::gate_positive("path_fillet_radius", arc.radius, band, |r| {
+    verbs::gate_positive(Gate::PathFilletRadius, arc.radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
     })?;
     let meta = PendingMeta {
@@ -1145,12 +1147,11 @@ fn bulge_carrier<T: geom_core::Decide>(
     let band = linear_band(tol)?;
     // The bulge's sign IS the travel sense, so the classification that
     // gates it degenerate also decides the winding — one funnel row.
-    let winding = match geom_core::k_stats::decide("path_arc_bulge", geom_core::Margin::of(b), band)
-    {
+    let winding = match crate::gate::decide(Gate::PathArcBulge, geom_core::Margin::of(b), band) {
         Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Ccw,
         Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Cw,
         Ok(geom_core::Sign::Zero) => return Err(PathError::DegenerateArcSpec { value: b }),
-        Err(source) => return Err(PathError::Escalated { source }),
+        Err(source) => return Err(PathError::escalated(source)),
     };
     let arc = crate::lower_arc(at, p, b);
     let (start, _) = super::chord_tangents(p - at, arc.sweep);
@@ -1161,7 +1162,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
     fn carrier(&self, at: Point2<T>, tol: Tol) -> Result<PointCarrier<T>, PathError<T>> {
         let band = linear_band(tol)?;
         let chord = (self.p - at).norm_squared().sqrt();
-        verbs::gate_positive("path_arc_chord", chord, band, |c| {
+        verbs::gate_positive(Gate::PathArcChord, chord, band, |c| {
             PathError::DegenerateArcChord { chord: c }
         })?;
         let (c, w, start) = bulge_carrier(at, self.p, self.b, tol)?;
@@ -1180,24 +1181,28 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         let band = linear_band(tol)?;
         let chord_v = self.p - at;
         let chord = chord_v.norm_squared().sqrt();
-        verbs::gate_positive("path_arc_chord", chord, band, |c| {
+        verbs::gate_positive(Gate::PathArcChord, chord, band, |c| {
             PathError::DegenerateArcChord { chord: c }
         })?;
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
-        let offset = chord_v.perp_dot(self.q - at) / chord;
+        let offset = geom_core::Line2 {
+            origin: at,
+            dir: chord_v,
+        }
+        .side(self.q);
         // The side of the chord `q` lies on is the turn sense, read off
         // the authored points rather than the computed bulge's sign: the
         // arc on the other side shares the carrier.
-        let winding = match geom_core::k_stats::decide(
-            "path_arc_via_offset",
+        let winding = match crate::gate::decide(
+            Gate::PathArcViaOffset,
             geom_core::Margin::of(offset),
             band,
         ) {
             Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
             Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Cw,
             Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Ccw,
-            Err(source) => return Err(PathError::Escalated { source }),
+            Err(source) => return Err(PathError::escalated(source)),
         };
         let b = crate::bulge_from_via(at, self.q, self.p);
         let (c, _, start) = bulge_carrier(at, self.p, b, tol)?;
@@ -1219,12 +1224,12 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
         let r_tip = (at - self.c).norm_squared().sqrt();
         let r_end = (self.p - self.c).norm_squared().sqrt();
         for radius in [r_tip, r_end] {
-            verbs::gate_positive("path_arc_center_radius", radius, band, |r| {
+            verbs::gate_positive(Gate::PathArcCenterRadius, radius, band, |r| {
                 PathError::DegenerateArcCenter { radius: r }
             })?;
         }
-        match geom_core::k_stats::decide(
-            "path_arc_center_equidistant",
+        match crate::gate::decide(
+            Gate::PathArcCenterEquidistant,
             geom_core::Margin::of(r_tip - r_end),
             band,
         ) {
@@ -1235,10 +1240,10 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
                     end_radius: r_end,
                 });
             }
-            Err(source) => return Err(PathError::Escalated { source }),
+            Err(source) => return Err(PathError::escalated(source)),
         }
         let chord = (self.p - at).norm_squared().sqrt();
-        verbs::gate_positive("path_arc_chord", chord, band, |c| {
+        verbs::gate_positive(Gate::PathArcChord, chord, band, |c| {
             PathError::DegenerateArcChord { chord: c }
         })?;
         let theta = super::center_sweep(at, self.p, self.c, r_tip, self.winding);

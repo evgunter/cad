@@ -336,15 +336,14 @@ fn an_undecided_place_beside_an_off_carrier_is_off() {
 
 /// **A point on a circle's axis is off its span with no place read.**
 /// Every parameter of the carrier is its foot, and the one
-/// [`geom::Curve3::foot`] finds is the seed turned by `atan2` of two
-/// signed zeros: with the seed at a span's middle of 4π/3, where the
-/// middle's cosine and sine are both negative, `atan2(+0, −0) = π` puts
-/// the foot exactly antipodal to the middle. Read there, a half turn's
-/// cut decides from an exact zero, and a move off the axis flips it
-/// (boss_union's span branch, where a disc's three-arc rim
-/// puts the centroid of three of its vertices on the axis, and the arc's
-/// own middle is the seed). The carrier reads the point off, and that is
-/// the answer at every seed, the middle included, with the carrier's
+/// [`geom::Curve3::foot`] finds is the seed itself: the point's direction
+/// in the circle's plane is exactly zero, and [`geom::Azimuth::near`]
+/// reads a zero direction as its reference. So a seed past the span puts
+/// the foot past it, where a place read would decide a cut from an exact
+/// zero, and a move off the axis would flip it (boss_union's span
+/// branch, where a disc's three-arc rim puts the centroid of three of
+/// its vertices on the axis). The carrier reads the point off, and that
+/// is the answer at every seed, the middle included, with the carrier's
 /// reading recorded and no `curve_pair_span_*` row decided. Red where
 /// the place is read first, and where the carrier's reading is dropped.
 #[cfg(feature = "probe")]
@@ -360,12 +359,8 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
         Vec3::new(p(1.0), p(0.0), p(0.0)),
     );
     let centre = Point3::new(p(0.0), p(0.0), p(1.0));
-    let antipode = c.foot(centre, p(4.0 * PI / 3.0)).nearest().unwrap().0;
-    assert_eq!(
-        antipode,
-        7.0 * PI / 3.0,
-        "the middle's foot is its antipode"
-    );
+    let foot = c.foot(centre, p(4.0 * PI / 3.0)).nearest().unwrap().0;
+    assert_eq!(foot, 4.0 * PI / 3.0, "an axis point's foot is its seed");
     for (t0, t1) in [(2.0 * PI / 3.0, 4.0 * PI / 3.0), (PI, 5.0 * PI / 3.0)] {
         let span = Span::new(&c, (p(t0), p(t1)));
         let mid = 0.5 * (t0 + t1);
@@ -389,4 +384,69 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
             );
         }
     }
+}
+
+/// The cubic hairpin of `geom`'s on-carrier rows, its branches `h`
+/// apart, and an `Interval` box of `±r` about its point at `t = 0.08`.
+fn cubic_hairpin(h: f64) -> Curve3<f64> {
+    Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+                .unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.4, 0.0, 0.0),
+                Point3::new(1.4, h, 0.0),
+                Point3::new(0.0, h, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap(),
+    ))
+}
+
+fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
+    let w = |x: f64| geom_core::Interval::from_bounds(x - r, x + r);
+    Point3::new(w(p.x), w(p.y), w(p.z))
+}
+
+/// **A span over a hairpin closer than the band reads `On` at the
+/// seed's branch at `Interval`**. The whole span of a hairpin whose
+/// branches lie 3e-10 apart, inside the 1e-9 zero, read the way an edge's
+/// span is read: at a ±1e-10 box about a point of the near branch
+/// (`t = 0.08`) seeded on the far branch, it reads `On` at `t ≈ 0.92`,
+/// where the tangent is reversed, with nothing logged; seeded at the
+/// span's middle (the census's seed) it escalates; at `f64` it reads the
+/// near branch from either seed.
+///
+/// The carrier is not one an edge can hold: its tip speed is `1.5·h`, so
+/// `EdgeCurve::certify` refuses it `SpanMeterCollapsed`. The row pins the
+/// reader on a bare carrier. A fix that gates edges at the certificate
+/// leaves it green, and one that certifies the branch at the reader turns
+/// it red (`a-carriers-branches-within-the-band-of-each-other`).
+#[test]
+fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
+    use super::Reading;
+    use geom_core::{Bounds, Interval, Real};
+    let c = cubic_hairpin(3e-10);
+    let p = c.eval(0.08);
+    for seed in [0.5, 0.92] {
+        let read = Span::new(&c, (0.0, 1.0)).read(p, seed, band());
+        assert!(
+            matches!(read, Ok(Reading::On { t, .. }) if (t - 0.08).abs() < 1e-6),
+            "f64, seed {seed}: on at the near branch: {read:?}"
+        );
+    }
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let span = Span::new(&ci, (Interval::from_f64(0.0), Interval::from_f64(1.0)));
+    let far = span.read(boxed(p, 1e-10), Interval::from_f64(0.92), band());
+    assert!(
+        matches!(&far, Ok(Reading::On { t, .. }) if t.lo() > 0.5 && ci.deriv(*t).x.hi() < 0.0),
+        "Interval, far seed: on at the far branch, its tangent reversed: {far:?}"
+    );
+    let mid = span.read(boxed(p, 1e-10), Interval::from_f64(0.5), band());
+    assert!(
+        matches!(mid, Err(geom::CarrierRefusal::Escalated(_))),
+        "Interval, the span's middle: escalates: {mid:?}"
+    );
 }

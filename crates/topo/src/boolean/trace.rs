@@ -219,7 +219,7 @@ pub fn ray_crossings<T: Decide>(
                 Sign::Zero => return on_carrier(),
                 Sign::Positive | Sign::Negative => {}
             }
-            vec![(o - origin).dot(normal) / lead]
+            vec![geom::plane_offset(origin, normal, o) / lead]
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(TraceFault::Unsupported {
@@ -277,7 +277,7 @@ pub fn circle_crossings<T: Decide>(
             // `A cos θ + B sin θ + K = 0`, solved for the cosine and sine.
             let a = normal.dot(u_ref) * radius;
             let b = normal.dot(v_ref) * radius;
-            let k = (center - origin).dot(normal);
+            let k = geom::plane_offset(origin, normal, center);
             let r2 = a.powi(2) + b.powi(2);
             let r = r2.sqrt();
             match sign(TRACE_PLANE_LEAD, Margin::of(r), band)? {
@@ -468,24 +468,6 @@ fn order<T: Decide>(
 /// plane stands beyond the carrier, past its support on the plane's
 /// nearer side, or off a plane or a cylinder it is parallel to.
 pub const TRACE_PLANE_MISSES: &str = "trace_plane_misses";
-
-/// **Where a carrier stands and how far it reaches from there**: the
-/// lever a piece's decisions about its face are read over. A bounded
-/// carrier's whole cover's ball ([`Surface::cover`]: a sphere's own, a
-/// torus's tube's); a plane's point and a cone's apex, reaching nowhere
-/// from it; a cylinder's axis point and its radius off the axis. `None`
-/// for a carrier with no closed form.
-pub fn carrier_extent<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, T)> {
-    match *surface {
-        Surface::Plane { origin, .. } => Some((origin, T::zero())),
-        Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
-        Surface::Cone { apex, .. } => Some((apex, T::zero())),
-        Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
-            surface.cover().ok().map(|c| c.ball())
-        }
-        Surface::Nurbs(_) | Surface::Approx(_) => None,
-    }
-}
 
 /// **Whether the plane through `point` with unit `normal` is shown to
 /// miss `surface`**: `true` grants that its trace is empty, and `false`

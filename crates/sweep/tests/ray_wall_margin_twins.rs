@@ -2,13 +2,14 @@
 //! at a millimetre and at a metre, the same probes scaled with it:
 //! every predicate `point_in_solid` decides must fire the same number of
 //! times with the same verdicts, and every decisive margin must be the
-//! metre twin's over a thousand. The wall arm's two rungs are what this
+//! metre twin's over a thousand. A margin decided on its sign alone
+//! (`MarginSample::reads_sign_only`, a decision at `Band::least()`) has
+//! no scale to keep, so only its verdicts are compared. The wall arm's two rungs are what this
 //! suite exists for — `bool_point_in_solid_denom`'s axis-parallel rung
 //! (`|d⊥|` levered by the selection's reach) and
 //! `bool_ray_cylinder_disc` (the half-chord's depth) — and both are
 //! asserted to FIRE, so the pin cannot go vacuous. A planar-only body
 //! (`topo`'s `rim_dim_boolean_twins`) never reaches either, nor the
-//! face boxes' cylinder axis read (`bool_box_cylinder_axis`) or the
 //! germ plane normal a plane × cylinder join reads
 //! (`bool_germ_plane_normal`), which the same pipe boring a plate pins
 //! beside them.
@@ -36,12 +37,13 @@ const WALL_RUNGS: [&str; 2] = ["bool_point_in_solid_denom", "bool_ray_cylinder_d
 /// A pipe of radius `scale` about `z`, `z ∈ [−2, 2]·scale`, and probes
 /// inside, outside and beyond its caps, all scaled with it: the
 /// `(predicate, (outcome, |margin|))` stream `point_in_solid` records
-/// over them, and their verdicts.
+/// over them, the magnitude `None` where the sample reads its sign
+/// alone, and their verdicts.
 #[allow(clippy::type_complexity)] // the stream, then the verdicts
 fn margins_at(
     scale: f64,
 ) -> (
-    BTreeMap<&'static str, Vec<(SampleOutcome, f64)>>,
+    BTreeMap<&'static str, Vec<(SampleOutcome, Option<f64>)>>,
     Vec<topo::SolidContainment>,
 ) {
     let tol = Tol::witness();
@@ -75,30 +77,31 @@ fn margins_at(
                 .unwrap_or_else(|e| panic!("({x}, {y}, {z}) at scale {scale:e}: {e:?}"))
         })
         .collect();
-    let mut out: BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> = BTreeMap::new();
+    let mut out: BTreeMap<&'static str, Vec<(SampleOutcome, Option<f64>)>> = BTreeMap::new();
     for sample in k_stats::take_samples() {
+        let magnitude = (!sample.reads_sign_only()).then_some(sample.margin.abs());
         out.entry(sample.predicate)
             .or_default()
-            .push((sample.outcome, sample.margin.abs()));
+            .push((sample.outcome, magnitude));
     }
     (out, verdicts)
 }
 
 #[test]
 fn the_wall_arms_margins_scale_linearly_with_the_model() {
-    // Pinned red: `curve_foot_branch`'s decisive margins read a million to
-    // one between the twins, where every other predicate's read a
-    // thousand. Six pairs were off before PR 5664 and 62 since
-    // (`work/cpair/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
-    // owns the six, `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`
-    // the widening). `k-lint (dev-probe)` runs this row once, at ε 1e-9,
-    // and the nightly's `--all-features` suite at the default ε, the same
-    // row; it reads the same at 1e-6 and 1e-12.
+    // Pinned red at 1e-6, where the millimetre twin fires predicates the
+    // metre twin does not
+    // (`work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`).
+    // `k-lint (dev-probe)` runs this row once, at ε 1e-9, and the
+    // nightly's `--all-features` suite at the default ε.
     test_utils::pinned_red::row(
         Tol::witness().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
+        &[1e-6],
         "the ray-wall twins",
-        &["[\"curve_foot_branch: 62 pairs off, e.g. 9.990e2\"]"],
+        &[
+            "the twins must fire the same predicate set",
+            "side_at_infinity_met_edge_represents",
+        ],
         the_wall_arms_margins_scale_linearly_with_the_model_row,
     );
 }
@@ -114,6 +117,10 @@ fn the_wall_arms_margins_scale_linearly_with_the_model_row() {
             "{rung} must fire on the pipe, or this pin is vacuous: {:?}",
             m.keys().collect::<Vec<_>>()
         );
+        assert!(
+            m[rung].iter().all(|s| s.1.is_some()),
+            "{rung} is decided against the linear band, so every margin it records has a scale"
+        );
     }
     assert_eq!(
         mm.keys().collect::<Vec<_>>(),
@@ -123,15 +130,17 @@ fn the_wall_arms_margins_scale_linearly_with_the_model_row() {
     let mut nonlinear = Vec::new();
     for (pred, mm_list) in &mm {
         let m_list = &m[pred];
-        let outcomes = |l: &[(SampleOutcome, f64)]| l.iter().map(|s| s.0).collect::<Vec<_>>();
+        let outcomes =
+            |l: &[(SampleOutcome, Option<f64>)]| l.iter().map(|s| s.0).collect::<Vec<_>>();
         assert_eq!(
             outcomes(mm_list),
             outcomes(m_list),
             "{pred}: the twins must produce identical verdict streams"
         );
-        // Decisive margins only, sorted: a coincident residual is
-        // rounding noise, and recording order pairs unrelated sites.
-        let decisive = |l: &[(SampleOutcome, f64)]| {
+        // Decisive margins with a scale only, sorted: a coincident
+        // residual is rounding noise, a sign-only read has no scale, and
+        // recording order pairs unrelated sites.
+        let decisive = |l: &[(SampleOutcome, Option<f64>)]| {
             let mut v: Vec<f64> = l
                 .iter()
                 .filter(|s| {
@@ -140,7 +149,7 @@ fn the_wall_arms_margins_scale_linearly_with_the_model_row() {
                         SampleOutcome::Definite(Sign::Positive | Sign::Negative)
                     )
                 })
-                .map(|s| s.1)
+                .filter_map(|s| s.1)
                 .collect();
             v.sort_by(f64::total_cmp);
             v
@@ -222,17 +231,15 @@ fn bore_margins(scale: f64, name: &str) -> Vec<f64> {
         .collect()
 }
 
-/// **The bore's two carrier-direction reads are decided at the model's
-/// scale.** A cylinder face's axis (`bool_box_cylinder_axis`) and a
-/// plate face's normal where the join sections the wall
-/// (`bool_germ_plane_normal`) are unit at rest, pure numbers. The axis
-/// is levered by the radius its slab swings it by, and the normal by
-/// the joined germ sites' reach from the plate face's origin, which
-/// here is the radius too. So every margin is `scale`, and they sit
-/// `1e3` apart between the twins; the bare norm reads `1` at both.
+/// **The bore's carrier-direction read is decided at the model's
+/// scale.** A plate face's normal where the join sections the wall
+/// (`bool_germ_plane_normal`) is unit at rest, a pure number, levered
+/// by the joined germ sites' reach from the plate face's origin, which
+/// here is the radius. So every margin is `scale`, and they sit `1e3`
+/// apart between the twins; the bare norm reads `1` at both.
 #[test]
 fn the_bores_carrier_directions_are_levered_by_the_radius_at_both_scales() {
-    for name in ["bool_box_cylinder_axis", "bool_germ_plane_normal"] {
+    for name in ["bool_germ_plane_normal"] {
         for scale in [1e-3, 1.0] {
             let margins = bore_margins(scale, name);
             assert!(!margins.is_empty(), "the bore decides {name} at {scale:e}");

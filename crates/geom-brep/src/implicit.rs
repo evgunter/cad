@@ -101,7 +101,10 @@ fn poison_vec<T: Real>() -> Vec3<T> {
 /// The axial/radial decomposition `(h, w)` of `p` relative to an anchor
 /// point and unit axis: `q = p − anchor`, `h = q·axis`,
 /// `w = q − axis·h`. Shared by every axisymmetric form below (fixed
-/// order, D9).
+/// order, D9). The forms' running twins ([`conic_cone_residual`] and
+/// its siblings) repeat this order term for term to stay bit-identical
+/// to it, so it is not [`geom::Line::param_and_offset`], whose division
+/// by `|axis|²` the twins do not carry.
 pub(crate) fn axial_radial<T: Real>(
     p: Point3<T>,
     anchor: Point3<T>,
@@ -109,8 +112,7 @@ pub(crate) fn axial_radial<T: Real>(
 ) -> (T, Vec3<T>) {
     let q = p - anchor;
     let h = q.dot(axis);
-    let w = q - axis * h;
-    (h, w)
+    (h, q - axis * h)
 }
 
 /// **A point's elevation off a cone, in metres** — the cone's residual
@@ -166,7 +168,7 @@ pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
 pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let two = T::from_f64(2.0);
     match *s {
-        Surface::Plane { origin, normal, .. } => (p - origin).dot(normal),
+        Surface::Plane { origin, normal, .. } => geom::plane_offset(origin, normal, p),
         Surface::Sphere { center, radius, .. } => {
             let d2 = (p - center).norm_squared();
             (d2 - radius.powi(2)) / (two * radius)
@@ -251,7 +253,7 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
             let (h, w) = axial_radial(p, apex, axis);
             // w/ρ poisons on the axis (0/0) — including the apex, where
             // no tangent plane exists (honest, per the module docs).
-            let w_hat = w / w.norm();
+            let w_hat = w.normalize();
             w_hat * c_a - axis * s_a.copysign(h)
         }
         Surface::Torus {
@@ -269,8 +271,7 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
             ..
         } => {
             let (h, w) = axial_radial(p, center, axis);
-            let rho = w.norm();
-            let w_hat = w / rho;
+            let (w_hat, rho) = w.direction_and_length();
             (w_hat * (rho - major_radius) + axis * h) / minor_radius
         }
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
@@ -470,8 +471,7 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
         } => {
             let (_, c_a) = half_angle.sin_cos();
             let (_, w) = axial_radial(p, apex, axis);
-            let rho = w.norm();
-            let w_hat = w / rho;
+            let (w_hat, rho) = w.direction_and_length();
             let d_ax = d.dot(axis);
             let d_w = d.dot(w_hat);
             (d.norm_squared() - d_ax.powi(2) - d_w.powi(2)) * c_a / rho
@@ -493,8 +493,7 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
             ..
         } => {
             let (_, w) = axial_radial(p, center, axis);
-            let rho = w.norm();
-            let w_hat = w / rho;
+            let (w_hat, rho) = w.direction_and_length();
             let d_ax = d.dot(axis);
             let d_w = d.dot(w_hat);
             let d_perp2 = d.norm_squared() - d_ax.powi(2) - d_w.powi(2);
@@ -609,7 +608,7 @@ pub(crate) fn implicit_restricted_trace<T: Real>(
 /// Poison in, poison out (singular points, `Nurbs`).
 pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let g = implicit_gradient(s, p);
-    let n_hat = g / g.norm();
+    let n_hat = g.normalize();
     let [
         Vec3 {
             x: hxx,
@@ -706,6 +705,16 @@ fn harmonic_curvature_bound<T: Real>(h: &ResidualHarmonics<T>) -> T {
 /// to, never `(|C₀| + D)²`: a point a kilometre out against a
 /// micrometre ball rounds its coordinates at a kilometre's ulp, but
 /// squares only the micrometre offset.
+///
+/// **The point is summed from the conic's stored terms**, its centre and
+/// semi-axes, so it rounds at their scale, not the point's: a section
+/// ellipse centred megametres out sums an in-box point from megametre
+/// terms. That is a carrier's stored terms amplifying, which the run's
+/// admission rule (`geom_core::tolerance::admissible`) does not cover,
+/// and is charged here until
+/// `work/oneround/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`
+/// evaluates the point from its vertex. The share over in-box
+/// coordinates is not separated out of it.
 fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
     let two = T::from_f64(2.0);
     let a = conic.speed_hi();

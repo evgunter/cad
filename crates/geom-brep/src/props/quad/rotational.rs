@@ -133,9 +133,7 @@ use crate::props::bracket::{AbsEnclosure, exact_point, mid, pt};
 use crate::props::rational_rim::{
     RationalEdgeQ, rational_integrals, rational_rate_bound, rational_vector_area_split,
 };
-use crate::props::taylor::{
-    Jet, W_SPIRIC, composite_over, rate_bound_over, trig_jets, trig_range, w_rational,
-};
+use crate::props::taylor::{Jet, W_SPIRIC, composite_over, rate_bound_over, trig_jets, w_rational};
 use crate::props::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
 
 /// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)'s unit.
@@ -568,8 +566,7 @@ fn line_rate(point: RVec3, dir: RVec3, t: Jet) -> (Jet, Jet) {
 fn analytic_rate(carrier: &FramedQ, t: Interval) -> (Jet, Jet) {
     match carrier {
         FramedQ::Circle { centre, a, b, .. } => {
-            let (c, s) = trig_range(t.lo(), t.hi());
-            let (_, cj, sj) = trig_jets(t, c, s);
+            let (_, cj, sj) = trig_jets(t);
             circle_rate(*centre, *a, *b, cj, sj)
         }
         FramedQ::Line { point, dir, .. } => line_rate(*point, *dir, Jet::var(t)),

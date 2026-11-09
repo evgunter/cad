@@ -431,7 +431,8 @@ mod tests {
             tol,
         )
         .unwrap()
-        .body;
+        .body
+        .into_body();
         let point =
             |b: &Body<f64>, v: VertexKey| b.vertex_points().find(|(k, _)| *k == v).unwrap().1;
         let arcs: Vec<EdgeKey> = body
@@ -477,8 +478,8 @@ mod tests {
         // wall is as many faces as there are chords plus one.
         let mut wall = vec![
             body.faces()
-                .find(|(_, f)| {
-                    body.get_surface(f.surface).map(geom::Surface::kind)
+                .find(|&(k, _)| {
+                    body.face_surface(k).map(geom::Surface::kind)
                         == Some(geom::SurfaceKind::Cylinder)
                 })
                 .unwrap()

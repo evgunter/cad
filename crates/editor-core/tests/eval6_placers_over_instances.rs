@@ -133,8 +133,8 @@ pub(crate) fn instances_of<T: geom_core::Decide + topo::AtRestPolicy>(
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
         .payload
     {
-        ValuePayload::Instances(v) => v
-            .iter()
+        ValuePayload::Instances(v) => fixture::every_body(v)
+            .into_iter()
             .map(|b| Arc::new(crate::fixture::in_space(b)))
             .collect(),
         other => panic!("{id:?} is a {}, not a family", other.kind_name()),
@@ -270,6 +270,7 @@ fn a_two_index_read_picks_its_member() {
     else {
         panic!("the outer placement is a family")
     };
+    let bodies = fixture::every_body(bodies);
     let cube_cap = editor_core::StableName {
         kind: editor_core::EntityKind::Face,
         node: cube,
@@ -281,8 +282,8 @@ fn a_two_index_read_picks_its_member() {
             panic!("a member read is a body")
         };
         assert!(
-            Arc::ptr_eq(picked.shared(), bodies[k].shared())
-                && matches!(picked.relative(&bodies[k]), Ok(None)),
+            Arc::ptr_eq(picked.holding().arc(), bodies[k].holding().arc())
+                && matches!(picked.relative(bodies[k]), Ok(None)),
             "outer[{i}, {j}] is member body {k} itself, in its frame"
         );
         let at = |v: i64| u32::try_from(v).unwrap();

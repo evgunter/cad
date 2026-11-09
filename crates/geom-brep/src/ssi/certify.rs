@@ -1371,8 +1371,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // margin's enclosure is refused with it, and the probe reads
         // that rung as unprobed ([`tube_margin`]).
         let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
-        let n = t.norm();
-        out.push((bx, t / n, (a, b)));
+        out.push((bx, t.normalize(), (a, b)));
     }
     out
 }
@@ -1383,7 +1382,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
 /// found. `one_arc` is `None` where the chain is no graph, so the proof
 /// had no hypothesis; it never reads as proved where nothing was. The
 /// margin is `NaN` where a box's transversality enclosure was refused
-/// ([`Rung::refused`]).
+/// ([`Rung::unmeasured`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Rung {
     pub(crate) tube: SsiTube<f64>,
@@ -1396,7 +1395,7 @@ impl Rung {
     /// A rung at which a box's transversality enclosure was refused
     /// ([`tube_margin`]): it measured nothing, so it has no margin and
     /// no proof, and [`limb_three`] counts it rather than reading it.
-    fn refused(tube: SsiTube<f64>) -> Self {
+    fn unmeasured(tube: SsiTube<f64>) -> Self {
         Self {
             tube,
             margin: f64::NAN,
@@ -1433,7 +1432,7 @@ fn box_graph_margin<T: CertifiedBounds>(
 /// decision runs once, upstairs, on the chosen radius.
 ///
 /// `None` when the chain is empty or broken, a definite structural
-/// refusal; [`Rung::refused`] where a box's transversality enclosure is.
+/// refusal; [`Rung::unmeasured`] where a box's transversality enclosure is.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>, (f64, f64))],
     s1: &Surface<T>,
@@ -1461,7 +1460,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         prev = Some(bx);
         padded.push(bx);
         let Some(m) = box_graph_margin(s1, s2, bx, *e) else {
-            return Some(Rung::refused(SsiTube::Spatial { radius }));
+            return Some(Rung::unmeasured(SsiTube::Spatial { radius }));
         };
         if m < worst {
             worst = m;
@@ -1617,7 +1616,7 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
             return Ok(None);
         };
         if margin.is_nan() {
-            return Ok(Some(Rung::refused(SsiTube::Chart {
+            return Ok(Some(Rung::unmeasured(SsiTube::Chart {
                 rung,
                 pad_u: pad.0,
                 pad_v: pad.1,
@@ -1718,7 +1717,7 @@ type PairPads = ((f64, f64), (f64, f64));
 ///
 /// `None` when either pcurve has no windows, the two disagree on their
 /// spans, or a tangent is unusable: a definite structural refusal at
-/// this rung. [`Rung::refused`] where a box's margin is.
+/// this rung. [`Rung::unmeasured`] where a box's margin is.
 fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     (pa, pb): (&NurbsCurve2<T>, &NurbsCurve2<T>),
     (na, nb): (&super::ChartedNurbs<'_, T>, &super::ChartedNurbs<'_, T>),
@@ -1749,7 +1748,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
         // refuses before any tube exists. It shares `tube_margin` and
         // the refused rung with the ℝ³ probe, which a row does reach.
         let Some(m) = tube_margin(graph_margin(&pair, x, e)) else {
-            return Some(Rung::refused(SsiTube::TwoChart { rung, pad_a, pad_b }));
+            return Some(Rung::unmeasured(SsiTube::TwoChart { rung, pad_a, pad_b }));
         };
         worst = worst.min(m);
         boxes.push(x);
@@ -4181,15 +4180,38 @@ mod tests {
     /// break's floor is no more than the residual there: a conversion
     /// that divided by too much, or floored by too little, reads red.
     #[test]
-    #[allow(clippy::unwrap_used)]
     fn a_torus_carriers_limb_two_holds_its_sampled_residual() {
+        let mut rng = test_utils::fuzz::start("torus limb 2");
+        torus_limb_two_holds(
+            &mut rng,
+            test_utils::fuzz::scaled(40),
+            &test_utils::fuzz::replay(),
+        );
+    }
+
+    /// **The sample's own rounding is not the bound's**: this seed draws
+    /// a tube of radius 2e-3 about 1.27 from the origin, where the
+    /// sampled residual at span 3's t = 1/3 reads 8e-17 over its bound
+    /// while the residual of the f64 data, read exactly, is 1.5e-17 under
+    /// it. The slack charges the sample's evaluation at the point's own
+    /// scale.
+    #[test]
+    fn a_small_torus_far_out_is_not_read_over_its_bound_by_the_sample() {
+        // The stream `fuzz::start("torus limb 2")` opens at
+        // CAD_FUZZ_SEED=0x16381c9c5b5fb469: that seed with the label mixed in.
+        let mut rng = test_utils::fuzz::pinned("torus limb 2, far out", 0x7a21_e04f_c1ae_c3a1);
+        torus_limb_two_holds(&mut rng, 40, "the pinned seed");
+    }
+
+    /// [`a_torus_carriers_limb_two_holds_its_sampled_residual`]'s body,
+    /// over `cases` draws of `rng`, each failure naming `replay`.
+    #[allow(clippy::unwrap_used)]
+    fn torus_limb_two_holds(rng: &mut test_utils::fuzz::Rng, cases: usize, replay: &str) {
         use crate::ssi::enclose::tests::{on_torus, torus};
         use geom::NurbsCurve3;
         use geom_core::spline::KnotVector;
         use geom_core::{Point3, Vec3};
-        use test_utils::fuzz;
-        let mut rng = fuzz::start("torus limb 2");
-        for _ in 0..fuzz::scaled(40) {
+        for _ in 0..cases {
             let small = rng.log_uniform(1e-3, 1.0);
             let big = small * rng.range(0.5, 30.0);
             let c = [
@@ -4225,28 +4247,36 @@ mod tests {
             let carrier = NurbsCurve3::new(knots, points, vec![1.0; 6]).unwrap();
             let cuts: Vec<f64> = (1..8).map(|k| f64::from(k) / 8.0).collect();
             let (at, sup, spans, floors) = torus_readings(&carrier, &torus, &cuts);
-            let ctx = format!("{torus:?}, lift {lift:e}: {}", fuzz::replay());
+            let ctx = format!("{torus:?}, lift {lift:e}: {replay}");
             assert!(
                 sup.is_finite() || big <= small,
                 "a ring torus's bound: {ctx}"
             );
-            let residual =
-                |t: f64| crate::implicit::implicit_residual(&torus, carrier.eval(t)).abs();
-            let slack = |x: f64| x * (1.0 + 1e-9) + 1e-15 * big;
+            // The sample is read in f64 at the point, so it carries the
+            // point's own rounding, at the point's scale (its distance
+            // from the origin), whatever the torus's size; the bound is
+            // of the residual of the f64 data, read exactly.
+            let residual = |t: f64| {
+                let at = carrier.eval(t);
+                let scale = (at - Point3::origin()).norm();
+                (crate::implicit::implicit_residual(&torus, at).abs(), scale)
+            };
+            let slack =
+                |x: f64, scale: f64| x * (1.0 + 1e-9) + 1e-15 * big + 8.0 * f64::EPSILON * scale;
             for (j, span) in spans.iter().enumerate() {
                 for k in 0..=16 {
                     let t = at[j] + (at[j + 1] - at[j]) * f64::from(k) / 16.0;
-                    let m = residual(t);
+                    let (m, scale) = residual(t);
                     assert!(
-                        span.is_nan() || m <= slack(*span),
+                        span.is_nan() || m <= slack(*span, scale),
                         "span {j} at {t}: residual {m:e} over its bound {span:e}; {ctx}"
                     );
                 }
             }
             for (j, floor) in floors.iter().enumerate() {
-                let m = residual(at[j]);
+                let (m, scale) = residual(at[j]);
                 assert!(
-                    *floor <= slack(m),
+                    *floor <= slack(m, scale),
                     "break {j}: floor {floor:e} over the residual {m:e}; {ctx}"
                 );
             }

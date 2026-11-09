@@ -2,11 +2,12 @@
 id: the-path-doors-escalation-carries-its-gate
 kind: unit
 title: the path door's escalation carries its gate: one closed decision type routes every in-band ending, the fillet recourse leaves validate.rs, the guided door names the gate
-status: dispatched
+status: closed
 opened: 2026-11-06
 priority: P1
 cost: H
 branch: round/escalation-carries-its-gate
+closed: 2026-11-06
 ---
 
 
@@ -62,3 +63,7 @@ closes with its own evidence when the PR lands:
 Every passenger's acceptance holds; no ending at the path door is
 looked up by predicate name; the rendered-text rows and the census are
 re-pinned with what moved said in the PR.
+
+## Closed (2026-11-06)
+
+PR 6546: one closed `profile::Gate` routes every in-band ending at the path door, validation and the guided door, derived from (gate, verdict) per D4 ¶1 (i)–(ii); see the carrier `the-path-doors-escalation-carries-its-gate` and the PR body for what this row's part became.

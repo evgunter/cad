@@ -308,8 +308,7 @@ fn a_lone_wrap_edge_has_two_tips() {
         .find(|&e| body.both_sides_face(e) == Some(Some(face)))
         .expect("the strut lies in the sphere face");
     let ends = {
-        let e = body.get_edge(strut).unwrap();
-        let mut ends = [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).unwrap().start);
+        let mut ends = <[_; 2]>::from(body.edge_vertices(strut).unwrap());
         ends.sort();
         ends
     };
@@ -351,10 +350,7 @@ fn a_wrap_tip_on_a_cylinder_has_no_singularity_to_lie_on() {
         .find_map(|(he, h)| {
             let p = point(&body, h.start);
             let face = body.face_of_half_edge(he)?;
-            let on_wall = matches!(
-                body.get_surface(body.get_face(face)?.surface)?,
-                geom::Surface::Cylinder { .. }
-            );
+            let on_wall = matches!(body.face_surface(face)?, geom::Surface::Cylinder { .. });
             (on_wall && p.y.abs() < 1e-12).then_some((he, face))
         })
         .expect("the wall leaves a base vertex");
@@ -513,7 +509,7 @@ fn side_about(
 ) -> geom_brep::props::MaterialSign {
     let f = body.get_face(face).unwrap();
     let image = topo::props::chart_image_edges(body, f.outer).unwrap().0;
-    let mut surface = body.get_surface(f.surface).unwrap().clone();
+    let mut surface = body.face_surface(face).unwrap().clone();
     if let (Some(turned), geom::Surface::Sphere { axis, .. }) = (axis, &mut surface) {
         *axis = turned;
     }

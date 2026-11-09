@@ -65,3 +65,5 @@ read tier 2 and check 7 per solid at the door where no verdict rides
   every scalar. What it leaves behind is four inner arms reached only by
   scaffolding operands:
   `work/band/blend-scaffolding-arms-behind-the-operand-gate.md`.
+
+Note, 2026-11-08 (PR 6584): the operand gates cited above are gone. `AtRestBody::gate_unverdicted` and the blend's `ScaffoldingOperand` / `InsideOutOperand` went with PR 6371: a blend operand is a finished body (`T::Finished`), and its finish runs tiers 1–3. The Boolean's `ScaffoldingOperand` and `reduce::gate_operand` went with PR 6584, together with `validate::operand_scaffolding` and `topo::SCAFFOLDING_REFUSAL`.

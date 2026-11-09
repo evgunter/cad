@@ -311,11 +311,9 @@ pub(super) fn face_boundary<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
 ) -> Result<Option<FaceBoundary<'_, T>>, BooleanError> {
-    let face_data = y
-        .passed_face(face)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "boundary pass: face lost",
-        })?;
+    let face_data = y.face(face).ok_or(BooleanError::ClassificationInvariant {
+        what: "boundary pass: face lost",
+    })?;
     let mut boundary = FaceBoundary {
         edges: Vec::new(),
         lone: Vec::new(),

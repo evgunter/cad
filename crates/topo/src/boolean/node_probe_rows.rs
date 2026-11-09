@@ -208,9 +208,9 @@ fn the_bicylinder_built_by_hand_is_a_finished_body() {
     assert_eq!((c.v, c.e, c.f), (2, 4, 4));
     assert!(
         matches!(
-            crate::AtRestPolicy::gate_at_rest_kept(bicylinder(false), tol)
+            crate::finish(bicylinder(false), tol)
                 .as_ref()
-                .map_err(Vec::as_slice),
+                .map_err(|e| &e[..]),
             Err([crate::ValidationError::NegativeVolume { .. }])
         ),
         "inside out, the gate refuses the volume's sign"
@@ -403,6 +403,6 @@ fn both_pieces_of_the_subtraction_as_one_body() {
     eprintln!("PROBE both pieces, census: {census:?}");
     eprintln!(
         "PROBE both pieces, gate: {:?}",
-        crate::AtRestPolicy::gate_at_rest_kept(both, tol).map(|_| "finished")
+        crate::finish(both, tol).map(|_| "finished")
     );
 }

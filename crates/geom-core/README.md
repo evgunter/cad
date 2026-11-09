@@ -300,14 +300,17 @@ DESIGN `[simple.conditioned]`: every computation is posed well-conditioned
 where its result is decided, and at `f64` is then computed as if exact.
 This section is where that rule's parts live.
 
-- **The run's admission rule** (`Tolerance`). The *floor* is the
-  rounding of a short, division-free chain of operations on in-box
-  coordinates: a fixed count of unit roundoffs times the session box.
-  The *headroom* is `(K − 1)·ε`, the room between "the same point"
-  (within ε) and "definitely apart" (beyond Kε). A run is admitted only
-  where the headroom covers the floor. The check is a comparison
-  against a constant, so the least admissible ε follows from K, and
-  K < 2 is allowed at the price of a larger least ε. This is the one
+- **The run's admission rule** (`Tolerance`). The *admission floor*
+  (`ADMISSION_FLOOR`, `SHORT_CHAIN_ULPS · u · box`) is the rounding of a
+  short, division-free chain of operations on in-box coordinates: a
+  fixed count of unit roundoffs times the session box. The *headroom* is
+  `(K − 1)·ε`, the room between "the same point" (within ε) and
+  "definitely apart" (beyond Kε). A run is admitted only where ε is at
+  least ε_min(K), the larger of the admission floor over K's headroom,
+  `ADMISSION_FLOOR / (K − 1)`, and a coordinate's spacing at the box
+  edge, `u · box`. The check is a comparison against a constant, so the
+  least admissible ε follows from K, and K < 2 is allowed at the price
+  of a larger least ε. This is the one
   statement about rounding, and no site charges it.
 - **Re-posing, never charging.** A quantity a formula would divide by
   that can vanish (a sine, a radius, a determinant) is a pose decided
@@ -317,9 +320,13 @@ This section is where that rule's parts live.
   (as a distance). A stored form that loses digits (a conic whose centre
   lies far from the arc it serves) is re-minted in a well-conditioned
   form. No `Margin` door takes hand-written slack. The backstop is a
-  tree gate on bare `f64::EPSILON` and `UNIT_ROUNDOFF` outside this
-  crate, whose allowlist only shrinks: each entry is a formula or a
-  stored form owed a re-posing.
+  tree gate on bare `f64::EPSILON` and on every use of
+  `running`'s charge doors (its `pub` items) outside this crate. Every
+  site is a listed entry, each a formula or a stored form owed a
+  re-posing, and an entry whose site has gone must be dropped. A count
+  raised beside a new site is held only by review, not against the
+  merge base
+  (`work/guard/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 - **A verdict's lever arm** (`Lever<T>`, the arm of
   `Margin::levered`). It is built only from its sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where

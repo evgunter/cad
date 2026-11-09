@@ -44,8 +44,6 @@ struct Read<T: Real> {
 const NO_CURVE: &str = "a curved edge with no certified curve";
 const NO_REACH: &str = "a curved edge whose speed bound meters no reach over its span";
 const NO_LENGTH: &str = "a curved edge whose least speed meters no length over its span";
-const WALK_EXHAUSTED: &str = "the census's reading of a point on a spline edge ran past its budget";
-const WALK_UNBOUNDED: &str = "a spline edge whose speed bound is zero or poison";
 
 fn refuse(edge: EdgeKey, what: &'static str, errors: &mut Vec<ValidationError>) {
     errors.push(ValidationError::CensusUnsupported {
@@ -188,7 +186,7 @@ fn on_interior_reading<T: Decide>(
 
 /// **`e`'s tangent where `q` lies on its interior**, along its plus
 /// half and scaled to the edge's reach from `q`, its edge cover's far
-/// distance from above (`boolean::boxes::edge_reach_bounds`): the corner it bounds is read by
+/// distance from above (`boolean::crate::cover::edge_reach_bounds`): the corner it bounds is read by
 /// the wedge, which acts on every sign, so its lever is the region's own
 /// measure from where it is read, and where that is known only from both
 /// sides (an ellipse, spiric or spline edge, whose bound from above can
@@ -208,7 +206,7 @@ pub(super) fn tangent_on_interior<T: Decide>(
 ) -> Option<Option<Departure<T>>> {
     let tangent = edge_tangent_at(body, e, q, band, errors)?;
     let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
-    let lever = crate::boolean::boxes::edge_reach_bounds(body, e, edge, q)?;
+    let lever = crate::cover::edge_reach_bounds(body, e, edge, q)?;
     Some(tangent.map(|tangent| Departure::along(tangent.dir(), lever)))
 }
 
@@ -251,8 +249,10 @@ impl<T: Real> EdgeTangent<T> {
 /// A straight edge's is its line's direction ([`super::edge_line`]),
 /// the same at every point, so it answers for any `q` and the caller
 /// holds `q` on the edge. A curve's is its tangent, with its curvature
-/// vector, at the parameter its span certifies `q` on ([`Hit::On`]), so
-/// no reader of it rests on an uncertified foot. `Some(None)` where `q`
+/// vector, at the parameter its span certifies `q` on ([`Hit::On`]).
+/// That parameter is `q`'s own branch where the body's boundary is
+/// embedded at the band, which the at-rest gate certifies
+/// (`DESIGN.md` `[topology.tiers]`). `Some(None)` where `q`
 /// is not on a curve's interior; `None` where a decision escalated or
 /// the edge is not read (pushed, [`edge_tangent_refusal`]).
 pub(super) fn edge_tangent_at<T: Decide>(
@@ -297,9 +297,7 @@ pub(super) fn edge_tangent_refusal(refused: &[ValidationError]) -> crate::link::
             } => match *what {
                 NO_CURVE => Some(Why::NoCurve),
                 NO_REACH | NO_LENGTH => Some(Why::Unmetered),
-                WALK_EXHAUSTED => Some(Why::Exhausted),
-                WALK_UNBOUNDED => Some(Why::Unbounded),
-                _ => None,
+                walk => geom::PieceWalkRefusal::of_sentence(walk).map(Why::Unwalked),
             }
             .map(TouchUnread::EdgeTangent),
             _ => None,
@@ -322,14 +320,7 @@ fn on_interior_at<T: Decide>(
         Err(refusal) => {
             match refusal.escalation() {
                 Ok(cause) => errors.push(ValidationError::CensusEscalated { cause }),
-                Err(why) => refuse(
-                    r.edge,
-                    match why {
-                        geom::PieceWalkRefusal::Exhausted => WALK_EXHAUSTED,
-                        geom::PieceWalkRefusal::Unbounded => WALK_UNBOUNDED,
-                    },
-                    errors,
-                ),
+                Err(why) => refuse(r.edge, why.sentence(), errors),
             }
             None
         }
@@ -505,8 +496,10 @@ fn interior_meeting<T: Decide>(
             "the meeting reading of two curved edges could not settle a count"
         }
         MeetFault::Unsupported { pose } => pose,
-        MeetFault::Desync => "the meeting reading of two curved edges misread a carrier's kind",
-        MeetFault::Contradiction { readings } => readings,
+        fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => super::meet_fault(
+            format_args!("curved edges {:?} and {:?}", ra.edge, rb.edge),
+            fault,
+        ),
     };
     refuse(ra.edge, what, errors);
     refuse(rb.edge, what, errors);
@@ -524,6 +517,47 @@ mod tests {
 
     use super::{Read, curved_interiors_meet, interior_meeting, reads_meet};
     use crate::EdgeCurveSpec;
+
+    /// **A spline walk the census could not run reads back as itself**: the
+    /// refusal it pushes names the walk by its own sentence
+    /// ([`geom::PieceWalkRefusal::sentence`]), pinned here as text, and the
+    /// edge-tangent reading of that refusal is the same walk refusal, at
+    /// both of its kinds. The census's rendered message does not show
+    /// that name: `ContactRefusal::NotCertifiable` renders no `what`.
+    #[test]
+    fn an_unwalked_edge_reads_back_as_its_walk_refusal() {
+        use crate::link::{EdgeTangentUnread, TouchUnread};
+        for (why, sentence) in [
+            (
+                geom::PieceWalkRefusal::Exhausted,
+                "a spline's piece walk ran past its budget",
+            ),
+            (
+                geom::PieceWalkRefusal::Unbounded,
+                "a spline's speed bound is zero or poison",
+            ),
+        ] {
+            let mut errors = Vec::new();
+            super::refuse(EdgeKey::default(), why.sentence(), &mut errors);
+            assert!(
+                matches!(
+                    &errors[..],
+                    [crate::ValidationError::CensusUnsupported {
+                        cause: crate::CensusUnsupportedCause::ContactLane(
+                            crate::contact::ContactRefusal::NotCertifiable { what },
+                        ),
+                        ..
+                    }] if *what == sentence
+                ),
+                "{why:?}: the census names the walk by its sentence: {errors:?}"
+            );
+            assert_eq!(
+                super::edge_tangent_refusal(&errors),
+                TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(why)),
+                "{why:?}"
+            );
+        }
+    }
     use crate::body::Body;
     use crate::construction::MevSite;
     use crate::entity::EdgeKey;

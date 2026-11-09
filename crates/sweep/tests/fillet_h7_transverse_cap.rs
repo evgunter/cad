@@ -135,10 +135,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
     for (band, crease) in &rec.blends {
         // The band is the arm's exact cylinder: radius R about a spine
         // along z at the sheet crossing (x = flat − R, |y| = h).
-        let s = out
-            .body
-            .get_surface(out.body.get_face(*band).unwrap().surface)
-            .unwrap();
+        let s = out.body.face_surface(*band).unwrap();
         let geom::Surface::Cylinder {
             origin,
             axis,
@@ -255,13 +252,8 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
     // names the crease end it retracted from and the support it lies
     // in; a cut-off arc names the crease end it cuts off and the crease
     // whose band it bounds; a fragment names a cap rim of the source.
-    let ends_of = |e: EdgeKey| -> [VertexKey; 2] {
-        let ed = source.get_edge(e).expect("a source edge");
-        [
-            source.get_half_edge(ed.he_plus).unwrap().start,
-            source.half_edge_end(ed.he_plus).unwrap(),
-        ]
-    };
+    let ends_of =
+        |e: EdgeKey| -> [VertexKey; 2] { source.edge_vertices(e).expect("a source edge").into() };
     let faces_of = |e: EdgeKey| -> [FaceKey; 2] {
         let ed = source.get_edge(e).expect("a source edge");
         let face = |he| {
@@ -694,7 +686,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         ),
     ];
     for (label, carrier) in mutants {
-        let mut body = out.body.clone();
+        let mut body = out.body.clone().into_body();
         let attached = body.set_edge_curve(
             arc,
             EdgeCurveSpec {
@@ -756,7 +748,7 @@ fn the_parallel_cylinder_union_builds_and_a_box_edge_is_cut_off() {
     let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume;
     assert!((v - want).abs() < 1e-9, "{v} vs the closed form {want}");
 
-    let body = cube(1.0, tol());
+    let body = cube::<f64>(1.0, tol());
     let e = query::all_edges(&body)[0];
     fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], R, tol())
         .expect("one box edge is cut off at its end faces");

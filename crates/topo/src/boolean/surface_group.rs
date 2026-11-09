@@ -52,8 +52,7 @@ use super::solid_contain::PointInSolidError;
 
 /// The distance of `c` from the axis line `(origin, axis)`.
 pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>) -> T {
-    let e = c - origin;
-    (e - axis * e.dot(axis)).norm()
+    geom::Line { origin, dir: axis }.distance(c)
 }
 
 /// **The coaxial test, in one home**: the two margins that are zero
@@ -128,7 +127,7 @@ fn unmated_boundary<T: Decide>(
 ) -> Result<Option<Unmated<T>>, FaceKey> {
     let mut found = Vec::new();
     for &member in members {
-        let f = body.passed_face(member).ok_or(member)?;
+        let f = body.face(member).ok_or(member)?;
         if !f.record().rings.is_empty() {
             return Ok(None);
         }

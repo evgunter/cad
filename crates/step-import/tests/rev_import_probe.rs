@@ -61,7 +61,7 @@ fn three_rim_honest_control() {
     let text = cylinder_three_rim(".T.");
     match import(&text) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(body.body(), Tol::witness());
+            let t3 = topo::validate_geometric(&*body, Tol::witness());
             println!("3RIM honest: imported, t3={t3:?}");
             assert!(
                 t3.is_ok(),
@@ -86,7 +86,7 @@ fn three_rim_flipped_wall_layering() {
     let text = cylinder_three_rim(".F.");
     match import(&text) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(body.body(), Tol::witness());
+            let t3 = topo::validate_geometric(&*body, Tol::witness());
             println!("3RIM flipped: imported (rider skipped), t3={t3:?}");
             let errs = t3.expect_err("kernel gate must refuse the inverted three-rim wall");
             assert!(
@@ -113,7 +113,7 @@ fn cone_trunc_flipped_wall_refuses() {
     );
     match import(&text) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(body.body(), Tol::witness());
+            let t3 = topo::validate_geometric(&*body, Tol::witness());
             panic!("flipped cone_trunc wall imported (t3={t3:?}) — rider missed the cone arm");
         }
         Ok(_) => panic!("wireframe"),
@@ -198,7 +198,7 @@ fn conic_trimmed_flip_slips_both_gates() {
     match import(&honest_text) {
         Ok(StepImport::Solid { body, .. }) => {
             assert!(
-                topo::validate_geometric(body.body(), Tol::witness()).is_ok(),
+                topo::validate_geometric(&*body, Tol::witness()).is_ok(),
                 "honest control green"
             );
         }
@@ -206,11 +206,11 @@ fn conic_trimmed_flip_slips_both_gates() {
     }
     match import(&flipped_text) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(body.body(), Tol::witness());
+            let t3 = topo::validate_geometric(&*body, Tol::witness());
             let vol = topo::mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
-                    body.body().clone(),
+                    body.clone().into_body(),
                     Tol::witness(),
                 ),
                 Tol::witness(),

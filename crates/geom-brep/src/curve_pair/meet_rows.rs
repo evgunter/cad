@@ -649,9 +649,12 @@ fn turned_by(at: [f64; 2], phi: f64, shift: [f64; 2]) -> [f64; 2] {
     ]
 }
 
-/// **Ellipses crossing near a touch read one meeting only where the
-/// noise parts them.** Three families, at ε = 1e-6, 1e-9 and 1e-12,
-/// at three turns of the plane, in both orders:
+/// **Ellipses crossing near a touch read one meeting where the arc
+/// between their crossings lies in the zero band, and two where it does
+/// not** (C5, `crates/geom-brep/README.md`: a meeting is a longest
+/// interval of one span everywhere definitely on the other). Three
+/// families, at ε = 1e-6, 1e-9 and 1e-12, at three turns of the plane, in
+/// both orders:
 /// - two equal `(2, 1)` ellipses, one pushed down so they cross twice
 ///   `s` apart, `s` from `0.1ε` to `10⁵ε`;
 /// - `(2, 1)` and `(3, 1.5)` touching outside at `(0, 1)`, pushed
@@ -659,18 +662,83 @@ fn turned_by(at: [f64; 2], phi: f64, shift: [f64; 2]) -> [f64; 2] {
 /// - an osculating pair (`(2, 1)` and `(√8, 2)` about `(0, −1)`, equal
 ///   curvature at the touch), pushed together, pulled apart, or touching.
 ///
-/// No crossing pair reads no meeting. Crossings more than `10ε` apart
-/// whose depth is past the noise (`2·10⁻¹³`) never read as one meeting,
-/// and every meeting lies within `10ε` of a true crossing. A pair pulled
-/// apart past `10ε` reads none. Red where the touch's reach is not read.
+/// Each crossing pair is judged against an oracle that shares no code
+/// with the reader ([`super::order_rows::point_gap`], dense sampling and
+/// golden-section refinement): the most distance from the second ellipse
+/// over the arc of the first between the true crossings. No crossing
+/// pair reads no meeting. One meeting reads only where that arc lies in
+/// the zero band, and then on the arc and within the zero band of the
+/// second; two read only where it does not, each within the zero band of
+/// the second. A pair pulled apart past `10ε` reads none.
+/// Red where a touch's in-band arc reads as two crossings, or two
+/// crossings parted past the band as one.
 #[test]
-fn ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_them() {
+fn ellipses_crossing_near_a_touch_read_one_meeting_where_their_arc_is_in_band() {
+    use super::order_rows::point_gap;
     let mut bad = Vec::new();
+    let mut apart_met = Vec::new();
+    let (mut touches, mut pairs) = (0, 0);
     for eps in [1e-6, 1e-9, 1e-12] {
         let band = Band::new(eps, 10.0 * eps).unwrap();
         for phi in [0.0f64, 0.7, 2.3] {
             let shift = if phi == 0.0 { [0.0, 0.0] } else { [3.1, -1.7] };
             let u = [phi.cos(), phi.sin()];
+            let at = |x: f64, y: f64| {
+                let t = turned_by([x, y], phi, shift);
+                Point3::new(t[0], t[1], 0.0)
+            };
+            // The first ellipse `(2, 1)` about the origin, at its upper
+            // points `±x`: the crossings, and the arc between them.
+            let on_a = |x: f64| at(x, (1.0 - x * x / 4.0).sqrt());
+            let mut judge = |label: String,
+                             got: &Result<super::Meetings<f64>, super::MeetRefusal<f64>>,
+                             b: &Curve3<f64>,
+                             half: f64| {
+                let Ok(m) = got else {
+                    return;
+                };
+                if m.points.is_empty() {
+                    bad.push(format!("{label}: crossing, no meeting"));
+                    return;
+                }
+                let arc: Vec<Point3<f64>> = (0..=64)
+                    .map(|i| on_a(-half + half * f64::from(i) / 32.0))
+                    .collect();
+                let most = arc
+                    .iter()
+                    .map(|&p| point_gap(p, b, (-PI, PI)))
+                    .fold(0.0, f64::max);
+                match m.points.len() {
+                    1 => {
+                        touches += 1;
+                        let p = m.points[0].point;
+                        let on_arc = arc
+                            .iter()
+                            .map(|&q| (p - q).norm())
+                            .fold(f64::INFINITY, f64::min);
+                        if most > band.zero() {
+                            bad.push(format!(
+                                "{label}: one meeting, its arc {most:e} from the other"
+                            ));
+                        }
+                        if point_gap(p, b, (-PI, PI)) > band.zero() || on_arc > 10.0 * eps {
+                            bad.push(format!("{label}: the touch {on_arc:e} off its arc"));
+                        }
+                    }
+                    _ => {
+                        pairs += 1;
+                        if most <= band.zero() {
+                            bad.push(format!("{label}: two meetings, their arc {most:e} in band"));
+                        }
+                        for p in &m.points {
+                            let gap = point_gap(p.point, b, (-PI, PI));
+                            if gap > band.zero() {
+                                bad.push(format!("{label}: a meeting {gap:e} off the other"));
+                            }
+                        }
+                    }
+                }
+            };
             // Case 1: equal ellipses (2, 1), the second pushed down by δ:
             // crossings at (±2√(δ − δ²/4), 1 − δ/2).
             for k in [0.1, 0.5, 2.0, 5.0, 20.0, 100.0, 1e3, 1e4, 1e5] {
@@ -681,13 +749,8 @@ fn ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_th
                     continue;
                 }
                 let half = 2.0 * (delta - delta * delta / 4.0).sqrt();
-                let s_true = 2.0 * half;
                 let a = flat_ellipse(turned_by([0.0, 0.0], phi, shift), u, 2.0, 1.0);
                 let b = flat_ellipse(turned_by([0.0, cy], phi, shift), u, 2.0, 1.0);
-                let truth = [
-                    turned_by([half, 1.0 - delta / 2.0], phi, shift),
-                    turned_by([-half, 1.0 - delta / 2.0], phi, shift),
-                ];
                 for (order, got) in [
                     (
                         "ab",
@@ -698,24 +761,11 @@ fn ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_th
                         meet(&Span::new(&b, (-PI, PI)), &Span::new(&a, (-PI, PI)), band),
                     ),
                 ] {
-                    let label = format!("eq eps {eps:e} phi {phi} s {s_true:.3e} ({k}eps) {order}");
-                    if let Ok(m) = &got {
-                        if m.points.is_empty() {
-                            bad.push(format!("{label}: no meeting"));
-                        }
-                        if m.points.len() == 1 && s_true > 10.0 * eps && delta > 2e-13 {
-                            bad.push(format!("{label}: one meeting, crossings {s_true:e} apart"));
-                        }
-                        for p in &m.points {
-                            let d = truth
-                                .iter()
-                                .map(|t| (p.point - Point3::new(t[0], t[1], 0.0)).norm())
-                                .fold(f64::INFINITY, f64::min);
-                            if d > 10.0 * eps && delta > 2e-13 {
-                                bad.push(format!("{label}: point {d:e} off a crossing"));
-                            }
-                        }
-                    }
+                    let label = format!(
+                        "eq eps {eps:e} phi {phi} s {:.3e} ({k}eps) {order}",
+                        2.0 * half
+                    );
+                    judge(label, &got, &b, half);
                 }
             }
             // Case 2: (2, 1) and (3, 1.5) touching outside at (0, 1),
@@ -745,14 +795,7 @@ fn ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_th
                         "uneq eps {eps:e} phi {phi} s {:.3e} ({k}eps) {order}",
                         2.0 * half
                     );
-                    if let Ok(m) = &got {
-                        if m.points.is_empty() {
-                            bad.push(format!("{label}: no meeting"));
-                        }
-                        if m.points.len() == 1 && 2.0 * half > 10.0 * eps && delta > 2e-13 {
-                            bad.push(format!("{label}: one meeting, crossings apart"));
-                        }
-                    }
+                    judge(label, &got, &b, half);
                 }
             }
             // Case 3: osculating. (2, 1) about the origin and (√8, 2)
@@ -778,11 +821,6 @@ fn ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_th
                 let delta = -(cy + 1.0);
                 let a = flat_ellipse(turned_by([0.0, 0.0], phi, shift), u, 2.0, 1.0);
                 let b = flat_ellipse(turned_by([0.0, cy], phi, shift), u, 8.0f64.sqrt(), 2.0);
-                let s_true = if delta > 0.0 {
-                    2.0 * (256.0 * delta).powf(0.25)
-                } else {
-                    0.0
-                };
                 for (order, got) in [
                     (
                         "ab",
@@ -793,23 +831,30 @@ fn ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_th
                         meet(&Span::new(&b, (-PI, PI)), &Span::new(&a, (-PI, PI)), band),
                     ),
                 ] {
-                    let label =
-                        format!("osc eps {eps:e} phi {phi} dy {dy:e} s {s_true:.3e} {order}");
-                    if let Ok(m) = &got {
-                        if delta > 0.0 && m.points.is_empty() {
-                            bad.push(format!("{label}: crossing, no meeting"));
+                    let label = format!("osc eps {eps:e} phi {phi} dy {dy:e} {order}");
+                    if delta > 0.0 {
+                        // The crossing's `x`, where the heights of the
+                        // two upper arcs agree, bisected.
+                        let gap = |x: f64| {
+                            (1.0 - x * x / 4.0).sqrt() - cy - 2.0 * (1.0 - x * x / 8.0).sqrt()
+                        };
+                        let (mut lo, mut hi) = (0.0, 1.9);
+                        for _ in 0..200 {
+                            let mid = 0.5 * (lo + hi);
+                            if gap(mid) > 0.0 { lo = mid } else { hi = mid }
                         }
-                        if delta < -10.0 * eps && !m.points.is_empty() {
-                            bad.push(format!("{label}: apart, met"));
-                        }
-                        if m.points.len() == 1 && s_true > 10.0 * eps && delta > 1e-13 {
-                            bad.push(format!("{label}: one meeting, crossings {s_true:e} apart"));
-                        }
+                        judge(label, &got, &b, 0.5 * (lo + hi));
+                    } else if delta < -10.0 * eps && matches!(&got, Ok(m) if !m.points.is_empty()) {
+                        apart_met.push(format!("{label}: apart, met"));
                     }
                 }
             }
         }
     }
+    bad.extend(apart_met);
+    // Both claims are read: in-band arcs read as one touch, and crossings
+    // parted past the band as two.
+    assert!(touches > 0 && pairs > 0, "touches {touches}, pairs {pairs}");
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 

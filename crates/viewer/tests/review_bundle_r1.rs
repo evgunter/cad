@@ -14,7 +14,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::geom_core::linalg::{Affine3, Mat3, Vec3};
 use viewer::matetool::{MateChoice, MateTool};
-use viewer::session::{BundleVerdict, DocSession, SessionOp};
+use viewer::session::{DocSession, SessionOp};
 
 fn authored(
     session: &DocSession,
@@ -53,11 +53,11 @@ fn choice(kind: VarKind, flip: bool) -> MateChoice {
     }
 }
 
-/// Claim 6: the verdict before Apply equals what Apply does. A point
-/// mate over two flat faces (SideUnevaluated, PR 6284's MINOR-2) is a
-/// verdict the panel says in the refusal voice; Apply must then not land.
+/// Claim 6: the door's verdict equals what the op does. A point mate
+/// over two flat faces (SideUnevaluated, PR 6284's MINOR-2) is a verdict
+/// the panel says in the refusal voice; the op must then not land.
 #[test]
-fn r1_a_faulting_verdict_is_an_apply_that_does_not_land() {
+fn r1_a_faulting_verdict_is_an_op_that_does_not_land() {
     let tol = Tol::witness();
     let bench = asm::bench("r1-fault", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -67,15 +67,15 @@ fn r1_a_faulting_verdict_is_an_apply_that_does_not_land() {
     tool.pick(session.doc(), shelf_bottom);
     let proposal = common::proposed(&session, &tool, choice(VarKind::Point, false))
         .expect("two faces propose as points");
-    let verdict = session.bundle_verdict(&proposal.op());
-    let says_stands = matches!(verdict, BundleVerdict::Stands(_));
+    let verdict = session.bundle_door(&proposal.op());
+    let says_stands = verdict.is_ok();
     let states = session.history().len();
     let outcome = session.perform(proposal.op());
     let landed = outcome.refusal.is_none() && session.history().len() == states + 1;
     std::fs::remove_dir_all(&bench.dir).expect("removable");
     assert!(
         says_stands == landed,
-        "verdict {verdict:?} but Apply landed={landed} ({:?})",
+        "verdict {verdict:?} but the op landed={landed} ({:?})",
         outcome.refusal
     );
 }
@@ -190,9 +190,9 @@ fn r1_read_back_at_the_chains_pole_turns_as_the_rotation_does() {
     );
 }
 
-/// Claim 1, Create door: one undo takes the document back exactly.
+/// Claim 1, Place: one undo takes the document back exactly.
 #[test]
-fn r1_the_create_door_undoes_to_the_exact_prior_document() {
+fn r1_place_undoes_to_the_exact_prior_document() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(
         pncad::document::Doc::empty_derived("r1-create-undo", tol),
@@ -201,10 +201,9 @@ fn r1_the_create_door_undoes_to_the_exact_prior_document() {
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
     let before = session.committed_doc().clone();
-    let tool = MateTool::create(Operand::Node(body));
-    let (doc, ev) = session.landed_pair().expect("landed");
-    let proposal = tool.proposal(doc, ev, tol).expect("proposes");
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(SessionOp::Place {
+        body: Operand::Node(body),
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let outcome = session.perform(SessionOp::Undo);
@@ -229,7 +228,7 @@ fn r1_removing_an_unknown_constraint_refuses_typed() {
 
 /// Decided: "a number typed on a freedom that survives is kept". A
 /// number typed on a freedom the draft's mates then take must not leave
-/// the draft with no Apply: the panel has no door that un-types it.
+/// the draft writing no bundle: the panel has no door that un-types it.
 #[test]
 fn r1_a_number_typed_on_a_freedom_a_later_kind_takes_does_not_wedge_the_draft() {
     let tol = Tol::witness();
@@ -249,6 +248,6 @@ fn r1_a_number_typed_on_a_freedom_a_later_kind_takes_does_not_wedge_the_draft() 
     std::fs::remove_dir_all(&bench.dir).expect("removable");
     assert!(
         changed.is_ok(),
-        "the draft has no Apply once a kind takes the typed freedom: {changed:?}"
+        "the draft writes no bundle once a kind takes the typed freedom: {changed:?}"
     );
 }

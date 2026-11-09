@@ -1402,6 +1402,111 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
     }
 }
 
+/// **The nearest distance from a line is posed as a distance**: a line
+/// tangent to a circle arc or to a thin torus's outer equator, `δ` out
+/// along the radial in the circle's plane, stands `δ` from it, and both
+/// scalars read that to the rounding of the line's placement. The
+/// squared harmonic form this replaced cancelled `|w|² + ρ² ≈ 2·10⁶`
+/// against `2|w|ρ` and read about `3·10⁻⁵` here. Lifted `δ` off the
+/// plane as well, the line stands `√2·δ` from the arc, and the reading
+/// is the annulus of the arc's shadow along the line, `δ`: sound, and
+/// no tighter.
+#[test]
+fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
+    let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+    let delta = 1e-6;
+    let c = Point3::new(5.0, -2.0, 1.0);
+    let t = 0.7_f64;
+    let (radial, tangent) = (x * t.cos() + y * t.sin(), y * t.cos() - x * t.sin());
+    // (what, at f64, at Interval, the point the line passes, its size)
+    type Row = (&'static str, Cover<f64>, Cover<Interval>, Point3<f64>, f64);
+    let (big, small) = (1e3, 1e-3);
+    let torus = Surface::Torus {
+        center: c,
+        axis: z,
+        major_radius: big,
+        minor_radius: small,
+        u_ref: x,
+    };
+    let circle = Curve3::Circle(crate::Circle::new(crate::Frame::new(c, z, x), big));
+    let rows: Vec<Row> = vec![
+        (
+            "torus",
+            torus.cover().unwrap(),
+            torus.map_scalar(iv).cover().unwrap(),
+            c + radial * (big + small),
+            big,
+        ),
+        (
+            "circle arc",
+            circle.cover_over(ParamWindow::new(0.0, 1.5)).unwrap(),
+            circle
+                .map_scalar(iv)
+                .cover_over(ParamWindow::new(iv(0.0), iv(1.5)))
+                .unwrap(),
+            c + radial * big,
+            big,
+        ),
+    ];
+    let lifted = delta * core::f64::consts::SQRT_2;
+    for (what, f, i, on, size) in rows {
+        for (lift, want, least) in [(0.0, delta, delta), (delta, lifted, delta)] {
+            let origin = on + radial * delta + z * lift;
+            let line = Line {
+                origin,
+                dir: tangent * 3.0,
+            };
+            let scale = (origin - Point3::origin()).norm() + size;
+            let tol = 64.0 * f64::EPSILON * scale;
+            let (nf, _) = f.distance_range(&Site::Line(line));
+            let (ni, _) = i.distance_range(&Site::Line(Line {
+                origin: ipt(line.origin),
+                dir: ivec(line.dir),
+            }));
+            assert!(
+                nf <= want + tol && nf >= least - tol,
+                "{what}, lifted {lift}: the f64 nearest {nf:e} against {want:e}"
+            );
+            assert!(
+                ni.lo() <= want + tol && ni.lo() >= least - tol,
+                "{what}, lifted {lift}: the interval nearest {ni:?} against {want:e}"
+            );
+        }
+    }
+}
+
+/// **A circle about the line reads its radius both ways round.** A
+/// circle of radius 2 about `z`, its frame's axis along the line and
+/// against it, stands exactly 2 from the line at every point: the arc
+/// turns with the line's sense in one frame and against it in the
+/// other, so the circle is the part turning with `t` in one and the
+/// part turning against it in the other. Red where the line reading
+/// takes either part alone (it reads `[0, 4]` for the other frame), or
+/// takes the shorter as the circle.
+#[test]
+fn a_circle_about_the_line_reads_its_radius_in_either_sense() {
+    let line = Site::Line(Line {
+        origin: Point3::new(0.0, 0.0, -7.0),
+        dir: Vec3::unit_z() * 0.5,
+    });
+    for axis in [Vec3::unit_z(), -Vec3::unit_z()] {
+        let circle = Curve3::Circle(crate::Circle::new(
+            crate::Frame::new(Point3::new(0.0, 0.0, 3.0), axis, Vec3::unit_x()),
+            2.0,
+        ));
+        for (lo, hi) in [(0.0, TAU), (0.3, 1.1)] {
+            let (near, far) = circle
+                .cover_over(ParamWindow::new(lo, hi))
+                .unwrap()
+                .distance_range(&line);
+            assert!(
+                (near - 2.0).abs() <= 1e-15 && (far - 2.0).abs() <= 1e-15,
+                "axis {axis:?}, [{lo}, {hi}]: [{near}, {far}] is not the radius"
+            );
+        }
+    }
+}
+
 /// **The farthest distance from a point near a short arc of a large
 /// conic is posed as a distance.** A circle and an ellipse of size `1e3`
 /// placed `1e3` from the origin, an arc of `1e-6` rad (about `1e-3` m)
@@ -1524,4 +1629,117 @@ fn a_tilted_circle_arcs_range_at_interval_is_decided() {
             );
         }
     }
+}
+
+/// **A convex hull's least distance is its hull's, not its pieces'**:
+/// two points at `x = ±1` stand 1 from the origin, which lies on the
+/// segment between them. Their hull reads 1 there, the union's own
+/// least; their convex hull reads 0, and its greatest stays 1. Red
+/// where the convex node reads its inner region's least.
+#[test]
+fn a_convex_hulls_least_distance_reaches_between_its_pieces() {
+    let pair = || {
+        Cover::points(vec![Point3::new(-1.0, 0.0, 0.0)])
+            .unwrap()
+            .hull(Cover::points(vec![Point3::new(1.0, 0.0, 0.0)]).unwrap())
+    };
+    let origin = Site::Point(Point3::origin());
+    assert_eq!(pair().distance_range(&origin), (1.0, 1.0), "the union");
+    let (near, far) = pair().convex().distance_range(&origin);
+    assert_eq!((near, far), (0.0, 1.0), "the convex hull");
+    let line = Site::Line(Line {
+        origin: Point3::new(0.0, -3.0, 0.0),
+        dir: Vec3::unit_y(),
+    });
+    assert_eq!(
+        pair().convex().distance_range(&line).0,
+        0.0,
+        "a line through the hull"
+    );
+    assert_eq!(
+        pair().convex().support(Vec3::unit_x()),
+        1.0,
+        "the support is the region's"
+    );
+}
+
+/// **A meet's ball is narrower than either piece's where they overlap
+/// in part**: two unit-radius point sets' boxes `[0, 2]` and `[1, 3]`
+/// along `x` meet in `[1, 2]`, whose ball has radius ½. Red where the
+/// meet reads the smaller piece ball alone (radius 1).
+#[test]
+fn a_meets_ball_is_its_boxs_where_the_pieces_overlap_in_part() {
+    let pair = |a: f64, b: f64| {
+        Cover::points(vec![Point3::new(a, 0.0, 0.0), Point3::new(b, 0.0, 0.0)]).unwrap()
+    };
+    let (c, r) = pair(0.0, 2.0).meet(pair(1.0, 3.0)).ball();
+    assert_eq!(
+        (c.x, c.y, c.z, r),
+        (1.5, 0.0, 0.0, 0.5),
+        "the overlap's ball"
+    );
+}
+
+/// **A tube reads its own core circle at its minor radius**, and a
+/// circle's distance bounds hold off it: the torus `R = 2`, `r = ½`
+/// about `z` stands within `[0, ½]` of its core, and a point set reads
+/// its points' exact distances. Red where the tube is read through its
+/// whole `(ρ, t)` box, which gives `½·√2`.
+#[test]
+fn a_tube_reads_its_core_at_its_minor_radius() {
+    let torus = Cover::tube(
+        &Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        2.0,
+        0.5,
+    )
+    .unwrap();
+    let (near, far) = torus.circle_range(Point3::origin(), Vec3::unit_z() * 3.0, 2.0);
+    assert_eq!((near, far), (0.0, 0.5), "the core");
+    let (near, far) = torus.circle_range(Point3::origin(), Vec3::unit_z(), 1.0);
+    assert!(
+        near <= 0.5 && far >= 1.5,
+        "a smaller coaxial circle: {near}, {far}"
+    );
+    let points =
+        Cover::points(vec![Point3::new(3.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0)]).unwrap();
+    let (near, far) = points.circle_range(Point3::origin(), Vec3::unit_z(), 2.0);
+    assert!(
+        (near - 1.0).abs() < 1e-15 && (far - 5.0f64.sqrt()).abs() < 1e-15,
+        "two points: {near}, {far}"
+    );
+}
+
+/// **A NaN bound in one lane poisons the whole box**: the box `[0, 1]³`
+/// with `min_x` NaN stays finite in `y` and `z`, so it would prune
+/// against `[0, 1] × [100, 101] × [0, 1]`; the cover's box is the poison
+/// box, which overlaps it. Red where `aabb` hands the BVH the one-lane
+/// NaN box.
+#[test]
+fn a_nan_bound_in_one_lane_poisons_the_whole_box() {
+    let one_lane = bvh::Aabb {
+        min_x: f64::NAN,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 1.0,
+        max_z: 1.0,
+    };
+    let far = bvh::Aabb {
+        min_x: 0.0,
+        min_y: 100.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 101.0,
+        max_z: 1.0,
+    };
+    assert!(!one_lane.overlaps(&far), "the one-lane NaN box prunes");
+    assert!(
+        super::whole_poison(one_lane).overlaps(&far),
+        "the cover's box never prunes on poison"
+    );
+    let finite = bvh::Aabb {
+        min_x: 0.0,
+        ..one_lane
+    };
+    assert_eq!(super::whole_poison(finite), finite, "a finite box is kept");
 }

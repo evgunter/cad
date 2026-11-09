@@ -2,7 +2,7 @@
 //! symbolic normal form on the M10-3 slab and the two-hole plate
 //! (`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`).
 //!
-//! Every row here but one is EVIDENCE-ONLY and `#[ignore]`d: each
+//! The `#[ignore]`d rows are EVIDENCE-ONLY: each
 //! prints the tier's structural profile (`geom_core::sym::profile`,
 //! behind the test-only `sym-profile-testing` feature the
 //! dev-dependency edge turns on) for one replay or one drive, and
@@ -12,37 +12,25 @@
 //! drives (`bounded_chamber`, the row S-TCOST bisected on) and the
 //! plate the tier was built for, through the same doors.
 //!
-//! The one gating row,
-//! [`the_forms_the_walks_build_are_pinned_per_eps_row`], reads the
-//! same instrument for the one thing in it that is not a clock: the
-//! walk ledger — per walk and origin the calls, the forms, the frozen,
-//! and the digest chain of the forms built — so what the tier BUILDS
-//! on both documents is a pinned number, over and above what the
-//! pins say it DECIDES.
+//! The gating rows read the same instrument for the one thing in it
+//! that is not a clock: the walk ledger — per walk and origin the
+//! calls, the forms, the frozen, and the digest chain of the forms
+//! built — so what the tier BUILDS on both documents is a pinned
+//! number, over and above what the pins say it DECIDES
+//! ([`assert_walk_ledger`]).
 //!
 //! The one row without the profile installed,
 //! [`sym_profile_callgrind_replay`], is the callgrind target: it
 //! replays one box a chosen number of times and nothing else, so an
 //! instruction count over it is the tier's and not the instrument's.
 //! The command that takes it is recorded in the item body.
+//!
+//! **This file is ungated**: it carries no `gated_to!` marker, so every
+//! row here outside the `ci` slow set runs on every PR whose closure
+//! reaches editor-core. A new fast row inherits that. The walk ledger
+//! reads every kernel change the documents meet, so no path list could
+//! name what moves it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-// Gated to the code it profiles: the normal form and its rules, the
-// driver that replays leaves through it, and the fixtures — the shared
-// tree and the four sibling suites whose doors build the documents and
-// run the replay.
-test_utils::gated_to![
-    "crates/geom-core/src/sym.rs",
-    "crates/geom-core/src/sym/",
-    "crates/editor-core/src/drive.rs",
-    "crates/sweep/src/swept.rs",
-    "crates/editor-core/tests/fixture/",
-    "crates/editor-core/tests/m10_3_r1_probes_interval.rs",
-    "crates/editor-core/tests/m10_7_plate.rs",
-    "crates/editor-core/tests/m10_8_arc_family_interval.rs",
-    "crates/editor-core/tests/m10_8_harness.rs",
-    "crates/editor-core/src/test_support.rs",
-];
 
 use std::collections::BTreeMap;
 use std::time::Instant;
@@ -253,32 +241,8 @@ fn eps_row(eps: f64) -> usize {
         .unwrap_or_else(|| panic!("no captured row at eps = {eps:e}: capture one and add it"))
 }
 
-/// The slab's walk ledger at its nominal, per ε row.
-///
-/// Re-captured when the certification schedule began assigning its end
-/// samples (`geom_brep::schedule_param`: `t₀` and `t₁` themselves): the
-/// `Plain/Decision` walk builds 260 fewer forms (9686 → 9426) and its
-/// digest moves at every row; calls, every other line and the receipt
-/// are unchanged. Measured by restoring the old end samples on a probe,
-/// which restores the old line.
-///
-/// Re-captured again when a variable's symbol became its minted id
-/// (INTENT-VARS-1 PR 2) rather than a hash of its name: the slab's
-/// variables sort differently inside the forms, so three digests move
-/// at every row while every count — calls, forms, frozen — holds, and
-/// `Early/Decision`, which reads no variable, holds its digest.
-///
-/// Re-captured when an intrinsic edge description's surfaces became a
-/// set (`geom_brep::SurfacePair`): the certificate reads the
-/// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
-/// `n1.cross(n2)`) in key order where the extrude reads it in builder
-/// order, and the cross product is symmetric in value up to sign but not
-/// in form, so mixed orientations build distinct hash-consed forms.
-/// Measured composed with the cap orientation (`cap_plane_orientation`,
-/// [`PLATE_LEDGER`]'s note: +4 `Assertion` calls per walk here): the
-/// `*/Assertion` walks build 188 more forms (998 → 1186, 2041 → 2229)
-/// and the `Plain/*` and `Early/Assertion` digests move at every row;
-/// calls, frozen counts and `Early/Decision` hold.
+/// The slab's walk ledger at its nominal, per ε row: its literals are
+/// multiples of ε.
 ///
 /// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
 /// edges' mid-parameter points are the lever — the witness an edge is
@@ -287,80 +251,35 @@ fn eps_row(eps: f64) -> usize {
 /// spelling of that point builds a second chain of forms, which reads
 /// here as `Plain/Decision` forms alone.
 ///
-/// INTENT-LITERALS PR C moves the `Plain/Decision` line as it moves
-/// [`PLATE_LEDGER`]'s: one more call, the non-finite door's theorem on
-/// the anonymous definition a slot's formula lowers to.
+/// **Moved with PR 6594** (the profile's chord reads onto
+/// `geom_core::Line2`), with the calls unchanged:
+/// - `Line2::side` and `Line2::height` divide by `|dir|` (the A′
+///   metric reading), where the stored unit was read bare. That adds
+///   all of `Plain/Decision` 9789 → 9815 and `Early/Decision` 30 → 38,
+///   and 22 of each `Assertion` row's growth.
+/// - The other 12 of each (`Plain/Assertion` 2827 → 2861,
+///   `Early/Assertion` 4251 → 4295) are the line×arc pair and the ray
+///   cast: each reading now forms its own `C − a`, where the old code
+///   shared one `to_center`. The values are the same.
 ///
-/// The faces' extent levering the wedge moves the `*/Assertion` lines
-/// as it moves [`PLATE_LEDGER`]'s: `Plain/Assertion` 1186 → 2690 and
-/// `Early/Assertion` 2229 → 4121 forms, and their digests, at every
-/// row; calls and the `*/Decision` lines hold.
-///
-/// The final non-finite check asking boundedness rather than deciding
-/// `value · 0` (`expr-non-finite-asks-value-times-zero`) takes its
-/// calls out of `Plain/Decision` (981 → 928, forms 9426 → 9415); the
-/// forms it used to build first are now built under `Plain/Assertion`
-/// (2690 → 2697). Its digests move at every row; the `Early/*` lines
-/// and the largest form hold.
-///
-/// A chord's director spelled as its components, prescaled by the
-/// largest and normalized (`profile`'s `path::chord_director`), where
-/// it was the `sin_cos` of an `atan2`, builds more forms under the
-/// assertions for the slab's straight legs: `Plain/Assertion`
-/// 2697 → 2733 and `Early/Assertion` 4121 → 4157, and their digests, at
-/// every row; calls, frozen counts, both `*/Decision` lines and the
-/// largest form hold.
-///
-/// The joint's turn and the door's second junction read, as on the
-/// plate: `Plain/Assertion` and `Early/Assertion` +14 calls
-/// (514 → 528) and +30 forms, with their digests, at every row; both
-/// `*/Decision` lines and the largest form hold.
-///
-/// INTENT stage 3 D (Transform retires into a placement) re-spells the
-/// slab's fixture (`bounded_chamber`) without a datum frame: its
-/// profiles are 2-D and its bodies reach the world through `Place`s. Four
-/// `Assertion` calls fewer per walk (514 → 510), `Plain/Decision` 9415 →
-/// 9296 forms, `Plain/Assertion` 2697 → 2658 and `Early/Assertion`
-/// 4121 → 4082, and those lines' digests at every row; `Early/Decision`,
-/// the frozen counts and the largest form hold.
-///
-/// Re-taken on INTENT stage 3 D after FORK-REST: the slab's ledger is
-/// what D's head read before it (`434139ef1c`, measured there), so
-/// neither ruling moves it. It moved on D's lane of 2026-10-19/20 with
-/// main's merge at `0a1d95321e`: `Plain/Assertion` and
-/// `Early/Assertion` 510 -> 524 calls, 2658 -> 2724 and 4082 -> 4148
-/// forms, and those lines' digests at every row; the `*/Decision`
-/// lines, the freezes and the largest form hold.
-///
-/// **Pinned at what main measures** (2026-10-29), not explained. It
-/// first moved with #5542's merge (`fa901e4308`; `42af7c0b48` before it
-/// holds the old pin), where `segment_gap` joined the profile's
-/// validation: `Plain/Decision` 928 → 944 calls, both `*/Assertion`
-/// lines 524 → 532, and both walks gained `*/Report` lines. Then
-/// `Plain/Decision` 944 → 992, unbisected; then PR 5952 took the
-/// `*/Report` lines away and `Plain/Decision` 992 → 976. Every digest
-/// moved, at every row
-/// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
-///
-/// Both `*/Assertion` lines 2807 → 2827 and 4231 → 4251 forms, and their
-/// digests, at every row, re-taken at what main measures (2026-11-03,
-/// `c02eb40c` and `72d09443`), not explained.
+/// Measured by undoing each in turn on the PR's first commit: with both
+/// undone, the ε 1e-9 row's counts and digests are the old pin's.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 976 forms 9789 frozen 0 digest 8858c21e7c09110b4a4a85bbf14ec889\n\
-     Plain/Assertion calls 532 forms 2827 frozen 0 digest 1e690da705f1ff979f6baa7ebd1b4117\n\
-     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4251 frozen 0 digest 6b3b7bf949a504555358aa0bb0aa7e70",
+     Plain/Decision calls 976 forms 9815 frozen 0 digest 193c741675d8d2590ab63e3f2f6bce90\n\
+     Plain/Assertion calls 532 forms 2861 frozen 0 digest b1d4249f5e85c168ea789ad0f961dcb0\n\
+     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
+     Early/Assertion calls 532 forms 4295 frozen 0 digest 5cd03583d61ff50459eb0c377d3045fa",
     "\
-     Plain/Decision calls 976 forms 9789 frozen 0 digest 08650e2e51b39ab8a7719732f4e2430a\n\
-     Plain/Assertion calls 532 forms 2827 frozen 0 digest c24c9cc21aa752ba8d607b8a2120d21f\n\
-     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4251 frozen 0 digest f9717af682f90b4f681bdb58875b7142",
+     Plain/Decision calls 976 forms 9815 frozen 0 digest fde81534e65d117b813a19782e7499f6\n\
+     Plain/Assertion calls 532 forms 2861 frozen 0 digest 6914abe6ff10c96464ddf4145f7e5308\n\
+     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
+     Early/Assertion calls 532 forms 4295 frozen 0 digest 27cfb266960f4ebacf8d0d109d6f0ea8",
     "\
-     Plain/Decision calls 976 forms 9789 frozen 0 digest 4b7556244d138ea5c634de0f542b7f0a\n\
-     Plain/Assertion calls 532 forms 2827 frozen 0 digest eae6aef0526c86d2529a6cee68bfb8f7\n\
-     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4251 frozen 0 digest 190715b1f2234c1dd0f536f3d786cbbc",
+     Plain/Decision calls 976 forms 9815 frozen 0 digest fcf1d16058eb4d2f2c4edd837849b3c7\n\
+     Plain/Assertion calls 532 forms 2861 frozen 0 digest 57bc0f8ddf4faf94be42d9d3ef799d45\n\
+     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
+     Early/Assertion calls 532 forms 4295 frozen 0 digest ebbc8b2d026f310a491f98b9912814eb",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -487,318 +406,17 @@ const PLATE_MAX_TERMS: usize = 28;
 /// The door's calls include the lowering's endpoint registrations
 /// (`Arc2::register_endpoints`): 16 decisions and 16 assertions. The
 /// extrude's closing pcurve mint certifies the plate's wall rows, so
-/// the certificate's decisions are walked too, and the residuals it
-/// leaves blocked are rendered by the shape report (the `Report`
-/// lines, which build no form).
-///
-/// **When check 4 was restated as frame, incidence and fidelity, check 3
-/// left the box, and the loop walk's branch became a literal** (PCERT,
-/// PR 3812), every line moved. Against the pin it replaced, in three
-/// steps, each measured on its own head:
-///
-/// | line | base | parts 1 + 2 | literal branch | frame twin | escape (PR 3981) |
-/// |---|---|---|---|---|---|
-/// | `Plain/Decision` calls / forms / frozen | 1255 / 21366 / 1176 | 1141 / 16247 / 696 | 1127 / 16018 / 696 | 1127 / 16429 / 696 | 1143 / 16623 / 696 |
-/// | `Plain/Assertion` calls / forms | 578 / 3233 | 612 / 3237 | 666 / 3474 | 666 / 4051 | 650 / 3921 |
-/// | `Plain/Report` calls | 176 | 62 | 32 | 32 | 40 |
-/// | `Early/Decision` calls / forms | 552 / 14290 | 426 / 9125 | 416 / 8899 | 416 / 9188 | 432 / 9430 |
-/// | `Early/Assertion` calls / forms | 578 / 4144 | 612 / 4166 | 666 / 4404 | 666 / 5015 | 650 / 4837 |
-/// | `Door/Decision` calls / forms | 662 / 19170 | 558 / 13722 | 590 / 13212 | 590 / 13928 | 582 / 13610 |
-/// | `Door/Assertion` calls | 322 | 356 | 410 | 410 | 394 |
-///
-/// - **Parts 1 and 2.** Check 3's samples on the wall rows are no longer
-///   decided over the box (they cross-check at the point witness,
-///   unlogged), so the map-residual forms leave every walk, and the
-///   step's forms and `Plain/Decision` freezes fall (1176 → 696; which
-///   share is check 3's and which check 4's was not split). Check 4
-///   re-derives each row's image, so the
-///   derivation's assertions are taken twice (`Assertion` calls up).
-/// - **The literal branch.** The stored azimuths carry no `floor`
-///   node; the walk asks each branch as sign decisions at the
-///   half-period marks (`Assertion` and `Door` calls up). Check 4's
-///   fidelity is a theorem on every walked row, so the blocked
-///   residuals the `Report` lines render halve (62 → 32).
-/// - **The frame twin.** Check 4 derives on the chart's Gram–Schmidt
-///   twin (`n̂ = axis/‖axis‖`, `ê₁` normalised) and adds the `Frame`
-///   term, bounded in the frame's invariants: the twin's
-///   normalisations and the invariants are new forms in every walk.
-///   Calls and freezes do not move: the twin is the same frame on this
-///   plate's literal charts, so no decision is added or lost.
-/// - **The escape (PR 3981).** Check 5 decides only an escape's
-///   positive part (`geom_brep::pcurve_cache::escape`), so every
-///   trim-containment margin carries a `Max` node: new forms in every
-///   walk, and the calls move between lines (`Plain` and `Early`
-///   `Decision` +16 and `Assertion` −16, `Door/Decision` −8,
-///   `Door/Assertion` −16). Eight trim margins that read a definite
-///   clearance now read Zero numerically, and the form cannot discharge
-///   through the `Max`, so the blocked residuals the `Report` lines
-///   render rise 32 → 40 (40 → 48 without the canonical root). Every
-///   verdict passes as before: Zero and Negative are both contained.
-/// - **The variable table (INTENT-VARS-1 PR 2).** A variable's symbol
-///   is its minted id rather than a hash of its name, so the plate's
-///   variables sort differently inside the forms: the five digests of
-///   lines that build forms move, and every count — calls, forms,
-///   frozen — holds.
-/// - **The joint elements (the re-anchor ruling, PR 4024).** A loop's
-///   walk decides its closure joint as every other joint, between two
-///   images, and reads the winding off the integer elements, so the
-///   closure margins go and the closure joints' branch, pole-lever and
-///   continuity margins come: `Assertion` calls +14 on every walk and
-///   `Door/Decision` +14, `Plain` and `Early` `Decision` forms −27 and
-///   −31. Every digest moves; the freezes hold.
-/// - **The chart-angle unit (PCERT,
-///   `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).**
-///   The loop's chart-space angle comparisons and check 5 retire, so
-///   the walks lose exactly those decisions' forms and nothing they
-///   shared: `Plain/Decision` 1143 → 1047 calls (16228 → 15720 forms),
-///   `Early/Decision` 432 → 352 (9117 → 8689), `Door/Decision`
-///   448 → 392 (6768 → 6474), each `Assertion` line 16 calls down with
-///   its forms unmoved, and every freeze unmoved. The two `Report` lines
-///   go: the 40 residuals they rendered were among the retired
-///   decisions', and nothing else blocks on the plate under the shipped
-///   rules (8 still do with the canonical root off, against 48 before).
-///   The digests of the three `Decision` lines move; the
-///   `Assertion` lines' hold.
-/// - **The cap orientation (CARVE).** Each extruded cap decides
-///   `cap_plane_orientation` once: `Assertion` calls +6 on both walks
-///   and `Door` +4 on each line here, +4 per walk on the slab at every
-///   ε row. `Decision` calls hold; the plate's `Plain` and `Early`
-///   `Decision` forms fall 10 and 56, every digest of a line that
-///   builds forms moves, and the freezes hold. `Door/Decision`'s forms
-///   rise 6768 → 7465 with it alone, and to 7393 once composed with the
-///   one-segment loop (#4169): measured with this change applied at
-///   that merge's first parent and at the merge, where #4169 alone
-///   leaves the line at 6768.
-/// - **The two composed** (the chart-angle unit merged over the cap
-///   orientation): the calls add, `Decision` 1047 / 352 / 396 and every
-///   `Assertion` line 654 / 654 / 396; `Plain/Decision`'s forms fall
-///   15720 → 15710 and `Early/Decision`'s 8689 → 8633 with the cap's own
-///   10 and 56, the `Assertion` forms are the cap's, and
-///   `Door/Decision` builds 7099 forms. No `Report` line.
-/// - **A slot holds a variable (INTENT-LITERALS PR C).** A formula
-///   written at a slot lowers to an anonymous defined variable, which
-///   the environment binds through the non-finite door: one more
-///   `Plain/Decision` call, a theorem, and that line's digest. Every
-///   other line holds; the untoleranced variables bind as constants
-///   (VR8), as the literals did.
-/// - **The pcurve envelope sums two more terms (`pcert/projected-image`).**
-///   `EnvelopeTerm` gained `Incidence` and `Fidelity`, the projected
-///   image's, and the closed-form lanes' envelope still folds every slot,
-///   so each `pcurve_envelope` decision adds two zero-valued summands:
-///   `Plain/Decision`'s and `Early/Decision`'s forms rise 24 each
-///   (15710 → 15734, 8633 → 8657, every one an `Add`), their digests
-///   move, and the calls, the freezes and every other line hold.
-/// - **A measure is an operation (INTENT stage 2 unit D).** The web is
-///   the assertion's definition over the distance measure's output, so
-///   the measured value enters the arithmetic as a variable the
-///   definition reads: one more `Plain/Decision` form (15734 → 15735),
-///   and that line's digest. Calls, freezes and every other line hold.
-///
-/// An intrinsic edge description's surfaces becoming a set
-/// (`geom_brep::SurfacePair`), measured on the tree holding every change
-/// above: the certificate reads the transversality wedge's
-/// `n1.cross(n2)` in key order, a form distinct from the extrude's
-/// builder-order one, so `Plain/Assertion` 4173/360 → 4349/389 (+176
-/// forms, +29 frozen), `Early/Assertion` 5136 → 5312 (+176) and
-/// `Door/Decision` 7099 → 7181 (+82); calls, `*/Decision` forms and
-/// every decision tally hold (`m10_10_pins_interval` reads the pair's
-/// sum unchanged).
-///
-/// Check 4 reading one vector at its norm where it summed its parts,
-/// each measured by reverting it alone on the tree holding the rest:
-/// - the turning cylinder's class circle (one `σ` for the radius and
-///   orientation terms): `Plain/Decision` +267 forms and +72 frozen,
-///   `Early/Decision` +267;
-/// - the cylinder class selector's radial circle at its exact sup
-///   (`radial_amplitude`, read at the door and on both walks):
-///   `Plain/Decision` +20, `Plain/Assertion` +193 forms and +16 frozen,
-///   `Early/Decision` +20, `Early/Assertion` +193, `Door/Decision`
-///   +196;
-/// - the two fidelity channels read as one displacement's legs (`√(u² +
-///   v²)` in the envelope's total): `Plain/Decision` and
-///   `Early/Decision` +36 each;
-/// - `EnvelopeTerm::Tilt` and `EnvelopeTerm::Orientation` retired, one
-///   zero summand fewer per envelope each: `Plain/Decision` and
-///   `Early/Decision` −12 per slot, −24 in all.
-///
-/// Together `Plain/Decision` 15749/252 → 16048/324, `Plain/Assertion`
-/// 4349/389 → 4542/405, `Early/Decision` 8671 → 8970, `Early/Assertion`
-/// 5312 → 5505, `Door/Decision` 7181 → 7377, and every digest of those
-/// lines; calls, every decision tally and the largest form hold, and
-/// the slab does not move.
-///
-/// Check 4 reading a `cos t`/`sin t` pair at its exact sup
-/// (`√(m + √(q² + (a·b)²))`, `√(a² + b²)`) instead of the sum of its
-/// coefficients' norms: a longer expression per envelope term, so
-/// `Plain/Decision` 15735 → 15749 and `Early/Decision` 8657 → 8671
-/// (+14 forms each) and those lines' digests; calls, freezes and every
-/// other line hold.
-///
-/// A form's digest no longer carries a read's gate (DECIDE-10), so the
-/// `Early/Assertion` and `Door/Decision` digests move on every form the
-/// decision read built, with every count held; and the contradiction
-/// check asks the tier's algebra without the door, so the
-/// `Door/Assertion` line, 396 calls that built nothing, is gone. The
-/// slab's `Early/Assertion` digests move the same way at each ε row.
-///
-/// The pcurve envelope's orthonormal chart squaring its frame by cross
-/// products (`geom::Frame::square`) builds its frame terms in another
-/// form: `Plain/Decision`, `Early/Assertion` and `Door/Decision` +14
-/// forms each, and the `Plain/Assertion` digest; every call and freeze
-/// holds.
-///
-/// The wedge between an edge's faces levered at the faces' extent
-/// (`topo::wedge_reach`) rather than the edge's: each certification and
-/// each check-4 read folds the squared distances of the faces' boundary
-/// vertices and their maximum, so `Plain/Assertion` 4542 → 5753 forms
-/// (its 405 frozen held), `Early/Assertion` 5519 → 6972 and
-/// `Door/Decision` 7391 → 7987; `Early/Decision` 8970 → 8955, the arm
-/// the edge's chord no longer builds; every call, every decision tally
-/// and the largest form hold.
-///
-/// The final non-finite check asking boundedness
-/// (`expr-non-finite-asks-value-times-zero`): `Plain/Decision`
-/// 1048 → 1003 calls and 16062 → 16013 forms, `Plain/Assertion`
-/// 5753 → 5790 forms, which it now builds where the check's walk built
-/// them first, and both digests; the frozen counts, the `Early/*` and
-/// `Door/*` lines and the largest form hold.
-///
-/// Placing each row over its edge's span in the chart's principal
-/// window (C4) reads two half-period marks per placed azimuth, each
-/// decided numerically, so each is checked against the tier: 36
-/// placements, `Plain/Assertion` and `Early/Assertion` 654 → 726 calls
-/// and `Door/Decision` 396 → 468, `Plain/Assertion` frozen 405 → 417.
-/// A cylinder's meridian azimuth is read only on a meridian, so the
-/// rim circles centred on the axis no longer take the frame read of
-/// their zero radial offset: `Plain/Decision` 1048 → 1032 calls. Forms
-/// and digests move on every line; the largest form holds.
-/// The placement's lever, the direction's length, squares by
-/// `powi(2)`: the `Plain/Assertion` digest, with every count held.
-/// With the wedge levered at its faces' extent as well, the calls and
-/// frozen counts are the placement's and the forms take both: Plain/Assertion
-/// 6081, Early/Decision 8925, Early/Assertion 7244, Door/Decision 8231;
-/// the largest form holds. The placement's azimuth levered at the
-/// carrier's farthest reach from the axis at the span's ends and midpoint
-/// (PR 5225's one lever rule) builds each mark's form from three points:
-/// every call holds; forms Plain/Decision 15888, Plain/Assertion 6909
-/// (frozen 417 → 405), Early/Decision 8889, Early/Assertion 8108,
-/// Door/Decision 9469. Main's final non-finite check and the placement
-/// add: `Plain/Decision` 1032 → 987 calls (main's −45) and forms
-/// 15888 → 15839, `Plain/Assertion` forms 6909 → 6946, both digests;
-/// every other line is the placement's. The frame decided across the
-/// window's cut builds the cut-side margin's form in place of `x`'s:
-/// forms Plain/Assertion 6946 → 7020, Early/Assertion 8108 → 8182,
-/// Door/Decision 9469 → 9545, and their digests; every call and frozen
-/// count holds.
-///
-/// A harmonic row's windings are structure it stores and certification
-/// compares exactly (PCERT B2a, `[ev]` PR 5113's first decision), so
-/// the decisions that read a winding off a slope are gone: the angle
-/// channel's two affine decisions, the winding walk and the harmonic
-/// lane's period gate, `Plain/Decision` 987 → 939 calls and
-/// `Plain/Assertion`, `Early/Assertion` 726 → 686, `Door/Decision`
-/// 468 → 428; forms and digests move with them, and freezes and the
-/// largest form hold.
-///
-/// A winding read as its slope through the chart channel's `Period`
-/// (`Period::rate`: `times(k)` over the carrier's period, PCERT B2a's
-/// fix pass, H1) rather than as a literal: each angle channel's slope
-/// is a quotient of two forms, so `Plain/Decision`, `Plain/Assertion`,
-/// `Early/Decision` and `Early/Assertion` +3 forms and `Door/Decision`
-/// +10, with every digest; every call, every freeze and the largest
-/// form hold.
-///
-/// A chord's director spelled as its components, as on the slab:
-/// forms `Plain/Assertion` 7003 → 7043 and `Early/Assertion`
-/// 8165 → 8205, and their digests; every call, frozen count, the three
-/// `*/Decision` lines and the largest form hold.
-///
-/// The profile's joint pass reading each joint's turn, levered by the
-/// shorter leg's arm, and the path door reading each junction a
-/// departing leg follows again once that leg is stored (#5354's ruling
-/// and #5377's fix pass): `Plain/Assertion` and `Early/Assertion` +7
-/// calls (686 → 693) and +30 forms, with their digests; the
-/// `*/Decision` lines, the freezes and the largest form hold.
-///
-/// Check 4 deciding no whole period (PCERT B2b): fidelity's 32 branch
-/// decisions are gone, each a numeric decision checked against the
-/// tier, so `Plain/Assertion` and `Early/Assertion` 693 → 661 calls and
-/// `Door/Decision` 428 → 396; forms and digests move with them, and
-/// `Plain/Decision`'s calls, every freeze and the largest form hold.
-/// Measured on the tree with every move above.
-///
-/// The arc's diameter clearance spelled `2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4))`
-/// (`profile`'s `seg::classify`), where `1 − sin(|Δθ|/4)` cancelled near
-/// a full turn: forms `Plain/Assertion` 7013 → 7017, `Early/Assertion`
-/// 8175 → 8179 and `Door/Decision` 9465 → 9471, with their digests;
-/// every call, every freeze and the largest form hold.
-///
-/// INTENT stage 3 D (Transform retires into a placement) re-spells the
-/// plate without datum frames, each construction placed into the world
-/// by a `Place`, and the box lanes' solved map stays tight (a spin set
-/// from the two charts' frames, a direction exactly on an axis read as
-/// that axis, Sym snapping at rest where its lane does). Together:
-/// `Plain/Decision` 1003 → 1009 calls, 16013 → 16400 forms and 324 → 24
-/// frozen; `Plain/Assertion` 654 → 662 calls, 5790 → 5800 forms and 405
-/// → 137 frozen; `Early/Decision` 352 → 254 calls and 8955 → 8496
-/// forms; `Early/Assertion` 654 → 662 calls and 6972 → 7204 forms;
-/// `Door/Decision` 396 → 406 calls and 7987 → 8218 forms; every digest.
-/// The largest form holds.
-///
-/// Re-taken under FORK-REST (only the identity bundle as written places
-/// by no map): the plate's two holes are placed by plane mates, which
-/// the narrowing's walk let snap, and now run their maps, so their
-/// transforms and the copies' re-certification are walked too. Every
-/// line rose, identically at all three ε rows: `Plain/Decision` 945 ->
-/// 1253 calls, 16224 -> 23528 forms, 24 -> 969 frozen;
-/// `Plain/Assertion` 701 -> 1043 calls, 7084 -> 11606 forms, 137 -> 588
-/// frozen; `Early/Decision` 254 -> 554 calls, 8434 -> 15715 forms;
-/// `Early/Assertion` 701 -> 1043 calls, 8468 -> 12990 forms;
-/// `Door/Decision` 438 -> 780 calls, 9760 -> 17979 forms; every digest
-/// (the "before" is D's head before FORK-REST, `434139ef1c`, after
-/// main's merge, which had moved the plate from the line above). The
-/// largest form holds. Without the canonical root the plain walk
-/// renders 16 blocked residuals where it rendered 8, the copies' beside
-/// the construction's.
-///
-/// Merging main at `557e581a64` (check 4 deciding no whole period, PCERT
-/// B2b) takes fidelity's numeric branch decisions out of the plate's
-/// walks, twice main's own count because D walks each hole twice:
-/// `Plain/Assertion` and `Early/Assertion` 1043 -> 979 calls and
-/// `Door/Decision` 780 -> 716, forms 16 to 116 fewer on every line, with
-/// their digests; every freeze and the largest form hold. A spin written
-/// as a fraction of a turn (the holes' constant `0`) now enters the
-/// walks as its exact sine and cosine (`geom_core::Angle`), not as the
-/// sine and cosine of a radian, which moves the two `Plain` digests and
-/// no count (measured both ways on D's tree).
-///
-/// **Pinned at what main measures** (2026-10-29), not explained: every
-/// line moved. The plate is the two-hole plate that PR 5728 and PR 5811
-/// moved (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`);
-/// #5542's `segment_gap` moved it first, and PR 5952 took the
-/// `*/Report` lines #5542 brought away again
-/// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
-/// PR 5954's rule H moved `Early/Decision`'s digest and no count
-/// (`SymRules::without_angle_sum` reads the old one): the walk mints its
-/// `sin`/`cos` atoms over a canonical argument
-/// (`geom_core::sym`'s `turn`), and the plate's three `sin`/`cos` pairs
-/// over an argument with no rational-turn part are keyed by the
-/// sign-normalised argument, each `sin` read as `−sin(−ω)`. The 168
-/// forms downstream carry the new keys at their old sizes.
-///
-/// Re-taken at what main measures (2026-11-03, `72d09443`), not
-/// explained: `Plain/Decision` 1149 → 1203 calls (20618 → 60702 forms),
-/// `Early/Decision` 342 → 396 (11649 → 51733), both `*/Assertion` lines
-/// 20 forms up and `Door/Decision` 8. The angle reads' `Period::near`
-/// moves none of it: its merge base prints this ledger. Its
-/// `*/Assertion` and `Door/Decision` digests re-taken again at what main
-/// measures (2026-11-04, `5d7602ff`), the counts held.
+/// the certificate's decisions — its frame, incidence and fidelity
+/// checks — are walked too, and a change to how any of them reads moves
+/// this ledger. The residuals the certificate leaves blocked are
+/// rendered by the shape report (the `Report` lines, which build no
+/// form).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1203 forms 60702 frozen 36 digest 457440ce7de9a424ed0065851f00a412\n\
-     Plain/Assertion calls 824 forms 9351 frozen 193 digest 97789bb665946c02b5bebf1d1baaeeff\n\
-     Early/Decision calls 396 forms 51733 frozen 0 digest b272d5e188ed848881fea7f04a859248\n\
-     Early/Assertion calls 824 forms 10765 frozen 0 digest 9a4c77de848c841fcbec6f432309a2a4\n\
-     Door/Decision calls 557 forms 13577 frozen 0 digest 0b513bbc711539cfa00cdbffc4df2189";
+     Plain/Decision calls 1203 forms 51397 frozen 36 digest e1a0881c42c8942d3a8deb75d65e99a2\n\
+     Plain/Assertion calls 824 forms 9141 frozen 193 digest 2a1f468584d9b7ec779b0f2855f7a552\n\
+     Early/Decision calls 412 forms 42497 frozen 0 digest e500ec5f5ac549b729cd212cfa9d672a\n\
+     Early/Assertion calls 824 forms 10542 frozen 0 digest 7c396dba756b8da505f6f3646649fc6b\n\
+     Door/Decision calls 557 forms 13461 frozen 0 digest ba27b6a98b755848531d408511178a7e";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -812,54 +430,61 @@ const PLATE_LEDGER: &str = "\
 /// decision — may not. The pins hold the decisions; this row holds
 /// the forms behind them, so a swapped term order or a coefficient
 /// normalised differently reads here even where the outcome survives
-/// it. The slab's ledger is per ε row, because its literals are
-/// multiples of ε.
+/// it.
+///
+/// One replay of `doc` at its nominal; panics unless its largest form
+/// and its ledger are the pinned ones.
+fn assert_walk_ledger(name: &str, doc: &ProfileDoc, expected: &str, max_terms: usize, tol: Tol) {
+    let (_, nominal) = boxes(doc).into_iter().next().unwrap();
+    start_profile();
+    let (_, _, counts) = replay(doc, &nominal, SymRules::shipped(), tol);
+    let profile = take_profile();
+    let ledger = profile.walk_ledger();
+    let largest = profile
+        .ops
+        .values()
+        .map(|o| o.max_terms_out)
+        .max()
+        .unwrap_or(0);
+    println!(
+        "\nLEDGER {name} eps {:e} largest form {largest}\n{ledger}",
+        tol.eps()
+    );
+    assert_eq!(
+        largest,
+        max_terms,
+        "{name} at eps {:e}: the largest form built has {largest} terms, pinned {max_terms}",
+        tol.eps()
+    );
+    assert_eq!(
+        ledger.trim(),
+        expected.trim(),
+        "{name} at eps {:e}: the walks built different forms (counts {counts:?})",
+        tol.eps()
+    );
+}
+
+/// The slab's walk ledger ([`assert_walk_ledger`]), per ε row. One
+/// replay, cheap enough for the per-PR gate, so a PR that moves what
+/// the slab's walks build sees it there: it stands in, on the gate, for
+/// [`the_forms_the_plates_walks_build_are_pinned`] and
+/// [`the_plains_ledger_lines_are_the_same_under_every_dial_set`], which
+/// replay the plate and run nightly. It does not stand in for the
+/// plate's own lines: the slab has no curved wall, so a change to how
+/// the certificate reads a cylinder's pcurve moves the plate alone.
 #[test]
-fn the_forms_the_walks_build_are_pinned_per_eps_row() {
+fn the_forms_the_slabs_walks_build_are_pinned_per_eps_row() {
     let tol = Tol::witness();
     let row = eps_row(tol.eps());
-    let slab_doc = slab();
-    let plate_doc = the_plate(tol);
-    // Both ledgers are taken before either is read, so a red on the
-    // slab still shows the plate's.
-    let taken: Vec<_> = [
-        ("slab", &slab_doc, SLAB_LEDGER[row], SLAB_MAX_TERMS),
-        ("plate", &plate_doc, PLATE_LEDGER, PLATE_MAX_TERMS),
-    ]
-    .into_iter()
-    .map(|(name, doc, expected, max_terms)| {
-        let (_, nominal) = boxes(doc).into_iter().next().unwrap();
-        start_profile();
-        let (_, _, counts) = replay(doc, &nominal, SymRules::shipped(), tol);
-        let profile = take_profile();
-        let ledger = profile.walk_ledger();
-        let largest = profile
-            .ops
-            .values()
-            .map(|o| o.max_terms_out)
-            .max()
-            .unwrap_or(0);
-        println!(
-            "\nLEDGER {name} eps {:e} largest form {largest}\n{ledger}",
-            tol.eps()
-        );
-        (name, ledger, expected, counts, largest, max_terms)
-    })
-    .collect();
-    for (name, ledger, expected, counts, largest, max_terms) in taken {
-        assert_eq!(
-            largest,
-            max_terms,
-            "{name} at eps {:e}: the largest form built has {largest} terms, pinned {max_terms}",
-            tol.eps()
-        );
-        assert_eq!(
-            ledger.trim(),
-            expected.trim(),
-            "{name} at eps {:e}: the walks built different forms (counts {counts:?})",
-            tol.eps()
-        );
-    }
+    assert_walk_ledger("slab", &slab(), SLAB_LEDGER[row], SLAB_MAX_TERMS, tol);
+}
+
+/// The plate's walk ledger ([`assert_walk_ledger`]); its nominal reads
+/// no ε, so one pin serves every row.
+#[test]
+fn the_forms_the_plates_walks_build_are_pinned() {
+    let tol = Tol::witness();
+    assert_walk_ledger("plate", &the_plate(tol), PLATE_LEDGER, PLATE_MAX_TERMS, tol);
 }
 
 /// **The walk ledger on the documents the pinned row does not
@@ -961,18 +586,13 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|n| n.parse::<u64>().ok())
     };
     let sets: [(&str, SymRules, Option<u64>); 4] = [
-        // Pinned at what main measures (2026-10-29): the two sets that
-        // render blocked residuals render 12 where they rendered 16.
-        // #5542's merge moved every set's count (to 8 and 20) and PR 5952
-        // brought the shipped sets back to none
-        // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
-        // PCERT E1c (every mint reads incidence first, PR 5889): the two sets render
-        // 66 where they rendered 12, the read's blocked residuals.
+        // The two sets without the canonical root render the blocked
+        // residuals of the certificate's reads; the shipped sets none.
         ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(66),
+            Some(94),
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -981,7 +601,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(66),
+            Some(94),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

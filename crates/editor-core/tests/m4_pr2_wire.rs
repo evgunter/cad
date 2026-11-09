@@ -134,6 +134,7 @@ fn a_row_evaluates_its_members_as_data() {
     let ValuePayload::Instances(members) = &ev.value(row).unwrap().payload else {
         panic!("expected a family of bodies");
     };
+    let members = fixture::every_body(members);
     assert_eq!(members.len(), 3);
     for (i, member) in members.iter().enumerate() {
         assert_eq!(validate(member.body()), Ok(()));
@@ -184,6 +185,7 @@ fn a_ring_rotates_about_an_axis_read_off_the_body() {
     else {
         panic!("expected a family of bodies");
     };
+    let members = fixture::every_body(members);
     assert_eq!(members.len(), 4);
     for member in members {
         assert_eq!(validate(member.body()), Ok(()));

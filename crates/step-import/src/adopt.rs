@@ -45,7 +45,7 @@ use geom::Curve3;
 use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
 use geom_core::spline::SplineError;
-use geom_core::{Affine3, FileCoincidence, Point2, Point3};
+use geom_core::{Affine3, FileCoincidence, Point2, Point3, length_out_of_format};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
 use topo::{Body, FaceKey, LoopKey};
@@ -928,14 +928,15 @@ fn line_column_match(
     if !(len2 > 0.0) || !len2.is_finite() {
         return None;
     }
-    for p in control {
-        let d = *p - *first;
-        let t = d.dot(chord) / len2;
-        if !t.is_finite() {
+    let line = geom::Line {
+        origin: *first,
+        dir: chord,
+    };
+    for &p in control {
+        if !line.param(p).is_finite() {
             return None;
         }
-        let clamped = t.clamp(0.0, 1.0);
-        if !((d - chord * clamped).norm() <= eps) {
+        if !((p - line.foot_within(p, (0.0, 1.0))).norm() <= eps) {
             return None;
         }
     }
@@ -1095,16 +1096,16 @@ fn arc_rim_on_wall_boundary(
         return Ok(());
     };
     let eps = tol.eps();
-    let axis_norm = axis.norm();
-    let u_ref_norm = u_ref.norm();
+    let (a_hat, axis_norm) = axis.direction_and_length();
+    let (u_hat, u_ref_norm) = u_ref.direction_and_length();
     if !(radius.is_finite() && radius > 0.0)
-        || !(axis_norm.is_finite() && axis_norm > 0.0)
-        || !(u_ref_norm.is_finite() && u_ref_norm > 0.0)
+        || length_out_of_format(axis).is_some()
+        || axis_norm <= 0.0
+        || length_out_of_format(u_ref).is_some()
+        || u_ref_norm <= 0.0
     {
         return Err(ArcRimRefusal::Residual(f64::INFINITY));
     }
-    let a_hat = axis / axis_norm;
-    let u_hat = u_ref / u_ref_norm;
     let v_hat = a_hat.cross(u_hat);
     let tau = core::f64::consts::TAU;
     // The angular slack: the ambient band through the lever arm.
@@ -1136,9 +1137,12 @@ fn arc_rim_on_wall_boundary(
             let w = q - center;
             // The axial component, bound by name (the tripwire note
             // in [`line_frame`], same shape).
-            let axial = w.dot(a_hat);
-            let radial = w - a_hat * axial;
-            let ring = (radial.norm() - radius).hypot(axial);
+            let (axial, rho) = geom::Line {
+                origin: center,
+                dir: a_hat,
+            }
+            .height_and_distance(q);
+            let ring = (rho - radius).hypot(axial);
             // Within half a turn of the window's middle, `t0 − slack + π`.
             let theta = geom::Azimuth::of(w.dot(v_hat), w.dot(u_hat)).near(t0 - slack + tau / 2.0);
             if !(ring.is_finite() && theta.is_finite()) {
@@ -1243,11 +1247,10 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     // verbatim).
     let along = dir.dot(candidate);
     let perpendicular = candidate - dir * along;
-    let norm = perpendicular.norm();
-    if !(norm.is_finite() && norm > 0.0) {
+    let (y, norm) = perpendicular.direction_and_length();
+    if length_out_of_format(perpendicular).is_some() || norm <= 0.0 {
         return None;
     }
-    let y = perpendicular / norm;
     let z = dir.cross(y);
     Some(Affine3::from_parts(
         geom_core::Mat3::from_cols(dir, y, z),

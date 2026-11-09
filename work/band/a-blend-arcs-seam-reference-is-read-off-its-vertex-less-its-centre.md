@@ -23,7 +23,7 @@ ruled arm's, the perpendicular cap circle's (`open::end_face`), and the
 foot line's carrier. That last one is `attach_contact`'s
 `ContactCarrier::TrimLine` arm, which now carries the stored trimline
 instead of `line_between` its vertices. The foot line's read was red at
-1e-12 at shear ±0.8, with envelope 1.01–1.04e-12. These remain:
+1e-12 at shear −0.8 (+0.8 peaked at 0.92e-12, green), with envelope 1.01–1.04e-12. These remain:
 
 - **`surgery.rs` `attach_contact`, the `CornerArc` / `SeamArc` arm.**
   It sets `u = (p0 - center).normalize()` and
@@ -45,6 +45,14 @@ instead of `line_between` its vertices. The foot line's read was red at
   `turn = (foot_a - center).cross(foot_b - center)` for a sign only.
   The shape is the same but harmless: the sign is a radius-scale
   quantity read far from zero.
+- **`surgery.rs` `attach_contact`, the `Chord` arm, as the chamfer
+  strip's support trimlines reach it.** `planar.rs:564` pushes the
+  chamfer's trimlines as `Chord`, and `surgery.rs:5333-5336` re-reads
+  τ as `(p1 - p0)/len`, though `chamfer_strip` stores each as
+  `Line { foot, tau }`. Both faces are planes, whose envelope is
+  affine, and every chamfer row in the PR 6533 delta review's ladder
+  was well clear. It is the same copy, though, and the fix is the same:
+  carry the stored line as `TrimLine` does.
 
 None is red today at the rows this lane ran (the sheared ladder at
 shears ±{0.1…0.8}, `ci` at the default ε and 1e-12). The arc arm is

@@ -103,10 +103,7 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
     // minted, one merged away.
     assert_eq!(census(&out.body), (5, 8, 5));
     assert_eq!(out.band_faces.len(), 1);
-    let surface = out
-        .body
-        .get_surface(out.body.get_face(out.band_faces[0]).unwrap().surface)
-        .unwrap();
+    let surface = out.body.face_surface(out.band_faces[0]).unwrap();
     let Surface::Torus {
         major_radius,
         minor_radius,
@@ -343,9 +340,7 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
             let surf = |he| {
                 let l = body.get_half_edge(he).unwrap().parent_loop;
                 let f = body.get_loop(l).unwrap().face;
-                body.get_surface(body.get_face(f).unwrap().surface)
-                    .unwrap()
-                    .clone()
+                body.face_surface(f).unwrap().clone()
             };
             let (a, b) = (surf(e.he_plus), surf(e.he_minus));
             let ps = |x: &Surface<f64>, y: &Surface<f64>| {
@@ -380,7 +375,7 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
 fn a_planted_horn_torus_is_reported_by_tier_3() {
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let mut out = fillet_edges(
+    let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
         &[rim],
         0.05,
@@ -389,11 +384,7 @@ fn a_planted_horn_torus_is_reported_by_tier_3() {
     .unwrap();
     validate_geometric(&out.body, tol()).expect("the filleted dome is tier-3 valid");
     let band_face = out.band_faces[0];
-    let surface = out
-        .body
-        .get_surface(out.body.get_face(band_face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = out.body.face_surface(band_face).unwrap().clone();
     let Surface::Torus {
         center,
         axis,
@@ -405,23 +396,23 @@ fn a_planted_horn_torus_is_reported_by_tier_3() {
         panic!("the band's surface is a torus");
     };
     // Lifts RechartStrandsDescriptions: the planted horn torus is what tier 3 must report.
-    out.body
-        .set_face_surface_unvouched_for_tests(
-            band_face,
-            FaceSurface::New {
-                surface: Surface::Torus {
-                    center,
-                    axis,
-                    major_radius,
-                    // A spindle: the tube swallows the axis.
-                    minor_radius: major_radius * 2.0,
-                    u_ref,
-                },
-                sense: true,
+    let mut body = out.body.clone().into_body();
+    body.set_face_surface_unvouched_for_tests(
+        band_face,
+        FaceSurface::New {
+            surface: Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                // A spindle: the tube swallows the axis.
+                minor_radius: major_radius * 2.0,
+                u_ref,
             },
-        )
-        .unwrap();
-    let errors = validate_geometric(&out.body, tol())
+            sense: true,
+        },
+    )
+    .unwrap();
+    let errors = validate_geometric(&body, tol())
         .expect_err("a spindle torus must not pass tier 3")
         .into_iter()
         .filter(|e| matches!(e, ValidationError::DegenerateTorus { .. }))

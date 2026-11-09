@@ -315,11 +315,7 @@ pub fn is_conventional_vertex<T: Real>(body: &Body<T>, v: VertexKey) -> bool {
     let Some(he) = body.get_half_edge(first) else {
         return false;
     };
-    let Some(edge) = body.get_edge(he.edge) else {
-        return false;
-    };
-    let ends = [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).map(|h| h.start));
-    ends == [Some(v), Some(v)]
+    body.edge_vertices(he.edge) == Some((v, v))
         && body.vertex_orbit(first).is_some_and(|orbit| {
             orbit
                 .iter()
@@ -413,7 +409,7 @@ pub(super) fn singular_at<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
-        geom::Line { origin, dir: axis }.offset(p).norm()
+        geom::Line { origin, dir: axis }.distance(p)
     };
     let arm = match *s {
         geom::Surface::Cone { apex, .. } => (p - apex).norm(),
@@ -1464,9 +1460,7 @@ mod conventional {
                 "a self-loop's vertex another edge leaves, first {first:?}"
             );
         }
-        let far = body
-            .half_edge_end(body.get_edge(strut.edge).unwrap().he_plus)
-            .unwrap();
+        let (_, far) = crate::query::edge_ends(&body, strut.edge);
         assert!(!is_conventional_vertex(&body, far), "an open edge's end");
     }
 }

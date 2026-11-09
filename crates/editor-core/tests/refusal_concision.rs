@@ -367,15 +367,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "ScaffoldingOperand",
-            BooleanError::ScaffoldingOperand {
-                operand: Operand::A,
-                errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
-                    vertex: topo::VertexKey::default(),
-                }],
-            },
-        ),
-        (
             "InsideOutOperand",
             BooleanError::InsideOutOperand {
                 operand: Operand::B,
@@ -740,6 +731,21 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 face: FaceKey::default(),
                 partner: VertexKey::default(),
                 along: topo::AlongFace::FacesInOnePlane,
+            },
+        ),
+        (
+            "TouchesItself",
+            BooleanError::TouchesItself {
+                operand: Operand::A,
+                record: 0,
+                faces: [FaceKey::default(); 2],
+            },
+        ),
+        (
+            "ToolSeatCrossed",
+            BooleanError::ToolSeatCrossed {
+                record: 0,
+                faces: [FaceKey::default(); 2],
             },
         ),
         (

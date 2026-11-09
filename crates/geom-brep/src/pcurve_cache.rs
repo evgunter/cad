@@ -3406,7 +3406,7 @@ fn spans_of(
     };
     let whole = composite_of(&data)?;
     let (whole_breaks, whole_sup) = (whole.num.breaks().to_vec(), whole.span_sup_bounds());
-    let runs: Vec<f64> = knots.knot_runs().map(|(k, _)| k).collect();
+    let runs: Vec<f64> = knots.breakpoints().collect();
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
@@ -4150,7 +4150,10 @@ mod limb2_quick {
         let clears =
             |p: &Option<Part>| p.is_some_and(|p| crate::ssi::certify::clears(p.hull.meters, band));
         // Each pending span: its dyadic index, its parent's bound, and
-        // whether it is read clipped to the window's outer ends.
+        // whether it is read clipped to the window's outer ends. Not
+        // `geom_core::bisect`'s walk: a span is replaced by one span (its
+        // re-read clipped to the window) or by the one or two `halves`
+        // the window keeps, where a bisect step halves into exactly two.
         let mut pending: Vec<((u32, i64), f64, bool)> = cover(START, domain)?
             .into_iter()
             .map(|dk| (dk, f64::INFINITY, false))
@@ -6244,9 +6247,9 @@ fn incidence<T: Decide>(
                     let flip = if far { T::zero() - T::one() } else { T::one() };
                     let s_r = a_r.norm() * flip;
                     let d = if pole {
-                        b_r / b_r.norm()
+                        b_r.normalize()
                     } else {
-                        a_r / a_r.norm()
+                        a_r.normalize()
                     } * flip;
                     let jb = (axis * s_r - d * aa) * angle_rate::<T>(sigma);
                     let k = stretch(radius, radius.powi(2), a);
@@ -10446,9 +10449,9 @@ fn derive_class_zero<T: Decide>(
                             Sign::Zero => false,
                         };
                     let d_hat = if use_a {
-                        a_r / a_r.norm()
+                        a_r.normalize()
                     } else {
-                        b_r / b_r.norm()
+                        b_r.normalize()
                     };
                     // σ: the polar rate at t = 0 is v′(0) = σ, and
                     // e′(0)·axis = ba, with e·axis = r·sin v ⇒
@@ -11151,7 +11154,11 @@ fn torus_oblique_circle<T: Decide>(
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
     let w = c - center;
-    let w_r = w - axis * w.dot(axis);
+    let w_r = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .offset(c);
     let gates = [
         ("pcurve_torus_villarceau_offset", Margin::of(w_r.norm() - r)),
         ("pcurve_torus_villarceau_equator", Margin::of(w.dot(axis))),
@@ -11204,7 +11211,7 @@ fn torus_oblique_circle<T: Decide>(
             return Err(incidence::general_lane(shown, Some(cause)));
         }
     }
-    let d = w_r / w_r.norm();
+    let d = w_r.normalize();
     let tangent = n.cross(d);
     // The tangent's two parts, levered at `R`, are `R·sin θ` (`r` on a
     // Villarceau circle) and `R·cos θ` (`√(R² − r²)`), `θ` the plane's

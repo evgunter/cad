@@ -47,6 +47,7 @@
 //! **The walk is the closed forms' differential test oracle** (the rows),
 //! never a runtime fallback.
 
+pub mod on_surface;
 mod polish;
 pub mod pose;
 pub mod span;
@@ -140,30 +141,51 @@ pub struct Meetings<T: geom_core::Real> {
 /// Why [`meet`] gave no answer.
 #[derive(Clone, Copy, Debug)]
 pub enum MeetFault {
-    /// A decision fell in the band's gap.
+    /// A decision fell in the band's gap. Ranked by its margin.
     Escalated(Indeterminate),
     /// A root finder read the pair in the band's gap where they can meet
     /// ([`RootRefusal::Touch`]): a meeting in band, which escalates where
     /// the spans are the model's and is the probe's where the caller
-    /// chose one.
+    /// chose one. Ranked by its margin.
     Touch(Indeterminate),
     /// A root finder, a meter or the walk's budget reached its limit
-    /// before it could certify the candidates.
+    /// before it could certify the candidates. Unsettled: no margin, and
+    /// a coarser band may settle it.
     Unsettled(Unsettled),
-    /// A pose the pair's arm has no closed form for.
+    /// A pose the pair's arm has no closed form for. A limit.
     Unsupported {
         /// The pose.
         pose: &'static str,
     },
-    /// A carrier is not of the kind its arm reads.
+    /// A carrier is not of the kind its arm reads. An abort: a kernel
+    /// fault.
     Desync,
     /// Two readings of the pose contradict each other, which their
     /// definitions rule out but for rounding: a kernel fault, never a
-    /// pose.
+    /// pose. An abort.
     Contradiction {
         /// The readings.
         readings: &'static str,
     },
+}
+
+impl MeetFault {
+    /// What this refusal is to a ladder over the readings that meet it
+    /// ([`crate::ladder::Refusal`]), as each variant's docs state it.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a carrier the arm misread or two
+    /// readings that contradict: a kernel fault, never a pose.
+    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        use crate::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(*diag)),
+            Self::Unsettled(_) => Ok(Refusal::Unsettled),
+            Self::Unsupported { .. } => Ok(Refusal::Limit),
+            Self::Desync | Self::Contradiction { .. } => Err(Aborts),
+        }
+    }
 }
 
 impl From<RootRefusal> for MeetFault {
@@ -469,9 +491,11 @@ impl<T: Decide> Found<T> {
 /// meeting where the window's run lies past either span
 /// ([`Span::past_by`], by the reach and the run arm); otherwise the
 /// escalation, the straddle of the floor against the gap at the pair
-/// where both decide, and else whichever reading did not, or, where
-/// every reading decided and none cleared, the typed refusal
-/// `Meter { row: "curve_pair_meet_window" }`.
+/// where both decide, and else whichever reading did not. Where every
+/// reading decided and none cleared, the gap at the pair reads zero
+/// while the point's contact read it off a span and no end read near:
+/// the two readings disagree at rounding, and that refuses typed,
+/// `Meter { row: "curve_pair_meet_window_contact" }`.
 fn window_off<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -515,7 +539,7 @@ fn window_off<T: Decide>(
         (_, _, Some(diag)) | (Err(diag), _, None) | (Ok(_), Err(diag), None) => diag,
         (Ok(_), Ok(_), None) => {
             return Err(MeetFault::Unsettled(Unsettled::Meter {
-                row: "curve_pair_meet_window",
+                row: "curve_pair_meet_window_contact",
             }));
         }
     }))

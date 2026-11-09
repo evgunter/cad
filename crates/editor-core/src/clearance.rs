@@ -1770,7 +1770,7 @@ fn facet_restrict(box_: &ParamBox, oracle: &dyn MonotoneOracle) -> ParamBox {
 
 /// **The body a selection reads**, out of the leaf's replay, in its own
 /// frame.
-fn framed_of<'e, T: geom_core::Decide>(
+fn framed_of<'e, T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &'e Evaluation<T>,
     sel: &Selection,
 ) -> Result<&'e crate::eval::Framed<T>, ClearanceRefusal> {
@@ -1784,7 +1784,7 @@ fn framed_of<'e, T: geom_core::Decide>(
 
 /// The faces a selection names in `body`, the selection's body in the
 /// frame the question is asked in.
-fn faces_of<T: geom_core::Decide>(
+fn faces_of<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     sel: &Selection,
     body: &Body<T>,
@@ -1865,7 +1865,7 @@ fn faces_of<T: geom_core::Decide>(
 /// other bounds a face of the other. The records are the selected
 /// body's, as its value's carry holds them: a family member's or a
 /// split side's own ([`crate::Carry::member`]), else the one body's.
-fn recorded_contact<T: geom_core::Decide>(
+fn recorded_contact<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     sel: &Selection,
     body: &Body<T>,
@@ -2045,8 +2045,7 @@ pub(crate) fn closest_pair(
     over: &topo::clearance::Enclosure<'_>,
 ) -> Result<GeometryWitness, String> {
     let surface_at = |body: &Body<f64>, face: FaceKey| -> Option<Surface<f64>> {
-        let f = body.get_face(face)?;
-        Some(body.get_surface(f.surface)?.clone())
+        body.face_surface(face).cloned()
     };
     let (Some(sa), Some(sb)) = (surface_at(bx, face_a), surface_at(by, face_b)) else {
         return Err(

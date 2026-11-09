@@ -318,7 +318,7 @@ fn fixed_partners<T: Decide>(
         if halves.len() <= 2 {
             continue;
         }
-        let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
         let wall = view.surface();
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
@@ -403,7 +403,7 @@ fn split_leave<T: Decide>(
     half: HalfEdgeKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let face = he_face(body, half)?;
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let wall = view.surface();
     leave_on(body, plane_normal, above_set, half, (wall, view.sense()))
 }
@@ -525,7 +525,7 @@ fn pair_along_line<T: Decide>(
     line: geom::Line<T>,
     band: Band,
 ) -> Result<(Vec<(HalfEdgeKey, HalfEdgeKey)>, usize), SplitJoinError> {
-    let keys: Vec<T> = crossings.iter().map(|c| line.param(c.point)).collect();
+    let keys: Vec<T> = crossings.iter().map(|c| line.height(c.point)).collect();
     let order = super::order::sort_along_line(&keys, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();
@@ -591,7 +591,7 @@ fn ruling_pairs<T: Decide>(
             dir: dir.normalize(),
         });
     }
-    let off = |p: Point3<T>, line: geom::Line<T>| (p - line.origin).cross(line.dir).norm();
+    let off = |p: Point3<T>, line: geom::Line<T>| line.distance(p);
     let mut on: [Vec<&Crossing<T>>; 2] = [Vec::new(), Vec::new()];
     for c in crossings {
         let reading = match c.germ {

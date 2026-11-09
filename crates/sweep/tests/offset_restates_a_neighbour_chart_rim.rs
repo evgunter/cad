@@ -66,7 +66,8 @@ fn drum_with_a_rim_in_the_caps_chart(
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     let kind = |key| body.get_surface(key).unwrap();
     let wall = body
         .faces()
@@ -123,7 +124,7 @@ fn offset_the_wall(body: &mut Body<f64>, wall: SurfaceKey) -> SurfaceKey {
     );
     let minted = body
         .faces()
-        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. })))
         .map(|(_, f)| f.surface)
         .unwrap();
     assert_ne!(minted, wall, "the wall moved onto a minted chart");
