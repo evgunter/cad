@@ -87,11 +87,13 @@ const CHAIN: [Stretch; 6] = [
         source: include_str!("../src/replace_face.rs"),
         sentinels: None,
         eps_reads: 1,
-        eps_reads_are: "one DECIDE margin, `offset_vertex_agreement` in `gap_within_eps`, which \
-                        every coincidence the door decides calls (the corners' pairwise \
-                        agreement, a carrier end standing in for a root, an edge read at its \
-                        corners, an untouched edge read at a moved corner) — a coincidence \
-                        threshold in metres, which is ε by its own right and not the fit target",
+        eps_reads_are: "one DECIDE margin, `offset_vertex_agreement` in \
+                        `gap_within_eps_margin`, which every coincidence the door decides \
+                        reads, through `gap_within_eps` for one gap and `gaps_apart` for every \
+                        gap of a set (the corners' pairwise agreement, a carrier end standing \
+                        in for a root, an edge read at its corners, an untouched edge read at \
+                        a moved corner) — a coincidence threshold in metres, which is ε by \
+                        its own right and not the fit target",
     },
     Stretch {
         file: "crates/topo/src/offset_axial.rs",

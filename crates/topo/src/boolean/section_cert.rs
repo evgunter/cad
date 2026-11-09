@@ -1954,7 +1954,7 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::March(_)
             | CarryError::Winds(_)
             | CarryError::PadShort { .. }
-            | CarryError::TubeUnread
+            | CarryError::TubeUnread(_)
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
             | CarryError::Seat(_)
