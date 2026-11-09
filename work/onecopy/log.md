@@ -1250,3 +1250,6 @@
   - **6665's fix pass** (9e9a1962) is red in CI: fuzz `a_wall_and_its_clockwise_twin_read_complementary_sides` at 1e-6, seed 0x2ca1e53eb1681d40. Back to its lane to reproduce on main vs branch.
   - 6669, 6660 and 6666 are approved but overlap the moved main, so their lanes merge main and report.
   - bracket-mid measured 0 bit moves over 16185 rows at both ε; ruling A stands.
+- 2026-11-09 20:25Z
+  - **6664's gate at 9dd5e474 is red:** a slow-set timing flake, mesh10r1 class sweep at 1.049 s against the 1.0 s bound, unrelated. I opened PR 6680 (ci/mesh-class-sweep-slow) to move it to the slow set; it is gating. 6664 merges main once 6680 lands.
+  - **6652 had a failed CI run** with no gate check at 4508ef18. I merged main (clean; 6906/6906, gates and fmt clean) and pushed 4ab44197; re-gating.
