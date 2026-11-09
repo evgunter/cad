@@ -1381,3 +1381,7 @@
     - The end-gap `Margin::metered` allowlist gate (~10 rows) goes to edge-ends-turns.
   - **main-reds: circle_lane is a real undercount.** The torus charge read p at |S + R² − r²|, cancelled 18:1 on a fat torus; it now charges radii whole. A PR is coming, with the class swept; it adds and closes my state-branch row.
   - 6663's plate pin moved after a main merge; bisect running, no re-pin until the mover is named.
+- 2026-11-10 01:45Z New PRs, both in FULL review:
+  - **6689 (normal-fault-kind).** `NormalAtError::standing` is the one home. The dual-scalar premise is dropped in join, and slit takes (b). Review: session_013mPGJ5mQsYAZcC2HjbyjwU. Its lane goes on to carrier-held-points plus the pierce-pass-ranking (onecopy/held-and-pierce).
+  - **6690 (bracket-mid-3).** Knot vectors refuse an end past MAX/2 (PastHalfMax); ReflectionNotFinite is retired; a latent CarrierDomainRefusal panic is fixed; lifted halvings are routed; the gate is widened. Review: session_013mPGJ5PRHzVoBDbq2Vx2Ch. Its lane goes on to placement-holders plus plane-and-line-tuples (onecopy/placement-holders), options first if it needs stage-3 Plane.
+  - The 6687 fix pass is under way (style done, restfront check-9 row pinned); its e2e pin uses the reviewer's oblique_rim_wall construction.
