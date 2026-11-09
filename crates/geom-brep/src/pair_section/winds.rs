@@ -157,7 +157,7 @@ impl WindsRefusal {
     /// tolerance only makes worse by widening its tube, and the format's
     /// range where a carrier point is not finite.
     #[must_use]
-    pub const fn recourse(self) -> &'static dyn core::fmt::Display {
+    pub const fn recourse(self) -> &'static str {
         match self {
             // Unreachable through `PairSection::carry`: `Tube::of` refuses
             // a carrier that is not a spline as a desync before any winding
@@ -171,9 +171,9 @@ impl WindsRefusal {
             // A closed fit's ends are one point to its rounding, a gap many
             // orders below `CLOSING_SLACK`; the same carry row refuses on a
             // regression.
-            | Self::Open => &geom_core::KERNEL_DEFECT_ENDING,
-            Self::Unseparated | Self::Unordered => &geom_core::NOT_YET_ENDING,
-            Self::NotFinite => &geom_core::Recourse(geom_core::RANGE_RECOURSE),
+            | Self::Open => geom_core::KERNEL_DEFECT_ENDING,
+            Self::Unseparated | Self::Unordered => geom_core::NOT_YET_ENDING,
+            Self::NotFinite => geom_core::RANGE_ENDING,
         }
     }
 }

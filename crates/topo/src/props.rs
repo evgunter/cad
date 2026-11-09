@@ -6851,7 +6851,7 @@ pub trait AtRestPolicy: Decide {
     /// the general rung through it ([`geom_brep::PairSection::carry`]).
     /// The ℝ³ march is written at `f64` alone, so that arm answers
     /// `Some`; a join whose germs ride such a section refuses at any
-    /// other scalar by name ([`geom_brep::CarryError::NoLane`]).
+    /// other scalar by name ([`geom_brep::CarryRefusal::NoLane`]).
     fn ssi_lane() -> Option<geom_brep::SsiLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the
