@@ -724,3 +724,16 @@
   - 6599 at 232df13f. Its gate was green at 8bb6cd31; it was disjoint from main, and the workspace check passed.
 - 07:40Z branch-band is a design fork. The draw is on `analysis/design-fork/onecopy-branch-band`: two designers, labels A and B, dispatched concurrently.
   - The lane lands only its pinned probe row and a separate row for the h=0.2 escalation.
+- 07:50Z CI and gates:
+  - The ruff release download is 504 again. 6607's and 6614's gates went red on that alone.
+  - Opened PR 6619 (onecopy/ruff-fallback): when the download fails, ci.yml installs the pinned ruff from PyPI. Gating it at af83b9d2.
+  - 6604's gate was green at 09d63a65, but main had overlapped it in pose.rs and conic_arc.rs. Merged main (600e6b81) and re-gating.
+  - 6552: the lane merged main with 6588 (88bc2a6a). Gating.
+  - 6608 merged main (0e255fe7); its base predated the m10 repin.
+- 07:50Z Reviews dispatched:
+  - 6608's session-box delta review: session_013mPGJ5yvwmDP2Lzzze8GGn.
+  - 6617 (QML T1, ladder lane): FULL review with session_013mPGJ27fuyNTJqAZo7LZBN.
+- 07:50Z Rulings:
+  - needle-tilts: A proceeds. F is refused under the across-key class finding (a chooser asked which reading certifies). S is the direction.
+  - bracket-mid (d): one formula, mid_param.
+  - The 22 slow-set reds from 6608 went to the main-reds lane, to re-check on current main.
