@@ -895,8 +895,10 @@ interval of one span which is nowhere definitely off the other; a
 *meeting* is a longest interval of one span which is everywhere
 definitely on the other, a single point for a crossing or a touch and a
 longer interval for a shared run. A touch's meeting is the in-band arc
-about its extremum, reported at the extremum; a shared run is one curve
-over the spans. Each span's ends are read against the
+where two distinct curves stay within the band of each other about one
+point of closest approach (the extremum of the one's equation read along
+the other); `meet` returns it as that single point, not as the arc's
+interval. A shared run is one curve over both spans. Each span's ends are read against the
 other span before anything else. A stretch holding exactly one meeting
 is reported as that meeting, which takes the whole stretch; a stretch
 holding no meeting, or more than one, escalates, since between two
