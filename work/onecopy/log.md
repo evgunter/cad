@@ -751,3 +751,9 @@
 - 08:00Z Branch-band fork, round 1 results. A moved to B's primary position: the ratified gate is the home and no text changes. A now names three defects in the engine as built (by_kind, monotone on the surface, whole-edge Near). Round 2 tests the cross-face Near crux, A's construction readers, and K<2. The lane's probe now adds a hairpin-fin case and a cylinder-trim case.
 - 08:02Z The branch-band probe settled by reading. The pinned cubic is already refused at certify (SpanMeterCollapsed). One-face folds go to distance (chart decides touching). Cross-face shared-edge nearness is metric over the whole edge span, and goes to departure: this confirms A's item 3. Evidence sent to both designers. 6618 corrects its row text.
 - 08:05Z 6618 is at c6b32c01, with the row text corrected (the cubic is refused at certify, and the evading fixture is a fast sub-band semicircle) and the pin doc scoped to a bare carrier. Branch-band round 2: A's answer is in (the gate is the home; two as-built holes; closed-form carriers read mid-op; K<2 to Ev). Waiting on B.
+- 08:08Z 6616's FULL review came back FIX.
+  - F1, F2: the gate's self-test does not plant its own claims.
+  - S3: the header, regex and OK line are three hand-kept copies of one list.
+  - F3: the PR re-mints the wrap nit it closes.
+  - Sent back to the lane, with F4, F6 and S2 as cheap additions.
+  - F7 and F8 are filed as `the-ring-torus-question-has-two-homes`.
