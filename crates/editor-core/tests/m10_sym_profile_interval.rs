@@ -397,7 +397,7 @@ const SLAB_LEDGER: [&str; 3] = [
 /// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
 /// and the `Report` lines' moves. The slab, a polygon, does not move.
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 28;
+const PLATE_MAX_TERMS: usize = 38;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -418,12 +418,19 @@ const PLATE_MAX_TERMS: usize = 28;
 /// this ledger. The residuals the certificate leaves blocked are
 /// rendered by the shape report (the `Report` lines, which build no
 /// form).
+///
+/// The holes' plane mates place by a reach read off the faces' cover
+/// (`topo::cover`): its norms, its maxima over corners and its arc
+/// windows' sines and cosines are `Plain/Decision` forms, and the
+/// largest form ([`PLATE_MAX_TERMS`]) is one of them, so a change to how
+/// a cover is read moves that line and that bound with no decision
+/// moving.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1203 forms 51397 frozen 36 digest e1a0881c42c8942d3a8deb75d65e99a2\n\
-     Plain/Assertion calls 824 forms 9141 frozen 193 digest 2a1f468584d9b7ec779b0f2855f7a552\n\
-     Early/Decision calls 412 forms 42497 frozen 0 digest e500ec5f5ac549b729cd212cfa9d672a\n\
-     Early/Assertion calls 824 forms 10542 frozen 0 digest 7c396dba756b8da505f6f3646649fc6b\n\
-     Door/Decision calls 557 forms 13461 frozen 0 digest ba27b6a98b755848531d408511178a7e";
+     Plain/Decision calls 1203 forms 53631 frozen 62 digest 5df7c7ece7524e793ed0648e5ab4c98f\n\
+     Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
+     Early/Decision calls 412 forms 42505 frozen 0 digest 2694202f7b062a10a6e74f46b875d770\n\
+     Early/Assertion calls 824 forms 10519 frozen 0 digest 2348058666416ec4901cd72db6861631\n\
+     Door/Decision calls 557 forms 13458 frozen 0 digest def6998cc3dfb007c479d6625f9c680e";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
