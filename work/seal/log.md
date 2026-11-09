@@ -99,3 +99,7 @@
   - Filed by the pass: `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` (P1, M, by inspection). The crack and readers rows were restated.
   - The plan's slate now lists the four glue steps, the umbrella, and the three rows this unit's review left.
   - The implementer reports a red on main that is not this PR's: the slow-set row `union_fold_face_face_touch::a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line` fails "the body has a value: Unevaluated" on a clean main worktree. Its handling is below.
+- 2026-11-09 — **PR 6613 merged** (`a83e4b956b`), with its dual-review row last. The blinded coding (byte 175, A = R2) found eight bilateral and a tally of 0: neither review raised a MAJOR. Lane, target and both review scratch dirs reclaimed.
+  - **The protocol hash is `24b76fff0e`, not `db69dd9d5a`.** This working copy is shallow, so `git log -1 -- docs/DUAL-REVIEW-PROTOCOL.md` here stops at the graft; a full-history lane gives the right one. The two trees are identical; the row cites `24b76fff0e`.
+  - **The main red the implementer reported is the nightly's.** Nightly 87 (11-09) is red on several jobs, the slow-set full suites among them, and the newest `triage/nightly-*` branch is 10-29. That is GREEN's ground (act on the triage, not beside it), so I leave it to the triage and tell Ev at hand-back.
+- 2026-11-09 — **Glue step 1 dispatched:** `carrier-readings-keep-the-margins-they-decided-on` on `seal/carrier-readings-keep-margins`. Review tier single, FULL, for the reason in the row.

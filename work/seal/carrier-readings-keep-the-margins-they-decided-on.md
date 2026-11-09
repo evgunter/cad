@@ -2,7 +2,7 @@
 id: carrier-readings-keep-the-margins-they-decided-on
 kind: unit
 title: carrier and sector readings keep the Decided they decided on (CarrierVerdict, IdentityLadder::Apart, NotTangent, bounds_off), off_ring carries its TorusRefusal, and the census's mechanical survivors take their doors
-status: open
+status: dispatched
 opened: 2026-11-09
 priority: P1
 cost: M
@@ -29,3 +29,7 @@ Step 1 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09). Eac
 ## Done when
 
 None of the sites above names `MarginDiag::INVALID` or builds an `Indeterminate` by hand. Each moved arm's ending is pinned before and after, per the parent row's rule.
+
+## Dispatch (2026-11-09)
+
+Branch `seal/carrier-readings-keep-margins`. Review tier: **single, FULL**. The step threads kept margins through public types in topo and geom-brep and moves arm endings, so believing it takes more than reading it. It is no design decision: the fork settled the shapes.
