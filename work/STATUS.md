@@ -2407,7 +2407,7 @@ prefix `onecopy/`; tag `(ONECOPY orchestrator)`.
 
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
-| P1 | `door-searches-left-on-the-hand-rolled-ladder` | issue | E | open | Door searches still hand-rolling geom_brep::ladder::climb after three tranches: the pierce pass, and the Any ports' unreached record rows |  |  |
+| P1 | `door-searches-left-on-the-hand-rolled-ladder` | issue | E | open | The Any ports' unreached record rows, left after four tranches onto geom_brep::ladder::climb |  |  |
 | P1 | `analytic-surfaces-spell-their-frame-field-by-field` | issue | H | parked | Plane, Cylinder, Cone (and sphere, torus) each spell the placement (point, axis, u_ref) field by field, beside the geom::Frame the conics hold | #6371 |  |
 | P1 | `circle-frame-structs-re-spell-geom-circle` | issue | M | parked | Four topo and sweep structs re-spell geom::Circle's fields: rim_wedge::Rim, surgery::CircleFrame, ring_path::CircleArc, contain::LoopCircle | analytic-surfaces-spell-their-frame-field-by-field |  |
 | P2 | `an-any-climb-answering-with-a-witness-is-first-shaped` | issue | M | open | A climb under Answering::Any whose answer names a witness (which gap, which vertex, which limb) reports whichever rung answered first: First-shaped under Any |  |  |
