@@ -385,3 +385,67 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
         }
     }
 }
+
+/// **What a span reads on a hairpin closer than the band**: the cubic
+/// hairpin of `geom`'s on-carrier rows over its whole span, at `f64` and
+/// at `Interval` boxes, seeded at its middle and on the far branch. It
+/// asserts nothing; it prints each reading's `t` and tangent sign
+/// (`a-carriers-branches-within-the-band-of-each-other`). Run with
+/// `cargo nextest run -p geom-brep probe_branch_band --run-ignored only --no-capture`.
+#[test]
+#[ignore = "evidence: prints readings, asserts nothing"]
+fn probe_branch_band_hairpin() {
+    use geom_core::{Bounds, Interval, Real};
+    for h in [0.2, 3e-10] {
+        let c = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(
+                    vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
+                    3,
+                )
+                .unwrap(),
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.4, 0.0, 0.0),
+                    Point3::new(1.4, h, 0.0),
+                    Point3::new(0.0, h, 0.0),
+                ],
+                vec![1.0; 4],
+            )
+            .unwrap(),
+        ));
+        for t_true in [0.08, 0.3] {
+            let p = c.eval(t_true);
+            for seed in [0.5, 0.92] {
+                let span = Span::new(&c, (0.0, 1.0));
+                let f = span.read(p, seed, band());
+                let tan = match &f {
+                    Ok(super::Reading::On { t, .. }) => {
+                        format!("t={t:.4} dx={:+.3}", c.deriv(*t).x)
+                    }
+                    other => format!("{other:?}"),
+                };
+                let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+                let si = Span::new(&ci, (Interval::from_f64(0.0), Interval::from_f64(1.0)));
+                for r in [1e-10, 1e-12, 0.0] {
+                    let w = |x: f64| Interval::from_bounds(x - r, x + r);
+                    let pi = Point3::new(w(p.x), w(p.y), w(p.z));
+                    let fi = si.read(pi, Interval::from_f64(seed), band());
+                    let tani = match &fi {
+                        Ok(super::Reading::On { t, .. }) => format!(
+                            "t=[{:.4},{:.4}] dx={:+.3}",
+                            t.lo(),
+                            t.hi(),
+                            0.5 * (ci.deriv(*t).x.lo() + ci.deriv(*t).x.hi())
+                        ),
+                        Ok(other) => format!("{other:?}"),
+                        Err(e) => format!("Err {e:?}").chars().take(80).collect(),
+                    };
+                    println!(
+                        "h={h:e} t*={t_true} seed={seed} r={r:e}: f64 {tan} | interval {tani}"
+                    );
+                }
+            }
+        }
+    }
+}
