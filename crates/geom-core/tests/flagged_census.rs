@@ -9,7 +9,8 @@
 //! **The doors are read off their home.** Every `pub` fn of
 //! `geom_core::k_stats` (methods and `pub(…)` included, `#[cfg(test)]`
 //! out, as the least-band gate reads it) that takes a row-like parameter,
-//! a `&str` beside `name` or a name holding `row`, is a door, its row at
+//! a text type beside `name` (`&str`, `String`, an alias the home gives
+//! one) or a name holding `row`, is a door, its row at
 //! that parameter's index, unless [`NON_ROW_DOORS`] names it
 //! ([`home_doors`]): `unlogged`, `check_unlogged`, `choose`,
 //! `decide_flagged` and its reporting form today, and a door added there
@@ -33,9 +34,17 @@
 //! it cannot balance stop it.
 //!
 //! **Blind spots, stated:** a call a macro generates; a door whose row
-//! reaches it inside a struct argument (the shape `k_stats`' header
-//! rules out); a bare call of a door's name in a file that also binds or
-//! imports that name elsewhere, which is read as the other meaning.
+//! reaches it inside a struct argument, or as a type named for text
+//! outside the home (the shape `k_stats`' header rules out); a bare call
+//! of a door's name inside the scope of another binding of that name (an
+//! import from elsewhere or a free `fn` in its block, a `let` from it to
+//! its block's end, a closure parameter in that closure's body, a
+//! parameter in its fn's body), which is read as that other meaning. A
+//! struct field and a method bind nothing; a closure is read by its own
+//! `|…|` head where an expression starts, so a match or-pattern or a
+//! bitwise or is no closure. Each of these is a lexical reading of a
+//! scope, and a shape it does not know is read as no binding (the loud
+//! direction) unless it looks like one it knows.
 //!
 //! The `decide_flagged` total is hand-synced and spelled ONCE, at
 //! [`LEDGER_FLAGGED_SITES`]; the rows are computed from the document.
@@ -177,7 +186,7 @@ struct Door {
 }
 
 /// A `fn` head in a blanked view: its offset, name, parameters (name, with
-/// any `mut` dropped, and type with whitespace removed, read from the
+/// any `mut` dropped, and type with its whitespace runs made one space, read from the
 /// unblanked text), whether it is `pub` (`pub(…)` included), whether it
 /// sits in an `impl` and whether in a `#[cfg(test)]` item, and its body,
 /// if it has one.
@@ -245,7 +254,7 @@ fn fn_heads(text: &str, code: &str) -> Vec<FnHead> {
                 let n = n.trim();
                 Some((
                     n.strip_prefix("mut ").unwrap_or(n).trim().to_string(),
-                    ty.split_whitespace().collect::<String>(),
+                    ty.split_whitespace().collect::<Vec<_>>().join(" "),
                 ))
             })
             .collect();
@@ -283,10 +292,49 @@ fn fn_heads(text: &str, code: &str) -> Vec<FnHead> {
 /// ledger row: each must be one ([`home_doors`] refuses a stale entry).
 const NON_ROW_DOORS: [&str; 2] = ["in_family", "identity_pass_set"];
 
-/// Whether a parameter reads as a ledger row: a name holding `row`, or a
-/// `&str` of any lifetime under any name but the predicate's `name`.
-fn row_like((name, ty): &(String, String)) -> bool {
-    name.contains("row") || (name != "name" && ty.starts_with('&') && ty.ends_with("str"))
+/// Whether a parameter reads as a ledger row: a name holding `row`, or,
+/// under any name but the predicate's `name`, a type that names `str` or
+/// `String` (`&'static str`, `&str`, `String`, `Cow<str>`) or one of
+/// `texts`, the home's aliases of those. An array or a slice of text
+/// (`[&'static str; 2]`, `&[&str]`) is predicate names, as `name` is.
+fn row_like((name, ty): &(String, String), texts: &[String]) -> bool {
+    let names = ty.starts_with('[') || ty.trim_start_matches('&').trim_start().starts_with('[');
+    name.contains("row")
+        || (name != "name"
+            && !names
+            && ty
+                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .any(|w| w == "str" || w == "String" || texts.iter().any(|t| t == w)))
+}
+
+/// The home's `type` aliases of a text type (`str`, `String`, or another
+/// such alias), to a fixed point.
+fn text_aliases(code: &str) -> Vec<String> {
+    let mut texts: Vec<String> = Vec::new();
+    loop {
+        let before = texts.len();
+        for (at, _) in code.match_indices("type ") {
+            if !test_utils::source::boundary_before(code, at) {
+                continue;
+            }
+            let Some(end) = code[at..].find(';').map(|e| at + e) else {
+                continue;
+            };
+            let Some((head, rhs)) = code[at + 5..end].split_once('=') else {
+                continue;
+            };
+            let alias = test_utils::source::ident(head.trim_start(), 0).to_string();
+            let texty = rhs
+                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .any(|w| w == "str" || w == "String" || texts.iter().any(|t| t == w));
+            if texty && !alias.is_empty() && !texts.contains(&alias) {
+                texts.push(alias);
+            }
+        }
+        if texts.len() == before {
+            return texts;
+        }
+    }
 }
 
 /// **The roster is the home's signatures**: every `pub` fn of `home`
@@ -303,6 +351,7 @@ fn home_doors(home: &Path, text: &str) -> Vec<Door> {
 /// [`home_doors`] with the non-doors `but`.
 fn home_doors_but(home: &Path, text: &str, but: &[&str]) -> Vec<Door> {
     let code = test_utils::source::code_only(text);
+    let texts = text_aliases(&code);
     let mut doors = Vec::new();
     let mut takers = Vec::new();
     for f in fn_heads(text, &code) {
@@ -310,7 +359,7 @@ fn home_doors_but(home: &Path, text: &str, but: &[&str]) -> Vec<Door> {
             continue;
         }
         let rows: Vec<usize> = (0..f.params.len())
-            .filter(|&i| row_like(&f.params[i]))
+            .filter(|&i| row_like(&f.params[i], &texts))
             .collect();
         let cite = match rows.as_slice() {
             [] => continue,
@@ -495,10 +544,16 @@ struct Spelling {
     /// The qualifiers a path call goes through: [`HOME_MODULE`], any `as`
     /// name of it, and `self` in the home.
     quals: Vec<String>,
-    /// Whether the file gives the door's name another meaning: imports it
-    /// from another path, or binds it (`let`, `fn`, a closure's `|…|`, a
-    /// parameter). A bare call of it then is that, not the door.
-    elsewhere: bool,
+    /// The spans where the file gives the door's name another meaning,
+    /// each the scope of one binding: an import of it from another path
+    /// (its block, or the file), a `let` (from it to its block's end), a
+    /// closure's `|…|` (that closure's body, [`closure_parameter`]), a
+    /// free `fn` of that name (the block it is declared in; a method or an
+    /// associated fn, in an `impl` or `trait`, is never reached bare); a
+    /// parameter's (its fn's body) is read on demand
+    /// ([`parameter_scopes`]). A bare call inside one is that, not the
+    /// door. A struct field of that name binds nothing.
+    elsewhere: Vec<std::ops::Range<usize>>,
     /// Each re-export of the door, or of the module under another name, as
     /// `(line, row)`: a route this census cannot follow into its
     /// importers, listed as a site citing no row.
@@ -511,7 +566,7 @@ fn spellings(file: &Scanned, door: &Door, in_home: bool) -> Spelling {
     let mut sp = Spelling {
         bare: Vec::new(),
         quals: vec![HOME_MODULE.to_string()],
-        elsewhere: false,
+        elsewhere: Vec::new(),
         offences: Vec::new(),
     };
     if in_home {
@@ -546,28 +601,130 @@ fn spellings(file: &Scanned, door: &Door, in_home: bool) -> Spelling {
                 _ => {
                     let named = leaf.alias.as_deref().or(p.last().map(String::as_str));
                     if named == Some(door.name.as_str()) {
-                        sp.elsewhere = true;
+                        sp.elsewhere.push(enclosing_block(&file.code, range.start));
                     }
                 }
             }
         }
     }
+    if in_home {
+        return sp;
+    }
     let code = &file.code;
     let n = &door.name;
-    sp.elsewhere |= !in_home
-        && code.match_indices(n.as_str()).any(|(at, _)| {
-            if !boundary_before(code, at) || !boundary_after(code, at + n.len()) {
-                return false;
+    for (at, _) in code.match_indices(n.as_str()) {
+        if !boundary_before(code, at) || !boundary_after(code, at + n.len()) {
+            continue;
+        }
+        let before = code[..at].trim_end();
+        let keyword =
+            |k: &str| before.ends_with(k) && boundary_before(before, before.len() - k.len());
+        let block = enclosing_block(code, at);
+        if let Some(body) = closure_parameter(code, at, n.len()) {
+            sp.elsewhere.push(body);
+        } else if keyword("fn") {
+            if !is_impl_or_trait_body(code, &block) {
+                sp.elsewhere.push(block);
             }
-            let before = code[..at].trim_end();
-            let after = code[at + n.len()..].trim_start();
-            ["let", "mut", "fn"]
-                .iter()
-                .any(|k| before.ends_with(k) && boundary_before(before, before.len() - k.len()))
-                || before.ends_with('|')
-                || (after.starts_with(':') && !after.starts_with("::"))
-        });
+        } else if keyword("let") || keyword("mut") {
+            sp.elsewhere.push(at..block.end);
+        }
+    }
     sp
+}
+
+/// **The body of the closure whose parameter list holds `code[at..at +
+/// len]`**, or `None` where it is no closure parameter. A closure is read
+/// by its own head: a `|` opening where an expression starts (after `(`,
+/// `[`, `{`, `,`, `=`, `;`, `=>`, `move` or `return`), parameters only
+/// up to the closing `|`, then a body: a `{ … }` block, or an expression
+/// up to the `,`, `;` or closer that ends it at its own depth. A match
+/// or-pattern (`1 | 2 =>`) and a bitwise or (`a | b`) open no closure.
+fn closure_parameter(code: &str, at: usize, len: usize) -> Option<std::ops::Range<usize>> {
+    let param = |c: char| c.is_alphanumeric() || " \t\n_,:&()<>'".contains(c);
+    let open = code[..at].rfind('|')?;
+    if !code[open + 1..at].chars().all(param) {
+        return None;
+    }
+    let lead = code[..open].trim_end();
+    let starts = ["(", "[", "{", ",", "=", ";", "=>"]
+        .iter()
+        .any(|t| lead.ends_with(t))
+        || ["move", "return"].iter().any(|k| {
+            lead.ends_with(k) && test_utils::source::boundary_before(lead, lead.len() - k.len())
+        });
+    if !starts
+        || lead.ends_with("==")
+        || lead.ends_with("!=")
+        || lead.ends_with("<=")
+        || lead.ends_with(">=")
+    {
+        return None;
+    }
+    let close = at + len + code[at + len..].find('|')?;
+    if !code[at + len..close].chars().all(param) {
+        return None;
+    }
+    let from = close + 1;
+    let start = test_utils::source::skip_ws(code, from);
+    if code[start..].starts_with('{') {
+        let end = test_utils::source::balanced_end(code, start)?;
+        return Some(from..end + 1);
+    }
+    let mut depth = 0usize;
+    for (i, c) in code[from..].char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' if depth == 0 => return Some(from..from + i),
+            ')' | ']' | '}' => depth -= 1,
+            ',' | ';' if depth == 0 => return Some(from..from + i),
+            _ => {}
+        }
+    }
+    Some(from..code.len())
+}
+
+/// Whether `block` is the body of an `impl` or a `trait`: a `fn` declared
+/// there is a method or an associated fn, which a bare call never reaches.
+fn is_impl_or_trait_body(code: &str, block: &std::ops::Range<usize>) -> bool {
+    if block.start == 0 && block.end == code.len() {
+        return false;
+    }
+    let head_end = block.start;
+    let head_start = code[..head_end].rfind(['}', ';', '{']).map_or(0, |i| i + 1);
+    let head = &code[head_start..head_end];
+    head.split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .find(|w| matches!(*w, "impl" | "trait" | "fn" | "mod" | "struct" | "enum"))
+        .is_some_and(|w| w == "impl" || w == "trait")
+}
+
+/// The bodies of `file`'s fns that take a parameter named `name`: where a
+/// bare call of `name` is that parameter. Read only for a call nothing
+/// else resolves.
+fn parameter_scopes(file: &Scanned, name: &str) -> Vec<std::ops::Range<usize>> {
+    fn_heads(file.text, &file.code)
+        .into_iter()
+        .filter(|f| f.params.iter().any(|(p, _)| p == name))
+        .filter_map(|f| f.body)
+        .collect()
+}
+
+/// The innermost `{ … }` of `code` that holds `at`, braces included, or
+/// the whole file outside every block.
+fn enclosing_block(code: &str, at: usize) -> std::ops::Range<usize> {
+    let mut depth = 0usize;
+    for (i, c) in code[..at].char_indices().rev() {
+        match c {
+            '}' => depth += 1,
+            '{' if depth == 0 => {
+                let end = test_utils::source::balanced_end(code, i).unwrap_or(code.len() - 1);
+                return i..end + 1;
+            }
+            '{' => depth -= 1,
+            _ => {}
+        }
+    }
+    0..code.len()
 }
 
 /// A source file read once for every door: its text, blanked view and
@@ -612,7 +769,7 @@ fn door_calls_in(
         None => Spelling {
             bare: vec![door.name.clone()],
             quals: Vec::new(),
-            elsewhere: false,
+            elsewhere: Vec::new(),
             offences: Vec::new(),
         },
     };
@@ -662,7 +819,11 @@ fn door_calls_in(
                     own && (through || typed)
                 } else if sp.bare.contains(name) {
                     true
-                } else if own && !sp.elsewhere && calls {
+                } else if own
+                    && calls
+                    && !sp.elsewhere.iter().any(|r| r.contains(&at))
+                    && !parameter_scopes(file, name).iter().any(|r| r.contains(&at))
+                {
                     // A bare call nothing in this file resolves: not
                     // dropped, but listed.
                     out.push((
@@ -810,7 +971,9 @@ fn forwarding_door(
     let index = head
         .params
         .iter()
-        .position(|(n, ty)| n == ident && ty == "&'staticstr")
+        .position(|(n, ty)| {
+            n == ident && ty.split_whitespace().collect::<String>() == "&'staticstr"
+        })
         .ok_or_else(|| "which is no `&'static str` parameter of the fn around it".to_string())?;
     let body = head.body.expect("filtered on a body");
     let rebound = code[body.start..at].match_indices(ident).any(|(k, _)| {
@@ -940,7 +1103,8 @@ fn planted(name: &str, text: &str) -> (PathBuf, String) {
 /// **The roster is the home's signatures**: every `pub` fn with a
 /// row-like parameter is a door at that index, whatever the row is called
 /// or typed, `pub(crate)` and methods included; a private fn, a `pub` fn
-/// with none, a `#[cfg(test)]` fn and a named non-door are not.
+/// with none, one taking an array or slice of text (predicate names), a
+/// `#[cfg(test)]` fn and a named non-door are not.
 #[test]
 fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
     let home = PathBuf::from("k_stats.rs");
@@ -954,8 +1118,13 @@ fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
          pub fn renamed(name: &'static str, m: f64, audit: &'static str) {}\n\
          pub fn rebound(name: &'static str, mut ledger_row: &'static str) {}\n\
          pub fn by_row_name(m: f64, row: Row) {}\n\
+         pub fn owned(name: &'static str, cited: String) {}\n\
+         pub type Cite = &'static str;\npub type Cited = Option<Cite>;\n\
+         pub fn aliased(name: &'static str, cited: Cited) {}\n\
          pub const fn constant(ledger_row: &'static str) {}\n\
          pub fn in_family(family: &'static str) {}\n\
+         pub fn across(names: [&'static str; 2], band: Band) {}\n\
+         pub fn listed(names: &[&str], band: Band) {}\n\
          impl Bracket {\n    pub fn cite(&self, ledger_row: &'static str) {}\n}\n\
          #[cfg(test)]\nmod tests {\n    pub fn in_a_test(ledger_row: &'static str) {}\n}\n",
         &["in_family"],
@@ -973,6 +1142,8 @@ fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
             ("renamed", 2, false),
             ("rebound", 1, false),
             ("by_row_name", 1, false),
+            ("owned", 1, false),
+            ("aliased", 1, false),
             ("constant", 0, false),
             ("cite", 0, true),
         ],
@@ -1156,6 +1327,83 @@ fn a_door_of_the_home_is_its_modules_fn_and_not_the_verb() {
         rows_of(&door_sites(&files, &roster)),
         want,
         "only the module's fn is the door"
+    );
+}
+
+/// **Another meaning of a door's name holds only in its own scope**: a
+/// `let`, an import or a parameter of that name elsewhere in the file, a
+/// closure parameter outside its closure's body, a method of that name,
+/// or a struct field of it anywhere, leaves a bare call it does not scope
+/// over unresolved; so does a match or-pattern or a bitwise or, which
+/// open no closure. Inside its scope the call is that other meaning.
+#[test]
+fn another_meaning_of_a_doors_name_holds_only_in_its_scope() {
+    let home = "k_stats.rs";
+    let files = [
+        planted(
+            home,
+            "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n",
+        ),
+        planted(
+            "let_elsewhere.rs",
+            "use super::*;\nfn a() { let choose = 3; }\nfn b() { choose(\"n\", m, \"ROW\"); }\n",
+        ),
+        planted(
+            "field.rs",
+            "use super::*;\nstruct S { choose: bool }\nfn b() { choose(\"n\", m, \"ROW\"); }\n",
+        ),
+        planted(
+            "import_elsewhere.rs",
+            "use super::*;\nmod x { use other::choose; }\nfn b() { choose(\"n\", m, \"ROW\"); }\n",
+        ),
+        planted(
+            "let_after.rs",
+            "use super::*;\nfn b() { choose(\"n\", m, \"ROW\"); let choose = |a, b| a; choose(1, 2); }\n",
+        ),
+        planted(
+            "or_pattern.rs",
+            "use super::*;\nfn b(x: u8) { match x { 1 | 2 => g(1, choose(\"n\", m, \"ROW\")), _ => {} } }\n",
+        ),
+        planted(
+            "bitwise_or.rs",
+            "use super::*;\nfn b(a: u8) { let y = a | b; h(x, choose(\"n\", m, \"ROW\")); }\n",
+        ),
+        planted(
+            "method.rs",
+            "use super::*;\nimpl S {\n    fn choose(&self) {}\n    fn b(&self) { choose(\"n\", m, \"ROW\"); }\n}\n\
+             trait T {\n    fn choose(&self);\n    fn c(&self) { choose(\"n\", m, \"ROW\"); }\n}\n",
+        ),
+        planted(
+            "closure_scope.rs",
+            "use super::*;\nfn b() { let f = |choose: u8| choose + 1; choose(\"n\", m, \"ROW\"); }\n",
+        ),
+        planted(
+            "in_scope.rs",
+            "use super::*;\nfn a(choose: F) { choose(1, 2); }\nmod x { use other::choose; fn c() { choose(1, 2); } }\n\
+             fn d() { [1].map(|x, choose| choose(x)); }\nfn choose_local() {}\nmod y { fn choose(a: u8, b: u8) {} fn e() { choose(1, 2); } }\n",
+        ),
+    ];
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
+    let unresolved = "<calls `choose` bare where nothing in this file resolves it: import it from \
+                      `k_stats`, or qualify it>";
+    let want: Vec<(String, String)> = [
+        "bitwise_or.rs",
+        "closure_scope.rs",
+        "field.rs",
+        "import_elsewhere.rs",
+        "let_after.rs",
+        "let_elsewhere.rs",
+        "method.rs",
+        "method.rs",
+        "or_pattern.rs",
+    ]
+    .into_iter()
+    .map(|f| (f.to_string(), unresolved.to_string()))
+    .collect();
+    assert_eq!(
+        rows_of(&door_sites(&files, &roster)),
+        want,
+        "each binding's own scope"
     );
 }
 
