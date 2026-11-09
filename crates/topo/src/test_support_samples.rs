@@ -116,8 +116,6 @@ fn negative_verdict(margin: f64) -> Refused {
     }
 }
 
-/// The margin every `ContactRefusal::Contradicted` raise site carries:
-/// invalid, naming the contact predicate that decided.
 /// Every verdict [`ValidationError::ContactContradicted`] carries, at
 /// each row and each sign its fact reads.
 fn contact_verdicts() -> Vec<ContactVerdict> {

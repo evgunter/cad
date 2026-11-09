@@ -507,8 +507,8 @@ pub use topo::{
 // --- 5. The validation ladder ---------------------------------
 // The tier-3′ census vocabulary rides with `ValidationError` for the
 // group-9 reason again, and here the list was already half-persuaded:
-// `ContactPair` — the payload of `ValidationError::
-// ContactContradicted` — has been curated (through `crate::select`)
+// `ContactPair` — the record `ValidationError::ContactContradicted`
+// names — has been curated (through `crate::select`)
 // all along, so the surface already carried ONE payload of this
 // refusal and left its siblings a module hop away. These are
 // that inconsistency closed, not a new policy:
@@ -556,7 +556,9 @@ pub use topo::{
 // unchanged and only
 // the reach moved: a caller binds a payload and branches on the
 // DISCRIMINANT, and every discriminant these refusals name is
-// spellable from this list.
+// spellable from this list, save `ContactContradicted`'s verdict
+// (`topo::ContactVerdict`, filed:
+// `work/bind/contact-verdict-is-a-rung-under-contact-contradicted.md`).
 //
 // All four cross to Python as well, and this list is what made that
 // spellable. `ValidationError.findings` carries one word per failure —

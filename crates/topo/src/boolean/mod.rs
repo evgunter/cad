@@ -8641,7 +8641,7 @@ fn boundary_cuts<T: Decide>(
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
 /// order; an empty loop contributes its lone vertex) — the witness-
-/// extent datum of `verify_tangent_declaration`. The face is the
+/// extent datum of the glue door's tangency ([`glued_tangency`]). The face is the
 /// caller's declaration, so its miss is the operand's refusal; every hop
 /// past it is a link ([`crate::live::FaceView::boundary`]).
 fn face_boundary_points<T: Decide>(

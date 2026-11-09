@@ -234,8 +234,8 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # `BooleanError::CarryRefused`'s `row`: whose record the carry refused.
     "RefusedRow": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/boolean/mod.rs"),
-    # `BooleanError::Escalated`'s and `ContactContradicted`'s closed
-    # decision types. The row also holds the two types nested one rung
+    # `BooleanError::Escalated`'s closed decision type. The row also holds
+    # the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep
     # does not reach.
     # `RevolveError::SliverAxisClearance`'s and `TubeError::Escalated`'s
@@ -246,8 +246,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                      "revolve-and-tube-errors.md"),
     "BooleanDecision": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                         "boolean-error.md"),
-    "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
-                      "boolean-error.md"),
     # `BooleanError::VertexReadTwice`'s two reads (PR 4234): the same
     # carrier, the same row.
     "SectorRead": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
@@ -281,6 +279,11 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # point lies, argued beside the declaration as `WedgeCheck` is.
     "SingularityLies": ("argued", "non-carriage with its falsifier, beside the declaration "
                         "in crates/topo/src/validate.rs"),
+    # `ValidationError::ContactContradicted`'s verdict: which reading
+    # rules the record out, argued beside the declaration.
+    "ContactVerdict": ("argued", "non-carriage with its falsifier, beside the declaration "
+                       "in crates/topo/src/contact.rs; the carry is "
+                       "work/bind/contact-verdict-is-a-rung-under-contact-contradicted.md"),
     "WedgeCheck": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/validate.rs; the carry is "
                    "work/bind/wedge-check-is-a-rung-under-sliver-dihedral.md"),

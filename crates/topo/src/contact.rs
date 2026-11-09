@@ -322,6 +322,14 @@ pub enum RestVerdict {
 
 /// **A reading that rules out what a face–face record claims** (C4 at
 /// rest).
+///
+/// The façade's curated lists do not carry it: every verdict ends the
+/// same way, the defect ending with no lever, and the record's faces
+/// ride beside it in a type they do carry. The falsifier is a caller
+/// that must act on which reading ruled the record out (a viewer drawing
+/// the tangent line for a tangent ruling and both faces for a `Rest`
+/// one); the carry is
+/// `work/bind/contact-verdict-is-a-rung-under-contact-contradicted.md`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg_attr(
