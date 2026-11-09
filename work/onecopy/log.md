@@ -796,3 +796,4 @@
 - 08:26Z The boolean-standing lane notes that fuzz seeds are printed on every run. The lost cone_fuzz seed was its own grep filter, so nothing to file.
 - 08:26Z [ev] 6625's CI suite is complete; it waits on Ev.
 - 08:30Z PR 6620 FULL review: FIX. It has an orphaned header fragment, three unplanted arms, an untested method look-behind and unnamed alias gaps. The root cause is that it still hand-spells the kind vocabulary and the ROOT spelling. Sent back to the lane.
+- 08:34Z PR 6617 (QML T1) FULL review: MERGE. F1 (two new hand-written standing tables, which the gate cannot see) and F2 (the WHICH ruling has no single home) go to the ladder lane before merge. F3, F4, F6 and F7 are filed as `question-mark-ladders-the-t1-review-left-unported`.
