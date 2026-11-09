@@ -1526,8 +1526,10 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         body,
         face,
         WrapRims {
-            origin: center,
-            axis,
+            axis: geom::Line {
+                origin: center,
+                dir: axis,
+            },
         },
         band,
     )? {

@@ -78,13 +78,8 @@ pub(super) enum Depth<T: geom_core::Real> {
     Axis(geom::Line<T>),
     /// The distance from `center`.
     Center { center: Point3<T> },
-    /// The distance from the circle about `center`, of radius `major`,
-    /// normal to `axis`.
-    Core {
-        center: Point3<T>,
-        axis: Vec3<T>,
-        major: T,
-    },
+    /// The distance from the circle of radius `major` about `axis`.
+    Core { axis: geom::Line<T>, major: T },
 }
 
 /// A depth, and where it came from: the carrier at whose radius every
@@ -161,8 +156,10 @@ pub(super) fn carrier_depth<T: Decide>(
             ..
         } => (
             Depth::Core {
-                center,
-                axis,
+                axis: geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
                 major: major_radius.abs(),
             },
             geom::is_ring_torus(major_radius, minor_radius, band).then_some(minor_radius),
@@ -175,8 +172,10 @@ pub(super) fn carrier_depth<T: Decide>(
             ..
         } => (
             Depth::Core {
-                center,
-                axis,
+                axis: geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
                 major: major_radius.abs(),
             },
             None,
@@ -256,11 +255,7 @@ pub(super) fn range_on<T: Decide>(depth: Depth<T>, cover: &Cover<T>) -> (T, T) {
     match depth {
         Depth::Axis(line) => cover.distance_range(&Site::Line(line)),
         Depth::Center { center } => cover.distance_range(&Site::Point(center)),
-        Depth::Core {
-            center,
-            axis,
-            major,
-        } => cover.circle_range(center, axis, major),
+        Depth::Core { axis, major } => cover.circle_range(axis, major),
     }
 }
 
@@ -511,8 +506,10 @@ mod tests {
 
     fn core(major: f64) -> Depth<f64> {
         Depth::Core {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            axis: geom::Line {
+                origin: p(0.0, 0.0, 0.0),
+                dir: v(0.0, 0.0, 1.0),
+            },
             major,
         }
     }

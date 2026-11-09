@@ -1250,8 +1250,10 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
 
     fn quadric(&self) -> ruling::Quadric<T> {
         ruling::Quadric::Cone {
-            apex: self.apex,
-            a: self.a,
+            axis: geom::Line {
+                origin: self.apex,
+                dir: self.a,
+            },
             sc: self.sc,
         }
     }
@@ -1332,7 +1334,13 @@ fn cone_cylinder<T: Decide>(
     };
     let on_cone = ruling::read(
         &cone.chart(reach),
-        &ruling::Quadric::Cylinder { o: foot, d, r: rc },
+        &ruling::Quadric::Cylinder {
+            axis: geom::Line {
+                origin: foot,
+                dir: d,
+            },
+            r: rc,
+        },
         &ruling::ChartRows {
             fold: "section_cone_cylinder_fold",
             asymptote: "section_cone_cylinder_asymptote",

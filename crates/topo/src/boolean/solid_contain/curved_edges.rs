@@ -291,7 +291,6 @@ fn passes<T: Decide>(
     seed: Point3<T>,
     band: Band,
 ) -> Passes<T> {
-    let geom::Line { origin: q, dir: d } = ray.line;
     let carrier = span.carrier();
     let mut near = span.middle();
     // The carrier's closed-form lower bound on the point's distance from
@@ -307,7 +306,7 @@ fn passes<T: Decide>(
     if clear {
         return Passes::Clear;
     }
-    let ray = geom::Line { origin: q, dir: d };
+    let ray = ray.line;
     let mut r = seed;
     for _ in 0..FEET {
         near = carrier.foot(r, near).seed();

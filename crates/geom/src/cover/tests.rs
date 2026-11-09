@@ -1693,16 +1693,34 @@ fn a_tube_reads_its_core_at_its_minor_radius() {
         0.5,
     )
     .unwrap();
-    let (near, far) = torus.circle_range(Point3::origin(), Vec3::unit_z() * 3.0, 2.0);
+    let (near, far) = torus.circle_range(
+        Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_z() * 3.0,
+        },
+        2.0,
+    );
     assert_eq!((near, far), (0.0, 0.5), "the core");
-    let (near, far) = torus.circle_range(Point3::origin(), Vec3::unit_z(), 1.0);
+    let (near, far) = torus.circle_range(
+        Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_z(),
+        },
+        1.0,
+    );
     assert!(
         near <= 0.5 && far >= 1.5,
         "a smaller coaxial circle: {near}, {far}"
     );
     let points =
         Cover::points(vec![Point3::new(3.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0)]).unwrap();
-    let (near, far) = points.circle_range(Point3::origin(), Vec3::unit_z(), 2.0);
+    let (near, far) = points.circle_range(
+        Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_z(),
+        },
+        2.0,
+    );
     assert!(
         (near - 1.0).abs() < 1e-15 && (far - 5.0f64.sqrt()).abs() < 1e-15,
         "two points: {near}, {far}"

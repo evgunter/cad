@@ -1279,7 +1279,14 @@ fn transport_curve<T: Decide>(
             // three faces of the mint's own action, and this door reads
             // all three rather than re-deriving any (the drift that
             // costs is a second copy, not a second call).
-            let action = geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d);
+            let action = geom_brep::ConeOffset::new(
+                geom::Line {
+                    origin: *apex,
+                    dir: *axis,
+                },
+                *half_angle,
+                d,
+            );
             let (sin_a, cos_a) = half_angle.sin_cos();
             match curve {
                 // A chart line is a generator, and the action's
@@ -2437,7 +2444,15 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
             axis,
             half_angle,
             ..
-        } => geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d).shift(),
+        } => geom_brep::ConeOffset::new(
+            geom::Line {
+                origin: *apex,
+                dir: *axis,
+            },
+            *half_angle,
+            d,
+        )
+        .shift(),
         _ => T::zero(),
     }
 }

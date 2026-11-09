@@ -914,7 +914,12 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             ..
         } => Ray {
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::cone_generator(
-                apex, axis, half_angle, d,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle,
+                d,
             )),
             from: 0.0,
             sign: nappe,
@@ -1112,8 +1117,10 @@ fn strut_tip(
     let spec = &solid.edges[&seam];
     let Some(twin) = geom::pole_form::half_turn_curve(
         &spec.carrier,
-        chart.origin(),
-        chart.axis(),
+        geom::Line {
+            origin: chart.origin(),
+            dir: chart.axis(),
+        },
         crate::signed_zero::plus_zero_point,
         crate::signed_zero::plus_zero,
     ) else {

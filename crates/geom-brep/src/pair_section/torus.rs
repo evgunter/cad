@@ -1001,15 +1001,20 @@ pub(super) fn cylinder_torus<T: Decide>(
             }
         }
         (CtStance::Parallel { e, toward, slack }, TorusGap::Transverse) => {
-            let parts =
-                torus_arms::parallel_cylinder_arm(c, a, radii, (e, slack), toward, rc, band)
-                    .map_err(pinched)?;
+            let parts = torus_arms::parallel_cylinder_arm(
+                geom::Line { origin: c, dir: a },
+                radii,
+                (e, slack),
+                toward,
+                rc,
+                band,
+            )
+            .map_err(pinched)?;
             Components::Counted(in_order(parts, torus_first))
         }
         (CtStance::Parallel { e, toward, slack }, TorusGap::Tangent { .. }) => {
             let touch = match torus_arms::parallel_cylinder_arm(
-                c,
-                a,
+                geom::Line { origin: c, dir: a },
                 radii,
                 (e, slack),
                 toward,
@@ -1022,8 +1027,14 @@ pub(super) fn cylinder_torus<T: Decide>(
             tangent(touch)
         }
         (CtStance::Square(wall), TorusGap::Transverse) => {
-            let parts = torus_arms::square_cylinder_arm(c, a, radii, &wall, rc, band)
-                .map_err(arm_refused)?;
+            let parts = torus_arms::square_cylinder_arm(
+                geom::Line { origin: c, dir: a },
+                radii,
+                &wall,
+                rc,
+                band,
+            )
+            .map_err(arm_refused)?;
             Components::Counted(in_order(parts, torus_first))
         }
         (CtStance::Square(_) | CtStance::General, TorusGap::Tangent { .. }) => tangent(None),
@@ -1233,8 +1244,10 @@ fn torus_gap<T: Decide>([a, b]: [Ring<T>; 2], band: Band) -> Result<TorusGap<T>,
 
 fn circle<T: Real>(ring: Ring<T>) -> Spine<T> {
     Spine::Circle {
-        center: ring.center,
-        axis: ring.axis,
+        axis: geom::Line {
+            origin: ring.center,
+            dir: ring.axis,
+        },
         radius: ring.big_r,
     }
 }
@@ -1264,8 +1277,10 @@ pub(super) fn torus_torus<T: Decide>(
         (TtStance::Parallel { e, toward, slack }, TorusGap::Transverse) => {
             let h = (r2.center - r1.center).dot(r1.axis);
             let parts = torus_arms::parallel_torus_arm(
-                r1.center,
-                r1.axis,
+                geom::Line {
+                    origin: r1.center,
+                    dir: r1.axis,
+                },
                 [r1.radii(), r2.radii()],
                 h,
                 (e, slack),

@@ -1375,11 +1375,8 @@ impl<T: Real> FormSup<T> {
 /// the rounding their coefficients carry, floored at `0` before the
 /// root. `axis` unit, unchecked.
 #[must_use]
-pub(crate) fn conic_axis_distance_floor<T: Real>(
-    conic: &dyn Conic<T>,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-) -> T {
+pub(crate) fn conic_axis_distance_floor<T: Real>(conic: &dyn Conic<T>, axis: geom::Line<T>) -> T {
+    let geom::Line { origin, dir: axis } = axis;
     let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
     let (a, b) = conic.semi_axes();
     let perp = |x: Vec3<T>| {

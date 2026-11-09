@@ -979,8 +979,10 @@ fn curved_interior_placement<T: Decide>(
             body,
             face,
             TorusCarrier {
-                center,
-                axis,
+                axis: geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
                 major_radius,
                 minor_radius,
             },
@@ -1068,8 +1070,7 @@ fn region_placement(
 
 /// One torus carrier's data, as [`torus_face_containment`] reads it.
 struct TorusCarrier<T: geom_core::Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     major_radius: T,
     minor_radius: T,
 }
@@ -1099,20 +1100,11 @@ fn torus_face_containment<T: Decide>(
     cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
     let TorusCarrier {
-        center,
         axis,
         major_radius,
         minor_radius,
     } = carrier;
-    let elevation = super::solid_contain::torus_elevation(
-        geom::Line {
-            origin: center,
-            dir: axis,
-        },
-        major_radius,
-        minor_radius,
-        q,
-    );
+    let elevation = super::solid_contain::torus_elevation(axis, major_radius, minor_radius, q);
     if cut.is_none() {
         match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
             Ok(Sign::Zero) => {}

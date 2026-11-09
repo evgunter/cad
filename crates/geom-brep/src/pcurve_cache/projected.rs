@@ -2641,8 +2641,13 @@ pub(super) fn projected_envelope<T: Decide>(
             // the axis). Every point of the segment between the stored
             // circle and its twin is within `d` of either.
             let (rho_box, z, floor_at) = met_floors(image, &met, (t0, t1), band)?;
-            let rho_twin =
-                (rho_box - d).max(crate::implicit::conic_axis_distance_floor(conic, o, e[2]));
+            let rho_twin = (rho_box - d).max(crate::implicit::conic_axis_distance_floor(
+                conic,
+                geom::Line {
+                    origin: o,
+                    dir: e[2],
+                },
+            ));
             let rho_floor = (rho_twin - d).max(T::zero());
             let Some(form_sup) = crate::implicit::conic_form_sup(&twin, conic) else {
                 return Err(refuse("the circle's chart has no form along a conic"));

@@ -638,25 +638,21 @@ impl<T: Real> Cover<T> {
     }
 
     /// **The nearest and farthest the region stands from a circle**: the
-    /// circle of radius `radius` about `center` in the plane normal to
-    /// `axis`, which need not be unit. A point `ρ` from the axis line and
+    /// circle of radius `radius` about `axis.origin` in the plane normal
+    /// to `axis.dir`, which need not be unit. A point `ρ` from the axis line and
     /// `t` along it stands `√((ρ − R)² + t²)` from the circle, so any
     /// region is bounded through its distance range from the axis line
     /// and its support along the axis; a tube about a spine is bounded
     /// through its spine's, within its minor radius.
-    pub fn circle_range(&self, center: Point3<T>, axis: Vec3<T>, radius: T) -> (T, T) {
-        self.0.circle_range(&Core {
-            center,
-            axis,
-            radius,
-        })
+    pub fn circle_range(&self, axis: Line<T>, radius: T) -> (T, T) {
+        self.0.circle_range(&Core { axis, radius })
     }
 }
 
 /// A circle a distance is read from ([`Cover::circle_range`]).
 struct Core<T: Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
+    /// The circle's axis line, through its centre.
+    axis: Line<T>,
     radius: T,
 }
 
@@ -664,12 +660,9 @@ impl<T: Real> Core<T> {
     /// The circle's distance range over a region read through its range
     /// from the axis line (`line`) and its support (`support`).
     fn through(&self, line: impl Fn(&Site<T>) -> (T, T), support: impl Fn(Vec3<T>) -> T) -> (T, T) {
-        let (near, far) = line(&Site::Line(Line {
-            origin: self.center,
-            dir: self.axis,
-        }));
-        let a = self.axis.normalize();
-        let base = vec_of(self.center).dot(a);
+        let (near, far) = line(&Site::Line(self.axis));
+        let a = self.axis.dir.normalize();
+        let base = vec_of(self.axis.origin).dot(a);
         let (below, above) = (T::zero() - support(-a) - base, support(a) - base);
         let r = self.radius;
         let outside = |x: T, lo: T, hi: T| (lo - x).max(x - hi).max(T::zero());
@@ -683,11 +676,7 @@ impl<T: Real> Core<T> {
 
     /// The exact distance of a point from the circle.
     fn offset(&self, p: Point3<T>) -> T {
-        let (t, rho) = Line {
-            origin: self.center,
-            dir: self.axis,
-        }
-        .height_and_distance(p);
+        let (t, rho) = self.axis.height_and_distance(p);
         ((rho - self.radius).powi(2) + t.powi(2)).sqrt()
     }
 }

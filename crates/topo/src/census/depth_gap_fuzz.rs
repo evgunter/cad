@@ -93,8 +93,11 @@ fn exact<T: geom_core::Decide>(depth: Depth<T>, x: Point3<T>) -> T {
         Depth::Axis(line) => line.distance(x),
         Depth::Center { center } => (x - center).norm(),
         Depth::Core {
-            center,
-            axis,
+            axis:
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
             major,
         } => {
             let (off, t) = split(x - center, axis);
@@ -138,8 +141,7 @@ fn draw(r: &mut Rng, i: usize) -> (Depth<f64>, Piece<f64>, Vec<Point3<f64>>, f64
         0 => Depth::Axis(geom::Line { origin, dir: axis }),
         1 => Depth::Center { center: origin },
         _ => Depth::Core {
-            center: origin,
-            axis,
+            axis: geom::Line { origin, dir: axis },
             major: r.range(0.0, 2.0),
         },
     };
@@ -211,12 +213,17 @@ fn lift_depth(d: Depth<f64>) -> Depth<Interval> {
         }),
         Depth::Center { center } => Depth::Center { center: ip(center) },
         Depth::Core {
-            center,
-            axis,
+            axis:
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
             major,
         } => Depth::Core {
-            center: ip(center),
-            axis: ivec(axis),
+            axis: geom::Line {
+                origin: ip(center),
+                dir: ivec(axis),
+            },
             major: iv(major),
         },
     }

@@ -4827,16 +4827,8 @@ fn place_crossing<T: Decide>(
     nappe: Option<ConeNappe<T>>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    if let Some((apex, axis, half_angle, nappe)) = nappe {
-        let off = geom_brep::cone_elevation(
-            geom::Line {
-                origin: apex,
-                dir: axis,
-            },
-            half_angle,
-            Some(nappe),
-            p,
-        );
+    if let Some((axis, half_angle, nappe)) = nappe {
+        let off = geom_brep::cone_elevation(axis, half_angle, Some(nappe), p);
         match decide("bool_cone_root_nappe", Margin::of(off), band) {
             Ok(Sign::Positive) => return Ok(Placed::OffNappe),
             Ok(Sign::Zero) => {}
@@ -5050,8 +5042,9 @@ fn wall_crossing<T: Decide + Bounds>(
     Ok(no_pierce_verdict(crossed_elsewhere, at_end))
 }
 
-/// A cone's apex, axis and half-angle, and the nappe a face of it lies on.
-type ConeNappe<T> = (Point3<T>, geom_core::Vec3<T>, T, geom_brep::Nappe);
+/// A cone's axis line from its apex, its half-angle, and the nappe a face
+/// of it lies on.
+type ConeNappe<T> = (geom::Line<T>, T, geom_brep::Nappe);
 
 /// **The nappe a cone face lies on**, with the cone's apex, axis and
 /// half-angle, for telling a root of the double cone off it
@@ -5066,17 +5059,12 @@ fn cone_nappe<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Option<ConeNappe<T>>, BooleanError> {
-    let geom::Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
-    } = *surface
+    let (&geom::Surface::Cone { half_angle, .. }, Some(axis)) = (surface, surface.axis_line())
     else {
         return Ok(None);
     };
     match crate::offset_nappe::face_nappe_reading(y, face, band) {
-        Ok(nappe) => Ok(Some((apex, axis, half_angle, nappe))),
+        Ok(nappe) => Ok(Some((axis, half_angle, nappe))),
         Err(NappeRefusal::Straddles { .. }) => Ok(None),
         Err(NappeRefusal::Escalated(source)) => Err(BooleanError::Escalated {
             decision: BooleanDecision::CONTAINMENT_UNNAMED,

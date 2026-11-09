@@ -327,14 +327,14 @@ pub(super) const WALL_NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
 /// across both two `(0,1)` loops.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn parallel_cylinder_arm<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
+    axis: geom::Line<T>,
     [big_r, r]: [T; 2],
     (e, slack): (T, T),
     toward: Vec3<T>,
     rc: T,
     band: Band,
 ) -> Result<Vec<SectionComponent<T>>, Pinch> {
+    let geom::Line { origin: c, dir: a } = axis;
     let (rho_min, rho_max) = ((e - rc).abs(), e + rc);
     let (lo, hi) = (big_r - r, big_r + r);
     let [min_over_lo, min_under_hi, max_over_lo, max_under_hi] = signs_across(
@@ -476,14 +476,14 @@ const PARALLEL_TORI_ORDER: &str = "section_torus_parallel_tori_order";
 /// is not read: every component carries a witness.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub(super) fn parallel_torus_arm<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
+    axis: geom::Line<T>,
     [[big_r, r], [big_r2, r2]]: [[T; 2]; 2],
     h: T,
     (e, slack): (T, T),
     toward: Vec3<T>,
     band: Band,
 ) -> Result<Vec<SectionComponent<T>>, Pinch> {
+    let geom::Line { origin: c, dir: a } = axis;
     let side = a.cross(toward);
     let at = |x: T, y: T, z: T| c + toward * x + a * y + side * z;
     // A level row is one tube's top or bottom against the other's. Left
@@ -880,13 +880,13 @@ const SQUARE_EDGE_OVER: &str = "section_torus_square_wall_edge_over";
 /// pinches; a fold or strip crossing at a tube circle's top or bottom,
 /// where they cross, is unordered.
 pub(super) fn square_cylinder_arm<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
+    axis: geom::Line<T>,
     [big_r, r]: [T; 2],
     wall: &SquareWall<T>,
     rc: T,
     band: Band,
 ) -> Result<Vec<SectionComponent<T>>, ArmRefusal> {
+    let geom::Line { origin: c, dir: a } = axis;
     let &SquareWall {
         d,
         across,

@@ -83,18 +83,15 @@ pub(super) fn coaxial_margins<T: Decide>(axis: geom::Line<T>, rim: &Rim<T>) -> [
 /// on the axis but not coaxial, so the test is both halves.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct WrapRims<T: geom_core::Real> {
-    pub(super) origin: Point3<T>,
-    pub(super) axis: Vec3<T>,
+    pub(super) axis: geom::Line<T>,
 }
 
 impl<T: Decide> WrapRims<T> {
     /// Coaxial is an identity: either margin decided apart answers
     /// "not coaxial", whatever the other read ([`read_identity`]).
     fn holds(self, rim: &Rim<T>, band: Band) -> Result<bool, Indeterminate> {
-        let Self { origin, axis } = self;
         read_identity(
-            coaxial_margins(geom::Line { origin, dir: axis }, rim)
-                .map(|margin| ("bool_wrap_rim", margin)),
+            coaxial_margins(self.axis, rim).map(|margin| ("bool_wrap_rim", margin)),
             band,
         )
         .holds()
@@ -292,8 +289,10 @@ mod wrap_rims_holds_rows {
         let band = Band::linear(tol).expect("a valid band");
         let tilt = 0.5 * (1.0 + tol.k()) * tol.eps();
         let rims = WrapRims {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_z(),
+            },
         };
         let rim = |center: Point3<f64>| Rim {
             center,
