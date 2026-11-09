@@ -330,8 +330,11 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
     section: EndSection<T>,
 ) -> Result<CutOffPlan<'a, T>, BlendError> {
     let l = link.link();
-    let (q_a, along) = open_trimline(l, l.face_a)?;
-    let (q_b, _) = open_trimline(l, l.face_b)?;
+    let geom::Line {
+        origin: q_a,
+        dir: along,
+    } = open_trimline(l, l.face_a)?;
+    let q_b = open_trimline(l, l.face_b)?.origin;
     let end = EndCut::plan(
         body,
         vertex,
@@ -558,8 +561,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
                     .ok_or_else(|| {
                         disagrees(EntityId::Edge(edge), "a support's chord is no open link")
                     })?;
-                let (origin, dir) = open_trimline(l, face)?;
-                Ok(ContactCarrier::TrimLine(geom::Line { origin, dir }))
+                Ok(ContactCarrier::TrimLine(open_trimline(l, face)?))
             }
             BlendKind::Chamfer => Ok(ContactCarrier::Chord),
         }

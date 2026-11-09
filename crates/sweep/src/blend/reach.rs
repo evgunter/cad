@@ -262,11 +262,10 @@ type Tagged<T> = (Role, Bound<T>);
 enum Bound<T: Real> {
     /// `g = n·x − d`, `n` unit.
     Affine { n: Vec3<T>, d: T },
-    /// The distance `ρ(x)` from the line through `o` along the unit `a`:
+    /// The distance `ρ(x)` from the line `axis`, its direction unit:
     /// `g = ρ − r` when `inside`, `r − ρ` otherwise.
     Tube {
-        o: Point3<T>,
-        a: Vec3<T>,
+        axis: geom::Line<T>,
         r: T,
         inside: bool,
     },
@@ -274,11 +273,10 @@ enum Bound<T: Real> {
     OutsideBall { o: Point3<T>, r: T },
     /// `g = |x − o| − r`: inside the ball of radius `r` about `o`.
     InsideBall { o: Point3<T>, r: T },
-    /// `g = f(ρ, z) − slack` in the meridian sheet about the unit axis `a`
-    /// through `o`.
+    /// `g = f(ρ, z) − slack` in the meridian sheet about `axis`, its
+    /// direction unit.
     Sheet {
-        o: Point3<T>,
-        a: Vec3<T>,
+        axis: geom::Line<T>,
         f: SheetFn<T>,
         slack: T,
     },
@@ -288,9 +286,9 @@ enum Bound<T: Real> {
 }
 
 /// The axial coordinate and the distance from the axis of `x`, about
-/// the unit axis `a` through `o`, as `(ρ, z)`.
-fn sheet_of<T: Real>(o: Point3<T>, a: Vec3<T>, x: Point3<T>) -> (T, T) {
-    let (z, rho) = geom::Line { origin: o, dir: a }.height_and_distance(x);
+/// `axis`, as `(ρ, z)`.
+fn sheet_of<T: Real>(axis: geom::Line<T>, x: Point3<T>) -> (T, T) {
+    let (z, rho) = axis.height_and_distance(x);
     (rho, z)
 }
 
@@ -350,13 +348,13 @@ impl<T: Real> Cell<T> {
     }
 }
 
-/// **A cell's rectangle in the meridian sheet** about the unit axis `a`
-/// through `o`, enclosing every point of the cell. The axial range is
+/// **A cell's rectangle in the meridian sheet** about `axis`, its
+/// direction unit, enclosing every point of the cell. The axial range is
 /// exact (it is affine); the top of the distance from the axis is exact
 /// (a convex function peaks at a corner); its bottom is the centre's,
 /// less the cell's own reach across the axis.
-fn sheet_box<T: Real>(o: Point3<T>, a: Vec3<T>, cell: &Cell<T>) -> Rect<T> {
-    let (rc, zc) = sheet_of(o, a, cell.c);
+fn sheet_box<T: Real>(axis @ geom::Line { dir: a, .. }: geom::Line<T>, cell: &Cell<T>) -> Rect<T> {
+    let (rc, zc) = sheet_of(axis, cell.c);
     let dz = cell.spread(a);
     let across = corner_max(cell.lo, cell.hi, |x| {
         geom::Line {
@@ -365,7 +363,7 @@ fn sheet_box<T: Real>(o: Point3<T>, a: Vec3<T>, cell: &Cell<T>) -> Rect<T> {
         }
         .distance(x)
     });
-    let top = corner_max(cell.lo, cell.hi, |x| sheet_of(o, a, x).0);
+    let top = corner_max(cell.lo, cell.hi, |x| sheet_of(axis, x).0);
     [(rc - across).max(T::zero()), top, zc - dz, zc + dz]
 }
 
@@ -382,14 +380,14 @@ impl<T: Real> Bound<T> {
     fn at(&self, x: Point3<T>) -> T {
         match self {
             Self::Affine { n, d } => (x - Point3::origin()).dot(*n) - *d,
-            Self::Tube { o, a, r, inside } => {
-                let (rho, _) = sheet_of(*o, *a, x);
+            Self::Tube { axis, r, inside } => {
+                let (rho, _) = sheet_of(*axis, x);
                 if *inside { rho - *r } else { *r - rho }
             }
             Self::OutsideBall { o, r } => *r - (x - *o).norm(),
             Self::InsideBall { o, r } => (x - *o).norm() - *r,
-            Self::Sheet { o, a, f, slack } => {
-                let (rho, z) = sheet_of(*o, *a, x);
+            Self::Sheet { axis, f, slack } => {
+                let (rho, z) = sheet_of(*axis, x);
                 f.at(rho, z) - *slack
             }
             Self::Side { s, w } => match surface_distance(s, x) {
@@ -417,13 +415,13 @@ impl<T: Real> Bound<T> {
     fn low(&self, cell: &Cell<T>) -> T {
         match self {
             Self::Affine { n, .. } => self.at(cell.c) - cell.spread(*n),
-            Self::Tube { o, a, r, inside } => {
-                let b = sheet_box(*o, *a, cell);
+            Self::Tube { axis, r, inside } => {
+                let b = sheet_box(*axis, cell);
                 if *inside { b[0] - *r } else { *r - b[1] }
             }
             Self::OutsideBall { o, r } => *r - corner_max(cell.lo, cell.hi, |x| (x - *o).norm()),
             Self::InsideBall { o, r } => nearest(*o, cell) - *r,
-            Self::Sheet { o, a, f, slack } => f.range(sheet_box(*o, *a, cell)).0 - *slack,
+            Self::Sheet { axis, f, slack } => f.range(sheet_box(*axis, cell)).0 - *slack,
             Self::Side { s, w } => match surface_range(s, cell) {
                 Some((lo, hi)) => (*w * lo).min(*w * hi),
                 None => self.at(cell.c) - cell.lever,
@@ -437,13 +435,13 @@ impl<T: Real> Bound<T> {
     fn high(&self, cell: &Cell<T>) -> T {
         match self {
             Self::Affine { n, .. } => self.at(cell.c) + cell.spread(*n),
-            Self::Tube { o, a, r, inside } => {
-                let b = sheet_box(*o, *a, cell);
+            Self::Tube { axis, r, inside } => {
+                let b = sheet_box(*axis, cell);
                 if *inside { b[1] - *r } else { *r - b[0] }
             }
             Self::OutsideBall { o, r } => *r - nearest(*o, cell),
             Self::InsideBall { o, r } => corner_max(cell.lo, cell.hi, |x| (x - *o).norm()) - *r,
-            Self::Sheet { o, a, f, slack } => f.range(sheet_box(*o, *a, cell)).1 - *slack,
+            Self::Sheet { axis, f, slack } => f.range(sheet_box(*axis, cell)).1 - *slack,
             Self::Side { s, w } => match surface_range(s, cell) {
                 Some((lo, hi)) => (*w * lo).max(*w * hi),
                 None => self.at(cell.c) + cell.lever,
@@ -471,9 +469,9 @@ impl<T: Real> Bound<T> {
     }
 
     /// The sheet a sheet bound is a function of; `None` for any other.
-    fn frame(&self) -> Option<(Point3<T>, Vec3<T>)> {
+    fn frame(&self) -> Option<geom::Line<T>> {
         match self {
-            Self::Sheet { o, a, .. } => Some((*o, *a)),
+            Self::Sheet { axis, .. } => Some(*axis),
             _ => None,
         }
     }
@@ -507,7 +505,16 @@ fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
             axis,
             radius,
             ..
-        } => Some(sheet_of(*origin, axis.normalize(), x).0 - *radius),
+        } => Some(
+            sheet_of(
+                geom::Line {
+                    origin: *origin,
+                    dir: axis.normalize(),
+                },
+                x,
+            )
+            .0 - *radius,
+        ),
         Surface::Sphere { center, radius, .. } => Some((x - *center).norm() - *radius),
         Surface::Cone {
             apex,
@@ -515,7 +522,13 @@ fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
             half_angle,
             ..
         } => {
-            let (rho, z) = sheet_of(*apex, axis.normalize(), x);
+            let (rho, z) = sheet_of(
+                geom::Line {
+                    origin: *apex,
+                    dir: axis.normalize(),
+                },
+                x,
+            );
             Some(rho * half_angle.cos() - z.abs() * half_angle.sin())
         }
         Surface::Torus {
@@ -525,7 +538,13 @@ fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
             minor_radius,
             ..
         } => {
-            let (rho, z) = sheet_of(*center, axis.normalize(), x);
+            let (rho, z) = sheet_of(
+                geom::Line {
+                    origin: *center,
+                    dir: axis.normalize(),
+                },
+                x,
+            );
             Some(((rho - *major_radius).powi(2) + z.powi(2)).sqrt() - *minor_radius)
         }
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
@@ -550,15 +569,15 @@ fn surface_range<T: Real>(s: &Surface<T>, cell: &Cell<T>) -> Option<(T, T)> {
             corner_max(cell.lo, cell.hi, |x| (x - *center).norm()) - *radius,
         ),
         _ => {
-            let (f, o, a) = sheet_fn_own(s)?;
-            f.range(sheet_box(o, a, cell))
+            let (f, axis) = sheet_fn_own(s)?;
+            f.range(sheet_box(axis, cell))
         }
     })
 }
 
 /// A cylinder's, a cone's or a torus's own distance as a sheet function
 /// about its own axis, with that axis.
-fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec3<T>)> {
+fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, geom::Line<T>)> {
     let one = T::one();
     match s {
         Surface::Cylinder {
@@ -572,8 +591,10 @@ fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec3<
                 beta: T::zero(),
                 gamma: -*radius,
             },
-            *origin,
-            axis.normalize(),
+            geom::Line {
+                origin: *origin,
+                dir: axis.normalize(),
+            },
         )),
         Surface::Cone {
             apex,
@@ -587,8 +608,10 @@ fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec3<
                 sin: half_angle.sin(),
                 sigma: one,
             },
-            *apex,
-            axis.normalize(),
+            geom::Line {
+                origin: *apex,
+                dir: axis.normalize(),
+            },
         )),
         Surface::Torus {
             center,
@@ -603,8 +626,10 @@ fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec3<
                 r: *minor_radius,
                 sigma: one,
             },
-            *center,
-            axis.normalize(),
+            geom::Line {
+                origin: *center,
+                dir: axis.normalize(),
+            },
         )),
         _ => None,
     }
@@ -623,13 +648,12 @@ fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec3<
 /// surface with no closed form here.
 fn sheet_fn<T: Decide + Bounds>(
     s: &Surface<T>,
-    o: Point3<T>,
-    a: Vec3<T>,
+    axis @ geom::Line { dir: a, .. }: geom::Line<T>,
     (lo, hi): (Point3<T>, Point3<T>),
 ) -> Option<(SheetFn<T>, T)> {
     let tilt = |b: Vec3<T>| tilt(b, a);
     let one = T::one();
-    let off_axis = |p: Point3<T>| sheet_of(o, a, p);
+    let off_axis = |p: Point3<T>| sheet_of(axis, p);
     let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
     let centre = lo + (hi - lo) / T::from_f64(2.0);
     Some(match s {
@@ -732,7 +756,7 @@ struct Stretch<T: Real> {
     lo: Point3<T>,
     hi: Point3<T>,
     chain: usize,
-    sheet: Option<(Point3<T>, Vec3<T>)>,
+    sheet: Option<geom::Line<T>>,
     sides: Vec<SurfaceKey>,
     /// The blend surface the band mints over this reach (the cylinder,
     /// the torus, the strip, the corner ball, the patch plane).
@@ -1022,8 +1046,10 @@ fn straight_reach<T: Decide + Bounds>(
             cross.push((
                 Role::Band,
                 Bound::Tube {
-                    o: c,
-                    a: tau,
+                    axis: geom::Line {
+                        origin: c,
+                        dir: tau,
+                    },
                     r,
                     inside: false,
                 },
@@ -1031,8 +1057,10 @@ fn straight_reach<T: Decide + Bounds>(
             cross.push((
                 Role::Disk,
                 Bound::Tube {
-                    o: c,
-                    a: tau,
+                    axis: geom::Line {
+                        origin: c,
+                        dir: tau,
+                    },
                     r: reach,
                     inside: true,
                 },
@@ -1146,7 +1174,9 @@ fn straight_reach<T: Decide + Bounds>(
         let along = match (bent.next(), bent.next()) {
             (
                 Some(Bound::Tube {
-                    o, inside: false, ..
+                    axis: geom::Line { origin: o, .. },
+                    inside: false,
+                    ..
                 }),
                 None,
             ) => Some(half_space(*o, normal, foot)),
@@ -1180,8 +1210,10 @@ fn straight_reach<T: Decide + Bounds>(
         let slab = T::from_f64(2.0 * FaceBoxes::pad(band));
         let (lo, hi) = (ends[0].0.min(ends[1].0), ends[0].0.max(ends[1].0));
         let tube = Bound::Tube {
-            o: st.p,
-            a: tau,
+            axis: geom::Line {
+                origin: st.p,
+                dir: tau,
+            },
             r: chord,
             inside: true,
         };
@@ -1262,7 +1294,7 @@ fn circular_reach<T: Decide + Bounds>(
             "a circular spine's band is not a torus",
         ));
     };
-    let (o, a) = canonical_axis(center, axis);
+    let meridian @ geom::Line { dir: a, .. } = canonical_axis(center, axis);
     let (c, _) =
         st.c.ok_or_else(|| disagrees(EntityId::Edge(link.edge), "a torus band's spine point"))?;
     let reach = (st.p - c).norm();
@@ -1270,8 +1302,12 @@ fn circular_reach<T: Decide + Bounds>(
     let ext = |p: T, q: T| major_radius * (p.powi(2) + q.powi(2)).sqrt() + reach;
     let e = Vec3::new(ext(a.y, a.z), ext(a.z, a.x), ext(a.x, a.y));
     let (lo, hi) = (center - e, center + e);
-    let sheet = |x: Point3<T>| sheet_of(o, a, x);
-    let in_sheet = |f: SheetFn<T>, slack: T| Bound::Sheet { o, a, f, slack };
+    let sheet = |x: Point3<T>| sheet_of(meridian, x);
+    let in_sheet = |f: SheetFn<T>, slack: T| Bound::Sheet {
+        axis: meridian,
+        f,
+        slack,
+    };
     let mut bounds = Vec::new();
     // The supports, read about the band's axis.
     let (qr, qz) = sheet(st.inside());
@@ -1280,7 +1316,7 @@ fn circular_reach<T: Decide + Bounds>(
     for f in [link.face_a, link.face_b] {
         let s = surface_of(body, f)?;
         exact &= matches!(s, Surface::Plane { .. } | Surface::Cylinder { .. });
-        if let Some((g, slack)) = sheet_fn(&s, o, a, (lo, hi)) {
+        if let Some((g, slack)) = sheet_fn(&s, meridian, (lo, hi)) {
             let at = g.at(qr, qz);
             bounds.push((Role::Side(f), in_sheet(g.scaled(-sign(at)), slack)));
             sides.push(surface_key(body, f)?);
@@ -1360,7 +1396,7 @@ fn circular_reach<T: Decide + Bounds>(
         lo,
         hi,
         chain,
-        sheet: Some((o, a)),
+        sheet: Some(meridian),
         sides,
         surface: link.blend.surface.clone(),
         replaces,
@@ -1378,7 +1414,7 @@ fn circular_reach<T: Decide + Bounds>(
 /// positive. Coaxial bands share it, so the bounds of one are functions
 /// of the other's sheet too ([`Stretch::sheet`]); a frame that differs in
 /// a bit only loses that sharing.
-fn canonical_axis<T: Bounds>(p: Point3<T>, axis: Vec3<T>) -> (Point3<T>, Vec3<T>) {
+fn canonical_axis<T: Bounds>(p: Point3<T>, axis: Vec3<T>) -> geom::Line<T> {
     let a = axis.normalize();
     let k = [a.x, a.y, a.z]
         .into_iter()
@@ -1386,7 +1422,10 @@ fn canonical_axis<T: Bounds>(p: Point3<T>, axis: Vec3<T>) -> (Point3<T>, Vec3<T>
         .unwrap_or(a.x);
     let a = if k.lo() < 0.0 { -a } else { a };
     let v = p - Point3::origin();
-    (p - a * v.dot(a), a)
+    geom::Line {
+        origin: p - a * v.dot(a),
+        dir: a,
+    }
 }
 
 /// A corner patch's reach, and the points its incident links' windows
@@ -1709,12 +1748,11 @@ fn sheet_clip<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     surface: &Surface<T>,
-    o: Point3<T>,
-    a: Vec3<T>,
+    meridian @ geom::Line { origin: o, dir: a }: geom::Line<T>,
     band: Band,
 ) -> Option<Clip<T>> {
     let tilt = |b: Vec3<T>| tilt(b, a);
-    let off = |p: Point3<T>| sheet_of(o, a, p).0;
+    let off = |p: Point3<T>| sheet_of(meridian, p).0;
     let near = |x: T| x.hi() <= band.zero();
     // The surface, read about the band's axis.
     enum Kind<T: Real> {
@@ -1725,13 +1763,13 @@ fn sheet_clip<T: Decide + Bounds>(
     }
     let kind = match surface {
         Surface::Sphere { center, radius, .. } if near(off(*center)) => Kind::Sphere {
-            zc: sheet_of(o, a, *center).1,
+            zc: sheet_of(meridian, *center).1,
             r: *radius,
             center: *center,
         },
         Surface::Cylinder { .. } => Kind::Cylinder,
         Surface::Cone { apex, axis, .. } if near(off(*apex)) && near(tilt(*axis)) => Kind::Cone {
-            z_apex: sheet_of(o, a, *apex).1,
+            z_apex: sheet_of(meridian, *apex).1,
         },
         Surface::Plane { .. } => Kind::Plane,
         _ => return None,
@@ -1760,7 +1798,7 @@ fn sheet_clip<T: Decide + Bounds>(
         let first = match body.get_loop(lp)?.boundary {
             topo::LoopBoundary::Cycle { first } => first,
             topo::LoopBoundary::Empty { vertex } => {
-                let (r, z) = sheet_of(o, a, super::surgery::point_of(body, vertex)?);
+                let (r, z) = sheet_of(meridian, super::surgery::point_of(body, vertex)?);
                 grow([r - pad, r + pad, z - pad, z + pad]);
                 continue;
             }
@@ -1780,13 +1818,13 @@ fn sheet_clip<T: Decide + Bounds>(
             if aabb.iter().flatten().any(|v| !v.is_finite()) {
                 return None;
             }
-            let [r0, r1, z0, z1] = sheet_box(o, a, &Cell::<T>::new(aabb[0], aabb[1]));
+            let [r0, r1, z0, z1] = sheet_box(meridian, &Cell::<T>::new(aabb[0], aabb[1]));
             // The edge's sheet image: its box's, narrowed below for a
             // latitude circle, whose box holds the axis it rings.
             let mut image = [r0, r1, z0, z1];
             let dt = if forward { t1 - t0 } else { t0 - t1 };
             let pi = T::pi();
-            let (z0e, z1e) = (sheet_of(o, a, p0).1 - zc, sheet_of(o, a, p1).1 - zc);
+            let (z0e, z1e) = (sheet_of(meridian, p0).1 - zc, sheet_of(meridian, p1).1 - zc);
             let z_far = z0e
                 .abs()
                 .max(z1e.abs())
@@ -1817,7 +1855,7 @@ fn sheet_clip<T: Decide + Bounds>(
                         // coaxial one sees each point's azimuth move by
                         // at most `π/2·D/ρ_min`.
                         let e = pi * d_lat / (radius - d_lat).max(T::zero());
-                        let z = sheet_of(o, a, center).1 - zc;
+                        let z = sheet_of(meridian, center).1 - zc;
                         // Every point lies within `d_lat` of the
                         // coaxial circle's one sheet point.
                         let zs = z + zc;
@@ -1948,11 +1986,11 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
     extra: &dyn Fn(Rect<T>) -> Option<T>,
     band: Band,
 ) -> Option<T> {
-    let (o, a) = reach.sheet?;
-    let (f, slack) = sheet_fn(surface, o, a, (reach.lo, reach.hi))?;
-    let mut rect = sheet_box(o, a, &Cell::<T>::new(lo, hi));
+    let axis = reach.sheet?;
+    let (f, slack) = sheet_fn(surface, axis, (reach.lo, reach.hi))?;
+    let mut rect = sheet_box(axis, &Cell::<T>::new(lo, hi));
     // The face's own extent along its trace, where its boundary says it.
-    match face.and_then(|face| sheet_clip(body, face, surface, o, a, band)) {
+    match face.and_then(|face| sheet_clip(body, face, surface, axis, band)) {
         Some(Clip::Z(z0, z1)) => {
             rect[2] = rect[2].max(z0);
             rect[3] = rect[3].min(z1);
@@ -2970,8 +3008,8 @@ fn same_sheet<T: Bounds>(a: &Stretch<T>, b: &Stretch<T>) -> bool {
 }
 
 /// Whether two sheet frames are one and the same, bit for bit.
-fn same_frame<T: Bounds>(x: (Point3<T>, Vec3<T>), y: (Point3<T>, Vec3<T>)) -> bool {
-    let bits = |(o, a): (Point3<T>, Vec3<T>)| {
+fn same_frame<T: Bounds>(x: geom::Line<T>, y: geom::Line<T>) -> bool {
+    let bits = |geom::Line { origin: o, dir: a }: geom::Line<T>| {
         [o.x, o.y, o.z, a.x, a.y, a.z].map(|v| (v.lo().to_bits(), v.hi().to_bits()))
     };
     bits(x) == bits(y)
@@ -3001,7 +3039,7 @@ fn metered<T: Decide + Bounds>(
     let certified = |m: T| m.lo() >= band.escalate();
     let coaxial = reach
         .sheet
-        .and_then(|(o, a)| sheet_fn(surface, o, a, (reach.lo, reach.hi)))
+        .and_then(|axis| sheet_fn(surface, axis, (reach.lo, reach.hi)))
         .is_some_and(|(_, slack)| slack.hi() < reach.width.lo());
     if coaxial {
         match sheet() {
@@ -3169,11 +3207,11 @@ mod tests {
     }
 
     /// The unit axis `cos t · z + sin t · x` through the origin.
-    fn leaning<T: geom_core::Real>(t: f64) -> (Point3<T>, Vec3<T>) {
-        (
-            Point3::new(T::zero(), T::zero(), T::zero()),
-            Vec3::new(T::from_f64(t.sin()), T::zero(), T::from_f64(t.cos())),
-        )
+    fn leaning<T: geom_core::Real>(t: f64) -> geom::Line<T> {
+        geom::Line {
+            origin: Point3::new(T::zero(), T::zero(), T::zero()),
+            dir: Vec3::new(T::from_f64(t.sin()), T::zero(), T::from_f64(t.cos())),
+        }
     }
 
     /// The witness band.
@@ -3218,9 +3256,9 @@ mod tests {
         macro_rules! spans {
             ($t:ty) => {{
                 let (body, wall, stored) = rod::<$t>();
-                let (o, a) = leaning::<$t>(0.5 * band.zero());
+                let axis = leaning::<$t>(0.5 * band.zero());
                 storages.map(|along| {
-                    match sheet_clip(&body, wall, &stored_at(&stored, along), o, a, band) {
+                    match sheet_clip(&body, wall, &stored_at(&stored, along), axis, band) {
                         Some(Clip::Z(z0, z1)) => (z0.lo(), z1.hi()),
                         Some(Clip::Rho(..)) => {
                             panic!("stored {along} m along: an axial clip, not a radial one")
@@ -3486,8 +3524,29 @@ mod tests {
                         for o in origins {
                             let oi = Point3::new(iv(o.x), iv(o.y), iv(o.z));
                             for (scalar, clip) in [
-                                ("f64", read!(sheet_clip(&body, f, &s, o, a, band))),
-                                ("Interval", read!(sheet_clip(&ibody, fi, &si, oi, ai, band))),
+                                (
+                                    "f64",
+                                    read!(sheet_clip(
+                                        &body,
+                                        f,
+                                        &s,
+                                        geom::Line { origin: o, dir: a },
+                                        band
+                                    )),
+                                ),
+                                (
+                                    "Interval",
+                                    read!(sheet_clip(
+                                        &ibody,
+                                        fi,
+                                        &si,
+                                        geom::Line {
+                                            origin: oi,
+                                            dir: ai,
+                                        },
+                                        band
+                                    )),
+                                ),
                             ] {
                                 let Some((kind, lo, hi)) = clip else {
                                     continue;
@@ -3543,7 +3602,7 @@ mod tests {
         use super::sheet_fn;
         let band = band();
         let (_, _, wall) = rod::<f64>();
-        let (o, a) = leaning::<f64>(0.5 * band.zero());
+        let axis = leaning::<f64>(0.5 * band.zero());
         let reach = (Point3::new(-2.0, -2.0, -2.0), Point3::new(2.0, 2.0, 2.0));
         let plane_at = |x: f64| geom::Surface::Plane {
             origin: Point3::new(x, 0.0, 1.0),
@@ -3557,7 +3616,7 @@ mod tests {
             ),
             ("the plane", &plane_at),
         ] {
-            let slack = |along: f64| match sheet_fn(&at(along), o, a, reach) {
+            let slack = |along: f64| match sheet_fn(&at(along), axis, reach) {
                 Some((_, slack)) => slack,
                 None => panic!("{what} stored {along} m along: a sheet form"),
             };
@@ -3636,7 +3695,8 @@ mod tests {
                     };
                     for s in [cylinder, plane] {
                         for (lo, hi) in boxes {
-                            let Some((g, slack)) = sheet_fn(&s, o, a, (lo, hi)) else {
+                            let axis = geom::Line { origin: o, dir: a };
+                            let Some((g, slack)) = sheet_fn(&s, axis, (lo, hi)) else {
                                 continue;
                             };
                             read += 1;
@@ -3743,8 +3803,10 @@ mod tests {
     #[test]
     fn a_sheet_bounds_strict_reading_takes_its_slack_the_other_way() {
         let sheet = Bound::Sheet {
-            o: Point3::new(0.0, 0.0, 0.0),
-            a: Vec3::new(0.0, 0.0, 1.0),
+            axis: geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            },
             f: SheetFn::Line {
                 alpha: 1.0,
                 beta: 0.0,
