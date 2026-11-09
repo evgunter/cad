@@ -968,3 +968,4 @@
 - 12:57Z needle-tilts opened PR 6638 (transverse-range T, stacked on 6623, head 3cce7f57, gate green; row closed; filed the-line-router-charges-its-margins-with-world-origin-noise) → FULL review with 6623's reviewer session_013mPGJ5pxD6AT4GPvwns2YC. The lane goes on to onecopy/pose-arms: the line-router noise, the parallel/offset gap height and the circle_torus graze.
 - 13:00Z Merged PR 6622 (unbuilt-recourse) at gate-green 7f47d090; main had moved only by the STATUS render.
 - 13:02Z unbuilt-recourse → onecopy/unbuilt-recourse-2 on its own NOTE row (no-carrier-touch recourse, range ending). Merged main into the state branch.
+- 13:03Z census-rosters-2 opened PR 6640 (head 8e6f3d42; three rows closed) → FULL review with session_013mPGJ3QbgmieDwjQAcwUog; gating.
