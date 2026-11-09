@@ -572,7 +572,7 @@ fn a_meet_with_a_seat_meets_each_piece() {
 /// (`work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md`);
 /// this row builds when that row lands.
 #[test]
-fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
+fn a_seat_as_a_cuts_tool_is_read_whole_and_refuses_where_the_cut_crosses_it() {
     let (doc, seat, _, plate) = seat("dprime3-seat-tool");
     let (doc, t) = beside(doc, plate, [0.0, 0.0, 0.1], 0.1, 0.3);
     let (doc, cut) = put(

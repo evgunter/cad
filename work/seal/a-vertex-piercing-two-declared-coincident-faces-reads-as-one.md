@@ -68,7 +68,7 @@ record (`ToolSeatCrossed`), never a lamina; with no record, a vertex
 through both faces still refuses `VertexReadTwice`. The pinned rows
 flip: the bridged union to `TouchesItself`
 (`a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_touches_itself`),
-and `a_seat_as_a_cuts_tool_is_cut_by_whole` re-pinned to
+and `a_seat_as_a_cuts_tool_is_read_whole_and_refuses_where_the_cut_crosses_it` re-pinned to
 `ToolSeatCrossed`
 (`crates/editor-core/tests/intent_dprime3_assemble_product_slot.rs`).
 
@@ -107,21 +107,46 @@ If the prototype shows the gathered read cannot be made sound, stop and report. 
 
 ## Closed (2026-11-09, PR 6613)
 
-A record's face–face pair is one two-sided wall to the vertex-on-face
-pass: `vtxfac::pierced_and_paired` reads the pierced operand's records
-through the door the boolean already carries them by
-(`Glue::records_a/b`) and returns each vertex piercing both faces
-(`vtxfac::Wall`); the first face mints its Out run as any pierce, and
-the second reads the vertex's orbit on the operand as its pass began
-and mints its In run at the first face's copy (`vtxfac::WallRead`),
-its ring's struts Out (`RingPlan::strut_side`). Where the vertex only
-touches the wall, pairs on it, or its two reads part from the mirror
-the record declares, it is still read twice: those readers are
-`a-declared-wall-is-read-only-by-a-vertex-crossing-it`. The result gate refuses a shell holding both faces of a
-carried record (`ops::Held::apart`): `TouchesItself`, or
-`ToolSeatCrossed` in a cut by the record's operand, which the vertex
-pass also raises before writing. Rows:
-`crates/topo/tests/a_vertex_through_a_declared_seat.rs`.
+An area record's two faces are one two-sided wall to the vertex-on-face
+pass. An area record is a face–face record of two planar faces
+(`crate::contact::area_record`); a curved record may be a tangency.
+
+- **The read.** `vtxfac::pierced_and_paired` reads the pierced
+  operand's records through the door the boolean already carries them
+  by (`Glue::records_a/b`), and returns each vertex piercing both faces
+  (`vtxfac::Wall`).
+- **The two mints.** The first face mints its Out run as any pierce
+  does. The second face reads the vertex's orbit on the operand as its
+  pass began, which a debug assertion checks against the live operand.
+  It mints its In run at the first face's copy (`vtxfac::WallRead`), and
+  its ring's struts go Out (`RingPlan::strut_side`).
+- **The edge classes.** An edge is In where either face reads it In
+  (`vtxfac::gathered`).
+- **Still read twice** (`VertexReadTwice`), where the vertex pairs on
+  the wall, its two reads part from the mirror the record declares, or
+  it touches the wall outside a cut by the seat. Those readers are
+  `a-declared-wall-is-read-only-by-a-vertex-crossing-it`.
+- **A cut by the seat.** A vertex crossing the wall refuses
+  `ToolSeatCrossed` before its second face writes. A vertex only
+  touching the wall reads on both faces and writes nothing, so a tool
+  touching the seat from one piece is cut away whole. The result gate
+  refuses a shell holding both faces of a carried area record
+  (`ops::Held::apart`): `TouchesItself`, or `ToolSeatCrossed` in a cut
+  by the record's holder (`boolean::seat_crossed`). On main the gate's
+  shape was a silently wrong body, `cap − seat`.
+- **Rows:** `crates/topo/tests/a_vertex_through_a_declared_seat.rs`.
+
+**Deviation from the Design section, disclosed.** The design reads the
+wall as `vtxfac::cone_classes`' gathered cone extended from touching to
+crossing. The build is a parallel path instead: `WallRead`, the
+pass-start clone and the In-wins gather. The gathered cone classes a
+vertex that touches what it gathers and writes nothing: it reads the
+vertex's edges against one cone and returns classes. A crossing of the
+wall must mint, one strut run against each face's ring, so that the
+join pairs each face's ring with its own run. The cone has no such mint,
+and extending it would make it the minting pass it is built not to be.
+What is shared with it is the rule: one read of the vertex against
+both faces, its edges In where either face holds material.
 
 Premise corrections: the seat's record already reached the boolean
 when a `⊔` is read directly (the census at the `⊔`'s door, `0373eb3288`,

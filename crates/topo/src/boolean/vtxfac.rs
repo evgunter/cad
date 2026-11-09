@@ -71,18 +71,21 @@
 //! read by both passes ([`pierced_and_paired`]). It is read again
 //! only where its pierce touches the face, so its orbit is unwritten;
 //! a pierce that would cross refuses before it writes, and so does a
-//! second pierce. The pair's partner must lie on one side of the face,
+//! second pierce of a face no area record declares one wall with the
+//! first. The pair's partner must lie on one side of the face,
 //! meeting it along rays at most ([`partner_side`]). The vertex's edges
 //! are then classed against one cone of the other solid at the point,
 //! the face and its partners together ([`cone_classes`]); an edge it
 //! cannot class refuses. A vertex in pairs alone is read through the
 //! same cone, its partners' faces alone.
 //!
-//! **A declared wall.** Two faces of the other solid that a face–face
-//! record of its declares one wall, each face holding the material on
-//! its own side, are pierced at one point by a vertex crossing them: the
-//! vertex is read once, each face's crossing minted at it ([`Wall`],
-//! [`WallRead`]).
+//! **A declared wall.** Two faces of the other solid that an area record
+//! of its declares one wall, each face holding the material on its own
+//! side, are pierced at one point by a vertex crossing them: the vertex
+//! is read once, each face's crossing minted at it ([`Wall`],
+//! [`WallRead`]). [`cone_classes`]' gathered cone is not that reading:
+//! it classes a vertex that touches what it gathers and writes nothing,
+//! while a crossing of a wall mints a strut run against each face's ring.
 
 use geom_brep::OutwardNormal;
 use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};

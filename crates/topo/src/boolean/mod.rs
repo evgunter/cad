@@ -579,7 +579,10 @@ impl SideCode {
 /// - The vertex-on-face pass records every edge at the piercing vertex,
 ///   read against the pierced face: the side codes that pass decided
 ///   and acted on, recorded as it read them (D5's birth row), before
-///   any reclassification lumps them.
+///   any reclassification lumps them. A vertex through a declared wall
+///   records its edges once, against both faces: In where either face
+///   reads them In, each face holding its piece's material on its own
+///   side (`vtxfac::gathered`).
 /// - The vertex-vertex pass records every edge at each vertex in a
 ///   pair, read through one cone of the other operand at the vertex's
 ///   point: every partner's faces, and the face the vertex touches where
@@ -3520,7 +3523,12 @@ pub enum BooleanError {
     /// their interiors, or a vertex of it rests on one of its faces. A
     /// vertex-on-face pass hangs struts at a vertex that crosses the
     /// face, so a later pass would read an orbit an earlier one wrote
-    /// (`vtxfac::pierced_and_paired`, `vtxfac::partner_side`). A partner
+    /// (`vtxfac::pierced_and_paired`, `vtxfac::partner_side`). Two faces
+    /// an area record of the other solid's carries in are one wall, which
+    /// a vertex crossing it is read against once (`vtxfac::Wall`); this
+    /// is the refusal where no record declares them, or where the vertex
+    /// touches the wall outside a cut by it, pairs on it, or reads the two
+    /// faces other than as each other's mirror. A partner
     /// along the face where its side is not read is
     /// [`BooleanError::PartnerAlongFace`]. Neither piece of the other
     /// solid touches itself there alone, so the operation applied to
@@ -9362,6 +9370,15 @@ mod tests {
                 face,
                 partner: VertexKey::default(),
                 along: AlongFace::Curved,
+            },
+            BooleanError::TouchesItself {
+                operand: Operand::A,
+                record: 0,
+                faces: [face; 2],
+            },
+            BooleanError::ToolSeatCrossed {
+                record: 0,
+                faces: [face; 2],
             },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),

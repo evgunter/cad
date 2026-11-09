@@ -20,15 +20,20 @@ two faces are one two-sided wall to every reader of that operand's
 material at a point: the vertex cone, the line wedge, face containment
 and the coplanar sector. The unit built the vertex cone at a crossing
 only (`vtxfac::Wall`): a vertex whose reads of the two faces each
-cross, and mirror each other run for run. Measured on the bolt-on-plate
-seat with its record carried
+cross, and mirror each other run for run, and a vertex touching both
+faces in a cut by the seat, which keeps nothing of the cut part there.
+Measured on the bolt-on-plate seat with its record carried
 (`crates/topo/tests/a_vertex_through_a_declared_seat.rs`,
-`a_vertex_touching_a_seat_or_pairing_on_it_reads_twice`), the rest
-still refuse `VertexReadTwice` in every op:
+`a_vertex_on_a_seat_that_is_no_crossing_of_it_reads_twice`,
+`a_tool_touching_its_seat_from_one_piece_is_cut_away`,
+`a_seat_divided_along_a_ring_or_met_with_a_seat_refuses_at_the_carry`),
+the rest refuse typed:
 
 - **A vertex touching the wall** (all its edges on one side, or in the
-  wall). The ridge whose apex edge lies in the seat touches both faces
-  at its ends. Admitted as a wall vertex during the unit's build, the
+  wall), outside a cut by the seat: `VertexReadTwice`. The ridge whose
+  apex edge lies in the seat touches both faces at its ends (cut by the
+  seat, it is the empty result). Admitted as a wall vertex during the
+  unit's build, the
   touch read through and `seat − ridge` built a body (volume 0.957, the
   right one) whose own records tier 3′ refuses: nine
   `UnrecordedContact`s, the bolt's foot corners on the plate's top,
@@ -44,7 +49,7 @@ still refuse `VertexReadTwice` in every op:
   foot lies on that face. `vtxfac::partner_side` reads the partner's
   link against the pierced face alone, not the wall it is part of.
   `vtxfac::pierced_and_paired` likewise refuses a vertex that pierces a
-  wall and pairs.
+  wall and pairs (`VertexReadTwice`).
 - **A record of curved faces.** Only a record of two planar faces is
   read as a wall (`vtxfac::Wall`), and only such a record is held
   apart at the result gate (`ops::Held::apart`): planar faces a record
@@ -55,11 +60,27 @@ still refuse `VertexReadTwice` in every op:
   is a wall the readers do not yet read: a vertex through it still
   reads twice, and a union bridging it is not refused at the gate.
   Telling an area record from a tangency without re-deciding the
-  carriers is part of this row.
-- **A vertex whose reads part from the mirror**: an edge of it lying in
-  the wall (On both faces), a sector flush with the wall, a run with no
-  edge. The coplanar sector reader (Eq. 15.3's lump) reads each face
-  apart.
+  carriers is part of this row. The cut of the kind that is a silent
+  wrong body, a curved seat as a cut's tool, is its own row
+  (`a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record`).
+- **A vertex whose reads part from the mirror**: `VertexReadTwice`. An
+  edge of it lying in the wall (On both faces: the blade, whose mint,
+  admitted, is an Euler refusal), a sector flush with the wall (a block
+  with a face on the seat, from above or below, in every op, a cut by
+  the seat included), a run with no edge. The coplanar sector reader
+  (Eq. 15.3's lump) reads each face apart.
+- **The carry onto a seat the operation divides along the wall**:
+  `CarryRefused` (`Unread`: the census reads no lane for one pair of the
+  record's images). A collar round the bolt's foot, `[-0.4, 0.4]² ×
+  [0.1, 0.4]` less `[-0.15, 0.15]²`, united with or cut from the seat:
+  its inner edges cross the wall, and the seat's faces are divided
+  along the collar's ring. A post of two blocks touching at `x = 0`,
+  its own seat recorded, united with or met with the seat, in either
+  order, and the seat cut by it: both operands carry records. On main
+  these were `VertexReadTwice`. The refusal is typed and names the
+  record, but the reading is owed: whether each image pair of a divided
+  seat face still touches is a decision the carry must take from the
+  operation's lineage, not a census lane it lacks.
 
 ## Done when
 

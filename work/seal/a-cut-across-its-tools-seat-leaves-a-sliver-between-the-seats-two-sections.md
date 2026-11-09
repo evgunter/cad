@@ -53,13 +53,16 @@ region of its own:
   `EdgeInFace { gap: Crossed }`.
 
 Today every such cut refuses `BooleanError::ToolSeatCrossed`, naming
-the record: at the vertex pass where a vertex of `A` pierces both faces
-of a wall of `B` (`vtxfac::pierced_and_paired`), and at the result gate
-where a shell holds both faces of a record `B` carried in
-(`ops::Held::apart`, the slab and the cap, which cross the foot by a
-face alone). Pinned by `a_cut_across_its_tools_seat_refuses_typed`
+the record. It is raised at the vertex pass where a vertex of `A` crosses
+both faces of a wall of `B`, after the mirror check and before the
+second face writes (`vtxfac::classify_vertex_on_face`). It is also raised
+at the result gate where a shell holds both faces of a record `B`
+carried in (`ops::Held::apart`): the slab and the cap, which cross the
+foot by a face alone. A tool that only touches the seat from one piece
+(a ridge in the bolt or in the plate) is cut away whole, the typed empty
+result. Pinned by `a_cut_across_its_tools_seat_refuses_typed`
 (`crates/topo/tests/a_vertex_through_a_declared_seat.rs`) and the
-editor's `a_seat_as_a_cuts_tool_is_cut_by_whole`
+editor's `a_seat_as_a_cuts_tool_is_read_whole_and_refuses_where_the_cut_crosses_it`
 (`crates/editor-core/tests/intent_dprime3_assemble_product_slot.rs`).
 
 ## Done when
