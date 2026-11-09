@@ -1028,3 +1028,5 @@
 - 15:20Z Merged PR 6647 (chord-length) at gate-green 8474df19 (FULL MERGE; disjoint; merge check clean). NOTEs (prescale value move, two stale zero-only texts, a point-equality home row, the clearance pin) → length-rule lane.
 - 15:25Z Merged PR 6643 (face-placement) at gate-green 0741cadf (FULL MERGE; disjoint since; merge check clean).
 - 15:35Z 6632 at 7849c458: the FIX sentence corrected in 3 places plus the exact-½ row (verified by diff; no re-review needed). Main overlapped in 3 topo files → merged main (afccf6d901a92115ac88435a8570c5dd9254e2d5); build, gates and topo 3747 clean; re-gating. 6638 and 6598 gates are green; they wait on their deltas. 6637 green but its FIX is pending.
+- 15:38Z foot-and-pinch opened PR 6651 (pinch-side, da16dbf0): no P0; "not crossed ⇒ one side" is the division's construction premise; the checked form is parked on [ev] 6592; one pin → review with session_013mPGJ3BVt7iJw5XModx26D; gating. Lane → onecopy/coplanar-subdivision (coplanar_ellipse_circle global-harmonic charge, following 6565).
+- 15:38Z bracket-mid lane → onecopy/exact-half (Interval × ½ exact, so mid's claim is structurally true).
