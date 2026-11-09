@@ -2452,6 +2452,25 @@ pub enum ValidationError {
         /// read after "at" in the message.
         witness: String,
     },
+    /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
+    /// edge and no record touch along the closed-form tangent line both
+    /// their carriers derive, with their outward normals agreeing there,
+    /// or agreeing at one sample and opposing at another
+    /// (`contact::TangentRuling`). The solid's material then lies on both
+    /// sides of a face along the line: a defect of the body, which no
+    /// contact record answers for. The sibling of
+    /// [`Self::CuspEdgesMissing`], whose crescent both materials hold.
+    MaterialOnBothSides {
+        /// One face through the line.
+        a: FaceKey,
+        /// The other.
+        b: FaceKey,
+        /// A point on the line within both faces' extents along it,
+        /// read after "at" in the message.
+        witness: String,
+        /// The tangent table's ruling: the senses' row, or mixed sides.
+        ruling: crate::contact::TangentRuling,
+    },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
     /// key twice yields two errors).
@@ -5143,6 +5162,14 @@ impl ValidationError {
                 "two faces of one part are pinched together along a line at {witness} with \
                  material between them on both sides, and no edge lies on the line, which owes \
                  two cusp edges. {DEFECT}"
+            ),
+            Self::MaterialOnBothSides {
+                witness, ruling, ..
+            } => write!(
+                f,
+                "two faces of one part touch along a line at {witness} where {}, so the part's \
+                 material lies on both sides of a face there. {DEFECT}",
+                ruling.fact()
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")

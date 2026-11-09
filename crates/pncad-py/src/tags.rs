@@ -3171,6 +3171,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SameSideInterference { .. } => "same_side_interference",
         ValidationError::TouchInterference { .. } => "touch_interference",
         ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
+        ValidationError::MaterialOnBothSides { .. } => "material_on_both_sides",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",
         ValidationError::NextPrevMismatch { .. } => "next_prev_mismatch",

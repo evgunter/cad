@@ -380,10 +380,10 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
     assert!(
         matches!(
             door,
-            Ok(topo::RestVerdict::Ruled {
+            Ok(topo::RestVerdict::Ruled(topo::RestRuling {
                 row: topo::RestRow::TwoCarriers,
                 by: Some(_),
-            })
+            }))
         ),
         "the door reads the tilt across the faces and rules the pair two carriers: {door:?}"
     );
@@ -463,10 +463,10 @@ fn a_wedge_sweep_bridges_then_escalates_then_contradicts() {
         let door = wedge_on_the_top(d * k, 0.0);
         let read = match door {
             Err(topo::ContactRefusal::Escalated { .. }) => "escalated",
-            Ok(topo::RestVerdict::Ruled {
+            Ok(topo::RestVerdict::Ruled(topo::RestRuling {
                 row: topo::RestRow::TwoCarriers,
                 by: Some(_),
-            }) => "apart",
+            })) => "apart",
             ref other => panic!("d = {d}·Kε: unexpected {other:?}"),
         };
         assert_eq!(read, expect, "d = {d}·Kε");

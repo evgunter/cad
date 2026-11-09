@@ -1433,6 +1433,7 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::SolidOuterShells { .. }
         | E::ShellRoleUndecided { .. }
         | E::CuspEdgesMissing { .. }
+        | E::MaterialOnBothSides { .. }
         | E::DanglingTopology { .. }
         | E::DanglingGeometry { .. }
         | E::NextPrevMismatch { .. }

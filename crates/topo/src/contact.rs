@@ -191,17 +191,18 @@ impl std::error::Error for ContactRefusal {}
     strum_discriminants(name(TangentRowKind), vis(pub(crate)), derive(strum::EnumIter))
 )]
 pub enum TangentRow {
-    /// The outward normals agree at a tangent sample: containment, which
-    /// a contact rules out (the C1 lemma).
-    Opposed,
+    /// The outward normals agree at a tangent sample: under a contact's
+    /// claim, containment (the C1 lemma).
+    SensesAligned,
     /// The normals are definitely perpendicular.
     Independent,
     /// The normals are definitely not parallel at the derived angle.
     Parallel,
     /// The two materials both hold the crescent between the sheets.
     Overlap,
-    /// The surfaces stand definitely apart, or run into each other's
-    /// material, along their shared normal: the sign of the reading.
+    /// The surfaces stand definitely off each other along their shared
+    /// normal; the reading's sign says which side, in the orientation the
+    /// sample's senses decided.
     Gap,
     /// The witness lies definitely off this surface where the pair
     /// touches.
@@ -213,13 +214,71 @@ impl TangentRow {
     #[must_use]
     pub const fn predicate(self) -> &'static str {
         match self {
-            Self::Opposed => "contact_tangent_opposed",
+            Self::SensesAligned => "contact_tangent_opposed",
             Self::Independent => "contact_tangent_independent",
             Self::Parallel => "contact_tangent_parallel",
             Self::Overlap => "contact_tangent_overlap",
             Self::Gap => "contact_tangent_gap",
             Self::Off(geom_brep::PairSide::First) => "contact_tangent_off_1",
             Self::Off(geom_brep::PairSide::Second) => "contact_tangent_off_2",
+        }
+    }
+}
+
+/// **A definite "no" of the C4 `Tangent` table**: a sample's row, or two
+/// tangent samples whose senses disagree.
+#[derive(Clone, Copy, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(TangentRulingKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
+pub enum TangentRuling {
+    /// Ruled out at a sample, on `row`.
+    Row {
+        /// The row.
+        row: TangentRow,
+        /// The reading that decided it.
+        by: geom_core::Decided,
+    },
+    /// Two samples each read tangent, the outward normals agreeing at one
+    /// and opposing at the other: a definite crossing between them.
+    ///
+    /// Along a curve that is a line of curvature of both surfaces (a
+    /// ruling of the lane's straight kinds, a latitude circle of two
+    /// coaxial surfaces of revolution) `n₁·n₂` is constant (Rodrigues),
+    /// so no such locus reaches it. A Villarceau circle two tori share is
+    /// a line of curvature of neither: on a torus and its mirror image in
+    /// the bitangent plane they share one in, the pair is tangent at four
+    /// isolated points, two aligned and two opposed, and a nine-station
+    /// schedule over the whole circle ends at its first station off them,
+    /// not parallel. A span whose step runs from an opposed point to an
+    /// aligned one reads both tangent, and is this
+    /// (`contact_verify::tests::two_tangent_samples_with_opposite_senses_are_mixed_sides`).
+    SidesMixed {
+        /// The two readings of `n₁·n₂`, the earlier sample's first.
+        at: [geom_core::Decided; 2],
+    },
+}
+
+impl TangentRuling {
+    /// What the ruling found, as a clause.
+    #[must_use]
+    pub const fn fact(self) -> &'static str {
+        match self {
+            Self::Row { row, .. } => match row {
+                TangentRow::SensesAligned => "the two faces' outward normals agree",
+                TangentRow::Independent => "the two faces' normals are perpendicular",
+                TangentRow::Parallel => "the two faces' normals are not parallel",
+                TangentRow::Overlap => "both faces' materials hold the crescent between them",
+                TangentRow::Gap => "the two faces stand off each other along their shared normal",
+                TangentRow::Off(_) => "the line runs off a face's carrier",
+            },
+            Self::SidesMixed { .. } => {
+                "the two faces' outward normals agree at one point of the line and oppose at \
+                 another"
+            }
         }
     }
 }
@@ -264,31 +323,8 @@ pub enum TangentVerdict {
     /// Tangent along the whole locus, on the margin the touch was
     /// decided on.
     Touch(geom_core::MarginDiag),
-    /// Ruled out at a sample, on `row`.
-    Ruled {
-        /// The row.
-        row: TangentRow,
-        /// The reading that decided it.
-        by: geom_core::Decided,
-    },
-    /// Two samples each read tangent, the outward normals agreeing at one
-    /// and opposing at the other: a definite crossing between them.
-    ///
-    /// Along a curve that is a line of curvature of both surfaces (a
-    /// ruling of the lane's straight kinds, a latitude circle of two
-    /// coaxial surfaces of revolution) `n₁·n₂` is constant (Rodrigues),
-    /// so no such locus reaches it. A Villarceau circle two tori share is
-    /// a line of curvature of neither: on a torus and its mirror image in
-    /// the bitangent plane they share one in, the pair is tangent at four
-    /// isolated points, two aligned and two opposed, and a nine-station
-    /// schedule over the whole circle ends at its first station off them,
-    /// not parallel. A span whose step runs from an opposed point to an
-    /// aligned one reads both tangent, and is this
-    /// (`contact_verify::tests::two_tangent_samples_with_opposite_senses_are_mixed_sides`).
-    SidesMixed {
-        /// The two readings of `n₁·n₂`, the earlier sample's first.
-        at: [geom_core::Decided; 2],
-    },
+    /// Ruled out.
+    Ruled(TangentRuling),
     /// A reading in band.
     InBand(Indeterminate),
     /// Outside what the certificate reaches.
@@ -304,24 +340,41 @@ pub enum RestRow {
     TwoCarriers,
 }
 
+/// **The `Rest` door's definite "no"**: its row, and the datum that
+/// decided the carriers apart where one did (a sense and a kind decide
+/// no datum).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RestRuling {
+    /// The row.
+    pub row: RestRow,
+    /// The datum's reading.
+    pub by: Option<geom_core::Decided>,
+}
+
+impl RestRuling {
+    /// What the ruling found, as a clause.
+    #[must_use]
+    pub const fn fact(self) -> &'static str {
+        match self.row {
+            RestRow::SensesAligned => "the two faces lie on one carrier with their senses aligned",
+            RestRow::TwoCarriers => "the two faces lie on two carriers",
+        }
+    }
+}
+
 /// **What the `Rest` door read of a face pair**: one carrier with the
 /// senses opposed, or ruled out.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RestVerdict {
     /// One carrier, senses opposed, on the margin it was decided one on.
     Rest(geom_core::MarginDiag),
-    /// Ruled out on `row`.
-    Ruled {
-        /// The row.
-        row: RestRow,
-        /// The datum that decided the carriers apart, where one did: a
-        /// sense and a kind decide no datum.
-        by: Option<geom_core::Decided>,
-    },
+    /// Ruled out.
+    Ruled(RestRuling),
 }
 
 /// **A reading that rules out what a face–face record claims** (C4 at
-/// rest).
+/// rest): the ruling of the door that read the record, as that door
+/// returned it.
 ///
 /// The façade's curated lists do not carry it: every verdict ends the
 /// same way, the defect ending with no lever, and the record's faces
@@ -338,35 +391,18 @@ pub enum RestVerdict {
     strum_discriminants(name(ContactVerdictKind), vis(pub(crate)), derive(strum::EnumIter))
 )]
 pub enum ContactVerdict {
-    /// The `Rest` door's.
-    Rest {
-        /// The row.
-        row: RestRow,
-        /// The datum's reading, where one decided it.
-        by: Option<geom_core::Decided>,
-    },
+    /// The `Rest` door's ruling.
+    Rest(RestRuling),
     /// The two carriers derive no tangent line: they stand definitely
-    /// apart, or definitely cross.
+    /// apart (`apart`), or definitely cross, on the reading `by`.
     NotTangent {
         /// Apart, not crossing.
         apart: bool,
-        /// The row that decided it.
-        predicate: &'static str,
-        /// Its reading.
+        /// The reading that decided it.
         by: geom_core::Decided,
     },
-    /// The `Tangent` table's ruling at a sample.
-    Ruled {
-        /// The row.
-        row: TangentRow,
-        /// Its reading.
-        by: geom_core::Decided,
-    },
-    /// The `Tangent` table's mixed sides.
-    SidesMixed {
-        /// The two readings, the earlier sample's first.
-        at: [geom_core::Decided; 2],
-    },
+    /// The `Tangent` table's ruling along the line.
+    Tangent(TangentRuling),
 }
 
 impl ContactVerdict {
@@ -376,42 +412,19 @@ impl ContactVerdict {
     #[must_use]
     pub const fn witness(self) -> &'static str {
         match self {
-            Self::Rest { .. } => "across the whole of both faces",
-            Self::NotTangent { .. } | Self::Ruled { .. } | Self::SidesMixed { .. } => {
-                "along their tangent line"
-            }
+            Self::Rest(_) => "across the whole of both faces",
+            Self::NotTangent { .. } | Self::Tangent(_) => "along their tangent line",
         }
     }
 
     /// What the verdict found, as a clause.
     #[must_use]
-    pub fn fact(self) -> &'static str {
+    pub const fn fact(self) -> &'static str {
         match self {
-            Self::Rest {
-                row: RestRow::SensesAligned,
-                ..
-            } => "the two faces lie on one carrier with their senses aligned",
-            Self::Rest {
-                row: RestRow::TwoCarriers,
-                ..
-            } => "the two faces lie on two carriers",
+            Self::Rest(ruling) => ruling.fact(),
             Self::NotTangent { apart: true, .. } => "their carriers stand definitely apart",
             Self::NotTangent { apart: false, .. } => "their carriers definitely cross",
-            Self::Ruled { row, by } => match row {
-                TangentRow::Opposed => "the two faces' outward normals agree",
-                TangentRow::Independent => "the two faces' normals are perpendicular",
-                TangentRow::Parallel => "the two faces' normals are not parallel",
-                TangentRow::Overlap => "both faces' materials hold the crescent between them",
-                TangentRow::Gap if by.sign == geom_core::Sign::Negative => {
-                    "the two faces run into each other's material"
-                }
-                TangentRow::Gap => "the two faces stand apart",
-                TangentRow::Off(_) => "the line runs off a face's carrier",
-            },
-            Self::SidesMixed { .. } => {
-                "the two faces' outward normals agree at one point of the line and oppose at \
-                 another"
-            }
+            Self::Tangent(ruling) => ruling.fact(),
         }
     }
 }

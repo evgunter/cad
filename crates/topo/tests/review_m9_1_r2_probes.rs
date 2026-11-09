@@ -11,7 +11,7 @@ use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierRelation, carrier_eq};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::contact::TangentVerdict;
+use topo::contact::{TangentRuling, TangentVerdict};
 use topo::{BooleanResult, Surface, ValidationError, union};
 
 fn band() -> Band {
@@ -55,7 +55,7 @@ fn probe_crossing_cylinder_through_plane_contradicts() {
     let locus = line([0.0, 1.0, 0.0], [1.0, 0.0, 0.0]);
     let err = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band());
     assert!(
-        matches!(err, TangentVerdict::Ruled { .. }),
+        matches!(err, TangentVerdict::Ruled(_)),
         "must be ruled out, got {err:?}"
     );
 }
@@ -75,7 +75,7 @@ fn probe_dihedral_crossing_planes_contradict_despite_zero_kappa() {
     let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let err = tangent_locus_relation(&flat, true, &tilted, true, &locus, -1.0, 1.0, band());
     assert!(
-        matches!(err, TangentVerdict::Ruled { .. }),
+        matches!(err, TangentVerdict::Ruled(_)),
         "must be ruled out, got {err:?}"
     );
 }
@@ -96,7 +96,7 @@ fn probe_separated_pair_contradicts() {
     let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let err = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band());
     assert!(
-        matches!(err, TangentVerdict::Ruled { .. }),
+        matches!(err, TangentVerdict::Ruled(_)),
         "expected a ruling, got {err:?}"
     );
 }
@@ -224,10 +224,10 @@ fn probe_census_gate_refuses_a_fabricated_face_pair() {
                     class: topo::GlueClass::Rest,
                     ..
                 },
-                verdict: topo::ContactVerdict::Rest {
+                verdict: topo::ContactVerdict::Rest(topo::RestRuling {
                     row: topo::RestRow::TwoCarriers,
                     by: Some(_),
-                },
+                }),
             }
         )),
         "the fabricated patch record must be contradicted: {errors:?}"
@@ -277,10 +277,10 @@ fn probe_in_band_gap_escalates() {
     assert!(
         matches!(
             far,
-            TangentVerdict::Ruled {
+            TangentVerdict::Ruled(TangentRuling::Row {
                 row: topo::TangentRow::Gap,
                 ..
-            }
+            })
         ),
         "a definite gap must be ruled out on the gap: {far:?}"
     );

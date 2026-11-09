@@ -50,7 +50,8 @@ use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
 use crate::contact::{
-    ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass, RestRow, TangentRow,
+    ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass, RestRow, RestRuling,
+    TangentRow, TangentRuling,
 };
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
@@ -116,56 +117,59 @@ fn negative_verdict(margin: f64) -> Refused {
     }
 }
 
-/// Every verdict [`ValidationError::ContactContradicted`] carries, at
-/// each row and each sign its fact reads.
-fn contact_verdicts() -> Vec<ContactVerdict> {
-    let by = |sign| geom_core::Decided {
+/// Every tangent ruling, at each row: what
+/// [`ValidationError::ContactContradicted`] and
+/// [`ValidationError::MaterialOnBothSides`] carry.
+fn tangent_rulings() -> Vec<TangentRuling> {
+    let mut v: Vec<TangentRuling> = [
+        TangentRow::SensesAligned,
+        TangentRow::Independent,
+        TangentRow::Parallel,
+        TangentRow::Overlap,
+        TangentRow::Gap,
+        TangentRow::Off(geom_brep::PairSide::First),
+        TangentRow::Off(geom_brep::PairSide::Second),
+    ]
+    .map(|row| TangentRuling::Row {
+        row,
+        by: decided(Sign::Positive),
+    })
+    .into();
+    v.push(TangentRuling::SidesMixed {
+        at: [decided(Sign::Negative), decided(Sign::Positive)],
+    });
+    v
+}
+
+fn decided(sign: Sign) -> geom_core::Decided {
+    geom_core::Decided {
         sign,
         margin: MarginDiag::value(3e-6),
-    };
+    }
+}
+
+/// Every verdict [`ValidationError::ContactContradicted`] carries, at
+/// each row and each fact its sentence states.
+fn contact_verdicts() -> Vec<ContactVerdict> {
     let mut v = vec![
-        ContactVerdict::Rest {
+        ContactVerdict::Rest(RestRuling {
             row: RestRow::SensesAligned,
             by: None,
-        },
-        ContactVerdict::Rest {
+        }),
+        ContactVerdict::Rest(RestRuling {
             row: RestRow::TwoCarriers,
-            by: Some(by(Sign::Positive)),
-        },
+            by: Some(decided(Sign::Positive)),
+        }),
         ContactVerdict::NotTangent {
             apart: true,
-            predicate: "pc_parallel_gap",
-            by: by(Sign::Negative),
+            by: decided(Sign::Negative),
         },
         ContactVerdict::NotTangent {
             apart: false,
-            predicate: "pc_parallel_gap",
-            by: by(Sign::Positive),
-        },
-        ContactVerdict::SidesMixed {
-            at: [by(Sign::Negative), by(Sign::Positive)],
+            by: decided(Sign::Positive),
         },
     ];
-    v.extend(
-        [
-            TangentRow::Opposed,
-            TangentRow::Independent,
-            TangentRow::Parallel,
-            TangentRow::Overlap,
-            TangentRow::Off(geom_brep::PairSide::First),
-            TangentRow::Off(geom_brep::PairSide::Second),
-        ]
-        .map(|row| ContactVerdict::Ruled {
-            row,
-            by: by(Sign::Positive),
-        }),
-    );
-    v.extend(
-        [Sign::Positive, Sign::Negative].map(|sign| ContactVerdict::Ruled {
-            row: TangentRow::Gap,
-            by: by(sign),
-        }),
-    );
+    v.extend(tangent_rulings().into_iter().map(ContactVerdict::Tangent));
     v
 }
 
@@ -1615,6 +1619,27 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     ] {
         s.push((label("", &e).trim_start_matches('/').to_owned(), e));
     }
+    // A part's material on both sides of a face: each ruling that says
+    // so, the senses' row and mixed sides.
+    for ruling in tangent_rulings().into_iter().filter(|r| {
+        matches!(
+            r,
+            TangentRuling::Row {
+                row: TangentRow::SensesAligned,
+                ..
+            } | TangentRuling::SidesMixed { .. }
+        )
+    }) {
+        s.push((
+            label("MaterialOnBothSides", &ruling),
+            ValidationError::MaterialOnBothSides {
+                a: face,
+                b: face,
+                witness: "(0.0, 2.0, 0.5)".to_owned(),
+                ruling,
+            },
+        ));
+    }
 
     // A surface datum, poisoned or outside its range: every datum, at
     // each end of the range.
@@ -1880,8 +1905,8 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     // sentence states.
     for (i, verdict) in contact_verdicts().into_iter().enumerate() {
         let class = match verdict {
-            ContactVerdict::Rest { .. } => GlueClass::Rest,
-            _ => GlueClass::Tangent,
+            ContactVerdict::Rest(_) => GlueClass::Rest,
+            ContactVerdict::NotTangent { .. } | ContactVerdict::Tangent(_) => GlueClass::Tangent,
         };
         s.push((
             format!("{}/{i}", label("ContactContradicted", &verdict)),
@@ -2062,7 +2087,9 @@ where
 pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     use crate::boolean::ContainErrorKind;
     use crate::chart_region::ChartRegionErrorKind;
-    use crate::contact::{ContactRefusalKind, ContactVerdictKind, TangentRowKind};
+    use crate::contact::{
+        ContactRefusalKind, ContactVerdictKind, TangentRowKind, TangentRulingKind,
+    };
     use crate::pcurves::PcurveMintErrorKind;
     use crate::props::MassPropsErrorKind;
     use crate::validate::{
@@ -2101,14 +2128,18 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         "ContactVerdict",
         &contact_verdicts(),
     ));
-    let rows: Vec<TangentRow> = contact_verdicts()
+    let rows: Vec<TangentRow> = tangent_rulings()
         .into_iter()
-        .filter_map(|v| match v {
-            ContactVerdict::Ruled { row, .. } => Some(row),
-            _ => None,
+        .filter_map(|r| match r {
+            TangentRuling::Row { row, .. } => Some(row),
+            TangentRuling::SidesMixed { .. } => None,
         })
         .collect();
     out.extend(gaps::<_, TangentRowKind>("TangentRow", &rows));
+    out.extend(gaps::<_, TangentRulingKind>(
+        "TangentRuling",
+        &tangent_rulings(),
+    ));
     out.extend(gaps::<_, ContainErrorKind>(
         "ContainError",
         &contain_errors(),

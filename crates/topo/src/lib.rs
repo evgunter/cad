@@ -1428,7 +1428,7 @@ pub use census::{
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
     CONTACT_RECOURSE, ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass,
-    RestRow, RestVerdict, TangentRow, TangentVerdict, Uncertified,
+    RestRow, RestRuling, RestVerdict, TangentRow, TangentRuling, TangentVerdict, Uncertified,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,

@@ -7040,9 +7040,13 @@ fn line_unread(
 }
 
 /// One candidate of [`sweep_same_solid_tangent_lines`]. No record backs
-/// the pair, so a ruling is no touch, save a crescent both materials
-/// hold, which is two cusp edges the body lacks
-/// ([`ValidationError::CuspEdgesMissing`]).
+/// the pair, so a ruling contradicts nothing: a pair the line shows apart
+/// or crossing is no touch. A touch along the line whose sides are wrong
+/// is the body's defect all the same: a crescent both materials hold is
+/// two cusp edges the body lacks ([`ValidationError::CuspEdgesMissing`]),
+/// and outward normals that agree, or that agree at one tangent sample
+/// and oppose at another, put the solid's material on both sides of a
+/// face ([`ValidationError::MaterialOnBothSides`]).
 fn same_solid_tangent_pair<T: Decide>(
     body: &Body<T>,
     a: FaceKey,
@@ -7050,7 +7054,7 @@ fn same_solid_tangent_pair<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
-    use crate::contact::{TangentRow, TangentVerdict};
+    use crate::contact::{TangentRow, TangentRuling, TangentVerdict};
     let (carrier, overlap) = match crate::boolean::tangent_pair_at_rest(body, a, b, band) {
         Ok(crate::boolean::RestTangent::Line { carrier, overlap }) => (carrier, overlap),
         Ok(_) => return,
@@ -7089,11 +7093,23 @@ fn same_solid_tangent_pair<T: Decide>(
             witness: at,
             margin: None,
         }),
-        TangentVerdict::Ruled {
+        TangentVerdict::Ruled(TangentRuling::Row {
             row: TangentRow::Overlap,
             ..
-        } => errors.push(ValidationError::CuspEdgesMissing { a, b, witness: at }),
-        TangentVerdict::Ruled { .. } | TangentVerdict::SidesMixed { .. } => {}
+        }) => errors.push(ValidationError::CuspEdgesMissing { a, b, witness: at }),
+        TangentVerdict::Ruled(
+            ruling @ (TangentRuling::Row {
+                row: TangentRow::SensesAligned,
+                ..
+            }
+            | TangentRuling::SidesMixed { .. }),
+        ) => errors.push(ValidationError::MaterialOnBothSides {
+            a,
+            b,
+            witness: at,
+            ruling,
+        }),
+        TangentVerdict::Ruled(TangentRuling::Row { .. }) => {}
         TangentVerdict::InBand(cause) => errors.push(ValidationError::CensusEscalated { cause }),
         TangentVerdict::NotCertifiable(why) => errors.push(pair_lane_refused(
             a,
@@ -7576,7 +7592,8 @@ impl Named {
             ),
             // Two faces of one solid: that solid's own defect, which
             // leaves no other solid's boundary unread.
-            ValidationError::CuspEdgesMissing { a, b, .. } => {
+            ValidationError::CuspEdgesMissing { a, b, .. }
+            | ValidationError::MaterialOnBothSides { a, b, .. } => {
                 Self::Two(EntityId::Face(*a), EntityId::Face(*b), Said::CurvedTouch)
             }
             _ => Self::Nothing,
@@ -10455,12 +10472,7 @@ fn confirm_face_pair<T: Decide>(
     use crate::contact::{ContactVerdict, TangentVerdict};
     match crate::boolean::tangent_table_at_rest(&line, band) {
         TangentVerdict::Touch(_) => {}
-        TangentVerdict::Ruled { row, by } => {
-            errors.push(contradicted(ContactVerdict::Ruled { row, by }))
-        }
-        TangentVerdict::SidesMixed { at } => {
-            errors.push(contradicted(ContactVerdict::SidesMixed { at }));
-        }
+        TangentVerdict::Ruled(ruling) => errors.push(contradicted(ContactVerdict::Tangent(ruling))),
         TangentVerdict::InBand(cause) => errors.push(ValidationError::CensusEscalated { cause }),
         TangentVerdict::NotCertifiable(why) => errors.push(pair_lane_refused(
             a,
@@ -10863,16 +10875,14 @@ fn rest_door_one<T: Decide>(
 ) -> Result<geom_core::MarginDiag, ValidationError> {
     match rest_door(body, face_a, face_b, band)? {
         crate::contact::RestVerdict::Rest(margin) => Ok(margin),
-        crate::contact::RestVerdict::Ruled { row, by } => {
-            Err(ValidationError::ContactContradicted {
-                record: crate::contact::ContactPair {
-                    a: face_a,
-                    b: face_b,
-                    class: crate::contact::GlueClass::Rest,
-                },
-                verdict: crate::contact::ContactVerdict::Rest { row, by },
-            })
-        }
+        crate::contact::RestVerdict::Ruled(ruling) => Err(ValidationError::ContactContradicted {
+            record: crate::contact::ContactPair {
+                a: face_a,
+                b: face_b,
+                class: crate::contact::GlueClass::Rest,
+            },
+            verdict: crate::contact::ContactVerdict::Rest(ruling),
+        }),
     }
 }
 
@@ -13979,10 +13989,10 @@ mod tests {
                         class: crate::contact::GlueClass::Rest,
                         ..
                     },
-                    verdict: crate::contact::ContactVerdict::Rest {
+                    verdict: crate::contact::ContactVerdict::Rest(crate::contact::RestRuling {
                         row: crate::contact::RestRow::SensesAligned,
                         by: None,
-                    },
+                    }),
                 }
             )),
             "the senses' row, on no datum: {errors:?}"
@@ -19308,10 +19318,12 @@ mod two_carrier_records {
                 assert!(
                     matches!(
                         contradicted_by(&errors, r.wall, r.top)[..],
-                        [crate::contact::ContactVerdict::Ruled {
-                            row: crate::contact::TangentRow::Opposed,
-                            ..
-                        }]
+                        [crate::contact::ContactVerdict::Tangent(
+                            crate::contact::TangentRuling::Row {
+                                row: crate::contact::TangentRow::SensesAligned,
+                                ..
+                            }
+                        )]
                     ),
                     "band {b:e} swap {swap}: the senses' row at a tangent sample: {errors:?}"
                 );
@@ -19399,17 +19411,16 @@ mod two_carrier_records {
                             Some(format!(
                                 "contradicted({})",
                                 match verdict {
-                                    crate::contact::ContactVerdict::Ruled { row, .. } => {
-                                        row.predicate()
+                                    crate::contact::ContactVerdict::Tangent(
+                                        crate::contact::TangentRuling::Row { row, .. },
+                                    ) => row.predicate(),
+                                    crate::contact::ContactVerdict::NotTangent { .. } => {
+                                        "not tangent"
                                     }
-                                    crate::contact::ContactVerdict::NotTangent {
-                                        predicate,
-                                        ..
-                                    } => predicate,
-                                    crate::contact::ContactVerdict::SidesMixed { .. } => {
-                                        "sides mixed"
-                                    }
-                                    crate::contact::ContactVerdict::Rest { .. } => "rest",
+                                    crate::contact::ContactVerdict::Tangent(
+                                        crate::contact::TangentRuling::SidesMixed { .. },
+                                    ) => "sides mixed",
+                                    crate::contact::ContactVerdict::Rest(_) => "rest",
                                 }
                             ))
                         }
@@ -21341,7 +21352,7 @@ mod same_solid_tangent_lines {
     /// A rod of radius 0.5 inside a cylinder of radius 2, tangent to it
     /// from inside along x = 2, both materials inside, one solid: the
     /// outward normals agree along the line, which rules out a touch
-    /// (`TangentRow::Opposed`). No record names the pair, so the ruling
+    /// (`TangentRow::SensesAligned`). No record names the pair, so the ruling
     /// contradicts nothing and the pass says nothing of it. Red when the
     /// pass reads a ruling with no record as a refusal or a contradiction.
     #[test]

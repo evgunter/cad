@@ -6148,6 +6148,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "lone_vertex_with_incidence",
             "loop_cycle_overrun",
             "loop_role_inverted",
+            "material_on_both_sides",
             "missing_provenance",
             "mixed_dihedral",
             "multiply_owned",

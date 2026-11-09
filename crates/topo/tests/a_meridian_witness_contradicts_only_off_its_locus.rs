@@ -14,7 +14,7 @@
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::contact::{TangentRow, TangentVerdict, Uncertified};
+use topo::contact::{TangentRow, TangentRuling, TangentVerdict, Uncertified};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -93,7 +93,7 @@ fn a_meridian_lifted_inside_the_zero_band_is_not_certifiable() {
 #[test]
 fn a_meridian_lifted_beyond_the_band_is_ruled_out_under_the_sag() {
     let out = read(3.0 * band().escalate());
-    let TangentVerdict::Ruled { row, .. } = out else {
+    let TangentVerdict::Ruled(TangentRuling::Row { row, .. }) = out else {
         panic!("a sample definitely off the surface is a miss whatever the sag: {out:?}");
     };
     assert_eq!(
@@ -167,7 +167,7 @@ fn a_sag_on_one_sample_does_not_mask_a_later_ruling() {
             band(),
         );
         assert!(
-            matches!(out, TangentVerdict::Ruled { .. }),
+            matches!(out, TangentVerdict::Ruled(_)),
             "started at {start}: the circle leaves the torus: {out:?}"
         );
     }

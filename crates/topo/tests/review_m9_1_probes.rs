@@ -142,10 +142,10 @@ fn probe_tangent_definite_separation_contradicts() {
     let down = plane_s([0.0, 0.0, 1e-3], [0.0, 0.0, 1.0]);
     let out = tangent_locus_relation(&up, true, &down, false, &xline(), -1.0, 1.0, band());
     match out {
-        topo::TangentVerdict::Ruled {
+        topo::TangentVerdict::Ruled(topo::TangentRuling::Row {
             row: topo::TangentRow::Gap,
             by,
-        } => {
+        }) => {
             assert_eq!(
                 by.sign,
                 geom_core::Sign::Positive,
@@ -164,7 +164,7 @@ fn probe_tangent_definite_crossing_contradicts() {
     let tilted = plane_s([0.0, 0.0, 0.0], [0.0, 1e-3, 1.0]);
     let out = tangent_locus_relation(&up, true, &tilted, false, &xline(), -1.0, 1.0, band());
     assert!(
-        matches!(out, topo::TangentVerdict::Ruled { .. }),
+        matches!(out, topo::TangentVerdict::Ruled(_)),
         "a definite crossing must be ruled out, got {out:?}"
     );
 }

@@ -42,7 +42,7 @@
 //! surfaces running into each other's material at a sample, is the
 //! touch's negative side (`touching`), and a crossing between two
 //! tangent samples whose normals agree at one and oppose at the other
-//! is [`TangentVerdict::SidesMixed`]; a crossing at second order is
+//! is [`TangentRuling::SidesMixed`]; a crossing at second order is
 //! decided only through the transverse `κ_rel` the jet computes along
 //! the locus tangent's perpendicular. A full second-fundamental-form
 //! indefiniteness test over all tangent directions needs machinery
@@ -62,7 +62,8 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Sign, Vec3};
 
 use crate::body::Body;
 use crate::contact::{
-    ContactRefusal, RestRow, RestVerdict, TangentRow, TangentVerdict, Uncertified,
+    ContactRefusal, RestRow, RestRuling, RestVerdict, TangentRow, TangentRuling, TangentVerdict,
+    Uncertified,
 };
 use crate::entity::FaceKey;
 
@@ -108,7 +109,7 @@ pub fn rest_pair_verdict<T: Decide>(
                 },
             }
         })?;
-    let ruled = |row, by| Ok(RestVerdict::Ruled { row, by });
+    let ruled = |row, by| Ok(RestVerdict::Ruled(RestRuling { row, by }));
     match outcome {
         Ok(CarrierVerdict::One {
             relation: CarrierRelation::SameOpposite,
@@ -378,9 +379,13 @@ fn tangent_table<T: Decide>(
                     TangentVerdict::InBand,
                 );
             }
-            Err(Unsettled::Ended(verdict)) => {
+            Err(Unsettled::Ruled(ruling)) => {
                 geom_core::k_stats::splice(log);
-                return verdict;
+                return TangentVerdict::Ruled(ruling);
+            }
+            Err(Unsettled::InBand(diag)) => {
+                geom_core::k_stats::splice(log);
+                return TangentVerdict::InBand(diag);
             }
             Ok(read) => {
                 geom_core::k_stats::splice(log);
@@ -397,22 +402,18 @@ pub const REFINE_HALVINGS: u32 = 6;
 
 /// Why a pass of the table did not settle.
 enum Unsettled {
-    /// A verdict no finer schedule changes: anything but the touch.
-    Ended(TangentVerdict),
+    /// A ruling no finer schedule changes.
+    Ruled(TangentRuling),
+    /// An in-band reading no finer schedule changes.
+    InBand(Indeterminate),
     /// Every sample decided, and a span bound between them not within
     /// ε: its reading where it was in band, `None` where beyond.
     Sag(Option<Indeterminate>),
 }
 
-impl From<TangentVerdict> for Unsettled {
-    fn from(verdict: TangentVerdict) -> Self {
-        Self::Ended(verdict)
-    }
-}
-
-/// [`TangentVerdict::Ruled`] on `row`, as a pass ends.
+/// [`TangentRuling::Row`] on `row`, as a pass ends.
 fn ruled(row: TangentRow, by: Decided) -> Unsettled {
-    Unsettled::Ended(TangentVerdict::Ruled { row, by })
+    Unsettled::Ruled(TangentRuling::Row { row, by })
 }
 
 /// The row the jet's second-order margin `κ_rel` is decided on.
@@ -473,7 +474,7 @@ fn tangent_pass<T: Decide>(
                 },
             ) => return Err(ruled(TangentRow::Independent, by)),
             Ok(by) => by,
-            Err(diag) => return Err(TangentVerdict::InBand(diag).into()),
+            Err(diag) => return Err(Unsettled::InBand(diag)),
         };
         let agree = senses.sign == Sign::Positive;
         // (2) The touch, before the witness: the pair's separation
@@ -586,7 +587,7 @@ fn tangent_pass<T: Decide>(
             Ok(_) => {}
             // First-order tangency is must-verify-DEFINITE (C4's first
             // list): an in-band angular defect escalates.
-            Err(diag) => return Err(TangentVerdict::InBand(diag).into()),
+            Err(diag) => return Err(Unsettled::InBand(diag)),
         }
         // (3′) The senses, at a sample read tangent. A contact's outward
         // normals must point at each other, since aligned normals on a
@@ -596,12 +597,14 @@ fn tangent_pass<T: Decide>(
         // at one and oppose at the other are a definite crossing between
         // them.
         if agree && claim == Claim::Contact {
-            return Err(ruled(TangentRow::Opposed, senses));
+            return Err(ruled(TangentRow::SensesAligned, senses));
         }
         match sides {
             None => sides = Some((agree, senses)),
             Some((first, at)) if first != agree => {
-                return Err(TangentVerdict::SidesMixed { at: [at, senses] }.into());
+                return Err(Unsettled::Ruled(TangentRuling::SidesMixed {
+                    at: [at, senses],
+                }));
             }
             Some(_) => {}
         }
@@ -627,7 +630,7 @@ fn tangent_pass<T: Decide>(
                         ..
                     }) => {}
                     Ok(by) => return Err(ruled(TangentRow::Overlap, by)),
-                    Err(diag) => return Err(TangentVerdict::InBand(diag).into()),
+                    Err(diag) => return Err(Unsettled::InBand(diag)),
                 }
             }
             Ok(Decided {
@@ -639,15 +642,14 @@ fn tangent_pass<T: Decide>(
             Ok(_) if deferred => unsettled(None),
             Err(diag) if deferred => unsettled(Some(diag)),
             Ok(decided) => {
-                return Err(TangentVerdict::InBand(geom_core::k_stats::gate_rejection(
+                return Err(Unsettled::InBand(geom_core::k_stats::gate_rejection(
                     SECOND_ORDER,
                     decided,
                     band,
                     geom_core::SizedPass::Positive,
-                ))
-                .into());
+                )));
             }
-            Err(diag) => return Err(TangentVerdict::InBand(diag).into()),
+            Err(diag) => return Err(Unsettled::InBand(diag)),
         }
     }
     let (touch, log) = geom_core::k_stats::detached(|| span_touch(gap_max, bounds.gap_sag, band));
@@ -687,8 +689,9 @@ fn tangent_pass<T: Decide>(
 ///
 /// - Zero passes; the span between samples is the caller's line.
 /// - A definite sign rules the pair out ([`TangentRow::Gap`], its
-///   margin signed: positive is C4's definite separation, negative its
-///   definite crossing).
+///   margin signed: where the senses oppose, positive is C4's definite
+///   separation and negative its definite crossing; where they agree,
+///   the sign says which sheet stands over the other).
 /// - In band escalates: the touch is MUST-VERIFY-DEFINITE (C4).
 ///
 /// Returns the signed separation.
@@ -698,18 +701,15 @@ fn touching<T: Decide>(
     r2: T,
     sense2: bool,
     band: Band,
-) -> Result<T, TangentVerdict> {
+) -> Result<T, Unsettled> {
     let height = |r: T, sense: bool| if sense { r } else { -r };
     let separation = height(r1, sense1) + height(r2, sense2);
     match crate::validate::decide_reported("contact_tangent_gap", Margin::of(separation), band) {
         Ok(Decided {
             sign: Sign::Zero, ..
         }) => Ok(separation),
-        Ok(by) => Err(TangentVerdict::Ruled {
-            row: TangentRow::Gap,
-            by,
-        }),
-        Err(diag) => Err(TangentVerdict::InBand(diag)),
+        Ok(by) => Err(ruled(TangentRow::Gap, by)),
+        Err(diag) => Err(Unsettled::InBand(diag)),
     }
 }
 
@@ -774,7 +774,7 @@ fn on_surface<T: Decide>(
             sign: Sign::Zero, ..
         }) => Err(Unsettled::Sag(far)),
         Ok(by) => Err(ruled(row, by)),
-        Err(diag) => Err(TangentVerdict::InBand(diag).into()),
+        Err(diag) => Err(Unsettled::InBand(diag)),
     }
 }
 
@@ -850,10 +850,10 @@ mod tests {
             std::f64::consts::TAU,
             band(),
         );
-        let TangentVerdict::Ruled {
+        let TangentVerdict::Ruled(TangentRuling::Row {
             row: TangentRow::Independent,
             by,
-        } = read
+        }) = read
         else {
             panic!("expected the independence row, got {read:?}");
         };
@@ -956,7 +956,7 @@ mod tests {
             let off = TangentRow::Off(PairSide::Second);
             let got = match on_surface(("probe_on", PairSide::Second), r, sag, b) {
                 Ok(()) => Want::On,
-                Err(Unsettled::Ended(TangentVerdict::InBand(diag))) => {
+                Err(Unsettled::InBand(diag)) => {
                     assert_eq!(
                         diag.predicate,
                         Some(off.predicate()),
@@ -965,7 +965,7 @@ mod tests {
                     assert!(!diag.margin.is_invalid(), "{why}: the in-band reading");
                     Want::Escalated
                 }
-                Err(Unsettled::Ended(TangentVerdict::Ruled { row, by })) => {
+                Err(Unsettled::Ruled(TangentRuling::Row { row, by })) => {
                     assert_eq!(row, off, "{why}: the surface's own row");
                     assert!(!by.margin.is_invalid(), "{why}: the measured margin");
                     assert_eq!(
@@ -983,7 +983,7 @@ mod tests {
                     Want::SagInBand
                 }
                 Err(Unsettled::Sag(None)) => Want::SagBeyond,
-                Err(Unsettled::Ended(other)) => panic!("{why}: {other:?}"),
+                Err(Unsettled::Ruled(other)) => panic!("{why}: {other:?}"),
             };
             assert_eq!(got, want, "{why}: r = {r:e}, sag = {sag:e}");
         }
@@ -1252,10 +1252,10 @@ mod tests {
             (-15.0, Sign::Negative, "crossing"),
         ] {
             match lifted_cylinder_on_plane(gap * eps, 0.5 * gap * eps) {
-                TangentVerdict::Ruled {
+                TangentVerdict::Ruled(TangentRuling::Row {
                     row: TangentRow::Gap,
                     by,
-                } => {
+                }) => {
                     assert_eq!(by.sign, sign, "{what}: the reading's sign names it: {by:?}");
                     assert!(
                         !by.margin.is_invalid(),
@@ -1276,7 +1276,7 @@ mod tests {
     fn a_witness_off_a_touching_pair_is_a_bad_witness() {
         let eps = band().zero();
         match lifted_cylinder_on_plane(0.0, 11.0 * eps) {
-            TangentVerdict::Ruled { row, by } => {
+            TangentVerdict::Ruled(TangentRuling::Row { row, by }) => {
                 assert_eq!(row, TangentRow::Off(PairSide::First), "{by:?}");
                 assert_eq!(row.predicate(), "contact_tangent_off_1");
             }
@@ -1348,10 +1348,10 @@ mod tests {
         assert!(
             matches!(
                 out,
-                TangentVerdict::Ruled {
+                TangentVerdict::Ruled(TangentRuling::Row {
                     row: TangentRow::Parallel,
                     ..
-                }
+                })
             ),
             "a definite defect rules the pair out: {out:?}"
         );
@@ -1412,10 +1412,10 @@ mod tests {
         assert!(
             matches!(
                 tangent_locus_relation(&fat, true, &small, true, &at_two, 0.0, 1.0, b),
-                TangentVerdict::Ruled {
-                    row: TangentRow::Opposed,
+                TangentVerdict::Ruled(TangentRuling::Row {
+                    row: TangentRow::SensesAligned,
                     ..
-                }
+                })
             ),
             "the nested discs as a contact: ruled out on the senses"
         );
@@ -1426,10 +1426,10 @@ mod tests {
         assert!(
             matches!(
                 tangent_locus_relation(&fat, true, &small, false, &at_two, 0.0, 1.0, b),
-                TangentVerdict::Ruled {
+                TangentVerdict::Ruled(TangentRuling::Row {
                     row: TangentRow::Overlap,
                     ..
-                }
+                })
             ),
             "the bore in the disc as a contact: ruled out on the crescent"
         );
@@ -1452,7 +1452,7 @@ mod tests {
                     1.0,
                     b
                 ),
-                TangentVerdict::Ruled { .. }
+                TangentVerdict::Ruled(_)
             ),
             "discs a gap apart: the line is off one of them"
         );
@@ -1468,7 +1468,7 @@ mod tests {
                     1.0,
                     b
                 ),
-                TangentVerdict::Ruled { .. }
+                TangentVerdict::Ruled(_)
             ),
             "overlapping discs: the line is off one of them"
         );
@@ -1540,10 +1540,10 @@ mod tests {
         let parallel = |read: &TangentVerdict| {
             matches!(
                 read,
-                TangentVerdict::Ruled {
+                TangentVerdict::Ruled(TangentRuling::Row {
                     row: TangentRow::Parallel,
                     ..
-                }
+                })
             )
         };
         for k in 0..64 {
@@ -1588,7 +1588,7 @@ mod tests {
         let step = 1.5 * core::f64::consts::PI - opposed;
         let t1 = opposed + step * f64::from(CERT_SAMPLES - 1);
         let read = tangency_reading(&first, true, &second, true, &circle, opposed, t1, b);
-        let TangentVerdict::SidesMixed { at } = read else {
+        let TangentVerdict::Ruled(TangentRuling::SidesMixed { at }) = read else {
             panic!("two tangent samples, opposed then aligned: {read:?}");
         };
         assert_eq!(

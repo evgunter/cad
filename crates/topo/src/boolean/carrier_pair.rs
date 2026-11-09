@@ -468,10 +468,12 @@ mod lever_rows {
     fn apart(read: &Result<crate::contact::RestVerdict, ContactRefusal>) -> bool {
         matches!(
             read,
-            Ok(crate::contact::RestVerdict::Ruled {
-                row: crate::contact::RestRow::TwoCarriers,
-                by: Some(_),
-            })
+            Ok(crate::contact::RestVerdict::Ruled(
+                crate::contact::RestRuling {
+                    row: crate::contact::RestRow::TwoCarriers,
+                    by: Some(_),
+                }
+            ))
         )
     }
 

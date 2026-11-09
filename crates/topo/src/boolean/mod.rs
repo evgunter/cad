@@ -7804,17 +7804,9 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(ContactRefusal::Escalated { diag });
         }
-        Err(geom_brep::TangentLocusError::NotTangent {
-            apart,
-            predicate,
-            decided,
-        }) => {
+        Err(geom_brep::TangentLocusError::NotTangent { apart, decided, .. }) => {
             return Ok(RestTangent::NotTangent(
-                crate::contact::ContactVerdict::NotTangent {
-                    apart,
-                    predicate,
-                    by: decided,
-                },
+                crate::contact::ContactVerdict::NotTangent { apart, by: decided },
             ));
         }
         Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
@@ -8018,9 +8010,7 @@ fn verify_tangency<T: Decide>(
         // The reading is the touch's; it is a theorem only where the
         // locus it was read along is one too.
         TangentVerdict::Touch(touch) => touch.jointly(located),
-        TangentVerdict::Ruled { .. } | TangentVerdict::SidesMixed { .. } => {
-            return Err(NotTangent);
-        }
+        TangentVerdict::Ruled(_) => return Err(NotTangent),
         TangentVerdict::InBand(diag) => {
             return Err(Refused(BooleanError::coincidence(
                 Coincide::Contact,
