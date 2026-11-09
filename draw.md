@@ -8,3 +8,5 @@
 ## Round 2 seat note (2026-11-09)
 
 Seat A's original lane was stopped by an API safeguard flag (`reasoning_extraction`) on the round-2 message. That came after both lanes were asked to copy their own round-1 reports into files, and both were blocked from doing so. Seat A's round 2 is a fresh Opus instance (`designer-glue-a2`). It was handed seat A's round-1 report, as transcribed by the orchestrator, as its starting position, with no loyalty owed. Seat B is unchanged.
+
+Seat B's original lane was then stopped by the same safeguard flag (`reasoning_extraction`) on its round-2 message. Seat B's round 2 is a fresh Fable instance (`designer-glue-b2`), handled the same way as seat A. Both round-2 seats therefore read the other seat's round-1 report from a transcription. Neither carries its seat's earlier context.
