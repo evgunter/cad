@@ -2074,6 +2074,54 @@ pub fn trv(x: f64) -> geom_core::Interval {
     refused
 }
 
+/// **A unit box whose top face holds a lone vertex**: a strut grown from
+/// a top corner to `(0.5, 0.5, 1)` and killed into an empty ring, so the
+/// face bounds its square and a ring that is one vertex. Tier-1 valid.
+/// Returns the body, the top face and the lone vertex.
+///
+/// # Panics
+///
+/// Where the construction or the validation it asserts fails.
+#[must_use]
+#[allow(clippy::expect_used)]
+pub fn box_with_a_lone_ring(tol: Tol) -> (Body<f64>, FaceKey, crate::VertexKey) {
+    use crate::euler::MevSite;
+    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let top = body
+        .face_views()
+        .find(|f| {
+            matches!(*f.surface(), Surface::Plane { normal, .. } if normal.z.abs() > 0.5)
+                && f.boundary().map(|m| m.vertex()).all(|v| {
+                    body.get_vertex(v)
+                        .and_then(|v| body.get_point(v.point))
+                        .is_some_and(|p| (p.z - 1.0).abs() < 1e-12)
+                })
+        })
+        .expect("the box's top face")
+        .key();
+    let he = body.proven_face(top).half_edges()[0];
+    let strut = body
+        .mev_line(
+            MevSite::Fan { he1: he, he2: he },
+            Point3::new(0.5, 0.5, 1.0),
+            tol,
+        )
+        .expect("a strut into the top face");
+    let ring = body
+        .kemr(strut.he_plus, strut.he_minus)
+        .expect("the strut killed into a ring")
+        .ring;
+    assert_eq!(
+        body.get_loop(ring).expect("the ring").boundary,
+        LoopBoundary::Empty {
+            vertex: strut.vertex
+        },
+        "the killed strut strands its far vertex as an empty ring"
+    );
+    assert_eq!(crate::validate(&body), Ok(()), "the body is tier-1 valid");
+    (body, top, strut.vertex)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

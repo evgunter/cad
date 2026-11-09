@@ -173,7 +173,6 @@ REGISTER=(
   # site — snapshot and the hull closures take no vertex from it,
   # `line_bounded` reads it as "not a line", the reach walks propagate
   # it as `None`.
-  "crates/topo/src/live.rs|unchecked_face_cycles|else { return|1|audited: the walk decides nothing — it returns the loop it could not walk, and each of its callers says what that means"
   "crates/topo/src/live.rs|half_edge||1|audited: a lone-vertex loop holds no half-edge and no edge, so it bounds no area and a reader of half-edges has nothing to walk; its vertex is still yielded by the walk (BoundaryMember::vertex, Body::member_point) to every reader of points"
   "crates/topo/src/live.rs|edges||1|audited: half_edge's disposition — a lone-vertex loop has no edge, so it is no edge of the face"
   "crates/topo/src/chord_join.rs|is_pierce_ring||1|audited: the discarded variant is answered — a lone vertex has no null edge, so it is not deferred and ring_side's own Empty arm reads that vertex and refuses on the run"
