@@ -169,26 +169,11 @@ pub fn sphere_poles<T: Real>(axis: geom::Line<T>, radius: T) -> [(Singularity, P
 /// ([`sheet_apexes`]), from the chart's own frame; none for any other
 /// kind.
 pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
-    let (anchor, axis) = (chart.frame().origin, chart.frame().axis);
+    let axis = chart.frame().axis_line();
     match chart.arm() {
-        ChartArm::Sphere { radius } => sphere_poles(
-            geom::Line {
-                origin: anchor,
-                dir: axis,
-            },
-            radius,
-        )
-        .to_vec(),
-        ChartArm::Cone { .. } => vec![(Singularity::Apex, anchor)],
-        ChartArm::Spindle { major, minor } => sheet_apexes(
-            geom::Line {
-                origin: anchor,
-                dir: axis,
-            },
-            major,
-            minor,
-        )
-        .to_vec(),
+        ChartArm::Sphere { radius } => sphere_poles(axis, radius).to_vec(),
+        ChartArm::Cone { .. } => vec![(Singularity::Apex, axis.origin)],
+        ChartArm::Spindle { major, minor } => sheet_apexes(axis, major, minor).to_vec(),
         ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => Vec::new(),
     }
 }
@@ -1087,8 +1072,8 @@ fn bisect<T: Decide>(
 
 /// The chart a walk runs on, as its error bound reads it.
 struct Shape<T: Real> {
-    anchor: Point3<T>,
-    axis: Vec3<T>,
+    /// The chart's axis, from its frame.
+    axis: geom::Line<T>,
     kind: ShapeKind<T>,
     /// The singular points on the loop walked.
     on_loop: Vec<Point3<T>>,
@@ -1119,8 +1104,7 @@ impl<T: Decide> Shape<T> {
             }
         };
         Some(Self {
-            anchor: chart.frame().origin,
-            axis: chart.frame().axis,
+            axis: chart.frame().axis_line(),
             kind,
             on_loop,
             escalate,
@@ -1140,11 +1124,7 @@ impl<T: Decide> Shape<T> {
 
     /// A point's distance from the axis.
     fn rho(&self, p: Point3<T>) -> T {
-        geom::Line {
-            origin: self.anchor,
-            dir: self.axis,
-        }
-        .distance(p)
+        self.axis.distance(p)
     }
 }
 
