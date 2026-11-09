@@ -9,3 +9,10 @@
   - dropping the pierces gives `post − seat` = ∅ correctly, but `seat ∪ bead` fails `UnpairedLooseEnds`, and `seat − post` is suspected self-intersecting.
 
   `design: true` set. Fork `seat-vertex-one-interface` went to three designers (drawn arm, bytes on its analysis branch), problem only, with the probe files.
+- 2026-11-09 — **Fork `seat-vertex-one-interface`: three first reports, agreeing on every per-op outcome and split on the layer.**
+  - **A:** the kernel door groups each operand's solids into sets no record joins, runs per group, and folds `∪` n-ary with given-apart pairs. Its probe found a ledge case (`Pierce + Pair`).
+  - **B:** editor distribution, plus a kernel-named refusal.
+  - **C:** kernel classification reads the seat as local shape (one cone, a strut run per face, an entity per material sector). Its argument: only this reaches a slit inside one solid.
+  - All three want a new typed area self-touch refusal for a bridged `∪`. All agree the row's Done-when names a mechanism and not a semantics.
+  - **C measured** that the editor's distributed cut re-decides the seat, unquietable, and reports four split-wall flush pairs. Filed on TALLY as `a-cut-distributed-over-a-seat-re-decides-the-seat-and-reports-its-split-tool` (P1 M).
+  - Round 1 is running.
