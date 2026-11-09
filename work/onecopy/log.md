@@ -521,3 +521,4 @@
 - 2026-11-09 — PR 6611 delta: FIX. The pinch_corner_errors blind spots are still unnamed (cone apex etc.), the probe docs don't say ill-formed, and BoundaryCrossesItself is solid-scoped. Sent.
 - 2026-11-09 — PR 6610 FULL review: MERGE. Merged main (515e10cb, gates ok); gating. Leftovers filed: the-exact-unit-sign-of-a-value-has-no-home (P3).
 - 2026-11-09 — PR 6607 delta: FIX (small). The guard is vacuous: the cone re-homing rows read only EmptyLoop (bystanders planted first); torus/sphere read only the first corner; it rejects only Out. Asked for one shared helper, read before bystanders, accepting only In. The reviewer concedes N1.
+- 2026-11-09 — 6552's gate was red only from lint's ruff 504 (GitHub releases, transient; now 200). Merged main (6e654b00) and it is re-gating. 6606 hit the same flake earlier.
