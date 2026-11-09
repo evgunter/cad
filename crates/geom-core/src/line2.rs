@@ -216,4 +216,31 @@ mod tests {
         }
         assert!(line.circle_heights(centre, 4.0)[0].is_nan());
     }
+
+    #[test]
+    #[allow(clippy::panic)]
+    fn meet_crosses_only_on_a_decided_turn() {
+        let a = slanted();
+        let b = Line2 {
+            origin: Point2::new(9.0, 0.0),
+            dir: Vec2::new(-1.0, 2.0),
+        };
+        let sign_of = |det: f64| {
+            Ok::<Sign, ()>(if det > 0.0 {
+                Sign::Positive
+            } else {
+                Sign::Negative
+            })
+        };
+        let Ok(LineMeet::Cross { t, s, turn, det }) = a.meet(&b, sign_of) else {
+            panic!("the lines cross");
+        };
+        // det = (3, 4) × (−1, 2) = 10, b turns left of a.
+        assert_eq!((turn, det), (Sign::Positive, 10.0));
+        assert!((a.at(t) - b.at(s)).norm() < 1e-13, "{t} {s}");
+        // A determinant decided zero forms no parameter; a refusal passes through.
+        let parallel = a.meet(&b, |_| Ok::<Sign, ()>(Sign::Zero));
+        assert!(matches!(parallel, Ok(LineMeet::Parallel { det }) if det == 10.0));
+        assert!(a.meet(&b, |_| Err::<Sign, &str>("refused")).is_err());
+    }
 }
