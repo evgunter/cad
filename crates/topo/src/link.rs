@@ -2358,7 +2358,7 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(TouchUnread::Unreadable);
@@ -2428,7 +2428,7 @@ impl<T: Decide> FaceSector<T> {
         p: Point3<T>,
         holds: &[Hold],
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         let geom::Surface::Plane { u_ref, .. } = surface else {
             return Err(TouchUnread::Unreadable);
@@ -2779,15 +2779,13 @@ impl<T: Decide> FaceSector<T> {
         band: Band,
     ) -> Result<RuledChord<T>, TouchUnread> {
         use Sign::{Negative, Positive, Zero};
-        let (centre, axis, apex) = match face.surface {
-            geom::Surface::Cylinder { origin, axis, .. } => {
-                (origin + axis * axis.dot(p - origin), axis, None)
-            }
-            geom::Surface::Cone { apex, axis, .. } => {
-                (apex + axis * axis.dot(p - apex), axis, Some(apex))
-            }
+        let apex = match face.surface {
+            geom::Surface::Cylinder { .. } => None,
+            geom::Surface::Cone { apex, .. } => Some(apex),
             _ => return Err(TouchUnread::Unreadable),
         };
+        let line = face.surface.axis_line().ok_or(TouchUnread::Unreadable)?;
+        let (centre, axis) = (line.foot(p), line.dir);
         let (along, m0) = (face.along, face.outward);
         let radial = p - centre;
         let rho = radial.norm();

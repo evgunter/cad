@@ -159,8 +159,8 @@ fn edge_face_surfaces(body: &Body<f64>, edge: EdgeKey) -> (topo::SurfaceKey, top
 /// chordal approximation on curved faces — the SIGN is the oracle.
 fn signed_volume(body: &Body<f64>) -> f64 {
     let mut six_v = 0.0;
-    for (_, face) in body.faces() {
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (fk, _) in body.faces() {
+        for (lk, _, _) in body.face(fk).expect("a live face").loops() {
             let pts = loop_probe_points(body, lk);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {

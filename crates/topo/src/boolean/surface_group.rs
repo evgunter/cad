@@ -128,7 +128,7 @@ fn unmated_boundary<T: Decide>(
 ) -> Result<Option<Unmated<T>>, FaceKey> {
     let mut found = Vec::new();
     for &member in members {
-        let f = body.passed_face(member).ok_or(member)?;
+        let f = body.face(member).ok_or(member)?;
         if !f.record().rings.is_empty() {
             return Ok(None);
         }

@@ -744,7 +744,7 @@ fn a_pole_endpoint_is_not_measured_against_its_own_carrier() {
         assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
         let chart = body
             .faces()
-            .find_map(|(_, f)| body.get_surface(f.surface).and_then(topo::Chart::of))
+            .find_map(|(fk, _)| body.face_surface(fk).and_then(topo::Chart::of))
             .expect("a sphere face");
         let poles = chart.poles();
         for (_, face) in body.faces() {
