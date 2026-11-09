@@ -184,7 +184,8 @@ fn compare<T: Real>(
                                 .zip(bits(old.1))
                                 .all(|(&a, b)| f64::from_bits(a) == f64::from_bits(b)));
                     let same = bits(new.x) == bits(old.0) && same_v;
-                    floored += usize::from(under_floor(p.x) || under_floor(p.y) || under_floor(p.z));
+                    floored +=
+                        usize::from(under_floor(p.x) || under_floor(p.y) || under_floor(p.z));
                     assert!(
                         same,
                         "{:?} m {m} n {n} at {:?}: new ({:?}, {:?}), old ({:?}, {:?})",
