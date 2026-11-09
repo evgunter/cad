@@ -62,7 +62,7 @@ pub use linalg::{
     Affine3, Angle, FrameError, FrameInput, LeveredUnitError, Mat3, MotionPart, OrthoAxis,
     OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, TurnError, Turns,
     UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
-    not_rigid_reading,
+    length_out_of_format, not_rigid_reading,
 };
 pub use line2::{Line2, LineMeet};
 pub use predicate::{
