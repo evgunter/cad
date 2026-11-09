@@ -37,7 +37,7 @@ use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
-use crate::ladder::{Climb, Kept, Rung, climb_agreeing};
+use crate::ladder::{Climb, Rung, climb_agreeing};
 use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
 
 /// The flux and area of a curved face from its **outer** loop:
@@ -1289,10 +1289,7 @@ fn unanimous_rim_side<T: Decide>(
         &b.rims,
         |rim| match rim_side(rim, lo, hi, b.arms, band) {
             Ok(s) => Rung::Answers(Ok(s)),
-            Err(PropsError::Escalated { cause, check }) => Kept::of(cause)
-                .map(|cause| PropsError::Escalated { cause, check })
-                .into(),
-            Err(e) => Rung::Aborts(Err(e)),
+            Err(e) => Rung::refused(e, PropsError::refusal),
         },
         |a, b| matches!((a, b), (Ok(x), Ok(y)) if x == y),
     );

@@ -338,6 +338,26 @@ pub enum Answering {
     /// the first member that projects. A kept reading ahead of the answer
     /// may truly have answered first, so the answer rests on it and its
     /// run is spliced live.
+    ///
+    /// **When a "which" answer is given past a kept rung, and when it is
+    /// not** (the one statement of the rule; PR 6553's `place_off`
+    /// ruling). A consumer that reads WHICH rung answered asks one of two
+    /// questions, and a site tells them apart by asking: *can two rungs
+    /// both answer truly?*
+    ///
+    /// - **At most one can** (the answer is unique by the door's premise:
+    ///   `rim_wedge::shared_rim`'s one shared rim, where two would be no
+    ///   rim contact the door claims to see). A later rung decided to
+    ///   answer shows the kept rung ahead was not one, so the ladder gives
+    ///   it here, under `First`, its kept runs live.
+    /// - **Several can, and the consumer reads the first in order** (the
+    ///   cell holding a point, `CarrierLoop::place_off`'s edge; the cut
+    ///   that rotates a pairing, `splitting::join::conic_pairs`; the end
+    ///   whose spread is read next, `boolean::reduce`'s line-cone apex end;
+    ///   the surface carrying an iso, `boolean::edge_join::joinable`). A
+    ///   kept rung ahead may be the answer itself, so no later rung
+    ///   answers past it: the site refuses at its first kept rung, which
+    ///   is the plain `?`, not a climb.
     First,
 }
 

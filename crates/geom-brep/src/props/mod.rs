@@ -613,6 +613,24 @@ impl PropsCheck {
     }
 }
 
+impl PropsError {
+    /// **This refusal's standing** ([`crate::ladder::Refusal`]): an
+    /// [`Escalated`](Self::Escalated) reading is kept by its margin.
+    /// Every other kind refuses the whole query: a definite finding
+    /// about the face (degenerate, off its surface, not an iso rectangle)
+    /// or a lane not built, which no later reading answers past.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for every kind but `Escalated`.
+    pub(crate) const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self {
+            Self::Escalated { cause, .. } => Ok(crate::ladder::Refusal::Margin(*cause)),
+            _ => Err(crate::ladder::Aborts),
+        }
+    }
+}
+
 /// `at` ends a decision's refusal at the door that reads it; `None`
 /// writes the payload alone, as `Display` does. Every other arm carries
 /// its own recourse.
