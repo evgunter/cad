@@ -849,7 +849,10 @@ BOUNDS_ALLOWLIST=(
   # only the meter's own question, and refuses loudly or not at all.
   # 14 -> 13: `sheet_clip` reads topo's face cover along the sheet
   # axis and takes no bracket of its own, so it is `Decide` alone.
-  'crates/sweep/src/blend/reach.rs 13 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 13 -> 14: `misses` reads a sheet rectangle's widths against
+  # `escalate` (`sure`), the meter's own question as `Least::read`
+  # reads a cell's, and grants nothing but "nothing here to meter".
+  'crates/sweep/src/blend/reach.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
   # cut-off both open bands end in left `ruled.rs` for its own file when
   # the plane–plane band took it too — the sliver meter's two

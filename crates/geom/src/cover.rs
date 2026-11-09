@@ -270,13 +270,15 @@ struct Arc<T: Real> {
 }
 
 /// **An arc's mean circle as a site reads it** ([`Arc::circle_about`]):
-/// the circle `u·cos t + v·sin t` about the arc's centre, `u` and `v`
-/// orthogonal of length `|rho|`, within `dev` of the arc at every `t`, and
-/// the site's offset `w` from the centre: `off_axis` of it in the circle's
-/// plane and `h` off it.
+/// the circle `scale·(b1·cos t + b2·sin t)` about the arc's centre,
+/// `b1` and `b2` orthogonal and `scale` their common factor, of radius
+/// `|rho|`, within `dev` of the arc at every `t`, and the site's offset
+/// `w` from the centre: `off_axis` of it in the circle's plane and `h`
+/// off it.
 struct Circle<T: Real> {
-    u: Vec3<T>,
-    v: Vec3<T>,
+    b1: Vec3<T>,
+    b2: Vec3<T>,
+    scale: T,
     rho: T,
     dev: T,
     w: Vec3<T>,
@@ -288,12 +290,15 @@ impl<T: Real> Circle<T> {
     /// The distance from the site to the circle's point at `t`.
     fn end(&self, t: T) -> T {
         let (s, c) = t.sin_cos();
-        (self.w - (self.u * c + self.v * s)).norm()
+        (self.w - (self.b1 * c + self.b2 * s) * self.scale).norm()
     }
 
     /// The site's azimuth about the centre, as `ρ·(cos, sin)` of it.
     fn azimuth(&self) -> (T, T) {
-        (self.w.dot(self.u), self.w.dot(self.v))
+        (
+            self.scale * self.w.dot(self.b1),
+            self.scale * self.w.dot(self.b2),
+        )
     }
 }
 
@@ -991,8 +996,6 @@ impl<T: Real> Arc<T> {
     ///   constant length. The longer is the circle and the shorter its
     ///   departure; with `p` and `q` both zero the circle is the centre.
     fn circle_about(&self, site: &Site<T>) -> Circle<T> {
-        let p = self.frame.u_ref * self.semi_u;
-        let q = self.frame.v_ref() * self.semi_v;
         match site {
             Site::Point(at) => {
                 let half = T::from_f64(0.5);
@@ -1002,22 +1005,26 @@ impl<T: Real> Arc<T> {
                 let v_hat = v_off.normalize();
                 let rho =
                     (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
-                let (dp, dq) = (p - u_hat * rho, q - v_hat * rho);
+                let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
+                let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;
+                let dev = gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq));
                 let w = *at - self.frame.origin;
-                let (x, y) = (w.dot(u_hat), w.dot(v_hat));
+                let (x, y, h) = (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat)));
                 Circle {
-                    u: u_hat * rho,
-                    v: v_hat * rho,
+                    b1: u_hat,
+                    b2: v_hat,
+                    scale: rho,
                     rho,
-                    dev: gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq)),
+                    dev,
                     w,
                     off_axis: (x.powi(2) + y.powi(2)).sqrt(),
-                    h: w.dot(u_hat.cross(v_hat)),
+                    h,
                 }
             }
             Site::Line(line) => {
                 let a = line.dir.normalize();
-                let (p, q) = (site.direction(p), site.direction(q));
+                let p = site.direction(self.frame.u_ref * self.semi_u);
+                let q = site.direction(self.frame.v_ref() * self.semi_v);
                 let half = T::from_f64(0.5);
                 let with = (p - a.cross(q)) * half;
                 let against = (p + a.cross(q)) * half;
@@ -1028,8 +1035,9 @@ impl<T: Real> Arc<T> {
                 };
                 let w = -site.relative(vec_of(self.frame.origin));
                 Circle {
-                    u: choose_vec(against, with),
-                    v: choose_vec(-a.cross(against), a.cross(with)),
+                    b1: choose_vec(against, with),
+                    b2: choose_vec(-a.cross(against), a.cross(with)),
+                    scale: T::one(),
                     rho: choose(s_against, s_with),
                     dev: choose(s_with, s_against),
                     w,

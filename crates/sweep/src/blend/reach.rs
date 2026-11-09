@@ -1736,22 +1736,12 @@ fn sheet_clip<T: Decide>(
     Some([near, far, z0 - base, z1 - base])
 }
 
-/// K name: whether a sheet rectangle is empty, either side's width
-/// decided definitely negative ([`misses`]).
-pub(in crate::blend) const BLEND_SHEET_MISS: &str = "blend_sheet_miss";
-
 /// **Whether the sheet rectangle `[ρ0, ρ1] × [z0, z1]` is empty**: a
-/// width decided definitely negative on the band. A width in the band,
-/// a touch, or one the band cannot call leaves the rectangle to be
-/// metered.
-fn misses<T: Decide>([r0, r1, z0, z1]: Rect<T>, band: Band) -> bool {
-    let negative = |w: T| {
-        matches!(
-            geom_core::k_stats::decide(BLEND_SHEET_MISS, Margin::of(w), band),
-            Ok(Sign::Negative)
-        )
-    };
-    negative(r1 - r0) || negative(z1 - z0)
+/// width surely negative past the band's escalation ([`sure`]), the
+/// meter's own reading of a cell. A width in the band, a touch, or one
+/// the bracket cannot call leaves the rectangle to be metered.
+fn misses<T: Decide + Bounds>([r0, r1, z0, z1]: Rect<T>, band: Band) -> bool {
+    sure(r0 - r1, band) || sure(z0 - z1, band)
 }
 
 /// **The least cell bound of one face against a circular reach, in the
@@ -3143,10 +3133,11 @@ mod tests {
         }
     }
 
-    /// **A sheet rectangle is empty only on a decided negative width**:
-    /// a width of `−1` misses; an exact touch (`ρ0 = ρ1`) and a width of
-    /// `−10⁻¹⁵`, within the band, are metered. Red where the miss is read
-    /// by the raw sign of the width, which skips the in-band one.
+    /// **A sheet rectangle is empty only on a width surely negative past
+    /// the band**: a width of `−1` misses; an exact touch (`ρ0 = ρ1`) and
+    /// a width of `−10⁻¹⁵`, within the band, are metered. Red where the
+    /// miss is read by the raw sign of the width, which skips the
+    /// in-band one.
     #[test]
     fn a_sheet_rectangle_misses_only_on_a_decided_gap() {
         use super::misses;
