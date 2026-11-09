@@ -3076,7 +3076,7 @@ fn cone_apex_plane<T: Decide>(
             "a cone pair's apex plane asked of a pair that is not two cones",
         ));
     };
-    let onto = |a: Vec3<T>| a * T::one().copysign(g.dot(a));
+    let onto = |a: Vec3<T>| a.turned_toward(g);
     let (b1, b2) = (onto(a1), onto(a2));
     // Nearly coaxial past what the axes can place the rulings to
     // (`fan::conditioned`): no frame is read.
