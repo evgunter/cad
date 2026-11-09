@@ -4,6 +4,8 @@ kind: issue
 title: A closed keel lying in the section plane divides the section into two regions where drop_slits promises one
 status: open
 opened: 2026-11-02
+priority: P1
+cost: M
 ---
 
 

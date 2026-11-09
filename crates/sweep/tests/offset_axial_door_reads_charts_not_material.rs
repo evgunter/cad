@@ -17,7 +17,7 @@ use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
-use topo::{AtRestBody, Body, ValidationError};
+use topo::{Body, ValidationError};
 
 const R: f64 = 3.0 / 64.0;
 const H: f64 = 8.0 / 64.0;
@@ -44,7 +44,7 @@ fn drum(ccw: bool) -> Body<f64> {
 fn volume(body: &Body<f64>, right_way: bool) -> f64 {
     if right_way {
         topo::mass_properties(
-            &AtRestBody::validate(body.clone(), Tol::witness()).expect("the drum is finished"),
+            &topo::finish(body.clone(), Tol::witness()).expect("the drum is finished"),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -64,7 +64,7 @@ fn volume(body: &Body<f64>, right_way: bool) -> f64 {
 /// `body` finishes when `right_way`, and refuses on check 7 alone when
 /// not.
 fn finishes_iff(what: &str, body: &Body<f64>, right_way: bool) {
-    match AtRestBody::validate(body.clone(), Tol::witness()) {
+    match topo::finish(body.clone(), Tol::witness()) {
         Ok(_) => assert!(right_way, "{what}: the inside-out body finished"),
         Err(errors) => assert!(
             !right_way

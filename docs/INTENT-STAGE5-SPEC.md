@@ -110,7 +110,6 @@ The census is not re-run. The resident runs no predicate of its own and calls th
   - `Malformed(ValidationError)`: the product's or the `⊔`'s body failing tiers 1–3;
   - `InsideArrival(ValidationError)`: a touch or overlap inside one arrival that no carried record backs and no carried finding matches (`UnrecordedContact`, `InstanceInterference` within one group), or a stale record (`StaleContactDeclaration`). This is the transitional in-arrival check's output (§10), the arrival's door's defect;
   - `NotGathered(ProductError)`: a `⊔` the product does not read whose gather refused (today's `AssemblyError::Assemble`);
-  - `NotRun`: a scalar whose at-rest policy runs no census (`topo::AtRestOutcome::NotRunAtThisScalar`). That is one finding, not a clean report;
   - `Carried(CarriedAtRestFinding)`: a part's could-not-look finding, crossed with its route (today's `AssemblyError::CarriedAtRest`).
 
   None of these refuses, at any severity. They are reported loud and counted apart from interference, because what the resident could not judge is not something the document said, and no assertion answers it (DS6).

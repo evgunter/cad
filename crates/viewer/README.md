@@ -2136,9 +2136,9 @@ of the node they insert, or a pick.
 - **Pattern.** The form asks for the body, the rule (linear or
   circular) and the output (instances or fused). The insert writes the
   defaults the code owns (`combine::PATTERN_COUNT` and the rest beside
-  it): `4` copies; a row along the target's `x` (`combine::STEP_ALONG`,
-  the axis a duplicate steps along) spaced by the duplicate's clearing
-  step (`DocSession::clearing_step`, `combine::duplicate_step`) rounded
+  it): `4` copies; a row along the target's `x` (`combine::STEP_ALONG`)
+  spaced by the step that clears the body
+  (`DocSession::step_clear_of`, `combine::step_clear_of`) rounded
   up to one significant figure in the working unit
   (`combine::row_spacing`), so the copies clear the body; a ring about
   the target's `z`
@@ -2288,18 +2288,38 @@ and a placement's constraints are its mates and the values that set
 their freedoms. Every bundle pins its copy. The mate tool is the
 **placement editor** (`matetool::MateTool`), whose draft is one
 placement's whole bundle, as the profile editor's is one profile's
-program. A body not yet placed is placed by one gesture, **Place**,
-which inserts its placement standing where the body is, with no mates
-and every slide and spin at zero (taking over what read the body along
-a seen path, never a copy's source), and opens the editor on it
-(**A create gesture commits the node**, above). The editor opens on a
-placement — from Place, its tree row (`edit placement`), a mate row's
-`remove`, or a pick on its copy — and its Apply writes the bundle whole
-(`SessionOp::SetBundle`, `DocEdit::SetConstraints`), keeping the id of
-every constraint it loaded. Place and each Apply are one undo step;
-nothing enters the document before them; a draft over a bundle the document has
-since changed reloads, said (`MateToolEvent::Reloaded`), and its old
-Apply is refused (`Refusal::BundleStale`).
+program. A body is placed by one gesture, **Place**
+(`SessionOp::Place`), which inserts its placement into the body's own
+space standing where the body is, with no mates and every slide and
+spin at zero (taking over what read the body along a seen path, never
+a copy's source), and opens the editor on it (**A create gesture
+commits the node**, above). A pick on a body picked as itself is Place
+(`MateTool::take_place`), whether nothing places it yet or the View
+pane shows it again beside its copies: a second placement is made the
+way the first is. A pick that lands on a copy opens that copy's
+placement instead. The editor opens on a placement — from Place, its
+tree row (`edit placement`), a mate row's `remove`, or a pick on its
+copy — and **each change is offered live**: a pick seated, a kind or
+a sense chosen, a row added or struck, a value field committed, each
+offered to the document's door as it is made (`MateTool::offer`) once
+the picture answers the committed document and, taken, written as one
+`SessionOp::SetBundle` (`DocEdit::SetConstraints`) keeping the id of
+every constraint it loaded. Place and each change taken are one undo
+step. A change the door refuses, or one that writes no bundle yet (a
+pick that leaves the other seat empty), is not applied: the editor
+holds it as a draft over the document, says why (`MateTool::pending`),
+and commits the draft whole on the first later change that makes it
+pass. The two editors hold their drafts in one state machine
+(`offer::Offer`): a change made while the last one lands waits and is
+made over the bundle it writes, Undo takes back a held draft first and
+says so, an Undo in the batch of the change it lands on takes that
+change back before it lands, and "Discard pending changes" drops the
+draft (`MateTool::discard`) whenever it differs from the bundle and no
+change of it is landing. A draft over a bundle the document has since
+changed (an undo, a redo, an edit from elsewhere) reloads, said
+(`MateToolEvent::Reloaded`), judged against the committed document; a
+`SetBundle` drafted over a bundle the placement no longer holds is
+refused (`Refusal::BundleStale`).
 
 The draft is **mate rows** (`matetool::MateRow`), each a kind of
 `matetool::MATE_KINDS` (a plane, an axis, a point, a direction, a
@@ -2338,8 +2358,8 @@ new freedom's turn only where the kernel states the two one rotation
 about one line (`editor_core::mate::spin_as_chain_turn`: the spin's
 line the chain's last turn's, exactly, with the exact quarter turns
 between their zeros); every other value the person wrote whose
-freedom goes is said dropped in the draft, with its formula, before
-Apply, and the constants the new mates fix are said once. Each value row is a field showing its
+freedom goes is said dropped in the draft, with its formula, as it
+lands, and the constants the new mates fix are said once. Each value row is a field showing its
 formula as the person reads it (`matetool::value_text`: a variable by
 its name, never its id), and typing replaces it. A freedom that reads
 no number where the copy stands, or a mate whose kind does not
@@ -2347,16 +2367,16 @@ resolve, is said, never written as `0` or read as a plane. "A mate in place of a
 slide or a spin" is *add a mate*: the value rows shrink to what the
 admitted mates leave.
 
-**The verdict comes before Apply.** The session runs the draft's Apply
-on a scratch recording and evaluates it
-(`DocSession::bundle_verdict`), so the panel names the door's refusal
-or the placement's fault — mates repeating an equation, a freedom left
+**The door judges each change before it lands.** The session runs the
+draft's `SetBundle` on a scratch recording and solves it
+(`DocSession::bundle_door`), so the panel names the door's refusal or
+the placement's fault — mates repeating an equation, a freedom left
 unpinned, two spaces, a side off the copy, a pick its kind cannot read
-— while the draft can still change, and a refused Apply leaves the
-editor open (`ToolKind::commits`). A copy the verdict says would not
-stand (a fault, or a read that does not evaluate) is not applied: the
-panel withholds Apply, and `SessionOp::Place` and `SessionOp::SetBundle`
-refuse it (`Refusal::PlacementFails`). Where `to` is read in another space
+— over the held draft, which the person can still change; the editor
+stays open through every change (`ToolKind::commits` closes it on
+none). A copy that would not stand (a fault, or a read that does not
+evaluate) is not written: `SessionOp::SetBundle` refuses it
+(`Refusal::PlacementFails`), and the editor holds the draft. Where `to` is read in another space
 than the one the copy is placed into, the door refuses the Edit,
 `EditError::SpaceMismatch` naming both spaces: the gesture never moves
 a copy as a side effect. The panel's "move the copy into the target's
@@ -2383,27 +2403,20 @@ itself, it makes a new body and offers, as one explicit step, to
 re-point the variable the body's placements share onto it, member 0 standing where that body stood. A split takes the seen
 body over the same way, by `above ⊔ below`, its two halves standing
 where that body stood; where nothing reads the body along such a
-path, the split's halves are drawn in its place. A duplicate of a copy
-is one more copy in that copy's space, by values on every freedom at
-the copy's evaluated motion and no mate, one step along the original's
-own `x`; a duplicate of an unplaced body is two copies in its own
-space, a stand-in by the identity and the stepped one. Projecting a
-pattern member writes nothing: a pick on a drawn member seats
-`family[k]`. The Transform tool is the placement editor opened on its
-pick with no mate row (`MateTool::moving`), through one of its two
-doors. On a body nothing places it is the Create door, into the body's
-own space, its six value rows where the body stands; its Apply places
-the body and takes over what read it along the path it was seen
-through (a `⊔` operand, the product), never a copy's source. On a copy,
-and on a body one copy places, which is seen through that copy, it is
-that copy's Edit door, the bundle's values as written; its Apply writes
-the bundle in place. The editor's own first pick takes the same route
+path, the split's halves are drawn in its place. A second copy of a
+body is a second placement of it: Place on the body, shown again in the
+View pane and picked as itself. Projecting a pattern member writes
+nothing: a pick on a drawn member seats `family[k]`. The Transform tool
+is the placement editor opened on its pick with no mate row
+(`MateTool::moving`). On a body picked as itself it is Place, and then
+the editor on the placement Place made, its six value rows where the
+body stands; on a copy it is that copy's editor, the bundle's values as
+written. The editor's own first pick takes the same route
 (`matetool::door_on`, A11's member walk included). What is no body opens
-no door, said: a profile, a pattern's family (its values are the rule;
-the pattern is edited instead), a body several copies place, and a split
-picked whole, which asks for its half. The Create door refuses a copy
-(`Refusal::CreateOnACopy`) and a body a placement already copies
-(`Refusal::BodyPlaced`, naming the copy whose Edit door moves it). A combine re-places an operand from
+nothing, said: a profile, a pattern's family (its values are the rule;
+the pattern is edited instead), and a split picked whole, which asks for
+its half. Place refuses a copy (`Refusal::PlaceOnACopy`): a copy is
+edited by its own placement. A combine re-places an operand from
 another space at the pose it held, by values on the first operand's
 space's axes. Nothing a place gesture writes reads the copy's geometry.
 
@@ -2424,12 +2437,12 @@ door as its recourse.
 bundle's families and measures nothing, so a draft whose mates fix an
 equation twice is refused where it is authored
 (`EditError::MateRefused` carrying `MateFault::Overconstrained`),
-whether they agree or not; the verdict says so before Apply, and the
+whether they agree or not; the editor holds the draft and says so, and the
 mate is never dropped silently. The tree's `remove` sits on mate rows
 alone — a value's freedom is always set, and `SessionOp::RemoveConstraint`
 refuses one (`Refusal::ValueNotRemoved`) — and opens the editor with
-that mate struck out, the freed values measured where the copy stands;
-the op applies the same draft. `SessionOp::IntoOwnSpace` gives a copy a
+that mate struck out, a change offered as every other is, the freed
+values measured where the copy stands; the op writes the same draft. `SessionOp::IntoOwnSpace` gives a copy a
 space of its own — a `new_space()`, the placement re-targeted into it
 at the identity — which the Properties pane offers beside the free-move
 probe's refusal for a copy in the world.

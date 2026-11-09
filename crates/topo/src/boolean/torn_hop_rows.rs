@@ -82,7 +82,8 @@ fn drop_surface(body: &mut Body<f64>, face: FaceKey) -> String {
 /// poison box an uncertified curve gets.
 #[test]
 fn the_box_reads_panic_on_a_torn_loop_and_a_torn_curve() {
-    use super::boxes::{edge_box, face_window_steps};
+    use super::boxes::edge_box;
+    use crate::cover::face_window_steps;
     let mut body = cube();
     let face = first_face(&body);
     assert_eq!(face_window_steps(&body, face).len(), 1, "one loop");
@@ -118,10 +119,7 @@ fn the_face_box_panics_on_a_torn_boundary_curve() {
     use super::boxes::face_box;
     let (mut body, face) = super::boxes::tests::cone_wall(30f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
     assert!(
-        face_box(&body, face, 0.0, band())
-            .unwrap()
-            .min_x
-            .is_finite(),
+        face_box(&body, face, 0.0, band()).min_x.is_finite(),
         "a certified box"
     );
     let he = outer_members(&body, face)[0];
@@ -130,7 +128,7 @@ fn the_face_box_panics_on_a_torn_boundary_curve() {
         "face_box",
         &mut body,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| face_box(b, face, 0.0, band()).map(|bx| bx.min_x.is_finite()),
+        |b| face_box(b, face, 0.0, band()).min_x.is_finite(),
     );
 }
 

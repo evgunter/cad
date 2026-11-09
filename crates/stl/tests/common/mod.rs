@@ -251,6 +251,7 @@ pub fn l_prism() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// 4×4 square with a centered circular hole (two-vertex closed
@@ -276,6 +277,7 @@ pub fn holed_prism() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn ball() -> Body<f64> {
@@ -291,6 +293,7 @@ pub fn ball() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn cone() -> Body<f64> {
@@ -307,6 +310,7 @@ pub fn cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn washer() -> Body<f64> {
@@ -324,6 +328,7 @@ pub fn washer() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn donut() -> Body<f64> {
@@ -339,6 +344,7 @@ pub fn donut() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The football with conical ends: the lemon band `|v| ≤ 0.8` of the
@@ -361,6 +367,7 @@ pub fn football() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The football: the arc of the circle of radius 1 centred half a unit
@@ -380,6 +387,7 @@ pub fn lemon() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn wedge() -> Body<f64> {
@@ -397,4 +405,5 @@ pub fn wedge() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }

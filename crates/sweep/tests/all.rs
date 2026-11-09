@@ -154,6 +154,8 @@ mod a_slit_tip_on_a_curved_face_reads_its_full_turn;
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
 #[path = "a_split_edge_joins_back_on_its_carrier.rs"]
 mod a_split_edge_joins_back_on_its_carrier;
+#[path = "a_split_operand_does_not_finish.rs"]
+mod a_split_operand_does_not_finish;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
@@ -432,8 +434,6 @@ mod two_rims_review_probes;
 mod two_tubes_in_the_zero_band;
 #[path = "two_wedge_ends_on_one_line.rs"]
 mod two_wedge_ends_on_one_line;
-#[path = "unjoined_operand_at_a_dual.rs"]
-mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
@@ -1334,6 +1334,8 @@ mod pinch_faces_tessellate;
 mod rest_nested_strut;
 #[path = "rest_zip_admission.rs"]
 mod rest_zip_admission;
+#[path = "session_box_reach.rs"]
+mod session_box_reach;
 
 #[path = "a_grazed_rim_never_pinches.rs"]
 mod a_grazed_rim_never_pinches;

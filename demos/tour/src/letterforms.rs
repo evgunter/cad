@@ -25,6 +25,7 @@
 use pncad::profile::SketchPlane;
 use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extrusion, extrude};
+use pncad::topo::LeafBody as _;
 use pncad::topo::{AtRestBody, Body, BooleanBody};
 
 use crate::booleans::{check, expect_seamed, finished, try_intersect};
@@ -52,6 +53,7 @@ fn letter<S: Scalar>(
     )
     .expect("extrude letterform")
     .body
+    .into_body()
 }
 
 /// "H", (x, y) on the xy plane at z = 0: legs 1/2 wide, bar

@@ -62,7 +62,7 @@ fn band_body(rho: f64) -> Result<Body<f64>, RevolveError> {
         Revolution::Full,
         Tol::witness(),
     )
-    .map(|r| r.body)
+    .map(|r| r.body.into_body())
 }
 
 /// Inside the band the door refuses at the two certified axis bars —

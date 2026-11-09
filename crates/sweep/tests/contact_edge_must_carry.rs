@@ -249,7 +249,7 @@ fn corpus() -> Vec<(String, Body<f64>)> {
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 )
             });
-        (name.to_owned(), out.body)
+        (name.to_owned(), out.body.into_body())
     };
     let mut rows = Vec::new();
     let body = cube(1.0, tol);
@@ -595,7 +595,7 @@ fn the_near_osculating_family_is_screened_by_the_battery_before_the_rule() {
 #[test]
 fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever() {
     let b = band();
-    let die = cube(1.0, tol());
+    let die = cube::<f64>(1.0, tol());
     let r = 1.5 * b.escalate();
     in_band_refusal(
         fillet_edges(
@@ -633,7 +633,7 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
 #[test]
 fn the_contact_recourse_is_followable_at_each_site_kind() {
     let b = band();
-    let die = sweep::test_support::finished("die", cube(1.0, tol()), tol());
+    let die = sweep::test_support::finished("die", cube::<f64>(1.0, tol()), tol());
     in_band_refusal(
         fillet_edges(&die, &query::all_edges(&die), 1.5 * b.escalate(), tol()),
         "the die at r = 1.5·Kε",
@@ -673,6 +673,13 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
 
     // The slim corner arc, on the fixture its pin lives on.
     let scale = b.zero() / 1e-9;
+    if scale > 1e2 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-7",
+            "the skewed cavity scales with eps, and past 1e-7 it leaves the session box",
+        );
+        return;
+    }
     let r = 8.7e-5 * scale;
     let theta = (1.5 * b.escalate() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);

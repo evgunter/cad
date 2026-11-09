@@ -207,7 +207,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
             0.12,
             Tol::witness(),
         ) {
-            out.push(("die_one_pip_blended", f.body));
+            out.push(("die_one_pip_blended", f.body.into_body()));
         }
         if let Some(b2) = subtract(&b, &pip(0.25, 0.25, 0.09, 0.05)) {
             out.push(("die_two_pips", b2));
@@ -412,9 +412,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
-        BlendError::ScaffoldingOperand { .. } => "ScaffoldingOperand(row 1)",
-        BlendError::InsideOutOperand { .. } => "InsideOutOperand(row 1)",
-        BlendError::UnjoinedOperand { .. } => "UnjoinedOperand(row 1)",
+        BlendError::NotFinished { .. } => "NotFinished(row 4)",
         BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::WhollyInside { .. } => "WhollyInside(row 2)",
