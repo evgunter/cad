@@ -881,6 +881,47 @@ impl<T: Real> Line<T> {
     }
 }
 
+/// **A half-line**: [`Ray::line`] read forward from its origin, a point at
+/// advance `t > 0` ahead and at `t < 0` behind. `line.dir` is unit by the
+/// carriers' convention, so an advance is a length. The forward reading
+/// has one home, [`Ray::ahead`], decided under the reader's own row.
+#[derive(Clone, Copy, Debug)]
+pub struct Ray<T: Real> {
+    /// The line the ray runs along, from its origin.
+    pub line: Line<T>,
+}
+
+impl<T: Real> Ray<T> {
+    /// The ray from `origin` along `dir`.
+    #[must_use]
+    pub fn new(origin: Point3<T>, dir: Vec3<T>) -> Self {
+        Self {
+            line: Line { origin, dir },
+        }
+    }
+
+    /// **`p`'s advance along the ray**: its foot's parameter on
+    /// [`Ray::line`], positive ahead of the origin.
+    #[must_use]
+    pub fn advance(&self, p: Point3<T>) -> T {
+        self.line.param(p)
+    }
+}
+
+impl<T: Decide> Ray<T> {
+    /// **Whether advance `at` lies ahead of the ray's origin**, decided
+    /// under the reader's own `site` with `at` as a length: `Positive`
+    /// ahead, `Negative` behind, `Zero` at the origin. Each reader keeps
+    /// its own policy for `Zero` and for an undecided reading.
+    ///
+    /// # Errors
+    ///
+    /// [`Indeterminate`] where `at` is in band.
+    pub fn ahead(&self, at: T, site: &'static str, band: Band) -> Result<Sign, Indeterminate> {
+        geom_core::k_stats::decide(site, Margin::of(at), band)
+    }
+}
+
 impl<T: Real> Curve3<T> {
     /// The line `origin + dir·t` as a carrier.
     #[must_use]

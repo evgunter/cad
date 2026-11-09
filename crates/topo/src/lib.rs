@@ -555,14 +555,14 @@ pub mod test_support {
 
     pub use crate::side_reader::EdgeFrame;
 
-    /// Every crossing of the ray `q + s·d` with the solid holding `face`,
+    /// Every crossing of `ray` with the solid holding `face`,
     /// its faces in an order turned left by `turn` and reversed where
     /// asked, as `(from, to, count, sideless)` (`side_reader`): the probes
     /// read a whole ray's count off it.
     pub fn ray_counts(
         body: &Body<f64>,
         face: crate::FaceKey,
-        ray: (geom_core::Point3<f64>, geom_core::Vec3<f64>),
+        ray: &geom::Ray<f64>,
         band: geom_core::Band,
         order: (usize, bool),
     ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
