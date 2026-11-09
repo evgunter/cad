@@ -3344,7 +3344,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     }
     let mut recorded = false;
     for (w, pw) in ends {
-        let (placement, on, chart) = super::contain::placement_on_carrier(y, face, pw, band)
+        let (placement, on, chart) = super::contain::placement_unheld(y, face, pw, band)
             .map_err(|e| esc(e, x_is.other(), face))?;
         match placement {
             CurvedPlacement::Trim(Some(FaceContainment::OnVertex(vy))) => {
@@ -3369,7 +3369,8 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                     contacts.chart_point(x_is, w, face, uv);
                 }
             }
-            // OffCarrier → Out (trusted on carrier).
+            // OffCarrier → Out (a reading: an edge's end is not held on the
+            // face's carrier, and one off it is not on the face).
             CurvedPlacement::Trim(Some(FaceContainment::Out)) | CurvedPlacement::OffCarrier => {
                 continue;
             }
@@ -5156,7 +5157,8 @@ fn landing<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Landing, BooleanError> {
-    match super::contain::placement_on_carrier(y, face, p, band) {
+    let crossing = crate::held::Held::constructed(p, "a crossing certified on the face's carrier");
+    match super::contain::placement_on_carrier(y, face, crossing, band) {
         // OffCarrier → Unplaced (contradicts the crossing's certificate).
         Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _, _)) => {
             Ok(Landing::Unplaced)
@@ -5738,7 +5740,13 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(Placement, Option<VertexKey>), BooleanError> {
-    let (placement, on, chart) = super::contain::placement_on_carrier(y, face, px, band)
+    let held = match on_carrier {
+        Some(margin) => crate::held::Held::decided(px, margin),
+        None => {
+            crate::held::Held::constructed(px, "an end of an arc read lying on the face's carrier")
+        }
+    };
+    let (placement, on, chart) = super::contain::placement_on_carrier(y, face, held, band)
         .map_err(|e| esc(e, x_is.other(), face))?;
     let verdict = match placement {
         CurvedPlacement::Trim(v) => v,
@@ -5920,8 +5928,13 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<bool, BooleanError> {
-    let (placement, on, _) = super::contain::placement_on_carrier(y, face, px, band)
-        .map_err(|e| esc(e, x_is.other(), face))?;
+    let (placement, on, _) = super::contain::placement_on_carrier(
+        y,
+        face,
+        crate::held::Held::decided(px, on_plane),
+        band,
+    )
+    .map_err(|e| esc(e, x_is.other(), face))?;
     let at = match placement {
         // OffCarrier → fault: the caller decided `px` on the plane, and a
         // plane answers neither it nor `Trim(None)`.
@@ -6770,9 +6783,15 @@ mod declaration_order_rows {
         band: Band,
     ) -> bool {
         match class {
-            GlueClass::Rest => crate::boolean::rest_pair_verdict(x, xw, y, yw, band).is_ok(),
+            GlueClass::Rest => matches!(
+                crate::boolean::rest_pair_verdict(x, xw, y, yw, band),
+                Ok(crate::contact::RestVerdict::Rest(_))
+            ),
             GlueClass::Tangent => witness.is_some_and(|(carrier, t0, t1)| {
-                crate::boolean::tangent_pair_relation(x, xw, y, yw, carrier, t0, t1, band).is_ok()
+                matches!(
+                    crate::boolean::tangent_pair_relation(x, xw, y, yw, carrier, t0, t1, band),
+                    Ok(crate::contact::TangentVerdict::Touch(_))
+                )
             }),
             GlueClass::Continuation => unreachable!("a continuation is no contact"),
         }
@@ -7178,7 +7197,11 @@ mod declaration_order_rows {
         for class in [GlueClass::Rest, GlueClass::Tangent] {
             let door = match class {
                 GlueClass::Tangent => {
-                    crate::boolean::verify_tangent_declaration(&x, xw, &y, yw, b).is_ok()
+                    crate::boolean::glue::decided_glue(&x, &y, &crate::boolean::Glue::none(), b)
+                        .expect("the door reads every pair")
+                        .pairs
+                        .iter()
+                        .any(|p| (p.a, p.b) == (xw, yw) && p.class() == GlueClass::Tangent)
                 }
                 _ => contact_door((&x, xw), (&y, yw), class, None, b),
             };

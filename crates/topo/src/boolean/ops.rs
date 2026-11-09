@@ -5559,7 +5559,7 @@ impl GluedSurfaces {
                 .pairs
                 .iter()
                 .filter_map(|pair| {
-                    let relation = pair.class.carrier_relation()?;
+                    let relation = pair.class().carrier_relation()?;
                     // A-clone surface keys ARE result keys (carve/clone
                     // preserve them); B bridges through the graft.
                     let ka = a.get_face(pair.a)?.surface;
