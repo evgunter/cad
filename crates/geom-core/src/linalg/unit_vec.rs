@@ -306,6 +306,30 @@ pub fn decide_unit_direction<T: Decide>(
     decide_direction_by(v, site, band, Margin::norm3)
 }
 
+/// **Where a direction's length leaves the format**: the one rule a door
+/// that refuses a direction reads, [`UnitVec3::new`] and
+/// [`decide_unit_direction`] among them. `v`'s plain norm is
+/// [`UnitVec3Error::NonFiniteLength`] where it overflowed or is poison,
+/// and [`UnitVec3Error::UnderflowedLength`] where it underflowed out of
+/// the format against `v`'s largest component (`norm_witness`, the
+/// witness that question is asked against). `None` otherwise, the zero
+/// vector included: a length of exactly `0` is the door's own
+/// degeneracy question, not this rule's.
+///
+/// The total readings, [`Vec3::normalize`] and
+/// [`Vec3::direction_and_length`], answer past either end through their
+/// prescale; a door that refuses asks this first.
+pub fn length_out_of_format<T: Real>(v: Vec3<T>) -> Option<UnitVec3Error> {
+    let len = v.norm();
+    if !is_finite_length(len) {
+        Some(UnitVec3Error::NonFiniteLength)
+    } else if is_underflowed_length(len, v.norm_witness()) {
+        Some(UnitVec3Error::UnderflowedLength)
+    } else {
+        None
+    }
+}
+
 /// The three questions of [`decide_unit_direction`], the third asked of
 /// `margin(v)`.
 fn decide_direction_by<T: Decide>(
@@ -317,15 +341,8 @@ fn decide_direction_by<T: Decide>(
     // `margin` recomputes this same norm (`Vec3::norm` is
     // deterministic), so the gates and the margin read the one length;
     // it is spelled twice rather than reached into.
-    let len = v.norm();
-    if !is_finite_length(len) {
-        return Err(UnitVec3Error::NonFiniteLength);
-    }
-    // `norm_witness` is the largest |component|, which is the nonzero
-    // WITNESS the underflow question is asked against; the derivation
-    // and why the norm brackets it live on that door.
-    if is_underflowed_length(len, v.norm_witness()) {
-        return Err(UnitVec3Error::UnderflowedLength);
+    if let Some(refusal) = length_out_of_format(v) {
+        return Err(refusal);
     }
     match decide(site, margin(v), band) {
         Ok(Sign::Positive) => Ok(v.normalize()),
@@ -524,6 +541,32 @@ impl<T: Real> Neg for UnitVec3<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// The rule at both ends and at zero: an overflowed or poisoned plain
+    /// norm, an underflowed one, an in-format one, and the zero vector,
+    /// whose length is the door's own question.
+    #[test]
+    fn a_length_leaves_the_format_at_either_end_and_not_at_zero() {
+        for (v, want) in [
+            (
+                Vec3::new(1e200, 1e200, 0.0),
+                Some(UnitVec3Error::NonFiniteLength),
+            ),
+            (
+                Vec3::new(f64::NAN, 1.0, 0.0),
+                Some(UnitVec3Error::NonFiniteLength),
+            ),
+            (
+                Vec3::new(1e-170, 0.0, 0.0),
+                Some(UnitVec3Error::UnderflowedLength),
+            ),
+            (Vec3::new(1e-150, 2e-150, 0.0), None),
+            (Vec3::new(3.0, 4.0, 12.0), None),
+            (Vec3::new(0.0, 0.0, 0.0), None),
+        ] {
+            assert_eq!(length_out_of_format(v), want, "{v:?}");
+        }
+    }
 
     fn bits3(v: Vec3<f64>) -> [u64; 3] {
         [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
