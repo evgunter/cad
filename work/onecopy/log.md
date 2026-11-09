@@ -839,3 +839,4 @@
   - F2 filed as `arc-trim-margin-stayed-in-containment-when-arc-trim-moved-beside-check-9`.
   - Main overlapped it in 5 files, gate counts included. I merged main (e7cee1ba); run-gates passes on the merge. Gating.
   - 6624 keys the walk after this lands.
+- 09:24Z PR 6626 FULL review: FIX. F1: at_or_above's open end rounds to fl(a+P), and the row pins the excluded end; this is reachable at a seam start. F2: choose is unlogged, a wording fix. F3: the doc must say an extent rests on the pick. Sent to the lane, including routing camera.rs wrap_angle.
