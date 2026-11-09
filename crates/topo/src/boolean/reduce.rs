@@ -5878,7 +5878,8 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     let (placement, on, _) = super::contain::placement_on_carrier(y, face, px, band)
         .map_err(|e| esc(e, x_is.other(), face))?;
     let at = match placement {
-        // OffCarrier → Out (the caller decided `px` on the plane).
+        // OffCarrier → Out (the caller decided `px` on the plane); a
+        // plane answers neither it nor `Trim(None)`, so both are unreachable.
         CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None) => FaceContainment::Out,
         CurvedPlacement::Trim(Some(at)) => at,
     };
