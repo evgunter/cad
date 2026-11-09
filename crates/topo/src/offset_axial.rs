@@ -1027,20 +1027,32 @@ fn axial_frame<T: Real>(
         .find(|(k, _)| scope.holds_face(*k))
         .map(|(k, _)| k)
         .ok_or(ReplaceFaceError::EmptyGroup)?;
-    let mut seed: Option<(Point3<T>, Vec3<T>)> = None;
+    let mut seed: Option<geom::Line<T>> = None;
     for f in body.face_views() {
         let face = f.key();
         if !scope.holds_face(face) {
             continue;
         }
         let found = match f.surface() {
-            Surface::Cylinder { origin, axis, .. } => Some((*origin, axis.normalize())),
-            Surface::Cone { apex, axis, .. } => Some((*apex, axis.normalize())),
-            Surface::Sphere { center, axis, .. } => Some((*center, axis.normalize())),
+            Surface::Cylinder { origin, axis, .. } => Some(geom::Line {
+                origin: *origin,
+                dir: axis.normalize(),
+            }),
+            Surface::Cone { apex, axis, .. } => Some(geom::Line {
+                origin: *apex,
+                dir: axis.normalize(),
+            }),
+            Surface::Sphere { center, axis, .. } => Some(geom::Line {
+                origin: *center,
+                dir: axis.normalize(),
+            }),
             // A torus carries `center` + `axis` exactly as a sphere
             // does: the centre is the tube midplane's own point on the
             // axis, and the axis is the revolution axis itself.
-            Surface::Torus { center, axis, .. } => Some((*center, axis.normalize())),
+            Surface::Torus { center, axis, .. } => Some(geom::Line {
+                origin: *center,
+                dir: axis.normalize(),
+            }),
             Surface::Plane { .. } => None,
             other => {
                 return Err(ReplaceFaceError::TogetherAxialUnsupported {
@@ -1054,7 +1066,7 @@ fn axial_frame<T: Real>(
             break;
         }
     }
-    let (seed_origin, dir) = seed.ok_or(ReplaceFaceError::TogetherAxialUnsupported {
+    let seed = seed.ok_or(ReplaceFaceError::TogetherAxialUnsupported {
         face: first,
         kind: SurfaceKind::Plane,
     })?;
@@ -1067,11 +1079,7 @@ fn axial_frame<T: Real>(
     // station of `0.2` came back `0.19999999999999996` purely from
     // subtracting and re-adding `2.0`. Measured on the byte-dump
     // harness, which now reports the curved fixtures unchanged.
-    let origin = geom::Line {
-        origin: seed_origin,
-        dir,
-    }
-    .foot(Point3::origin());
+    let (origin, dir) = (seed.foot(Point3::origin()), seed.dir);
     // The extent is the SCOPE's own furthest vertex from the axis
     // point: the length a direction error would move a corner by, which
     // is the geometry every alignment verdict here is about. A box
@@ -3176,7 +3184,10 @@ fn reauthor<T: Decide>(
                 azimuth_turn(
                     name,
                     read(theta, moved).z,
-                    (axis_origin, axis_dir),
+                    geom::Line {
+                        origin: axis_origin,
+                        dir: axis_dir,
+                    },
                     mapped.eval(s),
                     moved,
                     band,
@@ -3235,7 +3246,7 @@ fn reauthor<T: Decide>(
 fn azimuth_turn<T: Decide>(
     name: &'static str,
     off: T,
-    (origin, dir): (Point3<T>, Vec3<T>),
+    geom::Line { origin, dir }: geom::Line<T>,
     old: Point3<T>,
     moved: Point3<T>,
     band: Band,

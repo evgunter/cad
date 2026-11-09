@@ -1689,8 +1689,8 @@ pub fn cylinder_cylinder_section<T: Decide>(
 /// The trilean's diagnostics where it lands in the band or poisons.
 pub fn cylinder_axes_parallel<T: Decide>(
     reach: &Reach<T>,
-    line1: (Point3<T>, Vec3<T>),
-    line2: (Point3<T>, Vec3<T>),
+    line1: geom::Line<T>,
+    line2: geom::Line<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     cylinder_axes_parallel_reported(reach, line1, line2, band).map(|d| d.sign)
@@ -1703,15 +1703,15 @@ pub fn cylinder_axes_parallel<T: Decide>(
 /// As [`cylinder_axes_parallel`].
 pub fn cylinder_axes_parallel_reported<T: Decide>(
     reach: &Reach<T>,
-    line1: (Point3<T>, Vec3<T>),
-    line2: (Point3<T>, Vec3<T>),
+    line1: geom::Line<T>,
+    line2: geom::Line<T>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     decide_reported(
         "cc_axes_parallel",
         Margin::levered(
-            line1.1.cross(line2.1).norm(),
-            reach.lever_between(axis_line(line1), axis_line(line2)),
+            line1.dir.cross(line2.dir).norm(),
+            reach.lever_between(line1, line2),
         ),
         band,
     )
@@ -1734,13 +1734,17 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
 /// the answer does not depend on operand order.
 pub(crate) fn parallel_swing<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
-    line1: (Point3<T>, Vec3<T>),
-    line2: (Point3<T>, Vec3<T>),
+    line1: geom::Line<T>,
+    line2: geom::Line<T>,
     d: T,
 ) -> T {
-    let from = |this: (Point3<T>, Vec3<T>), other: (Point3<T>, Vec3<T>)| {
-        let (foot, lever) = reach.foot_lever(axis_line(this));
-        let (dmin, dmax) = separation_range((foot, this.1), other, lever.length());
+    let from = |this: geom::Line<T>, other: geom::Line<T>| {
+        let (foot, lever) = reach.foot_lever(this);
+        let at_foot = geom::Line {
+            origin: foot,
+            dir: this.dir,
+        };
+        let (dmin, dmax) = separation_range(at_foot, other, lever.length());
         (dmax - d).abs().max((d - dmin).abs())
     };
     from(line1, line2).min(from(line2, line1))
@@ -1752,8 +1756,8 @@ pub(crate) fn parallel_swing<T: geom_core::spline::SpanLocate>(
 /// `b`, a convex function of `s`, so its greatest is at an end and its
 /// least at the clamped stationary point `−(u·τ)/(τ·τ)`.
 fn separation_range<T: Real>(
-    (p, a): (Point3<T>, Vec3<T>),
-    (o, b): (Point3<T>, Vec3<T>),
+    geom::Line { origin: p, dir: a }: geom::Line<T>,
+    geom::Line { origin: o, dir: b }: geom::Line<T>,
     lever: T,
 ) -> (T, T) {
     let off = |v: Vec3<T>| v - b * v.dot(b);
@@ -1783,8 +1787,8 @@ fn separation_range<T: Real>(
 /// The trilean's diagnostics where it lands in the band or poisons.
 pub fn cylinder_axes_coplanar<T: Decide>(
     reach: &Reach<T>,
-    line1: (Point3<T>, Vec3<T>),
-    line2: (Point3<T>, Vec3<T>),
+    line1: geom::Line<T>,
+    line2: geom::Line<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     cylinder_axes_coplanar_reported(reach, line1, line2, band).map(|d| d.sign)
@@ -1797,12 +1801,12 @@ pub fn cylinder_axes_coplanar<T: Decide>(
 /// As [`cylinder_axes_coplanar`].
 pub fn cylinder_axes_coplanar_reported<T: Decide>(
     reach: &Reach<T>,
-    line1: (Point3<T>, Vec3<T>),
-    line2: (Point3<T>, Vec3<T>),
+    line1: geom::Line<T>,
+    line2: geom::Line<T>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     let (_, w) = axes_feet(reach, line1, line2);
-    let cross = line1.1.cross(line2.1);
+    let cross = line1.dir.cross(line2.dir);
     decide_reported(
         "cc_axes_coplanar",
         Margin::of(w.dot(cross) / cross.norm()),
@@ -1815,17 +1819,11 @@ pub fn cylinder_axes_coplanar_reported<T: Decide>(
 /// place the cylinder pair's rows read where its axes stand.
 fn axes_feet<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
-    (o1, a1): (Point3<T>, Vec3<T>),
-    (o2, a2): (Point3<T>, Vec3<T>),
+    line1: geom::Line<T>,
+    line2: geom::Line<T>,
 ) -> (Point3<T>, Vec3<T>) {
-    let foot1 = reach.foot_on(axis_line((o1, a1)));
-    (foot1, reach.foot_on(axis_line((o2, a2))) - foot1)
-}
-
-/// An axis as this module's rows carry it, `(origin, axis)`, read as
-/// its [`geom::Line`].
-pub(crate) fn axis_line<T: Real>((origin, dir): (Point3<T>, Vec3<T>)) -> geom::Line<T> {
-    geom::Line { origin, dir }
+    let foot1 = reach.foot_on(line1);
+    (foot1, reach.foot_on(line2) - foot1)
 }
 
 /// Two parallel axes read at their feet ([`axes_feet`]). Decisions read
@@ -1856,11 +1854,11 @@ pub struct ParallelAxes<T: Real> {
 #[must_use]
 pub fn parallel_axes_at<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
-    line1: (Point3<T>, Vec3<T>),
-    line2: (Point3<T>, Vec3<T>),
+    line1: geom::Line<T>,
+    line2: geom::Line<T>,
 ) -> ParallelAxes<T> {
     let (foot1, w) = axes_feet(reach, line1, line2);
-    let a1 = line1.1;
+    let a1 = line1.dir;
     ParallelAxes {
         foot1,
         d_vec: w - a1 * w.dot(a1),
@@ -3129,7 +3127,14 @@ pub fn cone_cylinder_section<T: Decide>(
     // cross-section, `R·(1 − cos θ) ≤ R·sin²θ`. The swing is that range's
     // reach from `d`, plus the turn.
     let d = geom::Line { origin: o, dir: b }.distance(apex);
-    let (near, far) = separation_range((apex, a), (o, b), above.length());
+    let (near, far) = separation_range(
+        geom::Line {
+            origin: apex,
+            dir: a,
+        },
+        geom::Line { origin: o, dir: b },
+        above.length(),
+    );
     let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b).norm().powi(2);
     match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, swing, band)
         .map_err(SectionError::Escalated)?

@@ -86,15 +86,15 @@ impl Ruled {
     }
 }
 
-/// A ruling chart's line at an angle, as `(B, v)`.
-type LineAt<'a> = &'a dyn Fn(f64) -> (Point3<f64>, Vec3<f64>);
+/// A ruling chart's line at an angle, `B + t·v`.
+type LineAt<'a> = &'a dyn Fn(f64) -> geom::Line<f64>;
 
 /// The share of a column's width the columns stand off `θ = 0`: `2/φ³`,
 /// no short dyadic share, so a doubled grid shares no column with the
 /// last, and a pose symmetric about a dyadic angle puts no root on one.
 const SHIFT: f64 = 0.472_135_954_999_579_4;
 
-/// The section traced on the ruling chart `line(θ) = (B, v)`, the
+/// The section traced on the ruling chart `line(θ) = B + t·v`, the
 /// distance along `v` compactified as `scale·tan ψ`, on the coarsest grid
 /// from `720 × 721` cells up that [`resolves`] the section, each refusal
 /// doubling the cells round the turn, along the lines, or both; `None`
@@ -111,7 +111,7 @@ fn ruled((line, slop): (LineAt<'_>, Slop), scale: f64, partner: &Surface<f64>) -
             Ok(()) => {
                 let traced = trace(
                     &|u, psi| {
-                        let (b, v) = line(u + shift);
+                        let geom::Line { origin: b, dir: v } = line(u + shift);
                         b + v * (scale * psi.tan())
                     },
                     &|q| geom_brep::implicit_residual(partner, q),
@@ -354,7 +354,7 @@ fn resolves(
     }
     let (coefficients, errors): (Vec<[f64; 3]>, Vec<[f64; 3]>) = (0..n)
         .map(|i| {
-            let (b, v) = line(TAU * (i as f64 + SHIFT) / n as f64);
+            let geom::Line { origin: b, dir: v } = line(TAU * (i as f64 + SHIFT) / n as f64);
             along(partner, b, v, slop)
         })
         .unzip();
@@ -473,7 +473,7 @@ fn resolves(
 }
 
 /// A ruling chart: the line at each angle, as `(B, v)`.
-type Lines = Box<dyn Fn(f64) -> (Point3<f64>, Vec3<f64>)>;
+type Lines = Box<dyn Fn(f64) -> geom::Line<f64>>;
 
 /// A partner's ruling chart and its carrier.
 struct Partner {
@@ -492,7 +492,10 @@ fn cylinder(o: Point3<f64>, d: Vec3<f64>, r: f64, scale: f64) -> Partner {
             radius: r,
             u_ref: e1,
         },
-        line: Box::new(move |u| (o + (e1 * u.cos() + e2 * u.sin()) * r, d)),
+        line: Box::new(move |u| geom::Line {
+            origin: o + (e1 * u.cos() + e2 * u.sin()) * r,
+            dir: d,
+        }),
         chart: Box::new(move |q| {
             let w = q - o;
             ((w.dot(e2)).atan2(w.dot(e1)), (w.dot(d) / scale).atan())
@@ -509,7 +512,10 @@ fn cone(k: Frame) -> Partner {
         surface,
         line: Box::new(move |u| {
             let (s, c) = k1.alpha.sin_cos();
-            (k1.apex, k1.a * c + k1.radial(u) * s)
+            geom::Line {
+                origin: k1.apex,
+                dir: k1.a * c + k1.radial(u) * s,
+            }
         }),
         chart: Box::new(move |q| {
             let (u, t) = k2.chart(q);
@@ -974,7 +980,13 @@ fn against_the_trace(
     let cone = k.surface();
     let (s, c) = k.alpha.sin_cos();
     let mine = ruled(
-        (&|u| (k.apex, k.a * c + k.radial(u) * s), slop_of(&cone)),
+        (
+            &|u| geom::Line {
+                origin: k.apex,
+                dir: k.a * c + k.radial(u) * s,
+            },
+            slop_of(&cone),
+        ),
         k.scale,
         &partner.surface,
     )?;

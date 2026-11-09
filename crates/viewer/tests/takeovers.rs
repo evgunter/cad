@@ -1110,7 +1110,7 @@ fn a_combine_with_its_own_earlier_half_keeps_the_mate() {
     let seated_at = drawn::extent(&mut session, small_copy);
     let above = Operand::output(earlier, pncad::select::SplitHalf::Above.port());
     let outcome = session.perform(SessionOp::AddBoolean {
-        spec: viewer::session::BooleanSpec::Union(vec![block.into(), above]),
+        spec: viewer::session::BooleanSpec::Union(vec![block.into(), above.into()]),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();

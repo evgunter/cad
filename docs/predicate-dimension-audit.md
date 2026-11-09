@@ -1579,7 +1579,11 @@ Flagged, NOT fixed here (dispositions):
   turn from its reference.
 
   **Carried as `k_stats::unlogged("F31", ..)`**, both at `Band::least()`.
-  Their K samples still reach the sink under the two names above. Not a
+  Their K samples still reach the sink under the two names above. A
+  margin decided at `Band::least()` is not a length against ε, and its
+  sample says so (`MarginSample::reads_sign_only`), so a reader that
+  asks how margins scale with the model, such as the twin suites, reads
+  only its verdict. Not a
   `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
 - **F32** (added by ONECOPY's foot-certificate unit) `curve_foot_polish`

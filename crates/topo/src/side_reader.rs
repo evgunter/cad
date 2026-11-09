@@ -602,7 +602,10 @@ fn cast_aims<T: Decide>(
         }
     }
     // The ladder ([`climb`]) whose answer is the first aimed ray's side:
-    // every ray from outside reads the one side ([`Answering::Any`]). A
+    // every ray from outside reads the one side ([`Answering::Any`]) where
+    // the selection bounds a region (embedded shells, nested as their
+    // roles say); where it does not, the first ray's side is the one read
+    // (work row `side-at-infinity-aimed-rays-disagree`, `[ev]` PR 6592). A
     // pair in band is kept, and refuses where no ray decides. A set-aside
     // ray passes, collected for the volume reader that answers after
     // the rays: a limit a ray met is NOT ranked ahead of a pair, since
@@ -1153,5 +1156,38 @@ mod pre_filter_tests {
             "an aim reads the side"
         );
         assert!(!aimed(&log).is_empty(), "an aimed ray is cast");
+    }
+
+    /// **A sheet's two faces cancel on every aimed ray**: the faces of a
+    /// cylinder-wall sheet, its material sides set, lie on one carrier
+    /// with opposite senses over one trim, so a ray that crosses one
+    /// crosses both, and no aim reads a side, from either face. Red when
+    /// a carrier's root is held by its first face alone: each ray then
+    /// counts one face, and the aims at the two faces, from opposite
+    /// sides, read opposite sides.
+    #[test]
+    fn a_sheets_two_faces_cancel_on_every_aim() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, set_sheet_sense};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let mut body = Body::<f64>::new();
+        let frame = CylFrame {
+            origin: Point3::new(0.0, 0.0, 2.0),
+            axis: Vec3::unit_x(),
+            radius: 1.0,
+            u_ref: -Vec3::unit_z(),
+        };
+        let face = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
+        set_sheet_sense(&mut body, face, true, tol);
+        let senses: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
+        assert!(
+            senses.len() == 2 && senses[0] != senses[1],
+            "a sheet is two faces of opposite senses: {senses:?}"
+        );
+        let read = shell_aims_report(&body, band);
+        assert!(
+            read.len() == 1 && read[0].starts_with("Ok(Unread { aimed: 2,"),
+            "both faces are aimed at and no aim at a sheet reads a side: {read:?}"
+        );
     }
 }

@@ -3577,7 +3577,7 @@ impl<T: Real> Germ<T> {
 #[derive(Clone, Copy, Debug)]
 enum Axis<T: Real> {
     Centre(Point3<T>),
-    Line(Point3<T>, Vec3<T>),
+    Line(geom::Line<T>),
 }
 
 impl<T: Decide> Round<T> {
@@ -3611,7 +3611,10 @@ impl<T: Decide> Round<T> {
     /// `axis`, normalised here, `convex` a pin's.
     pub fn cylinder(origin: Point3<T>, axis: Vec3<T>, radius: T, convex: bool) -> Self {
         Self {
-            at: Axis::Line(origin, axis.normalize()),
+            at: Axis::Line(geom::Line {
+                origin,
+                dir: axis.normalize(),
+            }),
             radius,
             convex,
         }
@@ -3633,14 +3636,14 @@ impl<T: Decide> Round<T> {
     fn across(&self, v: Vec3<T>) -> Vec3<T> {
         match self.at {
             Axis::Centre(_) => v,
-            Axis::Line(_, axis) => v - axis * axis.dot(v),
+            Axis::Line(geom::Line { dir: axis, .. }) => v - axis * axis.dot(v),
         }
     }
 
     /// `q` less the centre, or less the axis's origin.
     fn off_centre(&self, q: Point3<T>) -> Vec3<T> {
         match self.at {
-            Axis::Centre(c) | Axis::Line(c, _) => q - c,
+            Axis::Centre(c) | Axis::Line(geom::Line { origin: c, .. }) => q - c,
         }
     }
 

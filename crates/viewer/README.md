@@ -2201,6 +2201,20 @@ held in pick order: a member list becomes the two seats from its first
 two members, and two seats become a member list of what they hold.
 `Clear picks` empties the tool and keeps the operation.
 
+**Each operand is the body read the pick reached**, a
+`BodyRead<Formula>`: a body; a split's half by its port, a tree pick
+of the split waiting for its half; or one member of a family by its
+indices (`pattern[1]`), for a viewport pick on that drawn member. A
+tree pick of a family names the node, so it reads the family whole
+until the panel's member row chooses one. A member read keeps its
+output, so a split of a family reads one half of one member. A family
+something reads along a seen path (a copy, a `⊔`, the product) is
+read whole, and the combine takes that reader over: what one member's
+read does to a copy of its family is a takeover not yet ruled. The
+boolean seats are the ones that read members; the other body seats
+read a family whole. The held-picks line says which read it holds
+(`Pattern 1[1]`, `Pattern 1, every member`, `Split 1[1], above half`).
+
 **A body picked twice is not refused anywhere.** A repeated read
 glues — `A ∪ A` and `A ∩ A` are `A`, `A ∖ A` the typed empty body — so
 the tool lists it twice and the session door commits it like any other
@@ -2405,7 +2419,14 @@ body over the same way, by `above ⊔ below`, its two halves standing
 where that body stood; where nothing reads the body along such a
 path, the split's halves are drawn in its place. A second copy of a
 body is a second placement of it: Place on the body, shown again in the
-View pane and picked as itself. Projecting a pattern member writes
+View pane and picked as itself. Every placement is a copy to the
+viewer, wherever its target stands (D10 `[placement.placement]`: "each
+placement is a copy of its own"): one placed in its body's own space or
+in another construction's space, as Place's and a pattern's are, is a
+copy as one in the world is. The body a placement copies is what the
+placed badge, the placement editor's `on` side, the re-point offer and
+the way to the original body read; a pick on a copy seats that copy.
+Projecting a pattern member writes
 nothing: a pick on a drawn member seats `family[k]`. The Transform tool
 is the placement editor opened on its pick with no mate row
 (`MateTool::moving`). On a body picked as itself it is Place, and then
