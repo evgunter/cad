@@ -23,3 +23,5 @@ Found by the delta review of PR 6620 (`onecopy/gate-blind-spots`, 170697bd). All
    - The new "counts are compared with the tree…" paragraph sits inside the WHAT REDS list, which orphans `REASON`.
    - The self-test summary has a stray ",,".
    - The README entry wording ("a formula or a stored form owed a re-posing") does not cover the `oracle`, `exact-arith` and `fixture` rows.
+
+**Closed by PR 6640**, which also reads `lib.rs`'s re-exports through the same `pub`-token scan: the `^\s*pub\s+use` reader missed a one-line attributed re-export, the same shape as item 1.
