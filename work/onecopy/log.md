@@ -815,3 +815,4 @@
   - The lane never got my 07:42 F/S/N ruling, so I re-sent it: F no, S yes, as the next unit `onecopy/needle-span`. After S, the lane takes the transverse-range row, also in pose.rs.
   - Filed `circle-torus-plane-height-refuses-a-graze-the-pose-places-as-a-touch`.
 - 08:44Z carrier-standing opened PR 6629 (head 092eb3cc), stacked on 6614. FULL review dispatched against typed-reasons. The row is narrowed to two items: item 3's siblings, and item 7 (which refusal a Place refusal carries, a ranking question still to be ruled). Two rows filed: two-arc clearance floors, and of_walk onto PieceWalkRefusal.
+- 08:47Z PR 6621 FULL review: FIX. Verdicts are identical. The K stream changed and is now disclosed; a stale lever-row cite and a stale audit comparand remain. Ruled: spiric_regime takes the caller's site names, so each reading keeps its K and refusal identity under one predicate. The ring precondition should be typed. Sent to the lane.
