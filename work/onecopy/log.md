@@ -844,3 +844,6 @@
 - 09:30Z Merged PR 6604 (line-meets) at 76b92357. Its gate was green at 8c291cb0; main had moved 10 commits with no file overlap.
   - I skipped the pre-merge workspace check for 6604 and 6607. I ran it afterwards on main 76b92357: cargo check --workspace --tests is clean.
 - 09:30Z 6576's gate is green at d94013a8; it waits on its delta review.
+- 09:40Z Merged PR 6611 (shared-vertex-crossing) at its gate-green head 6154abd6. There was no file overlap; the workspace check of the merge with main is clean.
+- 09:40Z PR 6552 overlapped main in 9 files. I merged main (d84f4bde); the build and run-gates are clean. Re-gating.
+- 09:40Z PR 6614 was red on 6602's least-band gate: span.rs pieces_near called a logged decide at the least band. I fixed it to k_stats::prove (ad959aa1); gate, clippy and geom-brep 2032/2032 at both ε are clean. Re-gating. The carrier-standing lane was told, since 6629 replaces that window.
