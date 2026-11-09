@@ -286,7 +286,14 @@ impl<T: Decide> TorusFaceRegion<T> {
         band: Band,
     ) -> Result<Option<(T, bool)>, Fault> {
         let theta = geom::Azimuth::of(y, x).near(geom::mid_param(t0, t1));
-        match span_place(theta, (t0, t1), geom_core::InfSpeed::new(lever), band) {
+        // The arc's circle in its own frame, where `(x, y)` is read: its
+        // chords are the arc's.
+        let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), lever, Vec3::unit_x());
+        match span_place(
+            &geom_brep::curve_pair::Span::new(&circle, (t0, t1)),
+            theta,
+            band,
+        ) {
             Some(RootPlace::Inside) => Ok(Some((theta, false))),
             Some(RootPlace::AtEnd) => Ok(Some((theta, true))),
             Some(RootPlace::Undecided(diag)) => Err(in_band(diag)),
