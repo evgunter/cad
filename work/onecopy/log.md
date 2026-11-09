@@ -1396,3 +1396,14 @@
   - **6688's fix pass** is in (a2014a65) → delta by the original reviewer.
   - **6663** at 68a2ab0f re-pinned after the bisect named BOXES 6639 and 6631 as undisclosed plate movers (filed on the BOXES row and counted on Ev's row); gating.
   - **placement-holders:** (A) do the no-new-type work now; stage-3 Plane stays parked. swept::Turn keeps its UnitVec3 as a decided-unit holder (unit-axis ruled A).
+- 2026-11-10 02:45Z
+  - **Merged PR 6663 (main-reds filings and prose, BOXES plate movers named), at 68a2ab0f.** It already contained main; 9865/9865 passed.
+    - The editor-core m10_9_pins_interval slow rows fail 3/7, identically on origin/main. That red is SHELL's open P2 row, main-red-three-m10-interval-pins-moved-at-5728, not 6663's.
+  - **Reviews:**
+    - 6690 FULL: FIX.
+      - The CarrierDomainRefusal arm is untested; it was not reachable on main, so no P-row.
+      - About ten stale Errors/Invariants docs across the doors the clause reaches.
+      - The magnitude clause is spelled twice.
+      - Gate gaps on lifted stem/tuple pairs; the second-pass grep rotted.
+    - 6679's fix pass (194b6e8) → delta by its original reviewer. 6686 merges 6679 forward first.
+    - 6683's fix pass (2c453451: `unchecked_face_cycles` deleted, one shared LONE_LOOP_REFUSAL) → delta by its original reviewer.
