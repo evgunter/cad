@@ -61,9 +61,10 @@ premise doc. Fate's rehome, `one_region::read_cycle`, chord_join's
 `one_region` is a validator, and nothing joins there. Two distinct loops
 of one face meeting at a point are check 9's contact arm 1
 (`RingMeetsOuter` / `RingMeetsRing` `Vertex`, any carrier, shared keys
-not exempt). What may survive is two surface cycles of one loop, split by
-a seam or a strut, that share a vertex. That is its own row:
-`one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex`.
+not exempt). Two surface cycles of one loop, split by a seam or a strut,
+that share a point are check 9's `PinchCornerCrossed`, which
+`one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex`
+found and closed.
 
 **Evidence that a touch at a pinch reads one side.**
 
