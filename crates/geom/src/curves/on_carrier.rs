@@ -355,7 +355,11 @@ pub struct PieceRead<T> {
 impl<T: Decide> Curve3<T> {
     /// **The point-against-span piece walk**: `(t0, t1)` halved depth
     /// first ([`geom_core::bisect`]), each piece read against `q` as
-    /// [`PieceRead`], with `hi` a bound on the carrier's speed. What a
+    /// [`PieceRead`], with `hi` a bound on the carrier's speed. A point's
+    /// distance from an interval of a line or a circle is closed-form
+    /// ([`Self::distance_within`]); the walk is for what that does not
+    /// answer, a kind with no closed form or a question other than the
+    /// distance. What a
     /// reading settles is `visit`'s: [`Self::clear_of`] is one, and
     /// `geom_brep`'s window of a span near a member's ball is another.
     ///
@@ -530,6 +534,37 @@ impl<T: Decide> Curve3<T> {
             }
             Self::Nurbs(_) => return None,
         })
+    }
+
+    /// **`q`'s distance from the interval `(t0, t1)` of the carrier**, in
+    /// closed form where there is one: a line's span read through
+    /// [`crate::Line::foot_within`], and a circle's arc. `None` on every
+    /// other kind, whose reading of a point against an interval is the
+    /// piece walk ([`Self::point_walk`]).
+    ///
+    /// On a circle, the distance to the circle's point at an angle grows
+    /// with the angle's distance from `q`'s azimuth, so the arc's nearest
+    /// point is `q`'s foot on the whole circle where its azimuth, read
+    /// about the arc's middle, lies within half the span of it, and the
+    /// nearer end otherwise. The choice is
+    /// [`select_le_zero`](geom_core::Real::select_le_zero) on that
+    /// angular offset less the half span: exact at `f64`, and where the
+    /// test straddles at `Interval` it hulls both arms, whose low end is
+    /// the whole circle's [`Self::clearance`], so the reading is still a
+    /// lower bound on the distance. An arc of a turn or more is all
+    /// inside.
+    pub fn distance_within(&self, q: Point3<T>, (t0, t1): (T, T)) -> Option<T> {
+        match self {
+            Self::Line(line) => Some((q - line.foot_within(q, (t0.min(t1), t0.max(t1)))).norm()),
+            Self::Circle(_) => {
+                let mid = crate::mid_param(t0, t1);
+                let off = (self.param_near(q, mid)? - mid).abs();
+                let half = (t1 - t0).abs() * T::from_f64(0.5);
+                let ends = (q - self.eval(t0)).norm().min((q - self.eval(t1)).norm());
+                Some((off - half).select_le_zero(self.clearance(q)?, ends))
+            }
+            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+        }
     }
 
     /// The parameter range a whole-carrier walk covers: a spline's
