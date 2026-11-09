@@ -455,8 +455,26 @@ mod lever_rows {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    fn door(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> Result<(), ContactRefusal> {
-        crate::boolean::rest_pair_verdict(a, fa, b, fb, band()).map(|_| ())
+    fn door(
+        a: &Body<f64>,
+        fa: FaceKey,
+        b: &Body<f64>,
+        fb: FaceKey,
+    ) -> Result<crate::contact::RestVerdict, ContactRefusal> {
+        crate::boolean::rest_pair_verdict(a, fa, b, fb, band())
+    }
+
+    /// Two carriers, on the datum decided apart.
+    fn apart(read: &Result<crate::contact::RestVerdict, ContactRefusal>) -> bool {
+        matches!(
+            read,
+            Ok(crate::contact::RestVerdict::Ruled(
+                crate::contact::RestRuling {
+                    row: crate::contact::RestRow::TwoCarriers,
+                    by: Some(_),
+                }
+            ))
+        )
     }
 
     /// A torus of `R + r = 2.5 m` against its twin tilted by `θ` about
@@ -499,8 +517,8 @@ mod lever_rows {
             let read = door(&a, fa, &b, fb);
             if witnessed {
                 assert!(
-                    matches!(read, Err(ContactRefusal::Contradicted { .. })),
-                    "{k}·Kε: a corner past the band contradicts: {read:?}"
+                    apart(&read),
+                    "{k}·Kε: a corner past the band reads the carriers apart: {read:?}"
                 );
             } else {
                 assert!(
@@ -527,8 +545,8 @@ mod lever_rows {
         b.set_face_sense(fb, !sense).unwrap();
         let read = door(&a, fa, &b, fb);
         assert!(
-            matches!(read, Err(ContactRefusal::Contradicted { .. })),
-            "the tilt at the far rim contradicts the contact: {read:?}"
+            apart(&read),
+            "the tilt at the far rim reads the carriers apart: {read:?}"
         );
     }
 

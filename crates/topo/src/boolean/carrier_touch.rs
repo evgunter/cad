@@ -323,6 +323,7 @@ fn ball_off_face<T: Decide + Bounds>(
         }
     }
     // OffCarrier → not clear (the foot is on the carrier by construction).
+    let foot = crate::held::Held::constructed(foot, "the foot of the ball on the face's carrier");
     match super::contain::placement_on_carrier(y, face, foot, band).map(|(at, _, _)| at) {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(true),
         Ok(_)

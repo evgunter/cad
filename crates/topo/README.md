@@ -1049,8 +1049,10 @@ face pair at its glue door (`boolean::glue`) on a margin decided Zero
 over both faces, under the class its senses make it (`GlueClass`:
 `Rest` one carrier opposed, a continuation one carrier aligned), or on
 the witness lane's tangency along a locus (`Tangent`). The declaration
-door records the decision once (`crate::coincidence`), a one-carrier
-pair on the margin the glue door decided it on. The pair's class is
+door records the decision once (`crate::coincidence`), as the glue door
+decided it (`boolean::Glued`): a one-carrier pair on the margin it was
+decided one on, a tangency on what the witness lane certified along its
+locus. The pair's class is
 its record (`GlueClass::relation`): every consuming site — the corner
 sites (`recl`, `vtxfac`), the result's merge (`GluedSurfaces`, which
 only the Boolean builds) and a fold step — reads the glued relation
@@ -1060,26 +1062,49 @@ arm, where every verdict but `Distinct` refuses.
 
 At rest a record is read as the glue door reads a pair: nothing is
 bridged. Each class states the facts that must verify DEFINITE and the
-triggers that contradict it, and a margin in band on either escalates
-(`ContactRefusal::{Contradicted, Escalated, NotCertifiable}`).
+rulings that rule it out. Its door returns a verdict (`RestVerdict`,
+`TangentVerdict`): the class on its margin, a ruling (`RestRuling`,
+`TangentRuling`) on its closed row with the reading that decided it, or
+a reading in band, which escalates (`ContactRefusal::{Escalated,
+NotCertifiable}`). Only a record is contradicted: a ruling against one
+is `ValidationError::ContactContradicted { record, verdict }`, a defect
+of what wrote the record or its geometry. A pair the census discovers
+with no record contradicts nothing. Where the line shows it apart or
+crossing it is no touch; where it touches with its sides wrong the
+defect is the body's: a crescent both materials hold
+(`CuspEdgesMissing`), or outward normals that agree, or agree at one
+tangent sample and oppose at another, the solid's material on both
+sides of a face (`MaterialOnBothSides`).
 
 - *`Rest`.* Must verify: one carrier through the face-pair door
   (`carrier_eq::INVENTORY`), each datum and the pair's displacement over
   the consumed extent — position data at a pivot, plus the angular data
   levered from it to the extent's far reach, plus the radius differences
   — decided Zero; senses opposed as an exact bit; overlap definitely
-  positive on C3's chart authority. Contradicted by two carriers, by
-  aligned senses, or by definite separation on the patch. Escalated
-  between.
+  positive on C3's chart authority. Ruled out by two carriers
+  (`TwoCarriers`, on the datum decided apart where one was), by aligned
+  senses (`SensesAligned`), or by definite separation on the patch.
+  Escalated between.
 - *`Tangent`.* Must verify: the two surfaces' separation along the
   shared normal within ε at every sample (the touch), first-order
   tangency along the witnessed locus, the witness within ε of each
   surface (C7's jet readings), and a definite second-order κ_rel.
   Definite separation and definite crossing are read on the separation;
-  a witness off a surface is a bad witness, not a gap. Contradicted by
-  definite normal independence, definite crossing (as far as the sampled
-  κ_rel sees it, C1), or definite separation. An in-band κ_rel, or an
-  exact zero at an isolated point, escalates.
+  a witness off a surface is a bad witness, not a gap. Ruled out
+  (`TangentRow`) by definite normal independence, definite crossing (as
+  far as the sampled κ_rel sees it, C1), definite separation, a witness
+  off a surface, and, for a contact, aligned senses or a crescent both
+  materials hold. Two samples read tangent whose outward normals agree
+  at one and oppose at the other are a definite crossing between them
+  (`TangentRuling::SidesMixed`). The senses are read against the claim,
+  and compared between samples, only once a sample is parallel, so a
+  sample that is not tangent ends on perpendicular normals, its gap, its
+  witness or its parallelism, never on agreeing or mixed senses. Along
+  a line of curvature of
+  both surfaces, which every ruling the lane reads and every latitude
+  circle of two coaxial surfaces of revolution is, `n₁·n₂` is constant,
+  so neither reaches it; a Villarceau circle two tori share can. An
+  in-band κ_rel, or an exact zero at an isolated point, escalates.
 
 The two doors are coupled: Door 2 receives the band Door 1's reading
 leaves its premise (`glued_pair_overlap`'s `premise`) — the run's own
@@ -1101,8 +1126,7 @@ in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.
 
 Failures, all typed: `UnrecordedContact` (the census);
-`ContactContradicted` (a glued tangency read again at use, and a record
-at rest); `StaleContactDeclaration`; `CensusEscalated`. Invariant: a
+`ContactContradicted` (a record at rest); `StaleContactDeclaration`; `CensusEscalated`. Invariant: a
 pair is decided once, where it is glued, and every later read of it is
 that decision.
 

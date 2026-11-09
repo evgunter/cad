@@ -222,7 +222,20 @@ pub(crate) fn advance<T: Decide>(
     at: Margin<T>,
     band: Band,
 ) -> Result<Sign, RayFault<Indeterminate>> {
-    match decide(row, at, band) {
+    crossing_side(decide(row, at, band))
+}
+
+/// [`advance`]'s reading of a crossing's side already decided (a
+/// [`geom::Ray::ahead`]): a `Zero` grazes, an undecided one sets the ray
+/// aside.
+///
+/// # Errors
+///
+/// As [`advance`].
+pub(crate) fn crossing_side(
+    decided: Result<Sign, Indeterminate>,
+) -> Result<Sign, RayFault<Indeterminate>> {
+    match decided {
         Ok(Sign::Zero) => Err(RayFault::Graze),
         Ok(sign) => Ok(sign),
         Err(diag) => Err(RayFault::InBand(diag)),

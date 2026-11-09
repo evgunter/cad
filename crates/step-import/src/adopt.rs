@@ -1023,8 +1023,10 @@ fn mapped_self_description(
         }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
-            axis_origin: *center,
-            axis_dir: *axis,
+            axis: geom::Line {
+                origin: *center,
+                dir: *axis,
+            },
             angle: t1 - t0,
         })),
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
