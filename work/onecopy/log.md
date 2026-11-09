@@ -677,3 +677,12 @@
 - 2026-11-09 — 6611 (a31a13ce): the fixture is now non-degenerate; the touch is still refused, and the lane argues correctly (a strut-split cycle's corners aren't slices; the legal pinch is one surface cycle). Third delta sent to the reviewer to adjudicate.
 - 2026-11-09 — PR 6606 merged (climb_agreeing) on GATE GREEN at 25533bc6; 6588 (BOXES) landed after it, disjoint, workspace check clean. 6552 was green but conflicts with 6588 in 3 files, so it's sent back to its lane to merge. The ladder lane is freed to push T1.
 - 2026-11-09 — 6599 was green at 3fea0aeb, but 6588 then overlapped topo/src/lib.rs, so I merged again (8bb6cd31, gates ok) and it is re-gating. 6602 merged main (d6c9e4aa, gates ok) and is re-gating past the ruff flake.
+- 07:25Z Reviews in:
+  - 6607 second delta: MERGE (N1, the cone row at ~1 s, is on the fast-set times check).
+  - 6611 third delta: MERGE. The side lane added the cylinder figure-eight row (d4162f78).
+  - 6614 FULL: MERGE, with follow-ups filed as `the-typed-refusal-reason-leaves-an-unused-second-spelling-and-unpinned-reads`.
+- 07:25Z Lanes:
+  - variety-gaps opened 6616, head 94036920; its reviewer is session_013mPGJ39HBogrWwtk3MtHCu.
+- 07:25Z CI and gates:
+  - 6604's gate went red on the ruff 504 outage.
+  - Merged main into 6604, 6607, 6611 and 6614 (09d63a65, 86256657, e66051b1, f4ea252f), and gating all four.
