@@ -933,3 +933,5 @@
   - Merged main (30e8a9eb). One import conflict in stacking.rs (MeetKind vs read_identity); took both and dropped the unused MeetFault.
   - My chained command pushed before its checks finished. A full disk had failed the test build and truncated lever-sources. After freeing the disk, gates pass and the loft tests pass 100/100. Gating.
 - 13:42Z PR 6576 is at 0e0ecd45 (main merged; TouchesItself and ToolSeatCrossed producer-checked as row-2 Limit and pinned); the reviewer was told. The ladder lane's T3 restack is done locally. While T2 waits, it takes three ladder rows on onecopy/ladder-leftovers, stacked on 6576: the T1 leftovers, pierce-pass ranking, and cone-reads-given.
+- 13:55Z PR 6621's fix pass (ec899b78): RingTorus::of decides on its own radii, and duplicate site names are a compile error. Accepted without another round. Main overlapped it in 8 files; merged main (1d18ec69), build and gates clean. Gating.
+- 13:55Z PR 6622's gate went red on a fast-set timing alone: editor-core chained_pair_unions took 1.044 s. Opened the slow-set move as its own PR (onecopy/fast-set-union-flush, 9f4d400a), gating. 6622 re-gates after it lands.
