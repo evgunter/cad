@@ -797,3 +797,17 @@
 - 08:26Z [ev] 6625's CI suite is complete; it waits on Ev.
 - 08:30Z PR 6620 FULL review: FIX. It has an orphaned header fragment, three unplanted arms, an untested method look-behind and unnamed alias gaps. The root cause is that it still hand-spells the kind vocabulary and the ROOT spelling. Sent back to the lane.
 - 08:34Z PR 6617 (QML T1) FULL review: MERGE. F1 (two new hand-written standing tables, which the gate cannot see) and F2 (the WHICH ruling has no single home) go to the ladder lane before merge. F3, F4, F6 and F7 are filed as `question-mark-ladders-the-t1-review-left-unported`.
+- 08:38Z Merged PR 6619 (CI flakes: ruff falls back to PyPI's pinned version; the boss-on-a-side test moves to the slow set) at 91e6e896. Gate was green at e140a328; main had not moved.
+- 08:38Z Merged main into seven queued PRs, all clean, and gating each:
+
+  | PR | head |
+  |---|---|
+  | 6552 | cd6f44fa |
+  | 6576 | d94013a8 |
+  | 6604 | 8c291cb0 |
+  | 6607 | 57465307 |
+  | 6611 | 6154abd6 |
+  | 6614 | 65e28558 |
+  | 6618 | 6b06cb74 |
+
+  6576 also waits on its delta review.
