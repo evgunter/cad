@@ -105,4 +105,9 @@ Moved from SECTRUNG to SECT on 2026-11-02, by `git mv`, when SECTRUNG merged bac
 
 ## One more seed (reported by the line-placement lane, 2026-11-09; recorded by `onecopy/main-reds-triage`)
 
-At ε 1e-12, `CAD_FUZZ_SEED=0xa2d68d303582ae5e` fails `section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` on the same path: a pipe along the core's tangent reads `Tangent("ct_critical_gap_straddle")`. The lane reported that it reproduces on main and depends on the seed.
+At ε 1e-12, `CAD_FUZZ_SEED=0xa2d68d303582ae5e` fails `section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` on the same path: a pipe along the core's tangent, `R 73.44`, `r 4.52`, reads `Tangent("ct_critical_gap_straddle")`. The lane reported that it reproduces on main and depends on the seed. Reproduce:
+
+```
+CAD_TOLERANCE_EPS=1e-12 CAD_FUZZ_SEED=0xa2d68d303582ae5e cargo nextest run -p topo --profile ci --ignore-default-filter \
+  -E 'test(=boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section)'
+```

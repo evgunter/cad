@@ -20,4 +20,4 @@ Reproduce: `cargo nextest run -p topo --profile ci --ignore-default-filter -E 't
 
 ## Still red, same reading (ONECOPY, `onecopy/main-reds-triage`, 2026-11-09)
 
-Reported again by a ONECOPY lane at `f8419853`, with the message above unchanged (`crates/topo/tests/shell_role_reader.rs:648`). PRs 6622, 6629 and 6576, which class boolean refusals, all merged on 2026-11-09, after this row recorded the same escalation at `4d92c824` (2026-11-01). So none of them changed the expected refusal: the red is this row's, not a stale expectation. `work/flush/a-needle-cavity-test-red-on-main.md` was a same-day copy and is closed into this row.
+Reported again by a ONECOPY lane at `f8419853`, with the message above unchanged (the test fn is `crates/topo/tests/shell_role_reader.rs:708`; the assertion that fires is at :648). PRs 6622, 6629 and 6576, which class boolean refusals, all merged on 2026-11-09, after this row recorded the same escalation at `4d92c824` (2026-11-01). So none of them changed the expected refusal: the red is this row's, not a stale expectation. `work/flush/a-needle-cavity-test-red-on-main.md` was a same-day copy and is closed into this row.
