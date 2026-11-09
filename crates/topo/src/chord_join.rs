@@ -120,7 +120,7 @@
 //! ruling, which refuses.
 
 use geom::Conic;
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use geom_brep::{EdgeCurveSpec, Pcurve};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
@@ -3963,18 +3963,23 @@ impl<T: Decide> IslandReading<T> {
     }
 
     /// The paths to `q` from every outer-loop point of `face`
-    /// ([`outer_references`]), in the order they are asked, each read by
-    /// `read` until one decides: a side ladder ([`paths_rung`]), so a
-    /// path set aside ahead of one that decides is superseded. Its
-    /// premise is the input's, not a theorem: the island lies in the
-    /// face, so every outer-loop point is on the same side of it. The
-    /// boolean's ring lane reads it mid-operation (`boolean::join`'s
-    /// `ring_run_ccw`), on a run of a ring of the operand's face, which
-    /// check 9 placed in the face at rest, closed by a section piece the
-    /// reduction kept where the face holds it. That is the construction's
-    /// guarantee: no check re-reads the island against the outer loop
-    /// there (`work/onecopy/the-ring-lanes-island-is-not-checked-in-its-face.md`).
-    pub(crate) fn read_paths<R>(
+    /// ([`outer_references`]), in the order they are asked, each
+    /// reference's paths read by `read` until one decides ([`paths_rung`]).
+    /// **Every reference is read and their answers must agree**
+    /// ([`climb_agreeing`]): the island lies in the face, so every
+    /// outer-loop point is on one side of it. That is the input's
+    /// premise, not a theorem. The boolean's ring lane reads it
+    /// mid-operation (`boolean::join`'s `ring_run_ccw`), on a run of a ring
+    /// of the operand's face closed by a section piece, where no gate has
+    /// placed the island in the face, so the premise is read here rather
+    /// than assumed. A reference set aside beside the answer is
+    /// superseded.
+    ///
+    /// # Errors
+    ///
+    /// [`SplitJoinError::SectionInvariant`] where two references decide
+    /// different answers: the island leaves the face.
+    pub(crate) fn read_paths<R: PartialEq>(
         &self,
         body: &Body<T>,
         face: FaceKey,
@@ -3982,10 +3987,17 @@ impl<T: Decide> IslandReading<T> {
         mut read: impl FnMut(Path<T>) -> Result<Option<R>, Indeterminate>,
     ) -> Result<Result<Option<R>, Indeterminate>, SplitJoinError> {
         let references = outer_references(body, face, &[])?;
-        Ok(climb(Answering::Any, references, |w| {
-            paths_rung(&self.quadric, (w, self.q), band, &mut read)
+        climb_agreeing(
+            references,
+            |w| paths_rung(&self.quadric, (w, self.q), band, &mut read),
+            |a, b| a == b,
+        )
+        .map(Climb::into_reading)
+        .map_err(|_| SplitJoinError::SectionInvariant {
+            face,
+            what: "an island's outer-loop references read different answers: the island leaves \
+                   its face",
         })
-        .into_reading())
     }
 
     /// The winding `path` reads: its lean against the left normal
