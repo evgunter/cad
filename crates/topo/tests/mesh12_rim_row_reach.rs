@@ -260,7 +260,7 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
                 return None;
             };
             let face = body.face_of_half_edge(he)?;
-            let sphere = body.get_surface(body.get_face(face)?.surface)?;
+            let sphere = body.face_surface(face)?;
             let shifted = row.pcurve().translate(0.0, 100.0 * eps / RS);
             let (t0, t1) = row.params();
             Some(geom_brep::PcurveCache::certify(
@@ -311,8 +311,8 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
     let mut caps = Vec::new();
     for (f, in_band) in [(1.5, true), (0.0, false)] {
         let body = two_level_rim_cap(f * tol.eps() / RS).unwrap();
-        for (_, face) in body.faces() {
-            let surface = body.get_surface(face.surface).unwrap();
+        for (fk, face) in body.faces() {
+            let surface = body.face_surface(fk).unwrap();
             let (outer, _) = topo::props::loop_edges(&body, face.outer).unwrap();
             assert_eq!(outer.len(), 2, "a rim-only loop: two arcs, no meridian");
             assert_eq!(require_one_chart_branch(surface, &outer, band), Ok(()));

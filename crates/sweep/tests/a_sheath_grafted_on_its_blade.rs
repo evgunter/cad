@@ -155,8 +155,8 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
             let geom::Curve3::Nurbs(net) = curve.carrier() else {
                 continue;
             };
-            for (_, f) in b.faces() {
-                let Some(plane @ geom::Surface::Plane { .. }) = b.get_surface(f.surface) else {
+            for (fk, _) in b.faces() {
+                let Some(plane @ geom::Surface::Plane { .. }) = b.face_surface(fk) else {
                     continue;
                 };
                 let roots = lane.surface_crossings(net, curve.params(), plane, band);
@@ -212,8 +212,7 @@ fn the_guard_reads_the_walls_with_their_shared_rims_handed_in() {
         "one pair, rim 1's, refuses as tangent along its row: {report:?}"
     );
     let spline = |b: &topo::AtRestBody<f64>, f| {
-        b.get_face(f)
-            .and_then(|x| b.get_surface(x.surface))
+        b.face_surface(f)
             .is_some_and(|s| s.kind() == geom::SurfaceKind::Nurbs)
     };
     let walls = report

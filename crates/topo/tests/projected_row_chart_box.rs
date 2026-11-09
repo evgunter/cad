@@ -63,8 +63,7 @@ fn swap_first_edge_for_a_chord_net(
     };
     let s1 = body.get_face(face_of(body, edge.he_plus)).unwrap().surface;
     let s2 = body.get_face(face_of(body, edge.he_minus)).unwrap().surface;
-    let start = body.get_half_edge(edge.he_plus).unwrap().start;
-    let end = body.half_edge_end(edge.he_plus).unwrap();
+    let (start, end) = body.edge_vertices(edge_key).unwrap();
     let q0 = *body
         .get_point(body.get_vertex(start).unwrap().point)
         .unwrap();

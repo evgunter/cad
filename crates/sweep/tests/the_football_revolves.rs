@@ -76,7 +76,7 @@ fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, (volume, area): 
     let sheets: Vec<f64> = built
         .body
         .faces()
-        .filter_map(|(_, f)| match built.body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match built.body.face_surface(fk) {
             Some(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
             _ => None,
         })
@@ -498,8 +498,8 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
             .unwrap()
             .body;
         let mut sheets = 0;
-        for (_, f) in body.faces() {
-            let s = body.get_surface(f.surface).unwrap();
+        for (fk, f) in body.faces() {
+            let s = body.face_surface(fk).unwrap();
             if !matches!(s, geom::Surface::Spindle { .. }) {
                 continue;
             }
@@ -633,10 +633,8 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
             tol,
         )
         .unwrap_or_else(|e| panic!("R = 1 − {d:e}: {e}"));
-        for (_, f) in built.body.faces() {
-            if let Some(geom::Surface::Spindle { major_radius, .. }) =
-                built.body.get_surface(f.surface)
-            {
+        for (fk, _) in built.body.faces() {
+            if let Some(geom::Surface::Spindle { major_radius, .. }) = built.body.face_surface(fk) {
                 assert!(
                     (major_radius - big).abs() <= 1e-15,
                     "R = 1 − {d:e}: stored {major_radius}"

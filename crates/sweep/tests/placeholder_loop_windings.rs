@@ -78,8 +78,8 @@ fn refuses_on_every_face(name: &str, placeholder: &Surface<f64>) {
     );
     let body = twisted_loft(0.3);
     let mut own_described = 0usize;
-    for (face, f) in body.faces() {
-        let own = body.get_surface(f.surface).unwrap();
+    for (face, _) in body.faces() {
+        let own = body.face_surface(face).unwrap();
         if loop_windings(&body, face, own, band()).is_ok() {
             own_described += 1;
         }

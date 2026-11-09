@@ -221,8 +221,8 @@ fn plane_sphere_rim(body: &Body<f64>) -> Vec<EdgeKey> {
 /// The slab's top face: the plane at `z = SLAB` with outward normal `+z`.
 fn top_face(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if (origin.z - SLAB).abs() < 1e-12 && normal.z > 0.5)
         })
@@ -352,7 +352,7 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
         let (mut planes, mut spheres) = (0, 0);
         for f in &around {
             let fd = out.body.get_face(*f).unwrap();
-            match out.body.get_surface(fd.surface) {
+            match out.body.face_surface(*f) {
                 Some(Surface::Plane { .. }) => {
                     planes += 1;
                     assert_eq!(*f, top, "{name}: the plane beside the band is the top face");

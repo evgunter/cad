@@ -448,6 +448,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             None,
             &crate::sector_shape::SlitTips::default(),
             band(),
+            None,
         )
         .map(drop)
     };
