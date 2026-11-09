@@ -26,10 +26,10 @@ with a dated `## Slate triage` note. Nothing is dispatched.
 | P1 | open | `a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections` | H | a cut across its tool's declared seat leaves a sliver between the seat's two sections |
 | P1 | open | `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` | M | a cut whose tool's seat is curved, crossed by faces alone, keeps the seat's two faces held apart |
 | P2 | open | `a-declared-wall-is-read-only-by-a-vertex-crossing-it` | H | a declared wall is read as one only by a vertex crossing it |
-| P3 | open | `a-torus-refusals-ending-is-dispatched-by-hand-at-four-doors` | — | filed by PR 6634's review |
-| P3 | open | `a-one-carrier-verdict-can-still-hold-distinct` | — | filed by PR 6634's review |
-| P3 | open | `plane-only-readers-hold-a-dead-off-ring-arm` | — | filed by PR 6634's review |
-| P3 | open | `the-corners-senses-decide-the-plane-orientation-a-second-time` | — | filed by PR 6634's review |
+| P3 | open | `a-torus-refusals-ending-is-dispatched-by-hand-at-four-doors` | E | filed by PR 6634's review |
+| P3 | open | `a-one-carrier-verdict-can-still-hold-distinct` | M | filed by PR 6634's review |
+| P3 | open | `plane-only-readers-hold-a-dead-off-ring-arm` | E | filed by PR 6634's review |
+| P3 | open | `the-corners-senses-decide-the-plane-orientation-a-second-time` | E | filed by PR 6634's review |
 | P1 | parked | `the-indeterminate-seal` | M | only the funnel builds an Indeterminate: non_exhaustive, MarginDiag::INVALID crate-private, a test-support constructor, invalid_margin.rs deleted (mints step 5) |
 | P1 | parked | `topo-mints-indeterminates-outside-the-funnel` | M | topo mints Indeterminates outside the funnel after a definite sign, in two spellings, at eleven shipped sites |
 
