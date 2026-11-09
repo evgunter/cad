@@ -151,7 +151,11 @@ fn every_sphere_face_flip_is_refused_and_named() {
         let r = rng.range(0.3, 0.9);
         let dip = rng.range(0.05, 0.9 * r);
         let c = Vec3::new(rng.range(1.2, 2.8), rng.range(1.2, 2.8), 1.0 + r - dip);
-        let slab = finished("slab", brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol), tol);
+        let slab = finished(
+            "slab",
+            brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol),
+            tol,
+        );
         let pole = Vec3::new(0.0, 0.0, if i % 2 == 0 { 1.0 } else { -1.0 });
         let ball = finished("ball", ball_poled(r, c, pole, tol), tol);
         for (name, res) in [
@@ -186,7 +190,7 @@ fn every_sphere_face_flip_is_refused_and_named() {
         split_faces_at_equator(&mut cover, tol);
         for (name, body) in [("split ball", &control), ("split double cover", &cover)] {
             total += flips(name, body, &mut failures) + 1;
-            let at_rest = topo::AtRestBody::validate(topo::Body::clone(body), tol);
+            let at_rest = topo::finish(topo::Body::clone(body), tol);
             let tier3 = at_rest.is_ok();
             let door = match &at_rest {
                 Ok(finished) => {

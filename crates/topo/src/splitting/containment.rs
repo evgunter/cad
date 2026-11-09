@@ -1434,7 +1434,7 @@ fn cycle_steps<T: Decide>(
     steps
 }
 
-/// The cover of a step's edge (`boolean::boxes::edge_cover`): `None`
+/// The cover of a step's edge (`boolean::crate::cover::edge_cover`): `None`
 /// for null scaffolding, a zero-length chord its vertex holds.
 ///
 /// # Errors
@@ -1448,10 +1448,10 @@ fn step_cover<T: Decide>(
     r#loop: LoopKey,
     step: &LoopStep<'_, T>,
 ) -> Result<Option<Cover<T>>, PointInLoopError> {
-    match crate::boolean::boxes::edge_cover(body, step.edge) {
+    match crate::cover::edge_cover(body, step.edge) {
         Ok(cover) => Ok(Some(cover)),
-        Err(crate::boolean::EdgeUncovered::Scaffold) => Ok(None),
-        Err(crate::boolean::EdgeUncovered::Carrier(_) | crate::boolean::EdgeUncovered::Ends) => {
+        Err(crate::cover::EdgeUncovered::Scaffold) => Ok(None),
+        Err(crate::cover::EdgeUncovered::Carrier(_) | crate::cover::EdgeUncovered::Ends) => {
             Err(PointInLoopError::CorruptLoop { r#loop })
         }
     }
@@ -1596,9 +1596,11 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 ..
             } = *conic.frame();
             let n = axis.normalize();
-            let w = q - center;
-            let height = w.dot(n);
-            let across = (w - n * height).norm();
+            let (height, across) = geom::Line {
+                origin: center,
+                dir: n,
+            }
+            .height_and_distance(q);
             let off = (minor - across).max(across - major).max(T::zero());
             ArcFloor::Conic {
                 annulus: (height.powi(2) + off.powi(2)).sqrt(),
@@ -1609,7 +1611,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
             // The carrier's half of an edge's cover: the callers read
             // carrier spans, some with no edge record behind them, and
             // read their ends as vertices of their own.
-            let cover = crate::boolean::boxes::arc_cover(carrier, (t0, t1)).ok()?;
+            let cover = crate::cover::arc_cover(carrier, (t0, t1)).ok()?;
             ArcFloor::Ball {
                 ball: cover.distance_range(&Site::Point(q)).0,
                 pieces: ArcPieces {

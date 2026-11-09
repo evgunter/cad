@@ -89,7 +89,7 @@
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::{check_unlogged, decide, decide_reported, straddle};
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed, Vec3,
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed,
 };
 
 use super::Curve3;
@@ -507,9 +507,9 @@ impl<T: Decide> Curve3<T> {
     /// piece walk ([`Self::clear_of`]).
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
-            Self::Line(line) => line.offset(q).norm(),
+            Self::Line(line) => line.distance(q),
             Self::Circle(c) => {
-                let (h, rho) = height_and_radius(q - c.frame.origin, c.frame.axis);
+                let (h, rho) = c.frame.axis_line().height_and_distance(q);
                 (h.powi(2) + (rho - c.radius).powi(2)).sqrt()
             }
             Self::Ellipse(e) => {
@@ -527,7 +527,11 @@ impl<T: Decide> Curve3<T> {
             } => {
                 let w = q - center;
                 let plane = (w.dot(u_ref) - offset).abs();
-                let (h, rho) = height_and_radius(w, axis);
+                let (h, rho) = crate::Line {
+                    origin: center,
+                    dir: axis,
+                }
+                .height_and_distance(q);
                 let (major, minor) = (major_radius.abs(), minor_radius.abs());
                 let torus = ((rho - major).powi(2) + h.powi(2)).sqrt() - minor;
                 let side =
@@ -625,12 +629,6 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
     let g2 = (two * u / a).powi(2) + (two * v / b).powi(2);
     let small = a.min(b);
     two * f / (g2.sqrt() + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt())
-}
-
-/// `w`'s height along `axis` and its distance from the axis.
-pub(super) fn height_and_radius<T: Decide>(w: Vec3<T>, axis: Vec3<T>) -> (T, T) {
-    let h = w.dot(axis);
-    (h, (w - axis * h).norm())
 }
 
 /// **The samples a spline's foot search polishes from**, by index, in

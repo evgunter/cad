@@ -49,7 +49,7 @@ where
 /// `bool_vertex_face_side` on pairs the tree never examines). The
 /// RESULT — bodies, contacts, names, keys — is what D9 pins
 /// bit-equal; the log is telemetry about the evaluation path.
-fn scrubbed<T: geom_core::Decide>(
+fn scrubbed<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &editor_core::Evaluation<T>,
     node: editor_core::RecipeNodeId,
 ) -> String {

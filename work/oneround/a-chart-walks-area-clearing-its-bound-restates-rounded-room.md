@@ -31,3 +31,7 @@ P1 by `work/README.md` Priority (two implementations of one underlying logic), t
 
 Open PR 6329 (`[ev]`) would retire `running::Rounded` as a margin
 charge on the f64 lane; if it lands that way, this row closes with it.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.

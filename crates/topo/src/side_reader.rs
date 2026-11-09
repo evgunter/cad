@@ -644,7 +644,10 @@ fn cast_aims<T: Decide>(
         }
     }
     // The ladder ([`climb`]) whose answer is the first aimed ray's side:
-    // every ray from outside reads the one side ([`Answering::Any`]). A
+    // every ray from outside reads the one side ([`Answering::Any`]) where
+    // the selection bounds a region (embedded shells, nested as their
+    // roles say); where it does not, the first ray's side is the one read
+    // (work row `side-at-infinity-aimed-rays-disagree`). A
     // pair in band is kept, and refuses where no ray decides. A set-aside
     // ray passes, collected for the volume reader that answers after
     // the rays: a limit a ray met is NOT ranked ahead of a pair, since

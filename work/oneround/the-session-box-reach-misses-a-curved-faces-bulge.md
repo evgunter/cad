@@ -4,6 +4,8 @@ kind: issue
 title: The session box reads a body's vertices and edges, so a curved face's far side no edge rides is missed
 status: open
 opened: 2026-11-02
+priority: P1
+cost: M
 ---
 
 
@@ -21,3 +23,7 @@ So a body that leaves the 1 km box is admitted, and the floor premise of the adm
 - a NURBS face: its control net clipped to the face.
 
 That reach should come from the one extent home (`work/onehome/reach-names-eight-unrelated-types.md`, the `onehome/one-extent` lane), not from a new walk in topo. The README's sentence then names faces' regions, not their boundaries. That is a change to ratified text, so it goes to Ev.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.

@@ -60,6 +60,7 @@ fn tube(major: f64, sweep: Revolution<f64>) -> Body<f64> {
     revolve(&validated(vec![lp]), axis_y(), sweep, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The derivation's steps, re-derived: `h_u = √(4δ/((1+β)(R+r)))`,

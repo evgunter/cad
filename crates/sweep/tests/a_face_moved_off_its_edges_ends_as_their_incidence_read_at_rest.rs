@@ -1,5 +1,5 @@
 //! **A stored face moved off its edges ends as their incidence read at
-//! rest** (D3, D4 ¶1 (iv)), through the real door, [`AtRestBody::validate`].
+//! rest** (D3, D4 ¶1 (iv)), through the real door, [`topo::finish`].
 //! Each row builds a body, moves one face's surface in place
 //! ([`Body::with_surface_moved_for_tests`]: the face and its edges keep
 //! naming it, so the edges are read against it rather than reported as
@@ -33,7 +33,7 @@ use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Tol, Vec2, Ve
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use sweep::test_support::extruded;
-use topo::{AtRestBody, AtRestPolicy, Body, PcurveMintError, ValidationError};
+use topo::{AtRestPolicy, Body, PcurveMintError, ValidationError};
 
 /// The unit disc, extruded 2 m.
 fn cylinder<T: Decide + AtRestPolicy>() -> Body<T> {
@@ -85,9 +85,11 @@ fn hemisphere<T: Decide + AtRestPolicy>() -> Body<T> {
         origin: Point2::new(f(0.0), f(0.0)),
         dir: Vec2::new(f(0.0), f(1.0)),
     };
-    sweep::revolve(&profile, axis, sweep::Revolution::Full, tol)
-        .unwrap()
-        .body
+    topo::LeafBody::into_body(
+        sweep::revolve(&profile, axis, sweep::Revolution::Full, tol)
+            .unwrap()
+            .body,
+    )
 }
 
 /// `body` with the first face whose surface `pick` selects moved by
@@ -104,9 +106,9 @@ fn findings<T: Decide + AtRestPolicy + Bounds + CertifiedBounds>(
         .expect("the row's face");
     let surface = moved(body.get_surface(key).unwrap().clone());
     let body = body.with_surface_moved_for_tests(key, surface).unwrap();
-    match AtRestBody::validate(body, Tol::witness()) {
+    match topo::finish(body, Tol::witness()) {
         Ok(_) => panic!("{}: a moved face validates", T::NAME),
-        Err(errors) => errors,
+        Err(errors) => errors.into_findings(),
     }
 }
 
