@@ -1170,3 +1170,7 @@
 - 21:50Z 6641 at abbc61ea had no CI run → merged main (engine-leaves.counts conflict resolved to the lower pins: containment 46, finish 6; the gate confirms) at 79e1e5f4; check, gates, fmt and 5818 clean; gating. 6665 line-placement (b7b5f34c) → FULL with session_013mPGJ3ms7cGcUadcrES7LL.
 - 22:00Z census lane opened PR 6677 (arc-floor-straddle, 42b342bf): distance_within circle arm = min over held and ±2π translates, max clearance; ConicArc reads it; pins red on main; P1 row → FAST FULL with session_013mPGJ3ykyNSXEK99MX4U6Q (compare against the measured hull form); gating. 6664 delta: FIX-D tuple compare (a sixth production site, viewer sketch.rs:1956) → lane.
 - 22:05Z Merged PR 6654 (lone-vertices) at gate-green a1e7a624 (M1 wrapped arms, M2 marker-read mirror types; selftest plants; main unchanged since). 6669 lane to merge main and fold its review items.
+- 22:20Z Merged:
+  - PR 6661 (exact-half) at gate-green 309d8bfd → 4fd21c71. FULL MERGE and exact wording; disjoint; check clean.
+  - PR 6641 (ring-torus) at gate-green 92cad62c (main merged twice: engine-leaves counts and 6654's overlap). Its FIX-light was checked by diff; disjoint from 6661; check clean.
+- 22:20Z 6655 overlapped 6654 (reduce.rs) → merged main (afd41a93); clean; re-gating. 6677 gate green, waiting on its fast review.
