@@ -43,11 +43,13 @@ fn filleted() -> (Body<f64>, topo::SurfaceKey, Surface<f64>, Vec<HalfEdgeKey>) {
     let body: Body<f64> = block(2.0, 2.0, 1.0, tol());
     let edge = body
         .edges()
-        .find(|(_, e)| {
-            let ends = [e.he_plus, e.he_minus].map(|h| body.half_edge_start_point(h).unwrap());
-            ends.iter().all(|p| p.y == 0.0 && p.z == 1.0)
-        })
         .map(|(k, _)| k)
+        .find(|&k| {
+            <[_; 2]>::from(body.edge_vertices(k).unwrap())
+                .map(|v| topo::readback::vertex_point(&body, v).unwrap())
+                .iter()
+                .all(|p| p.y == 0.0 && p.z == 1.0)
+        })
         .expect("the block has its top front edge");
     let body = fillet_edges(&at_rest(&body, tol()), &[edge], RADIUS, tol())
         .unwrap_or_else(|r| panic!("{}", r.render(geom_brep::recourse::Reading::Build)))
@@ -55,7 +57,7 @@ fn filleted() -> (Body<f64>, topo::SurfaceKey, Surface<f64>, Vec<HalfEdgeKey>) {
         .into_body();
     let (face, key, cylinder) = body
         .faces()
-        .find_map(|(k, f)| match body.get_surface(f.surface) {
+        .find_map(|(k, f)| match body.face_surface(k) {
             Some(s @ Surface::Cylinder { .. }) => Some((k, f.surface, s.clone())),
             _ => None,
         })
@@ -98,8 +100,9 @@ fn net_of(
     let e2 = e3.cross(e1);
     let (mut azimuths, mut heights) = (Vec::new(), Vec::new());
     for &h in seams {
-        let edge = body.get_edge(body.get_half_edge(h).unwrap().edge).unwrap();
-        let ends = [edge.he_plus, edge.he_minus].map(|e| body.half_edge_start_point(e).unwrap());
+        let edge = body.get_half_edge(h).unwrap().edge;
+        let ends = <[_; 2]>::from(body.edge_vertices(edge).unwrap())
+            .map(|v| topo::readback::vertex_point(body, v).unwrap());
         for at in ends {
             let d = at - origin;
             azimuths.push(d.dot(e2).atan2(d.dot(e1)));

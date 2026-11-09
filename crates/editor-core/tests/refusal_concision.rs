@@ -705,6 +705,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "LineMaterialUnread (no reference)",
+            BooleanError::LineMaterialUnread {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+                why: topo::LineUnread::NoReference,
+            },
+        ),
+        (
             "PinchRaysInAFace",
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,
@@ -731,6 +739,21 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 face: FaceKey::default(),
                 partner: VertexKey::default(),
                 along: topo::AlongFace::FacesInOnePlane,
+            },
+        ),
+        (
+            "TouchesItself",
+            BooleanError::TouchesItself {
+                operand: Operand::A,
+                record: 0,
+                faces: [FaceKey::default(); 2],
+            },
+        ),
+        (
+            "ToolSeatCrossed",
+            BooleanError::ToolSeatCrossed {
+                record: 0,
+                faces: [FaceKey::default(); 2],
             },
         ),
         (

@@ -82,10 +82,7 @@ fn the_tangent_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
                 lo - 1e-9 <= want && want <= hi + 1e-9,
                 "union: both volumes, got [{lo}, {hi}]"
             );
-            let kind = |f: topo::FaceKey| {
-                let face = r.body.get_face(f).unwrap();
-                r.body.get_surface(face.surface).unwrap().kind()
-            };
+            let kind = |f: topo::FaceKey| r.body.face_surface(f).unwrap().kind();
             let ff: Vec<_> = r
                 .contacts
                 .face_face()

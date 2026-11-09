@@ -338,16 +338,27 @@ impl<A, E> Rung<A, E> {
 impl<A, E> Rung<Result<A, E>, E> {
     /// **A reading of whether one rung holds** as its rung: holding
     /// answers `Ok(yes)`, not holding passes, and a refusal stands by
-    /// `standing` ([`Self::refused`]). The one home of the reader that
+    /// `standing` ([`Self::answers`]). The one home of the reader that
     /// answers a `bool` over a refusal with a standing.
     pub fn holds(
         reading: Result<bool, E>,
         yes: A,
         standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
     ) -> Self {
+        Self::answers(reading.map(|held| held.then_some(yes)), standing)
+    }
+
+    /// **A reading that answers `Some(a)`** as its rung: `Some` answers
+    /// `Ok(a)`, `None` passes, and a refusal stands by `standing`
+    /// ([`Self::refused`]): [`Self::holds`] where the answer is read
+    /// rather than fixed.
+    pub fn answers(
+        reading: Result<Option<A>, E>,
+        standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
+    ) -> Self {
         match reading {
-            Ok(true) => Self::Answers(Ok(yes)),
-            Ok(false) => Self::Passes,
+            Ok(Some(a)) => Self::Answers(Ok(a)),
+            Ok(None) => Self::Passes,
             Err(e) => Self::refused(e, standing),
         }
     }
@@ -612,12 +623,13 @@ pub fn climb_agreeing<I, A, E>(
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum IdentityLadder {
     /// A datum decided past the band: the identity does not hold. `at` is
-    /// its index in the data, `sign` its sign.
+    /// its index in the data, `decided` its reading.
     Apart {
         /// The answering datum's index.
         at: usize,
-        /// Its sign (never [`Sign::Zero`]).
-        sign: Sign,
+        /// Its reading: the sign (never [`Sign::Zero`]) and the margin
+        /// it was decided on.
+        decided: Decided,
     },
     /// Every datum decided `Zero`: the identity holds, with the data's
     /// decided margins taken jointly (`None` for no data).
@@ -648,6 +660,14 @@ impl IdentityLadder {
 /// its own name: the ladder ([`climb`], [`Answering::Any`]: every datum
 /// decided apart says the same "not one") whose answer is a datum decided
 /// apart.
+///
+/// **A datum's name is spelled once, as a literal at the datum**, as a
+/// `decide*` call's is. `test_utils::source::predicate_census` reads
+/// names at `decide*` calls only, so a crate whose roster runs it
+/// (sweep's `recourse_roster`) carries each identity datum's name in a
+/// `const` and declares it (`NameCarrier::Const`, sweep's
+/// `LOFT_RIM_PINNED`). A crate with no such roster (topo) writes the
+/// literal.
 pub fn read_identity<T: Decide>(
     data: impl IntoIterator<Item = (&'static str, Margin<T>)>,
     band: Band,
@@ -655,7 +675,7 @@ pub fn read_identity<T: Decide>(
     let mut joint: Option<MarginDiag> = None;
     let climbed = climb(Answering::Any, data, |(name, margin)| {
         Rung::decide(name, margin, band, |decided| match decided.sign {
-            Sign::Positive | Sign::Negative => Some(decided.sign),
+            Sign::Positive | Sign::Negative => Some(decided),
             Sign::Zero => {
                 joint = Some(joint.map_or(decided.margin, |first| first.jointly(decided.margin)));
                 None
@@ -663,7 +683,10 @@ pub fn read_identity<T: Decide>(
         })
     });
     match climbed {
-        Climb::Answered { at, answer: sign } => IdentityLadder::Apart { at, sign },
+        Climb::Answered {
+            at,
+            answer: decided,
+        } => IdentityLadder::Apart { at, decided },
         Climb::Passed => IdentityLadder::Zero(joint),
         Climb::Undecided(cause) => IdentityLadder::Undecided(cause),
     }
@@ -1002,12 +1025,14 @@ mod tests {
     #[test]
     fn a_later_definite_datum_answers_past_an_in_band_one() {
         let (got, verdicts, escalations) = read(&[("a", 0.0), ("b", 5e-9), ("c", 0.0), ("d", 1.0)]);
+        let IdentityLadder::Apart { at: 3, decided } = got else {
+            panic!("the last datum answers: {got:?}")
+        };
+        assert_eq!(decided.sign, Sign::Positive);
         assert_eq!(
-            got,
-            IdentityLadder::Apart {
-                at: 3,
-                sign: Sign::Positive
-            }
+            decided.margin,
+            crate::MarginDiag::value(1.0),
+            "the answer keeps the margin it was decided on"
         );
         assert_eq!(
             verdicts,
@@ -1039,13 +1064,11 @@ mod tests {
     #[test]
     fn the_first_definite_datum_answers_and_all_zero_holds() {
         let (got, verdicts, _) = read(&[("a", -1.0), ("b", 5e-9), ("c", 1.0)]);
-        assert_eq!(
-            got,
-            IdentityLadder::Apart {
-                at: 0,
-                sign: Sign::Negative
-            }
-        );
+        let IdentityLadder::Apart { at: 0, decided } = got else {
+            panic!("the first datum answers: {got:?}")
+        };
+        assert_eq!(decided.sign, Sign::Negative);
+        assert_eq!(decided.margin, crate::MarginDiag::value(-1.0));
         assert_eq!(verdicts, ["a"], "nothing past the answer is read");
         let (got, _, _) = read(&[("a", 0.0), ("b", 5e-10)]);
         assert!(matches!(got, IdentityLadder::Zero(Some(_))), "{got:?}");

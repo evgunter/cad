@@ -701,12 +701,63 @@ impl core::fmt::Display for CensusSubject {
     }
 }
 
+/// **Why the census did not read a curved edge**, typed: the reason
+/// [`CensusUnsupportedCause::CurvedEdge`] carries, and an edge tangent's
+/// at a touch ([`crate::link::TouchUnread::EdgeTangent`]). Its sentence,
+/// recourse and standing are its own.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EdgeTangentUnread {
+    /// The edge carries no certified curve. A limit.
+    #[default]
+    NoCurve,
+    /// The edge's speed bound meters no reach over its span. A limit.
+    NoReach,
+    /// The edge's least speed meters no length over its span. A limit.
+    NoLength,
+    /// A spline edge's piece walk could not run, standing as the walk's
+    /// refusal does ([`geom::PieceWalkRefusal::refusal`]).
+    Unwalked(geom::PieceWalkRefusal),
+}
+
+impl EdgeTangentUnread {
+    /// What this reason is to a ladder, as each variant's docs state it.
+    /// It never refuses the whole query.
+    #[must_use]
+    pub const fn refusal(self) -> geom_brep::ladder::Refusal {
+        match self {
+            Self::NoCurve | Self::NoReach | Self::NoLength => geom_brep::ladder::Refusal::Limit,
+            Self::Unwalked(why) => why.refusal(),
+        }
+    }
+
+    /// The one sentence this reason is rendered by.
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::NoCurve => "a curved edge with no certified curve",
+            Self::NoReach => "a curved edge whose speed bound meters no reach over its span",
+            Self::NoLength => "a curved edge whose least speed meters no length over its span",
+            Self::Unwalked(why) => why.sentence(),
+        }
+    }
+
+    /// The recourse its rendering ends with: a curve the kernel does not
+    /// read yet, or the walk's own ([`geom::PieceWalkRefusal::recourse`]).
+    #[must_use]
+    pub const fn recourse(self) -> &'static str {
+        match self {
+            Self::NoCurve | Self::NoReach | Self::NoLength => NOT_YET_ENDING,
+            Self::Unwalked(why) => why.recourse(),
+        }
+    }
+}
+
 /// **WHY a census decline declined** — the refusing lane's own typed
 /// refusal, carried instead of discarded.
 ///
-/// [`ValidationError::CensusUnsupported`] is raised by four
-/// different lanes, and until this was carried they all arrived at a
-/// consumer as one sentence about an uncertifiable inventory. That
+/// [`ValidationError::CensusUnsupported`] is raised by several
+/// lanes, one arm each, and until this was carried they all arrived at
+/// a consumer as one sentence about an uncertifiable inventory. That
 /// sentence is not always the true cause: a chart-region
 /// [`WitnessSegmentCapExceeded`](ChartRegionError::WitnessSegmentCapExceeded)
 /// or [`WitnessCellCapExceeded`](ChartRegionError::WitnessCellCapExceeded)
@@ -821,6 +872,9 @@ pub enum CensusUnsupportedCause {
     /// narrowed to say so, for the same reason [`Self::ChartRegion`]
     /// admits `Escalated`.
     ContactLane(ContactRefusal),
+    /// A curved edge the census reads did not read, for its typed reason,
+    /// whole: it renders by the reason's sentence and recourse.
+    CurvedEdge(EdgeTangentUnread),
     /// The census's face-bounding sweep could not bound the face at
     /// all: it has no boundary vertex, because its outer loop is
     /// empty or its boundary does not resolve. Nothing about the
@@ -887,6 +941,7 @@ impl CensusUnsupportedCause {
         match self {
             Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
+            Self::CurvedEdge(why) => f.write_str(why.sentence()),
             // The containment door's reading, at a build, whichever door
             // reads the census.
             Self::Containment(e) => write!(
@@ -4295,6 +4350,7 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
             let (why, recourse) = classify_contact_lane(e);
             (why.into(), recourse.into())
         }
+        CensusUnsupportedCause::CurvedEdge(why) => (why.sentence().into(), why.recourse().into()),
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
             "a face has no corner to bound it by (an empty or broken outer loop)".into(),
@@ -9915,12 +9971,88 @@ fn meet_at<T: Decide>(
     open.map_or(EdgePair::Apart, EdgePair::Unsure)
 }
 
-/// Check 9's rows for [`crate::splitting::containment::arc_trim`].
-const RING_OUTER_ARC_TRIM: crate::splitting::containment::ArcTrimRows =
-    crate::splitting::containment::ArcTrimRows {
-        end: "ring_outer_arc_end",
-        trim: "ring_outer_arc_trim",
-    };
+/// Check 9's rows for [`arc_trim`].
+const RING_OUTER_ARC_TRIM: ArcTrimRows = ArcTrimRows {
+    end: "ring_outer_arc_end",
+    trim: "ring_outer_arc_trim",
+};
+
+/// Check 9's two rows for [`arc_trim`].
+struct ArcTrimRows {
+    /// A point's distance to either end of the arc.
+    end: &'static str,
+    /// The two-term chordal margin: which side of the ends.
+    trim: &'static str,
+}
+
+/// **Whether `p`, a point on a circle, lies inside the arc of it whose
+/// ends are `ends` and whose apex is `apex`** (`anti` the apex's
+/// antipode) — decided as DISTANCES, never as an angle, and the one
+/// home of that rule, beside its one consumer, check 9 (a ray's crossing of
+/// a loop's arc is the plane door's, placed on the arc's span there:
+/// `containment::conic_crossings`). The points are in metres, so every
+/// length is a margin as it stands.
+///
+/// 1. **At an end**: `p` within the band of either end, measured as
+///    `|p − end|`, answers `Zero`. That is the ONLY way an endpoint
+///    neighbourhood counts: an angular window compresses arc length
+///    near an end by `sin(w/2)`, so on a short arc (and by `sin` of the
+///    complement on a near-full one) its `Zero` reaches `ε / sin(w/2)`
+///    along the carrier, a hundred times `ε` at `w = 0.02`.
+/// 2. **Otherwise, which side of the ends**: the sum of two chordal
+///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
+///    is an end, `m` the apex and `m′` its antipode. Chord length is
+///    monotone in angular distance up to a half turn, so each term is
+///    positive exactly on the arc; near an end they move as `cos(w/4)`
+///    and `sin(w/4)` times the arc length, whose sum is at least 1, so
+///    the margin is never compressed below the distance it measures —
+///    on a short arc, a near-full one, or a whole circle (where `m′` is
+///    the end and every point is inside). Its `Zero` is therefore within
+///    the band of an end, which step 1 has already answered.
+///
+/// `Positive` inside, `Negative` past an end, `Zero` at an end or in
+/// the trim's band.
+///
+/// **A DECIDED membership, and so not
+/// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
+/// the one place that says why, for this trim. That door answers "may hold" wherever
+/// exclusion is unproved, which is the sound answer for a caller
+/// selecting between two bounds that each hold either way. A decided
+/// membership has no such free answer: an uncertain one escalates, and
+/// its band is a length — measured along the carrier here, levered by
+/// the radius there — never a bare angle.
+///
+/// # Errors
+///
+/// An in-band end distance with neither end definitely `Zero`, or an
+/// in-band trim margin.
+fn arc_trim<T: Decide>(
+    p: geom_core::Point3<T>,
+    ends: [geom_core::Point3<T>; 2],
+    apex: geom_core::Point3<T>,
+    anti: geom_core::Point3<T>,
+    rows: &ArcTrimRows,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let [a, b] = ends;
+    let at = [
+        decide(rows.end, Margin::of((p - a).norm()), band),
+        decide(rows.end, Margin::of((p - b).norm()), band),
+    ];
+    if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
+        return Ok(Sign::Zero);
+    }
+    if let Some(diag) = at.into_iter().find_map(Result::err) {
+        return Err(diag);
+    }
+    decide(
+        rows.trim,
+        Margin::of(crate::splitting::containment::arc_trim_margin(
+            p, a, apex, anti,
+        )),
+        band,
+    )
+}
 
 /// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
 /// an end included, since arm 5 runs only once no vertex arm has
@@ -9933,9 +10065,7 @@ const RING_OUTER_ARC_TRIM: crate::splitting::containment::ArcTrimRows =
 /// from the circle says nothing about the trim, and deciding it first
 /// let an in-band radius escalate a point half a turn away from the
 /// arc. The rule, and why its margin never compresses near an end, is
-/// [`crate::splitting::containment::arc_trim`]'s — the one home the
-/// arc-bearing containment walk shares; here the lever is 1 (metres)
-/// and an end's neighbourhood reads inside.
+/// [`arc_trim`]'s; an end's neighbourhood reads inside.
 fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Band) -> Window {
     match segment {
         MeetSegment::Line { a, b } => {
@@ -9974,12 +10104,11 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 radius,
             });
             let mid = geom::mid_param(t0, t1);
-            match crate::splitting::containment::arc_trim(
+            match arc_trim(
                 p,
                 [carrier.eval(t0), carrier.eval(t1)],
                 carrier.eval(mid),
                 carrier.eval(mid + T::pi()),
-                geom_core::InfSpeed::new(T::one()),
                 &RING_OUTER_ARC_TRIM,
                 band,
             ) {

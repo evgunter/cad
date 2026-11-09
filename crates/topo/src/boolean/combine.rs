@@ -895,10 +895,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             GeomRef::Curve(k),
             "owning edge",
         );
-        let e = proven(&dst.edges, dst_edge_key, EntityId::Edge);
-        let he_plus = proven(&dst.half_edges, e.he_plus, EntityId::HalfEdge);
-        let start_v = he_plus.start;
-        let end_v = proven(&dst.half_edges, he_plus.next, EntityId::HalfEdge).start;
+        let (start_v, end_v) = crate::query::edge_ends(dst, dst_edge_key);
         let point = |v: VertexKey| {
             *proven(
                 &dst.points,
@@ -977,13 +974,13 @@ mod recertify_door_tests {
         let tol = Tol::witness();
         let mut body = geometric_cube::<f64>(tol).body;
         describe_as_intersections(&mut body, tol);
-        let (edge_key, edge) = body.edges().next().map(|(k, e)| (k, e.clone())).unwrap();
+        let edge_key = body.edges().next().map(|(k, _)| k).unwrap();
         let (s1, s2) = crate::readback::edge_sides(&body, edge_key)
             .unwrap()
             .surfaces();
         let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        let p0 = point(body.get_half_edge(edge.he_plus).unwrap().start);
-        let p1 = point(body.half_edge_end(edge.he_plus).unwrap());
+        let (v0, v1) = crate::query::edge_ends(&body, edge_key);
+        let (p0, p1) = (point(v0), point(v1));
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {

@@ -43,7 +43,7 @@
 
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::carrier_eq::CarrierDesc;
+use super::carrier_eq::{CarrierDesc, CarrierVerdict};
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
@@ -144,13 +144,18 @@ pub(super) fn require_same<T: Decide>(
     ));
     let pair = (o1, s1.face, o2, s2.face);
     match super::carrier_eq::carrier_eq_reading(&c1, &c2, &extent, band) {
-        Ok((PlaneRelation::Distinct, _)) if on == ReadOn::FirstBounds => {
+        Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds) if on == ReadOn::FirstBounds => {
             Err(unglued_tilt(&c1, &c2, s1, reach, declared, pair, band))
         }
-        Ok((PlaneRelation::Distinct, _)) => Err(BooleanError::ClassificationInvariant {
-            what: "geometrically-ON sector pair with definitely-distinct carriers",
-        }),
-        Ok((rel, margin)) => {
+        Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds) => {
+            Err(BooleanError::ClassificationInvariant {
+                what: "geometrically-ON sector pair with definitely-distinct carriers",
+            })
+        }
+        Ok(CarrierVerdict::One {
+            relation: rel,
+            margin,
+        }) => {
             let bounds = match &c2 {
                 CarrierDesc::Plane { normal, .. } => s1.bounds_off(*normal, band).err(),
                 _ => None,
@@ -160,16 +165,7 @@ pub(super) fn require_same<T: Decide>(
                 pair,
                 super::plane_eq::senses(s1.tangent().vec(), s2.tangent().vec(), arm, band),
                 bounds,
-                // The ladder decides one carrier only on a margin, so a
-                // reading without one is a broken invariant.
-                || match margin {
-                    Some(margin) => {
-                        super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band)
-                    }
-                    None => BooleanError::ClassificationInvariant {
-                        what: "a corner pair the ladder read one carrier on no margin",
-                    },
-                },
+                || super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band),
             ))
         }
         Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
@@ -187,6 +183,11 @@ pub(super) fn require_same<T: Decide>(
             coincidence,
             [(o1, s1.face), (o2, s2.face)],
             declared.carriers_read(pair, relation),
+        )),
+        Err(PlaneEqError::OffRing { torus, refusal }) => Err(super::off_ring_torus(
+            torus,
+            refusal,
+            [(o1, s1.face), (o2, s2.face)],
         )),
     }
 }
@@ -1542,6 +1543,31 @@ fn common_line<T: geom_core::Real>(
     }
 }
 
+/// **The line's own refusal for a cone's unread reading**, where it is
+/// not a margin a coincidence names ([`resolve_edge_edge`]): a held
+/// face's side the cone decided against, that contradiction; no
+/// reference that any band gives ([`crate::link::Unread::NoReference`]),
+/// that limit; and where no gate's margin refused (a reference a tighter
+/// band may give, an unplaced crossing), the line's faces too close to
+/// place it. `None` where the cause escalated on a margin, which the
+/// caller names as a coincidence.
+fn line_unread_of<T: Decide>(
+    cause: &crate::link::Unread<T>,
+    escalated: bool,
+) -> Option<super::LineUnread> {
+    use super::LineUnread;
+    use crate::link::Unread;
+    match cause {
+        _ if cause.contradicted() => Some(LineUnread::Contradicted),
+        // No reference no band gives: a limit, not a sliver.
+        Unread::NoReference => Some(LineUnread::NoReference),
+        // A reference a tighter band may give: the faces too close.
+        Unread::ReferenceInBand => Some(LineUnread::Unplaced),
+        _ if escalated => None,
+        _ => Some(LineUnread::Unplaced),
+    }
+}
+
 /// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
 /// angular sort and its Table I ties): around the common line, each
 /// solid's material is the region its faces holding the line bound. A
@@ -1826,26 +1852,28 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             // on a flank's plane, where in it in band, the two flanks' sense;
             // its side of a face's plane, that side; the parity arc, the
             // sectors' coincidence; the held face's side the cone decided
-            // against, that contradiction; and where no gate's margin
-            // refused (no reference, an unplaced crossing), the line's faces
+            // against, that contradiction; no reference that any band gives,
+            // that limit; and where no gate's margin refused (a reference a
+            // tighter band may give, an unplaced crossing), the line's faces
             // too close to place it.
             let unread_of = |cause: crate::link::Unread<T>| {
                 use crate::link::Unread;
                 let sheet = cause.sector().map(|k| from[k]);
-                if cause.contradicted() {
-                    return unread(super::LineUnread::Contradicted);
+                let escalation = cause.escalation(band);
+                if let Some(why) = line_unread_of(&cause, escalation.is_some()) {
+                    return unread(why);
                 }
-                match (cause, sheet, cause.escalation(band)) {
+                match (cause, sheet, escalation) {
                     (Unread::Place { .. }, Some(Sheet::Sector(oi)), Some(diag)) => {
                         flank_sense(own, own_idx, oi, diag)
                     }
                     (Unread::Place { .. } | Unread::Side { .. }, _, Some(diag)) => {
                         BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
                     }
-                    (Unread::Arc { .. } | Unread::NoReference, _, Some(diag)) => {
+                    (_, _, Some(diag)) => {
                         BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
                     }
-                    (_, _, None) => unread(super::LineUnread::Unplaced),
+                    (_, _, None) => unreachable!("`line_unread_of` takes every unescalated cause"),
                 }
             };
             match cone.reads_tied(reach.point(points[own], dir), &given, band) {
@@ -2408,7 +2436,7 @@ mod tests {
             .reads_tied(Point3::new(-1.0, 0.0, 0.7), &[], band)
             .expect_err("the sliver reads nothing across the line");
         assert!(
-            matches!(unread, crate::link::Unread::NoReference),
+            matches!(unread, crate::link::Unread::ReferenceInBand),
             "no reference to read by: {unread:?}"
         );
         let p = prism_z::<f64>(
@@ -2448,6 +2476,52 @@ mod tests {
                 })
             ),
             "a typed refusal with its recourse: {got:?}"
+        );
+    }
+
+    /// **A cone with no reference that any band gives refuses as a limit
+    /// on the line, not as a sliver** (PR 6637's delta review): the line's
+    /// own refusal for each unescalated cause ([`line_unread_of`]).
+    /// `resolve_edge_edge` cannot build a line cone of whole planes alone:
+    /// each wedge's flanks add their sectors, and only the held face is a
+    /// whole plane. So the mapping is read here, by the function the site
+    /// calls.
+    #[test]
+    fn no_reference_is_a_limit_on_the_line_and_one_in_band_a_sliver() {
+        use super::super::LineUnread;
+        use crate::link::Unread;
+        assert_eq!(
+            line_unread_of(&Unread::<f64>::NoReference, false),
+            Some(LineUnread::NoReference)
+        );
+        assert_eq!(
+            line_unread_of(&Unread::<f64>::ReferenceInBand, false),
+            Some(LineUnread::Unplaced)
+        );
+        assert_eq!(
+            line_unread_of(
+                &Unread::<f64>::Arc {
+                    sector: None,
+                    why: crate::link::Unsettled::Unplaced
+                },
+                false
+            ),
+            Some(LineUnread::Unplaced)
+        );
+        // An escalated cause is the caller's coincidence, and a side the
+        // cone contradicted is that contradiction, escalated or not.
+        let arc = Unread::<f64>::Arc {
+            sector: None,
+            why: crate::link::Unsettled::Unplaced,
+        };
+        assert_eq!(line_unread_of(&arc, true), None);
+        let contradicted = Unread::<f64>::Side {
+            sector: 0,
+            why: crate::link::Unsettled::Contradicted,
+        };
+        assert_eq!(
+            line_unread_of(&contradicted, true),
+            Some(LineUnread::Contradicted)
         );
     }
 
@@ -2513,7 +2587,7 @@ mod tests {
         match cone.reads_tied(q, &[], band) {
             Ok(m) => assert_eq!(m, crate::link::Material::Out),
             Err(unread) => assert!(
-                matches!(unread, crate::link::Unread::NoReference),
+                matches!(unread, crate::link::Unread::ReferenceInBand),
                 "an unread reading's cause: {unread:?}"
             ),
         }

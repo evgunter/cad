@@ -40,3 +40,10 @@ PR 3431). Certification (`CertCheck::TransversalityArm`,
 `CertifyError::ArmCollapsed`, `CertCheck::ParamSpanMeter`) and the
 validator (`WedgeCheck::Arm`, `ValidationError::NoDihedralArm`) route
 through them.
+
+## SEAL's claim on the contact_verify half (2026-11-09, PR 6634)
+
+The seven `contact_verify` sites are SEAL's I1–I7 (`work/seal/glue-disagreements-and-held-contradictions-after-stage-4.md`, Re-census). Under the fork `glue-disagreements-carry`, each step's lane claims what it closes. The file is not moved, because the census-dihedral half above stays SECTOR's and stays open.
+
+- **I7 `contact_tangent_second_order` is closed by PR 6634.** The decided arm is now the funnel's gate rejection (`k_stats::gate_rejection` on the decided reading, under `SizedPass::Positive`), not `INVALID`.
+- **I1–I6 belong to `work/seal/a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted`** (step 3), and close with it.

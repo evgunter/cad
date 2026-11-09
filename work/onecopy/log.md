@@ -443,3 +443,10 @@
   - S2 and S3.
   - A P3 class row for three clearance walks, two `SiteRefusal` sorts and the census's `WALK_*`.
 - 2026-11-09 — QML T3 moved `geom_brep::ladder` to `geom_core::ladder` (orchestrator ruling A: it imports only geom-core and no ratified text places it), so profile's `seg::arc_arc` can climb. `geom_brep::ladder` stays as a `#[doc(hidden)]` transitional re-export, retired by `geom-brep-ladder-re-export-awaits-its-callers` (P3). `Refusal::of_walk` became `geom::PieceWalkRefusal::refusal`, since geom now sees the ladder. (ONECOPY implementer, `onecopy/refusal-standing`)
+- 2026-11-09 — Ladder leftovers on `onecopy/refusal-standing`, stacked on 6576. `question-mark-ladders-the-t1-review-left-unported` closes:
+  - F3: `carried_alike`'s transports and `face_nappe_reading`'s extremes climb under `Any`.
+  - F4: one gap rung, `gap_past_eps`, read by every gap reader in replace_face; the corner and ends loops are climbs.
+  - F6: `read_piece` reads `holds()`.
+  - F7: narrowed to the spelling rule on `read_identity`'s doc; `topo-has-no-predicate-name-roster` filed (P3).
+
+  `cone-reads-given-reference-loop-waits-on-its-unsettled-classes` closes on ruling (A): `link::Unsettled::refusal()`, with `Unplaced` in band, then `Sector::place` climbed under `Any` and `Cone::reads_given` under `First` (its premise is the input's; `Alike` once 6592 lands). Probe over 8,919 `ci` tests: no outcome, ranking or record moved. Review follow-ups filed: `an-any-climb-answering-with-a-witness-is-first-shaped` (P2) and green's `cone-rows-certified-answers-fail-at-1e-12-on-one-seed`. `the-pierce-pass-ranking-is-pinned-only-at-the-ladder` is narrowed to wait on PR 6598, with N3 restated against its three-argument `Rung::refused`. (ONECOPY implementer, `onecopy/refusal-standing`)
