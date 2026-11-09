@@ -321,8 +321,12 @@ This section is where that rule's parts live.
   lies far from the arc it serves) is re-minted in a well-conditioned
   form. No `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
-  `running`'s charge doors (its `pub` items) outside this crate, whose allowlist only shrinks: each entry is a formula or a
-  stored form owed a re-posing.
+  `running`'s charge doors (its `pub` items) outside this crate. Every
+  site is a listed entry, each a formula or a stored form owed a
+  re-posing, and an entry whose site has gone must be dropped. A count
+  raised beside a new site is held only by review, not against the
+  merge base
+  (`work/guard/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 - **A verdict's lever arm** (`Lever<T>`, the arm of
   `Margin::levered`). It is built only from its sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where

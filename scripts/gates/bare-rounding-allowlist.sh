@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# bare-rounding-allowlist.sh — a bare `f64::EPSILON` or `UNIT_ROUNDOFF`,
-# or a call on geom-core's rounding charge, outside `geom-core` is a
-# finding, and the list of today's sites only shrinks. ONE home; ci.yml's `lint` job runs every gate in this
-# directory.
+# bare-rounding-allowlist.sh — a bare `f64::EPSILON`, or a use of one of
+# geom-core's rounding-charge doors, outside `geom-core` is a finding,
+# and each is a listed site. ONE home; ci.yml's `lint` job runs every
+# gate in this directory.
 #
 # THE RULE (DESIGN `[simple.conditioned]`; `crates/geom-core/README.md`,
 # "Float rounding"). Every computation is posed well-conditioned where
@@ -19,19 +19,22 @@
 # comments and string literals stripped. A site is `f64::EPSILON` (any
 # path ending in it), a call of `carrier_resolution::resolution(`,
 # geom-brep's charge for a carrier's stored terms, or a use of one of
-# geom-core's CHARGE DOORS: every `pub` item at the top of
-# `geom_core::running`, read from that file (`doors`), so a door declared
-# there is counted the day it lands. A fn or constant counts by any path
-# through `running` or, for one the root re-exports, through `geom_core`;
-# a type (`Rounded`) by a construction, `Rounded::…` or `Rounded { … }`,
-# never by naming it in a signature. Bare, a door counts where a `use`
-# in scope binds it (its block, or the file for a top-level one; an `as`
-# alias and a glob bind too), and anywhere if no other item of the tree
-# shares its name; a generic name (`dot`, `cross`) counts only under its
-# import. The `use` itself is not a site.
-# `BARE_ROUNDING_LINES=a.rs,b.rs` prints those files' sites.
-# stored terms. A charge read through a helper is the same decision as a
-# bare one, so it is counted under the same ratchet. Each file's sites are
+# geom-core's CHARGE DOORS, read from geom-core itself (`doors`): every
+# `pub` item at the top of `geom_core::running`, so a door declared there
+# is counted the day it lands, and a `pub` item of a kind the gate cannot
+# classify reds UNRECOGNISED rather than going uncounted. The root's
+# re-exports of them (`lib.rs`'s `pub use running::…`, an `as` rename
+# included) are read the same way. A fn or constant counts by any path
+# through `running` (or a name it is imported or re-exported under), or
+# through `geom_core` (or a crate alias of it) for a re-exported one; a
+# type (`Rounded`) by a construction, `Rounded::…` or `Rounded { … }`,
+# or a qualified path `<Rounded<T>>::…`, never by naming it in a
+# signature. Bare, a door counts where a `use` or a `type` alias in scope
+# binds it (its block, or the file for a top-level one; an `as` rename
+# and a glob bind too), and anywhere if no other item of the tree shares
+# its name; a generic name (`dot`, `cross`) counts only where bound. The
+# `use` itself is not a site. `BARE_ROUNDING_LINES=a.rs,b.rs` prints
+# those files' sites. Each file's sites are
 # counted in two scopes: `test`, for a file under a `tests/`, `benches/`
 # or `examples/` directory, under `demos/`, `tools/` or `benches/`, a
 # file a `#[cfg(test)] mod` mounts (`lib.sh`'s `gate_test_only_mounts`),
@@ -71,6 +74,12 @@
 #   STALE     a row whose (file, scope) holds fewer sites than it says
 #             (a site went: lower or drop the row in the same change, so
 #             the ratchet holds);
+#   UNRECOGNISED  a `pub` item of `running`, or a root re-export under
+#             it, that is no door kind the gate reads.
+#
+# The counts are compared with the tree, not with the merge base, so a
+# change may raise a row beside the site it adds; only review holds that
+# (`work/guard/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 #   REASON    a row whose reason (or one of its words) is not one of
 #             the six, `oracle` on a `prod` row, or `fixture` on a `test`
 #             row.
@@ -83,7 +92,9 @@
 # carried through arithmetic or its methods (only the paths that make
 # one are counted), a door re-exported by a crate other than geom-core,
 # a bare generic door bound by an import in a parent file and reached
-# through `use super::*`, and a bare door fn passed point-free.
+# through `use super::*`, a bare door fn passed point-free, a type alias
+# naming a door through another alias, and a `pub(…)`-restricted item
+# of `running` (which no other crate can name).
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -184,21 +195,11 @@ def read_stripped(path):
         return strip(fh.read())
 
 
-def doors():
-    """The charge doors: every `pub` item at the top of `geom_core::running`,
-    by kind, and the ones `geom_core`'s root re-exports."""
-    for need in (RUNNING, LIB):
-        if not os.path.isfile(need):
-            sys.exit(f"REFUSED {need} is missing: the charge doors cannot be read")
-    kinds = {}
-    for kw, name in re.findall(r"^pub\s+(fn|const|static|struct|enum)\s+(\w+)", read_stripped(RUNNING), re.M):
-        kinds[name] = "fn" if kw == "fn" else "value" if kw in ("const", "static") else "type"
-    if not kinds:
-        sys.exit(f"REFUSED {RUNNING} declares no `pub` item: the charge doors cannot be read")
-    root = set()
-    for m in re.finditer(r"\bpub\s+use\s+running::(\{[^}]*\}|\w+)\s*;", read_stripped(LIB)):
-        root |= set(re.findall(r"\w+", m.group(1))) & set(kinds)
-    return kinds, root
+ITEM = (
+    ("fn", re.compile(r"(?:(?:const|unsafe|async|extern\s*(?:\"[^\"]*\")?)\s+)*fn\s+(\w+)")),
+    ("value", re.compile(r"(?:const|static(?:\s+mut)?)\s+(\w+)")),
+    ("type", re.compile(r"(?:struct|enum|union|type|trait)\s+(\w+)")),
+)
 
 
 def use_items(tree):
@@ -230,7 +231,63 @@ def use_items(tree):
     return out
 
 
-KINDS, ROOT = doors()
+def lead(segs):
+    """A `use` path without its leading `crate`, `self` or `super`s."""
+    while segs and segs[0] in ("crate", "self", "super"):
+        segs = segs[1:]
+    return segs
+
+
+def doors():
+    """The charge doors, read from geom-core itself.
+
+    DOORS maps every `pub` item at the top of `geom_core::running` to its
+    kind: `fn`, `value` (a const or static) or `type` (a struct, enum,
+    union, type alias or trait). A `pub(…)`-restricted item cannot be
+    reached outside geom-core, so it is no door. Any other `pub` item
+    (`pub mod`, `pub use`, a macro) is UNRECOGNISED and reds: the gate
+    never skips a door it cannot classify.
+
+    ROOT maps each name `geom_core`'s `lib.rs` re-exports from `running`
+    (renamed with `as`, through `crate::` or `self::`, or by a glob) to
+    its door, and RMODS holds the names it re-exports `running` itself
+    under. A re-export of something under `running` that is no door is
+    UNRECOGNISED."""
+    for need in (RUNNING, LIB):
+        if not os.path.isfile(need):
+            sys.exit(f"REFUSED {need} is missing: the charge doors cannot be read")
+    kinds, odd = {}, []
+    for m in re.finditer(r"^pub\b(\s*\([^)]*\))?\s*([^\n]*)", read_stripped(RUNNING), re.M):
+        if m.group(1):
+            continue
+        for kind, shape in ITEM:
+            got = shape.match(m.group(2))
+            if got:
+                kinds[got.group(1)] = kind
+                break
+        else:
+            odd.append(f"UNRECOGNISED {RUNNING}: `pub {m.group(2).strip()}` is no fn, const, static or type")
+    if not kinds:
+        sys.exit(f"REFUSED {RUNNING} declares no `pub` item: the charge doors cannot be read")
+    root, rmods = {}, set()
+    for m in re.finditer(r"^\s*pub\s+use\s+([^;]*);", read_stripped(LIB), re.M):
+        for segs, alias in use_items(m.group(1)):
+            segs = lead(segs)
+            if not segs or segs[0] != "running":
+                continue
+            rest = segs[1:]
+            if rest in ([], ["self"]):
+                rmods.add(alias or "running")
+            elif rest == ["*"]:
+                root.update({n: n for n in kinds})
+            elif len(rest) == 1 and rest[0] in kinds:
+                root[alias or rest[0]] = rest[0]
+            else:
+                odd.append(f"UNRECOGNISED {LIB}: `pub use {'::'.join(segs)}` re-exports no door of `running`")
+    return kinds, root, rmods, odd
+
+
+DOORS, ROOT, RMODS, ODD = doors()
 
 
 def blocks(text):
@@ -251,37 +308,60 @@ def scope_of(spans, at, n):
 
 
 def bindings(text):
-    """The local names a file's imports give the doors, each with the span
-    its `use` is in scope over, and the local names of the `running`
-    module itself."""
-    names, modules, spans = [], {"running"}, blocks(text)
+    """What a file's imports and aliases bind, each with the span it is in
+    scope over (its block, or the whole file at the top level):
+    `names`, a local name of a door; `modules`, a local name of the
+    `running` module; `crates`, a local name of `geom_core` itself. A
+    `type NAME = PATH;` naming a door type binds NAME like an import."""
+    n = len(text)
+    spans = blocks(text)
+    names, modules, crates = [], {"running"} | RMODS, {"geom_core"}
+    for m in re.finditer(r"\bextern\s+crate\s+geom_core\s+as\s+(\w+)", text):
+        crates.add(m.group(1))
     for m in USE.finditer(text):
-        scope = scope_of(spans, m.start(), len(text))
         for segs, alias in use_items(m.group(1)):
-            segs = [x for x in segs if x not in ("crate", "self", "super") or x == segs[0]]
-            if segs[-1] == "self":
+            if lead(segs) == ["geom_core"] and alias:
+                crates.add(alias)
+    for m in USE.finditer(text):
+        scope = scope_of(spans, m.start(), n)
+        for segs, alias in use_items(m.group(1)):
+            segs = lead(segs)
+            if segs and segs[-1] == "self":
                 segs = segs[:-1]
             if len(segs) < 2:
                 continue
             head, last = segs[-2], segs[-1]
-            if last == "running" and head == "geom_core":
+            if head in crates and last in modules | {"running"}:
                 modules.add(alias or last)
-            elif last == "*" and head == "running":
-                names += [(n, n, scope) for n in KINDS]
-            elif last == "*" and segs == ["geom_core", "*"]:
-                names += [(n, n, scope) for n in ROOT]
-            elif head == "running" and last in KINDS:
+            elif last == "*" and head in modules:
+                names += [(d, d, scope) for d in DOORS]
+            elif last == "*" and head in crates and len(segs) == 2:
+                names += [(r, d, scope) for r, d in ROOT.items()]
+            elif head in modules and last in DOORS:
                 names.append((alias or last, last, scope))
-            elif segs == ["geom_core", last] and last in ROOT:
-                names.append((alias or last, last, scope))
-    return names, modules
+            elif head in crates and len(segs) == 2 and last in ROOT:
+                names.append((alias or last, ROOT[last], scope))
+    bound = {local: door for local, door, _ in names}
+    for m in re.finditer(r"\btype\s+(\w+)\s*(?:<[^=]*>)?\s*=\s*((?:\w+\s*::\s*)*\w+)", text):
+        segs = lead(re.findall(r"\w+", m.group(2)))
+        door = None
+        if len(segs) >= 2 and segs[-2] in modules and segs[-1] in DOORS:
+            door = segs[-1]
+        elif len(segs) == 2 and segs[0] in crates and segs[1] in ROOT:
+            door = ROOT[segs[1]]
+        elif len(segs) == 1 and segs[0] in bound:
+            door = bound[segs[0]]
+        if door and DOORS[door] == "type":
+            names.append((m.group(1), door, scope_of(spans, m.start(), n)))
+    return names, modules, crates
 
 
 def declared_elsewhere():
-    """Door names some other file of the tree declares too: a bare one of
-    those is read only where an import binds it."""
-    alt = "|".join(map(re.escape, KINDS))
-    decl = re.compile(r"\b(?:fn|const|static|struct|enum|type|trait|mod)\s+(" + alt + r")\b")
+    """Door names (and root re-export names) some other file of the tree
+    declares too: a bare one of those is read only where an import binds
+    it."""
+    alt = "|".join(map(re.escape, set(DOORS) | set(ROOT)))
+    decl = re.compile(r"\b(?:fn|const|static|struct|enum|union|type|trait|mod)\s+(" + alt + r")\b")
     found = set()
     for path in glob.glob("crates/*/**/*.rs", recursive=True) + glob.glob("interval-transcendentals/**/*.rs", recursive=True):
         if path == RUNNING or "/target/" in path:
@@ -292,29 +372,48 @@ def declared_elsewhere():
 
 SHARED = declared_elsewhere()
 SHAPE = {"fn": r"\s*(?:\(|::\s*<)", "value": r"\b", "type": r"\s*(?:::|\{)"}
+GENERICS = r"(?:\s*<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)?"
+
+
+def qualified(code, path, lo, hi, prefix=r"(?:\w+\s*::\s*)*"):
+    """Offsets of `<PATH<…> as …>::` or `<PATH<…>>::` in `code[lo:hi]`, a
+    door type read through a qualified path: the `<` must open the path,
+    not open a generic list (`Vec<PATH>`, `W::<PATH>::new` name a type)."""
+    out = set()
+    for m in re.compile(r"<\s*" + prefix + path + GENERICS + r"\s*(?:>\s*::|as\b)").finditer(code, lo, hi):
+        before = code[:m.start()].rstrip()
+        if not before or not (before[-1].isalnum() or before[-1] in "_>:"):
+            out.add(m.start())
+    return out
 
 
 def sites(text):
     """The offsets of one file's sites: a bare `f64::EPSILON` or a
     `carrier_resolution` call, and every use of a door — by a path through
-    `running` (any shape for a fn or a value, a construction for a type),
-    through the root for a re-exported one, or bare where an import in
-    scope binds the name or no other item of the tree shares it. An import
-    is not a site."""
-    names, modules = bindings(text)
+    `running` (any shape for a fn or a value, a construction or a
+    qualified path for a type), through the crate root for a re-exported
+    one, or bare where an import or a type alias in scope binds the name
+    or no other item of the tree shares it. An import is not a site."""
+    names, modules, crates = bindings(text)
     code = USE.sub(lambda m: " " * len(m.group(0)), text)
-    alts = [FIXED.pattern]
+    n = len(code)
     mods = "|".join(map(re.escape, sorted(modules)))
-    for name, kind in KINDS.items():
-        shape = SHAPE[kind] if kind == "type" else r"\b"
-        alts.append(r"\b(?:" + mods + r")::" + re.escape(name) + shape)
-        if name in ROOT:
-            alts.append(r"\bgeom_core::" + re.escape(name) + shape)
-    names += [(n, n, (0, len(code))) for n in KINDS if n not in SHARED]
-    at = {m.start() for m in re.finditer("|".join(alts), code)}
+    roots = "|".join(map(re.escape, sorted(crates)))
+    at = {m.start() for m in FIXED.finditer(code)}
+    paths = [(r"\b(?:" + mods + r")::" + re.escape(d), d) for d in DOORS]
+    paths += [(r"\b(?:" + roots + r")::" + re.escape(r), d) for r, d in ROOT.items()]
+    for path, door in paths:
+        kind = DOORS[door]
+        at |= {m.start() for m in re.finditer(path + (SHAPE[kind] if kind == "type" else r"\b"), code)}
+        if kind == "type":
+            at |= qualified(code, path, 0, n)
+    names += [(d, d, (0, n)) for d in DOORS if d not in SHARED]
+    names += [(r, d, (0, n)) for r, d in ROOT.items() if r not in SHARED and r not in DOORS]
     for name, door, (lo, hi) in names:
-        bare = re.compile(r"(?<![\w.:])" + re.escape(name) + SHAPE[KINDS[door]])
-        at |= {m.start() for m in bare.finditer(code, lo, hi)}
+        local = r"(?<![\w.:])" + re.escape(name)
+        at |= {m.start() for m in re.compile(local + SHAPE[DOORS[door]]).finditer(code, lo, hi)}
+        if DOORS[door] == "type":
+            at |= qualified(code, local, lo, hi, prefix="")
     return sorted(at)
 
 
@@ -369,7 +468,7 @@ for key in sorted(set(counts) | set(rows)):
         bad.append(f"UNLISTED {key[0]} ({key[1]}): {now} rounding sites, listed {was}")
     elif now < was:
         bad.append(f"STALE {key[0]} ({key[1]}): {now} rounding sites, listed {was}")
-for b in bad:
+for b in ODD + bad:
     print(b)
 print(f"TOTAL {sum(counts.values())} {sum(v for (p, s), v in counts.items() if s == 'prod')}")
 PY
@@ -380,6 +479,11 @@ PY
   fi
   rm -f "$mounts"
   grep '^LINES ' <<<"$report" || true
+  if grep -q '^UNRECOGNISED ' <<<"$report"; then
+    grep '^UNRECOGNISED ' <<<"$report"
+    gate_error "geom_core::running declares or re-exports an item this gate cannot classify as a door (above): a door it cannot classify would go uncounted, so teach \`doors\` its kind"
+    exit 1
+  fi
   if grep -q '^UNLISTED \|^REASON ' <<<"$report"; then
     grep '^UNLISTED \|^REASON ' <<<"$report"
     gate_error "a bare f64::EPSILON / UNIT_ROUNDOFF or a rounding charge outside geom-core: no site charges rounding ([simple.conditioned]). Re-pose the formula (a distance form, a pose decided first), or, for a test's oracle, list it in $LIST with its one-word reason"
@@ -405,9 +509,9 @@ gate_plant_clean() {
     printf 'pub const UNIT_ROUNDOFF: f64 = f64::EPSILON * 0.5;\npub const DIRECTION_UNITS: f64 = 4.0;\n'
     printf 'pub fn rounding_charge(t: f64) -> f64 { t }\npub fn direction_rounding(t: f64) -> f64 { t }\n'
     printf 'pub fn exact_vec(v: f64) -> f64 { v }\npub fn dot(a: f64, b: f64) -> f64 { a * b }\n'
-    printf 'pub struct Rounded { pub value: f64 }\nfn private_helper() {}\n'
+    printf 'pub struct Rounded { pub value: f64 }\nfn private_helper() {}\npub(crate) mod hidden {}\n'
   } > "$1/crates/geom-core/src/running.rs"
-  printf 'pub mod running;\npub use running::{Rounded, UNIT_ROUNDOFF, rounding_charge};\n' > "$1/crates/geom-core/src/lib.rs"
+  printf 'pub mod running;\npub use running::{Rounded, UNIT_ROUNDOFF, rounding_charge, dot, exact_vec as rexact};\n' > "$1/crates/geom-core/src/lib.rs"
   printf 'pub fn dot(a: f64, b: f64) -> f64 { a + b }\npub fn use_it() -> f64 { dot(1.0, 2.0) }\n' >> "$1/crates/clean/src/lib.rs"
 }
 
@@ -485,11 +589,39 @@ plant_glob() { add_clean "$1" 'mod g { use geom_core::running::*; pub fn pad(x: 
 # not `b`'s, a method or the file's own `dot`.
 plant_scoped_import() {
   listed_at "$1" 2
-  add_clean "$1" 'pub fn a(x: f64) -> f64 { use geom_core::running::{dot, exact_vec}; dot(exact_vec(x), x) }'
+  add_clean "$1" 'pub fn a(x: f64, v: V) -> f64 { use geom_core::running::{dot, exact_vec}; v.dot(x); dot(exact_vec(x), x) }'
   add_clean "$1" 'pub fn b(x: f64, v: V) -> f64 { v.dot(x); dot(x, x) }'
 }
-# An import is not a site, nor a type named in a signature.
-plant_import_only() { add_clean "$1" 'use geom_core::{UNIT_ROUNDOFF, running::Rounded};'; add_clean "$1" 'pub fn f(r: Rounded) {}'; }
+# An import is not a site, nor a door type named in a signature or a
+# generic list, nor a restricted item of `running`.
+plant_import_only() {
+  add_clean "$1" 'use geom_core::{UNIT_ROUNDOFF, running::Rounded};'
+  add_clean "$1" 'pub fn f(r: Rounded, v: Vec<geom_core::running::Rounded>) -> Vec<Rounded> { let _ = <Vec<geom_core::running::Rounded>>::new(); W::<geom_core::running::Rounded>::new() }'
+}
+# Each binding arm, planted alone.
+plant_self_as() { add_clean "$1" 'use geom_core::running::{self as r};'; add_clean "$1" 'pub fn pad(x: f64) -> f64 { r::dot(x, x) }'; }
+plant_root_glob() { add_clean "$1" 'mod g { use geom_core::*; pub fn pad(x: f64) -> f64 { dot(x, x) } }'; }
+plant_running_alias() { add_clean "$1" 'mod g { use geom_core::running::dot as rd; pub fn pad(x: f64) -> f64 { rd(x, x) } }'; }
+plant_crate_alias() { add_clean "$1" 'use geom_core as gc;'; add_clean "$1" 'pub fn pad(x: f64) -> f64 { gc::rounding_charge(x) }'; }
+plant_type_alias() { add_clean "$1" 'type R = geom_core::Rounded;'; add_clean "$1" 'pub fn pad() -> f64 { R::exact(0.0).value }'; }
+plant_qualified() { add_clean "$1" 'pub fn pad() -> f64 { <geom_core::running::Rounded>::exact(0.0).value }'; }
+# Doors of each kind `running` may declare, and the root's spellings.
+plant_const_fn_door() {
+  listed_at "$1" 1
+  printf 'pub const fn fresh(t: f64) -> f64 { t }\n' >> "$1/crates/geom-core/src/running.rs"
+  add_clean "$1" 'pub fn pad(x: f64) -> f64 { geom_core::running::fresh(x) }'
+}
+plant_type_door() {
+  printf 'pub type Charge = Rounded;\n' >> "$1/crates/geom-core/src/running.rs"
+  add_clean "$1" 'pub fn pad() -> f64 { geom_core::running::Charge::exact(0.0).value }'
+}
+plant_renamed_root() { add_clean "$1" 'pub fn pad(x: f64) -> f64 { geom_core::rexact(x) }'; }
+plant_crate_path_root() {
+  printf 'pub use crate::running::DIRECTION_UNITS as UNITS;\n' >> "$1/crates/geom-core/src/lib.rs"
+  add_clean "$1" 'pub fn pad(x: f64) -> f64 { x * geom_core::UNITS }'
+}
+plant_unrecognised_item() { printf 'pub mod inner {}\n' >> "$1/crates/geom-core/src/running.rs"; }
+plant_unrecognised_root() { printf 'pub use running::private_helper;\n' >> "$1/crates/geom-core/src/lib.rs"; }
 
 gate_selftest() {
   gate_selftest_clean
@@ -504,6 +636,14 @@ gate_selftest() {
   gate_selftest_case "UNLISTED" plant_alias
   gate_selftest_case "UNLISTED" plant_module_alias
   gate_selftest_case "UNLISTED" plant_glob
+  local p
+  for p in plant_self_as plant_root_glob plant_running_alias plant_crate_alias plant_type_alias plant_qualified \
+      plant_type_door plant_renamed_root plant_crate_path_root; do
+    gate_selftest_case "UNLISTED" "$p"
+  done
+  gate_selftest_passes "a const fn door at its count" plant_const_fn_door
+  gate_selftest_case "UNRECOGNISED" plant_unrecognised_item
+  gate_selftest_case "UNRECOGNISED" plant_unrecognised_root
   gate_selftest_passes "a generic door name under its import, at its count" plant_scoped_import
   gate_selftest_passes "an import and a type in a signature" plant_import_only
   gate_selftest_case "REASON" plant_bad_compound_reason
@@ -513,7 +653,7 @@ gate_selftest() {
   gate_selftest_case "UNLISTED crates/clean/src/lib.rs (test)" plant_test_module_as_prod
   gate_selftest_passes "a listed site" plant_listed
   gate_selftest_passes "a comment, a string and geom-core's own" plant_not_sites
-  printf '%s selftest OK: passes a clean fixture, a listed site, and comments, strings and geom-core; fires on an unlisted site of each spelling (bare, a rounding_charge call, a Rounded path, a carrier_resolution call, a door the gate never names — direction_rounding, a constant, one declared in the fixture running module — an aliased door, an aliased running module, a glob), passes a generic door name counted only under its import in scope and an import or signature type alone, an oracle inside a compound reason, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a listed site, a compound reason, comments, strings and geom-core itself, a generic door name counted only under its import in scope (a method of that name inside the scope not counted), and an import, a restricted item or a door type named in a signature, a generic list or <Vec<Rounded>>:: or a turbofish alone; fires on an unlisted site of each spelling (bare f64::EPSILON and UNIT_ROUNDOFF, a rounding_charge call, a Rounded path, a carrier_resolution call, direction_rounding and a constant the gate never names, a door declared in the fixture running module as a fn or a type alias), passing a const fn door at its exact count,, through each binding (a door alias, a running module alias, {self as r}, a running glob, a root glob, a crate alias, a type alias, a qualified path), through each root spelling (a re-export, renamed, through crate::), on an unrecognised running item or root re-export, an oracle inside a compound reason, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

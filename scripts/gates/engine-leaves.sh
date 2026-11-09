@@ -259,7 +259,16 @@ gate_selftest() {
   esac
   GATE_BASE=refs/gate-base gate_selftest_case --also "RAISED names-boolean other.rs: 0 -> 1" "cite that row" plant_new_line
   GATE_BASE=refs/gate-base gate_selftest_case --also "RAISED ambiguous Plane" "cite that row" plant_ambiguous_new
-  GATE_BASE=refs/gate-base gate_selftest_passes "an ambiguous line new against the base, citing its row" plant_ambiguous_cited
+  # A cited ambiguous line passes, and its green log names it.
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  plant_ambiguous_cited "$tmp"
+  out=$(GATE_BASE=refs/gate-base "$0" --root "$tmp" 2>&1) || { printf 'SELFTEST FAILED: a cited ambiguous line reds:\n%s\n' "$out" >&2; rm -rf "$tmp"; exit 1; }
+  rm -rf "$tmp"
+  case "$out" in
+    *"CITED ambiguous Plane (work/onecopy/rename-row)"*"1 cited rise(s), listed above"*) ;;
+    *) printf 'SELFTEST FAILED: a cited ambiguous line passed without naming itself in the green log:\n%s\n' "$out" >&2; exit 1 ;;
+  esac
   GATE_BASE=refs/gate-base gate_selftest_case --also "RAISED crate-visible boolean/mod.rs: 1 -> 2" "only falls" plant_raised_other
   GATE_BASE=refs/gate-base gate_selftest_case "is not a commit" plant_repo_without_base
   GATE_BASE=refs/gate-base gate_selftest_case "does not exist at the base" plant_base_without_counts
@@ -269,7 +278,7 @@ gate_selftest() {
       plant_local_macro plant_lib_module_reexport; do
     gate_selftest_case --also "ROSE refused-binding" "refused outright" "$p"
   done
-  printf '%s selftest OK: passes a pinned fixture with near misses (a field, a local, a method, a type parameter, Self, another crate'"'"'s item bare and renamed, a private macro) and each counting mechanism at its pin (a glob through the engine, use super::*, a module bound through the engine, a root re-export of an ambiguous name, a crate::Name::… path of any length, super:: and super::super:: climbing to the root, topo:: as crate::, a fn-local const, an associated type in an impl, f::<, mk! and a path-qualified fn, an unknown capitalised head); fires on an engine named through a full path, a hub nested in lib.rs, use super::X, a root glob and a root re-export, across engines by path and by name, on crate-wide visibility (pub(super) in an engine mod.rs included), on a pinned site gone, on a zero, unknown or duplicate baseline line, on a pin above the base pin (an uncited reader pin, a new line, any other kind even cited) while passing one lowered or a cited reader pin (named in the green log), on a base that is not a commit or has no counts file, on an ambiguous name new or gone, on an ambiguous line new against the base while passing one that cites its row, on a module named boolean, and on every refused binding (use crate as, use topo as, #[macro_use] on an engine or inside one, a lib.rs re-export of an engine module, a type alias or macro inside a fn body, use crate::{self as}, use super::{self as} at the root, extern crate self, ::topo::, an item, module or root re-export renamed, a lib.rs re-export renamed, a type alias, a macro spelling the engine), and diagnoses a counter that cannot run or that ends without its TOTAL\n' "$(gate_name)"
+  printf '%s selftest OK: passes a pinned fixture with near misses (a field, a local, a method, a type parameter, Self, another crate'"'"'s item bare and renamed, a private macro) and each counting mechanism at its pin (a glob through the engine, use super::*, a module bound through the engine, a root re-export of an ambiguous name, a crate::Name::… path of any length, super:: and super::super:: climbing to the root, topo:: as crate::, a fn-local const, an associated type in an impl, f::<, mk! and a path-qualified fn, an unknown capitalised head); fires on an engine named through a full path, a hub nested in lib.rs, use super::X, a root glob and a root re-export, across engines by path and by name, on crate-wide visibility (pub(super) in an engine mod.rs included), on a pinned site gone, on a zero, unknown or duplicate baseline line, on a pin above the base pin (an uncited reader pin, a new line, any other kind even cited) while passing one lowered or a cited reader pin (named in the green log), on a base that is not a commit or has no counts file, on an ambiguous name new or gone, on an ambiguous line new against the base while passing one that cites its row (named in the green log), on a module named boolean, and on every refused binding (use crate as, use topo as, #[macro_use] on an engine or inside one, a lib.rs re-export of an engine module, a type alias or macro inside a fn body, use crate::{self as}, use super::{self as} at the root, extern crate self, ::topo::, an item, module or root re-export renamed, a lib.rs re-export renamed, a type alias, a macro spelling the engine), and diagnoses a counter that cannot run or that ends without its TOTAL\n' "$(gate_name)"
 }
 
 # `--lines FILE` (relative to crates/topo/src) lists that file's counted
