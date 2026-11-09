@@ -136,9 +136,7 @@ use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
 use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
-use geom_core::{
-    Band, Decide, Indeterminate, InfSpeed, Lever, Margin, MarginDiag, Point3, Sign, Vec3,
-};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
@@ -1042,85 +1040,8 @@ impl<T: Decide> ConicArc<T> {
     }
 }
 
-/// The K rows one [`arc_trim`] consumer decides on.
-pub(crate) struct ArcTrimRows {
-    /// A point's distance to either end of the arc.
-    pub(crate) end: &'static str,
-    /// The two-term chordal margin: which side of the ends.
-    pub(crate) trim: &'static str,
-}
-
-/// **Whether `p`, a point on a circle, lies inside the arc of it whose
-/// ends are `ends` and whose apex is `apex`** (`anti` the apex's
-/// antipode) — decided as DISTANCES, never as an angle, and the one
-/// home of that rule: tier 3's check 9 trims an edge with it (a ray's
-/// crossing of a loop's arc is the plane door's, placed on the arc's
-/// span there: [`conic_crossings`]). Every length is
-/// multiplied by `rate` on its way to a margin: `1` for points given
-/// in metres, the smaller semi-axis for points given in a conic's unit
-/// coordinates (exact for a circle, conservative for an ellipse).
-///
-/// 1. **At an end**: `p` within the band of either end, measured as
-///    `|p − end|`, answers `Zero`. That is the ONLY way an endpoint
-///    neighbourhood counts: an angular window compresses arc length
-///    near an end by `sin(w/2)`, so on a short arc (and by `sin` of the
-///    complement on a near-full one) its `Zero` reaches `ε / sin(w/2)`
-///    along the carrier, a hundred times `ε` at `w = 0.02`.
-/// 2. **Otherwise, which side of the ends**: the sum of two chordal
-///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
-///    is an end, `m` the apex and `m′` its antipode. Chord length is
-///    monotone in angular distance up to a half turn, so each term is
-///    positive exactly on the arc; near an end they move as `cos(w/4)`
-///    and `sin(w/4)` times the arc length, whose sum is at least 1, so
-///    the margin is never compressed below the distance it measures —
-///    on a short arc, a near-full one, or a whole circle (where `m′` is
-///    the end and every point is inside). Its `Zero` is therefore within
-///    the band of an end, which step 1 has already answered.
-///
-/// `Positive` inside, `Negative` past an end, `Zero` at an end or in
-/// the trim's band.
-///
-/// **A DECIDED membership, and so not
-/// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
-/// the one place that says why, for this trim. That door answers "may hold" wherever
-/// exclusion is unproved, which is the sound answer for a caller
-/// selecting between two bounds that each hold either way. A decided
-/// membership has no such free answer: an uncertain one escalates, and
-/// its band is a length — measured along the carrier here, levered by
-/// the radius there — never a bare angle.
-///
-/// # Errors
-///
-/// An in-band end distance with neither end definitely `Zero`, or an
-/// in-band trim margin.
-pub(crate) fn arc_trim<T: Decide>(
-    p: Point3<T>,
-    ends: [Point3<T>; 2],
-    apex: Point3<T>,
-    anti: Point3<T>,
-    rate: InfSpeed<T>,
-    rows: &ArcTrimRows,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    let [a, b] = ends;
-    let at = [
-        decide(rows.end, Margin::metered((p - a).norm(), rate), band),
-        decide(rows.end, Margin::metered((p - b).norm(), rate), band),
-    ];
-    if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
-        return Ok(Sign::Zero);
-    }
-    if let Some(diag) = at.into_iter().find_map(Result::err) {
-        return Err(diag);
-    }
-    decide(
-        rows.trim,
-        Margin::metered(arc_trim_margin(p, a, apex, anti), rate),
-        band,
-    )
-}
-
-/// [`arc_trim`]'s step 2 alone — the sum of two chordal defects,
+/// The arc trim's step 2 alone (`validate`'s check 9 reads the whole
+/// trim, `arc_trim`) — the sum of two chordal defects,
 /// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, positive on the arc and
 /// never compressed below the angle to the nearer end — for a caller that
 /// has decided the ends by another metric first (an ellipse's exact end
@@ -2115,9 +2036,10 @@ fn conic_crossings<T: Decide>(
         band,
     )? {
         CoSurface::Roots(roots) => roots,
-        // Tangent to the conic within the arc, or the arc wholly in the
-        // ray's square plane (a conic stood on edge, only on the
-        // projected read): a graze.
+        // Tangent to the conic where a root can reach the arc (the door
+        // reads a graze's root spread against the span itself), or the
+        // arc wholly in the ray's square plane (a conic stood on edge,
+        // only on the projected read): a graze.
         CoSurface::Touch | CoSurface::InPlane => return Ok(None),
         CoSurface::Unlaned => unreachable!("a conic arc crosses a plane in closed form"),
     };
@@ -2139,6 +2061,9 @@ fn conic_crossings<T: Decide>(
             // the door's span reading disagree inside the band — a graze
             // all the same, never a count.
             RootPlace::AtEnd => return Ok(None),
+            // A count needs every root: one in band of an end sets the
+            // ray aside (not a search's kept reading; the callee register
+            // names it).
             RootPlace::Undecided(diag) => return Err(diag),
         }
     }
@@ -2868,7 +2793,11 @@ mod tests {
         };
         let lever = a.min(b);
         let gap = T::tau() - (t1 - t0);
-        let low = decide_reported(rows.turn, Margin::metered(gap, InfSpeed::new(lever)), band);
+        let low = decide_reported(
+            rows.turn,
+            Margin::metered(gap, geom_core::InfSpeed::new(lever)),
+            band,
+        );
         if let Ok(Decided {
             sign: Sign::Negative,
             ..

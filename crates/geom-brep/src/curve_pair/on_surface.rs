@@ -10,7 +10,8 @@
 //! its plane ([`Section`]).
 //!
 //! A plane through a curve on the surface cuts the surface in that curve
-//! and a few others (a plane's line square to it, in that line alone): a cylinder's plane through the axis in two rulings, a
+//! and a few others: a plane's square plane through a line of it in that
+//! line alone, a cylinder's plane through the axis in two rulings, a
 //! cone's in four half-generators, a torus's planes in two circles. Which
 //! of them a root lies on is read through the chart's channels
 //! ([`geom::ChartChannels::read`]) on the caller's row, so the reading
@@ -279,9 +280,10 @@ impl<T: Decide> SurfaceCurve<T> {
     }
 
     /// **A plane's `u`-line through `uv`**: the line from the point `uv`
-    /// names along the plane's `u_ref`. Its plane is the one through it
-    /// square to the surface, of normal `v_ref`, which cuts the plane in
-    /// this line alone ([`Section::Whole`]).
+    /// names along the plane's `u_ref`, normalised as [`Self::ruling`]'s
+    /// direction is, so places along it are metres. Its plane is the one
+    /// through it square to the surface, of unit normal `v_ref`, which cuts
+    /// the plane in this line alone ([`Section::Whole`]).
     ///
     /// # Errors
     ///
@@ -297,9 +299,9 @@ impl<T: Decide> SurfaceCurve<T> {
             chart,
             shape: Shape::Line(geom::Line {
                 origin: start,
-                dir: f.u_ref,
+                dir: f.u_ref.normalize(),
             }),
-            plane: (start, f.v_ref()),
+            plane: (start, f.v_ref().normalize()),
             section: Section::Whole,
         })
     }

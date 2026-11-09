@@ -3661,6 +3661,12 @@ This joins:
 - `point_in_arc_loop_conic_in_plane`: an arc's offset from the ray's square
   plane it is parallel to, which only the projected read can reach.
 
+**Joins with the door (PR 6609 review, M1):** `plane_crossing_graze_reach`, a
+graze's extremum's metered distance into the span widened by its root spread
+`acos(1 − z/r)` at each end. A belly read `Zero` keeps only the extremum, so
+an extremum just off the span answers a touch, not a miss
+(`span_plane_meet`, for every reader of the door).
+
 `point_in_arc_loop_conic_advance` stays, now `(y − q)·d` in metres along the
 unit ray (the old `s/dn`, the same quantity). `plane_crossing_belly_graze`,
 `_plane_parallel`, `_graze_side` and `_root_in_span` gain the walk's

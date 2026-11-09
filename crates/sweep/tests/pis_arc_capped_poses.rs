@@ -269,12 +269,12 @@ fn probes(case: &Case) -> Vec<(Point3<f64>, bool)> {
 /// refusal must be an in-band escalation (the solid walk's own, or the
 /// in-face walk's, which arrives as `Loop(Escalated)`), the honest
 /// posture for a margin it cannot decide, and at most one probe in
-/// twenty per cell. Measured: at ε = 1e-6 the torus barrel at the
-/// (1,2,3) pose escalates 5 of its 117 probes on
-/// `point_in_arc_loop_conic_disc` — an in-face ray passing within a
-/// band's width of tangent to the 3/64 m cap circle. (That tangency is
-/// the plane door's `plane_crossing_belly_graze` since the ray's crossing
-/// moved onto it.)
+/// twenty per cell. Where they arise, as at ε = 1e-6 on the torus barrel
+/// at the (1,2,3) pose, it is an in-face ray passing within a band's
+/// width of tangent to the 3/64 m cap circle, on the plane door's
+/// `plane_crossing_belly_graze`. (The count measured there was taken on
+/// the unit-circle chord's margin, before the ray's crossing moved onto
+/// the door, so it is not restated.)
 #[test]
 fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
     let band = Band::linear(tol()).expect("the witness band");

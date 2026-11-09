@@ -88,7 +88,7 @@ crate-visible               3  boolean/torus_region.rs
 crate-visible               2  boolean/voids.rs
 crate-visible               4  boolean/vtxfac.rs
 crate-visible               5  boolean/zip.rs
-crate-visible              51  splitting/containment.rs
+crate-visible              47  splitting/containment.rs
 crate-visible              11  splitting/finish.rs
 crate-visible               8  splitting/join.rs
 crate-visible              17  splitting/mod.rs
@@ -190,7 +190,7 @@ names-splitting             2  surgery.rs
 names-splitting             2  test_support_fixtures.rs
 names-splitting            27  test_support_samples.rs
 names-splitting            13  tier3_tests.rs
-names-splitting            44  validate.rs
+names-splitting            42  validate.rs
 names-splitting            31  vertex_section.rs
 
 refused-binding             2  boolean/contain.rs
