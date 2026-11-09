@@ -195,7 +195,7 @@ pub(crate) fn mid<T: Bounds>(v: T) -> f64 {
 /// `hi − lo` is exact, the last bit otherwise. A hand spelling of either
 /// is refused by `scripts/gates/bracket-mid-by-hand.sh`. The form is
 /// load-bearing at an infinite point `(∞, ∞)`, where it is NaN and
-/// `½(lo + hi)` is `∞`: [`mid`] says why projection needs that. It is
+/// `½(lo + hi)` is `∞`: `mid` (above) says why projection needs that. It is
 /// the identity on a finite point. On
 /// a bracket with an infinite end it is not finite: NaN where `hi − lo`
 /// is (both ends infinite on one side, or `(−∞, +∞)`), and that infinite
