@@ -20,7 +20,7 @@ fn tol() -> Tol {
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
-    finished(what, brick(x, y, z, tol()), tol())
+    finished(what, brick::<f64>(x, y, z, tol()), tol())
 }
 
 /// `a ∪ b` under `inputs`, which must build a body.
@@ -181,7 +181,11 @@ fn turned_square(centre: (f64, f64), turn: f64, what: &str) -> AtRestBody<f64> {
     let corners = [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]
         .map(|(x, y)| (centre.0 + x, centre.1 + y))
         .map(|(x, y)| (c * x - s * y, s * x + c * y));
-    finished(what, common::prism_z(&corners, 0.0, 1.0, tol()).body, tol())
+    finished(
+        what,
+        common::prism_z::<f64>(&corners, 0.0, 1.0, tol()).body,
+        tol(),
+    )
 }
 
 /// The face-pair rows of `r`: the rows naming a face of each operand.
@@ -253,7 +257,7 @@ fn blocks_side_by_side_record_equal_rows_axis_aligned_and_turned() {
 fn a_block_apart_in_an_l_notch_records_no_row() {
     let l = finished(
         "the L-prism",
-        common::prism_z(
+        common::prism_z::<f64>(
             &[
                 (0.0, 0.0),
                 (4.0, 0.0),
@@ -509,8 +513,11 @@ fn a_pinch_records_the_vertex_identity_that_made_it() {
             Operand::B => Operand::A,
         };
         for (op, run) in [
-            ("intersect", topo::intersect::<f64> as fn(_, _, _) -> _),
-            ("union", topo::union::<f64>),
+            (
+                "intersect",
+                topo::intersect::<topo::AtRestBody<f64>> as fn(_, _, _) -> _,
+            ),
+            ("union", topo::union::<topo::AtRestBody<f64>>),
         ] {
             let what = format!("{order} {op}");
             let r = match run(x, y, tol()) {
@@ -767,9 +774,12 @@ fn every_pinch_over_the_poses_records_a_row() {
         let cube = cube_beyond(m, 4.0);
         for (order, x, y) in [("prism-cube", &prism, &cube), ("cube-prism", &cube, &prism)] {
             for (op, run) in [
-                ("intersect", topo::intersect::<f64> as fn(_, _, _) -> _),
-                ("union", topo::union::<f64>),
-                ("subtract", topo::subtract::<f64>),
+                (
+                    "intersect",
+                    topo::intersect::<topo::AtRestBody<f64>> as fn(_, _, _) -> _,
+                ),
+                ("union", topo::union::<topo::AtRestBody<f64>>),
+                ("subtract", topo::subtract::<topo::AtRestBody<f64>>),
             ] {
                 let what = format!("{m:?} {order} {op}");
                 let r = match run(x, y, tol()) {

@@ -266,7 +266,7 @@ fn clear_of_singular(
                 origin: center,
                 dir: axis,
             };
-            clear(SINGULAR, axis_line.offset(station).norm())
+            clear(SINGULAR, axis_line.distance(station))
         }
         _ => true,
     }

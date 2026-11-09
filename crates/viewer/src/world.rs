@@ -589,22 +589,6 @@ pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNod
     copies_where(doc, |copied| copied == var)
 }
 
-/// **Every placement reading `var` whole**, in document order, whatever
-/// space it stands in: the copies the placement editor's doors answer
-/// to. It is wider than [`placements_of_var`], the gesture vocabulary's
-/// copies, which leaves out a copy into a space whose bodies a placement
-/// copies out (a body moved in its own space, a pattern's family): for
-/// the editor that copy is still what places the body, so the body moves
-/// by its Edit door and is never placed a second time by a Create.
-pub fn placements_reading(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
-    doc.placements()
-        .into_iter()
-        .filter(|&placement| {
-            matches!(doc.node(placement), Some(Node::Place { source, .. }) if source.read == var)
-        })
-        .collect()
-}
-
 /// **Whether `placement` repeats its source**: it reaches an index its
 /// source does not, so it is a pattern's family and its values are the
 /// pattern's rule.

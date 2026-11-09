@@ -31,3 +31,7 @@ The bare-number forms move to `geom_core::test_support` (behind the fixture gate
 The 63 arms pinned `unsourced` are the other half of the violation, and they are filed on `unsourced-levers-await-a-source.md`. This row covers the constructor doors.
 
 **Evidence:** PR 6391's review report (`onehome/one-extent`, head `083c51ce`), finding M1.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.

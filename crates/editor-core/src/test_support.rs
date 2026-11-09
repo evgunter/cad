@@ -82,7 +82,7 @@ pub fn len2(v: [f64; 2]) -> [Formula; 2] {
 /// # Panics
 ///
 /// At a member that is a boolean's empty result.
-pub fn every_body<T: geom_core::Decide>(
+pub fn every_body<T: geom_core::Decide + topo::AtRestPolicy>(
     members: &[Option<crate::Framed<T>>],
 ) -> Vec<&crate::Framed<T>> {
     members
@@ -595,10 +595,10 @@ pub fn axes_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
     use geom_core::linalg::Vec3 as V;
     let u = V::new(u[0], u[1], u[2]);
     let v = V::new(v[0], v[1], v[2]);
-    let x = u * (1.0 / u.norm());
+    let x = u.normalize();
     let y = v - x * v.dot(x);
     assert!(y.norm() > 0.0, "the frame's axes span a plane");
-    let y = y * (1.0 / y.norm());
+    let y = y.normalize();
     let z = x.cross(y);
     crate::Frame {
         columns: [[x.x, x.y, x.z], [y.x, y.y, y.z], [z.x, z.y, z.z]],
@@ -646,7 +646,7 @@ pub fn plane_on(
         crate::mate::corner::read_of(doc, &ev, &body).expect("the body has a value");
     let solid = framed.body();
     let n = V::new(normal[0], normal[1], normal[2]);
-    let n = n * (1.0 / n.norm());
+    let n = n.normalize();
     let o = Point3::new(origin[0], origin[1], origin[2]);
     let parallel: Vec<_> = solid
         .faces()
@@ -1396,18 +1396,6 @@ pub fn assemble_world_copies_edits(
         },
     );
     (doc, log)
-}
-
-/// **What the at-rest check could not look at in one gathered
-/// `product`**, read as the `AtRest` resident reads it: for a row at a
-/// scalar the checks registry cannot run at (a dual, which carries no
-/// chart-coherence lane), whose census is structurally absent
-/// ([`crate::AtRestEvidence::NotRun`]).
-pub fn at_rest_could_not_look<T: crate::checks::at_rest::LocalizeLane>(
-    product: &crate::Product<T>,
-    tol: geom_core::Tol,
-) -> Vec<crate::AtRestEvidence> {
-    crate::checks::at_rest::reading(product, tol).could_not_look
 }
 
 /// The judgement whose naming [`with_judgement_naming_fault`] refuses,

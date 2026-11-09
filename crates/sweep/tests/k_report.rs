@@ -96,7 +96,7 @@ fn run_shape(build: impl FnOnce() -> topo::Body<Probe>) -> Vec<MarginSample> {
     let body = build();
     validate(&body).expect("tier 1");
     validate_closed(&body).expect("tier 2");
-    let body = topo::AtRestBody::validate(body, Tol::witness()).expect("tier 3");
+    let body = topo::finish(body, Tol::witness()).expect("tier 3");
     mass_properties(
         &body,
         Tol::witness(),
@@ -130,6 +130,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
         (
@@ -152,6 +153,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
         (
@@ -179,6 +181,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
         (
@@ -193,6 +196,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
         (
@@ -207,6 +211,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
         (
@@ -222,6 +227,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
         (
@@ -236,6 +242,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
         (
@@ -251,6 +258,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
         (
@@ -266,6 +274,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
         (
@@ -281,6 +290,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 )
                 .unwrap()
                 .body
+                .into_body()
             }),
         ),
     ]

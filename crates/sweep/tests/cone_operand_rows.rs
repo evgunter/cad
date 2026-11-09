@@ -42,7 +42,8 @@ fn revolved(polygon: &[(f64, f64)], theta: Option<f64>) -> AtRestBody<f64> {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     if theta.is_none() {
         body.merge_coplanar_faces(Tol::witness()).unwrap();
     }
@@ -66,7 +67,7 @@ fn cone(theta: Option<f64>) -> (AtRestBody<f64>, Solid) {
 fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> (AtRestBody<f64>, Solid) {
     let tol = Tol::witness();
     (
-        finished("the brick", brick(x, y, z, tol), tol),
+        finished("the brick", brick::<f64>(x, y, z, tol), tol),
         Solid::Brick([x, y, z]),
     )
 }

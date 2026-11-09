@@ -102,9 +102,13 @@ fn flush_on(normals: &[Axis]) -> BTreeSet<AxisPair> {
 fn a_union_records_each_flush_face_it_holds_through_another_in_either_operand_order() {
     let tol = Tol::witness();
     let unit = (0.0, 1.0);
-    let a = finished("a", brick((0.0, 2.0), unit, unit, tol), tol);
-    let inside = finished("inside", brick((0.5, 1.5), unit, unit, tol), tol);
-    let poking = finished("poking", brick((0.5, 1.5), unit, (0.0, 2.0), tol), tol);
+    let a = finished("a", brick::<f64>((0.0, 2.0), unit, unit, tol), tol);
+    let inside = finished("inside", brick::<f64>((0.5, 1.5), unit, unit, tol), tol);
+    let poking = finished(
+        "poking",
+        brick::<f64>((0.5, 1.5), unit, (0.0, 2.0), tol),
+        tol,
+    );
     let walls_and_caps = flush_on(&[[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]]);
     let walls_and_bottom = flush_on(&[[0, -1, 0], [0, 1, 0], [0, 0, -1]]);
     for (label, x, y, kind, want) in [
@@ -210,7 +214,7 @@ fn a_dropped_face_is_cut_where_the_kept_face_holding_it_ends() {
     let b = finished("b", brick::<f64>((0.5, 1.5), unit, unit, tol), tol);
     let slab = finished(
         "slab",
-        brick((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol),
+        brick::<f64>((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol),
         tol,
     );
     let BooleanResult::Body(cut) = union(&b, &slab, tol).expect("b ∪ slab") else {
@@ -284,17 +288,17 @@ fn a_cut_goes_only_into_the_fragment_it_lies_in() {
     let b = finished("b", brick::<f64>((0.5, 1.5), unit, unit, tol), tol);
     let slab = finished(
         "slab",
-        brick((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol),
+        brick::<f64>((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol),
         tol,
     );
     let pillar = finished(
         "pillar",
-        brick((0.1, 0.2), (0.4, 0.6), (0.5, 2.0), tol),
+        brick::<f64>((0.1, 0.2), (0.4, 0.6), (0.5, 2.0), tol),
         tol,
     );
     let bridge = finished(
         "bridge",
-        brick((0.15, 0.55), (0.45, 0.55), (1.5, 1.8), tol),
+        brick::<f64>((0.15, 0.55), (0.45, 0.55), (1.5, 1.8), tol),
         tol,
     );
     let fused = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| -> AtRestBody<f64> {
@@ -345,7 +349,7 @@ fn coplanar_faces_that_share_no_region_are_not_substituted() {
     let unit = (0.0, 1.0);
     let a = finished("a", brick::<f64>(unit, unit, unit, tol), tol);
     for (label, other) in [
-        ("edge", brick((1.0, 2.0), (1.0, 2.0), unit, tol)),
+        ("edge", brick::<f64>((1.0, 2.0), (1.0, 2.0), unit, tol)),
         ("apart", brick((2.0, 3.0), unit, unit, tol)),
     ] {
         let other = finished(label, other, tol);
@@ -568,9 +572,13 @@ fn equal_height_blocks_overlapping_in_part_unite_alike_in_either_order() {
 fn a_containment_fallback_writes_each_row_from_the_face_its_result_holds() {
     let tol = Tol::witness();
     let unit = (0.0, 1.0);
-    let a = finished("a", brick((0.0, 2.0), unit, unit, tol), tol);
-    let inside = finished("inside", brick((0.5, 1.5), unit, unit, tol), tol);
-    let on = finished("on", brick((0.5, 1.5), (0.25, 0.75), (1.0, 2.0), tol), tol);
+    let a = finished("a", brick::<f64>((0.0, 2.0), unit, unit, tol), tol);
+    let inside = finished("inside", brick::<f64>((0.5, 1.5), unit, unit, tol), tol);
+    let on = finished(
+        "on",
+        brick::<f64>((0.5, 1.5), (0.25, 0.75), (1.0, 2.0), tol),
+        tol,
+    );
     let walls_and_caps = flush_on(&[[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]]);
     let on_top = BTreeSet::from([([0, 0, -1], [0, 0, 1])]);
     let cases: [(&str, Op, _, _, _); 3] = [
@@ -722,18 +730,30 @@ fn a_containment_fallback_cuts_a_dropped_face_held_in_part() {
 fn the_rows_resolve_in_every_op_and_path() {
     let tol = Tol::witness();
     let unit = (0.0, 1.0);
-    let a = finished("a", brick((0.0, 2.0), unit, unit, tol), tol);
-    let poking = finished("poking", brick((0.5, 1.5), unit, (0.0, 2.0), tol), tol);
+    let a = finished("a", brick::<f64>((0.0, 2.0), unit, unit, tol), tol);
+    let poking = finished(
+        "poking",
+        brick::<f64>((0.5, 1.5), unit, (0.0, 2.0), tol),
+        tol,
+    );
     let BooleanResult::Body(stepped) = union(
-        &finished("top", brick((1.5, 2.5), (0.25, 0.75), (1.0, 2.0), tol), tol),
-        &finished("dip", brick((1.9, 2.5), (0.4, 0.6), (0.5, 1.5), tol), tol),
+        &finished(
+            "top",
+            brick::<f64>((1.5, 2.5), (0.25, 0.75), (1.0, 2.0), tol),
+            tol,
+        ),
+        &finished(
+            "dip",
+            brick::<f64>((1.9, 2.5), (0.4, 0.6), (0.5, 1.5), tol),
+            tol,
+        ),
         tol,
     )
     .expect("the stepped block builds") else {
         panic!("the stepped block is not empty");
     };
     let stepped = stepped.body;
-    let ys = finished("ys", brick((-1.0, 3.0), unit, (-1.0, 2.0), tol), tol);
+    let ys = finished("ys", brick::<f64>((-1.0, 3.0), unit, (-1.0, 2.0), tol), tol);
     let walls_and_bottom = flush_on(&[[0, -1, 0], [0, 1, 0], [0, 0, -1]]);
     let on_top = BTreeSet::from([([0, 0, 1], [0, 0, -1])]);
     let cases: [(&str, Op, _, _, _, _); 3] = [

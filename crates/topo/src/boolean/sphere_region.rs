@@ -132,9 +132,11 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
+use geom_brep::curve_pair::on_surface::SurfaceCurve;
+
 use super::region::{
-    self, End, Fault, Leg, LegSection, Legs, Path, Paths, QueryFoot, Region, RegionEdge,
-    RegionRefusal, Round, circle_edge_hit, targets,
+    self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
+    circle_edge_hit, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -181,9 +183,9 @@ type Arc<T> = RegionEdge<T>;
 /// component along `a` its own size times the rounding, which no ray
 /// parameter survives, so the projection is taken again.
 fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
-    let t = raw / raw.norm();
+    let t = raw.normalize();
     let t = t - a * a.dot(t);
-    t / t.norm()
+    t.normalize()
 }
 
 /// `face`'s region on its sphere `(center, radius)`, or `None` when an
@@ -316,7 +318,7 @@ impl<T: Decide> SphereFaceRegion<T> {
         let w = m - self.center;
         let into = self.outward(m).cross(arc.traversal(t));
         let (sin, cos) = phi.sin_cos();
-        Some(self.center + (w / w.norm() * cos + into / into.norm() * sin) * self.radius)
+        Some(self.center + (w.normalize() * cos + into.normalize() * sin) * self.radius)
     }
 
     /// A lower bound on the distance from `m` to every arc but the `k`th:
@@ -356,19 +358,14 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, foot: QueryFoot<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        Leg::whole(Round::through(
-            foot,
-            self.center,
-            self.unit(foot).cross(t),
-            self.radius,
-            LegSection::Whole,
-        ))
+        let curve = SurfaceCurve::great_circle(&self.surface(), foot.uv(), t);
+        Leg::whole(Round::on(region::built(curve)))
     }
 
     /// The unit direction of `foot` from the centre.
     fn unit(&self, foot: QueryFoot<T>) -> Vec3<T> {
         let w = foot.at() - self.center;
-        w / w.norm()
+        w.normalize()
     }
 }
 
@@ -421,7 +418,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         }
         let unit = |y: Point3<T>| {
             let w = y - self.center;
-            w / w.norm()
+            w.normalize()
         };
         let (a, b) = (self.unit(p), unit(target));
         let across = a.cross(b);
@@ -445,21 +442,12 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
             row: "bool_sphere_region_corner",
             open: false,
         };
-        // The parallel about `a` through the corner: at `a·R cos θ` from
-        // the centre, of radius `R sin θ`, starting along `side`.
-        let (center, radius) = (self.center + a * (self.radius * cos), self.radius * sin);
-        let normal = if then_forward { a } else { -a };
-        // The corner is a foot of its own, read on the sphere.
-        let corner = QueryFoot::read(&Legs::surface(self), corner, band);
-        let then = move || {
-            Leg::whole(Round::through(
-                corner,
-                center,
-                normal,
-                radius,
-                LegSection::Whole,
-            ))
-        };
+        // The parallel about `a` through the corner, starting along
+        // `side`; the corner is a foot of its own, read on the sphere.
+        let surface = Legs::surface(self);
+        let corner = QueryFoot::read(&surface, corner, band);
+        let curve = SurfaceCurve::about(&surface, p.uv(), corner.uv(), then_forward);
+        let then = move || Leg::whole(Round::on(region::built(curve)));
         Ok((first, end, then))
     }
 }
@@ -517,7 +505,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
         let w = y - self.center;
-        geom_brep::OutwardNormal::from_chart(w / w.norm(), self.sense).vec()
+        geom_brep::OutwardNormal::from_chart(w.normalize(), self.sense).vec()
     }
 }
 

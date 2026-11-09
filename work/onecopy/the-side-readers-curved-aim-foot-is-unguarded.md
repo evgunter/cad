@@ -2,7 +2,7 @@
 id: the-side-readers-curved-aim-foot-is-unguarded
 kind: issue
 title: side_reader_aims_ask_nothing no longer sees a curved aim's foot: curve_foot_branch is unlogged (F31)
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P3
 cost: E

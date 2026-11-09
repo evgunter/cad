@@ -578,11 +578,9 @@ pub use topo::{
 // --- 6. Mass properties ---------------------------------------
 // `Settle` is what a measurement is asked (`[tolerance.measure]`), with
 // the vocabulary its variants carry, and `Stop` why it stopped.
-// `VolumeEnclosure` is a certificate's bracket, and `CertifiedBody` is
-// `StepImport::Solid::body`, the body held with its certificate: the
-// curated-type rule (the
-// `coherence` note below) says a caller able to hold it must be able to
-// spell it. `MassMeasurement` is what a measurement answers, and
+// `VolumeEnclosure` is a certificate's bracket. `MassMeasurement` is
+// what a measurement answers (a finished body's `AtRestBody::measure`
+// continues its finish's certificate to one), and
 // `SettleVerdict` what `Stop::Settled` says a deciding predicate
 // decided; each is the one name in Rust and Python (Python's
 // `MassMeasurement.verdict` is a `SettleVerdict`, spelled as its words).
@@ -590,8 +588,8 @@ pub use topo::{
 // `Unmet` what `MassMeasurement::met` answers where the number went
 // unmet.
 pub use topo::{
-    CertifiedBody, MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle,
-    SettleVerdict, ShellRole, SignNames, Stop, Unmet, VolumeEnclosure, mass_properties,
+    MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle, SettleVerdict, ShellRole,
+    SignNames, Stop, Unmet, VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

@@ -87,7 +87,7 @@ pub fn tangent_jet<T: Real>(
     // direction d̂ = n̂ × τ̂.
     let n_hat = g1 / n1;
     let d = n_hat.cross(tangent.normalize());
-    let d_hat = d / d.norm();
+    let d_hat = d.normalize();
     // κᵢ = σᵢ·d̂ᵀ(∇²Fᵢ)d̂ / |∇Fᵢ| (docs on `kappa_rel`), both spelled
     // alike so a surface against itself reads κ_rel = 0 exactly;
     // σ₁ = +1 because n̂ is ∇F₁'s own direction.

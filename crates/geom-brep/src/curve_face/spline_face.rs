@@ -646,7 +646,7 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         let v3 = |v: [f64; 3]| Vec3::new(v[0], v[1], v[2]);
         let unit = |v: Vec3<f64>| {
             let n = v.norm();
-            (n > 0.0 && n.is_finite()).then(|| v / n)
+            (n > 0.0 && n.is_finite()).then(|| v.normalize())
         };
         for reach in SECTOR_REACHES {
             let r = rho * reach;

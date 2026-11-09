@@ -50,7 +50,8 @@ fn main() {
         Tol::witness(),
     )
     .expect("the ball revolves")
-    .body;
+    .body
+    .into_body();
 
     // Premise 1 — the one the tour row proves: nothing scaffolded.
     let scaffolds = ball

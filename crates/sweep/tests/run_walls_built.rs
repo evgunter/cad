@@ -868,7 +868,7 @@ fn seam_vertex_fires_only_where_rim_of_lists_the_rim() {
         ),
     ] {
         let r = revolve(&prof(vec![pts(&p)]), y_axis(), Revolution::Full, t).unwrap();
-        bodies.push((format!("full revolve of the {name}"), r.body));
+        bodies.push((format!("full revolve of the {name}"), r.body.into_body()));
     }
     let mut fired = 0;
     for (label, b) in &bodies {

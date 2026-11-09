@@ -100,7 +100,7 @@ fn lofts_at_interval(n: usize, deg: usize) {
     #[allow(clippy::cast_precision_loss)]
     let z: Vec<f64> = (0..n).map(|k| k as f64).collect();
     let places = lift_places::<Interval>(&stacked(&z, 1.0), Tol::witness());
-    if let Err(e) = loft_body::<Interval>(
+    if let Err(e) = sweep::test_support::loft_body_construction::<Interval>(
         &lift_sections::<Interval>(&sections(n)),
         &places,
         deg,

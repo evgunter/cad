@@ -13,8 +13,8 @@ use crate::common;
 
 use geom_core::{Point3, Tol};
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanInputs, BooleanOp, BooleanResult, Cell, Cited, Cites,
-    Contact, ContactRecords, VertexKey,
+    Body, BooleanError, BooleanInputs, BooleanOp, BooleanResult, Cell, Cited, Cites, Contact,
+    ContactRecords, VertexKey,
 };
 
 fn tol() -> Tol {
@@ -54,7 +54,7 @@ fn carried_union(
     )]
     .into_iter()
     .collect();
-    let base = AtRestBody::validate(base.clone(), tol()).unwrap();
+    let base = topo::finish(base.clone(), tol()).unwrap();
     let far = common::finished("far", brick((10.0, 11.0), (10.0, 11.0), (0.0, 1.0)), tol());
     let inputs = BooleanInputs {
         records_a: record.carried(),

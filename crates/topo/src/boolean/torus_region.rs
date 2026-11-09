@@ -96,9 +96,11 @@
 use geom_brep::curve_face::plane_crossing::{RootPlace, span_place};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
+use geom_brep::curve_pair::on_surface::{Section, SurfaceCurve};
+
 use super::region::{
-    self, End, Fault, LegSection, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge,
-    RegionRefusal, Round, circle_edge_hit, in_band,
+    self, End, Fault, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge, RegionRefusal, Round,
+    circle_edge_hit, in_band,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -236,49 +238,19 @@ impl<T: Decide> TorusFaceRegion<T> {
         geom::Frame::new(self.center, self.axis, self.u_ref)
     }
 
-    /// The unit radial direction at azimuth `u`.
-    fn radial(&self, u: T) -> Vec3<T> {
-        let f = self.frame();
-        let (sin, cos) = u.sin_cos();
-        f.u_ref * cos + f.v_ref() * sin
-    }
-
     /// The parallel through `p`, run `forward` (the major angle
-    /// increasing) or back: the tube's circle at `p`'s tube angle.
+    /// increasing) or back: the tube's circle at `p`'s tube angle, on
+    /// the tube side `p` lies on ([`Section::TubeSide`]).
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let (sin, cos) = p.uv().y.sin_cos();
-        let normal = if forward { self.axis } else { -self.axis };
-        Leg::whole(Round::through(
-            p,
-            self.center + self.axis * (self.minor * sin),
-            normal,
-            self.major + self.minor * cos,
-            // The tube side `p` lies on, as a unit: a root's `ρ − R` is
-            // read along it in metres.
-            LegSection::TubeSide {
-                toward: geom::Azimuth::of(T::zero(), cos.select_le_zero(-T::one(), T::one())),
-            },
-        ))
+        let curve = SurfaceCurve::parallel(&self.surface(), p.uv(), forward);
+        Leg::whole(Round::on(region::built(curve)))
     }
 
     /// The meridian through `p`, run `forward` (the minor angle
     /// increasing) or back: the tube's circle at `p`'s azimuth.
     fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let u = p.uv().x;
-        let radial = self.radial(u);
-        let normal = radial.cross(self.axis);
-        let normal = if forward { normal } else { -normal };
-        let (sin_u, cos_u) = u.sin_cos();
-        Leg::whole(Round::through(
-            p,
-            self.center + radial * self.major,
-            normal,
-            self.minor,
-            LegSection::HalfPlane {
-                toward: geom::Azimuth::of(sin_u, cos_u),
-                opening: None,
-            },
-        ))
+        let curve = SurfaceCurve::meridian(&self.surface(), p.uv(), forward);
+        Leg::whole(Round::on(region::built(curve)))
     }
 
     /// Where `y`, a point of the torus on the edge arc's plane, lies on
@@ -312,7 +284,7 @@ impl<T: Decide> TorusFaceRegion<T> {
             },
             y,
         );
-        n / n.norm()
+        n.normalize()
     }
 }
 
@@ -474,8 +446,8 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
             geom::Curve3::Circle(geom::Circle {
                 frame: geom::Frame { origin, axis, .. },
                 ..
-            }) => Ok(match region::Course::section(&leg.course) {
-                LegSection::TubeSide { .. } => ReadAcross::LegOverEdge {
+            }) => Ok(match region::Course::curve(&leg.course).section() {
+                Section::TubeSide { .. } => ReadAcross::LegOverEdge {
                     on: origin,
                     normal: axis,
                 },
@@ -512,8 +484,11 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                     Sign::Negative => return Ok(None),
                     Sign::Zero => return Err(RayFault::Graze),
                 }
-                let h = w.dot(axis);
-                let rho = (w - axis * h).norm();
+                let (h, rho) = geom::Line {
+                    origin: center,
+                    dir: axis,
+                }
+                .height_and_distance(y);
                 Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
             }
             geom::Curve3::Circle(geom::Circle {

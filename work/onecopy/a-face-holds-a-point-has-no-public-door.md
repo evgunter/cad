@@ -2,7 +2,7 @@
 id: a-face-holds-a-point-has-no-public-door
 kind: issue
 title: topo's 'does this face hold this point' dispatch (plane -> contfp, curved -> curved_face_containment) is pub(crate) face_placement, so editor-core's emit_topo and topo's rim_wedge and census each keep a copy with its own error policy
-status: open
+status: dispatched
 opened: 2026-10-18
 priority: P3
 cost: M
