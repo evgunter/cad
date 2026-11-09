@@ -915,11 +915,7 @@ pub(crate) fn loop_polygon(
     let face_record = body
         .get_face(face)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    let surface = body
-        .get_surface(face_record.surface)
-        .ok_or(TessellateError::MissingEntity {
-            what: "face surface",
-        })?;
+    let surface = crate::tessellate::face_surface(body, face)?;
     let surface_kind = surface.kind();
     require_a_meridian(kinds, face, surface_kind)?;
     let m = travs.len();
@@ -2010,11 +2006,11 @@ mod tests {
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let chords =
             crate::chords::compute_chords(&body, 0.05, &vids, &mut positions, &mut bounds).unwrap();
-        let (fk, face) = body
+        let (fk, _) = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
             .expect("the revolve mints a sphere wall");
-        let chart = Chart::of(body.get_surface(face.surface).unwrap()).unwrap();
+        let chart = Chart::of(body.face_surface(fk).unwrap()).unwrap();
         for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
             let _ = loop_polygon(
                 &body,

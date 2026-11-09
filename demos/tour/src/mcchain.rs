@@ -241,8 +241,8 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
 /// vertex, projected to the sketch plane.
 fn bar_outline(body: &Body<f64>) -> Vec<(f64, f64)> {
     let mut cap: Option<(f64, Vec<(f64, f64)>)> = None;
-    for (_, face) in body.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(face.surface) else {
+    for (fk, face) in body.faces() {
+        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
             continue;
         };
         // The caps' normal is `+z` or `-z` and every side's lies in the

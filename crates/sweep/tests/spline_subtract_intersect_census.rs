@@ -503,7 +503,7 @@ fn prism_in_a_brick() -> (AtRestBody<f64>, AtRestBody<f64>) {
 /// The NURBS faces of `body`, each with its `sense`.
 fn spline_walls(body: &topo::Body<f64>) -> Vec<(topo::FaceKey, bool)> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
         .map(|(k, f)| (k, f.sense))
         .collect()
 }

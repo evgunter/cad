@@ -621,11 +621,7 @@ pub fn wall3_pinned<S: Scalar>(
     else {
         return false;
     };
-    let kind_of = |body: &AtRestBody<S>, f| {
-        body.get_face(f)
-            .and_then(|f| body.get_surface(f.surface))
-            .map(|s| s.kind())
-    };
+    let kind_of = |body: &AtRestBody<S>, f| body.face_surface(f).map(|s| s.kind());
     format!("{a_face:?}") == "FaceKey(6v1)"
         && format!("{b_face:?}") == "FaceKey(4v1)"
         && kind_of(bulb, *a_face) == Some(SurfaceKind::Cone)

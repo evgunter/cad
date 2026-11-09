@@ -217,9 +217,8 @@ fn unsound(what: &str, scene: &Scene<'_>, r: &topo::BooleanBody<f64>, k: usize) 
             let holding = r
                 .body
                 .edges()
-                .filter(|(_, edge)| {
-                    let start = r.body.get_half_edge(edge.he_plus).unwrap().start;
-                    let end = r.body.half_edge_end(edge.he_plus).unwrap();
+                .filter(|(ek, edge)| {
+                    let (start, end) = r.body.edge_vertices(*ek).unwrap();
                     let [p, q] =
                         [start, end].map(|v| topo::readback::vertex_point(&r.body, v).unwrap());
                     let halfway = r

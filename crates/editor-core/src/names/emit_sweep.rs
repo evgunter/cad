@@ -851,8 +851,7 @@ mod tests {
             let Some(face) = entry.entities()[0].key.face() else {
                 panic!("piece {k}'s wall name holds a face")
             };
-            let surface = built.body.get_face(face).unwrap().surface;
-            let fits = match (want, built.body.get_surface(surface).unwrap()) {
+            let fits = match (want, built.body.face_surface(face).unwrap()) {
                 (Wall::Plane(y), Surface::Plane { origin, .. }) => (origin.y - y).abs() < 1e-12,
                 (Wall::Cylinder(r), Surface::Cylinder { radius, .. }) => {
                     (*radius - r).abs() < 1e-12
