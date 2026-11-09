@@ -1360,7 +1360,7 @@ fn link_reads<T: Decide>(
 ) -> Result<T, PrimitiveRefusal> {
     let link = match reading {
         Cell::Vertex(at, cell) => cell.link(at, band),
-        Cell::Edge([start, end], cell) => cell.link(start + (end - start) * T::from_f64(0.5), band),
+        Cell::Edge([start, end], cell) => cell.link(start.mid(end), band),
     };
     let got = link.map_err(LinkRefusal::from).and_then(|link| match read {
         Cell::Vertex(at, _) => link.offset(at, band),
@@ -1387,7 +1387,7 @@ fn link_reads<T: Decide>(
             LinkRefusal::Unread(TouchUnread::ChordScale) => {
                 "a cell with an edge too long or too short to measure"
             }
-            LinkRefusal::Unread(TouchUnread::EdgeTangent(_)) => {
+            LinkRefusal::Unread(TouchUnread::EdgeTangent(_) | TouchUnread::OffInterior) => {
                 "a cell on a curved edge whose direction does not read there"
             }
             LinkRefusal::Unread(TouchUnread::Corrupt) => "a cell whose topology does not read",

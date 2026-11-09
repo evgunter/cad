@@ -237,7 +237,7 @@ caller renders them (`topo/src/offset_derive.rs` prints the payload,
 ### TOPO — `crates/topo/src/merge_faces.rs` (row `merge-faces-undescribed-ending-is-a-typed-kernel-defect`)
 
 - `MergeDecision::ending`, `DeclaredPlanes(Parallel | Norm)` and `DeclaredOffset` (~1108) — `merge_coplanar_faces` — **2**, likely: the declared rung bridges in-band parallelism, so only an unreadable norm escalates — **HELD** (declared pairs).
-- `MergeDecision::ending`, `PairReach` (~1114) — `merge_coplanar_faces` — **2**, unsure: the merge reads a caller's body under a build reading. An extent that does not read over stored geometry is the file's at rest, so the reading may be mislabelled rather than the state bug-only.
+- `MergeCoplanarError::PairExtentUnread`'s `Display` (was `MergeDecision::ending`'s `PairReach`, retired by PR 6634) — `merge_coplanar_faces` — **2**, unsure: the merge reads a caller's body under a build reading. An extent that does not read over stored geometry is the file's at rest, so the reading may be mislabelled rather than the state bug-only.
 
 ### FLUX — `crates/topo/src/props.rs` (row `shell-classification-volume-refusals-end-as-a-kernel-defect`)
 

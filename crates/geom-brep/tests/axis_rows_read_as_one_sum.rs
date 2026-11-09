@@ -2,7 +2,7 @@
 //! that serves a verdict on a position datum (a gap, an axis distance,
 //! an apex's stand-off) beside a term its routing row admitted (a tilt
 //! levered at the reach, or the apex gap) reads that datum across the
-//! consumed region (`decide_across` in `geom_brep::intersect`): the
+//! consumed region (`decide_across` in `geom_core::k_stats`): the
 //! zero side on `|datum| + swing`, each definite side on the datum shrunk
 //! toward zero by the swing (the row's `_floor`).
 //!

@@ -61,7 +61,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use bvh::{Aabb, Axis};
-use pncad::geom_core::{Point3, Vec3, length_out_of_format};
+use pncad::geom_core::{Point3, Vec3};
 use pncad::select::Ray;
 
 use crate::narrowing::Narrow;
@@ -882,19 +882,18 @@ impl Camera {
             f.y + r.y * sx + u.y * sy,
             f.z + r.z * sx + u.z * sy,
         );
-        let (unit, len) = dir.direction_and_length();
         // `forward` is a unit vector and the offsets are perpendicular
         // to it, so the length is at least 1 for every finite cursor;
         // the guard is here because a non-finite one would otherwise
         // divide by NaN and hand back a poisoned ray as if it were an
         // answer, and the finiteness checks above are on the INPUT,
         // not on the arithmetic.
-        if length_out_of_format(dir).is_some() || len <= 0.0 {
+        let Ok((unit, _)) = dir.checked_direction() else {
             return Err(CameraError::NotFinite {
                 what: "ray direction",
-                value: len,
+                value: dir.norm(),
             });
-        }
+        };
         Ok(Ray {
             origin: self.eye(),
             dir: unit,
@@ -1073,7 +1072,7 @@ pub fn cursor_projection(
 /// asked where the overflow is rather than only where the caller's
 /// numbers are.
 ///
-/// **The centre is asked the same question.** `0.5 * (lo + hi)`
+/// **The centre is asked the same question.** [`geom::mid_param`]
 /// overflows when an endpoint is past half of `f64::MAX`. A box with
 /// any width there has an infinite radius too, but a point there has a
 /// radius of zero, and a point is framed at its centre.
@@ -1098,9 +1097,9 @@ fn sphere(extent: Option<Aabb>) -> Result<(Point3<f64>, f64), CameraError> {
         return Err(CameraError::UnusableBounds);
     }
     let centre = Point3::new(
-        0.5 * (lo[0] + hi[0]),
-        0.5 * (lo[1] + hi[1]),
-        0.5 * (lo[2] + hi[2]),
+        pncad::geom::mid_param(lo[0], hi[0]),
+        pncad::geom::mid_param(lo[1], hi[1]),
+        pncad::geom::mid_param(lo[2], hi[2]),
     );
     let half = [
         0.5 * (hi[0] - lo[0]),
