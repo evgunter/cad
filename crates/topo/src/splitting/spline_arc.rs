@@ -68,7 +68,7 @@ impl<T: Decide> SplineArc<T> {
             return None;
         }
         let mut cuts = vec![lo];
-        for (knot, _) in curve.knot_values().runs() {
+        for knot in curve.knot_values().breakpoints() {
             let k = knot.point_value()?;
             if lo < k && k < hi {
                 cuts.push(k);

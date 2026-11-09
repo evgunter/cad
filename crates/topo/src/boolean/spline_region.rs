@@ -828,7 +828,7 @@ fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Patch<T>>> {
     {
         return None;
     }
-    let (bu, bv) = (breaks(ku)?, breaks(kv)?);
+    let (bu, bv) = (ku.breakpoint_values()?, kv.breakpoint_values()?);
     let (cu, cv) = (bu.len() - 1, bv.len() - 1);
     if nu != cu * pu + 1 || nv != cv * pv + 1 {
         return None;
@@ -905,12 +905,6 @@ fn bezier_insertions<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
         add.extend(core::iter::repeat_n(x, p - m));
     }
     Some(add)
-}
-
-/// The break values of `knots`, one per run.
-fn breaks<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
-    let out: Vec<f64> = knots.runs().map(|(v, _)| v.value_channel()).collect();
-    out.iter().all(|x| x.is_finite()).then_some(out)
 }
 
 /// **One piece of the trim's chain**: a rational Bézier curve in the

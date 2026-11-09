@@ -1521,6 +1521,23 @@ pub struct MarginSample {
     pub outcome: SampleOutcome,
 }
 
+#[cfg(feature = "probe")]
+impl MarginSample {
+    /// **Decided on its sign alone**: classified against
+    /// [`Band::least`], whose thresholds are the two least positive
+    /// `f64`s and carry no unit. Such a decision is an exact order or a
+    /// heuristic's choice, not a coincidence question against ε, so the
+    /// margin has no scale a model's size could set. `[tolerance.margins]`
+    /// makes a margin a length where it is classified against ε. A
+    /// reader that asks how margins scale with the model reads this
+    /// sample's outcome and not its magnitude.
+    #[must_use]
+    pub fn reads_sign_only(&self) -> bool {
+        let least = Band::least();
+        self.band_zero == least.zero() && self.band_escalate == least.escalate()
+    }
+}
+
 /// Installs a fresh, empty sample sink for the current thread (dropping
 /// any samples already recorded).
 #[cfg(feature = "probe")]
@@ -2357,6 +2374,25 @@ mod tests {
         splice_superseded(recording);
         let got: Vec<f64> = take_samples().iter().map(|s| s.margin).collect();
         assert_eq!(got, [mid, 1.0], "a superseded splice lost a sample");
+    }
+
+    /// A sample reads its sign alone exactly where it was decided at
+    /// `Band::least()`; at the run's linear band its margin has a scale.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn a_sample_decided_at_the_least_band_reads_sign_only() {
+        start_recording();
+        let _ = Probe(0.5).sign_within(Band::least());
+        let _ = Probe(0.5).sign_within(band());
+        let got: Vec<bool> = take_samples()
+            .iter()
+            .map(MarginSample::reads_sign_only)
+            .collect();
+        assert_eq!(
+            got,
+            [true, false],
+            "the least band and the linear band, in order"
+        );
     }
 
     /// **The sample population does not shrink**: a detached run's

@@ -1186,7 +1186,11 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         })?;
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
-        let offset = chord_v.perp_dot(self.q - at) / chord;
+        let offset = geom_core::Line2 {
+            origin: at,
+            dir: chord_v,
+        }
+        .side(self.q);
         // The side of the chord `q` lies on is the turn sense, read off
         // the authored points rather than the computed bulge's sign: the
         // arc on the other side shares the carrier.
