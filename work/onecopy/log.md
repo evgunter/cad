@@ -953,3 +953,7 @@
   - spiric-regime → `onecopy/ring-torus`: ring-torus two homes, decided-sign unit value, arc_trim_margin move.
   - Queued for needle-tilts once 6623 lands: the parallel/offset gap height and circle_torus graze rows.
   - 6623 body: N1 disclosed.
+- ~12:45Z Fix passes in:
+  - 6624 at bc9052d1 (F1–F3, S1–S4, C5; keyed the 6609 walk via Charted::held) → delta review with session_013mPGJ49aLEyBb6JNAZiN5E.
+  - 6628 at c117c1d0 (gate green; checked_direction/checked_nonzero_length refuse zero at the home) → delta review with session_013mPGJ51wDjzTLeTSQjXSqC. Ruled NOTE-3: keep the prescaled length (an Interval chord past 2^510 escalating is a refusal, not a wrong answer).
+  - 6576 at 15f174ad (vertex_side generic over E; engine-leaves back to main's counts) → gating; small delta with session_013mPGJ3tP1vesXb7WfFmp5N.
