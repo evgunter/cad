@@ -2,10 +2,12 @@
 id: a-parameter-gap-metered-by-hand-at-a-span-end-has-no-gate
 kind: issue
 title: A parameter gap metered by hand against a span's end has no gate: its unsound use (a Zero read as at the end) is not a text shape
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+branch: onecopy/edge-ends-turns
 ---
 
 
@@ -14,7 +16,7 @@ Found by `onecopy/needle-basin` (PR 6687), whose P0
 was this shape: `(t − t₀)·meter` at an INF speed, its Zero read as "at
 the end".
 
-## Why no gate
+## Why no text gate can judge it
 
 A parameter gap metered at an inf speed under-reads arc length. Its
 Positive is sound ("clear of the end"), and so is an ordering. Its Zero
@@ -52,3 +54,21 @@ does not answer it.
 Each hit read once: an inside-only or ordering read (sound; say so at
 the site if it is not evident), or an end read (route to `Span`).
 `within_span`'s meter gets a bound over `[t, hi]`.
+
+## Closed by `onecopy/edge-ends-turns`: a site table instead
+
+`scripts/gates/span-end-gap-sites.sh` (its table `span-end-gap-sites.tsv`)
+holds every production `Margin::metered(_sup|_inf)?(a − b, …)` whose
+first argument has exactly one operand a span end's name, keyed by
+(file, function), each row naming its direction argument (`sup`,
+`exact-rate`, `inside-only`, `witness`). A new site raises its function
+above its row and fails, and is argued in review or routed to `Span`.
+Both operands ends is an extent and is not read; a free gap between two
+parameters is not read. The 17 hits above were that wider shape. Of
+them, four are end gaps on this branch:
+- `pcurve_cache.rs` `side_of` ×2: `sup`;
+- `chord_join.rs` `chord_spec`: `exact-rate` (a line's length);
+- `pair_section.rs` `within_span`: `witness`, still owing its bound.
+
+`split.rs` and the plane door, the two `inside-only` / end-read sites
+the P0 found, now read `Span` and are not in the table.
