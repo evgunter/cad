@@ -538,3 +538,22 @@ Into the fix pass:
   **Friction finding:** runner tool downloads (actionlint, the python suite's tools) returned 504 several times on 2026-11-09, failing lint and the python suite before any check ran. This integration cannot re-run jobs (403), so a 504 costs a fresh push.
   
   Routed: a fifth `OutsideSessionBox` row as evidence on ONEHOME's main-red, and `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` on TINT (TCOST and TINT share its file; `work/issues/` no longer exists). (BOXES orchestrator)
+- 2026-11-09 — `cover-app-readers` merged (PR 6588, `6bbebd7e`). **Dispatched `cover-carrier-level-piece`** (single FULL review), in parallel with `cover-levers`' review. `cover-kind-match-gate` waits on `cover-levers` alone. (BOXES orchestrator)
+
+## 2026-11-09 — `cover-levers` (PR 6596) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Single FULL review of `7f76cf1ca7`: APPROVE-WITH-FIXES, no MAJOR. Every probed lever is an upper bound (M1, M5, M6, M7 killed), and no verdict moved toward a grant.
+
+Into the fix pass:
+- **Rows.** M2, M4 and M8 survive. The PR body's claim about the lone-vertex row is false, since that row's face has no cover anyway. No new differential replaced the two retired.
+- **`foot_lever`.** It floors at a conic's centre, outside the consumed region, which the span narrowing made bind.
+- **Three spellings each** of the poison ball and the whole-circle cover; `Cover::ball` vs `Node::ball`.
+- **`cone_face_reach`'s reader-side window meet.**
+- **Refusal names** that now say less than they did.
+- **`chart_region` reading each cover twice per gate.**
+
+Deferrals scheduled on `cover-kind-match-gate`.
+
+The `[ev]` question on the "Float rounding" README text is still with Ev.
+
+**Class, again.** The fix that closed TWICE's two-types row minted three poison-ball spellings, in the same PR. Q1 caught it.

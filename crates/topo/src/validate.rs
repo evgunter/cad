@@ -5996,14 +5996,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// # What tier 3 does NOT yet check (deferred, named)
 ///
 /// - **Global self-intersection / minimum clearance** — M3 partial
-///   (via booleans); the interval-based whole-body check is scheduled
-///   rather than dropped. `DESIGN.md` carries it twice — in the
-///   tier-3 bullet of the validation-tier list, and in the milestone
-///   list under the entry containing *"interval-based
-///   self-intersection / minimum-clearance checks over the parameter
-///   box"*. Quoted rather than dated on purpose: a milestone copied
-///   into this list is the rot the list keeps producing, and a quote
-///   is what survives the milestone being renumbered.
+///   (via booleans). The whole-body embedding certificate belongs to
+///   the at-rest gate (`DESIGN.md` `[topology.tiers]`), not to this
+///   pass, and is not built yet:
+///   `work/clear/the-at-rest-gate-certifies-embedding.md`.
 /// - **The wedge on a NURBS- or `Approx`-adjacent edge**: check 4 and
 ///   its material arm are both exempt by kind there (implicit-form
 ///   gradients are poison on a spline chart), so such an edge carries
@@ -9975,12 +9971,88 @@ fn meet_at<T: Decide>(
     open.map_or(EdgePair::Apart, EdgePair::Unsure)
 }
 
-/// Check 9's rows for [`crate::splitting::containment::arc_trim`].
-const RING_OUTER_ARC_TRIM: crate::splitting::containment::ArcTrimRows =
-    crate::splitting::containment::ArcTrimRows {
-        end: "ring_outer_arc_end",
-        trim: "ring_outer_arc_trim",
-    };
+/// Check 9's rows for [`arc_trim`].
+const RING_OUTER_ARC_TRIM: ArcTrimRows = ArcTrimRows {
+    end: "ring_outer_arc_end",
+    trim: "ring_outer_arc_trim",
+};
+
+/// Check 9's two rows for [`arc_trim`].
+struct ArcTrimRows {
+    /// A point's distance to either end of the arc.
+    end: &'static str,
+    /// The two-term chordal margin: which side of the ends.
+    trim: &'static str,
+}
+
+/// **Whether `p`, a point on a circle, lies inside the arc of it whose
+/// ends are `ends` and whose apex is `apex`** (`anti` the apex's
+/// antipode) — decided as DISTANCES, never as an angle, and the one
+/// home of that rule, beside its one consumer, check 9 (a ray's crossing of
+/// a loop's arc is the plane door's, placed on the arc's span there:
+/// `containment::conic_crossings`). The points are in metres, so every
+/// length is a margin as it stands.
+///
+/// 1. **At an end**: `p` within the band of either end, measured as
+///    `|p − end|`, answers `Zero`. That is the ONLY way an endpoint
+///    neighbourhood counts: an angular window compresses arc length
+///    near an end by `sin(w/2)`, so on a short arc (and by `sin` of the
+///    complement on a near-full one) its `Zero` reaches `ε / sin(w/2)`
+///    along the carrier, a hundred times `ε` at `w = 0.02`.
+/// 2. **Otherwise, which side of the ends**: the sum of two chordal
+///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
+///    is an end, `m` the apex and `m′` its antipode. Chord length is
+///    monotone in angular distance up to a half turn, so each term is
+///    positive exactly on the arc; near an end they move as `cos(w/4)`
+///    and `sin(w/4)` times the arc length, whose sum is at least 1, so
+///    the margin is never compressed below the distance it measures —
+///    on a short arc, a near-full one, or a whole circle (where `m′` is
+///    the end and every point is inside). Its `Zero` is therefore within
+///    the band of an end, which step 1 has already answered.
+///
+/// `Positive` inside, `Negative` past an end, `Zero` at an end or in
+/// the trim's band.
+///
+/// **A DECIDED membership, and so not
+/// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
+/// the one place that says why, for this trim. That door answers "may hold" wherever
+/// exclusion is unproved, which is the sound answer for a caller
+/// selecting between two bounds that each hold either way. A decided
+/// membership has no such free answer: an uncertain one escalates, and
+/// its band is a length — measured along the carrier here, levered by
+/// the radius there — never a bare angle.
+///
+/// # Errors
+///
+/// An in-band end distance with neither end definitely `Zero`, or an
+/// in-band trim margin.
+fn arc_trim<T: Decide>(
+    p: geom_core::Point3<T>,
+    ends: [geom_core::Point3<T>; 2],
+    apex: geom_core::Point3<T>,
+    anti: geom_core::Point3<T>,
+    rows: &ArcTrimRows,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let [a, b] = ends;
+    let at = [
+        decide(rows.end, Margin::of((p - a).norm()), band),
+        decide(rows.end, Margin::of((p - b).norm()), band),
+    ];
+    if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
+        return Ok(Sign::Zero);
+    }
+    if let Some(diag) = at.into_iter().find_map(Result::err) {
+        return Err(diag);
+    }
+    decide(
+        rows.trim,
+        Margin::of(crate::splitting::containment::arc_trim_margin(
+            p, a, apex, anti,
+        )),
+        band,
+    )
+}
 
 /// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
 /// an end included, since arm 5 runs only once no vertex arm has
@@ -9993,9 +10065,7 @@ const RING_OUTER_ARC_TRIM: crate::splitting::containment::ArcTrimRows =
 /// from the circle says nothing about the trim, and deciding it first
 /// let an in-band radius escalate a point half a turn away from the
 /// arc. The rule, and why its margin never compresses near an end, is
-/// [`crate::splitting::containment::arc_trim`]'s — the one home the
-/// arc-bearing containment walk shares; here the lever is 1 (metres)
-/// and an end's neighbourhood reads inside.
+/// [`arc_trim`]'s; an end's neighbourhood reads inside.
 fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Band) -> Window {
     match segment {
         MeetSegment::Line { a, b } => {
@@ -10034,12 +10104,11 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 radius,
             });
             let mid = geom::mid_param(t0, t1);
-            match crate::splitting::containment::arc_trim(
+            match arc_trim(
                 p,
                 [carrier.eval(t0), carrier.eval(t1)],
                 carrier.eval(mid),
                 carrier.eval(mid + T::pi()),
-                geom_core::InfSpeed::new(T::one()),
                 &RING_OUTER_ARC_TRIM,
                 band,
             ) {

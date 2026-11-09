@@ -4,8 +4,12 @@
 //! The ε-semantics contract (D4): every decision margin is a POINT
 //! DEVIATION in meters, so on two geometrically-similar bodies the
 //! margin stream must scale LINEARLY with the model scale — same
-//! predicates, same counts, same verdicts, every margin ×1000 between
-//! a mm twin and a metre twin. A bare cosine/sine (the audited class
+//! predicates, same counts, same verdicts, and every decisive margin
+//! read against the band ×1000 between a mm twin and a metre twin. A
+//! margin decided on its sign alone
+//! (`MarginSample::reads_sign_only`) has no scale, so only its verdicts
+//! are compared (`geom_core::test_support::twins` reads both). A bare
+//! cosine/sine (the audited class
 //! (c) defects fixed in this unit: `bool_join_facing`,
 //! `bool_strut_order`, `bool_plane_orient`, `pm_census_ee_parallel`,
 //! `point_in_loop_arm`, `split_join_frame_arm`) is scale-INVARIANT
@@ -53,12 +57,10 @@
 
 use crate::common;
 
-use std::collections::BTreeMap;
-
 use common::brick;
-use geom_core::Sign;
 use geom_core::Tol;
-use geom_core::k_stats::{self, Probe, SampleOutcome};
+use geom_core::k_stats::{self, Probe};
+use geom_core::test_support::twins::{Pairing, Streams, Twins, streams};
 use topo::{BooleanResult, subtract};
 
 /// Audited, documented non-length comparands still awaiting their own
@@ -98,7 +100,7 @@ fn box_at<F: Fn(f64) -> f64>(
 /// order. Total since the F4 fix: both subtracts COMPUTE at every ε
 /// row in the matrix (module docs — this used to return `None` on the
 /// rows where the mm pocket subtract refused in-band).
-fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, Option<f64>)>> {
+fn margins_at(scale: f64) -> Streams {
     let s = |v: f64| v * scale;
     let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
     // Corner overlap: generic crossing subtract.
@@ -130,14 +132,7 @@ fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, Option<f
              every known in-band refusal on this configuration: {other:?}"
         ),
     }
-    let mut out: BTreeMap<&'static str, Vec<(SampleOutcome, Option<f64>)>> = BTreeMap::new();
-    for sample in k_stats::take_samples() {
-        out.entry(sample.predicate).or_default().push((
-            sample.outcome,
-            (!sample.reads_sign_only()).then_some(sample.margin.abs()),
-        ));
-    }
-    out
+    streams(k_stats::take_samples())
 }
 
 /// The pin: same predicates, same counts, and every margin pair at
@@ -172,56 +167,35 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
         }
         // The verdict-stream pin: outcomes are scale-free and must be
         // IDENTICAL sample-for-sample in recording order.
-        let outcomes =
-            |l: &[(SampleOutcome, Option<f64>)]| l.iter().map(|s| s.0).collect::<Vec<_>>();
+        let twins = Twins::of(pred, &mm, &m);
+        let (small, large) = twins.outcomes();
         assert_eq!(
-            outcomes(mm_list),
-            outcomes(m_list),
+            small, large,
             "{pred}: the twins must produce identical verdict streams"
         );
         // The margin pin: DECISIVE margins (definite nonzero — actual
         // separations, not coincident-residual fp noise) must scale
-        // linearly. Sorted pairing: recording order pairs unrelated
-        // sites when a predicate fires on several entities.
-        let decisive = |l: &[(SampleOutcome, Option<f64>)]| {
-            let mut v: Vec<f64> = l
-                .iter()
-                .filter(|s| {
-                    matches!(
-                        s.0,
-                        SampleOutcome::Definite(Sign::Positive | Sign::Negative)
-                    )
-                })
-                // A sign-only read (`MarginSample::reads_sign_only`) has
-                // no scale; its verdicts are compared above.
-                .filter_map(|s| s.1)
-                // The CANONICAL SCAFFOLDING CIRCLE
-                // (`EdgeCurveSpec::self_loop_circle_at`: radius exactly
-                // 1, span exactly (0, τ)) is deliberately scale-free
-                // geometry — euler-op self-loop sites certify it at
-                // every model scale with the bit-identical
-                // `interval_span_forward` margin τ·1 m. Exempt exactly
-                // those samples (that predicate, that bit pattern); a
-                // real model span colliding with τ to the last bit is
-                // not a realizable concern.
-                .filter(|margin| {
-                    !(*pred == "interval_span_forward" && *margin == core::f64::consts::TAU)
-                })
-                .collect();
-            v.sort_by(f64::total_cmp);
-            v
-        };
+        // linearly. A sign-only read has no scale; its verdicts are
+        // compared above.
+        //
+        // The CANONICAL SCAFFOLDING CIRCLE
+        // (`EdgeCurveSpec::self_loop_circle_at`: radius exactly 1, span
+        // exactly (0, τ)) is deliberately scale-free geometry — euler-op
+        // self-loop sites certify it at every model scale with the
+        // bit-identical `interval_span_forward` margin τ·1 m. Exempt
+        // exactly those samples (that predicate, that bit pattern); a
+        // real model span colliding with τ to the last bit is not a
+        // realizable concern.
+        let pairs = twins.decisive_pairs(Pairing::Rank, |margin| {
+            !(*pred == "interval_span_forward" && margin == core::f64::consts::TAU)
+        });
         let mut worst: f64 = 0.0;
-        for (a, b) in decisive(mm_list).iter().zip(&decisive(m_list)) {
+        for (a, b) in &pairs {
             worst = worst.max((b / a / 1e3 - 1.0).abs());
         }
         if worst > 1e-9 {
             nonconforming.push(format!("{pred} (worst rel dev {worst:.3e})"));
-            println!(
-                "{pred} decisive margins:\n  mm: {:?}\n   m: {:?}",
-                decisive(mm_list),
-                decisive(m_list)
-            );
+            println!("{pred} decisive margin pairs (mm, m): {pairs:?}");
         }
     }
     // The audited FLAG comparands are allowed to break linearity —
@@ -268,7 +242,9 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
             "{fixed}: expected to fire in the twin booleans (pin vacuous)"
         );
         assert!(
-            mm[fixed].iter().any(|v| v.1.is_some_and(|m| m != 0.0)),
+            mm[fixed]
+                .iter()
+                .any(|s| !s.reads_sign_only() && s.margin != 0.0),
             "{fixed}: expected a nonzero margin to pin the metering"
         );
     }

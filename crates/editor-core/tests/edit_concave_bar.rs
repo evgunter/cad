@@ -138,7 +138,7 @@ fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict()
     assert_eq!(floor.len(), 1, "the pocket's floor edge");
     let walls = named(&ev0, union, |k| match k {
         EntityKey::Face(f) => matches!(
-            body.get_face(f).and_then(|f| body.get_surface(f.surface)),
+            body.face_surface(f),
             Some(geom::Surface::Cylinder { radius, .. }) if (radius - A).abs() < 1e-12
         ),
         _ => false,

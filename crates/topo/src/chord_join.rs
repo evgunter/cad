@@ -2372,7 +2372,7 @@ fn chord_spec<T: Decide>(
     body.get_vertex(u1).ok_or(SplitJoinError::Corrupt {
         entity: EntityId::Vertex(u1),
     })?;
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let wall_key = view.record().surface;
     // The surface is a link of the face the join divides, mid-operation
     // ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one is not curved.
@@ -2597,9 +2597,8 @@ pub(crate) fn cone_apex_plane_section<T: Decide>(
     at: VertexKey,
 ) -> Result<geom_brep::PlaneConeSection<T>, SplitJoinError> {
     let wall = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .cloned()
+        .face(face)
+        .map(|f| f.surface().clone())
         .ok_or_else(|| corrupt_face(face))?;
     let SectionReach::Cone(reach) = section_reach(body, at, face, (&wall, None), band)? else {
         return Err(SplitJoinError::SectionInvariant {
@@ -2648,7 +2647,7 @@ pub(crate) fn wall_section<T: Decide>(
     at: VertexKey,
 ) -> Result<Option<WallSection<T>>, SplitJoinError> {
     let wall = body
-        .passed_face(face)
+        .face(face)
         .map(|f| f.surface())
         .cloned()
         .ok_or_else(|| corrupt_face(face))?;
@@ -3454,7 +3453,7 @@ fn outer_cycle<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Option<Vec<HalfEdgeKey>>, SplitJoinError> {
-    let face = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let face = body.face(face).ok_or_else(|| corrupt_face(face))?;
     Ok(face.outer_cycle())
 }
 
@@ -3614,7 +3613,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     closure: (Point3<T>, UnitVec3<T>),
     band: Band,
 ) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let sense = view.sense();
     let surface = view.surface().clone();
     let WallChart {
@@ -3895,7 +3894,7 @@ impl<T: Decide> IslandReading<T> {
         band: Band,
     ) -> Result<Result<Self, Indeterminate>, SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face, what };
-        let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
         let surface = view.surface();
         let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
@@ -3970,7 +3969,15 @@ impl<T: Decide> IslandReading<T> {
     /// The paths to `q` from every outer-loop point of `face`
     /// ([`outer_references`]), in the order they are asked, each read by
     /// `read` until one decides: a side ladder ([`paths_rung`]), so a
-    /// path set aside ahead of one that decides is superseded.
+    /// path set aside ahead of one that decides is superseded. Its
+    /// premise is the input's, not a theorem: the island lies in the
+    /// face, so every outer-loop point is on the same side of it. The
+    /// boolean's ring lane reads it mid-operation (`boolean::join`'s
+    /// `ring_run_ccw`), on a run of a ring of the operand's face, which
+    /// check 9 placed in the face at rest, closed by a section piece the
+    /// reduction kept where the face holds it. That is the construction's
+    /// guarantee: no check re-reads the island against the outer loop
+    /// there (`work/onecopy/the-ring-lanes-island-is-not-checked-in-its-face.md`).
     pub(crate) fn read_paths<R>(
         &self,
         body: &Body<T>,
@@ -4172,15 +4179,7 @@ fn along_edge_spec<T: Decide>(
     }
     // The chord starts at the copy of whichever end of the edge null
     // edges tie `u1` to; the curve runs from its `he_plus` start.
-    let e_start = linked(
-        &body.half_edges,
-        e.he_plus,
-        EntityId::HalfEdge,
-        EntityId::Edge(edge),
-        "he_plus",
-    )
-    .start;
-    let e_end = body.proven_half_edge_end(e.he_plus);
+    let (e_start, e_end) = crate::query::edge_ends(body, edge);
     let forward = match (
         same_site(body, face, (u1, e_start))?,
         same_site(body, face, (u1, e_end))?,
@@ -5101,7 +5100,7 @@ impl ChordJoiner {
         tol: Tol,
     ) -> Result<(), SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
-        let old = body.passed_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
+        let old = body.face(oldf).ok_or_else(|| corrupt_face(oldf))?;
         let outer = old.record().outer;
         let surface = old.surface();
         if RimSide::of(surface) != Some(RimSide::Plane) {
@@ -5198,7 +5197,7 @@ impl ChordJoiner {
             LoneRing::Closed => None,
             LoneRing::Pierce => {
                 let surface = body
-                    .passed_face(oldf)
+                    .face(oldf)
                     .map(|f| f.surface())
                     .ok_or_else(|| corrupt_face(oldf))?;
                 Some(RimSide::of(surface).ok_or(invariant(
@@ -5294,7 +5293,7 @@ impl ChordJoiner {
         }
         let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
         let surface = body
-            .passed_face(oldf)
+            .face(oldf)
             .map(|f| f.surface())
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
@@ -5413,7 +5412,7 @@ fn face_plane_normal<T: Decide>(
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     // Corruption and an unwired arm are different refusals.
     match body
-        .passed_face(face)
+        .face(face)
         .map(|f| f.surface())
         .ok_or_else(|| corrupt_face(face))?
     {
@@ -5579,6 +5578,9 @@ mod side_ladder_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod island_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;
@@ -7343,7 +7345,8 @@ mod torn_hop_rows {
     }
 
     /// `along_edge_spec`'s circle arm, on a cylinder sheet's rim: the
-    /// segment edge's `he_plus` and that half-edge's `next` are links.
+    /// segment edge's `he_plus` and that half-edge's `next` are links
+    /// ([`crate::query::edge_ends`]).
     #[test]
     fn the_along_edge_arc_panics_on_a_torn_half_edge() {
         let (body, face) = cyl_sheet();
