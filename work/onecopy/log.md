@@ -1023,3 +1023,4 @@
 - 15:03Z length-rule opened PR 6647 (8474df19, gate green): fit.rs chord and clearance axes on checked_nonzero_length → FULL review with session_013mPGJ51wDjzTLeTSQjXSqC. Lane → onecopy/normal-refusals (two boolean normal readers absorb a refusal; follow 6648's shape).
 - 15:05Z Ruled ring-island: (a) climb_agreeing at read_paths (probe: 0 disagreements over ~760 reads). Disagree → SectionInvariant if its standing aborts; >10% cost stops; cross-reference first-vertex-reads' every-vertex reader for a later fold.
 - 15:10Z 6638's gate went red at bcea2b66 on fmt (order_rows.rs trailing blank line) → I pushed the fmt fix f6869d0d and it's re-gating; the lane will merge it forward into pose-arms.
+- 15:12Z 6642 head b53f4003 (the fmt fix merged forward); reviewer told; gating.
