@@ -361,7 +361,11 @@ impl<T: Decide> SphereFaceRegion<T> {
                 &arc.carrier,
                 arc.carrier.distance_within(m, (arc.t0, arc.t1)),
             ) else {
-                unreachable!("sphere_face_region admits circles only")
+                unreachable!(
+                    "sphere_face_region admits circles only, and a circle's arc distance is \
+                     closed-form (geom::Curve3::distance_within): a non-circle arc, or a circle \
+                     whose azimuth read no parameter"
+                )
             };
             least = Some(least.map_or(gap, |l| l.min(gap)));
         }

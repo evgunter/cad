@@ -936,7 +936,7 @@ fn line_column_match(
         if !line.param(p).is_finite() {
             return None;
         }
-        if !((p - line.foot_within(p, (0.0, 1.0))).norm() <= eps) {
+        if !(line.distance_within(p, (0.0, 1.0)) <= eps) {
             return None;
         }
     }

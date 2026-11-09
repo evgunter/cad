@@ -2425,7 +2425,7 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
                 dir: pb - pa,
             };
             Some((
-                (chord.foot_within(c, (T::zero(), T::one())) - c).norm(),
+                chord.distance_within(c, (T::zero(), T::one())),
                 (pa - c).norm().max((pb - c).norm()),
             ))
         }
