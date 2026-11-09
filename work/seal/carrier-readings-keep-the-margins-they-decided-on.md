@@ -2,10 +2,11 @@
 id: carrier-readings-keep-the-margins-they-decided-on
 kind: unit
 title: carrier and sector readings keep the Decided they decided on (CarrierVerdict, IdentityLadder::Apart, NotTangent, bounds_off), off_ring carries its TorusRefusal, and the census's mechanical survivors take their doors
-status: open
+status: closed
 opened: 2026-11-09
 priority: P1
 cost: M
+closed: 2026-11-09
 parent: glue-disagreements-and-held-contradictions-after-stage-4
 ---
 
@@ -29,3 +30,25 @@ Step 1 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09). Eac
 ## Done when
 
 None of the sites above names `MarginDiag::INVALID` or builds an `Indeterminate` by hand. Each moved arm's ending is pinned before and after, per the parent row's rule.
+
+## Closed (2026-11-09)
+
+Each reading on the row's list keeps the `geom_core::Decided` it decided on. The PR body has the per-site table (each ending before and after), the sweep, and the premise corrections.
+
+- **`CarrierVerdict`** (`boolean/carrier_eq.rs`) is `One { relation, margin } | Apart(Decided) | TwoKinds`.
+  - `TwoKinds` is the kind-mismatch arm: no datum decides it, so it carries no margin (the design's "two kinds" structural fact).
+  - The glue door's "one carrier on no margin" invariant is gone, as are its two twins at the corner (`vtxfac`, `recl`) and `rest_pair_verdict`'s `unreachable!`.
+- **geom-brep keeps its readings:**
+  - `IdentityLadder::Apart { at, decided }`.
+  - `TangentLocusError::NotTangent { apart, predicate, decided }`.
+  - `TorusCoincidence::Apart { datum, by }`, the shape step 2 extends with `upper`.
+  - `TorusCoincidence::OffRing { torus, refusal }`.
+- **`CarrierEqError::OffRing { torus, refusal }`.** At the Boolean it ends as the pierce normal does (`boolean::off_ring_torus`: `DegenerateTorus` when decided, `Escalated { Torus(half) }` in band), in the half's lever.
+- **`BoolSector::bounds_off`** returns its `Decided`.
+- **I7** goes through `decide_positive`, and **`seam_traversal_unread`** through `decide_nonzero`.
+- **Typed structural arms** for the extent and cover reads:
+  - The merge refuses `MergeCoplanarError::PairExtentUnread` (defect ending), and `MergeDecision::PairReach` is gone.
+  - `seam_cover_unread` is now `RimUnread::Unplaced`, ending as the tangent line's own placement does: `PointInFaceRefused` / `CurvedBooleanUnsupported`.
+- **Not done here:**
+  - **I1/I2's evidence** (`contact_rest_senses_opposed` / `contact_rest_one_carrier` still mint `Contradicted{INVALID}`). Their evidence `None` has no spelling until step 3's Rest verdict replaces `ContactRefusal::Contradicted { diag: Indeterminate }`.
+  - **The plane ladder's orientation rung** stays on `decide_nonzero`. The settled design gives its margin no reader (I1's evidence is `None`), and joining it into `One`'s margin would unprove every Sym Zero.
