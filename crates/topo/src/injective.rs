@@ -130,9 +130,13 @@ pub(crate) const CUSP: &str = "self_intersection_cusp";
 /// symmetric part of the projected chart's Jacobian, each column scaled
 /// by the rectangle's span on its axis, metres.
 pub(crate) const MONOTONE: &str = "self_intersection_monotone";
-/// The funnel site of a torus's ring condition: major radius less minor
-/// radius, metres.
-pub(crate) const RING_TORUS: &str = "self_intersection_ring_torus";
+/// The funnel rows of a torus's ring condition
+/// ([`geom::RingTorus::of_at`]): its minor radius, then its major radius
+/// less its minor radius, metres.
+pub(crate) const RING_TORUS: geom::RingSites = geom::RingSites::new(
+    "self_intersection_torus_tube",
+    "self_intersection_ring_torus",
+);
 
 // ------------------------------------------------- the lifted boundary
 
@@ -529,13 +533,12 @@ pub(crate) fn by_kind(
             major_radius,
             minor_radius,
             ..
-        } => match decide(RING_TORUS, Margin::of(*major_radius - *minor_radius), band) {
-            Ok(Sign::Positive) => Ok(()),
-            _ => Err(EngineRefusal::TorusNotRing {
+        } => geom::RingTorus::of_at(*major_radius, *minor_radius, RING_TORUS, band)
+            .map(|_| ())
+            .map_err(|_| EngineRefusal::TorusNotRing {
                 face,
                 side: Which::First,
             }),
-        },
         Surface::Nurbs(_) | Surface::Approx(_) => Err(EngineRefusal::Unsupported {
             carrier: "a free-form face, which no carrier kind makes injective",
             face,

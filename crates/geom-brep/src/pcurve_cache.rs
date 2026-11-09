@@ -10232,10 +10232,11 @@ fn derive_class_zero<T: Decide>(
                     // (`z_min = |h| − |(a_z, b_z)|`), so its centre's
                     // height `h` is definite: an ellipse at the apex
                     // height refuses there, as reaching past it.
-                    let ns = match decide("pcurve_cone_chart_nappe", Margin::of(h), band) {
-                        Ok(Sign::Positive) => T::one(),
-                        Ok(Sign::Negative) => T::zero() - T::one(),
-                        Ok(Sign::Zero) | Err(_) => unreachable!(
+                    let ns: T = match decide("pcurve_cone_chart_nappe", Margin::of(h), band)
+                        .map(Sign::nonzero)
+                    {
+                        Ok(Some(side)) => side.unit(),
+                        Ok(None) | Err(_) => unreachable!(
                             "cone_conic_incidence decided the ellipse's lowest point past the \
                              band off the apex's height, so its centre's height is definite"
                         ),
@@ -11254,18 +11255,16 @@ fn torus_oblique_circle<T: Decide>(
             band,
         )
         .map_err(reread)?;
-        // Unsourced lever: as the magnitude's above.
-        match decide(
+        // Unsourced lever: as the magnitude's above. A part whose
+        // magnitude decided positive decides a side, so the gate's
+        // rejection of Zero is never reached.
+        geom_core::k_stats::decide_nonzero(
             name,
             Margin::levered(part, geom_core::Lever::unsourced(big)),
             band,
         )
-        .map_err(reread)?
-        {
-            Sign::Positive => Ok(T::one()),
-            Sign::Negative => Ok(T::zero() - T::one()),
-            Sign::Zero => unreachable!("a part whose magnitude decided positive decides a sign"),
-        }
+        .map(geom_core::k_stats::NonzeroSign::unit)
+        .map_err(reread)
     };
     let vl = decided_sense("pcurve_torus_villarceau_tube_rate", axis)?;
     let sense = decided_sense("pcurve_chart_orientation", axis.cross(d))?;
@@ -11984,7 +11983,7 @@ fn spiric_chart_pcurve<T: Decide>(
                 )
                 .refusal(surface, carrier)
             };
-            let sigma = match decide(
+            let sigma = decide(
                 "pcurve_spiric_chart_axis",
                 // A COSINE of unit vectors: dimensionless, so it is
                 // metered by multiplying the chart's own lever arm
@@ -12013,11 +12012,10 @@ fn spiric_chart_pcurve<T: Decide>(
                 } else {
                     perpendicular()
                 }
-            })? {
-                Sign::Positive => T::one(),
-                Sign::Negative => T::zero() - T::one(),
-                Sign::Zero => return Err(perpendicular()),
-            };
+            })?
+            .nonzero()
+            .ok_or_else(perpendicular)?
+            .unit::<T>();
             let torus = match decide(
                 "pcurve_spiric_mint_center",
                 Margin::norm3(chart_center - WallTorus::Own.center(center, n, offset)),

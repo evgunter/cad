@@ -519,8 +519,18 @@ pub fn ring_torus<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    ring_half(RingSites::CONVENTION.ring, major_radius, minor_radius, band)
+}
+
+/// The ring half's one spelling, `R − r` as a length, under `name`.
+fn ring_half<T: geom_core::Decide>(
+    name: &'static str,
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
     geom_core::k_stats::decide_reported(
-        "ring_torus_convention",
+        name,
         geom_core::Margin::of(major_radius - minor_radius),
         band,
     )
@@ -540,11 +550,16 @@ pub fn torus_tube<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    geom_core::k_stats::decide_reported(
-        "torus_tube_positive",
-        geom_core::Margin::of(minor_radius),
-        band,
-    )
+    tube_half(RingSites::CONVENTION.tube, minor_radius, band)
+}
+
+/// The tube half's one spelling, `r` as a length, under `name`.
+fn tube_half<T: geom_core::Decide>(
+    name: &'static str,
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    geom_core::k_stats::decide_reported(name, geom_core::Margin::of(minor_radius), band)
 }
 
 /// **Both halves of the ring convention, as a requirement**: the ring
@@ -587,32 +602,91 @@ pub struct RingTorus<T> {
     minor_radius: T,
 }
 
+/// **The site names one reader decides the ring convention under**, one
+/// per half, so a refusal and its `k_stats` stream name the reading that
+/// met them ([`RingTorus::of_at`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RingSites {
+    tube: &'static str,
+    ring: &'static str,
+}
+
+impl RingSites {
+    /// The convention's own rows ([`torus_tube`], [`ring_torus`]).
+    pub const CONVENTION: Self = Self::new("torus_tube_positive", "ring_torus_convention");
+
+    /// The rows for the tube half (`r`) and the ring half (`R − r`).
+    ///
+    /// # Panics
+    ///
+    /// Where the two names are equal: each names its own margin. In a
+    /// `const` item the panic is a compile error.
+    #[must_use]
+    pub const fn new(tube: &'static str, ring: &'static str) -> Self {
+        assert!(
+            !crate::str_eq(tube, ring),
+            "the ring convention's two halves need two names"
+        );
+        Self { tube, ring }
+    }
+
+    /// The ring half's row.
+    #[must_use]
+    pub const fn ring(self) -> &'static str {
+        self.ring
+    }
+
+    /// The tube half's row.
+    #[must_use]
+    pub const fn tube(self) -> &'static str {
+        self.tube
+    }
+}
+
 /// **Radii that are not a ring**, by the first half of the convention
-/// that did not read `Positive`: its verdict, decided non-positive or
-/// left undecided.
+/// that did not read `Positive`: the row it was decided under and its
+/// verdict, decided non-positive or left undecided.
 #[derive(Clone, Debug, PartialEq)]
 pub enum NotARing {
-    /// The tube half, `r > 0` (`torus_tube_positive`).
-    Tube(Result<geom_core::Decided, geom_core::Indeterminate>),
-    /// The ring half, `R − r > 0` (`ring_torus_convention`).
-    Ring(Result<geom_core::Decided, geom_core::Indeterminate>),
+    /// The tube half, `r > 0`.
+    Tube {
+        /// The row it was decided under.
+        site: &'static str,
+        /// Its verdict.
+        verdict: Result<geom_core::Decided, geom_core::Indeterminate>,
+    },
+    /// The ring half, `R − r > 0`.
+    Ring {
+        /// The row it was decided under.
+        site: &'static str,
+        /// Its verdict.
+        verdict: Result<geom_core::Decided, geom_core::Indeterminate>,
+    },
 }
 
 impl NotARing {
+    /// The refusing half's verdict: decided non-positive, or undecided.
+    ///
+    /// # Errors
+    ///
+    /// The half's [`geom_core::Indeterminate`] where it was undecided.
+    pub fn verdict(self) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+        match self {
+            Self::Tube { verdict, .. } | Self::Ring { verdict, .. } => verdict,
+        }
+    }
+
     /// The refusal as the collapsed-arm gate states it
     /// ([`geom_core::k_stats::gate_rejection`]): an undecided half's own
     /// escalation, or a decided non-positive half's rejection under the
-    /// half's name.
+    /// half's row.
     #[must_use]
     pub fn escalation(self, band: Band) -> geom_core::Indeterminate {
-        let (name, verdict) = match self {
-            Self::Tube(verdict) => ("torus_tube_positive", verdict),
-            Self::Ring(verdict) => ("ring_torus_convention", verdict),
-        };
+        let (Self::Tube { site, verdict } | Self::Ring { site, verdict }) = self;
         match verdict {
             Err(diag) => diag,
             Ok(decided) => geom_core::k_stats::gate_rejection(
-                name,
+                site,
                 decided,
                 band,
                 geom_core::SizedPass::Positive,
@@ -622,22 +696,44 @@ impl NotARing {
 }
 
 impl<T: geom_core::Decide> RingTorus<T> {
-    /// **Decides radii `(major_radius, minor_radius)` a ring**: the tube
-    /// half first ([`ring_torus`] says why), then the ring half.
+    /// **Decides radii `(major_radius, minor_radius)` a ring** under the
+    /// convention's own rows ([`RingSites::CONVENTION`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`RingTorus::of_at`].
+    pub fn of(major_radius: T, minor_radius: T, band: Band) -> Result<Self, NotARing> {
+        Self::of_at(major_radius, minor_radius, RingSites::CONVENTION, band)
+    }
+
+    /// **Decides radii `(major_radius, minor_radius)` a ring under a
+    /// reader's own `sites`**: the tube half first ([`ring_torus`] says
+    /// why), then the ring half.
     ///
     /// # Errors
     ///
     /// [`NotARing`], naming the first half that does not read
-    /// `Positive`, with its verdict.
-    pub fn of(major_radius: T, minor_radius: T, band: Band) -> Result<Self, NotARing> {
+    /// `Positive`, with its row and verdict.
+    pub fn of_at(
+        major_radius: T,
+        minor_radius: T,
+        sites: RingSites,
+        band: Band,
+    ) -> Result<Self, NotARing> {
         let positive = |d: &Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == geom_core::Sign::Positive);
-        let tube = torus_tube(minor_radius, band);
+        let tube = tube_half(sites.tube, minor_radius, band);
         if !positive(&tube) {
-            return Err(NotARing::Tube(tube));
+            return Err(NotARing::Tube {
+                site: sites.tube,
+                verdict: tube,
+            });
         }
-        let ring = ring_torus(major_radius, minor_radius, band);
+        let ring = ring_half(sites.ring, major_radius, minor_radius, band);
         if !positive(&ring) {
-            return Err(NotARing::Ring(ring));
+            return Err(NotARing::Ring {
+                site: sites.ring,
+                verdict: ring,
+            });
         }
         Ok(Self {
             major_radius,

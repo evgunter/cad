@@ -195,9 +195,25 @@ pub use projection_policy::{
 };
 pub use surfaces::{
     AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
-    OffsetCertificate, PLACEHOLDER_SURFACE, RingTorus, SheetApex, SpindleEnd, SpindleMiss, Surface,
-    SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind,
-    SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
-    is_ring_torus, meridian_side, require_ring_torus, ring_torus, sheet_apex, spindle_sheet,
-    torus_tube,
+    OffsetCertificate, PLACEHOLDER_SURFACE, RingSites, RingTorus, SheetApex, SpindleEnd,
+    SpindleMiss, Surface, SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3,
+    SurfaceKind, SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec,
+    SurfaceWindow, is_ring_torus, meridian_side, require_ring_torus, ring_torus, sheet_apex,
+    spindle_sheet, torus_tube,
 };
+
+/// `a == b`, in a `const` context.
+pub(crate) const fn str_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut k = 0;
+    while k < a.len() {
+        if a[k] != b[k] {
+            return false;
+        }
+        k += 1;
+    }
+    true
+}

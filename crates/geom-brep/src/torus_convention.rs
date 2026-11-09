@@ -148,8 +148,8 @@ impl TorusRefusal {
     ) -> Result<geom::RingTorus<T>, Self> {
         geom::RingTorus::of(major, minor, band).map_err(|not| {
             let (convention, verdict) = match not {
-                geom::NotARing::Tube(verdict) => (TorusConvention::Tube, verdict),
-                geom::NotARing::Ring(verdict) => (TorusConvention::Ring, verdict),
+                geom::NotARing::Tube { verdict, .. } => (TorusConvention::Tube, verdict),
+                geom::NotARing::Ring { verdict, .. } => (TorusConvention::Ring, verdict),
             };
             Self::of(convention, verdict, band).unwrap_or_else(|| {
                 unreachable!("`RingTorus::of` refuses only a half that did not read Positive")

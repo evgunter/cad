@@ -455,17 +455,16 @@ fn cylinders_locus<T: Decide>(
             // c1 — and P = o1 − ŵ·r1 when r1 < r2, both from
             // collinearity of P, o1, o2 with |P−o1| = r1, |P−o2| = r2).
             // The side is DECIDED, never an evaluation-lane comparison.
-            let sign =
-                match decide("tangent_locus_side", Margin::of(r1 - r2), band).map_err(escalate)? {
-                    Sign::Positive => T::one(),
-                    Sign::Negative => T::zero() - T::one(),
-                    Sign::Zero => {
-                        return Err(TangentLocusError::Unsupported {
-                            what: "equal-radius internal tangency contradicts the definite \
-                               axis offset — no closed-form generator",
-                        });
-                    }
-                };
+            let Some(side) = decide("tangent_locus_side", Margin::of(r1 - r2), band)
+                .map_err(escalate)?
+                .nonzero()
+            else {
+                return Err(TangentLocusError::Unsupported {
+                    what: "equal-radius internal tangency contradicts the definite axis offset \
+                           — no closed-form generator",
+                });
+            };
+            let sign: T = side.unit();
             Ok(TangentLocus::Line {
                 line: geom::Line {
                     origin: foot1 + w.normalize() * (sign * r1),

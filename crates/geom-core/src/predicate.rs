@@ -231,6 +231,17 @@ impl Sign {
     pub fn is_positive(self) -> bool {
         self == Self::Positive
     }
+
+    /// The definite side, or `None` at `Zero`: where a caller that has
+    /// decided a sign states its own refusal of `Zero`.
+    #[must_use]
+    pub fn nonzero(self) -> Option<crate::k_stats::NonzeroSign> {
+        match self {
+            Self::Negative => Some(crate::k_stats::NonzeroSign::Negative),
+            Self::Zero => None,
+            Self::Positive => Some(crate::k_stats::NonzeroSign::Positive),
+        }
+    }
 }
 
 impl fmt::Display for Sign {

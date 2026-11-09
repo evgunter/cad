@@ -1211,9 +1211,10 @@ pub(super) const RIDER_ON_PLANE: &str = "bool_rider_on_plane";
 /// under.
 pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 
-/// The site [`carrier_on_surface`] decides a torus face a ring under
-/// ([`geom_brep::variety::Variety::of`]).
-const RIDER_RING_TORUS: &str = "bool_rider_ring_torus";
+/// The rows [`carrier_on_surface`] decides a torus face a ring under, its
+/// tube and then its ring ([`geom_brep::variety::Variety::of`]).
+const RIDER_RING_TORUS: geom::RingSites =
+    geom::RingSites::new("bool_rider_torus_tube", "bool_rider_ring_torus");
 
 /// The site [`carrier_on_surface`] decides a spiric's plane against a
 /// plane face's under: their tilt over the spiric's reach, then the
@@ -3442,7 +3443,7 @@ mod curved_carrier_rows {
         matches!(
             read,
             Err(super::BooleanError::Escalated { diag, .. })
-                if diag.predicate == Some(super::RIDER_RING_TORUS)
+                if diag.predicate == Some(super::RIDER_RING_TORUS.ring())
         )
     }
 

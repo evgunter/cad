@@ -39,8 +39,7 @@
 //! and how many.
 
 use geom::Surface;
-use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3};
 
 use crate::ladder::{IdentityLadder, read_identity};
 
@@ -64,34 +63,59 @@ pub struct Variety<'s, T: geom_core::Real> {
 
 impl<'s, T: Decide> Variety<'s, T> {
     /// **`carrier`, where its decided residual vanishes on its whole real
-    /// variety** (module docs): a plane, a cylinder, a sphere, a cone, and
-    /// a torus whose `R − r` is decided positive under `ring`. `Ok(None)`
-    /// for every other kind, and for a torus decided `R ≤ r`. The one list
-    /// of the carriers the certificate holds for, matched exhaustively so a
-    /// new kind decides here.
-    ///
-    /// # Errors
-    ///
-    /// The ring decision's escalation, where a torus's `R − r` is in band:
-    /// a reader escalates there rather than reading the torus as no member.
-    pub fn of(
-        carrier: &'s Surface<T>,
-        ring: &'static str,
-        band: Band,
-    ) -> Result<Option<Self>, Indeterminate> {
-        let whole = match *carrier {
+    /// variety** (module docs), for a kind whose membership needs no
+    /// decision: a plane, a cylinder, a sphere, a cone. `None` for every
+    /// other kind, a torus included: whether a torus is a member is a
+    /// decision, [`Variety::of`]'s. The one list of the carriers the
+    /// certificate holds for without one, matched exhaustively so a new
+    /// kind decides here.
+    #[must_use]
+    pub fn quadric(carrier: &'s Surface<T>) -> Option<Self> {
+        match *carrier {
             Surface::Plane { .. }
             | Surface::Cylinder { .. }
             | Surface::Sphere { .. }
-            | Surface::Cone { .. } => true,
-            Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            } => decide(ring, Margin::of(major_radius - minor_radius), band)? == Sign::Positive,
-            Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => false,
+            | Surface::Cone { .. } => Some(Self { carrier }),
+            Surface::Torus { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => None,
+        }
+    }
+
+    /// **`carrier`, where its decided residual vanishes on its whole real
+    /// variety** (module docs): a [`Variety::quadric`], or a torus decided
+    /// a ring ([`geom::RingTorus::of_at`], under the reader's `ring`
+    /// rows). `Ok(None)` for every other kind, and for a torus decided not
+    /// a ring.
+    ///
+    /// # Errors
+    ///
+    /// The ring decision's escalation, where a half of a torus's
+    /// convention is in band: a reader escalates there rather than reading
+    /// the torus as no member.
+    pub fn of(
+        carrier: &'s Surface<T>,
+        ring: geom::RingSites,
+        band: Band,
+    ) -> Result<Option<Self>, Indeterminate> {
+        let Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } = *carrier
+        else {
+            return Ok(Self::quadric(carrier));
         };
-        Ok(whole.then_some(Self { carrier }))
+        Ok(
+            match geom::RingTorus::of_at(major_radius, minor_radius, ring, band) {
+                Ok(_) => Some(Self { carrier }),
+                Err(not) => {
+                    not.verdict()?;
+                    None
+                }
+            },
+        )
     }
 
     /// **A piece's `points` read against the variety** (module docs):
@@ -130,6 +154,8 @@ mod rows {
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{Piece, Variety};
+
+    const ROW_RING: geom::RingSites = geom::RingSites::new("variety_row_tube", "variety_row_ring");
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -181,7 +207,7 @@ mod rows {
         ];
         for s in &admitted {
             assert!(
-                matches!(Variety::of(s, "variety_row_ring", band()), Ok(Some(_))),
+                matches!(Variety::of(s, ROW_RING, band()), Ok(Some(_))),
                 "{s:?}"
             );
         }
@@ -198,19 +224,37 @@ mod rows {
         ];
         for s in &refused {
             assert!(
-                matches!(Variety::of(s, "variety_row_ring", band()), Ok(None)),
+                matches!(Variety::of(s, ROW_RING, band()), Ok(None)),
                 "{s:?}"
             );
         }
     }
 
-    /// **A torus whose `R − r` is in band is neither a member nor not**:
-    /// the ring decision's escalation, which a reader escalates on.
+    /// **A torus with either half of its convention in band is neither a
+    /// member nor not**: that half's escalation, under the reader's own
+    /// row for it, which the reader escalates on. A tube decided zero is
+    /// no member, and [`Variety::quadric`], which decides nothing, never
+    /// admits a torus. Red on a half read under another reader's name,
+    /// on the tube left undecided, or on a torus admitted undecided.
     #[test]
-    fn a_torus_whose_ring_is_in_band_escalates() {
+    fn a_torus_whose_convention_is_in_band_escalates() {
         let b = band();
         let gap = 0.5 * (b.zero() + b.escalate());
-        assert!(Variety::of(&torus(1.0 + gap, 1.0), "variety_row_ring", b).is_err());
+        let ring = Variety::of(&torus(1.0 + gap, 1.0), ROW_RING, b).map(|v| v.is_some());
+        assert!(
+            matches!(&ring, Err(d) if d.predicate == Some("variety_row_ring")),
+            "{ring:?}"
+        );
+        let tube = Variety::of(&torus(2.0, gap), ROW_RING, b).map(|v| v.is_some());
+        assert!(
+            matches!(&tube, Err(d) if d.predicate == Some("variety_row_tube")),
+            "{tube:?}"
+        );
+        assert!(matches!(
+            Variety::of(&torus(2.0, 0.0), ROW_RING, b),
+            Ok(None)
+        ));
+        assert!(Variety::quadric(&torus(2.0, 1.0)).is_none());
     }
 
     /// **One point off reads the piece off, whatever the others read; all
@@ -224,9 +268,7 @@ mod rows {
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        let variety = Variety::of(&cyl, "variety_row_ring", band())
-            .unwrap()
-            .unwrap();
+        let variety = Variety::of(&cyl, ROW_RING, band()).unwrap().unwrap();
         let (on, off) = (Point3::new(1.0, 0.0, 0.5), Point3::new(2.0, 0.0, 0.5));
         assert_eq!(
             variety.read_piece(&[on, off], "variety_row_off", band()),
