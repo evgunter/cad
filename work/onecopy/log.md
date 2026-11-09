@@ -1026,3 +1026,4 @@
 - 15:12Z 6642 head b53f4003 (the fmt fix merged forward); reviewer told; gating.
 - 15:15Z 6637 delta (a6bd9336): FIX (small). recl's consumer re-classes the NoReference limit as InBand Unplaced (dead arm); pin the limit with the reviewer's whole-plane fixture; clears' Zero→Ok(false) seam; split cone_fuzz's tally. Sent to the ladder lane.
 - 15:20Z Merged PR 6647 (chord-length) at gate-green 8474df19 (FULL MERGE; disjoint; merge check clean). NOTEs (prescale value move, two stale zero-only texts, a point-equality home row, the clearance pin) → length-rule lane.
+- 15:25Z Merged PR 6643 (face-placement) at gate-green 0741cadf (FULL MERGE; disjoint since; merge check clean).
