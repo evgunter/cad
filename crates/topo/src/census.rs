@@ -2524,41 +2524,60 @@ pub(crate) fn line_wedges<T: Decide>(
             }
         }
     }
-    // A ladder over the pairs, and within each over its probes ([`climb`],
-    // [`Answering::Any`]: every wedge holding another's probe strictly
-    // inside says the same overlap), so a pair or a probe read in band
-    // refuses only where no later one overlaps, each refusal kept by its
-    // standing ([`WedgeRefusal::refusal`]). A pair's two wedges are its
-    // probes' premise.
+    wedges_overlap(
+        pairs,
+        |pair, side| {
+            let at = pair.ends[0] + (pair.ends[1] - pair.ends[0]) * T::from_f64(0.5);
+            wedge(body, &geo[&pair.edges[side]], at, band)
+        },
+        |w| [w.own, w.next, w.inside],
+        |w, v| strictly_inside(w, v, band),
+    )
+}
+
+/// **[`line_wedges`]' ladder**: over the pairs, and within each over its
+/// probes ([`climb`], [`Answering::Any`]: every wedge holding another's
+/// probe strictly inside is a definite overlap, a true fault whichever
+/// pair it is). `wedge(pair, side)` reads one of a pair's two wedges,
+/// `probes` a wedge's three directions, and `inside` whether a direction
+/// lies strictly inside a wedge. A pair or a probe read in band refuses
+/// only where no later one overlaps, each refusal kept by its standing
+/// ([`WedgeRefusal::refusal`]). A pair's two wedges are its probes'
+/// premise.
+fn wedges_overlap<P, W, V>(
+    pairs: impl IntoIterator<Item = P>,
+    mut wedge: impl FnMut(&P, usize) -> Result<W, WedgeRefusal>,
+    probes: impl Fn(&W) -> [V; 3],
+    inside: impl Fn(&W, V) -> Result<bool, WedgeRefusal>,
+) -> Result<Option<usize>, (usize, WedgeRefusal)> {
     let kept = |e: (usize, WedgeRefusal)| Rung::refused(e, |e| e.1.refusal());
-    let climbed = climb(Answering::Any, pairs.iter().enumerate(), |(i, pair)| {
-        let at = pair.ends[0] + (pair.ends[1] - pair.ends[0]) * T::from_f64(0.5);
-        let read = |key: EdgeKey| wedge(body, &geo[&key], at, band).map_err(|r| (i, r));
-        let a = match read(pair.edges[0]) {
-            Ok(a) => a,
-            Err(e) => return kept(e),
-        };
-        let b = match read(pair.edges[1]) {
-            Ok(b) => b,
-            Err(e) => return kept(e),
-        };
-        let probes = [(&a, &b), (&b, &a)]
-            .into_iter()
-            .flat_map(|(w, p)| [p.own, p.next, p.inside].map(|v| (w, v)));
-        let inner = climb(Answering::Any, probes, |(w, v)| {
-            Rung::holds(
-                strictly_inside(w, v, band).map_err(|r| (i, r)),
-                (),
-                |e| e.1.refusal(),
-            )
-        });
-        match inner {
-            Climb::Answered { answer: Ok(()), .. } => Rung::Answers(Ok(i)),
-            Climb::Answered { answer: Err(e), .. } => Rung::Aborts(Err(e)),
-            Climb::Undecided(e) => kept(e),
-            Climb::Passed => Rung::Passes,
-        }
-    });
+    let climbed = climb(
+        Answering::Any,
+        pairs.into_iter().enumerate(),
+        |(i, pair)| {
+            let a = match wedge(&pair, 0) {
+                Ok(a) => a,
+                Err(r) => return kept((i, r)),
+            };
+            let b = match wedge(&pair, 1) {
+                Ok(b) => b,
+                Err(r) => return kept((i, r)),
+            };
+            let held = probes(&b)
+                .into_iter()
+                .map(|v| (&a, v))
+                .chain(probes(&a).into_iter().map(|v| (&b, v)));
+            let inner = climb(Answering::Any, held, |(w, v)| {
+                Rung::holds(inside(w, v).map_err(|r| (i, r)), (), |e| e.1.refusal())
+            });
+            match inner {
+                Climb::Answered { answer: Ok(()), .. } => Rung::Answers(Ok(i)),
+                Climb::Answered { answer: Err(e), .. } => Rung::Aborts(Err(e)),
+                Climb::Undecided(e) => kept(e),
+                Climb::Passed => Rung::Passes,
+            }
+        },
+    );
     match climbed {
         Climb::Answered { answer, .. } => answer.map(Some),
         Climb::Passed => Ok(None),
@@ -21864,55 +21883,95 @@ mod arc_interiors {
 }
 
 /// **A probe strictly inside answers past a probe read in band**
-/// ([`line_wedges`] climbs its pairs and each pair's probes, through
-/// [`probe_rung`]), and a wedge with no reading, a limit, outranks a
-/// probe in band read before it. Fed the readings directly: no line pair
-/// a constructor builds reads in band at one probe and inside at another.
+/// ([`line_wedges`] climbs its pairs and each pair's probes through
+/// [`wedges_overlap`]), and a wedge with no reading, a limit, outranks a
+/// probe in band read before it. The readings are fed to the production
+/// ladder through its readers: no line pair a constructor builds reads in
+/// band at one probe and inside at another.
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod line_wedges_ranking {
-    use geom_brep::ladder::{Answering, Climb, climb};
     use geom_core::{Band, Indeterminate, MarginDiag};
 
-    use super::{EdgeKey, TouchUnread, WedgeRefusal};
-    type W = (usize, WedgeRefusal);
-    fn probe_rung(r: Result<bool, W>) -> geom_brep::ladder::Rung<Result<(), W>, W> {
-        geom_brep::ladder::Rung::holds(r, (), |e: &W| e.1.refusal())
+    use super::{EdgeKey, TouchUnread, WedgeRefusal, wedges_overlap};
+
+    fn in_band() -> WedgeRefusal {
+        WedgeRefusal::Undecided(Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).expect("a valid band"),
+            predicate: Some("t"),
+            terminal_sliver: false,
+        })
     }
 
-    fn in_band() -> (usize, WedgeRefusal) {
-        (
-            0,
-            WedgeRefusal::Undecided(Indeterminate {
-                margin: MarginDiag::value(5e-9),
-                band: Band::new(1e-9, 1e-8).expect("a valid band"),
-                predicate: Some("t"),
-                terminal_sliver: false,
-            }),
+    fn unread() -> WedgeRefusal {
+        WedgeRefusal::Unread(EdgeKey::default(), TouchUnread::Degenerate)
+    }
+
+    /// The production ladder over pairs whose wedges all read, each probe
+    /// read off `probe(pair, k)`: the k-th of a pair's six probes.
+    fn read(
+        pairs: usize,
+        probe: impl Fn(usize, usize) -> Result<bool, WedgeRefusal>,
+    ) -> Result<Option<usize>, (usize, WedgeRefusal)> {
+        wedges_overlap(
+            0..pairs,
+            |&pair, side| Ok((pair, side)),
+            |&(_, side)| [3 * (1 - side), 3 * (1 - side) + 1, 3 * (1 - side) + 2],
+            |&(pair, _), k| probe(pair, k),
         )
     }
 
     #[test]
     fn a_probe_inside_answers_past_one_in_band() {
-        let read =
-            |r: Vec<Result<bool, (usize, WedgeRefusal)>>| climb(Answering::Any, r, probe_rung);
-        assert!(
-            matches!(
-                read(vec![Err(in_band()), Ok(true)]),
-                Climb::Answered { answer: Ok(()), .. }
-            ),
+        assert_eq!(
+            read(1, |_, k| if k == 0 { Err(in_band()) } else { Ok(k == 4) }),
+            Ok(Some(0)),
             "a later probe strictly inside answers past one in band"
         );
-        let unread = (
-            0,
-            WedgeRefusal::Unread(EdgeKey::default(), TouchUnread::Degenerate),
+        assert_eq!(
+            read(2, |pair, k| match (pair, k) {
+                (0, 0) => Err(in_band()),
+                (0, _) => Ok(false),
+                (_, k) => Ok(k == 2),
+            }),
+            Ok(Some(1)),
+            "a later pair that overlaps answers past a pair in band"
         );
         assert!(
             matches!(
-                read(vec![Err(in_band()), Err(unread)]),
-                Climb::Undecided((_, WedgeRefusal::Unread(_, TouchUnread::Degenerate)))
+                read(1, |_, k| match k {
+                    0 => Err(in_band()),
+                    1 => Err(unread()),
+                    _ => Ok(false),
+                }),
+                Err((0, WedgeRefusal::Unread(_, TouchUnread::Degenerate)))
             ),
             "a wedge with no reading outranks the probe in band read before it"
+        );
+        assert!(
+            matches!(
+                read(1, |_, k| if k == 0 { Err(in_band()) } else { Ok(false) }),
+                Err((0, WedgeRefusal::Undecided(_)))
+            ),
+            "with no probe inside, the probe in band refuses"
+        );
+    }
+
+    #[test]
+    fn a_pair_whose_wedge_does_not_read_is_kept_and_a_later_pair_answers() {
+        let read = |first: WedgeRefusal| {
+            wedges_overlap(
+                [Some(first), None],
+                |pair, _| pair.map_or(Ok(()), Err),
+                |_| [0, 1, 2],
+                |_, k| Ok(k == 1),
+            )
+        };
+        assert_eq!(
+            read(in_band()),
+            Ok(Some(1)),
+            "a pair whose wedge reads in band does not refuse a later pair that overlaps"
         );
     }
 }

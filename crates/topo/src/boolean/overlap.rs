@@ -41,7 +41,7 @@ use std::sync::Arc;
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::Span;
-use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb, rung_or_abort};
+use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
@@ -565,17 +565,22 @@ fn piece_witness<T: Decide>(
     }
     let n = turned(normal_at(x, q, band)?, x_rev);
     let mine = as_read(half_plane(x.0, he, q)?, x_rev);
-    // A ladder over `y`'s corners at `q` ([`climb`], [`Answering::Any`]:
-    // every corner meeting the piece says the same "a witness"), so a
-    // corner read in band refuses only where no later one meets it.
-    let climbed = climb(Answering::Any, ys, |cy| {
-        Rung::holds(
-            corners_meet(mine, as_read(cy, y_rev), n, band),
-            true,
-            OverlapRefusal::refusal,
-        )
-    });
-    match climbed {
+    any_corner_meets(ys, |cy| corners_meet(mine, as_read(cy, y_rev), n, band))
+}
+
+/// **Whether any of `corners` meets the piece** ([`piece_witness`]'s
+/// ladder, each corner read by `meets`): a ladder over them ([`climb`],
+/// [`Answering::Any`]: every corner meeting the piece says the same "a
+/// witness"), so a corner read in band refuses only where no later one
+/// meets it, each refusal kept by its standing
+/// ([`OverlapRefusal::refusal`]).
+fn any_corner_meets<C>(
+    corners: impl IntoIterator<Item = C>,
+    mut meets: impl FnMut(C) -> Result<bool, OverlapRefusal>,
+) -> Result<bool, OverlapRefusal> {
+    match climb(Answering::Any, corners, |c| {
+        Rung::holds(meets(c), true, OverlapRefusal::refusal)
+    }) {
         Climb::Answered { answer, .. } => answer,
         Climb::Passed => Ok(false),
         Climb::Undecided(r) => Err(r),
@@ -750,28 +755,28 @@ mod piece_ranking {
 
     /// **A corner meeting the piece answers past a corner read in band**
     /// (`piece_witness` climbs `y`'s corners through
-    /// [`super::witness_rung`]). Fed the readings directly.
+    /// [`super::any_corner_meets`]). The readings are fed to the
+    /// production ladder through its reader.
     #[test]
     fn a_corner_that_meets_answers_past_one_in_band() {
-        use geom_brep::ladder::{Answering, Climb, climb};
-        let read =
-            |r: Vec<Result<bool, OverlapRefusal>>| climb(Answering::Any, r, |r| geom_brep::ladder::Rung::holds(r, true, OverlapRefusal::refusal));
+        let read = |r: Vec<Result<bool, OverlapRefusal>>| super::any_corner_meets(r, |r| r);
         assert!(
-            matches!(
-                read(vec![Err(in_band()), Ok(true)]),
-                Climb::Answered {
-                    answer: Ok(true),
-                    ..
-                }
-            ),
+            matches!(read(vec![Err(in_band()), Ok(true)]), Ok(true)),
             "a later corner that meets answers past an earlier one in band"
         );
         assert!(
             matches!(
                 read(vec![Err(in_band()), Err(unread())]),
-                Climb::Undecided(OverlapRefusal::Unread { .. })
+                Err(OverlapRefusal::Unread { .. })
             ),
             "a limit outranks the corner in band read before it"
+        );
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Ok(false)]),
+                Err(OverlapRefusal::OnPlane(_))
+            ),
+            "with no corner meeting the piece, the corner in band refuses"
         );
     }
 }

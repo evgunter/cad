@@ -204,7 +204,7 @@
 //!   ([`past_every_reach`]). **`bool_point_axis`**: the offset from the
 //!   faces' anchor to `q`, before it is read as one of those directions.
 
-use geom_brep::ladder::{Answering, Climb, Rung, climb, rung_or_abort};
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::period::{Exact, Extent, Period, TurnRows, Within};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
@@ -6512,4 +6512,3 @@ mod reach_tests {
         );
     }
 }
-
