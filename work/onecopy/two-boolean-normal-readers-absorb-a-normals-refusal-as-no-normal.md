@@ -2,8 +2,10 @@
 id: two-boolean-normal-readers-absorb-a-normals-refusal-as-no-normal
 kind: issue
 title: Two boolean normal readers (reduce::sheets_part, slit::spline_floor) read a normal's refusal as no normal, as holding_face_normal did
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6655
 ---
 
 
