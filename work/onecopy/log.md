@@ -1162,3 +1162,4 @@
   - foot-closed-forms ruled: land Surface::foot as the one home plus QueryFoot plus zero-band pins; the leg half as a C5 design-question row.
 - 21:20Z 6660 FULL: MERGE, plus small fixes before merge (TouchNormalFault waits per 11(B)(i); pin the abort set; the ops.rs path premise). Class follow-up: one NormalAtError fault-kind method read by 6655 slit, 6648 HoldingUnread and 6660 census (DegenerateTorus aborts since 498685d1) → length-rule lane after 6655/6660. 6648 lane heads-up.
 - 21:20Z 6669 FULL: MERGE after 6654; fix census placed's premise (meets_at is in_band) and the unlevered check → lane.
+- 21:25Z 6648 head → 1a9b10d5 (a comment naming the DegenerateTorus gap); reviewer told; re-gating.
