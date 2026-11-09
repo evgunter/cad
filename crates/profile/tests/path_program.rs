@@ -1717,7 +1717,14 @@ fn a_leg_a_run_continues_keeps_its_own_segment() {
         .unwrap();
     assert_eq!(
         pieces_of(&closed),
-        vec![(2, Leg), (3, RunIn), (3, Arc), (3, RunOut), (6, Leg), (7, Leg)]
+        vec![
+            (2, Leg),
+            (3, RunIn),
+            (3, Arc),
+            (3, RunOut),
+            (6, Leg),
+            (7, Leg)
+        ]
     );
     pinned(closed);
 }

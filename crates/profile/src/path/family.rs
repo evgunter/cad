@@ -138,9 +138,9 @@ use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
-    Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng,
-    NoPos, Open, PAIRED, PartialPath, PathError, PendingMeta, Plain, SeamArrival, Start, Tip,
-    WithIncoming, in_state, leg_end_tip, linear_band, seam_joint,
+    Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PAIRED, PartialPath,
+    PathError, PendingMeta, Plain, SeamArrival, Start, Tip, WithIncoming, in_state, leg_end_tip,
+    linear_band, seam_joint,
 };
 
 // ------------------------------------------------------------------
@@ -373,10 +373,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         seam_joint(
             core,
             seam,
-            &Incoming::fresh(
-                end_ang,
-                radius.min(chord),
-            ),
+            &Incoming::fresh(end_ang, radius.min(chord)),
             start_ang,
             tol,
         )?;
@@ -1385,13 +1382,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Ok(v) => v,
             Err(e) => return S::fail(e),
         };
-        if let Err(e) = open_ray(
-            &mut self.core,
-            at,
-            ang,
-            radius,
-            tol,
-        ) {
+        if let Err(e) = open_ray(&mut self.core, at, ang, radius, tol) {
             return S::fail(e);
         }
         S::apply(self.core, spec, tol)
@@ -1480,10 +1471,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             crate::BuiltArc::new(leg.arc, crate::Facts::Registered).sensed(leg.winding),
         )?;
         let arm = leg.arc.radius.min(leg.chord);
-        Ok(in_state(
-            self.core,
-            leg_end_tip(leg.end, leg.end_dir, arm),
-        ))
+        Ok(in_state(self.core, leg_end_tip(leg.end, leg.end_dir, arm)))
     }
 }
 
@@ -1602,13 +1590,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             site: "ray extension on a tip without incoming data",
         })?;
         self.core.construct_last();
-        open_ray(
-            &mut self.core,
-            at,
-            inc.ang,
-            radius,
-            tol,
-        )
+        open_ray(&mut self.core, at, inc.ang, radius, tol)
     }
 
     /// The kernel behind the table's leg-end fused row (recording is

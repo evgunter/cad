@@ -5399,10 +5399,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let g = self.tangent_arc_geom(p, tol)?;
         self.core.push_leg(p, g.arc)?;
         let arm = leg_arm(g.carrier, g.chord);
-        Ok(in_state(
-            self.core,
-            leg_end_tip(p, g.end_ang, arm),
-        ))
+        Ok(in_state(self.core, leg_end_tip(p, g.end_ang, arm)))
     }
 
     /// The tangent-arc seam. The arc is constructed from the DEPARTURE
@@ -5737,10 +5734,7 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
             // authored anchor is ABSORBED into it rather than emitted
             // twice, exactly as the hand door absorbs its `next`.
             let head = self.core.head()?;
-            Ok(in_state(
-                self.core,
-                leg_end_tip(head, dir, arc.radius),
-            ))
+            Ok(in_state(self.core, leg_end_tip(head, dir, arc.radius)))
         }
     }
 }

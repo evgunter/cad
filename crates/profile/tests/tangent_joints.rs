@@ -718,7 +718,8 @@ fn an_arc_extension_is_its_own_segment_with_a_constructed_tip_joint() {
         .position(|v| v.x.to_bits() == 8.5f64.to_bits() && v.y.to_bits() == 0.0f64.to_bits())
         .unwrap_or_else(|| panic!("the tip (8.5, 0) is a vertex: {vs:?}"));
     let segs = same.as_loop().segments();
-    let (profile::Segment::Arc(before), profile::Segment::Arc(after)) = (&segs[tip - 1], &segs[tip])
+    let (profile::Segment::Arc(before), profile::Segment::Arc(after)) =
+        (&segs[tip - 1], &segs[tip])
     else {
         panic!("arcs meet at the tip: {segs:?}");
     };
@@ -744,7 +745,11 @@ fn an_arc_extension_is_its_own_segment_with_a_constructed_tip_joint() {
         decided(&vp)
     );
     let nudged = boss(1.5 + 1e-10);
-    assert_eq!(kinds(&nudged), kinds(&same), "a nudged r keeps the segments");
+    assert_eq!(
+        kinds(&nudged),
+        kinds(&same),
+        "a nudged r keeps the segments"
+    );
     assert_eq!(
         nudged.constructed_joints(),
         same.constructed_joints(),
