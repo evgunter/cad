@@ -7185,24 +7185,9 @@ pub(crate) enum Undecided {
     Unresolved,
     /// Arm 2: an unexamined or escalated finding already stands.
     Unexamined,
-    /// Arm 2: a touch whose analysis needed a sign in band.
-    TouchInBand,
-    /// Arm 2: a touch where one face, seen from the touch point, could
-    /// not be traced on decided readings.
-    TouchPieceInBand,
-    /// Arm 2: a touch at a curved face or edge.
-    TouchUnreadable,
-    /// Arm 2: a touch where a face meets the touch point both at a
-    /// corner and along an edge, or a solid's faces there do not close.
-    TouchUnanalysed,
-    /// Arm 2: a touch whose readings of one solid's faces contradict
-    /// each other.
-    TouchDegenerate,
-    /// Arm 2: a touch at a corner whose edge length is not a number.
-    TouchChordScale,
-    /// Arm 2: a touch on a curved edge whose tangent there did not read
-    /// ([`TouchUnread::EdgeTangent`]).
-    TouchEdgeTangent,
+    /// Arm 2: a touch the local analysis could not decide, for its
+    /// reason, carried whole ([`TouchUnread::backstop_sentence`]).
+    Touch(TouchUnread),
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
     /// Arm 2: the contained instance has no vertex.
@@ -7275,16 +7260,7 @@ impl Undecided {
     /// Whether this is a touch the local analysis could not decide —
     /// a reason that waits in `blocks` for a decided one.
     fn is_undecided_touch(self) -> bool {
-        matches!(
-            self,
-            Self::TouchInBand
-                | Self::TouchPieceInBand
-                | Self::TouchUnreadable
-                | Self::TouchUnanalysed
-                | Self::TouchDegenerate
-                | Self::TouchChordScale
-                | Self::TouchEdgeTangent
-        )
+        matches!(self, Self::Touch(_))
     }
 
     /// The reason and its recourse, as the finding renders them.
@@ -7332,50 +7308,7 @@ impl Undecided {
                 "another finding left their boundaries unchecked, and this one cannot be \
                  decided until that is resolved. Recourse: resolve that finding first"
             }
-            Self::TouchInBand => {
-                concat!(
-                    "they touch, and ",
-                    geom_core::undecided!("whether they overlap there"),
-                    ". There is no way through yet for a designed resting contact; otherwise \
-                     move them until their bounding boxes no longer overlap"
-                )
-            }
-            Self::TouchPieceInBand => {
-                "they touch where a face of one, seen from the touch, has corners or edges \
-                 too nearly in line to trace at this tolerance, so the check cannot tell \
-                 whether they overlap there. There is no way through yet for a designed \
-                 resting contact; otherwise move them until their bounding boxes no longer \
-                 overlap"
-            }
-            Self::TouchUnreadable => {
-                "they touch at a curved face or edge, and the check cannot yet tell which \
-                 side each is on. There is no way through yet for a designed resting \
-                 contact; otherwise move them until their \
-                 bounding boxes no longer overlap"
-            }
-            Self::TouchUnanalysed => {
-                "they touch where a face of one meets it along an edge and again, or where \
-                 one's faces there do not close around it, so the check cannot tell whether \
-                 they overlap. There is no way through yet for \
-                 a designed resting contact; otherwise move them until their bounding boxes \
-                 no longer overlap"
-            }
-            Self::TouchDegenerate => {
-                "they touch where the check's readings of one's faces contradict each \
-                 other (as two faces folded onto each other do), so it cannot tell whether \
-                 they overlap there. There is no way through yet for this shape; otherwise \
-                 move them until their bounding boxes no longer overlap"
-            }
-            Self::TouchChordScale => {
-                "they touch at a corner with an edge too long or too short to measure. \
-                 Recourse: rescale the model so every edge length is an ordinary number, \
-                 or move them until their bounding boxes no longer overlap"
-            }
-            Self::TouchEdgeTangent => {
-                "they touch on a curved edge whose direction there the check could not read, \
-                 so it cannot tell whether they overlap. There is no way through yet for \
-                 this shape; otherwise move them until their bounding boxes no longer overlap"
-            }
+            Self::Touch(why) => why.backstop_sentence(),
             Self::AllOn => {
                 "every corner of one lies on the other's boundary, so the corners cannot \
                  place it. There is no way through yet for a designed resting fit; \
@@ -7654,15 +7587,46 @@ fn edge_tangent_touch(why: crate::validate::EdgeTangentUnread) -> &'static str {
         EdgeTangentUnread::ALL
             .iter()
             .map(|why| {
-                let recourse = why.recourse();
-                let qualifier = if recourse == geom_core::NOT_YET_ENDING {
-                    " for this shape"
-                } else {
-                    ""
-                };
+                let recourse = edge_tangent_recourse(*why);
                 format!(
                     "a curved edge meets the point, and the check could not read its \
-                     direction there. {recourse}{qualifier}"
+                     direction there. {recourse}"
+                )
+            })
+            .collect()
+    });
+    SENTENCES[why.listed()].as_str()
+}
+
+/// A curved edge's touch recourse: the reason's own
+/// ([`crate::validate::EdgeTangentUnread::recourse`]), with the touch
+/// lane's "for this shape" on a reading not built yet.
+fn edge_tangent_recourse(why: crate::validate::EdgeTangentUnread) -> String {
+    let recourse = why.recourse();
+    if recourse == geom_core::NOT_YET_ENDING {
+        format!("{recourse} for this shape")
+    } else {
+        recourse.to_owned()
+    }
+}
+
+/// [`TouchUnread::backstop_sentence`] for a curved edge whose direction
+/// did not read: the touch, and the reason's own recourse
+/// ([`crate::validate::EdgeTangentUnread::recourse`]), "for this shape"
+/// on a reading not built yet, then the distance that clears the pair.
+/// Built once, over every reason
+/// ([`crate::validate::EdgeTangentUnread::ALL`]).
+fn edge_tangent_backstop(why: crate::validate::EdgeTangentUnread) -> &'static str {
+    use crate::validate::EdgeTangentUnread;
+    static SENTENCES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
+        EdgeTangentUnread::ALL
+            .iter()
+            .map(|why| {
+                let recourse = edge_tangent_recourse(*why);
+                format!(
+                    "they touch on a curved edge whose direction there the check could not \
+                     read, so it cannot tell whether they overlap. {recourse}; \
+                     otherwise move them until their bounding boxes no longer overlap"
                 )
             })
             .collect()
@@ -7674,14 +7638,71 @@ impl TouchUnread {
     /// The cross-solid backstop's reason for a touch left unread.
     fn undecided(self) -> Undecided {
         match self {
-            Self::InBand => Undecided::TouchInBand,
-            Self::PieceInBand => Undecided::TouchPieceInBand,
-            Self::Unreadable => Undecided::TouchUnreadable,
-            Self::Unanalysed => Undecided::TouchUnanalysed,
-            Self::Degenerate => Undecided::TouchDegenerate,
-            Self::ChordScale => Undecided::TouchChordScale,
-            Self::EdgeTangent(_) | Self::OffInterior => Undecided::TouchEdgeTangent,
+            Self::InBand
+            | Self::PieceInBand
+            | Self::Unreadable
+            | Self::Unanalysed
+            | Self::Degenerate
+            | Self::ChordScale
+            | Self::EdgeTangent(_)
+            | Self::OffInterior => Undecided::Touch(self),
             Self::Corrupt => Undecided::CorruptInstance,
+        }
+    }
+
+    /// **The backstop's sentence for a touch left unread**, as a
+    /// [`Undecided::Touch`] finding renders it: the touch, why it was
+    /// not read, and the recourse, each reason's own. A reason the
+    /// backstop never waits on as a touch, a corrupt body
+    /// ([`Self::undecided`]), renders as [`Undecided::CorruptInstance`].
+    fn backstop_sentence(self) -> &'static str {
+        match self {
+            Self::InBand => {
+                concat!(
+                    "they touch, and ",
+                    geom_core::undecided!("whether they overlap there"),
+                    ". There is no way through yet for a designed resting contact; otherwise \
+                     move them until their bounding boxes no longer overlap"
+                )
+            }
+            Self::PieceInBand => {
+                "they touch where a face of one, seen from the touch, has corners or edges \
+                 too nearly in line to trace at this tolerance, so the check cannot tell \
+                 whether they overlap there. There is no way through yet for a designed \
+                 resting contact; otherwise move them until their bounding boxes no longer \
+                 overlap"
+            }
+            Self::Unreadable => {
+                "they touch at a curved face or edge, and the check cannot yet tell which \
+                 side each is on. There is no way through yet for a designed resting \
+                 contact; otherwise move them until their \
+                 bounding boxes no longer overlap"
+            }
+            Self::Unanalysed => {
+                "they touch where a face of one meets it along an edge and again, or where \
+                 one's faces there do not close around it, so the check cannot tell whether \
+                 they overlap. There is no way through yet for \
+                 a designed resting contact; otherwise move them until their bounding boxes \
+                 no longer overlap"
+            }
+            Self::Degenerate => {
+                "they touch where the check's readings of one's faces contradict each \
+                 other (as two faces folded onto each other do), so it cannot tell whether \
+                 they overlap there. There is no way through yet for this shape; otherwise \
+                 move them until their bounding boxes no longer overlap"
+            }
+            Self::ChordScale => {
+                "they touch at a corner with an edge too long or too short to measure. \
+                 Recourse: rescale the model so every edge length is an ordinary number, \
+                 or move them until their bounding boxes no longer overlap"
+            }
+            Self::EdgeTangent(why) => edge_tangent_backstop(why),
+            Self::OffInterior => concat!(
+                "they touch on a curved edge where two readings of where the touch lies on \
+                 it disagree. ",
+                geom_core::kernel_defect_ending!()
+            ),
+            Self::Corrupt => Undecided::CorruptInstance.what(),
         }
     }
 
@@ -9868,9 +9889,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     // solids disagree, and nothing clears on that.
                     Said::Pierce | Said::Wedges(None) => Some(Undecided::Unresolved),
                     Said::Wedges(Some(why)) => Some(why.undecided()),
-                    Said::CurvedTouch => Some(Undecided::TouchUnreadable),
+                    Said::CurvedTouch => Some(Undecided::Touch(TouchUnread::Unreadable)),
                     Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b)))
-                        .then_some(Undecided::TouchUnreadable),
+                        .then_some(Undecided::Touch(TouchUnread::Unreadable)),
                     Said::Unexamined => Some(Undecided::Unexamined),
                     Said::InBand => None,
                 },
@@ -15847,7 +15868,7 @@ mod tests {
             if label == "in band" {
                 assert_eq!(verdict, TouchVerdict::Unread(TouchUnread::InBand));
                 assert!(
-                    matches!(verdict.unrest(None::<Point3<f64>>), Some(Unrest::Undecided(got)) if got == Undecided::TouchInBand)
+                    matches!(verdict.unrest(None::<Point3<f64>>), Some(Unrest::Undecided(got)) if got == Undecided::Touch(TouchUnread::InBand))
                 );
                 assert!(got.is_err(), "{label}: an in-band shared point clears");
             } else {
@@ -16675,7 +16696,7 @@ mod tests {
         let open = rest::judge(&pyramid(Some(0)), &floor_link(band), band);
         assert_eq!(open, TouchVerdict::Unread(TouchUnread::Unanalysed));
         assert!(
-            matches!(open.unrest(None::<Point3<f64>>), Some(Unrest::Undecided(got)) if got == Undecided::TouchUnanalysed)
+            matches!(open.unrest(None::<Point3<f64>>), Some(Unrest::Undecided(got)) if got == Undecided::Touch(TouchUnread::Unanalysed))
         );
     }
 
@@ -16748,7 +16769,7 @@ mod tests {
         let slit = rest::judge(&link((x, vec![vec![0, 1, 2, 3]])), &floor, band);
         assert_eq!(slit, TouchVerdict::Unread(TouchUnread::Degenerate));
         assert!(
-            matches!(slit.unrest(None::<Point3<f64>>), Some(Unrest::Undecided(got)) if got == Undecided::TouchDegenerate)
+            matches!(slit.unrest(None::<Point3<f64>>), Some(Unrest::Undecided(got)) if got == Undecided::Touch(TouchUnread::Degenerate))
         );
         assert_eq!(
             rest::judge(&link((-x, vec![vec![0, 1, 4, 5]])), &floor, band),
@@ -16796,7 +16817,11 @@ mod tests {
                 panic!("{scale}: the corner's link built");
             };
             assert_eq!(verdict, TouchUnread::ChordScale, "{scale}");
-            assert_eq!(verdict.undecided(), Undecided::TouchChordScale, "{scale}");
+            assert_eq!(
+                verdict.undecided(),
+                Undecided::Touch(TouchUnread::ChordScale),
+                "{scale}"
+            );
         }
     }
 
@@ -16808,8 +16833,14 @@ mod tests {
     #[test]
     fn the_unreached_unread_reasons_refuse_as_their_own_kinds() {
         for (why, kind) in [
-            (TouchUnread::PieceInBand, Undecided::TouchPieceInBand),
-            (TouchUnread::Unreadable, Undecided::TouchUnreadable),
+            (
+                TouchUnread::PieceInBand,
+                Undecided::Touch(TouchUnread::PieceInBand),
+            ),
+            (
+                TouchUnread::Unreadable,
+                Undecided::Touch(TouchUnread::Unreadable),
+            ),
             (TouchUnread::Corrupt, Undecided::CorruptInstance),
         ] {
             assert!(

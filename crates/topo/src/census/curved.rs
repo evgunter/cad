@@ -570,6 +570,56 @@ mod tests {
         }
     }
 
+    /// **The cross-solid backstop carries a touch's reason whole**
+    /// ([`crate::census::Undecided::Touch`]): an edge-tangent reason and
+    /// two readings of the touch that disagree each wait as an undecided
+    /// touch, and each renders by its own recourse: a walk past its
+    /// budget offers the tolerance, a reason not built yet says so, and
+    /// the disagreement says a kernel defect. A corrupt body is the
+    /// backstop's own refusal and does not wait. Red where a reason is
+    /// dropped on the way, or a sentence ends with another's.
+    #[test]
+    fn the_backstop_carries_a_touchs_reason_whole() {
+        use crate::census::Undecided;
+        use crate::link::TouchUnread;
+        use crate::validate::EdgeTangentUnread;
+        use geom::PieceWalkRefusal::Exhausted;
+        for (why, ending) in [
+            (
+                TouchUnread::EdgeTangent(EdgeTangentUnread::Unwalked(Exhausted)),
+                concat!(
+                    "Recourse: loosen the tolerance, ",
+                    geom_core::kernel_limit_last_resort!(),
+                    "; otherwise move them until their bounding boxes no longer overlap"
+                ),
+            ),
+            (
+                TouchUnread::EdgeTangent(EdgeTangentUnread::NoReach),
+                concat!(
+                    geom_core::not_yet_ending!(),
+                    " for this shape; otherwise move them until their bounding boxes no \
+                     longer overlap"
+                ),
+            ),
+            (TouchUnread::OffInterior, geom_core::kernel_defect_ending!()),
+        ] {
+            let undecided = why.undecided();
+            assert_eq!(undecided, Undecided::Touch(why), "{why:?}: carried whole");
+            assert!(undecided.is_undecided_touch(), "{why:?}: waits as a touch");
+            assert!(
+                undecided.what().ends_with(ending),
+                "{why:?}: {}",
+                undecided.what()
+            );
+        }
+        let corrupt = TouchUnread::Corrupt.undecided();
+        assert_eq!(corrupt, Undecided::CorruptInstance);
+        assert!(
+            !corrupt.is_undecided_touch(),
+            "a corrupt body does not wait"
+        );
+    }
+
     /// **A refused meeting of two curved edges carries its reading's
     /// reason and reads as it**: the reason is the meeting's own
     /// ([`geom_brep::curve_pair::MeetKind::Unread`]), the cause renders the

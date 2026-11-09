@@ -1928,7 +1928,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     // it on (`Undecided` is their one source).
     let carried = crate::splitting::LoopDecision::ALL
         .map(|decision| Undecided::WitnessTooClose(Some(decision)));
-    for why in Undecided::iter().chain(carried) {
+    // Every touch reason the backstop waits on, each edge-tangent reason
+    // its own (`Undecided::iter` yields one touch, the default).
+    let touches = crate::link::TouchUnread::iter()
+        .filter(|why| !matches!(why, crate::link::TouchUnread::Corrupt))
+        .chain(
+            crate::validate::EdgeTangentUnread::ALL
+                .into_iter()
+                .map(crate::link::TouchUnread::EdgeTangent),
+        )
+        .map(Undecided::Touch);
+    for why in Undecided::iter()
+        .filter(|why| !matches!(why, Undecided::Touch(_)))
+        .chain(carried)
+        .chain(touches)
+    {
         let (a, b) = if why.on_faces() {
             (EntityId::Face(face), EntityId::Face(face))
         } else {
