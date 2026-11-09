@@ -867,10 +867,20 @@ impl<T: Real> Line<T> {
     }
 
     /// **`p`'s foot on the span `(t0, t1)`**: the line's point at
-    /// [`Self::param_within`].
+    /// [`Self::param_within`]. `p`'s distance from the span is
+    /// [`Self::distance_within`].
     #[must_use]
     pub fn foot_within(&self, p: Point3<T>, span: (T, T)) -> Point3<T> {
         self.at(self.param_within(p, span))
+    }
+
+    /// **`p`'s distance from the span `(t0, t1)`**, `t0 ≤ t1`: its
+    /// distance from its [foot on the span](Self::foot_within). A segment
+    /// from `a` to `b` is the span `(0, 1)` of `Line { origin: a, dir: b −
+    /// a }`.
+    #[must_use]
+    pub fn distance_within(&self, p: Point3<T>, span: (T, T)) -> T {
+        (p - self.foot_within(p, span)).norm()
     }
 
     /// **`p`'s foot on the ray from `t0`**, the points `t ≥ t0`:
