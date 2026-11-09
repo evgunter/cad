@@ -1173,34 +1173,28 @@ mod tests {
 
     /// **A torus face's answer about the band's zero depends on no chart
     /// frame.** The patch `0.4 < u < 2.9`, `−0.5 < v < 0.8`, two parallels
-    /// and two meridians, is read on six frames (the seam turned to five
-    /// azimuths and the axis flipped), at 60 stations along each edge, at
-    /// `±5e-10`, `±1e-9` and `±5e-9` off it, and every frame answers as
-    /// the first. The query's foot was read back through the chart, a few
-    /// ulps off the torus's own foot in ulps that depend on the frame:
-    /// 712 of 2400 queries, at the band's zero and its escalation,
-    /// answered by frame. At the escalation the legs, built from the
-    /// chart's coordinates, still answer by frame (filed).
+    /// and two meridians, is read on the six frames of
+    /// [`geom::test_support::CHART_FRAMES`] (the axis flipped on one), at
+    /// 60 stations along each edge, at `±5e-10`, `±1e-9` and `±5e-9` off
+    /// it, 1440 queries, and every frame answers as the first. (The
+    /// measurement on the row read 2400, adding `±1e-8` and `±2e-8`: at
+    /// `±1e-8` the legs, built from the chart's coordinates, still answer
+    /// by frame, filed.)
     #[test]
     fn a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        let mut frames: Vec<(Vec3<f64>, Vec3<f64>)> = [0.0f64, 0.3, 1.0, 2.5, -2.0]
-            .iter()
-            .map(|&t| (z, Vec3::new(t.cos(), t.sin(), 0.0)))
-            .collect();
-        frames.push((-z, Vec3::new(0.0, 1.0, 0.0)));
+        let torus = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: R,
+            minor_radius: MINOR,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
         let (us, vs) = ((0.4, 2.9), (-0.5, 0.8));
-        let regions: Vec<TorusFaceRegion<f64>> = frames
+        let regions: Vec<TorusFaceRegion<f64>> = geom::test_support::CHART_FRAMES
             .iter()
-            .map(|&(axis, u_ref)| {
-                let torus = geom::Surface::Torus {
-                    center: Point3::origin(),
-                    axis,
-                    major_radius: R,
-                    minor_radius: MINOR,
-                    u_ref,
-                };
+            .map(|&(t, flip)| {
+                let torus = geom::test_support::reframed(&torus, t, flip);
                 let meridian = |u: f64, forward: bool, key: u64| {
                     let mut e = meridian_arc(u, vs);
                     e.forward = forward;
@@ -1220,12 +1214,7 @@ mod tests {
                 )
             })
             .collect();
-        let class = |r: Result<Option<bool>, RegionRefusal>| {
-            r.map_err(|e| match e {
-                RegionRefusal::Escalated(diag) => diag.predicate,
-                _ => Some("another refusal"),
-            })
-        };
+        let class = crate::boolean::region::refusal_class;
         for i in 0..60 {
             let t = f64::from(i) / 60.0 + 0.004;
             let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));

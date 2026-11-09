@@ -629,93 +629,6 @@ mod tests {
         }
     }
 
-    /// A sphere's poles and a cone's apex read as singular, and a point
-    /// a hair off the axis past the band does not. On a wide cone a
-    /// mirror-nappe point whose `h` lies in the band reads singular
-    /// (both generators pass within the band of it, half a turn apart),
-    /// and one past the band reads its own foot.
-    /// The surface with its chart frame turned by `t` about its axis,
-    /// and its axis flipped when `flip`: the same locus on another chart.
-    fn reframed(surface: &Surface<f64>, t: f64, flip: bool) -> Surface<f64> {
-        let turn = |axis: Vec3<f64>, u_ref: Vec3<f64>| {
-            let u = u_ref * t.cos() + axis.cross(u_ref) * t.sin();
-            if flip { (-axis, u) } else { (axis, u) }
-        };
-        match *surface {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => {
-                let (normal, u_ref) = turn(normal, u_ref);
-                Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
-                }
-            }
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => {
-                let (axis, u_ref) = turn(axis, u_ref);
-                Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    u_ref,
-                }
-            }
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => {
-                let (axis, u_ref) = turn(axis, u_ref);
-                Surface::Cone {
-                    apex,
-                    axis,
-                    half_angle,
-                    u_ref,
-                }
-            }
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => {
-                let (axis, u_ref) = turn(axis, u_ref);
-                Surface::Sphere {
-                    center,
-                    radius,
-                    axis,
-                    u_ref,
-                }
-            }
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            } => {
-                let (axis, u_ref) = turn(axis, u_ref);
-                Surface::Torus {
-                    center,
-                    axis,
-                    major_radius,
-                    minor_radius,
-                    u_ref,
-                }
-            }
-            _ => unreachable!("the fixtures are analytic"),
-        }
-    }
-
     /// **The foot is the chart's foot, on no chart.** Over a cloud of
     /// points round each analytic kind:
     /// - the foot lies on the surface and `p − foot` along its normal
@@ -728,16 +641,10 @@ mod tests {
     #[test]
     fn the_foot_is_the_charts_foot_on_no_chart() {
         for surface in surfaces() {
-            let others: Vec<Surface<f64>> = [
-                (0.3, false),
-                (1.0, false),
-                (2.5, false),
-                (-2.0, false),
-                (0.7, true),
-            ]
-            .iter()
-            .map(|&(t, flip)| reframed(&surface, t, flip))
-            .collect();
+            let others: Vec<Surface<f64>> = crate::test_support::CHART_FRAMES[1..]
+                .iter()
+                .map(|&(t, flip)| crate::test_support::reframed(&surface, t, flip))
+                .collect();
             for i in 0..500 {
                 let k = f64::from(i);
                 let p = Point3::new(
@@ -864,6 +771,11 @@ mod tests {
         assert!(cone.foot(off).is_some(), "off the axis");
     }
 
+    /// A sphere's poles and a cone's apex read as singular, and a point
+    /// a hair off the axis past the band does not. On a wide cone a
+    /// mirror-nappe point whose `h` lies in the band reads singular
+    /// (both generators pass within the band of it, half a turn apart),
+    /// and one past the band reads its own foot.
     #[test]
     fn poles_the_apex_and_a_wide_cones_apex_plane_are_singular() {
         let surfaces = surfaces();

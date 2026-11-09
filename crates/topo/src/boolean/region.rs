@@ -186,8 +186,9 @@ pub(crate) type Landing<T> = (Point3<T>, T, bool);
 /// on the surface. A leg or a corner is built from the coordinates and
 /// from nothing else, so every leg lies on the surface wherever the query
 /// lies off it. The boundary pre-pass reads the point
-/// ([`QueryFoot::read`]): the foot read in closed form on no chart, which
-/// the legs' start at the coordinates matches only to rounding.
+/// ([`QueryFoot::read`]): off the chart's singular readings, the foot read
+/// in closed form on no chart, which the legs' start at the coordinates
+/// matches only to rounding; on them, the chart's own point.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
     uv: Point2<T>,
@@ -197,13 +198,19 @@ pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
 impl<T: Decide> QueryFoot<T> {
     /// `p`'s foot on `surface`: its coordinates read through its chart
     /// ([`geom::Surface::chart_point`]) once, and its point read in closed
-    /// form on no chart ([`geom::Surface::foot`]). The chart's round trip
-    /// `eval(uv)` lands within a few ulps of that point, in ulps that
-    /// depend on the chart's frame, so a pre-pass that read it answered a
-    /// `p` placed at the band's zero by the frame. Where `p` has no foot in
-    /// closed form (on an axis, a sphere's centre or a torus's tube
-    /// circle, where every point of a circle is a foot alike), the chart's
-    /// point stands.
+    /// form on no chart ([`geom::Surface::foot`]), so a pre-pass reading
+    /// `p` at the band's zero answers the same on every frame. The chart's
+    /// round trip `eval(uv)` lands within rounding of that point, but in
+    /// rounding that depends on the frame.
+    ///
+    /// Where the chart reads `p` singular, its own point stands: the
+    /// coordinates there are a convention the chart chose (a cone's nappe
+    /// undecided within the band of its apex plane, a point within the
+    /// band of an axis or a tube circle), and the closed form may choose
+    /// otherwise: the cone's foot takes the nappe by the raw sign of
+    /// `p`'s height, the opening nappe's chart the decided one. Reading
+    /// the chart's point there keeps the pre-pass and the legs on one
+    /// foot. The same stands where `p` has no foot in closed form.
     ///
     /// # Panics
     ///
@@ -213,7 +220,12 @@ impl<T: Decide> QueryFoot<T> {
         let Ok(chart) = surface.chart_point(p, band) else {
             unreachable!("a region door reads an analytic surface")
         };
-        surface.foot(p).map_or_else(
+        let foot = if chart.singular {
+            None
+        } else {
+            surface.foot(p)
+        };
+        foot.map_or_else(
             || Self::of_chart(surface, chart.uv),
             |at| Self { uv: chart.uv, at },
         )
@@ -1119,6 +1131,19 @@ macro_rules! fixture_turns {
 }
 
 fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
+
+/// **A door's answer as a frame pin compares it**: the answer itself,
+/// or its refusal's predicate (`Some("another refusal")` for a refusal
+/// that names none), so two frames agree where they refuse alike.
+#[cfg(test)]
+pub(crate) fn refusal_class(
+    r: Result<Option<bool>, RegionRefusal>,
+) -> Result<Option<bool>, Option<&'static str>> {
+    r.map_err(|e| match e {
+        RegionRefusal::Escalated(diag) => diag.predicate,
+        _ => Some("another refusal"),
+    })
+}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]

@@ -584,12 +584,7 @@ mod tests {
             (unit(0.0, 0.0, -1.0), unit(0.0, -1.0, 0.0)),
             (skew, unit(2.0, -1.0, 0.0)),
         ];
-        let read = |r: Result<Option<bool>, RegionRefusal>| {
-            r.map_err(|e| match e {
-                RegionRefusal::Escalated(diag) => diag.predicate,
-                _ => Some("another refusal"),
-            })
-        };
+        let read = crate::boolean::region::refusal_class;
         for forward in [true, false] {
             let regions: Vec<SphereFaceRegion<f64>> = frames
                 .iter()
