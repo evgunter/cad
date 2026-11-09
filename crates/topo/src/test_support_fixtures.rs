@@ -228,7 +228,7 @@ pub fn cone_cap(alpha: f64, z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
 pub fn sphere_cap(z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
     use core::f64::consts::{FRAC_PI_2, PI};
     use geom_brep::CurveSelector;
-    let r = (1.0 - z * z).sqrt();
+    let r = (1.0 - z.powi(2)).sqrt();
     let on = |u: f64| Point3::new(r * u.cos(), r * u.sin(), z);
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(on(0.0), true).unwrap();

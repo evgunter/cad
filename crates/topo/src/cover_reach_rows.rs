@@ -26,7 +26,7 @@ fn boundary_far(body: &crate::Body<f64>, face: crate::entity::FaceKey, at: Point
 fn a_sphere_cap_past_a_hemisphere_reaches_its_rims_antipode() {
     let z = -0.5_f64;
     let (body, face) = crate::test_support_fixtures::sphere_cap(z, Tol::witness());
-    let rim = Point3::new((1.0 - z * z).sqrt(), 0.0, z);
+    let rim = Point3::new((1.0 - z.powi(2)).sqrt(), 0.0, z);
     let far = super::face_reach_from(&body, face, rim, band())
         .unwrap()
         .length();
@@ -49,7 +49,7 @@ fn a_sphere_cap_past_a_hemisphere_reaches_its_rims_antipode() {
 fn a_sphere_caps_axial_range_reaches_its_pole() {
     let z = -0.5_f64;
     let (body, face) = crate::test_support_fixtures::sphere_cap(z, Tol::witness());
-    let rim = Point3::new((1.0 - z * z).sqrt(), 0.0, z);
+    let rim = Point3::new((1.0 - z.powi(2)).sqrt(), 0.0, z);
     let (below, above) = super::face_axial_range(&body, face, rim, Vec3::unit_z(), band()).unwrap();
     assert!(
         above >= 1.5 - 1e-12,
