@@ -339,7 +339,7 @@ fn plane_of<T: Decide>(
     k: topo::entity::FaceKey,
 ) -> Option<(Point3<T>, Vec3<T>, Vec3<T>)> {
     let face = body.get_face(k)?;
-    match body.get_surface(face.surface)? {
+    match body.face_surface(k)? {
         Surface::Plane { origin, normal, .. } => Some((
             *origin,
             *normal,
@@ -352,11 +352,14 @@ fn plane_of<T: Decide>(
 /// Reads the carrier a resolved entity sits on, out of the body its
 /// reference lands in.
 ///
-/// A dangling arena key is a KERNEL BUG, not a document fault: the
+/// A dangling entity key is a KERNEL BUG, not a document fault: the
 /// entity came out of the very table this evaluation emitted for this
 /// body. It comes back as [`Carrier::Other`] naming the state rather
 /// than as a panic, so the refusal ladder above still gets to say
-/// which measurement could not be taken.
+/// which measurement could not be taken. A torn link inside a live
+/// entity (a face's surface, a vertex's point) is not that: it panics in
+/// topo's door (`Body::face_surface`, `topo::readback::vertex_point`;
+/// D2 row 4).
 pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) -> Carrier<'_, T> {
     match ent.key {
         EntityKey::Body => Carrier::Other("a whole body"),
@@ -382,7 +385,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                     reach,
                 };
             }
-            let surface = body.get_surface(face.surface);
+            let surface = body.face_surface(k);
             let round = surface.and_then(|s| topo::Round::of(s, face.sense));
             match (surface, round) {
                 (

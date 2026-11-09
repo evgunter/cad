@@ -47,8 +47,8 @@ All four (with `flagged_census`, PR 6603) were red together on
 
 ## Options
 
-- **A. A slow test whose `gated_to!` names a path the diff touches runs on that PR.** The marker already says which paths move it; the slow set ignores it. For the four censuses, about 10 s on any kernel PR.
+- **A. A slow test whose `gated_to!` names a path the diff touches runs on that PR.** Where a marker exists it already says which paths move the test; the slow set ignores it. But only `certified_endpoint_census.rs` carries a `gated_to!` today. `bounds_census.rs`, `sym_rule_f_rows.rs` and `flagged_census.rs` carry none, so as the tree stands A catches one census of the four. The other three each need a marker added: a hand-kept path list, which a check like `the_suite_is_gated_to_every_crate_it_walks` can hold to the walk. With all four marked, about 10 s on any kernel PR.
 - **B. Make the walks cheap enough for the fast set**: one parsed, code-only view of the tree shared by every census in the `geom-core::all` binary (nextest is process-per-test, so a shared view needs the four in one test, or a cached view on disk).
 - **C. Status quo**, with a lane re-pinning after each nightly.
 
-A is the smallest change and catches each move at its PR.
+A is the smallest change to the gate, and with the three missing markers added it catches each move at its PR.

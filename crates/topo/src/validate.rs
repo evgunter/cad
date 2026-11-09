@@ -821,6 +821,11 @@ pub enum CensusUnsupportedCause {
     /// narrowed to say so, for the same reason [`Self::ChartRegion`]
     /// admits `Escalated`.
     ContactLane(ContactRefusal),
+    /// A curved edge the census reads did not read, for its typed reason,
+    /// whole ([`crate::link::EdgeTangentUnread`]). It renders and is
+    /// classed as the contact lane's [`ContactRefusal::NotCertifiable`]
+    /// with that reason's sentence.
+    CurvedEdge(crate::link::EdgeTangentUnread),
     /// The census's face-bounding sweep could not bound the face at
     /// all: it has no boundary vertex, because its outer loop is
     /// empty or its boundary does not resolve. Nothing about the
@@ -887,6 +892,13 @@ impl CensusUnsupportedCause {
         match self {
             Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
+            Self::CurvedEdge(why) => write!(
+                f,
+                "{}",
+                ContactRefusal::NotCertifiable {
+                    what: why.sentence()
+                }
+            ),
             // The containment door's reading, at a build, whichever door
             // reads the census.
             Self::Containment(e) => write!(
@@ -4293,6 +4305,12 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
         CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
         CensusUnsupportedCause::ContactLane(e) => {
             let (why, recourse) = classify_contact_lane(e);
+            (why.into(), recourse.into())
+        }
+        CensusUnsupportedCause::CurvedEdge(why) => {
+            let (why, recourse) = classify_contact_lane(&ContactRefusal::NotCertifiable {
+                what: why.sentence(),
+            });
             (why.into(), recourse.into())
         }
         CensusUnsupportedCause::Containment(e) => classify_contain(e),

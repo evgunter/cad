@@ -50,11 +50,10 @@ fn wall_values<T: topo::AtRestPolicy + SpanLocate, R, B: LoftedBody<T>>(
 ) -> Vec<R> {
     let mut out = Vec::new();
     for face in lofted.side_faces.iter().flatten().flatten() {
-        let face = lofted.body.body_of().get_face(*face).expect("a built face");
         match lofted
             .body
             .body_of()
-            .get_surface(face.surface)
+            .face_surface(*face)
             .expect("a described face")
         {
             Surface::Nurbs(n) => {
