@@ -99,3 +99,25 @@
   - Filed by the pass: `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` (P1, M, by inspection). The crack and readers rows were restated.
   - The plan's slate now lists the four glue steps, the umbrella, and the three rows this unit's review left.
   - The implementer reports a red on main that is not this PR's: the slow-set row `union_fold_face_face_touch::a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line` fails "the body has a value: Unevaluated" on a clean main worktree. Its handling is below.
+- 2026-11-09 — **PR 6613 merged** (`a83e4b956b`), with its dual-review row last. The blinded coding (byte 175, A = R2) found eight bilateral and a tally of 0: neither review raised a MAJOR. Lane, target and both review scratch dirs reclaimed.
+  - **The protocol hash is `24b76fff0e`, not `db69dd9d5a`.** This working copy is shallow, so `git log -1 -- docs/DUAL-REVIEW-PROTOCOL.md` here stops at the graft; a full-history lane gives the right one. The two trees are identical; the row cites `24b76fff0e`.
+  - **The main red the implementer reported is the nightly's.** Nightly 87 (11-09) is red on several jobs, the slow-set full suites among them, and the newest `triage/nightly-*` branch is 10-29. That is GREEN's ground (act on the triage, not beside it), so I leave it to the triage and tell Ev at hand-back.
+- 2026-11-09 — **Glue step 1 dispatched:** `carrier-readings-keep-the-margins-they-decided-on` on `seal/carrier-readings-keep-margins`. Review tier single, FULL, for the reason in the row.
+- 2026-11-09 — **The duplicated `memories/` bullets went to Ev as `[ev]` PR 6633.** It deletes the first copies of the Express-lane and `-n` bullets, since the later copies say the same and more. It waits for Ev's sign-off, as any `memories/` change does.
+- 2026-11-09 — **Glue step 1 is PR 6634, CI `gate ok` green on `1de5db3b8b`.** Single FULL review dispatched on that frozen head (tier logged at dispatch in the row). The implementer's target is reclaimed. The lane's rulings to make at adjudication:
+  - `CarrierVerdict` grew a third variant, `TwoKinds`. My first read: right, since the kind-mismatch arm decides no datum, and the alternative is the hand mint the step removes.
+  - The plane ladder's orientation rung stays on `decide_nonzero`.
+  - I1/I2 wait on step 3's Rest verdict, but step 3's row does not name them yet. The fix pass records them there.
+- 2026-11-09 — **PR 6634 review in: APPROVE-WITH-FIXES, no MAJOR** (267,451 tokens, 37 min). Fix pass sent to the implementer.
+  - **Rulings:** `TwoKinds` is confirmed. The orientation rung stays on `decide_nonzero`: `jointly` keeps a Zero tag only where both inputs are Zeros, so carrying the rung in `One` would unprove Sym Zeros.
+  - **Class findings and their homes:**
+    - **Routing behind new endings goes unpinned** when rows test the ending function rather than the arm that reaches it. Six mutants survived (face and side swaps, a dropped door refusal). Fix pass, item 1.
+    - **"Closing a duplication adds a copy":** the PairSide/PairFace matches, two `NonzeroSign`→`Sign` conversions, the `TorusVerdict` dispatch written four times. Fixed, or filed as rows, in the fix pass.
+    - **A pre-existing blind spot:** `plane_eq::senses` decides `bool_plane_orient` a second time. The fix pass files it as a row.
+    - **Two sweep tests fail `OutsideSessionBox` on main too.** The fix pass checks whether they are in the slow set; the nightly is GREEN's.
+- 2026-11-09 — **PR 6634 fix pass in (`4c33cb1f81`, `gate ok` green); state-synced for merge.**
+  - **Routing pins:** all six surviving mutants are now pinned, each shown red. Census ~6290's table row is corrected.
+  - **I7:** its deferred arm's log is restored to main's.
+  - **Leftovers recorded:** I1/I2 on step 3's row, I7 on SECTOR's row.
+  - **Filed in `work/seal/`, all P3:** four rows, three from the review's style findings and the `plane_eq::senses` second decision.
+  - **The two `OutsideSessionBox` slow-set rows** are evidence on ONEHOME's existing `main-red-four-sweep-slow-rows-refuse-outside-session-box`. The nightly red is GREEN's.

@@ -984,13 +984,13 @@ pub fn plane_cylinder_section_read<T: Decide>(
     if let Some(ruled) = ruled {
         return Ok((
             match ruled {
-                RuledSection::ParallelLines { l1, l2 } => {
+                RuledSection::ParallelLines { l1, l2, .. } => {
                     PlaneCylinderSection::ParallelLines { l1, l2 }
                 }
                 RuledSection::TangentLine { line, .. } => {
                     PlaneCylinderSection::TangentLine(Curve3::Line(line))
                 }
-                RuledSection::Empty => PlaneCylinderSection::Empty,
+                RuledSection::Empty { .. } => PlaneCylinderSection::Empty,
             },
             parallel,
         ));
@@ -1046,8 +1046,13 @@ pub fn tilted_section_major<T: Real>(n: Vec3<T>, sin_vec: Vec3<T>) -> Vec3<T> {
 /// can reach.
 #[derive(Clone, Debug)]
 pub(crate) enum RuledSection<T: Real> {
-    /// The gap is definitely under `r`: two rulings.
-    ParallelLines { l1: Curve3<T>, l2: Curve3<T> },
+    /// The gap is definitely under `r`: two rulings, and the gap row's
+    /// reading.
+    ParallelLines {
+        l1: Curve3<T>,
+        l2: Curve3<T>,
+        gap: Decided,
+    },
     /// The gap is coincident with `r`: the tangency ruling
     /// `origin + t·dir`, `origin` the axis' foot on the plane, with the
     /// margin that decided the gap Zero.
@@ -1055,8 +1060,8 @@ pub(crate) enum RuledSection<T: Real> {
         line: geom::Line<T>,
         gap: MarginDiag,
     },
-    /// The gap is definitely over `r`.
-    Empty,
+    /// The gap is definitely over `r`, on the gap row's reading.
+    Empty { gap: Decided },
 }
 
 /// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane, at
@@ -1106,7 +1111,7 @@ pub(crate) fn ruled_section<T: Decide>(
     let &RuledFrame { o, gap_signed, .. } = frame;
     let (n, a, r) = (pc.n, pc.a, pc.r);
     Ok(Some(match ruled_gap(pc, frame, band)? {
-        (Sign::Positive, _) => {
+        (Sign::Positive, margin) => {
             // Cross-section chord: the plane cuts the circle at
             // foot ± w·half, foot the axis' plane projection.
             let foot = o - n * gap_signed;
@@ -1115,6 +1120,10 @@ pub(crate) fn ruled_section<T: Decide>(
             RuledSection::ParallelLines {
                 l1: Curve3::line(foot + w * half, a),
                 l2: Curve3::line(foot - w * half, a),
+                gap: Decided {
+                    sign: Sign::Positive,
+                    margin,
+                },
             }
         }
         (Sign::Zero, gap) => RuledSection::TangentLine {
@@ -1124,7 +1133,12 @@ pub(crate) fn ruled_section<T: Decide>(
             },
             gap: gap.jointly(parallel.margin),
         },
-        (Sign::Negative, _) => RuledSection::Empty,
+        (Sign::Negative, margin) => RuledSection::Empty {
+            gap: Decided {
+                sign: Sign::Negative,
+                margin,
+            },
+        },
     }))
 }
 
