@@ -1106,7 +1106,7 @@ fn chart_of<T: Decide>(
         || match framed {
             FramedCarrier::Net(net) => {
                 let (d0, d1) = net.knot_values().domain();
-                net.eval(T::from_f64(0.5) * (d0 + d1)).z
+                net.eval(geom::mid_param(d0, d1)).z
             }
             FramedCarrier::Circle { origin, span, .. }
             | FramedCarrier::Line { origin, span, .. } => {
@@ -1472,7 +1472,7 @@ fn refine<T: Decide>(
             Ok(Some(channel)) if depth >= MAX_REFINE => Step::Stop(Refine::Refused(channel)),
             Err(cause) if depth >= MAX_REFINE => Step::Stop(Refine::Escalated(cause)),
             _ => {
-                let m = 0.5 * (a + b);
+                let m = geom::mid_param(a, b);
                 Step::Halve([(a, m, depth + 1), (m, b, depth + 1)])
             }
         }
@@ -2488,7 +2488,7 @@ fn line_off_cone_sup<T: Decide>(
             if depth == LEVER_DEPTH {
                 return Step::Stop(sector_refused(piece_of(sa, sb), SectorChannel::Lever));
             }
-            let mid = sa + (sb - sa) * T::from_f64(0.5);
+            let mid = geom::bracket_mid((sa, sb));
             return Step::Halve([(sa, mid, depth + 1), (mid, sb, depth + 1)]);
         }
         match closed_form_meters(
@@ -2641,8 +2641,13 @@ pub(super) fn projected_envelope<T: Decide>(
             // the axis). Every point of the segment between the stored
             // circle and its twin is within `d` of either.
             let (rho_box, z, floor_at) = met_floors(image, &met, (t0, t1), band)?;
-            let rho_twin =
-                (rho_box - d).max(crate::implicit::conic_axis_distance_floor(conic, o, e[2]));
+            let rho_twin = (rho_box - d).max(crate::implicit::conic_axis_distance_floor(
+                conic,
+                geom::Line {
+                    origin: o,
+                    dir: e[2],
+                },
+            ));
             let rho_floor = (rho_twin - d).max(T::zero());
             let Some(form_sup) = crate::implicit::conic_form_sup(&twin, conic) else {
                 return Err(refuse("the circle's chart has no form along a conic"));
@@ -2925,7 +2930,7 @@ pub(super) fn run_projected_checks<T: Decide>(
                 let kv = net.knots_f64_interim();
                 for k in 0..pieces {
                     let (a, z) = (b[k + 1], b[k + 2]);
-                    let Some(span) = kv.span_at(0.5 * (a + z)) else {
+                    let Some(span) = kv.span_at(geom::mid_param(a, z)) else {
                         return Err(refuse("a piece of the image has a NaN break"));
                     };
                     let j = span.index();

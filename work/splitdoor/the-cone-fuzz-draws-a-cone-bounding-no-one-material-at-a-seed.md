@@ -65,3 +65,9 @@ touches no file under `crates/topo/src/link/`.
 `0x85b149a16ec6139e` with `CAD_FUZZ_EFFORT=30` reports `ε 1e-12,
 cone 806, split`, the same message, and is red identically with the
 branch's whole diff stashed (main `2fee45b9`).
+
+**Two more, from PR 6637's delta review (ONECOPY, 2026-11-09)**, both red identically on that PR's base:
+- `0x18045dcd4522ddd8` at ε 1e-12 reports `cone 29, split`, the same message;
+- `0xce1d0edd5fbb1372` at ε 1e-9 reports `cone 22, split` and `cone 22, conic`, the same message.
+
+The reviewer measured about 10% of random seeds red at `CAD_FUZZ_EFFORT=1`. The fuzzer is not fixed there.

@@ -33,7 +33,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         EdgeKey::default(),
         VertexKey::default(),
     );
-    let fixed: [(&str, BooleanError, Result<Refusal, Aborts>); 17] = [
+    let fixed: [(&str, BooleanError, Result<Refusal, Aborts>); 18] = [
         (
             "an escalation",
             BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag()),
@@ -125,6 +125,11 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             line(LineUnread::Unplaced),
             Ok(Refusal::InBand),
         ),
+        (
+            "a line's faces giving no reference",
+            line(LineUnread::NoReference),
+            Ok(Refusal::Limit),
+        ),
         ("a vertex read twice", twice(false), Ok(Refusal::Limit)),
         (
             "a vertex read twice, an edge in band",
@@ -180,9 +185,9 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             Err(Aborts),
         ),
         (
-            "a chord with no finite length, not yet split",
+            "a chord with no finite length, past the format's scale",
             BooleanError::NonFiniteSectorChord { vertex, face },
-            Err(Aborts),
+            Ok(Refusal::Limit),
         ),
         (
             "a chart image that refused, not yet split",

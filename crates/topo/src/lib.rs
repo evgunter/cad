@@ -163,6 +163,7 @@ pub(crate) mod source_walk;
 
 #[cfg(test)]
 pub(crate) mod cert_m3r1_probes;
+pub(crate) mod held;
 pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]
@@ -171,6 +172,7 @@ pub mod joint;
 pub(crate) mod lineage;
 pub mod link;
 pub(crate) mod live;
+pub(crate) mod loop_side;
 pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod mirror;
@@ -555,14 +557,14 @@ pub mod test_support {
 
     pub use crate::side_reader::EdgeFrame;
 
-    /// Every crossing of the ray `q + s·d` with the solid holding `face`,
+    /// Every crossing of `ray` with the solid holding `face`,
     /// its faces in an order turned left by `turn` and reversed where
     /// asked, as `(from, to, count, sideless)` (`side_reader`): the probes
     /// read a whole ray's count off it.
     pub fn ray_counts(
         body: &Body<f64>,
         face: crate::FaceKey,
-        ray: (geom_core::Point3<f64>, geom_core::Vec3<f64>),
+        ray: &geom::Ray<f64>,
         band: geom_core::Band,
         order: (usize, bool),
     ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
@@ -1378,24 +1380,23 @@ pub use boolean::{
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
     CarrierEqError, CarrierRelation, CarrierVerdict, CarryRefusal, Cell, Coincide,
     CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
-    ContactPairError, ContactRecords, ContainDecision, ContainError, Contradiction,
-    DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
-    EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent, FfContact, Fusions,
-    GlueVerdict, Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
-    JoinUndecided, JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs,
-    NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
-    NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal, PairRefusalSite,
-    PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung,
-    PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
-    SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap,
-    SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
-    SweepStrategy, TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
-    nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid, point_in_solid_faces,
-    point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    ContactPairError, ContactRecords, ContainDecision, ContainError, DeclarationRead, DiscardRow,
+    EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact,
+    FaceContainment, FaceDescent, FfContact, Fusions, GlueVerdict, Held, HeldRefusal, Holdings,
+    JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, JudgedRow, LeverArm,
+    LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
+    NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
+    OperandRecords, OverlapRefusal, PairRefusalSite, PairSite, PairUnread, PierceRingRecord,
+    PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
+    RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
+    ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces,
+    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention, UncutFace,
+    UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
+    joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
@@ -1427,8 +1428,8 @@ pub use census::{
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactPair,
-    ContactRefusal, GlueClass,
+    CONTACT_RECOURSE, ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass,
+    RestRow, RestRuling, RestVerdict, TangentRow, TangentRuling, TangentVerdict, Uncertified,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,

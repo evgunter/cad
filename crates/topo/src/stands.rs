@@ -470,7 +470,7 @@ fn triple_centroid<T: Decide>(a: Point3<T>, b: Point3<T>, c: Point3<T>) -> Point
 /// The midpoint of two of a face's vertices: a face-interior candidate
 /// wherever the chord between them is a diagonal of the face.
 fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
-    a.lerp(b, T::from_f64(0.5))
+    a.mid(b)
 }
 
 /// Does [`point_in_face`] certify `p` strictly inside planar `face`?
@@ -666,7 +666,7 @@ mod rung_three_rows {
         let first = triple_centroid(corners[0], corners[1], corners[2]);
         let q = interior(&body, top).expect("the top face offers a witness");
         assert!(
-            (q - first).norm() == 0.0,
+            q.equals_exactly(first),
             "the top face's witness {q:?}, not {first:?}"
         );
     }

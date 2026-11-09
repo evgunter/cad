@@ -2,8 +2,11 @@
 id: the-typed-refusal-reason-leaves-an-unused-second-spelling-and-unpinned-reads
 kind: issue
 title: PR 6614's typed reason left a second carrier-refusal spelling, a stale walk claim, and reads its tests cannot see
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6648
+branch: onecopy/carrier-standing-2
 ---
 
 Found in the FULL review of PR 6614 (`onecopy/typed-reasons`, head 4771c03b). Items 1, 2, 4, 5, 6, 8, 9 and 10, and item 3's `CensusUnsupportedCause::CurvedEdge` part, landed on `onecopy/carrier-standing`. Two remain:

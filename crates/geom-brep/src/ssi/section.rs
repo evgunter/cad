@@ -851,7 +851,7 @@ fn settle_by(
             return Some(t);
         }
     }
-    let mut t = 0.5 * (lo + hi);
+    let mut t = geom::mid_param(lo, hi);
     for _ in 0..SECTION_SETTLE_ITERS {
         let f = phi(t);
         if !f.is_finite() {
@@ -872,7 +872,7 @@ fn settle_by(
         t = if newton.is_finite() && newton > lo && newton < hi {
             newton
         } else {
-            0.5 * (lo + hi)
+            geom::mid_param(lo, hi)
         };
     }
     (phi(t).abs() <= tol).then_some(t)

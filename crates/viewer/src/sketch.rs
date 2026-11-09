@@ -1953,7 +1953,7 @@ fn closed_on_start(prefix: &[Step<f64>], start: Point2<f64>) -> Option<Vec<Step<
     let Target::Point(at) = *target else {
         return None;
     };
-    if (at.x, at.y) != (start.x, start.y) {
+    if !at.equals_exactly(start) {
         return None;
     }
     *target = Target::Start;

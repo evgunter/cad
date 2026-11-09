@@ -59,3 +59,9 @@ they cannot reach it from the root: `census.rs` `placed` and
 it from there, each with its `OffCarrier → Out (trusted on carrier)`
 policy at the call
 (`work/onecopy/carrier-held-points-are-trusted-not-decided.md`).
+
+`crate::boolean::face_placement`, which census already reads from
+the root (`census::face_holds`, `census/in_plane.rs`), is not
+theirs: it decides the on-plane margin, and these two trust the point
+on the plane (the follow-up row's subject); making them decide it is
+that row's outcome-moving change, not a reroute.

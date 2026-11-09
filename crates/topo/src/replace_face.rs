@@ -222,12 +222,13 @@ use std::sync::Arc;
 
 use geom::SurfaceKind;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::ladder::{Answering, Climb, Kept, Rung, climb, decided};
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfacePair};
 use geom_core::k_stats::decide;
 use geom_core::{
-    Affine3, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    KERNEL_OR_FILE_DEFECT_ENDING, Margin, NOT_YET_ENDING, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Band, BandError, COINCIDENCE_RECOURSE, Decide, Decided, Indeterminate,
+    KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, Margin, NOT_YET_ENDING, Point3, Real, Sign,
+    Tol, Vec3,
 };
 
 use crate::attach::Rechart;
@@ -789,7 +790,9 @@ pub enum ReplaceFaceError<T: Real> {
     /// words. The door does not validate the body it is handed, so the
     /// neighbour's torus is whatever the body carries.
     ///
-    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
+    /// Standing: as the convention states it
+    /// ([`geom_brep::TorusRefusal::refusal`]): ranked by its margin in
+    /// band, an abort where decided outside the convention.
     DegenerateTorus {
         /// The edge whose section read the torus.
         edge: EdgeKey,
@@ -870,6 +873,7 @@ impl<T: Real> ReplaceFaceError<T> {
     ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         match self {
             Self::Escalated { source } => Ok(geom_brep::ladder::Refusal::Margin(*source)),
+            Self::DegenerateTorus { refusal, .. } => refusal.refusal(),
             Self::ReanchorInconclusive { .. } => Ok(geom_brep::ladder::Refusal::Unsettled),
             Self::ApproxLaneUnsupported { .. }
             | Self::NeighborPairUnroutable { .. }
@@ -909,7 +913,6 @@ impl<T: Real> ReplaceFaceError<T> {
             | Self::CornerSection { .. }
             | Self::TogetherAxialEdge { .. }
             | Self::TogetherConicArc { .. }
-            | Self::DegenerateTorus { .. }
             | Self::Op { .. }
             | Self::Pcurve { .. }
             | Self::Join { .. } => Err(geom_brep::ladder::Aborts),
@@ -1279,7 +1282,14 @@ fn transport_curve<T: Decide>(
             // three faces of the mint's own action, and this door reads
             // all three rather than re-deriving any (the drift that
             // costs is a second copy, not a second call).
-            let action = geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d);
+            let action = geom_brep::ConeOffset::new(
+                geom::Line {
+                    origin: *apex,
+                    dir: *axis,
+                },
+                *half_angle,
+                d,
+            );
             let (sin_a, cos_a) = half_angle.sin_cos();
             match curve {
                 // A chart line is a generator, and the action's
@@ -1410,7 +1420,10 @@ fn transport_curve<T: Decide>(
 fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
     let (u0, u1) = s.knots_u_f64_interim().domain();
     let (v0, v1) = s.knots_v_f64_interim().domain();
-    let jet = s.ders(T::from_f64((u0 + u1) * 0.5), T::from_f64((v0 + v1) * 0.5));
+    let jet = s.ders(
+        T::from_f64(geom::mid_param(u0, u1)),
+        T::from_f64(geom::mid_param(v0, v1)),
+    );
     let n = jet.du.cross(jet.dv).normalize();
     (!n.x.is_poison() && !n.y.is_poison() && !n.z.is_poison()).then_some(n)
 }
@@ -2112,8 +2125,16 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
             ..
         } = old_surface
         {
-            let (v_min, v_max) = group_cone_v_window(body, faces, apex, axis, half_angle.cos())
-                .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
+            let (v_min, v_max) = group_cone_v_window(
+                body,
+                faces,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle.cos(),
+            )
+            .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
             // The nappe decides which end of the window is the one
             // nearest the apex; the window decides whether that end has
             // CLEARED the apex. One predicate, on the near end alone,
@@ -2231,8 +2252,10 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 &plan.spec.carrier,
                 plan.spec.param_start,
                 plan.spec.param_end,
-                apex,
-                axis,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
                 half_angle.cos(),
             );
             window = Some(match window {
@@ -2427,7 +2450,15 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
             axis,
             half_angle,
             ..
-        } => geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d).shift(),
+        } => geom_brep::ConeOffset::new(
+            geom::Line {
+                origin: *apex,
+                dir: *axis,
+            },
+            *half_angle,
+            d,
+        )
+        .shift(),
         _ => T::zero(),
     }
 }
@@ -2447,16 +2478,28 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
 fn group_cone_v_window<T: Decide>(
     body: &Body<T>,
     group: &[FaceKey],
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     cos_a: T,
 ) -> Option<(T, T)> {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let mut window: Option<(T, T)> = None;
     for edge in group_boundary(body, group) {
         let edge_data = proven(&body.edges, edge, EntityId::Edge);
         let curve = body.edge_curve_linked(edge, edge_data).certified()?;
         let (t0, t1) = curve.params();
-        let (lo, hi) = cone_v_range(curve.carrier(), t0, t1, apex, axis, cos_a);
+        let (lo, hi) = cone_v_range(
+            curve.carrier(),
+            t0,
+            t1,
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            cos_a,
+        );
         window = Some(match window {
             None => (lo, hi),
             Some((a, b)) => (a.min(lo), b.max(hi)),
@@ -2471,10 +2514,13 @@ fn cone_v_range<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
     t1: T,
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     cos_a: T,
 ) -> (T, T) {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let v_of = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
     match carrier {
         // `v` is affine in `t`, so the endpoints are the extremes.
@@ -3275,23 +3321,36 @@ fn carried_alike<T: Decide>(
             TransportError::Structure(error) => ReplaceFaceError::Structure { edge, error },
         })
     };
-    let (Some(on_a), Some((on_b, _))) = (transport(a)?, transport(b)?) else {
-        return Ok(None);
+    // A side with no image is no witness, whatever the other side read
+    // ([`climb`], [`Answering::Any`]): an escalation on one side is kept,
+    // and refuses only where the other side has an image.
+    let (mut on_a, mut on_b) = (None, None);
+    let unwitnessed = climb(
+        Answering::Any,
+        [(a, &mut on_a), (b, &mut on_b)],
+        |(c, image)| match transport(c) {
+            Ok(Some(read)) => {
+                *image = Some(read);
+                Rung::Passes
+            }
+            Ok(None) => Rung::Answers(Ok(())),
+            Err(e) => Rung::refused(e, ReplaceFaceError::refusal, Err),
+        },
+    );
+    let (on_a, (on_b, _)) = match (unwitnessed, on_a, on_b) {
+        (Climb::Answered { answer, .. }, ..) => return answer.map(|()| None),
+        (Climb::Undecided(e), ..) => return Err(e),
+        (Climb::Passed, Some(on_a), Some(on_b)) => (on_a, on_b),
+        (Climb::Passed, ..) => unreachable!("every side passed, so each side's image was read"),
     };
-    let tm = (t0 + t1) * T::from_f64(0.5);
+    let tm = geom::mid_param(t0, t1);
     // Alike at every sample: any sample decided past ε answers "not
-    // alike", whatever an earlier sample read ([`climb`],
-    // [`Answering::Any`]), as [`gap_within_eps`] reads each.
-    let apart = climb(Answering::Any, [t0, tm, t1], |t| {
-        let gap = on_a.0.eval(t).distance(on_b.eval(t));
-        Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
-            (d.sign == Sign::Negative).then_some(())
-        })
-    });
-    match apart {
-        Climb::Answered { .. } => Ok(None),
-        Climb::Passed => Ok(Some(on_a)),
-        Climb::Undecided(source) => Err(ReplaceFaceError::Escalated { source }),
+    // alike", whatever an earlier sample read ([`gaps_apart`]).
+    let samples = [t0, tm, t1].map(|t| on_a.0.eval(t).distance(on_b.eval(t)));
+    match gaps_apart(&samples, tol, band) {
+        Ok(Some(_)) => Ok(None),
+        Ok(None) => Ok(Some(on_a)),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
 }
 
@@ -4179,9 +4238,64 @@ fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<
 /// 2ε reads coincident, one past ε + K·ε does not, and one between the
 /// two escalates by the predicate's name.
 fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, ReplaceFaceError<T>> {
-    decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band)
-        .map(|s| !matches!(s, Sign::Negative))
-        .map_err(|source| ReplaceFaceError::Escalated { source })
+    decided(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band)
+        .map(|d| !past_eps(&d))
+        .map_err(|kept| {
+            let (Kept::InBand(source) | Kept::Blocked(source)) = kept;
+            ReplaceFaceError::Escalated { source }
+        })
+}
+
+/// [`gap_within_eps`]'s sign test, the file's one spelling of it: the
+/// margin `ε − gap` decided negative is a gap past ε.
+fn past_eps(d: &Decided) -> bool {
+    d.sign == Sign::Negative
+}
+
+/// **Whether every gap of `gaps` is within ε**, the file's one reading
+/// of "every gap within ε": any gap decided past ε is the disagreement,
+/// whatever an earlier gap read ([`climb`], [`Answering::Any`]; a gap
+/// in band is kept). `Some` of that gap and its index where one is past
+/// ε, `None` where every gap is within it.
+///
+/// # Errors
+///
+/// The kept reading, where no gap is past ε and one is in band.
+fn gaps_apart<T: Decide>(
+    gaps: &[T],
+    tol: Tol,
+    band: Band,
+) -> Result<Option<(usize, T)>, Indeterminate> {
+    climb(
+        Answering::Any,
+        gaps.iter().copied().enumerate(),
+        |(at, gap)| {
+            Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
+                past_eps(&d).then_some((at, gap))
+            })
+        },
+    )
+    .into_reading()
+}
+
+/// **Whether one corner's solved points are one point**: every pair
+/// within ε ([`gaps_apart`]). `Some` of a pair's gap where one is past
+/// ε, `None` where every pair is within it.
+///
+/// # Errors
+///
+/// The kept reading, where no pair is past ε and one is in band.
+fn corner_apart<T: Decide>(
+    points: &[Point3<T>],
+    tol: Tol,
+    band: Band,
+) -> Result<Option<T>, Indeterminate> {
+    let pairs: Vec<T> = points
+        .iter()
+        .enumerate()
+        .flat_map(|(i, a)| points[i + 1..].iter().map(move |b| a.distance(*b)))
+        .collect();
+    gaps_apart(&pairs, tol, band).map(|apart| apart.map(|(_, gap)| gap))
 }
 
 /// [`gap_within_eps`]'s predicate name.
@@ -4581,13 +4695,10 @@ fn solve_corners<T: Decide>(
             }
             points
         };
-        for (i, a) in points.iter().enumerate() {
-            for b in &points[i + 1..] {
-                let gap = a.distance(*b);
-                if !gap_within_eps(gap, tol, band)? {
-                    return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
-                }
-            }
+        if let Some(gap) = corner_apart(&points, tol, band)
+            .map_err(|source| ReplaceFaceError::Escalated { source })?
+        {
+            return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
         }
         corners.groups.push((group, points[0]));
         corners.offsets.push(d);
@@ -4762,11 +4873,15 @@ fn read_ends<T: Decide>(
             }
         }
     };
-    for (vertex, point, t) in [(plan.start, p_start, t0), (plan.end, p_end, t1)] {
-        let gap = carrier.eval(t).distance(point);
-        if !gap_within_eps(gap, tol, band)? {
-            return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
-        }
+    // Both ends on the carrier: either end past ε the disagreement
+    // ([`gaps_apart`]).
+    let ends = [(plan.start, p_start, t0), (plan.end, p_end, t1)];
+    let gaps = ends.map(|(_, point, t)| carrier.eval(t).distance(point));
+    if let Some((at, gap)) =
+        gaps_apart(&gaps, tol, band).map_err(|source| ReplaceFaceError::Escalated { source })?
+    {
+        let (vertex, ..) = ends[at];
+        return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
     }
     plan.spec.param_start = t0;
     plan.spec.param_end = t1;
@@ -6182,5 +6297,32 @@ mod refusal_rows {
         };
         assert_eq!(unbuilt.refusal(), Ok(Refusal::Limit));
         assert_eq!(ReplaceFaceError::<f64>::EmptyGroup.refusal(), Err(Aborts));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod corner_rows {
+    use geom_core::{Band, Point3, Tol};
+
+    use super::{corner_apart, gaps_apart};
+
+    /// A corner whose first pair is in band and whose next pair is a unit
+    /// apart disagrees: the pair past ε answers past the pair in band.
+    #[test]
+    fn a_pair_past_eps_answers_past_a_pair_in_band() {
+        let (tol, band) = (Tol::witness(), Band::linear(Tol::witness()).unwrap());
+        // A gap between ε and the band's edge, found by reading the rung
+        // itself over a fine geometric sweep (the file reads ε once).
+        let in_band = (0..2000)
+            .map(|k| 1e-14 * 1.01f64.powi(k))
+            .find(|&g| gaps_apart(&[g], tol, band).is_err())
+            .expect("some gap between ε and its band's edge reads in band");
+        let points = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(in_band, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        assert_eq!(corner_apart(&points, tol, band).ok(), Some(Some(1.0)));
     }
 }

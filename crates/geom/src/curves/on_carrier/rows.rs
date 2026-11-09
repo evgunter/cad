@@ -145,7 +145,7 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
     let foot = c.foot(q, 0.0);
     assert!(foot.gap() < 1.5 * ZERO, "{}", foot.gap());
     assert!((foot.seed() - t).abs() < 1e-6, "{}", foot.seed());
-    assert!((foot.point() - q).norm() == 0.0);
+    assert!(foot.point().equals_exactly(q));
     assert!(
         foot.nearest().is_none(),
         "an ellipse's foot is a stationary point"
@@ -621,5 +621,135 @@ fn measure_spline_foot_misses() {
     eprintln!(
         "MEASURE misses {misses} of {total}; curves with a miss {curves_missing} of 300; {:.2} us a foot",
         spent.as_secs_f64() * 1e6 / total as f64
+    );
+}
+
+/// **A point's distance from a line's span or a circle's arc**, against
+/// a dense walk of the interval as the oracle: on a segment past its end,
+/// inside an arc (the circle's clearance), past an arc's end (the nearer
+/// end), on the circle's axis (every point alike), an arc across the
+/// seam and a reversed span. None on the kinds with no closed form.
+#[test]
+fn a_points_distance_within_a_span_is_the_dense_walks_least() {
+    use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+    let segment = Curve3::Line(crate::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(1.0, 0.0, 0.0),
+    });
+    let dense = |c: &Curve3<f64>, q: Point3<f64>, (t0, t1): (f64, f64)| {
+        (0..=20_000)
+            .map(|k| (c.eval(t0 + (t1 - t0) * f64::from(k) / 20_000.0) - q).norm())
+            .fold(f64::INFINITY, f64::min)
+    };
+    let cases = [
+        (
+            "a segment past its end",
+            segment.clone(),
+            Point3::new(2.0, 1.0, 0.0),
+            (0.0, 1.0),
+        ),
+        (
+            "a reversed span",
+            segment,
+            Point3::new(-1.0, 1.0, 0.0),
+            (1.0, 0.0),
+        ),
+        (
+            "inside an arc",
+            circle(),
+            Point3::new(3.0, 3.0, 1.5),
+            (0.0, FRAC_PI_2),
+        ),
+        (
+            "past an arc's end",
+            circle(),
+            Point3::new(-3.0, 0.0, 1.5),
+            (0.0, FRAC_PI_2),
+        ),
+        (
+            "on the circle's axis",
+            circle(),
+            Point3::new(0.0, 0.0, 3.0),
+            (0.0, FRAC_PI_2),
+        ),
+        (
+            "across the seam",
+            circle(),
+            Point3::new(1.0, -0.1, 1.0),
+            (-FRAC_PI_4, FRAC_PI_4),
+        ),
+        (
+            "past a seam arc's end",
+            circle(),
+            Point3::new(-1.0, -1.0, 1.0),
+            (-FRAC_PI_4, FRAC_PI_4),
+        ),
+        (
+            "a whole turn",
+            circle(),
+            Point3::new(-1.0, -1.0, 1.0),
+            (0.0, 2.0 * PI),
+        ),
+    ];
+    for (what, c, q, span) in cases {
+        let got = c.distance_within(q, span).unwrap();
+        let want = dense(&c, q, span);
+        assert!(
+            got <= want + 1e-12 && want - got < 1e-6,
+            "{what}: distance_within {got} against the dense walk's {want}"
+        );
+    }
+    for c in [ellipse(2.0, 1.0), spiric(), spline()] {
+        assert!(
+            c.distance_within(Point3::new(1.0, 1.0, 1.0), (0.0, 0.5))
+                .is_none(),
+            "no closed form on {c:?}"
+        );
+    }
+}
+
+/// **A box about the arc's end ray reads a floor under every point of
+/// it, and never below the whole circle's clearance**: the box holds
+/// points inside the arc and past it, and its reading encloses its
+/// centre's distance with its low end at or above the clearance, which
+/// bounds every point's distance from below. So does a box well inside
+/// the arc. A box whose azimuth is named a
+/// turn from the arc is `topo`'s `ring_path::arc_floor_rows`.
+#[test]
+fn a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance() {
+    use core::f64::consts::FRAC_PI_2;
+    use geom_core::Bounds as _;
+    let point = circle();
+    let iv = |x: f64| geom_core::Interval::from_bounds(x, x);
+    let c: Curve3<geom_core::Interval> = Curve3::circle(
+        boxed(Point3::new(0.0, 0.0, 1.0), 0.0),
+        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        iv(2.0),
+        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+    );
+    let span = (iv(0.0), iv(FRAC_PI_2));
+    // On the ray of the arc's end at `π/2`, off the circle.
+    let centre = Point3::new(0.0, 3.0, 1.5);
+    let q = boxed(centre, 0.05);
+    let got = c.distance_within(q, span).unwrap();
+    let clear = c.clearance(q).unwrap();
+    let truth = point.distance_within(centre, (0.0, FRAC_PI_2)).unwrap();
+    assert!(
+        got.lo() >= clear.lo() && got.lo() <= truth && truth <= got.hi(),
+        "the reading encloses the box centre's distance {truth} and is no lower than the \
+         clearance {clear:?}: {got:?}"
+    );
+    let inside = boxed(Point3::new(2.0, 2.0, 1.5), 0.05);
+    let (read, clear) = (
+        c.distance_within(inside, span).unwrap(),
+        c.clearance(inside).unwrap(),
+    );
+    let truth = point
+        .distance_within(Point3::new(2.0, 2.0, 1.5), (0.0, FRAC_PI_2))
+        .unwrap();
+    assert!(
+        read.lo() >= clear.lo() && read.lo() <= truth && truth <= read.hi(),
+        "a box well inside the arc reads its centre's distance {truth}, its low end the \
+         clearance's {clear:?} or above: {read:?}"
     );
 }

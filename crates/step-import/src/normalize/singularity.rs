@@ -46,6 +46,12 @@ use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
 use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalization};
 
+/// **Two lines this close to parallel have no crossing** for the pass: a
+/// squared sine between their directions ([`geom::LinePair::sin2`]) at or
+/// below it is a pair whose closest approach is lost to cancellation in
+/// `f64`, a dozen digits below the operands' own scale.
+const NO_CROSSING_SIN2: f64 = 1e-12;
+
 /// The surface data the pass reads: the axis through the singular
 /// points, the reference azimuth, and the points themselves.
 #[derive(Clone, Copy)]
@@ -514,8 +520,7 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
     let walk =
         home::walk_loop(&inverse, &points, &images[0], read.coarser).ok_or(unreadable(face_id))?;
     match home::nappe(&walk) {
-        Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(1.0),
-        Ok(geom_core::k_stats::NonzeroSign::Negative) => Ok(-1.0),
+        Ok(side) => Ok(side.unit()),
         Err(why) => Err(read.unread(Unread::Side { r#loop: 0, why }, face_id)),
     }
 }
@@ -839,14 +844,17 @@ fn crossings(
         ) => {
             // The closest approach of two lines; generators of one cone
             // meet only at its apex, which the caller's lead skips.
-            let wv = o - oe;
-            let (aa, bb, cc, dd, ee) = (g.dot(g), g.dot(ge), ge.dot(ge), g.dot(wv), ge.dot(wv));
-            let den = aa * cc - bb.powi(2);
-            if den.abs() <= 1e-12 * aa * cc {
+            let pair = geom::Line { origin: o, dir: g }.closest_params(&geom::Line {
+                origin: oe,
+                dir: ge,
+            });
+            // An import's policy: lines within NO_CROSSING_SIN2 of
+            // parallel (or with a zero direction, NaN) have no crossing.
+            let crossing = pair.sin2.abs() > NO_CROSSING_SIN2;
+            if !crossing {
                 return Some(Vec::new());
             }
-            let t = (bb * ee - cc * dd) / den;
-            let s = (aa * ee - bb * dd) / den;
+            let (t, s) = (pair.s, pair.t);
             let (p, q) = (ray.eval(t), other.eval(s));
             Some(if (p - q).norm() <= read.escalate {
                 vec![(t, p)]
@@ -914,7 +922,12 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             ..
         } => Ray {
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::cone_generator(
-                apex, axis, half_angle, d,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle,
+                d,
             )),
             from: 0.0,
             sign: nappe,
@@ -1112,8 +1125,10 @@ fn strut_tip(
     let spec = &solid.edges[&seam];
     let Some(twin) = geom::pole_form::half_turn_curve(
         &spec.carrier,
-        chart.origin(),
-        chart.axis(),
+        geom::Line {
+            origin: chart.origin(),
+            dir: chart.axis(),
+        },
         crate::signed_zero::plus_zero_point,
         crate::signed_zero::plus_zero,
     ) else {

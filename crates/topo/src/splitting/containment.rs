@@ -1019,7 +1019,7 @@ impl<T: Decide> ConicArc<T> {
         use geom_brep::curve_pair::{Reading, Span};
         let span = Span::new(&self.carrier, self.span);
         let near = geom::mid_param(self.span.0, self.span.1);
-        Ok(match span.read(q, near, band).map_err(|r| r.refused) {
+        Ok(match span.read(q, near, band).map_err(|r| r.refused()) {
             Ok(Reading::Off) => ConicHit::Off,
             Ok(Reading::Carrier) => ConicHit::Carrier,
             Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
@@ -1040,21 +1040,6 @@ impl<T: Decide> ConicArc<T> {
             Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
         })
     }
-}
-
-/// The arc trim's step 2 alone (`validate`'s check 9 reads the whole
-/// trim, `arc_trim`) — the sum of two chordal defects,
-/// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, positive on the arc and
-/// never compressed below the angle to the nearer end — for a caller that
-/// has decided the ends by another metric first (an ellipse's exact end
-/// distances, [`ConicArc::hit`]). The one body of the construction.
-pub(crate) fn arc_trim_margin<T: Decide>(
-    p: Point3<T>,
-    a: Point3<T>,
-    apex: Point3<T>,
-    anti: Point3<T>,
-) -> T {
-    ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
 }
 
 /// One boundary edge of a planar loop, on its own carrier.
@@ -2025,12 +2010,17 @@ pub(crate) fn loop_reach<T: Decide>(
 /// **The ray's plane is built, not read off `face`'s record**: the plane
 /// through `q` with `u_ref = d` and the caller's `normal`
 /// ([`Charted::held`](geom_brep::curve_pair::on_surface::Charted::held)),
-/// under `face`'s key. That it carries the loop's arcs is
-/// [`point_in_loop`]'s premise, which [`certify_plane`] holds there: the
-/// loop and `q` lie in the plane through the loop of normal `normal`. On
-/// the projected read it is that read's own premise, above. Both readings
-/// of the pair check the key (C5); the walk reads the one, the arc across
-/// the ray's square plane.
+/// under `face`'s key. That it carries the loop's arcs is the premise
+/// that the loop and `q` lie in the plane through the loop of normal
+/// `normal`, and each way in holds it differently:
+/// - [`point_in_loop`] certifies it ([`certify_plane`]).
+/// - On the projected read it is that read's own premise, above.
+/// - [`contfp`](crate::boolean::contain::contfp), through
+///   [`carrier_loop_side`], takes it unchecked from its caller: "`q`
+///   already on the plane of `face`, with unit plane normal `normal`".
+///
+/// Both readings of the pair check the key (C5); the walk reads the one,
+/// the arc across the ray's square plane.
 ///
 /// # Errors
 ///

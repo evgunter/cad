@@ -383,6 +383,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
+use geom_brep::ladder::{Answering, Rung, climb};
 use geom_core::interval::Interval;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::{
@@ -3537,10 +3538,7 @@ fn strictly_inside<T: Decide>(
     band: Band,
 ) -> Result<Option<T>, ShellError<T>> {
     let (s0, s1) = (stretch.param_start, stretch.param_end);
-    let Some(s) = stretch
-        .carrier
-        .param_near(corner, (s0 + s1) / T::from_f64(2.0))
-    else {
+    let Some(s) = stretch.carrier.param_near(corner, geom::mid_param(s0, s1)) else {
         return Ok(None);
     };
     let scale = (to - from).norm() / (s1 - s0);
@@ -3571,7 +3569,7 @@ fn along<T: Decide>(
         unreachable!("{edge:?} is a seam of a finished wall, and a finished wall has no null edge")
     };
     let (t0, t1) = curve.params();
-    let near = (t0 + t1) / T::from_f64(2.0);
+    let near = geom::mid_param(t0, t1);
     // Whether the carrier runs forward from `from` to `to`: the
     // parameter gap, metered at the stretch's average speed (the chord
     // over the gap) so the margin is a length.
@@ -4668,7 +4666,7 @@ impl<T: Real> InPlane<T> {
 
 /// **`face`'s footprint in `frame`**: the `(u, v)` box holding its
 /// whole boundary — every vertex, and every edge's arc on its carrier
-/// ([`carrier_box`]). The vertices alone are not enough: an arc bowing
+/// ([`edge_box_in`]). The vertices alone are not enough: an arc bowing
 /// out of the vertex hull carries region past it, and an extruded
 /// disc's cap has its two vertices on one diameter. A poisoned term
 /// poisons all four ends. `None` for a face with no boundary member to
@@ -4680,18 +4678,12 @@ fn footprint<T: Decide>(
     frame: &InPlane<T>,
 ) -> Option<((T, T), (T, T))> {
     let mut points = Vec::new();
-    for he in body.proven_face(face).half_edges() {
-        let h = proven(&body.half_edges, he, EntityId::HalfEdge);
-        let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
-        points.push((start.x, start.y));
-        let edge = linked(
-            &body.edges,
-            h.edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        points.extend(edge_box_in(body, h.edge, edge, frame));
+    for member in body.proven_face(face).boundary() {
+        let at = frame.point(body.member_point(&member));
+        points.push((at.x, at.y));
+        if let crate::live::BoundaryMember::Edge { ek, edge, .. } = member {
+            points.extend(edge_box_in(body, ek, edge, frame));
+        }
     }
     let poison = points
         .iter()
@@ -4914,7 +4906,7 @@ fn walls_cross<T: Decide>(
     // and position below is a short difference.
     let d = cross.normalize();
     let k = a.normal.dot(b.normal);
-    let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
+    let q = a.lo.mid(a.hi);
     let r_a = a.normal.dot(a.origin - q);
     let r_b = b.normal.dot(b.origin - q);
     let det = cross.norm_squared();
@@ -4948,10 +4940,13 @@ fn walls_cross<T: Decide>(
                 }),
         )
         .collect();
-    for &(a_lo, a_hi) in &on_a {
-        for &(b_lo, b_hi) in &on_b {
-            // The overlap less every joint: what is left is where the
-            // two walls meet away from where they are joined.
+    // Each pair's overlap less every joint: what is left is where the two
+    // walls meet away from where they are joined. Read lazily, pair by
+    // pair, so a pair after the answer is not read.
+    let pieces = on_a
+        .iter()
+        .flat_map(|&a| on_b.iter().map(move |&b| (a, b)))
+        .flat_map(|((a_lo, a_hi), (b_lo, b_hi))| {
             let mut rest = vec![(a_lo.max(b_lo), a_hi.min(b_hi))];
             for &(e_lo, e_hi) in &joined {
                 let mut kept = Vec::new();
@@ -4971,20 +4966,23 @@ fn walls_cross<T: Decide>(
                 }
                 rest = kept;
             }
-            // Positive is a crossing; Zero, a touch away from every
-            // joint, is a contact and refuses too.
-            for (lo, hi) in rest {
-                let overlap = hi - lo;
-                if !matches!(
-                    decide("shell_moved_walls_overlap", Margin::of(overlap), band)?,
-                    Sign::Negative
-                ) {
-                    return Ok(Some(overlap.max(T::zero())));
-                }
-            }
-        }
-    }
-    Ok(None)
+            rest
+        });
+    // A ladder over the pieces ([`climb`], [`Answering::Any`]: a theorem,
+    // any piece the walls cross along is a crossing, and its overlap only
+    // names it): Positive is a crossing; Zero, a touch away from every
+    // joint, is a contact and refuses too. A piece read in band refuses
+    // only where no other piece crosses.
+    climb(Answering::Any, pieces, |(lo, hi)| {
+        let overlap = hi - lo;
+        Rung::decide(
+            "shell_moved_walls_overlap",
+            Margin::of(overlap),
+            band,
+            |d| (d.sign != Sign::Negative).then(|| overlap.max(T::zero())),
+        )
+    })
+    .into_reading()
 }
 
 /// One moved planar face as [`moved_walls_cross`] reads it: its plane,
@@ -5095,7 +5093,7 @@ impl<T: Decide> ArcPiece<T> {
     /// The two halves of this piece and the carrier point between them.
     fn split(&self) -> (Self, geom_core::Point3<T>, Self) {
         let (t0, t1) = self.window;
-        let mid = (t0 + t1) * T::from_f64(0.5);
+        let mid = geom::mid_param(t0, t1);
         let half = |window| Self {
             window,
             ..self.clone()
@@ -5216,7 +5214,7 @@ impl<T: Decide> MovedWall<T> {
                     }
                     // A piece in the half-turn after `φ` holds `φ + root`,
                     // one in the half-turn before it `φ − root`.
-                    let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
+                    let half = (geom::mid_param(lo, hi) - phi).reduce_periodic(T::tau());
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
                     crossings.push(line.height(at(theta)));
                 }
@@ -5871,6 +5869,99 @@ mod tests {
                 .unwrap(),
             &[(-h, h)],
             "the ellipse at x = 1",
+        );
+    }
+
+    /// **A piece the walls cross along answers past a piece read in
+    /// band** ([`walls_cross`] climbs the pieces under `Any`, QML T2; PR
+    /// 6675's review wrote and verified it, red on base). `a`'s two
+    /// spans on the axis are `[0, 1]` and `[2, 3]`; `b`'s overlap them in
+    /// a piece a mid-band width long (in band) and in a piece `0.8` long
+    /// (a crossing), in both orders, since the cut order is not
+    /// ascending. The sliver alone reads in band.
+    #[test]
+    fn a_piece_crossing_answers_past_a_piece_in_band() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let m = 0.5 * (band.zero() + band.escalate());
+        let v = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let e = |n: u64| -> EdgeKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let ring = |k: u64, pts: [(f64, f64); 8]| -> Vec<(VertexKey, (f64, f64), EdgeKey)> {
+            pts.iter()
+                .enumerate()
+                .map(|(i, &p)| (v(k + i as u64), p, e(k + i as u64)))
+                .collect()
+        };
+        let a = ring(
+            1,
+            [
+                (0.0, -1.0),
+                (1.0, -1.0),
+                (1.0, 1.0),
+                (2.0, 1.0),
+                (2.0, -1.0),
+                (3.0, -1.0),
+                (3.0, 2.0),
+                (0.0, 2.0),
+            ],
+        );
+        for (label, b) in [
+            (
+                "sliver late",
+                ring(
+                    21,
+                    [
+                        (-1.0, -1.0),
+                        (0.8, -1.0),
+                        (0.8, 1.0),
+                        (3.0 - m, 1.0),
+                        (3.0 - m, -1.0),
+                        (3.5, -1.0),
+                        (3.5, 2.0),
+                        (-1.0, 2.0),
+                    ],
+                ),
+            ),
+            (
+                "sliver early",
+                ring(
+                    41,
+                    [
+                        (1.0 - m, -1.0),
+                        (1.5, -1.0),
+                        (1.5, 1.0),
+                        (2.2, 1.0),
+                        (2.2, -1.0),
+                        (4.0, -1.0),
+                        (4.0, 2.0),
+                        (1.0 - m, 2.0),
+                    ],
+                ),
+            ),
+        ] {
+            let (wa, wb) = axis_walls(&a, &b);
+            let got = walls_cross(&wa, &wb, band);
+            assert!(
+                matches!(got, Ok(Some(o)) if (o - 0.8).abs() < 1e-12),
+                "{label}: {got:?}"
+            );
+        }
+        let alone = ring(
+            61,
+            [
+                (1.0 - m, -1.0),
+                (1.5, -1.0),
+                (1.5, 1.0),
+                (1.6, 1.0),
+                (1.6, -1.0),
+                (1.7, -1.0),
+                (1.7, 2.0),
+                (1.0 - m, 2.0),
+            ],
+        );
+        let (wa, wb) = axis_walls(&a, &alone);
+        assert!(
+            walls_cross(&wa, &wb, band).is_err(),
+            "the sliver alone reads in band"
         );
     }
 

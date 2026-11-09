@@ -1543,6 +1543,31 @@ fn common_line<T: geom_core::Real>(
     }
 }
 
+/// **The line's own refusal for a cone's unread reading**, where it is
+/// not a margin a coincidence names ([`resolve_edge_edge`]): a held
+/// face's side the cone decided against, that contradiction; no
+/// reference that any band gives ([`crate::link::Unread::NoReference`]),
+/// that limit; and where no gate's margin refused (a reference a tighter
+/// band may give, an unplaced crossing), the line's faces too close to
+/// place it. `None` where the cause escalated on a margin, which the
+/// caller names as a coincidence.
+fn line_unread_of<T: Decide>(
+    cause: &crate::link::Unread<T>,
+    escalated: bool,
+) -> Option<super::LineUnread> {
+    use super::LineUnread;
+    use crate::link::Unread;
+    match cause {
+        _ if cause.contradicted() => Some(LineUnread::Contradicted),
+        // No reference no band gives: a limit, not a sliver.
+        Unread::NoReference => Some(LineUnread::NoReference),
+        // A reference a tighter band may give: the faces too close.
+        Unread::ReferenceInBand => Some(LineUnread::Unplaced),
+        _ if escalated => None,
+        _ => Some(LineUnread::Unplaced),
+    }
+}
+
 /// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
 /// angular sort and its Table I ties): around the common line, each
 /// solid's material is the region its faces holding the line bound. A
@@ -1827,26 +1852,28 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             // on a flank's plane, where in it in band, the two flanks' sense;
             // its side of a face's plane, that side; the parity arc, the
             // sectors' coincidence; the held face's side the cone decided
-            // against, that contradiction; and where no gate's margin
-            // refused (no reference, an unplaced crossing), the line's faces
+            // against, that contradiction; no reference that any band gives,
+            // that limit; and where no gate's margin refused (a reference a
+            // tighter band may give, an unplaced crossing), the line's faces
             // too close to place it.
             let unread_of = |cause: crate::link::Unread<T>| {
                 use crate::link::Unread;
                 let sheet = cause.sector().map(|k| from[k]);
-                if cause.contradicted() {
-                    return unread(super::LineUnread::Contradicted);
+                let escalation = cause.escalation(band);
+                if let Some(why) = line_unread_of(&cause, escalation.is_some()) {
+                    return unread(why);
                 }
-                match (cause, sheet, cause.escalation(band)) {
+                match (cause, sheet, escalation) {
                     (Unread::Place { .. }, Some(Sheet::Sector(oi)), Some(diag)) => {
                         flank_sense(own, own_idx, oi, diag)
                     }
                     (Unread::Place { .. } | Unread::Side { .. }, _, Some(diag)) => {
                         BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
                     }
-                    (Unread::Arc { .. } | Unread::NoReference, _, Some(diag)) => {
+                    (_, _, Some(diag)) => {
                         BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
                     }
-                    (_, _, None) => unread(super::LineUnread::Unplaced),
+                    (_, _, None) => unreachable!("`line_unread_of` takes every unescalated cause"),
                 }
             };
             match cone.reads_tied(reach.point(points[own], dir), &given, band) {
@@ -2409,7 +2436,7 @@ mod tests {
             .reads_tied(Point3::new(-1.0, 0.0, 0.7), &[], band)
             .expect_err("the sliver reads nothing across the line");
         assert!(
-            matches!(unread, crate::link::Unread::NoReference),
+            matches!(unread, crate::link::Unread::ReferenceInBand),
             "no reference to read by: {unread:?}"
         );
         let p = prism_z::<f64>(
@@ -2449,6 +2476,52 @@ mod tests {
                 })
             ),
             "a typed refusal with its recourse: {got:?}"
+        );
+    }
+
+    /// **A cone with no reference that any band gives refuses as a limit
+    /// on the line, not as a sliver** (PR 6637's delta review): the line's
+    /// own refusal for each unescalated cause ([`line_unread_of`]).
+    /// `resolve_edge_edge` cannot build a line cone of whole planes alone:
+    /// each wedge's flanks add their sectors, and only the held face is a
+    /// whole plane. So the mapping is read here, by the function the site
+    /// calls.
+    #[test]
+    fn no_reference_is_a_limit_on_the_line_and_one_in_band_a_sliver() {
+        use super::super::LineUnread;
+        use crate::link::Unread;
+        assert_eq!(
+            line_unread_of(&Unread::<f64>::NoReference, false),
+            Some(LineUnread::NoReference)
+        );
+        assert_eq!(
+            line_unread_of(&Unread::<f64>::ReferenceInBand, false),
+            Some(LineUnread::Unplaced)
+        );
+        assert_eq!(
+            line_unread_of(
+                &Unread::<f64>::Arc {
+                    sector: None,
+                    why: crate::link::Unsettled::Unplaced
+                },
+                false
+            ),
+            Some(LineUnread::Unplaced)
+        );
+        // An escalated cause is the caller's coincidence, and a side the
+        // cone contradicted is that contradiction, escalated or not.
+        let arc = Unread::<f64>::Arc {
+            sector: None,
+            why: crate::link::Unsettled::Unplaced,
+        };
+        assert_eq!(line_unread_of(&arc, true), None);
+        let contradicted = Unread::<f64>::Side {
+            sector: 0,
+            why: crate::link::Unsettled::Contradicted,
+        };
+        assert_eq!(
+            line_unread_of(&contradicted, true),
+            Some(LineUnread::Contradicted)
         );
     }
 
@@ -2514,7 +2587,7 @@ mod tests {
         match cone.reads_tied(q, &[], band) {
             Ok(m) => assert_eq!(m, crate::link::Material::Out),
             Err(unread) => assert!(
-                matches!(unread, crate::link::Unread::NoReference),
+                matches!(unread, crate::link::Unread::ReferenceInBand),
                 "an unread reading's cause: {unread:?}"
             ),
         }
@@ -2830,7 +2903,7 @@ mod tests {
     ///
     /// - **planar flanks** (two prisms' shared side plane): the door
     ///   verifies `Rest` there, and the tie refuses the declared pair
-    ///   all the same; it refuses `Tangent` (the conformal screen). No
+    ///   all the same; it glues them under no `Tangent`. No
     ///   admitted declaration settles it, so none is offered, and the
     ///   refusal ends in the corner's lever. The flanks overlap on this
     ///   side, so a smaller tolerance leads to the door asking whether
@@ -2839,7 +2912,8 @@ mod tests {
     ///   `flanks_along_a_short_arm` and its `_declared_rest` twin).
     /// - **curved flanks** (a cylinder resting on a plane along the
     ///   line): the door refuses `Tangent` there
-    ///   (`verify_tangent_declaration`), so no declaration is offered;
+    ///   (`glue::decided_glue` glues them under no `Tangent`), so no
+    ///   declaration is offered;
     ///   either sense goes on to the curved flank, which the Boolean
     ///   cannot yet meet (executed: `offer_rows`'
     ///   `membership_along_a_curved_flank`), so no tolerance is offered
@@ -2937,12 +3011,24 @@ mod tests {
         );
         let (fa, fb) = (pa.side_faces[1], pb.side_faces[3]);
         assert!(
-            crate::boolean::rest_pair_verdict(&pa.body, fa, &pb.body, fb, band).is_ok(),
+            matches!(
+                crate::boolean::rest_pair_verdict(&pa.body, fa, &pb.body, fb, band),
+                Ok(crate::contact::RestVerdict::Rest(_))
+            ),
             "the door verifies Rest on the planar flanks"
         );
         assert!(
-            crate::boolean::verify_tangent_declaration(&pa.body, fa, &pb.body, fb, band).is_err(),
-            "the door refuses Tangent on the planar flanks"
+            !crate::boolean::glue::decided_glue(
+                &pa.body,
+                &pb.body,
+                &crate::boolean::Glue::none(),
+                band
+            )
+            .expect("the door reads every pair")
+            .pairs
+            .iter()
+            .any(|p| (p.a, p.b) == (fa, fb) && p.class() == GlueClass::Tangent),
+            "the glue door glues the planar flanks under no Tangent"
         );
         for (arm, label) in arms {
             for (class, read) in [
@@ -3012,8 +3098,12 @@ mod tests {
         });
         let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
         assert!(
-            crate::boolean::verify_tangent_declaration(&ca, fca, &cb, fcb, band).is_err(),
-            "the door refuses Tangent on the curved flanks"
+            !crate::boolean::glue::decided_glue(&ca, &cb, &crate::boolean::Glue::none(), band)
+                .expect("the door reads every pair")
+                .pairs
+                .iter()
+                .any(|p| (p.a, p.b) == (fca, fcb) && p.class() == GlueClass::Tangent),
+            "the glue door glues the curved flanks under no Tangent"
         );
         for (arm, label) in arms {
             let err = run((&ca, fca), (&cb, fcb), arm, None).expect_err("the tie refuses");

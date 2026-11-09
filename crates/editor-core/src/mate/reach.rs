@@ -100,8 +100,8 @@ impl core::fmt::Display for ReachRefusal {
             Self::NoFiniteBound => write!(
                 f,
                 "has a reach that reads back non-finite, so no bound on its extent can be \
-                 stated. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 stated. {}",
+                geom_core::RANGE_ENDING
             ),
         }
     }

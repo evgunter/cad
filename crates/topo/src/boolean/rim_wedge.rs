@@ -69,8 +69,8 @@ pub(crate) enum RimRouting {
     /// leave it on opposite sides (the smooth seam, the built arm), a
     /// nested touch if on one side. [`departures`] decides which.
     Seam,
-    /// Wedge 0 or 2π: outward normals opposed along the rim
-    /// ([`super::BooleanError::RimCuspArmUnbuilt`]).
+    /// Wedge 0 or 2π: outward normals opposed along the rim. The glue
+    /// door leaves it unglued; no arm builds its junction.
     Cusp(geom_brep::WedgeEnd),
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.
@@ -396,7 +396,7 @@ pub(crate) fn departures<T: Decide>(
         ) {
             continue;
         }
-        let mid = (s0 + s1) * T::from_f64(0.5);
+        let mid = geom::mid_param(s0, s1);
         let ca = ra.at((a, fa, PairSide::First), locus, mid, scale, band)?;
         let cb = rb.at((b, fb, PairSide::Second), locus, mid, scale, band)?;
         if !(ca.contains() && cb.contains()) {
@@ -671,7 +671,7 @@ fn reach<T: Decide>(
             }
         }
         if rides(curve, locus, band)? {
-            let mid = (t0 + t1) * T::from_f64(0.5);
+            let mid = geom::mid_param(t0, t1);
             let p = curve.carrier().eval(mid);
             let along = curve.carrier().deriv(mid) * if he { T::one() } else { -T::one() };
             let tangent = match locus {

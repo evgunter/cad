@@ -643,7 +643,7 @@ fn bisect_row(
 ) -> Result<f64, CompositeRefusal> {
     let (mut lo, mut hi) = (piece.a, piece.b);
     for _ in 0..BISECTIONS {
-        let c = lo + (hi - lo) * 0.5;
+        let c = geom::bracket_mid((lo, hi));
         if !(lo < c && c < hi) {
             break;
         }
@@ -660,7 +660,7 @@ fn bisect_row(
             hi = c;
         }
     }
-    Ok(lo + (hi - lo) * 0.5)
+    Ok(geom::bracket_mid((lo, hi)))
 }
 
 /// The crossing of a knot's stretch: `before` ends at the knot within

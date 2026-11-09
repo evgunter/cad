@@ -173,7 +173,7 @@ impl WindsRefusal {
             // regression.
             | Self::Open => geom_core::KERNEL_DEFECT_ENDING,
             Self::Unseparated | Self::Unordered => geom_core::NOT_YET_ENDING,
-            Self::NotFinite => concat!("Recourse: ", geom_core::range_recourse!()),
+            Self::NotFinite => geom_core::RANGE_ENDING,
         }
     }
 }
