@@ -809,7 +809,8 @@ macro_rules! nurbs_fit {
             /// # Errors
             ///
             /// [`FitError`]: too few points (`degree + 1` minimum),
-            /// non-finite input, a zero-length chord, a degenerate
+            /// non-finite input, a chord with no length the format holds
+            /// (zero, or too short or too long to represent), a degenerate
             /// collocation system, or structure refusals.
             pub fn interpolate(points: &[$Point<f64>], degree: usize) -> Result<Self, FitError> {
                 check_degree(points.len(), degree)?;
