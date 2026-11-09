@@ -62,14 +62,24 @@ and not in the reader.
 
 - `sheet_to` and `sheet_up_to` take the sheet's azimuth range, and the
   corner row's sheet runs from just past the corner to 1.2.
-- `run_from` asserts the island lies in the sheet before it builds the
-  ring (`assert_island_in_face`): every corner, and nine stations on
-  each edge, lie strictly between the rims and the rulings. This is read
-  in the cone's frame, because a sheet of sense `false` winds its region
-  as the complement and the door would read it so. The old narrow sheet
-  turns that row red.
-- `read_paths` states the premise and names check 9 as what establishes
-  it at rest.
+- The sense-`false` sheets of `cone_ring_rows`, `torus_ring_rows` and
+  `sphere_island_rows` were each built with the sense-`true` loop. At
+  sense `false` the face was the surface minus the rectangle, so the
+  island sat in its hole. Each now walks its loop from the other ruling
+  or meridian, so the face is the rectangle at either sense (PR 6607's
+  review).
+- `run_from` asserts, sampled, that the island lies in the sheet before
+  it builds the ring (`assert_island_in_face`): no corner, and no point
+  of nine stations on each edge, is placed outside the face by the face's
+  own region door. The torus and sphere rows' `empty_ring` assert the
+  same of every ring they plant. The old narrow sheet, and the old
+  sense-`false` loops, turn them red.
+- The old sense-`false` sheets were not passed at rest:
+  `validate_geometric` reports `CurvedSenseInverted` on all twelve cone
+  sheets, so check 6 refuses them.
+- `read_paths` states the premise and names what establishes it
+  mid-operation: the construction, with nothing re-checking it there
+  (`the-ring-lanes-island-is-not-checked-in-its-face`).
 
 With the scratch every-rung check over `chord_join::` and the cone rows,
 the references agree.
