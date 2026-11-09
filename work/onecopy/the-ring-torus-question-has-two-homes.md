@@ -38,3 +38,9 @@ of the convention under a reader's own rows (`geom::RingSites`).
 doors read it under `RingSites::CONVENTION`. Census reads
 `Variety::quadric`, which decides nothing, so it has no refusal to drop.
 reduce's in-band → `false` reading is an explicit arm, pinned by a row.
+
+## Notes from the review of PR 6641 (2026-11-09)
+
+- **`injective.rs` `by_kind` folds an in-band convention into `TorusNotRing`.** `.map_err(|_| TorusNotRing)` reads a half the band cannot decide as a definite "not a ring". This is pre-existing (the old `_ =>` arm did the same). `EngineRefusal` has no variant carrying an undecided reading (`Sliver` is the wholly-in-band enclosure), so routing it to an escalation needs a new refusal variant. That is left open here, not decided.
+- **`RingSites::new` refuses a shared name within one reader, not across readers.** Nothing stops a reader from passing another reader's row names. A roster check that the names are unique across readers is not added; a K-stream audit would catch a collision only by reading the ledger.
+- **`spindle_sheet`'s `spindle_horn_end`** was a fourth spelling of the ring half (`r − R`, operands reversed). It now reads `ring_half` under its own name. The sweep's shape `Margin::of(<major> − <minor>)` could not match the reversed order; the second pass searched `<minor> − <major>` too.

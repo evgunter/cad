@@ -62,6 +62,18 @@ pub struct Variety<'s, T: geom_core::Real> {
 }
 
 impl<'s, T: Decide> Variety<'s, T> {
+    /// **`carrier` among the kinds that hold a whole line, a cylinder or a
+    /// cone** ([`Variety::quadric`] restricted to its ruled members): a
+    /// reader that certifies a line on the carrier by three of its points
+    /// asks this one, and `None` answers every other kind.
+    #[must_use]
+    pub fn ruled(carrier: &'s Surface<T>) -> Option<Self> {
+        match carrier {
+            Surface::Cylinder { .. } | Surface::Cone { .. } => Self::quadric(carrier),
+            _ => None,
+        }
+    }
+
     /// **`carrier`, where its decided residual vanishes on its whole real
     /// variety** (module docs), for a kind whose membership needs no
     /// decision: a plane, a cylinder, a sphere, a cone. `None` for every
@@ -86,8 +98,9 @@ impl<'s, T: Decide> Variety<'s, T> {
     /// **`carrier`, where its decided residual vanishes on its whole real
     /// variety** (module docs): a [`Variety::quadric`], or a torus decided
     /// a ring ([`geom::RingTorus::of_at`], under the reader's `ring`
-    /// rows). `Ok(None)` for every other kind, and for a torus decided not
-    /// a ring.
+    /// rows). `Ok(None)` for every other kind, and for a torus either half
+    /// of whose convention (`r > 0`, then `R − r > 0`) is decided zero or
+    /// negative.
     ///
     /// # Errors
     ///

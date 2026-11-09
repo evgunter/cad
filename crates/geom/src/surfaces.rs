@@ -810,8 +810,9 @@ pub struct SpindleMiss {
 /// `r > 0` asked first (the margin's own, as a torus's tube is), the
 /// two datums relate by `−r < R ≤ r` and `R ≠ 0`, each a length on the
 /// band: `R + r` decided positive (`spindle_far_end`), `R` decided
-/// nonzero (`spindle_not_sphere`), and `r − R` decided positive or zero
-/// (`spindle_horn_end`), its zero the horn.
+/// nonzero (`spindle_not_sphere`), and the ring half `R − r` decided
+/// negative or zero (`spindle_horn_end`, [`ring_torus`]'s margin read
+/// from the sheet's side), its zero the horn.
 ///
 /// # Errors
 ///
@@ -822,31 +823,31 @@ pub fn spindle_sheet<T: geom_core::Decide>(
     band: Band,
 ) -> Result<(), SpindleMiss> {
     use geom_core::Sign::{Negative, Positive, Zero};
-    let read = |name, margin: T, end, passes: &[geom_core::Sign]| {
-        let verdict =
-            geom_core::k_stats::decide_reported(name, geom_core::Margin::of(margin), band);
-        match verdict {
-            Ok(d) if passes.contains(&d.sign) => Ok(()),
-            _ => Err(SpindleMiss { end, verdict }),
-        }
+    let held = |verdict: Result<geom_core::Decided, geom_core::Indeterminate>,
+                end,
+                passes: &[geom_core::Sign]| match verdict {
+        Ok(d) if passes.contains(&d.sign) => Ok(()),
+        _ => Err(SpindleMiss { end, verdict }),
     };
-    read(
-        "spindle_far_end",
-        major_radius + minor_radius,
+    let read = |name, margin: T| {
+        geom_core::k_stats::decide_reported(name, geom_core::Margin::of(margin), band)
+    };
+    held(
+        read("spindle_far_end", major_radius + minor_radius),
         SpindleEnd::Far,
         &[Positive],
     )?;
-    read(
-        "spindle_not_sphere",
-        major_radius,
+    held(
+        read("spindle_not_sphere", major_radius),
         SpindleEnd::Sphere,
         &[Positive, Negative],
     )?;
-    read(
-        "spindle_horn_end",
-        minor_radius - major_radius,
+    // The horn end is the ring convention's ring half read from the other
+    // side: the sheet holds where `R − r` is not positive.
+    held(
+        ring_half("spindle_horn_end", major_radius, minor_radius, band),
         SpindleEnd::Horn,
-        &[Positive, Zero],
+        &[Negative, Zero],
     )
 }
 

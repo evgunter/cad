@@ -4200,13 +4200,7 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     band: Band,
 ) -> Option<Result<bool, Indeterminate>> {
     use geom_brep::variety::{Piece, Variety};
-    if !matches!(
-        surface,
-        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
-    ) {
-        return None;
-    }
-    let variety = Variety::quadric(surface)?;
+    let variety = Variety::ruled(surface)?;
     Some(
         variety
             .read_piece(&[p0, p1, p0.lerp(p1, T::from_f64(0.5))], name, band)

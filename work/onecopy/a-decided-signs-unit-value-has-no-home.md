@@ -36,3 +36,7 @@ Found by the FULL review of PR 6615 (`onecopy/unit-sign`, head 55adff6b). That P
 sites and two more the sweep found read it. `props/curved.rs` carries a
 rim's direction and a torus meridian's orientation as `NonzeroSign`, so
 `t_sign` and `unreachable_zero` are gone.
+
+## Note (2026-11-09, review of PR 6641)
+
+`NonzeroSign`'s `unit` and `flip` live in `geom_core::k_stats`, beside the type, while `Sign`'s readings live in `predicate.rs`. This is left as is: the type is k_stats', and moving it is a placement question of its own.
