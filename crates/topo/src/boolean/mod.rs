@@ -8449,18 +8449,20 @@ fn locus_through_both_faces<T: Decide>(
                 }
                 FaceUnread::Boundary(refusal) => match refusal {
                     geom_brep::curve_face::BoundaryRefusal::Escalated(diag)
-                    | geom_brep::curve_face::BoundaryRefusal::Meeting(diag)
-                    | geom_brep::curve_face::BoundaryRefusal::Touch(diag) => refused(diag),
-                    geom_brep::curve_face::BoundaryRefusal::Unread(_) => {
-                        BooleanError::CurvedBooleanUnsupported {
-                            operand,
-                            face,
-                            kind,
-                        }
-                    }
-                    geom_brep::curve_face::BoundaryRefusal::Fault { what } => {
-                        BooleanError::ClassificationInvariant { what }
-                    }
+                    | geom_brep::curve_face::BoundaryRefusal::Met(
+                        geom_brep::curve_pair::MeetKind::Escalated(diag)
+                        | geom_brep::curve_pair::MeetKind::Touch(diag),
+                    ) => refused(diag),
+                    geom_brep::curve_face::BoundaryRefusal::Met(
+                        geom_brep::curve_pair::MeetKind::Unread(_),
+                    ) => BooleanError::CurvedBooleanUnsupported {
+                        operand,
+                        face,
+                        kind,
+                    },
+                    geom_brep::curve_face::BoundaryRefusal::Met(
+                        geom_brep::curve_pair::MeetKind::Fault { what },
+                    ) => BooleanError::ClassificationInvariant { what },
                 },
                 // The operand gate certified every curve.
                 FaceUnread::Uncertified => BooleanError::ClassificationInvariant {
@@ -8671,7 +8673,9 @@ fn boundary_cuts<T: Decide>(
                 BooleanError::ClassificationInvariant { what } => what,
                 _ => "boundary pass: face lost",
             };
-            FaceUnread::Boundary(BoundaryRefusal::Fault { what })
+            FaceUnread::Boundary(BoundaryRefusal::Met(
+                geom_brep::curve_pair::MeetKind::Fault { what },
+            ))
         })?
         .ok_or(FaceUnread::Uncertified)?;
     let swept = geom_brep::curve_pair::Span::new(locus, span);

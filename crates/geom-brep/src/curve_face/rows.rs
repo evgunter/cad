@@ -198,7 +198,7 @@ fn a_corner_in_the_gap_escalates() {
     let off = 3.0 * ZERO * FRAC_1_SQRT_2;
     let grazing = line([-off, 1.0 + off, 0.0], [1.0, 1.0, 0.0]);
     match read(&grazing, (-1.0, 1.0)) {
-        Err(BoundaryRefusal::Meeting(diag)) => {
+        Err(BoundaryRefusal::Met(crate::curve_pair::MeetKind::Escalated(diag))) => {
             assert_eq!(diag.predicate, Some("curve_carrier_gap"));
         }
         other => panic!("a corner in the gap: {other:?}"),
@@ -242,10 +242,11 @@ fn a_corner_in_the_gap_is_undecided_over_a_window_holding_it() {
         "the narrowest window is the vertex's: {corner}"
     );
     match super::read(&span, &edges, &[], band()) {
-        Err(BoundaryRefusal::Meeting(diag)) => {
+        Err(BoundaryRefusal::Met(crate::curve_pair::MeetKind::Escalated(diag))) => {
             assert!(matches!(
                 located.undecided[0].why,
-                BoundaryRefusal::Meeting(first) if first.predicate == diag.predicate
+                BoundaryRefusal::Met(crate::curve_pair::MeetKind::Escalated(first))
+                    if first.predicate == diag.predicate
             ));
         }
         other => panic!("read refuses with the first: {other:?}"),
