@@ -131,7 +131,7 @@ fn p4_place_of_a_copy_into_its_space_lands() {
 /// P5: a FIRST pattern of a placed body picked as itself commits no
 /// `SetParam`: no feature gesture re-points a placement (Ev, PR 6353).
 #[test]
-fn p5_a_pattern_takeover_writes_set_param() {
+fn p5_a_pattern_of_a_placed_body_writes_no_set_param() {
     let tol = Tol::witness();
     let doc = Doc::empty_derived("probe-6356", tol);
     let mut s0 = common::inline_without_door(doc, tol);

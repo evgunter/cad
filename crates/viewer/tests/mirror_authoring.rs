@@ -170,7 +170,7 @@ fn own_cap(node: RecipeNodeId) -> pncad::prelude::StableName {
 /// 80 mm, and the saved document reads back bit for bit and builds the
 /// same image.
 #[test]
-fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
+fn a_copy_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     let tol = Tol::witness();
     let (mut session, block) = block(tol);
     let copy = common::copy_of(session.committed_doc(), block);
@@ -373,7 +373,7 @@ fn the_part_is_drawn_where_its_copy_stands_and_moves_with_it() {
 /// across that copy's `−x` wall; the second copy is untouched, and
 /// still places the block.
 #[test]
-fn a_body_drawn_twice_is_its_symmetric_part_at_both_copies() {
+fn a_mirror_on_one_of_two_copies_is_that_copys_part_alone() {
     let tol = Tol::witness();
     let (session, block, first) = moved_block(tol, [0.1, 0.0, 0.0]);
     let (doc, second) = crate::fixture::insert(
@@ -949,7 +949,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
 /// the block's copy seats the copy as the body (Ev, PR 6353), and the
 /// plane is said as the block's wall on the copy it was clicked on.
 #[test]
-fn a_click_on_a_copy_seats_the_block_and_says_the_plane_on_the_copy() {
+fn a_click_on_a_copy_seats_the_copy_and_says_the_plane_on_it() {
     let tol = Tol::witness();
     let (session, block) = block(tol);
     let wall = face_toward(&session, 1.0);

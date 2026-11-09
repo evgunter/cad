@@ -237,7 +237,7 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
 /// `[a, b]` bit for bit. Breaks if the gesture reads through a copy to
 /// its body, writes a placement, or records more than one action.
 #[test]
-fn the_combine_gesture_re_points_the_world_in_one_action() {
+fn a_combine_of_two_copies_is_their_union_and_writes_no_placement() {
     let tol = Tol::witness();
     let (mut session, a, b) = two_boxes(tol);
     session.pump();
@@ -340,7 +340,7 @@ fn a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates() {
 /// to re-point `b`'s placement onto it (Ev, PR 6353); accepted, the
 /// world shows the union where `b`'s copy stood.
 #[test]
-fn a_combine_takes_the_placement_of_the_operand_the_world_places() {
+fn a_combine_offers_the_re_point_of_the_operand_the_world_places() {
     let tol = Tol::witness();
     let (mut session, a, b) = two_boxes(tol);
     let a_placement = common::copy_of(session.committed_doc(), a);
@@ -379,7 +379,7 @@ fn a_combine_takes_the_placement_of_the_operand_the_world_places() {
 /// both copies still place the body (Ev, PR 6353). A pattern is itself
 /// a placement of the body, so it offers no re-point.
 #[test]
-fn a_feature_re_points_each_placement_of_its_target() {
+fn a_pattern_of_a_body_picked_as_itself_re_points_no_placement() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("combine-two-copies", tol);
     let (doc, profile) = common::square_profile(&doc, A[0], tol);
@@ -4380,7 +4380,7 @@ fn world_copied_pattern(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
 /// `pattern[1]`, and the union of it leaves the world copy placing the
 /// body.
 #[test]
-fn a_member_picked_through_a_world_copy_reads_the_family_whole_and_takes_the_copy_over() {
+fn a_member_picked_on_a_family_drawn_as_itself_reads_that_member() {
     let tol = Tol::witness();
     let (mut session, copy, pattern) = world_copied_pattern(tol);
     let body = viewer::world::original_of(session.committed_doc(), copy);
@@ -4654,7 +4654,7 @@ fn every_seat_reads_a_member_exactly_where_its_door_takes_one() {
 /// over through a `⊔` of the family, so the family is read whole there
 /// (`world::is_seen`).
 #[test]
-fn a_pattern_of_a_world_copy_is_read_as_a_copy_of_its_source() {
+fn a_pick_on_a_pattern_of_a_world_copy_seats_the_pattern() {
     let tol = Tol::witness();
     let (mut session, (_, copy)) = session_with_box_in_world(tol);
     let doc = session.committed_doc().clone();
