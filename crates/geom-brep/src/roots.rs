@@ -171,6 +171,27 @@ pub enum Unsettled {
     Crease,
 }
 
+impl Unsettled {
+    /// What this refusal is to a ladder ([`crate::ladder::Refusal`]):
+    /// every case is unsettled, a reading that did not settle on no
+    /// margin and in a way the band moves ([`crate::ladder::Rung::Unsettled`]).
+    /// Exhaustive, so a case added here states its own.
+    #[must_use]
+    pub const fn refusal(self) -> crate::ladder::Refusal {
+        match self {
+            Self::Tangency
+            | Self::Meter { .. }
+            | Self::Exhausted
+            | Self::Floor
+            | Self::Resolvent
+            | Self::CountDisagrees { .. }
+            | Self::AtApex
+            | Self::Degenerate
+            | Self::Crease => crate::ladder::Refusal::Unsettled,
+        }
+    }
+}
+
 /// Two of a root finder's own readings contradict where no legal input
 /// takes them apart: a charge the finder states is exceeded, a kernel
 /// fault. Only [`crate::half_angle::certified_subdivision`] raises one;

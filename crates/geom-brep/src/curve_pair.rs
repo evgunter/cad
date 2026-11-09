@@ -181,7 +181,7 @@ impl MeetFault {
         use crate::ladder::{Aborts, Refusal};
         match self {
             Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(*diag)),
-            Self::Unsettled(_) => Ok(Refusal::Unsettled),
+            Self::Unsettled(why) => Ok(why.refusal()),
             Self::Unsupported { .. } => Ok(Refusal::Limit),
             Self::Desync | Self::Contradiction { .. } => Err(Aborts),
         }
