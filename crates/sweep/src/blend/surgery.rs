@@ -249,9 +249,8 @@ use geom_core::Tol;
 /// One constructor per [`Breach`], so a site states which it met and
 /// the refusal renders that, not another: a stored key that did not
 /// resolve ([`unresolved`]), a walk that did not close ([`unwalked`]),
-/// construction scaffolding ([`scaffolding`]), a degenerate stored
-/// carrier ([`degenerate`]), or keys that resolved into a structure the
-/// plan's reading disagrees with ([`disagrees`]). The last is the one the
+/// construction scaffolding ([`scaffolding`]), or keys that resolved
+/// into a structure the plan's reading disagrees with ([`disagrees`]). The last is the one the
 /// plan's own tokens use — a link offered to a corner it does not touch,
 /// a chart offered another vertex's faces.
 pub(super) fn unresolved(at: EntityId, detail: &'static str) -> BlendError {
