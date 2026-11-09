@@ -190,12 +190,15 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
         /// bore's, as the face's sense says.
         round: topo::Round<T>,
     },
-    /// A spherical face's carrier: centre and radius.
+    /// A spherical face's carrier: its centre, and the face's reach
+    /// from it.
     Sphere {
         /// The centre.
         center: Point3<T>,
-        /// The radius.
-        radius: T,
+        /// An UPPER bound on the distance from `center` to any point of
+        /// the face ([`reach_of`]): the sphere's radius, the level its
+        /// cover lies at about its centre.
+        reach: T,
         /// The face's material, read by its carrier: a ball's or a
         /// socket's, as the face's sense says.
         round: topo::Round<T>,
@@ -408,11 +411,16 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                         round,
                     }
                 }
-                (Some(Surface::Sphere { center, radius, .. }), Some(round)) => Carrier::Sphere {
-                    center: *center,
-                    radius: *radius,
-                    round,
-                },
+                (Some(Surface::Sphere { center, .. }), Some(round)) => {
+                    let Some(reach) = reach_of(body, k, *center, band) else {
+                        return Carrier::Other("a face with no cover");
+                    };
+                    Carrier::Sphere {
+                        center: *center,
+                        reach,
+                        round,
+                    }
+                }
                 (Some(Surface::Cone { .. }), _) => Carrier::Other("a cone face"),
                 (Some(Surface::Torus { .. }), _) => Carrier::Other("a torus face"),
                 (Some(Surface::Spindle { .. }), _) => Carrier::Other("a spindle-torus sheet face"),
@@ -640,8 +648,7 @@ fn reference<T: Decide>(c: &Carrier<'_, T>) -> (Point3<T>, T) {
             (*origin, *reach)
         }
         Carrier::Pose { pose, reach } => (pose.at(), reach.unwrap_or_else(T::zero)),
-        // A sphere's own radius IS its reach, exactly.
-        Carrier::Sphere { center, radius, .. } => (*center, *radius),
+        Carrier::Sphere { center, reach, .. } => (*center, *reach),
         // A segment's length bounds its reach from either end.
         Carrier::Line {
             ends: Some([start, end]),
@@ -1668,7 +1675,7 @@ mod tests {
         }
         let sphere = |convex| Carrier::Sphere {
             center: p(0.0, 0.0, 0.0),
-            radius: 1.0,
+            reach: 1.0,
             round: topo::Round::sphere(p(0.0, 0.0, 0.0), 1.0, convex),
         };
         let cylinder = |convex| Carrier::Cylinder {
@@ -1787,7 +1794,7 @@ mod tests {
     fn ball(center: Point3<f64>, radius: f64, convex: bool) -> Carrier<'static, f64> {
         Carrier::Sphere {
             center,
-            radius,
+            reach: radius,
             round: topo::Round::sphere(center, radius, convex),
         }
     }
