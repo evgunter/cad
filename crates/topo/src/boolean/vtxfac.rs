@@ -1874,14 +1874,15 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
             ) {
                 Climb::Answered { .. } => {
                     let kind = |body: &Body<T>, face| body.proven_face(face).surface().kind();
-                    return Rung::Aborts(BooleanError::HeldPierceUnbuilt {
+                    let unbuilt = BooleanError::HeldPierceUnbuilt {
                         operand: read.piercing,
                         face: read.face,
                         pierced: read.pierced,
                         kind: kind(&*piercing_body, read.face),
                         pierced_kind: kind(pierced_body, read.pierced),
                         placed: true,
-                    });
+                    };
+                    return rung_or_abort(unbuilt.refusal(), unbuilt, core::convert::identity);
                 }
                 Climb::Passed => Rung::Passes,
                 Climb::Undecided(diag) => {
