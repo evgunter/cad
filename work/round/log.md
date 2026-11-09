@@ -252,3 +252,17 @@ with the two affected rows pinned red. Main's 2026-11-09 nightly is red
 across editor-core, sweep and the m10_9 pins, independently of this
 unit. The PR does not re-pin m10_9 `r2_rounded_pad`, which this unit
 moves further and which is already red on main.
+
+PR 6682's review returned REQUEST-CHANGES with one major finding. With
+the merge gone, a bare `fillet(r)` after a straight leg emits runs the
+fit gate accepts but validation refuses (`DegenerateSegment`, 156 of 212
+on a rounded-corner grid that main builds). That is the P2 class
+`a-fillet-run-the-fit-gate-passes-validation-calls-degenerate`, which
+the merge used to shield; it is folded into this unit, which closes it.
+The minors are folded in too:
+- in-band r = R − 1e-9 escalates at validation: trust a constructed
+  joint if both answers are legal, else document it;
+- one pinned row per sub-case;
+- the two duplicate emit lines get one home.
+The DOCTAIL strand row goes to P0, since this unit widens it to an
+ordinary fillet insert. Fix pass to the implementer.
