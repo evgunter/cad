@@ -643,8 +643,8 @@ mod lever_rows {
     /// sum, the reach, `1.8ε`, decides past `1.5ε`. The face-pair door
     /// and the contact door both read the straddle on
     /// `carrier_cyl_reach_straddle`, the enclosure from the first datum's
-    /// `Zero` (the axes agree exactly) to the reach, which offers no
-    /// tolerance.
+    /// `Zero` (the axes agree exactly) to the reach, whose ending
+    /// subdivides and offers no tolerance.
     #[test]
     fn a_cylinder_pair_zero_by_its_data_and_past_the_band_by_its_reach_straddles() {
         let tol = Tol::witness();
@@ -675,9 +675,10 @@ mod lever_rows {
             geom_core::MarginDiag::enclosure(0.0, reach),
             "from the data's Zero to the reach: {at_door:?}"
         );
+        let ending = at_door.ending(geom_core::COINCIDENCE_RECOURSE);
         assert!(
-            !at_door.offers_tolerance(),
-            "a straddle offers no tolerance: {at_door:?}"
+            !at_door.offers_tolerance() && ending.contains("subdivide"),
+            "a straddle's ending subdivides and offers no tolerance: {ending}"
         );
     }
 
@@ -690,7 +691,7 @@ mod lever_rows {
     /// `θ·R·|cos u|·|sin v|`, `4·10⁻⁴·Kε`, so the corners' witness decides
     /// `Zero`. Both doors read the straddle on
     /// `carrier_torus_witness_straddle`, the enclosure from the witness to
-    /// the ring's bound.
+    /// the ring's bound, whose ending subdivides.
     #[test]
     fn a_torus_pair_the_ring_reads_apart_and_its_witness_zero_straddles() {
         let theta = 2.0 * band().escalate();
@@ -757,6 +758,11 @@ mod lever_rows {
             at_door.margin,
             geom_core::MarginDiag::enclosure(witness, upper),
             "from the witness to the ring's bound: {at_door:?}"
+        );
+        let ending = at_door.ending(geom_core::COINCIDENCE_RECOURSE);
+        assert!(
+            ending.contains("subdivide"),
+            "a straddle's ending subdivides: {ending}"
         );
     }
 }
