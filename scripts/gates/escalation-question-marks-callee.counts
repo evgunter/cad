@@ -58,8 +58,10 @@ crates/topo/src/boolean/factored_crossing.rs 1
 # fate: places' corner and place's reading, the side a corner holds: WHICH.
 crates/topo/src/boolean/fate.rs 2
 # insert: walk_order's comparison (a sort) and reconcile_pass's cuts (every
-# run's): NOT A SEARCH; reconcile_pass's held cut and held_cut's three
-# reads name the cut's owner: WHICH.
+# run's): NOT A SEARCH. reconcile_pass's held_cut call, which chooses the
+# way round a run is minted: WHICH. held_cut's three reads (`nested`, both
+# `tied_held`): its owner only names SharedVertexCrossings, so any held
+# cut answers: HAND-ROLLED (question-mark-ladders-the-gate-registered).
 crates/topo/src/boolean/insert.rs 6
 # join: bool_connect's partners, every segment's: NOT A SEARCH.
 crates/topo/src/boolean/join.rs 1

@@ -52,8 +52,10 @@
 //!
 //! Ray choices are never allowed to decide borderline geometry. A
 //! boundary pre-pass reports `q` ON the solid's boundary as
-//! [`SolidContainment::OnBoundary`] before any ray is cast, and refuses
-//! where `q` is in band of a face. Past it, `q` is off every FACE by
+//! [`SolidContainment::OnBoundary`] before any ray is cast: a face
+//! holding `q` answers whatever an earlier face read, and the pass
+//! refuses only where a face reads `q` in band and none holds it. Past
+//! it, `q` is off every FACE by
 //! more than the band's zero — but it may still be in band of a face's
 //! CARRIER, where its foot lies outside the face. The schedule is walked
 //! by [`crate::ray_walk::walk`], and each ray counts its crossings

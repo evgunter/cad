@@ -74,3 +74,49 @@ measured yet.
 | `shell::band_seam`, `wraps_its_period` | any side not winding once, any start winding once | `climb`, `Any` |
 | `stands::face_interior_point` | any certified interior point | `climb`, `Any` |
 | `stands::witness_insides` | its own ranking of `Witness` (`On`, `Blocked`, `InBand`) | its witnesses' standing, then `climb` |
+| `boolean::insert::held_cut` (`nested` and the two `tied_held` reads) | any cut held answers; its owner only names `SharedVertexCrossings` (PR 6574's review) | `climb`, `Any` |
+
+## The assignment-exit loops (outside the gate)
+
+The gate's callee register does not see a loop whose answer leaves by
+assignment (`found = Some(..)`, `answer = Some(s)`, read after the
+loop): its header names the gap. PR 6574's review asked for these to be
+kept somewhere checkable, so they are listed here. **34 lines in 24
+loops**: the sweep's wider exit shape (an assignment of `Some(..)` or to
+`found`) less every loop the gate's own exit rule (a `break`, or a
+`return` of a value or a bare binding) already reads. The count is the
+same at 6574's first head (`42d9cc9759`). The review's 43 was the
+sweep's 126 lines that exit early less the register's 83, which counts
+a line the two scans read differently on both sides. Each loop was read
+once at its hit lines and its exits.
+
+| loop | `?` lines | disposition |
+|---|---|---|
+| `geom_brep::certify::run_checks` | 4367, 4546, 4572, 4579 | NOT A SEARCH: every sample is checked; `tangent_prev` is running state |
+| `geom_brep::pair_section::torus_arms::square_folds` | 948 | NOT A SEARCH: both folds are collected |
+| `geom_brep::pair_section::matched` | 1584, 1598 | NOT A SEARCH: a unique-holder read (two holders are a `Desync`), so every branch is read |
+| `geom_brep::pair_section::ended_by` | 1718, 1757 | NOT A SEARCH: a unique-holder read |
+| `geom_brep::pair_section::site` | 2684 | NOT A SEARCH: a unique-holder read (a site on two components refuses) |
+| `geom_brep::pcurve_cache::projected::met_floors` | 2354 | NOT A SEARCH: a fold |
+| `geom_brep::props::curved::unanimous_rim_side` | 1283 | **HAND-ROLLED, the agreeing shape**: every rim's side, refusing where two differ. A rim read in band refuses ahead of rims that agree. Candidate for `ladder::climb_agreeing`; read before porting |
+| `geom_brep::props::curved::torus_chart` | 5389 | NOT A SEARCH: a fold over every loop |
+| `step_import::entities::loop_u_wrap` | 2084 | NOT A SEARCH: every use is read (an `Option` `?`, running `prev`) |
+| `sweep::blend::surgery::ring_clearance_pass` | 2874, 2887, 2896 | NOT A SEARCH: a minimum over every ring. It raises the argmin question `offset_derive::nearest` raises above |
+| `topo::boolean::contact_verify::tangent_pass` | 504 | NOT A SEARCH: every sample is checked |
+| `topo::boolean::fate::piece_beside` | 1282 | NOT A SEARCH: every holding face is collected |
+| `topo::boolean::insert::mint_plans` | 932 | NOT A SEARCH: every plan is keyed |
+| `topo::boolean::insert::fan_germ_dir` | 2590 | NOT A SEARCH: a unique-holder read (two rays within one pair refuse) |
+| `topo::boolean::join::surface_pair_reach` | 2976 | NOT A SEARCH: a maximum over every pair |
+| `topo::boolean::join::seam_germ_side` | 5653 | **HAND-ROLLED, the agreeing shape**: ported to `ladder::climb_agreeing` by `a-ladder-that-checks-its-answers-agree-has-no-home` |
+| `topo::boolean::ops::apply_cut_ins` | 7211, 7212 | NOT A SEARCH: a unique-holder read (a second holder is unread) |
+| `topo::boolean::recl::resolve_edge_edge` | 1614 | NOT A SEARCH: each slot is filled from its own face |
+| `topo::boolean::reduce::face_tree` | 918 | NOT A SEARCH: every face's box is collected |
+| `topo::boolean::solid_contain::ray_crossings` | 4521 | NOT A SEARCH: every meeting is counted |
+| `topo::boolean::vtxfac::classify_vertex_on_face` | 867 | NOT A SEARCH: every sector is collected |
+| `topo::census::chord_on_edge` | 9213, 9239, 9244 | NOT A SEARCH: both halves are collected |
+| `topo::offset_nappe::group_nappe` | 181 | **HAND-ROLLED, the agreeing shape**: every face's nappe, refusing where two differ. Candidate for `ladder::climb_agreeing`; read before porting |
+| `topo::pcurves::pcurve_pass` | 5402 | NOT A SEARCH: every face's findings are collected |
+
+A unique-holder read is not the agreeing shape: two holders are a
+contradiction, so the read needs every element, and a `?` in band
+refuses what the uniqueness needs.

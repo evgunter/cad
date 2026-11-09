@@ -2472,11 +2472,14 @@ struct Wedge<T: Real> {
     arm: T,
 }
 
-/// **The first coincident pair whose material wedges overlap**: for
-/// each pair `pairs` lists ([`collinear_overlaps`]), the two edges'
-/// material wedges, read at the middle of the span they share, and
-/// whether they overlap. `Ok(Some(i))` names the first such pair,
-/// `Ok(None)` says none does. Each edge's census geometry is read once;
+/// **A coincident pair whose material wedges overlap**: for each pair
+/// `pairs` lists ([`collinear_overlaps`]), the two edges' material
+/// wedges, read at the middle of the span they share, and whether they
+/// overlap. `Ok(Some(i))` names a pair that overlaps, `Ok(None)` says
+/// none does. Any definite overlap is a true fault, so which pair
+/// answers does not change the verdict: the index only names the fault
+/// (`ops::coincident_wedges_disjoint` reports `pairs[i]`'s edges), and a
+/// pair read in band ahead of it does not refuse it ([`wedges_overlap`]). Each edge's census geometry is read once;
 /// its sheets are read per pair at the shared span, so a partial overlap
 /// on a face whose tangent plane turns along a ruling compares the two
 /// wedges at one point (restread's
