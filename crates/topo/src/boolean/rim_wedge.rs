@@ -41,6 +41,9 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
+use super::contain::{
+    ContainError, CurvedPlacement, FaceContainment, PlacementError, face_placement,
+};
 use crate::{Body, FaceKey};
 use geom_brep::ladder::{Answering, IdentityLadder, Rung, climb, read_identity};
 
@@ -551,8 +554,9 @@ const RIM_ON_PLANE: &str = "bool_rim_wedge_on_plane";
 
 /// Whether the face holds `p`, a piece's midpoint on its carrier, as
 /// the one placement reads it ([`super::contain::face_placement`]): `In`
-/// is `true`, `Out` (off the carrier included) is `false`, and a point
-/// the read does not place is `None`.
+/// is `true`, `Out` is `false`, and a point the read does not place is
+/// `None`. A reading off the carrier refuses: the midpoint is on it by
+/// construction.
 ///
 /// **A midpoint on the face's boundary is not placed.** The cut walk
 /// puts every point where the face's boundary meets the locus at a cut,
@@ -574,9 +578,6 @@ fn contains<T: Decide>(
         band,
         predicate: Some("seam_cover_unread"),
         terminal_sliver: false,
-    };
-    use super::contain::{
-        ContainError, CurvedPlacement, FaceContainment, PlacementError, face_placement,
     };
     let read = match face_placement(body, face, p, band, RIM_ON_PLANE) {
         Ok(read) => read,
@@ -600,9 +601,14 @@ fn contains<T: Decide>(
     };
     match read {
         CurvedPlacement::Trim(Some(FaceContainment::In)) => Ok(Some(true)),
-        CurvedPlacement::OffCarrier | CurvedPlacement::Trim(Some(FaceContainment::Out)) => {
-            Ok(Some(false))
-        }
+        CurvedPlacement::Trim(Some(FaceContainment::Out)) => Ok(Some(false)),
+        // The midpoint lies on the locus, which runs on the face's carrier:
+        // a reading off the carrier contradicts that, so it refuses, named,
+        // rather than read as the face's `Out` ([`CurvedPlacement`]).
+        CurvedPlacement::OffCarrier => Err(Indeterminate {
+            predicate: Some("seam_cover_off_carrier"),
+            ..unread
+        }),
         CurvedPlacement::Trim(Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))) => {
             Ok(None)
         }

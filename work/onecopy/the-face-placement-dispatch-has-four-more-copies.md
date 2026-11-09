@@ -1,7 +1,7 @@
 ---
 id: the-face-placement-dispatch-has-four-more-copies
 kind: issue
-title: four more sites spell 'where does this face hold a point on its carrier' (plane -> contfp, curved -> curved_face_containment) beside face_placement: census placed, fate's cut end and ring vertex, cell_region place
+title: five more sites spell 'where does this face hold a point on its carrier' (plane -> contfp, curved -> curved_face_containment or _placement) beside face_placement, and a class splits the decided door pair (contfp_decided / curved_face_placement_decided) that face_placement has no form of
 status: open
 opened: 2026-11-09
 priority: P3
@@ -14,10 +14,11 @@ cost: M
 Filed by `onecopy/face-holds`, from the sweep behind
 `a-face-holds-a-point-has-no-public-door`. That row's two copies now read
 `boolean::contain::face_placement`, the one dispatch. A sweep for the same
-shape (a `Surface::Plane` or planar-normal arm calling `contfp`, and an
-arm calling `curved_face_containment`) found four more. Each reads a
-point it already holds on the face's carrier, so it skips the on-plane
-decision that `face_placement` makes:
+shape (a `Surface::Plane` or planar-normal arm calling `contfp` or
+`contfp_decided`, beside an arm calling `curved_face_containment` or
+`curved_face_placement`) found five more. Each reads a point it already
+holds on the face's carrier, so it skips the on-plane decision that
+`face_placement` makes:
 
 - `census.rs` `placed` (~1929): the planar arm reads the census's cached
   plane (`planar_face(geo)` → `contain`); the curved arm goes through
@@ -29,12 +30,33 @@ decision that `face_placement` makes:
   Refusals go by their standing (`ContainError::refusal`, `rung_or_abort`),
   and `StaleFace` goes to `driver_face_stale`.
 - `cell_region.rs` `place` (~186): every refusal is dropped with `.ok()`.
+- `boolean/carrier_touch.rs` `ball_off_face` (~325): `Surface::Plane` →
+  `contfp_decided` (its margin dropped), else `curved_face_placement`
+  (PR 6599's review).
+
+**The deeper copy is a decided placement dispatch.** `face_placement`
+has no form that keeps the boundary verdict's margin (`contfp_decided`,
+`curved_face_placement_decided`). So the sites that need the margin
+split plane from curved over that door pair, in separate functions
+rather than one match. Sweep: callers of `contfp_decided(` and
+`curved_face_placement_decided(` outside `contain.rs`.
+
+- `boolean/vtxfac.rs` (~1921 curved, ~1971 plane);
+- `boolean/reduce.rs` (~5723 curved, ~5906 plane; and the planar-only
+  ~1329, ~1472, ~1779; the curved-only ~3346, ~5161).
+
+The fix that retires both kinds is a decided form of `face_placement`,
+`(CurvedPlacement, Option<MarginDiag>)`, which the plain door projects,
+read by every site above.
 
 Each of the four keeps its own error policy, and that may be right: the
 census reports findings, the fate ladder ranks refusals, and a cell
-station refusing is no reading. What is copied is the dispatch. The fix
-is a carrier-trusting arm of `face_placement` (or the four reading it with
-an on-plane predicate, as `rim_wedge` now does), each caller keeping a
-one-line decision on its errors. Check first that a fate site's
+station refusing is no reading. What is copied is the dispatch. Read by `face_placement` (with an on-plane predicate, as `rim_wedge`
+does), each caller keeps a one-line decision on its errors and on
+`OffCarrier`. A point held on the carrier by construction refuses on
+`OffCarrier` rather than reading it as `Out`, as `rim_wedge` does: the
+reading contradicts the construction ([`CurvedPlacement`]'s doc). That,
+and not an arm that skips the on-plane decision, is the carrier-trusting
+form. Check first that a fate site's
 sense-folded normal and the plane's stored normal give `contfp` the same
 reading.

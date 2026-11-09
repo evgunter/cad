@@ -23,8 +23,8 @@ Fix, the cheap way: read the path's samples, which still reach the sink under `c
 longer recorded.
 
 Closed (`onecopy/face-holds`): `side_reader_aims_ask_nothing`'s
-`the_rods_aims_take_no_circle_foot` (`probe`) runs the rod's aims at
+`the_aims_at_cylinder_walls_take_no_circle_foot` (`probe`) runs the aims at the rod and the plate it drills at
 `Probe` and asserts that no sample reaches the sink under
 `azimuth_near_cut_side` or `period_near_mark`. Its witness is a point
-inside the same rod, which does take them. A foot injected into the
+inside each body, which does take them, and every wall face is asserted aimed at. A foot injected into the
 cylinder arm of `aim_at` turns it red. A cone wall is not in the row.
