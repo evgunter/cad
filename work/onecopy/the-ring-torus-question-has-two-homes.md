@@ -25,3 +25,5 @@ Found by the FULL review of PR 6616 (`onecopy/variety-gaps`, head 94036920), not
 1. `Variety::of` reads the ring through geom's one door.
 2. The refusal policy lives in one place: either a typed reading that callers cannot drop, or one method per policy.
 3. census.rs's site gets a type that cannot drop the refusal.
+
+**Note (2026-11-09, PR 6621).** PR 6621 adds `geom::RingTorus<T>`, a value that carries the ring decision. Once it can be made only by deciding (`RingTorus::of(major, minor, band)`), it is the typed carrier this row's fix wants. `Variety::of` can take one, or return one, instead of deciding R − r by its own spelling.
