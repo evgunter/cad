@@ -1117,3 +1117,9 @@
   - 6664 (point-equality) → session_013mPGJ51wDjzTLeTSQjXSqC.
   - 6660 (census-normal-refusals; normal_faulted check) → session_013mPGJ5AURPj9f5Uzr4HKv7.
 - 18:45Z 6598 re-gating at 574d204b. 6658 green at 61381a3c; its merge check waits on the worktree.
+- 18:55Z Reviews and PRs:
+  - 6659 FULL: MERGE. F1a: within_span's argument needs K>2 but the band admits K>1. F3a: a second take or a clear still compiles an empty record. → foot-followups-2.
+  - 6656 head 8712b428 (main merged, row closed) → reviewer told; gating.
+  - 6654 L1/L2/L4b/L7 fixes at fb882bc1 (gate reads UncheckedLoop's variants from its declaration) → small delta with session_013mPGJ5b622qiPFUqnsiotH.
+  - 6661 exact-half up (gate green): DInterval Mul exact by ±2ⁿ, 1232 narrowings, 0 wider; its sentence restorations wait on 6632.
+- 18:55Z main-reds: B′ done (k_stats::choose under F38; pin across carrier kinds; corpus 0 <unnamed>). The battery red bisects to ONEHOME's 6380, filed there.
