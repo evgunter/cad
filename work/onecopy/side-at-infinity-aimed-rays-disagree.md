@@ -73,3 +73,9 @@ panic, and run `cargo nextest run -p topo --profile ci`.
 time, a multi-shell selection carries its side, and the site's premise
 is that of an `Alike` ladder whose source type establishes it. The
 every-rung audit (probe-gated) then passes on every fixture.
+
+## Other sites waiting on the same `Alike` (2026-11-09)
+
+When 6592's `Alike` lands, these premise-only ladders flip to it along with `cast_aims`:
+
+- **`topo::link::Cone::reads_given`'s reference climb** (`crates/topo/src/link.rs`, "every reference reads one material"). It climbs under `Answering::First` until then (PR 6637's review, F1): the premise is shown failing on `work/oneread/a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie.md`, and `editor_core::drive`'s `classify_replay` acts on the escalation log a superseded splice would drop. The code comment there says "pending 6592's `Alike`".
