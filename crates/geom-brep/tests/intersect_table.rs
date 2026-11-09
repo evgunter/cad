@@ -2285,7 +2285,7 @@ fn plane_torus_axis_parallel_off_axis_is_two_spiric_ovals() {
 
 /// The general-rung refusals are DIFFERENT decisions and each is named:
 /// an axis-parallel plane at or past the inner equator (no two ovals —
-/// `pt_spiric_two_ovals`'s refusing arm) and generic tilt (naming the
+/// `spiric_two_ovals`'s refusing arm) and generic tilt (naming the
 /// Villarceau bitangent case as deliberately unclassified). The in-band
 /// twins of the routing trileans escalate typed (F6).
 #[test]

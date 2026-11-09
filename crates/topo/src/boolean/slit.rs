@@ -1534,10 +1534,6 @@ fn clears_plane<T: Decide>(
     }
 }
 
-/// The site [`spiric_on_curved`] decides a spiric's offset off zero, and
-/// short of `R − r`, under.
-const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
-
 /// **Where spiric `carrier`, over `(t0, t1)`, lies against sphere,
 /// cylinder, cone or ring torus `surface`**: off it along every piece
 /// wherever its section is in the two-oval regime and a point of the
@@ -1560,9 +1556,9 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 /// are those of `Re G = Im G = 0`, four at most, while the oval has
 /// infinitely many.
 ///
-/// The arm admits only the two-oval regime, `0 < |d| < R − r`, decided
-/// here ([`RIDER_SPIRIC_REGIME`]) as [`geom::Curve3::spiric`] decides it
-/// at the mint. The argument needs only `d ≠ 0`, so the `R − r` bound is
+/// The arm admits only the two-oval regime, `0 < |d| < R − r`, read
+/// from [`geom::spiric_regime`], the predicate [`geom::Curve3::spiric`]
+/// mints under. The argument needs only `d ≠ 0`, so the `R − r` bound is
 /// conservative rather than required. It is kept because the carrier is
 /// defined only there: from `R − r` on its radicand goes negative, which
 /// is poison. Offset zero (two circles), the offsets from `R − r` on, and
@@ -1607,9 +1603,9 @@ fn spiric_on_curved<T: Decide>(
     let unread = Placed::Unread(EdgeInFaceGap::CarrierUnread);
     let refused =
         |diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag);
-    let decided =
-        |m: T| crate::validate::decide(RIDER_SPIRIC_REGIME, Margin::of(m), band).map_err(refused);
-    if decided(offset)? == Sign::Zero || decided(big - small - offset.abs())? != Sign::Positive {
+    if geom::spiric_regime(big, small, offset, T::zero(), band).map_err(refused)?
+        != geom::SpiricRegime::TwoOvals
+    {
         return Ok(unread);
     }
     let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band).map_err(refused)? else {

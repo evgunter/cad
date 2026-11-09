@@ -1009,6 +1009,67 @@ pub fn decide_magnitude_reported<T: Decide>(
     }
 }
 
+/// **A two-sided row read across the consumed region**
+/// (`geom_brep::extent`'s module docs): `datum` the row's signed margin
+/// where its pivot reads it, and `swing` a LENGTH, the most the term
+/// its routing row admitted (a tilt levered at the row's own reach, or
+/// a position the row is read beside) moves that reading at a consumed
+/// point; each caller derives its own. Across the region the reading stands inside
+/// `datum ± swing`, so each verdict is decided on its own side of that
+/// bracket, each the point deviation that flips it:
+///
+/// - `far`, `|datum| + swing`, the farthest a consumed point reads from
+///   the flip: Zero ⇒ [`Sign::Zero`] at every consumed point;
+/// - otherwise `floor`, the bracket's reading nearest the flip (`datum`
+///   shrunk toward zero by `swing`, zero where the bracket holds it): a
+///   definite sign holds at every consumed point. A floor decided Zero
+///   beside a definite far straddles the band, and escalates through
+///   the gate.
+///
+/// The two terms are never decided one at a time: each just inside the
+/// band would sum to nearly twice it. `topo`'s section certificate reads
+/// its axis rows through this door too.
+///
+/// # Errors
+///
+/// The [`Indeterminate`] of the row left undecided, naming it: the far
+/// row in its band, or a floor decided Zero beside a definite far row.
+pub fn decide_across<T: Decide>(
+    names: [&'static str; 2],
+    datum: T,
+    swing: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    decide_across_reported(names, datum, swing, band).map(|(sign, _)| sign)
+}
+
+/// [`decide_across`] with the margin the `far` row was decided on: the
+/// Zero verdict's own margin where the row reads Zero, the margin the
+/// floor stood past otherwise.
+///
+/// # Errors
+///
+/// As [`decide_across`].
+pub fn decide_across_reported<T: Decide>(
+    [far, floor]: [&'static str; 2],
+    datum: T,
+    swing: T,
+    band: Band,
+) -> Result<(Sign, MarginDiag), Indeterminate> {
+    let swing = swing.abs();
+    let (far_side, margin) = decide_magnitude_reported(far, Margin::of(datum.abs() + swing), band)?;
+    match far_side {
+        Magnitude::Zero => Ok((Sign::Zero, margin)),
+        Magnitude::Positive => {
+            let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
+            Ok(match decide_nonzero(floor, Margin::of(near), band)? {
+                NonzeroSign::Positive => (Sign::Positive, margin),
+                NonzeroSign::Negative => (Sign::Negative, margin),
+            })
+        }
+    }
+}
+
 /// **The measurement gate** — the funnel's door for a value an op is
 /// about to REPORT rather than classify, when a poisoned aggregate
 /// would otherwise ride out as a number no caller can tell from a
