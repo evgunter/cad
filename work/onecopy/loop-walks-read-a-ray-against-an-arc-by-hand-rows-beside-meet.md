@@ -2,7 +2,7 @@
 id: loop-walks-read-a-ray-against-an-arc-by-hand-rows-beside-meet
 kind: issue
 title: The planar loop walk and the sphere cut-in read a ray or a half-meridian against a boundary arc by hand rows beside curve_pair::meet
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: M
