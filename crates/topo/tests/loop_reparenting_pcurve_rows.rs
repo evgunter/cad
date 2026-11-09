@@ -1224,7 +1224,7 @@ fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurv
     let bottom = s.body.get_half_edge(he_at(&s.body, s.low, a)).unwrap().edge;
     let mid = s.body.get_half_edge(he_at(&s.body, s.low, c)).unwrap().edge;
     let back = s.body.get_face(s.plane).unwrap().clone();
-    let original = s.body.get_surface(back.surface).unwrap().clone();
+    let original = s.body.face_surface(s.plane).unwrap().clone();
     // A back on the cylinder under a second key (the second-key row)
     // contains the rims, and its key is that row's subject: it is left
     // where it is.

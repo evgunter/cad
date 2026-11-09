@@ -1171,6 +1171,12 @@ impl<T: Real> Body<T> {
     /// vertices are never stored (see [`HalfEdge`]). `None` if `he` or
     /// its `next` is stale; a foreign `he`
     /// [passes through both hops](self#key-validity-stale-vs-foreign) uncaught.
+    ///
+    /// The one reading of a half-edge's end, and so of an edge's
+    /// ([`Body::edge_vertices`]; `query::edge_ends` is its panicking
+    /// tier). Not the twin's start: tier 1 checks
+    /// `end(he_plus) = start(he_minus)` against this reading, so reading
+    /// the end off the twin would make that check read itself.
     pub fn half_edge_end(&self, he: HalfEdgeKey) -> Option<VertexKey> {
         let half_edge = self.half_edges.get(he)?;
         let next = self.half_edges.get(half_edge.next)?;
@@ -1178,17 +1184,16 @@ impl<T: Real> Body<T> {
     }
 
     /// **The two end vertices of `edge`**, in `he_plus`-forward order:
-    /// the starts of its `he_plus` and `he_minus` halves. `None` if the
-    /// edge or either half is stale; a foreign `edge`
+    /// `he_plus`'s start and its end ([`Body::half_edge_end`]). `None`
+    /// if the edge, `he_plus` or its `next` is stale; a foreign `edge`
     /// [is not caught](self#key-validity-stale-vs-foreign).
     ///
     /// The refusing door, for a key a caller passed or a body the
     /// validator has not certified. A key the kernel itself reached
     /// reads [`crate::query::edge_ends`], whose miss panics.
     pub fn edge_vertices(&self, edge: EdgeKey) -> Option<(VertexKey, VertexKey)> {
-        let e = self.edges.get(edge)?;
-        let start = |he| self.half_edges.get(he).map(|h| h.start);
-        Some((start(e.he_plus)?, start(e.he_minus)?))
+        let he = self.edges.get(edge)?.he_plus;
+        Some((self.half_edges.get(he)?.start, self.half_edge_end(he)?))
     }
 
     /// The position of `he`'s start vertex. `None` if `he`, its vertex

@@ -169,7 +169,7 @@ fn a_seam_inside_a_chart_a_hair_wider_takes_its_interior_column() {
     let (flat, chart) = body
         .faces()
         .filter(|(f, _)| *f != arc)
-        .find_map(|(f, face)| match body.get_surface(face.surface) {
+        .find_map(|(f, _)| match body.face_surface(f) {
             Some(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => {
                 Some((f, Arc::clone(n)))
             }
@@ -374,7 +374,7 @@ fn flat_wall_shifted_in_v(body: &Body<f64>) -> (Body<f64>, FaceKey) {
     let flat = body
         .faces()
         .filter(|(f, _)| *f != arc)
-        .find_map(|(f, face)| match body.get_surface(face.surface) {
+        .find_map(|(f, _)| match body.face_surface(f) {
             Some(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => Some(f),
             _ => None,
         })

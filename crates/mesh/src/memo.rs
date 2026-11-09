@@ -745,7 +745,7 @@ impl FaceInputs {
         let face = body
             .face(fk)
             .ok_or(TessellateError::MissingEntity { what: "face" })?;
-        let mut loops = Vec::with_capacity(1 + face.record().rings.len());
+        let mut loops = Vec::new();
         // Split-lineage roots relabeled by first occurrence over the
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();

@@ -1019,12 +1019,10 @@ impl<T: Decide> Body<T> {
     /// order. `edge` is one the caller resolved.
     fn edge_ends(&self, edge: EdgeKey) -> [(VertexKey, Point3<T>); 2] {
         let (start, end) = crate::query::edge_ends(self, edge);
-        let halves = proven(&self.edges, edge, EntityId::Edge);
+        let he_plus = proven(&self.edges, edge, EntityId::Edge).he_plus;
+        let next = proven(&self.half_edges, he_plus, EntityId::HalfEdge).next;
         let point = |v, he| self.linked_vertex_point(v, EntityId::HalfEdge(he), "start");
-        [
-            (start, point(start, halves.he_plus)),
-            (end, point(end, halves.he_minus)),
-        ]
+        [(start, point(start, he_plus)), (end, point(end, next))]
     }
 
     /// The door [`Construct::set_face_sense`](crate::construction::Construct::set_face_sense) forwards to;

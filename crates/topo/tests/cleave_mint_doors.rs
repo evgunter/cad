@@ -126,7 +126,7 @@ fn a_rechart_beside_the_wall_re_certifies_its_m7_8_edge_at_f64() {
     let mut body = m7_8_cube::<f64>();
     let top = top_face(&body);
     let face = body.get_face(top).unwrap().clone();
-    let plane = body.get_surface(face.surface).unwrap().clone();
+    let plane = body.face_surface(top).unwrap().clone();
     let specs: Vec<_> = body
         .edges()
         .filter(|(_, e)| {
@@ -243,7 +243,7 @@ fn at_a_dual_set_edge_curve_mints_the_class() {
 fn at_a_dual_a_rechart_mints_the_class() {
     let (mut body, edge, spec, wall_face) = bare_wall::<Dual64>();
     let face = body.get_face(wall_face).unwrap().clone();
-    let net = body.get_surface(face.surface).unwrap().clone();
+    let net = body.face_surface(wall_face).unwrap().clone();
     let stranded: Vec<_> = body
         .edges()
         .filter(|(_, e)| {

@@ -348,7 +348,7 @@ pub enum LoopRole {
 impl LoopRole {
     /// The [`Face`] field that holds a loop in this role: the label a
     /// miss of it names.
-    pub const fn field(self) -> &'static str {
+    pub(crate) const fn field(self) -> &'static str {
         match self {
             Self::Outer => "outer",
             Self::Ring(_) => "rings",
@@ -361,7 +361,7 @@ impl LoopRole {
     }
 
     /// The ring's index in [`Face::rings`]; none for the outer loop.
-    pub const fn ring(self) -> Option<usize> {
+    pub(crate) const fn ring(self) -> Option<usize> {
         match self {
             Self::Outer => None,
             Self::Ring(i) => Some(i),

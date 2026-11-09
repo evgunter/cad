@@ -110,7 +110,7 @@ mod certified {
                 assert_eq!(now, if curved { !f.sense } else { f.sense });
                 if curved {
                     assert_eq!(
-                        format!("{:?}", rev.get_surface(f.surface).unwrap()),
+                        format!("{:?}", rev.face_surface(k).unwrap()),
                         format!("{:?}", body.face_surface(k).unwrap()),
                         "a chart must not widen under revert"
                     );

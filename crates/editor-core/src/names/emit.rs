@@ -1675,7 +1675,7 @@ pub(crate) fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) ->
 #[track_caller]
 pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
     body.edge_vertices(e).unwrap_or_else(|| {
-        unreachable!("edge ends: edge {e:?} or one of its halves dangles; {LIVE_ARGUMENT}, {TIER1}")
+        unreachable!("edge ends: edge {e:?}, its he_plus or that half's next dangles; {LIVE_ARGUMENT}, {TIER1}")
     })
 }
 
@@ -2714,24 +2714,24 @@ mod walk_tests {
         edge_ends(&r.without(EntityId::Edge(r.edge)), r.edge);
     }
 
-    /// Either half dangling panics in the same voice: each is a link
-    /// the edge holds.
+    /// `he_plus` dangling panics in the edge-ends voice: the first hop
+    /// `Body::edge_vertices` reads.
     #[test]
-    fn edge_ends_panics_on_either_dangling_half() {
+    #[should_panic(expected = "edge ends: edge")]
+    fn edge_ends_panics_on_a_dangling_he_plus() {
         let r = rim1();
-        let e = r.body().get_edge(r.edge).unwrap().clone();
-        for he in [e.he_plus, e.he_minus] {
-            let torn = r.without(EntityId::HalfEdge(he));
-            let caught =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| edge_ends(&torn, r.edge)));
-            let msg = caught.expect_err("a dangling half panics");
-            let msg = msg
-                .downcast_ref::<String>()
-                .map(String::as_str)
-                .or_else(|| msg.downcast_ref::<&str>().copied())
-                .unwrap_or_default();
-            assert!(msg.contains("edge ends: edge"), "{he:?}: {msg}");
-        }
+        let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
+        edge_ends(&r.without(EntityId::HalfEdge(he_plus)), r.edge);
+    }
+
+    /// `he_plus`'s `next` dangling panics in the same voice: the second.
+    #[test]
+    #[should_panic(expected = "edge ends: edge")]
+    fn edge_ends_panics_on_a_dangling_next() {
+        let r = rim1();
+        let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
+        let next = r.body().get_half_edge(he_plus).unwrap().next;
+        edge_ends(&r.without(EntityId::HalfEdge(next)), r.edge);
     }
 
     #[test]

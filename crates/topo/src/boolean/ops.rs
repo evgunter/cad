@@ -3024,7 +3024,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let (s1, s2) = sides.surfaces();
         let (v0, v1) = crate::query::edge_ends(body, edge);
         let p0 = body.linked_vertex_point(v0, EntityId::HalfEdge(sides.plus.half_edge), "start");
-        let p1 = body.linked_vertex_point(v1, EntityId::HalfEdge(sides.minus.half_edge), "start");
+        let p1 = body.linked_vertex_point(v1, EntityId::HalfEdge(sides.plus.half_edge), "end");
         let surface_of = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface();
         let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
         let existing = body

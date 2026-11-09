@@ -46,7 +46,7 @@ pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
     let mut ring_region: BTreeMap<LoopKey, usize> = BTreeMap::new();
     for &f in pieces {
         let face = piece_face(body, f);
-        for &r in &face.record().rings {
+        for (r, _, _) in face.loops().filter(|(_, _, role)| !role.is_outer()) {
             let n = ring_region.len() + 1;
             ring_region.insert(r, n);
         }

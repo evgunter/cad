@@ -1255,14 +1255,12 @@ mod review_probes {
     pub(super) fn pucker_cone_faces(ps: &[Piece<f64>]) -> Vec<pncad::topo::FaceKey> {
         let lant = body(ps, "lily_lantern");
         let (neck, _, _, _) = weld_circle(lant, body(ps, "lily_arch"), caps(ps, "lily_arch"));
-        let neck_apex = lant
-            .faces()
-            .find(|(k, _)| *k == neck)
-            .and_then(|(_, f)| match lant.get_surface(f.surface) {
-                Some(&Surface::Cone { apex, .. }) => Some(apex),
-                _ => None,
-            })
-            .expect("the neck the weld pin names is a cone");
+        let Some(&Surface::Cone {
+            apex: neck_apex, ..
+        }) = lant.face_surface(neck)
+        else {
+            panic!("the neck the weld pin names is a cone")
+        };
         lant.faces()
             .filter(|(fk, _)| {
                 matches!(

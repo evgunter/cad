@@ -447,7 +447,7 @@ impl<'a, T: Real> FaceView<'a, T> {
     }
 
     /// The face's record.
-    pub fn record(self) -> &'a Face {
+    pub(crate) fn record(self) -> &'a Face {
         self.record
     }
 
@@ -484,7 +484,7 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// The face's outer loop, a link its record holds: the first of
     /// [`FaceView::loops`], for a reader of it alone.
     #[track_caller]
-    pub fn outer(self) -> (LoopKey, &'a Loop) {
+    pub(crate) fn outer(self) -> (LoopKey, &'a Loop) {
         let lk = self.record.outer;
         let l = linked(
             &self.body.loops,
@@ -532,7 +532,7 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// [`FaceView::loops`]' order, each in `next` order. A lone-vertex
     /// loop has no cycle and is not yielded
     /// ([`BoundaryMember::half_edge`]'s disposition).
-    pub fn cycles(self) -> impl Iterator<Item = (LoopKey, Vec<HalfEdgeKey>)> + 'a {
+    pub(crate) fn cycles(self) -> impl Iterator<Item = (LoopKey, Vec<HalfEdgeKey>)> + 'a {
         self.boundary_by_loop()
             .map(|(lk, members, _)| {
                 let cycle: Vec<HalfEdgeKey> = members

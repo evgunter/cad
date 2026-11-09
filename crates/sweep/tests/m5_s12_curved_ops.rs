@@ -298,9 +298,9 @@ fn revert_flips_a_mixed_sense_body_face_by_face() {
     let after = senses(&rev);
     // Only the CURVED face's bit is the one revert writes; the planar
     // faces keep theirs (their reversal is in the normal).
-    for ((k, f), was) in body.faces().zip(before.iter()) {
+    for ((k, _), was) in body.faces().zip(before.iter()) {
         let now = rev.get_face(k).unwrap().sense;
-        let curved = !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. }));
+        let curved = !matches!(body.face_surface(k), Some(Surface::Plane { .. }));
         assert_eq!(now, if curved { !*was } else { *was }, "face {k:?}");
     }
     assert_ne!(after, before, "something must have moved");

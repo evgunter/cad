@@ -3238,7 +3238,12 @@ fn consumption_sweep<T: Decide + Bounds>(
         for (lp, _, _) in fa.loops() {
             boundary.extend(screened_loop(body, lp)?);
         }
-        let decided = strip_decided(body, chains, face, &fa.record().rings, band)?;
+        let rings: Vec<topo::LoopKey> = fa
+            .loops()
+            .filter(|(_, _, role)| !role.is_outer())
+            .map(|(lk, _, _)| lk)
+            .collect();
+        let decided = strip_decided(body, chains, face, &rings, band)?;
         for i in 0..boundary.len() {
             for j in (i + 1)..boundary.len() {
                 let (ei, pi) = (&boundary[i].0, &boundary[i].2);

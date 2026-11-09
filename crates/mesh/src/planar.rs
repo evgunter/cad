@@ -253,7 +253,7 @@ pub(crate) fn tessellate_planar(
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
 
     // Loop id cycles (outer first, then rings in face order).
-    let mut loops: Vec<Vec<u32>> = Vec::with_capacity(1 + face.record().rings.len());
+    let mut loops: Vec<Vec<u32>> = Vec::new();
     for (lk, _, _) in face.loops() {
         loops.push(loop_ids(body, fk, lk, chords)?);
     }

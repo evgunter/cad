@@ -38,7 +38,15 @@
 #
 # KNOWN GAPS. The matcher reads text, not types. It cannot see:
 #  - a face record bound in one statement whose `.surface` key is
-#    resolved in another (`let f = body.get_face(k)?; … get_surface(f.surface)`);
+#    resolved in another (`let f = body.get_face(k)?; … get_surface(f.surface)`),
+#    or bound by a `faces()` iteration (`for (k, f) in body.faces()`,
+#    `.find(|(_, f)| … get_surface(f.surface))`). By text,
+#    `get_surface(x.surface)` is also an edge chart's surface key
+#    (`EdgeDescription::Chart`'s `c.surface`), which is not a face walk.
+#    At this gate's landing the one such face read outside topo is
+#    `editor-core` `mate::reach::reach_from`, held for its public
+#    `MalformedBody` refusal (ENCL's
+#    `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`);
 #  - the outer loop and the rings read in separate statements;
 #  - an edge's end read as `half_edge_end(e.he_plus)`, which is also a
 #    half-edge's own end and so cannot be told apart by text. Those test

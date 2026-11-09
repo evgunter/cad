@@ -21,17 +21,17 @@ fn face(body: &Body<f64>, key: FaceKey) -> &topo::Face {
 
 /// Whether `key`'s own loop encodes no side: one loop, read `Unencoded`.
 pub(crate) fn unencoded(body: &Body<f64>, key: FaceKey, tol: Tol) -> bool {
-    let f = face(body, key);
-    let Ok((outer, _)) = topo::props::loop_edges(body, f.outer) else {
+    let f = body.face(key).unwrap();
+    let Some((outer, _, _)) = f.loops().next() else {
+        return false;
+    };
+    let Ok((outer, _)) = topo::props::loop_edges(body, outer) else {
         return false;
     };
     let band = geom_core::Band::linear(tol).unwrap();
-    f.rings.is_empty()
-        && geom_brep::props::boundary_material_sign(
-            body.get_surface(f.surface).unwrap(),
-            &outer,
-            band,
-        ) == Ok(geom_brep::props::MaterialSign::Unencoded)
+    f.loops().count() == 1
+        && geom_brep::props::boundary_material_sign(f.surface(), &outer, band)
+            == Ok(geom_brep::props::MaterialSign::Unencoded)
 }
 
 pub(crate) fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
@@ -148,7 +148,7 @@ pub(crate) fn assert_refused(
 
 /// The sphere `key` lies on: centre, radius and unit polar axis.
 pub(crate) fn sphere_of(body: &Body<f64>, key: FaceKey) -> (Point3<f64>, f64, Vec3<f64>) {
-    match body.get_surface(face(body, key).surface) {
+    match body.face_surface(key) {
         Some(&Surface::Sphere {
             center,
             radius,

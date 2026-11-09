@@ -395,7 +395,8 @@ fn side_surfaces<T: Real>(body: &Body<T>, e: EdgeKey) -> (SurfaceKey, SurfaceKey
         .surfaces()
 }
 
-/// The start and end vertices of `he`, `holder`'s field `field`.
+/// The start and end vertices of `he`, `holder`'s field `field`: its
+/// end read as [`Body::half_edge_end`] reads it, each hop a link.
 fn half_edge_ends<T: Real>(
     body: &Body<T>,
     he: HalfEdgeKey,
@@ -415,28 +416,14 @@ fn half_edge_ends<T: Real>(
 }
 
 /// **The two end vertices of `e`**, a live edge the kernel reached, in
-/// `he_plus`-forward order: the starts of its `he_plus` and `he_minus`
-/// halves, each a link the edge holds. A miss is a kernel bug and
-/// panics naming the hop (D2 row 4); a key a caller passed reads
-/// [`Body::edge_vertices`], which answers `None`.
+/// `he_plus`-forward order: [`Body::edge_vertices`]' reading, each hop a
+/// link. A miss is a kernel bug and panics naming the hop (D2 row 4); a
+/// key a caller passed reads [`Body::edge_vertices`], which answers
+/// `None`.
 #[track_caller]
 pub(crate) fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
-    use crate::live::linked;
     let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
-    let start = |he, field| {
-        linked(
-            &body.half_edges,
-            he,
-            EntityId::HalfEdge,
-            EntityId::Edge(e),
-            field,
-        )
-        .start
-    };
-    (
-        start(edge.he_plus, "he_plus"),
-        start(edge.he_minus, "he_minus"),
-    )
+    half_edge_ends(body, edge.he_plus, EntityId::Edge(e), "he_plus")
 }
 
 /// The seed's two surfaces as an unordered pair, stored lower key
