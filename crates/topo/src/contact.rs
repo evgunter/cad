@@ -502,6 +502,119 @@ mod tests {
         );
     }
 
+    /// **Each verdict states its own fact, and where it holds.** A
+    /// table: the `Rest` door's two rows, the tangent line read apart and
+    /// crossing, and every tangent ruling, each to its sentence. The gap
+    /// row's reading may mean apart, crossing or which sheet stands over
+    /// the other (its senses' orientation), so its sentence reads no
+    /// sign, and both signs say it.
+    #[test]
+    fn each_verdict_states_its_own_fact_and_witness() {
+        let by = |sign| geom_core::Decided {
+            sign,
+            margin: geom_core::MarginDiag::value(3e-6),
+        };
+        let (pos, neg) = (by(geom_core::Sign::Positive), by(geom_core::Sign::Negative));
+        let row = |row, by| ContactVerdict::Tangent(TangentRuling::Row { row, by });
+        let line = "along their tangent line";
+        let cases = [
+            (
+                ContactVerdict::Rest(RestRuling {
+                    row: RestRow::SensesAligned,
+                    by: None,
+                }),
+                "across the whole of both faces",
+                "the two faces lie on one carrier with their senses aligned",
+            ),
+            (
+                ContactVerdict::Rest(RestRuling {
+                    row: RestRow::TwoCarriers,
+                    by: Some(pos),
+                }),
+                "across the whole of both faces",
+                "the two faces lie on two carriers",
+            ),
+            (
+                ContactVerdict::NotTangent {
+                    apart: true,
+                    by: neg,
+                },
+                line,
+                "their carriers stand definitely apart",
+            ),
+            (
+                ContactVerdict::NotTangent {
+                    apart: false,
+                    by: pos,
+                },
+                line,
+                "their carriers definitely cross",
+            ),
+            (
+                row(TangentRow::SensesAligned, pos),
+                line,
+                "the two faces' outward normals agree",
+            ),
+            (
+                row(TangentRow::Independent, by(geom_core::Sign::Zero)),
+                line,
+                "the two faces' normals are perpendicular",
+            ),
+            (
+                row(TangentRow::Parallel, pos),
+                line,
+                "the two faces' normals are not parallel",
+            ),
+            (
+                row(TangentRow::Overlap, pos),
+                line,
+                "both faces' materials hold the crescent between them",
+            ),
+            (
+                row(TangentRow::Gap, pos),
+                line,
+                "the two faces stand off each other along their shared normal",
+            ),
+            (
+                row(TangentRow::Gap, neg),
+                line,
+                "the two faces stand off each other along their shared normal",
+            ),
+            (
+                row(TangentRow::Off(geom_brep::PairSide::Second), neg),
+                line,
+                "the line runs off a face's carrier",
+            ),
+            (
+                ContactVerdict::Tangent(TangentRuling::SidesMixed { at: [neg, pos] }),
+                line,
+                "the two faces' outward normals agree at one point of the line and oppose at \
+                 another",
+            ),
+        ];
+        for (verdict, witness, fact) in cases {
+            assert_eq!(verdict.witness(), witness, "{verdict:?}");
+            assert_eq!(verdict.fact(), fact, "{verdict:?}");
+        }
+        let text = crate::ValidationError::ContactContradicted {
+            record: ContactPair {
+                a: FaceKey::default(),
+                b: FaceKey::default(),
+                class: GlueClass::Rest,
+            },
+            verdict: cases[0].0,
+        }
+        .to_string();
+        assert_eq!(
+            text,
+            format!(
+                "the recorded Rest contact is contradicted across the whole of both faces: the \
+                 two faces lie on one carrier with their senses aligned. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            )
+        );
+    }
+
     #[test]
     fn class_names_are_the_records_spelling() {
         assert_eq!(GlueClass::Continuation.name(), "Continuation");
