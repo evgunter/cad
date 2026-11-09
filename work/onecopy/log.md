@@ -702,3 +702,7 @@
   | carrier-standing | session_013mPGJ5mHRzCKDWGYAUcWV7 | 6614 follow-ups |
 
   Held: cone-reads-given waits on 6576's Unsettled classes.
+- 07:30Z Reviews in:
+  - 6598 delta: MERGE. It still merges after 6576. Its N1 and N3 are filed as `the-pierce-pass-ranking-is-pinned-only-at-the-ladder`, along with an unrouted 1e-12 cone_rows seed, 0x3bf35ddc97f968bd, which is also forwarded to the main-reds lane.
+- 07:30Z Lanes:
+  - unit-sign opened 6615, head 55adff6b, with hosted CI green. Its FULL review is with session_013mPGJ2hSBgSQxpZsuEFRGx.
