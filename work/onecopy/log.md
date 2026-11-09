@@ -1094,3 +1094,9 @@
 - 18:00Z Merged PR 6649 (first-vertex-reads) at gate-green 2596cb47 (FULL MERGE; disjoint since; merge check clean). The gate-blind-spots lane goes on to onecopy/shell-winding after it.
 - 18:00Z 6598's gate went red at c189cd03 on a viewer fast-set timing row (1.019 s / 1.0 s), not its code → opened PR 6662 to move it to the slow set; 6598 merges main after it.
 - 18:00Z Gates: 6650 green (the watcher misread a double success), 6652 green.
+- 18:15Z Rulings:
+  - carrier-standing recourse: Margin → Indeterminate::ending (tighten, sized), InBand → COINCIDENCE_RECOURSE, Unsettled → KERNEL_LIMIT_RECOURSE, Limit → NOT_YET. Crease (mixed) → NOT_YET. Per predicate.rs D4 ¶1 (i), not "loosen" for InBand.
+  - local-heights LH3: C (one torus ceiling; escalate-never-guess per DESIGN [verdicts]); the hone row narrowed to L with a dated note; LH2 row closed; LH1 a negative result.
+  - held-points: (b) Held<T> with per-premise constructors and an unlogged debug_assert; unheld entry for spline_interior (6643's comment was wrong).
+  - shell-winding: A (re-point the cavity test to ShellWinding; file a census-coverage row).
+- 18:15Z PR 6658 FULL: MERGE (counts derived, not fitted; K-lint rule 1 = 0; the (a1) wording cites the wrong rule; N2 sibling Any ladders; N3 thin close-out). Main overlapped chord_join.rs → merged (61381a3cd1b99ec679db5ac4bca3c780a94cd5f4); check, gates, topo 3761 and chord_join slow clean; re-gating.
