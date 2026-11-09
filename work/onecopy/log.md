@@ -1174,3 +1174,9 @@
   - PR 6661 (exact-half) at gate-green 309d8bfd → 4fd21c71. FULL MERGE and exact wording; disjoint; check clean.
   - PR 6641 (ring-torus) at gate-green 92cad62c (main merged twice: engine-leaves counts and 6654's overlap). Its FIX-light was checked by diff; disjoint from 6661; check clean.
 - 22:20Z 6655 overlapped 6654 (reduce.rs) → merged main (afd41a93); clean; re-gating. 6677 gate green, waiting on its fast review.
+- 2026-11-09 18:40Z Reports in:
+  - 6674's FULL review is MERGE. N1 door (`Margin::of`), N5 body, N7 "escalates" wording, N2 NURBS sentence and the F39 renumber went back to the main-reds lane.
+  - 6667 (carry-notes: NOTE-2 typed `CarryRefusal`) opened green; FULL review dispatched (session_013mPGJ2WrgddRnkGRT1NMEg).
+  - 6648 merged main and folded NOTE-1/NOTE-2/MOVE_RECOURSE (38670bd2); gating.
+  - 6664's FIX-D delta (b6f7a172) read; mechanical; gating, merges on green.
+  - T3 is local until 6675 lands, and appends its OutsideSessionBox witness to the onehome P0.
