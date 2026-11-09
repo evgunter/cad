@@ -2987,11 +2987,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     // ([`climb`], [`Answering::Any`]); a cycle read in band is kept,
     // refusing only where no cycle winds.
     climb(Answering::Any, &cycles, |points| {
-        match winds_once(&chart, points, band) {
-            Ok(true) => Rung::Answers(()),
-            Ok(false) => Rung::Passes,
-            Err(diag) => Rung::kept(diag),
-        }
+        Rung::of_reading(winds_once(&chart, points, band).map(|winds| winds.then_some(())))
     })
     .into_reading()
     .map(|wraps| wraps.is_some())

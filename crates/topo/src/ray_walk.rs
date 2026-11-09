@@ -603,11 +603,10 @@ where
     // earlier segment read ([`climb`], [`Answering::Any`]): a segment read
     // in band is kept, refusing only where no segment holds `q`.
     climb(Answering::Any, 0..n, |i| {
-        match on_segment(verts[i], verts[(i + 1) % n], q, &rows.segment_rows(), band) {
-            Ok(true) => Rung::Answers(()),
-            Ok(false) => Rung::Passes,
-            Err(diag) => Rung::kept(diag),
-        }
+        Rung::of_reading(
+            on_segment(verts[i], verts[(i + 1) % n], q, &rows.segment_rows(), band)
+                .map(|on| on.then_some(())),
+        )
     })
     .into_reading()
     .map(|on| on.is_some())

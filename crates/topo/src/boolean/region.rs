@@ -80,9 +80,7 @@ impl RegionRefusal {
     /// # Errors
     ///
     /// [`geom_core::ladder::Aborts`] for [`Self::WoundPastPeriod`].
-    pub(crate) const fn refusal(
-        &self,
-    ) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+    const fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
         use geom_core::ladder::{Aborts, Refusal};
         match self {
             Self::Escalated(diag) => Ok(Refusal::Margin(*diag)),
