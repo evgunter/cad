@@ -1883,7 +1883,7 @@ fn restricted_jet(
     ev: (Interval, Interval),
 ) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
     let mid = |(a, b): (Interval, Interval)| {
-        let m = net::middle(a.lo(), b.hi());
+        let m = geom_core::mid_param(a.lo(), b.hi());
         Interval::from_bounds(m, m)
     };
     let c = net::cell_origin(win.eval_in_span(mid(eu), mid(ev)))?;

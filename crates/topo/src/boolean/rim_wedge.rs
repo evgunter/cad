@@ -69,8 +69,8 @@ pub(crate) enum RimRouting {
     /// leave it on opposite sides (the smooth seam, the built arm), a
     /// nested touch if on one side. [`departures`] decides which.
     Seam,
-    /// Wedge 0 or 2π: outward normals opposed along the rim
-    /// ([`super::BooleanError::RimCuspArmUnbuilt`]).
+    /// Wedge 0 or 2π: outward normals opposed along the rim. The glue
+    /// door leaves it unglued; no arm builds its junction.
     Cusp(geom_brep::WedgeEnd),
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.

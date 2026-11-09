@@ -581,7 +581,7 @@ pub(super) fn rational_patch_face<T: Decide>(
             // cube is a per-COLUMN quantity there.
             let w3 = nc_v
                 .as_ref()
-                .map(|_| w.base_at(&slice.w, Collapse::At(v0.midpoint(v1)))[0].powi(3));
+                .map(|_| w.base_at(&slice.w, Collapse::At(geom::mid_param(v0, v1)))[0].powi(3));
             let mut bv = 0usize;
             for iv in 0..cuts_v.len() - 1 {
                 let (c_vlo, c_vhi) = (cuts_v[iv], cuts_v[iv + 1]);

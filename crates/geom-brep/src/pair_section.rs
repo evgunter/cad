@@ -2680,32 +2680,40 @@ impl<T: Decide> CarriedComponent<T> {
     /// **`t` is the reading's witness** ([`geom::OnCarrier::On`]): a
     /// parameter where the carrier passes within the zero of the site,
     /// not its foot. Any point of the carrier within the zero of the site
-    /// lies within twice the zero of the witness's, so the witness is
-    /// read past the span only where the site is, past the band's
-    /// escalation. That holds because a conic component is a closed
-    /// form, which carries no pad: a pad widens the witness's reach by
-    /// twice itself, and only a fitted component has one, on a spline
-    /// carrier, which returns above.
+    /// lies within twice the zero of the witness's, so a site is excluded
+    /// only where its witness stands past the span's end by the band's
+    /// escalation and that twice the zero more
+    /// (`section_site_in_span_past`), whatever the band's ratio of the
+    /// two. That holds because a conic component is a closed form, which
+    /// carries no pad: a pad widens the witness's reach by twice itself,
+    /// and only a fitted component has one, on a spline carrier, which
+    /// returns above. A conic component with a pad is a desync.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
         if self.closed() || !matches!(self.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
             return Ok(Some(t));
         }
-        debug_assert!(
-            self.pad <= 0.0,
-            "a conic component carries a pad of {}: its witness can stand past the band from \
-             its foot",
-            self.pad
-        );
+        if self.pad > 0.0 {
+            return Err(SiteRefusal::Desync(
+                "a conic component carries a pad: its witness can stand past the band from its foot",
+            ));
+        }
         let (lo, hi) = self.span;
         let t = lo + (t - lo).reduce_periodic(T::pi() * T::from_f64(2.0));
         let speed = self.carrier.ders1(t).1.norm();
-        match geom_core::k_stats::decide_nonzero(
-            SITE_IN_SPAN,
-            Margin::metered(hi - t, geom_core::InfSpeed::new(speed)),
-            band,
-        ) {
-            Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(Some(t)),
-            Ok(geom_core::k_stats::NonzeroSign::Negative) => Ok(None),
+        use geom_core::k_stats::{NonzeroSign, decide_nonzero};
+        let inside = Margin::metered(hi - t, geom_core::InfSpeed::new(speed));
+        match decide_nonzero(SITE_IN_SPAN, inside, band) {
+            Ok(NonzeroSign::Positive) => Ok(Some(t)),
+            Ok(NonzeroSign::Negative) => {
+                let reach = T::from_computed(2.0 * band.zero());
+                match decide_nonzero(SITE_PAST_SPAN, Margin::of(inside.value() + reach), band) {
+                    Ok(NonzeroSign::Negative) => Ok(None),
+                    Ok(NonzeroSign::Positive) => Err(SiteRefusal::Desync(
+                        "a witness read past the span reads inside it nearer by twice the zero",
+                    )),
+                    Err(diag) => Err(SiteRefusal::Escalated(diag)),
+                }
+            }
             Err(diag) => Err(SiteRefusal::Escalated(diag)),
         }
     }
@@ -2894,6 +2902,10 @@ const SITE_AT_NODE: &str = "section_site_at_node";
 
 /// The predicate a foot on an open conic arc is read within its span by.
 const SITE_IN_SPAN: &str = "section_site_in_span";
+
+/// The site's witness past the span's end by more than the zero's
+/// reach from it ([`CarriedComponent::within_span`]'s docs).
+const SITE_PAST_SPAN: &str = "section_site_in_span_past";
 
 /// **The node `p` stands at**, among `nodes`, the first test of every
 /// reading of a site (C5): `p`'s distance from each node against the
@@ -3138,6 +3150,52 @@ mod wiring {
                 geom::PieceWalkRefusal::Unbounded
             )),
             "a walk with no speed bound is a limit of the reading"
+        );
+    }
+
+    /// **A site past an arc's end is excluded only past the witness's
+    /// reach, at any band ratio**: a unit circle's arc over `(0, 1)`, a
+    /// band of ratio `K = 1.5` (zero `10⁻⁹`, escalation `1.5·10⁻⁹`), and a
+    /// point on the circle `2·10⁻⁹` past the arc's end. Its witness reads
+    /// past the end by more than the escalation, but within twice the zero
+    /// more, where the witness of an ellipse's site could stand on the
+    /// other side of the end: the reading escalates. `5·10⁻⁹` past, it is
+    /// off the arc; `2·10⁻⁹` inside, it is on it. Red where the exclusion
+    /// reads the witness's margin alone, which at `K < 2` excludes the
+    /// first.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_site_past_an_arcs_end_is_excluded_only_past_the_witness_reach() {
+        use geom_core::{Band, Point3, Vec3};
+        let component = super::CarriedComponent {
+            witness: Point3::new(1.0, 0.0, 0.0),
+            carrier: geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
+            span: (0.0, 1.0),
+            shape: super::ComponentShape::Open {
+                ends: super::ComponentEnds::cut(),
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 0.0,
+            reach: 0.0,
+        };
+        let band = Band::new(1e-9, 1.5e-9).unwrap();
+        let at = |theta: f64| Point3::new(theta.cos(), theta.sin(), 0.0);
+        assert!(
+            matches!(
+                component.reads(at(1.0 + 2e-9), band),
+                Err(super::SiteRefusal::Escalated(_))
+            ),
+            "2e-9 past: within the witness's reach of the end, it escalates"
+        );
+        assert_eq!(
+            component.reads(at(1.0 + 5e-9), band),
+            Ok(None),
+            "5e-9 past: off the arc"
+        );
+        assert!(
+            matches!(component.reads(at(1.0 - 2e-9), band), Ok(Some(_))),
+            "2e-9 inside: on the arc"
         );
     }
 
