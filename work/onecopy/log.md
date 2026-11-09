@@ -1055,3 +1055,18 @@
 - 16:25Z length-rule opened PR 6655 (normal-refusals, 0d69a75d, gate green): sheets_part via of_pierced_normal; slit and walls_inside classed via refusal() → FULL review after 6648, with session_013mPGJ5AURPj9f5Uzr4HKv7. Lane → onecopy/census-normal-refusals.
 - 16:35Z 6645 green at 3d1ea180 but overlapped 6644 (on_carrier) → merged main (2e3b5a9f); build, gates and 6353 tests clean; re-gating.
 - 16:35Z 6632 green at f1fb3d42 but overlapped 6644 (finish.rs) → merged main. Its own gate then caught 6644's polish snap, 0.5*(lo+hi), as a hand midpoint → routed it to mid_param (same bits at f64) at 625641d465fcd3f6274e60ad1da2f771956020e3; gates and geom clean; re-gating. Main itself has no bracket-mid gate yet, so the red only appears on the merge.
+- 16:45Z [ev] 6625: third check-in found nothing new; check-ins stopped.
+- 16:45Z Merged:
+  - PR 6637 (refusal-standing) at gate-green d9387e40 → f182f4ea. Third delta MERGE; disjoint; merge check and gates clean.
+  - PR 6645 (point-walk-floors) at gate-green 2e3b5a9f → ce67c0dc. Disjoint from 6637; merge check clean.
+- 16:45Z Reviews in:
+  - 6637 d3 NOTE (NoReference's "decided negative" arm vacuous; LineUnread::NoReference unreachable from recl) → ladder lane's T2.
+  - 6598 delta: FIX small. F1: the `None => Passes` arm swallows a broken first-face ordering; restore UNREAD_FIRST_FACE except for kept-refused firsts. F2: debug_assert_unwritten is weaker (skipped on no runs; walks entries). Wall doc → lane.
+  - 6641 FULL: FIX light. F1: the in-band tube moves undisclosed. S1: spindle_horn_end is a fourth (reversed) spelling. Plus by_kind's fold, Sym/Dual −1 forms, census double list, doc → spiric lane.
+  - 6652 FULL: FIX.
+    - F1: the crease remap silently makes tier 3 refuse spline-crease self-touches. Ruled: keep Unreadable, file the at-rest question as its own row.
+    - F2: kept is lossy.
+    - F3: NonFiniteSectorChord split reason false.
+    - TorusRefusal::refusal() as the one home.
+    - Sent to boolean-standing.
+- 16:45Z 6654 lone-vertices (98c1b844, gate green; engine-leaves no longer counts Iterator<Item=>, 40 pins fall) → FULL with session_013mPGJ5b622qiPFUqnsiotH.
