@@ -888,3 +888,11 @@
   - 6616: main merged (7c1e3679).
   - 6615 is gating at 87ee1cc9.
 - 10:45Z Disk ran out mid-build. Freed it by removing stale worktrees and a target dir.
+- 10:58Z Ruled transverse-range T: an extreme in the zero band reads its touch at the extreme.
+  - The double-root rule lived only in pose.rs's module docs, not in ratified text.
+  - The topo lens row's in-zero-band case moves to touching; the row is re-stated and pinned.
+  - The far-from-origin row is pinned.
+- 10:58Z Re-merged main and re-gating: 6615 (9368404e), 6609 (3483342b), 6617 (eac65f77, which carries D1's exhaustive refusal()).
+- 10:58Z Reviews:
+  - 6629 FULL: FIX. The from-f64 tsv is stale; Unwalked's standing and the window fallbacks are unpinned; halve goes to choose; one home for unread-no-escalation; the walk-wrapper census is short. Sent to the lane.
+  - Delta reviews dispatched for 6626's fix pass (163 seam starts move from τ to 0) and 6608's fix pass.
