@@ -522,3 +522,4 @@
 - 2026-11-09 — PR 6610 FULL review: MERGE. Merged main (515e10cb, gates ok); gating. Leftovers filed: the-exact-unit-sign-of-a-value-has-no-home (P3).
 - 2026-11-09 — PR 6607 delta: FIX (small). The guard is vacuous: the cone re-homing rows read only EmptyLoop (bystanders planted first); torus/sphere read only the first corner; it rejects only Out. Asked for one shared helper, read before bystanders, accepting only In. The reviewer concedes N1.
 - 2026-11-09 — 6552's gate was red only from lint's ruff 504 (GitHub releases, transient; now 200). Merged main (6e654b00) and it is re-gating. 6606 hit the same flake earlier.
+- 2026-11-09 — PR 6598 review: FIX (light). Rung::refusing duplicates Rung::refused (one constructor, generic over the abort map); census.rs:8513 left over; stale 'definite refusal stops' comments since 6576; order-independence is narrower than claimed. A pre-existing 1e-12 fuzz seed in section_cert square_search goes to the honeroot row. Sent.
