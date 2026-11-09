@@ -251,11 +251,19 @@ jobs:
         if: needs.filter.outputs.run_filter_selftest == 'true'
         run: python3 scripts/ci-filter.py --selftest
       - name: install ruff (pinned, official prebuilt)
+        # The release download has gone 504 for whole mornings, failing every
+        # lint job on an outage. The same pinned version from PyPI is the
+        # fallback, so an outage of one host is not a red gate.
         run: |
           mkdir -p "$HOME/ruff-bin"
-          curl -LsSf --retry 5 "https://github.com/astral-sh/ruff/releases/download/$RUFF_VERSION/ruff-x86_64-unknown-linux-gnu.tar.gz" \
-            | tar zxf - -C "$HOME/ruff-bin" --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff
-          echo "$HOME/ruff-bin" >> "$GITHUB_PATH"
+          if curl -LsSf --retry 5 "https://github.com/astral-sh/ruff/releases/download/$RUFF_VERSION/ruff-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar zxf - -C "$HOME/ruff-bin" --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff; then
+            echo "$HOME/ruff-bin" >> "$GITHUB_PATH"
+          else
+            echo "::warning::ruff release download failed; installing ruff==$RUFF_VERSION from PyPI"
+            python3 -m pip install --user --disable-pip-version-check "ruff==$RUFF_VERSION"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
       - name: python lint (ruff)
         run: python3 scripts/check-python-lint.py
         env:
