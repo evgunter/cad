@@ -181,13 +181,15 @@ fn a_box_near_a_small_circles_axis_reads_a_floor_under_every_point() {
 
 /// The floor and `distance_within` of the box of half-width `w` about
 /// `centre` against the arc `span` of the circle of radius `r` in
-/// `frame`, and the least walked distance over a `k³` grid of the box.
+/// `frame`, and the least walked distance over a `k³` grid of the box and
+/// the points `also` of it.
 fn read_both(
     frame: geom::Frame<f64>,
     r: f64,
     span: (f64, f64),
     (centre, w): (Point3<f64>, f64),
     (k, steps): (usize, usize),
+    also: &[Point3<f64>],
 ) -> (f64, f64, f64) {
     let (point, boxed_carrier) = conic(frame, (r, r));
     let q = boxed(centre, w);
@@ -197,16 +199,21 @@ fn read_both(
     (
         floor(&boxed_carrier, span, q).lo(),
         closed.lo(),
-        least_over_box(&point, span, centre, w, k, steps),
+        also.iter()
+            .map(|&p| walked(&point, span, p, steps))
+            .fold(least_over_box(&point, span, centre, w, k, steps), f64::min),
     )
 }
 
 /// **A box astride the antipode of a near-full arc's middle reads a floor
 /// under every point of it**: the arc is a gap of 0.0063 short of a turn,
-/// and a ±1.5e-3 box about its gap's middle holds points nearer either
-/// end, which is each one's nearest point of the arc, so the walk reads
-/// them exactly. A reading that held a turn-renamed azimuth to the span
-/// read 7.3e-7 above a point of the box (the 6666 review's witness A).
+/// and a ±1.5e-3 box about its gap's middle has a corner just inside the
+/// arc past its start, whose nearest point is its foot there, nearer
+/// than the end: 0.7154354897522205 from the arc. The azimuth of the box
+/// is named a turn past the middle and held to the far end, so the clamp
+/// read 0.7154780 above it, and the clamp's `min` with the ends and the
+/// select form both 0.7154362 (the 6666 review's witness A). The walk is
+/// fine enough at the corners to see 7.3e-7.
 #[test]
 fn a_box_in_a_near_full_arcs_gap_reads_a_floor_under_every_point() {
     let frame = geom::Frame::new(
@@ -232,7 +239,7 @@ fn a_box_in_a_near_full_arcs_gap_reads_a_floor_under_every_point() {
         -4.611_631_973_857_388,
         2.043_619_116_398_137_4,
     );
-    let (got, closed, least) = read_both(frame, 1.5, span, (centre, 1.5e-3), (5, 2_000));
+    let (got, closed, least) = read_both(frame, 1.5, span, (centre, 1.5e-3), (2, 40_000), &[]);
     assert!(
         got <= least && closed <= least,
         "a near-full arc's gap: the floor {got} and distance_within {closed} must be under \
@@ -243,8 +250,8 @@ fn a_box_in_a_near_full_arcs_gap_reads_a_floor_under_every_point() {
 /// **A box against an arc of more than a turn reads a floor under every
 /// point of it**: the arc covers the whole circle, so its distance is the
 /// whole circle's clearance wherever the box lies. A reading that held a
-/// turn-renamed azimuth to the span read 17.14, above a point of the box
-/// 7.4 from the arc on this grid (the 6666 review's witness B).
+/// turn-renamed azimuth to the span read 17.14, above a point of the box's
+/// face 0.485 from the arc (the 6666 review's witness B).
 #[test]
 fn a_box_against_an_arc_of_more_than_a_turn_reads_a_floor_under_every_point() {
     let frame = geom::Frame::new(
@@ -270,9 +277,10 @@ fn a_box_against_an_arc_of_more_than_a_turn_reads_a_floor_under_every_point() {
         19.280_016_682_489_705,
         -46.719_937_383_681_845,
     );
-    let (got, closed, least) = read_both(frame, 100.0, span, (centre, 30.0), (5, 2_000));
+    let face = Point3::new(centre.x + 18.0, centre.y + 22.0, centre.z - 30.0);
+    let (got, closed, least) = read_both(frame, 100.0, span, (centre, 30.0), (5, 2_000), &[face]);
     assert!(
-        got <= least && closed <= least && least < 17.0,
+        got <= least && closed <= least && least < 1.0,
         "past a turn: the floor {got} and distance_within {closed} must be under every point \
          of the box, the least {least}"
     );
@@ -290,7 +298,7 @@ fn a_point_against_an_arc_of_more_than_a_turn_reads_the_circles_clearance() {
     let span = (0.0, 2.0 * PI + 0.5);
     let far = geom::mid_param(span.0, span.1) + PI;
     let centre = Point3::new(2.0 * far.cos(), 2.0 * far.sin(), 0.1);
-    let (got, closed, least) = read_both(frame, 2.0, span, (centre, 0.0), (1, 20_000));
+    let (got, closed, least) = read_both(frame, 2.0, span, (centre, 0.0), (1, 20_000), &[]);
     assert!(
         got <= least && closed <= least && least < 0.11,
         "past a turn, at the middle's antipode: the floor {got} and distance_within {closed}, \
