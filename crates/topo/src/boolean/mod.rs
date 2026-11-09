@@ -3016,7 +3016,7 @@ pub enum BooleanError {
     /// [`BooleanDecision::Torus`], and it ends in the same lever.
     ///
     /// As the convention states a torus decided outside it
-    /// ([`geom_brep::TorusConvention::decided_refusal`]): an abort, a shape
+    /// ([`geom_brep::TorusRefusal::refusal`]): an abort, a shape
     /// the kernel's model never represents (row 1(a)).
     DegenerateTorus {
         /// The pierced face's operand.
@@ -3448,13 +3448,14 @@ pub enum BooleanError {
     /// purpose: nothing about this is a band question, so no tolerance
     /// reaches it; the lever is the parts' scale.
     ///
-    /// An abort until it is split: it holds a chord past the format's
-    /// scale, a precision limit the parts' scale cures (row 1(b)), and a
-    /// curved bound's direction at a stalled spline end, whose zero
-    /// derivative normalizes to no number with no overflow, a pose not
-    /// read (row 2). The two read alike here, so the abort is not the
-    /// class of every case it carries, and a ladder that reads one splits
-    /// it first.
+    /// A limit: a precision limit the parts' scale cures (row 1(b)). The
+    /// one cause is the format's scale: a chord, or a curved bound's
+    /// extent or departure, past the norm's reach. A curved bound's
+    /// direction never normalizes a stalled derivative: every certified
+    /// carrier's speed floor is decided positive before the edge is
+    /// minted (`geom_brep::certify`'s check 2, which refuses a spline's
+    /// as `CertifyError::SpanMeterCollapsed`), and the floor bounds the
+    /// derivative at the edge's ends.
     NonFiniteSectorChord {
         /// The vertex being classified.
         vertex: VertexKey,
@@ -5045,7 +5046,15 @@ impl BooleanError {
             | Self::NormalAtConeApex { .. }
             | Self::VertexNearConeAxis { .. } => Ok(Refusal::of_apex()),
             Self::NormalAtSplineCrease { reading, .. } => Ok(Refusal::of_crease(*reading)),
-            Self::DegenerateTorus { convention, .. } => convention.decided_refusal(),
+            Self::DegenerateTorus {
+                convention,
+                verdict,
+                ..
+            } => geom_brep::TorusRefusal {
+                convention: *convention,
+                verdict: geom_brep::TorusVerdict::Refused(*verdict),
+            }
+            .refusal(),
             Self::CurvedSectorSideUnsupported { .. }
             | Self::CurvedPierceUnsupported { .. }
             | Self::CurvedBooleanUnsupported { .. }
@@ -5056,6 +5065,7 @@ impl BooleanError {
             | Self::PointSplitCarrierUnsupported { .. }
             | Self::GermEdgeCarrierUnsupported { .. }
             | Self::ArcLoopContainmentUnsupported { .. }
+            | Self::NonFiniteSectorChord { .. }
             | Self::UnderflowedSectorChord { .. }
             | Self::TangencyUnsupported
             | Self::RimCuspArmUnbuilt { .. }
@@ -5084,7 +5094,6 @@ impl BooleanError {
             | Self::TouchesItself { .. }
             | Self::ToolSeatCrossed { .. } => Ok(Refusal::Limit),
             Self::Band(_)
-            | Self::NonFiniteSectorChord { .. }
             | Self::NonManifoldResult { .. }
             | Self::UnrepresentableResult
             | Self::ApexSection { .. }

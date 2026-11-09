@@ -180,7 +180,7 @@ pub enum NormalAtError {
     /// shape with no regular normal on its tube, refused with the lever
     /// the in-band arm of the same half names. As the convention states a
     /// torus decided outside it
-    /// ([`geom_brep::TorusConvention::decided_refusal`]): an abort.
+    /// ([`geom_brep::TorusRefusal::refusal`]): an abort.
     DegenerateTorus {
         /// The half of the convention that refused.
         convention: TorusConvention,
@@ -243,7 +243,14 @@ impl NormalAtError {
                 Ok(Refusal::of_crease(*reading))
             }
             Self::AtConeApex { .. } => Ok(Refusal::of_apex()),
-            Self::DegenerateTorus { convention, .. } => convention.decided_refusal(),
+            Self::DegenerateTorus {
+                convention,
+                verdict,
+            } => geom_brep::TorusRefusal {
+                convention: *convention,
+                verdict: geom_brep::TorusVerdict::Refused(*verdict),
+            }
+            .refusal(),
             Self::OffSurface => Err(Aborts),
         }
     }

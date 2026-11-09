@@ -8772,12 +8772,15 @@ fn corner_normal<T: Decide>(
             VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(TouchUnread::Unreadable),
         },
         Err(SectorFaceError::ApexUndecided { .. }) => Err(TouchUnread::kept(Refusal::of_apex())),
-        Err(SectorFaceError::Crease { reading, .. }) => {
-            Err(TouchUnread::kept(Refusal::of_crease(reading)))
-        }
-        Err(SectorFaceError::Unsupported { .. } | SectorFaceError::Unplaced { .. }) => {
-            Err(TouchUnread::Unreadable)
-        }
+        // A corner on a spline crease is unread whatever its reading: the
+        // touch at it goes undetected (module docs), which
+        // `work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`
+        // weighs against refusing it by the crease's own standing.
+        Err(
+            SectorFaceError::Crease { .. }
+            | SectorFaceError::Unsupported { .. }
+            | SectorFaceError::Unplaced { .. },
+        ) => Err(TouchUnread::Unreadable),
     }
 }
 

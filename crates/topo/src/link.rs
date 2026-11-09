@@ -507,10 +507,9 @@ pub enum TouchUnread {
     /// A face's piece at the touch point does not close on decided
     /// readings (a gap between neighbouring turns of half a turn or
     /// more, or no edge met across one, [`face_piece`]); or a link's
-    /// sectors do not pair up at their bounds ([`Cone::closes`]); or a
-    /// face's corner sits on a spline crease decided zero, where it has no
-    /// one normal ([`Self::kept`]). A limit: a fact about this piece on
-    /// decided readings, which no tolerance moves.
+    /// sectors do not pair up at their bounds ([`Cone::closes`]). A
+    /// limit: a fact about this piece on decided readings, which no
+    /// tolerance moves.
     Unanalysed,
     /// Two faces of one solid lie on each other at the touch (a slit,
     /// or a face doubled). A limit.
@@ -533,11 +532,13 @@ pub enum TouchUnread {
 }
 
 impl TouchUnread {
-    /// **The touch refusal a kept standing reads as**, its class kept
-    /// ([`Self::refusal`] reads it back): a reading in band, by margin or
-    /// not, or unsettled, is [`Self::InBand`]; a limit is
-    /// [`Self::Unanalysed`]. For a reading whose standing has its home
-    /// elsewhere ([`Refusal::of_apex`], [`Refusal::of_crease`]).
+    /// **The touch refusal a kept standing reads as**, for a reading whose
+    /// standing has its home elsewhere ([`Refusal::of_apex`]): a reading
+    /// in band, by margin or not, or unsettled, is [`Self::InBand`]; a
+    /// limit is [`Self::Unanalysed`]. **Lossy**, not an inverse of
+    /// [`Self::refusal`]: a margin's diagnostics are dropped (no arm here
+    /// carries one, and the type is `Eq`), and an unsettled reading reads
+    /// back as in band, ranked ahead of where it stood.
     #[must_use]
     pub const fn kept(standing: Refusal) -> Self {
         match standing {

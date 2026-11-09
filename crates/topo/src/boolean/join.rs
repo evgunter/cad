@@ -5670,11 +5670,11 @@ fn seam_germ_side<T: Decide>(
             }
             // A normal refused in band or at a limit is kept. A point off
             // the region's own surface is a kernel defect, and so is a
-            // region on a torus decided outside the ring convention: a
-            // section chord bounds a region of a face of its germ pair,
-            // and that pair's section frame reads the torus's convention
-            // and refuses it (`section_refusal`, `FrameError::DegenerateTorus`)
-            // before the join mints the chord.
+            // region on a torus decided outside the ring convention: the
+            // operands are finished bodies, which tier 3 refuses for such
+            // a torus (`ValidationError::DegenerateTorus`), and a section
+            // chord's germ pair's frame reads the convention again
+            // (`section_refusal`) before the join mints the chord.
             Err(why) => {
                 return rung_or_abort(why.refusal(), why, |why| {
                     Err(BooleanError::ClassificationInvariant {
