@@ -6,25 +6,36 @@
 //! rows and are not counted, and an in-file `#[cfg(test)]` module is
 //! counted (the safe direction; move such a fixture to `tests/`).
 //!
-//! **The doors are read off their home.** Every `pub fn` of
-//! `geom_core::k_stats` that takes `ledger_row: &'static str` is a door,
-//! its row at that parameter's index ([`home_doors`]): `unlogged`,
-//! `check_unlogged`, `choose`, `decide_flagged` and its reporting form
-//! today, and a door added there tomorrow with no list here to update.
-//! A door of the home is that module's fn, not its verb: a call counts
-//! when it goes through `k_stats` (or an `as` name of it), or bare under
-//! a `use` that imports it, in a group, by glob or renamed
-//! ([`spellings`]). A fn that forwards a `&'static str` parameter to a
-//! door's row is a door in its own right, keyed on its name, and its
-//! callers are checked ([`forwarding_door`]), to a fixed point.
+//! **The doors are read off their home.** Every `pub` fn of
+//! `geom_core::k_stats` (methods and `pub(…)` included, `#[cfg(test)]`
+//! out, as the least-band gate reads it) that takes a row-like parameter,
+//! a `&str` beside `name` or a name holding `row`, is a door, its row at
+//! that parameter's index, unless [`NON_ROW_DOORS`] names it
+//! ([`home_doors`]): `unlogged`, `check_unlogged`, `choose`,
+//! `decide_flagged` and its reporting form today, and a door added there
+//! tomorrow with no list here to update. A door of the home is that
+//! module's fn, not its verb: a call counts when it goes through
+//! `k_stats` (or an `as` name of it, or `self` in the home), or bare
+//! under a `use` that imports it, in a group, by glob or renamed
+//! ([`spellings`]); a method door's `.m(` and `Type::m(` count too. A fn
+//! that forwards a `&'static str` parameter to a door's row is a door in
+//! its own right, keyed on its name, and its callers are checked
+//! ([`forwarding_door`]), to a fixed point.
 //!
-//! **What the census cannot read, it refuses rather than skips**: a row
+//! **What the census cannot read, it lists rather than skips**: a row
 //! that is not a string literal and not a forwarded parameter; a
 //! forwarded parameter the body may rebind; a door named without a call
-//! (a fn pointer, a binding, a macro argument); a `pub use` re-export of
-//! a door; a turbofish it cannot balance. Each is a site citing no row,
-//! or a panic, never a site dropped. A call a macro generates is not
-//! read at all.
+//! (a fn pointer, a binding, a macro argument); a bare call of a door's
+//! name that nothing in its file resolves (a `use super::*` child, no
+//! import); a `pub use` re-export of a door or of the module under
+//! another name. Each is a site citing no row. A home fn with two
+//! row-like parameters, a stale [`NON_ROW_DOORS`] entry and a turbofish
+//! it cannot balance stop it.
+//!
+//! **Blind spots, stated:** a call a macro generates; a door whose row
+//! reaches it inside a struct argument (the shape `k_stats`' header
+//! rules out); a bare call of a door's name in a file that also binds or
+//! imports that name elsewhere, which is read as the other meaning.
 //!
 //! The `decide_flagged` total is hand-synced and spelled ONCE, at
 //! [`LEDGER_FLAGGED_SITES`]; the rows are computed from the document.
@@ -152,27 +163,63 @@ const HOME_MODULE: &str = "k_stats";
 /// a forwarding wrapper ([`forwarding_door`]) is keyed on its name
 /// alone, which reads every same-named call as one of its sites: the
 /// loud direction.
+///
+/// A door of the home defined in an `impl` is a method: a `.m(` or
+/// `Type::m(` call of it is a site too, its row one argument later in
+/// the second form when it takes `self`.
 #[derive(Clone, Debug, PartialEq)]
 struct Door {
     name: String,
     cite: usize,
     home: Option<PathBuf>,
+    method: bool,
+    receiver: bool,
 }
 
-/// A `fn` head in a blanked view: its offset, name, parameters (name and
-/// type with whitespace removed, read from the unblanked text), whether
-/// it is `pub`, and its body, if it has one.
+/// A `fn` head in a blanked view: its offset, name, parameters (name, with
+/// any `mut` dropped, and type with whitespace removed, read from the
+/// unblanked text), whether it is `pub` (`pub(…)` included), whether it
+/// sits in an `impl` and whether in a `#[cfg(test)]` item, and its body,
+/// if it has one.
 struct FnHead {
     at: usize,
     name: String,
     params: Vec<(String, String)>,
     public: bool,
+    in_impl: bool,
+    in_test: bool,
+    receiver: bool,
     body: Option<std::ops::Range<usize>>,
 }
 
 /// Every `fn` head in `code` (the blanked view of `text`).
 fn fn_heads(text: &str, code: &str) -> Vec<FnHead> {
-    use test_utils::source::{ItemBody, balanced_end, boundary_before, ident, item_body};
+    use test_utils::source::{
+        ItemBody, attributed_extent, balanced_end, boundary_after, boundary_before, ident,
+        item_body,
+    };
+    // `impl` blocks: an `impl` that opens an item (after a `}`, `;`, `{`,
+    // an attribute or the start), not `impl Trait` in a type.
+    let impls: Vec<std::ops::Range<usize>> = code
+        .match_indices("impl")
+        .filter(|&(at, _)| {
+            boundary_before(code, at)
+                && boundary_after(code, at + 4)
+                && code[..at]
+                    .trim_end()
+                    .chars()
+                    .next_back()
+                    .is_none_or(|c| matches!(c, '}' | ';' | '{' | ']'))
+        })
+        .filter_map(|(at, _)| match item_body(code, at) {
+            ItemBody::Body(b) => Some(b),
+            _ => None,
+        })
+        .collect();
+    let tests: Vec<std::ops::Range<usize>> = code
+        .match_indices("#[cfg(test)]")
+        .filter_map(|(at, _)| attributed_extent(code, at))
+        .collect();
     let mut out = Vec::new();
     for (head, _) in code.match_indices("fn ") {
         if !boundary_before(code, head) {
@@ -186,17 +233,29 @@ fn fn_heads(text: &str, code: &str) -> Vec<FnHead> {
         let Some(close) = balanced_end(code, open) else {
             continue;
         };
+        let receiver = code[open + 1..close].split(',').next().is_some_and(|p| {
+            let p = p.trim().trim_start_matches('&').trim_start();
+            let p = p.strip_prefix("mut ").unwrap_or(p).trim_start();
+            p == "self" || p.starts_with("self:") || p.starts_with("self ")
+        });
         let params = test_utils::source::top_level_split(&code[open + 1..close], ',')
             .into_iter()
             .filter_map(|r| {
                 let (n, ty) = text[open + 1..close][r].split_once(':')?;
+                let n = n.trim();
                 Some((
-                    n.trim().to_string(),
+                    n.strip_prefix("mut ").unwrap_or(n).trim().to_string(),
                     ty.split_whitespace().collect::<String>(),
                 ))
             })
             .collect();
-        let before = code[..head].trim_end();
+        let mut before = code[..head].trim_end();
+        while let Some(b) = ["const", "unsafe", "async"]
+            .iter()
+            .find_map(|k| before.strip_suffix(k))
+        {
+            before = b.trim_end();
+        }
         let public = before.ends_with("pub")
             || (before.ends_with(')')
                 && before
@@ -211,37 +270,81 @@ fn fn_heads(text: &str, code: &str) -> Vec<FnHead> {
             name,
             params,
             public,
+            in_impl: impls.iter().any(|b| b.contains(&head)),
+            in_test: tests.iter().any(|t| t.contains(&head)),
+            receiver,
             body,
         });
     }
     out
 }
 
-/// **The roster is the home's signatures**: every `pub fn` of `home`
-/// that takes `ledger_row: &'static str` is a door, its row at that
-/// parameter's index. A door added to the home is read here the day it
-/// is written, and no list beside it names it.
+/// The home's `pub` fns that take a row-like parameter and cite no
+/// ledger row: each must be one ([`home_doors`] refuses a stale entry).
+const NON_ROW_DOORS: [&str; 2] = ["in_family", "identity_pass_set"];
+
+/// Whether a parameter reads as a ledger row: a name holding `row`, or a
+/// `&str` of any lifetime under any name but the predicate's `name`.
+fn row_like((name, ty): &(String, String)) -> bool {
+    name.contains("row") || (name != "name" && ty.starts_with('&') && ty.ends_with("str"))
+}
+
+/// **The roster is the home's signatures**: every `pub` fn of `home`
+/// (outside `#[cfg(test)]`, methods included) that takes a row-like
+/// parameter ([`row_like`]) is a door, its row at that parameter's
+/// index, unless [`NON_ROW_DOORS`] names it. A door added to the home is
+/// read here the day it is written, whatever it calls its row, and no
+/// list beside it names it. A fn with two row-like parameters is one this
+/// census cannot classify, and stops it.
 fn home_doors(home: &Path, text: &str) -> Vec<Door> {
+    home_doors_but(home, text, &NON_ROW_DOORS)
+}
+
+/// [`home_doors`] with the non-doors `but`.
+fn home_doors_but(home: &Path, text: &str, but: &[&str]) -> Vec<Door> {
     let code = test_utils::source::code_only(text);
-    let doors: Vec<Door> = fn_heads(text, &code)
-        .into_iter()
-        .filter(|f| f.public)
-        .filter_map(|f| {
-            let cite = f
-                .params
-                .iter()
-                .position(|(n, ty)| n == "ledger_row" && ty == "&'staticstr")?;
-            Some(Door {
+    let mut doors = Vec::new();
+    let mut takers = Vec::new();
+    for f in fn_heads(text, &code) {
+        if !f.public || f.in_test {
+            continue;
+        }
+        let rows: Vec<usize> = (0..f.params.len())
+            .filter(|&i| row_like(&f.params[i]))
+            .collect();
+        let cite = match rows.as_slice() {
+            [] => continue,
+            [one] => *one,
+            _ => panic!(
+                "{}'s `{}` takes two row-like parameters ({:?}): this census cannot tell which \
+                 is its ledger row. Name one `ledger_row`, or teach `home_doors` the shape.",
+                home.display(),
+                f.name,
+                f.params
+            ),
+        };
+        takers.push(f.name.clone());
+        if !but.contains(&f.name.as_str()) {
+            doors.push(Door {
                 name: f.name,
                 cite,
                 home: Some(home.to_path_buf()),
-            })
-        })
-        .collect();
+                method: f.in_impl,
+                receiver: f.receiver,
+            });
+        }
+    }
+    for nd in but {
+        assert!(
+            takers.iter().any(|t| t == nd),
+            "NON_ROW_DOORS names `{nd}`, which is no `pub` fn of {} with a row-like parameter: \
+             drop the stale entry",
+            home.display()
+        );
+    }
     assert!(
         !doors.is_empty(),
-        "{} defines no `pub fn` taking `ledger_row: &'static str`: the roster this census reads \
-         came back empty",
+        "{} defines no `pub` fn taking a ledger row: the roster this census reads came back empty",
         home.display()
     );
     doors
@@ -384,43 +487,87 @@ fn use_tree(
     }
 }
 
-/// **How a file spells a door of the home**: the names a bare call of it
-/// goes by (the door's own name in the home, under an import, under a
-/// glob of the module, and an `as` name), and the qualifiers a path call
-/// goes through ([`HOME_MODULE`] and any `as` name of it). A re-export of
-/// the door, or of the module under another name, is a route this census
-/// cannot follow into its importers, so it stops rather than undercount.
-fn spellings(file: &Scanned, door: &Door, in_home: bool) -> (Vec<String>, Vec<String>) {
-    let mut bare = Vec::new();
-    let mut quals = vec![HOME_MODULE.to_string()];
+/// **How a file spells a door of the home.**
+struct Spelling {
+    /// The names a bare call of it goes by: its own in the home, under an
+    /// import, under a glob of the module, and an `as` name.
+    bare: Vec<String>,
+    /// The qualifiers a path call goes through: [`HOME_MODULE`], any `as`
+    /// name of it, and `self` in the home.
+    quals: Vec<String>,
+    /// Whether the file gives the door's name another meaning: imports it
+    /// from another path, or binds it (`let`, `fn`, a closure's `|…|`, a
+    /// parameter). A bare call of it then is that, not the door.
+    elsewhere: bool,
+    /// Each re-export of the door, or of the module under another name, as
+    /// `(line, row)`: a route this census cannot follow into its
+    /// importers, listed as a site citing no row.
+    offences: Vec<(usize, String)>,
+}
+
+/// How `file` spells `door`, a door of the home ([`Spelling`]).
+fn spellings(file: &Scanned, door: &Door, in_home: bool) -> Spelling {
+    use test_utils::source::{boundary_after, boundary_before};
+    let mut sp = Spelling {
+        bare: Vec::new(),
+        quals: vec![HOME_MODULE.to_string()],
+        elsewhere: false,
+        offences: Vec::new(),
+    };
     if in_home {
-        bare.push(door.name.clone());
+        sp.bare.push(door.name.clone());
+        sp.quals.push("self".to_string());
     }
-    for (_, leaves) in &file.uses {
+    for (range, leaves) in &file.uses {
         for leaf in leaves {
             let p = &leaf.path;
             let ends = |tail: &[&str]| p.len() >= tail.len() && p[p.len() - tail.len()..] == *tail;
             let is_door = ends(&[HOME_MODULE, &door.name]);
             let glob = ends(&[HOME_MODULE, "*"]);
             let module = ends(&[HOME_MODULE]);
-            assert!(
-                !(leaf.public && (is_door || glob || (module && leaf.alias.is_some()))),
-                "{} re-exports `{}` (`pub use {}`): a call through the re-export reaches the door \
-                 by a path this census does not read. Call the door through `{HOME_MODULE}`, or \
-                 teach this census the route.",
-                file.path.display(),
-                door.name,
-                p.join("::")
-            );
+            if leaf.public && (is_door || glob || (module && leaf.alias.is_some())) {
+                let what = match (&leaf.alias, module) {
+                    (Some(a), true) => format!("the module `{HOME_MODULE}` as `{a}`"),
+                    _ => format!("`{}`", door.name),
+                };
+                sp.offences.push((
+                    test_utils::source::line(&file.code, range.start),
+                    format!(
+                        "<re-exports {what} (`pub use {}`): its importers reach the door by a \
+                         path this census does not read>",
+                        p.join("::")
+                    ),
+                ));
+            }
             match (&leaf.alias, is_door, glob, module) {
-                (Some(a), true, _, _) if a != "_" => bare.push(a.clone()),
-                (None, true, _, _) | (_, _, true, _) => bare.push(door.name.clone()),
-                (Some(a), _, _, true) if a != "_" => quals.push(a.clone()),
-                _ => {}
+                (Some(a), true, _, _) if a != "_" => sp.bare.push(a.clone()),
+                (None, true, _, _) | (_, _, true, _) => sp.bare.push(door.name.clone()),
+                (Some(a), _, _, true) if a != "_" => sp.quals.push(a.clone()),
+                _ => {
+                    let named = leaf.alias.as_deref().or(p.last().map(String::as_str));
+                    if named == Some(door.name.as_str()) {
+                        sp.elsewhere = true;
+                    }
+                }
             }
         }
     }
-    (bare, quals)
+    let code = &file.code;
+    let n = &door.name;
+    sp.elsewhere |= !in_home
+        && code.match_indices(n.as_str()).any(|(at, _)| {
+            if !boundary_before(code, at) || !boundary_after(code, at + n.len()) {
+                return false;
+            }
+            let before = code[..at].trim_end();
+            let after = code[at + n.len()..].trim_start();
+            ["let", "mut", "fn"]
+                .iter()
+                .any(|k| before.ends_with(k) && boundary_before(before, before.len() - k.len()))
+                || before.ends_with('|')
+                || (after.starts_with(':') && !after.starts_with("::"))
+        });
+    sp
 }
 
 /// A source file read once for every door: its text, blanked view and
@@ -460,15 +607,24 @@ fn door_calls_in(
 ) -> Vec<(usize, Cite)> {
     use test_utils::source::{boundary_after, boundary_before};
     let (text, code) = (file.text, &file.code);
-    let (bare, quals) = match &door.home {
+    let sp = match &door.home {
         Some(home) => spellings(file, door, home == file.path),
-        None => (vec![door.name.clone()], Vec::new()),
+        None => Spelling {
+            bare: vec![door.name.clone()],
+            quals: Vec::new(),
+            elsewhere: false,
+            offences: Vec::new(),
+        },
     };
-    let mut names = bare.clone();
-    if !quals.is_empty() && !names.contains(&door.name) {
+    let mut out: Vec<(usize, Cite)> = sp
+        .offences
+        .iter()
+        .map(|(line, row)| (*line, Cite::Row(row.clone())))
+        .collect();
+    let mut names = sp.bare.clone();
+    if !names.contains(&door.name) {
         names.push(door.name.clone());
     }
-    let mut out = Vec::new();
     for name in &names {
         for (at, _) in code.match_indices(name.as_str()) {
             if !boundary_before(code, at) || !boundary_after(code, at + name.len()) {
@@ -481,17 +637,46 @@ fn door_calls_in(
             if before.ends_with("fn") && boundary_before(before, before.len() - 2) {
                 continue;
             }
+            let calls = code[at + name.len()..].trim_start().starts_with('(')
+                || code[at + name.len()..].trim_start().starts_with("::<");
+            let mut cite_at = door.cite;
             if door.home.is_some() {
-                let qualified = *name == door.name
-                    && before.strip_suffix("::").is_some_and(|q| {
-                        let q = q.trim_end();
-                        quals.iter().any(|m| {
-                            q.ends_with(m.as_str()) && boundary_before(q, q.len() - m.len())
-                        })
-                    });
-                let called_bare =
-                    bare.contains(name) && !before.ends_with('.') && !before.ends_with("::");
-                if !(qualified || called_bare) {
+                let own = *name == door.name;
+                let accepted = if before.ends_with('.') {
+                    // A method call: the door's when the door is a method.
+                    own && door.method
+                } else if let Some(q) = before.strip_suffix("::") {
+                    let q = q.trim_end();
+                    let q = q.strip_suffix('>').unwrap_or(q).trim_end();
+                    let through = sp
+                        .quals
+                        .iter()
+                        .any(|m| q.ends_with(m.as_str()) && boundary_before(q, q.len() - m.len()));
+                    let typed = door.method
+                        && q.rsplit(|c: char| !(c.is_alphanumeric() || c == '_'))
+                            .next()
+                            .is_some_and(|seg| seg.starts_with(char::is_uppercase));
+                    if own && typed && !through && door.receiver {
+                        cite_at += 1;
+                    }
+                    own && (through || typed)
+                } else if sp.bare.contains(name) {
+                    true
+                } else if own && !sp.elsewhere && calls {
+                    // A bare call nothing in this file resolves: not
+                    // dropped, but listed.
+                    out.push((
+                        test_utils::source::line(code, at),
+                        Cite::Row(format!(
+                            "<calls `{name}` bare where nothing in this file resolves it: import \
+                             it from `{HOME_MODULE}`, or qualify it>"
+                        )),
+                    ));
+                    continue;
+                } else {
+                    false
+                };
+                if !accepted {
                     continue;
                 }
             }
@@ -513,10 +698,10 @@ fn door_calls_in(
                 .unwrap_or_else(|| panic!("unterminated {name} argument list at byte {paren}"));
             let args = paren + 1;
             let split = test_utils::source::top_level_split(&code[args..end], ',');
-            let cite = split.get(door.cite).unwrap_or_else(|| {
+            let cite = split.get(cite_at).unwrap_or_else(|| {
                 panic!(
                     "{name} call with fewer than {} arguments: {:.200}",
-                    door.cite + 1,
+                    cite_at + 1,
                     &text[args..end]
                 )
             });
@@ -574,6 +759,8 @@ fn door_sites(files: &[(PathBuf, String)], doors: &[Door]) -> Vec<Site> {
                                     name,
                                     cite,
                                     home: None,
+                                    method: false,
+                                    receiver: false,
                                 };
                                 if !own && !known.contains(&wrapper) {
                                     known.push(wrapper);
@@ -750,24 +937,68 @@ fn planted(name: &str, text: &str) -> (PathBuf, String) {
     (PathBuf::from(name), text.to_string())
 }
 
-/// **The roster is the home's signatures**: a `pub fn` taking
-/// `ledger_row: &'static str` is a door at that index, whatever its name;
-/// a private fn, and a `pub fn` with no such parameter, are not.
+/// **The roster is the home's signatures**: every `pub` fn with a
+/// row-like parameter is a door at that index, whatever the row is called
+/// or typed, `pub(crate)` and methods included; a private fn, a `pub` fn
+/// with none, a `#[cfg(test)]` fn and a named non-door are not.
 #[test]
 fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
     let home = PathBuf::from("k_stats.rs");
-    let doors = home_doors(
+    let doors = home_doors_but(
         &home,
         "pub fn fresh(ledger_row: &'static str) {}\n\
          fn private(ledger_row: &'static str) {}\n\
          pub fn decide<T: Decide>(name: &'static str, m: T, band: Band) -> S { m }\n\
-         pub(crate) fn wrapped<T>(\n    name: &'static str,\n    ledger_row: &'static str,\n) {}\n",
+         pub(crate) fn wrapped<T>(\n    name: &'static str,\n    ledger_row: &'static str,\n) {}\n\
+         pub fn short(name: &'static str, ledger_row: &str) {}\n\
+         pub fn renamed(name: &'static str, m: f64, audit: &'static str) {}\n\
+         pub fn rebound(name: &'static str, mut ledger_row: &'static str) {}\n\
+         pub fn by_row_name(m: f64, row: Row) {}\n\
+         pub const fn constant(ledger_row: &'static str) {}\n\
+         pub fn in_family(family: &'static str) {}\n\
+         impl Bracket {\n    pub fn cite(&self, ledger_row: &'static str) {}\n}\n\
+         #[cfg(test)]\nmod tests {\n    pub fn in_a_test(ledger_row: &'static str) {}\n}\n",
+        &["in_family"],
     );
-    let read: Vec<(&str, usize)> = doors.iter().map(|d| (d.name.as_str(), d.cite)).collect();
+    let read: Vec<(&str, usize, bool)> = doors
+        .iter()
+        .map(|d| (d.name.as_str(), d.cite, d.method))
+        .collect();
     assert_eq!(
         read,
-        [("fresh", 0), ("wrapped", 1)],
+        [
+            ("fresh", 0, false),
+            ("wrapped", 1, false),
+            ("short", 1, false),
+            ("renamed", 2, false),
+            ("rebound", 1, false),
+            ("by_row_name", 1, false),
+            ("constant", 0, false),
+            ("cite", 0, true),
+        ],
         "the home's row-citing doors"
+    );
+}
+
+/// A non-door the home no longer defines is a stale entry.
+#[test]
+#[should_panic(expected = "drop the stale entry")]
+fn a_stale_non_door_stops_the_census() {
+    let _ = home_doors_but(
+        Path::new("k_stats.rs"),
+        "pub fn d(ledger_row: &str) {}\n",
+        &["gone"],
+    );
+}
+
+/// A fn with two row-like parameters is one the census cannot classify.
+#[test]
+#[should_panic(expected = "two row-like parameters")]
+fn two_row_like_parameters_stop_the_census() {
+    let _ = home_doors_but(
+        Path::new("k_stats.rs"),
+        "pub fn d(name: &'static str, a: &'static str, ledger_row: &str) {}\n",
+        &[],
     );
 }
 
@@ -808,7 +1039,7 @@ fn a_forwarding_wrapper_is_a_door_and_its_callers_cite_their_rows() {
              fn g() { gated(G, 1.0, ROW); }\n",
         ),
     ];
-    let roster = home_doors(Path::new(home), &files[0].1);
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
     let no_param = "which is no `&'static str` parameter of the fn around it>";
     let rebound = |f: &str| {
         format!(
@@ -841,21 +1072,31 @@ fn a_forwarding_wrapper_is_a_door_and_its_callers_cite_their_rows() {
 }
 
 /// **A door of the home is the home module's fn, not the verb**: a call
-/// through `k_stats`, or through an `as` name of it, and a bare call of a
-/// name the file imports from it (in a group, nested, by glob or renamed)
-/// are sites; a method, another module's fn of the same name, a longer
-/// name and a bare call nothing imported are not.
+/// through `k_stats` (with or without angle brackets), through an `as`
+/// name of it, or `self::` in the home, and a bare call of a name the file
+/// imports from it (in a group, nested, by glob or renamed) are sites; so
+/// is a method door's `.m(` and `Type::m(`. A method of another type,
+/// another module's fn of the same name, a longer name, and a bare call
+/// the file imports from elsewhere or binds itself are not. A bare call
+/// nothing resolves (a `use super::*` child, no import at all) is a site
+/// citing no row.
 #[test]
 fn a_door_of_the_home_is_its_modules_fn_and_not_the_verb() {
     let home = "k_stats.rs";
     let files = [
         planted(
             home,
-            "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n",
+            "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n\
+             fn inner() { self::choose(\"n\", m, \"F0\"); }\n\
+             impl Bracket {\n    pub fn cite(&self, ledger_row: &'static str) {}\n}\n",
         ),
         planted(
             "qualified.rs",
             "fn a() { geom_core::k_stats::choose(\"n\", m, \"F1\"); }\n",
+        ),
+        planted(
+            "angled.rs",
+            "fn a() { <k_stats>::choose(\"n\", m, \"F6\"); }\n",
         ),
         planted(
             "imported.rs",
@@ -871,21 +1112,42 @@ fn a_door_of_the_home_is_its_modules_fn_and_not_the_verb() {
         ),
         planted(
             "renamed.rs",
-            "use geom_core::{Band, k_stats::{self, choose as pick}};\nfn i() { pick(\"n\", m, \"F5\"); choose(1, 2); }\n",
+            "use geom_core::{Band, k_stats::{self, choose as pick}};\nfn i() { pick(\"n\", m, \"F5\"); }\n",
         ),
         planted(
+            "method.rs",
+            "fn j(b: Bracket) { b.cite(\"F7\"); Bracket::cite(&b, \"F8\"); }\n",
+        ),
+        planted(
+            "child.rs",
+            "use super::*;\nfn k() { choose(\"n\", m, \"F9\"); }\n",
+        ),
+        planted("unimported.rs", "fn e() { choose(n, k); }\n"),
+        planted(
             "elsewhere.rs",
-            "use rand::seq::SliceRandom;\nfn c() { v.choose(&mut rng); }\nfn d() { other::choose(1, 2); }\n\
-             fn e() { choose(n, k); }\nfn f() { k_stats::choose_x(1); my_k_stats::choose(1, 2); }\n",
+            "use rand::seq::SliceRandom;\nuse other::choose;\nfn c() { v.choose(&mut rng); }\nfn d() { other::choose(1, 2); choose(1, 2); }\n\
+             fn f() { k_stats::choose_x(1); my_k_stats::choose(1, 2); }\n",
+        ),
+        planted(
+            "bound.rs",
+            "fn l() { let choose = |a, b| a; choose(1, 2); }\nfn cite() {}\nfn m() { x.other(); }\n",
         ),
     ];
-    let roster = home_doors(Path::new(home), &files[0].1);
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
+    let unresolved = "<calls `choose` bare where nothing in this file resolves it: import it from \
+                      `k_stats`, or qualify it>";
     let want: Vec<(String, String)> = [
         ("aliased.rs", "F4"),
+        ("angled.rs", "F6"),
+        ("child.rs", unresolved),
         ("glob.rs", "F3"),
         ("imported.rs", "F2"),
+        (home, "F0"),
+        ("method.rs", "F7"),
+        ("method.rs", "F8"),
         ("qualified.rs", "F1"),
         ("renamed.rs", "F5"),
+        ("unimported.rs", unresolved),
     ]
     .into_iter()
     .map(|(f, r)| (f.to_string(), r.to_string()))
@@ -897,19 +1159,40 @@ fn a_door_of_the_home_is_its_modules_fn_and_not_the_verb() {
     );
 }
 
-/// **A re-export of a door stops the census**: its importers call it by a
-/// path the census does not read.
+/// **A re-export of a door is a site citing no row**: its importers call
+/// it by a path the census does not read. The row names what was
+/// re-exported, the door or the module under another name.
 #[test]
-#[should_panic(expected = "re-exports `choose`")]
-fn a_re_exported_door_stops_the_census() {
+fn a_re_exported_door_is_a_site_citing_no_row() {
     let home = "k_stats.rs";
     let files = [
         planted(
             home,
             "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n",
         ),
-        planted("lib.rs", "pub use geom_core::k_stats::choose;\n"),
+        planted("door.rs", "pub use geom_core::k_stats::choose;\n"),
+        planted("module.rs", "pub(crate) use geom_core::k_stats as ks;\n"),
+        planted("private.rs", "use geom_core::k_stats as ks;\n"),
     ];
-    let roster = home_doors(Path::new(home), &files[0].1);
-    let _ = door_sites(&files, &roster);
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
+    let want: Vec<(String, String)> = [
+        (
+            "door.rs",
+            "<re-exports `choose` (`pub use geom_core::k_stats::choose`): its importers reach the \
+             door by a path this census does not read>",
+        ),
+        (
+            "module.rs",
+            "<re-exports the module `k_stats` as `ks` (`pub use geom_core::k_stats`): its \
+             importers reach the door by a path this census does not read>",
+        ),
+    ]
+    .into_iter()
+    .map(|(f, r)| (f.to_string(), r.to_string()))
+    .collect();
+    assert_eq!(
+        rows_of(&door_sites(&files, &roster)),
+        want,
+        "each re-export is listed"
+    );
 }

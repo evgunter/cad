@@ -30,9 +30,11 @@
 #     with a turbofish (`decide::<T>(…)`), or under a name a `use … as`
 #     in the same file gives it; a crate-local wrapper of the same name
 #     (profile's `gate::decide`, `gate::check_unlogged`) included. THE
-#     DOORS ARE READ OFF THE HOME (`DOOR_ROSTER`): every `pub fn` there
-#     generic over `Decide` that takes a `Band`, so a door added to
-#     `k_stats` is a door here with no list to update;
+#     DOORS ARE READ OFF THE HOME (`BAND_TAKERS`): every `pub` fn there,
+#     method or free, whose generics, parameters or `where` clause name
+#     `Band` in any shape, less the band-takers `NON_DOORS` names (each
+#     must exist, or the gate reds). A door added to `k_stats` is a door
+#     here with no list to update;
 #   * a method-form door (`.decide(…)`, or `Type::decide(…)` under a
 #     capitalised qualifier: `Period::decide`'s mark walk) at the least
 #     band OUTSIDE an `unlogged(…)` call that encloses it lexically.
@@ -57,6 +59,10 @@
 #     that wrapper is a door the gate does not know. `flagged_census`
 #     resolves forwarding wrappers for the unlogged doors; this gate reads
 #     names;
+#   * a door whose band reaches it other than through a parameter whose
+#     type names `Band`, such as a field of a struct argument: the shape
+#     `k_stats`' header requires of a door, which this reader cannot
+#     check;
 #   * a method-form `decide` whose enclosing `unlogged` is in a caller
 #     rather than lexically around it: refused, the safe direction, and
 #     the call is moved inside, as `Period::near` and `Azimuth::near` do.
@@ -174,16 +180,19 @@ BEGIN { n = split(DOORS, roster, " "); for (i = 1; i <= n; i++) roster_set[roste
 END { flush() }
 '
 
-# Records of the home on stdin; prints the name of each door the home
-# defines: a `pub fn` generic over `Decide` that takes a `Band`. That is
-# the roster the scan reads, so a door added to the home is a door here
-# the day it is written.
-DOOR_ROSTER='
+# Records of the home on stdin; prints the name of each `pub` fn of the
+# home (`pub(…)`, `const`/`unsafe`/`async` and methods included) whose
+# generics, parameters or `where` clause name `Band` in any shape (`Band`,
+# `&Band`, `Option<Band>`, `B: Into<Band>`). Each is a door unless
+# NON_DOORS names it, so a band-taking fn the home gains is a door here
+# the day it is written, whatever it spells around the band.
+BAND_TAKERS='
 function is_ident(c) { return c ~ /[A-Za-z0-9_]/ }
+function names_band(t) { return t ~ /(^|[^A-Za-z0-9_])Band([^A-Za-z0-9_]|$)/ }
 { if (gate_record_split($0)) code = code GR_TEXT "\n" }
 END {
   rest = code; base = 0
-  while (match(rest, /pub[[:space:]]+fn[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)) {
+  while (match(rest, /pub([[:space:]]*[(][^)]*[)])?[[:space:]]+((const|unsafe|async)[[:space:]]+)*fn[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)) {
     at = base + RSTART; base = at + RLENGTH - 1
     nm = substr(rest, RSTART, RLENGTH); sub(/.*[[:space:]]/, "", nm)
     rest = substr(rest, RSTART + RLENGTH)
@@ -197,18 +206,36 @@ END {
       else if (c == ")") { d--; if (d == 0) break }
     }
     params = substr(rest, j + 1, k - j - 1)
-    if (generics ~ /:[[:space:]]*Decide([^A-Za-z0-9_]|$)/ && params ~ /:[[:space:]]*Band[[:space:]]*(,|$)/) print nm
+    tail = substr(rest, k + 1); e = match(tail, /[{;]/); tail = e ? substr(tail, 1, e - 1) : tail
+    wh = ""
+    if (match(tail, /(^|[^A-Za-z0-9_])where([^A-Za-z0-9_]|$)/)) wh = substr(tail, RSTART)
+    if (names_band(generics) || names_band(params) || names_band(wh)) print nm
   }
 }
 '
 
-# The home's doors, one line, space-separated; refused when the home
-# defines none, so a reader that lost the signatures cannot pass the tree.
+# The home's fns that take a band and decide nothing at the call: each
+# named here must be one (a stale entry reds), and every other band-taker
+# is a door.
+NON_DOORS="gate_rejection gate_measured straddle"
+
+# The home's doors, one line, space-separated: its band-takers less
+# NON_DOORS. Refused when the home takes a band nowhere, or when a
+# NON_DOORS entry names no band-taker of the home.
 gate_door_roster() {
-  local doors
-  doors=$(gate_rust_code --skip-cfg-test "$1" | gate_record_awk "$DOOR_ROSTER" | tr '\n' ' ')
+  local takers doors="" nd t
+  takers=" $(gate_rust_code --skip-cfg-test "$1" | gate_record_awk "$BAND_TAKERS" | sort -u | tr '\n' ' ')"
+  for nd in $NON_DOORS; do
+    case "$takers" in
+      *" $nd "*) ;;
+      *) gate_error "NON_DOORS names \`$nd\`, which is no \`pub\` fn of $1 that takes a Band: drop the stale entry"; exit 1 ;;
+    esac
+  done
+  for t in $takers; do
+    case " $NON_DOORS " in *" $t "*) ;; *) doors+="$t " ;; esac
+  done
   if [ -z "${doors// /}" ]; then
-    gate_error "the home $1 defines no door (no \`pub fn\` generic over Decide that takes a Band): the roster this gate reads came back empty"
+    gate_error "the home $1 defines no door (no \`pub\` fn that takes a Band): the roster this gate reads came back empty"
     exit 1
   fi
   printf '%s' "$doors"
@@ -248,9 +275,52 @@ gate_plant_clean() {
       printf 'pub fn %s<T: Decide>(\n    n: &'"'"'static str,\n    m: T,\n    band: Band,\n) -> R {\n    classify(n, m, band)\n}\n' "$d"
     done
     printf 'pub fn straddle(n: &'"'"'static str, band: Band) -> I { mint(n, band) }\n'
+    printf 'pub fn gate_rejection(n: &'"'"'static str, band: Band, p: P) -> I { mint(n, band) }\n'
     printf 'pub fn gate_measured<T: Real>(n: &'"'"'static str, v: T, band: Band) -> R { v }\n'
     printf '#[cfg(test)]\nmod tests {\n    pub fn decide_in_a_test<T: Decide>(m: T, band: Band) -> R { m }\n}\n'
   } > "$1/$HOME_FILE"
+}
+
+# A door in the home spelled `$2` (its head up to the body), and a call of
+# it at the least band, `$3`, in the clean crate.
+plant_home_door() {
+  printf '%s { classify() }\n' "$2" >> "$1/$HOME_FILE"
+  printf 'pub fn s(m: M) -> R { %s }\n' "$3" >> "$1/crates/clean/src/lib.rs"
+}
+
+# Every shape a band-taking door can be spelled in is a door: the band by
+# reference, optional or converted, the `Decide` bound in a `where`
+# clause, beside another bound, as `impl Decide` or absent, `pub(crate)`,
+# and a method.
+plant_door_where() {
+  plant_home_door "$1" 'pub fn d_where<T>(n: &str, m: T, band: Band) -> R where T: Decide' 'd_where("s", m, Band::least())'
+}
+plant_door_two_bounds() {
+  plant_home_door "$1" 'pub fn d_bounds<T: Real + Decide>(n: &str, m: T, band: Band) -> R' 'd_bounds("s", m, Band::least())'
+}
+plant_door_impl_decide() {
+  plant_home_door "$1" 'pub fn d_impl(n: &str, m: impl Decide, band: Band) -> R' 'd_impl("s", m, Band::least())'
+}
+plant_door_ref_band() {
+  plant_home_door "$1" 'pub fn d_ref<T: Decide>(n: &str, m: T, band: &Band) -> R' 'd_ref("s", m, &Band::least())'
+}
+plant_door_option_band() {
+  plant_home_door "$1" 'pub fn d_opt<T: Decide>(n: &str, m: T, band: Option<Band>) -> R' 'd_opt("s", m, Some(Band::least()))'
+}
+plant_door_into_band() {
+  plant_home_door "$1" 'pub fn d_into<T: Decide, B: Into<Band>>(n: &str, m: T, band: B) -> R' 'd_into("s", m, Band::least())'
+}
+plant_door_pub_crate() {
+  plant_home_door "$1" 'pub(crate) fn d_crate<T: Decide>(n: &str, m: T, band: Band) -> R' 'd_crate("s", m, Band::least())'
+}
+plant_door_method() {
+  printf 'impl<T: Decide> Margin<T> {\n    pub fn d_method(self, band: Band) -> R { classify() }\n}\n' >> "$1/$HOME_FILE"
+  printf 'pub fn s(m: M) -> R { m.d_method(Band::least()) }\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+# A NON_DOORS entry the home does not define as a band-taker is stale.
+plant_stale_non_door() {
+  sed -i '/^pub fn gate_rejection/d' "$1/$HOME_FILE"
 }
 
 # A door the home gains is read the day it is written: no list here
@@ -260,15 +330,16 @@ plant_new_door() {
   printf 'pub fn s(m: M) -> R { decide_fresh("site", m, Band::least()) }\n' >> "$1/crates/clean/src/lib.rs"
 }
 
-# The home's fns that are not doors (no `Decide`, or no `Band`) and its
-# test module's fns stay off the roster.
+# The home's band-takers NON_DOORS names, and its test module's fns, stay
+# off the roster.
 plant_home_non_doors() {
-  printf 'pub fn s(m: M) -> R { straddle("site", Band::least()); gate_measured("site", m, Band::least()); decide_in_a_test(m, Band::least()) }\n' >> "$1/crates/clean/src/lib.rs"
+  printf 'pub fn s(m: M) -> R { straddle("site", Band::least()); gate_rejection("site", Band::least(), p); gate_measured("site", m, Band::least()); decide_in_a_test(m, Band::least()) }\n' >> "$1/crates/clean/src/lib.rs"
 }
 
-# A home that defines no door leaves the gate nothing to read.
+# A home whose only band-takers are NON_DOORS leaves the gate nothing to
+# read.
 plant_home_without_doors() {
-  printf 'pub fn prove(n: &str, m: M) -> R { m }\n' > "$1/$HOME_FILE"
+  printf 'pub fn prove(n: &str, m: M) -> R { m }\npub fn straddle(band: Band) {}\npub fn gate_rejection(band: Band) {}\npub fn gate_measured(band: Band) {}\n' > "$1/$HOME_FILE"
 }
 
 plant_method_reported_outside_unlogged() {
@@ -367,11 +438,16 @@ gate_selftest() {
   gate_selftest_case "$want" plant_method_reported_outside_unlogged
   gate_selftest_case "$want" plant_renamed_reported
   gate_selftest_case "$want" plant_new_door
+  local shape
+  for shape in where two_bounds impl_decide ref_band option_band into_band pub_crate method; do
+    gate_selftest_case "$want" "plant_door_$shape"
+  done
+  gate_selftest_case "drop the stale entry" plant_stale_non_door
   gate_selftest_case "defines no door" plant_home_without_doors
   gate_selftest_passes "the home's fns that are not doors, and its test module's" plant_home_non_doors
   gate_selftest_passes "the doors, a method walk inside unlogged, a band handed to a reader, the caller's band with the least band past its argument list, other verbs, prose, a test module, fixture files and the home" plant_not_sites
   gate_selftest_homes --narrowed --subject "$HOME_SUBJECT" "$HOME_FILE"
-  printf '%s selftest OK: passes a clean fixture carrying the home, and prove, choose, a method walk inside unlogged, a band handed to a reader, the caller'"'"'s band with the least band past its argument list, other verbs, prose, a test module, fixture files and the home'"'"'s fns that are not doors; fires on a door at the least band bare, qualified, kept reported, flagged, unlogged by check_unlogged, with a turbofish, renamed on import, bound to a name first, inside a block argument and wrapped across lines, on a method-form door outside unlogged, and on a door the home gains that no list names; is red when the home defines no door; and stays RED when grep or awk cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the home, and prove, choose, a method walk inside unlogged, a band handed to a reader, the caller'"'"'s band with the least band past its argument list, other verbs, prose, a test module, fixture files and the home'"'"'s fns that are not doors; fires on a door at the least band bare, qualified, kept reported, flagged, unlogged by check_unlogged, with a turbofish, renamed on import, bound to a name first, inside a block argument and wrapped across lines, on a method-form door outside unlogged, and on a door the home gains that no list names; is red when the home defines no door or NON_DOORS goes stale; reads a door in every shape its band and bound are spelled in; and stays RED when grep or awk cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
