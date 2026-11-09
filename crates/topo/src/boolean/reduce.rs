@@ -1770,7 +1770,7 @@ fn settle_in_plane<T: Decide>(
                 .into_iter()
                 .any(|w| contacts.rests_in(lie.x_is, w, lie.face))
                 || {
-                    let mid = p0 + (p1 - p0) * T::from_f64(0.5);
+                    let mid = p0.mid(p1);
                     let (at, _) = contfp_decided(y, lie.face, plane.normal, mid, band)
                         .map_err(|e| esc(e, lie.x_is.other(), lie.face))?;
                     matches!(at, FaceContainment::In)
@@ -5878,8 +5878,13 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     let (placement, on, _) = super::contain::placement_on_carrier(y, face, px, band)
         .map_err(|e| esc(e, x_is.other(), face))?;
     let at = match placement {
-        // OffCarrier → Out (the caller decided `px` on the plane).
-        CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None) => FaceContainment::Out,
+        // OffCarrier → fault: the caller decided `px` on the plane, and a
+        // plane answers neither it nor `Trim(None)`.
+        CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a plane placed a vertex decided on it off its carrier, or read no verdict",
+            });
+        }
         CurvedPlacement::Trim(Some(at)) => at,
     };
     match at {

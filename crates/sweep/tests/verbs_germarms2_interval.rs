@@ -320,7 +320,7 @@ fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
             BooleanError::GermSectionUnbuilt {
                 a_kind: geom::SurfaceKind::Cylinder,
                 b_kind: geom::SurfaceKind::Cylinder,
-                why: topo::SectionUnbuilt::NoLane { .. },
+                why: topo::SectionUnbuilt::Carry(geom_brep::CarryError::NoLane { .. }),
                 ..
             }
         ),

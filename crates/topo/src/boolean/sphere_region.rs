@@ -157,10 +157,6 @@ const BOUNDARY: ConicRows = ConicRows::bounded(
 /// symmetric pose's planes hold.
 const AIM_FRACTION: f64 = 1.0 - geom_core::GOLDEN_SECTION;
 
-/// How many even steps of each arc's span [`SphereFaceRegion::aim`]'s
-/// clearance reads.
-const CLEARANCE_SAMPLES: usize = 32;
-
 /// A trimmed sphere face's boundary: every arc of every loop, each with
 /// the direction its loop traverses it.
 #[derive(Clone, Debug)]
@@ -225,13 +221,8 @@ pub(crate) fn sphere_face_region<T: Decide>(
     let geom::Surface::Sphere { .. } = surface else {
         return Err(PointInSolidError::CorruptFace { face });
     };
-    // The sphere in a frame of the door's own, `z` and `x`: a foot's
-    // reading depends on no frame, and this one keeps the chart's poles
-    // where the door's rows were measured.
-    let (zero, one) = (T::zero(), T::one());
     Ok(Some(SphereFaceRegion::on(
-        Charted::record(f.surface, surface)
-            .framed(Vec3::new(zero, zero, one), Vec3::new(one, zero, zero)),
+        Charted::record(f.surface, surface),
         f.sense,
         f.outer,
         edges,
@@ -353,33 +344,20 @@ impl<T: Decide> SphereFaceRegion<T> {
     }
 
     /// A lower bound on the distance from `m` to every arc but the `k`th:
-    /// per arc, the greater of two, each never above the true distance —
-    /// `m`'s distance from the arc's whole circle
-    /// ([`geom::Curve3::clearance`]), and the least distance
-    /// from `m` to the arc's points at [`CLEARANCE_SAMPLES`] even steps of
-    /// its span less half the arc length between two of them (every point
-    /// of the arc lies within that of one), which reads an arc of `m`'s own
-    /// circle whose circle passes through `m`.
+    /// the least of the arcs' closed-form distances from `m`
+    /// ([`geom::Curve3::distance_within`]).
     fn clearance(&self, k: usize, m: Point3<T>) -> T {
-        let n = T::from_f64(CLEARANCE_SAMPLES as f64);
         let mut least: Option<T> = None;
         for (j, arc) in self.edges.iter().enumerate() {
             if j == k {
                 continue;
             }
-            let (&geom::Curve3::Circle(geom::Circle { radius, .. }), Some(circle)) =
-                (&arc.carrier, arc.carrier.clearance(m))
-            else {
+            let (geom::Curve3::Circle(_), Some(gap)) = (
+                &arc.carrier,
+                arc.carrier.distance_within(m, (arc.t0, arc.t1)),
+            ) else {
                 unreachable!("sphere_face_region admits circles only")
             };
-            let span = arc.t1 - arc.t0;
-            let step = span / n;
-            let (mut t, mut near) = (arc.t0, (arc.at(arc.t0) - m).norm());
-            for _ in 0..CLEARANCE_SAMPLES {
-                t = t + step;
-                near = near.min((arc.at(t) - m).norm());
-            }
-            let gap = circle.max(near - (radius * step).abs() * T::from_f64(0.5));
             least = Some(least.map_or(gap, |l| l.min(gap)));
         }
         // A face of one arc: nothing else to keep off.
@@ -556,8 +534,13 @@ mod tests {
     /// 60°, one arc round the whole turn: the cap above it run
     /// `forward`, the rest of the sphere otherwise.
     fn carved(forward: bool) -> SphereFaceRegion<f64> {
+        carved_on(fixture_sphere(Point3::origin(), 1.0), forward)
+    }
+
+    /// [`carved`] on the unit sphere `on`, charted on its own frame.
+    fn carved_on(on: Charted<f64>, forward: bool) -> SphereFaceRegion<f64> {
         SphereFaceRegion::on(
-            fixture_sphere(Point3::origin(), 1.0),
+            on,
             true,
             LoopKey::default(),
             vec![RegionEdge {
@@ -576,6 +559,65 @@ mod tests {
                 forward,
             }],
         )
+    }
+
+    /// **A face's answer depends on no chart frame.** The cap of
+    /// [`carved`] is read on the unit sphere charted on five frames, at
+    /// 200 azimuths, at the band's zero and its escalation off the rim and
+    /// past it, each way, and every frame answers as the first. The
+    /// query's foot was read back through the chart, whose round trip
+    /// lands a few ulps off the sphere's own foot, in ulps that depend on
+    /// the frame. A point at the band's edge then read in band on one
+    /// frame and past it on another, as the hemisphere's ray row in
+    /// `sweep` (`rays_in_band_of_a_curved_edge_read_it_once`) did on its
+    /// record's own frame.
+    #[test]
+    fn a_faces_answer_depends_on_no_chart_frame() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let rim = core::f64::consts::FRAC_PI_3;
+        let unit = |x: f64, y: f64, z: f64| Vec3::new(x, y, z) / Vec3::new(x, y, z).norm();
+        let skew = unit(1.0, 2.0, 3.0);
+        let frames = [
+            (unit(0.0, 0.0, 1.0), unit(1.0, 0.0, 0.0)),
+            (unit(1.0, 0.0, 0.0), unit(0.0, 1.0, 0.0)),
+            (unit(0.0, 1.0, 0.0), unit(0.0, 0.0, 1.0)),
+            (unit(0.0, 0.0, -1.0), unit(0.0, -1.0, 0.0)),
+            (skew, unit(2.0, -1.0, 0.0)),
+        ];
+        let read = |r: Result<Option<bool>, RegionRefusal>| {
+            r.map_err(|e| match e {
+                RegionRefusal::Escalated(diag) => diag.predicate,
+                _ => Some("another refusal"),
+            })
+        };
+        for forward in [true, false] {
+            let regions: Vec<SphereFaceRegion<f64>> = frames
+                .iter()
+                .map(|&(axis, u_ref)| {
+                    let sphere = geom::Surface::Sphere {
+                        center: Point3::origin(),
+                        radius: 1.0,
+                        axis,
+                        u_ref,
+                    };
+                    carved_on(Charted::record(Default::default(), &sphere), forward)
+                })
+                .collect();
+            for i in 0..200 {
+                let az = f64::from(i) * core::f64::consts::TAU / 200.0 + 1e-4;
+                for off in [-1e-8, -1e-9, 1e-9, 1e-8, -2e-8, 2e-8] {
+                    let p = at(rim + off, az);
+                    let first = read(regions[0].contains(p, band));
+                    for (k, region) in regions.iter().enumerate().skip(1) {
+                        assert_eq!(
+                            read(region.contains(p, band)),
+                            first,
+                            "frame {k}: forward {forward}, azimuth {az}, {off:e} off"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// The point at polar angle `polar` and azimuth `az` on the unit sphere.

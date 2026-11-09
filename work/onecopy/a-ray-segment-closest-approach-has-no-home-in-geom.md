@@ -2,8 +2,10 @@
 id: a-ray-segment-closest-approach-has-no-home-in-geom
 kind: issue
 title: viewer's ray_segment_closest is a 3D line-line closest approach with no home in geom
-status: open
+status: closed
 opened: 2026-11-06
+closed: 2026-11-09
+pr: 6645
 ---
 
 

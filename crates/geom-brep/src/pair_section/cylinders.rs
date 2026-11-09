@@ -515,7 +515,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         Some(match (gap.sign, nest.map(|n| n.sign)) {
             (Sign::Negative, _) | (Sign::Positive, Some(Sign::Negative)) => ParallelSection::Empty,
             (Sign::Zero, _) | (Sign::Positive, Some(Sign::Zero)) => {
-                ParallelSection::Tangent(p + (q - p) * T::from_f64(0.5))
+                ParallelSection::Tangent(p.mid(q))
             }
             (Sign::Positive, _) => ParallelSection::Rulings([p, q]),
         })
@@ -869,7 +869,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         };
         region_span(pose.region, line, band).map(|span| {
             let line = Curve3::Line(line);
-            let witness = line.eval((span.0 + span.1) * T::from_f64(0.5));
+            let witness = line.eval(geom::mid_param(span.0, span.1));
             (line, span, witness)
         })
     };
@@ -968,7 +968,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             },
                             // The winding is the node-joined set's.
                             [false, false],
-                            Some(curve.eval((span.0 + span.1) * T::from_f64(0.5))),
+                            Some(curve.eval(geom::mid_param(span.0, span.1))),
                             ClassCarrier::Span {
                                 curve: curve.clone(),
                                 span,
