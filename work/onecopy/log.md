@@ -1202,3 +1202,10 @@
     - `at` under Any is documented diagnostic-only.
     - Not an Ev question: `Answering` is in no ratified clause.
   - **chart-feet lane:** found its row already done by draft PR 6676 (foot-closed-forms) and stopped. Re-dispatched on compose-elevation-refusal-renders-a-knot-api-recourse and spline-error-holders-may-pass-a-caller-recourse-to-the-user (onecopy/kernel-built-recourse).
+- 2026-11-09 19:00Z Rulings:
+  - **lone-loop: option 1.**
+    - Point-near collectors skip a lone loop not at the point (`BoundaryMember::half_edge` disposition); at the point it refuses.
+    - Polygon readers get lone-named variants, and `StructureRead::EmptyLoop` is retired.
+    - Standing is routed to tier 2's `ScaffoldingEmptyLoop` (expected: a row-2 Limit with a not-yet ending; not loosen, not Aborts), not picked fresh.
+  - **topo-roster: B.** Prefix-keyed door table plus EXCEPTIONS with reasons; overlapping prefixes are a failure. A (a ~330-row copy) and C (no door attribution) are rejected.
+    - `predicate_census` also reports unreadable `read_identity(` data as indirect; sweep's roster is updated in the same PR.
