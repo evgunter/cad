@@ -50,10 +50,11 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
-use geom_core::{Decide, Margin, Point2, Point3, Real, Sign};
+use geom_core::{Decide, Margin, Point2, Point3, Real, Sign, Vec3};
 
 use crate::Frame;
 use crate::azimuth::{Azimuth, Window};
+use crate::curves::Line;
 use crate::surfaces::{Surface, SurfaceKind};
 
 /// A surface kind with no closed-form chart inversion: a spline net,
@@ -398,6 +399,89 @@ impl<T: Decide> Surface<T> {
     pub fn chart_point(&self, p: Point3<T>, band: Band) -> Result<ChartPoint<T>, NoClosedInverse> {
         ChartInverse::of(self).map(|inverse| inverse.point(p, band))
     }
+
+    /// **`p`'s foot on this surface, in closed form and on no chart**:
+    /// the point of the surface nearest `p`, read off the surface's
+    /// geometric fields alone. It never reads a `u_ref` or a chart frame,
+    /// so a surface charted on another frame has the same foot to the
+    /// bit. [`Self::chart_point`] reads the same foot's coordinates, and
+    /// [`Self::eval`] at those coordinates lands a few ulps off this one,
+    /// in ulps that depend on the frame.
+    ///
+    /// | kind | foot |
+    /// |---|---|
+    /// | plane | `p` less its offset along the normal ([`Line::square_foot`]) |
+    /// | cylinder | the axis's foot `q` ([`Line::foot`]), then `radius` along `p − q` |
+    /// | cone | on the generator in `p`'s half-plane on the nappe of `p`'s side of the apex plane (the opening one on the plane itself), `apex + g·(w·g)` |
+    /// | sphere | `radius` along `p − center` |
+    /// | torus | the tube circle's point `m` along `p − q`, then `minor_radius` along `p − m` |
+    ///
+    /// `None` where the direction a foot is read along is the zero vector:
+    /// `p` at a sphere's centre, on a cylinder's, cone's or torus's axis,
+    /// or on a torus's tube circle, where every point of a circle or the
+    /// whole sphere is a foot alike. A `p` that lies there only to
+    /// rounding reads one of those feet. Also `None` for a spindle sheet, whose
+    /// meridian circles overlap across the axis, and for a spline net or
+    /// a fitted stand-in, none of which has a foot in closed form.
+    #[must_use]
+    pub fn foot(&self, p: Point3<T>) -> Option<Point3<T>> {
+        let along = |w: Vec3<T>| w.checked_direction().ok().map(|(d, _)| d);
+        match *self {
+            Self::Plane { origin, normal, .. } => Some(
+                Line {
+                    origin,
+                    dir: normal,
+                }
+                .square_foot(p),
+            ),
+            Self::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => {
+                let q = Line { origin, dir: axis }.foot(p);
+                along(p - q).map(|r| q + r * radius)
+            }
+            Self::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            } => {
+                let w = p - apex;
+                let q = Line {
+                    origin: apex,
+                    dir: axis,
+                }
+                .foot(p);
+                along(p - q).map(|r| {
+                    let (sin, cos) = half_angle.sin_cos();
+                    let g = axis * cos.copysign(axis.dot(w)) + r * sin;
+                    apex + g * w.dot(g)
+                })
+            }
+            Self::Sphere { center, radius, .. } => along(p - center).map(|d| center + d * radius),
+            Self::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let q = Line {
+                    origin: center,
+                    dir: axis,
+                }
+                .foot(p);
+                along(p - q).and_then(|r| {
+                    let m = center + r * major_radius;
+                    along(p - m).map(|d| m + d * minor_radius)
+                })
+            }
+            Self::Spindle { .. } | Self::Nurbs(_) | Self::Approx(_) => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -540,6 +624,211 @@ mod tests {
     /// mirror-nappe point whose `h` lies in the band reads singular
     /// (both generators pass within the band of it, half a turn apart),
     /// and one past the band reads its own foot.
+    /// The surface with its chart frame turned by `t` about its axis,
+    /// and its axis flipped when `flip`: the same locus on another chart.
+    fn reframed(surface: &Surface<f64>, t: f64, flip: bool) -> Surface<f64> {
+        let turn = |axis: Vec3<f64>, u_ref: Vec3<f64>| {
+            let u = u_ref * t.cos() + axis.cross(u_ref) * t.sin();
+            if flip { (-axis, u) } else { (axis, u) }
+        };
+        match *surface {
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => {
+                let (normal, u_ref) = turn(normal, u_ref);
+                Surface::Plane {
+                    origin,
+                    normal,
+                    u_ref,
+                }
+            }
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => {
+                let (axis, u_ref) = turn(axis, u_ref);
+                Surface::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    u_ref,
+                }
+            }
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => {
+                let (axis, u_ref) = turn(axis, u_ref);
+                Surface::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    u_ref,
+                }
+            }
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => {
+                let (axis, u_ref) = turn(axis, u_ref);
+                Surface::Sphere {
+                    center,
+                    radius,
+                    axis,
+                    u_ref,
+                }
+            }
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => {
+                let (axis, u_ref) = turn(axis, u_ref);
+                Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    u_ref,
+                }
+            }
+            _ => unreachable!("the fixtures are analytic"),
+        }
+    }
+
+    /// **The foot is the chart's foot, on no chart.** Over a cloud of
+    /// points round each analytic kind:
+    /// - the foot lies on the surface and `p − foot` along its normal
+    ///   there (the oracle: the nearest point is where the surface's
+    ///   normal points at `p`), and it is no farther from `p` than the
+    ///   chart's round trip `eval(chart_point(p))`, which it matches to
+    ///   rounding;
+    /// - the surface turned on its axis to five other frames, and with
+    ///   its axis flipped, has the same foot to the bit.
+    #[test]
+    fn the_foot_is_the_charts_foot_on_no_chart() {
+        for surface in surfaces() {
+            let others: Vec<Surface<f64>> = [
+                (0.3, false),
+                (1.0, false),
+                (2.5, false),
+                (-2.0, false),
+                (0.7, true),
+            ]
+            .iter()
+            .map(|&(t, flip)| reframed(&surface, t, flip))
+            .collect();
+            for i in 0..500 {
+                let k = f64::from(i);
+                let p = Point3::new(
+                    2.5 * (k * 0.731).sin(),
+                    2.5 * (k * 1.917).sin(),
+                    2.5 * (k * 0.389).cos(),
+                );
+                let foot = surface.foot(p).expect("a generic point has a foot");
+                let chart = surface.chart_point(p, band()).unwrap();
+                let (u, v) = (chart.uv.x, chart.uv.y);
+                let round_trip = surface.eval(u, v);
+                assert!((foot - round_trip).norm() < 1e-14, "{surface:?} at {p:?}");
+                assert!(
+                    (p - foot).norm() <= (p - round_trip).norm() + 1e-14,
+                    "{surface:?} at {p:?}: the foot is the nearer"
+                );
+                let n = surface.normal(u, v);
+                let off = p - foot;
+                assert!(
+                    off.cross(n).norm() <= 1e-13 * (1.0 + off.norm()),
+                    "{surface:?} at {p:?}: p lies off the foot along the normal"
+                );
+                for other in &others {
+                    let again = other.foot(p).unwrap();
+                    assert_eq!(
+                        (again.x.to_bits(), again.y.to_bits(), again.z.to_bits()),
+                        (foot.x.to_bits(), foot.y.to_bits(), foot.z.to_bits()),
+                        "{surface:?} reframed as {other:?} at {p:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **Where the direction a foot is read along vanishes, there is no
+    /// foot**: a sphere's centre, a point of a cylinder's, cone's or
+    /// torus's axis, a point of a torus's tube circle; and a spindle sheet
+    /// has none in closed form.
+    #[test]
+    fn a_point_every_point_of_a_circle_is_nearest_has_no_foot() {
+        let (o, z, x) = (
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let surfaces = [
+            Surface::Cylinder {
+                origin: o,
+                axis: z,
+                radius: 0.7,
+                u_ref: x,
+            },
+            Surface::Cone {
+                apex: o,
+                axis: z,
+                half_angle: 0.4,
+                u_ref: x,
+            },
+            Surface::Sphere {
+                center: o,
+                radius: 0.7,
+                axis: z,
+                u_ref: x,
+            },
+            Surface::Torus {
+                center: o,
+                axis: z,
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: x,
+            },
+        ];
+        for s in &surfaces {
+            assert!(s.foot(o).is_none(), "{s:?} at its centre");
+            if !matches!(s, Surface::Sphere { .. }) {
+                assert!(s.foot(o + z * 1.5).is_none(), "{s:?} on its axis");
+            }
+            assert!(
+                s.foot(o + z * 1.5 + x * 1e-3).is_some(),
+                "{s:?} off its axis"
+            );
+        }
+        let torus = &surfaces[3];
+        assert!(torus.foot(o + x * 2.0).is_none(), "on the tube circle");
+        assert!(torus.foot(o + x * 2.0 + z * 1e-3).is_some());
+        let sheet = Surface::Spindle {
+            center: o,
+            axis: z,
+            major_radius: 0.4,
+            minor_radius: 1.0,
+            u_ref: x,
+        };
+        assert!(sheet.foot(o + z * 0.2 + x * 0.5).is_none());
+        let plane = Surface::Plane {
+            origin: o,
+            normal: z,
+            u_ref: x,
+        };
+        assert!(plane.foot(o).is_some(), "a plane has a foot everywhere");
+    }
+
     #[test]
     fn poles_the_apex_and_a_wide_cones_apex_plane_are_singular() {
         let surfaces = surfaces();

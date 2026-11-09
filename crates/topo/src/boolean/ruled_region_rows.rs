@@ -708,3 +708,128 @@ fn a_point_off_the_surface_reads_as_its_foot() {
         );
     }
 }
+
+/// A refusal read for comparison across frames: its predicate.
+fn class(r: Result<Option<bool>, RegionRefusal>) -> Result<Option<bool>, Option<&'static str>> {
+    r.map_err(|e| match e {
+        RegionRefusal::Escalated(diag) => diag.predicate,
+        _ => Some("another refusal"),
+    })
+}
+
+/// The frames a ruled face is charted on: the seam turned about `z` to
+/// five azimuths, and for a cylinder the axis flipped as well.
+fn frames(flip: bool) -> Vec<(Vec3<f64>, Vec3<f64>)> {
+    let mut frames: Vec<_> = [0.0f64, 0.3, 1.0, 2.5, -2.0]
+        .iter()
+        .map(|&t| (z_axis(), Vec3::new(t.cos(), t.sin(), 0.0)))
+        .collect();
+    if flip {
+        frames.push((-z_axis(), Vec3::new(0.0, 1.0, 0.0)));
+    }
+    frames
+}
+
+/// Every region of `regions` answers each of `queries` as the first does.
+fn agree(what: &str, regions: &[RuledFaceRegion<f64>], queries: &[(String, Point3<f64>)]) {
+    for (at, p) in queries {
+        let first = class(regions[0].contains(*p, b()));
+        for (k, region) in regions.iter().enumerate().skip(1) {
+            assert_eq!(
+                class(region.contains(*p, b())),
+                first,
+                "{what}: frame {k}, {at}"
+            );
+        }
+    }
+}
+
+/// The offsets about the band's zero a frame pin reads a query at.
+const ZERO_OFFSETS: [f64; 6] = [-5e-9, -1e-9, -5e-10, 5e-10, 1e-9, 5e-9];
+
+/// **A ruled face's answer about the band's zero depends on no chart
+/// frame.** A window of a cylinder (on six frames) and of a cone (on
+/// five) is read at 60 stations along each edge, at `±5e-10`, `±1e-9`
+/// and `±5e-9` off it, and every frame answers as the first. The query's
+/// foot was read back through the chart, a few ulps off the surface's
+/// own foot in ulps that depend on the frame: 536 of the cylinder's 2400
+/// queries and 483 of the cone's, at the band's zero and its escalation,
+/// answered by frame. At the escalation the cone's legs, built from the
+/// chart's coordinates, still answer by frame (filed).
+#[test]
+fn a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
+    let (us, zs) = ((0.4, 2.9), (0.0, 1.5));
+    let cylinders: Vec<_> = frames(true)
+        .into_iter()
+        .map(|(axis, u_ref)| {
+            let (charted, surface) = on(&geom::Surface::Cylinder {
+                origin: Point3::origin(),
+                axis,
+                radius: 1.0,
+                u_ref,
+            });
+            RuledFaceRegion {
+                charted,
+                surface,
+                sense: true,
+                outer: LoopKey::default(),
+                scale: 1.0,
+                edges: window(1, us, zs, false),
+            }
+        })
+        .collect();
+    let mut queries = Vec::new();
+    for i in 0..60 {
+        let t = f64::from(i) / 60.0 + 0.004;
+        let (u, z) = (us.0 + t * (us.1 - us.0), zs.0 + t * (zs.1 - zs.0));
+        for o in ZERO_OFFSETS {
+            queries.push((format!("rim z0, u {u}, {o:e} off"), wall(u, zs.0 + o)));
+            queries.push((format!("rim z1, u {u}, {o:e} off"), wall(u, zs.1 + o)));
+            queries.push((format!("ruling u0, z {z}, {o:e} off"), wall(us.0 + o, z)));
+            queries.push((format!("ruling u1, z {z}, {o:e} off"), wall(us.1 + o, z)));
+        }
+    }
+    agree("cylinder window", &cylinders, &queries);
+
+    let (vs, s) = ((1.0, 2.0), ALPHA.sin());
+    let cones: Vec<_> = frames(false)
+        .into_iter()
+        .map(|(axis, u_ref)| {
+            let (charted, surface) = on(&geom::Surface::Cone {
+                apex: Point3::origin(),
+                axis,
+                half_angle: ALPHA,
+                u_ref,
+            });
+            RuledFaceRegion {
+                charted,
+                surface,
+                sense: true,
+                outer: LoopKey::default(),
+                scale: 2.0,
+                edges: vec![
+                    cone_rim(1, vs.0, us, true),
+                    segment(2, on_cone(us.1, vs.0), on_cone(us.1, vs.1)),
+                    cone_rim(3, vs.1, us, false),
+                    segment(4, on_cone(us.0, vs.1), on_cone(us.0, vs.0)),
+                ],
+            }
+        })
+        .collect();
+    let mut queries = Vec::new();
+    for i in 0..60 {
+        let t = f64::from(i) / 60.0 + 0.004;
+        let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
+        for o in ZERO_OFFSETS {
+            queries.push((format!("rim v0, u {u}, {o:e} off"), on_cone(u, vs.0 + o)));
+            queries.push((format!("rim v1, u {u}, {o:e} off"), on_cone(u, vs.1 + o)));
+            let (g0, g1) = (
+                on_cone(us.0 + o / (v * s), v),
+                on_cone(us.1 + o / (v * s), v),
+            );
+            queries.push((format!("generator u0, v {v}, {o:e} off"), g0));
+            queries.push((format!("generator u1, v {v}, {o:e} off"), g1));
+        }
+    }
+    agree("cone window", &cones, &queries);
+}
