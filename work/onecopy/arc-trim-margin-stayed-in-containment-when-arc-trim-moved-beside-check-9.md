@@ -1,7 +1,7 @@
 ---
 id: arc-trim-margin-stayed-in-containment-when-arc-trim-moved-beside-check-9
 kind: issue
-title: Span membership is spelled two ways beside check 9 (the arc-trim move's S4); the pair is unnamed
+title: Span membership is spelled two ways: arc_trim's chord distances (check 9) and span_place's parameter·meter
 status: open
 opened: 2026-11-09
 ---
@@ -20,9 +20,29 @@ Also still open from that review (S4, style): span membership is spelled two way
 
 Items 1 and 2 are done. `arc_trim_margin` is a private fn beside
 `arc_trim` in `topo/src/validate.rs`, and the stale caller is gone from
-its doc. What remains is S4. It does not name the two spellings of span
-membership. The likely pair is `validate.rs` `window`'s line arm (two
-signed spans under `ring_outer_meet_span`) and `arc_trim` (end distances,
-then the trim margin). Those are different constructions, so whether one
-can honestly route through the other is the open question. Name the pair
-first.
+its doc.
+
+What remains is S4, in the review's words (the 6609 delta review): "two
+spellings of 'is this point on the arc's span'. Check 9 (`arc_trim`)
+reads chord distances. The walk and the region doors now read
+`span_place`'s parameter·meter." The two sites:
+- `topo/src/validate.rs` `arc_trim`, check 9 and `window`'s arc arm. It
+  takes a POINT and decides its distances from the ends, then a sum of
+  chordal defects.
+- `geom-brep/src/curve_face/plane_crossing.rs` `span_place`, the
+  plane-crossing lane and `topo/src/boolean/torus_region.rs`. It takes a
+  PARAMETER and decides `(t − t₀)·meter` and `(t₁ − t)·meter`.
+
+They ask one question from different inputs, and neither routes through
+the other honestly as they stand:
+- Routing `arc_trim` through `span_place` needs the point's parameter.
+  Check 9 reads distances precisely so that it never inverts a point to
+  an angle (its docs: an in-band radius would escalate a point half a
+  turn away).
+- Routing `span_place` through `arc_trim` needs `arc_trim`'s chord
+  monotonicity, which holds on a circle only. `span_place` serves ellipse
+  spans too.
+
+A fix is a shared decided-membership type that both produce, or a
+ruling that the two metrics are two questions. That is a design choice,
+not a move.
