@@ -1147,8 +1147,8 @@ fn holding<T: Decide>(
 /// [`super::fate`]'s ring rehoming reads too): a limit ahead of a piece
 /// read in band, and a refusal of the whole query (a corrupt face, two
 /// readings of an arc's end that contradict) aborts. A curved region
-/// that gives no verdict is a limit. An escalation is ranked by its
-/// margin; any other refusal is a limit.
+/// that gives no verdict is a limit. A refusal of the read itself is
+/// what the Boolean states it ([`BooleanError::refusal`]).
 fn piece_rung(
     reading: Result<PieceRead, BooleanError>,
     unread: impl FnOnce(Option<ContainError>) -> BooleanError,
@@ -1160,8 +1160,7 @@ fn piece_rung(
             geom_brep::ladder::rung_or_abort(why.refusal(), unread(Some(why)), Err)
         }
         Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
-        Err(read @ BooleanError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| read),
-        Err(read) => Rung::Blocked(read),
+        Err(read) => Rung::refused(read, BooleanError::refusal),
     }
 }
 
@@ -1932,10 +1931,7 @@ fn walls_inside<T: Decide>(
         .ok_or_else(desync)?;
     let (t0, t1) = curve.params();
     let mid = curve.mid_point();
-    let tangent = curve
-        .carrier()
-        .deriv((t0 + t1) * T::from_f64(0.5))
-        .normalize();
+    let tangent = curve.carrier().deriv(geom::mid_param(t0, t1)).normalize();
     let normal = |read: Result<
         Option<geom_brep::OutwardNormal<T>>,
         crate::face_normal::NormalAtError,

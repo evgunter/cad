@@ -396,7 +396,7 @@ pub(crate) fn departures<T: Decide>(
         ) {
             continue;
         }
-        let mid = (s0 + s1) * T::from_f64(0.5);
+        let mid = geom::mid_param(s0, s1);
         let ca = ra.at((a, fa, PairSide::First), locus, mid, scale, band)?;
         let cb = rb.at((b, fb, PairSide::Second), locus, mid, scale, band)?;
         if !(ca.contains() && cb.contains()) {
@@ -561,8 +561,7 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     match locus {
         Locus::Line(line) => line.at(s),
         Locus::Rim(rim) => {
-            let (sin, cos) = s.sin_cos();
-            rim.center + (rim.u_ref * cos + rim.axis.cross(rim.u_ref) * sin) * rim.radius
+            rim.center + geom::Frame::new(rim.center, rim.axis, rim.u_ref).radial(s) * rim.radius
         }
     }
 }
@@ -672,7 +671,7 @@ fn reach<T: Decide>(
             }
         }
         if rides(curve, locus, band)? {
-            let mid = (t0 + t1) * T::from_f64(0.5);
+            let mid = geom::mid_param(t0, t1);
             let p = curve.carrier().eval(mid);
             let along = curve.carrier().deriv(mid) * if he { T::one() } else { -T::one() };
             let tangent = match locus {
