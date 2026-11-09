@@ -170,6 +170,42 @@ mod tests {
         }
     }
 
+    /// **A conic edge's interval is `[0, τ)` at its start and `(t0, t0 + τ]`
+    /// at its end, exactly at both open ends.** A seam start reads `0`,
+    /// not `τ`; an end at the start's own point, on an edge whose two
+    /// vertices are distinct, reads a whole turn on, never a zero-length
+    /// arc, at a start where `Period::near` about `t0 + π` would keep it.
+    #[test]
+    fn a_conic_intervals_open_ends_hold_exactly() {
+        let carrier = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let seam = Point3::new(1.0, 0.0, 0.0);
+        let below = Point3::new(0.0, -1.0, 0.0);
+        let (t0, t1) = endpoint_params(1, &carrier, seam, below, false).expect("an arc");
+        assert_eq!(t0.to_bits(), 0.0_f64.to_bits(), "a seam start reads 0");
+        assert!(
+            (t1 - 1.5 * core::f64::consts::PI).abs() < 1e-12,
+            "the end three quarters on: {t1}"
+        );
+        let p = Point3::new(0.89_f64.cos(), 0.89_f64.sin(), 0.0);
+        let (t0, t1) = endpoint_params(2, &carrier, p, p, false).expect("an arc");
+        let turn = geom_core::period::Period::new(core::f64::consts::TAU);
+        assert_eq!(
+            turn.near(t0, t0 + core::f64::consts::PI).to_bits(),
+            t0.to_bits(),
+            "this start is one near about t0 + π keeps: {t0}"
+        );
+        assert_eq!(
+            t1.to_bits(),
+            (t0 + core::f64::consts::TAU).to_bits(),
+            "an end at the start's point is a whole turn on"
+        );
+    }
+
     #[test]
     fn a_finite_pair_whose_difference_overflows_refuses_on_the_line_arm() {
         // Chosen so the escape is an `Ok`, not a refusal with the
