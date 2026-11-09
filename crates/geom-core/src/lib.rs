@@ -64,7 +64,7 @@ pub use linalg::{
     UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
     not_rigid_reading,
 };
-pub use line2::Line2;
+pub use line2::{Line2, LineMeet};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING, DEFAULT_K,
     DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading, FileCoincidence,

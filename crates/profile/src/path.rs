@@ -4408,18 +4408,36 @@ impl<T: Decide> Core<T> {
         let w = arr_pos - pending.origin;
         let wn = w.norm_squared().sqrt();
         // (1) a turn zero at tolerance admits no corner: the turn
-        // margin sin φ levered by the anchor separation.
-        let cross = u1.perp_dot(u2);
-        let turn = decide(
-            Gate::PathCornerTurn,
-            // Unsourced lever: the two anchors' separation, a length of the consumed path
-            // with no extent home in `profile`.
-            Margin::levered(cross, geom_core::Lever::unsourced(wn)),
-            band,
-        )
-        .map_err(PathError::escalated)?;
-        let Some((sgn, sense)) =
-            crate::sugar::turn_side::<T>(turn).zip(crate::sugar::turn_sense(turn))
+        // margin sin φ levered by the anchor separation, and only a turn
+        // decided nonzero places the corner (`Line2::meet`).
+        let incoming = geom_core::Line2 {
+            origin: pending.origin,
+            dir: u1,
+        };
+        let arrival = geom_core::Line2 {
+            origin: arr_pos,
+            dir: u2,
+        };
+        let meet = incoming
+            .meet(&arrival, |cross| {
+                decide(
+                    Gate::PathCornerTurn,
+                    // Unsourced lever: the two anchors' separation, a length of the consumed path
+                    // with no extent home in `profile`.
+                    Margin::levered(cross, geom_core::Lever::unsourced(wn)),
+                    band,
+                )
+            })
+            .map_err(PathError::escalated)?;
+        // (2) the corner must lie ahead of the incoming ray's origin
+        // and behind the arrival side's anchor (ray parameters, meters).
+        let (turn, cross, at) = match meet {
+            geom_core::LineMeet::Cross { t, s, turn, det } => (turn, det, Some((t, s))),
+            geom_core::LineMeet::Parallel { det } => (Sign::Zero, det, None),
+        };
+        let Some(((sgn, sense), (t_ray, s_arr))) = crate::sugar::turn_side::<T>(turn)
+            .zip(crate::sugar::turn_sense(turn))
+            .zip(at)
         else {
             return Err(PathError::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
@@ -4431,13 +4449,9 @@ impl<T: Decide> Core<T> {
                 radius: pending.radius,
             });
         };
-        // (2) the corner must lie ahead of the incoming ray's origin
-        // and behind the arrival side's anchor (ray parameters, meters).
-        let t_ray = w.perp_dot(u2) / cross;
-        let s_arr = w.perp_dot(u1) / cross;
         // The corner is derived before the windows are read, because a
         // window refusal is ABOUT it: the sentence names the point.
-        let corner = pending.origin + u1 * t_ray;
+        let corner = incoming.at(t_ray);
         match decide(Gate::PathCornerAdvance, Margin::of(t_ray), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {

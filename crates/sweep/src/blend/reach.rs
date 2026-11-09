@@ -1093,13 +1093,13 @@ fn straight_reach<T: Decide + Bounds>(
             }
             skip.push(f);
         }
-        let sv = (pv - start).dot(tau);
+        let sv = geom::plane_offset(start, tau, pv);
         ends.push(match patch {
             // The band ends at the patch, between its anchors' stations,
             // and its material inside the patch is the patch's: the core
             // stops at the vertex.
             Some((_, anchors)) => {
-                let at = |x: &Point3<T>| (*x - start).dot(tau);
+                let at = |x: &Point3<T>| geom::plane_offset(start, tau, *x);
                 let first = anchors.first().map_or(sv, at);
                 let (lo, hi) = anchors
                     .iter()
@@ -1451,7 +1451,7 @@ fn corner_reach<T: Decide + Bounds>(
             for l in links {
                 let far = if l.start == v { l.end } else { l.start };
                 let tau = point_of(body, far)? - pv;
-                if (c - pv).dot(tau).lo() > 0.0 {
+                if geom::plane_offset(pv, tau, c).lo() > 0.0 {
                     bounds.push((Role::Other, half_space(c, tau, pv)));
                 }
             }

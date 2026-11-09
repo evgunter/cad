@@ -887,7 +887,7 @@ impl<T: Real> LoopSplit<T> {
     /// The margin at `p`: positive on the split's positive loop.
     pub(crate) fn margin(&self, p: Point3<T>) -> T {
         match *self {
-            Self::Side { origin, dir } => (p - origin).dot(dir),
+            Self::Side { origin, dir } => geom::plane_offset(origin, dir, p),
             Self::Radius {
                 origin,
                 axis,

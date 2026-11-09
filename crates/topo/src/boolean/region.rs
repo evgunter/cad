@@ -1102,8 +1102,7 @@ impl<T: Decide> Course<T> for Round<T> {
 /// that plane's section curve `section`.
 #[derive(Clone, Copy)]
 pub(crate) struct Line<T: geom_core::Real> {
-    start: Point3<T>,
-    dir: Vec3<T>,
+    ruling: geom::Line<T>,
     normal: Vec3<T>,
     section: LegSection<T>,
 }
@@ -1120,8 +1119,10 @@ impl<T: Decide> Line<T> {
         section: LegSection<T>,
     ) -> Self {
         Self {
-            start: foot.at(),
-            dir,
+            ruling: geom::Line {
+                origin: foot.at(),
+                dir,
+            },
             normal,
             section,
         }
@@ -1130,7 +1131,7 @@ impl<T: Decide> Line<T> {
 
 impl<T: Decide> Course<T> for Line<T> {
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
-        let s = (y - self.start).dot(self.dir);
+        let s = self.ruling.height(y);
         match ray_walk::advance(at, Margin::of(s), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?
         {
@@ -1140,15 +1141,15 @@ impl<T: Decide> Course<T> for Line<T> {
     }
 
     fn heading(&self, _: Point3<T>) -> Vec3<T> {
-        self.dir
+        self.ruling.dir
     }
 
     fn carrier(&self) -> geom::Curve3<T> {
-        geom::Curve3::line(self.start, self.dir)
+        geom::Curve3::Line(self.ruling)
     }
 
     fn plane(&self) -> (Point3<T>, Vec3<T>) {
-        (self.start, self.normal)
+        (self.ruling.origin, self.normal)
     }
 
     fn section(&self) -> LegSection<T> {
@@ -1256,8 +1257,10 @@ mod tests {
     /// The `x` axis from the origin, the line every line row runs on.
     fn x_line() -> Line<f64> {
         Line {
-            start: Point3::origin(),
-            dir: Vec3::new(1.0, 0.0, 0.0),
+            ruling: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::new(1.0, 0.0, 0.0),
+            },
             normal: Vec3::new(0.0, 0.0, 1.0),
             section: LegSection::Whole,
         }

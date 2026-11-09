@@ -11,9 +11,38 @@
 //! planar one `geom::Line` has no counterpart of, signed by the
 //! perp-dot. **`dir` must be nonzero**: on a zero `dir` every reading
 //! divides `0/0`.
+//!
+//! [`Line2::meet`] is where two lines cross: the caller decides their
+//! determinant `self.dir × other.dir` through the band under its own
+//! gate, and only a determinant decided nonzero is divided by
+//! ([`LineMeet`]).
 
-use crate::Real;
 use crate::linalg::{Point2, Vec2};
+use crate::{Real, Sign};
+
+/// **Where two planar lines meet** ([`Line2::meet`]).
+#[derive(Clone, Copy, Debug)]
+pub enum LineMeet<T: Real> {
+    /// The lines cross once, at `self.at(t)` and `other.at(s)`. `turn`
+    /// is the determinant's decided sign, positive where `other.dir`
+    /// turns left of `self.dir`.
+    Cross {
+        /// The crossing's parameter on `self`.
+        t: T,
+        /// The crossing's parameter on `other`.
+        s: T,
+        /// The decided sign of `det`, never `Zero`.
+        turn: Sign,
+        /// `self.dir × other.dir`.
+        det: T,
+    },
+    /// The determinant was decided zero: the lines are parallel to
+    /// within the band, and nothing was divided by it.
+    Parallel {
+        /// `self.dir × other.dir`.
+        det: T,
+    },
+}
 
 /// A line in the plane, `origin + dir·t` (module docs).
 #[derive(Clone, Copy, Debug)]
@@ -71,6 +100,38 @@ impl<T: Real> Line2<T> {
     #[must_use]
     pub fn distance(&self, p: Point2<T>) -> T {
         self.side(p).abs()
+    }
+
+    /// **Where this line and `other` cross**, by Cramer's rule:
+    /// `t = w × other.dir / det` and `s = w × self.dir / det`, with
+    /// `w = other.origin − self.origin` and `det = self.dir × other.dir`.
+    /// `decide` reads `det` through the band under the caller's own gate
+    /// and lever, and returns its sign (or the caller's refusal). A
+    /// sign decided `Zero` is [`LineMeet::Parallel`], and the parameters
+    /// are not formed. A caller that knows the sign already (two
+    /// segments whose ends were decided on opposite sides of each
+    /// other's line) passes that decided sign.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `decide` refuses with.
+    pub fn meet<E>(
+        &self,
+        other: &Self,
+        decide: impl FnOnce(T) -> Result<Sign, E>,
+    ) -> Result<LineMeet<T>, E> {
+        let det = self.dir.perp_dot(other.dir);
+        let turn = decide(det)?;
+        if turn == Sign::Zero {
+            return Ok(LineMeet::Parallel { det });
+        }
+        let w = other.origin - self.origin;
+        Ok(LineMeet::Cross {
+            t: w.perp_dot(other.dir) / det,
+            s: w.perp_dot(self.dir) / det,
+            turn,
+            det,
+        })
     }
 
     /// **The heights at which the line meets the circle** about `centre`

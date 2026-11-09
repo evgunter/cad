@@ -23,8 +23,8 @@ use crate::gate::{Escalation, Gate, check_unlogged, decide, decide_reported};
 use geom_core::one_line::on_one_line_2d;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
-    Arc2, Band, Circles2, Decide, Decided, InfSpeed, Line2, Margin, MarginDiag, Point2, Real, Sign,
-    Vec2,
+    Arc2, Band, Circles2, Decide, Decided, InfSpeed, Line2, LineMeet, Margin, MarginDiag, Point2,
+    Real, Sign, Vec2,
 };
 
 use crate::Segment;
@@ -1198,6 +1198,16 @@ pub(crate) fn arc_lever<T: Real>(radius: T, chord: T) -> T {
 }
 
 impl<T: Real> Seg<T> {
+    /// **The segment as the span `(0, 1)` of a planar line**: from `a`
+    /// along the chord `b − a`, so [`Line2::at`] at a parameter is the
+    /// point that fraction of the way to `b`.
+    pub(crate) fn span_line(&self) -> Line2<T> {
+        Line2 {
+            origin: self.a,
+            dir: self.chord,
+        }
+    }
+
     /// **The segment's chord as a planar line**: from `a` along the unit
     /// chord direction, so its [`Line2::height`] is a point's arc length
     /// along the chord from `a` and [`Line2::side`] its signed offset.
@@ -1666,14 +1676,23 @@ fn line_line<T: Decide>(
         )
     };
     let mut contacts = Vec::new();
-    if opposite(o_c, o_d) && opposite(o_a, o_b) {
-        // Proper crossing, interior to both; the crossing parameter is
-        // well-conditioned here (definite sides bound the transversal
-        // angle away from zero).
-        let denom = s2.chord.perp_dot(s1.chord);
-        let t = s2.chord.perp_dot(s2.a - s1.a) / denom;
+    // Proper crossing, interior to both. The determinant's sign is
+    // already decided: `s1.chord × s2.chord` is `|s1|` times the rise
+    // from `s2.a`'s side of `s1`'s line to `s2.b`'s, and those sides were
+    // decided opposite through the band, so it is `o_d`'s.
+    let (line1, line2) = (s1.span_line(), s2.span_line());
+    let crossing = if opposite(o_c, o_d) && opposite(o_a, o_b) {
+        let Ok(meet) = line1.meet(&line2, |_| Ok::<Sign, std::convert::Infallible>(o_d));
+        match meet {
+            LineMeet::Cross { t, .. } => Some(line1.at(t)),
+            LineMeet::Parallel { .. } => None,
+        }
+    } else {
+        None
+    };
+    if let Some(point) = crossing {
         contacts.push(Contact {
-            point: s1.a + s1.chord * t,
+            point,
             kind: CKind::Crossing,
         });
     } else {
@@ -2443,9 +2462,17 @@ pub(crate) fn ray_crossings<T: Decide>(
                 (Sign::Positive, Sign::Positive) | (Sign::Negative, Sign::Negative) => Ok(0),
                 _ => {
                     // Endpoints strictly straddle the ray line: one
-                    // carrier crossing; count it if strictly ahead.
-                    let denom = seg.chord.perp_dot(dir);
-                    let s = seg.chord.perp_dot(seg.a - origin) / denom;
+                    // carrier crossing; count it if strictly ahead. The
+                    // determinant `dir × chord` is `|dir|` times the rise
+                    // from `seg.a`'s side of the ray's line to `seg.b`'s,
+                    // decided opposite, so its sign is `o_b`'s.
+                    let ray = Line2 { origin, dir };
+                    let Ok(meet) = ray.meet(&seg.span_line(), |_| {
+                        Ok::<Sign, std::convert::Infallible>(o_b)
+                    });
+                    let LineMeet::Cross { t: s, .. } = meet else {
+                        return Err(Graze);
+                    };
                     match decide(Gate::RayAdvance, Margin::of(s), band) {
                         Ok(Sign::Positive) => Ok(1),
                         Ok(Sign::Negative) => Ok(0),
