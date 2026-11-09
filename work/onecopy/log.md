@@ -1124,3 +1124,4 @@
   - 6661 exact-half up (gate green): DInterval Mul exact by ±2ⁿ, 1232 narrowings, 0 wider; its sentence restorations wait on 6632.
 - 18:55Z main-reds: B′ done (k_stats::choose under F38; pin across carrier kinds; corpus 0 <unnamed>). The battery red bisects to ONEHOME's 6380, filed there.
 - 19:00Z Merged PR 6632 (bracket-mid) at gate-green 66aecfb3; main had not moved since. bracket-mid lane → restore the sentences in 6661.
+- 19:10Z Background merges done: 6652 b006ea4c, 6655 85f19ecf, 6650 7ca16ca0, all gating. 6598, 6660, 6663, 6664 and 6656 gates green, waiting on their reviews. 6658 and 6659 overlap 6632 now → merging main into both in the background.
