@@ -85,6 +85,18 @@ fn normalizing_scale<T: Real>(w: T) -> Option<f64> {
     }
 }
 
+/// **The one prescale**: `v`, whose largest `|component|` is `witness`,
+/// brought into the squares' range by [`normalizing_scale`]'s exact power
+/// of two through `scale` (the type's componentwise `scale_pow2`), with
+/// that power; `v` itself and `None` where it is already in range. Every
+/// reading that rescales a vector before its norm reads it here.
+fn prescaled<T: Real, V>(v: V, witness: T, scale: impl FnOnce(V, f64) -> V) -> (V, Option<f64>) {
+    match normalizing_scale(witness) {
+        None => (v, None),
+        Some(k) => (scale(v, k), Some(k)),
+    }
+}
+
 impl<T: Real> Vec2<T> {
     /// Builds a vector from its components. A `const fn` (the doctest
     /// at [`super::Point3::new`] reads a constant of each of the four
@@ -228,13 +240,28 @@ impl<T: Real> Vec2<T> {
     /// policy (`real.rs`): poison flows through values, and the
     /// predicate layer / residual certification is where it is caught.
     pub fn normalize(self) -> Self {
-        match normalizing_scale(self.norm_witness()) {
-            None => self / self.norm(),
-            Some(k) => {
-                let scaled = self.map(|c| c.scale_pow2(k));
-                scaled / scaled.norm()
-            }
-        }
+        self.direction_and_length().0
+    }
+
+    /// `(direction, length)`: [`normalize`](Self::normalize)'s unit
+    /// vector beside this vector's Euclidean length, both read through
+    /// the one prescale. Wherever the largest component lies in
+    /// `(2⁻⁵¹¹, 2⁵¹¹)` it is exactly `(self / n, n)` with
+    /// `n = self.norm()`, bit for bit. Outside that range the length is
+    /// the prescaled norm scaled back by the same power of two, so it
+    /// is finite wherever the true length is: `(1e200, 0)` has length
+    /// `1e200`, not `∞`, and `(1e-170, 0)` has `1e-170`, not `0`. It is
+    /// within 2 ulps of the true length there, not exact: where the
+    /// largest component lies just above `2⁻⁷⁶⁷` the smaller components'
+    /// squares go subnormal after the prescale.
+    ///
+    /// **Total.** The zero vector yields an all-NaN direction and the
+    /// length `0`; an infinite component yields the length `∞`; poison
+    /// propagates into both.
+    pub fn direction_and_length(self) -> (Self, T) {
+        let (scaled, k) = prescaled(self, self.norm_witness(), |v, k| v.map(|c| c.scale_pow2(k)));
+        let n = scaled.norm();
+        (scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip())))
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -430,13 +457,28 @@ impl<T: Real> Vec3<T> {
     /// meets an infinite norm and yields NaN — per the crate's totality
     /// policy (`real.rs`).
     pub fn normalize(self) -> Self {
-        match normalizing_scale(self.norm_witness()) {
-            None => self / self.norm(),
-            Some(k) => {
-                let scaled = self.map(|c| c.scale_pow2(k));
-                scaled / scaled.norm()
-            }
-        }
+        self.direction_and_length().0
+    }
+
+    /// `(direction, length)`: [`normalize`](Self::normalize)'s unit
+    /// vector beside this vector's Euclidean length, both read through
+    /// the one prescale. Wherever the largest component lies in
+    /// `(2⁻⁵¹¹, 2⁵¹¹)` it is exactly `(self / n, n)` with
+    /// `n = self.norm()`, bit for bit. Outside that range the length is
+    /// the prescaled norm scaled back by the same power of two, so it
+    /// is finite wherever the true length is: `(1e200, 0, 0)` has length
+    /// `1e200`, not `∞`, and `(1e-170, 0, 0)` has `1e-170`, not `0`. It
+    /// is within 2 ulps of the true length there, not exact: where the
+    /// largest component lies just above `2⁻⁷⁶⁷` the smaller components'
+    /// squares go subnormal after the prescale.
+    ///
+    /// **Total.** The zero vector yields an all-NaN direction and the
+    /// length `0`; an infinite component yields the length `∞`; poison
+    /// propagates into both.
+    pub fn direction_and_length(self) -> (Self, T) {
+        let (scaled, k) = prescaled(self, self.norm_witness(), |v, k| v.map(|c| c.scale_pow2(k)));
+        let n = scaled.norm();
+        (scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip())))
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -691,10 +733,7 @@ impl<T: Real> Vec3<T> {
     /// length.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let zero = T::zero();
-        let n = match normalizing_scale(self.norm_witness()) {
-            None => self,
-            Some(k) => self.map(|c| c.scale_pow2(k)),
-        };
+        let (n, _) = prescaled(self, self.norm_witness(), |v, k| v.map(|c| c.scale_pow2(k)));
         let scale = n.norm().min(n.norm_witness());
         let vy = Self::new(n.z, zero, -n.x);
         let vz = Self::new(-n.y, n.x, zero);
@@ -933,6 +972,102 @@ mod tests {
         assert!(n2.x.is_nan() && n2.y.is_nan());
     }
 
+    /// The zero vector's pair: an all-NaN direction beside the length
+    /// `0`, which is the value a guard on the length reads; an infinite
+    /// component's length is `∞`.
+    #[test]
+    fn direction_and_length_of_zero_and_of_an_infinite_component() {
+        let (d, n) = Vec3::<f64>::zero().direction_and_length();
+        assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan(), "{d:?}");
+        assert_eq!(n.to_bits(), 0.0f64.to_bits());
+        let (d2, n2) = Vec2::<f64>::zero().direction_and_length();
+        assert!(d2.x.is_nan() && d2.y.is_nan(), "{d2:?}");
+        assert_eq!(n2.to_bits(), 0.0f64.to_bits());
+        let (_, n) = Vec3::new(f64::INFINITY, 1.0, 0.0).direction_and_length();
+        assert_eq!(n, f64::INFINITY);
+    }
+
+    /// **Mixed magnitudes, every binade.** Out of range the pair is
+    /// within 2 ulps of the in-range pair scaled by the same power of two,
+    /// not exact: where the largest component lies just above `2⁻⁷⁶⁷` the
+    /// `2²⁵⁶` prescale lands it just above `2⁻⁵¹¹`, and the smaller
+    /// components' squares go subnormal. The two pinned vectors (found by
+    /// a 200 000-draw search over that band) reach the 2 ulps there, so
+    /// the bound is met and not loose.
+    #[test]
+    fn direction_and_length_are_within_two_ulps_at_every_binade() {
+        let ulps = |a: f64, b: f64| a.to_bits().abs_diff(b.to_bits());
+        let w3 = Vec3::from_array(
+            [
+                4_602_961_963_528_005_167,
+                4_602_315_575_974_780_686,
+                4_601_732_745_548_964_288,
+            ]
+            .map(f64::from_bits),
+        );
+        let w2 = Vec2::from_array(
+            [4_606_193_237_627_688_703, 4_602_668_359_208_288_026].map(f64::from_bits),
+        );
+        let worst = |pair: &dyn Fn(f64) -> (Vec<f64>, f64), want: (Vec<f64>, f64)| {
+            let mut at_766 = 0;
+            for e in -1020..=1020 {
+                let k = pow2(e);
+                let (d, n) = pair(k);
+                let du = d
+                    .iter()
+                    .zip(&want.0)
+                    .map(|(a, b)| ulps(*a, *b))
+                    .max()
+                    .unwrap_or(0);
+                let off = du.max(ulps(n, want.1 * k));
+                assert!(off <= 2, "2^{e}: {off} ulps");
+                if e == -766 {
+                    at_766 = off;
+                }
+            }
+            at_766
+        };
+        let v3 = |k: f64| {
+            let (d, n) = (w3 * k).direction_and_length();
+            (d.to_array().to_vec(), n)
+        };
+        let v2 = |k: f64| {
+            let (d, n) = (w2 * k).direction_and_length();
+            (d.to_array().to_vec(), n)
+        };
+        assert_eq!(
+            worst(&v3, (w3.normalize().to_array().to_vec(), w3.norm())),
+            2,
+            "Vec3 at 2^-766"
+        );
+        assert_eq!(
+            worst(&v2, (w2.normalize().to_array().to_vec(), w2.norm())),
+            2,
+            "Vec2 at 2^-766"
+        );
+    }
+
+    /// One vector through every binade: the direction is `normalize`'s
+    /// bit for bit, and the length is the in-range length times the
+    /// same power of two, exactly — finite past the overflow end, where
+    /// `norm()` alone is `∞`, and nonzero below the underflow end.
+    #[test]
+    fn direction_and_length_scale_together_at_every_binade() {
+        let base = Vec3::new(1.5, -1.25, 0.75);
+        let len = base.norm();
+        for e in -1020..=1020 {
+            let k = pow2(e);
+            let v = base * k;
+            let (d, n) = v.direction_and_length();
+            assert_eq!(
+                d.to_array().map(f64::to_bits),
+                v.normalize().to_array().map(f64::to_bits),
+                "2^{e}"
+            );
+            assert_eq!(n.to_bits(), (len * k).to_bits(), "2^{e}: {n:e}");
+        }
+    }
+
     /// Each cut sits exactly where `normalizing_scale`'s table puts it,
     /// at `f64` and at a point enclosure: the last witness on either
     /// side of every boundary.
@@ -1068,6 +1203,19 @@ mod tests {
                 assert!(c.lo() <= w && w <= c.hi(), "2^{e}: {c:?} misses {w:e}");
                 assert!(c.hi() - c.lo() <= 1e-15, "2^{e}: {c:?} is wide");
             }
+            // At 2^1023 the true length is past `f64::MAX`, and `[MAX, ∞]`
+            // is its enclosure; below 2^-1020 the scaled-back length is
+            // subnormal and padded.
+            let (_, len) = v.direction_and_length();
+            let want_len = base.norm() * pow2(e);
+            assert!(len.lo() > 0.0, "2^{e}: length {len:?}");
+            if (-1020..1023).contains(&e) {
+                assert!(len.is_bounded(), "2^{e}: length {len:?}");
+                assert!(
+                    len.lo() <= want_len && want_len <= len.hi(),
+                    "2^{e}: {len:?} misses {want_len:e}"
+                );
+            }
         }
     }
 
@@ -1155,6 +1303,22 @@ mod tests {
         #[test]
         fn normalize_produces_unit_norm(a in vec3()) {
             prop_assert!((a.normalize().norm() - 1.0).abs() <= 1e-14);
+        }
+
+        /// Wherever the largest component lies in `(2⁻⁵¹¹, 2⁵¹¹)`,
+        /// `direction_and_length` is the unscaled `(v / ‖v‖, ‖v‖)` bit
+        /// for bit, over the same draw as `normalize`'s row below.
+        #[test]
+        fn direction_and_length_is_the_plain_pair_in_range(v in wide_vec3()) {
+            let n = v.norm();
+            let want = v / n;
+            let (got, len) = v.direction_and_length();
+            prop_assert_eq!(len.to_bits(), n.to_bits(), "{:?}", v);
+            prop_assert_eq!(
+                got.to_array().map(f64::to_bits),
+                want.to_array().map(f64::to_bits),
+                "{:?}", v
+            );
         }
 
         /// Wherever the largest component lies in `(2⁻⁵¹¹, 2⁵¹¹)`,
