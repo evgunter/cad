@@ -416,16 +416,26 @@ impl<T: Decide> Surface<T> {
     /// | sphere | `radius` along `p − center` |
     /// | torus | the tube circle's point `m` along `p − q`, then `minor_radius` along `p − m` |
     ///
-    /// `None` where the direction a foot is read along is the zero vector:
-    /// `p` at a sphere's centre, on a cylinder's, cone's or torus's axis,
-    /// or on a torus's tube circle, where every point of a circle or the
-    /// whole sphere is a foot alike. A `p` that lies there only to
-    /// rounding reads one of those feet. Also `None` for a spindle sheet, whose
+    /// `None` where the direction a foot is read along may be the zero
+    /// vector: `p` at a sphere's centre, on a cylinder's, cone's or
+    /// torus's axis, or on a torus's tube circle, where every point of a
+    /// circle or the whole sphere is a foot alike. "May be" is the C6
+    /// structure decision on the direction's length
+    /// ([`structure_nonzero`](geom_core::spline::structure_nonzero)): at
+    /// `f64` the exact zero vector, so a `p` that lies there only to
+    /// rounding reads one of those feet; at the interval scalar any
+    /// enclosure of the length that holds zero, so a cone's apex read at
+    /// `Interval` has no foot rather than an unbounded one. Also `None` for a spindle sheet, whose
     /// meridian circles overlap across the axis, and for a spline net or
     /// a fitted stand-in, none of which has a foot in closed form.
     #[must_use]
     pub fn foot(&self, p: Point3<T>) -> Option<Point3<T>> {
-        let along = |w: Vec3<T>| w.checked_direction().ok().map(|(d, _)| d);
+        let along = |w: Vec3<T>| {
+            w.checked_direction()
+                .ok()
+                .filter(|&(_, len)| geom_core::spline::structure_nonzero(len))
+                .map(|(d, _)| d)
+        };
         match *self {
             Self::Plane { origin, normal, .. } => Some(
                 Line {
@@ -827,6 +837,31 @@ mod tests {
             u_ref: x,
         };
         assert!(plane.foot(o).is_some(), "a plane has a foot everywhere");
+    }
+
+    /// **At the interval scalar, a point whose direction's enclosure
+    /// holds zero has no foot**: a skew cone's apex, read at
+    /// `Interval`, is on its axis only to the axis's enclosure, so
+    /// `p − q` straddles zero, and the foot is refused rather than read
+    /// along a direction that is not one. Off the axis it has a foot.
+    #[test]
+    fn an_enclosure_that_holds_the_zero_direction_has_no_foot() {
+        use geom_core::Interval;
+        let iv = Interval::from_f64;
+        let axis = Vec3::new(1.0, 2.0, 3.0).normalize();
+        let u_ref = axis.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
+        let apex = Point3::new(0.3, 0.1, 0.2);
+        let cone = Surface::Cone {
+            apex: apex.map(iv),
+            axis: axis.map(iv),
+            half_angle: iv(0.4),
+            u_ref: u_ref.map(iv),
+        };
+        let on = (apex + axis * 1.5).map(iv);
+        assert!(cone.foot(on).is_none(), "on the axis's enclosure");
+        assert!(cone.foot(apex.map(iv)).is_none(), "at the apex");
+        let off = (apex + axis * 1.5 + u_ref * 1e-3).map(iv);
+        assert!(cone.foot(off).is_some(), "off the axis");
     }
 
     #[test]
