@@ -38,3 +38,12 @@ Measured over 81 poses (a ∈ {10, 1e2, 1e3}, three aspects, offsets 0,
 
 Pinned: `order_rows::a_thin_ellipse_and_a_small_circle_touching_at_its_vertex_meet_once`,
 red on main.
+
+**The review's wider family** (PR 6656's FULL review, over 10k poses):
+0 wrong, and 445 moved from refused to decided. "Nothing else moved" held
+for this row's 81 poses only. Over the wider family, 4 poses moved from
+decided to refused. All four are at band 1e-9, offset 1e3, on a tilted
+plane: a thin ellipse against a circle of radius 3, tangent outside the
+major vertex, with a lens 0.5·zero deep. The review reads them as
+band-edge flips, a pose on the band's edge read on its other side. Their
+mechanism was not traced here.
