@@ -2,11 +2,14 @@
 id: a-selects-body-takes-an-indexed-read
 kind: issue
 title: A selection's body is a plain read, so a member read by index (xs[i]) cannot be selected from, and Rebind { body } would reach every member's selections
-status: open
+status: parked
 opened: 2026-10-10
 priority: P1
 cost: M
 design: true
+blocked_on: [6555]
+pr: 6555
+branch: reads/select-indexed-member
 ---
 
 
