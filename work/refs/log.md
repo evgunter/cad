@@ -225,3 +225,11 @@
     - `reads_member` made exhaustive and tied to the door;
     - the README's 2417 divergence for non-boolean seats.
   - **Class:** a new seat state (`Member`) checked before an existing one (`HalfUnchosen`), where a node can be both. Seat states compose, and the code assumed they were exclusive.
+- 2026-11-09 — **PR 6593 fix pass green (`b7d09be000`); merged on the orchestrator's read of the delta.**
+  - **Both regressions fixed:**
+    - `Port` is now an output part plus a members part, so a split of a family keeps its half choice in either order;
+    - a family read along a seen path (copy, `⊔` operand, product) is read whole and taken over, as on main.
+  - **Also done:** grid, carry and headless member-row tests; one "is a family" (the door's `admits`); one member lowering; `reads_member` made exhaustive and tied to the door; the old `Port::read` re-spellings routed through it.
+  - **Rows:** DOORS world-copy row re-banded P1; new DOORS P2 (split, mirror and pattern seats should read members, as README 2417 says); PLACING P2 (a pattern of a copy read as its source's copy, on PLACING's open `copy_spaces` ground); REFS P2 `a-split-of-a-family-has-no-halves-a-read-reaches` (evaluation refuses `split.above[1]`, refusal pinned).
+  - `viewer-boolean-tool-cannot-pick-a-read` is closed.
+  - **Process:** the 6564 fix-pass lane re-grew a 12 GB target after I had reclaimed it at review time; it was found at 2.3 GB free. Reclaim a lane's target at MERGE as well as at review.
