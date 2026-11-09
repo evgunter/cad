@@ -165,7 +165,7 @@ pub mod surfaces;
 pub mod test_support;
 
 pub use azimuth::{
-    ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Quarter, Window, separation,
+    ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Quarter, Window, radial_of_legs, separation,
 };
 pub use chart_point::{
     ChannelRead, ChartAngle, ChartArm, ChartChannels, ChartInverse, ChartPoint, NoClosedInverse,

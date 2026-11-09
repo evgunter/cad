@@ -2203,12 +2203,12 @@ impl Trig {
                 if !(exactly(h.pa[0], 0.0) && exactly(h.pb[0], 0.0) && exactly(h.pl[1], 0.0)) {
                     return None;
                 }
-                let v_ref = axis.cross(u_ref);
-                let (s, c) = h.p0[0].sin_cos();
+                let frame = geom::Frame::new(origin, axis, u_ref);
                 // cos(φ + w·t) = cos φ·cos t − w·sin φ·sin t, and
-                // sin(φ + w·t) = sin φ·cos t + w·cos φ·sin t.
-                let at_cos = (u_ref * c + v_ref * s) * radius;
-                let at_sin = (v_ref * c - u_ref * s) * (radius * at(w));
+                // sin(φ + w·t) = sin φ·cos t + w·cos φ·sin t: the radial
+                // and its derivative at φ.
+                let at_cos = frame.radial(h.p0[0]) * radius;
+                let at_sin = frame.tangential(h.p0[0]) * (radius * at(w));
                 Some(Self {
                     c: origin + axis * h.p0[1],
                     a: axis * h.pa[1] + at_cos,

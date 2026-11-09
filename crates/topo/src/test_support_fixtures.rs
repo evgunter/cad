@@ -1375,8 +1375,7 @@ impl CylFrame {
     /// point's axial component and carries that subtraction's rounding
     /// into a direction the chart already names exactly.
     pub fn radial(&self, u: f64) -> Vec3<f64> {
-        let w = self.axis.cross(self.u_ref);
-        self.u_ref * u.cos() + w * u.sin()
+        geom::Frame::new(self.origin, self.axis, self.u_ref).radial(u)
     }
 
     /// The chart map `S(u, v) = origin + radial(u)·radius + axis·v`.
