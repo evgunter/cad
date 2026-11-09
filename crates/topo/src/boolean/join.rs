@@ -5652,12 +5652,21 @@ fn seam_germ_side<T: Decide>(
                     "a section chord's region no longer resolves",
                 )));
             }
-            // A normal refused in band or at a limit is kept; a point
-            // off the region's own surface is a kernel defect.
+            // A normal refused in band or at a limit is kept. A point off
+            // the region's own surface is a kernel defect, and so is a
+            // region on a torus outside the ring convention: the germ
+            // pair's frame refuses that torus before any chord is joined.
             Err(why) => {
-                return rung_or_abort(why.refusal(), why, |_| {
+                return rung_or_abort(why.refusal(), why, |why| {
                     Err(BooleanError::ClassificationInvariant {
-                        what: "a section chord's point reads off the surface of the region it bounds",
+                        what: match why {
+                            NormalAtError::DegenerateTorus { .. } => {
+                                "a section chord's region is a torus outside the ring \
+                                 convention, which the germ pair's frame refuses first"
+                            }
+                            _ => "a section chord's point reads off the surface of the region \
+                                  it bounds",
+                        },
                     })
                 });
             }

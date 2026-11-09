@@ -7,7 +7,7 @@ opened: 2026-10-10
 priority: P1
 cost: H
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [carrier-readings-keep-the-margins-they-decided-on, a-reach-straddle-goes-through-the-straddle-door, a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted, a-corner-reads-only-its-own-sectors]
+blocked_on: [a-reach-straddle-goes-through-the-straddle-door, a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted, a-corner-reads-only-its-own-sectors]
 refs: [decided-coincidence-carries-a-synthetic-invalid-margin, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid, 4641]
 ---
 

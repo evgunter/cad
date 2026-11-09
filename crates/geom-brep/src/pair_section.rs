@@ -676,6 +676,14 @@ impl PairSide {
             Self::Second => Self::First,
         }
     }
+
+    /// This side's entry of `pair`, given in the pair's order.
+    pub fn of<X>(self, [first, second]: [X; 2]) -> X {
+        match self {
+            Self::First => first,
+            Self::Second => second,
+        }
+    }
 }
 
 /// **A node of the section, as the value lists it** (C5): its point, the

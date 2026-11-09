@@ -10,7 +10,7 @@
 //!
 //! - **(i) off** (`curve_pair_window_off`): a lower bound on the distance
 //!   `d` to `b`'s carrier past the zero band — the greater of the middle's
-//!   [`Curve3::clearance`] less the piece's reach, and the least `|H|`;
+//!   [`geom::Curve3::clearance`] less the piece's reach, and the least `|H|`;
 //! - **on** (`curve_pair_window_on`): an upper bound inside the zero band —
 //!   the middle's foot gap plus the reach, `√(|H|² + (L·|F|)²)` at most,
 //!   or the foot gap carried along `b` (below);
@@ -21,7 +21,20 @@
 //! escalation rather than its zero: it answers to no found meeting, so a
 //! point within the gap there is a near-miss the band leaves undecided,
 //! and the root goes to the polish, which escalates on it (the parent
-//! module's docs).
+//! module's docs). **Off there is off `b`'s span**, not only its carrier:
+//! where `b`'s carrier runs on past its span beside `a`, a piece whose
+//! carrier readings fail is read against the span by its carrier's point
+//! walk (`curve_pair_window_off_span`), and one that does not is halved.
+//! Each piece of such an arc stands alone, so the span's reading needs
+//! nothing of its neighbours.
+//!
+//! **An arc a ring bounds** is read outward in a chain whose receding
+//! link is the carrier's distance growing ("No second meeting", below).
+//! A piece read off `b`'s span ends that chain: no point of it is within
+//! the zero of the span, but its far end may lie within the zero of the
+//! carrier, so a piece past it recedes only from a piece read off the
+//! carrier, and any other piece past it must itself read off the span,
+//! halved until it does (`Window::chained`).
 //!
 //! **(ii).** `b` is planar, so `d² = H² + D²`, `D` the distance of `a(θ)`'s
 //! image `Q` in `b`'s plane to `b`. With `F` `b`'s level at `Q`
@@ -83,23 +96,24 @@
 #[cfg(test)]
 mod oracle;
 
-use geom::Curve3;
+use geom::PieceStep;
 use geom_core::bisect::Step;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 
+use super::super::span::{Place, Span};
 use super::{Conic, Level, level_on, up};
 
 /// The most turns of a window or a ring a span is read over.
 const MAX_TURNS: usize = 64;
 
-/// What one window reads: the two conics, `a`'s span, `b`'s carrier,
+/// What one window reads: the two conics, `a`'s span, `b`'s span,
 /// and `a`'s height above `b`'s plane as `(c₀, c₁, s₁)`.
 pub(super) struct Window<'w, T: geom_core::Real> {
     pub(super) a: &'w dyn Conic<T>,
     pub(super) span_a: (T, T),
     pub(super) b: &'w dyn Conic<T>,
-    pub(super) carrier_b: &'w Curve3<T>,
+    pub(super) span_b: &'w Span<'w, T>,
     pub(super) height: (T, T, T),
 }
 
@@ -116,6 +130,19 @@ enum Read {
     Off = 0,
     On = 1,
     Recedes = 2,
+    /// Off `b`'s span, not its carrier (module docs).
+    OffSpan = 3,
+}
+
+/// How a point reads against `b`'s span (`Window::off_span`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SpanRead {
+    /// Every point within the reach is past `z` from the span.
+    Off,
+    /// The point itself is not read past `z` from the span.
+    Near,
+    /// Neither, at the walk's floor or past its budget.
+    Unread,
 }
 
 /// `p` over a piece: lower and upper bounds on `|p|` and on `|p′|`, and
@@ -205,7 +232,7 @@ impl<T: Decide> Window<'_, T> {
         let speed = self.a.speed_hi();
         let reach = speed * w;
         let q = self.a.point_at(m);
-        let lower = self.carrier_b.clearance(q).unwrap_or_else(T::zero) - reach;
+        let lower = self.span_b.carrier().clearance(q).unwrap_or_else(T::zero) - reach;
         let row = "curve_pair_window_recedes";
         // The height and the level are read locally at the middle,
         // uncharged: their few terms round far below the band, and an
@@ -257,17 +284,71 @@ impl<T: Decide> Window<'_, T> {
         if positive("curve_pair_window_off", h.lo.max(lower) - z) {
             return Some(Read::Off);
         }
+        // Unless the middle's foot on `b`'s carrier is read inside `b`'s
+        // span, the span is read instead of the carrier.
+        let past = || {
+            !matches!(
+                self.span_b.place(q, self.foot_seed(q), band),
+                Ok(Place::Inside)
+            )
+        };
+        // Only off certifies an arc no ring bounds: where the middle's foot
+        // is not read inside the span, a piece that does not read off the
+        // span is halved, unless its middle itself is not read off it,
+        // which no halving mends.
+        if away.is_none() && past() {
+            return match self.off_span(q, reach, z, band) {
+                SpanRead::Off => Some(Read::Off),
+                SpanRead::Near => Some(Read::On),
+                SpanRead::Unread => None,
+            };
+        }
         if (height_recedes && (level_recedes || level_negligible)) || level_dominates {
             return Some(Read::Recedes);
         }
-        let foot = self.carrier_b.foot(q, self.foot_seed(q));
+        let foot = self.span_b.carrier().foot(q, self.foot_seed(q));
         let gap = foot.gap() + reach;
         let close = (h.hi.powi(2) + d_hi.powi(2)).sqrt();
         let on = |x: T| decide("curve_pair_window_on", Margin::of(x), band) == Ok(Sign::Zero);
         if on(close) || on(gap) || on(self.along_b(m, w, &foot)) {
             return Some(Read::On);
         }
-        None
+        (away.is_some() && past() && self.off_span(q, reach, z, band) == SpanRead::Off)
+            .then_some(Read::OffSpan)
+    }
+
+    /// **(i) off `b`'s span**, on an arc no ring bounds (module docs):
+    /// whether every point within `reach` of `q` lies past `z` from `b`'s
+    /// span, by its carrier's point walk ([`geom::Curve3::point_walk`]):
+    /// each piece of the span settles where its middle's distance from
+    /// `q`, less its own reach and `reach`, reads past `z`. Not off once a
+    /// piece's reach is within the band's zero: near where `q` itself is
+    /// not read past `z` from that piece, so that no narrower reach about
+    /// `q` reads it off; unread otherwise, and past the walk's budget.
+    fn off_span(&self, q: Point3<T>, reach: T, z: T, band: Band) -> SpanRead {
+        let row = "curve_pair_window_off_span";
+        let span = self.span_b;
+        let walked = span
+            .carrier()
+            .point_walk(q, span.params(), span.speeds().1, |p| {
+                if positive(row, p.gap - p.reach - reach - z) {
+                    return PieceStep::Settled;
+                }
+                if !positive(row, p.reach - T::from_f64(band.zero())) {
+                    let near = !positive(row, p.gap - p.reach - z);
+                    return PieceStep::Stop(if near {
+                        SpanRead::Near
+                    } else {
+                        SpanRead::Unread
+                    });
+                }
+                PieceStep::Halve
+            });
+        match walked {
+            Ok(None) => SpanRead::Off,
+            Ok(Some(read)) => read,
+            Err(_) => SpanRead::Unread,
+        }
     }
 
     /// **An upper bound on `d` over the piece of half-width `w` about `m`,
@@ -281,7 +362,7 @@ impl<T: Decide> Window<'_, T> {
     fn along_b(&self, m: T, w: T, foot: &geom::Foot<'_, T>) -> T {
         let eps = T::from_f64(f64::EPSILON);
         let (_, va) = self.a.jet_at(m);
-        let (_, vb) = self.carrier_b.ders1(foot.seed());
+        let (_, vb) = self.span_b.carrier().ders1(foot.seed());
         let k = va.dot(vb) / vb.dot(vb);
         let (sa, sb) = (self.a.speed_hi(), self.b.speed_hi());
         // `m` and `w` are each within two roundings of `(l ± r)/2`, so
@@ -300,6 +381,58 @@ impl<T: Decide> Window<'_, T> {
         geom::Azimuth::of(y, x).principal_as(super::row::BRANCH, Band::least())
     }
 
+    /// **Whether a ringed arc's pieces, in order up `θ`, hold no meeting
+    /// past the ring** (module docs), read outward from it (`away` up
+    /// `θ`, or down it). Up to the first piece read off `b`'s span, the
+    /// carrier's chain holds them. Past it, the chain restarts at each
+    /// piece read off the carrier: a piece recedes only from one, and any
+    /// other piece must itself read off the span.
+    fn chained(&self, reads: &[((T, T), Read)], away: bool, band: Band) -> bool {
+        let outward: Vec<_> = if away {
+            reads.iter().collect()
+        } else {
+            reads.iter().rev().collect()
+        };
+        let Some(first) = outward.iter().position(|r| r.1 == Read::OffSpan) else {
+            return true;
+        };
+        let mut from_off = false;
+        for &&((l, r), read) in &outward[first..] {
+            from_off = match read {
+                Read::Off => true,
+                Read::Recedes if from_off => true,
+                Read::OffSpan => false,
+                Read::On | Read::Recedes => {
+                    if !self.piece_off_span((l, r), band) {
+                        return false;
+                    }
+                    false
+                }
+            };
+        }
+        true
+    }
+
+    /// Whether the piece `(l, r)` reads off `b`'s span past the band's
+    /// zero, halved until each part does or one is narrower than the band.
+    fn piece_off_span(&self, (l, r): (T, T), band: Band) -> bool {
+        let (two, z) = (T::from_f64(2.0), T::from_f64(band.zero()));
+        let speed = self.a.speed_hi();
+        let walked = geom_core::bisect::bisect([(l, r)], |(pl, pr)| {
+            let mid = (pl + pr) / two;
+            match self.off_span(self.a.point_at(mid), speed * (pr - pl) / two, z, band) {
+                SpanRead::Off => return Step::Settled,
+                SpanRead::Near => return Step::Stop(()),
+                SpanRead::Unread => {}
+            }
+            if !positive("curve_pair_window_width", speed * (pr - pl) - z) {
+                return Step::Stop(());
+            }
+            Step::Halve([(pl, mid), (mid, pr)])
+        });
+        matches!(walked, Ok(None))
+    }
+
     /// **The pieces of `(l, r)`, each read**, halved until each reads or
     /// one is narrower than the band; `None` past the budget or at a piece
     /// that cannot read.
@@ -309,12 +442,12 @@ impl<T: Decide> Window<'_, T> {
         away: Option<bool>,
         level: &Level<'_, T>,
         band: Band,
-    ) -> Option<Vec<Read>> {
+    ) -> Option<Vec<((T, T), Read)>> {
         let speed = self.a.speed_hi();
         let mut out = Vec::new();
         let walked = geom_core::bisect::bisect([(l, r)], |(pl, pr)| {
             if let Some(read) = self.read((pl, pr), away, level, band) {
-                out.push(read);
+                out.push(((pl, pr), read));
                 return Step::Settled;
             }
             if !positive(
@@ -427,7 +560,11 @@ impl<T: Decide> Window<'_, T> {
                 let Some(reads) = self.pieces(arc, away, &level, band) else {
                     return false;
                 };
-                if away.is_none() && reads.iter().any(|&x| x != Read::Off) {
+                let holds = match away {
+                    None => reads.iter().all(|&(_, x)| x == Read::Off),
+                    Some(up) => self.chained(&reads, up, band),
+                };
+                if !holds {
                     return false;
                 }
             }
@@ -491,7 +628,10 @@ mod rows {
             a: &ka,
             span_a,
             b: &kb,
-            carrier_b: b,
+            span_b: &crate::curve_pair::Span::new(
+                b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let j = Joint {
@@ -723,13 +863,16 @@ mod rows {
                 a: &ka,
                 span_a: (0.0, tau),
                 b: &kb,
-                carrier_b: &b,
+                span_b: &crate::curve_pair::Span::new(
+                    &b,
+                    (-core::f64::consts::PI, core::f64::consts::PI),
+                ),
                 height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
             };
             let level = super::super::level_on(&ka, &kb);
             let past_zero = window
                 .pieces((tau - w, tau), Some(true), &level, band())
-                .is_some_and(|reads| reads.iter().all(|&x| x == super::Read::Off));
+                .is_some_and(|reads| reads.iter().all(|&(_, x)| x == super::Read::Off));
             if !past_zero || got {
                 bad.push(format!(
                     "{label}: off past the zero {past_zero}, holds {got}"
@@ -767,7 +910,10 @@ mod rows {
             a: &ka,
             span_a: (-1.0, 1.0),
             b: &kb,
-            carrier_b: &b,
+            span_b: &crate::curve_pair::Span::new(
+                &b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
@@ -917,7 +1063,10 @@ mod rows {
             a: &ka,
             span_a: (-0.5, 0.5),
             b: &kb,
-            carrier_b: b,
+            span_b: &crate::curve_pair::Span::new(
+                b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let j = Joint {
@@ -976,7 +1125,10 @@ mod rows {
             a: &ka,
             span_a: (-0.5, 0.5),
             b: &kb,
-            carrier_b: &b,
+            span_b: &crate::curve_pair::Span::new(
+                &b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
@@ -1032,7 +1184,10 @@ mod rows {
             a: &ka,
             span_a: (399.0, 401.0),
             b: &kb,
-            carrier_b: &b,
+            span_b: &crate::curve_pair::Span::new(
+                &b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let mut l = 400.0_f64;

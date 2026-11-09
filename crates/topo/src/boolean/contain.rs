@@ -1027,7 +1027,7 @@ fn sphere_face_containment<T: Decide>(
             Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
         }
     }
-    let region = match super::sphere_region::sphere_face_region(body, face, center, radius) {
+    let region = match super::sphere_region::sphere_face_region(body, face) {
         Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
