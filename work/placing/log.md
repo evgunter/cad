@@ -367,3 +367,13 @@ Newest entries at the bottom; the tail is the program's live status.
 - 2026-11-09 — **Design fork dispatched** on `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space` (P1): how a placement's target is chosen at Place and changed later, under Ev's rule that a mate never changes it, with Ev's 6580 reservation on Place's own-space target.
   - Three designers (arm byte 59; label byte 255 redrawn to 96); the mapping is on `analysis/design-fork/placing-target-space`.
   - Brief: `~/.local/share/cad-work/placing-fork-target-brief.md`, problem only; the row's agent-written sketches are named as not decisions. (PLACING orchestrator)
+- 2026-11-09 — **Target-space fork: first reports are in, and they disagree.**
+  - **A:** Place asks where it goes (two picks), with a target field. A change that leaves old-space mates is held by the solving door and offers a strike button. Reads stranded in the old space are admitted and reported. Values keep their numbers and are not re-measured.
+  - **B:** Place lands in the body's own space, and the target is an editor seat. A change empties the old-space mates' `to` picks and is held. Stranded reads are held, naming the reader. Values keep their numbers. B is unsure between this and Place-asks-where.
+  - **C:** Place lands in the body's own space, with an "Into" row. Old-space mates are struck and the freedoms they set are measured where the copy stood. Stranded reads are admitted and reported, and Undo takes them back.
+  - **All three agree:**
+    - the checkbox goes;
+    - the target is an editable property of the placement;
+    - every door that re-targets a placement uses one live edit;
+    - D10 is unchanged.
+  - **Round 1 dispatched:** each designer is shown the other two. (PLACING orchestrator)
