@@ -2536,7 +2536,7 @@ impl<T: Decide> CarriedComponent<T> {
         match decide_nonzero(SITE_IN_SPAN, inside, band) {
             Ok(NonzeroSign::Positive) => Ok(Some(t)),
             Ok(NonzeroSign::Negative) => {
-                let reach = T::from_f64(2.0 * band.zero());
+                let reach = T::from_computed(2.0 * band.zero());
                 match decide_nonzero(SITE_PAST_SPAN, Margin::of(inside.value() + reach), band) {
                     Ok(NonzeroSign::Negative) => Ok(None),
                     Ok(NonzeroSign::Positive) => Err(SiteRefusal::Desync(
