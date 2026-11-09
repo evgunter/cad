@@ -96,7 +96,7 @@
 //!   `(A² − c₀²)/r²`, `r` its larger semi-axis, which is the squared
 //!   sine of its crossing for a circle. That is a choice between two
 //!   sound readings, not a reading: it is taken off the log
-//!   (`curve_pair_pose_across`, `k_stats::check_unlogged`, ledger row
+//!   (`curve_pair_pose_across`, `k_stats::choose`, ledger row
 //!   F33, at [`Band::least`]), and a tie or an undecided difference
 //!   reads the first. **What is order-free**: the route (apart, level,
 //!   across, escalation) depends only on the pair, and across planes
@@ -397,7 +397,7 @@
 mod window;
 
 use geom::{Azimuth, Curve3, CurveKind};
-use geom_core::k_stats::{check_unlogged, decide, straddle};
+use geom_core::k_stats::{Pick, choose, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
@@ -1218,7 +1218,17 @@ fn conic_conic<T: Decide>(
             (swing.powi(2) - c0.powi(2)) / p.abs().max(q.abs()).powi(2)
         };
         let by_b = steep(hb, swing_b, &kb) - steep(ha, swing_a, &ka);
-        if check_unlogged(row::ACROSS, by_b, Band::least(), "F33") == Ok(Sign::Positive) {
+        // Which conic to read across the other's plane: a heuristic's
+        // choice (ledger row F33). **At a tie the first is read**: either
+        // reading is sound there, each deciding or escalating on its own
+        // rows, and the window certifies a tangent pair's touch either way;
+        // the difference is antisymmetric bit for bit, so at `f64` only an
+        // exact zero reads by argument order.
+        let across_b = match choose(row::ACROSS, Margin::of(by_b), "F33") {
+            Pick::Positive => true,
+            Pick::Negative | Pick::Tie => false,
+        };
+        if across_b {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
             let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
             return Ok(swapped(read?));
