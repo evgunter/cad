@@ -2,11 +2,13 @@
 id: co-surface-carriers-have-no-home-of-their-own-in-curve-pair
 kind: issue
 title: Two carriers on one surface have no co-surface reading in curve_pair; a lane can hand them to meet, whose 3D gap is identically zero ([ev]: C5 sentence + OnSurface type)
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: M
 refs: [region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet]
+closed: 2026-11-09
+pr: 6567
 ---
 
 
@@ -39,6 +41,6 @@ It earns its place with a second consumer. The sphere cut-in is one.
    - `region::landings` and the three doors' `Round` and `Line` legs read through it. `Round::through`, `Line::from` and `LegSection` are gone.
    - `apply_cut_ins` reads the cut's half-meridian as a sphere meridian through it. `FirstHarmonic::conic_off_plane` and the `bool_sphere_cut_roots_*` rows are retired (`docs/K-REPORT.md`, ONECOPY addendum on the cut-in).
 
-Item 3, the C5 rule, is the `[ev]` PR 6567. This row closes there.
+Item 3, the C5 rule, is PR 6567. Ev agreed with it on 2026-11-09, with the how kept in C5 only, and the row closes there.
 
-**Type gap left (review of 6566).** Nothing in the types ties an `OnSurface` to its `SurfaceCurve`'s surface: `OnSurface::edge` takes a bare carrier and span, and that the edge lies on the curve's surface is its documented precondition, held by the caller. A `SurfaceCurve` is tied to a `geom::Surface` value, not to a face's record: `apply_cut_ins` charts the face's sphere on its own `u_ref`, and a region door rebuilds its surface from its fields. Closing it would mean an `OnSurface` built from a face (its record and edge) and a `SurfaceCurve` carrying that record's key, so `across` could refuse a mismatch.
+**Type gap left (review of 6566):** filed as `an-on-surface-edge-is-not-tied-to-its-curves-surface`.
