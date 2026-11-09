@@ -97,8 +97,7 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
     for (he_key, he) in body.half_edges() {
         let curved = body
             .get_loop(he.parent_loop)
-            .and_then(|l| body.get_face(l.face))
-            .and_then(|f| body.get_surface(f.surface))
+            .and_then(|l| body.face_surface(l.face))
             .is_some_and(|s| !matches!(s, geom::Surface::Plane { .. }));
         if curved {
             assert!(

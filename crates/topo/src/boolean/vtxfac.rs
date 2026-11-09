@@ -529,7 +529,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // the operand and the passes before this one left it.
     let pierced_face =
         pierced_body
-            .passed_face(contact.face)
+            .face(contact.face)
             .ok_or(BooleanError::ClassificationInvariant {
                 what: "a vertex-on-face contact's face no longer resolves",
             })?;

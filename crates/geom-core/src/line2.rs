@@ -11,9 +11,38 @@
 //! planar one `geom::Line` has no counterpart of, signed by the
 //! perp-dot. **`dir` must be nonzero**: on a zero `dir` every reading
 //! divides `0/0`.
+//!
+//! [`Line2::meet`] is where two lines cross: the caller decides their
+//! determinant `self.dir × other.dir` through the band under its own
+//! gate, and only a determinant decided nonzero is divided by
+//! ([`LineMeet`]).
 
-use crate::Real;
 use crate::linalg::{Point2, Vec2};
+use crate::{Real, Sign};
+
+/// **Where two planar lines meet** ([`Line2::meet`]).
+#[derive(Clone, Copy, Debug)]
+pub enum LineMeet<T: Real> {
+    /// The lines cross once, at `self.at(t)` and `other.at(s)`. `turn`
+    /// is the determinant's decided sign, positive where `other.dir`
+    /// turns left of `self.dir`.
+    Cross {
+        /// The crossing's parameter on `self`.
+        t: T,
+        /// The crossing's parameter on `other`.
+        s: T,
+        /// The decided sign of `det`, never `Zero`.
+        turn: Sign,
+        /// `self.dir × other.dir`.
+        det: T,
+    },
+    /// The determinant was decided zero: the lines are parallel to
+    /// within the band, and nothing was divided by it.
+    Parallel {
+        /// `self.dir × other.dir`.
+        det: T,
+    },
+}
 
 /// A line in the plane, `origin + dir·t` (module docs).
 #[derive(Clone, Copy, Debug)]
@@ -71,6 +100,47 @@ impl<T: Real> Line2<T> {
     #[must_use]
     pub fn distance(&self, p: Point2<T>) -> T {
         self.side(p).abs()
+    }
+
+    /// **Where this line and `other` cross**, by Cramer's rule:
+    /// `t = w × other.dir / det` and `s = w × self.dir / det`, with
+    /// `w = other.origin − self.origin` and `det = self.dir × other.dir`.
+    /// `decide` reads `det` through the band under the caller's own gate
+    /// and lever, and returns its sign (or the caller's refusal). A
+    /// sign decided `Zero` is [`LineMeet::Parallel`], and the parameters
+    /// are not formed. A caller whose transversality another decision
+    /// already settles reads [`Self::meet_transversal`] instead.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `decide` refuses with.
+    pub fn meet<E>(
+        &self,
+        other: &Self,
+        decide: impl FnOnce(T) -> Result<Sign, E>,
+    ) -> Result<LineMeet<T>, E> {
+        let det = self.dir.perp_dot(other.dir);
+        let turn = decide(det)?;
+        if turn == Sign::Zero {
+            return Ok(LineMeet::Parallel { det });
+        }
+        let (t, s) = self.meet_transversal(other);
+        Ok(LineMeet::Cross { t, s, turn, det })
+    }
+
+    /// **Where this line and `other` cross, the caller having settled
+    /// that they do**: `(t, s)` as [`Self::meet`] forms them, with no
+    /// decision of the determinant here. It is for a pair whose
+    /// transversality another decision through the band already fixes,
+    /// e.g. two segments whose ends were each decided on opposite sides of
+    /// the other's line: the determinant is then the side readings' rise,
+    /// definitely nonzero. Its caller says at the site which decision
+    /// that is; any other caller reads [`Self::meet`].
+    #[must_use]
+    pub fn meet_transversal(&self, other: &Self) -> (T, T) {
+        let det = self.dir.perp_dot(other.dir);
+        let w = other.origin - self.origin;
+        (w.perp_dot(other.dir) / det, w.perp_dot(self.dir) / det)
     }
 
     /// **The heights at which the line meets the circle** about `centre`
@@ -165,5 +235,32 @@ mod tests {
             assert!(((unit.at(h) - centre).norm() - 5.0).abs() < 1e-14);
         }
         assert!(line.circle_heights(centre, 4.0)[0].is_nan());
+    }
+
+    #[test]
+    #[allow(clippy::panic)]
+    fn meet_crosses_only_on_a_decided_turn() {
+        let a = slanted();
+        let b = Line2 {
+            origin: Point2::new(9.0, 0.0),
+            dir: Vec2::new(-1.0, 2.0),
+        };
+        let sign_of = |det: f64| {
+            Ok::<Sign, ()>(if det > 0.0 {
+                Sign::Positive
+            } else {
+                Sign::Negative
+            })
+        };
+        let Ok(LineMeet::Cross { t, s, turn, det }) = a.meet(&b, sign_of) else {
+            panic!("the lines cross");
+        };
+        // det = (3, 4) × (−1, 2) = 10, b turns left of a.
+        assert_eq!((turn, det), (Sign::Positive, 10.0));
+        assert!((a.at(t) - b.at(s)).norm() < 1e-13, "{t} {s}");
+        // A determinant decided zero forms no parameter; a refusal passes through.
+        let parallel = a.meet(&b, |_| Ok::<Sign, ()>(Sign::Zero));
+        assert!(matches!(parallel, Ok(LineMeet::Parallel { det }) if det == 10.0));
+        assert!(a.meet(&b, |_| Err::<Sign, &str>("refused")).is_err());
     }
 }

@@ -144,9 +144,7 @@ struct Witness {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Surface<T> {
-    body.get_surface(body.get_face(f).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(f).unwrap().clone()
 }
 
 /// **The witness check**: the closest pair of the two cells' on-face
@@ -241,9 +239,10 @@ fn pairs(n: usize) -> usize {
 /// touch, and a touching pair is discharged only by a certificate.
 fn touching_pairs<T: Real>(body: &Body<T>) -> BTreeSet<(FaceKey, FaceKey)> {
     let vertices = |f: FaceKey| -> BTreeSet<VertexKey> {
-        let face = body.get_face(f).unwrap();
-        core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
+        body.face(f)
+            .unwrap()
+            .loops()
+            .map(|(lk, _, _)| lk)
             .flat_map(|l| match body.get_loop(l).unwrap().boundary {
                 LoopBoundary::Empty { vertex } => vec![vertex],
                 LoopBoundary::Cycle { first } => body
@@ -1153,11 +1152,8 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
         };
         let strut = body
             .edges()
-            .find(|(_, e)| {
-                let ends = [
-                    body.get_half_edge(e.he_plus).unwrap().start,
-                    body.get_half_edge(e.he_minus).unwrap().start,
-                ];
+            .find(|&(k, _)| {
+                let ends = <[_; 2]>::from(body.edge_vertices(k).unwrap());
                 ends.contains(&s_lo) && ends.contains(&s_hi)
             })
             .unwrap()

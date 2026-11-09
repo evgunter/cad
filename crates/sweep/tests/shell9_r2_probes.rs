@@ -42,9 +42,9 @@ fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
 /// Planar faces normal to `y` at height `y`.
 fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.y - y).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.z.abs() < 1e-9
             )

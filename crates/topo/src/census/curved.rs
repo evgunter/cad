@@ -249,8 +249,10 @@ impl<T: Real> EdgeTangent<T> {
 /// A straight edge's is its line's direction ([`super::edge_line`]),
 /// the same at every point, so it answers for any `q` and the caller
 /// holds `q` on the edge. A curve's is its tangent, with its curvature
-/// vector, at the parameter its span certifies `q` on ([`Hit::On`]), so
-/// no reader of it rests on an uncertified foot. `Some(None)` where `q`
+/// vector, at the parameter its span certifies `q` on ([`Hit::On`]).
+/// That parameter is `q`'s own branch where the body's boundary is
+/// embedded at the band, which the at-rest gate certifies
+/// (`DESIGN.md` `[topology.tiers]`). `Some(None)` where `q`
 /// is not on a curve's interior; `None` where a decision escalated or
 /// the edge is not read (pushed, [`edge_tangent_refusal`]).
 pub(super) fn edge_tangent_at<T: Decide>(

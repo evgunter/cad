@@ -481,7 +481,7 @@ fn a_pinch_records_the_vertex_identity_that_made_it() {
     let cube = cube_beyond([1.0, 1.3, 0.7], 4.0);
     let bottom = cube
         .faces()
-        .find(|(_, f)| match cube.get_surface(f.surface) {
+        .find(|(fk, _)| match cube.face_surface(*fk) {
             Some(topo::Surface::Plane { origin, normal, .. }) => {
                 let p = geom_core::Point3::new(PINCH_AT[0], PINCH_AT[1], PINCH_AT[2]);
                 (p - *origin).dot(*normal).abs() < 1e-12
