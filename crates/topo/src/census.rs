@@ -7651,8 +7651,9 @@ impl TouchUnread {
     /// **The backstop's sentence for a touch left unread**, as a
     /// [`Undecided::Touch`] finding renders it: the touch, why it was
     /// not read, and the recourse, each reason's own. A reason the
-    /// backstop never waits on as a touch, a corrupt body
-    /// ([`Self::undecided`]), renders as [`Undecided::CorruptInstance`].
+    /// backstop never waits on as a touch, a corrupt body or a lone-vertex
+    /// loop ([`Self::undecided`]), renders as that reason's
+    /// [`Undecided::CorruptInstance`] or [`Undecided::LoneLoop`].
     fn backstop_sentence(self) -> &'static str {
         match self {
             Self::InBand => concat!(
@@ -7707,6 +7708,7 @@ impl TouchUnread {
                 geom_core::kernel_defect_ending!()
             ),
             Self::Corrupt => Undecided::CorruptInstance.what(),
+            Self::LoneLoop => Undecided::LoneLoop.what(),
         }
     }
 
