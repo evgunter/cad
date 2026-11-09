@@ -6,7 +6,7 @@ status: closed
 opened: 2026-11-09
 priority: P2
 cost: E
-refs: [6655, 6648, 6660]
+refs: [6655, 6648, 6660, 6652]
 closed: 2026-11-09
 pr: 6689
 ---
