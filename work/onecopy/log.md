@@ -902,3 +902,4 @@
 - 11:08Z PR 6632 is at bbdd9a05 with the NaN-exit pin; the reviewer was told.
 - 11:12Z PR 6623 delta (S, 5e1ce5c1): MERGE-WITH-FIXES. S is sound and order-free. D1: ringed arcs still refuse two shared-end poses; extend off_span to them (measured: fixes both, moves nothing else) or re-open the row narrowed. The clear_of census and copy note go to the lane with the pending fix list.
 - 11:15Z PR 6621's fix pass (bb162293): per-site names through SpiricRegimeSites, a typed RingTorus precondition, two pin rows, one decide_across path. Delta sent to the original reviewer.
+- 11:18Z PR 6626 delta: FIX. D1 (MAJOR, latent): the open-end fold returns [a,a] at Interval for a decidedly-below t, so the enclosure is lost. The fix must contain lifted, keep f64 bit-identical, add an Interval pin, and qualify the docs. D6: debug_assert becomes a loud check. The f64 fold, the 163 seam moves and the camera reason are confirmed. Sent to the lane.
