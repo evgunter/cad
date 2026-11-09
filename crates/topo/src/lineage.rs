@@ -378,7 +378,8 @@ enum Shape {
 impl Shape {
     /// `cell`'s shape in `body`: a vertex's point; an edge's carrier and
     /// its ends' points; a face's carrier, sense, and the points and
-    /// carriers of its boundary. None where `body` does not hold it.
+    /// carriers of its boundary. None where `body` does not hold it, or
+    /// holds a face a loop of which it cannot walk.
     fn of<T: geom_core::Real>(body: &crate::Body<T>, cell: Cell) -> Option<Self> {
         let point = |v| body.get_vertex(v).map(|d| d.point);
         match cell {
@@ -396,12 +397,19 @@ impl Shape {
                 let (mut points, mut curves) = (BTreeSet::new(), BTreeSet::new());
                 // Read unchecked: the snapshot is taken before a door's
                 // own checks run. Its points are the boundary's vertices,
-                // a lone one included; its curves, its cycles' edges.
-                points.extend(body.unchecked_face_vertices(face).filter_map(point));
-                for cycle in body.unchecked_face_cycles(face).filter_map(Result::ok) {
-                    for he in cycle {
-                        let edge = body.get_half_edge(he).and_then(|h| body.get_edge(h.edge));
-                        curves.extend(edge.map(|e| e.curve));
+                // a lone one included; its curves, its cycles' edges. A
+                // loop it cannot walk leaves the face with no shape, so no
+                // image reads as holding it.
+                for read in body.unchecked_face_boundary(face) {
+                    match read.ok()? {
+                        crate::live::UncheckedLoop::Lone(vertex) => points.extend(point(vertex)),
+                        crate::live::UncheckedLoop::Cycle(cycle) => {
+                            for he in cycle {
+                                let h = body.get_half_edge(he)?;
+                                points.extend(point(h.start));
+                                curves.extend(body.get_edge(h.edge).map(|e| e.curve));
+                            }
+                        }
                     }
                 }
                 Some(Self::Face {

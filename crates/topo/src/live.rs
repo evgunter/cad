@@ -746,9 +746,11 @@ impl<T: Real> Body<T> {
     ) -> impl Iterator<Item = Result<Vec<HalfEdgeKey>, LoopKey>> + 'a {
         face.loop_keys()
             .zip(self.unchecked_face_boundary(face))
-            .map(|(lk, read)| match read? {
-                UncheckedLoop::Cycle(cycle) => Ok(cycle),
-                UncheckedLoop::Lone(_) => Err(lk),
+            .map(|(lk, read)| {
+                let UncheckedLoop::Cycle(cycle) = read? else {
+                    return Err(lk);
+                };
+                Ok(cycle)
             })
     }
 
