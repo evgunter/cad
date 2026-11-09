@@ -670,3 +670,4 @@
 - 2026-11-09 — PR 6609 pass in (894d822f): M1 fixed in the shared door span_plane_meet (an off-span belly graze within its root spread → Touch, new row plane_crossing_graze_reach), which reaches the region doors and the cut-in; span_roots is left by design; arc_trim moved beside check 9. Body update asked for; delta review with session_013mPGJ4vnufcbiTbYVfvFs2.
 - 2026-11-09 — PR 6602 delta: MERGE, after the lane merges main (the m10 repin turns green per the reviewer's trial merge). Filed the-least-band-gates-door-list-is-a-hand-copy-of-k-stats-doors (P3).
 - 2026-11-09 — The GitHub-releases 504 on lint's ruff download persists for runners (6552 at 06:25 failed again; my local curl gets 200). Holding re-triggers until it clears: 6552, 6605 and 6606 are waiting on a green lint.
+- 2026-11-09 — PR 6605 merged (pinch premise) on GATE GREEN at bc36a350; 6610 landed after, disjoint, workspace check of the merge clean.
