@@ -3429,6 +3429,29 @@ mod curved_carrier_rows {
 
     const UNREAD: Placed = Placed::Unread(EdgeInFaceGap::CarrierUnread);
 
+    /// A torus of minor radius `0.3` whose `R − r` is midway between the
+    /// band's zero and its escalation: neither decided a ring nor not.
+    fn ring_in_band(center: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> geom::Surface<f64> {
+        let b = band();
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius: 0.3 + 0.5 * (b.zero() + b.escalate()),
+            minor_radius: 0.3,
+            u_ref,
+        }
+    }
+
+    /// Whether `read` is the ring decision's escalation
+    /// ([`super::RIDER_RING_TORUS`]), not some other refusal.
+    fn escalates_on_the_ring(read: Result<Placed, super::BooleanError>) -> bool {
+        matches!(
+            read,
+            Err(super::BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some(super::RIDER_RING_TORUS)
+        )
+    }
+
     /// The spiric about the `z` axis, `R = 2`, `r = 1`, in the plane
     /// `x = d`.
     fn spiric(offset: f64) -> geom::Curve3<f64> {
@@ -3755,11 +3778,10 @@ mod curved_carrier_rows {
             UNREAD,
             "a spiric against a torus with R < r"
         );
-        let b = band();
-        let in_band = at(0.3 + 0.5 * (b.zero() + b.escalate()));
+        let in_band = ring_in_band(s.eval(0.0), Vec3::unit_x(), Vec3::unit_y());
         assert!(
-            conic_or_line_on(&s, (-0.5, 0.5), &in_band, b).is_err(),
-            "a torus whose ring is in band escalates"
+            escalates_on_the_ring(conic_or_line_on(&s, (-0.5, 0.5), &in_band, band())),
+            "a torus whose ring is in band escalates on the ring decision"
         );
     }
 
@@ -3773,10 +3795,10 @@ mod curved_carrier_rows {
     #[test]
     fn a_conic_against_a_torus_whose_ring_is_in_band_escalates() {
         let b = band();
-        let at = |major_radius: f64| geom::Surface::Torus {
+        let ring = geom::Surface::Torus {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
-            major_radius,
+            major_radius: 2.0,
             minor_radius: 0.3,
             u_ref: Vec3::unit_x(),
         };
@@ -3788,14 +3810,14 @@ mod curved_carrier_rows {
         );
         let span = (0.0, core::f64::consts::TAU);
         assert_eq!(
-            conic_or_line_on(&circle, span, &at(2.0), b).unwrap(),
+            conic_or_line_on(&circle, span, &ring, b).unwrap(),
             Placed::Off,
             "a circle far above a ring torus reads off"
         );
-        let in_band = at(0.3 + 0.5 * (b.zero() + b.escalate()));
+        let in_band = ring_in_band(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
         assert!(
-            conic_or_line_on(&circle, span, &in_band, b).is_err(),
-            "a torus whose ring is in band escalates"
+            escalates_on_the_ring(conic_or_line_on(&circle, span, &in_band, b)),
+            "a torus whose ring is in band escalates on the ring decision"
         );
     }
 
