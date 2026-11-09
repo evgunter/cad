@@ -103,7 +103,7 @@ fn box_at<F: Fn(f64) -> f64>(
 /// order. Total since the F4 fix: both subtracts COMPUTE at every ε
 /// row in the matrix (module docs — this used to return `None` on the
 /// rows where the mm pocket subtract refused in-band).
-fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
+fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, Option<f64>)>> {
     let s = |v: f64| v * scale;
     let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
     // Corner overlap: generic crossing subtract.
@@ -135,11 +135,12 @@ fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
              every known in-band refusal on this configuration: {other:?}"
         ),
     }
-    let mut out: BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> = BTreeMap::new();
+    let mut out: BTreeMap<&'static str, Vec<(SampleOutcome, Option<f64>)>> = BTreeMap::new();
     for sample in k_stats::take_samples() {
-        out.entry(sample.predicate)
-            .or_default()
-            .push((sample.outcome, sample.margin.abs()));
+        out.entry(sample.predicate).or_default().push((
+            sample.outcome,
+            (!sample.reads_sign_only()).then_some(sample.margin.abs()),
+        ));
     }
     out
 }
@@ -176,7 +177,8 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
         }
         // The verdict-stream pin: outcomes are scale-free and must be
         // IDENTICAL sample-for-sample in recording order.
-        let outcomes = |l: &[(SampleOutcome, f64)]| l.iter().map(|s| s.0).collect::<Vec<_>>();
+        let outcomes =
+            |l: &[(SampleOutcome, Option<f64>)]| l.iter().map(|s| s.0).collect::<Vec<_>>();
         assert_eq!(
             outcomes(mm_list),
             outcomes(m_list),
@@ -186,7 +188,7 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
         // separations, not coincident-residual fp noise) must scale
         // linearly. Sorted pairing: recording order pairs unrelated
         // sites when a predicate fires on several entities.
-        let decisive = |l: &[(SampleOutcome, f64)]| {
+        let decisive = |l: &[(SampleOutcome, Option<f64>)]| {
             let mut v: Vec<f64> = l
                 .iter()
                 .filter(|s| {
@@ -195,7 +197,9 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
                         SampleOutcome::Definite(Sign::Positive | Sign::Negative)
                     )
                 })
-                .map(|s| s.1)
+                // A sign-only read (`MarginSample::reads_sign_only`) has
+                // no scale; its verdicts are compared above.
+                .filter_map(|s| s.1)
                 // The CANONICAL SCAFFOLDING CIRCLE
                 // (`EdgeCurveSpec::self_loop_circle_at`: radius exactly
                 // 1, span exactly (0, τ)) is deliberately scale-free
@@ -269,7 +273,7 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
             "{fixed}: expected to fire in the twin booleans (pin vacuous)"
         );
         assert!(
-            mm[fixed].iter().any(|v| v.1 != 0.0),
+            mm[fixed].iter().any(|v| v.1.is_some_and(|m| m != 0.0)),
             "{fixed}: expected a nonzero margin to pin the metering"
         );
     }

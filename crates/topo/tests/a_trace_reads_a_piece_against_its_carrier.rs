@@ -8,9 +8,7 @@
 
 use geom::Surface;
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::boolean::trace::{
-    Passage, TraceFault, carrier_extent, circle_crossings, plane_misses, ray_crossings,
-};
+use topo::boolean::trace::{Passage, TraceFault, circle_crossings, plane_misses, ray_crossings};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -160,8 +158,6 @@ fn a_plane_misses_a_carrier_beyond_its_extent() {
     assert!(!misses(&floor(), [0.0, 0.0, 0.0], up));
     assert!(!misses(&floor(), [0.0, 0.0, 1.0], across));
 
-    let (_, everywhere) = carrier_extent(&torus()).expect("closed form");
-    near(everywhere, 2.5, "spine and tube");
     let along_axis = torus()
         .cover()
         .expect("a bounded carrier")

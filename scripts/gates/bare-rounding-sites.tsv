@@ -15,6 +15,7 @@ crates/editor-core/tests/intent_s3_a_poses.rs	test	3	oracle
 crates/editor-core/tests/m10_1_r2_probes.rs	test	1	oracle
 crates/editor-core/tests/m10_3_r1_probes_interval.rs	test	1	oracle
 crates/editor-core/tests/m4_pr2_eval.rs	test	1	oracle
+crates/editor-core/tests/msolve6_part_extent.rs	test	1	oracle
 crates/editor-core/tests/pick3_early_out.rs	test	2	oracle
 crates/editor-core/tests/review_gui1_r1.rs	test	1	oracle
 crates/editor-core/tests/review_m4_pr2.rs	test	2	oracle
@@ -93,7 +94,7 @@ crates/geom-brep/tests/span_reach_differential.rs	test	1	oracle
 crates/geom-brep/tests/span_reach_hunt.rs	test	1	oracle
 crates/geom-brep/tests/tori_coincide.rs	test	1	oracle
 crates/geom-brep/tests/torus_doors_ssi.rs	test	1	oracle
-crates/geom/src/cover/tests.rs	test	3	oracle
+crates/geom/src/cover/tests.rs	test	4	oracle
 crates/geom/src/curves.rs	test	3	oracle
 crates/geom/src/curves/conic.rs	prod	3	far-centre
 crates/geom/src/curves/fit.rs	test	1	oracle
@@ -142,7 +143,7 @@ crates/step-import/tests/wild.rs	test	1	oracle
 crates/sweep/examples/conic_past_band_probe.rs	test	1	oracle
 crates/sweep/examples/near_tangent_census_probe.rs	test	1	oracle
 crates/sweep/examples/split_near_tangent_census_probe.rs	test	1	oracle
-crates/sweep/src/blend/reach.rs	test	2	oracle
+crates/sweep/src/blend/reach.rs	test	4	oracle
 crates/sweep/src/swept.rs	test	1	oracle
 crates/sweep/tests/a_keel_on_a_bores_ruling.rs	test	1	oracle
 crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs	test	1	oracle

@@ -76,7 +76,22 @@
 //! `profile/src/sugar.rs`'s arc-leg fillet tangent point (the offset
 //! radius's sign);
 //! `sweep/src/revolve/axis.rs`'s radial extent;
-//! `sweep/src/blend/arms.rs`'s cone nappe;
+//! `sweep/src/blend/arms.rs`'s cone nappe and the knife-edge rim's two
+//! root sides (the line-and-circle pair's `−b ± √(b² − D)` and the two
+//! circles' half-chord, each signed by the common tangent `toward`,
+//! which is `±1` at a knife and never near zero there);
+//! `geom-core/src/linalg/vec.rs`'s `Vec3::turned_toward`, the one home
+//! of turning a direction to agree with another (`topo`'s cone apex
+//! reads its nappe axis and its rulings through it, and the cone-pair
+//! apex plane its two axes);
+//! `topo/src/sector_face.rs`'s cone apex sweep sense (`±1` against
+//! `axis × d̂`) and its signed turn chord between two rulings;
+//! `geom/src/surfaces.rs`'s `meridian_side`, a revolved circle's
+//! `sgn R`, decided clear of zero at rest;
+//! `geom-brep/src/pair_section/cylinders.rs`'s pinch node, on the side
+//! the fatter wall's axis stands, signed by `gap·(r₁ − r₂)`, both
+//! clear of zero wherever the pose is the pinch (the radii decided
+//! unequal, the gap's magnitude their difference within the band);
 //! `geom-brep/src/intersect.rs`'s plane × cone graze, whose one
 //! generator lies a quarter turn either side of the plane normal's
 //! azimuth by the sign of `c`, the normal's axial component, which the

@@ -77,6 +77,8 @@ mod a_decided_overlap_decides_its_pair;
 mod a_doubled_line_does_not_revert;
 #[path = "a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs"]
 mod a_face_inside_an_edges_wedge_refuses_at_tier_3_prime;
+#[path = "a_figure_eight_hole_cut_through_its_pinch.rs"]
+mod a_figure_eight_hole_cut_through_its_pinch;
 #[path = "a_keel_on_the_floor_subtracts_as_a_slit.rs"]
 mod a_keel_on_the_floor_subtracts_as_a_slit;
 #[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
@@ -478,6 +480,8 @@ mod review_cleave_mint_doors;
 mod review_pinch_corner_split;
 #[path = "spline_reanchor_rows.rs"]
 mod spline_reanchor_rows;
+#[path = "split_along_a_pinch_face.rs"]
+mod split_along_a_pinch_face;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
 #[path = "split_through_a_union_pinch.rs"]

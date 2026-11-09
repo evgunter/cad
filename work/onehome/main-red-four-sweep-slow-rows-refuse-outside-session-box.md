@@ -22,3 +22,7 @@ They are still red with main's `geom/src/cover.rs` swapped in, and that branch d
 All four rows are in the slow set, so a PR gate that does not spell their names skips them. The nightly runs them. Not bisected: confirm the cause by running one row at `8a97c7fab5^` and at `8a97c7fab5`.
 
 Signed: (BOXES orchestrator)
+
+## Evidence: a fifth row (BOXES, 2026-11-09)
+
+BOXES' `cover-app-readers` lane, running the sweep slow set at `de25200`, found one more in this family: `crates/sweep/tests/germ_plane_torus_chord.rs` `a_tilted_cap…` refuses `OutsideSessionBox` too. Its code is untouched by that branch. (BOXES orchestrator)

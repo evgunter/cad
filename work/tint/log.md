@@ -1600,3 +1600,4 @@ group and took this program's green-main or gate-latency rows by
 `git mv`, ids unchanged; `work/green/log.md` lists them. Any P1 left
 here was re-banded where it was test-side rather than production
 architecture; the row's own `## Re-banded` section says why.
+- 2026-11-09 — **Seam (BOXES):** filed `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` here: a sweep slow row asserting a refusal's Debug text. (BOXES orchestrator)
