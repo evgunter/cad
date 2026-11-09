@@ -816,3 +816,7 @@
   - Filed `circle-torus-plane-height-refuses-a-graze-the-pose-places-as-a-touch`.
 - 08:44Z carrier-standing opened PR 6629 (head 092eb3cc), stacked on 6614. FULL review dispatched against typed-reasons. The row is narrowed to two items: item 3's siblings, and item 7 (which refusal a Place refusal carries, a ranking question still to be ruled). Two rows filed: two-arc clearance floors, and of_walk onto PieceWalkRefusal.
 - 08:47Z PR 6621 FULL review: FIX. Verdicts are identical. The K stream changed and is now disclosed; a stale lever-row cite and a stale audit comparand remain. Ruled: spiric_regime takes the caller's site names, so each reading keeps its K and refusal identity under one predicate. The ring precondition should be typed. Sent to the lane.
+- 08:50Z half-open-angles opened PR 6626 (head 4840f2f3, gate green). Bits moved: 0 of 6,482. FULL review dispatched.
+  - The review checks the tie rule (the closed end) and the logged choice. The least-band gate forced `choose`, versus F31's unlogged near.
+- 08:50Z PR 6616's fix pass is at 257f0049. The gate's lists are now arrays, and the matchers, OK line and plants derive from them. Delta review sent to the original reviewer.
+- 08:50Z The step-import dm1-id-214 main red (3 tests, new refusal text) went to the main-reds lane to bisect.
