@@ -24,7 +24,9 @@ crates/geom-brep/src/certify.rs	2	constant	schedule_fraction(i, CERT_SAMPLES)	a 
 crates/geom-brep/src/curve_pair/pose.rs	4	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/curve_face/plane_crossing.rs	1	constant	band.zero()	the band's zero width, a tolerance: a graze's root spread
 crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
-crates/geom-brep/src/curve_pair/span.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a refused member's window on a line)
+crates/geom-brep/src/curve_pair/span.rs	2	constant	band.escalate()	the band's escalation width, a tolerance (a refused member's window on a line, and off one)
+crates/geom-brep/src/curve_pair/span.rs	1	constant	f64::from(i)	a count read as a scalar (a window piece's index)
+crates/geom-brep/src/curve_pair/span.rs	1	constant	f64::from(WINDOW_PIECES)	a count read as a scalar (the window's pieces)
 crates/geom-brep/src/curve_pair/walk.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a polished piece pair's window bound)
 crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.zero()	the band's zero width, a tolerance
 crates/geom-brep/src/dihedral.rs	2	constant	band.escalate()	the band's escalation width, a tolerance

@@ -39,7 +39,7 @@ fn ellipse() -> Curve3<f64> {
 }
 
 /// What a contact reads as, for the table: its variant's name.
-fn name(got: Result<Option<Hit<f64>>, geom::CarrierRefusal>) -> &'static str {
+fn name(got: Result<Option<Hit<f64>>, super::SpanRefusal>) -> &'static str {
     match got {
         Ok(None) => "none",
         Ok(Some(Hit::On { .. })) => "on",
@@ -386,6 +386,90 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
     }
 }
 
+/// **On an arc, a refused member's window is its stretch of the arc**:
+/// half of the circle and of the ellipse, each against a point standing
+/// half an escalation off the carrier, out from its centre, beside a
+/// parameter `at` of the span. `at`, whose point lies within the
+/// escalation of the member, lies in the window (red where the piece it
+/// is on is cleared), and the window is at most three pieces on the
+/// circle and clears a piece on the ellipse (red where the arm falls back
+/// to the whole span).
+#[test]
+fn a_refused_members_window_on_an_arc_is_its_stretch() {
+    let esc = band().escalate();
+    for (kind, carrier, centre) in [
+        ("circle", circle(), Point3::new(0.0, 0.0, 1.0)),
+        ("ellipse", ellipse(), Point3::origin()),
+    ] {
+        let (t0, t1) = (0.0, PI);
+        let span = Span::new(&carrier, (t0, t1));
+        for at in [0.4, 1.3, 2.9] {
+            let p = carrier.eval(at);
+            let q = p + (p - centre).normalize() * (0.5 * esc);
+            let member = geom::cover::Cover::points(vec![q]).unwrap();
+            let (w0, w1) = span.window_near(Some(&member), band());
+            // A circle arc's cover reads its distance exactly, so the
+            // window is the piece `at` is on and its neighbours; an
+            // ellipse arc's bound is looser, and clears some piece.
+            let piece = (t1 - t0) / f64::from(super::span::WINDOW_PIECES);
+            let widest = if kind == "circle" {
+                3.0 * piece
+            } else {
+                t1 - t0 - piece
+            };
+            assert!(
+                w1 - w0 <= widest,
+                "{kind} at {at}: the window ({w0}, {w1}) is wider than {widest}"
+            );
+            assert!(
+                w0 <= at && at <= w1,
+                "{kind} at {at}: the point half an escalation from the member lies outside \
+                 ({w0}, {w1})"
+            );
+        }
+    }
+}
+
+/// **A refusal says which reading it rests on** ([`super::SpanReading`]):
+/// on the circle's span, a point half the band off the carrier at the
+/// span's middle refuses on the carrier, the place reading it inside;
+/// a point on the carrier half the band past the span's start, its chord
+/// to the start in band, refuses on the place. Red where the two are
+/// swapped, which reads a wedge in band as a graze at the solid door's
+/// curved edges, or the reverse.
+#[test]
+fn a_refusal_names_the_reading_it_rests_on() {
+    use super::{SpanReading, SpanRefusal};
+    let half = 0.5 * (band().zero() + band().escalate());
+    let carrier = circle();
+    let span = Span::new(&carrier, (0.5, 2.5));
+    let centre = Point3::new(0.0, 0.0, 1.0);
+    let mid = carrier.eval(1.5);
+    let off = mid + (mid - centre).normalize() * half;
+    assert!(
+        matches!(
+            span.read(off, 1.5, band()),
+            Err(SpanRefusal {
+                of: SpanReading::Carrier,
+                ..
+            })
+        ),
+        "off the carrier in band, inside the span"
+    );
+    let past = carrier.eval(0.5 - half / 2.0);
+    assert!(
+        matches!(
+            span.read(past, 0.5, band()),
+            Err(SpanRefusal {
+                of: SpanReading::Place,
+                ..
+            })
+        ),
+        "on the carrier, in band of the start: {:?}",
+        span.read(past, 0.5, band())
+    );
+}
+
 /// The cubic hairpin of `geom`'s on-carrier rows, its branches `h`
 /// apart, and an `Interval` box of `±r` about its point at `t = 0.08`.
 fn cubic_hairpin(h: f64) -> Curve3<f64> {
@@ -446,7 +530,13 @@ fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
     );
     let mid = span.read(boxed(p, 1e-10), Interval::from_f64(0.5), band());
     assert!(
-        matches!(mid, Err(geom::CarrierRefusal::Escalated(_))),
+        matches!(
+            mid,
+            Err(super::SpanRefusal {
+                refused: geom::CarrierRefusal::Escalated(_),
+                ..
+            })
+        ),
         "Interval, the span's middle: escalates: {mid:?}"
     );
 }
