@@ -6647,15 +6647,20 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             // against (`vtxfac::WallRead`).
             let mut firsts: std::collections::BTreeMap<VertexKey, vtxfac::FirstFace> =
                 std::collections::BTreeMap::new();
+            // Each wall vertex whose first face's refusal was kept.
+            let mut refused_firsts = std::collections::BTreeSet::new();
             let climbed = climb_evidence(Answering::First, pierced.iter().map(|c| c.record), |c| {
                 let wall = walls.get(&(operand, c.vertex)).copied();
                 let second = match wall {
                     Some(wall) if wall.faces[1] == c.face => match firsts.get(&c.vertex) {
                         Some(first) => Some(vtxfac::WallRead { wall, first }),
                         // Its first face's refusal is kept, so the pass
-                        // refuses; the second face, read against that
-                        // face, has nothing to read against.
-                        None => return Rung::Passes,
+                        // refuses; the second face has nothing to read
+                        // against.
+                        None if refused_firsts.contains(&c.vertex) => return Rung::Passes,
+                        // A first face never read: the pierce order is not
+                        // the walls' own.
+                        None => return Rung::Aborts(UNREAD_FIRST_FACE),
                     },
                     _ => None,
                 };
@@ -6681,7 +6686,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         reads.push(read);
                         Rung::Passes
                     }
-                    Err(e) => Rung::refused(e, BooleanError::refusal, core::convert::identity),
+                    Err(e) => {
+                        if wall.is_some_and(|w| w.faces[0] == c.face) {
+                            refused_firsts.insert(c.vertex);
+                        }
+                        Rung::refused(e, BooleanError::refusal, core::convert::identity)
+                    }
                 }
             });
             match climbed {

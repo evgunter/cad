@@ -198,7 +198,9 @@ pub(super) fn pierced_and_paired<T: Decide>(
 /// edge of the vertex is In where either face reads it In
 /// ([`gathered`]). Where the two reads do not mirror each other, or the
 /// vertex crosses its tool's seat in a cut ([`super::seat_crossed`]), it
-/// refuses before the second face writes.
+/// refuses when the second face is read, before any pierce writes; where
+/// the second face's runs would mint a strut, an invariant, it refuses
+/// at that face's mint ([`mint_pierce`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Wall {
     /// The pierced faces, in pierce order.
@@ -259,29 +261,28 @@ pub(super) fn gathered(
 }
 
 /// **A wall's second face mints where its read stands** ([`WallRead`]):
-/// each half the first face's runs moved, `first_moved`, now leaves one
-/// copy of `vertex`, and every other real half of the orbit the second
-/// face read, `entries`, still leaves `vertex` itself, in the operand
-/// as it stands.
+/// each half the first face's runs moved now leaves one copy of
+/// `vertex`, and every other half of `vertex`'s orbit as the read walked
+/// it on the body still leaves `vertex` itself, in the operand as it
+/// stands.
 #[cfg(debug_assertions)]
 fn debug_assert_unwritten<T: geom_core::Real>(
     live: &Body<T>,
     vertex: VertexKey,
-    first_moved: &[Vec<HalfEdgeKey>],
-    entries: &[Entry],
+    second: &SecondFace,
 ) {
     let start = |he: HalfEdgeKey| live.get_half_edge(he).map(|h| h.start);
-    let moved: BTreeSet<HalfEdgeKey> = first_moved.iter().flatten().copied().collect();
+    let moved: BTreeSet<HalfEdgeKey> = second.first_moved.iter().flatten().copied().collect();
     let copies: BTreeSet<_> = moved.iter().map(|&he| start(he)).collect();
     debug_assert!(
         moved.is_empty() || (copies.len() == 1 && !copies.contains(&Some(vertex))),
         "a wall's first face moved its runs to one copy of {vertex:?}: {copies:?}"
     );
-    for he in entries
-        .iter()
-        .filter(|e| e.is_edge && !moved.contains(&e.he))
-        .map(|e| e.he)
-    {
+    debug_assert!(
+        !second.orbit.is_empty(),
+        "{vertex:?}'s orbit was walked when its wall's second face read it"
+    );
+    for &he in second.orbit.iter().filter(|he| !moved.contains(he)) {
         debug_assert_eq!(
             start(he),
             Some(vertex),
@@ -649,9 +650,8 @@ pub(super) struct PierceRead<T: geom_core::Real> {
     piercing: Operand,
     point: geom_core::Point3<T>,
     normal: Vec3<T>,
-    /// For a wall's second face, the halves its first face's runs moved:
-    /// its runs mint on the In side, at that face's copy ([`WallRead`]).
-    wall_first: Option<Vec<Vec<HalfEdgeKey>>>,
+    /// For a wall's second face, what its mint stands on ([`WallRead`]).
+    wall_first: Option<SecondFace>,
     /// The bounds the runs' sites were read off.
     entries: Vec<Entry>,
     runs: Vec<ReadRun<T>>,
@@ -671,6 +671,16 @@ impl<T: geom_core::Real> PierceRead<T> {
             classes: self.out.classes.clone(),
         }
     }
+}
+
+/// **What a wall's second face's mint stands on** ([`WallRead`]): the
+/// halves its first face's runs moved, at whose copy its In runs mint,
+/// and, for the debug check of that copy, its vertex's orbit as the read
+/// walked it on the body, before any pierce wrote it.
+struct SecondFace {
+    first_moved: Vec<Vec<HalfEdgeKey>>,
+    #[cfg(debug_assertions)]
+    orbit: Vec<HalfEdgeKey>,
 }
 
 /// One Out run of a [`PierceRead`]: its arc of the bounds, and its germs
@@ -1190,7 +1200,15 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         piercing,
         point: p,
         normal: n_pierced.vec(),
-        wall_first: wall.map(|w| w.first.moved.clone()),
+        wall_first: wall.map(|w| SecondFace {
+            first_moved: w.first.moved.clone(),
+            #[cfg(debug_assertions)]
+            orbit: orbit_body
+                .get_vertex(vertex)
+                .and_then(|v| v.emanating)
+                .and_then(|he| orbit_body.vertex_orbit(he))
+                .unwrap_or_default(),
+        }),
         entries: Vec::new(),
         runs: Vec::with_capacity(runs.len()),
     };
@@ -1468,12 +1486,12 @@ pub(super) fn mint_pierce<T: Decide>(
         entries,
         runs,
     } = read;
+    #[cfg(debug_assertions)]
+    if let Some(second) = &wall_first {
+        debug_assert_unwritten(piercing_body, contact.vertex, second);
+    }
     if runs.is_empty() {
         return Ok(out);
-    }
-    #[cfg(debug_assertions)]
-    if let Some(first) = &wall_first {
-        debug_assert_unwritten(piercing_body, contact.vertex, first, &entries);
     }
     let mut planned = Vec::with_capacity(runs.len());
     for run in runs {
