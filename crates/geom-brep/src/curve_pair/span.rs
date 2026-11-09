@@ -340,11 +340,7 @@ impl<'a, T: Decide> Span<'a, T> {
             };
             let near = piece.distance_range(&geom::cover::Site::Point(centre)).0;
             let clear = matches!(
-                k_stats::decide(
-                    "curve_pair_window_clear",
-                    Margin::of(near - reach),
-                    Band::least()
-                ),
+                k_stats::prove("curve_pair_window_clear", Margin::of(near - reach)),
                 Ok(Sign::Positive)
             );
             if !clear {
