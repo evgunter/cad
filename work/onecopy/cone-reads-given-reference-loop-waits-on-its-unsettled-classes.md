@@ -2,10 +2,12 @@
 id: cone-reads-given-reference-loop-waits-on-its-unsettled-classes
 kind: issue
 title: link::Cone::reads_given's reference loop hand-rolls the ladder, and waits on its Unsettled variants being classed
-status: open
+status: closed
 opened: 2026-11-05
 priority: P2
 cost: M
+closed: 2026-11-09
+pr: 6637
 ---
 
 

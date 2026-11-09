@@ -2,8 +2,10 @@
 id: question-mark-ladders-the-t1-review-left-unported
 kind: issue
 title: QML T1's review found sibling ladders spelled by sequential ? and a re-spelled read_piece, on no row
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6637
 ---
 
 
