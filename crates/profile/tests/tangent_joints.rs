@@ -652,20 +652,13 @@ fn no_coverage_corpus_row_leaves_a_joint_to_decide() {
     assert_eq!(refused, REFUSED, "the corpus rows refused for their shape");
 }
 
-/// **Arc extension constructs no joint at the tip, and leaves none to
-/// decide.** The boss chain of `path/family.rs`'s module doc: a
-/// fillet-arc arrival onto the circle about (7, 0), then an
-/// `arc_fillet` whose `Radius` names that circle's own radius, so the
-/// derived carrier IS the arriving one and the arriving leg extends to
-/// the trim point instead of meeting a new carrier at the tip.
-///
-/// Red if the extension leaves a vertex at the tip that validation
-/// decides one carrier continuing (a decided joint appears).
-#[test]
-fn an_arc_extension_leaves_no_joint_to_decide() {
+/// The boss chain of `path/family.rs`'s module doc with its extension's
+/// radius `r`: a fillet-arc arrival onto the circle of radius 1.5 about
+/// (7, 0), ending at the tip (8.5, 0), then an `arc_fillet` whose
+/// `Radius { r, Left }` derives its carrier from that tip.
+fn boss(r: f64) -> ConstructedLoop<f64> {
     let t = Tol::witness();
-    let closed = Open
-        .at(Point2::new(5.05, -1.6))
+    Open.at(Point2::new(5.05, -1.6))
         .toward(2.1_f64, 0.8, t)
         .unwrap()
         .fillet_arc(
@@ -680,13 +673,13 @@ fn an_arc_extension_leaves_no_joint_to_decide() {
         .unwrap()
         .arc_fillet(
             profile::Radius {
-                r: 1.5,
+                r,
                 side: profile::ArcSide::Left,
             },
             0.5,
             t,
         )
-        .expect("the arrival carrier's own radius extends it")
+        .expect("an arc extension opens for every r")
         .at(Point2::new(4.05, 1.35), t)
         .unwrap()
         .toward(-4.1, 0.3, t)
@@ -694,13 +687,71 @@ fn an_arc_extension_leaves_no_joint_to_decide() {
         .line(1.0, t)
         .unwrap()
         .line_to(Start, t)
-        .expect("the chain closes");
-    let vp = constructed(vec![closed.loop_]).expect("the boss chain validates");
+        .expect("the chain closes")
+        .loop_
+}
+
+/// **An arc extension's run is a segment of its own, its tip joint
+/// constructed, whatever `r` is.** With `r` the arriving circle's own
+/// radius, the tip (8.5, 0) stays a vertex between two arcs on the one
+/// circle about (7, 0), and the joint there is constructed rather than
+/// decided; with `r` a hair off it, the loop has the same segments and
+/// the same constructed joints — no emission asks whether the two
+/// carriers are the same.
+///
+/// Red if the extension moves the arriving leg's end instead (the tip
+/// is no vertex), if the tip joint is left for validation to decide,
+/// or if a nudged `r` changes the topology.
+#[test]
+fn an_arc_extension_is_its_own_segment_with_a_constructed_tip_joint() {
+    let kinds = |lp: &ConstructedLoop<f64>| -> Vec<bool> {
+        lp.as_loop()
+            .segments()
+            .iter()
+            .map(|s| matches!(s, profile::Segment::Arc(_)))
+            .collect()
+    };
+    let same = boss(1.5);
+    let vs = same.as_loop().vertices();
+    let tip = vs
+        .iter()
+        .position(|v| v.x.to_bits() == 8.5f64.to_bits() && v.y.to_bits() == 0.0f64.to_bits())
+        .unwrap_or_else(|| panic!("the tip (8.5, 0) is a vertex: {vs:?}"));
+    let segs = same.as_loop().segments();
+    let (profile::Segment::Arc(before), profile::Segment::Arc(after)) = (&segs[tip - 1], &segs[tip])
+    else {
+        panic!("arcs meet at the tip: {segs:?}");
+    };
+    for arc in [before, after] {
+        assert!(
+            (arc.centre.x - 7.0).abs() < 1e-12 && arc.centre.y.abs() < 1e-12,
+            "both arcs are about (7, 0): {arc:?}"
+        );
+        assert!(
+            (arc.radius - 1.5).abs() < 1e-12,
+            "both arcs are of radius 1.5: {arc:?}"
+        );
+    }
+    assert!(
+        same.constructed_joints().contains(&tip),
+        "the tip joint {tip} is constructed: {:?}",
+        same.constructed_joints()
+    );
+    let vp = constructed(vec![same.clone()]).expect("two arcs on one circle validate");
     assert!(
         decided(&vp).is_empty(),
         "every tangent joint of the boss chain is constructed: {:?}",
         decided(&vp)
     );
+    let nudged = boss(1.5 + 1e-10);
+    assert_eq!(kinds(&nudged), kinds(&same), "a nudged r keeps the segments");
+    assert_eq!(
+        nudged.constructed_joints(),
+        same.constructed_joints(),
+        "a nudged r keeps the constructed joints"
+    );
+    let vp = constructed(vec![nudged]).expect("the nudged chain validates");
+    assert!(decided(&vp).is_empty(), "{:?}", decided(&vp));
 }
 
 /// The number the sentence renders right after `label`, parsed back.

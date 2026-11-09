@@ -317,9 +317,8 @@ pub(crate) struct ArcFilletCandidate<T: Real> {
     /// The fillet arc's bulge tan(θ/4).
     pub bulge: T,
     /// The fillet arc's own centre — the offset-carrier intersection
-    /// this candidate IS. Carried for the algebra door's §4 item 4
-    /// carrier-identity checks; no emitted coordinate reads it, and the
-    /// builder door ignores it.
+    /// this candidate IS: the algebra door stores the fillet arc on it,
+    /// and the builder door ignores it.
     pub center: Point2<T>,
     /// Whether [`center`](Self::center) lies on both offset carriers by
     /// the intersection's algebra (the crossing branch,

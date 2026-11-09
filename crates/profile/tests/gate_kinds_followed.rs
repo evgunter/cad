@@ -437,7 +437,6 @@ const NOT_DRIVEN: &[(Gate, &str)] = &[
     (Gate::PathArcThroughPoint, READ_BACK),
     (Gate::PathArcThroughPointResolution, READ_BACK),
     (Gate::PathArcViaOffset, NO_FIXTURE),
-    (Gate::PathCarrierIdentity, NO_FIXTURE),
     (Gate::PathCarrierMeet, NO_FIXTURE),
     (Gate::PathCircleRadius, NO_FIXTURE),
     (Gate::PathCollinearTarget, NO_FIXTURE),

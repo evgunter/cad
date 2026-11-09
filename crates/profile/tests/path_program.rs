@@ -1125,10 +1125,10 @@ fn radii(closed: &ClosedLoop<f64>) -> Vec<(usize, RadiusRole, usize)> {
 /// makes the credit unobtainable from the spans and the reason this
 /// record exists.
 ///
-/// The `Sweep` leg records its carrier radius on its own step; the
-/// `arc_fillet(Radius { .. })` extension records none for its incoming
-/// side, because an extension emits no segment — it moves the vertex
-/// the previous leg already owns.
+/// The `Sweep` leg records its carrier radius on its own step, and the
+/// `arc_fillet(Radius { .. })` extension records its incoming carrier on
+/// its own step too: its run from the tip (2, 9) is a segment of its
+/// own, on the same circle as the arrival run before it.
 #[test]
 fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
     use profile::{ArcSide, Center, Radius, Sweep};
@@ -1184,7 +1184,8 @@ fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
             (2, RadiusRole::Carrier, 0),
             (3, RadiusRole::Fillet, 2),
             (6, RadiusRole::Fillet, 4),
-            (7, RadiusRole::Fillet, 6),
+            (7, RadiusRole::Carrier, 6),
+            (7, RadiusRole::Fillet, 7),
         ],
         "each radius names the segment its own arc drew"
     );
@@ -1691,12 +1692,12 @@ fn a_zero_fit_run_is_no_piece_and_every_other_keeps_its_own() {
     pinned(closed);
 }
 
-/// **A leg a fillet's run continues keeps the segment**: the `line`
-/// is authored before the fillet, so the extended segment is the
-/// line's leg and the fillet's run in is not drawn.
+/// **A leg a fillet's run continues keeps its own segment**: the
+/// `line` ends at its authored end, and the fillet's run in is a
+/// segment of its own after it, credited to the fillet.
 #[test]
-fn a_leg_a_run_continues_keeps_the_segment() {
-    use profile::PieceRole::{Arc, Leg, RunOut};
+fn a_leg_a_run_continues_keeps_its_own_segment() {
+    use profile::PieceRole::{Arc, Leg, RunIn, RunOut};
     let t = Tol::witness();
     let closed = Open
         .at(Point2::new(0.0, 0.0))
@@ -1716,7 +1717,7 @@ fn a_leg_a_run_continues_keeps_the_segment() {
         .unwrap();
     assert_eq!(
         pieces_of(&closed),
-        vec![(2, Leg), (3, Arc), (3, RunOut), (6, Leg), (7, Leg)]
+        vec![(2, Leg), (3, RunIn), (3, Arc), (3, RunOut), (6, Leg), (7, Leg)]
     );
     pinned(closed);
 }

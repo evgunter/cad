@@ -186,8 +186,6 @@ gates! {
     PathArcThroughPointResolution => "path_arc_through_point_resolution", Lever(ARC_SCENE_RESOLUTION_RECOURSE), "whether an arc's miss of its through-point is a defect the scene resolves";
     /// A via point's lateral offset from the chord it bulges.
     PathArcViaOffset => "path_arc_via_offset", Sized(COINCIDENCE_RECOURSE), "whether a via point lies off the chord it bulges";
-    /// Two arc carriers told apart by their centre separation plus their radius difference.
-    PathCarrierIdentity => "path_carrier_identity", Sized(COINCIDENCE_RECOURSE), "whether two arc carriers are one circle";
     /// Whether a ray and a circle meet at all: the circle's radius against the ray's perpendicular distance from its centre.
     PathCarrierMeet => "path_carrier_meet", Sized(COINCIDENCE_RECOURSE), "whether a ray meets a circle";
     /// A circle's radius metered against zero.
