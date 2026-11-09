@@ -2132,18 +2132,15 @@ fn measured_ends(
     band: Band,
 ) -> Option<Result<(), AnalyticRung3Refusal>> {
     use crate::ladder::{Answering, Climb, Rung, climb};
-    // Both ends are read, and a refusal reports the larger of the ends'
-    // misses whichever end the identity below meets first: at the import
-    // door the miss decides whether "set ε to ε_in" is offered and in
-    // which words (`FileCoincidence::miss_recourse_in_file`).
-    let read = ends.map(|(measure, lever)| {
+    // One end's distance from the plane, decided.
+    let decide = |(measure, lever): (geom_core::Interval, geom_core::Interval)| {
         let distance = measure.abs();
         let end = geom_core::Margin::over_lever(distance, lever);
         (
             distance,
             crate::dihedral::decide_reported("ssi_hull_value", end, band),
         )
-    });
+    };
     // An end decided off the plane, and its miss.
     let off = |decided: &Result<Decided, Indeterminate>| match decided {
         Ok(Decided { sign, margin }) if *sign != Sign::Zero => Some(*margin),
@@ -2152,7 +2149,8 @@ fn measured_ends(
     // An identity over the two ends: either one decided off the plane
     // says the edge is not on it. An escalation is kept by its margin and
     // a bare end as unsettled (ranked after it), the composite's stall.
-    let climbed = climb(Answering::Any, read, |(distance, decided)| {
+    let climbed = climb(Answering::Any, ends, |end| {
+        let (distance, decided) = decide(end);
         if let Some(margin) = off(&decided) {
             return Rung::Answers(margin);
         }
@@ -2172,10 +2170,18 @@ fn measured_ends(
     });
     match climbed {
         Climb::Answered { answer: margin, .. } => {
-            let margin = read
-                .iter()
-                .filter_map(|(_, decided)| off(decided))
-                .fold(margin, geom_core::MarginDiag::larger);
+            // The refusal reports the larger of the ends' misses, whichever
+            // end the identity met first: at the import door the miss
+            // decides whether "set ε to ε_in" is offered and in which words
+            // (`FileCoincidence::miss_recourse_in_file`). The ends are read
+            // again only to name the refusal the identity made, so the
+            // reading is detached and its recording dropped: the log stays
+            // the identity's own, an end it never reached unread on it.
+            let (margin, _unrecorded) = geom_core::k_stats::detached(|| {
+                ends.into_iter()
+                    .filter_map(|end| off(&decide(end).1))
+                    .fold(margin, geom_core::MarginDiag::larger)
+            });
             Some(Err(AnalyticRung3Refusal::Limb { operand, margin }))
         }
         Climb::Undecided(Some(refusal)) => Some(Err(refusal)),
@@ -3707,7 +3713,8 @@ mod tests {
     /// ([`measured_ends`]): at the import door the refusal's miss decides
     /// whether "set ε to ε_in" is offered and in which words, so it is the
     /// larger of the two ends' misses, not the one the identity happens to
-    /// meet first. Both ends are read.
+    /// meet first. The log is the identity's own: the far end, never
+    /// reached, leaves no verdict on it.
     #[test]
     fn two_ends_off_a_plane_report_the_worse_miss_in_either_order() {
         use geom::{Curve3, Surface};
@@ -3749,7 +3756,7 @@ mod tests {
             .iter()
             .filter(|v| v.predicate == "ssi_hull_value")
             .count();
-        assert_eq!(verdicts, 2, "both ends are read");
+        assert_eq!(verdicts, 1, "only the answering end is on the log");
     }
 
     /// **A line just past ε off its plane does not pass at `f64`**
