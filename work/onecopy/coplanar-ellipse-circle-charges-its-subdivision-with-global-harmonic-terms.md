@@ -44,6 +44,6 @@ red on main.
 for this row's 81 poses only. Over the wider family, 4 poses moved from
 decided to refused. All four are at band 1e-9, offset 1e3, on a tilted
 plane: a thin ellipse against a circle of radius 3, tangent outside the
-major vertex, with a lens 0.5·zero deep. These are band-edge flips: the
-level read locally places the lens's extreme in the band's gap, where
-the global harmonics, charged, had read it on the other side of the edge.
+major vertex, with a lens 0.5·zero deep. The review reads them as
+band-edge flips, a pose on the band's edge read on its other side. Their
+mechanism was not traced here.
