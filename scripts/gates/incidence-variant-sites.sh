@@ -23,6 +23,11 @@
 # fails until the row is lowered, so the slack cannot let one back in
 # unseen.
 #
+# THE STRONGER FIX, filed: a typed incidence payload behind accessors,
+# which would make a match by shape outside geom-brep fail to compile
+# and retire this gate
+# (`work/onecopy/incidence-variants-are-matchable-outside-geom-brep.md`).
+#
 # EXEMPT, not in the table: `crates/geom-brep/`, the variants' and the
 # classifier's home, where reading the variant is the classification.
 #
