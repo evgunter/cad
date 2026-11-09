@@ -1070,3 +1070,5 @@
     - TorusRefusal::refusal() as the one home.
     - Sent to boolean-standing.
 - 16:45Z 6654 lone-vertices (98c1b844, gate green; engine-leaves no longer counts Iterator<Item=>, 40 pins fall) → FULL with session_013mPGJ5b622qiPFUqnsiotH.
+- 16:50Z Merged PR 6657 (chord-length notes: docs plus the point-equality row; gate green; disjoint).
+- 16:50Z census lane opened PR 6658 (ring-island, d5f1d714): climb_agreeing at read_paths. K (a1): no unlogged precedent, since an abort changes what is certified; 3 torus_ring_rows re-pinned ×8 → FULL with session_013mPGJ49aLEyBb6JNAZiN5E; gating. Lane → onecopy/distance-homes.
