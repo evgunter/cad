@@ -169,6 +169,23 @@ fn members_read(
         .collect()
 }
 
+/// **The members of the family `family`, by their index values**: one
+/// entry per body of its value, in body order, each the values of the
+/// indices it reaches in the order an indexed read of it (`xs[i]`)
+/// spells them — the enumeration [`members_read`] finds a read's
+/// members in. `None` for a node evaluated once, and where a count does
+/// not evaluate, which refuses the node at evaluation.
+pub fn members_of(doc: &Doc<ProfileProgram>, family: RecipeNodeId) -> Option<Vec<Vec<i64>>> {
+    let reach = doc.node_reach(family);
+    let chain = reach.chain()?;
+    if chain.is_empty() {
+        return None;
+    }
+    doc.member_envs::<f64>(chain)
+        .map(|member| member.map(|member| member.at).ok())
+        .collect()
+}
+
 /// **How many bodies `node` builds**, read off the recipe: a split's
 /// two halves, a family's members ([`Doc::member_envs`]), one body
 /// otherwise. `None` where a count does not evaluate, which refuses the
@@ -680,6 +697,34 @@ pub fn seat_read(
         None => (node, body.and_then(|b| u8::try_from(b).ok())),
     };
     (node, port.filter(|_| names_a_port(doc, node)))
+}
+
+/// **Whether a seat's read of `node` is a family's**: a node evaluated
+/// once per member ([`members_of`]) that does not read as one body —
+/// what a seat reading one body reads one member of (`xs[i]`).
+pub fn is_family(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    !crate::combine::denotes_body(doc, node) && members_of(doc, node).is_some()
+}
+
+/// **The member a pick on body `body` of `node` reaches**, for a seat
+/// reading one body: the family the seat reads ([`seat_read`],
+/// [`is_family`]) and the index values of the member drawn there
+/// ([`members_of`]) — through a copy, the member of the family it
+/// copies. `None` where the seat's read is no family's.
+pub fn seat_member(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    body: u32,
+) -> Option<(RecipeNodeId, Vec<i64>)> {
+    let (family, _) = seat_read(doc, node, Some(body));
+    let (operation, body) = body_of(doc, node, body);
+    if operation != family || !is_family(doc, family) {
+        return None;
+    }
+    let at = members_of(doc, family)?
+        .into_iter()
+        .nth(usize::try_from(body).ok()?)?;
+    Some((family, at))
 }
 
 /// **Whether a read of `node` names its port**: only where the node

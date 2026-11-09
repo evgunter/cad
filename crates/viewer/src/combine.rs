@@ -151,7 +151,7 @@ impl BooleanTool {
                 picks_line(members.iter().enumerate().map(|(i, (node, port))| {
                     (
                         format!("{} {}", Seat::Member.name(), i + 1),
-                        Some(pick_said(by, node, *port)),
+                        Some(pick_said(by, node, port)),
                     )
                 }))
             }
@@ -166,15 +166,16 @@ impl BooleanTool {
     }
 
     /// [`Self::pick`] of the output `body` a viewport pick hit: a
-    /// split's half is read by its port, and a split picked in the tree
-    /// waits for its half ([`Self::choose_half`]).
+    /// split's half is read by its port and a family's member by its
+    /// index values, and a split or a family picked in the tree waits
+    /// for its half ([`Self::choose_half`]) or its member
+    /// ([`Self::choose_member`]).
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
         match &mut self.held {
             // A pick on a copy is a pick of the body it places
             // ([`crate::world::seat_read`]), as in the two seats.
             BooleanPicks::Members(members) => {
-                let (node, port) = crate::world::seat_read(doc, node, body);
-                let port = Port::of_pick(doc, node, port, Seat::Member.wants());
+                let (node, port) = Port::at_seat(doc, node, body, Seat::Member);
                 members.push((doc.spoken(node), port));
             }
             BooleanPicks::Pair(seats) => seats.pick_at(doc, node, body),
@@ -187,10 +188,42 @@ impl BooleanTool {
         match &mut self.held {
             BooleanPicks::Members(members) => {
                 if let Some((_, port)) = members.get_mut(i) {
-                    *port = port.chosen(half);
+                    *port = core::mem::replace(port, Port::Alone).chosen(half);
                 }
             }
             BooleanPicks::Pair(seats) => seats.choose_half(i, half),
+        }
+    }
+
+    /// **The member pick `i` reads**, by its index values
+    /// ([`crate::world::members_of`]), when it holds a family picked
+    /// alone: member `i` of a union or an intersect, seat `i` of a
+    /// subtraction.
+    pub fn choose_member(&mut self, i: usize, at: Vec<i64>) {
+        match &mut self.held {
+            BooleanPicks::Members(members) => {
+                if let Some((_, port)) = members.get_mut(i) {
+                    *port = core::mem::replace(port, Port::Alone).chosen_member(at);
+                }
+            }
+            BooleanPicks::Pair(seats) => seats.choose_member(i, at),
+        }
+    }
+
+    /// The picks still waiting for a member, in pick order: each
+    /// pick's index and the family it holds.
+    pub fn awaiting_member(&self) -> Vec<(usize, RecipeNodeId)> {
+        match &self.held {
+            BooleanPicks::Members(members) => members
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, port))| *port == Port::MemberPending)
+                .map(|(i, (node, _))| (i, node.id()))
+                .collect(),
+            BooleanPicks::Pair(seats) => (0..2)
+                .filter(|&i| seats.awaits_member(i))
+                .filter_map(|i| Some((i, seats.held(i)?)))
+                .collect(),
         }
     }
 
@@ -256,8 +289,9 @@ impl BooleanTool {
     /// [`SeatError::Empty`] naming [`Seat::Member`] while a union or an
     /// intersect holds no member, and naming the first empty seat while
     /// a subtraction lacks one; [`SeatError::HalfUnchosen`] while a
-    /// pick holds a split whose half is not chosen. Node kinds refuse
-    /// at the session door.
+    /// pick holds a split whose half is not chosen, and
+    /// [`SeatError::MemberUnchosen`] a family whose member is not. Node
+    /// kinds refuse at the session door.
     pub fn spec(&self) -> Result<BooleanSpec, SeatError> {
         match &self.held {
             BooleanPicks::Members(members) if members.is_empty() => {
@@ -267,9 +301,12 @@ impl BooleanTool {
                 if members.iter().any(|(_, port)| *port == Port::HalfPending) {
                     return Err(SeatError::HalfUnchosen { seat: Seat::Member });
                 }
+                if members.iter().any(|(_, port)| *port == Port::MemberPending) {
+                    return Err(SeatError::MemberUnchosen { seat: Seat::Member });
+                }
                 let members = members
                     .iter()
-                    .map(|(node, port)| port.read(node.id()))
+                    .map(|(node, port)| port.body_read(node.id()))
                     .collect();
                 Ok(if self.op == BooleanOp::Intersect {
                     BooleanSpec::Intersect(members)
@@ -278,8 +315,8 @@ impl BooleanTool {
                 })
             }
             BooleanPicks::Pair(seats) => Ok(BooleanSpec::Subtract {
-                from: seats.require_read(0)?,
-                tool: seats.require_read(1)?,
+                from: seats.require_body_read(0)?,
+                tool: seats.require_body_read(1)?,
             }),
         }
     }
@@ -969,7 +1006,7 @@ impl ClearanceTool {
     /// as a seat says its node, a face as the chrome says a held pick.
     pub fn line(&self, by: Speaker<'_>) -> String {
         let said = |i: usize| match &self.picks[i] {
-            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, Port::Alone)),
+            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, &Port::Alone)),
             Some(ClearancePick::Face(held)) => Some(Said(held, by).to_string()),
             None => None,
         };
