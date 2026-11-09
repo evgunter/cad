@@ -1563,19 +1563,22 @@ fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>
 
 impl<T: Decide> ConicArc<T> {
     /// A lower bound on the distance from `x` to the arc: the distance
-    /// to the arc of the circle of radius `b` over the same span, less
+    /// to the arc of the circle of radius `b` over the same span
+    /// ([`geom::Curve3::distance_within`], whose reading of a box is a
+    /// floor under each of its points: `ring_path::arc_floor_rows`), less
     /// `|a − b|`, which bounds how far a conic point lies from the
-    /// circle's at the same parameter. The circle arc's nearest point is
-    /// at `x`'s direction clamped to the span: on the span's branch the
-    /// end on `x`'s side is the nearer.
+    /// circle's at the same parameter.
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
-        let s = f.azimuth(x).near(geom::mid_param(self.span.0, self.span.1));
-        let s = s.max(self.span.0).min(self.span.1);
-        let (sn, cs) = s.sin_cos();
-        let nearest = f.origin + (f.u_ref * cs + f.v_ref() * sn) * b;
-        (x - nearest).norm() - (a - b).abs()
+        let circle = geom::Curve3::Circle(geom::Circle {
+            frame: *f,
+            radius: b,
+        });
+        let Some(arc) = circle.distance_within(x, self.span) else {
+            unreachable!("a circle's arc distance is closed-form")
+        };
+        arc - (a - b).abs()
     }
 }
 
@@ -1854,6 +1857,10 @@ pub(crate) mod cone_islands;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_path_grid;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod arc_floor_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
