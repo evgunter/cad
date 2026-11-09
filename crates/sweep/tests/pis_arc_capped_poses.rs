@@ -272,7 +272,9 @@ fn probes(case: &Case) -> Vec<(Point3<f64>, bool)> {
 /// twenty per cell. Measured: at ε = 1e-6 the torus barrel at the
 /// (1,2,3) pose escalates 5 of its 117 probes on
 /// `point_in_arc_loop_conic_disc` — an in-face ray passing within a
-/// band's width of tangent to the 3/64 m cap circle.
+/// band's width of tangent to the 3/64 m cap circle. (That tangency is
+/// the plane door's `plane_crossing_belly_graze` since the ray's crossing
+/// moved onto it.)
 #[test]
 fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
     let band = Band::linear(tol()).expect("the witness band");
@@ -1242,11 +1244,12 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
 /// An escalation this row admits: a trim row's margin strictly inside
 /// the band's gap `(ε, K·ε)` — a probe's ray landing within the band of
 /// a boundary edge, which is a typed refusal and not an answer. One row
-/// only: a planar face's arc window (`point_in_arc_loop_conic_window`,
-/// which the cuts' ellipse faces reach). Each shape's count is capped at what was measured.
+/// only: a planar face's arc span, where a ray's root lies on the arc
+/// (the plane door's `plane_crossing_root_in_span`, which the cuts'
+/// ellipse faces reach). Each shape's count is capped at what was measured.
 fn in_the_trim_band(diag: &geom_core::Indeterminate) -> bool {
     let (eps, k) = (tol().eps(), tol().k());
-    matches!(diag.predicate, Some("point_in_arc_loop_conic_window"))
+    matches!(diag.predicate, Some("plane_crossing_root_in_span"))
         && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
 }
 
