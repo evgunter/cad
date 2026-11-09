@@ -1525,7 +1525,7 @@ pub(crate) fn readable_coincidence(
 /// has no representation for ([`BooleanError::DegenerateTorus`]); in
 /// band, the convention half's escalation ([`BooleanDecision::Torus`]).
 /// Both end in the half's lever.
-pub(in crate::boolean) fn off_ring_torus(
+fn off_ring_torus(
     torus: geom_brep::PairSide,
     refusal: geom_brep::TorusRefusal,
     pair: [(Operand, FaceKey); 2],
