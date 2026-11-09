@@ -589,7 +589,7 @@ pub(crate) fn tessellate_trimmed(
                 ceil_count(v1 - v0, hv)?,
             ),
             None,
-            lattice_metric(std::iter::once(1.0 / (0.5 * (v0 + v1)).cos())),
+            lattice_metric(std::iter::once(1.0 / geom::mid_param(v0, v1).cos())),
         ),
         Lane::Nurbs { ref grid, .. } => {
             let (mut cand, stats) = per_cell_candidates(
