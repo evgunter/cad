@@ -46,3 +46,30 @@ the other honestly as they stand:
 A fix is a shared decided-membership type that both produce, or a
 ruling that the two metrics are two questions. That is a design choice,
 not a move.
+
+## Findings (onecopy/needle-basin)
+
+**There were three spellings, not two.** `geom-brep`'s
+`curve_pair::Span::place` already read a point's foot against a span:
+an end by the raw chord to its point (`curve_pair_span_end_chord`),
+else the side by the foot's parameter metered at the span's SUP speed
+(`curve_pair_span_end_side`), with ellipses' `Past` walked. Check 9's
+`arc_trim` and the plane door's `span_place` were the other two.
+
+**The question's own reading is `Span`'s.** "At an end" is a distance
+in metres, which the chord reads directly on any carrier, so the chord
+does not rely on `arc_trim`'s circle-only monotonicity. "Inside or
+past" is a side, which the parameter reads without inverting the point.
+Metered at the sup speed, a side the band calls Zero lies within the
+band in arc length and so within it in chord. `span_place`'s
+parameter·INF-meter could not route there: its Zero over-reaches by the
+speeds' ratio, a wrong AtEnd on a thin ellipse (filed and fixed as
+`a-plane-crossing-past-the-band-of-a-thin-ellipses-fast-end-read-at-the-end`).
+
+**Routed.** Check 9's `window` arc arm calls `Span::place` on the
+point. A circle's foot is its radial projection, so no angle is
+inverted by a walk, and `arc_trim`, `arc_trim_margin` and
+`ArcTrimRows` are gone. The plane door and `torus_region::arc_place`
+call `Span::place_param` through `span_place`, which shares
+`ends_place` with `Span::place_at`. The K name
+`plane_crossing_root_in_span` is retired.
