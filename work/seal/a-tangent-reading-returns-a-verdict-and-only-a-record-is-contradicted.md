@@ -2,10 +2,12 @@
 id: a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted
 kind: unit
 title: the tangent table and the Rest door return typed verdicts; only a record read at rest is contradicted; the glue door decides a tangency once
-status: open
+status: closed
 opened: 2026-11-09
 priority: P1
 cost: H
+closed: 2026-11-09
+pr: 6673
 parent: glue-disagreements-and-held-contradictions-after-stage-4
 ---
 
@@ -43,3 +45,20 @@ Step 3 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09).
 No reading on this ground builds a `Contradicted` with an `Indeterminate`. The Boolean mints no contradiction. The census has no predicate-string dispatch, and the probe below has been run:
 
 - **The probe:** two tori sharing a Villarceau circle, with the parallel check first. Does any pair of samples read tangent with opposite senses? Record the result beside `SidesMixed`.
+
+## Closed (2026-11-09, PR 6673)
+
+The tangent table and the `Rest` door return verdicts, and only a record read at rest is contradicted. The PR body has the per-site table (each ending before and after), the probe, the sweep and the premise corrections.
+
+- **The verdicts** live in `crate::contact` (the census names them without naming the engine): `TangentVerdict::{Touch, Ruled { row: TangentRow, by }, SidesMixed { at }, InBand, NotCertifiable(Uncertified)}` and `RestVerdict::{Rest(margin), Ruled { row: RestRow, by: Option<Decided> }}`, the `Rest` door's in-band and outside-the-inventory readings staying `ContactRefusal::{Escalated, NotCertifiable}`. `ContactRefusal::Contradicted` is gone.
+  - `Uncertified::SagUnreached` keeps the table's old `SagUnreached`, which the glue door refuses and every other reading calls not certifiable.
+  - I1 is `SensesAligned` on no datum; I2 is `TwoCarriers`, on `CarrierVerdict::Apart`'s `Decided` where the carriers were decided apart and on none for two kinds.
+- **`tangent_pass`** reads the senses (`n₁·n₂`, its perpendicular arm `Independent`) first, as the touch needs their orientation, and compares them (a contact's `Opposed`, a tangency's `SidesMixed`) only once the sample reads parallel.
+- **The probe** (`contact_verify::tests`): a torus and its mirror in a bitangent plane share a Villarceau circle, tangent at four isolated points (two aligned, where the mirror makes `κ_rel` zero, two opposed). A nine-station schedule over the whole circle, from any of 64 starts, never reads two tangent samples with opposite senses: its first station off the four ends the pass not parallel. A span whose step runs from an opposed point to an aligned one does, and reads `SidesMixed`; the result is recorded beside the variant and in topo README C4.
+- **The census** matches the verdict. Against a record a ruling is `ValidationError::ContactContradicted { record, verdict: ContactVerdict }`, ending in `KERNEL_OR_FILE_DEFECT_ENDING`. With no record `Overlap` stays `CuspEdgesMissing` and every other ruling is no touch; `census_rest_decision` answers `None` on a ruling.
+- **The glue door decides a tangency once.** `GluedPair::decided` is `Option<Glued>`, `Glued::{OneCarrier(margin), Tangent(Tangency)}`, and `verify_glued_contacts` records it; the interiors placement moved from the door's reading to the op, its only reader. Gone: `BooleanError::ContactContradicted`, `tangency_contradicted`, `TangencyFailure::Contradicted` (now `NotTangent`, not glued), the conformal screen with its `PlaneDoor::Screen`, `Coincide::Planes` and `Ending::Frontier`, `Contradiction`, `CONTRADICTION_REASON`, `CONTRADICTION_RECOURSE`.
+- **Not done here:** step 4's ground (`vtxfac`/`recl` `carrier_eq_reading`, `unglued_coincidence`) is untouched.
+- **Filed:**
+  - `work/seal/three-escalation-endings-route-by-the-predicate-name`
+  - `work/bind/contact-verdict-is-a-rung-under-contact-contradicted`
+  - evidence on `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp` (`RimCuspArmUnbuilt` is minted nowhere) and on `work/bind/boolean-decision-and-contradiction-are-rungs-under-boolean-error` (`Contradiction` retired).
