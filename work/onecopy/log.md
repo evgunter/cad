@@ -857,3 +857,4 @@
   - No overlap with main. run-gates on the merge with main is clean: 585 sites.
   - NOTE residue filed as `bare-rounding-doors-are-read-in-column-zero-only`.
   - Its transverse-range row now waits for the needle-tilts lane after S.
+- 10:01Z PR 6622 FULL review: FIX. TubeUnread and NaN PadShort cite no guard. Tangent's payload is a &'static str with several meanings, and its recourse is decided in the renderer; the row's own root cause gets a typed reason here. Seat diagnostics restored, Admission reused, and the winding NaN is fixed or filed. Sent to the lane.
