@@ -211,3 +211,7 @@
   - form 2 is the indexed read `xs[2]` with the copy's own names, the only stored form.
 
   The viewer lane hit the weekly usage limit mid-unit on 2026-11-06 and was resumed today.
+- 2026-11-09 — **PR 6593 (the viewer boolean tool reads what a pick reaches) green at `8be69fc4f0`; single STYLE review dispatched.**
+  - Split halves already worked; this PR adds an end-to-end test.
+  - **New:** a viewport pick on a pattern member authors `xs[i]` (`BodyRead<Formula>`). A tree pick reads the family whole, and a panel row can re-read it as one member. No editor-core change was needed.
+  - **Filed:** DOORS `a-combine-of-a-world-copied-familys-member-leaves-the-copy-drawing-it` (P2, design).
