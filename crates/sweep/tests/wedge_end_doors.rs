@@ -133,7 +133,7 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
                 .unwrap_or_else(|| panic!("normal {normal}: refused {e:?}, not the knife edge")),
             Ok(_) => panic!("normal {normal}: answered"),
         };
-        let wall = body.get_surface(body.get_face(knife.wall).unwrap().surface);
+        let wall = body.face_surface(knife.wall);
         assert_eq!(
             wall.map(geom::Surface::kind),
             Some(geom::SurfaceKind::Cylinder),
@@ -344,9 +344,8 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
             };
             let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
             // The seam: the ruling's edge between the wall and the cut.
-            for (_, e) in piece.edges() {
-                let start = piece.get_half_edge(e.he_plus).unwrap().start;
-                let end = piece.half_edge_end(e.he_plus).unwrap();
+            for (ek, e) in piece.edges() {
+                let (start, end) = piece.edge_vertices(ek).unwrap();
                 let pair = [surface_of(e.he_plus), surface_of(e.he_minus)];
                 let kinds = pair.map(|s| piece.get_surface(s).unwrap().kind());
                 if !(on_the_ruling(point(start)) && on_the_ruling(point(end)))
@@ -448,9 +447,8 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
                 let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
                 let seams: Vec<_> = piece
                     .edges()
-                    .filter(|(_, e)| {
-                        let start = piece.get_half_edge(e.he_plus).unwrap().start;
-                        let end = piece.half_edge_end(e.he_plus).unwrap();
+                    .filter(|(ek, e)| {
+                        let (start, end) = piece.edge_vertices(*ek).unwrap();
                         on_the_ruling(point(start))
                             && on_the_ruling(point(end))
                             && [e.he_plus, e.he_minus].into_iter().any(|he| {
@@ -494,9 +492,8 @@ fn shoulder_seam(piece: &Body<f64>) -> (&'static str, Vec<geom::SurfaceKind>) {
     let kind = |s| piece.get_surface(s).unwrap().kind();
     let seams: Vec<_> = piece
         .edges()
-        .filter(|(_, e)| {
-            let start = piece.get_half_edge(e.he_plus).unwrap().start;
-            let end = piece.half_edge_end(e.he_plus).unwrap();
+        .filter(|(ek, _)| {
+            let (start, end) = piece.edge_vertices(*ek).unwrap();
             on_the_ruling(point(start)) && on_the_ruling(point(end))
         })
         .collect();
@@ -566,9 +563,9 @@ fn the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge() {
 fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
     let caps: Vec<_> = piece
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                piece.get_surface(f.surface),
+                piece.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.z.abs() > 0.5 && (origin.z - height).abs() < tol().eps()
             )
@@ -995,9 +992,8 @@ fn shoulder_seam_edge(piece: &Body<f64>) -> EdgeKey {
     let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
     let seams: Vec<_> = piece
         .edges()
-        .filter(|(_, e)| {
-            let start = piece.get_half_edge(e.he_plus).unwrap().start;
-            let end = piece.half_edge_end(e.he_plus).unwrap();
+        .filter(|(ek, _)| {
+            let (start, end) = piece.edge_vertices(*ek).unwrap();
             on_the_ruling(point(start)) && on_the_ruling(point(end))
         })
         .map(|(k, _)| k)

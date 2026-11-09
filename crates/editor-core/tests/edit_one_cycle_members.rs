@@ -218,19 +218,19 @@ fn a_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_verdict()
                 && p.x < side.xs.1 + 1e-9
         };
         let cup = named(&ev0, operand, |k| match k {
-            EntityKey::Face(f) => {
-                let face = body.get_face(f).expect("a face");
-                core::iter::once(face.outer)
-                    .chain(face.rings.iter().copied())
-                    .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
-                        topo::LoopBoundary::Empty { vertex } => in_cup(point(vertex)),
-                        topo::LoopBoundary::Cycle { first } => body
-                            .loop_cycle(first)
-                            .expect("a cycle")
-                            .into_iter()
-                            .all(|he| in_cup(point(body.get_half_edge(he).expect("he").start))),
-                    })
-            }
+            EntityKey::Face(f) => body
+                .face(f)
+                .expect("a face")
+                .loops()
+                .map(|(lk, _, _)| lk)
+                .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
+                    topo::LoopBoundary::Empty { vertex } => in_cup(point(vertex)),
+                    topo::LoopBoundary::Cycle { first } => body
+                        .loop_cycle(first)
+                        .expect("a cycle")
+                        .into_iter()
+                        .all(|he| in_cup(point(body.get_half_edge(he).expect("he").start))),
+                }),
             _ => false,
         });
         assert_eq!(

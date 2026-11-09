@@ -593,10 +593,7 @@ fn a_split_merges_a_section_flush_with_a_base_face() {
                     pose.label
                 );
                 let plane = |f: topo::FaceKey| {
-                    matches!(
-                        b.get_surface(b.get_face(f).unwrap().surface),
-                        Some(geom::Surface::Plane { .. })
-                    )
+                    matches!(b.face_surface(f), Some(geom::Surface::Plane { .. }))
                 };
                 for (edge, e) in b.edges() {
                     let Some(c) = b

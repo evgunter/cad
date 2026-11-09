@@ -199,7 +199,7 @@ pub fn halfcap_with_its_arc_through_the_pole(tol: Tol) -> Body<f64> {
     let mut body = body.into_body();
     let (centre, axis, radius) = body
         .faces()
-        .find_map(|(_, f)| match body.get_surface(f.surface) {
+        .find_map(|(fk, _)| match body.face_surface(fk) {
             Some(geom::Surface::Sphere {
                 center,
                 axis,

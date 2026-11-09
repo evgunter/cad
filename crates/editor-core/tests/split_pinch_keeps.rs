@@ -501,10 +501,7 @@ fn operand_floor(ev: &Evaluation<f64>, target: RecipeNodeId) -> StableName {
             Entry::Unique(EntityRef {
                 key: EntityKey::Face(f),
                 ..
-            }) => match body
-                .body()
-                .get_surface(body.body().get_face(*f).unwrap().surface)
-            {
+            }) => match body.body().face_surface(*f) {
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if origin.y == 1.0 && normal.y == 1.0 =>
                 {
@@ -715,10 +712,7 @@ fn operand_face_on(
             Entry::Unique(EntityRef {
                 key: EntityKey::Face(f),
                 ..
-            }) => match body
-                .body()
-                .get_surface(body.body().get_face(*f).unwrap().surface)
-            {
+            }) => match body.body().face_surface(*f) {
                 Some(geom::Surface::Plane { origin, normal, .. }) => {
                     let off = (p[0] - origin.x) * normal.x
                         + (p[1] - origin.y) * normal.y

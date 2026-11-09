@@ -475,8 +475,7 @@ fn a_side_with_no_closed_form_clearance_is_not_read_clear() {
         let (key, plus, minus, q0, q1) = body
             .edges()
             .find_map(|(k, e)| {
-                let v0 = body.get_half_edge(e.he_plus)?.start;
-                let v1 = body.half_edge_end(e.he_plus)?;
+                let (v0, v1) = body.edge_vertices(k)?;
                 let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
                 let (p0, p1): (Point3<f64>, Point3<f64>) = (p(v0), p(v1));
                 (p0.x == 1.0 && p1.x == 1.0 && p0.z == 1.0 && p1.z == 1.0)

@@ -144,11 +144,7 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
 fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row() {
     let eps = Tol::witness().eps();
     let (mut body, cap) = box_with_bumped_cap(0.01);
-    let Some(geom::Surface::Nurbs(bump)) = body
-        .get_face(cap)
-        .and_then(|f| body.get_surface(f.surface))
-        .cloned()
-    else {
+    let Some(geom::Surface::Nurbs(bump)) = body.face_surface(cap).cloned() else {
         panic!("the cap wears its spline chart");
     };
     let moves = inward(&body, T);
@@ -361,9 +357,9 @@ fn a_collapse_names_the_move_that_made_it() {
     let (body, cap) = box_with_bumped_cap(0.0);
     let side = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.x.abs() > 0.5 && origin.x.abs() < 0.5
             )

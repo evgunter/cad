@@ -1891,6 +1891,19 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "CensusUnsupported/FaceUnboundable".to_owned(),
         CensusUnsupportedCause::FaceUnboundable,
     ));
+    for why in [
+        crate::link::EdgeTangentUnread::OffInterior,
+        crate::link::EdgeTangentUnread::NoCurve,
+        crate::link::EdgeTangentUnread::NoReach,
+        crate::link::EdgeTangentUnread::NoLength,
+        crate::link::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        crate::link::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Unbounded),
+    ] {
+        causes.push((
+            format!("CensusUnsupported/CurvedEdge/{why:?}"),
+            CensusUnsupportedCause::CurvedEdge(why),
+        ));
+    }
     for (l, cause) in causes {
         // The subject each cause is raised on: a face pair for the
         // chart-region and contact lanes, one face for the rest.
@@ -1898,6 +1911,9 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             CensusUnsupportedCause::ChartRegion(_) | CensusUnsupportedCause::ContactLane(_) => pair,
             CensusUnsupportedCause::Containment(_) | CensusUnsupportedCause::FaceUnboundable => {
                 CensusSubject::Entity(EntityId::Face(face))
+            }
+            CensusUnsupportedCause::CurvedEdge(_) => {
+                CensusSubject::Entity(EntityId::Edge(crate::entity::EdgeKey::default()))
             }
         };
         s.push((l, ValidationError::CensusUnsupported { subject, cause }));

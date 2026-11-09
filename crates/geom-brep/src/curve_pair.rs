@@ -54,7 +54,7 @@ pub mod span;
 mod walk;
 
 pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, pose};
-pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd};
+pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd, SpanReading, SpanRefusal};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -388,8 +388,8 @@ impl<T: Decide> Found<T> {
     fn read(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
         let on_both = || {
             both(
-                a.contact(c.point, c.ta, band),
-                b.contact(c.point, c.tb, band),
+                a.contact(c.point, c.ta, band).map_err(|r| r.refused),
+                b.contact(c.point, c.tb, band).map_err(|r| r.refused),
             )
         };
         let Some(bound) = c.bound else {
@@ -656,6 +656,14 @@ impl From<geom::CarrierRefusal> for MeetFault {
         refusal
             .escalation()
             .map_or_else(Self::from, Self::Escalated)
+    }
+}
+
+impl From<SpanRefusal> for MeetFault {
+    /// A point-on-span refusal as the meeting's: its carrier refusal's
+    /// ([`From<geom::CarrierRefusal>`]), whichever reading it rests on.
+    fn from(refusal: SpanRefusal) -> Self {
+        refusal.refused.into()
     }
 }
 

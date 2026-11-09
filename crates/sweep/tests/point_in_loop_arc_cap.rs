@@ -15,7 +15,12 @@ use topo::{Body, LoopContainment, LoopKey, OffPlaneCause, PointInLoopError, poin
 /// Each loop of `body` with its vertices' points, in face order.
 fn loops<T: Decide + Bounds>(body: &Body<T>) -> Vec<(LoopKey, Vec<Point3<f64>>)> {
     body.faces()
-        .flat_map(|(_, f)| std::iter::once(f.outer).chain(f.rings.iter().copied()))
+        .flat_map(|(fk, _)| {
+            body.face(fk)
+                .expect("a live face")
+                .loops()
+                .map(|(lk, _, _)| lk)
+        })
         .map(|l| {
             let topo::LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary else {
                 return (l, Vec::new());

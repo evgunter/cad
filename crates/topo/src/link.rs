@@ -554,9 +554,10 @@ pub enum EdgeTangentUnread {
     OffInterior,
     /// The edge carries no certified curve. A limit.
     NoCurve,
-    /// The edge's speed bounds meter no reach or no length over its
-    /// span. A limit.
-    Unmetered,
+    /// The edge's speed bound meters no reach over its span. A limit.
+    NoReach,
+    /// The edge's least speed meters no length over its span. A limit.
+    NoLength,
     /// A spline edge's piece walk could not run: unsettled where it ran
     /// past its budget, a limit where it has no speed bound
     /// ([`Refusal`]'s `From<geom::PieceWalkRefusal>`).
@@ -572,8 +573,22 @@ impl EdgeTangentUnread {
     pub const fn refusal(self) -> Result<Refusal, Aborts> {
         match self {
             Self::OffInterior => Err(Aborts),
-            Self::NoCurve | Self::Unmetered => Ok(Refusal::Limit),
+            Self::NoCurve | Self::NoReach | Self::NoLength => Ok(Refusal::Limit),
             Self::Unwalked(why) => Ok(Refusal::of_walk(why)),
+        }
+    }
+
+    /// The one sentence this reason is rendered by.
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::OffInterior => {
+                "a curved edge whose span does not certify the point on its interior"
+            }
+            Self::NoCurve => "a curved edge with no certified curve",
+            Self::NoReach => "a curved edge whose speed bound meters no reach over its span",
+            Self::NoLength => "a curved edge whose least speed meters no length over its span",
+            Self::Unwalked(why) => why.sentence(),
         }
     }
 }
@@ -2358,7 +2373,7 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(TouchUnread::Unreadable);
@@ -2428,7 +2443,7 @@ impl<T: Decide> FaceSector<T> {
         p: Point3<T>,
         holds: &[Hold],
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         let geom::Surface::Plane { u_ref, .. } = surface else {
             return Err(TouchUnread::Unreadable);

@@ -35,8 +35,8 @@ fn tube(slit: bool, tol: Tol) -> Body<f64> {
     if slit {
         let (_, cap) = body
             .faces()
-            .find(|(_, f)| {
-                let s = body.get_surface(f.surface).unwrap();
+            .find(|(fk, f)| {
+                let s = body.face_surface(*fk).unwrap();
                 matches!(s, geom::Surface::Plane { origin, .. } if origin.y.abs() < 1e-12)
                     && !f.rings.is_empty()
             })
