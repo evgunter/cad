@@ -575,6 +575,11 @@ fn joinable<T: Decide>(
             geom_brep::EdgeDescription::OnPair { pair }
                 if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
             {
+                // WHICH, not a search a later surface may answer past
+                // ([`geom_brep::ladder::Answering::First`]'s rule, several rungs may answer):
+                // which surface carries the iso (`minus`) is in the locus compared with the
+                // other edge's below, so a class in band on the first surface may be the true
+                // carrier, and its refusal stands.
                 let mut found = None;
                 for (minus, s) in [(false, surf_f), (true, surf_g)] {
                     if let Some(read) =
