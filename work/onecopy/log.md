@@ -821,3 +821,11 @@
 - 08:50Z PR 6616's fix pass is at 257f0049. The gate's lists are now arrays, and the matchers, OK line and plants derive from them. Delta review sent to the original reviewer.
 - 08:50Z The step-import dm1-id-214 main red (3 tests, new refusal text) went to the main-reds lane to bisect.
 - 08:56Z PR 6615's fix pass (ed94e4e5): docs, the sweep record, census blind spots, the decided_sense rename. I read the delta myself; no further review needed. Gate was green, but main overlapped it in conic_arc.rs, so I merged main (56319d41) and am re-gating.
+- 09:00Z PR 6608's session-box delta: FIX, sent to the lane. The cube reading is right, but Euclidean premises that stayed green were missed:
+  - the sampled arm is unguarded;
+  - session_box_reach's sizes still assume the ball;
+  - review_4781's skip reason is false;
+  - near_circular_sections' guard is decided by an ulp;
+  - one uncovered edge poisons the whole box with NaN.
+
+  F5 filed: `the-session-box-reads-no-curved-face-so-an-interior-extreme-pokes-out`.
