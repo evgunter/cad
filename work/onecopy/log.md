@@ -957,3 +957,4 @@
   - 6624 at bc9052d1 (F1–F3, S1–S4, C5; keyed the 6609 walk via Charted::held) → delta review with session_013mPGJ49aLEyBb6JNAZiN5E.
   - 6628 at c117c1d0 (gate green; checked_direction/checked_nonzero_length refuse zero at the home) → delta review with session_013mPGJ51wDjzTLeTSQjXSqC. Ruled NOTE-3: keep the prescaled length (an Interval chord past 2^510 escalating is a refusal, not a wrong answer).
   - 6576 at 15f174ad (vertex_side generic over E; engine-leaves back to main's counts) → gating; small delta with session_013mPGJ3tP1vesXb7WfFmp5N.
+- 12:42Z Ruled census-rosters-2 row 1 item 4: (a), keep the two signature readers under k_stats' contract and close the gaps; no declared DOORS table (it would be a second list a signature reader must police).
