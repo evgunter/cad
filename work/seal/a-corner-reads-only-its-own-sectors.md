@@ -2,7 +2,7 @@
 id: a-corner-reads-only-its-own-sectors
 kind: unit
 title: a corner meeting an unglued pair reads only its own sectors: no carrier re-read, unglued_coincidence and unglued_tilt retire, an off far bound ends Coincide::Sectors
-status: open
+status: dispatched
 opened: 2026-11-09
 priority: P1
 cost: M
@@ -37,3 +37,7 @@ Today a corner that meets a pair the glue door did not glue re-reads the carrier
 ## Done when
 
 No corner reads a carrier pair. Both `ReadOn` arms end on the sector's own reading, pinned by a scene of the 1 mm / 10 m shape.
+
+## Dispatch (2026-11-09)
+
+Branch `seal/corner-sectors`. Review tier: **single, FULL**. The fork settled the shape: no corner reads a carrier pair, and the precedence stays as it is. What is at risk is correctness on the `ReadOn::Faces` arm, where two readings of one sector over two extents disagree, and whether the retired invariants were ever reachable. A FULL review's claims target that, so the step does not take the dual tier.
