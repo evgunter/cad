@@ -436,12 +436,7 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
 /// The wall faces of `body`, in face-arena order.
 fn wall_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect()
 }

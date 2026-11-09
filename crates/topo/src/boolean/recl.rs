@@ -43,7 +43,7 @@
 
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::carrier_eq::CarrierDesc;
+use super::carrier_eq::{CarrierDesc, CarrierVerdict};
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
@@ -144,13 +144,18 @@ pub(super) fn require_same<T: Decide>(
     ));
     let pair = (o1, s1.face, o2, s2.face);
     match super::carrier_eq::carrier_eq_reading(&c1, &c2, &extent, band) {
-        Ok((PlaneRelation::Distinct, _)) if on == ReadOn::FirstBounds => {
+        Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds) if on == ReadOn::FirstBounds => {
             Err(unglued_tilt(&c1, &c2, s1, reach, declared, pair, band))
         }
-        Ok((PlaneRelation::Distinct, _)) => Err(BooleanError::ClassificationInvariant {
-            what: "geometrically-ON sector pair with definitely-distinct carriers",
-        }),
-        Ok((rel, margin)) => {
+        Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds) => {
+            Err(BooleanError::ClassificationInvariant {
+                what: "geometrically-ON sector pair with definitely-distinct carriers",
+            })
+        }
+        Ok(CarrierVerdict::One {
+            relation: rel,
+            margin,
+        }) => {
             let bounds = match &c2 {
                 CarrierDesc::Plane { normal, .. } => s1.bounds_off(*normal, band).err(),
                 _ => None,
@@ -160,16 +165,7 @@ pub(super) fn require_same<T: Decide>(
                 pair,
                 super::plane_eq::senses(s1.tangent().vec(), s2.tangent().vec(), arm, band),
                 bounds,
-                // The ladder decides one carrier only on a margin, so a
-                // reading without one is a broken invariant.
-                || match margin {
-                    Some(margin) => {
-                        super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band)
-                    }
-                    None => BooleanError::ClassificationInvariant {
-                        what: "a corner pair the ladder read one carrier on no margin",
-                    },
-                },
+                || super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band),
             ))
         }
         Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
@@ -187,6 +183,11 @@ pub(super) fn require_same<T: Decide>(
             coincidence,
             [(o1, s1.face), (o2, s2.face)],
             declared.carriers_read(pair, relation),
+        )),
+        Err(PlaneEqError::OffRing { torus, refusal }) => Err(super::off_ring_torus(
+            torus,
+            refusal,
+            [(o1, s1.face), (o2, s2.face)],
         )),
     }
 }
@@ -1842,9 +1843,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                     (Unread::Place { .. } | Unread::Side { .. }, _, Some(diag)) => {
                         BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
                     }
-                    (Unread::Arc { .. } | Unread::NoReference, _, Some(diag)) => {
-                        BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
-                    }
+                    (
+                        Unread::Arc { .. } | Unread::NoReference | Unread::ReferenceInBand,
+                        _,
+                        Some(diag),
+                    ) => BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
                     (_, _, None) => unread(super::LineUnread::Unplaced),
                 }
             };
@@ -2408,7 +2411,7 @@ mod tests {
             .reads_tied(Point3::new(-1.0, 0.0, 0.7), &[], band)
             .expect_err("the sliver reads nothing across the line");
         assert!(
-            matches!(unread, crate::link::Unread::NoReference),
+            matches!(unread, crate::link::Unread::ReferenceInBand),
             "no reference to read by: {unread:?}"
         );
         let p = prism_z::<f64>(
@@ -2513,7 +2516,7 @@ mod tests {
         match cone.reads_tied(q, &[], band) {
             Ok(m) => assert_eq!(m, crate::link::Material::Out),
             Err(unread) => assert!(
-                matches!(unread, crate::link::Unread::NoReference),
+                matches!(unread, crate::link::Unread::ReferenceInBand),
                 "an unread reading's cause: {unread:?}"
             ),
         }

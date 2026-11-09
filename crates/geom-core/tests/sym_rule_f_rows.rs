@@ -651,7 +651,9 @@ fn the_shapes_the_negative_arm_must_not_fold() {
 /// the tier that mint a `copysign` atom; a list in a doc-comment is a
 /// claim, and SYM-12's own first cut of it was wrong twice (a site
 /// dropped, four never named). This row is the register: every
-/// `.copysign(` call in the shipped sources of every crate under
+/// `.copysign(` call, and every `.unit_sign(` call (`Real::unit_sign`,
+/// a `copysign` of one, mints the same atom), in the shipped sources
+/// of every crate under
 /// `crates/`, outside `geom-core/src/sym/` (the tier, where the atom is
 /// consumed) and outside the files that DEFINE `fn copysign(` (the
 /// scalar impls, which forward it), read over the gate's production
@@ -666,6 +668,15 @@ fn the_shapes_the_negative_arm_must_not_fold() {
 /// documents and then move BOTH the table below and the header's
 /// list. The shape is `flagged_census`'s (the `decide_flagged` site
 /// register), which is this repo's precedent for a source census.
+///
+/// **What it cannot see.** (1) A file that defines `fn copysign(` is
+/// skipped whole, and that is not only the forwarding impls: `real.rs`,
+/// the trait's home, is one, so a provided method there that calls
+/// `.copysign(` or `.unit_sign(` (as `Real::unit_sign` itself does) is
+/// not counted where it is written, only where it is called. (2) A
+/// call spelled as a path is not matched: `Real::unit_sign(x)`,
+/// `T::copysign(x, s)`, and a method passed by name
+/// (`.map(T::unit_sign)`).
 #[test]
 fn the_copysign_mint_sites_the_tree_holds_are_these() {
     let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
@@ -678,7 +689,7 @@ fn the_copysign_mint_sites_the_tree_holds_are_these() {
         if shipped.contains("fn copysign(") {
             continue;
         }
-        let n = shipped.matches(".copysign(").count();
+        let n = shipped.matches(".copysign(").count() + shipped.matches(".unit_sign(").count();
         if n > 0 {
             found.insert(rel, n);
         }

@@ -194,8 +194,8 @@ fn skinned_base() -> NurbsSurface<f64> {
 fn the_twisted_walls_are_not_planar() {
     let body = twisted_loft(0.05);
     let mut spline_walls = 0;
-    for (_, face) in body.faces() {
-        if let Some(Surface::Nurbs(p)) = body.get_surface(face.surface)
+    for (fk, _) in body.faces() {
+        if let Some(Surface::Nurbs(p)) = body.face_surface(fk)
             && !p.is_placeholder()
         {
             spline_walls += 1;
@@ -310,10 +310,7 @@ fn a_curved_approx_walled_body_validates_at_tier_three() {
             }
         };
         assert!(
-            matches!(
-                body.get_surface(body.get_face(faces[0]).unwrap().surface),
-                Some(Surface::Approx(_))
-            ),
+            matches!(body.face_surface(faces[0]), Some(Surface::Approx(_))),
             "d = {d}: the wall carries the approximating surface"
         );
         assert_eq!(
@@ -332,7 +329,7 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
         return;
     };
     let face = faces[0];
-    let Some(Surface::Approx(live)) = body.get_surface(body.get_face(face).unwrap().surface) else {
+    let Some(Surface::Approx(live)) = body.face_surface(face) else {
         panic!("the wall carries an approximating surface")
     };
     let geom::SurfaceDescription::Offset { base, .. } = live.description();
@@ -492,8 +489,8 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
 #[test]
 fn diag_spline_spaces() {
     let body = twisted_loft(0.05);
-    for (fk, face) in body.faces() {
-        if let Some(Surface::Nurbs(p)) = body.get_surface(face.surface)
+    for (fk, _) in body.faces() {
+        if let Some(Surface::Nurbs(p)) = body.face_surface(fk)
             && !p.is_placeholder()
         {
             let base = Arc::new(pulled_back(p, D));

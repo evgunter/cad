@@ -37,8 +37,7 @@ fn at(body: &topo::Body<f64>, v: topo::VertexKey) -> String {
 }
 
 fn face_kind(body: &topo::Body<f64>, f: topo::FaceKey) -> String {
-    let face = body.get_face(f).unwrap();
-    format!("{:?}", body.get_surface(face.surface).unwrap().kind())
+    format!("{:?}", body.face_surface(f).unwrap().kind())
 }
 
 /// Each record as its cells' places: a vertex's point, an edge's end

@@ -2461,7 +2461,7 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
                             Unread::Side { .. } => 0,
                             Unread::Place { .. } => 1,
                             Unread::Arc { .. } => 2,
-                            Unread::NoReference => 3,
+                            Unread::NoReference | Unread::ReferenceInBand => 3,
                         }] += 1;
                         continue;
                     }

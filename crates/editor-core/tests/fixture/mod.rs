@@ -3319,9 +3319,8 @@ pub fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
 /// An empty ring contributes its lone vertex: a pole is a vertex of
 /// the extent that bounds none of the face's edges.
 pub fn face_vertices(body: &Body<f64>, f: FaceKey) -> HashSet<VertexKey> {
-    let face = body.get_face(f).expect("a live face");
     let mut out = HashSet::new();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (lk, _, _) in body.face(f).expect("a live face").loops() {
         match body.get_loop(lk).expect("a live loop").boundary {
             LoopBoundary::Empty { vertex } => {
                 out.insert(vertex);
@@ -3340,9 +3339,8 @@ pub fn face_vertices(body: &Body<f64>, f: FaceKey) -> HashSet<VertexKey> {
 /// same walk. An empty ring bounds no edge, so it contributes nothing
 /// here.
 pub fn face_edges(body: &Body<f64>, f: FaceKey) -> HashSet<EdgeKey> {
-    let face = body.get_face(f).expect("a live face");
     let mut out = HashSet::new();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (lk, _, _) in body.face(f).expect("a live face").loops() {
         if let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a live loop").boundary {
             for he in body.loop_cycle(first).expect("a closed cycle") {
                 out.insert(body.get_half_edge(he).expect("a live half-edge").edge);

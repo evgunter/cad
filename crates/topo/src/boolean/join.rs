@@ -3758,7 +3758,7 @@ pub(super) fn section_unbuilt(
             }
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
-        Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Tangent(why)),
+        Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Unminted(*why)),
         Uncarried::Carry(CarryError::Winds(e)) => unbuilt(SectionUnbuilt::Winds(*e)),
         Uncarried::Carry(CarryError::PadShort { pad, hull_sup }) => {
             unbuilt(SectionUnbuilt::PadShort {

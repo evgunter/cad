@@ -315,11 +315,7 @@ pub fn is_conventional_vertex<T: Real>(body: &Body<T>, v: VertexKey) -> bool {
     let Some(he) = body.get_half_edge(first) else {
         return false;
     };
-    let Some(edge) = body.get_edge(he.edge) else {
-        return false;
-    };
-    let ends = [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).map(|h| h.start));
-    ends == [Some(v), Some(v)]
+    body.edge_vertices(he.edge) == Some((v, v))
         && body.vertex_orbit(first).is_some_and(|orbit| {
             orbit
                 .iter()
@@ -1469,9 +1465,7 @@ mod conventional {
                 "a self-loop's vertex another edge leaves, first {first:?}"
             );
         }
-        let far = body
-            .half_edge_end(body.get_edge(strut.edge).unwrap().he_plus)
-            .unwrap();
+        let (_, far) = crate::query::edge_ends(&body, strut.edge);
         assert!(!is_conventional_vertex(&body, far), "an open edge's end");
     }
 }

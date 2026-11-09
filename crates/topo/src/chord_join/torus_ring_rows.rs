@@ -74,7 +74,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
 /// side.
 fn sheet(f: Frame, torus: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
     // The loop rule ([`super::island_rows`]).
-    let u = if sense { U } else { -U };
+    let u = super::island_rows::loop_start(sense, U);
     let mut body = Body::<f64>::new();
     let start = on_torus(f, -u, -V);
     let seed = body.mvfs(start, sense).unwrap();

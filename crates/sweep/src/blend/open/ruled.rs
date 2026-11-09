@@ -147,7 +147,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                     "a ruled link's half-edges do not lie in the faces the verdict names",
                 ));
             }
-            let planar = matches!(body.get_surface(fd.surface), Some(Surface::Plane { .. }));
+            let planar = matches!(body.face_surface(face), Some(Surface::Plane { .. }));
             if !planar && !fd.rings.is_empty() {
                 return Err(unbuilt_chain(
                     edge,

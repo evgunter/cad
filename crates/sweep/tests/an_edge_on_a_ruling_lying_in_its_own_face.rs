@@ -40,8 +40,9 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-/// Near the origin, and a kilometre off it.
-const OFFSETS: [Vec3<f64>; 2] = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1000.0, -1000.0, 1000.0)];
+/// Near the origin, and in the session box's corner, every coordinate a
+/// few metres inside its kilometre.
+const OFFSETS: [Vec3<f64>; 2] = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(990.0, -990.0, 990.0)];
 
 /// A profile's corners, each `(x, y, bulge)`.
 type Corners = &'static [(f64, f64, f64)];
@@ -182,9 +183,10 @@ fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
 
 /// The points of each loop of `face`, in walk order.
 fn rings(body: &Body<f64>, face: FaceKey) -> Vec<Vec<Point3<f64>>> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|l| match body.get_loop(l).unwrap().boundary {
             LoopBoundary::Cycle { first } => Some(
                 body.loop_cycle(first)

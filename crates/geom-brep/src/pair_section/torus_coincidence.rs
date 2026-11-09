@@ -25,7 +25,7 @@ use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
 };
 
-use super::line_tilt;
+use super::{PairSide, line_tilt};
 use crate::ladder::{IdentityLadder, read_identity};
 use crate::torus_convention::TorusRefusal;
 
@@ -127,15 +127,25 @@ pub enum TorusCoincidence {
     /// One surface: the upper bound decided `Zero`, on this margin.
     One(MarginDiag),
     /// Two surfaces: a datum decided past the band.
-    Apart,
+    Apart {
+        /// The datum.
+        datum: TorusDatum,
+        /// Its reading.
+        by: Decided,
+    },
     /// Neither: the data's own refusal ([`read_identity`]), else the
     /// upper bound in the band, else every datum decided `Zero` beside
     /// the bound decided past the band (`tt_coincident_straddle`, which
     /// only an escalation factor under four can reach).
     Undecided(Indeterminate),
     /// A torus not shown inside its ring convention, which the bound
-    /// does not hold for.
-    OffRing(TorusRefusal),
+    /// does not hold for: which of the two, and its refusal.
+    OffRing {
+        /// The torus refused, in the order the pair was asked of.
+        torus: PairSide,
+        /// Its refusal.
+        refusal: TorusRefusal,
+    },
 }
 
 /// **Decides whether two tori are one surface** (module docs): one where
@@ -143,9 +153,9 @@ pub enum TorusCoincidence {
 /// band, and otherwise undecided; a torus off its ring convention
 /// refuses first.
 pub fn tori_coincide<T: Decide>(a: TorusData<T>, b: TorusData<T>, band: Band) -> TorusCoincidence {
-    for t in [a, b] {
+    for (torus, t) in [(PairSide::First, a), (PairSide::Second, b)] {
         if let Err(refusal) = TorusRefusal::require(t.major_radius, t.minor_radius, band) {
-            return TorusCoincidence::OffRing(refusal);
+            return TorusCoincidence::OffRing { torus, refusal };
         }
     }
     let d = TorusDisplacement::of(a, b);
@@ -170,7 +180,10 @@ pub fn tori_coincide<T: Decide>(a: TorusData<T>, b: TorusData<T>, band: Band) ->
     }
     splice(walk_log);
     match (walk, upper) {
-        (IdentityLadder::Apart { .. }, _) => TorusCoincidence::Apart,
+        (IdentityLadder::Apart { at, decided }, _) => TorusCoincidence::Apart {
+            datum: d.data[at].0,
+            by: decided,
+        },
         (IdentityLadder::Undecided(diag), _) | (IdentityLadder::Zero(_), Err(diag)) => {
             TorusCoincidence::Undecided(diag)
         }

@@ -5,10 +5,10 @@
 //! ([`face_carrier`]) and the extent a verdict is consumed over
 //! ([`pair_extent`]).
 
-use geom_brep::ExtentBall;
+use geom_brep::{ExtentBall, PairSide};
 use geom_core::{Band, Decide, Point3};
 
-use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
+use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict};
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
@@ -54,15 +54,6 @@ pub fn flush_pair_relation<T: Decide>(
     carrier_pair_relation(a, fa, b, fb, band)
 }
 
-/// Which face of a pair, in the order a door took them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PairFace {
-    /// The first face.
-    First,
-    /// The second face.
-    Second,
-}
-
 /// Why a face pair has no carrier reading: the door's input, not a
 /// verdict.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -75,7 +66,7 @@ pub enum PairUnread {
     /// key does not resolve, its box has no claim to make (a NURBS
     /// placeholder, a boundary edge with no sound box), or the ball
     /// around it does not read.
-    Extent(PairFace),
+    Extent(PairSide),
 }
 
 /// **A face's consumed extent**: a ball enclosing every point of it,
@@ -90,7 +81,7 @@ pub enum PairUnread {
 /// an at-rest operand by tier 1, mid-operation by
 /// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     let ball = match f.surface().cover() {
         Ok(cover) => ExtentBall::of_cover(&cover),
         Err(_) => {
@@ -110,7 +101,7 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
 /// like any other), and a miss panics (on an at-rest body by tier 1,
 /// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     Some(
         f.boundary()
             .map(|member| match member {
@@ -153,15 +144,15 @@ pub(crate) fn pair_extent<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<PairExtent<T>, PairFace> {
-    let ball_a = face_ball(a, fa, band).ok_or(PairFace::First)?;
-    let ball_b = face_ball(b, fb, band).ok_or(PairFace::Second)?;
+) -> Result<PairExtent<T>, PairSide> {
+    let ball_a = face_ball(a, fa, band).ok_or(PairSide::First)?;
+    let ball_b = face_ball(b, fb, band).ok_or(PairSide::Second)?;
     // Two readable balls enclose readably short of overflow, which the
     // larger reach is what tips; the second face takes the blame
     // rather than neither.
     let reach = ExtentBall::enclosing(&[ball_a, ball_b])
         .and_then(ExtentBall::readable)
-        .ok_or(PairFace::Second)?;
+        .ok_or(PairSide::Second)?;
     Ok(PairExtent { reach })
 }
 
@@ -182,7 +173,7 @@ pub(crate) fn pair_extent<T: Decide>(
 /// public door keeps live, and which the reduction's operators keep
 /// live mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]).
 pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     // `sense` is the material-side bit: true means the face's outward
     // normal IS the chart normal, which for a sphere/cylinder chart
     // points away from the centre/axis. Read as a BIT, never as a
@@ -265,15 +256,15 @@ pub fn carrier_pair_relation<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Result<CarrierRelation, CarrierEqError>, PairUnread> {
-    Ok(carrier_pair_decided(a, fa, b, fb, band)?.map(|(rel, _)| rel))
+    Ok(carrier_pair_decided(a, fa, b, fb, band)?.map(CarrierVerdict::relation))
 }
 
-/// [`carrier_pair_relation`] with the margin that decided a coincidence
-/// ([`super::carrier_eq::CarrierReading`]): the margin the glue door
+/// [`carrier_pair_relation`] with the reading that decided it
+/// ([`CarrierVerdict`]): a coincidence's margin is the one the glue door
 /// records, and the reading the coincidence door runs on two cells'
 /// carriers in a replay at `Sym`, where the margin says whether the
 /// symbolic tier proved every Zero the verdict stands on
-/// ([`geom_core::MarginDiag::proven`]). `None` beside `Distinct`.
+/// ([`geom_core::MarginDiag::proven`]).
 ///
 /// # Errors
 ///
@@ -288,13 +279,13 @@ pub fn carrier_pair_decided<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Result<(CarrierRelation, Option<geom_core::MarginDiag>), CarrierEqError>, PairUnread> {
+) -> Result<Result<CarrierVerdict, CarrierEqError>, PairUnread> {
     let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
     let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
     Ok(
         match super::carrier_eq::pair_door_reading(&ca, &cb, &extent.consumed(), band) {
-            Ok((CarrierRelation::Distinct, _))
+            Ok(CarrierVerdict::Apart(_))
                 if matches!(
                     (ca, cb),
                     (CarrierDesc::Torus { .. }, CarrierDesc::Torus { .. })
@@ -331,7 +322,7 @@ fn torus_pair_witnessed<T: Decide>(
     (a, fa, ca): (&Body<T>, FaceKey, &CarrierDesc<T>),
     (b, fb, cb): (&Body<T>, FaceKey, &CarrierDesc<T>),
     band: Band,
-) -> Result<super::carrier_eq::CarrierReading, CarrierEqError> {
+) -> Result<CarrierVerdict, CarrierEqError> {
     use super::carrier_eq::CoincidenceMeasure;
     use geom_core::{Decided, Indeterminate, Margin, Sign};
     let on = |body: &Body<T>, f: FaceKey| {
@@ -358,10 +349,12 @@ fn torus_pair_witnessed<T: Decide>(
         relation,
     };
     match CoincidenceMeasure::decide(TORUS_WITNESS, Margin::of(farthest), band) {
-        Ok(Decided {
-            sign: Sign::Positive,
-            ..
-        }) => Ok((CarrierRelation::Distinct, None)),
+        Ok(
+            witness @ Decided {
+                sign: Sign::Positive,
+                ..
+            },
+        ) => Ok(CarrierVerdict::Apart(witness)),
         Ok(Decided { margin, .. }) => {
             Err(undecided(CoincidenceMeasure::Undecided(Indeterminate {
                 margin,

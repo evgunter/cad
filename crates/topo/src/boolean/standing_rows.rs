@@ -227,6 +227,22 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
     for (label, error, want) in more {
         assert_eq!(error.refusal(), want, "{label}");
     }
+    let faces = [face, face];
+    assert_eq!(
+        BooleanError::TouchesItself {
+            operand: op,
+            record: 0,
+            faces,
+        }
+        .refusal(),
+        Ok(Refusal::Limit),
+        "an area self-touch inside one shell, not read yet"
+    );
+    assert_eq!(
+        BooleanError::ToolSeatCrossed { record: 0, faces }.refusal(),
+        Ok(Refusal::Limit),
+        "a cut across its tool's seat, not built yet"
+    );
     let crease = |reading| BooleanError::NormalAtSplineCrease {
         operand: op,
         face,

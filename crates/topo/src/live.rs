@@ -63,7 +63,7 @@
 //! at a time, its cycles, half-edges and edges). The source is chosen at
 //! the door that builds the view: [`Body::proven_face`] for a key the
 //! kernel enumerated, minted or resolved, [`Body::linked_face`] for one a
-//! record holds, [`Body::passed_face`] for one a caller passed (its miss
+//! record holds, [`Body::face`] for one a caller passed (its miss
 //! is the caller's typed refusal), and [`Body::face_views`] for every
 //! face. The order of a face's loops, with each one's role, is the
 //! record's own ([`crate::entity::Face::loop_roles`],
@@ -422,7 +422,7 @@ impl<T: Real> BoundaryMember<'_, T> {
 /// The source decides how the face's own miss reads, once, at the door
 /// that builds the view: [`Body::proven_face`] for a key the kernel
 /// enumerated, minted or resolved, [`Body::linked_face`] for one a
-/// record holds, [`Body::passed_face`] for one a caller passed (whose
+/// record holds, [`Body::face`] for one a caller passed (whose
 /// miss is the caller's to refuse), and [`Body::face_views`] for every
 /// face. Every hop past the face is a link its record holds, so every
 /// shape below panics on a torn body naming the hop and its holder
@@ -434,7 +434,7 @@ impl<T: Real> BoundaryMember<'_, T> {
 /// record's raw keys ([`Face::loop_keys`]) or
 /// [`Body::unchecked_face_cycles`] instead.
 #[derive(Clone, Copy)]
-pub(crate) struct FaceView<'a, T: Real> {
+pub struct FaceView<'a, T: Real> {
     body: &'a Body<T>,
     key: FaceKey,
     record: &'a Face,
@@ -442,7 +442,7 @@ pub(crate) struct FaceView<'a, T: Real> {
 
 impl<'a, T: Real> FaceView<'a, T> {
     /// The face's key.
-    pub(crate) fn key(self) -> FaceKey {
+    pub fn key(self) -> FaceKey {
         self.key
     }
 
@@ -453,13 +453,13 @@ impl<'a, T: Real> FaceView<'a, T> {
 
     /// The face's orientation against its surface's chart
     /// ([`Face::sense`]).
-    pub(crate) fn sense(self) -> bool {
+    pub fn sense(self) -> bool {
         self.record.sense
     }
 
     /// The surface the face is a region of, a link its record holds.
     #[track_caller]
-    pub(crate) fn surface(self) -> &'a Surface<T> {
+    pub fn surface(self) -> &'a Surface<T> {
         let surface = self.record.surface;
         self.body.get_surface(surface).unwrap_or_else(|| {
             dangling_link(
@@ -473,7 +473,7 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// The face's loops, each a link its record holds, in
     /// [`Face::loop_roles`]' order, each with its role: the outer loop,
     /// then its rings. A miss names the role's field.
-    pub(crate) fn loops(self) -> impl Iterator<Item = (LoopKey, &'a Loop, LoopRole)> + 'a {
+    pub fn loops(self) -> impl Iterator<Item = (LoopKey, &'a Loop, LoopRole)> + 'a {
         let (body, holder) = (self.body, EntityId::Face(self.key));
         self.record.loop_roles().map(move |(role, lk)| {
             let l = linked(&body.loops, lk, EntityId::Loop, holder, role.field());
@@ -547,7 +547,7 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// [`FaceView::cycles`]' half-edges in one list: the members of every
     /// cycle bounding the face, outer loop then rings, each in `next`
     /// order.
-    pub(crate) fn half_edges(self) -> Vec<HalfEdgeKey> {
+    pub fn half_edges(self) -> Vec<HalfEdgeKey> {
         self.cycles().flat_map(|(_, cycle)| cycle).collect()
     }
 
@@ -673,8 +673,14 @@ impl<T: Real> Body<T> {
     }
 
     /// **`face`, a key a caller passed**: `None` where it does not
-    /// resolve, which is the caller's to refuse in its own terms.
-    pub(crate) fn passed_face(&self, face: FaceKey) -> Option<FaceView<'_, T>> {
+    /// resolve, which is the caller's to refuse in its own terms; a
+    /// foreign key is not caught.
+    ///
+    /// The public door to a face: each shape of it is read off the
+    /// returned [`FaceView`], whose every hop past the face is a link that
+    /// panics on a torn body (D2 row 4).
+    #[must_use]
+    pub fn face(&self, face: FaceKey) -> Option<FaceView<'_, T>> {
         let record = self.faces.get(face)?;
         Some(FaceView {
             body: self,
@@ -684,7 +690,7 @@ impl<T: Real> Body<T> {
     }
 
     /// **Every face of the body**, in arena order.
-    pub(crate) fn face_views(&self) -> impl Iterator<Item = FaceView<'_, T>> {
+    pub fn face_views(&self) -> impl Iterator<Item = FaceView<'_, T>> {
         self.faces.iter().map(move |(key, record)| FaceView {
             body: self,
             key,
@@ -1711,7 +1717,7 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
     /// **No code in this crate reads a face's surface through the public
     /// door** ([`Body::face_surface`]): inside the crate a face is read
     /// through a resolved [`FaceView`], so the door's `Option` is never
-    /// a second spelling of [`Body::passed_face`]'s.
+    /// a second spelling of [`Body::face`]'s.
     #[test]
     fn the_public_surface_door_is_read_only_outside_the_crate() {
         const READERS: &[(&str, &str)] = &[("body.rs", "the door itself")];
@@ -1798,18 +1804,15 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
     /// **A stale face key is answered once, by its source**: through
     /// [`Body::proven_face`] it panics naming the key and the premise it
     /// breaks, through [`Body::linked_face`] naming the record that holds
-    /// it, and through [`Body::passed_face`] it is `None`, the caller's
+    /// it, and through [`Body::face`] it is `None`, the caller's
     /// to refuse.
     #[test]
     fn a_stale_face_key_is_answered_by_its_source() {
         let (mut body, face) = torn_cube();
         let outer = body.get_face(face).unwrap().outer;
-        assert!(body.passed_face(face).is_some(), "a live face resolves");
+        assert!(body.face(face).is_some(), "a live face resolves");
         body.faces.remove(face);
-        assert!(
-            body.passed_face(face).is_none(),
-            "a passed stale key is None"
-        );
+        assert!(body.face(face).is_none(), "a passed stale key is None");
         let proven = format!(
             "{}, which this call minted and kept, resolved, or read out of a record, does not \
              resolve",
