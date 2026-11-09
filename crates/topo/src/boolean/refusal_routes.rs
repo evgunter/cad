@@ -2087,7 +2087,7 @@ pub(in crate::boolean) mod tests {
                 "Whichever way it reads, the Boolean cannot yet act on a Tangent contact \
                  declared between two plane faces. There is no way through yet",
             ),
-            Coincide::OnPlanes | Coincide::Carriers => Ending::Lever("Recourse: move the geometry"),
+            Coincide::OnPlanes | Coincide::Carriers => Ending::Lever(geom_core::MOVE_RECOURSE),
             // Refused at the first vertex read in band, the rest unread.
             Coincide::VertexOnFace | Coincide::VertexOnSection => Ending::Lever(MEET),
             // Clear of the face passes only beside an end the face
