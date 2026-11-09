@@ -69,3 +69,19 @@ CAD_FUZZ_EFFORT=1` (`--features test-support`): a thin ellipse
 over `[6.778616771278262, 18.0108665539107]`, from the origin, fails the
 same third assertion. Neither side of the comparison reads anything that
 branch changed.
+
+## Another seed (2026-11-09, `onecopy/typed-reasons`)
+
+Red on `onecopy/typed-reasons` at main `0c540ab8` plus a diff that touches
+neither `extent` nor `cover`: `span_reach_hunt`'s
+`a_conic_arcs_span_reach_is_never_short_of_its_farthest_point`
+(`span_reach_hunt.rs:133`, "1 passes the whole turn"). The unit
+circle again (an `Ellipse` with `semi_u = semi_v = 1`), over
+`[3.051601505932741, 9.97795873936163]` (past a whole turn), pivot its
+centre `(0.8639433538009402, 0.47549612493460675, 0.1658472688812101)`.
+
+```
+CAD_FUZZ_SEED=0x2c1c182ae01fe745 CAD_FUZZ_EFFORT=1 \
+  cargo test -p geom-brep --all-features --test all -- \
+  span_reach_hunt::a_conic_arcs_span_reach_is_never_short_of_its_farthest_point
+```

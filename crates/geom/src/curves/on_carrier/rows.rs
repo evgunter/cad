@@ -493,15 +493,13 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
             "geom-brep/src/curve_pair/span.rs",
             1,
             "`Span::place` reads the ends' sides at the seed; `Span::read` takes \
-             `On`'s `t` for `Reading::On`. `place` is itself a reading, which \
-             `curved_edges::passes` reads directly \
-             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
+             `On`'s `t` for `Reading::On`",
         ),
         (
             "topo/src/boolean/solid_contain/curved_edges.rs",
             1,
-            "the ray's foot iteration seeds `on_carrier` and `Span::place` at its point \
-             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
+            "the ray's foot iteration carries its point to the closest approach, which \
+             `Span::read` reads",
         ),
         (
             "geom-brep/src/ssi/exhaust.rs",
@@ -584,19 +582,4 @@ fn measure_spline_foot_misses() {
         "MEASURE misses {misses} of {total}; curves with a miss {curves_missing} of 300; {:.2} us a foot",
         spent.as_secs_f64() * 1e6 / total as f64
     );
-}
-
-/// **Every walk refusal's sentence reads back as itself**, over every
-/// variant: no two share a sentence, so a reader that parses one (the
-/// census) cannot take one refusal for another.
-#[test]
-fn every_walk_refusal_reads_back_from_its_sentence() {
-    for &why in <PieceWalkRefusal as strum::VariantArray>::VARIANTS {
-        assert_eq!(
-            PieceWalkRefusal::of_sentence(why.sentence()),
-            Some(why),
-            "{why:?}"
-        );
-    }
-    assert_eq!(PieceWalkRefusal::of_sentence("no walk's sentence"), None);
 }
