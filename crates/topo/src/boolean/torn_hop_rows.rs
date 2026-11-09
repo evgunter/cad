@@ -225,8 +225,7 @@ fn the_sphere_trim_panics_on_a_torn_curve() {
 fn the_sphere_region_panics_on_a_torn_curve() {
     use super::sphere_region::sphere_face_region;
     let (mut body, face) = cyl_sheet();
-    let ask =
-        |b: &Body<f64>| sphere_face_region(b, face, Point3::origin(), 1.0).map(|r| r.is_some());
+    let ask = |b: &Body<f64>| sphere_face_region(b, face).map(|r| r.is_some());
     assert!(ask(&body).is_ok(), "the sound sheet answers");
     let he = outer_members(&body, face)[0];
     let named = drop_curve(&mut body, he);
@@ -397,7 +396,7 @@ fn the_maximal_faces_gate_panics_on_a_torn_shared_surface() {
     );
 }
 
-/// `vtxfac.rs` `classify_vertex_on_face`: a contact face that does not
+/// `vtxfac.rs` `read_vertex_on_face`: a contact face that does not
 /// resolve refuses typed (the key the sweep carries); a torn surface on
 /// one that does panics, where it read as the kind with no arm.
 #[test]
@@ -435,7 +434,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
         .unwrap();
     let contact = VfContact { vertex, face };
     let classify = |a: &mut Body<f64>, b: &mut Body<f64>| {
-        super::vtxfac::classify_vertex_on_face(
+        super::vtxfac::read_vertex_on_face(
             a,
             b,
             Operand::A,
@@ -450,6 +449,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             band(),
             None,
         )
+        .and_then(|read| super::vtxfac::mint_pierce(a, read))
         .map(drop)
     };
     assert!(
@@ -468,7 +468,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
     let mut torn = pierced.clone();
     let named = drop_surface(&mut torn, face);
     assert_torn_op_panics(
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         &mut torn,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
         |b| classify(&mut piercing.clone(), b),

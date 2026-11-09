@@ -797,9 +797,9 @@ fn lift<T: Decide + crate::AtRestPolicy>(
         HeldRefusal::Recharted { face: (1, f) } => HeldRefusal::Recharted { face: (member, *f) },
         HeldRefusal::Recharted { face: (_, f) } => HeldRefusal::Accumulation {
             face: *f,
-            refusal: super::overlap::OverlapRefusal::Unread {
-                what: "a lost region of a face a sphere's re-chart turned",
-            },
+            refusal: super::overlap::OverlapRefusal::Unread(
+                super::overlap::OverlapUnread::RechartedRegionLost,
+            ),
         },
         HeldRefusal::NotUnder {
             member_face: (1, f),
@@ -815,17 +815,17 @@ fn lift<T: Decide + crate::AtRestPolicy>(
             member_face: (_, f),
         } => HeldRefusal::Accumulation {
             face: *f,
-            refusal: super::overlap::OverlapRefusal::Unread {
-                what: "a row says the face holds an accumulation face lying elsewhere",
-            },
+            refusal: super::overlap::OverlapRefusal::Unread(
+                super::overlap::OverlapUnread::HeldElsewhere,
+            ),
         },
         HeldRefusal::CarrierUnread {
             member_face: (_, f),
         } => HeldRefusal::Accumulation {
             face: *f,
-            refusal: super::overlap::OverlapRefusal::Unread {
-                what: "an accumulation face a row says the face holds, on a carrier not read",
-            },
+            refusal: super::overlap::OverlapRefusal::Unread(
+                super::overlap::OverlapUnread::HeldCarrierUnread,
+            ),
         },
         HeldRefusal::Accumulation { .. } | HeldRefusal::UncutRemainder { .. } => r.clone(),
     };

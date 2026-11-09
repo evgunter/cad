@@ -60,7 +60,8 @@
 #     resolves forwarding wrappers for the unlogged doors; this gate reads
 #     names;
 #   * a door whose band reaches it other than through a parameter whose
-#     type names `Band`, such as a field of a struct argument: the shape
+#     type names `Band` or a name the home gives it, such as a field of a
+#     struct argument or an alias declared in another module: the shape
 #     `k_stats`' header requires of a door, which this reader cannot
 #     check;
 #   * a method-form `decide` whose enclosing `unlogged` is in a caller
@@ -183,14 +184,36 @@ END { flush() }
 # Records of the home on stdin; prints the name of each `pub` fn of the
 # home (`pub(…)`, `const`/`unsafe`/`async` and methods included) whose
 # generics, parameters or `where` clause name `Band` in any shape (`Band`,
-# `&Band`, `Option<Band>`, `B: Into<Band>`). Each is a door unless
+# `&Band`, `Option<Band>`, `B: Into<Band>`), or a name the home gives it
+# (`type Bnd = Band;`, `use … Band as Bnd`). Each is a door unless
 # NON_DOORS names it, so a band-taking fn the home gains is a door here
 # the day it is written, whatever it spells around the band.
 BAND_TAKERS='
 function is_ident(c) { return c ~ /[A-Za-z0-9_]/ }
-function names_band(t) { return t ~ /(^|[^A-Za-z0-9_])Band([^A-Za-z0-9_]|$)/ }
+function names_band(t,   nm) {
+  for (nm in band) if (t ~ ("(^|[^A-Za-z0-9_])" nm "([^A-Za-z0-9_]|$)")) return 1
+  return 0
+}
 { if (gate_record_split($0)) code = code GR_TEXT "\n" }
 END {
+  # `Band`, and every name the home gives it: a `type` alias whose right
+  # side names one, and a `use … Band as NAME`, to a fixed point.
+  band["Band"]; grown = 1
+  while (grown) {
+    grown = 0; rest = code
+    while (match(rest, /type[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[^=;]*=[^;]*;/)) {
+      m = substr(rest, RSTART, RLENGTH); rest = substr(rest, RSTART + RLENGTH)
+      nm = m; sub(/^type[[:space:]]+/, "", nm); sub(/[^A-Za-z0-9_].*/, "", nm)
+      rhs = m; sub(/^[^=]*=/, "", rhs)
+      if (!(nm in band) && names_band(rhs)) { band[nm]; grown = 1 }
+    }
+    rest = code
+    while (match(rest, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]+as[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)) {
+      m = substr(rest, RSTART, RLENGTH); rest = substr(rest, RSTART + RLENGTH)
+      src = m; sub(/[[:space:]].*/, "", src); nm = m; sub(/.*[[:space:]]/, "", nm)
+      if ((src in band) && !(nm in band)) { band[nm]; grown = 1 }
+    }
+  }
   rest = code; base = 0
   while (match(rest, /pub([[:space:]]*[(][^)]*[)])?[[:space:]]+((const|unsafe|async)[[:space:]]+)*fn[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)) {
     at = base + RSTART; base = at + RLENGTH - 1
@@ -312,6 +335,14 @@ plant_door_into_band() {
 }
 plant_door_pub_crate() {
   plant_home_door "$1" 'pub(crate) fn d_crate<T: Decide>(n: &str, m: T, band: Band) -> R' 'd_crate("s", m, Band::least())'
+}
+plant_door_type_alias() {
+  printf 'pub type Bnd = Band;\npub type Bands = Option<Bnd>;\n' >> "$1/$HOME_FILE"
+  plant_home_door "$1" 'pub fn d_alias<T: Decide>(n: &str, m: T, band: Bands) -> R' 'd_alias("s", m, Band::least())'
+}
+plant_door_use_rename() {
+  printf 'use crate::Band as Thresholds;\n' >> "$1/$HOME_FILE"
+  plant_home_door "$1" 'pub fn d_renamed<T: Decide>(n: &str, m: T, band: Thresholds) -> R' 'd_renamed("s", m, Band::least())'
 }
 plant_door_method() {
   printf 'impl<T: Decide> Margin<T> {\n    pub fn d_method(self, band: Band) -> R { classify() }\n}\n' >> "$1/$HOME_FILE"
@@ -439,7 +470,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_renamed_reported
   gate_selftest_case "$want" plant_new_door
   local shape
-  for shape in where two_bounds impl_decide ref_band option_band into_band pub_crate method; do
+  for shape in where two_bounds impl_decide ref_band option_band into_band pub_crate method type_alias use_rename; do
     gate_selftest_case "$want" "plant_door_$shape"
   done
   gate_selftest_case "drop the stale entry" plant_stale_non_door
@@ -447,7 +478,7 @@ gate_selftest() {
   gate_selftest_passes "the home's fns that are not doors, and its test module's" plant_home_non_doors
   gate_selftest_passes "the doors, a method walk inside unlogged, a band handed to a reader, the caller's band with the least band past its argument list, other verbs, prose, a test module, fixture files and the home" plant_not_sites
   gate_selftest_homes --narrowed --subject "$HOME_SUBJECT" "$HOME_FILE"
-  printf '%s selftest OK: passes a clean fixture carrying the home, and prove, choose, a method walk inside unlogged, a band handed to a reader, the caller'"'"'s band with the least band past its argument list, other verbs, prose, a test module, fixture files and the home'"'"'s fns that are not doors; fires on a door at the least band bare, qualified, kept reported, flagged, unlogged by check_unlogged, with a turbofish, renamed on import, bound to a name first, inside a block argument and wrapped across lines, on a method-form door outside unlogged, and on a door the home gains that no list names; is red when the home defines no door or NON_DOORS goes stale; reads a door in every shape its band and bound are spelled in; and stays RED when grep or awk cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the home, and prove, choose, a method walk inside unlogged, a band handed to a reader, the caller'"'"'s band with the least band past its argument list, other verbs, prose, a test module, fixture files and the home'"'"'s fns that are not doors; fires on a door at the least band bare, qualified, kept reported, flagged, unlogged by check_unlogged, with a turbofish, renamed on import, bound to a name first, inside a block argument and wrapped across lines, on a method-form door outside unlogged, and on a door the home gains that no list names; is red when the home defines no door or NON_DOORS goes stale; reads a door in every shape its band and bound are spelled in, a band type alias and a renamed import included; and stays RED when grep or awk cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

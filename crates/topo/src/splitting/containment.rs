@@ -141,6 +141,7 @@ use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, 
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
+use crate::geometry::SurfaceKey;
 use crate::live::{linked, proven};
 use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
@@ -1041,21 +1042,6 @@ impl<T: Decide> ConicArc<T> {
     }
 }
 
-/// The arc trim's step 2 alone (`validate`'s check 9 reads the whole
-/// trim, `arc_trim`) — the sum of two chordal defects,
-/// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, positive on the arc and
-/// never compressed below the angle to the nearer end — for a caller that
-/// has decided the ends by another metric first (an ellipse's exact end
-/// distances, [`ConicArc::hit`]). The one body of the construction.
-pub(crate) fn arc_trim_margin<T: Decide>(
-    p: Point3<T>,
-    a: Point3<T>,
-    apex: Point3<T>,
-    anti: Point3<T>,
-) -> T {
-    ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
-}
-
 /// One boundary edge of a planar loop, on its own carrier.
 pub(crate) enum LoopEdge<T: geom_core::Real> {
     /// A line — which IS its chord — or null scaffolding, a zero-length
@@ -1246,6 +1232,9 @@ impl<T: Decide> CarrierLoop<T> {
 /// A loop in cycle order: each vertex, and each edge (vertex `i` to
 /// `i + 1`) with its key and on its own carrier.
 pub(crate) struct CarrierLoop<T: geom_core::Real> {
+    /// The surface record of the loop's face: what its edges are keyed by
+    /// where the walk reads one against its ray ([`conic_crossings`]).
+    face: SurfaceKey,
     /// The vertices' points.
     pub(crate) verts: Vec<Point3<T>>,
     /// The edges' keys.
@@ -1331,9 +1320,11 @@ pub(crate) fn carrier_loop<T: Decide>(
     band: Band,
 ) -> Result<CarrierLoop<T>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
+    let record = body.get_loop(r#loop).ok_or_else(corrupt)?;
+    let LoopBoundary::Cycle { first } = record.boundary else {
         return Err(corrupt());
     };
+    let face = body.get_face(record.face).ok_or_else(corrupt)?.surface;
     let steps = cycle_steps(body, first);
     let mut verts = Vec::new();
     let mut keys = Vec::new();
@@ -1408,6 +1399,7 @@ pub(crate) fn carrier_loop<T: Decide>(
         }
     }
     Ok(CarrierLoop {
+        face,
         verts,
         keys,
         edges,
@@ -1957,7 +1949,7 @@ fn carrier_walk<T: Decide>(
             for (i, edge) in edges.iter().enumerate() {
                 crossings += match edge {
                     LoopEdge::Conic(k) => RayFault::of(
-                        conic_crossings(k, on_carrier[i], normal, q, d, band),
+                        conic_crossings(lp.face, k, on_carrier[i], normal, q, d, band),
                         escalate,
                     )?,
                     // A piece still unsettled at the depth is a graze, or a
@@ -1998,9 +1990,10 @@ pub(crate) fn loop_reach<T: Decide>(
     Ok((anchor, extent_from(r#loop, anchor, &verts, &covers)?))
 }
 
-/// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k` —
-/// `None` for a graze. `on_carrier` says the pre-pass put `q` on the
-/// conic and off the arc, so a root at `q` itself is no crossing.
+/// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k`, an
+/// edge of the loop whose face's surface record is `face` — `None` for a
+/// graze. `on_carrier` says the pre-pass put `q` on the conic and off
+/// the arc, so a root at `q` itself is no crossing.
 ///
 /// **A co-surface pair** (C5): the ray lies in the loop's plane (of unit
 /// normal `normal`) and the arc on it, so they meet where the arc crosses
@@ -2014,11 +2007,27 @@ pub(crate) fn loop_reach<T: Decide>(
 /// door ([`RootPlace`]): a root at an end grazes, one in band of an end
 /// sets the ray aside.
 ///
+/// **The ray's plane is built, not read off `face`'s record**: the plane
+/// through `q` with `u_ref = d` and the caller's `normal`
+/// ([`Charted::held`](geom_brep::curve_pair::on_surface::Charted::held)),
+/// under `face`'s key. That it carries the loop's arcs is the premise
+/// that the loop and `q` lie in the plane through the loop of normal
+/// `normal`, and each way in holds it differently:
+/// - [`point_in_loop`] certifies it ([`certify_plane`]).
+/// - On the projected read it is that read's own premise, above.
+/// - [`contfp`](crate::boolean::contain::contfp), through
+///   [`carrier_loop_side`], takes it unchecked from its caller: "`q`
+///   already on the plane of `face`, with unit plane normal `normal`".
+///
+/// Both readings of the pair check the key (C5); the walk reads the one,
+/// the arc across the ray's square plane.
+///
 /// # Errors
 ///
 /// The raw [`Indeterminate`] of an in-band margin on any of its rows,
 /// which sets the ray aside ([`ray_walk`]).
 fn conic_crossings<T: Decide>(
+    face: SurfaceKey,
     k: &ConicArc<T>,
     on_carrier: bool,
     normal: Vec3<T>,
@@ -2027,20 +2036,33 @@ fn conic_crossings<T: Decide>(
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
     use geom_brep::curve_face::plane_crossing::RootPlace;
-    use geom_brep::curve_pair::on_surface::{CoSurface, OnSurface, SurfaceCurve};
-    let plane = geom::Surface::Plane {
-        origin: q,
-        normal,
-        u_ref: d,
+    use geom_brep::curve_pair::on_surface::{
+        AcrossRefusal, Charted, CoSurface, OnSurface, SurfaceCurve,
     };
+    let plane = Charted::held(
+        face,
+        geom::Surface::Plane {
+            origin: q,
+            normal,
+            u_ref: d,
+        },
+    );
     let Ok(ray) = SurfaceCurve::u_line(&plane, geom_core::Point2::new(T::zero(), T::zero())) else {
         unreachable!("a plane has its u-lines")
     };
-    let roots = match OnSurface::edge(&k.carrier, k.span).across(
+    let read = OnSurface::edge(face, &k.carrier, k.span).across(
         &ray,
         "point_in_arc_loop_conic_in_plane",
         band,
-    )? {
+    );
+    let roots = match read {
+        Ok(found) => found,
+        Err(AcrossRefusal::InBand(diag)) => return Err(diag),
+        Err(AcrossRefusal::OffRecord { edge, curve }) => {
+            unreachable!("the walk keys its arc and its ray by one face: {edge:?}, {curve:?}")
+        }
+    };
+    let roots = match roots {
         CoSurface::Roots(roots) => roots,
         // Tangent to the conic where a root can reach the arc (the door
         // reads a graze's root spread against the span itself), or the
@@ -2092,6 +2114,7 @@ mod tests {
         let band = Band::new(1e-9, 1e-8).expect("a valid band");
         let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
         let square = || CarrierLoop {
+            face: Default::default(),
             verts: vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)],
             keys: vec![EdgeKey::default(); 4],
             edges: (0..4).map(|_| LoopEdge::Chord).collect(),

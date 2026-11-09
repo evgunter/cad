@@ -31,6 +31,13 @@ Step 3 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09).
   - `tangency_reading`'s discarded `Contradicted` becomes the pair's verdict: not glued.
 - topo README C4's `ContactRefusal::{Contradicted, …}` sentence is re-worded with the code (agent text, `c7571919b0`).
 
+## Step 1's leftover (PR 6634)
+
+- **The Rest door's two contradictions still mint by hand.** These are I1 (`contact_rest_senses_opposed`) and I2 (`contact_rest_one_carrier`), in `rest_pair_verdict`: `Contradicted { diag: Indeterminate { INVALID, … } }`.
+  - **Their evidence is `None`** (fork `glue-disagreements-carry`). A plane's sense is a cosine of about ±1, a curved kind's sense is a bit, and two kinds decide no datum.
+  - I2 on a datum decided apart is the exception. It carries `CarrierVerdict::Apart(Decided)`, which step 1 now hands the door.
+- **Why they wait here.** `ContactRefusal::Contradicted { diag: Indeterminate }` has no spelling for "no evidence", and the Rest verdict this step builds (`Option<Decided>`, rows `SensesAligned` and `TwoCarriers`) is that spelling. Step 1 would otherwise have built this step's type.
+
 ## Done when
 
 No reading on this ground builds a `Contradicted` with an `Indeterminate`. The Boolean mints no contradiction. The census has no predicate-string dispatch, and the probe below has been run:

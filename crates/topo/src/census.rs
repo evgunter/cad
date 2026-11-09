@@ -476,7 +476,8 @@ struct FaceGeo<T: Real> {
     key: FaceKey,
     origin: Point3<T>,
     normal: Vec3<T>,
-    /// Every vertex on the face's outer loop and rings.
+    /// Every vertex on the face's outer loop and rings, a lone one
+    /// included.
     boundary: BTreeSet<VertexKey>,
     /// The face's loops, each its vertices in walk order (the outer
     /// loop first) — the order a corner is read in.
@@ -485,8 +486,8 @@ struct FaceGeo<T: Real> {
     /// face is the planar polygon its vertices bound, so it lies in
     /// their convex hull.
     polygon: bool,
-    /// Every loop walked and every half-edge resolved: a face tier 1
-    /// passed always is.
+    /// Every loop a cycle walked and every half-edge resolved: a face
+    /// tier 1 passed is, unless a loop of it is a lone vertex.
     walked: bool,
 }
 
@@ -2166,6 +2167,10 @@ fn pair_contact<T: Decide>(
             }),
         ) => return Some(PairContact::Area { aligned: true }),
         Ok(Ok(CarrierRelation::Distinct)) if !planes => {}
+        // A torus off its ring convention (`CarrierEqError::OffRing`)
+        // lands here too: tier 3 refuses such a face first
+        // (`ValidationError::DegenerateTorus`), so no validated body
+        // reaches it.
         _ => return None,
     }
     // A point touch on the point lane's own carriers ([`point::face_face`]):
@@ -2531,7 +2536,7 @@ pub(crate) fn line_wedges<T: Decide>(
     wedges_overlap(
         pairs,
         |pair, side| {
-            let at = pair.ends[0] + (pair.ends[1] - pair.ends[0]) * T::from_f64(0.5);
+            let at = pair.ends[0].mid(pair.ends[1]);
             wedge(body, &geo[&pair.edges[side]], at, band)
         },
         |w| [w.own, w.next, w.inside],
@@ -2554,7 +2559,7 @@ fn wedges_overlap<P, W, D>(
     probes: impl Fn(&W) -> [D; 3],
     inside: impl Fn(&W, D) -> Result<bool, WedgeRefusal>,
 ) -> Result<Option<usize>, (usize, WedgeRefusal)> {
-    let kept = |e: (usize, WedgeRefusal)| Rung::refused(e, |e| e.1.refusal());
+    let kept = |e: (usize, WedgeRefusal)| Rung::refused(e, |e| e.1.refusal(), Err);
     let climbed = climb(Answering::Any, pairs.iter().enumerate(), |(i, pair)| {
         let a = match wedge(pair, 0) {
             Ok(a) => a,
@@ -2713,11 +2718,22 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         let mut walked = true;
         // A loop this cannot walk contributes no boundary vertex, and
         // the face is no polygon the touch analysis reads.
-        for cycle in body.unchecked_face_cycles(face) {
-            let Ok(cycle) = cycle else {
-                polygon = false;
-                walked = false;
-                continue;
+        for read in body.unchecked_face_boundary(face) {
+            let cycle = match read {
+                Ok(crate::live::UncheckedLoop::Cycle(cycle)) => cycle,
+                // A lone vertex bounds the face, but is no ring of the
+                // polygon readings, which keep their unwalked refusal.
+                Ok(crate::live::UncheckedLoop::Lone(vertex)) => {
+                    boundary.insert(vertex);
+                    polygon = false;
+                    walked = false;
+                    continue;
+                }
+                Err(_) => {
+                    polygon = false;
+                    walked = false;
+                    continue;
+                }
             };
             let mut ring = Vec::with_capacity(cycle.len());
             for he in cycle {
@@ -4200,18 +4216,10 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     band: Band,
 ) -> Option<Result<bool, Indeterminate>> {
     use geom_brep::variety::{Piece, Variety};
-    if !matches!(
-        surface,
-        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
-    ) {
-        return None;
-    }
-    // A cylinder or a cone is a member whatever the ring site reads, since
-    // only a torus asks it.
-    let variety = Variety::of(surface, name, band).ok()??;
+    let variety = Variety::ruled(surface)?;
     Some(
         variety
-            .read_piece(&[p0, p1, p0.lerp(p1, T::from_f64(0.5))], name, band)
+            .read_piece(&[p0, p1, p0.mid(p1)], name, band)
             .map(|read| read == Piece::Sampled),
     )
 }
@@ -4285,9 +4293,7 @@ mod variety_reading_rows {
             Point3::new(0.0, -1.2, 0.0),
             Point3::new(1.2, 0.0, 0.0),
         ];
-        let variety = geom_brep::variety::Variety::of(&sphere, "test_row", band())
-            .unwrap()
-            .unwrap();
+        let variety = geom_brep::variety::Variety::quadric(&sphere).unwrap();
         assert_eq!(
             variety.read_piece(&samples, "test_row", band()),
             Ok(geom_brep::variety::Piece::Off)
@@ -6301,12 +6307,11 @@ fn planar_face_pairs<T: Decide>(
                 continue;
             }
             let (relation, margin) =
-                match crate::boolean::carrier_pair_decided(body, fa.key, body, fb.key, band) {
-                    Ok(Ok((relation, Some(margin)))) => (relation, margin),
-                    Ok(Err(
-                        err @ (crate::boolean::CarrierEqError::Undecided { .. }
-                        | crate::boolean::CarrierEqError::Escalated { .. }),
-                    )) => {
+                match crate::boolean::carrier_pair_decided(body, fa.key, body, fb.key, band)
+                    .map(|reading| reading.map(|verdict| verdict.one()))
+                {
+                    Ok(Ok(Some(one))) => one,
+                    Ok(Err(err)) => {
                         let unread = |reason| UnreadPair {
                             a: fa.key,
                             b: fb.key,
@@ -6463,8 +6468,9 @@ fn curved_same_side_pairs<T: Decide>(
                 Some(Ok(_)) => true,
                 Some(Err(_)) => continue,
             };
-            let Ok(Ok((crate::boolean::CarrierRelation::SameOriented, Some(margin)))) =
+            let Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) =
                 crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
+                    .map(|reading| reading.map(|verdict| verdict.one()))
             else {
                 continue;
             };
@@ -6517,6 +6523,8 @@ fn in_band_reading<T: Decide>(
     band: Band,
 ) -> InBand {
     use crate::boolean::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
+    // A torus off its ring convention read no coincidence at all, in band
+    // or decided, so the pair is unread whatever its convention's margin.
     let CarrierEqError::Undecided {
         coincidence: CoincidenceMeasure::Undecided(diag),
         relation,
@@ -7060,7 +7068,7 @@ fn same_solid_tangent_pair<T: Decide>(
             return;
         }
     };
-    let at = witness(carrier.eval((overlap.0 + overlap.1) * T::from_f64(0.5)));
+    let at = witness(carrier.eval(geom::mid_param(overlap.0, overlap.1)));
     let line = match crate::boolean::rest_line_in_both_faces(
         body,
         [a, b],
@@ -8515,7 +8523,7 @@ fn sectors_of_faces<F>(
 ) -> Option<TouchUnread> {
     let climbed = climb(Answering::First, faces, |face| match read(face) {
         Ok(()) => Rung::Passes,
-        Err(why) => geom_brep::ladder::rung_or_abort(why.refusal(), why, |why| why),
+        Err(why) => Rung::refused(why, |why| why.refusal(), core::convert::identity),
     });
     match climbed {
         Climb::Passed => None,
@@ -10376,7 +10384,15 @@ fn confirm_face_pair<T: Decide>(
     match crate::boolean::carrier_pair_relation(body, a, body, b, band) {
         Ok(Ok(crate::boolean::CarrierRelation::Distinct))
         | Err(crate::boolean::PairUnread::OutsideInventory) => {}
-        Ok(Ok(_) | Err(crate::boolean::CarrierEqError::Undecided { .. })) => {
+        // A torus off its ring convention is tier 3's finding; the
+        // patch door reads the pair as it reads one in band.
+        Ok(
+            Ok(_)
+            | Err(
+                crate::boolean::CarrierEqError::Undecided { .. }
+                | crate::boolean::CarrierEqError::OffRing { .. },
+            ),
+        ) => {
             confirm_patch(body, a, b, band, region, errors);
             return;
         }
@@ -11182,8 +11198,10 @@ fn flush_pairs<T: Decide>(
             if ga == gb {
                 continue;
             }
-            let margin = match crate::boolean::carrier_pair_decided(body, fa, body, fb, band) {
-                Ok(Ok((crate::boolean::CarrierRelation::SameOriented, Some(margin)))) => margin,
+            let margin = match crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
+                .map(|reading| reading.map(|verdict| verdict.one()))
+            {
+                Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) => margin,
                 _ => continue,
             };
             let planar = planar_face(geo, fa).zip(planar_face(geo, fb));
@@ -11428,10 +11446,10 @@ fn planar_interiors_meet<T: Decide>(
 /// pieces between its meetings with the other boundary
 /// ([`arc_interiors_meet`]) decides. `Ok(false)` is a certificate on
 /// either path. `Ok(true)` is not, inside the band: the witness search
-/// reads two crossings it parts, and their cones, as shared interior,
-/// so a lens between two crossings shallower than the zero reads `true`
-/// (`work/atrest/an-in-band-lens-reads-as-shared-interior.md`), loud
-/// rather than silent.
+/// reads two crossings the meeting reader parts, and their cones, as
+/// shared interior (`work/atrest/an-in-band-lens-reads-as-shared-interior.md`),
+/// loud rather than silent. Two circular arcs bounding a lens shallower
+/// than the zero meet in one touch, by C5, and read `false`.
 fn face_interiors_meet<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -11793,18 +11811,14 @@ fn normal_at<T: Decide>(
     }
 }
 
-/// Each vertex on `f`'s boundary, outer loop and rings, once: exactly
-/// the vertices [`snapshot`] records into `vertex_faces`. A loop that
-/// does not walk contributes none.
+/// Each vertex on `f`'s boundary, outer loop and rings, a lone one
+/// included, once: exactly the vertices [`snapshot`] records into
+/// `vertex_faces`. A loop that does not walk contributes none.
 fn face_vertices<T: Real>(body: &Body<T>, f: FaceKey) -> BTreeSet<VertexKey> {
     let Some(face) = body.get_face(f) else {
         return BTreeSet::new();
     };
-    body.unchecked_face_cycles(face)
-        .filter_map(Result::ok)
-        .flatten()
-        .filter_map(|he| body.half_edges.get(he).map(|h| h.start))
-        .collect()
+    body.unchecked_face_vertices(face).collect()
 }
 
 /// Whether `x`'s interior and `y`'s meet near `q`, a point of `x`'s
@@ -21436,17 +21450,13 @@ mod arc_interiors {
     }
 
     /// **A lens at every depth across the band, on arcs of 20, 100 and
-    /// 1000 widths' radius.** Past the zero no reading certifies the
-    /// interiors apart, and past the band both find the meeting. The
-    /// reading of pieces finds none inside the band: its piece between
-    /// the crossings places in the band. **Known, not correct:** the
-    /// faces' reading runs the witness search first, which finds the
-    /// crossings and reads their cones apart past the band, so it reads
-    /// a lens shallower than the zero as shared interior at every radius
-    /// here but the smallest lens on the smallest arc
-    /// (`work/atrest/an-in-band-lens-reads-as-shared-interior.md`). That
-    /// errs loud, an interference and never a clear; this row goes red
-    /// when it is fixed, and is turned then.
+    /// 1000 widths' radius**, read by the faces and by pieces. A lens
+    /// shallower than the zero lies everywhere within the zero band of the
+    /// other arc, so by C5 it is one touch: both read the arcs touching,
+    /// not sharing interior. In the band's gap neither reads apart, and
+    /// pieces leave it undecided. Past the band both find the meeting.
+    /// Red where the meeting reader splits an in-zero lens into two
+    /// crossings, which the witness search then reads as shared interior.
     #[test]
     fn a_lens_across_the_band_is_never_read_apart() {
         let tol = Tol::witness();
@@ -21457,17 +21467,13 @@ mod arc_interiors {
                 let depth = de * tol.eps();
                 let [faces, pieces] = read(r, depth);
                 let at = format!("a lens {de}ε deep on an arc of {rw} widths");
-                if depth > zero {
+                if depth < zero {
+                    assert_eq!([faces, pieces], [Ok(false); 2], "{at}: one touch");
+                } else if depth <= escalate {
                     assert_ne!(faces, Ok(false), "{at}: the faces' reading");
-                    assert_ne!(pieces, Ok(false), "{at}: the reading of pieces");
-                }
-                if depth > escalate {
-                    assert_eq!([faces, pieces], [Ok(true); 2], "{at}");
-                } else {
                     assert_eq!(pieces, Err(InteriorsUnread::Undecided), "{at}: pieces");
-                }
-                if depth < zero && !(rw == 20.0 && de == 0.05) {
-                    assert_eq!(faces, Ok(true), "{at}: known, the witness search");
+                } else {
+                    assert_eq!([faces, pieces], [Ok(true); 2], "{at}");
                 }
             }
         }
@@ -21782,6 +21788,39 @@ mod interiors_ranking {
             meeting_found(climb(Answering::Any, [Ok(false), Ok(false)], meeting_rung)),
             Ok(false),
             "every reading apart certifies apart"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod lone_vertex_rows {
+    use geom_core::Tol;
+
+    use crate::test_support_fixtures::box_with_a_lone_ring;
+
+    /// **A face's boundary holds its lone vertex**: the snapshot's
+    /// planar face, its `vertex_faces` incidence and [`super::face_vertices`]
+    /// each name the vertex of a one-vertex ring on a box's top face. Red
+    /// where they were read off the face's half-edges.
+    #[test]
+    fn a_faces_boundary_holds_its_lone_vertex() {
+        let (body, top, lone) = box_with_a_lone_ring(Tol::witness());
+        let geo = super::snapshot(&body);
+        let face = super::planar_face(&geo, top).expect("the top face is planar");
+        assert!(
+            face.boundary.contains(&lone),
+            "the snapshot's boundary holds it"
+        );
+        assert!(
+            geo.vertex_faces
+                .get(&lone)
+                .is_some_and(|faces| faces.contains(&top)),
+            "the incidence names the top face for it"
+        );
+        assert!(
+            super::face_vertices(&body, top).contains(&lone),
+            "face_vertices holds it"
         );
     }
 }

@@ -23,7 +23,7 @@ use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeEnd, NodeEnds,
     NodeLine, NodeSet, PairPose, PairSection, PairSide, RaySense, SectionComponent,
-    SectionDecision, SectionNode, TANGENT_COMPONENT, ZeroVerdict,
+    SectionDecision, SectionNode, ZeroVerdict,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
@@ -32,11 +32,6 @@ use crate::intersect::{
     parallel_cylinder_gap_reported, parallel_swing, tilted_section_major,
 };
 use geom_core::k_stats::decide_across_reported;
-
-/// The note the pinch's lobes carry: their arcs end at the node, and no
-/// march that starts at a node is built.
-pub const PINCH: &str = "the thinner wall touches the fatter one from inside, a node its two \
-                         lobes end at, and no march that starts at a node is built";
 
 /// **The questions the cylinder pair's pose decides**, each on one
 /// margin in metres.
@@ -520,7 +515,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         Some(match (gap.sign, nest.map(|n| n.sign)) {
             (Sign::Negative, _) | (Sign::Positive, Some(Sign::Negative)) => ParallelSection::Empty,
             (Sign::Zero, _) | (Sign::Positive, Some(Sign::Zero)) => {
-                ParallelSection::Tangent(p + (q - p) * T::from_f64(0.5))
+                ParallelSection::Tangent(p.mid(q))
             }
             (Sign::Positive, _) => ParallelSection::Rulings([p, q]),
         })
@@ -874,7 +869,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         };
         region_span(pose.region, line, band).map(|span| {
             let line = Curve3::Line(line);
-            let witness = line.eval((span.0 + span.1) * T::from_f64(0.5));
+            let witness = line.eval(geom::mid_param(span.0, span.1));
             (line, span, witness)
         })
     };
@@ -900,7 +895,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         cut,
                         [false, false],
                         Some(witness),
-                        ClassCarrier::Unminted(TANGENT_COMPONENT),
+                        ClassCarrier::Unminted(super::NoCarrier::Tangent),
                     )
                 })
                 .into_iter()
@@ -926,7 +921,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         ComponentShape::Point,
                         [false, false],
                         Some(at),
-                        ClassCarrier::Unminted(TANGENT_COMPONENT),
+                        ClassCarrier::Unminted(super::NoCarrier::Tangent),
                     )],
                 })
             }
@@ -973,7 +968,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             },
                             // The winding is the node-joined set's.
                             [false, false],
-                            Some(curve.eval((span.0 + span.1) * T::from_f64(0.5))),
+                            Some(curve.eval(geom::mid_param(span.0, span.1))),
                             ClassCarrier::Span {
                                 curve: curve.clone(),
                                 span,
@@ -1000,7 +995,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                                 },
                                 [false, false],
                                 None,
-                                ClassCarrier::Unminted(PINCH),
+                                ClassCarrier::Unminted(super::NoCarrier::Pinch),
                             )
                         })
                         .collect(),

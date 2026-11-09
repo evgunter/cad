@@ -98,7 +98,7 @@ impl TorusConvention {
 /// decided: the half and its verdict, carried from the door that decides
 /// it to the one that renders it, whose `Display` ends in the half's one
 /// lever ([`TorusConvention::sized`]) read at a build.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TorusRefusal {
     /// The half that refused.
     pub convention: TorusConvention,
@@ -107,7 +107,7 @@ pub struct TorusRefusal {
 }
 
 /// How a half of the ring convention refused.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TorusVerdict {
     /// The margin landed in the band, or was poisoned.
     Undecided(Indeterminate),
@@ -148,8 +148,8 @@ impl TorusRefusal {
     ) -> Result<geom::RingTorus<T>, Self> {
         geom::RingTorus::of(major, minor, band).map_err(|not| {
             let (convention, verdict) = match not {
-                geom::NotARing::Tube(verdict) => (TorusConvention::Tube, verdict),
-                geom::NotARing::Ring(verdict) => (TorusConvention::Ring, verdict),
+                geom::NotARing::Tube { verdict, .. } => (TorusConvention::Tube, verdict),
+                geom::NotARing::Ring { verdict, .. } => (TorusConvention::Ring, verdict),
             };
             Self::of(convention, verdict, band).unwrap_or_else(|| {
                 unreachable!("`RingTorus::of` refuses only a half that did not read Positive")

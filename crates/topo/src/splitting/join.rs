@@ -736,7 +736,7 @@ fn conic_pairs<T: Decide>(
     // conic's speed is even and 2π-periodic in `θ`, so it reads the
     // same at `w` as at the `θ` it came from.
     let gap = |w: &[T], a: usize, b: usize| {
-        (w[a] - w[b]) * conic.tangent((w[a] + w[b]) * T::from_f64(0.5)).norm()
+        (w[a] - w[b]) * conic.tangent(geom::mid_param(w[a], w[b])).norm()
     };
     let n = crossings.len();
     let runs = super::order::sort_along_runs(n, |a, b| gap(&walk, a, b), band).map_err(escalate)?;
@@ -1585,7 +1585,7 @@ mod torn_hop_rows {
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
                     apex_germs: SecondaryMap::new(),
-                    coincidences: Vec::new(),
+                    coincidences: crate::splitting::ReducedRows(Vec::new()),
                     edge_pieces: crate::lineage::SplitEdgeDivisions::new(
                         crate::lineage::LineageRows::EdgeDivisions(None),
                     ),

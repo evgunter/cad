@@ -27,6 +27,10 @@ Signed: (BOXES orchestrator)
 
 BOXES' `cover-app-readers` lane, running the sweep slow set at `de25200`, found one more in this family: `crates/sweep/tests/germ_plane_torus_chord.rs` `a_tilted_cap…` refuses `OutsideSessionBox` too. Its code is untouched by that branch. (BOXES orchestrator)
 
+## Evidence: two more rows of the family (SEAL, 2026-11-09, PR 6634's review)
+
+`crates/sweep/tests/torus_touch_off_faces.rs`'s `the_off_face_touches_build_at_every_scale` and `the_off_face_touches_build_in_a_tilted_frame` refuse `OutsideSessionBox` at their extrude too, as does `germ_plane_torus_chord`'s `a_tilted_cap…` (already listed above). The review saw them red on main `cb3fdd3485`. All three are in the slow set (`.config/nextest.toml`), so the nightly runs them, and the nightly triage owns that red. PR 6634 does not fix it.
+
 ## Attribution and the whole family (BOXES nightly-reds triage, 2026-11-09)
 
 The cause is not `8a97c7fab5`, which changes comments only (`boolean/boxes.rs` docs and `session_box.rs` comments). `OutsideSessionBox` does not exist at `b2cc80453b^1`, and `crates/topo/src/session_box.rs` is a new file in PR 6380 (`onehome/run-owns-rounding`, merge `b2cc80453b`). So the gate, and every refusal it makes, arrived with PR 6380. Run at `7cbccda83d` (PR 6579's first parent, built with `--all-features`), `reach_split_gate_pose`, `parallel_cylinder_join`'s far-origin row, `sign_walk_plus_v` and `germ_plane_torus_chord`'s `a_tilted_cap…` are already red. The margins read like fixtures that really lie past the box's extent (`reach_split_gate_pose`'s −500 is a reach of 1500 against 1000; `sign_walk_plus_v`'s strip is `1e14·ε` long). So the question for this row is whether those fixtures should build at all, not whether the reach is loose.

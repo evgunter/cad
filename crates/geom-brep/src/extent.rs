@@ -228,7 +228,7 @@ impl<T: Real> ExtentBall<T> {
         let (a, b) = (corners(a), corners(b));
         let lo: [f64; 3] = core::array::from_fn(|i| a.0[i].max(b.0[i]));
         let hi: [f64; 3] = core::array::from_fn(|i| a.1[i].min(b.1[i]));
-        let mid: [f64; 3] = core::array::from_fn(|i| (lo[i] + hi[i]) * 0.5);
+        let mid: [f64; 3] = core::array::from_fn(|i| geom::mid_param(lo[i], hi[i]));
         let half = Vec3::new(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]).norm() * 0.5;
         Self::new(
             Point3::new(
@@ -411,7 +411,7 @@ impl<T: Real> ExtentBall<T> {
                 Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
             )
         });
-        let center = lo + (hi - lo) * T::from_f64(0.5);
+        let center = lo.mid(hi);
         Self::new(center, control_net_reach(net, center))
     }
 

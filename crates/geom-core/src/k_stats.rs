@@ -27,8 +27,10 @@
 //! (`scripts/gates/least-band-on-a-door.sh`) and the ledger census
 //! (`geom-core/tests/flagged_census.rs`) read the doors off this file's
 //! `pub` signatures, so a door takes its band as a parameter whose type
-//! names `Band`, and its ledger row as one `&str` parameter or one whose
-//! name holds `row`, never inside a struct argument. Every other `pub` fn
+//! names `Band` (or a name this file gives it, by `type` or `use … as`),
+//! and its ledger row as one parameter of a text type (`&str`, `String`,
+//! or an alias this file gives one) or one whose name holds `row`, never
+//! inside a struct argument. Every other `pub` fn
 //! here that takes a band or such a parameter is named as a non-door in
 //! the reader that would otherwise take it for one.
 //!
@@ -924,6 +926,38 @@ pub enum NonzeroSign {
     Positive,
     /// The margin classified definitely negative.
     Negative,
+}
+
+impl NonzeroSign {
+    /// **The decided side's unit value**, `+1` or `−1` at `T`: the one
+    /// spelling of a ±1 read off a sign already decided. Its hull twin,
+    /// read off a value rather than a decision, is
+    /// [`crate::Real::unit_sign`].
+    #[must_use]
+    pub fn unit<T: Real>(self) -> T {
+        match self {
+            Self::Positive => T::one(),
+            Self::Negative => -T::one(),
+        }
+    }
+
+    /// The other side.
+    #[must_use]
+    pub fn flip(self) -> Self {
+        match self {
+            Self::Positive => Self::Negative,
+            Self::Negative => Self::Positive,
+        }
+    }
+}
+
+impl From<NonzeroSign> for Sign {
+    fn from(side: NonzeroSign) -> Self {
+        match side {
+            NonzeroSign::Positive => Self::Positive,
+            NonzeroSign::Negative => Self::Negative,
+        }
+    }
 }
 
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling

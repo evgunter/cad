@@ -826,6 +826,13 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     diag,
                 ));
             }
+            Err(super::PlaneEqError::OffRing { torus, refusal }) => {
+                return Err(super::off_ring_torus(
+                    torus,
+                    refusal,
+                    [(operand, f1), (operand, f2)],
+                ));
+            }
         }
     }
     Ok(())
@@ -1281,11 +1288,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             }
                         };
                         let mut hit =
-                            vertex_on_face(x_is, y, u, pu, face, &plane, on, contacts, band, tol)?;
+                            vertex_on_face(x_is, y, u, pu, face, on, contacts, band, tol)?;
                         if v != u {
-                            hit |= vertex_on_face(
-                                x_is, y, v, pv, face, &plane, on, contacts, band, tol,
-                            )?;
+                            hit |= vertex_on_face(x_is, y, v, pv, face, on, contacts, band, tol)?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
                             tr.accept_last();
@@ -1300,7 +1305,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         };
                         let (first_end, on) = first_end;
                         let (w, pw) = if first_end { (u, pu) } else { (v, pv) };
-                        if vertex_on_face(x_is, y, w, pw, face, &plane, on, contacts, band, tol)?
+                        if vertex_on_face(x_is, y, w, pw, face, on, contacts, band, tol)?
                             && let Some(tr) = trace.as_deref_mut()
                         {
                             tr.accept_last();
@@ -1591,14 +1596,12 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                     let mut hit = false;
                     if za == Sign::Zero {
-                        hit |= vertex_on_face(
-                            x_is, y, u, pu, face, &plane, d1.margin, contacts, band, tol,
-                        )?;
+                        hit |=
+                            vertex_on_face(x_is, y, u, pu, face, d1.margin, contacts, band, tol)?;
                     }
                     if zb == Sign::Zero {
-                        hit |= vertex_on_face(
-                            x_is, y, v, pv, face, &plane, d2.margin, contacts, band, tol,
-                        )?;
+                        hit |=
+                            vertex_on_face(x_is, y, v, pv, face, d2.margin, contacts, band, tol)?;
                     }
                     if hit && let Some(tr) = trace.as_deref_mut() {
                         tr.accept_last();
@@ -1767,7 +1770,7 @@ fn settle_in_plane<T: Decide>(
                 .into_iter()
                 .any(|w| contacts.rests_in(lie.x_is, w, lie.face))
                 || {
-                    let mid = p0 + (p1 - p0) * T::from_f64(0.5);
+                    let mid = p0.mid(p1);
                     let (at, _) = contfp_decided(y, lie.face, plane.normal, mid, band)
                         .map_err(|e| esc(e, lie.x_is.other(), lie.face))?;
                     matches!(at, FaceContainment::In)
@@ -3239,7 +3242,7 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
 ///   [`CurvedEvent::Pierce`]: the first, the sweep reading the fragments
 ///   again. A meeting outside the trim is no event of this face.
 /// - With no meeting on the face, each end is placed on it
-///   ([`super::contain::curved_face_placement_decided`]) and recorded
+///   ([`super::contain::placement_on_carrier`]) and recorded
 ///   where it lies: on a vertex, on an edge (split there), or inside.
 ///
 /// # Errors
@@ -3334,9 +3337,8 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     }
     let mut recorded = false;
     for (w, pw) in ends {
-        let (placement, on, chart) =
-            super::contain::curved_face_placement_decided(y, face, pw, band)
-                .map_err(|e| esc(e, x_is.other(), face))?;
+        let (placement, on, chart) = super::contain::placement_on_carrier(y, face, pw, band)
+            .map_err(|e| esc(e, x_is.other(), face))?;
         match placement {
             CurvedPlacement::Trim(Some(FaceContainment::OnVertex(vy))) => {
                 push_vv(contacts, x_is, w, vy, on);
@@ -3360,6 +3362,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                     contacts.chart_point(x_is, w, face, uv);
                 }
             }
+            // OffCarrier → Out (trusted on carrier).
             CurvedPlacement::Trim(Some(FaceContainment::Out)) | CurvedPlacement::OffCarrier => {
                 continue;
             }
@@ -4098,8 +4101,12 @@ fn parents_distinct_from<T: Decide>(
 /// analytic carrier under.
 const SHEET_OFF_CARRIER: &str = "bool_spline_sheet_off_carrier";
 
-/// The site [`spline_off_carrier`] decides a torus carrier a ring under.
-const SHEET_RING_TORUS: &str = "bool_spline_sheet_ring_torus";
+/// The rows [`spline_off_carrier`] decides a torus carrier a ring under,
+/// its tube and then its ring.
+const SHEET_RING_TORUS: geom::RingSites = geom::RingSites::new(
+    "bool_spline_sheet_torus_tube",
+    "bool_spline_sheet_ring_torus",
+);
 
 /// **Whether spline sheet `sheet` lies on analytic `carrier` along no
 /// piece**: true where every Bézier piece of the net (each cell between
@@ -4124,8 +4131,11 @@ fn spline_off_carrier<T: Decide>(
     band: Band,
 ) -> bool {
     use geom_brep::variety::{Piece, Variety};
-    let Ok(Some(variety)) = Variety::of(carrier, SHEET_RING_TORUS, band) else {
-        return false;
+    let variety = match Variety::of(carrier, SHEET_RING_TORUS, band) {
+        Ok(Some(variety)) => variety,
+        // No member, or a torus's convention in band: not certified off
+        // either way, which is all this bool says.
+        Ok(None) | Err(_) => return false,
     };
     // Clamped, so the first and last runs are the domain's ends.
     let breaks = |knots: &geom_core::spline::Knots<T>| -> Vec<T> { knots.breakpoints().collect() };
@@ -4194,6 +4204,37 @@ mod spline_off_carrier_rows {
             }
         }
         NurbsSurface::new(Knots::from(ku), Knots::from(kv), control, weights).unwrap()
+    }
+
+    /// **A torus carrier reads the sheet off only where it is decided a
+    /// ring**: a sheet clear of a ring torus reads off, and the same sheet
+    /// against a torus whose `R − r` is in band reads not certified off,
+    /// the escalation taken as the bool's `false` (the function's docs).
+    /// Red on the in-band ring read as a member or as a refusal.
+    #[test]
+    fn a_torus_whose_ring_is_in_band_leaves_the_sheet_uncertified() {
+        let s = sheet(
+            &[(1.2, 0.5), (1.3, 0.6), (1.4, 0.7)],
+            vec![0.0, 0.0, 0.1, 1.0, 1.0],
+            1,
+        );
+        let torus = |major_radius: f64| Surface::Torus {
+            center: Point3::new(0.0, 0.0, 10.0),
+            axis: Vec3::unit_z(),
+            major_radius,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let b = band();
+        assert!(
+            spline_off_carrier(&s, &torus(3.0), b),
+            "a ring torus far off"
+        );
+        let gap = 0.5 * (b.zero() + b.escalate());
+        assert!(
+            !spline_off_carrier(&s, &torus(1.0 + gap), b),
+            "a torus whose ring is in band"
+        );
     }
 
     #[test]
@@ -5103,7 +5144,7 @@ enum Landing {
 }
 
 /// **Where the crossing point `p`, certified on `face`'s carrier, lands
-/// in the face's trim** ([`super::contain::curved_face_placement_decided`]).
+/// in the face's trim** ([`super::contain::placement_on_carrier`]).
 ///
 /// `Unplaced` is the chart door's honest remainder (a ringed face, a
 /// boundary outside its outline classes, a full-period window outside
@@ -5121,7 +5162,8 @@ fn landing<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Landing, BooleanError> {
-    match super::contain::curved_face_placement_decided(y, face, p, band) {
+    match super::contain::placement_on_carrier(y, face, p, band) {
+        // OffCarrier → Unplaced (contradicts the crossing's certificate).
         Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _, _)) => {
             Ok(Landing::Unplaced)
         }
@@ -5689,10 +5731,11 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(Placement, Option<VertexKey>), BooleanError> {
-    let (placement, on, chart) = super::contain::curved_face_placement_decided(y, face, px, band)
+    let (placement, on, chart) = super::contain::placement_on_carrier(y, face, px, band)
         .map_err(|e| esc(e, x_is.other(), face))?;
     let verdict = match placement {
         CurvedPlacement::Trim(v) => v,
+        // OffCarrier → no verdict (the caller's typed frontier).
         CurvedPlacement::OffCarrier => None,
     };
     match verdict {
@@ -5865,14 +5908,23 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     vx: VertexKey,
     px: Point3<T>,
     face: FaceKey,
-    plane: &PlaneDesc<T>,
     on_plane: MarginDiag,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
 ) -> Result<bool, BooleanError> {
-    let (at, on) =
-        contfp_decided(y, face, plane.normal, px, band).map_err(|e| esc(e, x_is.other(), face))?;
+    let (placement, on, _) = super::contain::placement_on_carrier(y, face, px, band)
+        .map_err(|e| esc(e, x_is.other(), face))?;
+    let at = match placement {
+        // OffCarrier → fault: the caller decided `px` on the plane, and a
+        // plane answers neither it nor `Trim(None)`.
+        CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a plane placed a vertex decided on it off its carrier, or read no verdict",
+            });
+        }
+        CurvedPlacement::Trim(Some(at)) => at,
+    };
     match at {
         FaceContainment::Out => return Ok(false),
         FaceContainment::In => push_vf(contacts, x_is, vx, face, Some(on_plane)),
@@ -6243,7 +6295,7 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
     if on.sign != Sign::Zero {
         return Ok(false);
     }
-    vertex_on_face(x_is, y, w, p, face, plane, on.margin, contacts, band, tol)
+    vertex_on_face(x_is, y, w, p, face, on.margin, contacts, band, tol)
 }
 
 /// The swept solid `x`, its slit tips at rest, which operand it is, and
@@ -8287,10 +8339,9 @@ mod esc_tests {
     use super::{BooleanError, ContactAcc, Operand, esc, vertex_on_face};
     use crate::Body;
     use crate::boolean::contain::ContainError;
-    use crate::boolean::plane_eq::PlaneDesc;
     use crate::boolean::solid_contain::PointInSolidError;
     use crate::entity::{FaceKey, LoopKey, VertexKey};
-    use geom_core::{Band, Point3, Tol, Vec3};
+    use geom_core::{Band, Point3, Tol};
 
     /// **The reduction answers `ContainError`'s refusals typed on a
     /// working copy.** Mid-operation the gate's at-rest verdict does not
@@ -8328,10 +8379,6 @@ mod esc_tests {
         let at = Point3::new(0.0, 0.0, 0.0);
         let mut y = Body::<f64>::new();
         let seed = y.mvfs(at, true).expect("the seed state");
-        let plane = PlaneDesc {
-            origin: at,
-            normal: Vec3::unit_z(),
-        };
         for (x_is, face_is) in [(Operand::A, Operand::B), (Operand::B, Operand::A)] {
             let got = vertex_on_face(
                 x_is,
@@ -8339,7 +8386,6 @@ mod esc_tests {
                 VertexKey::default(),
                 Point3::new(1.0, 0.0, 0.0),
                 seed.face,
-                &plane,
                 geom_core::MarginDiag::value(0.0),
                 &mut ContactAcc::default(),
                 band,

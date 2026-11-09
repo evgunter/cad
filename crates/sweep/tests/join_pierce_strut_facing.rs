@@ -10,7 +10,7 @@
 //! walk from the corner's arrival edge decides it.
 //!
 //! - `m = (1, 1.3, −0.7)`: the edges read In and the bisector alone
-//!   Out, the bare-bisector run (`classify_vertex_on_face`'s `_` arm).
+//!   Out, the bare-bisector run (`read_vertex_on_face`'s `_` arm).
 //! - `−m`: the edges read Out and the bisector alone In, the run holds
 //!   the whole orbit (`topo::star`'s strut whose tip stands for the
 //!   rest).

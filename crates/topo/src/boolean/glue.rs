@@ -30,8 +30,8 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
 use super::{
-    BooleanError, DeclarationRead, Glue, GluedPair, InBandPair, Operand, PairUnread,
-    TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
+    BooleanError, CarrierVerdict, DeclarationRead, Glue, GluedPair, InBandPair, Operand,
+    PairUnread, TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
 use crate::contact::GlueClass;
@@ -85,16 +85,10 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
             continue;
         }
         let glued = match carrier_pair_decided(a, fa, b, fb, band) {
-            Ok(Ok((relation, Some(margin)))) => GlueClass::of_senses(relation)
+            Ok(Ok(CarrierVerdict::One { relation, margin })) => GlueClass::of_senses(relation)
                 .map(|class| GluedPair::decided(fa, fb, class, margin)),
-            // One carrier on no margin is no decision this door makes:
-            // every rung that reads one carrier reads it on a margin.
-            Ok(Ok((relation, None))) if GlueClass::of_senses(relation).is_some() => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "the glue door: a pair read one carrier on no margin",
-                });
-            }
-            Ok(Ok(_)) | Err(PairUnread::OutsideInventory) => {
+            Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
+            | Err(PairUnread::OutsideInventory) => {
                 tangency(a, fa, b, fb, band)?.then(|| GluedPair::new(fa, fb, GlueClass::Tangent))
             }
             Ok(Err(reading)) => {
@@ -409,21 +403,7 @@ pub(crate) fn touched<T: geom_core::Real>(
     [a, b]: [&Body<T>; 2],
 ) -> Vec<usize> {
     use crate::{Cell, RowCell};
-    // Each face's closure in its input, read once: the face, its edges
-    // and their ends.
-    let closures = |body: &Body<T>| {
-        let mut out: std::collections::BTreeMap<FaceKey, Vec<Cell>> =
-            std::collections::BTreeMap::new();
-        for (he, h) in body.half_edges() {
-            if let Some(face) = body.face_of_half_edge(he) {
-                out.entry(face)
-                    .or_insert_with(|| vec![Cell::Face(face)])
-                    .extend([Cell::Edge(h.edge), Cell::Vertex(h.start)]);
-            }
-        }
-        out
-    };
-    let (of_a, of_b) = (closures(a), closures(b));
+    let (of_a, of_b) = (face_closures(a), face_closures(b));
     let closure = |input: Operand, face: FaceKey| {
         let of = if input == Operand::A { &of_a } else { &of_b };
         of.get(&face).map_or(&[][..], Vec::as_slice)
@@ -448,6 +428,26 @@ pub(crate) fn touched<T: geom_core::Real>(
             })
         })
         .map(|(i, _)| i)
+        .collect()
+}
+
+/// Each face's closure in `body`, read once: the face, its edges and
+/// its vertices, a lone one included ([`crate::live::BoundaryMember`]).
+fn face_closures<T: geom_core::Real>(
+    body: &Body<T>,
+) -> std::collections::BTreeMap<FaceKey, Vec<crate::Cell>> {
+    use crate::Cell;
+    body.face_views()
+        .map(|view| {
+            let mut cells = vec![Cell::Face(view.key())];
+            for member in view.boundary() {
+                if let crate::live::BoundaryMember::Edge { ek, .. } = member {
+                    cells.push(Cell::Edge(ek));
+                }
+                cells.push(Cell::Vertex(member.vertex()));
+            }
+            (view.key(), cells)
+        })
         .collect()
 }
 
@@ -491,5 +491,29 @@ mod region_rows {
         );
         let far = brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
         assert!(region(&far).is_none(), "apart: no region");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod closure_rows {
+    use geom_core::Tol;
+
+    use crate::Cell;
+    use crate::test_support_fixtures::box_with_a_lone_ring;
+
+    /// **A face's closure holds its lone vertex**: a box's top face that
+    /// bounds a one-vertex ring holds that vertex, so a reduction that
+    /// lands a cell on it is a meeting of the face. Red where the closure
+    /// was read off the face's half-edges, which a lone vertex has none of.
+    #[test]
+    fn a_faces_closure_holds_its_lone_vertex() {
+        let (body, top, lone) = box_with_a_lone_ring(Tol::witness());
+        let closures = super::face_closures(&body);
+        let top_cells = closures.get(&top).expect("the top face's closure");
+        assert!(
+            top_cells.contains(&Cell::Vertex(lone)),
+            "the top face's closure holds its lone vertex: {top_cells:?}"
+        );
     }
 }

@@ -2581,6 +2581,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
     ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
+    ("mod.rs", "off_ring_torus", "BooleanDecision::Torus", 1),
+    ("mod.rs", "rim_unread", "Coincide::Rim", 1),
     (
         "mod.rs",
         "decision_words",
@@ -2936,6 +2938,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
+        "standing_rows.rs",
+        "each_class_and_each_delegate_reads_as_its_doc_states",
+        "Coincide::Sectors",
+        1,
+    ),
+    (
         "torus_frame_rows.rs",
         "a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it",
         "BooleanDecision::Torus",
@@ -2943,14 +2951,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "BooleanDecision::ConicBend",
         1,
     ),
     ("vtxfac.rs", "unglued_flat_sector", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "Coincide::TangentSide",
         1,
     ),

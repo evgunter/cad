@@ -8,7 +8,7 @@ use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, UnitVec3, Vec3,
 };
 
-use crate::dihedral::decide;
+use crate::dihedral::{decide, decide_reported};
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
     ParallelAxes, PlaneCylinder, RuledFrame, RuledSection, cylinder_axes_parallel_reported,
@@ -57,6 +57,8 @@ pub enum TangentLocusError {
         apart: bool,
         /// The row whose definite verdict refused the tangency.
         predicate: &'static str,
+        /// That row's reading.
+        decided: Decided,
     },
     /// The configuration is outside the closed-form lane (kinds other
     /// than plane×cylinder / parallel cylinders, or a non-parallel
@@ -212,18 +214,22 @@ fn locus_of<T: Decide>(
             let (clear, clear_log) = geom_core::k_stats::detached(|| {
                 extents
                     .zip(pending.section(reach, band))
-                    .is_some_and(|(extents, section)| section.faces_clear(extents, band))
+                    .and_then(|(extents, section)| section.faces_clear(extents, band))
             });
             geom_core::k_stats::splice_superseded(clear_log);
-            if clear {
-                geom_core::k_stats::splice_superseded(log);
-                Err(TangentLocusError::NotTangent {
-                    apart: true,
-                    predicate: FACE_CLEAR,
-                })
-            } else {
-                geom_core::k_stats::splice(log);
-                Err(TangentLocusError::Escalated(diag))
+            match clear {
+                Some(decided) => {
+                    geom_core::k_stats::splice_superseded(log);
+                    Err(TangentLocusError::NotTangent {
+                        apart: true,
+                        predicate: FACE_CLEAR,
+                        decided,
+                    })
+                }
+                None => {
+                    geom_core::k_stats::splice(log);
+                    Err(TangentLocusError::Escalated(diag))
+                }
             }
         }
         (read, _) => {
@@ -350,8 +356,9 @@ fn plane_cylinder_locus<T: Decide>(
         Err(diag) => {
             return Err(definite_over_in_band(diag, axis_log, || {
                 match ruled_gap(pc, frame, band) {
-                    Ok((Sign::Positive, _)) => Some((false, gap)),
-                    Ok((Sign::Negative, _)) => Some((true, gap)),
+                    Ok((sign @ (Sign::Positive | Sign::Negative), margin)) => {
+                        Some((sign == Sign::Negative, gap, Decided { sign, margin }))
+                    }
                     Ok((Sign::Zero, _)) | Err(_) => None,
                 }
             }));
@@ -359,13 +366,17 @@ fn plane_cylinder_locus<T: Decide>(
     };
     match ruled_section(pc, frame, parallel, band).map_err(TangentLocusError::Escalated)? {
         Some(RuledSection::TangentLine { line, gap }) => Ok(TangentLocus::Line { line, gap }),
-        Some(RuledSection::ParallelLines { .. }) => Err(TangentLocusError::NotTangent {
-            apart: false,
-            predicate: gap,
-        }),
-        Some(RuledSection::Empty) => Err(TangentLocusError::NotTangent {
+        Some(RuledSection::ParallelLines { gap: decided, .. }) => {
+            Err(TangentLocusError::NotTangent {
+                apart: false,
+                predicate: gap,
+                decided,
+            })
+        }
+        Some(RuledSection::Empty { gap: decided }) => Err(TangentLocusError::NotTangent {
             apart: true,
             predicate: gap,
+            decided,
         }),
         None => Err(TangentLocusError::Unsupported {
             what: "plane×cylinder tangency is closed-form only along a ruling — \
@@ -412,7 +423,11 @@ fn cylinders_locus<T: Decide>(
                 diag,
                 axis_log,
                 || match parallel_cylinder_gaps((r1, r2), axes.d, swing, band) {
-                    Ok(CylinderGap::NotTangent { apart, predicate }) => Some((apart, predicate)),
+                    Ok(CylinderGap::NotTangent {
+                        apart,
+                        predicate,
+                        decided,
+                    }) => Some((apart, predicate, decided)),
                     Ok(CylinderGap::External(_) | CylinderGap::Internal(_)) | Err(_) => None,
                 },
             ));
@@ -431,9 +446,15 @@ fn cylinders_locus<T: Decide>(
             },
             gap: gap.jointly(parallel),
         }),
-        CylinderGap::NotTangent { apart, predicate } => {
-            Err(TangentLocusError::NotTangent { apart, predicate })
-        }
+        CylinderGap::NotTangent {
+            apart,
+            predicate,
+            decided,
+        } => Err(TangentLocusError::NotTangent {
+            apart,
+            predicate,
+            decided,
+        }),
         CylinderGap::Internal(gap) => {
             // Internal tangency: the smaller cylinder rests inside the
             // larger; the generator sits on the offset direction at the
@@ -455,17 +476,16 @@ fn cylinders_locus<T: Decide>(
             // c1 — and P = o1 − ŵ·r1 when r1 < r2, both from
             // collinearity of P, o1, o2 with |P−o1| = r1, |P−o2| = r2).
             // The side is DECIDED, never an evaluation-lane comparison.
-            let sign =
-                match decide("tangent_locus_side", Margin::of(r1 - r2), band).map_err(escalate)? {
-                    Sign::Positive => T::one(),
-                    Sign::Negative => T::zero() - T::one(),
-                    Sign::Zero => {
-                        return Err(TangentLocusError::Unsupported {
-                            what: "equal-radius internal tangency contradicts the definite \
-                               axis offset — no closed-form generator",
-                        });
-                    }
-                };
+            let Some(side) = decide("tangent_locus_side", Margin::of(r1 - r2), band)
+                .map_err(escalate)?
+                .nonzero()
+            else {
+                return Err(TangentLocusError::Unsupported {
+                    what: "equal-radius internal tangency contradicts the definite axis offset \
+                           — no closed-form generator",
+                });
+            };
+            let sign: T = side.unit();
             Ok(TangentLocus::Line {
                 line: geom::Line {
                     origin: foot1 + w.normalize() * (sign * r1),
@@ -633,23 +653,22 @@ impl<T: Decide> Section<T> {
 
     /// Whether some face's extent across the locus (`extents`, read
     /// along `across`) stands far enough off it to lie definitely clear
-    /// of the other carrier, decided on `tangent_locus_face_clear`.
+    /// of the other carrier, decided on `tangent_locus_face_clear`: the
+    /// first clearance decided positive, `None` where none is.
     fn faces_clear(
         &self,
         extents: impl FnOnce(UnitVec3<T>) -> [Option<(T, T)>; 2],
         band: Band,
-    ) -> bool {
+    ) -> Option<Decided> {
         extents(self.across)
             .into_iter()
             .enumerate()
-            .any(|(i, extent)| {
-                extent.is_some_and(|(lo, hi)| {
-                    let s = (lo - self.at).max(self.at - hi);
-                    matches!(
-                        decide(FACE_CLEAR, Margin::of(self.clearance(i, s)), band),
-                        Ok(Sign::Positive)
-                    )
-                })
+            .find_map(|(i, extent)| {
+                let (lo, hi) = extent?;
+                let s = (lo - self.at).max(self.at - hi);
+                decide_reported(FACE_CLEAR, Margin::of(self.clearance(i, s)), band)
+                    .ok()
+                    .filter(|decided| decided.sign == Sign::Positive)
             })
     }
 }
@@ -662,20 +681,24 @@ const ACROSS: &str = "tangent_locus_across";
 /// Zero, so where the axis row is in band (`diag`, its run `axis_log`)
 /// and the gap row, read across the reach with the tilt beside it,
 /// still decides a crossing or a clearance (`refute`'s `(apart,
-/// predicate)`), the pair is definitely not tangent and the axis row's
+/// predicate, decided)`), the pair is definitely not tangent and the axis row's
 /// escalation is superseded. Otherwise the escalation stands, and the
 /// gap reading it rests on nothing is dropped.
 fn definite_over_in_band(
     diag: Indeterminate,
     axis_log: geom_core::k_stats::Detached,
-    refute: impl FnOnce() -> Option<(bool, &'static str)>,
+    refute: impl FnOnce() -> Option<(bool, &'static str, Decided)>,
 ) -> TangentLocusError {
     let (refuted, gap_log) = geom_core::k_stats::detached(refute);
     match refuted {
-        Some((apart, predicate)) => {
+        Some((apart, predicate, decided)) => {
             geom_core::k_stats::splice_superseded(axis_log);
             geom_core::k_stats::splice(gap_log);
-            TangentLocusError::NotTangent { apart, predicate }
+            TangentLocusError::NotTangent {
+                apart,
+                predicate,
+                decided,
+            }
         }
         None => {
             geom_core::k_stats::splice(axis_log);
@@ -691,10 +714,12 @@ enum CylinderGap {
     External(MarginDiag),
     /// `|r1 − r2| − d` Zero: internal tangency, with its margin.
     Internal(MarginDiag),
-    /// A definite clearance or crossing, with the row that decided it.
+    /// A definite clearance or crossing, with the row that decided it
+    /// and its reading.
     NotTangent {
         apart: bool,
         predicate: &'static str,
+        decided: Decided,
     },
 }
 
@@ -711,10 +736,14 @@ fn parallel_cylinder_gaps<T: Decide>(
 ) -> Result<CylinderGap, Indeterminate> {
     match parallel_cylinder_gap_reported(radii, d, swing, band)? {
         (Sign::Zero, gap) => return Ok(CylinderGap::External(gap)),
-        (Sign::Negative, _) => {
+        (Sign::Negative, margin) => {
             return Ok(CylinderGap::NotTangent {
                 apart: true,
                 predicate: "cc_parallel_gap",
+                decided: Decided {
+                    sign: Sign::Negative,
+                    margin,
+                },
             });
         }
         (Sign::Positive, _) => {}
@@ -730,14 +759,16 @@ fn parallel_cylinder_gaps<T: Decide>(
             (Sign::Zero, gap) => CylinderGap::Internal(gap),
             // d < |r1 − r2|: one cylinder nested strictly inside the
             // other, their least distance definitely positive.
-            (Sign::Positive, _) => CylinderGap::NotTangent {
+            (sign @ Sign::Positive, margin) => CylinderGap::NotTangent {
                 apart: true,
                 predicate: internal,
+                decided: Decided { sign, margin },
             },
             // |r1 − r2| < d < r1 + r2: the surfaces cross.
-            (Sign::Negative, _) => CylinderGap::NotTangent {
+            (sign @ Sign::Negative, margin) => CylinderGap::NotTangent {
                 apart: false,
                 predicate: internal,
+                decided: Decided { sign, margin },
             },
         },
     )
@@ -868,7 +899,12 @@ mod tests {
             Err(TangentLocusError::NotTangent {
                 apart: false,
                 predicate: "pc_parallel_gap",
-            }) => {}
+                decided,
+            }) => assert_eq!(
+                decided.sign,
+                Sign::Positive,
+                "the gap under the radius keeps its reading: {decided:?}"
+            ),
             other => panic!("the plane definitely cuts the cylinder: {other:?}"),
         }
     }
@@ -996,9 +1032,19 @@ mod tests {
         let ten = ExtentBall::of_sphere(Point3::new(5.0, 0.0, 0.0), 5.0);
         for (height, want_apart, why) in [(0.5, false, "crossing"), (1.5, true, "clear")] {
             match tangent_locus(&plane, &cyl(height), ten, band) {
-                Err(TangentLocusError::NotTangent { apart, predicate }) => {
+                Err(TangentLocusError::NotTangent {
+                    apart,
+                    predicate,
+                    decided,
+                }) => {
                     assert_eq!(apart, want_apart, "{why}");
                     assert_eq!(predicate, "pc_parallel_gap", "{why}");
+                    assert_eq!(
+                        decided.sign == Sign::Negative,
+                        want_apart,
+                        "{why}: the gap's reading is the verdict's: {decided:?}"
+                    );
+                    assert!(!decided.margin.is_invalid(), "{why}: {decided:?}");
                 }
                 other => panic!("{why}: the gap refutes the tangency: {other:?}"),
             }
@@ -1031,8 +1077,14 @@ mod tests {
             (1.0, (false, "tangent_locus_internal_gap"), "crossing"),
         ] {
             match tangent_locus(&along(0.0, 0.0), &along(y, theta), ten, band) {
-                Err(TangentLocusError::NotTangent { apart, predicate }) => {
+                Err(TangentLocusError::NotTangent {
+                    apart,
+                    predicate,
+                    decided,
+                }) => {
                     assert_eq!((apart, predicate), want, "{why}");
+                    assert_ne!(decided.sign, Sign::Zero, "{why}: {decided:?}");
+                    assert!(!decided.margin.is_invalid(), "{why}: {decided:?}");
                 }
                 other => panic!("{why}: the gap refutes the tangency: {other:?}"),
             }
@@ -1083,9 +1135,14 @@ mod tests {
             }
         };
         match tangent_locus_of_faces(&plane, &cyl, reach, band, across((0.01, 0.5))) {
-            Err(TangentLocusError::NotTangent { apart, predicate }) => {
+            Err(TangentLocusError::NotTangent {
+                apart,
+                predicate,
+                decided,
+            }) => {
                 assert!(apart, "clear");
                 assert_eq!(predicate, "tangent_locus_face_clear");
+                assert_eq!(decided.sign, Sign::Positive, "the clearance: {decided:?}");
             }
             other => panic!("the face off the ruling is no tangency: {other:?}"),
         }
@@ -1151,9 +1208,14 @@ mod tests {
         ] {
             let first = along(0.0, 1.0);
             match tangent_locus_of_faces(&first, &other, reach, band, across((0.1, 0.2))) {
-                Err(TangentLocusError::NotTangent { apart, predicate }) => {
+                Err(TangentLocusError::NotTangent {
+                    apart,
+                    predicate,
+                    decided,
+                }) => {
                     assert!(apart, "{why}");
                     assert_eq!(predicate, "tangent_locus_face_clear", "{why}");
+                    assert_eq!(decided.sign, Sign::Positive, "{why}: {decided:?}");
                 }
                 other => panic!("{why}: the face off the ruling is no tangency: {other:?}"),
             }
