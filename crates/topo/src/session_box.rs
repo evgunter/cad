@@ -1,15 +1,19 @@
 //! **The session box** (D4 ¶4; `crates/geom-core/README.md`, "Float
-//! rounding"): one predicate over a body's largest `|coordinate|`, its
-//! vertices' and its edges' own points (which bound its faces), never a
-//! carrier's stored terms. The finished-body gate asks it before any check reads a
-//! margin on the body's geometry, so every such check takes "in the box"
-//! as its premise.
+//! rounding"): one predicate over a body's largest `|coordinate|`, read
+//! from below off its vertices' and its edges' own points, never a
+//! carrier's stored terms. The finished-body gate asks it first, so a
+//! body it refuses has a point past the box. What it does not certify is
+//! the converse: a curved face's interior extreme, bounded by no edge,
+//! is not read, so a body it admits may still reach past the box there
+//! (`work/onecopy/the-session-box-reads-no-curved-face-so-an-interior-extreme-pokes-out.md`).
 //!
 //! An edge's reach is the edge's one reading, its cover
-//! (`Body::edge_cover`), read from below ([`geom_brep::edge_reach_bounds`]),
-//! so a body is refused only where points of it lie past the box.
+//! (`Body::edge_cover`), read along the world axes from below
+//! ([`geom_brep::edge_coordinate_reach_below`]), so a body is refused
+//! only where points of it lie past the box.
 
-use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
+use geom::cover::BoxAxes;
+use geom_core::{Band, Decide, Lever, Margin, Point3, Sign};
 
 use crate::body::Body;
 use crate::validate::ValidationError;
@@ -21,36 +25,33 @@ use crate::validate::ValidationError;
 /// `|coordinate|` over its own span, every one a coordinate of a point
 /// of the body.
 pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
+    body_reach_by(body, |e| {
+        body.edge_cover(e)
+            .ok()
+            .map(|cover| cover.box_in(&BoxAxes::World))
+    })
+}
+
+/// [`body_reach`] with each edge's world box read by `world_box`; an
+/// edge it gives none reads its own sampled points instead
+/// (`geom_brep::edge_coordinate_reach_below`), so one missing reading
+/// never silences the rest of the body.
+fn body_reach_by<T: Decide>(
+    body: &Body<T>,
+    world_box: impl Fn(crate::entity::EdgeKey) -> Option<(Point3<T>, Point3<T>)>,
+) -> T {
     let origin = Point3::origin();
     let vertices = body
         .vertices()
         .map(|(v, data)| (body.point_of(v, data) - origin).norm_inf());
-    // The edge's one reading (`[one-way.places]`): its cover, through
-    // the body's door (`Body::edge_cover`), read along each axis. On a
-    // line or a circle arc that range is the edge's own
-    // (`geom_brep::edge_coordinate_reach_below`), and every other kind
-    // reads its own sampled points. An edge with no cover reads poison,
-    // which no sign decides, so the box does not refuse on it.
-    let axes = [
-        Vec3::new(T::one(), T::zero(), T::zero()),
-        Vec3::new(T::zero(), T::one(), T::zero()),
-        Vec3::new(T::zero(), T::zero(), T::one()),
-    ];
+    // The edge's one reading (`[one-way.places]`): its cover's box along
+    // the world axes, through the body's door (`Body::edge_cover`).
     let edges = body.edges().filter_map(|(e, data)| {
         let curve = body.edge_curve_linked(e, data).certified()?;
-        let within = body
-            .edge_cover(e)
-            .ok()
-            .map_or(T::from_f64(f64::NAN), |cover| {
-                axes.iter().fold(T::zero(), |far, &axis| {
-                    let (lo, hi) = cover.range_along(axis);
-                    far.max(lo.abs()).max(hi.abs())
-                })
-            });
         Some(geom_brep::edge_coordinate_reach_below(
             curve.carrier(),
             curve.params(),
-            within,
+            world_box(e),
         ))
     });
     vertices.chain(edges).fold(T::zero(), T::max)
@@ -143,6 +144,19 @@ mod tests {
         assert_eq!(body_reach(&corner), 999.0);
         let past = brick::<f64>((900.0, 1001.0), (900.0, 999.0), (900.0, 999.0), tol);
         assert!(refusal(&past).is_some(), "x reaches 1001 m");
+    }
+
+    /// **A missing edge reading silences nothing**: with every edge's
+    /// cover withheld, the edges read their own samples, and a body with
+    /// a vertex past the box still reads past it. Red against an edge
+    /// with no cover reading poison, which `max` carries through the whole
+    /// fold so that no sign decides and nothing is refused.
+    #[test]
+    fn an_uncovered_edge_leaves_the_rest_of_the_reach() {
+        let tol = Tol::witness();
+        let far = brick::<f64>((1.1e3, 1.1e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let reach = body_reach_by(&far, |_| None);
+        assert!(reach >= 1.1e3 + 1.0, "{reach}");
     }
 
     /// **The reach is never short of a vertex's coordinate**: a long thin

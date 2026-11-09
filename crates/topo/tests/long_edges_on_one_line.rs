@@ -21,7 +21,7 @@ use topo::{Body, ValidationError, validate_geometric};
 /// end's `x` is about 1194 m, past the box's kilometre (its `y`, 909 m,
 /// is not), and the gate's one finding is the box's.
 #[test]
-fn a_kilometre_bar_is_refused_by_the_session_box() {
+fn a_bar_past_the_box_along_one_axis_is_refused_by_the_session_box() {
     let tol = Tol::witness();
     let pose = Pose::turn("turned 0.65 rad about z", [0.0, 0.0, 1.0], 0.65, [0.0; 3]);
     let mut body = Body::<f64>::new();

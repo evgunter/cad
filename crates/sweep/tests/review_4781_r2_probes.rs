@@ -666,8 +666,8 @@ fn review_4781_r2_record_survives() {
 #[test]
 fn r2_every_same_side_touch_pose_answers_as_a_touch() {
     // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a
-    // cylinder fixture (extent 671 at the ×3e2 scale) refuses as limb
-    // 2's kernel limit, bound 1.33e-12
+    // cylinder fixture (`cc unequal`'s, extent 671 at the ×1.5e2 scale)
+    // refuses as limb 2's kernel limit, bound 1.33e-12
     // (`work/shell/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
@@ -683,9 +683,10 @@ fn r2_every_same_side_touch_pose_answers_as_a_touch() {
 
 /// The row [`r2_every_same_side_touch_pose_answers_as_a_touch`] runs, under its pin.
 fn r2_every_same_side_touch_pose_answers_as_a_touch_row() {
-    // The large scale is ×3e2: the fixtures reach 3 units, and the
+    // The large scale is ×1.5e2: the farthest fixture point, the
+    // `cc unequal` B cylinder's rim, lies about 5.1 units out, and the
     // session box admits no coordinate past 1 km (`[tolerance.units]`).
-    for s in [1.0, 1e-3, 3e2] {
+    for s in [1.0, 1e-3, 1.5e2] {
         for turned in [false, true] {
             let map = turned.then(|| {
                 Affine3::rotation_about_axis(
@@ -711,14 +712,6 @@ fn r2_every_same_side_touch_pose_answers_as_a_touch_row() {
                     Shape::Box((1.0, 3.0), (-2.0, 0.0), (0.0, 1.0)),
                 ),
             ] {
-                // Fixture limits, not the Boolean's: the large-scale turned
-                // operands do not finish at every ε
-                // (`VolumeUncomputable`), and the large unequal disc does
-                // not extrude at ε = 1e-12 (a pcurve certification), so
-                // those corners are left out.
-                if s == 3e2 && (turned || name == "cc unequal") {
-                    continue;
-                }
                 let (a, b) = (a.scaled(s), b.scaled(s));
                 let line = [Point3::new(s, 0.0, 0.0), Point3::new(s, 0.0, s)];
                 let line = map.map_or(line, |m| line.map(|p| m.transform_point(p)));

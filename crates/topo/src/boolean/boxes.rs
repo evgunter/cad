@@ -168,15 +168,16 @@
 //!   in the same direction: a bigger cover lengthens it and can only
 //!   REFUSE more, never place a crossing wrongly.
 //! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`](crate::cover::edge_cover)
-//!   read from below through `geom_brep::edge_reach_bounds`) reads NO
-//!   looseness: on a line the cover's far distance is its segment's
-//!   farther end, and on a circle arc its crest where the window holds it
-//!   or its farther end (`Arc::point_far`, exact for a circle in an
-//!   orthonormal frame), each hulled only with the edge's own end
-//!   vertices, so it is the edge's exact reach; on any other carrier the
-//!   bound from below is the edge's own sampled points, which the cover
-//!   does not move. So the box refuses (`OutsideSessionBox`) only on a
-//!   true lower bound of the body's reach
+//!   read along the world axes, `Cover::box_in`, from below through
+//!   `geom_brep::edge_coordinate_reach_below`) reads NO looseness: on a
+//!   line the cover's box is its segment's, at its ends, and on a circle
+//!   arc its support along each axis is the arc's own extreme (the
+//!   window's, exact for a circle in an orthonormal frame), each hulled
+//!   only with the edge's own end vertices, so it is the edge's exact
+//!   largest `|coordinate|`; on any other carrier, and on an edge with no
+//!   cover, the bound from below is the edge's own sampled points. So the
+//!   box refuses (`OutsideSessionBox`) only on a true lower bound of the
+//!   body's largest `|coordinate|`
 //!   (`line_and_arc_edges_in_the_box_read_their_exact_reach`, sweep). A
 //!   line or arc arm made looser than exact would be the unsound
 //!   direction: it could refuse a body that lies in the box.
