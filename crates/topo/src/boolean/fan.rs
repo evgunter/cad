@@ -141,7 +141,7 @@ pub(super) fn fan_within_signs<T: Decide>(
 pub(super) enum Meeting<T: geom_core::Real> {
     /// The two faces are one carrier at the vertex: two planes parallel
     /// at the shorter arm, or two fans of one cone's nappe. The pair goes
-    /// to the carrier ladder as a coincidence.
+    /// to the coincidence lump (`recl`).
     Coincident,
     /// They meet along these directions from the vertex, each a ray
     /// (none: they meet at the vertex alone). Two planes' line is both

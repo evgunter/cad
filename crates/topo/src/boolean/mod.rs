@@ -1528,59 +1528,57 @@ pub(crate) fn undecided_coincidence(
     }
 }
 
-/// A coincidence decided Zero at a corner site between a pair the
-/// operation's glue door did not glue: the faces read one carrier at
-/// the corner's arm and not over their own extent, a near-coincidence
-/// no glue was decided for ([`Coincide::Carriers`]).
-pub(crate) fn unglued_coincidence(
-    margin: MarginDiag,
-    read: DeclarationRead,
-    band: Band,
-) -> BooleanError {
-    BooleanError::coincidence(
-        Coincide::Carriers,
-        read,
-        Indeterminate {
-            margin,
-            band,
-            predicate: Some("carrier_unglued_coincidence"),
-            terminal_sliver: false,
-        },
-    )
-}
-
-/// **An unglued pair a corner reads one carrier, refused on the reading
-/// that binds it**: the one whose clearing the operation waits on.
+/// **An unglued pair a corner reads coplanar, refused on the reading
+/// that binds it**: the one whose clearing the operation waits on. The
+/// corner reads its own sector and never the carrier pair.
 ///
-/// - `bounds`, the sector's bounds' reading off the other carrier
-///   ([`sectors::BoolSector::bounds_off`]), where a smaller tolerance a run
-///   admits decides it: that tolerance reads the sector off the carrier
-///   and the corner with it ([`Coincide::Sectors`]).
+/// - `bounds`, the sector's bounds' reading off the other face's plane
+///   ([`sectors::BoolSector::bounds_off`]), where a smaller tolerance a
+///   run admits decides it: that tolerance reads the sector off the plane
+///   and the corner with it.
 /// - Else the glue door's in-band reading over both faces
 ///   ([`GluedPairs::door_refusal`]): the sector lies on the other carrier
 ///   at every tolerance, and only a glue clears the pair. The door's
 ///   reading never offers a tolerance itself (a margin in band shows no
 ///   size a smaller tolerance passes), so it is never weighed against the
 ///   bounds.
-/// - Else `corner`, the corner's own refusal, on its standing off two
-///   carriers it lies on.
+/// - Else the bounds' reading as it stands. Decided off, it is the
+///   corner's coplanar question (which goes on only on a Zero) refusing a
+///   far bound that departs, though a nearer reading brought the pair
+///   here coplanar: a gate rejection, which admits no class.
 ///
-/// Both arms reach here only for a planar pair: an undeclared curved
-/// pair keeps its frontier refusal before the ladder runs.
+/// Every arm is [`Coincide::Sectors`]; `senses` is the class the pair's
+/// orientation admits where the bounds did not decide it off.
 pub(crate) fn unglued_corner<T: Real>(
     declared: &GluedPairs<T>,
     pair: (Operand, FaceKey, Operand, FaceKey),
     senses: Option<CarrierRelation>,
-    bounds: Option<Indeterminate>,
-    corner: impl FnOnce() -> BooleanError,
+    bounds: Result<geom_core::Decided, Indeterminate>,
+    band: Band,
 ) -> BooleanError {
-    match bounds.filter(Indeterminate::offers_tolerance) {
-        Some(diag) => BooleanError::coincidence(
+    let sectors = |senses, diag| {
+        BooleanError::coincidence(
             Coincide::Sectors,
             sectors_read(declared, pair, senses),
             diag,
-        ),
-        None => declared.door_refusal(pair, senses).unwrap_or_else(corner),
+        )
+    };
+    match bounds {
+        Err(diag) if diag.offers_tolerance() => sectors(senses, diag),
+        bounds => declared
+            .door_refusal(pair, senses)
+            .unwrap_or_else(|| match bounds {
+                Err(diag) => sectors(senses, diag),
+                Ok(off) => sectors(
+                    None,
+                    geom_core::k_stats::gate_rejection(
+                        "bool_sector_coplanar",
+                        off,
+                        band,
+                        geom_core::SizedPass::Zero,
+                    ),
+                ),
+            }),
     }
 }
 

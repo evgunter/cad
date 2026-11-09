@@ -61,9 +61,10 @@
 //! (a curved bound's code reads the edge, `within` its tangent) a
 //! crossing pair sides with the codes, because they are what the germ
 //! machinery consumes. The coplanar test reads the normals at the
-//! sector's arm, because a coplanar pair never reads its codes and goes
-//! to the carrier ladder, which certifies the coincidence over the
-//! whole sector. Coplanar pairs
+//! sector's arm, because a coplanar pair never reads its codes: it goes
+//! to the coincidence lump (`recl`), which reads a glued pair through
+//! its record and refuses an unglued one on the sector's own bounds.
+//! Coplanar pairs
 //! (`n_a × n_b` ≈ 0) go to `sector_overlap` — the unprinted procedure,
 //! designed here: overlap iff some bound of one lies strictly within
 //! the other, or the two sectors' bounds are pairwise parallel (the
@@ -1498,7 +1499,7 @@ pub(super) struct PairRecord {
 
 impl PairRecord {
     /// The record of a coplanar pair that overlaps: every code `On`,
-    /// which sends it to the carrier ladder as a coincidence.
+    /// which sends it to the coincidence lump (`recl`).
     pub(super) const fn coincident(a: usize, b: usize) -> Self {
         let on = (SideCode::On, SideCode::On);
         Self {
@@ -2917,9 +2918,9 @@ pub(super) fn pair_search<T: Decide>(
             // near-coincidence at this vertex: the bound that sets the
             // arm reads at most `arm·|n_a × n_b|` off the other plane, so
             // it is On (or in band, which escalates), whatever a farther
-            // bound does. Such a pair goes to the carrier ladder as a
-            // coincidence, every code On: undeclared, the ladder
-            // refuses it; declared, the door has verified it. Its bounds'
+            // bound does. Such a pair goes to the coincidence lump,
+            // every code On: unglued, it refuses on the sector's own
+            // bounds; glued, the door has verified it. Its bounds'
             // readings are not consulted — a far bound reading off would
             // make the record half a crossing, which no germ pairing
             // closes. Two fans of one cone are the same coincidence.
@@ -4616,7 +4617,7 @@ mod tests {
     }
 
     /// A pair whose normals agree at the shorter arm is a
-    /// near-coincidence, and goes to the carrier ladder as one, every
+    /// near-coincidence, and goes to the coincidence lump as one, every
     /// code On: a face with a 1 mm edge on the other face's plane and a
     /// 10 m edge dipping `500·ε` below it. Read at its far vertex, the
     /// long edge is In, and a record carrying that code beside the short
@@ -4624,7 +4625,7 @@ mod tests {
     /// corner witness in `tests/contact9_side_codes.rs` refused as an
     /// invariant that way).
     #[test]
-    fn a_pair_parallel_at_a_short_arm_goes_to_the_ladder_as_a_coincidence() {
+    fn a_pair_parallel_at_a_short_arm_goes_to_the_lump_as_a_coincidence() {
         let dip = 500.0 * Tol::witness().eps();
         let o = Point3::new(0.0, 0.0, 0.0);
         let chord = |v: [f64; 3]| BoundSupport::Chord {

@@ -7,7 +7,6 @@ opened: 2026-10-10
 priority: P1
 cost: H
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [a-corner-reads-only-its-own-sectors]
 refs: [decided-coincidence-carries-a-synthetic-invalid-margin, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid, 4641]
 ---
 

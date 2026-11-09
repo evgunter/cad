@@ -2,11 +2,13 @@
 id: decided-coincidence-carries-a-synthetic-invalid-margin
 kind: issue
 title: A coincidence decided Zero on every datum is reported with a synthetic MarginDiag::Invalid margin, as if a measurement had failed
-status: open
+status: closed
 opened: 2026-09-25
 priority: P3
 cost: M
 design: true
+closed: 2026-11-09
+parent: a-corner-reads-only-its-own-sectors
 ---
 
 ## What
@@ -61,3 +63,12 @@ E deletes the row's first reach. Rung 4 now glues, so `PlaneEqError::Undeclared`
 - The contradiction arms still mint `INVALID` (`contact_verify.rs:166` and its siblings; `vtxfac.rs:550`).
 
 The payload question stands. It overlaps CLEAVE's `topo-mints-indeterminates-outside-the-funnel` step 3.
+
+## Closed (2026-11-09, SEAL step 4)
+
+Claimed by SEAL's `a-corner-reads-only-its-own-sectors` and closed into it, as the parent's design (fork `glue-disagreements-carry`) closes it into step 4.
+
+- **Both reaches are gone.**
+  - `unglued_coincidence` and its predicate `carrier_unglued_coincidence` are deleted. No corner reads the carrier pair, so no decided Zero is dressed as an `Indeterminate`.
+  - An unglued corner refuses on its own sector (`boolean::unglued_corner`, `Coincidence(Sectors)`). In band the payload is the bounds' own funnel reading. Decided off, it is a gate rejection (`k_stats::gate_rejection` under the corner's `SizedPass::Zero`), logged and carrying its decided sign.
+- **The contradiction arms' `INVALID`** retired in steps 1 and 3 (PRs 6634, 6673).

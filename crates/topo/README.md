@@ -1057,8 +1057,12 @@ its record (`GlueClass::relation`): every consuming site — the corner
 sites (`recl`, `vtxfac`), the result's merge (`GluedSurfaces`, which
 only the Boolean builds) and a fold step — reads the glued relation
 from it and measures the pair nowhere again (`[coincidence.booleans]`).
-An unglued pair is read at a corner by the ladder over the corner's own
-arm, where every verdict but `Distinct` refuses.
+A corner never reads an unglued pair's carriers: it refuses on its own
+sector (`boolean::unglued_corner`, `Coincidence(Sectors)`), on the
+sector's bounds' reading off the other face's plane where a smaller
+tolerance decides it, else on the glue door's in-band reading, else on
+the bounds' reading as it stands, a far bound decided off being the
+corner's coplanar question's gate rejection.
 
 At rest a record is read as the glue door reads a pair: nothing is
 bridged. Each class states the facts that must verify DEFINITE and the

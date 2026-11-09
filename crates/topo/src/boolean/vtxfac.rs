@@ -93,7 +93,6 @@ use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::contain::FaceContainment;
-use super::plane_eq::PlaneEqError;
 use super::reduce::plane_desc;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -969,9 +968,8 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // sector off it. A conic bound that ties may read its bend off the
     // plane, and the lump's second order supersedes it.
     // Where both read On, the normals' parallelism proposes coplanarity:
-    // at the sector's reach, the ball the carrier ladder reads an
-    // unglued pair over below; a glued pair's at the arm, its ladder
-    // reading over the glue's extent. A tilt the bounds
+    // an unglued pair's at the sector's reach; a glued pair's at the
+    // arm, its ladder reading over the glue's extent. A tilt the bounds
     // read On and the normals do not (in
     // band, or decided off: a thin sector tilted about one bound rises
     // at its arm by more than at its other bound) leaves the question
@@ -1050,7 +1048,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     (orbit_body, piercing, s),
                     (pierced_op, contact.face, pierced_kind),
                     plane,
-                    (p, n_pierced.vec()),
+                    n_pierced.vec(),
                     declared,
                     band,
                 ));
@@ -2821,8 +2819,9 @@ fn tie_breaks_after<T: Decide>(
 /// at its other bound) leaves the question undecided at this tolerance,
 /// and the margin that decides it is the bounds' own: a smaller
 /// tolerance reads the steeper bound off the plane and the sector with
-/// it. A tilt decided Zero reads the pair one carrier about the corner,
-/// which no glue backs ([`super::unglued_corner`]).
+/// it. A tilt decided Zero, or bounds whose steeper departure decides
+/// off, refuse on the sector's own reading where the glue door read
+/// nothing of the pair ([`super::unglued_corner`]).
 ///
 /// C8: a CURVED on-carrier sector is opened by the glue door's verdict
 /// and by nothing else. A tangency the witness lane verifies is glued
@@ -2841,7 +2840,7 @@ fn unglued_flat_sector<T: Decide>(
     (piercing_body, piercing, s): (&Body<T>, Operand, &BoolSector<T>),
     (pierced_op, pierced, pierced_kind): (Operand, crate::entity::FaceKey, geom::SurfaceKind),
     plane: Option<super::plane_eq::PlaneDesc<T>>,
-    (p, n_pierced): (geom_core::Point3<T>, Vec3<T>),
+    n_pierced: Vec3<T>,
     declared: &super::GluedPairs<T>,
     band: Band,
 ) -> BooleanError {
@@ -2856,12 +2855,16 @@ fn unglued_flat_sector<T: Decide>(
         let senses = (plane.is_some() && !decided_tilt)
             .then(|| super::plane_eq::senses(s.tangent().vec(), n_pierced, s.arm, band))
             .flatten();
-        let read = super::sectors_read(declared, pair, senses);
         return match s.bounds_off(n_pierced, band) {
-            Err(diag) => BooleanError::coincidence(Coincide::Sectors, read, diag),
-            Ok(_) => BooleanError::ClassificationInvariant {
-                what: "a sector bound read On departs definitely from the plane",
-            },
+            Err(diag) => BooleanError::coincidence(
+                Coincide::Sectors,
+                super::sectors_read(declared, pair, senses),
+                diag,
+            ),
+            // Its bounds each read On at first order and their steeper
+            // departure decided off: refused as the coplanar corner's
+            // gate rejects it ([`super::unglued_corner`]).
+            Ok(off) => super::unglued_corner(declared, pair, senses, Ok(off), band),
         };
     }
     let curved = |body: &Body<T>, operand, face| {
@@ -2872,80 +2875,25 @@ fn unglued_flat_sector<T: Decide>(
             kind,
         }
     };
-    let Some(super::carrier_eq::CarrierDesc::Plane {
-        origin: sector_origin,
-        normal: sector_normal,
-    }) = super::carrier_pair::face_carrier(piercing_body, s.face)
+    let Some(super::carrier_eq::CarrierDesc::Plane { .. }) =
+        super::carrier_pair::face_carrier(piercing_body, s.face)
     else {
         return curved(piercing_body, piercing, s.face);
     };
-    let Some(plane) = plane else {
+    if plane.is_none() {
         return BooleanError::CurvedBooleanUnsupported {
             operand: pierced_op,
             face: pierced,
             kind: pierced_kind,
         };
-    };
-    let senses = super::plane_eq::senses(s.tangent().vec(), n_pierced, s.arm, band);
-    // Over the sector about `p`, out to its farther bound's reach, where
-    // the tilt above read it coplanar.
-    // Unsourced lever: the ball about the corner out to its farther
-    // bound's reach, a length the sector carries, not a ball the extent
-    // home reads off the bounds' geometry.
-    let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::unsourced(
-        p,
-        s.span().length(),
-    ));
-    match super::carrier_eq::carrier_eq_reading(
-        &super::carrier_eq::CarrierDesc::Plane {
-            origin: sector_origin,
-            normal: sector_normal,
-        },
-        &super::carrier_eq::CarrierDesc::Plane {
-            origin: plane.origin,
-            normal: plane.normal,
-        },
-        &extent,
-        band,
-    ) {
-        // The parallel rung reads the tilt above's margin, decided zero,
-        // and the offset is `p`'s standing off two planes it lies on.
-        Ok(super::CarrierVerdict::Apart(_) | super::CarrierVerdict::TwoKinds) => {
-            BooleanError::ClassificationInvariant {
-                what: "geometrically coplanar sector with definitely-distinct plane",
-            }
-        }
-        // One plane at the sector's arm, for a pair the glue door did
-        // not glue over the faces.
-        Ok(super::CarrierVerdict::One {
-            relation: rel,
-            margin,
-        }) => super::unglued_corner(
-            declared,
-            pair,
-            senses,
-            s.bounds_off(n_pierced, band).err(),
-            || super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band),
-        ),
-        // In band, unreachable here: `bool_sector_coplanar` read this
-        // same margin (the two normals' cross, at the sector's reach)
-        // zero above. The door is `recl`'s, which reaches it at another
-        // reach.
-        Err(PlaneEqError::Escalated { rung, diag }) => {
-            BooleanError::plane_identity(rung, declared.on_pair_door(pair, senses), diag)
-        }
-        Err(PlaneEqError::Undecided {
-            coincidence,
-            relation,
-        }) => super::undecided_coincidence(
-            coincidence,
-            [(piercing, s.face), (pierced_op, pierced)],
-            declared.carriers_read(pair, relation),
-        ),
-        Err(PlaneEqError::OffRing { torus, refusal }) => {
-            super::off_ring_torus(torus, refusal, [(piercing, s.face), (pierced_op, pierced)])
-        }
     }
+    super::unglued_corner(
+        declared,
+        pair,
+        super::plane_eq::senses(s.tangent().vec(), n_pierced, s.arm, band),
+        s.bounds_off(n_pierced, band),
+        band,
+    )
 }
 
 /// On-edge resolution (module docs; the deliberate divergence), after

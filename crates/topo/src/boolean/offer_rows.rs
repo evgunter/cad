@@ -388,19 +388,14 @@ cases! {
         vertex_near_a_sheet_corner();
     germs_nearly_facing: "Coincidence(Join)", D, JOIN_SITE, Valued => germ_facing(D);
     germs_nearly_turned_away: "Coincidence(Join)", -D, JOIN_SITE, Valued => germ_facing(-D);
-    // Overlapping plane flanks lie on one plane, which the door then asks
-    // to be one face.
+    // Overlapping plane flanks lie on one plane, which the corner then
+    // refuses as a pair no glue door glued, on its own sector.
     flanks_along_a_short_arm: "Coincidence(FlankSense)", D, FLANK_SITE,
-        Withdrawn(Because::Refuses("Coincidence(Carriers)")) =>
+        Withdrawn(Because::Refuses("Coincidence(Sectors)")) =>
         planar_flank_membership(false, false);
     // Declared `Rest`, the one face the door verified.
     flanks_along_a_short_arm_declared_rest: "Coincidence(FlankSense)", D, FLANK_SITE, Valued =>
         planar_flank_membership(false, true);
-    // Coincident planes facing opposite ways, read at a short arm: the
-    // offset rung asks next, and refuses a pair no glue door glued (the
-    // site is called directly here, past the operation's glue door).
-    planes_facing_at_a_short_arm: "PlaneOrientation", -D, FLANK_SITE,
-        Withdrawn(Because::Refuses("Coincidence(Carriers)")) => shared_side_plane(D);
     flanks_against_a_short_arm: "Coincidence(FlankSense)", -D, FLANK_SITE, Valued =>
         planar_flank_membership(true, false);
     neighbours_bent_at_the_band: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
@@ -1528,52 +1523,6 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     .map(|_| ())
 }
 
-/// Two unit prisms' shared side plane `x = 1`, undeclared, read as an
-/// on-pair of corners at arm `arm`.
-fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
-    use super::super::sectors::BoolSector;
-    let tol = Tol::witness();
-    let o = Point3::new(1.0, 0.0, 0.0);
-    let (y, z) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-    let square = |x0: f64| [(x0, 0.0), (x0 + 1.0, 0.0), (x0 + 1.0, 1.0), (x0, 1.0)];
-    let pa = prism_z::<f64>(&square(0.0), 0.0, 1.0, tol);
-    let pb = prism_z::<f64>(&square(1.0), 0.0, 1.0, tol);
-    let sector = |face| BoolSector {
-        he: crate::entity::HalfEdgeKey::default(),
-        start: y,
-        end: z,
-        start_reach: BoundSupport::Chord {
-            base: o,
-            far: o + y * arm,
-        },
-        end_reach: BoundSupport::Chord {
-            base: o,
-            far: o + z * arm,
-        },
-        face,
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-            Vec3::new(1.0, 0.0, 0.0),
-            true,
-        )),
-        arm: geom_core::test_support::fixture_lever(arm),
-        bend: crate::bound_side::FaceBend::Plane,
-    };
-    let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
-    super::super::recl::require_same(
-        &pa.body,
-        Operand::A,
-        &sector(pa.side_faces[1]),
-        &pb.body,
-        Operand::B,
-        &sector(pb.side_faces[3]),
-        &declared,
-        super::super::recl::ReadOn::Faces,
-        geom_core::test_support::fixture_lever(arm),
-        band(),
-    )
-    .map(|_| ())
-}
-
 /// A unit prism's top split on its diagonal, one half bent about it by
 /// an angle whose sine over the diagonal is `margin`: the operand's
 /// maximal-faces gate.
@@ -2577,7 +2526,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "stands_on", "Coincide::Sectors", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
-    ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
     ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
     ("mod.rs", "off_ring_torus", "BooleanDecision::Torus", 1),
@@ -2707,7 +2655,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("recl.rs", "resolve_edge_edge", "Coincide::Sectors", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     ("recl.rs", "resolve_edge_sector", "Coincide::TangentSide", 1),
-    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 1),
     (
         "reduce.rs",
         "arc_chain_reaches",
@@ -3032,15 +2979,13 @@ lever_rows! {
     covered_vertex_on_its_glued_face: None => arc_on_its_glued_wall();
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,
-    // refuses next, whose own story is the declaration, which passes.
-    overlapping_flanks_lengthened: Some("Coincidence(Carriers)") =>
+    // refuses next on its own sector, whose own story is the
+    // declaration, which passes.
+    overlapping_flanks_lengthened: Some("Coincidence(Sectors)") =>
         planar_flank_membership_at(false, false, 1e-3);
     overlapping_flanks_lengthened_declared_rest: None =>
         planar_flank_membership_at(false, true, 1e-3);
     touching_flanks_lengthened: None => planar_flank_membership_at(true, false, 1e-3);
-    // `PlaneOrientation`: lengthened, the offset rung refuses the
-    // unglued pair next, as above.
-    facing_planes_lengthened: Some("Coincidence(Carriers)") => shared_side_plane(1e-3);
     // `VertexOnFace`: the vertices moved clearly off the face.
     vertex_moved_clearly_above_a_face: None => block_on_a_block(1.0 + 1e-3);
     vertex_moved_clearly_into_a_face: None => block_on_a_block(1.0 - 1e-3);
