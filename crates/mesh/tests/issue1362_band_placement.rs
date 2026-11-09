@@ -51,7 +51,7 @@ fn placed_ball(r: f64, d: f64) -> Result<topo::Body<f64>, String> {
         Revolution::Full,
         Tol::witness(),
     )
-    .map(|x| x.body)
+    .map(|x| x.body.into_body())
     .map_err(|e| format!("revolve: {e:?}"))
 }
 

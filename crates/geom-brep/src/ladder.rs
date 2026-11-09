@@ -128,6 +128,19 @@ pub enum Refusal {
 pub struct Aborts;
 
 impl Refusal {
+    /// **A spline walk's refusal's standing**, stated once for every
+    /// reader of one: a walk past its budget is unsettled (no margin, and
+    /// a coarser band may settle it); a spline with no speed bound is a
+    /// limit no tolerance moves. Here rather than on
+    /// [`geom::PieceWalkRefusal`], whose crate does not see a ladder.
+    #[must_use]
+    pub const fn of_walk(why: geom::PieceWalkRefusal) -> Self {
+        match why {
+            geom::PieceWalkRefusal::Exhausted => Self::Unsettled,
+            geom::PieceWalkRefusal::Unbounded => Self::Limit,
+        }
+    }
+
     /// The rung a reading refused with `e` stands as: kept by its kind.
     pub fn rung<A, E>(self, e: E) -> Rung<A, E> {
         self.kept(e).map_or_else(Rung::Unsettled, Rung::from)
@@ -275,6 +288,31 @@ impl<A, E> Rung<A, E> {
             Self::Blocked(e) => Rung::Blocked(f(e)),
             Self::Unsettled(e) => Rung::Unsettled(f(e)),
         }
+    }
+}
+
+impl<A, E> Rung<Result<A, E>, E> {
+    /// **A reading of whether one rung holds** as its rung: holding
+    /// answers `Ok(yes)`, not holding passes, and a refusal stands by
+    /// `standing` ([`Self::refused`]). The one home of the reader that
+    /// answers a `bool` over a refusal with a standing.
+    pub fn holds(
+        reading: Result<bool, E>,
+        yes: A,
+        standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
+    ) -> Self {
+        match reading {
+            Ok(true) => Self::Answers(Ok(yes)),
+            Ok(false) => Self::Passes,
+            Err(e) => Self::refused(e, standing),
+        }
+    }
+
+    /// The rung a reading refused with `e` stands as, read off `e`
+    /// itself: kept by its kind, or, where it refuses the whole query,
+    /// stopping the ladder with `Err(e)` ([`rung_or_abort`]).
+    pub fn refused(e: E, standing: impl FnOnce(&E) -> Result<Refusal, Aborts>) -> Self {
+        rung_or_abort(standing(&e), e, Err)
     }
 }
 

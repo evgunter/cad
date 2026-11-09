@@ -70,7 +70,7 @@ fn scene_d() -> (AtRestBody<f64>, AtRestBody<f64>) {
     let tol = Tol::witness();
     let p = boolean_body(
         topo::union(
-            &finished("the lower plate", plate6(0.0), tol),
+            &finished("the lower plate", plate6::<f64>(0.0), tol),
             &finished("the peg", plate6_cyl(2.0, 0.4, 1.1, BORE_R), tol),
             tol,
         )
@@ -79,7 +79,7 @@ fn scene_d() -> (AtRestBody<f64>, AtRestBody<f64>) {
     .body;
     let q = boolean_body(
         topo::subtract(
-            &finished("the upper plate", plate6(1.0), tol),
+            &finished("the upper plate", plate6::<f64>(1.0), tol),
             &finished("the bore", plate6_cyl(2.0, 0.8, 1.4, BORE_R), tol),
             tol,
         )
@@ -347,7 +347,7 @@ fn d_prism_with_split_keys() -> (
         Tol::witness(),
     )
     .unwrap();
-    let mut body = built.body;
+    let mut body = built.body.into_body();
     // Each run wall split at its station by a chord `mef` between the
     // station's two copies (the straight ruling, on the plane or the
     // cylinder alike). The sweep carries each rim as one edge over the
@@ -555,6 +555,7 @@ fn ball(r: f64) -> Body<f64> {
     revolve(&profile, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// A cone frustum (a revolved trapezoid whose slant meets the axis).
@@ -571,6 +572,7 @@ fn frustum() -> Body<f64> {
     revolve(&profile, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// **A plane meeting a cone and a plane meeting a cylinder glue
@@ -605,6 +607,7 @@ fn donut() -> Body<f64> {
     revolve(&profile, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn axis_y() -> RevolveAxis<f64> {

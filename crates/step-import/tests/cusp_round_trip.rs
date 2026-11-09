@@ -46,6 +46,7 @@ fn cusp_lune() -> topo::Body<f64> {
     )
     .expect("the cusp lune extrudes")
     .body
+    .into_body()
 }
 
 /// The endpoints of every edge check 4 marks `Tangent`.
@@ -83,7 +84,7 @@ fn a_native_cusp_round_trips_through_step_as_a_solid() {
         other => panic!("the cusp lune must re-import as a solid, got {other:?}"),
     };
 
-    let after = tangent_edges(back.body());
+    let after = tangent_edges(&back);
     assert_eq!(after.len(), 1, "one tangent edge after the trip, {after:?}");
     assert!(
         after[0].iter().all(on_the_kiss),

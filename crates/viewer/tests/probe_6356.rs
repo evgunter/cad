@@ -6,9 +6,9 @@
 
 use crate::common;
 use common::{len, session_insert};
-use pncad::document::{Doc, DocEdit, Node, Operand, RecipeNodeId, VarId};
+use pncad::document::{Doc, DocEdit, Node, Operand, RecipeNodeId};
 use pncad::geom_core::Tol;
-use viewer::matetool::{MateTool, PlaceDoor};
+use viewer::matetool::MateTool;
 use viewer::session::{DocSession, PatternRuleSpec, SessionOp};
 
 const A: [f64; 3] = [0.04, 0.02, 0.01];
@@ -19,7 +19,10 @@ fn session(tol: Tol) -> DocSession {
 
 fn door_of(doc: &Doc<pncad::document::ProfileProgram>, node: RecipeNodeId) -> String {
     match MateTool::moving(doc, node, None) {
-        Ok(tool) => format!("{:?}", tool.door()),
+        Ok(mut tool) => {
+            let place = tool.take_place();
+            format!("{:?} / {place:?}", tool.door())
+        }
         Err(event) => format!("refused: {event}"),
     }
 }
@@ -57,15 +60,11 @@ fn p2_transform_on_a_whole_split() {
     let doc = session.committed_doc();
     let said = door_of(doc, split);
     eprintln!("P2 split -> {said}");
-    if let Ok(tool) = MateTool::moving(doc, split, None)
-        && let Some(PlaceDoor::Create { body }) = tool.door()
+    if let Ok(mut tool) = MateTool::moving(doc, split, None)
+        && let Some(place) = tool.take_place()
     {
-        let outcome = session.perform(SessionOp::Place {
-            body: body.clone(),
-            target: doc.space_of(doc.output(split, 0).unwrap()).unwrap(),
-            constraints: Vec::new(),
-        });
-        eprintln!("P2 its Apply -> {:?}", outcome.refusal);
+        let outcome = session.perform(place);
+        eprintln!("P2 its Place -> {:?}", outcome.refusal);
     }
 }
 
@@ -96,12 +95,13 @@ fn p3_transform_on_a_patterned_body() {
     let edit = MateTool::moving(doc, body, None).ok();
     eprintln!(
         "P3 body door == family's Edit: {}",
-        matches!(edit.as_ref().and_then(|t| t.door()), Some(PlaceDoor::Edit { placement, .. }) if *placement == family)
+        edit.as_ref()
+            .and_then(|t| t.door())
+            .is_some_and(|door| door.placement == family)
     );
 }
 
-/// P4: the stacked shape through the editor's own op: `Place` of a
-/// COPY into the copy's own space, values only.
+/// P4: the stacked shape through Place: `Place` of a COPY.
 #[test]
 fn p4_place_of_a_copy_into_its_space_lands() {
     let tol = Tol::witness();
@@ -112,8 +112,6 @@ fn p4_place_of_a_copy_into_its_space_lands() {
     eprintln!("P4 copy {copy:?} space {:?}", doc.node_space(copy));
     let outcome = session.perform(SessionOp::Place {
         body: Operand::Node(copy),
-        target: VarId::WORLD,
-        constraints: pncad::document::Placed::unmated(common::slides([0.0, 0.0, 0.01])).bundle(),
     });
     eprintln!("P4 refusal {:?} made {:?}", outcome.refusal, outcome.made);
     if let Some(made) = outcome.made {
@@ -165,23 +163,17 @@ fn p5_a_pattern_takeover_writes_set_param() {
     assert!(kinds.contains(&"SetParam"));
 }
 
-/// P6: the Create door on a body already placed — typed, and which?
+/// P6: Place on a body already placed is a second placement of it.
 #[test]
-fn p6_create_on_a_placed_body() {
+fn p6_place_on_a_placed_body_is_a_second_placement() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     let (mut session, _copy) = common::world_copy_in(&session, body, tol);
-    let doc = session.committed_doc();
-    let target = doc.node_space(body).unwrap_or(VarId::WORLD);
-    let outcome = session.perform(SessionOp::Place {
-        body: body.into(),
-        target,
-        constraints: pncad::document::Placed::unmated(common::slides([0.0; 3])).bundle(),
-    });
+    let outcome = session.perform(SessionOp::Place { body: body.into() });
     eprintln!(
         "P6 refusal: {:?}",
         outcome.refusal.as_ref().map(|r| r.to_string())
     );
-    assert!(outcome.refusal.is_some());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }

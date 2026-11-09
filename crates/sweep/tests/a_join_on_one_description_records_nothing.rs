@@ -33,7 +33,7 @@ fn d_rod(z0: f64, z1: f64) -> topo::Body<f64> {
         depth: z1 - z0,
         side: ExtrudeSide::Along,
     };
-    extrude(&profile, depth, tol).unwrap().body
+    extrude(&profile, depth, tol).unwrap().body.into_body()
 }
 
 #[test]

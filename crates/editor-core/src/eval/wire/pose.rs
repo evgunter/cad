@@ -132,7 +132,7 @@ impl<T: Decide> Posed<T> {
 /// # Errors
 ///
 /// As [`eval_posed`].
-pub(crate) fn eval_pose<T: crate::mate::SolveScalar>(
+pub(crate) fn eval_pose<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,
@@ -155,7 +155,7 @@ pub(crate) fn eval_pose<T: crate::mate::SolveScalar>(
 /// finds none ([`NodeErrorKind::PoseRead`]); a construction's
 /// degenerate case ([`NodeErrorKind::PoseDegenerate`]); a direction the
 /// direction door refuses; a scalar that does not evaluate.
-pub(crate) fn eval_posed<T: crate::mate::SolveScalar>(
+pub(crate) fn eval_posed<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,
@@ -172,7 +172,7 @@ pub(crate) fn eval_posed<T: crate::mate::SolveScalar>(
 /// reader seat: what a report over the document's pose variables reads
 /// ([`crate::mate::unobservable()`]). Its refusals name no seat a reader
 /// holds, so it is for reports, never for an op.
-pub(crate) fn read_pose<T: crate::mate::SolveScalar>(
+pub(crate) fn read_pose<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     read: RoleRead<VarId>,
@@ -215,7 +215,7 @@ fn through<T: Decide>(value: PoseValue<T>, role: Option<crate::pose::PoseRole>) 
 /// [`eval_pose`] for a read admitting `admits`: the reader's seat's
 /// kind at the top, a read's own kind inside a definition, where the
 /// door checked it against what the definition admits there.
-fn eval_pose_as<T: crate::mate::SolveScalar>(
+fn eval_pose_as<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,
@@ -247,7 +247,7 @@ fn eval_pose_as<T: crate::mate::SolveScalar>(
 }
 
 /// **An operation's pose output**: a revolve's axis, the lift of its 2-D axis line through its profile's plane.
-fn output<T: crate::mate::SolveScalar>(
+fn output<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     admits: crate::SlotKind,
@@ -302,7 +302,7 @@ fn output<T: crate::mate::SolveScalar>(
 }
 
 /// **A pose definition, bound** at the lane scalar.
-fn definition<T: crate::mate::SolveScalar>(
+fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,
@@ -540,7 +540,7 @@ fn degenerate(error: UnitVec3Error, construction: PoseConstruction) -> NodeError
 /// (its outward normal, DM1a), a carrier's axis or an edge's line, a
 /// carrier's centre or a vertex's point. Stored facts copied out; a
 /// carrier without the pose refuses typed.
-fn read_off<T: crate::mate::SolveScalar>(
+fn read_off<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,

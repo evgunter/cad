@@ -34,6 +34,7 @@ fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     )
     .expect("the meridian fully revolves")
     .body
+    .into_body()
 }
 
 /// The teapot's own vessel meridian, transcribed from
@@ -85,6 +86,7 @@ fn teapot_cup(tol: Tol) -> Body<f64> {
     )
     .expect("the cup opens")
     .body
+    .into_body()
 }
 
 /// A cutter box: `x in [0.02, 0.2]`, `y in [-0.01, 0.1]`, `z in [0, 0.3]`.

@@ -116,7 +116,7 @@ fn sym_failures_in(
     })
 }
 
-fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
+fn failures<T: topo::AtRestPolicy + geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
     ev.order
         .iter()
         .filter_map(|id| match ev.result(*id) {

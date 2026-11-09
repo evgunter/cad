@@ -3549,7 +3549,11 @@ pub(super) fn line_of<T: Decide>(
     };
     let mut at_site = [false; 2];
     for (k, d) in lines.dirs.iter().enumerate() {
-        let off = (site - lines.apex).cross(*d).norm() / d.norm();
+        let off = geom::Line {
+            origin: lines.apex,
+            dir: *d,
+        }
+        .distance(site);
         at_site[k] = on("bool_germ_apex_line", Margin::of(off))?;
     }
     let along = match at_site {
@@ -3885,6 +3889,10 @@ fn faces_section_unbuilt<T: geom_core::Real>(
 /// A site's reading against its section: an escalation as the section
 /// undecided, a site on no component a desync, a spline component's walk
 /// that could not run as the join's ([`SplitJoinError::SectionUnwalked`]).
+/// The Boolean's own sort, not the join's (`From<(FaceKey, SiteRefusal)>`
+/// for [`SplitJoinError`]): a
+/// site the Boolean reads in band is its section's coincidence decision,
+/// with that decision's recourse, where the join's is the division's.
 pub(super) fn site_refusal(e: geom_brep::SiteRefusal) -> BooleanError {
     match e {
         geom_brep::SiteRefusal::Escalated(diag) => section_undecided(diag),

@@ -45,13 +45,14 @@ fn door(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> (Glue<f64>, GluedPairs<f64>
 /// the class's.
 #[test]
 fn a_glued_pairs_row_carries_the_doors_margin() {
-    let cube =
-        |x: (f64, f64), z: (f64, f64)| finished("a block", brick(x, (0.0, 1.0), z, tol()), tol());
+    let cube = |x: (f64, f64), z: (f64, f64)| {
+        finished("a block", brick::<f64>(x, (0.0, 1.0), z, tol()), tol())
+    };
     for (what, a, b) in [
         ("a brick on a cube", cube((0.0, 1.0), (0.0, 1.0)), {
             finished(
                 "the brick",
-                brick((0.25, 0.75), (0.25, 0.75), (1.0, 2.0), tol()),
+                brick::<f64>((0.25, 0.75), (0.25, 0.75), (1.0, 2.0), tol()),
                 tol(),
             )
         }),
@@ -120,7 +121,7 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
         .collect();
     let lower = finished(
         "the lower prism",
-        prism_z(&scaled, -1.0, 0.0, tol()).body,
+        prism_z::<f64>(&scaled, -1.0, 0.0, tol()).body,
         tol(),
     );
     // Square to the bisector at the first corner, in the plane.

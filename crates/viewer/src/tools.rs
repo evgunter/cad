@@ -3,8 +3,10 @@
 //! Every modal tool here holds picks in tool state and commits exactly
 //! one ACTION — one history state, one undo (G1's preview-vs-commit
 //! rule; the mate tool set the shape and the creation tools took it).
-//! For most tools that action is one `DocEdit`; the duplicate tool's
-//! is three and a declaring boolean's two, each recorded as one. They all consume the SAME
+//! For most tools that action is one `DocEdit`; a declaring boolean's
+//! is two, recorded as one. The placement editor is the exception that
+//! stays open: it places a body, then commits each change live
+//! (`crate::matetool`). They all consume the SAME
 //! selection stream, which is what makes the one-at-a-time rule a rule
 //! rather than a preference: with two open, one click fills a seat in
 //! each, and the picks a user believes they are making are not the
@@ -40,8 +42,8 @@ use pncad::select::SplitHalf;
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{
-    BooleanTool, ClearanceEvent, ClearanceTool, DuplicateTool, MirrorTool, PartTool, PatternTool,
-    PlaneEvent, SplitTool, TransformTool,
+    BooleanTool, ClearanceEvent, ClearanceTool, MirrorTool, PartTool, PatternTool, PlaneEvent,
+    SplitTool, TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickcache::NotIndexed;
@@ -72,8 +74,6 @@ vocabulary! {
         /// The projection tool (it authors a `Node::Part`): one split or
         /// one pattern, and which body of it.
         Part,
-        /// The duplicate tool: one body.
-        Duplicate,
         /// The mirror tool: a body and the face it is reflected across.
         Mirror,
         /// The clearance tool: a requirement's two seats, a body or a
@@ -108,7 +108,6 @@ impl ToolKind {
             Self::Pattern => "pattern",
             Self::Blend => "blend",
             Self::Part => "projection",
-            Self::Duplicate => "duplicate",
             Self::Mirror => "mirror",
             Self::Clearance => "clearance",
         }
@@ -135,13 +134,10 @@ impl ToolKind {
         format!("{} tool…", capitalised(self.label()))
     }
 
-    /// The words on the button that commits this tool's edit: the
-    /// placement editor's is its Apply, as the profile editor's is.
+    /// The words on the button that commits this tool's edit. The
+    /// placement editor has none: it commits each change as it is made.
     pub fn commit(self) -> String {
-        match self {
-            Self::Mate => "Apply".to_owned(),
-            other => format!("Commit {}", other.label()),
-        }
+        format!("Commit {}", self.label())
     }
 
     /// **What the cursor may pick while this tool is open** — an open
@@ -170,7 +166,7 @@ impl ToolKind {
             Self::Blend => PickKinds::EdgesOnly,
             // Their seats read bodies, picked through a face or an
             // edge; none reads a profile, so none is offered one.
-            Self::Boolean | Self::Transform | Self::Pattern | Self::Part | Self::Duplicate => {
+            Self::Boolean | Self::Transform | Self::Pattern | Self::Part => {
                 PickKinds::FacesAndEdges
             }
         }
@@ -192,7 +188,6 @@ impl ToolKind {
             | Self::Pattern
             | Self::Blend
             | Self::Part
-            | Self::Duplicate
             | Self::Clearance => true,
         }
     }
@@ -211,7 +206,6 @@ impl ToolKind {
             | Self::Pattern
             | Self::Blend
             | Self::Part
-            | Self::Duplicate
             | Self::Mirror
             | Self::Clearance => committed_by(op) == Some(self),
         }
@@ -219,16 +213,17 @@ impl ToolKind {
 }
 
 /// **Which tool an operation is the committed edit of**, or `None` for
-/// an operation no tool closes on. `AddMate` is nobody's: it is the API
-/// spelling of a mate added to a bundle, and the placement editor
-/// commits a [`SessionOp::Place`] or a [`SessionOp::SetBundle`].
+/// an operation no tool closes on. The placement editor closes on none:
+/// its [`SessionOp::Place`] opens it on the placement made, and each
+/// [`SessionOp::SetBundle`] is one live change ([`Tools::answered`]).
+/// `AddMate` is nobody's: it is the API spelling of a mate added to a
+/// bundle.
 fn committed_by(op: &SessionOp) -> Option<ToolKind> {
     match op {
         SessionOp::AddBoolean { .. } => Some(ToolKind::Boolean),
         SessionOp::AddSplit { .. } => Some(ToolKind::Split),
         SessionOp::AddMirror { .. } => Some(ToolKind::Mirror),
         SessionOp::AddClearance { .. } => Some(ToolKind::Clearance),
-        SessionOp::Place { .. } | SessionOp::SetBundle { .. } => Some(ToolKind::Mate),
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
         // tool's kind choice does the same.
@@ -238,13 +233,14 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         // different payloads, so a landed `AddPart` is this tool's edit
         // whichever selector authored it.
         SessionOp::AddPart { .. } => Some(ToolKind::Part),
-        SessionOp::Duplicate { .. } => Some(ToolKind::Duplicate),
         // A labelled creation is its creation's commit, labelled.
         SessionOp::CreateLabelled { creation, .. } => committed_by(creation.op()),
         SessionOp::SetLabel { .. }
         | SessionOp::SetProduct { .. }
         | SessionOp::AddToProduct { .. }
         | SessionOp::AddMate { .. }
+        | SessionOp::Place { .. }
+        | SessionOp::SetBundle { .. }
         | SessionOp::Select(_)
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
@@ -507,8 +503,6 @@ pub enum OpenTool {
     Blend(BlendTool),
     /// The part tool.
     Part(PartTool),
-    /// The duplicate tool.
-    Duplicate(DuplicateTool),
     /// The mirror tool.
     Mirror(MirrorTool),
     /// The clearance tool.
@@ -527,7 +521,6 @@ impl OpenTool {
             Self::Pattern(_) => ToolKind::Pattern,
             Self::Blend(_) => ToolKind::Blend,
             Self::Part(_) => ToolKind::Part,
-            Self::Duplicate(_) => ToolKind::Duplicate,
             Self::Mirror(_) => ToolKind::Mirror,
             Self::Clearance(_) => ToolKind::Clearance,
         }
@@ -596,7 +589,6 @@ impl Tools {
             ToolKind::Pattern => OpenTool::Pattern(PatternTool::new()),
             ToolKind::Blend => OpenTool::Blend(BlendTool::new()),
             ToolKind::Part => OpenTool::Part(PartTool::new()),
-            ToolKind::Duplicate => OpenTool::Duplicate(DuplicateTool::new()),
             ToolKind::Mirror => OpenTool::Mirror(MirrorTool::new()),
             ToolKind::Clearance => OpenTool::Clearance(ClearanceTool::new()),
         });
@@ -711,14 +703,6 @@ impl Tools {
         }
     }
 
-    /// The open duplicate tool.
-    pub fn duplicate(&self) -> Option<DuplicateTool> {
-        match &self.open {
-            Some(OpenTool::Duplicate(tool)) => Some(tool.clone()),
-            _ => None,
-        }
-    }
-
     /// The open mirror tool, by reference (the read-door rule on
     /// [`Tools`]).
     pub fn mirror(&self) -> Option<&MirrorTool> {
@@ -784,6 +768,78 @@ impl Tools {
     /// anything.
     pub fn commits_open_tool(&self, op: &SessionOp) -> bool {
         self.open_kind().is_some_and(|kind| kind.commits(op))
+    }
+
+    /// **The Place the open placement editor's pick asked for**, taken
+    /// ([`MateTool::take_place`]): queued in the batch of the pick that
+    /// asked for it.
+    pub fn take_place(&mut self) -> Option<SessionOp> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => tool.take_place(),
+            _ => None,
+        }
+    }
+
+    /// **The op the open placement editor's change waits on to land**,
+    /// if one formed this frame and has not been performed: an undo in
+    /// the same batch takes it back before it lands, as the profile
+    /// editor's (`ViewerApp::perform_batch`).
+    pub fn mate_landing(&self) -> Option<&SessionOp> {
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => tool.landing(),
+            _ => None,
+        }
+    }
+
+    /// **Undo takes back the placement editor's held draft first**, as
+    /// the profile editor's (`Drafts::undo_pending`): when the open
+    /// editor holds changes the document does not
+    /// ([`MateTool::holds_changes`]), they are dropped — the editor shows
+    /// the bundle as `doc`, the committed document, holds it — and the
+    /// undo is spent on them. Answers the placement the dropped draft
+    /// edited, for the notice that says so.
+    pub fn undo_pending(&mut self, doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
+        let Some(OpenTool::Mate(tool)) = &mut self.open else {
+            return None;
+        };
+        if !tool.holds_changes() {
+            return None;
+        }
+        let placement = tool.door()?.placement;
+        tool.discard(doc);
+        Some(placement)
+    }
+
+    /// **The session answered `op`**, which made `made` and `committed`
+    /// or was refused, leaving `doc` the committed document: a landed
+    /// [`SessionOp::Place`] opens the placement editor on the placement
+    /// it made, and the editor's own [`SessionOp::SetBundle`] landing or
+    /// refused settles its draft ([`MateTool::landed`],
+    /// [`MateTool::refused`]). Any other op, and an op the editor did not
+    /// form, leaves the tools alone.
+    pub fn answered(
+        &mut self,
+        op: &SessionOp,
+        made: Option<RecipeNodeId>,
+        committed: bool,
+        doc: &Doc<ProfileProgram>,
+    ) {
+        let Some(OpenTool::Mate(tool)) = &mut self.open else {
+            return;
+        };
+        match (op, made) {
+            (SessionOp::Place { .. }, Some(placement)) if committed && tool.door().is_none() => {
+                tool.placed(doc, placement);
+            }
+            (SessionOp::SetBundle { .. }, _) if tool.landing() == Some(op) => {
+                if committed {
+                    tool.landed(doc);
+                } else {
+                    tool.refused(doc);
+                }
+            }
+            _ => {}
+        }
     }
 
     /// **A document replaced this one**: the open tool starts over,
@@ -892,9 +948,6 @@ impl Tools {
                 Some(OpenTool::Part(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
-                Some(OpenTool::Duplicate(tool)) => {
-                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
-                }
                 Some(OpenTool::Mirror(tool)) => match selection.face() {
                     Some(face) => tool.pick_plane(doc, face.clone()),
                     None => on_node_pick(selection, |node| tool.pick(doc, node)),
@@ -925,7 +978,6 @@ impl Tools {
             Some(OpenTool::Split(tool)) => tool.respeak(doc),
             Some(OpenTool::Pattern(tool)) => tool.respeak(doc),
             Some(OpenTool::Part(tool)) => tool.respeak(doc),
-            Some(OpenTool::Duplicate(tool)) => tool.respeak(doc),
             Some(OpenTool::Mirror(tool)) => tool.respeak(doc),
             Some(OpenTool::Clearance(tool)) => tool.respeak(doc),
         }
@@ -946,8 +998,7 @@ impl Tools {
                 OpenTool::Boolean(_)
                 | OpenTool::Transform(_)
                 | OpenTool::Pattern(_)
-                | OpenTool::Part(_)
-                | OpenTool::Duplicate(_),
+                | OpenTool::Part(_),
             ) => Vec::new(),
         }
     }
@@ -968,21 +1019,42 @@ impl Tools {
             Some(OpenTool::Boolean(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Split(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Pattern(tool)) => tool.choose_half(seat, half),
-            Some(OpenTool::Duplicate(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Mirror(tool)) => tool.choose_half(seat, half),
+        }
+    }
+
+    /// **The member pick `seat` of the open boolean tool reads**, by
+    /// its index values, where it reads a family nothing copies, whole
+    /// or one member ([`crate::combine::BooleanTool::choose_member`]); a
+    /// no-op for every other tool, whose seats read a family whole.
+    pub fn choose_member(&mut self, seat: usize, at: Vec<i64>) {
+        match &mut self.open {
+            None
+            | Some(
+                OpenTool::Mate(_)
+                | OpenTool::Blend(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Part(_)
+                | OpenTool::Clearance(_)
+                | OpenTool::Split(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Mirror(_),
+            ) => {}
+            Some(OpenTool::Boolean(tool)) => tool.choose_member(seat, at),
         }
     }
 
     /// **The survival step, once per frame** — the consumer obligation
     /// every tool's module docs state, discharged in one place.
     ///
-    /// The seated tools answer from the shown document alone (a held
-    /// node is there or it is not); the mate tool needs the landed
-    /// PAIR, because a face pick's survival is a question about a name
-    /// and an evaluation together. A session with nothing landed yet
-    /// therefore reconciles the seated tools and leaves the mate tool's
-    /// picks alone, which is the honest answer: "we cannot tell" is not
-    /// "it is gone".
+    /// `doc` is the committed document. The seated tools answer from it
+    /// alone (a held node is there or it is not); the mate tool needs the
+    /// landed PAIR, because a face pick's survival is a question about a
+    /// name and an evaluation together, and judges its draft's bundle
+    /// against `doc`, which its live changes are committed to. A session
+    /// with nothing landed yet therefore reconciles the seated tools and
+    /// leaves the mate tool alone, which is the honest answer: "we
+    /// cannot tell" is not "it is gone".
     ///
     /// The blend tool needs BOTH: the document says whether its target
     /// still exists, and the landed evaluation says which edges that
@@ -1001,8 +1073,8 @@ impl Tools {
         let dropped = match open {
             OpenTool::Mate(tool) => {
                 return match landed {
-                    Some((landed_doc, eval)) => tool
-                        .reconcile(landed_doc, eval)
+                    Some(landed) => tool
+                        .reconcile(doc, landed)
                         .into_iter()
                         .map(ToolNotice::Mate)
                         .collect(),
@@ -1031,7 +1103,6 @@ impl Tools {
             }
             OpenTool::Pattern(tool) => tool.reconcile(doc),
             OpenTool::Part(tool) => tool.reconcile(doc),
-            OpenTool::Duplicate(tool) => tool.reconcile(doc),
             // The body seat answers from the document; the plane, a
             // face, from the landed pair, as the mate tool's picks do.
             OpenTool::Mirror(tool) => {
