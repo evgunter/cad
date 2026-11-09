@@ -3334,13 +3334,20 @@ mod tests {
     /// it. Two equal ends read a value; a poisoned reading poisons it.
     #[test]
     fn the_larger_of_two_misses_reads_the_larger_quantity() {
-        let (a, b) = (MarginDiag::enclosure(2.0, 10.0), MarginDiag::enclosure(5.0, 6.0));
+        let (a, b) = (
+            MarginDiag::enclosure(2.0, 10.0),
+            MarginDiag::enclosure(5.0, 6.0),
+        );
         for (x, y) in [(a, b), (b, a)] {
             let larger = x.larger(y);
             assert_eq!(larger.magnitudes(), Some((5.0, 10.0)), "{larger:?}");
             assert!(larger.within(4.0).is_none(), "wholly past 4: {larger:?}");
         }
-        assert_eq!(a.within(4.0), Some(Within::Partly), "the wide miss alone reads partly");
+        assert_eq!(
+            a.within(4.0),
+            Some(Within::Partly),
+            "the wide miss alone reads partly"
+        );
         let v = MarginDiag::value(3.0).larger(MarginDiag::value(1.0));
         assert_eq!(v.magnitudes(), Some((3.0, 3.0)));
         assert_eq!(v.kind(), MarginKind::Value, "{v:?}");
