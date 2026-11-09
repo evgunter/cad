@@ -37,9 +37,14 @@
 //! reaches it inside a struct argument, or as a type named for text
 //! outside the home (the shape `k_stats`' header rules out); a bare call
 //! of a door's name inside the scope of another binding of that name (an
-//! import from elsewhere or a `fn` in its block, a `let` or a closure
-//! parameter from it to its block's end, a parameter in its fn's body),
-//! which is read as that other meaning. A struct field binds nothing.
+//! import from elsewhere or a free `fn` in its block, a `let` from it to
+//! its block's end, a closure parameter in that closure's body, a
+//! parameter in its fn's body), which is read as that other meaning. A
+//! struct field and a method bind nothing; a closure is read by its own
+//! `|…|` head where an expression starts, so a match or-pattern or a
+//! bitwise or is no closure. Each of these is a lexical reading of a
+//! scope, and a shape it does not know is read as no binding (the loud
+//! direction) unless it looks like one it knows.
 //!
 //! The `decide_flagged` total is hand-synced and spelled ONCE, at
 //! [`LEDGER_FLAGGED_SITES`]; the rows are computed from the document.
@@ -285,22 +290,18 @@ fn fn_heads(text: &str, code: &str) -> Vec<FnHead> {
 
 /// The home's `pub` fns that take a row-like parameter and cite no
 /// ledger row: each must be one ([`home_doors`] refuses a stale entry).
-/// `decide_across` and its reporting form take their two predicate
-/// names as `[&'static str; 2]`.
-const NON_ROW_DOORS: [&str; 4] = [
-    "in_family",
-    "identity_pass_set",
-    "decide_across",
-    "decide_across_reported",
-];
+const NON_ROW_DOORS: [&str; 2] = ["in_family", "identity_pass_set"];
 
 /// Whether a parameter reads as a ledger row: a name holding `row`, or,
 /// under any name but the predicate's `name`, a type that names `str` or
 /// `String` (`&'static str`, `&str`, `String`, `Cow<str>`) or one of
-/// `texts`, the home's aliases of those.
+/// `texts`, the home's aliases of those. An array or a slice of text
+/// (`[&'static str; 2]`, `&[&str]`) is predicate names, as `name` is.
 fn row_like((name, ty): &(String, String), texts: &[String]) -> bool {
+    let names = ty.starts_with('[') || ty.trim_start_matches('&').trim_start().starts_with('[');
     name.contains("row")
         || (name != "name"
+            && !names
             && ty
                 .split(|c: char| !(c.is_alphanumeric() || c == '_'))
                 .any(|w| w == "str" || w == "String" || texts.iter().any(|t| t == w)))
@@ -545,9 +546,11 @@ struct Spelling {
     quals: Vec<String>,
     /// The spans where the file gives the door's name another meaning,
     /// each the scope of one binding: an import of it from another path
-    /// (its block, or the file), a `let` or a closure's `|…|` (from it
-    /// to its block's end), a `fn` of that name (the block it is declared
-    /// in); a parameter's (its fn's body) is read on demand
+    /// (its block, or the file), a `let` (from it to its block's end), a
+    /// closure's `|…|` (that closure's body, [`closure_parameter`]), a
+    /// free `fn` of that name (the block it is declared in; a method or an
+    /// associated fn, in an `impl` or `trait`, is never reached bare); a
+    /// parameter's (its fn's body) is read on demand
     /// ([`parameter_scopes`]). A bare call inside one is that, not the
     /// door. A struct field of that name binds nothing.
     elsewhere: Vec<std::ops::Range<usize>>,
@@ -616,17 +619,83 @@ fn spellings(file: &Scanned, door: &Door, in_home: bool) -> Spelling {
         let before = code[..at].trim_end();
         let keyword =
             |k: &str| before.ends_with(k) && boundary_before(before, before.len() - k.len());
-        let line = &code[test_utils::source::line_start(code, at)..at];
-        let closure =
-            before.ends_with('|') || (before.ends_with(',') && line.matches('|').count() % 2 == 1);
         let block = enclosing_block(code, at);
-        if keyword("fn") {
-            sp.elsewhere.push(block);
-        } else if keyword("let") || keyword("mut") || closure {
+        if let Some(body) = closure_parameter(code, at, n.len()) {
+            sp.elsewhere.push(body);
+        } else if keyword("fn") {
+            if !is_impl_or_trait_body(code, &block) {
+                sp.elsewhere.push(block);
+            }
+        } else if keyword("let") || keyword("mut") {
             sp.elsewhere.push(at..block.end);
         }
     }
     sp
+}
+
+/// **The body of the closure whose parameter list holds `code[at..at +
+/// len]`**, or `None` where it is no closure parameter. A closure is read
+/// by its own head: a `|` opening where an expression starts (after `(`,
+/// `[`, `{`, `,`, `=`, `;`, `=>`, `move` or `return`), parameters only
+/// up to the closing `|`, then a body: a `{ … }` block, or an expression
+/// up to the `,`, `;` or closer that ends it at its own depth. A match
+/// or-pattern (`1 | 2 =>`) and a bitwise or (`a | b`) open no closure.
+fn closure_parameter(code: &str, at: usize, len: usize) -> Option<std::ops::Range<usize>> {
+    let param = |c: char| c.is_alphanumeric() || " \t\n_,:&()<>'".contains(c);
+    let open = code[..at].rfind('|')?;
+    if !code[open + 1..at].chars().all(param) {
+        return None;
+    }
+    let lead = code[..open].trim_end();
+    let starts = ["(", "[", "{", ",", "=", ";", "=>"]
+        .iter()
+        .any(|t| lead.ends_with(t))
+        || ["move", "return"].iter().any(|k| {
+            lead.ends_with(k) && test_utils::source::boundary_before(lead, lead.len() - k.len())
+        });
+    if !starts
+        || lead.ends_with("==")
+        || lead.ends_with("!=")
+        || lead.ends_with("<=")
+        || lead.ends_with(">=")
+    {
+        return None;
+    }
+    let close = at + len + code[at + len..].find('|')?;
+    if !code[at + len..close].chars().all(param) {
+        return None;
+    }
+    let from = close + 1;
+    let start = test_utils::source::skip_ws(code, from);
+    if code[start..].starts_with('{') {
+        let end = test_utils::source::balanced_end(code, start)?;
+        return Some(from..end + 1);
+    }
+    let mut depth = 0usize;
+    for (i, c) in code[from..].char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' if depth == 0 => return Some(from..from + i),
+            ')' | ']' | '}' => depth -= 1,
+            ',' | ';' if depth == 0 => return Some(from..from + i),
+            _ => {}
+        }
+    }
+    Some(from..code.len())
+}
+
+/// Whether `block` is the body of an `impl` or a `trait`: a `fn` declared
+/// there is a method or an associated fn, which a bare call never reaches.
+fn is_impl_or_trait_body(code: &str, block: &std::ops::Range<usize>) -> bool {
+    if block.start == 0 && block.end == code.len() {
+        return false;
+    }
+    let head_end = block.start;
+    let head_start = code[..head_end].rfind(['}', ';', '{']).map_or(0, |i| i + 1);
+    let head = &code[head_start..head_end];
+    head.split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .find(|w| matches!(*w, "impl" | "trait" | "fn" | "mod" | "struct" | "enum"))
+        .is_some_and(|w| w == "impl" || w == "trait")
 }
 
 /// The bodies of `file`'s fns that take a parameter named `name`: where a
@@ -1034,7 +1103,8 @@ fn planted(name: &str, text: &str) -> (PathBuf, String) {
 /// **The roster is the home's signatures**: every `pub` fn with a
 /// row-like parameter is a door at that index, whatever the row is called
 /// or typed, `pub(crate)` and methods included; a private fn, a `pub` fn
-/// with none, a `#[cfg(test)]` fn and a named non-door are not.
+/// with none, one taking an array or slice of text (predicate names), a
+/// `#[cfg(test)]` fn and a named non-door are not.
 #[test]
 fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
     let home = PathBuf::from("k_stats.rs");
@@ -1053,6 +1123,8 @@ fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
          pub fn aliased(name: &'static str, cited: Cited) {}\n\
          pub const fn constant(ledger_row: &'static str) {}\n\
          pub fn in_family(family: &'static str) {}\n\
+         pub fn across(names: [&'static str; 2], band: Band) {}\n\
+         pub fn listed(names: &[&str], band: Band) {}\n\
          impl Bracket {\n    pub fn cite(&self, ledger_row: &'static str) {}\n}\n\
          #[cfg(test)]\nmod tests {\n    pub fn in_a_test(ledger_row: &'static str) {}\n}\n",
         &["in_family"],
@@ -1259,9 +1331,11 @@ fn a_door_of_the_home_is_its_modules_fn_and_not_the_verb() {
 }
 
 /// **Another meaning of a door's name holds only in its own scope**: a
-/// `let`, an import or a parameter of that name elsewhere in the file, or
-/// a struct field of it anywhere, leaves a bare call it does not scope
-/// over unresolved; inside its scope the call is that other meaning.
+/// `let`, an import or a parameter of that name elsewhere in the file, a
+/// closure parameter outside its closure's body, a method of that name,
+/// or a struct field of it anywhere, leaves a bare call it does not scope
+/// over unresolved; so does a match or-pattern or a bitwise or, which
+/// open no closure. Inside its scope the call is that other meaning.
 #[test]
 fn another_meaning_of_a_doors_name_holds_only_in_its_scope() {
     let home = "k_stats.rs";
@@ -1287,6 +1361,23 @@ fn another_meaning_of_a_doors_name_holds_only_in_its_scope() {
             "use super::*;\nfn b() { choose(\"n\", m, \"ROW\"); let choose = |a, b| a; choose(1, 2); }\n",
         ),
         planted(
+            "or_pattern.rs",
+            "use super::*;\nfn b(x: u8) { match x { 1 | 2 => g(1, choose(\"n\", m, \"ROW\")), _ => {} } }\n",
+        ),
+        planted(
+            "bitwise_or.rs",
+            "use super::*;\nfn b(a: u8) { let y = a | b; h(x, choose(\"n\", m, \"ROW\")); }\n",
+        ),
+        planted(
+            "method.rs",
+            "use super::*;\nimpl S {\n    fn choose(&self) {}\n    fn b(&self) { choose(\"n\", m, \"ROW\"); }\n}\n\
+             trait T {\n    fn choose(&self);\n    fn c(&self) { choose(\"n\", m, \"ROW\"); }\n}\n",
+        ),
+        planted(
+            "closure_scope.rs",
+            "use super::*;\nfn b() { let f = |choose: u8| choose + 1; choose(\"n\", m, \"ROW\"); }\n",
+        ),
+        planted(
             "in_scope.rs",
             "use super::*;\nfn a(choose: F) { choose(1, 2); }\nmod x { use other::choose; fn c() { choose(1, 2); } }\n\
              fn d() { [1].map(|x, choose| choose(x)); }\nfn choose_local() {}\nmod y { fn choose(a: u8, b: u8) {} fn e() { choose(1, 2); } }\n",
@@ -1296,10 +1387,15 @@ fn another_meaning_of_a_doors_name_holds_only_in_its_scope() {
     let unresolved = "<calls `choose` bare where nothing in this file resolves it: import it from \
                       `k_stats`, or qualify it>";
     let want: Vec<(String, String)> = [
+        "bitwise_or.rs",
+        "closure_scope.rs",
         "field.rs",
         "import_elsewhere.rs",
         "let_after.rs",
         "let_elsewhere.rs",
+        "method.rs",
+        "method.rs",
+        "or_pattern.rs",
     ]
     .into_iter()
     .map(|f| (f.to_string(), unresolved.to_string()))
