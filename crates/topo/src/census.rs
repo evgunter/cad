@@ -2547,7 +2547,10 @@ pub(crate) fn line_wedges<T: Decide>(
 /// **[`line_wedges`]' ladder**: over the pairs, and within each over its
 /// probes ([`climb`], [`Answering::Any`]: every wedge holding another's
 /// probe strictly inside is a definite overlap, a true fault whichever
-/// pair it is). `wedge(pair, side)` reads one of a pair's two wedges,
+/// pair it is). The pair's index is a witness its callers read only to
+/// name the fault's edges (`ValidationError::CoincidentWedgesOverlap`,
+/// `BooleanError::LineWedges`), so which overlapping pair answers does
+/// not matter to them. `wedge(pair, side)` reads one of a pair's two wedges,
 /// `probes` a wedge's three directions, and `inside` whether a direction
 /// lies strictly inside a wedge. A pair or a probe read in band refuses
 /// only where no later one overlaps, each refusal kept by its standing
@@ -9064,7 +9067,9 @@ pub(crate) enum Probe {
 /// **The material test of one ordering**: each of `vertices`, the
 /// vertices of `inner`, placed against `outer`'s material by `place`, in
 /// turn. Every vertex strictly inside says the same, so any answers
-/// ([`Answering::Any`]); a vertex `exempt` names is passed; a refusal is
+/// ([`Answering::Any`]). The vertex is a witness its consumer reads only to
+/// name in `ValidationError::InstanceInterference`, where any vertex
+/// decided strictly inside is a true one; a vertex `exempt` names is passed; a refusal is
 /// kept by its standing (`PointInSolidError::refusal`) with its reason
 /// ([`Undecided::of_point_in_solid`]), and one of the whole query stops
 /// the probe with its reason.

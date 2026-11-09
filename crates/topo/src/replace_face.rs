@@ -4216,6 +4216,12 @@ fn past_eps(d: &Decided) -> bool {
 /// in band is kept). `Some` of that gap and its index where one is past
 /// ε, `None` where every gap is within it.
 ///
+/// **Which gap is reported does not matter to any consumer.** The index
+/// and the gap are a witness, and every answering rung's is a gap decided
+/// past ε. The callers read them only to name the disagreement in
+/// [`ReplaceFaceError::VertexDisagreement`]'s sentence, whose ending is
+/// "not yet" and sizes nothing. Any one of them is a true report.
+///
 /// # Errors
 ///
 /// The kept reading, where no gap is past ε and one is in band.
