@@ -55,14 +55,14 @@ crate-visible              13  boolean/boxes.rs
 crate-visible               9  boolean/carrier_eq.rs
 crate-visible               5  boolean/carrier_pair.rs
 crate-visible               9  boolean/combine.rs
-crate-visible               2  boolean/contact_verify.rs
+crate-visible               1  boolean/contact_verify.rs
 crate-visible              12  boolean/contain.rs
 crate-visible               5  boolean/edge_join.rs
 crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             175  boolean/mod.rs
+crate-visible             174  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              29  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
@@ -208,12 +208,12 @@ refused-binding             6  validate.rs
 
 splitting-names-boolean     6  splitting/classify.rs
 splitting-names-boolean    11  splitting/containment.rs
-splitting-names-boolean    44  splitting/finish.rs
+splitting-names-boolean    42  splitting/finish.rs
 splitting-names-boolean     3  splitting/mod.rs
 splitting-names-boolean     3  splitting/neighborhood.rs
 splitting-names-boolean     2  splitting/rules.rs
 splitting-names-boolean     2  splitting/section.rs
-splitting-names-boolean     2  splitting/section_loops.rs
+splitting-names-boolean     1  splitting/section_loops.rs
 splitting-names-boolean     1  splitting/spline_arc.rs
 
 ambiguous Branch                         # census.rs

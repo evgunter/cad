@@ -1473,4 +1473,113 @@ mod tests {
             "overlapping discs: the line is off one of them"
         );
     }
+
+    /// **The Villarceau probe.** A torus (`R = 2`, `r = 0.5`, about z)
+    /// and its mirror image in a bitangent plane share that plane's
+    /// Villarceau circle, a rim the lane admits (two round surfaces on a
+    /// circle) that is a line of curvature of neither. Along it the two
+    /// outward normals are each other's mirror image, so the pair is
+    /// tangent at four points only: aligned where the first torus's
+    /// normal lies in the plane (`t = π/2, 3π/2`), where the mirror makes
+    /// `κ_rel` exactly zero, and opposed where it is the plane's normal,
+    /// returned here. Every other sample is definitely not parallel.
+    fn villarceau() -> (Surface<f64>, Surface<f64>, geom::Curve3<f64>, f64) {
+        let (big, small) = (2.0f64, 0.5f64);
+        let tilt = (small / big).asin();
+        let m = Vec3::new(-tilt.sin(), 0.0, tilt.cos());
+        let mirror = |v: Vec3<f64>| v - m * (2.0 * v.dot(m));
+        let torus = |axis: Vec3<f64>, u_ref: Vec3<f64>| Surface::Torus {
+            center: Point3::origin(),
+            axis,
+            major_radius: big,
+            minor_radius: small,
+            u_ref,
+        };
+        let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, small, 0.0),
+            m,
+            big,
+            Vec3::new(tilt.cos(), 0.0, tilt.sin()),
+        );
+        let first = torus(z, x);
+        // The opposed point: a root of the first torus's normal's component
+        // across the plane's normal, in the circle's normal plane.
+        let across = |t: f64| {
+            let (p, tau) = circle.ders1(t);
+            implicit_outward_normal(&first, true, p)
+                .vec()
+                .dot(tau.cross(m).normalize())
+        };
+        let (mut lo, mut hi) = (3.0, 3.6);
+        assert!(across(lo) * across(hi) < 0.0, "a root in [3, 3.6]");
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if across(lo) * across(mid) <= 0.0 {
+                hi = mid;
+            } else {
+                lo = mid;
+            }
+        }
+        (first, torus(mirror(z), mirror(x)), circle, 0.5 * (lo + hi))
+    }
+
+    /// The probe's answer, with the parallel check ahead of the sides:
+    /// started anywhere on the circle, the nine-station schedule's first
+    /// sample off the four tangent points ends the pass not parallel (or
+    /// an aligned point's zero `κ_rel` escalates first), so no two
+    /// samples read tangent with opposite senses. Started on the opposed
+    /// point, the next station reads the normals aligned but not
+    /// parallel: the parallel row's, which a sides comparison read ahead
+    /// of it would call mixed.
+    #[test]
+    fn the_villarceau_rim_reads_no_two_tangent_samples_with_opposite_senses() {
+        let b = band();
+        let (first, second, circle, opposed) = villarceau();
+        let tau = core::f64::consts::TAU;
+        let parallel = |read: &TangentVerdict| {
+            matches!(
+                read,
+                TangentVerdict::Ruled {
+                    row: TangentRow::Parallel,
+                    ..
+                }
+            )
+        };
+        for k in 0..64 {
+            let t0 = tau * f64::from(k) / 64.0;
+            let read = tangency_reading(&first, true, &second, true, &circle, t0, t0 + tau, b);
+            let neutral = matches!(read, TangentVerdict::InBand(diag)
+                if diag.predicate == Some(SECOND_ORDER));
+            assert!(parallel(&read) || neutral, "started at {t0}: {read:?}");
+        }
+        let p = circle.eval(opposed + tau / 8.0);
+        let dot = implicit_outward_normal(&first, true, p)
+            .vec()
+            .dot(implicit_outward_normal(&second, true, p).vec());
+        assert!(dot > 0.1, "the next station reads the normals aligned: {dot}");
+        let read = tangency_reading(&first, true, &second, true, &circle, opposed, opposed + tau, b);
+        assert!(parallel(&read), "the aligned station is not tangent: {read:?}");
+    }
+
+    /// **Mixed sides are a verdict a span can reach.** A schedule over the
+    /// same rim whose step is the arc from the opposed tangent point to
+    /// the aligned one at `3π/2` puts its first two stations on both:
+    /// each reads tangent, and their senses disagree.
+    #[test]
+    fn two_tangent_samples_with_opposite_senses_are_mixed_sides() {
+        let b = band();
+        let (first, second, circle, opposed) = villarceau();
+        let step = 1.5 * core::f64::consts::PI - opposed;
+        let t1 = opposed + step * f64::from(CERT_SAMPLES - 1);
+        let read = tangency_reading(&first, true, &second, true, &circle, opposed, t1, b);
+        let TangentVerdict::SidesMixed { at } = read else {
+            panic!("two tangent samples, opposed then aligned: {read:?}");
+        };
+        assert_eq!(
+            at.map(|d| d.sign),
+            [Sign::Negative, Sign::Positive],
+            "the earlier sample's reading first: {at:?}"
+        );
+    }
 }

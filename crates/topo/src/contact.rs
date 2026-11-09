@@ -273,6 +273,18 @@ pub enum TangentVerdict {
     },
     /// Two samples each read tangent, the outward normals agreeing at one
     /// and opposing at the other: a definite crossing between them.
+    ///
+    /// Along a curve that is a line of curvature of both surfaces (a
+    /// ruling of the lane's straight kinds, a latitude circle of two
+    /// coaxial surfaces of revolution) `n₁·n₂` is constant (Rodrigues),
+    /// so no such locus reaches it. A Villarceau circle two tori share is
+    /// a line of curvature of neither: on a torus and its mirror image in
+    /// the bitangent plane they share one in, the pair is tangent at four
+    /// isolated points, two aligned and two opposed, and a nine-station
+    /// schedule over the whole circle ends at its first station off them,
+    /// not parallel. A span whose step runs from an opposed point to an
+    /// aligned one reads both tangent, and is this
+    /// (`contact_verify::tests::two_tangent_samples_with_opposite_senses_are_mixed_sides`).
     SidesMixed {
         /// The two readings of `n₁·n₂`, the earlier sample's first.
         at: [geom_core::Decided; 2],

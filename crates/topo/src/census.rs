@@ -6930,8 +6930,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
     }
 }
 
-/// A two-carrier face pair's lane refusal other than a contradiction,
-/// which each caller reads for itself: an escalation is
+/// A two-carrier face pair's lane refusal: an escalation is
 /// `CensusEscalated`, and a pair the lane cannot certify
 /// `CensusUnsupported`, carrying the refusal.
 fn pair_lane_refused(
@@ -10860,9 +10859,9 @@ fn rest_door_one<T: Decide>(
     face_b: FaceKey,
     band: Band,
 ) -> Result<geom_core::MarginDiag, ValidationError> {
-    match crate::boolean::rest_pair_verdict(body, face_a, body, face_b, band) {
-        Ok(crate::contact::RestVerdict::Rest(margin)) => Ok(margin),
-        Ok(crate::contact::RestVerdict::Ruled { row, by }) => {
+    match rest_door(body, face_a, face_b, band)? {
+        crate::contact::RestVerdict::Rest(margin) => Ok(margin),
+        crate::contact::RestVerdict::Ruled { row, by } => {
             Err(ValidationError::ContactContradicted {
                 record: crate::contact::ContactPair {
                     a: face_a,
@@ -10872,8 +10871,19 @@ fn rest_door_one<T: Decide>(
                 verdict: crate::contact::ContactVerdict::Rest { row, by },
             })
         }
-        Err(refusal) => Err(pair_lane_refused(face_a, face_b, refusal)),
     }
+}
+
+/// The `Rest` door's verdict on a face pair at rest, its refusal the
+/// census finding it raises.
+fn rest_door<T: Decide>(
+    body: &Body<T>,
+    face_a: FaceKey,
+    face_b: FaceKey,
+    band: Band,
+) -> Result<crate::contact::RestVerdict, ValidationError> {
+    crate::boolean::rest_pair_verdict(body, face_a, body, face_b, band)
+        .map_err(|refusal| pair_lane_refused(face_a, face_b, refusal))
 }
 
 /// **The at-rest census's decision that two faces of a body rest on one
@@ -10892,10 +10902,8 @@ pub fn census_rest_decision<T: Decide>(
     face_b: FaceKey,
     band: Band,
 ) -> Result<Option<crate::Coincidence>, ValidationError> {
-    let margin = match crate::boolean::rest_pair_verdict(body, face_a, body, face_b, band) {
-        Ok(crate::contact::RestVerdict::Rest(margin)) => margin,
-        Ok(crate::contact::RestVerdict::Ruled { .. }) => return Ok(None),
-        Err(refusal) => return Err(pair_lane_refused(face_a, face_b, refusal)),
+    let crate::contact::RestVerdict::Rest(margin) = rest_door(body, face_a, face_b, band)? else {
+        return Ok(None);
     };
     let cell = |face| crate::RowCell::Result {
         cell: crate::Cell::Face(face),
@@ -13966,10 +13974,29 @@ mod tests {
             Some(RegionLane::certified()),
         );
         assert!(
-            errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
-            "{errors:?}"
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::ContactContradicted {
+                    record: crate::contact::ContactPair {
+                        class: crate::contact::GlueClass::Rest,
+                        ..
+                    },
+                    verdict: crate::contact::ContactVerdict::Rest {
+                        row: crate::contact::RestRow::SensesAligned,
+                        by: None,
+                    },
+                }
+            )),
+            "the senses' row, on no datum: {errors:?}"
+        );
+        let text = errors
+            .iter()
+            .find(|e| matches!(e, ValidationError::ContactContradicted { .. }))
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        assert!(
+            text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            "a contradicted record is a defect of what wrote it: {text}"
         );
         // And the ARM stays quiet on the aligned pair: SameOriented
         // is flush, not a conformal candidate.
@@ -18523,10 +18550,10 @@ mod records_by_carrier {
                         class: crate::contact::GlueClass::Tangent,
                         ..
                     },
-                    ..
+                    verdict: crate::contact::ContactVerdict::NotTangent { apart: true, .. },
                 }
             )),
-            "clear: the curve touch is contradicted: {errors:?}"
+            "clear: the curve touch is contradicted, the carriers apart: {errors:?}"
         );
     }
     /// **One structural bound does not stand in for a collinear
@@ -19280,6 +19307,16 @@ mod two_carrier_records {
                     names_contradicted(&errors, r.wall, r.top) && !stale(&errors),
                     "band {b:e} swap {swap}: {errors:?}"
                 );
+                assert!(
+                    matches!(
+                        contradicted_by(&errors, r.wall, r.top)[..],
+                        [crate::contact::ContactVerdict::Ruled {
+                            row: crate::contact::TangentRow::Opposed,
+                            ..
+                        }]
+                    ),
+                    "band {b:e} swap {swap}: the senses' row at a tangent sample: {errors:?}"
+                );
             }
         }
 
@@ -19308,6 +19345,25 @@ mod two_carrier_records {
                             || [record.a, record.b] == [b, a]
                 )
             })
+        }
+
+        /// The verdict each record of the pair is contradicted by.
+        fn contradicted_by(
+            errors: &[ValidationError],
+            a: FaceKey,
+            b: FaceKey,
+        ) -> Vec<crate::contact::ContactVerdict> {
+            errors
+                .iter()
+                .filter_map(|e| match e {
+                    ValidationError::ContactContradicted { record, verdict }
+                        if [record.a, record.b] == [a, b] || [record.a, record.b] == [b, a] =>
+                    {
+                        Some(*verdict)
+                    }
+                    _ => None,
+                })
+                .collect()
         }
 
         /// The census's reading of the record on `rig(outline, wx)` with
@@ -21228,6 +21284,9 @@ mod same_solid_tangent_lines {
                 ValidationError::CuspEdgesMissing { a, b, .. } if pair(*a, *b) => {
                     Some("cusp edges missing".to_owned())
                 }
+                ValidationError::ContactContradicted { record, .. } if pair(record.a, record.b) => {
+                    Some("contradicted".to_owned())
+                }
                 ValidationError::CensusUnsupported {
                     subject: CensusSubject::FacePair(x, y),
                     cause: CensusUnsupportedCause::ContactLane(r),
@@ -21278,6 +21337,25 @@ mod same_solid_tangent_lines {
             let (x, y) = if flip { (y, x) } else { (x, y) };
             let (errors, said) = walls(x, y, true);
             assert_eq!(said, ["cusp edges missing"], "flip {flip}: {errors:?}");
+        }
+    }
+
+    /// A rod of radius 0.5 inside a cylinder of radius 2, tangent to it
+    /// from inside along x = 2, both materials inside, one solid: the
+    /// outward normals agree along the line, which rules out a touch
+    /// (`TangentRow::Opposed`). No record names the pair, so the ruling
+    /// contradicts nothing and the pass says nothing of it. Red when the
+    /// pass reads a ruling with no record as a refusal or a contradiction.
+    #[test]
+    fn a_ruled_out_tangency_no_record_names_says_nothing() {
+        for flip in [false, true] {
+            let (x, y) = (
+                (frame(0.0, 2.0, 1.0), true, 0.3),
+                (frame(1.5, 0.5, 1.0), true, 0.5),
+            );
+            let (x, y) = if flip { (y, x) } else { (x, y) };
+            let (errors, said) = walls(x, y, true);
+            assert_eq!(said, Vec::<String>::new(), "flip {flip}: {errors:?}");
         }
     }
 

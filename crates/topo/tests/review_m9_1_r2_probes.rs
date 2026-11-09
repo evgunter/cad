@@ -224,7 +224,10 @@ fn probe_census_gate_refuses_a_fabricated_face_pair() {
                     class: topo::GlueClass::Rest,
                     ..
                 },
-                ..
+                verdict: topo::ContactVerdict::Rest {
+                    row: topo::RestRow::TwoCarriers,
+                    by: Some(_),
+                },
             }
         )),
         "the fabricated patch record must be contradicted: {errors:?}"
