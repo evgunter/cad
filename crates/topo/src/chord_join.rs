@@ -2448,7 +2448,7 @@ fn chord_spec<T: Decide>(
             let (t1, t2) = (ruling.param(p1), ruling.param(p2));
             // The ruling's speed: it meters a parameter span in metres
             // and makes the plane's `u_ref` unit.
-            let len = ruling.dir.norm();
+            let (ruling_hat, len) = ruling.dir.direction_and_length();
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw
@@ -2477,7 +2477,7 @@ fn chord_spec<T: Decide>(
                         normal: ctx.normal.get(),
                         // Honest u_ref: the ruling direction lies in
                         // the plane by the tangency classification.
-                        u_ref: ruling.dir / len,
+                        u_ref: ruling_hat,
                     });
                     ctx.plane_key = Some(k);
                     k
