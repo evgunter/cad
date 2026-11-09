@@ -62,17 +62,17 @@ measured yet.
 | ~~`geom_brep::curve_pair::pose::one_line`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `read_identity` over the four end offsets | — |
 | ~~`geom_brep::props::curved::sphere_region_material_sign`, `pole_side`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `climb(Any)` over the arcs, a theorem (the pole on any arc); `PropsError::refusal` is the standing | — |
 | ~~`profile::seg::arc_arc`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `climb(Any)` over the four ends, a theorem, on `geom_core::ladder` (the ladder moved to geom-core so profile can reach it) | — |
-| `boolean::carrier_touch::off_face`, `ball_off_face` | any cluster or edge not off answers "not off" | `climb`, `Any` |
-| `boolean::region::on_boundary` | any edge holding the point | `climb`, `Any` |
-| `boolean::sectors::rays_within` | any ray not within answers "no" | `climb`, `Any` |
+| ~~`boolean::carrier_touch::off_face`, `ball_off_face`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(Any)` over the clusters and over the boundary members, identities; `BooleanError::refusal` is the standing | — |
+| ~~`boolean::region::on_boundary`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(Any)` over the edges, a theorem; `RegionRefusal::refusal`, new and exhaustive, stands each as its point-in-loop image does | — |
+| ~~`boolean::sectors::rays_within`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(Any)` over the sectors, an identity | — |
 | ~~`boolean::sectors::crescent` (its callee reads, beside its decide sites)~~ | **ported** (`onecopy/refusal-standing`, QML T2), with its decide sites | — |
-| `boolean::rim_wedge::departures` (its cover reads) | either pair's departure | `climb`, `Any` |
-| `census::span_clear` | anything meeting answers "not clear" | `climb`, `Any` |
-| `chart_region::polygon_relation` | the first decisive vertex | `climb`, `Any` (check every non-boundary vertex reads alike) |
-| `ray_walk::on_boundary` | any segment holding the point | `climb`, `Any` |
+| `boolean::rim_wedge::departures` (its cover reads) | **WHICH** (`onecopy/refusal-standing`, QML T4): the first piece whose covers settle the kind answers, and two pieces can settle different kinds (`EdgeKindUnread`, `Mixed`, `NoEdge`); its `?` stays, and the site and register say so | — |
+| `census::span_clear` | anything meeting answers "not clear" | **blocked** (`onecopy/refusal-standing`, QML T4): its readers push their refusal as they read; `census-span-clear-readers-push-their-refusal-as-they-read` (P3) |
+| ~~`chart_region::polygon_relation`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(First)` over the vertices, an input premise (uniform only where the boundaries do not cross), `Alike` once 6592 lands; `ChartRegionError::refusal`, new and exhaustive, is the standing | — |
+| ~~`ray_walk::on_boundary`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(Any)` over the segments, a theorem | — |
 | ~~`replace_face::carried_alike`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `climb(Any)`, any sample past ε answers "not alike" (a theorem) | — |
-| `shell::band_seam`, `wraps_its_period` | any side not winding once, any start winding once | `climb`, `Any` |
-| `stands::face_interior_point` | any certified interior point | `climb`, `Any` |
+| ~~`shell::band_seam`, `wraps_its_period`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(Any)` over the two sides (an identity) and over the boundary cycles (a theorem); `winds_once` returns its one reading, `Indeterminate` | — |
+| `stands::face_interior_point` | **NOT A SEARCH** (`onecopy/refusal-standing`, QML T4): its `?`s carry only refusals of the whole query (`certified_in_face` reads every inconclusive refusal as `false` itself) | — |
 | `stands::witness_insides` | its own ranking of `Witness` (`On`, `Blocked`, `InBand`) | its witnesses' standing, then `climb` |
 | `boolean::insert::held_cut` (`nested` and the two `tied_held` reads) | any cut held answers; its owner only names `SharedVertexCrossings` (PR 6574's review) | `climb`, `Any` |
 

@@ -383,7 +383,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
-use geom_brep::ladder::{Answering, Rung, climb};
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::interval::Interval;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::{
@@ -2858,17 +2858,26 @@ fn band_seam<T: Decide>(
     let Some(read) = crate::chart::Chart::of(chart) else {
         return Ok(false);
     };
-    for side in sides {
+    // Both sides wind once, an identity: any side not winding answers
+    // `false`, whatever the other read ([`climb`], [`Answering::Any`]); a
+    // side read in band is kept, refusing only where the other winds.
+    let unwound = climb(Answering::Any, sides, |side| {
         let mut points = oriented_points(body, side);
         let Some(&first) = points.first() else {
-            return Ok(false);
+            return Rung::Answers(());
         };
         points.push(first);
-        if !winds_once(&read, &points, band)? {
-            return Ok(false);
+        match winds_once(&read, &points, band) {
+            Ok(true) => Rung::Passes,
+            Ok(false) => Rung::Answers(()),
+            Err(diag) => Rung::kept(diag),
         }
+    });
+    match unwound {
+        Climb::Answered { .. } => Ok(false),
+        Climb::Passed => Ok(true),
+        Climb::Undecided(source) => Err(ShellError::Escalated { source }),
     }
-    Ok(true)
 }
 
 /// The points a run of half-edges passes through, each edge's samples in
@@ -2889,17 +2898,20 @@ fn oriented_points<T: Decide>(body: &Body<T>, run: &[HeKey]) -> Vec<geom_core::P
 /// Whether the closed polyline `points` winds `chart`'s `u` once, its
 /// angle unwrapped step by step. A cycle through the axis (no lever to
 /// read the angle by) does not.
+///
+/// # Errors
+///
+/// The lever's or the winding's reading, in band.
 fn winds_once<T: Decide>(
     chart: &crate::chart::Chart<T>,
     points: &[geom_core::Point3<T>],
     band: Band,
-) -> Result<bool, ShellError<T>> {
-    let escalated = |source| ShellError::Escalated { source };
+) -> Result<bool, Indeterminate> {
     let Some(&first) = points.first() else {
         return Ok(false);
     };
     let lever = chart.radial(first);
-    if decide("shell_chart_lever", Margin::of(lever), band).map_err(escalated)? != Sign::Positive {
+    if decide("shell_chart_lever", Margin::of(lever), band)? != Sign::Positive {
         return Ok(false);
     }
     let mut winding = T::zero();
@@ -2910,10 +2922,7 @@ fn winds_once<T: Decide>(
     // Once round is `±τ` and a cycle that comes back is `0`: the
     // margin is the distance from half a turn, in metres.
     let past_half = (winding.abs() - T::pi()) * lever;
-    Ok(
-        decide("shell_chart_winds", Margin::of(past_half), band).map_err(escalated)?
-            == Sign::Positive,
-    )
+    Ok(decide("shell_chart_winds", Margin::of(past_half), band)? == Sign::Positive)
 }
 
 /// Whether the chart `faces` wear WRAPS its period: some cycle of their
@@ -2950,6 +2959,9 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
         })
         .filter(|&he| !interior.contains(&proven(&body.half_edges, he, EntityId::HalfEdge).edge))
         .collect();
+    // The boundary's cycles, each as the points its half-edges run
+    // through (topology only: nothing is decided here).
+    let mut cycles = Vec::new();
     while let Some(start) = boundary.pop() {
         // One boundary cycle, as the points its half-edges run through.
         let mut points = Vec::new();
@@ -2969,11 +2981,21 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
             continue;
         };
         points.push(first);
-        if winds_once(&chart, &points, band)? {
-            return Ok(true);
-        }
+        cycles.push(points);
     }
-    Ok(false)
+    // Any cycle winding once wraps the period, whatever another read
+    // ([`climb`], [`Answering::Any`]); a cycle read in band is kept,
+    // refusing only where no cycle winds.
+    climb(Answering::Any, &cycles, |points| {
+        match winds_once(&chart, points, band) {
+            Ok(true) => Rung::Answers(()),
+            Ok(false) => Rung::Passes,
+            Err(diag) => Rung::kept(diag),
+        }
+    })
+    .into_reading()
+    .map(|wraps| wraps.is_some())
+    .map_err(|source| ShellError::Escalated { source })
 }
 
 /// The edges both of whose sides bound faces of `faces` — the seams a

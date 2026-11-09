@@ -1710,13 +1710,23 @@ pub(super) fn rays_within<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<(bool, bool), BooleanError> {
+    // Within every sector, an identity: any sector not holding `d`
+    // answers `false`, whatever an earlier sector read ([`climb`],
+    // [`Answering::Any`]); a sector in band is kept by its standing
+    // ([`BooleanError::refusal`]), refusing only where every other holds.
     let holds = |d| -> Result<bool, BooleanError> {
-        for s in sectors {
-            if !within(s, d, false, read, band)? {
-                return Ok(false);
-            }
+        let outside = climb(Answering::Any, sectors, |s| {
+            Rung::holds(
+                within(s, d, false, read, band).map(|w| !w),
+                (),
+                BooleanError::refusal,
+            )
+        });
+        match outside {
+            Climb::Answered { answer, .. } => answer.map(|()| false),
+            Climb::Passed => Ok(true),
+            Climb::Undecided(e) => Err(e),
         }
-        Ok(true)
     };
     let m = line.line();
     Ok((holds(m)?, holds(-m)?))

@@ -383,6 +383,54 @@ pub(crate) const EDGE_SCALE_RECOURSE: &str =
 const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
 
 impl ChartRegionError {
+    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]), by
+    /// the `[failure.taxonomy]` row each variant's doc puts it in.
+    /// Exhaustive with no catch-all arm, so an added variant states its
+    /// standing here before it compiles.
+    ///
+    /// - Kept by its margin (row 1(b)): [`Self::Escalated`].
+    /// - In band, with no margin carried (row 1(b): a tighter band may
+    ///   decide it): [`Self::RayExhausted`] (every ray grazed),
+    ///   [`Self::TouchingBoundary`] (not decidable at this ε),
+    ///   [`Self::DegenerateLoop`] (no orientation at this ε) and
+    ///   [`Self::PeriodFold`] (a tie on a half-period mark).
+    /// - A limit (row 2: a reading not built, or a bound on the work):
+    ///   [`Self::ChartDivergence`], [`Self::NonPlanarTrim`],
+    ///   [`Self::ArmUnbounded`], [`Self::SeamBranch`], both witness caps,
+    ///   and [`Self::EdgeScale`] (an edge length no ordinary number holds).
+    /// - An abort: [`Self::MissingCache`] (a body that must re-mint, row
+    ///   1(a)); [`Self::CarrierTilt`] (the declaration's carriers
+    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4); and
+    ///   [`Self::TrimOffFace`], whose incidence read mixes a decided miss
+    ///   with an undecided one, until it is split.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for a refusal of the whole query.
+    pub(crate) const fn refusal(
+        &self,
+    ) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        use geom_core::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag) => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted
+            | Self::TouchingBoundary
+            | Self::DegenerateLoop { .. }
+            | Self::PeriodFold => Ok(Refusal::InBand),
+            Self::ChartDivergence { .. }
+            | Self::NonPlanarTrim { .. }
+            | Self::ArmUnbounded { .. }
+            | Self::SeamBranch
+            | Self::WitnessSegmentCapExceeded { .. }
+            | Self::WitnessCellCapExceeded { .. }
+            | Self::EdgeScale => Ok(Refusal::Limit),
+            Self::MissingCache { .. }
+            | Self::CarrierTilt
+            | Self::Corrupt
+            | Self::TrimOffFace { .. } => Err(Aborts),
+        }
+    }
+
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
@@ -3766,18 +3814,29 @@ fn overlap_of_regions<T: Decide + Bounds>(
 /// valid only when their boundaries have no proper crossing: the
 /// first definite vertex verdict in cycle order (D9), `None` when
 /// every vertex sits on `to`'s boundary.
+///
+/// Every vertex off `to`'s boundary reads the one relation where the
+/// boundaries do not cross, so a vertex read in band is kept by its
+/// standing ([`ChartRegionError::refusal`]) and a later definite vertex
+/// answers. That is a premise about the input, not a theorem of the
+/// rule, so the ladder climbs under [`Answering::First`] (a kept vertex
+/// ahead stays live on the record), pending 6592's `Alike`
+/// (`work/onecopy/side-at-infinity-aimed-rays-disagree.md`).
 fn polygon_relation<T: Decide>(
     of: &[Point2<T>],
     to: &[Point2<T>],
     band: Band,
 ) -> Result<Option<PolyContainment>, ChartRegionError> {
-    for v in of {
-        match point_in_polygon(to, *v, band)? {
-            PolyContainment::OnBoundary => continue,
-            verdict => return Ok(Some(verdict)),
+    use geom_core::ladder::{Answering, Rung, climb};
+    climb(Answering::First, of, |v| {
+        match point_in_polygon(to, *v, band) {
+            Ok(PolyContainment::OnBoundary) => Rung::Passes,
+            Ok(verdict) => Rung::Answers(Ok(verdict)),
+            Err(e) => Rung::refused(e, ChartRegionError::refusal),
         }
-    }
-    Ok(None)
+    })
+    .into_reading()
+    .and_then(|answer| answer.transpose())
 }
 
 #[cfg(test)]
@@ -3799,6 +3858,21 @@ mod tests {
 
     pub(super) fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// [`ChartRegionError::refusal`] by its `[failure.taxonomy]` rows (QML
+    /// T4): one variant per class.
+    #[test]
+    fn a_chart_region_refusal_stands_by_its_row() {
+        use geom_core::ladder::{Aborts, Refusal};
+        assert_eq!(
+            ChartRegionError::TouchingBoundary.refusal(),
+            Ok(Refusal::InBand)
+        );
+        assert_eq!(ChartRegionError::SeamBranch.refusal(), Ok(Refusal::Limit));
+        assert_eq!(ChartRegionError::EdgeScale.refusal(), Ok(Refusal::Limit));
+        assert_eq!(ChartRegionError::Corrupt.refusal(), Err(Aborts));
+        assert_eq!(ChartRegionError::CarrierTilt.refusal(), Err(Aborts));
     }
 
     /// **A trim off its plane ends by the door that reads it**: a

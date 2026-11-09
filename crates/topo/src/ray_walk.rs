@@ -599,12 +599,18 @@ where
     P: RaySpace<T>,
 {
     let n = verts.len();
-    for i in 0..n {
-        if on_segment(verts[i], verts[(i + 1) % n], q, &rows.segment_rows(), band)? {
-            return Ok(true);
+    // Any segment holding `q` puts it on the boundary, whatever an
+    // earlier segment read ([`climb`], [`Answering::Any`]): a segment read
+    // in band is kept, refusing only where no segment holds `q`.
+    climb(Answering::Any, 0..n, |i| {
+        match on_segment(verts[i], verts[(i + 1) % n], q, &rows.segment_rows(), band) {
+            Ok(true) => Rung::Answers(()),
+            Ok(false) => Rung::Passes,
+            Err(diag) => Rung::kept(diag),
         }
-    }
-    Ok(false)
+    })
+    .into_reading()
+    .map(|on| on.is_some())
 }
 
 /// Is `q` within the band of the closed segment `[a, b]`? One step of
@@ -833,6 +839,28 @@ mod tests {
             Point2::new(1.0, 1.0),
             Point2::new(0.0, 1.0),
         ]
+    }
+
+    /// **A segment holding the point answers past a segment read in
+    /// band** ([`on_boundary`] climbs the segments under `Any`, QML T4): a
+    /// box `5e-9` tall, the point on its bottom edge, so its top edge
+    /// (read first) is in band of it, its left edge decidedly off, and its
+    /// bottom edge holds it. The first-refusal loop refused at the top.
+    #[test]
+    fn a_segment_holding_the_point_answers_past_one_in_band() {
+        let h = 5e-9;
+        let poly = [
+            Point2::new(1.0, h),
+            Point2::new(0.0, h),
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+        ];
+        let q = Point2::new(0.5, 0.0);
+        assert!(
+            on_segment(poly[0], poly[1], q, &ROWS.segment_rows(), band()).is_err(),
+            "the top edge reads the point in band"
+        );
+        assert_eq!(on_boundary(&poly, q, &ROWS, band()), Ok(true));
     }
 
     #[test]

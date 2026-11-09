@@ -69,6 +69,29 @@ pub(crate) enum RegionRefusal {
 }
 
 impl RegionRefusal {
+    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]), as
+    /// its image in the point-in-loop door stands
+    /// ([`crate::splitting::containment::PointInLoopError::refusal`]): an
+    /// escalation by its margin, a walk no path of which settled in band
+    /// (`[failure.taxonomy]` row 1(b)), an edge whose boundary reading ran
+    /// out a limit (row 2), and an arc wound past a turn, a corrupt face,
+    /// an abort (row 4). Exhaustive with no catch-all arm.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for [`Self::WoundPastPeriod`].
+    pub(crate) const fn refusal(
+        &self,
+    ) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        use geom_core::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag) => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted { .. } => Ok(Refusal::InBand),
+            Self::Unreadable(_) => Ok(Refusal::Limit),
+            Self::WoundPastPeriod => Err(Aborts),
+        }
+    }
+
     /// The refusal as the point-in-solid door states it, for a point on
     /// `face`'s carrier: a region walk no path of which settled is that
     /// face's loop walk's, as a planar face's is
@@ -550,16 +573,24 @@ pub(crate) trait Region<T: Decide> {
     /// path is no measure of `p`'s distance from the edge it crosses, so
     /// the paths never answer it.
     ///
+    /// Any edge holding `p` answers, whatever an earlier edge read
+    /// ([`geom_core::ladder::climb`], [`geom_core::ladder::Answering::Any`]):
+    /// an edge read in band is kept by its standing
+    /// ([`RegionRefusal::refusal`]), refusing only where no edge holds `p`.
+    ///
     /// # Errors
     ///
-    /// The first edge's refusal ([`Region::on_edge`]).
+    /// The kept refusal the ladder ranks first, or an edge's abort.
     fn on_boundary(&self, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
-        for edge in self.edges() {
-            if self.on_edge(edge, p, band)? {
-                return Ok(true);
-            }
+        use geom_core::ladder::{Answering, Climb, Rung, climb};
+        let on = climb(Answering::Any, self.edges(), |edge| {
+            Rung::holds(self.on_edge(edge, p, band), (), RegionRefusal::refusal)
+        });
+        match on {
+            Climb::Answered { answer, .. } => answer.map(|()| true),
+            Climb::Passed => Ok(false),
+            Climb::Undecided(e) => Err(e),
         }
-        Ok(false)
     }
 }
 
@@ -1276,5 +1307,26 @@ mod tests {
             ),
             "a whole turn"
         );
+    }
+}
+
+/// [`RegionRefusal::refusal`] as each variant's image in the point-in-loop
+/// door stands (QML T4).
+#[cfg(test)]
+mod standing_rows {
+    use geom_core::ladder::{Aborts, Refusal};
+
+    use super::RegionRefusal;
+
+    #[test]
+    fn a_region_refusal_stands_as_its_point_in_loop_image() {
+        assert_eq!(
+            RegionRefusal::RayExhausted {
+                outer: crate::entity::LoopKey::default()
+            }
+            .refusal(),
+            Ok(Refusal::InBand)
+        );
+        assert_eq!(RegionRefusal::WoundPastPeriod.refusal(), Err(Aborts));
     }
 }

@@ -385,6 +385,11 @@ pub(crate) fn departures<T: Decide>(
         }
     };
     let (mut opposite, mut same, mut touched) = (false, false, false);
+    // WHICH, so each piece's cover reads refuse at the first in band
+    // (`?`): the first piece whose covers settle the kind answers it, and
+    // two pieces can settle different kinds (`EdgeKindUnread`, `Mixed`,
+    // `NoEdge`), so a piece kept in band ahead may have been the answer
+    // ([`Answering::First`]'s rule, "several can").
     for (s0, s1) in pieces {
         // A piece of no length between two cuts is a point, and so is
         // one within the band of none: two cuts that close are one
