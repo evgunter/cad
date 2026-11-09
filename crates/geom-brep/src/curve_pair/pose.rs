@@ -1175,11 +1175,6 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let ball = |c: &Curve3<T>| crate::ExtentBall::of_conic(c).ok_or(MeetFault::Desync);
     let arm = ball(a.carrier())?.lever().max(ball(b.carrier())?.lever());
-    let lever = arm.length();
-    let origin = Point3::origin();
-    let noise = geom_core::rounding_charge(
-        (ka.frame().origin - origin).norm() + (kb.frame().origin - origin).norm() + lever + lever,
-    );
     let ha = height(&ka, kb.frame().origin, kb.frame().axis);
     let hb = height(&kb, ka.frame().origin, ka.frame().axis);
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
@@ -1189,7 +1184,7 @@ fn conic_conic<T: Decide>(
     // clear of it all round is apart, whatever the swing reads.
     let mut heights = Vec::with_capacity(2);
     for (swing, (c0, _, _)) in sides {
-        let height = constant(row::PARALLEL, c0, swing + noise, band);
+        let height = constant(row::PARALLEL, c0, swing, band);
         if matches!(height, Ok(true)) {
             return Ok(Pose::Apart);
         }
@@ -1234,10 +1229,10 @@ fn conic_conic<T: Decide>(
         };
         if across_b {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
-            let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
+            let read = transverse((b, &kb, &ka, a), hb, swing_b, arm, &flipped, band);
             return Ok(swapped(read?));
         }
-        return transverse((a, &ka, &kb, b), ha, swing_a, (noise, arm), known, band);
+        return transverse((a, &ka, &kb, b), ha, swing_a, arm, known, band);
     };
     let oriented = |k: &dyn Conic<T>| k.frame().axis * (k.semi_axes().0 * k.semi_axes().1);
     if one_curve(&ka, &kb, band)? {
@@ -1261,7 +1256,7 @@ fn conic_conic<T: Decide>(
         }
     };
     match coplanar {
-        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, known, band),
+        Coplanar::Circles => coplanar_circles(&ka, &kb, slant, &place, known, band),
         Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
         Coplanar::Ellipses => coplanar_ellipses(a, &ka, &kb, &place, band),
     }
@@ -1350,7 +1345,7 @@ fn transverse<T: Decide>(
     (a, ka, kb, b): (&Span<'_, T>, &dyn Conic<T>, &dyn Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
     swing: T,
-    (noise, lever): (T, Lever<T>),
+    lever: Lever<T>,
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
@@ -1358,7 +1353,7 @@ fn transverse<T: Decide>(
         c0,
         swing,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
-        noise,
+        T::zero(),
     );
     let window = window::Window {
         a: ka,
@@ -1440,12 +1435,12 @@ fn constant<T: Decide>(
     }
 }
 
-/// Two circles in one plane (module docs): `noise` bounds their
-/// rounding, and `slant` how far they lie from one plane.
+/// Two circles in one plane (module docs): `slant` how far they lie from
+/// one plane.
 fn coplanar_circles<T: Decide>(
     ka: &dyn Conic<T>,
     kb: &dyn Conic<T>,
-    (noise, slant): (T, T),
+    slant: T,
     place: &impl Fn(T) -> Candidate<T>,
     known: &[Candidate<T>],
     band: Band,
@@ -1458,7 +1453,7 @@ fn coplanar_circles<T: Decide>(
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
         // radii whose gap reads zero all round with the centres' are one
         // curve, which the one-curve reading has just denied.
-        return if constant(row::RADII, ra - rb, d + noise + slant, band)? {
+        return if constant(row::RADII, ra - rb, d + slant, band)? {
             Ok(Pose::Concentric)
         } else {
             Err(MeetFault::Contradiction {
@@ -1480,7 +1475,7 @@ fn coplanar_circles<T: Decide>(
         at_hi: toward,
         cross_lo: (T::zero() - lo) * (near + rb) / swing,
         cross_hi: hi * (far + rb) / swing,
-        noise,
+        noise: T::zero(),
     };
     let found: Vec<T> = known.iter().map(|c| c.ta).collect();
     Ok(match owed(ka, &range, &found, band)? {
@@ -1863,7 +1858,9 @@ fn harmonic_roots<T: Decide>(
     // two roots the noise alone puts apart read as the touch they are.
     let least = |cross: T, extreme: T| {
         let size = extreme.abs();
-        cross * (crate::roots::past_noise(size, r.noise) / size.max(r.noise))
+        let past = crate::roots::past_noise(size, r.noise);
+        // An extreme of exactly zero has not crossed: its ratio is zero.
+        cross * (past / size.max(r.noise).max(T::from_f64(f64::MIN_POSITIVE)))
     };
     let (psi, gap_psi, at_near) = match (lo, hi) {
         (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Harmonic::Apart),

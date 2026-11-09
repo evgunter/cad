@@ -1070,3 +1070,47 @@ fn thin_ellipses_tangent_at_a_vertex_meet_once_on_the_local_distance() {
     }
     assert_eq!(agree("thin", (&small, &long), &got, &back, at), None);
 }
+
+/// **The needle read far from the origin reads as at it.** The near-circle
+/// turned about the shared end, about the tangent, the long ellipse's
+/// normal and their cross, by up to `10⁻⁴` either way, and the pair then
+/// moved by `10²` and `10³` along `(1, −0.7, 0.3)`: each pose reads what
+/// it reads at the origin, in both orders. Red where the pose's readings
+/// are charged with a rounding that grows with distance from the origin:
+/// turned about the normal by `−10⁻⁴` and moved by `10³`, the window then
+/// widens past what the polish's basin holds, and both orders refuse.
+#[test]
+fn the_needle_far_from_the_origin_reads_as_at_it() {
+    let [(a0, sa), (b0, sb)] = needle_pair();
+    let at = needle_band();
+    let vertex = a0.eval(sa.1);
+    let (_, tangent) = a0.conic().unwrap().jet_at(sa.1);
+    let tangent = tangent.normalize();
+    let normal = a0.conic().unwrap().frame().axis;
+    let count = |r: &Read| r.as_ref().map(|m| m.points.len()).ok();
+    let mut bad = Vec::new();
+    for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
+        .iter()
+        .enumerate()
+    {
+        for t in [0.0, 1e-8, -1e-8, 1e-6, -1e-6, 1e-5, -1e-5, 1e-4, -1e-4] {
+            let b1 = spun(&b0, vertex, *k, t);
+            let home = read((&a0, sa), (&b1, sb), at);
+            for off in [1e2, 1e3] {
+                let v = Vec3::new(off, -0.7 * off, 0.3 * off);
+                let (a, b) = (a0.translated(v).unwrap(), b1.translated(v).unwrap());
+                for (order, r) in [
+                    ("first first", read((&a, sa), (&b, sb), at)),
+                    ("second first", read((&b, sb), (&a, sa), at)),
+                ] {
+                    if count(&r).is_none() || count(&r) != count(&home) {
+                        bad.push(format!(
+                            "axis {n} by {t:e}, moved {off:e}, {order}: {r:?}, at the origin {home:?}"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
