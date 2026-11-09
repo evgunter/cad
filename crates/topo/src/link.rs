@@ -816,22 +816,27 @@ pub enum Material {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Unsettled<T> {
     /// Its distance lies in band: the gate's escalation, on the log.
+    /// Kept by its margin (`[failure.taxonomy]` row 1(b)).
     InBand(Indeterminate),
     /// The band decides its distance zero where only a side would do (a
     /// point drawn in onto a ray's line at the apex): the K row and the
     /// distance, its rejection minted only where it refuses the whole
-    /// reading ([`Unread::escalation`]).
+    /// reading ([`Unread::escalation`]). In band (row 1(b)): a tighter
+    /// band may part the distance from zero.
     Zero(&'static str, Distance<T>),
     /// The band decides it, and the tie's slack reads it another way
-    /// ([`metric::settle`]): no escalation.
+    /// ([`metric::settle`]): no escalation. In band (row 1(b)): a tighter
+    /// band shrinks the slack.
     Slack,
     /// Decided readings that leave a parity arc's crossing of a sector
     /// unplaced: the arc runs along its plane, meets it on one of its
     /// bounds, or meets its plane, in band, on a stretch that does not
-    /// miss the sector ([`Cone::crossing`]).
+    /// miss the sector ([`Cone::crossing`]). In band (row 1(b)): each
+    /// arm is a band decision ([`Unsettled::refusal`]).
     Unplaced,
     /// `q`'s side of the sector's plane was given, and the cone's own
-    /// reading decided another ([`Cone::reads_given`]).
+    /// reading decided another ([`Cone::reads_given`]). An abort: two
+    /// readings of one fact disagree (row 4).
     Contradicted,
 }
 
@@ -844,7 +849,9 @@ impl<T> Unsettled<T> {
     /// holds for [`Unsettled::Unplaced`] too: each of its arms
     /// ([`Cone::crossing`]) is the band reading an end on the sector's
     /// plane or the crossing on its bound, and an arc running exactly
-    /// along the plane is read the same way, not split out.
+    /// along the plane is read the same way, not split out. Exhaustive
+    /// with no catch-all arm, so an added variant states its standing
+    /// here before it compiles.
     ///
     /// # Errors
     ///
