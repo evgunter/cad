@@ -556,8 +556,9 @@ pub use topo::{
 // unchanged and only
 // the reach moved: a caller binds a payload and branches on the
 // DISCRIMINANT, and every discriminant these refusals name is
-// spellable from this list, save `ContactContradicted`'s verdict
-// (`topo::ContactVerdict`, filed:
+// spellable from this list, save `ContactContradicted`'s verdict and
+// `MaterialOnBothSides`'s ruling (`topo::ContactVerdict`,
+// `topo::TangentRuling`, filed:
 // `work/bind/contact-verdict-is-a-rung-under-contact-contradicted.md`).
 //
 // All four cross to Python as well, and this list is what made that

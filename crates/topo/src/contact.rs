@@ -376,9 +376,10 @@ pub enum RestVerdict {
 /// rest): the ruling of the door that read the record, as that door
 /// returned it.
 ///
-/// The façade's curated lists do not carry it: every verdict ends the
-/// same way, the defect ending with no lever, and the record's faces
-/// ride beside it in a type they do carry. The falsifier is a caller
+/// The façade's curated lists do not carry it, nor [`TangentRuling`],
+/// which `ValidationError::MaterialOnBothSides` carries too: every
+/// verdict ends the same way, the defect ending with no lever, and the
+/// faces ride beside it in a type they do carry. The falsifier is a caller
 /// that must act on which reading ruled the record out (a viewer drawing
 /// the tangent line for a tangent ruling and both faces for a `Rest`
 /// one); the carry is

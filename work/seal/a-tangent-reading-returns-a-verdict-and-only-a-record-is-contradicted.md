@@ -50,15 +50,31 @@ No reading on this ground builds a `Contradicted` with an `Indeterminate`. The B
 
 The tangent table and the `Rest` door return verdicts, and only a record read at rest is contradicted. The PR body has the per-site table (each ending before and after), the probe, the sweep and the premise corrections.
 
-- **The verdicts** live in `crate::contact` (the census names them without naming the engine): `TangentVerdict::{Touch, Ruled { row: TangentRow, by }, SidesMixed { at }, InBand, NotCertifiable(Uncertified)}` and `RestVerdict::{Rest(margin), Ruled { row: RestRow, by: Option<Decided> }}`, the `Rest` door's in-band and outside-the-inventory readings staying `ContactRefusal::{Escalated, NotCertifiable}`. `ContactRefusal::Contradicted` is gone.
+**Done-when is not met to the letter.** The census still dispatches on predicate strings in one place: `census::is_span_precision` (read at the `CensusEscalated` site and by `boolean::ops::collinear_escalated` and `ValidationError`'s `Display`) matches three row names. That is an escalation's decision, not a verdict, and `three-escalation-endings-route-by-the-predicate-name` schedules it with the other sites that pick a decision by name. `same_solid_tangent_pair`'s dispatch, the one the row named, is gone.
+
+- **The verdicts** live in `crate::contact`, so the census names them without naming the engine:
+  - `TangentVerdict::{Touch, Ruled(TangentRuling), InBand, NotCertifiable(Uncertified)}`, with `TangentRuling::{Row { row: TangentRow, by }, SidesMixed { at }}`;
+  - `RestVerdict::{Rest(margin), Ruled(RestRuling { row: RestRow, by: Option<Decided> })}`.
+  The `Rest` door's in-band and outside-the-inventory readings stay `ContactRefusal::{Escalated, NotCertifiable}`, and `ContactRefusal::Contradicted` is gone. The ruling types replace the row's flat `Ruled { row, by } | SidesMixed { at }` arms, so that a record's verdict (`ContactVerdict::{Rest(RestRuling), NotTangent { apart, by }, Tangent(TangentRuling)}`) carries the doors' rulings as they return them, with no parallel enum.
   - `Uncertified::SagUnreached` keeps the table's old `SagUnreached`, which the glue door refuses and every other reading calls not certifiable.
-  - I1 is `SensesAligned` on no datum; I2 is `TwoCarriers`, on `CarrierVerdict::Apart`'s `Decided` where the carriers were decided apart and on none for two kinds.
-- **`tangent_pass`** reads the senses (`n₁·n₂`, its perpendicular arm `Independent`) first, as the touch needs their orientation, and compares them (a contact's `Opposed`, a tangency's `SidesMixed`) only once the sample reads parallel.
-- **The probe** (`contact_verify::tests`): a torus and its mirror in a bitangent plane share a Villarceau circle, tangent at four isolated points (two aligned, where the mirror makes `κ_rel` zero, two opposed). A nine-station schedule over the whole circle, from any of 64 starts, never reads two tangent samples with opposite senses: its first station off the four ends the pass not parallel. A span whose step runs from an opposed point to an aligned one does, and reads `SidesMixed`; the result is recorded beside the variant and in topo README C4.
-- **The census** matches the verdict. Against a record a ruling is `ValidationError::ContactContradicted { record, verdict: ContactVerdict }`, ending in `KERNEL_OR_FILE_DEFECT_ENDING`. With no record `Overlap` stays `CuspEdgesMissing` and every other ruling is no touch; `census_rest_decision` answers `None` on a ruling.
-- **The glue door decides a tangency once.** `GluedPair::decided` is `Option<Glued>`, `Glued::{OneCarrier(margin), Tangent(Tangency)}`, and `verify_glued_contacts` records it; the interiors placement moved from the door's reading to the op, its only reader. Gone: `BooleanError::ContactContradicted`, `tangency_contradicted`, `TangencyFailure::Contradicted` (now `NotTangent`, not glued), the conformal screen with its `PlaneDoor::Screen`, `Coincide::Planes` and `Ending::Frontier`, `Contradiction`, `CONTRADICTION_REASON`, `CONTRADICTION_RECOURSE`.
+  - I1 is `SensesAligned` on no datum. I2 is `TwoCarriers`, on `CarrierVerdict::Apart`'s `Decided` where the carriers were decided apart, and on none for two kinds.
+- **`tangent_pass`** reads the senses (`n₁·n₂`) first, because the touch needs their orientation. The perpendicular arm, `Independent`, ends there. The senses are compared (a contact's `SensesAligned`, a tangency's `SidesMixed`) only once the sample reads parallel. The gap row's sign is apart or crossing where the senses oppose, and which sheet stands over the other where they agree, so its sentence reads no sign.
+- **The probe** (`contact_verify::tests`):
+  - a torus and its mirror in a bitangent plane share a Villarceau circle, and are tangent along it at four isolated points: two aligned, where the mirror makes `κ_rel` zero, and two opposed;
+  - a nine-station schedule over the whole circle, from any of 64 starts, never reads two tangent samples with opposite senses: its first station off the four ends the pass not parallel;
+  - a span whose step runs from an opposed point to an aligned one does, and reads `SidesMixed`.
+  The result is recorded beside the variant and in topo README C4.
+- **The census** matches the verdict:
+  - against a record, a ruling is `ValidationError::ContactContradicted { record, verdict }`, ending in `KERNEL_OR_FILE_DEFECT_ENDING`;
+  - with no record, a pair the line shows apart or crossing is no touch;
+  - with no record, a touch with its sides wrong is the body's defect: `Overlap` stays `CuspEdgesMissing`, and agreeing or mixed senses are the new `ValidationError::MaterialOnBothSides { a, b, witness, ruling }`, the defect ending (main's census-refusal ending for them, which spoke of a record, was the defect);
+  - `census_rest_decision` answers `None` on a ruling.
+- **The glue door decides a tangency once.**
+  - A `GluedPair` holds one origin: the door's `Glued::{OneCarrier { relation, margin }, Tangent(Tangency)}`, a fold step's given decision under its class, or (in test builds) a bare index row. Its class is derived from that origin.
+  - `verify_glued_contacts` records the door's decision. It shares `record_touch` with the fold step's `given_verdicts`, and the interiors placement moved from the door's reading to the op, its only reader.
+  - Gone: `BooleanError::ContactContradicted`, `tangency_contradicted`, `TangencyFailure::Contradicted` (now `NotTangent`, not glued), the conformal screen with its `PlaneDoor::Screen`, `Coincide::Planes` and `Ending::Frontier`, `Contradiction`, `CONTRADICTION_REASON`, `CONTRADICTION_RECOURSE`.
 - **Not done here:** step 4's ground (`vtxfac`/`recl` `carrier_eq_reading`, `unglued_coincidence`) is untouched.
 - **Filed:**
   - `work/seal/three-escalation-endings-route-by-the-predicate-name`
   - `work/bind/contact-verdict-is-a-rung-under-contact-contradicted`
-  - evidence on `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp` (`RimCuspArmUnbuilt` is minted nowhere) and on `work/bind/boolean-decision-and-contradiction-are-rungs-under-boolean-error` (`Contradiction` retired).
+  - evidence on `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp` (`RimCuspArmUnbuilt` is minted nowhere), `work/bind/boolean-decision-and-contradiction-are-rungs-under-boolean-error` (`Contradiction` retired), and the stale evidence lines of five open rows (TOPO, HONEWORD, TANGTAIL, CENSUS, CONTACTHOLD).

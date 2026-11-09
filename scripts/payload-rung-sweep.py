@@ -284,6 +284,11 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "ContactVerdict": ("argued", "non-carriage with its falsifier, beside the declaration "
                        "in crates/topo/src/contact.rs; the carry is "
                        "work/bind/contact-verdict-is-a-rung-under-contact-contradicted.md"),
+    # `ValidationError::MaterialOnBothSides`'s ruling: the same argument
+    # and the same carry row as `ContactVerdict`, whose `Tangent` arm it is.
+    "TangentRuling": ("argued", "non-carriage with its falsifier, beside the declaration "
+                      "of ContactVerdict in crates/topo/src/contact.rs; the carry is "
+                      "work/bind/contact-verdict-is-a-rung-under-contact-contradicted.md"),
     "WedgeCheck": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/validate.rs; the carry is "
                    "work/bind/wedge-check-is-a-rung-under-sliver-dihedral.md"),
