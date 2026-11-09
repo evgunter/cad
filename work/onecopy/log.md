@@ -1280,3 +1280,8 @@
   - **6681 (bracket-mid-2) opened:** 17 sites, 0 bit moves, gate widened. FULL review: session_013mPGJ56BD1kwnVWgVpdLbJ.
   - **Main red reported by small-sweeps:** pncad-py prose_census, two slow rows (site-list drift; vacuity, 138 sites). Assigned to the bracket-mid lane (onecopy/prose-census-red), with the class question of why a slow census went red unseen.
   - **Ready but overlapping the moved main:** 6669, 6660 and 6665 are back to their lanes for a main merge, merged in arrival order. I am re-merging 6675 and 6664 locally.
+- 2026-11-09 21:20Z
+  - **Merged PR 6681 (bracket-mid-2), 9d9af5fa.** FULL review MERGE: bit-identical inside MAX/2 over 2M pairs, no generic site, and the gate reds all 18 sites on the base. Disjoint; combined check clean.
+    - The review's minors go to the bracket lane as onecopy/bracket-mid-3, after prose-census-red: the Interval `pt(0.5)` halving class (quad cells.rs:280, trimmed.rs:1229), the premise for parameter middles (∞ is quiet at cell_midpoint), the ParamRange::mid and cell_origin docs, and gate precision (integer receivers, paired stems for halves, `0.5_f64`, header to cite not argue).
+  - 6668's fix pass is in (c29f9ead), disjoint; gating.
+  - SEAL's 6673 merged into recl.rs/reduce/census/validate, so 6675 and 6664 are re-merging main again (guarded push this time: only if check, gates, fmt and nextest all pass).
