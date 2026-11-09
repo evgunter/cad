@@ -833,3 +833,4 @@
 - 09:05Z unbuilt-recourse opened PR 6622 (head ed9a9dfa, gate green). It closes 2 rows and files 3: germtail glue-door recourse, ssiarith stage prefixes, onecopy incidence pins. FULL review dispatched.
 - 09:08Z PR 6624 FULL review: FIX. across_plane is a second, unkeyed door (C5 overclaims). The caller premise could shrink (build from face.surface()). OffRecord is read two ways in apply_cut_ins. Ordering: 6609 first, then 6624 keys the walk with its premise named. Sent to the lane.
 - 09:10Z Merged PR 6607 (path-parity) at 8cb4a78c. Gate green at 57465307; main had moved 1 commit, with no file overlap.
+- 09:13Z PR 6617's fix pass (7cf5cab7) went to the original reviewer for a delta, which checks the new PropsError/ReplaceFaceError refusal() classes. I merged main (821e541a) and am gating. T2 is approved, stacked on 6576.
