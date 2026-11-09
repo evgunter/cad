@@ -149,7 +149,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         ),
         (
             "an edge in a face on a torus outside the ring convention, an invalid input",
-            in_face(super::slit::EdgeInFaceGap::DegenerateTorus),
+            in_face(super::slit::EdgeInFaceGap::DegenerateTorus(horn())),
             Err(Aborts),
         ),
     ];
@@ -274,14 +274,22 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         Ok(Refusal::Limit),
         "an edge in a face, a parting not built"
     );
-    let torus = in_face(super::slit::EdgeInFaceGap::DegenerateTorus).to_string();
+    let torus = in_face(super::slit::EdgeInFaceGap::DegenerateTorus(horn()))
+        .render(geom_brep::recourse::Reading::Build);
+    let lever = geom_brep::TorusConvention::Ring.sized().recourse(
+        geom_brep::recourse::Refused::Negative {
+            margin: MarginDiag::INVALID,
+        }
+        .arm(),
+        geom_brep::recourse::ReadAt::from(geom_brep::recourse::Reading::Build),
+    );
     assert!(
-        torus.contains("torus outside the ring convention")
-            && torus.ends_with("give each torus a tube radius smaller than its major radius")
+        torus.contains("a torus face's tube radius")
+            && torus.ends_with(lever.as_str())
             && !torus.contains(geom_core::KERNEL_DEFECT_ENDING)
             && !torus.contains(geom_core::NOT_YET_ENDING),
-        "an edge in a face on a torus outside the ring convention ends with the input's \
-         recourse: {torus}"
+        "an edge in a face on a torus outside the ring convention ends on the convention's \
+         lever: {torus}"
     );
     // The delegates read their payload's own standing.
     let solid = PointInSolidError::ZeroVolumeBody;
@@ -385,4 +393,14 @@ fn an_aborted_normal_is_answered_by_its_row() {
         matches!(fault, BooleanError::ClassificationInvariant { what: "off" }),
         "a kernel fault: {fault:?}"
     );
+}
+
+/// A ring torus refused outside its convention, decided.
+fn horn() -> geom_brep::TorusRefusal {
+    geom_brep::TorusRefusal {
+        convention: geom_brep::TorusConvention::Ring,
+        verdict: geom_brep::TorusVerdict::Refused(geom_brep::recourse::Refused::Negative {
+            margin: MarginDiag::INVALID,
+        }),
+    }
 }

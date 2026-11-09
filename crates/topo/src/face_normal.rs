@@ -279,6 +279,23 @@ impl NormalAtError {
         }
     }
 
+    /// The torus convention's refusal this carries, for a caller that
+    /// names an invalid input's answer in its own words
+    /// ([`NormalAbort::InvalidInput`]); `None` for every other variant.
+    #[must_use]
+    pub const fn torus_refusal(&self) -> Option<geom_brep::TorusRefusal> {
+        match self {
+            Self::DegenerateTorus {
+                convention,
+                verdict,
+            } => Some(geom_brep::TorusRefusal {
+                convention: *convention,
+                verdict: geom_brep::TorusVerdict::Refused(*verdict),
+            }),
+            _ => None,
+        }
+    }
+
     /// What this refusal is to a ladder over the points it is read at
     /// ([`Self::standing`], its abort's row dropped).
     ///

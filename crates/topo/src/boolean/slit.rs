@@ -166,10 +166,12 @@ pub enum EdgeInFaceGap {
     /// refuses as an invalid input
     /// ([`crate::face_normal::NormalAbort::InvalidInput`], DESIGN
     /// `[failure.taxonomy]` row 1(a)): a shape the kernel's model never
-    /// represents. An abort; the operand that carried it in is not in
-    /// scope here, so the gap names it rather than
+    /// represents, carried whole. Its standing is the convention's own
+    /// ([`geom_brep::TorusRefusal::refusal`]), and it ends on the
+    /// convention's lever. The operand that carried it in is not in scope
+    /// here, so the gap names it rather than
     /// [`crate::BooleanError::DegenerateTorus`].
-    DegenerateTorus,
+    DegenerateTorus(geom_brep::TorusRefusal),
     /// One of the edge's faces is tangent to the face along the line,
     /// so each of the two edges would bound a cusp, a wedge of no angle
     /// (D1's doubled cusp), whose reading on a line of coincident edges
@@ -267,10 +269,13 @@ impl EdgeInFaceGap {
         matches!(self, Self::Crossed | Self::TwinIncident | Self::Redivided)
     }
 
-    /// Whether the case is an invalid input the kernel never represents
-    /// (row 1(a)) rather than a parting not built.
-    pub const fn is_invalid_input(&self) -> bool {
-        matches!(self, Self::DegenerateTorus)
+    /// The torus convention's refusal the gap carries, whose standing and
+    /// lever are its own; `None` for a parting gap.
+    pub const fn torus(&self) -> Option<geom_brep::TorusRefusal> {
+        match self {
+            Self::DegenerateTorus(refusal) => Some(*refusal),
+            _ => None,
+        }
     }
 
     /// The words a refusal says it in: after "where" for a construction
@@ -282,7 +287,7 @@ impl EdgeInFaceGap {
                  the edge's own faces none at the midpoint (a spline face among them), to read \
                  the side by"
             }
-            Self::DegenerateTorus => {
+            Self::DegenerateTorus(_) => {
                 "the face, or one of the edge's own faces, is a torus outside the ring \
                  convention (a horn or spindle torus), a shape the kernel does not represent"
             }
@@ -1966,16 +1971,14 @@ fn walls_inside<T: Decide>(
         }
         // A normal kept as its refusal states it is this reading's limit;
         // an abort is answered by its own row.
-        Err(why) => Err(match why.standing() {
-            Ok(_) => refused(EdgeInFaceGap::NoNormal),
-            Err(crate::face_normal::NormalAbort::InvalidInput) => {
-                refused(EdgeInFaceGap::DegenerateTorus)
+        Err(why) => Err(match (why.standing(), why.torus_refusal()) {
+            (Ok(_), _) => refused(EdgeInFaceGap::NoNormal),
+            (Err(crate::face_normal::NormalAbort::InvalidInput), Some(torus)) => {
+                refused(EdgeInFaceGap::DegenerateTorus(torus))
             }
-            Err(crate::face_normal::NormalAbort::KernelFault) => {
-                BooleanError::ClassificationInvariant {
-                    what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
-                }
-            }
+            (Err(_), _) => BooleanError::ClassificationInvariant {
+                what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
+            },
         }),
     };
     // A face the point door reads no normal on (a spline or an

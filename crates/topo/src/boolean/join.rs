@@ -5577,7 +5577,12 @@ fn seam_germ_side<T: Decide>(
                     )));
                 }
                 // A normal refused in band or at a limit is kept; an abort
-                // is answered by its own row.
+                // is answered by its own row. No row is assumed away:
+                // "tier 3 refuses a degenerate torus first" holds only at
+                // a certifying scalar, and at a dual the operand is a
+                // `Replay`, tier 2 alone, which can carry a horn or
+                // spindle torus here. That face is the operand's invalid
+                // input, not a kernel fault.
                 Err(why) => {
                     return rung_or_abort(why.refusal(), why, |why| {
                         Err(BooleanError::of_aborted_normal(

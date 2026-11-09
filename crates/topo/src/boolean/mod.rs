@@ -4435,9 +4435,9 @@ pub enum BooleanError {
     /// material, or a parting or division that left what it never
     /// makes, which are the kernel's own defects.
     ///
-    /// An abort where the gap is the kernel's defect ([`EdgeInFaceGap::is_defect`], row 4) or an
-    /// invalid input ([`EdgeInFaceGap::is_invalid_input`], row 1(a)); a limit otherwise, a
-    /// parting not built (row 2).
+    /// An abort where the gap is the kernel's defect ([`EdgeInFaceGap::is_defect`], row 4) or a
+    /// torus outside the ring convention ([`EdgeInFaceGap::torus`], row 1(a), the convention's
+    /// own standing); a limit otherwise, a parting not built (row 2).
     EdgeInFace {
         /// The edge, in the result's keys.
         edge: crate::entity::EdgeKey,
@@ -5054,9 +5054,11 @@ impl BooleanError {
             }),
             Self::EdgeUndescribed { fitted: true, .. } => Ok(Refusal::Limit),
             Self::EdgeUndescribed { fitted: false, .. } => Err(Aborts),
-            Self::EdgeInFace { gap, .. } if gap.is_defect() || gap.is_invalid_input() => {
-                Err(Aborts)
-            }
+            Self::EdgeInFace {
+                gap: EdgeInFaceGap::DegenerateTorus(torus),
+                ..
+            } => torus.refusal(),
+            Self::EdgeInFace { gap, .. } if gap.is_defect() => Err(Aborts),
             Self::EdgeInFace { .. } => Ok(Refusal::Limit),
             Self::CrossingAtConeApex { .. }
             | Self::NormalAtConeApex { .. }
@@ -6035,13 +6037,27 @@ impl BooleanError {
                 )
             }
             Self::EdgeInFace { edge, face, gap } => {
-                if gap.is_invalid_input() {
-                    write!(
-                        f,
-                        "edge {edge:?} of the result lies in face {face:?}, and {}. Recourse: \
-                         give each torus a tube radius smaller than its major radius",
-                        gap.words(),
-                    )
+                if let Some(torus) = gap.torus() {
+                    write!(f, "edge {edge:?} of the result lies in face {face:?}, and ")?;
+                    match torus.verdict {
+                        geom_brep::TorusVerdict::Refused(verdict) => {
+                            f.write_str(&torus.convention.refused("a torus face's", verdict))?;
+                            match at {
+                                Some(at) => write!(
+                                    f,
+                                    ". {}",
+                                    torus.convention.sized().recourse(verdict.arm(), at)
+                                ),
+                                None => Ok(()),
+                            }
+                        }
+                        geom_brep::TorusVerdict::Undecided(diag) => write!(
+                            f,
+                            "{}. {}",
+                            gap.words(),
+                            diag.ending(geom_core::COINCIDENCE_RECOURSE)
+                        ),
+                    }
                 } else if gap.is_defect() {
                     write!(
                         f,
