@@ -23,8 +23,8 @@ use crate::gate::{Escalation, Gate, check_unlogged, decide, decide_reported};
 use geom_core::one_line::on_one_line_2d;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
-    Arc2, Band, Circles2, Decide, Decided, InfSpeed, Line2, LineMeet, Margin, MarginDiag, Point2,
-    Real, Sign, Vec2,
+    Arc2, Band, Circles2, Decide, Decided, InfSpeed, Line2, Margin, MarginDiag, Point2, Real, Sign,
+    Vec2,
 };
 
 use crate::Segment;
@@ -1677,23 +1677,16 @@ fn line_line<T: Decide>(
         )
     };
     let mut contacts = Vec::new();
-    // Proper crossing, interior to both. The determinant's sign is
-    // already decided: `s1.chord × s2.chord` is `|s1|` times the rise
-    // from `s2.a`'s side of `s1`'s line to `s2.b`'s, and those sides were
-    // decided opposite through the band, so it is `o_d`'s.
-    let (line1, line2) = (s1.span_line(), s2.span_line());
-    let crossing = if opposite(o_c, o_d) && opposite(o_a, o_b) {
-        let Ok(meet) = line1.meet(&line2, |_| Ok::<Sign, std::convert::Infallible>(o_d));
-        match meet {
-            LineMeet::Cross { t, .. } => Some(line1.at(t)),
-            LineMeet::Parallel { .. } => None,
-        }
-    } else {
-        None
-    };
-    if let Some(point) = crossing {
+    if opposite(o_c, o_d) && opposite(o_a, o_b) {
+        // Proper crossing, interior to both. The sides just decided settle
+        // the determinant: `s1.chord × s2.chord` is `|s1|` times the rise
+        // from `s2.a`'s side of `s1`'s line to `s2.b`'s, decided opposite
+        // through the band, so it is definitely nonzero
+        // (`Line2::meet_transversal`).
+        let line1 = s1.span_line();
+        let (t, _) = line1.meet_transversal(&s2.span_line());
         contacts.push(Contact {
-            point,
+            point: line1.at(t),
             kind: CKind::Crossing,
         });
     } else {
@@ -2465,16 +2458,11 @@ pub(crate) fn ray_crossings<T: Decide>(
                 _ => {
                     // Endpoints strictly straddle the ray line: one
                     // carrier crossing; count it if strictly ahead. The
-                    // determinant `dir × chord` is `|dir|` times the rise
-                    // from `seg.a`'s side of the ray's line to `seg.b`'s,
-                    // decided opposite, so its sign is `o_b`'s.
-                    let ray = Line2 { origin, dir };
-                    let Ok(meet) = ray.meet(&seg.span_line(), |_| {
-                        Ok::<Sign, std::convert::Infallible>(o_b)
-                    });
-                    let LineMeet::Cross { t: s, .. } = meet else {
-                        return Err(Graze);
-                    };
+                    // sides just decided settle the determinant: `dir ×
+                    // chord` is `|dir|` times the rise from `seg.a`'s side
+                    // of the ray's line to `seg.b`'s, decided opposite, so
+                    // it is definitely nonzero (`Line2::meet_transversal`).
+                    let (s, _) = Line2 { origin, dir }.meet_transversal(&seg.span_line());
                     match decide(Gate::RayAdvance, Margin::of(s), band) {
                         Ok(Sign::Positive) => Ok(1),
                         Ok(Sign::Negative) => Ok(0),

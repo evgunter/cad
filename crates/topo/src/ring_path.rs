@@ -115,42 +115,24 @@ impl<T: Decide> Quadric<T> {
     /// The quadric of `surface`; `None` for any other kind.
     pub(crate) fn of(surface: &geom::Surface<T>) -> Option<Self> {
         match *surface {
-            geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => Some(Self::Cylinder {
-                axis: geom::Line { origin, dir: axis },
+            geom::Surface::Cylinder { radius, .. } => Some(Self::Cylinder {
+                axis: surface.axis_line()?,
                 radius,
             }),
             geom::Surface::Sphere { center, radius, .. } => Some(Self::Sphere {
                 centre: center,
                 radius,
             }),
-            geom::Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
-            } => Some(Self::Cone {
-                axis: geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
+            geom::Surface::Cone { half_angle, .. } => Some(Self::Cone {
+                axis: surface.axis_line()?,
                 half_angle,
             }),
             geom::Surface::Torus {
-                center,
-                axis,
                 major_radius,
                 minor_radius,
                 ..
             } => Some(Self::Torus {
-                axis: geom::Line {
-                    origin: center,
-                    dir: axis,
-                },
+                axis: surface.axis_line()?,
                 major: major_radius,
                 minor: minor_radius,
             }),

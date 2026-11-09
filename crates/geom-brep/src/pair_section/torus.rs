@@ -852,23 +852,14 @@ impl<T: Decide> CylinderTorusPose<T> {
             (Surface::Torus { .. }, Surface::Cylinder { .. }) => (b, a, false),
             _ => return None,
         };
-        let &Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } = cylinder
-        else {
+        let &Surface::Cylinder { radius, .. } = cylinder else {
             return None;
         };
+        let cylinder_axis = cylinder.axis_line()?.unit();
         let ring = Ring::of(torus, band)?;
         Some((|| {
             radius_guard("ct_cylinder_radius", SectionRadius::Cylinder, radius, band)?;
             let ring = ring?;
-            let cylinder_axis = geom::Line {
-                origin,
-                dir: axis.normalize(),
-            };
             let ring_axis = ring.frame().axis_line();
             let line = Spine::Line(cylinder_axis);
             let sweep = || swept(ring, line, [ring.r, radius], &CT_GAP, band);

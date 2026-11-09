@@ -108,9 +108,8 @@ impl<T: Real> Line2<T> {
     /// `decide` reads `det` through the band under the caller's own gate
     /// and lever, and returns its sign (or the caller's refusal). A
     /// sign decided `Zero` is [`LineMeet::Parallel`], and the parameters
-    /// are not formed. A caller that knows the sign already (two
-    /// segments whose ends were decided on opposite sides of each
-    /// other's line) passes that decided sign.
+    /// are not formed. A caller whose transversality another decision
+    /// already settles reads [`Self::meet_transversal`] instead.
     ///
     /// # Errors
     ///
@@ -125,13 +124,23 @@ impl<T: Real> Line2<T> {
         if turn == Sign::Zero {
             return Ok(LineMeet::Parallel { det });
         }
+        let (t, s) = self.meet_transversal(other);
+        Ok(LineMeet::Cross { t, s, turn, det })
+    }
+
+    /// **Where this line and `other` cross, the caller having settled
+    /// that they do**: `(t, s)` as [`Self::meet`] forms them, with no
+    /// decision of the determinant here. It is for a pair whose
+    /// transversality another decision through the band already fixes,
+    /// e.g. two segments whose ends were each decided on opposite sides of
+    /// the other's line: the determinant is then the side readings' rise,
+    /// definitely nonzero. Its caller says at the site which decision
+    /// that is; any other caller reads [`Self::meet`].
+    #[must_use]
+    pub fn meet_transversal(&self, other: &Self) -> (T, T) {
+        let det = self.dir.perp_dot(other.dir);
         let w = other.origin - self.origin;
-        Ok(LineMeet::Cross {
-            t: w.perp_dot(other.dir) / det,
-            s: w.perp_dot(self.dir) / det,
-            turn,
-            det,
-        })
+        (w.perp_dot(other.dir) / det, w.perp_dot(self.dir) / det)
     }
 
     /// **The heights at which the line meets the circle** about `centre`

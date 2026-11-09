@@ -374,11 +374,11 @@ impl<T: Real> Surface<T> {
 
     /// **A surface of revolution's axis, as a line**: from a cylinder's
     /// axis point, a cone's apex, or a sphere's, a torus's or a spindle's
-    /// centre, along its stored axis normalised, so the readings that
-    /// take the axis as unit (meridian sheets, a revolve's seed) read it
-    /// as one. `None` for a plane, whose frame axis is a normal and not an
-    /// axis line, and for a net. The one door to the axis of a
-    /// [`Self::frame`]d surface of revolution.
+    /// centre, along its stored axis as stored ([`Frame::axis_line`] of
+    /// [`Self::frame`]). A reader that takes the axis as unit (a meridian
+    /// sheet, a revolve's seed) says so with [`Line::unit`]. `None` for a
+    /// plane, whose frame axis is a normal and not an axis line, and for
+    /// a net. The one door to a surface of revolution's axis.
     #[must_use]
     pub fn axis_line(&self) -> Option<Line<T>> {
         let (origin, axis) = match *self {
@@ -389,10 +389,7 @@ impl<T: Real> Surface<T> {
             | Self::Spindle { center, axis, .. } => (center, axis),
             Self::Plane { .. } | Self::Nurbs(_) | Self::Approx(_) => return None,
         };
-        Some(Line {
-            origin,
-            dir: axis.normalize(),
-        })
+        Some(Line { origin, dir: axis })
     }
 
     /// **The placement of an analytic surface**: a plane's origin,

@@ -500,10 +500,10 @@ impl<T: Real> Bound<T> {
 fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
     match s {
         Surface::Plane { origin, normal, .. } => Some((x - *origin).dot(normal.normalize())),
-        Surface::Cylinder { radius, .. } => Some(sheet_of(s.axis_line()?, x).0 - *radius),
+        Surface::Cylinder { radius, .. } => Some(sheet_of(s.axis_line()?.unit(), x).0 - *radius),
         Surface::Sphere { center, radius, .. } => Some((x - *center).norm() - *radius),
         Surface::Cone { half_angle, .. } => {
-            let (rho, z) = sheet_of(s.axis_line()?, x);
+            let (rho, z) = sheet_of(s.axis_line()?.unit(), x);
             Some(rho * half_angle.cos() - z.abs() * half_angle.sin())
         }
         Surface::Torus {
@@ -511,7 +511,7 @@ fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
             minor_radius,
             ..
         } => {
-            let (rho, z) = sheet_of(s.axis_line()?, x);
+            let (rho, z) = sheet_of(s.axis_line()?.unit(), x);
             Some(((rho - *major_radius).powi(2) + z.powi(2)).sqrt() - *minor_radius)
         }
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
@@ -570,7 +570,7 @@ fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, geom::Line<T>)> 
         },
         _ => return None,
     };
-    Some((f, s.axis_line()?))
+    Some((f, s.axis_line()?.unit()))
 }
 
 /// **A surface's distance read in the sheet about the unit axis `a`
@@ -612,7 +612,7 @@ fn sheet_fn<T: Decide + Bounds>(
             )
         }
         Surface::Cylinder { axis, radius, .. } => {
-            let foot = s.frame()?.axis_line().foot(centre);
+            let foot = s.axis_line()?.foot(centre);
             (
                 SheetFn::Line {
                     alpha: one,
@@ -927,8 +927,8 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
         Surface::Cylinder { radius, .. } => link
             .blend
             .surface
-            .frame()
-            .map(|f| (f.axis_line().foot(p), radius)),
+            .axis_line()
+            .map(|axis| (axis.foot(p), radius)),
         Surface::Torus {
             center,
             axis,
@@ -1078,7 +1078,7 @@ fn straight_reach<T: Decide + Bounds>(
             None => (sv - pad, sv + pad, sv - pad, sv + pad),
         });
     }
-    let s0 = (start - Point3::origin()).dot(tau);
+    let s0 = geom::plane_offset(Point3::origin(), tau, start);
     let window = |lo: T, hi: T| {
         [
             (
@@ -1428,6 +1428,9 @@ fn corner_reach<T: Decide + Bounds>(
             for l in links {
                 let far = if l.start == v { l.end } else { l.start };
                 let tau = point_of(body, far)? - pv;
+                // A sign read alone: `tau` is the edge's chord, not unit,
+                // so the offset is not metres, and only its sign (which
+                // scaling `tau` keeps) is read.
                 if geom::plane_offset(pv, tau, c).lo() > 0.0 {
                     bounds.push((Role::Other, half_space(c, tau, pv)));
                 }
