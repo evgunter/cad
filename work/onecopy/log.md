@@ -834,3 +834,8 @@
 - 09:08Z PR 6624 FULL review: FIX. across_plane is a second, unkeyed door (C5 overclaims). The caller premise could shrink (build from face.surface()). OffRecord is read two ways in apply_cut_ins. Ordering: 6609 first, then 6624 keys the walk with its premise named. Sent to the lane.
 - 09:10Z Merged PR 6607 (path-parity) at 8cb4a78c. Gate green at 57465307; main had moved 1 commit, with no file overlap.
 - 09:13Z PR 6617's fix pass (7cf5cab7) went to the original reviewer for a delta, which checks the new PropsError/ReplaceFaceError refusal() classes. I merged main (821e541a) and am gating. T2 is approved, stacked on 6576.
+- 09:20Z PR 6609 delta review: MERGE. M1 is fixed and probed: 0 misses in 600k against base's ~4.6k per ε.
+  - F1, the sphere cut-in's new refusal, is now disclosed in the PR body.
+  - F2 filed as `arc-trim-margin-stayed-in-containment-when-arc-trim-moved-beside-check-9`.
+  - Main overlapped it in 5 files, gate counts included. I merged main (e7cee1ba); run-gates passes on the merge. Gating.
+  - 6624 keys the walk after this lands.
