@@ -713,3 +713,8 @@
 - 07:33Z Ruled for half-open-angles:
   - Q1(b): add `Period::above`/`at_or_above` over one helper built on `near`. This is an API addition under the existing home; no ratified clause lists Period's readings, only the F31 audit entry. The rows must pin both ends and the tie, and the audit F31 entry is updated.
   - Q2: no `separation`; close that bullet with the lattice-distance argument.
+- 07:34Z Ruled for gate-blind-spots:
+  - Q1(C): list the transverse Range charge and file a row for the B re-pose; it gets its own lane later.
+  - Q2(a): an ambiguous line must cite a row.
+  - The doors are derived from geom_core::running's pub items.
+- 07:34Z Ruled for unbuilt-recourse: its six recourse classes are approved, and each defect class must cite its guard.
