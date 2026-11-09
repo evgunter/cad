@@ -469,24 +469,6 @@ fn order<T: Decide>(
 /// nearer side, or off a plane or a cylinder it is parallel to.
 pub const TRACE_PLANE_MISSES: &str = "trace_plane_misses";
 
-/// **Where a carrier stands and how far it reaches from there**: the
-/// lever a piece's decisions about its face are read over. A bounded
-/// carrier's whole cover's ball ([`Surface::cover`]: a sphere's own, a
-/// torus's tube's); a plane's point and a cone's apex, reaching nowhere
-/// from it; a cylinder's axis point and its radius off the axis. `None`
-/// for a carrier with no closed form.
-pub fn carrier_extent<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, T)> {
-    match *surface {
-        Surface::Plane { origin, .. } => Some((origin, T::zero())),
-        Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
-        Surface::Cone { apex, .. } => Some((apex, T::zero())),
-        Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
-            surface.cover().ok().map(|c| c.ball())
-        }
-        Surface::Nurbs(_) | Surface::Approx(_) => None,
-    }
-}
-
 /// **Whether the plane through `point` with unit `normal` is shown to
 /// miss `surface`**: `true` grants that its trace is empty, and `false`
 /// grants nothing (the crossings a caller computes next decide for

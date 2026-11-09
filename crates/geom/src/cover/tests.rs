@@ -1402,6 +1402,111 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
     }
 }
 
+/// **The nearest distance from a line is posed as a distance**: a line
+/// tangent to a circle arc or to a thin torus's outer equator, `δ` out
+/// along the radial in the circle's plane, stands `δ` from it, and both
+/// scalars read that to the rounding of the line's placement. The
+/// squared harmonic form this replaced cancelled `|w|² + ρ² ≈ 2·10⁶`
+/// against `2|w|ρ` and read about `3·10⁻⁵` here. Lifted `δ` off the
+/// plane as well, the line stands `√2·δ` from the arc, and the reading
+/// is the annulus of the arc's shadow along the line, `δ`: sound, and
+/// no tighter.
+#[test]
+fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
+    let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+    let delta = 1e-6;
+    let c = Point3::new(5.0, -2.0, 1.0);
+    let t = 0.7_f64;
+    let (radial, tangent) = (x * t.cos() + y * t.sin(), y * t.cos() - x * t.sin());
+    // (what, at f64, at Interval, the point the line passes, its size)
+    type Row = (&'static str, Cover<f64>, Cover<Interval>, Point3<f64>, f64);
+    let (big, small) = (1e3, 1e-3);
+    let torus = Surface::Torus {
+        center: c,
+        axis: z,
+        major_radius: big,
+        minor_radius: small,
+        u_ref: x,
+    };
+    let circle = Curve3::Circle(crate::Circle::new(crate::Frame::new(c, z, x), big));
+    let rows: Vec<Row> = vec![
+        (
+            "torus",
+            torus.cover().unwrap(),
+            torus.map_scalar(iv).cover().unwrap(),
+            c + radial * (big + small),
+            big,
+        ),
+        (
+            "circle arc",
+            circle.cover_over(ParamWindow::new(0.0, 1.5)).unwrap(),
+            circle
+                .map_scalar(iv)
+                .cover_over(ParamWindow::new(iv(0.0), iv(1.5)))
+                .unwrap(),
+            c + radial * big,
+            big,
+        ),
+    ];
+    let lifted = delta * core::f64::consts::SQRT_2;
+    for (what, f, i, on, size) in rows {
+        for (lift, want, least) in [(0.0, delta, delta), (delta, lifted, delta)] {
+            let origin = on + radial * delta + z * lift;
+            let line = Line {
+                origin,
+                dir: tangent * 3.0,
+            };
+            let scale = (origin - Point3::origin()).norm() + size;
+            let tol = 64.0 * f64::EPSILON * scale;
+            let (nf, _) = f.distance_range(&Site::Line(line));
+            let (ni, _) = i.distance_range(&Site::Line(Line {
+                origin: ipt(line.origin),
+                dir: ivec(line.dir),
+            }));
+            assert!(
+                nf <= want + tol && nf >= least - tol,
+                "{what}, lifted {lift}: the f64 nearest {nf:e} against {want:e}"
+            );
+            assert!(
+                ni.lo() <= want + tol && ni.lo() >= least - tol,
+                "{what}, lifted {lift}: the interval nearest {ni:?} against {want:e}"
+            );
+        }
+    }
+}
+
+/// **A circle about the line reads its radius both ways round.** A
+/// circle of radius 2 about `z`, its frame's axis along the line and
+/// against it, stands exactly 2 from the line at every point: the arc
+/// turns with the line's sense in one frame and against it in the
+/// other, so the circle is the part turning with `t` in one and the
+/// part turning against it in the other. Red where the line reading
+/// takes either part alone (it reads `[0, 4]` for the other frame), or
+/// takes the shorter as the circle.
+#[test]
+fn a_circle_about_the_line_reads_its_radius_in_either_sense() {
+    let line = Site::Line(Line {
+        origin: Point3::new(0.0, 0.0, -7.0),
+        dir: Vec3::unit_z() * 0.5,
+    });
+    for axis in [Vec3::unit_z(), -Vec3::unit_z()] {
+        let circle = Curve3::Circle(crate::Circle::new(
+            crate::Frame::new(Point3::new(0.0, 0.0, 3.0), axis, Vec3::unit_x()),
+            2.0,
+        ));
+        for (lo, hi) in [(0.0, TAU), (0.3, 1.1)] {
+            let (near, far) = circle
+                .cover_over(ParamWindow::new(lo, hi))
+                .unwrap()
+                .distance_range(&line);
+            assert!(
+                (near - 2.0).abs() <= 1e-15 && (far - 2.0).abs() <= 1e-15,
+                "axis {axis:?}, [{lo}, {hi}]: [{near}, {far}] is not the radius"
+            );
+        }
+    }
+}
+
 /// **The farthest distance from a point near a short arc of a large
 /// conic is posed as a distance.** A circle and an ellipse of size `1e3`
 /// placed `1e3` from the origin, an arc of `1e-6` rad (about `1e-3` m)
