@@ -4114,9 +4114,11 @@ const SHEET_RING_TORUS: &str = "bool_spline_sheet_ring_torus";
 /// consecutive distinct breakpoints of both knot vectors, whatever their
 /// multiplicities) reads off `carrier`'s variety
 /// ([`geom_brep::variety::Variety`], under [`SHEET_OFF_CARRIER`]);
-/// false otherwise, a piece with every point on or in band included, and
-/// a carrier the certificate does not hold for. It never reads the two as
-/// one. The certificate, and which carriers it holds for, is
+/// false otherwise, a piece with every point on or in band included, a
+/// carrier the certificate does not hold for, and a torus whose ring
+/// (`R − r`, under [`SHEET_RING_TORUS`]) is in band, whose escalation
+/// [`geom_brep::variety::Variety::of`] returns and this bool reads as not
+/// certified off. It never reads the two as one. The certificate, and which carriers it holds for, is
 /// [`geom_brep::variety`]'s; the schedule is this reading's: five interior
 /// points of each piece.
 fn spline_off_carrier<T: Decide>(

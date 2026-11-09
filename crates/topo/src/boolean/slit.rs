@@ -183,9 +183,9 @@ pub enum EdgeInFaceGap {
     /// read.
     SplineFace,
     /// The edge's carrier, a spline or a spiric, or any carrier against a
-    /// torus not decided a ring, is not certified off the face's surface over its whole
-    /// length, and nothing reads it on: whether it lies in the face along
-    /// some piece is not read ([`carrier_on_surface`]).
+    /// torus not decided a ring, is not certified off the face's surface
+    /// over its whole length, and nothing reads it on: whether it lies in
+    /// the face along some piece is not read ([`carrier_on_surface`]).
     CarrierUnread,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
@@ -3414,10 +3414,12 @@ mod spline_rider {
 /// **A spiric reads off a sphere, a cylinder or a cone by degree, and a
 /// ring torus by identity** ([`spiric_on_curved`]), only in the two-oval
 /// regime and only where a point of its span reads off. On its own torus,
-/// or on a torus not decided a ring, it stays unread.
+/// or on a torus not decided a ring, it stays unread. **A conic against
+/// a torus is read by the same identity certificate**
+/// ([`geom_brep::variety::Variety`]), gated on the ring alike.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod spiric_quadric_rows {
+mod curved_carrier_rows {
     use super::{EdgeInFaceGap, Placed, conic_or_line_on};
     use geom_core::{Band, Margin, Point3, Sign, Tol, Vec3};
 
@@ -3757,6 +3759,42 @@ mod spiric_quadric_rows {
         let in_band = at(0.3 + 0.5 * (b.zero() + b.escalate()));
         assert!(
             conic_or_line_on(&s, (-0.5, 0.5), &in_band, b).is_err(),
+            "a torus whose ring is in band escalates"
+        );
+    }
+
+    /// **A conic against a torus whose ring is in band escalates**, at the
+    /// conic site's ring gate in [`super::conic_or_line_on`]
+    /// ([`geom_brep::variety::Variety::of`]), as the spiric site's does:
+    /// the identity certificate holds only on a ring, and an `R − r` in
+    /// band is not read as no ring. The same circle against a ring torus
+    /// it misses reads off. Red where the conic site swallows the ring's
+    /// escalation (`.ok().flatten()`), which then reads the torus unread.
+    #[test]
+    fn a_conic_against_a_torus_whose_ring_is_in_band_escalates() {
+        let b = band();
+        let at = |major_radius: f64| geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius,
+            minor_radius: 0.3,
+            u_ref: Vec3::unit_x(),
+        };
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 5.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
+        let span = (0.0, core::f64::consts::TAU);
+        assert_eq!(
+            conic_or_line_on(&circle, span, &at(2.0), b).unwrap(),
+            Placed::Off,
+            "a circle far above a ring torus reads off"
+        );
+        let in_band = at(0.3 + 0.5 * (b.zero() + b.escalate()));
+        assert!(
+            conic_or_line_on(&circle, span, &in_band, b).is_err(),
             "a torus whose ring is in band escalates"
         );
     }
