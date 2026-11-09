@@ -8,7 +8,6 @@
 //! `bool_ray_cylinder_disc` (the half-chord's depth) — and both are
 //! asserted to FIRE, so the pin cannot go vacuous. A planar-only body
 //! (`topo`'s `rim_dim_boolean_twins`) never reaches either, nor the
-//! face boxes' cylinder axis read (`bool_box_cylinder_axis`) or the
 //! germ plane normal a plane × cylinder join reads
 //! (`bool_germ_plane_normal`), which the same pipe boring a plate pins
 //! beside them.
@@ -86,19 +85,29 @@ fn margins_at(
 
 #[test]
 fn the_wall_arms_margins_scale_linearly_with_the_model() {
-    // Pinned red: `curve_foot_branch`'s decisive margins read a million to
-    // one between the twins, where every other predicate's read a
-    // thousand. Six pairs were off before PR 5664 and 62 since
-    // (`work/cpair/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
-    // owns the six, `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`
-    // the widening). `k-lint (dev-probe)` runs this row once, at ε 1e-9,
-    // and the nightly's `--all-features` suite at the default ε, the same
-    // row; it reads the same at 1e-6 and 1e-12.
+    // Pinned red at what main measures, per ε. At 1e-9 and 1e-12 the F31
+    // angle renames, sign-only reads at `Band::least()`, do not scale
+    // (`work/onecopy/ray-wall-twins-read-f31-angle-renames-as-margins-that-must-scale.md`);
+    // at 1e-6 the millimetre twin fires predicates the metre twin does not
+    // (`work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`).
+    // `k-lint (dev-probe)` runs this row once, at ε 1e-9, and the
+    // nightly's `--all-features` suite at the default ε.
+    let eps = Tol::witness().eps();
+    let says: &[&str] = if test_utils::kernel_limit::at_row(eps, &[1e-6]) {
+        &[
+            "the twins must fire the same predicate set",
+            "side_at_infinity_met_edge_represents",
+        ]
+    } else {
+        &[
+            "[\"azimuth_near_cut_side: 56 pairs off, e.g. 6.811e2\", \"period_near_mark: 208 pairs off, e.g. 9.990e-1\"]",
+        ]
+    };
     test_utils::pinned_red::row(
-        Tol::witness().eps(),
+        eps,
         &test_utils::pinned_red::EVERY_ROW,
         "the ray-wall twins",
-        &["[\"curve_foot_branch: 62 pairs off, e.g. 9.990e2\"]"],
+        says,
         the_wall_arms_margins_scale_linearly_with_the_model_row,
     );
 }
@@ -222,17 +231,15 @@ fn bore_margins(scale: f64, name: &str) -> Vec<f64> {
         .collect()
 }
 
-/// **The bore's two carrier-direction reads are decided at the model's
-/// scale.** A cylinder face's axis (`bool_box_cylinder_axis`) and a
-/// plate face's normal where the join sections the wall
-/// (`bool_germ_plane_normal`) are unit at rest, pure numbers. The axis
-/// is levered by the radius its slab swings it by, and the normal by
-/// the joined germ sites' reach from the plate face's origin, which
-/// here is the radius too. So every margin is `scale`, and they sit
-/// `1e3` apart between the twins; the bare norm reads `1` at both.
+/// **The bore's carrier-direction read is decided at the model's
+/// scale.** A plate face's normal where the join sections the wall
+/// (`bool_germ_plane_normal`) is unit at rest, a pure number, levered
+/// by the joined germ sites' reach from the plate face's origin, which
+/// here is the radius. So every margin is `scale`, and they sit `1e3`
+/// apart between the twins; the bare norm reads `1` at both.
 #[test]
 fn the_bores_carrier_directions_are_levered_by_the_radius_at_both_scales() {
-    for name in ["bool_box_cylinder_axis", "bool_germ_plane_normal"] {
+    for name in ["bool_germ_plane_normal"] {
         for scale in [1e-3, 1.0] {
             let margins = bore_margins(scale, name);
             assert!(!margins.is_empty(), "the bore decides {name} at {scale:e}");

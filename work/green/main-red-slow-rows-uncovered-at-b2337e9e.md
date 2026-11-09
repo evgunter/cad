@@ -25,6 +25,7 @@ Filed on GREEN, which carries main-red rows (work/issues/ is retired). Route eac
 ## Added (2026-11-03, the PR 6454 fix pass, failing identically at its merge base)
 
 - `editor-core` `m4_pr8_k_probe`'s corpus dump: 116 `<unnamed>` decisions, and the key-split pin.
+  Bisected (2026-11-06, `onecopy/main-reds-k-and-m10`): the `<unnamed>` samples began at PR 6376's merge (`47b0763a4a`, `onehome/vertex-section-room`), 138 on main now. The site is `geom_core::running::Rounded::divisor`, which reads `room.sign_within(Band::enclosure_sign())` directly rather than through a named `k_stats` door; naming it is a choice between a logged decision (`k_stats::decide`, which moves the verdict log) and `check_unlogged` with an audit row. The key split is on `work/tally/probe-lane-content-and-naming-keys-split-from-f64-on-every-corpus-document.md` (PR 6341).
 - `editor-core` `node_standing::every_node_result_reader_goes_through_usable_or_is_listed`: `viewer/src/session.rs` is in READERS with a count of 3 that the scan no longer finds. Same row as above, now with its cause.
 - topo `boolean::boxes::tests::every_door_that_reads_a_box_is_inventoried`: `ruled_region.rs`, `shell.rs` and `splitting/containment.rs` read a box with no entry. Covered by BOXES' own main-red row.
 - `sweep` `ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`: its pinned red now PASSES on main ("pinned to stop … and it passed"). Its owners (CPAIR or CHARTTAIL) should retire or re-pin it. Reported by the PR 6463 lane.

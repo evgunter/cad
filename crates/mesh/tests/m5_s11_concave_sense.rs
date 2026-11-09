@@ -68,6 +68,7 @@ fn notched() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The hole plate: 4×4×1 with a unit-radius through hole — the hole
@@ -96,6 +97,7 @@ fn hole_plate() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 #[test]

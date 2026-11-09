@@ -20,11 +20,11 @@ fn tol() -> Tol {
 }
 
 fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
-    finished("block", brick(x, y, z, tol()), tol())
+    finished("block", brick::<f64>(x, y, z, tol()), tol())
 }
 
 fn prism(p: &[(f64, f64)], z: (f64, f64)) -> AtRestBody<f64> {
-    finished("prism", prism_z(p, z.0, z.1, tol()).body, tol())
+    finished("prism", prism_z::<f64>(p, z.0, z.1, tol()).body, tol())
 }
 
 fn run(op: Op, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Option<BooleanBody<f64>> {

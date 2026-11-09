@@ -1222,8 +1222,7 @@ the value). The names that reach the funnel through them today:
 | `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
 | `bool_germ_plane_normal` | `crates/topo/src/boolean/join.rs`'s const, decided at the germ-plane read | yes — every germ pair with a plane side that a curved-capable boolean joins |
-| `bool_box_cylinder_axis` | `crates/topo/src/boolean/boxes.rs`'s const, decided where `face_box_rule` reads a cylinder carrier | yes — every cylinder face either box lane boxes (the sweep's face tree, separation, the census pre-filter and reach) |
-| `unit_direction_arm` | `geom-core`'s const, decided by `UnitVec3::levered` on the arm before the levered length | yes — once beside every `bool_germ_plane_normal`, `bool_box_cylinder_axis` and `props_torus_axis` sample |
+| `unit_direction_arm` | `geom-core`'s const, decided by `UnitVec3::levered` on the arm before the levered length | yes — once beside every `bool_germ_plane_normal` and `props_torus_axis` sample |
 | `fixture_split_normal` | `crates/topo/src/test_support_fixtures.rs`'s `split_plane`, a const the fixtures own | no — a test-owned name, as `fixture_frame_axis` |
 
 **Roster change (MSOLVE-8, 2026-09-20): one mate-solve name RESPELLED,
@@ -1273,6 +1272,19 @@ in the band for a carrier the at-rest rule admits. The split fixtures
 mint under the test-owned `fixture_split_normal`. The tour's two cut
 scenes (`cutaway`, `curvedcut`) mint their normals under
 `tour_frame_axis`, so that name gains two samples per tour run.
+
+**Roster change (BOXES `cover-topo-faces`, 2026-11-08): one name retired,
+four respelled.** A face's region is topo's face cover (`crates/topo/src/cover.rs`).
+Its cylinder arm is the boundary's convex hull, which the axial slab held
+already, so `bool_box_cylinder_axis` decides nothing and is retired (and
+the cone's `bool_box_cone_axis`, minted and retired in the same change,
+never landed). The sphere window's three reads decide in the cover module
+and take its prefix: `bool_box_sphere_axis`, `bool_box_sphere_seam_unit`
+and `bool_box_sphere_seam` are `cover_sphere_axis`,
+`cover_sphere_seam_unit` and `cover_sphere_seam`. The depth gap's foot
+placement is the face's nearest-distance reading's,
+`census_backstop_depth_foot` → `cover_face_nearest_foot`. The notes below
+keep the names they were written under.
 
 **Roster change (TQUERY, 2026-10-02): one name added.** The face
 boxes' cylinder slab reads its axis as a unit direction, so

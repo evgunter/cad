@@ -430,8 +430,7 @@ fn mint_band(
                         origin: axis_point,
                         dir: s_axis,
                     }
-                    .offset(center)
-                    .norm();
+                    .distance(center);
                     let tilt = radius * n.cross(s_axis).norm();
                     if ui == 0 {
                         raises = Some(u.forward == (n.dot(s_axis) > 0.0));

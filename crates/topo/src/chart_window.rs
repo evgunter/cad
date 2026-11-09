@@ -7,7 +7,7 @@
 //! the lift, the walk refuses ([`SplitJoinError::ApexUnlifted`]).
 //!
 //! [`face_azimuth_images`] is the walk, one image per charted half-edge;
-//! [`face_azimuth_window`] and [`face_loop_azimuth_windows`] hull it
+//! [`face_azimuth_window`] hulls it, [`face_loop_azimuth_travels`] sums it
 //! ([`azimuth_hull`]). The chord join's island winding reads the images
 //! themselves ([`run_azimuth_images`]).
 //!
@@ -43,8 +43,11 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     Ok(face_azimuth_images(body, surface, face, band)?.and_then(|images| azimuth_hull(&images)))
 }
 
-/// The azimuth window of each cycle loop of `face` on `surface`'s chart,
-/// the outer loop and its rings alike: the hull of the loop's images,
+/// **The net azimuth each cycle loop of `face` travels** on `surface`'s
+/// chart, the outer loop and its rings alike: the sum over the loop's
+/// images of exit less entry, each image's branch pinned to the one
+/// before ([`run_azimuth_images`]). A loop that closes in the chart
+/// travels zero; one that winds round the chart's pole, a whole turn.
 /// `None` for a walk with no charted edge. A lone-vertex loop winds
 /// nothing and is not listed.
 ///
@@ -55,12 +58,12 @@ pub(crate) fn face_azimuth_window<T: Decide>(
 /// # Panics
 ///
 /// As [`face_azimuth_images`].
-pub(crate) fn face_loop_azimuth_windows<T: Decide>(
+pub(crate) fn face_loop_azimuth_travels<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
     face: FaceKey,
     band: Band,
-) -> Result<Vec<Option<(T, T)>>, SplitJoinError> {
+) -> Result<Vec<Option<T>>, SplitJoinError> {
     let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
     view.loops()
         .filter_map(|(_, l, _)| match l.boundary {
@@ -69,8 +72,12 @@ pub(crate) fn face_loop_azimuth_windows<T: Decide>(
         })
         .map(|first| {
             let halves = body.loop_walk(first).closed("loop", first);
-            run_azimuth_images(body, surface, face, &halves, band)
-                .map(|images| azimuth_hull(&images))
+            run_azimuth_images(body, surface, face, &halves, band).map(|images| {
+                images
+                    .iter()
+                    .map(|image| image.exit - image.entry)
+                    .reduce(|a, b| a + b)
+            })
         })
         .collect()
 }
@@ -597,9 +604,11 @@ fn pole_lever<T: Decide>(
         return None;
     };
     let swept = (far_t - pole_t).max(T::zero() - T::pi()).min(T::pi());
-    let w = carrier.eval(pole_t + swept) - center;
-    let height = w.dot(axis);
-    let far = (w - axis * height).norm();
+    let (height, far) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(carrier.eval(pole_t + swept));
     let reach = (height * pole_height).select_le_zero(radius, far);
     let bend = (radius.powi(2) - r.powi(2)).max(T::zero()).sqrt();
     Some((reach * bend - r * radius).select_le_zero(reach, r * radius / bend))

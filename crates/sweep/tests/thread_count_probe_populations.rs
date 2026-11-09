@@ -48,6 +48,7 @@ fn probe_arc_loft() -> Body<Probe> {
     )
     .expect("the probe arc loft lofts")
     .body
+    .into_body()
 }
 
 /// The samples `walk` records on a pool of `threads` threads.

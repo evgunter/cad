@@ -65,3 +65,5 @@ End each in the shared constant; the Boolean arms that render keys or
 PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. `ResultVolumeImplausible`, the variant it cites as folded, is gone; the refusals it lists stand.
 
 Moved from `work/issues/` to `work/encl/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+Note, 2026-11-08 (PR 6584): `BooleanError::ScaffoldingOperand` and `reduce::gate_operand` are deleted, along with `validate::operand_scaffolding` and `topo::SCAFFOLDING_REFUSAL`. A Boolean operand is a finished body (`T::Finished`), whose finish runs tiers 1 and 2. Nothing in the reduce re-reads tier 2. The sphere re-cut's derived operands `debug_assert` tiers 1 and 2 instead (`boolean/ops.rs`, `through_the_join`). A citation of these symbols above names code that is gone.

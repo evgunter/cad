@@ -77,7 +77,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, lo: f64, h: f64) -> Body<f64> {
     .unwrap()
     .body;
     if lo == 0.0 {
-        return body;
+        return body.into_body();
     }
     let lift = Affine3::translation(Vec3::new(0.0, 0.0, lo));
     topo::transform_rigid(&body, &geom_core::test_support::rigid(&lift, tol()), tol()).unwrap()
@@ -203,7 +203,7 @@ fn sweep_rows(radii: &[f64], tilts: &[f64]) -> (Vec<String>, Vec<String>) {
                         tol(),
                     )
                     .unwrap();
-                    let b = sweep::test_support::brick(
+                    let b = sweep::test_support::brick::<f64>(
                         (-half, half),
                         (-half, half),
                         (-half, z0),

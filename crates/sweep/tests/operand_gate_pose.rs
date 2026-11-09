@@ -80,6 +80,7 @@ fn frustum(s: f64, tol: Tol) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// [`frustum`]'s volume: `π∫₀^{0.6}((0.6 − y/3)² − 0.2²) dy · s³`

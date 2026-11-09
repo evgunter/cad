@@ -117,7 +117,7 @@ fn bitdump_die() {
     let Some(dir) = dump_dir() else {
         return;
     };
-    let body = cube(1.0, Tol::witness());
+    let body = cube::<f64>(1.0, Tol::witness());
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
         &query::all_edges(&body),
@@ -207,7 +207,7 @@ fn bitdump_chamfered_cube() {
     let Some(dir) = dump_dir() else {
         return;
     };
-    let body = cube(1.0, Tol::witness());
+    let body = cube::<f64>(1.0, Tol::witness());
     let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
         &query::all_edges(&body),
@@ -442,7 +442,7 @@ fn bitdump_extrude_revolve_corpus() {
             .validate(tol)
             .unwrap();
         let body = sweep::extrude(&profile, e, tol).unwrap().body;
-        (name.to_owned(), body)
+        (name.to_owned(), body.into_body())
     };
     let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
         extruded_by(

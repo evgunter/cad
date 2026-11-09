@@ -360,7 +360,7 @@ pub(crate) fn ruled_face_region<T: Decide>(
     };
     let covers: Vec<_> = edges
         .iter()
-        .map(|e| super::boxes::edge_cover(body, e.edge))
+        .map(|e| crate::cover::edge_cover(body, e.edge))
         .collect();
     let scale = reach_bound(&surface, &covers);
     Ok(Some(RuledFaceRegion {
@@ -376,13 +376,13 @@ pub(crate) fn ruled_face_region<T: Decide>(
 /// cylinder's radius, or a bound on the farthest the cone face's
 /// boundary reaches from the apex, never under it: edge by edge, its
 /// edge cover's farthest distance from the apex
-/// ([`super::boxes::edge_cover`], one per edge in `covers`), poison for an edge with no cover (its
+/// ([`crate::cover::edge_cover`], one per edge in `covers`), poison for an edge with no cover (its
 /// carrier's reading refuses, or an end vertex is not a finite point),
 /// which the readings levered at it escalate. The boundary was read
 /// certified, so no edge of it is null scaffolding.
 fn reach_bound<T: Decide>(
     surface: &Ruled<T>,
-    covers: &[Result<geom::cover::Cover<T>, super::EdgeUncovered>],
+    covers: &[Result<geom::cover::Cover<T>, crate::cover::EdgeUncovered>],
 ) -> T {
     match *surface {
         Ruled::Cylinder { radius, .. } => radius,
@@ -613,7 +613,7 @@ impl<T: Decide> RuledFaceRegion<T> {
         Line::from(
             start,
             dir,
-            normal / normal.norm(),
+            normal.normalize(),
             LegSection::HalfPlane {
                 toward: geom::Azimuth::of(sin, cos),
                 opening,
@@ -635,7 +635,7 @@ impl<T: Decide> RuledFaceRegion<T> {
         let g = target.at() - apex;
         Ok(Leg::whole(LegShape::Ruling(self.line(
             start,
-            g / g.norm(),
+            g.normalize(),
             opening,
         ))))
     }

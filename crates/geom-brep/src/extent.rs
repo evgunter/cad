@@ -368,6 +368,16 @@ impl<T: Real> ExtentBall<T> {
         Self::new(center, radius)
     }
 
+    /// **The ball holding a region and every point within `tolerance`
+    /// of it**: the cover's ball ([`Self::of_cover`]) widened by a
+    /// geometric tolerance, such as the band a point of two regions'
+    /// section is read within.
+    #[must_use]
+    pub fn of_cover_within(cover: &Cover<T>, tolerance: T) -> Self {
+        let (center, radius) = cover.ball();
+        Self::new(center, radius + tolerance)
+    }
+
     /// **The ball holding a closed conic**: its centre, out to its
     /// largest speed (a circle's radius, an ellipse's larger semi-axis).
     /// `None` for every other kind.

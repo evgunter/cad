@@ -31,6 +31,7 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The steinmetz partner wall, as the probe fixture builds it: the
@@ -212,7 +213,7 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_but_its_void_which_refuses_t
     let p = finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), tol);
     let b = finished(
         "the box",
-        brick((-x, x), (-0.3, 0.3), (-0.3, 0.3), tol),
+        brick::<f64>((-x, x), (-0.3, 0.3), (-0.3, 0.3), tol),
         tol,
     );
     let (pipe, boxed) = (PI * 4.0, 2.0 * x * 0.6 * 0.6);
@@ -352,7 +353,7 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
         &finished("the frustum", frustum, tol),
         &finished(
             "the bar",
-            brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+            brick::<f64>((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
             tol,
         ),
         tol,
@@ -386,7 +387,7 @@ fn r2_an_off_centre_bar_unions_to_the_closed_form() {
             &finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), Tol::witness()),
             &finished(
                 "the bar",
-                brick(x, (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
+                brick::<f64>(x, (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
                 Tol::witness(),
             ),
             Tol::witness(),
