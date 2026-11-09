@@ -27,6 +27,11 @@
 #     hand-rolled `Rung::refused`: the standing read off the payload, or
 #     a field of it, that the ladder then keeps;
 #   * the same with the standing read by path, `E::refusal(&X)`;
+#   * a refusal type's standing spelled as a match at the site, an arm
+#     `Err(X::Escalated { .. }) => Kept::of(..)` keeping the escalation
+#     by hand (read on the line view, since the statement view cuts at the
+#     variant's braces): the type states its standing once, by its own
+#     `refusal()`, and the site reads `Rung::refused(e, X::refusal)`;
 #   * `rung_or_abort` spelled out as a match, an arm
 #     `Err(Aborts) => Rung::Aborts(Err(x))` or `Err(_) => …`, with `x` a
 #     bare binding: as in the call form, an abort that maps its payload
@@ -41,6 +46,12 @@
 #     abort (`|e| { Err(e) }`), or the standing read by
 #     `if let Err(Aborts) = e.refusal() { .. }`: the statement view cuts a
 #     record at every `{` and `}`, so the arm and its body are two records;
+#   * a lone abort arm, `Err(e) => Rung::Aborts(Err(e))`: it is also how
+#     a type with no standing is read (every refusal of it stops the
+#     ladder), and the gate cannot tell the two apart. Seven sites spell it
+#     today (`boolean::join` ×2, `offset_axial` ×2, `side_reader` ×2,
+#     `stands`); each is a type with no `refusal()` or a reading every
+#     refusal of which is the query's;
 #   * a payload whose refusal is read through another binding
 #     (`rung_or_abort(standing, e, Err)` with `standing` bound above);
 #   * a `Rung::Answers` or `rung_or_abort` behind an alias or a `use … as`.
@@ -59,6 +70,8 @@ ABORT='((Result::)?Err|\|[a-z_][a-z0-9_]*([[:space:]]*:[^|]*)?\|[[:space:]]*(Res
 REFUSED_RE='rung_or_abort\([[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[A-Za-z0-9_.]*\.refusal\(\)[[:space:]]*,[[:space:]]*\1[[:space:]]*,[[:space:]]*'"$ABORT"
 REFUSED_PATH_RE='rung_or_abort\([[:space:]]*[A-Za-z_][A-Za-z0-9_:]*::refusal\([[:space:]]*&[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[A-Za-z0-9_.]*[[:space:]]*\)[[:space:]]*,[[:space:]]*\1[[:space:]]*,[[:space:]]*'"$ABORT"
 REFUSED_MATCH_RE='Err\(('"$LADDER"'Aborts|_)\)[[:space:]]*=>[[:space:]]*(return[[:space:]]+)?'"$LADDER"'Rung::Aborts\([[:space:]]*(Result::)?Err\([[:space:]]*[a-z_][a-z0-9_]*[[:space:]]*\)[[:space:]]*\)'
+# A refusal type's escalation kept by hand at the site.
+TABLE_RE='Escalated[[:space:]]*\{[^}]*\}[[:space:]]*\)[[:space:]]*=>[[:space:]]*(return[[:space:]]+)?'"$LADDER"'Kept::of\('
 
 gate() {
   gate_require_crate_sources
@@ -70,6 +83,8 @@ gate() {
   done
   local view hits
   view=$(gate_rust_code --skip-cfg-test --statements "${files[@]}")
+  local lines
+  lines=$(gate_rust_code --skip-cfg-test "${files[@]}")
   # One scan per shape, not one alternation: a back reference counts its
   # groups from the start of the whole pattern.
   hits=$(
@@ -77,6 +92,7 @@ gate() {
     for re in "$HOLDS_RE" "$REFUSED_RE" "$REFUSED_PATH_RE" "$REFUSED_MATCH_RE"; do
       printf '%s\n' "$view" | gate_grep -E "$re"
     done
+    printf '%s\n' "$lines" | gate_grep -E "$TABLE_RE"
   )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
@@ -140,6 +156,12 @@ plant_mapped_match() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+plant_standing_table() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(r: Result<S, E>) -> R { match r { Ok(s) => Rung::Answers(Ok(s)),\n Err(E::Escalated { cause, check }) => Kept::of(cause).map(|cause| E::Escalated { cause, check }).into(),\n Err(e) => Rung::Aborts(Err(e)), } }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 plant_in_the_home() {
   mkdir -p "$1/crates/geom-brep/src"
   printf 'pub fn holds(r: Result<bool, E>) -> Rung<Result<(), E>, E> { match r { Ok(true) => Rung::Answers(Ok(())),\n _ => Rung::Passes } }\n' \
@@ -170,11 +192,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_holds_by_path_in_another_order
   gate_selftest_case "$want" plant_refused_typed_closure
   gate_selftest_case "$want" plant_refused_match_wildcard
+  gate_selftest_case "$want" plant_standing_table
   gate_selftest_passes "the home's own spelling" plant_in_the_home
   gate_selftest_passes "a refusal whose payload is mapped" plant_mapped_payload
   gate_selftest_passes "a match whose abort maps its payload" plant_mapped_match
   gate_selftest_passes "a spelling inside a #[cfg(test)] module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, the home, a mapped payload (in the call and the match form) and a test module; fires on a hand-rolled holds arm (in either order, by path, as a return) and on a hand-rolled refused (on one line, split over lines, by path, with a closure abort typed or not, and as a match on Aborts or _), and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, the home, a mapped payload (in the call and the match form) and a test module; fires on a hand-rolled holds arm (in either order, by path, as a return) and on a hand-rolled refused (on one line, split over lines, by path, with a closure abort typed or not, and as a match on Aborts or _), and on a standing table kept by hand, and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

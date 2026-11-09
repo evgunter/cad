@@ -516,10 +516,18 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/topo/src/boolean/boxes.rs",
+        subject: "cover_box",
+        why: Payload(
+            "a held cover's padded box, the one home `face_box`, `edge_box`, `circle_box` and \
+             the callers holding a face's cover read: its bracketed world box \
+             (`Cover::aabb`), or the poison box where there is no cover, and stop",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/boolean/boxes.rs",
         subject: "circle_box",
         why: Payload(
-            "the extent scan's section-circle box: its cover's bracketed world box \
-             (`Cover::aabb`), padded, and stop",
+            "the extent scan's section-circle box: its cover's box (`cover_box`), and stop",
         ),
     },
     Site {

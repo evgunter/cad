@@ -45,7 +45,7 @@ use geom::Curve3;
 use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
 use geom_core::spline::SplineError;
-use geom_core::{Affine3, FileCoincidence, Point2, Point3};
+use geom_core::{Affine3, FileCoincidence, Point2, Point3, length_out_of_format};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
 use topo::{Body, FaceKey, LoopKey};
@@ -1096,16 +1096,16 @@ fn arc_rim_on_wall_boundary(
         return Ok(());
     };
     let eps = tol.eps();
-    let axis_norm = axis.norm();
-    let u_ref_norm = u_ref.norm();
+    let (a_hat, axis_norm) = axis.direction_and_length();
+    let (u_hat, u_ref_norm) = u_ref.direction_and_length();
     if !(radius.is_finite() && radius > 0.0)
-        || !(axis_norm.is_finite() && axis_norm > 0.0)
-        || !(u_ref_norm.is_finite() && u_ref_norm > 0.0)
+        || length_out_of_format(axis).is_some()
+        || axis_norm <= 0.0
+        || length_out_of_format(u_ref).is_some()
+        || u_ref_norm <= 0.0
     {
         return Err(ArcRimRefusal::Residual(f64::INFINITY));
     }
-    let a_hat = axis.normalize();
-    let u_hat = u_ref.normalize();
     let v_hat = a_hat.cross(u_hat);
     let tau = core::f64::consts::TAU;
     // The angular slack: the ambient band through the lever arm.
@@ -1247,11 +1247,10 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     // verbatim).
     let along = dir.dot(candidate);
     let perpendicular = candidate - dir * along;
-    let norm = perpendicular.norm();
-    if !(norm.is_finite() && norm > 0.0) {
+    let (y, norm) = perpendicular.direction_and_length();
+    if length_out_of_format(perpendicular).is_some() || norm <= 0.0 {
         return None;
     }
-    let y = perpendicular.normalize();
     let z = dir.cross(y);
     Some(Affine3::from_parts(
         geom_core::Mat3::from_cols(dir, y, z),

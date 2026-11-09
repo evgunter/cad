@@ -48,7 +48,7 @@
 //! ([`ReplaceFaceError::NappeStraddles`]), never guessed.
 
 use geom::Surface;
-use geom_brep::ladder::{Climb, Disagree, Kept, Rung, climb_agreeing};
+use geom_brep::ladder::{Climb, Disagree, Rung, climb_agreeing};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
@@ -185,10 +185,7 @@ pub fn group_nappe<T: Decide>(
         faces,
         |&face| match face_nappe(body, face, band) {
             Ok(here) => Rung::Answers(Ok((face, here))),
-            Err(ReplaceFaceError::Escalated { source }) => Kept::of(source)
-                .map(|source| ReplaceFaceError::Escalated { source })
-                .into(),
-            Err(e) => Rung::Aborts(Err(e)),
+            Err(e) => Rung::refused(e, ReplaceFaceError::refusal),
         },
         |a, b| matches!((a, b), (Ok((_, x)), Ok((_, y))) if x == y),
     );

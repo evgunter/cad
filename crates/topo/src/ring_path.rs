@@ -297,7 +297,7 @@ impl<T: Decide> Quadric<T> {
                 let a = (from - centre) / radius;
                 let b = (to - centre) / radius;
                 let m = a.cross(b);
-                let sine = m.norm();
+                let (axis, sine) = m.direction_and_length();
                 if decide(
                     "split_ring_path_span",
                     Margin::levered(
@@ -309,7 +309,6 @@ impl<T: Decide> Quadric<T> {
                 {
                     return Ok(Vec::new());
                 }
-                let axis = m / sine;
                 let arc = CircleArc {
                     circle: geom::Circle::new(geom::Frame::new(centre, axis, a), radius),
                     span: (T::zero(), sine.atan2(a.dot(b))),
@@ -784,12 +783,9 @@ impl<T: Real> LoopArc<T> {
     /// The straight arc from `from` to `to`.
     pub(crate) fn segment(from: Point3<T>, to: Point3<T>) -> Self {
         let d = to - from;
-        let length = d.norm();
+        let (dir, length) = d.direction_and_length();
         Self::Line {
-            line: geom::Line {
-                origin: from,
-                dir: d / length,
-            },
+            line: geom::Line { origin: from, dir },
             span: (T::zero(), length),
         }
     }

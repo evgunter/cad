@@ -763,6 +763,24 @@ pub enum ReplaceFaceError<T: Real> {
 }
 
 impl<T: Real> ReplaceFaceError<T> {
+    /// **This refusal's standing** ([`geom_brep::ladder::Refusal`]): an
+    /// [`Escalated`](Self::Escalated) reading is kept by its margin.
+    /// Every other kind refuses the whole query: a face that does not
+    /// resolve, a nappe that straddles, a structural refusal, none of
+    /// which a later reading answers past.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`] for every kind but `Escalated`.
+    pub(crate) const fn refusal(
+        &self,
+    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        match self {
+            Self::Escalated { source } => Ok(geom_brep::ladder::Refusal::Margin(*source)),
+            _ => Err(geom_brep::ladder::Aborts),
+        }
+    }
+
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,

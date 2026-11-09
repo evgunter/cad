@@ -98,7 +98,7 @@ once at its hit lines and its exits.
 | `geom_brep::pair_section::ended_by` | 1718, 1757 | NOT A SEARCH: a unique-holder read |
 | `geom_brep::pair_section::site` | 2684 | NOT A SEARCH: a unique-holder read (a site on two components refuses) |
 | `geom_brep::pcurve_cache::projected::met_floors` | 2354 | NOT A SEARCH: a fold |
-| `geom_brep::props::curved::unanimous_rim_side` | 1283 | **ported** (`onecopy/refusal-standing`, QML T1): `climb_agreeing` over the rims. No move is reachable: every rim lies at `lo` or `hi`, so each rim's margin is ±(hi − lo), and all are in band or none |
+| `geom_brep::props::curved::unanimous_rim_side` | 1283 | **ported** (`onecopy/refusal-standing`, QML T1): `climb_agreeing` over the rims. A move is reachable only at the rounding's width: every rim is required at `lo` or `hi` first, so each rim's margin is ±(hi − lo) up to how far its level sits from that extreme (within the band), and the rims read in band together or not, except where `hi − lo` itself sits at the band's edge |
 | `geom_brep::props::curved::torus_chart` | 5389 | NOT A SEARCH: a fold over every loop |
 | `step_import::entities::loop_u_wrap` | 2084 | NOT A SEARCH: every use is read (an `Option` `?`, running `prev`) |
 | `sweep::blend::surgery::ring_clearance_pass` | 2874, 2887, 2896 | NOT A SEARCH: a minimum over every ring. It raises the argmin question `offset_derive::nearest` raises above |

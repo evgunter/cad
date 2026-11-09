@@ -442,13 +442,12 @@ fn half_plane<T: Decide>(
             what: "a boundary edge whose carrier places no parameter",
         })?;
     let d = carrier.deriv(t);
-    let speed = d.norm();
-    let unit = if forward { d / speed } else { -(d / speed) };
+    let (u, speed) = d.direction_and_length();
+    let unit = if forward { u } else { -u };
     let bend = match carrier {
         geom::Curve3::Line(_) => Some(Vec3::new(T::zero(), T::zero(), T::zero())),
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let dd = carrier.deriv2(t);
-            let u = d / speed;
             Some((dd - u * dd.dot(u)) / speed.powi(2))
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,

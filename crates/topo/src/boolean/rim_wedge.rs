@@ -867,13 +867,12 @@ fn crossings<T: Decide>(
                     if maybe_zero(rr) && maybe_zero(qc) {
                         // Coplanar circles: the two intersection points.
                         let d = rim.center - ce;
-                        let dist = d.norm();
+                        let (ux, dist) = d.direction_and_length();
                         if maybe_nonzero(dist) {
                             let x = (dist.powi(2) + re.powi(2) - rim.radius.powi(2))
                                 / (dist * T::from_f64(2.0));
                             let y2 = re.powi(2) - x.powi(2);
                             if maybe_not_positive(-y2) {
-                                let ux = d / dist;
                                 let uy = ae.cross(ux);
                                 let y = y2.max(T::zero()).sqrt();
                                 candidates.push(ce + ux * x + uy * y);
