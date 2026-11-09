@@ -174,7 +174,7 @@ use crate::merge_faces::MergeCoplanarError;
 #[cfg(feature = "sweep-testing")]
 use crate::sweep_trace::SweepPairs;
 use crate::validate::ValidationError;
-use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence, rung_or_abort};
+use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
 
 pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CoincidenceMeasure, ConsumedExtent, carrier_eq,
@@ -6462,7 +6462,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         reads.push(read);
                         Rung::Passes
                     }
-                    Err(e) => rung_or_abort(e.refusal(), e, core::convert::identity),
+                    Err(e) => Rung::refusing(e, BooleanError::refusal),
                 }
             });
             match climbed {

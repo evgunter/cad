@@ -79,7 +79,7 @@
 //! same cone, its partners' faces alone.
 
 use geom_brep::OutwardNormal;
-use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb, climb_evidence, rung_or_abort};
+use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb, climb_evidence};
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -1857,7 +1857,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         let climbed = climb_evidence(Answering::First, held, |read| {
             let read = match read {
                 Ok(read) => read,
-                Err(e) => return rung_or_abort(e.refusal(), e, core::convert::identity),
+                Err(e) => return Rung::refusing(e, BooleanError::refusal),
             };
             // Two pierces of one face at one point would mint two ring
             // vertices there. No row reaches the pose, so no answer here
@@ -1882,7 +1882,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                         pierced_kind: kind(pierced_body, read.pierced),
                         placed: true,
                     };
-                    return rung_or_abort(unbuilt.refusal(), unbuilt, core::convert::identity);
+                    return Rung::refusing(unbuilt, BooleanError::refusal);
                 }
                 Climb::Passed => Rung::Passes,
                 Climb::Undecided(diag) => {

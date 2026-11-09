@@ -316,6 +316,15 @@ impl<A, E> Rung<Result<A, E>, E> {
     }
 }
 
+impl<E> Rung<E, E> {
+    /// The rung a reading refused with `e` stands as, for a ladder whose
+    /// abort is the refusal itself: kept by its kind, or stopping the
+    /// ladder with `e` ([`rung_or_abort`]).
+    pub fn refusing(e: E, standing: impl FnOnce(&E) -> Result<Refusal, Aborts>) -> Self {
+        rung_or_abort(standing(&e), e, core::convert::identity)
+    }
+}
+
 /// **What an answer may do with the kept readings ahead of it**, which
 /// the caller of [`climb`] declares.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
