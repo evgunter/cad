@@ -5382,6 +5382,12 @@ fn line_cone_roots<T: Decide>(
             // crossing the caller places on the face's apex vertex, the
             // edge's incidence with it, which the vertex pair reads. The
             // root is the end the apex is decided at, else the foot.
+            // WHICH, not a search a later end may answer past
+            // ([`geom_brep::ladder::Answering::First`]'s rule, several rungs may answer): both
+            // ends can read at the apex within the band, on an edge about a band long, and the
+            // end the apex is decided at is the root whose spread is read next, so an end in
+            // band ahead of the other decided at the apex may be the true root, and its
+            // escalation refuses.
             let mut at_apex = foot;
             for end in [t0, t1] {
                 if decide("bool_line_cone_apex", Margin::norm3(at(end)), band).map_err(escalate)?

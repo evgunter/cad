@@ -7,6 +7,7 @@
 
 use geom::Curve3;
 use geom_brep::curve_pair::{self, Hit, MeetFault, Span, SpanEnd};
+use geom_brep::ladder::read_identity;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Tol, Vec3};
 use profile::{SegmentKind, SketchPlane, ValidatedProfile};
 
@@ -43,19 +44,26 @@ fn corner_pinned<T: Decide>(a: Point3<T>, b: Point3<T>, band: Band) -> Result<bo
 }
 
 /// Whether every control row of a segment's two section curves decides
-/// one point: the segment is the same curve in both sections.
+/// one point: the segment is the same curve in both sections. An
+/// identity: any row decided apart answers "not pinned", whatever an
+/// earlier row read ([`read_identity`]).
 fn rim_pinned<T: Decide>(
     a: &[Point3<T>],
     b: &[Point3<T>],
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    for (p, q) in a.iter().zip(b) {
-        if decide("loft_rim_pinned", Margin::norm3(*q - *p), band)? != Sign::Zero {
-            return Ok(false);
-        }
-    }
-    Ok(true)
+    read_identity(
+        a.iter()
+            .zip(b)
+            .map(|(p, q)| (LOFT_RIM_PINNED, Margin::norm3(*q - *p))),
+        band,
+    )
+    .holds()
 }
+
+/// [`rim_pinned`]'s predicate name, carried to the funnel by
+/// [`read_identity`].
+const LOFT_RIM_PINNED: &str = "loft_rim_pinned";
 
 /// **The stacking door**, at the site the skin follows ([`fn@super::build`]):
 /// slab `s` is the pair of sections `(s, s + 1)`, read on their
@@ -495,5 +503,34 @@ fn step<T: Decide>(
     {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(LoftError::FarSectionNotForward { slab }),
+    }
+}
+
+/// **A row decided apart answers "not pinned" past one in band**
+/// ([`rim_pinned`] reads its rows as one identity). Read through the
+/// production reader.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod rim_pinned_rows {
+    use geom_core::{Band, Point3, Tol};
+
+    use super::rim_pinned;
+
+    #[test]
+    fn a_row_apart_answers_past_a_row_in_band() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("a valid band");
+        let m = 0.5 * (1.0 + tol.k()) * tol.eps();
+        let a = [Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)];
+        let b = |off: f64| [Point3::new(m, 0.0, 0.0), Point3::new(1.0, off, 0.0)];
+        assert_eq!(
+            rim_pinned(&a, &b(1.0), band),
+            Ok(false),
+            "a row a unit apart is not pinned, whatever the first row read"
+        );
+        assert!(
+            rim_pinned(&a, &b(0.0), band).is_err(),
+            "with every other row pinned, the row in band refuses"
+        );
     }
 }

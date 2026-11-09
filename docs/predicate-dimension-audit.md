@@ -1558,12 +1558,27 @@ Flagged, NOT fixed here (dispositions):
   site; `LEDGER_FLAGGED_SITES` does not move.
 
 - **F31** (added by ONECOPY's foot-and-angle unit, widened by its
-  angle-reads unit) — **a renaming between copies equal modulo a
-  period.** Two sites, each choosing between names of one value:
+  angle-reads unit, and by its half-open-angles unit) — **a renaming
+  between copies equal modulo a period.** Three sites, each choosing
+  between names of one value:
   - `geom_core::Period::near` (`period_near_mark`): the half-period
     marks about a reference that pick which copy `t + k·P` of a value
     lies within half a period of it. A tie, a mark decided zero or
     undecided, takes the upper copy.
+  - `geom_core::Period::above` and `Period::at_or_above`
+    (`period_window_end`, a `k_stats::choose` under this row): the side of `a` on which `near`'s copy about
+    `a` lies, which decides whether it is lifted a period into
+    `(a, a + P]` or `[a, a + P)`. A tie, the side decided zero or
+    undecided, takes the window's closed end. Closed at `a`, a point
+    lift that rounds onto `a + P` (`period_window_open_end`, the same
+    door) reads `a`: at `f64`, every finite value. An enclosure that
+    ties there keeps its lifted copy, which it encloses. Step-import's conic edge
+    intervals, its rim split and its ray walk read here.
+    Those three read at `f64`, where the side of `a` is a float
+    difference's sign and is exact. An extent formed off the window
+    (an arc's `t1 − t0`: a whole turn or none at a tie) is a reading
+    of the decision, so an enclosure caller that forms one would need
+    the side logged at its own band, as `pcurve_chart_cut_side` is.
   - `geom::Azimuth::near` (`azimuth_near_cut_side`): which of the angle
     window's two `atan2` formulas, equal modulo a turn, reads the
     direction, before `Period::near` renames the read. A harmonic's
@@ -1583,8 +1598,9 @@ Flagged, NOT fixed here (dispositions):
   the driver an escalation no box answers, on every angle read half a
   turn from its reference.
 
-  **Carried as `k_stats::unlogged("F31", ..)`**, both at `Band::least()`.
-  Their K samples still reach the sink under the two names above. A
+  **Carried as `k_stats::unlogged("F31", ..)`**, and the window end as
+  `k_stats::choose(.., "F31")`, all at `Band::least()`. Their K samples
+  still reach the sink under the three names above. A
   margin decided at `Band::least()` is not a length against ε, and its
   sample says so (`MarginSample::reads_sign_only`), so a reader that
   asks how margins scale with the model, such as the twin suites, reads
@@ -1719,12 +1735,15 @@ Flagged, NOT fixed here (dispositions):
   - So the logged tie was never the driver's only cue. Where a dropped
     step leaves a meeting unproved, the window's escalation is the cue,
     on a row a box answers.
-  - Measured on this unit's head (`ci` profile, instrumented locally and
-    not kept): over the `geom-brep` and `topo` suites, 17,883 steps
-    were dropped at `Interval`, every one decided, and no step tied at
-    either scalar; `editor-core`'s suite reaches no polish step. The
-    move changes no outcome those suites reach; it is argued on the
-    tie's soundness, which
+  - Measured (`ci` profile, default ε, instrumented locally and not
+    kept), over the `geom-brep` and `topo` suites: `step_taken` is read
+    31,304 times at `f64`, which keeps 25,997 steps and drops 5,305 (one
+    of them a tie), and twice at `Interval`, which keeps one and drops
+    one, a tie. A dropped step ends the polish (`polish::pair`): the
+    iterate has not moved, so the next step would be the same one.
+    `editor-core`'s suite reaches no polish step. The move changes no
+    outcome those suites reach; it is argued on the tie's soundness,
+    which
     `curve_pair::walk::tests::a_polish_step_at_its_bound_or_astride_it_is_dropped`
     pins (an exact `16·slack` and an enclosure astride it are dropped,
     off the verdict log).
