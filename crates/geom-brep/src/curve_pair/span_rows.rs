@@ -617,23 +617,25 @@ fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
 
 /// **A span over a hairpin closer than the band reads `On` at the
 /// seed's branch at `Interval`**. The whole span of a hairpin whose
-/// branches lie 3e-10 apart, inside the 1e-9 zero, read the way an edge's
+/// branches lie 1e-10 apart, inside the 1e-9 zero, read the way an edge's
 /// span is read: at a ±1e-10 box about a point of the near branch
 /// (`t = 0.08`) seeded on the far branch, it reads `On` at `t ≈ 0.92`,
-/// where the tangent is reversed, with nothing logged; seeded at the
-/// span's middle (the census's seed) it escalates; at `f64` it reads the
-/// near branch from either seed.
+/// where the tangent is reversed, with nothing logged (the two branches'
+/// gaps tie on the box, and the polish keeps the seed's); seeded at the
+/// span's middle (the census's seed) it reads `On` at the near branch;
+/// at `f64` it reads the near branch from either seed.
 ///
 /// The carrier is not one an edge can hold: its tip speed is `1.5·h`, so
 /// `EdgeCurve::certify` refuses it `SpanMeterCollapsed`. The row pins the
-/// reader on a bare carrier. A fix that gates edges at the certificate
-/// leaves it green, and one that certifies the branch at the reader turns
-/// it red (`a-carriers-branches-within-the-band-of-each-other`).
+/// reader on a bare carrier: what a reader of the branch rests on is
+/// the at-rest gate's embedding certificate (`DESIGN.md`
+/// `[topology.tiers]`), and a reader that certifies the branch itself
+/// turns it red.
 #[test]
 fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
     use super::Reading;
     use geom_core::{Bounds, Interval, Real};
-    let c = cubic_hairpin(3e-10);
+    let c = cubic_hairpin(1e-10);
     let p = c.eval(0.08);
     for seed in [0.5, 0.92] {
         let read = Span::new(&c, (0.0, 1.0)).read(p, seed, band());
@@ -651,13 +653,7 @@ fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
     );
     let mid = span.read(boxed(p, 1e-10), Interval::from_f64(0.5), band());
     assert!(
-        matches!(
-            mid,
-            Err(super::SpanRefusal {
-                refused: geom::CarrierRefusal::Escalated(_),
-                ..
-            })
-        ),
-        "Interval, the span's middle: escalates: {mid:?}"
+        matches!(&mid, Ok(Reading::On { t, .. }) if t.hi() < 0.5),
+        "Interval, the span's middle: on at the near branch: {mid:?}"
     );
 }
