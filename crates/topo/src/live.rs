@@ -389,7 +389,9 @@ pub(crate) enum BoundaryMember<'a, T: Real> {
     },
 }
 
-/// One loop of a face as [`Body::unchecked_face_boundary`] reads it.
+/// One loop of a face as [`Body::unchecked_face_boundary`] reads it: a
+/// mirror of [`LoopBoundary`], whose discards `loop-boundary-discards.sh`
+/// reads off this declaration's variants. [loop-boundary-mirror]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum UncheckedLoop {
     /// An isolated-vertex loop's vertex.

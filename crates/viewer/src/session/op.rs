@@ -604,10 +604,11 @@ pub enum SessionOp {
     /// from its start cap, flipped, to the face's plane, its origin
     /// over the face body's own and turned `spin` about the face's
     /// normal — and the face's body and the copy fused, as ONE action
-    /// (`Recording::sketch_on_face`), the union taking over what read
-    /// the face's body (A10, Ev's residue 1).
+    /// (`Recording::sketch_on_face`), the union taking over the `⊔`
+    /// operands and the product slot that read the face's body (A10).
+    /// The made node is the profile, the piece the gesture adds.
     ///
-    /// A pick on a copy is read on the body it places. A face whose
+    /// A pick on a copy is read on that copy (Ev, PR 6353). A face whose
     /// node is no body refuses [`Refusal::WrongNodeKind`]; every other
     /// refusal is the edit door's ([`Refusal::Edit`]), and a face that
     /// is not planar or does not resolve refuses at evaluation, on the
@@ -737,15 +738,16 @@ pub enum SessionOp {
     /// not refused: a repeated read glues, so it is a document like any
     /// other.
     ///
-    /// **The result takes the operands' place in the world** (A10, Ev's
-    /// residue 1): the placements of the first operand the world
-    /// places, in the spec's order, are taken over by the boolean
-    /// (`Recording::take_over`: re-pointed, and what read them
-    /// rebound where it carries it), and every other operand's placements are
-    /// deleted, in the same action — so a combine of placed bodies
-    /// leaves the world `[result]`, and one undo restores them. A
-    /// repeated operand counts once; operands nothing places place
-    /// nothing.
+    /// **The result takes the operands' place where they were seen**
+    /// (A10; Ev, PR 6353): the `⊔` operands and the product slot reading
+    /// the first operand something reads so, in the spec's order, read
+    /// the boolean instead, and every other operand's `⊔` seats are
+    /// dropped, in the same action. No placement is written: a combine
+    /// of copies picked in the viewport reads the copies, which it hides
+    /// by reading them; a combine of bodies picked as themselves offers
+    /// to re-point the first's placements onto the result
+    /// ([`SessionOp::RepointPlacements`]). A repeated operand counts
+    /// once.
     ///
     /// **Operands in two spaces are related by a placement** (D10): each
     /// operand after the first whose value lives in another space than
@@ -765,15 +767,15 @@ pub enum SessionOp {
     /// tool's one committed action. A split defines two bodies, its
     /// `above` and `below` outputs, and a half is read by its port
     /// wherever a body seat takes one. What reads the target along a
-    /// seen path (a placement's source, a `⊔` operand, the product
-    /// slot) reads `above ⊔ below` instead, in the same action, so each
-    /// copy shows the two halves where it showed the body. A copy is
-    /// re-pointed through the kernel's takeover (`Recording::take_over`,
-    /// asked about the two halves beside the body), which re-seats a
-    /// mate on a face of the copy the split leaves intact; a mate on a
-    /// face it cuts stays stale, the mated placement failing `Vanished`
-    /// on the face's name. A `⊔` operand and the product slot are
-    /// re-pointed alone, and nothing read through them is re-seated
+    /// seen path (a `⊔` operand, the product slot) reads `above ⊔ below`
+    /// instead, in the same action; no placement's source is written
+    /// (Ev, PR 6353). Where placements read the target, `above ⊔ below`
+    /// is written too: the one new body the split makes, as a fillet
+    /// makes `fillet(B)`, which offers to re-point those placements onto
+    /// it ([`SessionOp::RepointPlacements`]). Picked on a copy, the split
+    /// reads that copy, so its halves stand where the copy stood. A `⊔` operand and the product
+    /// slot are re-pointed alone, and nothing read through them is
+    /// re-seated
     /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
     /// The plane is any plane the document reads in the target's space
@@ -792,18 +794,16 @@ pub enum SessionOp {
     },
     /// **Mirror an existing body across the plane of a picked face** —
     /// the mirror tool's one committed action. The plane is the face's
-    /// own, read where it was picked: a pick on a copy is read on the
-    /// body the copy places (`crate::world::body_of`), so the plane reads
-    /// the geometry of the body's space, as a mirror's plane must.
+    /// own, read where it was picked: a pick on a copy is read on that
+    /// copy, in the copy's space, where the mirrored body stands.
     ///
     /// The body becomes the symmetric part: the image (`Node::Mirror`)
     /// and the union of the body and its image, in the body's space,
-    /// what reads the body along a seen path taken over by the union —
-    /// the feature takeover a fillet makes (`Recording::take_over`) — so
-    /// the part is drawn where each copy stands and moves with the
-    /// copy's placement. A mate that another placement seats on a face
-    /// of the body's copy is re-seated where the union carries the face
-    /// whole, and goes stale where it does not, as at a fillet.
+    /// what reads the body along a seen path (a `⊔` operand, the
+    /// product) taken over by the union. Picked on a copy, the body is
+    /// that copy, so the part stands where the copy stands and moves
+    /// with the copy's placement; no placement's source is written (Ev,
+    /// PR 6353). The made node is the image, the piece the gesture adds.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
     /// a face read in another space — another construction's, or its
@@ -833,9 +833,11 @@ pub enum SessionOp {
     /// committed edit: an index `k = index(count)` and one placement of
     /// the body in its own space whose values read it (D10
     /// `[repetition]`), a family of `count` copies. The family lands
-    /// where the body was seen and takes over what read it, member 0
-    /// standing where the body stood; a pick on a drawn member seats
-    /// that member.
+    /// where the body was seen — a copy picked in the viewport is
+    /// repeated in its own space — and takes over the `⊔` operands and
+    /// the product slot that read it, member 0 standing where the body
+    /// stood; it writes no placement's source (Ev, PR 6353). A pick on a
+    /// drawn member seats that member.
     ///
     /// The count is an `i64` and lands as the index's exact Count
     /// literal, edited afterwards by redefining the index. Any count is
@@ -866,9 +868,10 @@ pub enum SessionOp {
     /// as the unfused door's does. A user who already authored the
     /// unfused pattern fuses it with a boolean over the family instead.
     ///
-    /// **The fused body takes the prototype's place in the world** (A10,
-    /// Ev's residue 1): the prototype's placements are taken over by it
-    /// (`Recording::take_over`) in the same action.
+    /// **The fused body takes the prototype's place where it was seen**
+    /// (A10): the `⊔` operands and the product slot reading the
+    /// prototype read it, in the same action; no placement's source is
+    /// written (Ev, PR 6353).
     ///
     /// **Whether the copies meet is the union's question, not this
     /// door's**: the door authors what the user asked for and the union
@@ -884,11 +887,15 @@ pub enum SessionOp {
     },
     /// Insert one constant-radius fillet on a SET of an existing
     /// body's edges — the blend tool's one committed action, as a
-    /// fillet, taking over what read the body (A10, Ev's residue 1).
+    /// fillet, taking over the `⊔` operands and the product slot that
+    /// read the body (A10).
     ///
-    /// **A target that is a world placement is read on the body it
-    /// places**: the fillet reads that body, and a copy carries its
-    /// body's names as they are, so each selected name is the body's.
+    /// **A target that is a copy is read on the copy** (Ev, PR 6353): the
+    /// fillet reads that placed copy alone, in its space, and writes no
+    /// placement's source; a copy carries its body's names as they are,
+    /// so each selected name is the body's. A target picked as a body
+    /// itself makes a new body, which offers to re-point the body's
+    /// placements ([`SessionOp::RepointPlacements`]).
     ///
     /// **The selection is a frozen commitment** (`Node::Fillet`'s
     /// ratified #217 semantics): what is authored here is what the
@@ -1038,6 +1045,20 @@ pub enum SessionOp {
         /// The output body a viewport pick hit, for a node with several
         /// outputs (a split's halves); `None` for a tree row.
         body: Option<u32>,
+    },
+    /// **Re-point the placements of `body` onto `onto`** (Ev, PR 6353):
+    /// the explicit step a feature on a body picked as itself offers
+    /// (`crate::world::repoint_offer`). Every placement reading the
+    /// variable `body` names has its source re-pointed to `onto`
+    /// through the kernel's takeover (`Recording::take_over`), which
+    /// rebinds what reads each copy, and each copy's mates read their
+    /// `on` side off `onto` where it carries the face. One action, one
+    /// undo. No feature gesture does this unasked.
+    RepointPlacements {
+        /// The body whose placements are re-pointed, as a seat reads it.
+        body: Operand,
+        /// The node whose body they place from now on.
+        onto: RecipeNodeId,
     },
     /// **A creation, labelled**: the creation's own edits and then a
     /// `DocEdit::SetLabel` on the node it made (`OpOutcome::made`), as
@@ -1286,6 +1307,7 @@ impl SessionOp {
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
             | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. }
             | Self::CreateLabelled { .. } => false,
         }
     }
@@ -1371,6 +1393,7 @@ impl SessionOp {
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
             | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. }
             | Self::CreateLabelled { .. } => None,
         }
     }
@@ -1599,7 +1622,8 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
-            | Self::AddToProduct { .. } => false,
+            | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. } => false,
             // A labelled creation is its creation, labelled.
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
@@ -1732,7 +1756,8 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
-            | Self::AddToProduct { .. } => true,
+            | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
     }
@@ -1830,7 +1855,8 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
-            | Self::AddToProduct { .. } => false,
+            | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. } => false,
             Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }
