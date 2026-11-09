@@ -8,10 +8,10 @@
 //! margins tie exactly at a symmetric nominal. A trimmed sphere's aim
 //! (a lens of two balls) certifies nothing onto its sphere either.
 //!
-//! A curved aim's on-carrier foot is not among what the rows see: its
-//! seed's copy is decided outside the log (`Azimuth::near`, audit row
-//! F31), and `work/onecopy/the-side-readers-curved-aim-foot-is-unguarded`
-//! holds guarding it another way.
+//! A curved aim's on-carrier foot is decided outside the log
+//! (`Azimuth::near`, audit row F31), so the verdict log cannot see it;
+//! its samples reach the `probe` sink, and the rod's aims at `Probe` take
+//! none of them.
 
 #![allow(clippy::expect_used)]
 
@@ -112,4 +112,51 @@ fn a_rod_and_a_drilled_plate_read_their_side_by_turns_alone() {
             .collect();
         assert!(asked.is_empty(), "{what}: the aims ask {asked:?}");
     }
+}
+
+/// The names a circle foot's samples reach the `probe` sink under
+/// (`Azimuth::near`, audit row F31): its window's cut side and the
+/// period's half-turn marks.
+#[cfg(feature = "probe")]
+const FOOT: [&str; 2] = ["azimuth_near_cut_side", "period_near_mark"];
+
+/// **No aim at the rod's walls takes a circle foot**: every face's aimed
+/// ray, at `Probe`, records no sample under [`FOOT`]. A point inside the
+/// rod, classified against it, does: its rays' wall crossings read their
+/// azimuth, so the sink sees the names on this body.
+#[cfg(feature = "probe")]
+#[test]
+fn the_rods_aims_take_no_circle_foot() {
+    use geom_core::k_stats;
+    use geom_core::{Point3, Probe};
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    let p = Probe;
+    let disc = vec![
+        (Point2::new(p(0.25), p(0.0)), p(1.0)),
+        (Point2::new(p(-0.25), p(0.0)), p(1.0)),
+    ];
+    let rod = finished("rod", prism_at(disc, p(0.0), p(1.0), tol), tol);
+    let foot = |samples: Vec<k_stats::MarginSample>| {
+        samples
+            .into_iter()
+            .filter(|s| FOOT.contains(&s.predicate))
+            .count()
+    };
+    k_stats::start_recording();
+    let read = topo::test_support::each_aim(&rod, band);
+    let taken = foot(k_stats::take_samples());
+    assert!(
+        read.iter().any(|r| r.ends_with(": Ok(Side(Out))")),
+        "the aims read the outside: {read:#?}"
+    );
+    assert_eq!(taken, 0, "the aims take a circle foot: {read:#?}");
+    k_stats::start_recording();
+    let inside = topo::point_in_solid(&rod, Point3::new(p(0.0), p(0.0), p(0.5)), band, tol);
+    let witnessed = foot(k_stats::take_samples());
+    assert!(
+        matches!(inside, Ok(topo::SolidContainment::In)) && witnessed > 0,
+        "the rod's axis point classifies In and takes a circle foot, so the sink sees the \
+         names: {inside:?}, {witnessed} samples"
+    );
 }

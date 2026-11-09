@@ -545,9 +545,14 @@ fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     }
 }
 
-/// Whether the face holds `p`, a piece's midpoint on its carrier: `In`
-/// is `true`, `Out` is `false`, and a point the read does not place is
-/// `None`.
+/// The predicate [`contains`] decides a midpoint on a planar face's
+/// plane by ([`super::contain::face_placement`]).
+const RIM_ON_PLANE: &str = "bool_rim_wedge_on_plane";
+
+/// Whether the face holds `p`, a piece's midpoint on its carrier, as
+/// the one placement reads it ([`super::contain::face_placement`]): `In`
+/// is `true`, `Out` (off the carrier included) is `false`, and a point
+/// the read does not place is `None`.
 ///
 /// **A midpoint on the face's boundary is not placed.** The cut walk
 /// puts every point where the face's boundary meets the locus at a cut,
@@ -570,33 +575,38 @@ fn contains<T: Decide>(
         predicate: Some("seam_cover_unread"),
         terminal_sliver: false,
     };
-    let lift = |e: super::contain::ContainError| match e {
-        super::contain::ContainError::Escalated { diag, .. } => diag,
-        super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
-        _ => unread,
+    use super::contain::{
+        ContainError, CurvedPlacement, FaceContainment, PlacementError, face_placement,
     };
-    let read = match body.proven_face(face).surface() {
-        geom::Surface::Plane { normal, .. } => {
-            super::contain::contfp(body, face, *normal, p, band).map(Some)
+    let read = match face_placement(body, face, p, band, RIM_ON_PLANE) {
+        Ok(read) => read,
+        // The boundary pass placed the point at an arc's end and clear of
+        // its corners, two definite readings no verdict reconciles at this
+        // band: the read does not place the point, as it does not place a
+        // boundary curve outside its envelope.
+        Err(PlacementError::Door(ContainError::ArcEndClearOfCorners(_))) => return Ok(None),
+        Err(PlacementError::Door(ContainError::StaleFace(face))) => {
+            super::contain::driver_face_stale(face)
         }
-        _ => super::contain::curved_face_containment(body, face, p, band),
-    };
-    // The boundary pass placed the point at an arc's end and clear of
-    // its corners, two definite readings no verdict reconciles at this
-    // band: the read does not place the point, as it does not place a
-    // boundary curve outside its envelope.
-    let read = match read {
-        Err(super::contain::ContainError::ArcEndClearOfCorners(_)) => return Ok(None),
-        read => read.map_err(lift)?,
+        Err(PlacementError::OnPlane(diag)) => return Err(diag),
+        // Any other refusal, by its standing ([`ContainError::refusal`]):
+        // a margin is the escalation, the rest leave the piece unread.
+        Err(PlacementError::Door(e)) => {
+            return Err(match e.refusal() {
+                Ok(geom_brep::ladder::Refusal::Margin(diag)) => diag,
+                _ => unread,
+            });
+        }
     };
     match read {
-        Some(super::contain::FaceContainment::In) => Ok(Some(true)),
-        Some(super::contain::FaceContainment::Out) => Ok(Some(false)),
-        Some(
-            super::contain::FaceContainment::OnEdge(_)
-            | super::contain::FaceContainment::OnVertex(_),
-        ) => Ok(None),
-        None => Err(unread),
+        CurvedPlacement::Trim(Some(FaceContainment::In)) => Ok(Some(true)),
+        CurvedPlacement::OffCarrier | CurvedPlacement::Trim(Some(FaceContainment::Out)) => {
+            Ok(Some(false))
+        }
+        CurvedPlacement::Trim(Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))) => {
+            Ok(None)
+        }
+        CurvedPlacement::Trim(None) => Err(unread),
     }
 }
 
