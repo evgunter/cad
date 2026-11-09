@@ -370,10 +370,12 @@
 //!   other carrier is the found meeting's own stretch (C5), which the
 //!   found meeting already answers;
 //! - **with no ring**, an arc holds no point within the band's
-//!   escalation of the other carrier: every piece reads off past the
-//!   escalation. Here a near-miss in the gap answers to nothing found, so
-//!   reading it off past the zero would decide a pair the band leaves
-//!   undecided. Past the escalation, it is decided apart.
+//!   escalation of the other span: every piece reads off past the
+//!   escalation, of the other carrier or, where that carrier runs on past
+//!   its span beside the arc, of the span itself. Here a near-miss in the
+//!   gap answers to nothing found, so reading it off past the zero would
+//!   decide a pair the band leaves undecided. Past the escalation, it is
+//!   decided apart.
 //!
 //! Every other plane root is polished and bounded as it would be with no
 //! meeting found; a candidate it gives nearer a found meeting than the
@@ -1360,7 +1362,7 @@ fn transverse<T: Decide>(
         a: ka,
         span_a: a.params(),
         b: kb,
-        carrier_b: b.carrier(),
+        span_b: b,
         height: (c0, cp, sp),
     };
     let joints: Vec<_> = known

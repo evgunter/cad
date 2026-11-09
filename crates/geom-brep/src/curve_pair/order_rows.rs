@@ -640,12 +640,13 @@ fn spun(c: &Curve3<f64>, at: Point3<f64>, k: Vec3<f64>, t: f64) -> Curve3<f64> {
 /// both orders. And the near-circle alone turned about the tangent, the
 /// long ellipse's normal and their cross, by up to `10⁻⁴` either way: the
 /// end stays shared ([`span_gap`] in the zero band), and each pose reads
-/// one meeting in both orders, but for one that refuses in both
-/// (`meet-refuses-a-near-tangent-tilt-in-both-orders`). A refused pose
-/// that comes to decide reads one meeting too. Turned about the cross by
-/// `±10⁻⁵`, the near-circle's height above the long ellipse's plane dips
-/// into the band's gap: red where an extreme of a height in the gap
-/// escalates rather than placing a touch for its window.
+/// one meeting in both orders. Turned about the cross by `±10⁻⁵`, the
+/// near-circle's height above the long ellipse's plane dips into the
+/// band's gap: red where an extreme of a height in the gap escalates
+/// rather than placing a touch for its window. Turned about the normal by
+/// `−10⁻⁴`, the long ellipse's plane root lies beside the near-circle's
+/// carrier past its span, within the band's gap of it: red where an arc
+/// no ring bounds is read off the other carrier only, not its span.
 #[test]
 fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
     let [(a, sa), (b, sb)] = needle_pair();
@@ -672,8 +673,6 @@ fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
             bad.extend(agree(&label, (&a, &b), &got, &back, at));
         }
     }
-    // The residue's one, `(axis, tilt)`.
-    let refused = [(1, -1e-4)];
     for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
         .iter()
         .enumerate()
@@ -689,10 +688,8 @@ fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
                 bad.push(format!("{label}: the end parts by {gap:e}"));
             }
             let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
-            let one = |r: &Read| matches!(r, Ok(m) if m.points.len() == 1);
-            let residue = refused.contains(&(n, t));
             for (order, r) in [("first first", &got), ("second first", &back)] {
-                if !(one(r) || residue && r.is_err()) {
+                if !matches!(r, Ok(m) if m.points.len() == 1) {
                     bad.push(format!("{label}, {order}: not one meeting: {r:?}"));
                 }
             }
@@ -710,7 +707,11 @@ fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
 /// near-circle's plane root, beside no found meeting, reads off past the
 /// escalation throughout its window: no meeting, in both orders. Red
 /// where a window with no ring is not read, and the root goes to a polish
-/// whose basin the near-parallel tangents leave unproved.
+/// whose basin the near-parallel tangents leave unproved. Turned about
+/// the normal by `10⁻⁶`, the long ellipse's arc there passes within the
+/// band's gap of the near-circle's carrier past its span ([`span_gap`]
+/// against the whole carrier, `2.5·10⁻¹²`), and reads off only against
+/// the span.
 #[test]
 fn the_needle_tilted_about_its_far_vertex_reads_no_meeting_where_the_window_is_off() {
     let [(a, sa), (b, sb)] = needle_pair();
@@ -725,6 +726,7 @@ fn the_needle_tilted_about_its_far_vertex_reads_no_meeting_where_the_window_is_o
         ("about the tangent by -1e-4", tangent, -1e-4),
         ("about the cross by -1e-6", cross, -1e-6),
         ("about the cross by -1e-5", cross, -1e-5),
+        ("about the normal by 1e-6", normal, 1e-6),
     ] {
         let b = spun(&b, vertex, k, t);
         let gap = span_gap(&a, sa, &b, sb);

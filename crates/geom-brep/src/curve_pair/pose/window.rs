@@ -10,7 +10,7 @@
 //!
 //! - **(i) off** (`curve_pair_window_off`): a lower bound on the distance
 //!   `d` to `b`'s carrier past the zero band — the greater of the middle's
-//!   [`Curve3::clearance`] less the piece's reach, and the least `|H|`;
+//!   [`geom::Curve3::clearance`] less the piece's reach, and the least `|H|`;
 //! - **on** (`curve_pair_window_on`): an upper bound inside the zero band —
 //!   the middle's foot gap plus the reach, `√(|H|² + (L·|F|)²)` at most,
 //!   or the foot gap carried along `b` (below);
@@ -21,7 +21,13 @@
 //! escalation rather than its zero: it answers to no found meeting, so a
 //! point within the gap there is a near-miss the band leaves undecided,
 //! and the root goes to the polish, which escalates on it (the parent
-//! module's docs).
+//! module's docs). **Off there is off `b`'s span**, not only its carrier:
+//! where `b`'s carrier runs on past its span beside `a`, a piece whose
+//! carrier readings fail is read against the span by its carrier's point
+//! walk (`curve_pair_window_off_span`). Each piece of such an arc stands
+//! alone, so the span's reading needs nothing of its neighbours. An arc
+//! a ring bounds reads the carrier only: its pieces are read outward in a
+//! chain whose receding link is the carrier's distance growing (below).
 //!
 //! **(ii).** `b` is planar, so `d² = H² + D²`, `D` the distance of `a(θ)`'s
 //! image `Q` in `b`'s plane to `b`. With `F` `b`'s level at `Q`
@@ -83,23 +89,24 @@
 #[cfg(test)]
 mod oracle;
 
-use geom::Curve3;
+use geom::PieceStep;
 use geom_core::bisect::Step;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 
+use super::super::span::Span;
 use super::{Conic, Level, level_on, up};
 
 /// The most turns of a window or a ring a span is read over.
 const MAX_TURNS: usize = 64;
 
-/// What one window reads: the two conics, `a`'s span, `b`'s carrier,
+/// What one window reads: the two conics, `a`'s span, `b`'s span,
 /// and `a`'s height above `b`'s plane as `(c₀, c₁, s₁)`.
 pub(super) struct Window<'w, T: geom_core::Real> {
     pub(super) a: &'w dyn Conic<T>,
     pub(super) span_a: (T, T),
     pub(super) b: &'w dyn Conic<T>,
-    pub(super) carrier_b: &'w Curve3<T>,
+    pub(super) span_b: &'w Span<'w, T>,
     pub(super) height: (T, T, T),
 }
 
@@ -205,7 +212,7 @@ impl<T: Decide> Window<'_, T> {
         let speed = self.a.speed_hi();
         let reach = speed * w;
         let q = self.a.point_at(m);
-        let lower = self.carrier_b.clearance(q).unwrap_or_else(T::zero) - reach;
+        let lower = self.span_b.carrier().clearance(q).unwrap_or_else(T::zero) - reach;
         let row = "curve_pair_window_recedes";
         // The height and the level are read locally at the middle,
         // uncharged: their few terms round far below the band, and an
@@ -257,10 +264,13 @@ impl<T: Decide> Window<'_, T> {
         if positive("curve_pair_window_off", h.lo.max(lower) - z) {
             return Some(Read::Off);
         }
+        if away.is_none() && self.off_span(q, reach, z) {
+            return Some(Read::Off);
+        }
         if (height_recedes && (level_recedes || level_negligible)) || level_dominates {
             return Some(Read::Recedes);
         }
-        let foot = self.carrier_b.foot(q, self.foot_seed(q));
+        let foot = self.span_b.carrier().foot(q, self.foot_seed(q));
         let gap = foot.gap() + reach;
         let close = (h.hi.powi(2) + d_hi.powi(2)).sqrt();
         let on = |x: T| decide("curve_pair_window_on", Margin::of(x), band) == Ok(Sign::Zero);
@@ -268,6 +278,29 @@ impl<T: Decide> Window<'_, T> {
             return Some(Read::On);
         }
         None
+    }
+
+    /// **(i) off `b`'s span**, on an arc no ring bounds (module docs):
+    /// whether every point within `reach` of `q` lies past `z` from `b`'s
+    /// span, by its carrier's point walk ([`geom::Curve3::point_walk`]):
+    /// each piece of the span settles where its middle's distance from
+    /// `q`, less its own reach and `reach`, reads past `z`. `false` once a
+    /// piece's reach is within `z`, or past the walk's budget.
+    fn off_span(&self, q: Point3<T>, reach: T, z: T) -> bool {
+        let row = "curve_pair_window_off_span";
+        let span = self.span_b;
+        let walked = span
+            .carrier()
+            .point_walk(q, span.params(), span.speeds().1, |p| {
+                if positive(row, p.gap - p.reach - reach - z) {
+                    return PieceStep::Settled;
+                }
+                if !positive(row, p.reach - z) {
+                    return PieceStep::Stop(());
+                }
+                PieceStep::Halve
+            });
+        matches!(walked, Ok(None))
     }
 
     /// **An upper bound on `d` over the piece of half-width `w` about `m`,
@@ -281,7 +314,7 @@ impl<T: Decide> Window<'_, T> {
     fn along_b(&self, m: T, w: T, foot: &geom::Foot<'_, T>) -> T {
         let eps = T::from_f64(f64::EPSILON);
         let (_, va) = self.a.jet_at(m);
-        let (_, vb) = self.carrier_b.ders1(foot.seed());
+        let (_, vb) = self.span_b.carrier().ders1(foot.seed());
         let k = va.dot(vb) / vb.dot(vb);
         let (sa, sb) = (self.a.speed_hi(), self.b.speed_hi());
         // `m` and `w` are each within two roundings of `(l ± r)/2`, so
@@ -488,7 +521,10 @@ mod rows {
             a: &ka,
             span_a,
             b: &kb,
-            carrier_b: b,
+            span_b: &crate::curve_pair::Span::new(
+                b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let j = Joint {
@@ -720,7 +756,10 @@ mod rows {
                 a: &ka,
                 span_a: (0.0, tau),
                 b: &kb,
-                carrier_b: &b,
+                span_b: &crate::curve_pair::Span::new(
+                    &b,
+                    (-core::f64::consts::PI, core::f64::consts::PI),
+                ),
                 height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
             };
             let level = super::super::level_on(&ka, &kb);
@@ -764,7 +803,10 @@ mod rows {
             a: &ka,
             span_a: (-1.0, 1.0),
             b: &kb,
-            carrier_b: &b,
+            span_b: &crate::curve_pair::Span::new(
+                &b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
@@ -914,7 +956,10 @@ mod rows {
             a: &ka,
             span_a: (-0.5, 0.5),
             b: &kb,
-            carrier_b: b,
+            span_b: &crate::curve_pair::Span::new(
+                b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let j = Joint {
@@ -973,7 +1018,10 @@ mod rows {
             a: &ka,
             span_a: (-0.5, 0.5),
             b: &kb,
-            carrier_b: &b,
+            span_b: &crate::curve_pair::Span::new(
+                &b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
@@ -1029,7 +1077,10 @@ mod rows {
             a: &ka,
             span_a: (399.0, 401.0),
             b: &kb,
-            carrier_b: &b,
+            span_b: &crate::curve_pair::Span::new(
+                &b,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+            ),
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let mut l = 400.0_f64;
