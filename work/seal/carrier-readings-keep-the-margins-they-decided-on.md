@@ -7,6 +7,7 @@ opened: 2026-11-09
 priority: P1
 cost: M
 closed: 2026-11-09
+pr: 6634
 parent: glue-disagreements-and-held-contradictions-after-stage-4
 ---
 
@@ -31,7 +32,7 @@ Step 1 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09). Eac
 
 None of the sites above names `MarginDiag::INVALID` or builds an `Indeterminate` by hand. Each moved arm's ending is pinned before and after, per the parent row's rule.
 
-## Closed (2026-11-09)
+## Closed (2026-11-09, PR 6634)
 
 Each reading on the row's list keeps the `geom_core::Decided` it decided on. The PR body has the per-site table (each ending before and after), the sweep, and the premise corrections.
 
