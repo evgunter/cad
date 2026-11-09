@@ -13,8 +13,10 @@
 //! `<unnamed>` is unreachable from shipped decide paths.
 //!
 //! Every classifying door — [`decide`], [`decide_reported`],
-//! [`decide_flagged`], [`decide_magnitude`] and the
-//! gates ([`decide_positive`], [`decide_negative`], [`decide_nonzero`]) —
+//! [`decide_flagged`], [`decide_magnitude`], the
+//! gates ([`decide_positive`], [`decide_negative`], [`decide_nonzero`]),
+//! and the least-band doors [`prove`] (a proof's inequality, logged) and
+//! [`choose`] (a heuristic's choice, unlogged) —
 //! delegates to one private `classify`. The name write and the verdict
 //! push therefore happen in exactly one place, so no door can carry one
 //! channel and miss the other, and the doors classify identically
@@ -687,19 +689,58 @@ pub fn decide<T: Decide>(
 /// so only an enclosure that straddles zero fails to decide. It is for
 /// an inequality a generator's argument rests on, such as a basin's
 /// sine over its curvature or the order of two parameters, where a
-/// refusal is an outcome a narrower box can answer, and for nothing
-/// read in metres of gap, which [`decide`] reads against the band.
+/// refusal is an outcome a narrower box can answer. A gap in metres
+/// asked whether it is in band is [`decide`]'s, read against the band;
+/// it is `prove`'s only as a bound's own inequality against a fixed
+/// level, such as a floor the band left undecided asked whether it
+/// clears the band's zero exactly (`gap − zero`: the cell holds no point
+/// within the zero band, `geom-brep`'s spline incidence `past_zero`).
 /// There is no `Band` parameter, so such a margin cannot be read
 /// against the band by mistake. A heuristic's choice between sound
-/// candidates is neither: it is read unlogged under its ledger row
-/// ([`check_unlogged`]), beside which a choice door is owed
-/// (`work/onecopy/a-heuristics-choice-has-no-door-of-its-own`).
+/// candidates is neither: it is [`choose`]'s.
 ///
 /// # Errors
 ///
 /// [`decide`]'s, at the least band: an enclosure that holds zero.
 pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, Indeterminate> {
     decide(name, margin, Band::least())
+}
+
+/// What [`choose`] picks: the margin's side, or a tie.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pick {
+    /// The margin is decided positive.
+    Positive,
+    /// The margin is decided negative.
+    Negative,
+    /// The margin is decided zero, or straddles zero undecided. The door
+    /// picks nothing here: the caller names its own tie rule at its site,
+    /// and a rule that reads one candidate at a tie whatever the order
+    /// is the caller's to argue (a difference of two readings is
+    /// antisymmetric bit for bit at `f64`, so its exact zero is the only
+    /// order-dependent tie there).
+    Tie,
+}
+
+/// **A heuristic's choice between sound candidates**, read on the sign
+/// alone and outside the log under its ledger row: the least band, as
+/// [`prove`] reads, with no `Band` parameter; unlike it, not logged,
+/// since no outcome is a reading. Either candidate is sound, so a choice
+/// that escalated would hand the driver a cue no box answers. The row
+/// (`ledger_row`, in `docs/predicate-dimension-audit.md`) argues why no
+/// reader rests on the pick, and `geom-core`'s `flagged_census` checks it
+/// exists. Its K samples still reach the sink under `name`.
+///
+/// A choice made inside a reader that decides several margins against a
+/// band it is passed (F31's `Period::near` mark walk and
+/// `Azimuth::near`'s cut side) is the compound form: that reader runs
+/// inside [`unlogged`] under its row, at [`Band::least`].
+pub fn choose<T: Decide>(name: &'static str, margin: Margin<T>, ledger_row: &'static str) -> Pick {
+    match check_unlogged(name, margin.value(), Band::least(), ledger_row) {
+        Ok(Sign::Positive) => Pick::Positive,
+        Ok(Sign::Negative) => Pick::Negative,
+        Ok(Sign::Zero) | Err(_) => Pick::Tie,
+    }
 }
 
 /// [`decide`], keeping the reporting margin the classifier decided on
