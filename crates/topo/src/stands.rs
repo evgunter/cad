@@ -13,11 +13,13 @@
 //! The reader of the side at infinity (`boolean::solid_contain`
 //! `side_at_infinity`) reads its third rung alone, [`planar_interior_point`],
 //! as points to aim at rather than witnesses to probe.
-//! Each of the questions asks it
-//! under the premise that the complex crosses no surface it is probed
+//! The result sort, the uncut-shell verdict and the census ask it under
+//! the premise that the complex crosses no surface it is probed
 //! against, so it meets one only where it lies ON it, every point of it
 //! off those surfaces is on one side of each, and one decisive witness
-//! names every side; a second could only agree.
+//! names every side; a second could only agree ([`ladder`]). Check 10's
+//! premise is the thing it checks, so it reads every witness
+//! ([`ladder_agreeing`]), and two that disagree are a crossing.
 //!
 //! # The ladder
 //!
@@ -66,20 +68,21 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey
 use crate::face_normal::face_plane;
 use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
-use geom_brep::ladder::{Answering, Rung, climb_evidence};
+use geom_brep::ladder::{Answering, Climb, Disagree, Rung, climb_evidence};
 
-/// What one witness read against the probed surfaces.
+/// What one witness read against the probed surfaces, `K` the refusal a
+/// probe keeps (the point-in-solid walk's).
 #[derive(Debug)]
-pub(crate) enum Witness<S> {
+pub(crate) enum Witness<S, K = PointInSolidError> {
     /// A decisive reading.
     Side(S),
     /// The witness lies on a probed surface.
     On,
-    /// A limit met near the witness ([`PointInSolidError::confined`],
-    /// [`PointInSolidError::sideless`]).
-    Blocked(PointInSolidError),
-    /// The reading was in band ([`PointInSolidError::in_band`]).
-    InBand(PointInSolidError),
+    /// A limit met near the witness (the walk's `confined` and
+    /// `sideless` refusals).
+    Blocked(K),
+    /// The reading was in band (the walk's `in_band` refusal).
+    InBand(K),
 }
 
 /// A decisive point-in-solid reading: the point is off the surface.
@@ -155,46 +158,50 @@ impl From<LadderRefusal> for PointInSolidError {
     }
 }
 
-/// **The witness ladder** over the cell complex `faces` of `body`
-/// (module docs): each witness is handed to `probe`, and the first
-/// decisive one is the reading. It is the ladder
-/// ([`climb_evidence`]) whose answer is a side, and which a refusal that
-/// propagates aborts ([`Rung::Aborts`]). One decisive witness names
-/// every side (module docs), so a witness set aside ahead of it is
-/// superseded in the record ([`Answering::Any`]); ahead of an abort it
-/// stays live. A witness is found
-/// inside its rung, so the readings that find it (a face's interior
-/// point) are recorded in rung order with the probe's.
-///
-/// # Errors
-///
-/// `probe`'s refusal, verbatim; the ladder's own ([`LadderRefusal`])
-/// where the complex does not walk or a face's interior candidate
-/// refuses other than in band.
-pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
-    body: &Body<T>,
-    faces: &[FaceKey],
-    band: Band,
-    mut probe: impl FnMut(Point3<T>) -> Result<Witness<S>, E>,
-) -> Result<Reading<S>, E> {
-    /// One rung: a cell whose witness is read.
-    enum Cell {
-        Vertex(HalfEdgeKey),
-        Edge(HalfEdgeKey),
-        Face(FaceKey),
+/// One rung of the witness ladder: a cell whose witness is read.
+enum Cell {
+    Vertex(HalfEdgeKey),
+    Edge(HalfEdgeKey),
+    Face(FaceKey),
+}
+
+impl Cell {
+    /// Its rung in the ladder's ascending dimension (module docs): a
+    /// vertex before an edge before a face.
+    fn rung(&self) -> usize {
+        match self {
+            Self::Vertex(_) => 0,
+            Self::Edge(_) => 1,
+            Self::Face(_) => 2,
+        }
     }
+}
+
+/// The cells of the complex `faces` in ladder order (module docs), and
+/// the reader of each cell's witness: `None` for a cell already read or
+/// one that offers none.
+#[allow(clippy::type_complexity)]
+fn cells<'a, T: Decide>(
+    body: &'a Body<T>,
+    faces: &'a [FaceKey],
+    band: Band,
+) -> Result<
+    (
+        Vec<Cell>,
+        impl FnMut(Cell) -> Result<Option<Point3<T>>, LadderRefusal> + 'a,
+    ),
+    LadderRefusal,
+> {
     let mut halves: Vec<HalfEdgeKey> = Vec::new();
     for &face in faces {
         halves.extend(face_loops(body, face)?.into_iter().flatten());
     }
     // Every half-edge is one the face walk read, so each hop from it is
     // a link.
-    let half = |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge);
+    let half = move |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge);
     let mut seen_vertex: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
     let mut seen_edge: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
-    // The witness a cell offers: `None` for one already read, or one
-    // that offers none.
-    let mut witness = |cell: Cell| -> Result<Option<Point3<T>>, LadderRefusal> {
+    let witness = move |cell: Cell| -> Result<Option<Point3<T>>, LadderRefusal> {
         Ok(match cell {
             Cell::Vertex(he) => {
                 let v = half(he).start;
@@ -215,30 +222,68 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
     };
     let cells = (halves.iter().map(|&he| Cell::Vertex(he)))
         .chain(halves.iter().map(|&he| Cell::Edge(he)))
-        .chain(faces.iter().map(|&f| Cell::Face(f)));
-    // A refusal about the complex (it does not walk) or the probed
-    // surface aborts: it rests on every witness set aside ahead of it,
-    // which a tighter tolerance might have decided first.
+        .chain(faces.iter().map(|&f| Cell::Face(f)))
+        .collect();
+    Ok((cells, witness))
+}
+
+/// One witness as a rung: a decisive side answers, one on a probed
+/// surface passes, an inconclusive reading is kept, and a refusal about
+/// the complex or the probed surface aborts. `on_boundary` and
+/// `in_band` count the witnesses read on a surface and in band.
+fn witness_rung<T: Decide, S, K, E: From<LadderRefusal>>(
+    witness: Result<Option<Point3<T>>, LadderRefusal>,
+    probe: &mut impl FnMut(Point3<T>) -> Result<Witness<S, K>, E>,
+    (on_boundary, in_band): (&mut usize, &mut usize),
+) -> Rung<Result<S, E>, K> {
+    let q = match witness {
+        Ok(Some(q)) => q,
+        Ok(None) => return Rung::Passes,
+        Err(refusal) => return Rung::Aborts(Err(E::from(refusal))),
+    };
+    match probe(q) {
+        Ok(Witness::Side(s)) => Rung::Answers(Ok(s)),
+        Ok(Witness::On) => {
+            *on_boundary += 1;
+            Rung::Passes
+        }
+        Ok(Witness::Blocked(e)) => Rung::Blocked(e),
+        Ok(Witness::InBand(e)) => {
+            *in_band += 1;
+            Rung::InBand(e)
+        }
+        Err(e) => Rung::Aborts(Err(e)),
+    }
+}
+
+/// **The witness ladder** over the cell complex `faces` of `body`
+/// (module docs): each witness is handed to `probe`, and the first
+/// decisive one is the reading. It is the ladder
+/// ([`climb_evidence`]) whose answer is a side, and which a refusal that
+/// propagates aborts ([`Rung::Aborts`]). One decisive witness names
+/// every side under the premise that the complex crosses no probed
+/// surface (module docs), so a witness set aside ahead of it is
+/// superseded in the record ([`Answering::Any`]); ahead of an abort it
+/// stays live. A witness is found inside its rung, so the readings that
+/// find it (a face's interior point) are recorded in rung order with the
+/// probe's. A question for which that premise is the thing checked
+/// reads [`ladder_agreeing`] instead.
+///
+/// # Errors
+///
+/// `probe`'s refusal, verbatim; the ladder's own ([`LadderRefusal`])
+/// where the complex does not walk or a face's interior candidate
+/// refuses other than in band.
+pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    mut probe: impl FnMut(Point3<T>) -> Result<Witness<S>, E>,
+) -> Result<Reading<S>, E> {
+    let (cells, mut witness) = cells(body, faces, band).map_err(E::from)?;
     let (mut on_boundary, mut in_band) = (0, 0);
     let climbed = climb_evidence(Answering::Any, cells, |cell| {
-        let q = match witness(cell) {
-            Ok(Some(q)) => q,
-            Ok(None) => return Rung::Passes,
-            Err(refusal) => return Rung::Aborts(Err(E::from(refusal))),
-        };
-        match probe(q) {
-            Ok(Witness::Side(s)) => Rung::Answers(Ok(s)),
-            Ok(Witness::On) => {
-                on_boundary += 1;
-                Rung::Passes
-            }
-            Ok(Witness::Blocked(e)) => Rung::Blocked(e),
-            Ok(Witness::InBand(e)) => {
-                in_band += 1;
-                Rung::InBand(e)
-            }
-            Err(e) => Rung::Aborts(Err(e)),
-        }
+        witness_rung(witness(cell), &mut probe, (&mut on_boundary, &mut in_band))
     });
     match climbed {
         Ok((_, answer)) => answer.map(Reading::Side),
@@ -248,6 +293,82 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
             kept,
         }))),
     }
+}
+
+/// What every witness of a complex read ([`ladder_agreeing`]).
+#[derive(Debug)]
+pub(crate) enum Agreed<S> {
+    /// Every decisive witness read this side.
+    Side(S),
+    /// Two decisive witnesses read different sides: the complex crosses
+    /// a probed surface. The first side read, and the one that differed.
+    Disagree {
+        /// The first decisive side.
+        first: S,
+        /// A later side that differs from it.
+        other: S,
+    },
+    /// No witness decided: each lay on a probed surface or was read in
+    /// band or at a limit.
+    Undecided,
+}
+
+/// **The witness ladder read at every witness** (module docs), for a
+/// question whose no-crossing premise is the thing checked: the
+/// complex's witnesses are those [`ladder`] reads, and every one is
+/// probed ([`geom_brep::ladder::climb_agreeing`]). Where every decisive
+/// witness reads one side by `agree`, that side; where two differ, the
+/// complex crosses a probed surface ([`Agreed::Disagree`]). Its verdict
+/// does not depend on the order the witnesses are read in.
+///
+/// # Errors
+///
+/// As [`ladder`]: a refusal about the complex or the probed surface
+/// stops the reading.
+pub(crate) fn ladder_agreeing<T: Decide, S, E: From<LadderRefusal>>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    mut probe: impl FnMut(Point3<T>) -> Result<Witness<S>, E>,
+    agree: impl Fn(&S, &S) -> bool,
+) -> Result<Agreed<S>, E> {
+    let (cells, mut witness) = cells(body, faces, band).map_err(E::from)?;
+    // One rung at a time, in ascending dimension (module docs). A rung
+    // whose witnesses place decisively answers, and the next is never
+    // read: every one of a rung's witnesses is read (`climb_agreeing`
+    // does not stop at the first), so a crossing a rung can see is a
+    // disagreement within it, and a crossing it cannot — a face poking
+    // across between vertices all on one side — is a higher cell's,
+    // whose own check reads it (the census's, as a loop's edge crossing
+    // between agreeing vertices is in [`crate::one_region`]). Reading the
+    // next rung only where this one placed nothing is what keeps a valid
+    // body from probing every edge midpoint and face interior once its
+    // vertices agree.
+    let mut by_rung: [Vec<Cell>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    for cell in cells {
+        by_rung[cell.rung()].push(cell);
+    }
+    for rung in by_rung {
+        let climbed = geom_brep::ladder::climb_agreeing(
+            rung,
+            |cell| witness_rung(witness(cell), &mut probe, (&mut 0, &mut 0)),
+            |a, b| match (a, b) {
+                (Ok(a), Ok(b)) => agree(a, b),
+                _ => true,
+            },
+        );
+        match climbed {
+            Ok(Climb::Answered { answer, .. }) => return answer.map(Agreed::Side),
+            Ok(Climb::Passed | Climb::Undecided(_)) => {}
+            Err(Disagree { first, other }) => {
+                return Ok(Agreed::Disagree {
+                    first: first?,
+                    other: other?,
+                });
+            }
+        }
+    }
+    Ok(Agreed::Undecided)
 }
 
 /// **A point certified strictly inside `face`, where `face` is planar**
@@ -560,27 +681,73 @@ pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Insides {
-    let probe = |q: Point3<T>| -> Result<Witness<Vec<bool>>, PointInSolidError> {
-        let mut inside = vec![false; reads.len()];
-        for (t, other) in reads.iter().enumerate() {
-            if t == i || !may_enclose(t) {
-                continue;
-            }
-            inside[t] = match Witness::of(point_in_solid_faces(body, &other.sel, q, band, tol))? {
-                Witness::Side(Strict::In) => other.role == ShellRole::Outer,
-                Witness::Side(Strict::Out) => other.role == ShellRole::Void,
-                Witness::On => return Ok(Witness::On),
-                Witness::Blocked(e) => return Ok(Witness::Blocked(e)),
-                Witness::InBand(e) => return Ok(Witness::InBand(e)),
-            };
-        }
-        Ok(Witness::Side(inside))
-    };
+    let probe = |q| insides_at(body, i, reads, may_enclose, q, band, tol);
     match ladder(body, reads[i].sel.faces(), band, probe) {
         Ok(Reading::Side(inside)) => Insides::Read(inside),
         Ok(Reading::Undecided(t)) => t.kept.refusal().map_or(Insides::Touching, Insides::Refused),
         Err(e) => Insides::Refused(e),
     }
+}
+
+/// Where shell `reads[i]` stands among the others, read at every
+/// witness ([`ladder_agreeing`]): check 10's reading, whose premise —
+/// no shell crosses another — is the thing checked.
+pub(crate) enum EveryInside {
+    /// Every decisive witness reads these insides ([`Insides::Read`]).
+    Read(Vec<bool>),
+    /// Two witnesses read different insides: the shell crosses another.
+    /// The first read, and the one that differed.
+    Crosses(Vec<bool>, Vec<bool>),
+    /// No witness decided: every one lies on another shell
+    /// ([`Insides::Touching`]), or a walk refused ([`Insides::Refused`]).
+    Unread,
+}
+
+/// **Where shell `reads[i]` stands among the others, at every witness**:
+/// [`witness_insides`] with no screen, every witness probed against
+/// every other shell, and two witnesses that disagree read as
+/// [`EveryInside::Crosses`].
+pub(crate) fn witness_insides_everywhere<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    i: usize,
+    reads: &[ShellRead],
+    band: Band,
+    tol: Tol,
+) -> EveryInside {
+    let probe = |q| insides_at(body, i, reads, &|_| true, q, band, tol);
+    match ladder_agreeing(body, reads[i].sel.faces(), band, probe, |a, b| a == b) {
+        Ok(Agreed::Side(inside)) => EveryInside::Read(inside),
+        Ok(Agreed::Disagree { first, other }) => EveryInside::Crosses(first, other),
+        Ok(Agreed::Undecided) | Err(_) => EveryInside::Unread,
+    }
+}
+
+/// One witness `q` of shell `reads[i]` probed against every other shell
+/// `may_enclose` admits (module docs): per shell, whether `q` lies
+/// inside its closed surface.
+fn insides_at<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    i: usize,
+    reads: &[ShellRead],
+    may_enclose: &dyn Fn(usize) -> bool,
+    q: Point3<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<Witness<Vec<bool>>, PointInSolidError> {
+    let mut inside = vec![false; reads.len()];
+    for (t, other) in reads.iter().enumerate() {
+        if t == i || !may_enclose(t) {
+            continue;
+        }
+        inside[t] = match Witness::of(point_in_solid_faces(body, &other.sel, q, band, tol))? {
+            Witness::Side(Strict::In) => other.role == ShellRole::Outer,
+            Witness::Side(Strict::Out) => other.role == ShellRole::Void,
+            Witness::On => return Ok(Witness::On),
+            Witness::Blocked(e) => return Ok(Witness::Blocked(e)),
+            Witness::InBand(e) => return Ok(Witness::InBand(e)),
+        };
+    }
+    Ok(Witness::Side(inside))
 }
 
 #[cfg(test)]
