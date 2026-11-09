@@ -1222,3 +1222,16 @@
   - the unit-dir doc claim;
   - the unrecorded holders: link.rs `ahead`/`past` under LINK_AHEAD, revolve `AxisFrame`, blend `Meridian`;
   - the conearm row's priority/cost.
+- 2026-11-09 19:20Z Reviews:
+  - **6677 (arc-floor-straddle) FULL: MERGE.**
+    - The probe finds 0 violations at 60k boxes, including near-full arcs, arcs past a turn and exactly 2π; the PR's form is strictly tighter than the hull form.
+    - The ±2π terms suffice because `Azimuth::near` can't return wider than a turn. Its M1/M3 mutants are red.
+    - MINOR: the property sweep never draws near-full or over-a-turn arcs, so witnesses A and B are to be pinned in 6666's merge-forward.
+    - NOTE: in-span deciders (torus_region arc_place, shell_seam_corner_inside, ring_path oval param, surgery window) can be turn-renamed near the antipode, so a row is to be filed.
+  - **6675 (QML T2) FULL: FIX (small).** Every port is outcome-identical, including the outer readers, read at every offset. Back to the T2 lane:
+    - the reviewer's walls_cross pin;
+    - cone_ring_rows reading the outer reader at every offset;
+    - in-rung `?`s recorded as premises on question-mark-ladders;
+    - path_parity's band-zero note in the body;
+    - a main merge.
+  - 6648: merged main into it (topo boolean overlap with 6671 et al.); check, gates and fmt clean; nextest running.
