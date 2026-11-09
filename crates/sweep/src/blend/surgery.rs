@@ -2438,7 +2438,10 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
 }
 
 /// **How low and how high one boundary piece reaches along a unit
-/// direction `u`**: `(low, high)` with `low ≤ (p − c)·u ≤ high` for
+/// direction `u`**. This is a support function, linear in `u`, and not
+/// `geom::Line::height`: the ellipse arm below calls
+/// [`ArcReads::arc_along`] with a lifted direction that is not unit, and
+/// relies on that linearity. `(low, high)` with `low ≤ (p − c)·u ≤ high` for
 /// every point `p` of `carrier` over the window `(ta, tb)`, in closed
 /// form; `None` for a carrier with no closed form here. A linear
 /// function is extreme at a segment's ends; on a CIRCLE it is
@@ -2488,7 +2491,7 @@ trait ArcReads<T: Real> {
     /// How near and how far the arc over `(ta, tb)` comes to `c`.
     fn arc_distance(&self, window: (T, T), c: Point3<T>) -> (T, T);
     /// How low and how high the arc over `(ta, tb)` reaches along `u`
-    /// from `c`.
+    /// from `c`: `(p − c)·u`, linear in `u`, which need not be unit.
     fn arc_along(&self, window: (T, T), c: Point3<T>, u: Vec3<T>) -> (T, T);
 }
 

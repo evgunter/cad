@@ -3398,8 +3398,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         Interval::from_bounds(bounds.min_y, bounds.max_y),
         Interval::from_bounds(bounds.min_z, bounds.max_z),
     );
+    // The box's range of a chart parameter that the carrier evaluates
+    // as `origin + dir·v`: `Line::param`, correct for any `dir`.
     let along = |origin: Point3<Interval>, dir: Vec3<Interval>| -> (f64, f64) {
-        let d = (extent - origin).dot(dir);
+        let d = geom::Line { origin, dir }.param(extent);
         (d.lo(), d.hi())
     };
     match stored {

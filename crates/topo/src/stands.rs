@@ -341,7 +341,7 @@ fn across_edges<T: Decide>(
     band: Band,
 ) -> Result<Vec<Point3<T>>, LadderRefusal> {
     let mut carriers: Vec<&geom::Curve3<T>> = Vec::new();
-    let mut feet: Vec<geom::Line<T>> = Vec::new();
+    let mut inward_lines: Vec<geom::Line<T>> = Vec::new();
     for he in face_loops(body, face)?.into_iter().flatten() {
         let e = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
         let Some(curve) = witnessed_curve(body, e) else {
@@ -353,7 +353,7 @@ fn across_edges<T: Decide>(
         let t = curve.carrier().deriv(geom::mid_param(t0, t1));
         let w = inward(normal, if plus { t } else { -t }).normalize();
         if [w.x, w.y, w.z].iter().all(|c| !c.is_poison()) {
-            feet.push(geom::Line {
+            inward_lines.push(geom::Line {
                 origin: curve.mid_point(),
                 dir: w,
             });
@@ -361,9 +361,9 @@ fn across_edges<T: Decide>(
     }
     let half = T::from_f64(0.5);
     let mut out = Vec::new();
-    for &foot @ geom::Line { origin: m, dir: w } in &feet {
+    for &line @ geom::Line { origin: m, dir: w } in &inward_lines {
         for c in &carriers {
-            for s in line_meetings(c, normal, foot) {
+            for s in line_meetings(c, normal, line) {
                 if geom_core::is_finite_length(s)
                     && crate::validate::definitely_positive("stands_across_meeting", s, band)
                 {
