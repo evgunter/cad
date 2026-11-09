@@ -79,3 +79,44 @@ The axis-line sweep found these holders. Each carries a full placement (a point,
 - `sweep`: `test_support.rs` `tube_frame`.
 
 `geom/src/cover.rs`'s `Slab` and `Frustum` hold the axis as a `UnitVec3`. A `Line` would drop that unit typing, so they stay too.
+
+## Axis lines built from an arm's bindings (2026-11-09, PR 6665)
+
+PR 6665 gave the doors and holders below a `geom::Line`. Where the line came from a whole stored surface it was read through `Surface::axis_line()`, and where a `Frame` was in hand through `Frame::axis_line()`. The sites below instead build `geom::Line { origin, dir }` from the bindings of an arm that destructures a stored surface (or a carrier's or revolve's frame fields). Once each kind holds its `Frame`, each one becomes `kind.frame.axis_line()`, which leaves no second spelling of the axis. By file and function:
+- `geom-brep/src/certify.rs`: `plane_nurbs_pair`, `tube_separation` ×2
+- `geom-brep/src/chart_singularity.rs`: `singular_points` ×2
+- `geom-brep/src/curve_face/circle_torus.rs`: `circle_torus_roots` ×3
+- `geom-brep/src/curve_face/ellipse_torus.rs`: `torus_walk` ×4
+- `geom-brep/src/implicit.rs`: `conic_form_sup` ×3, `conic_residual_harmonics` ×10, `implicit_residual`
+- `geom-brep/src/mapped.rs`: `place_point`
+- `geom-brep/src/offset.rs`: `offset_surface`
+- `geom-brep/src/pair_section.rs`: `line_tilt`
+- `geom-brep/src/pair_section/gap.rs`: `read`
+- `geom-brep/src/pair_section/torus.rs`: `circle`, `cylinder_torus` ×3, `torus_torus`
+- `geom-brep/src/pcurve_cache.rs`: `chart_distance`
+- `geom-brep/src/pcurve_cache/projected.rs`: `projected_envelope`
+- `geom-brep/src/props/curved.rs`: `agreed_side`
+- `step-import/src/adopt.rs`: `mapped_self_description`
+- `step-import/src/entities.rs`: `as_bool`
+- `step-import/src/normalize/singularity.rs`: `meridian_rays`, `strut_tip`
+- `sweep/src/revolve/full.rs`: `build_wire`
+- `sweep/src/revolve/surfaces.rs`: `revolved_strut_spec`
+- `sweep/src/revolve/turn.rs`: `sweep_turn`
+- `topo/src/boolean/conic_quadric/mod.rs`: `cone_roots` ×2, `quadric_ladder`, `through_the_apex`
+- `topo/src/boolean/contain.rs`: `curved_interior_placement` ×2
+- `topo/src/boolean/join.rs`: `pt_germ_frame` ×2, `region_halves` ×5
+- `topo/src/boolean/ops.rs`: `pinched_at_cone_apex`
+- `topo/src/boolean/reduce.rs`: `conic_clearance`, `line_wall_roots_of` ×3, `requeue` ×6
+- `topo/src/boolean/section_cert.rs`: `cone_cylinder`, `cone_pair` ×3, `torus_pair`
+- `topo/src/boolean/section_cert/ruling.rs`: (closure), `assemble`
+- `topo/src/boolean/solid_contain.rs`: `face_geo_arms` ×4, `root_outward`, `sphere_chart_trim` ×2, `unread_refusal` ×9
+- `topo/src/boolean/surface_group.rs`: `wrap_rims`
+- `topo/src/census/depth_gap.rs`: `across`, `carrier_depth` ×2
+- `topo/src/face_normal.rs`: `face_outward_normal_at` ×2, `face_outward_normal_at_foot`
+- `topo/src/offset_axial.rs`: `clamp_unit` ×3, `surface_residual`
+- `topo/src/offset_nappe.rs`: `corner_stations`
+- `topo/src/replace_face.rs`: `apex_shift`, `group_cone_v_window`, `offset_charts_staged` ×2, `transport_curve`
+- `topo/src/ring_path.rs`: (closure) ×6
+- `topo/src/sector_face.rs`: `resolve`
+- `topo/src/transform.rs`: `map_mapped_curve`
+- `topo/src/vertex_section.rs`: `read_kind`

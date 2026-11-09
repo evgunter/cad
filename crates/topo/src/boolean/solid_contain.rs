@@ -941,14 +941,19 @@ fn face_geo_arms<T: Decide>(
     charts: &ChartGroups,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
-    match (f.surface(), f.surface().axis_line()) {
-        (Surface::Plane { origin, normal, .. }, _) => Ok(FaceGeo::Plane(
+    match f.surface() {
+        Surface::Plane { origin, normal, .. } => Ok(FaceGeo::Plane(
             *origin,
             plane_outward_normal(f.record(), *normal).vec(),
         )),
-        (&Surface::Cylinder { radius, .. }, Some(axis)) => match ruled_face_region(body, face)? {
+        &Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => match ruled_face_region(body, face)? {
             Some(region) => Ok(FaceGeo::Cylinder {
-                axis,
+                axis: geom::Line { origin, dir: axis },
                 radius,
                 region,
                 sense: f.sense(),
@@ -956,56 +961,67 @@ fn face_geo_arms<T: Decide>(
             None => {
                 let anchor = boundary_point(body, face)?;
                 Ok(FaceGeo::PartialWall {
-                    axis,
+                    axis: geom::Line { origin, dir: axis },
                     radius,
                     anchor,
                     reach: partial_reach(body, face, anchor)?.length(),
                 })
             }
         },
-        (&Surface::Cone { half_angle, .. }, Some(axis)) => match ruled_face_region(body, face)? {
+        &Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => match ruled_face_region(body, face)? {
             Some(region) => Ok(FaceGeo::Cone {
-                axis,
+                axis: geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
                 half_angle,
                 region,
                 sense: f.sense(),
             }),
             None => Ok(FaceGeo::PartialCone {
-                axis,
+                axis: geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
                 half_angle,
-                reach: partial_reach(body, face, axis.origin)?,
+                reach: partial_reach(body, face, apex)?,
             }),
         },
-        (&Surface::Sphere { center, radius, .. }, _) => {
-            match closed_sphere_group(body, face, charts) {
-                Some(representative) => Ok(FaceGeo::Sphere {
+        &Surface::Sphere { center, radius, .. } => match closed_sphere_group(body, face, charts) {
+            Some(representative) => Ok(FaceGeo::Sphere {
+                center,
+                radius,
+                representative,
+                sense: proven(&body.faces, representative, EntityId::Face).sense,
+            }),
+            None => match sphere_face_region(body, face, center, radius)? {
+                Some(region) => Ok(FaceGeo::SpherePatch {
                     center,
                     radius,
-                    representative,
-                    sense: proven(&body.faces, representative, EntityId::Face).sense,
+                    region,
+                    sense: f.sense(),
                 }),
-                None => match sphere_face_region(body, face, center, radius)? {
-                    Some(region) => Ok(FaceGeo::SpherePatch {
-                        center,
-                        radius,
-                        region,
-                        sense: f.sense(),
-                    }),
-                    None => Err(PointInSolidError::PartialSphereFace { face }),
-                },
-            }
-        }
-        (
-            &Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
+                None => Err(PointInSolidError::PartialSphereFace { face }),
             },
-            Some(axis),
-        ) => {
+        },
+        &Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
             if let Some(representative) = torus_closed_group(body, face, charts)? {
                 return Ok(FaceGeo::Torus {
-                    axis,
+                    axis: geom::Line {
+                        origin: center,
+                        dir: axis,
+                    },
                     major_radius,
                     minor_radius,
                     representative,
@@ -1014,7 +1030,10 @@ fn face_geo_arms<T: Decide>(
             }
             match torus_face_region(body, face)? {
                 Some(region) => Ok(FaceGeo::TorusPatch {
-                    axis,
+                    axis: geom::Line {
+                        origin: center,
+                        dir: axis,
+                    },
                     major_radius,
                     minor_radius,
                     region,
@@ -1025,14 +1044,11 @@ fn face_geo_arms<T: Decide>(
         }
         // Refused in `face_geo` through `uncrossable`: only this
         // dispatch read alone reaches here, and it refuses the same way.
-        (s @ (Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_)), _) => {
+        s @ (Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_)) => {
             Err(PointInSolidError::KindUnsupported {
                 face,
                 kind: s.kind(),
             })
-        }
-        (Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. }, None) => {
-            unreachable!("a surface of revolution reads its axis line")
         }
     }
 }
