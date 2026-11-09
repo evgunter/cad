@@ -587,7 +587,12 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
     let Some(t) = foot(&e.carrier, x, t0) else {
         return sampled_near(e, x, band);
     };
-    let speed = e.carrier.deriv(t).norm();
+    let Some(speed) = geom::carrier_speed::speed_at(&e.carrier, t) else {
+        unreachable!(
+            "`foot` places a closed-form foot only on a line or a circle (`Curve3::nearest`), \
+             whose speed `speed_at` reads in closed form"
+        )
+    };
     if !(strictly_inside(t - t0, speed) && strictly_inside(t1 - t, speed)) {
         return Near::Off;
     }
@@ -599,11 +604,7 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
 /// vertices, read before it.
 fn strictly_inside<T: Decide>(m: T, speed: T) -> bool {
     matches!(
-        decide(
-            "chart_singularity_in_span",
-            Margin::of(m * speed),
-            Band::least()
-        ),
+        geom_core::k_stats::prove("chart_singularity_in_span", Margin::of(m * speed)),
         Ok(Sign::Positive)
     )
 }

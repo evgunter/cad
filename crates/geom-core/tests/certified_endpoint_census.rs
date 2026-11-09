@@ -364,10 +364,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
-        13,
+        12,
         9,
         "the 9 that ask are `krawczyk`'s (3) and the critical-value door's (6). Of \
-         the other 4, `read`'s 2 are the value's ceiling in metres, which that door \
+         the other 3, `read`'s 1 is the value's ceiling in metres, which that door \
          decides only after it asks `at.value.is_certified()`; `mid` is the Krawczyk \
          box's centre, a seed; and `along_line`'s norm is minted a fresh point, but \
          the slope's numerator carries the gradient's and the direction's decoration, \
@@ -388,7 +388,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
-    ("crates/geom-brep/src/props/bracket.rs", 4, 4, ""),
+    ("crates/geom-brep/src/props/bracket.rs", 5, 5, ""),
     (
         "crates/geom-brep/src/props/quad/cells.rs",
         3,
@@ -414,14 +414,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "`rational_patch_face`'s 2 are weight reads (`net.rs`'s note) in a function \
          that asks of other values",
     ),
-    (
-        "crates/geom-brep/src/props/trig.rs",
-        5,
-        0,
-        "`cos_step`/`sin_step` (3) and the two half-angle clamps build from `pt` of a \
-         finite f64 with nonzero exact divisors, so no operand can leave a domain \
-         (argued at each)",
-    ),
+    ("crates/geom-brep/src/props/quad/rotational.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad/trimmed.rs",
         4,
@@ -435,24 +428,31 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `ParamRange::certified` has just accepted, a difference of two finite point \
          brackets. Every other read in `props/quad/` goes through \
          `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are the \
-         guarded ones",
+         guarded ones, or asks `is_certified()` of the bracket it reads \
+         (`rotational.rs`)",
     ),
-    ("crates/geom-brep/src/props/rational_rim.rs", 1, 1, ""),
+    ("crates/geom-brep/src/props/spiric.rs", 9, 9, ""),
     (
-        "crates/geom-brep/src/props/spiric.rs",
-        12,
-        10,
+        "crates/geom-brep/src/props/taylor.rs",
+        6,
+        4,
         "the remaining 2 are safe by construction. `trig_range`'s half-width reads \
          `pt` differences of two f64 ends the function has checked finite and ordered, \
-         so no operand can be refused. `composite`'s integrand reads the `t` that \
-         `taylor::composite_by` hands it — a node's point bracket, a piece's \
-         `from_bounds` of two finite nodes, or the hull of two ends it has asked \
-         `is_certified()` of — so `t` certifies, and `trig_range` checks its ends \
-         again. Every other read sits in a function that refuses a refused input by \
-         name (`trig_of`, `window_rates`, `span_rates`, `spiric_length_bound`, \
-         `piece_speed`, `wall_chart_split`)",
+         so no operand can be refused. `rate_bound_over`'s sum reads the `hi` of a \
+         product of point brackets: `q − p` of two finite nodes, and the rate the \
+         caller's own `f64` upper bound, `NaN` where it reads none, which the sum \
+         carries. Every other read sits in a function that refuses a refused input by \
+         name (`composite_by`, `trig_of`), and the integrands' trig jets read through \
+         `trig_of` (`trig_jets`)",
     ),
-    ("crates/geom-brep/src/props/taylor.rs", 3, 3, ""),
+    (
+        "crates/geom-brep/src/props/trig.rs",
+        5,
+        0,
+        "`cos_step`/`sin_step` (3) and the two half-angle clamps build from `pt` of a \
+         finite f64 with nonzero exact divisors, so no operand can leave a domain \
+         (argued at each)",
+    ),
     (
         "crates/geom-brep/src/ssi.rs",
         6,
@@ -530,7 +530,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `Box3::intersection`, which refuses an uncertified side by name, and of the pieces \
          cut from those finite ends",
     ),
-    ("crates/geom-brep/src/ssi/residual.rs", 6, 6, ""),
+    ("crates/geom-brep/src/ssi/residual.rs", 7, 7, ""),
     ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
     (
         "crates/geom-core/src/interval.rs",
@@ -692,7 +692,7 @@ fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
 /// ([`test_only_mounts`]), which are test code however they read: the
 /// production set `scripts/gates/lib.sh`'s `gate_production_sources`
 /// hands the gate.
-fn production_sources(root: &std::path::Path) -> Vec<(String, String)> {
+pub(crate) fn production_sources(root: &std::path::Path) -> Vec<(String, String)> {
     let crates = root.join("crates");
     let mut dirs: Vec<std::path::PathBuf> = std::fs::read_dir(&crates)
         .expect("crates/ is readable")
@@ -770,7 +770,7 @@ fn is_test_only_cfg(text: &str) -> bool {
 /// `const` is dropped whole, and so is anything that shares its last
 /// line (the reader's own property, and its one-line blind spot). Over
 /// a blanked view every brace is a real brace.
-fn production(code: &str) -> Vec<String> {
+pub(crate) fn production(code: &str) -> Vec<String> {
     let mut out = Vec::new();
     let (mut depth, mut skip_depth) = (0i64, 0i64);
     let (mut skipping, mut seen_open) = (false, false);

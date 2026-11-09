@@ -1,11 +1,11 @@
 ---
 id: not-crossed-means-one-side-at-a-pinch
 kind: issue
-title: 'not crossed, so one side' Answering::Any ladders may read both sides at a pinch: fate's ring rehome, one_region read_cycle, chord_join's side ladders
+title: a ring that crosses the run at a vertex the division did not identify reads both sides through the 'not crossed, so one side' ladders (fate's rehome, chord_join's rehome_rings); a torus's essential cycles unprobed
 status: open
 opened: 2026-11-09
 priority: P3
-cost: M
+cost: E
 ---
 
 
@@ -30,3 +30,57 @@ dividing loop at one vertex (a figure-eight pinch), read every rung, and
 log whether the answers disagree, as PR 6595's scratch instrument did.
 Disagreement makes it a defect at that site; agreement for a reason the
 site can state settles the premise.
+
+## Narrowed (`onecopy/pinch-premise`)
+
+The premise holds where the loop does not cross the run. A simple loop
+that meets the run only at touches that do not cross lies on one side,
+because a touch switches no side. That covers a touch at a vertex the loop
+shares with the run, and a touch at a copy of one: the split's reduction
+keeps one vertex per piece at a pinch, so a ring can touch the run at a
+vertex it does not share, and it reads `OnBoundary` there and passes
+(`chord_join::ring_side`). The argument has one home, `chord_join::paths_rung`'s
+premise doc. Fate's rehome, `one_region::read_cycle`, chord_join's
+`ring_side`, `path_ring_side` and the lone ring's outer side cite it.
+
+**What remains** is not specific to figure-eights:
+
+- **A loop that crosses the run at a vertex the division did not
+  identify.** Such a loop reads both sides, where the division should
+  have joined it. A touch there still reads one side and passes. The
+  paths that can produce it are fate's rehome (the
+  boolean's cut through a divided face) and `ChordJoiner::rehome_rings`.
+  The plane split identifies every vertex within band of the plane, so
+  it cannot. No probe of this case is built. Its guard is the debug check
+  on the `Any` ports that their answers agree
+  (`a-ladder-that-checks-its-answers-agree-has-no-home`), which waits on
+  `[ev]` PR 6592.
+- **A torus face's essential cycles** in `one_region`, which are not
+  probed.
+
+`one_region` is a validator, and nothing joins there. Two distinct loops
+of one face meeting at a point are check 9's contact arm 1
+(`RingMeetsOuter` / `RingMeetsRing` `Vertex`, any carrier, shared keys
+not exempt). Two surface cycles of one loop, split by a seam or a strut,
+that share a point are check 9's `PinchCornerCrossed`, which
+`one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex`
+found and closed.
+
+**Evidence that a touch at a pinch reads one side.**
+
+- *The instrument.* A scratch check read every rung at fate's rehome,
+  `one_region::read_cycle`, chord_join's planar `ring_side`, the lone
+  ring's outer side, the quadric ring pairs and the winding references.
+  It found no disagreement at these sites over topo ci and sweep ci.
+- *The figure-eight row.* It ships as a test,
+  `crates/topo/tests/a_figure_eight_hole_cut_through_its_pinch.rs`. A
+  plate with a figure-eight hole, one loop through the origin twice, is
+  built raw (`drill_hole`, described, `finish`), since the public doors
+  refuse it (`LineWedges` overlap). It is then cut through the pinch by
+  `split` (x + y = 0) and by `subtract` and `intersect` against a prism
+  whose face lies on x + y = 0. Each side keeps its own lobe, merged into
+  its face's outer loop, and the boolean results pass the census.
+
+The same instrument found one real disagreement that is not a pinch: a
+cone winding whose fixture's island left its sheet,
+`cone-ring-rows-sheets-do-not-hold-their-islands` (PR 6607).

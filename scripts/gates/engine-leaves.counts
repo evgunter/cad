@@ -44,7 +44,6 @@ boolean-names-splitting    16  boolean/ops.rs
 boolean-names-splitting     5  boolean/reduce.rs
 boolean-names-splitting     9  boolean/refusal_routes.rs
 boolean-names-splitting    17  boolean/region.rs
-boolean-names-splitting     1  boolean/rim_wedge.rs
 boolean-names-splitting     3  boolean/ruled_region.rs
 boolean-names-splitting    18  boolean/sectors.rs
 boolean-names-splitting    36  boolean/solid_contain.rs
@@ -117,6 +116,7 @@ names-boolean               3  chart_groups.rs
 names-boolean               5  chart_region.rs
 names-boolean              23  chord_join.rs
 names-boolean               1  chord_join/cone_ring_rows.rs
+names-boolean               9  chord_join/island_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean               1  chord_join/sibling_escalation_rows.rs
 names-boolean               2  chord_join/sphere_island_rows.rs
 names-boolean              11  clearance.rs
@@ -176,7 +176,8 @@ names-boolean              81  validate.rs
 names-splitting            10  cell_region.rs
 names-splitting            56  census.rs
 names-splitting             1  census/self_touch.rs
-names-splitting            42  chord_join.rs
+names-splitting            44  chord_join.rs
+names-splitting            11  chord_join/ring_side_rows.rs
 names-splitting             7  chord_join/sibling_escalation_rows.rs
 names-splitting            11  lib.rs
 names-splitting             1  lineage.rs

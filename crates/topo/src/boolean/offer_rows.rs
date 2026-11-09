@@ -2929,7 +2929,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "slit.rs",
-        "spiric_on_quadric",
+        "spiric_on_curved",
         "Coincide::EdgeOnCurvedFace",
         1,
     ),
@@ -2937,6 +2937,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("slit.rs", "spline_floor", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
+    (
+        "standing_rows.rs",
+        "each_class_and_each_delegate_reads_as_its_doc_states",
+        "Coincide::Sectors",
+        1,
+    ),
     (
         "torus_frame_rows.rs",
         "a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it",

@@ -1289,7 +1289,7 @@ fn unanimous_rim_side<T: Decide>(
         &b.rims,
         |rim| match rim_side(rim, lo, hi, b.arms, band) {
             Ok(s) => Rung::Answers(Ok(s)),
-            Err(e) => Rung::refused(e, PropsError::margin_or_abort),
+            Err(e) => Rung::refused(e, PropsError::refusal),
         },
         |a, b| matches!((a, b), (Ok(x), Ok(y)) if x == y),
     );
@@ -4158,7 +4158,7 @@ pub fn sphere_region_material_sign<T: Decide>(
                 Rung::holds(
                     pole_against_arc(arc, p, band).map(|(_, on)| on),
                     (),
-                    PropsError::margin_or_abort,
+                    PropsError::refusal,
                 )
             },
         );
@@ -4400,7 +4400,7 @@ fn pole_side<T: Decide>(
                 circulations.push(Some(circulation(arc, plane)));
                 Rung::Passes
             }
-            Err(e) => Rung::refused(e, PropsError::margin_or_abort),
+            Err(e) => Rung::refused(e, PropsError::refusal),
         }
     });
     match on_an_arc {

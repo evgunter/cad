@@ -111,6 +111,7 @@ pub(crate) mod shape_operator;
 pub mod ssi;
 pub mod tangent;
 pub mod torus_convention;
+pub mod variety;
 
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{

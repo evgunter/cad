@@ -614,19 +614,16 @@ impl PropsCheck {
 }
 
 impl PropsError {
-    /// **The standing a search may keep this refusal by**
-    /// ([`geom_core::ladder::Refusal`]): an [`Escalated`](Self::Escalated)
-    /// reading is kept by its margin, and every other kind stops the
-    /// search. Those are definite findings about the face (degenerate,
-    /// off its surface, not an iso rectangle) or a lane not built, none of
-    /// which a later reading answers past.
+    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]): an
+    /// [`Escalated`](Self::Escalated) reading is kept by its margin.
+    /// Every other kind refuses the whole query: a definite finding
+    /// about the face (degenerate, off its surface, not an iso rectangle)
+    /// or a lane not built, which no later reading answers past.
     ///
     /// # Errors
     ///
     /// [`geom_core::ladder::Aborts`] for every kind but `Escalated`.
-    pub(crate) const fn margin_or_abort(
-        &self,
-    ) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+    pub(crate) const fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
         match self {
             Self::Escalated { cause, .. } => Ok(geom_core::ladder::Refusal::Margin(*cause)),
             _ => Err(geom_core::ladder::Aborts),

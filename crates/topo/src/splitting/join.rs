@@ -525,7 +525,7 @@ fn pair_along_line<T: Decide>(
     line: geom::Line<T>,
     band: Band,
 ) -> Result<(Vec<(HalfEdgeKey, HalfEdgeKey)>, usize), SplitJoinError> {
-    let keys: Vec<T> = crossings.iter().map(|c| line.param(c.point)).collect();
+    let keys: Vec<T> = crossings.iter().map(|c| line.height(c.point)).collect();
     let order = super::order::sort_along_line(&keys, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();
@@ -752,11 +752,11 @@ fn conic_pairs<T: Decide>(
     .map_err(escalate)?
         == Sign::Zero
     {
-        // WHICH, not a search a later gap may answer past (PR 6553's
-        // `place_off` ruling): the cut `k` rotates the walk, and the
-        // pairing below reads which crossings it put past the seam, so a
-        // gap in band ahead of a later one decided apart may be the true
-        // cut, and its escalation refuses.
+        // WHICH, not a search a later gap may answer past
+        // ([`geom_brep::ladder::Answering::First`]'s rule, several rungs may answer): the cut
+        // `k` rotates the walk, and the pairing below reads which crossings it put past the
+        // seam, so a gap in band ahead of a later one decided apart may be the true cut, and
+        // its escalation refuses.
         let mut cut = None;
         for k in 1..n {
             let step = gap(&walk, order[k], order[k - 1]);

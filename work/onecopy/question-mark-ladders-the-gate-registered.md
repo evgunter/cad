@@ -25,7 +25,7 @@ measured yet.** Read each in full before porting it.
 | ~~`boolean::rim_wedge::departures` (`abut`)~~ | **ported** (`onecopy/refusal-standing`, QML T1): `climb(Any)` over the two end pairs, a theorem (either abuts) | — |
 | ~~`boolean::rim_wedge::rides`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over both ends | — |
 | ~~`splitting::containment::certify_plane`~~ | **ported** (`onecopy/refusal-standing`, QML T1): one `read_identity` over every datum; the datum apart names the cause | — |
-| ~~`boolean::sectors`' crescent search (two reads)~~ | **ported** (`onecopy/refusal-standing`, QML T2): `climb(Any)` over the four bound pairs, a theorem; a pair's premise in band is kept (`BooleanError::margin_or_abort`) | — |
+| ~~`boolean::sectors`' crescent search (two reads)~~ | **ported** (`onecopy/refusal-standing`, QML T2): `climb(Any)` over the four bound pairs, a theorem; a pair's premise in band is kept by `BooleanError::refusal` (PR 6576) | — |
 | `splitting::join::conic_pairs` (the first cut) | **WHICH** (place_off ruling, QML T1): the cut rotates the pairing; the `?` stands, the site says so | — |
 | ~~`shell`'s moved-walls overlap search~~ | **ported** (`onecopy/refusal-standing`, QML T2): `climb(Any)` over the pieces, read lazily; the overlap only names the fault | — |
 | ~~`boolean::surface_group::WrapRims::holds`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over the two coaxial margins | — |
@@ -60,7 +60,7 @@ measured yet.
 | site | shape | port |
 |---|---|---|
 | ~~`geom_brep::curve_pair::pose::one_line`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `read_identity` over the four end offsets | — |
-| ~~`geom_brep::props::curved::sphere_region_material_sign`, `pole_side`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `climb(Any)` over the arcs, a theorem (the pole on any arc); `PropsError::margin_or_abort` is the standing | — |
+| ~~`geom_brep::props::curved::sphere_region_material_sign`, `pole_side`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `climb(Any)` over the arcs, a theorem (the pole on any arc); `PropsError::refusal` is the standing | — |
 | ~~`profile::seg::arc_arc`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `climb(Any)` over the four ends, a theorem, on `geom_core::ladder` (the ladder moved to geom-core so profile can reach it) | — |
 | `boolean::carrier_touch::off_face`, `ball_off_face` | any cluster or edge not off answers "not off" | `climb`, `Any` |
 | `boolean::region::on_boundary` | any edge holding the point | `climb`, `Any` |
@@ -98,7 +98,7 @@ once at its hit lines and its exits.
 | `geom_brep::pair_section::ended_by` | 1718, 1757 | NOT A SEARCH: a unique-holder read |
 | `geom_brep::pair_section::site` | 2684 | NOT A SEARCH: a unique-holder read (a site on two components refuses) |
 | `geom_brep::pcurve_cache::projected::met_floors` | 2354 | NOT A SEARCH: a fold |
-| `geom_brep::props::curved::unanimous_rim_side` | 1283 | **ported** (`onecopy/refusal-standing`, QML T1): `climb_agreeing` over the rims. No move is reachable: every rim lies at `lo` or `hi`, so each rim's margin is ±(hi − lo), and all are in band or none |
+| `geom_brep::props::curved::unanimous_rim_side` | 1283 | **ported** (`onecopy/refusal-standing`, QML T1): `climb_agreeing` over the rims. A move is reachable only at the rounding's width: every rim is required at `lo` or `hi` first, so each rim's margin is ±(hi − lo) up to how far its level sits from that extreme (within the band), and the rims read in band together or not, except where `hi − lo` itself sits at the band's edge |
 | `geom_brep::props::curved::torus_chart` | 5389 | NOT A SEARCH: a fold over every loop |
 | `step_import::entities::loop_u_wrap` | 2084 | NOT A SEARCH: every use is read (an `Option` `?`, running `prev`) |
 | `sweep::blend::surgery::ring_clearance_pass` | 2874, 2887, 2896 | NOT A SEARCH: a minimum over every ring. It raises the argmin question `offset_derive::nearest` raises above |

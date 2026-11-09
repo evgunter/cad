@@ -112,10 +112,34 @@ impl Kept<Indeterminate> {
 /// - one that never refuses the whole query returns `Refusal`, and is a
 ///   rung by [`Refusal::rung`] alone: no answer is needed, so none can
 ///   be supplied;
-/// - one with a variant that does (a corrupt input, two readings that
-///   contradict, a refusal every point reads alike) returns
+/// - one with a variant that does (an invalid input, a kernel fault,
+///   two readings that contradict) returns
 ///   `Result<Refusal, Aborts>`, and its caller names the answer the
 ///   ladder stops with ([`rung_or_abort`]).
+///
+/// **A standing reads DESIGN `[failure.taxonomy]`'s rows.** Row 1 is
+/// read here in two parts, 1(a) and 1(b). That split is this code's
+/// reading of row 1's own bullets, not a sub-row of DESIGN's:
+///
+/// > *Row 1 absorbs the terminal indeterminates*, but the axis is
+/// > curable-vs-terminal, not bug-vs-invalid
+///
+/// > A site whose firing a correct kernel can reach is not a defect but a
+/// > precision limit the model controls (row 1, a lever and
+/// > `KERNEL_LIMIT_RECOURSE`)
+///
+/// - **1(a)**, the terminal half: an invalid input no lever cures,
+///   including a request whose result the kernel's model never
+///   represents (manifold only, bounded). It aborts.
+/// - **1(b)**, the curable half: a precision limit the model controls,
+///   which a lever or a tolerance cures. It is ranked by its margin where
+///   it carries one, kept in band where a tighter tolerance may decide
+///   it, and a limit otherwise.
+///
+/// Row 2 (valid input, unbuilt) is a limit, and row 4 (a kernel fault)
+/// aborts. Row 3's poison flows through values: where it reaches a
+/// decision, that refusal is 1(b) where input causes it and row 4 where
+/// none can. A payload that mixes classes aborts until it is split.
 ///
 /// [`Kept`] is not a standing: it is what a margin's reading leaves
 /// ([`decided`]), which is never unsettled and never aborts.
@@ -137,6 +161,30 @@ pub enum Refusal {
 pub struct Aborts;
 
 impl Refusal {
+    /// **A crease reading's standing**, stated once for every reader of
+    /// one (a spline chart's normal at a point within the band of a line
+    /// its normal is not continuous across, or of a pole): a distance in
+    /// band is ranked by its margin, and one decided zero is a limit no
+    /// tolerance moves, the pose not read (`[failure.taxonomy]` row 2).
+    /// The reading is `geom_brep::dihedral_side::CreaseReading`, spelled
+    /// out here, whose crate this one does not see.
+    #[must_use]
+    pub const fn of_crease(reading: Result<crate::MarginDiag, crate::Indeterminate>) -> Self {
+        match reading {
+            Err(diag) => Self::Margin(diag),
+            Ok(_) => Self::Limit,
+        }
+    }
+
+    /// **A reading within the band of a cone's apex**, stated once for
+    /// every reader of one: in band. It carries no reading to tell a point
+    /// at the apex from one in band of the axis, and a tighter tolerance
+    /// may part the latter from it (row 1(b) above).
+    #[must_use]
+    pub const fn of_apex() -> Self {
+        Self::InBand
+    }
+
     /// The rung a reading refused with `e` stands as: kept by its kind.
     pub fn rung<A, E>(self, e: E) -> Rung<A, E> {
         self.kept(e).map_or_else(Rung::Unsettled, Rung::from)
@@ -325,6 +373,26 @@ pub enum Answering {
     /// the first member that projects. A kept reading ahead of the answer
     /// may truly have answered first, so the answer rests on it and its
     /// run is spliced live.
+    ///
+    /// **When a "which" answer is given past a kept rung, and when it is
+    /// not** (the one statement of the rule; PR 6553's `place_off`
+    /// ruling). A consumer that reads WHICH rung answered asks one of two
+    /// questions, and a site tells them apart by asking: *can two rungs
+    /// both answer truly?*
+    ///
+    /// - **At most one can** (the answer is unique by the door's premise:
+    ///   `rim_wedge::shared_rim`'s one shared rim, where two would be no
+    ///   rim contact the door claims to see). A later rung decided to
+    ///   answer shows the kept rung ahead was not one, so the ladder gives
+    ///   it here, under `First`, its kept runs live.
+    /// - **Several can, and the consumer reads the first in order** (the
+    ///   cell holding a point, `CarrierLoop::place_off`'s edge; the cut
+    ///   that rotates a pairing, `splitting::join::conic_pairs`; the end
+    ///   whose spread is read next, `boolean::reduce`'s line-cone apex end;
+    ///   the surface carrying an iso, `boolean::edge_join::joinable`). A
+    ///   kept rung ahead may be the answer itself, so no later rung
+    ///   answers past it: the site refuses at its first kept rung, which
+    ///   is the plain `?`, not a climb.
     First,
 }
 

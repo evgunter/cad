@@ -178,7 +178,9 @@ pub enum NormalAtError {
     },
     /// The face's torus is definitely outside the ring convention: a
     /// shape with no regular normal on its tube, refused with the lever
-    /// the in-band arm of the same half names. A limit: a decided shape.
+    /// the in-band arm of the same half names. An abort: a shape the
+    /// kernel's model never represents, an invalid input
+    /// ([`geom_brep::ladder::Refusal`]'s row 1(a)).
     DegenerateTorus {
         /// The half of the convention that refused.
         convention: TorusConvention,
@@ -195,7 +197,7 @@ pub enum NormalAtError {
     /// tangent plane: definite or in band, there is no normal to answer
     /// with. In band: it carries no reading to tell a point at the apex
     /// from one in band of the axis, and a tighter tolerance may part the
-    /// latter from it.
+    /// latter from it ([`geom_brep::ladder::Refusal::of_apex`]).
     AtConeApex {
         /// The band the distance off the axis was classified against.
         band: Band,
@@ -204,8 +206,8 @@ pub enum NormalAtError {
     /// chart's normal is not continuous across (an interior knot run of
     /// multiplicity at least the degree, a closed chart's seam): the face
     /// has a normal on each side, and no one of them is the normal there
-    /// ([`geom_brep::chart_normal_at`]). Ranked by its distance's margin
-    /// where the distance is in band; a limit where it is decided zero.
+    /// ([`geom_brep::chart_normal_at`]). As its reading stands
+    /// ([`geom_brep::ladder::Refusal::of_crease`]).
     SplineCrease {
         /// The band the distance from the line was classified against.
         band: Band,
@@ -231,22 +233,17 @@ impl NormalAtError {
     /// # Errors
     ///
     /// [`geom_brep::ladder::Aborts`] for a point definitely off the
-    /// face's surface: the caller's invariant broken.
+    /// face's surface, the caller's invariant broken, and for a torus the
+    /// model never represents.
     pub const fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         use geom_brep::ladder::{Aborts, Refusal};
         match self {
-            Self::Escalated { diag, .. }
-            | Self::SplineCrease {
-                reading: Err(diag), ..
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::SplineCrease { reading, .. } | Self::SplineIrregular { reading, .. } => {
+                Ok(Refusal::of_crease(*reading))
             }
-            | Self::SplineIrregular {
-                reading: Err(diag), ..
-            } => Ok(Refusal::Margin(*diag)),
-            Self::AtConeApex { .. } => Ok(Refusal::InBand),
-            Self::DegenerateTorus { .. }
-            | Self::SplineCrease { reading: Ok(_), .. }
-            | Self::SplineIrregular { reading: Ok(_), .. } => Ok(Refusal::Limit),
-            Self::OffSurface => Err(Aborts),
+            Self::AtConeApex { .. } => Ok(Refusal::of_apex()),
+            Self::DegenerateTorus { .. } | Self::OffSurface => Err(Aborts),
         }
     }
 }
