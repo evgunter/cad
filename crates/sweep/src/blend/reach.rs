@@ -1668,7 +1668,7 @@ fn halves(lo: [f64; 3], hi: [f64; 3]) -> [([f64; 3], [f64; 3]); 2] {
     let k = (0..3)
         .max_by(|&i, &j| (hi[i] - lo[i]).total_cmp(&(hi[j] - lo[j])))
         .unwrap_or(0);
-    let mid = 0.5 * (lo[k] + hi[k]);
+    let mid = geom::mid_param(lo[k], hi[k]);
     let (mut h1, mut l2) = (hi, lo);
     h1[k] = mid;
     l2[k] = mid;

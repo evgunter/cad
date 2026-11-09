@@ -1,6 +1,6 @@
 //! Parameter-interval helpers shared by every carrier kind.
 
-use geom_core::Real;
+use crate::Real;
 
 /// The middle of the parameter interval `[t0, t1]`, spelled
 /// `(t0 + t1)·½`.

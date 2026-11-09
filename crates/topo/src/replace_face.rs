@@ -1256,7 +1256,10 @@ fn transport_curve<T: Decide>(
 fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
     let (u0, u1) = s.knots_u_f64_interim().domain();
     let (v0, v1) = s.knots_v_f64_interim().domain();
-    let jet = s.ders(T::from_f64((u0 + u1) * 0.5), T::from_f64((v0 + v1) * 0.5));
+    let jet = s.ders(
+        T::from_f64(geom::mid_param(u0, u1)),
+        T::from_f64(geom::mid_param(v0, v1)),
+    );
     let n = jet.du.cross(jet.dv).normalize();
     (!n.x.is_poison() && !n.y.is_poison() && !n.z.is_poison()).then_some(n)
 }
@@ -3124,7 +3127,7 @@ fn carried_alike<T: Decide>(
     let (Some(on_a), Some((on_b, _))) = (transport(a)?, transport(b)?) else {
         return Ok(None);
     };
-    let tm = (t0 + t1) * T::from_f64(0.5);
+    let tm = geom::mid_param(t0, t1);
     for t in [t0, tm, t1] {
         if !gap_within_eps(on_a.0.eval(t).distance(on_b.eval(t)), tol, band)? {
             return Ok(None);

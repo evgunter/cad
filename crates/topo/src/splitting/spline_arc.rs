@@ -118,7 +118,7 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
     }
 
     fn halves(&self, p: Piece) -> [Piece; 2] {
-        let m = 0.5 * (p.a + p.b);
+        let m = geom::mid_param(p.a, p.b);
         let depth = p.depth + 1;
         [Piece { b: m, depth, ..p }, Piece { a: m, depth, ..p }]
     }
@@ -128,7 +128,7 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
     /// middle.
     fn ball(&self, p: &Piece) -> PieceBall<T> {
         let net = self.net(p);
-        let m = 0.5 * (p.a + p.b);
+        let m = geom::mid_param(p.a, p.b);
         let (lo, hi) = net
             .iter()
             .fold((net[0], net[0]), |(lo, hi), &c| (lo.min(c), hi.max(c)));

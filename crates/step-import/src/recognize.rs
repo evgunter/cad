@@ -172,7 +172,7 @@ pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
 fn chart_normal_mid(patch: &NurbsSurface<f64>) -> Vec3<f64> {
     let (u0, u1) = patch.knots_u_f64_interim().domain();
     let (v0, v1) = patch.knots_v_f64_interim().domain();
-    let jet = patch.ders((u0 + u1) / 2.0, (v0 + v1) / 2.0);
+    let jet = patch.ders(geom::mid_param(u0, u1), geom::mid_param(v0, v1));
     jet.du.cross(jet.dv)
 }
 
@@ -441,7 +441,7 @@ fn enveloped_residual_sup(
 pub(crate) fn chart_flipped(patch: &NurbsSurface<f64>, promoted: &Surface<f64>) -> bool {
     let (u0, u1) = patch.knots_u_f64_interim().domain();
     let (v0, v1) = patch.knots_v_f64_interim().domain();
-    let jet = patch.ders((u0 + u1) / 2.0, (v0 + v1) / 2.0);
+    let jet = patch.ders(geom::mid_param(u0, u1), geom::mid_param(v0, v1));
     let nurbs_normal = jet.du.cross(jet.dv);
     let grad = geom_brep::implicit_gradient(promoted, jet.point);
     nurbs_normal.dot(grad) < 0.0

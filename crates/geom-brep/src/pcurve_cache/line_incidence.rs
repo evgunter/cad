@@ -65,8 +65,7 @@ use crate::implicit::axial_radial;
 
 /// The middle of a value's bracket; NaN for the poison.
 fn middle<T: SpanLocate>(x: T) -> f64 {
-    x.structure_bracket()
-        .map_or(f64::NAN, |(lo, hi)| lo + (hi - lo) * 0.5)
+    x.structure_bracket().map_or(f64::NAN, geom::bracket_mid)
 }
 
 fn mid3<T: SpanLocate>(v: Vec3<T>) -> Vec3<f64> {
@@ -233,7 +232,7 @@ fn monotone_roots(
     cuts.windows(2)
         .filter_map(|piece| {
             let (a, b) = (piece[0], piece[1]);
-            let mid = a + (b - a) * 0.5;
+            let mid = geom::bracket_mid((a, b));
             let g = |t: f64| f(t, if t <= a { 1.0 } else { -1.0 }, mid);
             let (ga, gb) = (g(a), g(b));
             (ga * gb < 0.0).then(|| bisect(&g, a, b, ga < 0.0))
@@ -246,7 +245,7 @@ fn monotone_roots(
 /// in at most 200 halvings.
 fn bisect(g: &impl Fn(f64) -> f64, mut a: f64, mut b: f64, negative_at_a: bool) -> f64 {
     for _ in 0..200 {
-        let m = a + (b - a) * 0.5;
+        let m = geom::bracket_mid((a, b));
         if m <= a || m >= b {
             return m;
         }
@@ -256,5 +255,5 @@ fn bisect(g: &impl Fn(f64) -> f64, mut a: f64, mut b: f64, negative_at_a: bool) 
             b = m;
         }
     }
-    a + (b - a) * 0.5
+    geom::bracket_mid((a, b))
 }

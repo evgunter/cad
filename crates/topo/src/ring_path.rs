@@ -845,7 +845,7 @@ impl<T: Decide> Oval<T> {
     /// The parameter of `x`, a point of the oval's plane, on the branch
     /// of its span's middle: the carrier's own reading.
     fn param(&self, x: Point3<T>) -> T {
-        let mid = (self.span.0 + self.span.1) * T::from_f64(0.5);
+        let mid = geom::mid_param(self.span.0, self.span.1);
         match self.carrier().param_near(x, mid) {
             Some(t) => t,
             None => unreachable!("a spiric carrier reads every point's parameter"),

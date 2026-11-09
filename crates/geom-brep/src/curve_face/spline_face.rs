@@ -198,7 +198,7 @@ struct Cell([(f64, f64); 3]);
 
 impl Cell {
     fn mid(self) -> [f64; 3] {
-        self.0.map(|(a, b)| a + (b - a) * 0.5)
+        self.0.map(geom::bracket_mid)
     }
 
     fn interval(self, k: usize) -> Interval {
@@ -228,8 +228,7 @@ impl Cell {
 
     /// The halves along coordinate `k`, lower first.
     fn halves(self, k: usize) -> [Self; 2] {
-        let (a, b) = self.0[k];
-        let c = a + (b - a) * 0.5;
+        let c = geom::bracket_mid(self.0[k]);
         let (mut lo, mut hi) = (self, self);
         lo.0[k].1 = c;
         hi.0[k].0 = c;

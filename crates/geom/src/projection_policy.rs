@@ -190,9 +190,11 @@ pub(crate) fn mid<T: Bounds>(v: T) -> f64 {
 /// **The midpoint of a bracket `(lo, hi)` in the form `lo + ½(hi − lo)`**:
 /// the one spelling of that form, which [`mid`] reads a scalar's bracket
 /// through and a caller holding a bracket by another door
-/// (`SpanLocate::structure_bracket`) reads directly. It is not the only
-/// midpoint form in the tree: `½(lo + hi)` is spelled inline elsewhere
-/// and differs in the last bit. It is the identity on a finite point. On
+/// (`SpanLocate::structure_bracket`) reads directly. The other form,
+/// `½(lo + hi)`, is [`crate::mid_param`]'s: the same bits wherever
+/// `hi − lo` is exact, the last bit otherwise. A hand spelling of either
+/// is refused by `scripts/gates/bracket-mid-by-hand.sh`. It is the
+/// identity on a finite point. On
 /// a bracket with an infinite end it is not finite: NaN where `hi − lo`
 /// is (both ends infinite on one side, or `(−∞, +∞)`), and that infinite
 /// end otherwise (`(1, +∞)` gives `+∞`). A finite bracket whose width

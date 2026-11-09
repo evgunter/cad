@@ -1077,7 +1077,7 @@ impl NurbsCellGrid {
             let (va, vb) = (w[0], w[1]);
             // The band is found by the slab midpoint — strictly inside
             // one band, since no interior cut crosses a slab.
-            let bound = self.row_bound(self.row_of(0.5 * (va + vb)));
+            let bound = self.row_bound(self.row_of(geom::mid_param(va, vb)));
             let steps = bound.split_steps(budget);
             let nuc = crate::sizing::ceil_count(du, steps.hu)?;
             let nvc = crate::sizing::ceil_count(vb - va, steps.hv)?;

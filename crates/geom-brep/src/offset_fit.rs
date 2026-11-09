@@ -1690,7 +1690,7 @@ fn bisect(params: &[f64], marked: &[bool]) -> Vec<f64> {
     for (i, w) in params.windows(2).enumerate() {
         out.push(w[0]);
         if marked.get(i).copied().unwrap_or(false) {
-            let mid = 0.5 * (w[0] + w[1]);
+            let mid = geom::mid_param(w[0], w[1]);
             if mid > w[0] && mid < w[1] {
                 out.push(mid);
             }
@@ -2172,7 +2172,7 @@ fn recentre_origin(base: &NurbsSurface<f64>) -> Origin {
         // A non-finite or empty net recentres on the origin: the
         // composite's own refusal handling is what reports it, and a
         // NaN centre would silently refuse every cell instead.
-        let m = (lo[c] + hi[c]) * 0.5;
+        let m = geom::mid_param(lo[c], hi[c]);
         out[c] = if m.is_finite() { m } else { 0.0 };
     }
     Origin(out)

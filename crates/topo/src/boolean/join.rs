@@ -5651,7 +5651,7 @@ fn seam_germ_side<T: Decide>(
             return Rung::Passes;
         };
         let (t0, t1) = curve.params();
-        let tm = (t0 + t1) * T::from_f64(0.5);
+        let tm = geom::mid_param(t0, t1);
         let mid = curve.carrier().eval(tm);
         let d = curve.carrier().deriv(tm);
         let d = if mate == he_plus { d } else { -d };

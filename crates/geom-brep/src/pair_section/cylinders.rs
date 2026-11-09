@@ -869,7 +869,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                 origin: p,
                 dir: axis,
             });
-            let witness = line.eval((span.0 + span.1) * T::from_f64(0.5));
+            let witness = line.eval(geom::mid_param(span.0, span.1));
             (line, span, witness)
         })
     };
@@ -968,7 +968,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             },
                             // The winding is the node-joined set's.
                             [false, false],
-                            Some(curve.eval((span.0 + span.1) * T::from_f64(0.5))),
+                            Some(curve.eval(geom::mid_param(span.0, span.1))),
                             ClassCarrier::Span {
                                 curve: curve.clone(),
                                 span,

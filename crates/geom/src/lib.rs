@@ -152,7 +152,6 @@ mod datum;
 mod frame;
 mod memo;
 mod net;
-mod param;
 mod periodic;
 pub mod pole_form;
 mod projection_policy;
@@ -183,7 +182,7 @@ pub use curves::{
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use frame::{Frame, plane_offset, plane_offset_rounded};
-pub use param::mid_param;
+pub use geom_core::mid_param;
 pub use periodic::periodic_window_may_hold;
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the

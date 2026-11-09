@@ -855,8 +855,7 @@ fn closing_side(starts: &[bool]) -> usize {
 /// one that keeps every operand at the loop's own scale: a fixed
 /// anchor pays cancellation in proportion to the loop's distance from
 /// it, which the direction-only consumer in [`loop_polygon`] reads as
-/// a rotated — eventually reversed — area vector. Overflow-robust
-/// midpoint, the spelling `validate::signed_volume` uses.
+/// a rotated — eventually reversed — area vector.
 ///
 /// An empty cycle has no anchor and no area.
 fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
@@ -866,7 +865,11 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
     let (lo, hi) = pts
         .iter()
         .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
-    let o = lo + (hi - lo) * 0.5;
+    let o = Point3::new(
+        geom::bracket_mid((lo.x, hi.x)),
+        geom::bracket_mid((lo.y, hi.y)),
+        geom::bracket_mid((lo.z, hi.z)),
+    );
     let mut area = Vec3::new(0.0, 0.0, 0.0);
     for (i, p) in pts.iter().enumerate() {
         let q = pts[(i + 1) % pts.len()];

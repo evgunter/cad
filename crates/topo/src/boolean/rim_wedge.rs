@@ -357,7 +357,7 @@ pub(crate) fn departures<T: Decide>(
         ) {
             continue;
         }
-        let mid = (s0 + s1) * T::from_f64(0.5);
+        let mid = geom::mid_param(s0, s1);
         let ca = ra.at(a, fa, locus, mid, scale, band)?;
         let cb = rb.at(b, fb, locus, mid, scale, band)?;
         if !(ca.contains() && cb.contains()) {
@@ -624,7 +624,7 @@ fn reach<T: Decide>(
             }
         }
         if rides(curve, locus, band)? {
-            let mid = (t0 + t1) * T::from_f64(0.5);
+            let mid = geom::mid_param(t0, t1);
             let p = curve.carrier().eval(mid);
             let along = curve.carrier().deriv(mid) * if he { T::one() } else { -T::one() };
             let tangent = match locus {

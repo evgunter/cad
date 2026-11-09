@@ -2677,7 +2677,7 @@ impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         let (lo, hi) = (seed.lo(), seed.hi());
-        carrier.project_from_seed(point, lo + 0.5 * (hi - lo))
+        carrier.project_from_seed(point, geom::bracket_mid((lo, hi)))
     }
 }
 

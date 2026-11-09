@@ -1689,7 +1689,7 @@ impl<T: Decide> PairSection<T> {
                     winds: c.winds,
                     pad: 0.0,
                     reach: 0.0,
-                    witness: curve.eval((span.0 + span.1) * T::from_f64(0.5)),
+                    witness: curve.eval(geom::mid_param(span.0, span.1)),
                 }),
                 (ClassCarrier::General, Some(f)) => Ok(f),
                 (ClassCarrier::General, None) => Err(CarryError::Desync(
@@ -1986,7 +1986,7 @@ fn march_over_the_ball(
             let tube = Tube::of(
                 &br.carrier,
                 &br.certificate,
-                0.5 * (br.params.0 + br.params.1),
+                geom::mid_param(br.params.0, br.params.1),
             )?;
             let winding = if closed {
                 let read = |s| winds::winding(s, &br.carrier, br.params, &tube.chain);
@@ -2202,7 +2202,7 @@ fn seat_at(
     .map_err(CarryError::March)?;
     let span = seated.domain();
     let carrier = Curve3::Nurbs(std::sync::Arc::new(seated));
-    let mid = 0.5 * (span.0 + span.1);
+    let mid = geom::mid_param(span.0, span.1);
     let tube = Tube::of(&carrier, &certificate, mid)?;
     Ok(CarriedComponent {
         witness: carrier.eval(mid),
