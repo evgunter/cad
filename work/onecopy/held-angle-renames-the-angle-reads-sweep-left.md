@@ -38,6 +38,19 @@ test outcomes read:
 - `topo/src/shell.rs`'s moved-wall arc split (`from + (φ −
   from).reduce_periodic(π)`, period π, then a decided walk).
 
+Two `f64` folds into a window from an end, found in review of PR 6626,
+stay spelled by hand for a reason each:
+- `viewer/src/camera.rs` `wrap_angle` (`[−π, π)`, a floor then a fold of
+  `+π` to `−π`): `Period::at_or_above(angle, −π)` is the same rule, but
+  `Camera::new` folds any finite yaw, and one past `i32::MAX` turns has
+  no `Period` copy and would read NaN. Route it once the constructor
+  refuses such a yaw (or `Period` names a far copy).
+- `editor-core/src/eval/mod.rs` `ComputingTwist::for_node`'s
+  `rem_euclid(τ)` on the twist's advanced angle: an exact `fmod` into
+  `[0, τ)` of any magnitude, read only as a turn's angle, so no reader
+  takes the window's ends.
+  An extent-or-rename of this bullet's class; repoint it with the rest.
+
 Blind spot of the shapes: a rename spelled through a local helper or a
 multi-line loop; `rim_wedge.rs`'s four floors wait on PR 6443.
 
