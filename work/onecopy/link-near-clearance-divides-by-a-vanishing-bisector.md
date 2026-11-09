@@ -19,7 +19,7 @@ DESIGN `[simple.conditioned]` says such a formula is a defect, to be re-posed, n
 
 ## Witnesses
 
-A `debug_assert!` that no clearance reads negative (QML T2, reverted) fired on seven tests:
+A `debug_assert!` that no clearance reads negative (QML T2, reverted) fired on six tests:
 
 - `topo::all a_doubled_line_does_not_revert::the_unequal_pinch_grafted_as_a_cavity_refuses_its_wedges_at_tier_3_prime`, at both ε;
 - `topo link::cleared_rows::a_keel_off_the_arcs_is_read_at_the_faces_reach_not_the_cleared_radius`, at ε 1e-12;
