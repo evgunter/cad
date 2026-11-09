@@ -360,7 +360,11 @@ fn unlogged_sites() -> Vec<Site> {
     }
     door_sites(
         &files,
-        &[("check_unlogged", 3), ("k_stats::choose", 2), ("unlogged", 0)],
+        &[
+            ("check_unlogged", 3),
+            ("k_stats::choose", 2),
+            ("unlogged", 0),
+        ],
     )
 }
 
@@ -387,7 +391,12 @@ fn door_sites(files: &[(PathBuf, String)], doors: &[(&str, usize)]) -> Vec<Site>
                     }),
                     Cite::Forwarded { ident, at } => match forwarding_door(text, &code, at, &ident) {
                         Some(wrapper) => {
-                            if !known.contains(&wrapper) {
+                            // A door already known by its path is that
+                            // door, not a new bare one.
+                            let named = |(d, i): &(String, usize)| {
+                                d.rsplit("::").next() == Some(wrapper.0.as_str()) && *i == wrapper.1
+                            };
+                            if !known.iter().any(named) {
                                 known.push(wrapper);
                             }
                         }
@@ -566,5 +575,40 @@ fn a_forwarding_wrapper_is_a_door_and_its_callers_cite_their_rows() {
     assert!(
         !rows.iter().any(|(f, _)| f == "door.rs" || f == "wrap.rs"),
         "a forwarding wrapper's own body is a door, not a site: {rows:?}"
+    );
+}
+
+/// **A door spelled with its path is that path's fn, not the verb**: a
+/// `k_stats::choose` call and a `choose` the file imports from `k_stats`
+/// are sites; a method `.choose(..)` and another module's `choose` are not.
+#[test]
+fn a_path_keyed_door_is_its_paths_fn_and_not_the_verb() {
+    let file = |name: &str, text: &str| (PathBuf::from(name), text.to_string());
+    let files = [
+        file(
+            "qualified.rs",
+            "fn a() { geom_core::k_stats::choose(\"n\", m, \"F1\"); }\n",
+        ),
+        file(
+            "imported.rs",
+            "use geom_core::k_stats::{Pick, choose};\nfn b() { choose(\"n\", m, \"F2\"); }\n",
+        ),
+        file(
+            "elsewhere.rs",
+            "use rand::seq::SliceRandom;\nfn c() { v.choose(&mut rng); }\nfn d() { other::choose(1, 2); }\nfn e() { choose(n, k); }\n",
+        ),
+    ];
+    let sites = door_sites(&files, &[("k_stats::choose", 2)]);
+    let rows: Vec<(String, String)> = sites
+        .iter()
+        .map(|s| (s.file.display().to_string(), s.ledger_row.clone()))
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            ("imported.rs".to_string(), "F2".to_string()),
+            ("qualified.rs".to_string(), "F1".to_string()),
+        ],
+        "only the path's fn is the door"
     );
 }
