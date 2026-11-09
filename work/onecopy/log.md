@@ -896,3 +896,4 @@
 - 10:58Z Reviews:
   - 6629 FULL: FIX. The from-f64 tsv is stale; Unwalked's standing and the window fallbacks are unpinned; halve goes to choose; one home for unread-no-escalation; the walk-wrapper census is short. Sent to the lane.
   - Delta reviews dispatched for 6626's fix pass (163 seam starts move from τ to 0) and 6608's fix pass.
+- 11:02Z length-rule opened PR 6628 (head 4abd3df7, gate green). The home is checked_direction_and_length/checked_length; 20+ sites are routed. chord_director now goes through normalize, with its bit move disclosed and pinned. FULL review dispatched. The lane found two main reds and added them to existing rows: the plate Sym ledger (work/scalar) and the cone_fuzz seed (splitdoor).
