@@ -1677,15 +1677,11 @@ fn inside_bound<T: Bounds>(
     most
 }
 
-/// K name: the band's axis as the aim a face's cover is read along
-/// ([`sheet_clip`]), its length decided against the band.
-pub(in crate::blend) const BLEND_SHEET_AIM: &str = "blend_sheet_aim";
-
 /// **The face's image in the sheet about the unit axis `a` through
-/// `o`**, read off topo's cover of the face along that axis
-/// ([`topo::face_cover_toward`]): its range along the axis, the nearest
-/// it stands from the axis line ([`topo::face_nearest`]) and the
-/// farthest. `None` where the face has no cover.
+/// `o`**, read off topo's cover of the face ([`topo::face_cover`]): its
+/// range along the axis, the nearest it stands from the axis line
+/// ([`topo::face_nearest`]) and the farthest. `None` where the face has
+/// no cover.
 fn sheet_clip<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1693,11 +1689,7 @@ fn sheet_clip<T: Decide>(
     a: Vec3<T>,
     band: Band,
 ) -> Option<Rect<T>> {
-    let cover = match geom_core::UnitVec3::new(a, BLEND_SHEET_AIM, band) {
-        Ok(aim) => topo::face_cover_toward(body, face, band, aim),
-        Err(_) => topo::face_cover(body, face, band),
-    }
-    .ok()?;
+    let cover = topo::face_cover(body, face, band).ok()?;
     let axis = geom::cover::Site::Line(geom::Line { origin: o, dir: a });
     let base = (o - Point3::origin()).dot(a);
     let (z0, z1) = cover.range_along(a);
@@ -1706,11 +1698,30 @@ fn sheet_clip<T: Decide>(
     Some([near, far, z0 - base, z1 - base])
 }
 
+/// K name: whether a sheet rectangle is empty, either side's width
+/// decided definitely negative ([`misses`]).
+pub(in crate::blend) const BLEND_SHEET_MISS: &str = "blend_sheet_miss";
+
+/// **Whether the sheet rectangle `[ρ0, ρ1] × [z0, z1]` is empty**: a
+/// width decided definitely negative on the band. A width in the band,
+/// a touch, or one the band cannot call leaves the rectangle to be
+/// metered.
+fn misses<T: Decide>([r0, r1, z0, z1]: Rect<T>, band: Band) -> bool {
+    let negative = |w: T| {
+        matches!(
+            geom_core::k_stats::decide(BLEND_SHEET_MISS, Margin::of(w), band),
+            Ok(Sign::Negative)
+        )
+    };
+    negative(r1 - r0) || negative(z1 - z0)
+}
+
 /// **The least cell bound of one face against a circular reach, in the
 /// reach's meridian sheet** (module docs): the face's surface read about
 /// the reach's axis with its slack, over the sheet rectangle of the
-/// face's clipped box. `None` where the surface has no sheet form or a
-/// bound of the reach is not a sheet bound.
+/// face's box met with its cover's image ([`sheet_clip`]). `None` where
+/// the surface has no sheet form or a bound of the reach is not a sheet
+/// bound.
 fn face_bound_in_sheet<T: Decide + Bounds>(
     body: &Body<T>,
     face: Option<FaceKey>,
@@ -1723,7 +1734,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
     let (o, a) = reach.sheet?;
     let (f, slack) = sheet_fn(surface, o, a, (reach.lo, reach.hi))?;
     let mut rect = sheet_box(o, a, &Cell::<T>::new(lo, hi));
-    // The face's own extent along its trace, where its boundary says it.
+    // The face's image, where it has a cover.
     if let Some([r0, r1, z0, z1]) = face.and_then(|face| sheet_clip(body, face, o, a, band)) {
         rect = [
             rect[0].max(r0),
@@ -1732,7 +1743,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
             rect[3].min(z1),
         ];
     }
-    if (rect[1] - rect[0]).hi() < 0.0 || (rect[3] - rect[2]).hi() < 0.0 {
+    if misses(rect, band) {
         // The face's image misses the reach's box: nothing to meter.
         return Some(T::from_f64(band.escalate()));
     }
@@ -2971,6 +2982,152 @@ mod tests {
         }
     }
 
+    /// The unit ball's cap above `y = ½`, revolved about `y`, and one of
+    /// its sphere faces, which holds the pole `+y`. The full revolve mints
+    /// the cap's sphere as two half-turn faces; this is the first.
+    #[allow(clippy::expect_used)]
+    fn cap<T: topo::AtRestPolicy>() -> (topo::Body<T>, topo::FaceKey) {
+        use geom_core::{Point2, Tol};
+        let (h, a) = (0.5_f64, 0.75_f64.sqrt());
+        let p = |x: f64, y: f64| Point2::new(T::from_f64(x), T::from_f64(y));
+        let bulge = T::from_f64((core::f64::consts::PI / 12.0).tan());
+        let body = crate::test_support::revolved_about_y_at(
+            vec![
+                (p(0.0, h), T::zero()),
+                (p(a, h), bulge),
+                (p(0.0, 1.0), T::zero()),
+            ],
+            crate::Revolution::Full,
+            Tol::witness(),
+        );
+        let mut faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+        faces.sort_unstable();
+        let face = faces
+            .into_iter()
+            .find(|&f| {
+                body.get_face(f)
+                    .and_then(|face| body.get_surface(face.surface))
+                    .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
+            })
+            .expect("the cap's sphere face");
+        (body, face)
+    }
+
+    /// **A pip's clip reads its sphere face's window**: the bowl a ball
+    /// of radius `½` about `(0, 0, 0.2)`, poled along `z`, leaves in the
+    /// plate below `z = 0`, read about an axis `0.2` rad off `z`, reaches
+    /// no higher along it than its rim, `√0.21·sin 0.2`, where the ball
+    /// alone reaches `0.2·cos 0.2 + ½`. Red where the sphere arm's
+    /// window is dropped from the face's cover.
+    #[test]
+    #[allow(clippy::expect_used, clippy::panic)]
+    fn a_pips_clip_reads_its_window_along_the_axis() {
+        use super::sheet_clip;
+        use geom_core::{Tol, Vec3};
+        let band = band();
+        let tol = Tol::witness();
+        let plate = crate::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (-1.0, 0.0), tol);
+        let ball = crate::test_support::ball_poled_z(0.5, Vec3::new(0.0, 0.0, 0.2), tol);
+        let body =
+            crate::test_support::realized(topo::boolean::BooleanOp::Subtract, &plate, &ball, tol);
+        let bowl = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&f| {
+                body.get_face(f)
+                    .and_then(|face| body.get_surface(face.surface))
+                    .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
+            })
+            .expect("the pip's bowl");
+        let t = 0.2_f64;
+        let (o, a) = leaning::<f64>(t);
+        let Some([_, _, z0, z1]) = sheet_clip(&body, bowl, o, a, band) else {
+            panic!("the bowl clips")
+        };
+        let rim = 0.21_f64.sqrt() * t.sin();
+        let low = 0.2 * t.cos() - 0.5;
+        assert!(
+            (z1 - rim).abs() < 1e-9 && z0 <= low + 1e-9,
+            "the bowl's span along the axis runs up to its rim {rim}: {z0}..{z1}"
+        );
+    }
+
+    /// **A ring's cap stands its bore's radius off the axis**: the
+    /// annulus `½ ≤ ρ ≤ 1` about `z`, read about `z`, places the axis's
+    /// pierce in its bore, so its clip's nearest is the bore circle's
+    /// `½` and its farthest the rim's `1`, at `f64` and at `Interval`.
+    /// Red where the clip's nearest reads the cover's ball (`0`) rather
+    /// than [`topo::face_nearest`].
+    #[test]
+    #[allow(clippy::panic)]
+    fn a_rings_clip_stands_its_bore_off_the_axis() {
+        use super::sheet_clip;
+        use geom_core::Bounds;
+        let band = band();
+        let loops = vec![
+            vec![(1.0, 0.0, 1.0), (-1.0, 0.0, 1.0)],
+            vec![(0.5, 0.0, -1.0), (-0.5, 0.0, -1.0)],
+        ];
+        macro_rules! caps {
+            ($t:ty) => {{
+                let body = extrude::<$t>(&loops);
+                let (o, a) = leaning::<$t>(0.0);
+                let mut faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+                faces.sort_unstable();
+                faces
+                    .into_iter()
+                    .filter(|&f| {
+                        body.get_face(f)
+                            .and_then(|face| body.get_surface(face.surface))
+                            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
+                    })
+                    .map(|f| {
+                        sheet_clip(&body, f, o, a, band).map(|[r0, r1, _, _]| (r0.lo(), r1.hi()))
+                    })
+                    .collect::<Vec<_>>()
+            }};
+        }
+        let tol = 1e-9;
+        for (scalar, caps) in [
+            ("f64", caps!(f64)),
+            ("Interval", caps!(geom_core::interval::Interval)),
+        ] {
+            assert_eq!(caps.len(), 2, "{scalar}: the ring's two caps");
+            for cap in caps {
+                let Some((r0, r1)) = cap else {
+                    panic!("{scalar}: a cap clips")
+                };
+                assert!(
+                    (r0 - 0.5).abs() < tol && (r1 - 1.0).abs() < tol,
+                    "{scalar}: the cap's radial clip is [½, 1]: {r0}..{r1}"
+                );
+            }
+        }
+    }
+
+    /// **A sheet rectangle is empty only on a decided negative width**:
+    /// a width of `−1` misses; an exact touch (`ρ0 = ρ1`) and a width of
+    /// `−10⁻¹⁵`, within the band, are metered. Red where the miss is read
+    /// by the raw sign of the width, which skips the in-band one.
+    #[test]
+    fn a_sheet_rectangle_misses_only_on_a_decided_gap() {
+        use super::misses;
+        let band = band();
+        for (what, rect, want) in [
+            ("a gap", [1.0, 0.0, 0.0, 1.0], true),
+            ("a touch", [1.0, 1.0, 0.0, 1.0], false),
+            ("in band", [1.0 + 1e-15, 1.0, 0.0, 1.0], false),
+            ("a gap along the axis", [0.0, 1.0, 1.0, 0.0], true),
+            (
+                "an axial touch in band",
+                [0.0, 1.0, 1.0, 1.0 - 1e-15],
+                false,
+            ),
+        ] {
+            assert_eq!(misses::<f64>(rect, band), want, "{what}: {rect:?}");
+        }
+    }
+
     /// **A wall's clip is its boundary's span along the axis**: the rod's
     /// wall read about an axis leaning half the zero band off its own
     /// clips to `[0, 1]` along it and to the rod's radius off it, at
@@ -3183,12 +3340,12 @@ mod tests {
     }
 
     /// **A clip holds its face at every pose**: on every cylinder and
-    /// plane face of the corpus, about axes at every lean, three
-    /// azimuths and seven origins (through a cap, near a rim, inside the
-    /// bore, outside the body, far below, at a cap corner), every
-    /// sampled face point lies in the clip `sheet_clip` reads, at `f64`
-    /// and at `Interval`. A wall ⊥ the axis is clipped too: `z` is
-    /// constant along its rulings.
+    /// plane face of the corpus, and on the sphere face of the cap
+    /// ([`cap`]), about axes at every lean, three azimuths and seven
+    /// origins (through a cap, near a rim, inside the bore, outside the
+    /// body, far below, at a cap corner), every sampled face point lies
+    /// in the clip `sheet_clip` reads, at `f64` and at `Interval`. A wall
+    /// ⊥ the axis is clipped too: `z` is constant along its rulings.
     #[allow(clippy::expect_used)]
     #[test]
     fn a_clip_holds_its_face_at_every_pose() {
@@ -3280,6 +3437,68 @@ mod tests {
                 }
             }
         }
+        // The cap's sphere face: the unit sphere above `y = ½`.
+        let (body, f) = cap::<f64>();
+        let (ibody, fi) = cap::<Interval>();
+        // The face is one half-turn of the cap: its half is the side of
+        // its seam plane its cover's box lies on.
+        let (lo, hi) = topo::face_cover(&body, f, band)
+            .expect("the cap has a cover")
+            .box_in(&geom::cover::BoxAxes::World);
+        let half = |p: &Point3<f64>| {
+            [(p.x, lo.x, hi.x), (p.z, lo.z, hi.z)]
+                .iter()
+                .all(|&(x, l, h)| x >= l - 1e-9 && x <= h + 1e-9)
+        };
+        let mut pts = Vec::new();
+        for i in 0..=24 {
+            let lat = (0.5_f64).asin()
+                + (core::f64::consts::FRAC_PI_2 - 0.5_f64.asin()) * f64::from(i) / 24.0;
+            for j in 0..48 {
+                let lon = core::f64::consts::TAU * f64::from(j) / 48.0;
+                let p = Point3::new(lat.cos() * lon.cos(), lat.sin(), lat.cos() * lon.sin());
+                if half(&p) {
+                    pts.push(p);
+                }
+            }
+        }
+        assert!(pts.len() > 400, "the cap's half's samples: {}", pts.len());
+        let mut sphere_clips = 0usize;
+        for t in clip_leans() {
+            for phi in [0.0, 0.7, 2.0] {
+                let a = polar(t, phi);
+                let ai = Vec3::new(iv(a.x), iv(a.y), iv(a.z));
+                for o in origins {
+                    let oi = Point3::new(iv(o.x), iv(o.y), iv(o.z));
+                    for (scalar, clip) in [
+                        ("f64", read!(sheet_clip(&body, f, o, a, band))),
+                        ("Interval", read!(sheet_clip(&ibody, fi, oi, ai, band))),
+                    ] {
+                        let Some([r0, r1, z0, z1]) = clip else {
+                            continue;
+                        };
+                        sphere_clips += 1;
+                        let tol = 64.0 * f64::EPSILON * (8.0 + (o - Point3::origin()).norm());
+                        let worst = pts
+                            .iter()
+                            .map(|p| {
+                                let v = *p - o;
+                                let z = v.dot(a);
+                                let rho = (v - a * z).norm();
+                                (r0 - rho).max(rho - r1).max(z0 - z).max(z - z1)
+                            })
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        if worst > tol {
+                            bad.push(format!(
+                                "the cap {scalar} lean {t} phi {phi} o {o:?}: its clip \
+                                 [{r0}, {r1}] × [{z0}, {z1}] misses a face point by {worst}"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(sphere_clips > 500, "the cap reads clips: {sphere_clips}");
         assert!(clipped > 5000, "the corpus reads clips: {clipped}");
         assert!(
             perpendicular_walls > 0,

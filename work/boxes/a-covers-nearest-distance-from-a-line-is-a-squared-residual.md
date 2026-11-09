@@ -36,7 +36,10 @@ circle off the line: `p·cos t + q·sin t` splits exactly into a part
 turning with `t` and one against it, each of constant length, and the
 near and far are the point site's distance forms over the longer part
 with the shorter as its departure. The squared form is deleted. Exact
-for a circle about the line or in a plane through it; otherwise the
-annulus of the shadow's axes. Pinned by
+for a circle about the line, and for a full turn of one in a plane
+through it; a partial window of a circle in such a plane, and any
+other pose, reads the annulus of the shadow's axes over the window,
+sound and looser (a circle through the line read over `[1, 1.2]`
+reads near `0` against a true `1.683`). Pinned by
 `the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset`
 and `a_circle_about_the_line_reads_its_radius_in_either_sense`.

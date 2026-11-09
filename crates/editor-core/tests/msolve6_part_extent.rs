@@ -30,14 +30,14 @@ use geom_core::{Point3, Tol};
 
 // ---- Substrate ----
 
-/// **`doc` with `body` placed in its world**, as
-/// [`PartStore::insert_part`] places it — so [`in_part`] spells the
-/// part's caps through that placement wherever the part is stored.
 /// The witness band, which every face's cover is read under.
 fn band() -> geom_core::Band {
     geom_core::Band::linear(Tol::witness()).expect("the witness band")
 }
 
+/// **`doc` with `body` placed in its world**, as
+/// [`PartStore::insert_part`] places it — so [`in_part`] spells the
+/// part's caps through that placement wherever the part is stored.
 fn placed_part(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
     let mut scratch = PartStore::new();
     let (doc_ref, _) = scratch.insert_part((doc, body), Tol::witness());

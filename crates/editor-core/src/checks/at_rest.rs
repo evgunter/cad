@@ -1967,15 +1967,11 @@ fn beyond(
         Carrier::Plane { origin, .. } | Carrier::Cylinder { origin, .. } => *origin,
         _ => return Err("the containment check has no lane for this carrier".to_owned()),
     };
-    // Every face of the intersection a plane or a cylinder patch, whose
-    // reach its own boundary bounds.
+    // The region is sized to hold every face of the overlap: each face's
+    // cover's farthest from the carrier's point.
     let mut reach = 0.0_f64;
-    for (f, held) in result.faces() {
-        match result.get_surface(held.surface) {
-            Some(topo::Surface::Plane { .. } | topo::Surface::Cylinder { .. }) => {}
-            _ => return Err("a face of the overlap the containment check cannot bound".to_owned()),
-        }
-        let r = reach_of(result, f, origin, band).ok_or("a face of the overlap with no reach")?;
+    for (f, _) in result.faces() {
+        let r = reach_of(result, f, origin, band).ok_or("a face of the overlap with no cover")?;
         reach = reach.max(r);
     }
     let pad = reach.mul_add(0.5, 1e3 * tol.eps());
