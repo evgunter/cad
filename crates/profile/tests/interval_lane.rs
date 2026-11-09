@@ -217,14 +217,16 @@ fn arc_leg_fillet_constructs_and_validates_at_interval() {
     );
 }
 
-/// `fillet_leg_fit`, in-band row: at r = 1 both sides are consumed
-/// EXACTLY (a bit-zero margin at `f64`), so at the interval scalar the
-/// margin's enclosure straddles the hairline and the gate escalates
-/// rather than claiming an exact fit it cannot certify.
+/// `fillet_leg_fit` at an exact fit: at r = 1 both sides are consumed
+/// EXACTLY (a bit-zero margin at `f64`). The gate reads the run against
+/// its linear band, the one validation reads a segment's length on, so
+/// the interval scalar's enclosure of that zero, a few ulps wide,
+/// decides Zero on both sides: no run is emitted, and the half disc
+/// validates with both joints constructed.
 #[test]
-fn exact_fit_arc_fillet_escalates_at_interval() {
+fn exact_fit_arc_fillet_decides_its_fit_at_interval() {
     let one = |v: f64| Interval::from_f64(v);
-    let err = profile::Open
+    let closed = profile::Open
         .at(ip2(0.0, 2.0))
         .line_to(ip2(0.0, 0.0), Tol::witness())
         .expect("the straight run down to the ray's origin")
@@ -239,13 +241,22 @@ fn exact_fit_arc_fillet_escalates_at_interval() {
             },
             Tol::witness(),
         )
-        .expect_err("the knife-edge fit must escalate at Interval");
-    match err {
-        profile::PathError::Escalated { ref source, .. } => {
-            assert_eq!(source.predicate, Some("fillet_leg_fit"), "{err}");
-        }
-        other => panic!("expected an escalation, got {other:?}"),
-    }
+        .expect("the exact fit decides at Interval");
+    let fits: Vec<(Sign, Sign)> = closed
+        .structure
+        .fillets
+        .iter()
+        .map(|f| (f.fit_in, f.fit_out))
+        .collect();
+    assert_eq!(fits, [(Sign::Zero, Sign::Zero)], "both runs are absent");
+    assert_eq!(closed.loop_.as_loop().vertices().len(), 2, "the half disc");
+    let vp = profile::ConstructedProfile::new(profile::SketchPlane::xy(), vec![closed.loop_])
+        .validate(tol())
+        .expect("the half disc validates at Interval");
+    assert!(
+        vp.loops()[0].decided_joints().is_empty(),
+        "both constructed"
+    );
 }
 
 /// The S8 two-survivor vesica corner at the interval scalar — **the

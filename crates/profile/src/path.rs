@@ -4401,8 +4401,9 @@ impl<T: Decide> Core<T> {
         }
         // (4) the shared line×line closed form, anchored: head = the
         // ray's origin, next = the arrival's anchor.
-        let mut trims = line_line_fillet_trims(pending.origin, corner, arr_pos, pending.radius)
-            .map_err(|e| map_fillet_err(e, corner, pending.radius))?;
+        let mut trims =
+            line_line_fillet_trims(pending.origin, corner, arr_pos, pending.radius, band)
+                .map_err(|e| map_fillet_err(e, corner, pending.radius))?;
         // A straight carrier pair derives ONE corner and its
         // construction admits one candidate, so the fit signs are this
         // resolution's whole discrete content.
@@ -4423,9 +4424,7 @@ impl<T: Decide> Core<T> {
         // whatever leg the ray departs; Zero fit springs the arc off the
         // last vertex.
         if trims.fit_in == Sign::Positive {
-            self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
-            self.push_line(trims.t1)?;
-            self.construct_last();
+            self.push_straight_run_in(meta.bound_at, trims.t1)?;
         }
         // (6) the arc. Interior: emitted, its outgoing joint declared
         // (Positive fit: as the raw fillet; Zero fit: the
@@ -4490,10 +4489,7 @@ impl<T: Decide> Core<T> {
     ) -> Result<(), PathError<T>> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
-                None => {
-                    self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
-                    self.push_line(t.t1)?;
-                }
+                None => return self.push_straight_run_in(meta.bound_at, t.t1),
                 Some((centre, sweep)) => {
                     let head = self.head()?;
                     let run = run.ok_or(PathError::UnderdeterminedLeg {
@@ -4508,10 +4504,20 @@ impl<T: Decide> Core<T> {
                     }
                     self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
                     self.push_arc(t.t1, arc)?;
+                    self.construct_last();
                 }
             }
-            self.construct_last();
         }
+        Ok(())
+    }
+
+    /// A fillet's straight run in to its tangent point `t1`, credited
+    /// to the step that bound the fillet, with the joint at `t1`
+    /// constructed — whatever leg the run departs from.
+    fn push_straight_run_in(&mut self, bound_at: usize, t1: Point2<T>) -> Result<(), PathError<T>> {
+        self.claim(bound_at, crate::structure::PieceRole::RunIn);
+        self.push_line(t1)?;
+        self.construct_last();
         Ok(())
     }
 

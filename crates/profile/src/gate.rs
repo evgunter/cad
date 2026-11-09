@@ -130,8 +130,8 @@ gates! {
     FilletCornerTurn => "fillet_corner_turn", Sized(FILLET_TURN_INBAND_RECOURSE), FILLET_CORNER_SUBJECT;
     /// The offset radius rho = R - sigma tau r of a leg's carrier, whose sign says whether the fillet swallows it.
     FilletEnclosingCarrier => "fillet_enclosing_carrier", Sized(FILLET_ENCLOSING_RECOURSE), FILLET_CORNER_SUBJECT;
-    /// A leg's length less the fillet's setback on it, at the exact-order band.
-    FilletLegFit => "fillet_leg_fit", Lever(FILLET_FIT_RECOURSE), FILLET_CORNER_SUBJECT;
+    /// A leg's length less the fillet's setback on it — the run the fillet leaves on that leg — at the run's linear band.
+    FilletLegFit => "fillet_leg_fit", Sized(FILLET_FIT_RECOURSE), FILLET_CORNER_SUBJECT;
     /// A tangent point's setback along its leg's carrier, at the exact-order band.
     FilletLegReach => "fillet_leg_reach", Lever(FILLET_NO_CORNER_RECOURSE), FILLET_CORNER_SUBJECT;
     /// Whether two offset circles meet from outside.

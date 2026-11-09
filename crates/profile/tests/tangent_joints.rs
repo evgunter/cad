@@ -697,7 +697,10 @@ fn boss(r: f64) -> ConstructedLoop<f64> {
 /// circle about (7, 0), and the joint there is constructed rather than
 /// decided; with `r` a hair off it, the loop has the same segments and
 /// the same constructed joints — no emission asks whether the two
-/// carriers are the same.
+/// carriers are the same. With `r` within the band of the circle's
+/// radius the build is the same, and validation escalates
+/// `carrier_circles_identity` at the tip pair: the two carriers are one
+/// circle only to within the band.
 ///
 /// Red if the extension moves the arriving leg's end instead (the tip
 /// is no vertex), if the tip joint is left for validation to decide,
@@ -757,6 +760,33 @@ fn an_arc_extension_is_its_own_segment_with_a_constructed_tip_joint() {
     );
     let vp = constructed(vec![nudged]).expect("the nudged chain validates");
     assert!(decided(&vp).is_empty(), "{:?}", decided(&vp));
+    // `r` an ε below the circle's radius: the derived centre stands ε
+    // off (7, 0), so the two carriers are one circle only to within the
+    // band (margin d + |Δr| ≈ 2ε). The build is the same; validation
+    // asks whether they are one circle — the question one swept wall
+    // over the run or two would turn on — and escalates at the tip pair.
+    let eps = tol().eps();
+    let inband = boss(1.5 - eps);
+    assert_eq!(
+        kinds(&inband),
+        kinds(&same),
+        "an in-band r keeps the segments"
+    );
+    let segs = inband.as_loop().segments().len();
+    match constructed(vec![inband]) {
+        Err(ProfileError::Escalated {
+            site: profile::EscalationSite::SegmentPair(a, b),
+            gate,
+            ..
+        }) => {
+            assert_eq!(
+                (a.segment_index, b.segment_index, gate.predicate()),
+                ((tip + segs - 1) % segs, tip, "carrier_circles_identity"),
+                "the tip pair's carrier identity escalates"
+            );
+        }
+        other => panic!("an in-band r escalates at the tip pair, got {other:?}"),
+    }
 }
 
 /// The number the sentence renders right after `label`, parsed back.

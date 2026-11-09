@@ -708,47 +708,10 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 }
 
 /// The corpus dump's hash at the default ε row (see
-/// [`the_corpus_stored_loops_dump_to_the_bit`]). Re-derived when the
-/// fillet door began storing the carriers its constructions build — a
-/// fillet arc on its own centre and the authored radius, an arc side's
-/// run on the side's circle — instead of re-lowering each arc from its
-/// chord: every arc's fields moved in the last bits. No loop's verdict
-/// moved at this row or at 1e-6; at 1e-12 two loops that escalated a
-/// near-coincidence between the fillet arc and its arc neighbour now
-/// validate (`line x arc c=32 r=0.5`, `c=128 r=0.2`). Then the
-/// arc-carrier fillet's sweep took the one quarter-tangent spelling
-/// (`sugar::quarter_tan_about`), moving its last bits on every
-/// arc-carrier fillet in the corpus, and an arc side's run with an
-/// authored radius stores it as `|r|` (`shared coverage corpus 13`'s
-/// 1.9999999999999998 is 2.0); no verdict or joint moved. Then the
-/// stored tangent-joint list went (D1): each row prints the loop's
-/// constructed joints, sorted, and validates through
-/// `ConstructedProfile`, which verifies them rather than re-deciding
-/// the stored arcs' consistency; five rows' joint lists re-ordered, the
-/// two circle forms joined the corpus (`shared coverage corpus 14`,
-/// `15`), and no vertex, arc field or verdict moved. Then an arc leg's
-/// end tangents came to be its chord's unit ray turned by half its sweep
-/// rather than the angles `γ ± θ/2` read off `atan2`: `shared coverage
-/// corpus 5`'s second arc, tangent to the first, stores its centre at
-/// `(2⁻⁵⁴, 2⁻⁵⁴)` rather than `(0, 3.1e-17)` about the nominal origin, at
-/// every ε row, and nothing else moved. Then `arc_onto`'s token-supplied
-/// `D` cap joined as `shared coverage corpus 15` (validating, joint 0
-/// constructed), renumbering the circle forms to `16` and `17`; no other
-/// row moved, at any ε row. Then a joint came to be read by its turn at
-/// the shorter leg's arm, so a fillet flattened to its chord carries its
-/// tangency: the twelve `line x line` corners at `c = 0.1 … 2` (eleven at
-/// 1e-6, where `c = 0.1, r = 0.05` still refuses) joined the corpus,
-/// validating with joints `[1, 2]` constructed, and at 1e-6 `arc x arc
-/// c=2` at r = 0.05 and 0.2 joined it refused by the pair pass; no other
-/// row moved. Then a tangent arc past a half turn came to read its
-/// quarter-tangent as `(|d| − along)/across`: `shared coverage corpus
-/// 8`'s first arc, a half turn whose `along` rounds below zero, stores
-/// its sweep as `−π` (the nearest `f64`) rather than one ulp past it, at
-/// every ε row, and nothing else moved. Then an arc extension's incoming
-/// run became a segment of its own: `shared coverage corpus 1`'s
-/// `Radius { r: 3 }` off the tip at (2, 9) on its own r = 3 arrival
-/// circle keeps (2, 9) as a vertex, two arcs on one circle with joint 6
-/// constructed, and validates, at every ε row; nothing else moved.
+/// [`the_corpus_stored_loops_dump_to_the_bit`]): every corpus loop's
+/// verdict, its constructed joints, and each vertex and stored arc field
+/// as the bits they are stored as. What moved at a re-derivation is said
+/// in the PR that moved it, never here.
 const GOLDEN_DEFAULT: u64 = 0x0625_d4f8_4296_7c38;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
 /// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'

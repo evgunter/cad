@@ -12,9 +12,10 @@
 //! ([`line_line_fillet_trims`] / [`arc_fillet_trims`]), reified
 //! predicates through the k_stats funnel. The original (#101 review
 //! MAJOR-1) is `fillet_leg_fit`, which refuses a radius whose tangent
-//! points fall outside their legs; M5 S2's arc-leg corners add
-//! `fillet_leg_reach` (the corner-side extent test, same exact-order
-//! band) and, against the run's linear band, `fillet_corner_arm`,
+//! points fall outside their legs, on the run's linear band; M5 S2's
+//! arc-leg corners add `fillet_leg_reach` (the corner-side extent test,
+//! on the exact-order band) and, against the run's linear band,
+//! `fillet_corner_arm`,
 //! `fillet_corner_turn` and the `fillet_offset_*` carrier-intersection
 //! family — the last of which, `fillet_offset_lever` (M8), decides not
 //! whether the offset carriers meet but whether their meeting point is
@@ -212,9 +213,9 @@ pub(crate) struct LineFilletTrims<T: Real> {
     /// The fillet arc's bulge tan(φ/4), by the quarter-angle identity on
     /// tan(φ/2) (see [`line_line_fillet_trims`]'s docs).
     pub bulge: T,
-    /// The incoming leg's fit classification (`fillet_leg_fit`,
-    /// exact-order band): `Positive` emits the straight piece + declared
-    /// joint, `Zero` suppresses both (exact fit).
+    /// The incoming leg's fit classification (`fillet_leg_fit`, the
+    /// run's linear band): `Positive` emits the straight piece + declared
+    /// joint, `Zero` suppresses both (a run validation would not keep).
     pub fit_in: Sign,
     /// The outgoing leg's fit classification, same rule.
     pub fit_out: Sign,
@@ -245,8 +246,9 @@ pub(crate) enum TrimRefusal<T: Real> {
 /// docs on the fillet constructor), extracted verbatim so the algebra
 /// lowering and the builder door share one code path: with legs
 /// v₁ = corner − head, v₂ = next − corner, computes tan(φ/2), the arc
-/// bulge, the setback, both `fillet_leg_fit` gates (exact-order band),
-/// and the tangent points.
+/// bulge, the setback, both `fillet_leg_fit` gates (on `band`, the
+/// run's linear band: a run validation would call degenerate is a Zero
+/// fit, and none is built), and the tangent points.
 ///
 /// # Errors
 ///
@@ -256,6 +258,7 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     corner: Point2<T>,
     next: Point2<T>,
     radius: T,
+    band: Band,
 ) -> Result<LineFilletTrims<T>, TrimRefusal<T>> {
     let v1 = corner - head;
     let v2 = next - corner;
@@ -271,7 +274,7 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     let len1 = v1.norm_squared().sqrt();
     let len2 = v2.norm_squared().sqrt();
     let fit = |len: T, leg: FilletLeg| -> Result<Sign, TrimRefusal<T>> {
-        match prove(Gate::FilletLegFit, Margin::of(len - setback)) {
+        match decide(Gate::FilletLegFit, Margin::of(len - setback), band) {
             Ok(Sign::Negative) => Err(TrimRefusal::DoesNotFit {
                 leg,
                 setback,
@@ -667,10 +670,10 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             prove(Gate::FilletLegReach, Margin::of(sb_out)).map_err(ArcTrimRefusal::Escalated)?;
         let margin_in = leg_in.len - sb_in;
         let margin_out = leg_out.len - sb_out;
-        let fit_in =
-            prove(Gate::FilletLegFit, Margin::of(margin_in)).map_err(ArcTrimRefusal::Escalated)?;
-        let fit_out =
-            prove(Gate::FilletLegFit, Margin::of(margin_out)).map_err(ArcTrimRefusal::Escalated)?;
+        let fit_in = decide(Gate::FilletLegFit, Margin::of(margin_in), band)
+            .map_err(ArcTrimRefusal::Escalated)?;
+        let fit_out = decide(Gate::FilletLegFit, Margin::of(margin_out), band)
+            .map_err(ArcTrimRefusal::Escalated)?;
         let corner_side = reach_in != Sign::Negative && reach_out != Sign::Negative;
         if corner_side && fit_in != Sign::Negative && fit_out != Sign::Negative {
             survivors.push(ArcFilletCandidate {
@@ -1545,6 +1548,11 @@ pub(crate) fn quarter_tan_about<T: Real>(
 mod tests {
     use super::*;
 
+    /// The witness tolerance's linear band, the one the path's doors read.
+    fn test_band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness tolerance has a band")
+    }
+
     #[test]
     fn bulge_from_via_quarter_circle() {
         // Unit-circle quarter arc (1,0) → (0,1) through the apex.
@@ -1630,7 +1638,7 @@ mod tests {
                 second.to_bits(),
                 "{v2:?}: the two quotients agree to the bit, so this corner pins nothing"
             );
-            let trims = line_line_fillet_trims(head, corner, corner + v2, 0.5)
+            let trims = line_line_fillet_trims(head, corner, corner + v2, 0.5, test_band())
                 .unwrap_or_else(|e| panic!("{v2:?}: the fillet refused: {e:?}"));
             let want = if past { second } else { first };
             assert_eq!(
@@ -1644,7 +1652,7 @@ mod tests {
         // A hairpin, about 1.2e-5 rad short of a half turn, where the
         // first quotient alone is off by about 1.5e-6 relative.
         let (v2, radius) = (Vec2::new(-7.0, -2.9999), 1e-6);
-        let trims = line_line_fillet_trims(head, corner, corner + v2, radius)
+        let trims = line_line_fillet_trims(head, corner, corner + v2, radius, test_band())
             .unwrap_or_else(|e| panic!("the hairpin refused: {e:?}"));
         let half_tan = (v1.perp_dot(v2).atan2(v1.dot(v2)) * 0.5).tan().abs();
         let setback = (trims.t2 - corner).norm() / radius;

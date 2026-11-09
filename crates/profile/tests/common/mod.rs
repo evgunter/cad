@@ -1233,6 +1233,18 @@ pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
     }
 }
 
+/// How many of grid A's anchor-fit refusals at the default ε overrun
+/// their leg by less than the run's linear band at the run's ε row, so
+/// that `fillet_leg_fit` reads them Zero or in band there rather than
+/// Negative: a leg's run is decided on the band validation reads a
+/// segment's length on, which widens with ε.
+pub fn grid_a_overruns_inside_the_band() -> usize {
+    match format!("{:e}", tol().eps()).as_str() {
+        "1e-6" => 6,
+        _ => 0,
+    }
+}
+
 /// How many grid-A recourse entries [`past_the_corner`] answers at the
 /// run's ε row, pinned per row so a fillet answer cannot slide into
 /// that bucket unnoticed. A row CI does not gate has no pin.

@@ -119,8 +119,9 @@ pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "move the fillet radius away from
 pub const FILLET_ENCLOSING_RECOURSE: &str = "the fillet radius is too close to the leg's own carrier radius to tell whether the \
      fillet would swallow that carrier: move the radius well below the carrier radius";
 
-/// The lever where a radius's tangent points may fall outside their
-/// legs (`fillet_leg_fit`). Both clauses are followed by
+/// The lever of the run a fillet leaves on a leg (`fillet_leg_fit`),
+/// read on the run's linear band: in band the run is neither a segment
+/// nor none. Lengthening the run is followed by
 /// `the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs`.
 /// Gates: `fillet_leg_fit`.
 #[cfg_attr(
@@ -131,8 +132,8 @@ pub const FILLET_ENCLOSING_RECOURSE: &str = "the fillet radius is too close to t
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_FIT_RECOURSE: &str =
-    "the arc would never approach the requested corner; use a smaller radius or longer legs";
+pub const FILLET_FIT_RECOURSE: &str = "the run the fillet leaves on a leg is neither clearly a segment nor clearly none: use a \
+     smaller radius or longer legs for a run, or a larger radius or shorter legs for none";
 
 /// The lever of a fillet leg with no extent to round against
 /// (`fillet_corner_arm`). Followed to a build by

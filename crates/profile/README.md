@@ -442,14 +442,15 @@ and a guided replay names the parameter box first and the gate's lever
 after it. `tests/recourse_roster.rs` holds the table against `src`: no
 funnel call there names a decision anywhere but the table.
 
-Six of the nine take an in-band verdict from a request a caller can
-author. Of the other three, `fillet_corner_arm` is shadowed by
-magnitude — its margin IS the lever arm, so putting it in the band puts
-a length-shaped path gate in the band on the same request — and
-`fillet_leg_fit` and `fillet_leg_reach` classify against the exact-order
-band, which no representable `f64` lies inside. That last is a statement
-about `f64` alone: the interval lane already drives `fillet_leg_fit` in
-band. Two of the six are levered or scene-scaled rather than
+Seven of the nine take an in-band verdict from a request a caller can
+author. `fillet_leg_fit` reads the run a fillet leaves on a leg against
+the run's linear band, the band validation reads a segment's length on,
+so a run validation would call degenerate is a Zero fit and is never
+built, and one in the band escalates at the fit. Of the other two,
+`fillet_corner_arm` is shadowed by magnitude — its margin IS the lever
+arm, so putting it in the band puts a length-shaped path gate in the
+band on the same request — and `fillet_leg_reach` classifies against
+the exact-order band, which no representable `f64` lies inside. Two of the six are levered or scene-scaled rather than
 radius-scaled, which is why their sentences name the leg extent and the
 bound on the lever's own window.
 

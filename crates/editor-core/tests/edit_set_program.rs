@@ -2246,45 +2246,59 @@ fn report_matches_resolution(
 /// which reads only which pieces are drawn, reports nothing.
 #[test]
 fn a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported() {
-    test_utils::pinned_red::row(
-        tol().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "a fillet inserted after a kept leg",
-        &[
-            "insert s=1 r=0.5: a held name is reported exactly when the edit took its referent",
-            "role: Leg })] }\n  left: false\n right: true",
-        ],
-        || {
-            for (s, r) in [(1.0, 0.5), (1.0, 0.2), (1.0, 0.8), (2.0, 0.5)] {
-                report_matches_resolution(
-                    &format!("insert s={s} r={r}"),
-                    vec![corner_at(false, (0.0, 0.0), s, r)],
-                    vec![corner_at(true, (0.0, 0.0), s, r)],
-                    &|d, p| vec![sharp_to_filleted(&ids_of(d, p)[0])],
-                );
-            }
-            let outer = |f| corner_at(f, (-5.0, -5.0), 6.0, 0.5);
-            let hole = |f| corner_at(f, (0.0, 0.0), 1.0, 0.5);
-            report_matches_resolution(
-                "two loops, hole filleted",
-                vec![outer(false), hole(false)],
-                vec![outer(false), hole(true)],
-                &|d, p| {
-                    let ids = ids_of(d, p);
-                    vec![as_is(&ids[0]), sharp_to_filleted(&ids[1])]
-                },
-            );
-            report_matches_resolution(
-                "two loops, outer filleted",
-                vec![outer(false), hole(false)],
-                vec![outer(true), hole(false)],
-                &|d, p| {
-                    let ids = ids_of(d, p);
-                    vec![sharp_to_filleted(&ids[0]), as_is(&ids[1])]
-                },
-            );
-        },
+    type Case = (
+        String,
+        Vec<LoopProgram<Formula>>,
+        Vec<LoopProgram<Formula>>,
+        Box<KeepMap>,
     );
+    let outer = |f| corner_at(f, (-5.0, -5.0), 6.0, 0.5);
+    let hole = |f| corner_at(f, (0.0, 0.0), 1.0, 0.5);
+    let mut cases: Vec<Case> = [(1.0, 0.5), (1.0, 0.2), (1.0, 0.8), (2.0, 0.5)]
+        .into_iter()
+        .map(|(s, r)| -> Case {
+            (
+                format!("insert s={s} r={r}"),
+                vec![corner_at(false, (0.0, 0.0), s, r)],
+                vec![corner_at(true, (0.0, 0.0), s, r)],
+                Box::new(|d, p| vec![sharp_to_filleted(&ids_of(d, p)[0])]),
+            )
+        })
+        .collect();
+    cases.push((
+        "two loops, hole filleted".to_owned(),
+        vec![outer(false), hole(false)],
+        vec![outer(false), hole(true)],
+        Box::new(|d, p| {
+            let ids = ids_of(d, p);
+            vec![as_is(&ids[0]), sharp_to_filleted(&ids[1])]
+        }),
+    ));
+    cases.push((
+        "two loops, outer filleted".to_owned(),
+        vec![outer(false), hole(false)],
+        vec![outer(true), hole(false)],
+        Box::new(|d, p| {
+            let ids = ids_of(d, p);
+            vec![sharp_to_filleted(&ids[0]), as_is(&ids[1])]
+        }),
+    ));
+    for (label, old, new, keep) in cases {
+        let says =
+            format!("{label}: a held name is reported exactly when the edit took its referent");
+        test_utils::pinned_red::row(
+            tol().eps(),
+            &test_utils::pinned_red::EVERY_ROW,
+            &label,
+            &[
+                says.as_str(),
+                "role: Leg })] }\n  left: false\n right: true",
+            ],
+            std::panic::AssertUnwindSafe(|| {
+                report_matches_resolution(&label, old, new, &*keep);
+            }),
+        );
+    }
 }
 
 /// **Moving a fillet off a corner breaks the run its run in was part
@@ -2340,11 +2354,12 @@ fn a_fillet_moved_off_a_corner_reports_a_run_piece_that_never_resolved() {
 /// takes**, measured against resolution rather than against the
 /// door's own reading ([`report_matches_resolution`]), over the
 /// reshapings that move what is drawn: the fillet dropped before a
-/// kept leg at several radii and scales; value-only rewrites through
-/// and out of a `Zero` fit; a two-loop profile's loops swapped; a split
+/// kept leg at several radii and scales; one inserted off the director
+/// with the bottom leg dropped, whose run out takes the kept right
+/// leg's segment; value-only rewrites through and out of a `Zero` fit; a two-loop profile's loops swapped; a split
 /// hole's count up and down; a run's midpoint moved; and the identity.
-/// Inserting a fillet and moving one to another corner are their own
-/// pinned rows ([`a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`],
+/// Inserting a fillet after a kept leg and moving one to another corner
+/// are their own pinned rows ([`a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`],
 /// [`a_fillet_moved_off_a_corner_reports_a_run_piece_that_never_resolved`]).
 /// The rows that leave a kept piece undrawn must report it, so a door
 /// that reported only dropped steps is red here.
@@ -2430,9 +2445,40 @@ fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
         vec![corner(true)],
         &keep_all,
     );
+    // The fillet inserted where the bottom leg is dropped: its run in is
+    // the whole bottom side, and its run out takes the kept right leg's
+    // segment, which goes undrawn. No kept piece's wall joins a run.
+    let toward = |dx: f64, dy: f64| ProgramStep::Toward {
+        dx: scl(dx),
+        dy: scl(dy),
+    };
+    row(
+        "insert off the director, the bottom leg dropped",
+        vec![corner(false)],
+        vec![LoopProgram::Chain(vec![
+            ProgramStep::At(len2([0.0, 0.0])),
+            toward(1.0, 0.0),
+            ProgramStep::Fillet(len(0.5)),
+            toward(0.0, 1.0),
+            ProgramStep::At(len2([2.0, 0.5])),
+            ProgramStep::Line(len(1.5)),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 2.0]))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])],
+        &|d, p| {
+            let o = &ids_of(d, p)[0];
+            let k = |i: usize| Some(o[i]);
+            vec![vec![k(0), k(1), None, k(3), None, k(4), k(5), k(6)]]
+        },
+    );
     // A kept piece left undrawn is reported on these rows, so a door
     // blind to undrawn kept pieces cannot pass by reporting nothing.
-    for label in ["value 0.3->2", "split 4->3"] {
+    for label in [
+        "insert off the director, the bottom leg dropped",
+        "value 0.3->2",
+        "value 1->2",
+        "split 4->3",
+    ] {
         let (_, n) = counts
             .iter()
             .find(|(l, _)| l == label)

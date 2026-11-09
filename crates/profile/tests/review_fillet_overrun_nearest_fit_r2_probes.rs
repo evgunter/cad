@@ -36,17 +36,22 @@ use geom_core::k_stats;
 use profile::{FilletLeg, PathError, ProfileLoop};
 
 /// The corner's anchor fit is satisfied at this radius: the loop builds,
-/// or a read past the corner answers instead ([`past_the_corner`]). The
-/// fit gates classify on the exact band, so the corner's own verdict
-/// does not move with ε; a later read's can, and it is not the subject
-/// here.
+/// or a read past the corner answers instead ([`past_the_corner`]), or
+/// the run the radius leaves on a leg is within the run's linear band
+/// and the fit escalates — at `1e-6` some followed deficits leave a run
+/// of a few ε, which is neither a run nor none.
 fn anchor_fit_satisfied(res: &Result<ProfileLoop<f64>, PathError<f64>>, what: &str) {
     if let Err(e) = res {
         assert!(
-            past_the_corner(e).is_some(),
+            past_the_corner(e).is_some() || fit_in_band(e),
             "{what}: the anchor fit must be satisfied, got {e:?}"
         );
     }
+}
+
+/// Whether `e` is the leg fit escalating in band.
+fn fit_in_band(e: &PathError<f64>) -> bool {
+    matches!(e, PathError::Escalated { source, .. } if source.predicate == Some("fillet_leg_fit"))
 }
 
 // ------------------------------------------------------------ fixtures
@@ -223,7 +228,7 @@ fn the_recourse_census_on_grid_a() {
     });
     assert_eq!(
         builds + past.len() + refuses + not_a_request,
-        3_185,
+        3_185 - crate::common::grid_a_overruns_inside_the_band(),
         "grid A's anchor-fit entries"
     );
     println!("recourse census: builds {builds}, past the corner at this ε: {past:?}");
@@ -232,7 +237,11 @@ fn the_recourse_census_on_grid_a() {
     }
     assert_eq!(
         (builds + past.len(), refuses, not_a_request),
-        (605, 2_111, 469),
+        (
+            605,
+            2_111 - crate::common::grid_a_overruns_inside_the_band(),
+            469
+        ),
         "anchor fit satisfied / still refuses / not a request"
     );
 

@@ -4,7 +4,7 @@ kind: issue
 title: A SetProgram that joins a kept piece's wall into a run (a station inserted after it) strands the single-piece wall name without reporting it
 status: open
 opened: 2026-11-09
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -34,6 +34,11 @@ kept, fails `report_matches_resolution`: the held
 `Lateral(Piece { step: <bottom leg>, role: Leg })` resolves before,
 not after, and is not reported.
 
+**Raised to P0 (ROUND, 2026-11-09):** the class pre-exists, but
+ROUND's `extensions-are-their-own-segments` unit (PR 6682) widened it to
+the most ordinary reshaping there is — inserting a fillet at a corner
+beside a kept `line` now strands a held wall name silently.
+
 Since the ruling, a bare `fillet(r)` after a straight leg draws its run
 in as a segment of its own after the leg, so the most ordinary
 reshaping — inserting a fillet at a corner after a kept `line` — now
@@ -45,7 +50,8 @@ a name that never resolved, because the run in is no longer drawn.
 The rows of that test that reach it are split out and pinned red on
 this row:
 `edit_set_program::a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`
-(insert, one loop and either of two) and
+(insert, one pinned row per sub-case: four radii and scales on one
+loop, and either loop of two) and
 `edit_set_program::a_fillet_moved_off_a_corner_reports_a_run_piece_that_never_resolved`.
 
 ## Done when

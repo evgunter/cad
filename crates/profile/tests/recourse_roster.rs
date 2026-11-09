@@ -176,7 +176,6 @@ fn without_tests(code: &str) -> String {
 #[test]
 fn the_exact_order_gates_end_in_their_lever_alone() {
     for gate in [
-        Gate::FilletLegFit,
         Gate::FilletLegReach,
         Gate::CanonicalOrderX,
         Gate::CanonicalOrderY,
@@ -295,11 +294,21 @@ fn the_undecided_endings_follow_the_gates_kind() {
         ),
         (
             "an exact-order fillet gate, unreadable",
-            door(Door, Gate::FilletLegFit, poison),
+            door(Door, Gate::FilletLegReach, poison),
             format!(
                 "the fillet at this corner is undecided: margin is invalid (NaN or a refused \
                  enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: {}; an \
                  unreadable margin may indicate a kernel bug worth reporting",
+                profile::FILLET_NO_CORNER_RECOURSE
+            ),
+        ),
+        (
+            "the leg fit, a run in the linear band",
+            door(Door, Gate::FilletLegFit, value),
+            format!(
+                "the fillet at this corner is undecided: margin 5e-9 lies inside the ambiguity \
+                 band (1e-9, 1e-8). Recourse: {}, or, if this size is intended, tighten the \
+                 tolerance below 5e-10 m",
                 profile::FILLET_FIT_RECOURSE
             ),
         ),
