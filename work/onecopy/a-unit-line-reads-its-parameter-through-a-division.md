@@ -2,11 +2,13 @@
 id: a-unit-line-reads-its-parameter-through-a-division
 kind: issue
 title: geom::Line::param divides by dir·dir even where dir is unit by contract, tripling an Interval parameter difference's width beside the old dot form
-status: open
+status: closed
 opened: 2026-11-03
 priority: P3
 cost: E
 refs: [6475]
+closed: 2026-11-09
+pr: 6594
 ---
 
 
