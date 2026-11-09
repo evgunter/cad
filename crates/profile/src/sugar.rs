@@ -1168,8 +1168,16 @@ impl<T: Real> Leg<T> {
     fn setback(&self, tangent: Point2<T>, corner: Point2<T>) -> T {
         match self.arc {
             None => match self.side {
-                FilletLeg::Incoming => (corner - tangent).dot(self.dir),
-                FilletLeg::Outgoing => (tangent - corner).dot(self.dir),
+                FilletLeg::Incoming => geom_core::Line2 {
+                    origin: tangent,
+                    dir: self.dir,
+                }
+                .height(corner),
+                FilletLeg::Outgoing => geom_core::Line2 {
+                    origin: corner,
+                    dir: self.dir,
+                }
+                .height(tangent),
             },
             Some(arc) => {
                 let to_tangent = tangent - arc.center;

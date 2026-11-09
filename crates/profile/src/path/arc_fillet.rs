@@ -189,7 +189,14 @@ impl<T: Real> FilletSide<T> {
     /// not because the windows are different questions.
     fn travel(&self, from: Point2<T>, to: Point2<T>, arc_gate: Gate) -> (Gate, T) {
         match self.carrier {
-            SideCarrier::Ray(u) => (Gate::PathCornerAdvance, (to - from).dot(u)),
+            SideCarrier::Ray(u) => (
+                Gate::PathCornerAdvance,
+                geom_core::Line2 {
+                    origin: from,
+                    dir: u,
+                }
+                .height(to),
+            ),
             SideCarrier::Circle { centre, winding } => {
                 let turn = winding.sign::<T>();
                 let r = (self.anchor - centre).norm_squared().sqrt();

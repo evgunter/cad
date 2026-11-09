@@ -2457,7 +2457,11 @@ mod directed {
         /// ([`super::PendingRunOut::rides`]) each decide under a key of
         /// their own.
         pub(super) fn across(&self, p: Point2<T>) -> T {
-            self.dir.unit.perp_dot(p - self.anchor)
+            geom_core::Line2 {
+                origin: self.anchor,
+                dir: self.dir.unit,
+            }
+            .side(p)
         }
 
         /// How far along this line's direction `p` stands from `from`,
@@ -5690,9 +5694,14 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         tol: Tol,
     ) -> Result<Option<BuiltArc<T>>, PathError<T>> {
         let at = self.tip_pos()?.at;
-        let chord_len = self.arc_chord(end, tol)?;
+        // The chord decided nonzero, so the line through it has a direction.
+        self.arc_chord(end, tol)?;
         let band = linear_band(tol)?;
-        let offset = (end - at).perp_dot(via - at) / chord_len;
+        let offset = geom_core::Line2 {
+            origin: at,
+            dir: end - at,
+        }
+        .side(via);
         // `via` left of the chord puts the arc on the chord's left, which
         // a clockwise turn from `at` traverses.
         let sense = match decide(Gate::PathArcViaOffset, Margin::of(offset), band) {

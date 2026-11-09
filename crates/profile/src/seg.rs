@@ -23,7 +23,8 @@ use crate::gate::{Escalation, Gate, check_unlogged, decide, decide_reported};
 use geom_core::one_line::on_one_line_2d;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
-    Arc2, Band, Circles2, Decide, Decided, InfSpeed, Margin, MarginDiag, Point2, Real, Sign, Vec2,
+    Arc2, Band, Circles2, Decide, Decided, InfSpeed, Line2, Margin, MarginDiag, Point2, Real, Sign,
+    Vec2,
 };
 
 use crate::Segment;
@@ -1000,7 +1001,7 @@ fn chord_side_reported<T: Decide>(
     q: Point2<T>,
     band: Band,
 ) -> Result<(Decided, T), Escalation> {
-    let margin = s.unit.perp_dot(q - s.a);
+    let margin = s.chord_line().side(q);
     Ok((
         decide_reported(Gate::ChordSide, Margin::of(margin), band)?,
         margin,
@@ -1024,7 +1025,7 @@ fn circle_side<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Si
 /// positive = strictly interior, Zero = at an endpoint, negative =
 /// outside).
 fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, Escalation> {
-    let t = (q - s.a).dot(s.unit);
+    let t = s.chord_line().height(q);
     decide(Gate::LineSpan, Margin::of(t.min(s.len - t)), band)
 }
 
@@ -1197,6 +1198,16 @@ pub(crate) fn arc_lever<T: Real>(radius: T, chord: T) -> T {
 }
 
 impl<T: Real> Seg<T> {
+    /// **The segment's chord as a planar line**: from `a` along the unit
+    /// chord direction, so its [`Line2::height`] is a point's arc length
+    /// along the chord from `a` and [`Line2::side`] its signed offset.
+    pub(crate) fn chord_line(&self) -> Line2<T> {
+        Line2 {
+            origin: self.a,
+            dir: self.unit,
+        }
+    }
+
     /// The leg's lever arm at a junction: a line's length, an arc's
     /// [`arc_lever`], a full turn's radius.
     pub(crate) fn arm(&self) -> T {
@@ -1379,15 +1390,14 @@ pub(crate) fn joint_tangency<T: Decide>(
 ///
 /// Every reader of this clearance goes through here — the pair contact
 /// and the ray cast — so the two cannot drift apart.
-pub(crate) fn carrier_line_circle_margin<T: Real>(
-    unit: Vec2<T>,
-    from: Point2<T>,
-    g: &ArcGeom<T>,
-) -> (T, T) {
-    let h = unit.perp_dot(g.arc.centre - from).abs();
+pub(crate) fn carrier_line_circle_margin<T: Real>(line: Line2<T>, g: &ArcGeom<T>) -> (T, T) {
+    let h = line.distance(g.arc.centre);
     (
         g.arc.radius - h,
-        g.arc.radius.max(reach(g.arc.centre)).max(reach(from)),
+        g.arc
+            .radius
+            .max(reach(g.arc.centre))
+            .max(reach(line.origin)),
     )
 }
 
@@ -1710,11 +1720,17 @@ fn line_arc<T: Decide>(
     g: &ArcGeom<T>,
     band: Band,
 ) -> Result<PairOutcome<T>, Escalation> {
-    let to_center = g.arc.centre - line.a;
-    let h = line.unit.perp_dot(to_center);
-    let tc = to_center.dot(line.unit);
-    let foot = line.a + line.unit * tc;
-    let (clearance, _) = carrier_line_circle_margin(line.unit, line.a, g);
+    let chord_line = line.chord_line();
+    // `h` is read on the unit chord as stored, not through
+    // `Line2::side`'s division by `|unit|`: it feeds the crossings'
+    // `√(r² − h²)`, which cancels near tangency, so a last-place move in
+    // `h` moves a crossing by about `√(2r·δh)`. At R 1.36e4 that turns the
+    // tangent-arc row's validated loop into a touch
+    // (`tangent_arc_near_a_full_turn`).
+    let h = line.unit.perp_dot(g.arc.centre - line.a);
+    let tc = chord_line.height(g.arc.centre);
+    let foot = chord_line.at(tc);
+    let (clearance, _) = carrier_line_circle_margin(chord_line, g);
     let mut contacts = Vec::new();
     let carriers = match decide(Gate::CarrierLineCircle, Margin::of(clearance), band) {
         Ok(sign) => sign,
@@ -1742,7 +1758,7 @@ fn line_arc<T: Decide>(
         }
         Sign::Positive => {
             let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
-            let crossings = [tc - half, tc + half].map(|t| line.a + line.unit * t);
+            let crossings = [tc - half, tc + half].map(|t| chord_line.at(t));
             candidates(
                 &mut contacts,
                 (line, arc),
@@ -2269,7 +2285,7 @@ fn end_in_stretch<T: Decide>(
     let half = seg.len * T::from_f64(0.5);
     let end = match decide(
         Gate::NearerEnd,
-        Margin::of((q - seg.a).dot(seg.unit) - half),
+        Margin::of(seg.chord_line().height(q) - half),
         band,
     ) {
         Ok(Sign::Negative) => seg.a,
@@ -2415,7 +2431,12 @@ pub(crate) fn ray_crossings<T: Decide>(
     band: Band,
 ) -> Result<usize, Graze> {
     let side = |q: Point2<T>| -> Result<Sign, Graze> {
-        decide(Gate::RaySide, Margin::of(dir.perp_dot(q - origin)), band).map_err(|_| Graze)
+        decide(
+            Gate::RaySide,
+            Margin::of(Line2 { origin, dir }.side(q)),
+            band,
+        )
+        .map_err(|_| Graze)
     };
     match &seg.kind {
         SegKind::Line => {
@@ -2438,14 +2459,16 @@ pub(crate) fn ray_crossings<T: Decide>(
             }
         }
         SegKind::Arc(g) => {
-            let to_center = g.arc.centre - origin;
-            let h = dir.perp_dot(to_center);
-            let (clearance, _) = carrier_line_circle_margin(dir, origin, g);
+            let ray = Line2 { origin, dir };
+            // Read on the unit `dir` as given, for the line×arc pair's
+            // reason: `h` feeds a cancelling `√(r² − h²)`.
+            let h = dir.perp_dot(g.arc.centre - origin);
+            let (clearance, _) = carrier_line_circle_margin(ray, g);
             match decide(Gate::CarrierLineCircle, Margin::of(clearance), band).map_err(|_| Graze)? {
                 Sign::Negative => Ok(0),
                 Sign::Zero => Err(Graze),
                 Sign::Positive => {
-                    let tc = to_center.dot(dir);
+                    let tc = ray.height(g.arc.centre);
                     let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
                     let mut count = 0;
                     for t in [tc - half, tc + half] {

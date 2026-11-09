@@ -4913,7 +4913,7 @@ fn walls_cross<T: Decide>(
     let line = geom::Line { origin: p0, dir: d };
     let on_a = a.cut(line, band)?;
     let on_b = b.cut(line, band)?;
-    let along = |p: geom_core::Point3<T>| line.param(p);
+    let along = |p: geom_core::Point3<T>| line.height(p);
     // Where the two faces are joined: every moved common edge, which
     // lies on `L`, and every shared vertex, widened to twice the
     // escalation width either side. Two joined faces come arbitrarily
@@ -5228,10 +5228,10 @@ impl<T: Decide> MovedWall<T> {
                 let mut splits = 0;
                 while let Some((piece, a, b)) = work.pop_front() {
                     let (c, rho) = piece.ball();
-                    let along = line.param(c);
-                    // The offset off `L` as a vector, not `|w|² − along²`,
-                    // which cancels to noise when a small ball sits close.
-                    let perp = line.distance(c);
+                    // The offset off `L` as its own distance, not
+                    // `|w|² − along²`, which cancels to noise when a small
+                    // ball sits close.
+                    let (along, perp) = line.height_and_distance(c);
                     // Undecided reaches: the read only grows the set.
                     if !matches!(
                         decide("shell_moved_wall_ball_reach", Margin::of(rho - perp), band),
