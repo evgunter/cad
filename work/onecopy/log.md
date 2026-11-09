@@ -1053,3 +1053,5 @@
 - 16:20Z Merged PR 6644 (foot-and-pinch) at gate-green a7fc0ad5 (FULL MERGE; disjoint from 6638; merge check clean).
 - 16:22Z Ruled main-reds K sweep (a): B′, edge_join_carried_far unlogged under F31 (or a new row citing it), the same_content premise stated and pinned by a both-spellings-agree test on a blend fixture; disagreement past the band → A′. (b) the gather 2409/2408 red: bisect and file on the mover.
 - 16:25Z length-rule opened PR 6655 (normal-refusals, 0d69a75d, gate green): sheets_part via of_pierced_normal; slit and walls_inside classed via refusal() → FULL review after 6648, with session_013mPGJ5AURPj9f5Uzr4HKv7. Lane → onecopy/census-normal-refusals.
+- 16:35Z 6645 green at 3d1ea180 but overlapped 6644 (on_carrier) → merged main (2e3b5a9f); build, gates and 6353 tests clean; re-gating.
+- 16:35Z 6632 green at f1fb3d42 but overlapped 6644 (finish.rs) → merged main. Its own gate then caught 6644's polish snap, 0.5*(lo+hi), as a hand midpoint → routed it to mid_param (same bits at f64) at 625641d465fcd3f6274e60ad1da2f771956020e3; gates and geom clean; re-gating. Main itself has no bracket-mid gate yet, so the red only appears on the merge.
