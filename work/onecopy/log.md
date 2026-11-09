@@ -1191,3 +1191,14 @@
   - Delta review MERGE: F1a, F1b and F3a fixed; no outcome moved.
   - Disjoint from main; the combined workspace check is clean (the one warning, pickindex `front_at_for_review`, is already on main).
   - Its N1 (an audit row for `section_site_in_span_past`) and N2 (ReducedRows' "minted by the reduce alone" scope) went to the main-reds lane to fold into 6674.
+- 2026-11-09 18:55Z Rulings:
+  - **bracket-mid-2: (A).** Route all 16 form-3/4 sites to `mid_param` and gate both forms.
+    - (C), a `Real::midpoint` with an f64-only `f64::midpoint` override, is rejected: DESIGN [scalars] (ratified) requires a formula to round alike at every scalar type, so f64 and Dual's value part would diverge at the extremes.
+    - (B) is rejected: it moves the Sym form at ~250 sites.
+    - (D) is rejected: it keeps two spellings.
+    - net::middle's overflow reason goes: the session box bounds every value far below MAX/2, and an ∞ middle is loud poison.
+  - **any-witness: (A),** type-state `Any`/`First` behind a sealed `Answers<A>` with an `Alike` marker and a `Diagnostic<W>` wrapper.
+    - It is built as its own unit after T3's geom_core move; this unit does the per-site fixes.
+    - `at` under Any is documented diagnostic-only.
+    - Not an Ev question: `Answering` is in no ratified clause.
+  - **chart-feet lane:** found its row already done by draft PR 6676 (foot-closed-forms) and stopped. Re-dispatched on compose-elevation-refusal-renders-a-knot-api-recourse and spline-error-holders-may-pass-a-caller-recourse-to-the-user (onecopy/kernel-built-recourse).
