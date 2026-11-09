@@ -177,8 +177,9 @@ impl<T: Decide> Rounded<T> {
     /// by it bounds nothing.
     ///
     /// A `None` picks the caller's answer, so the read is a logged
-    /// decision under the caller's `name` ([`crate::k_stats::decide`]),
-    /// and an undecided room at `Interval` escalates.
+    /// decision under the caller's `name` ([`crate::k_stats::decide`]).
+    /// An undecided room is recorded in the verdict log and read as
+    /// `None`: the caller still picks its answer, and nothing refuses.
     #[must_use]
     pub fn divisor(self, name: &'static str) -> Option<Divisor<T>> {
         let room = self.room();

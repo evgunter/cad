@@ -4,8 +4,8 @@
 #
 # WHY. `k_stats::decide` and its siblings note the predicate's name for
 # the recorder and log the verdict; a raw `sign_within` does neither, so
-# at `Probe` its samples reach the K sink as `<unnamed>`, and at
-# `Interval` an undecided read escalates nothing. Only the probe sweep's
+# at `Probe` its samples reach the K sink as `<unnamed>`, and an
+# undecided read leaves no record in the verdict log. Only the probe sweep's
 # corpus dump could see it, nightly: `geom_core::running::Rounded::divisor`
 # read one raw for four days before it did. A new raw site now has to be
 # registered here, beside why it is not a decision, or go through a door.

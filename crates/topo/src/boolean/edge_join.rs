@@ -1056,7 +1056,7 @@ fn carried_far<T: Decide>(
         return None;
     }
     let past = if backward { tw - gx } else { gx - tw };
-    let pick = geom_core::k_stats::choose("edge_join_carried_far", Margin::sign_of(past), "F38");
+    let pick = geom_core::k_stats::choose("edge_join_carried_far", Margin::of(past), "F39");
     matches!(pick, geom_core::k_stats::Pick::Positive).then_some(gx)
 }
 
@@ -1064,7 +1064,7 @@ fn carried_far<T: Decide>(
 /// `gone`'s middle near `tw`, then of `far` near that, so the reading
 /// walks from the vertex along `gone`. Where `gone` lies on the very
 /// carrier ([`carried_far`]), this names `gx`'s point, and the two
-/// spellings agree up to rounding (ledger row F38).
+/// spellings agree up to rounding (ledger row F39).
 fn read_far<T: Decide>(
     carrier: &geom::Curve3<T>,
     gone: &geom::Curve3<T>,
@@ -1369,7 +1369,7 @@ mod carry {
     }
 
     /// **The carry and the reading off the carrier name one parameter**
-    /// (ledger row F38, the premise `carried_far` is read unlogged on):
+    /// (ledger row F39, the premise `carried_far` is read unlogged on):
     /// where `gone` lies on `kept`'s very carrier, the parameter
     /// [`read_far`] reads `gone`'s far point at is `gx` up to rounding,
     /// on either side, wherever it reads one. A carrier it reads none on

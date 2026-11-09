@@ -17,4 +17,4 @@ Filed by the unit that added `scripts/gates/raw-sign-within.sh` (the `<unnamed>`
 
 For each: if no outcome changes what is certified, say so where it is read (or take `check_unlogged` with an audit row); if one does, route it through `k_stats::decide` under a name, and measure the logs it moves. Lower the gate's register as each goes.
 
-**`edge_join::carried_far` is done** (2026-11-09): routed through `k_stats::choose(.., "F38")`, a choice between two spellings of one parameter, its premise pinned by `edge_join::carry::the_carried_far_parameter_is_the_one_the_carrier_reads`. Its 22 samples were the corpus dump's last `<unnamed>`. `edge_join.rs`'s knot test remains.
+**`edge_join::carried_far` is done** (2026-11-09): routed through `k_stats::choose(.., "F39")`, a choice between two spellings of one parameter, its premise pinned by `edge_join::carry::the_carried_far_parameter_is_the_one_the_carrier_reads`. Its 22 samples were the corpus dump's last `<unnamed>`. `edge_join.rs`'s knot test remains.
