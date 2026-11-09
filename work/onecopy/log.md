@@ -1024,3 +1024,4 @@
 - 15:05Z Ruled ring-island: (a) climb_agreeing at read_paths (probe: 0 disagreements over ~760 reads). Disagree → SectionInvariant if its standing aborts; >10% cost stops; cross-reference first-vertex-reads' every-vertex reader for a later fold.
 - 15:10Z 6638's gate went red at bcea2b66 on fmt (order_rows.rs trailing blank line) → I pushed the fmt fix f6869d0d and it's re-gating; the lane will merge it forward into pose-arms.
 - 15:12Z 6642 head b53f4003 (the fmt fix merged forward); reviewer told; gating.
+- 15:15Z 6637 delta (a6bd9336): FIX (small). recl's consumer re-classes the NoReference limit as InBand Unplaced (dead arm); pin the limit with the reviewer's whole-plane fixture; clears' Zero→Ok(false) seam; split cone_fuzz's tally. Sent to the ladder lane.
