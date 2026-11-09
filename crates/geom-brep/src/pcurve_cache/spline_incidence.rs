@@ -331,7 +331,7 @@ impl<'a, T: Decide> Net<'a, T> {
             .map(|j| refined(ku, rows.iter().map(|r| r[j]).collect(), track))
             .collect::<Option<_>>()?;
         let nu = columns.first()?.len();
-        let (bu, bv) = (breaks(ku)?, breaks(kv)?);
+        let (bu, bv) = (ku.breakpoint_values()?, kv.breakpoint_values()?);
         let (cu, cv) = (bu.len() - 1, bv.len() - 1);
         if nu != cu * pu + 1 || nv != cv * pv + 1 {
             return None;
@@ -658,12 +658,6 @@ fn shadow_box<T: SpanLocate>(control: &[Point3<T>]) -> ([f64; 3], [f64; 3]) {
         }
     }
     (lo, hi)
-}
-
-/// The break values of `knots`, one per run, on the value channel.
-fn breaks<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
-    let out: Vec<f64> = knots.runs().map(|(v, _)| v.value_channel()).collect();
-    out.iter().all(|x| x.is_finite()).then_some(out)
 }
 
 /// The middle of a value's bracket: the walk's order, and the value an
