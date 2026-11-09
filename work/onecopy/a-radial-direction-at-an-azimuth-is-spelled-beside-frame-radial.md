@@ -2,10 +2,12 @@
 id: a-radial-direction-at-an-azimuth-is-spelled-beside-frame-radial
 kind: issue
 title: The unit radial direction at an azimuth is spelled by hand beside Frame::radial at five sites
-status: open
+status: closed
 opened: 2026-11-06
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6624
 ---
 
 
@@ -21,7 +23,7 @@ Test-only spellings (`editor-core/tests/m10_9_r2_probes_interval.rs:384`, and `g
 
 Fix: read `Frame::radial`, or `azimuth::frame` exported, where the site holds a `Frame`. Check each for bit identity against its pins; `cone_search`'s and the fixture's two-call spelling is not bitwise `sin_cos`'s.
 
-## Closed (2026-11-09, `onecopy/on-surface-ties`)
+## Closed (2026-11-09, PR 6624)
 
 All five read geom's one formula (`azimuth::frame`):
 - `injective.rs` reads `Frame::radial` and the new `Frame::tangential` (its derivative), bitwise the formula it wrote.
