@@ -931,7 +931,9 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
 /// and the certification door then re-asks the SAME question at the
 /// SAME stations for each stored `TangentIntersection` — that second
 /// half is the certificate's, unchanged by this unit, and it is what
-/// keeps the stored set and the certified set one set.
+/// keeps the stored set and the certified set one set. The door's
+/// finish then reads the stations twice more (tier 2's edge wedge and
+/// tier 3's recertification), measured apart by `finish_spend`.
 #[cfg(feature = "probe")]
 #[test]
 fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
@@ -974,8 +976,15 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
         SMOOTH_STRUTS,
         "the block's eight struts store the intrinsic tangency"
     );
+    let finish =
+        crate::contact_edge_must_carry::finish_spend(&body, "tangent_second_order", Tol::witness());
     assert_eq!(
-        metered,
+        finish,
+        2 * SMOOTH_STRUTS * interior,
+        "the door's finish reads each contact edge's stations twice more: tier 2's edge wedge and tier 3's recertification"
+    );
+    assert_eq!(
+        metered - finish,
         2 * SMOOTH_STRUTS * interior,
         "each strut spends {interior} stations in the rule and {interior} more in \
          the certificate that accepts what the rule decided"

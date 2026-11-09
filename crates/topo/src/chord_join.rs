@@ -475,7 +475,8 @@ pub enum SplitJoinError {
     },
     /// A site's place on its section's spline component could not be
     /// read: the component's piece walk could not run
-    /// ([`geom_brep::SiteRefusal::Unwalked`]), a limit and not a fault.
+    /// ([`geom_brep::SiteRefusal::Unwalked`]), not a fault, and standing
+    /// as the walk's refusal does.
     SectionUnwalked(geom::PieceWalkRefusal),
     /// A plane's section of a curved face the chord layer has no arm
     /// for: valid input whose lane is not yet built (D2 addendum row 2),
@@ -5480,26 +5481,25 @@ fn ring_side<T: Decide>(
         ))
     };
     match climb(Answering::Any, ring_vertices(body, ring)?, read) {
-        Climb::Answered { answer, .. } => answer,
+        Climb::Answered { answer, .. } => answer.map_err(SplitJoinError::from),
         Climb::Passed => Ok(RingSide::OnRun),
         Climb::Undecided(e) => Err(SplitJoinError::RingHoming(e)),
     }
 }
 
-/// One ring vertex's containment as [`ring_side`]'s rung: a decided side
-/// answers, a vertex on the run passes, and a refusal stands by its own
-/// standing ([`PointInLoopError::refusal`]).
+/// One ring vertex's containment as [`ring_side`]'s rung
+/// ([`Rung::answers`]): a decided side answers, a vertex on the run
+/// passes, and a refusal stands by its own standing
+/// ([`PointInLoopError::refusal`]).
 fn vertex_side(
     reading: Result<LoopContainment, PointInLoopError>,
-) -> Rung<Result<RingSide, SplitJoinError>, PointInLoopError> {
-    match reading {
-        Ok(LoopContainment::In) => Rung::Answers(Ok(RingSide::In)),
-        Ok(LoopContainment::Out) => Rung::Answers(Ok(RingSide::Out)),
-        Ok(LoopContainment::OnBoundary) => Rung::Passes,
-        Err(e) => {
-            geom_brep::ladder::rung_or_abort(e.refusal(), e, |e| Err(SplitJoinError::from(e)))
-        }
-    }
+) -> Rung<Result<RingSide, PointInLoopError>, PointInLoopError> {
+    let side = |at| match at {
+        LoopContainment::In => Some(RingSide::In),
+        LoopContainment::Out => Some(RingSide::Out),
+        LoopContainment::OnBoundary => None,
+    };
+    Rung::answers(reading.map(side), PointInLoopError::refusal)
 }
 
 /// Where ring re-homing puts a bystander ring.

@@ -69,10 +69,6 @@ use geom_core::k_stats::{self, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
 
-/// **How many equal pieces [`Span::window_near`] reads a span off a line
-/// in**: the window it returns is a hull of whole pieces.
-pub const WINDOW_PIECES: u32 = 32;
-
 /// A carrier and a parameter interval on it (module docs).
 #[derive(Clone, Copy)]
 pub struct Span<'a, T: Real> {
@@ -184,14 +180,6 @@ impl SpanRefusal {
     pub fn escalation(self) -> Result<Indeterminate, geom::PieceWalkRefusal> {
         self.refused.escalation()
     }
-
-    /// What this refusal is to a ladder: its carrier refusal's standing
-    /// ([`crate::ladder::Refusal::of_carrier`]), whichever reading it
-    /// rests on. It never refuses the whole query.
-    #[must_use]
-    pub fn refusal(self) -> crate::ladder::Refusal {
-        crate::ladder::Refusal::of_carrier(self.refused)
-    }
 }
 
 impl<T> Reading<T> {
@@ -296,11 +284,10 @@ impl<'a, T: Decide> Span<'a, T> {
     /// span stands within the band's escalation of `member`, the
     /// member's cover. On a line, the cover's range along it
     /// ([`Cover::range_along`]) widened by the escalation either way,
-    /// within the span. On any other carrier, the hull of the span's
-    /// [`WINDOW_PIECES`] equal pieces not decided farther than the
-    /// escalation from the cover's ball ([`Cover::ball`]), each piece read
-    /// by its own cover ([`Curve3::cover_over`]); the whole span where a
-    /// piece has no cover, or for a member with none (`None`).
+    /// within the span. On any other carrier, the hull of the pieces of
+    /// the carrier's piece walk not decided farther than the escalation
+    /// from the cover's ball ([`Cover::ball`]); the whole span where the
+    /// walk cannot run, or for a member with no cover (`None`).
     pub fn window_near(&self, member: Option<&Cover<T>>, band: Band) -> (T, T) {
         let (lo, hi) = (self.t0.min(self.t1), self.t0.max(self.t1));
         let Some(cover) = member else {
@@ -320,34 +307,45 @@ impl<'a, T: Decide> Span<'a, T> {
         )
     }
 
-    /// [`Self::window_near`] off a line: the hull of the pieces of
-    /// `(lo, hi)` a point within the escalation of `cover` may lie on.
-    /// A piece is cleared where its cover's least distance from the
-    /// cover's ball's centre, less the ball's radius, is decided past the
-    /// escalation on an exact order: the gap between the two covers, a
-    /// length.
+    /// [`Self::window_near`] off a line, by the carrier's piece walk
+    /// ([`Curve3::point_walk`]) about the cover's ball's centre: a piece is
+    /// cleared where its floor on that distance, less the ball's radius,
+    /// is proved past the escalation (a proof's inequality); halved while its
+    /// reach is chosen past the ball's radius and the escalation (a
+    /// resolution, sound either way, ledger row F37); and kept once
+    /// its reach is within them, so the window's ends are resolved to the
+    /// member's own size, or the escalation for a point. The whole span
+    /// where the carrier has no finite speed bound or the walk runs past
+    /// its budget.
     fn pieces_near(&self, cover: &Cover<T>, (lo, hi): (T, T), band: Band) -> (T, T) {
         let (centre, radius) = cover.ball();
         let reach = radius + T::from_f64(band.escalate());
-        let at = |i: u32| {
-            lo + (hi - lo) * T::from_f64(f64::from(i)) / T::from_f64(f64::from(WINDOW_PIECES))
-        };
-        let mut kept: Option<(T, T)> = None;
-        for i in 0..WINDOW_PIECES {
-            let (a, b) = (at(i), at(i + 1));
-            let Ok(piece) = self.carrier.cover_over(geom::cover::ParamWindow::new(a, b)) else {
-                return (lo, hi);
-            };
-            let near = piece.distance_range(&geom::cover::Site::Point(centre)).0;
-            let clear = matches!(
-                k_stats::prove("curve_pair_window_clear", Margin::of(near - reach)),
-                Ok(Sign::Positive)
-            );
-            if !clear {
-                kept = Some(kept.map_or((a, b), |(from, _)| (from, b)));
-            }
+        let positive = |row, m: T| matches!(k_stats::prove(row, Margin::of(m)), Ok(Sign::Positive));
+        if !geom_core::is_finite_length(self.hi.get())
+            || !positive("curve_pair_window_speed", self.hi.get())
+        {
+            return (lo, hi);
         }
-        kept.unwrap_or((lo, lo))
+        let mut kept: Option<(T, T)> = None;
+        let walked = self.carrier.point_walk(centre, (lo, hi), self.hi, |p| {
+            if positive("curve_pair_window_clear", p.gap - p.reach - reach) {
+                return geom::PieceStep::Settled;
+            }
+            if k_stats::choose(
+                "curve_pair_window_halve",
+                Margin::of(p.reach - reach),
+                "F37",
+            ) == k_stats::Pick::Positive
+            {
+                return geom::PieceStep::Halve;
+            }
+            kept = Some(kept.map_or(p.span, |(from, _)| (from, p.span.1)));
+            geom::PieceStep::<()>::Settled
+        });
+        match walked {
+            Ok(_) => kept.unwrap_or((lo, lo)),
+            Err(geom_core::bisect::Exhausted) => (lo, hi),
+        }
     }
 
     /// `t` within half a turn of the span's middle on a closed carrier,

@@ -79,6 +79,8 @@
 //! [`rest::by_round`] refuse it).
 
 use geom_brep::ladder::{Aborts, Answering, Climb, Refusal, Rung, climb};
+
+use crate::validate::EdgeTangentUnread;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -519,6 +521,10 @@ pub enum TouchUnread {
     /// would part ([`Self::Unreadable`]). Its standing is the reason's
     /// ([`EdgeTangentUnread::refusal`]).
     EdgeTangent(EdgeTangentUnread),
+    /// A curved edge's span does not certify the touch point on its
+    /// interior, where the touch was held inside the edge: two readings
+    /// of one fact disagree. An abort.
+    OffInterior,
     /// The topology around the touch did not read. The census runs only
     /// on bodies tier 1 admits (loops closed, every key resolving), so
     /// this is a kernel defect. An abort.
@@ -531,64 +537,14 @@ impl TouchUnread {
     ///
     /// # Errors
     ///
-    /// [`Aborts`], for an unreadable germ, a corrupt body, or an edge
-    /// tangent whose two readings disagree.
+    /// [`Aborts`], for an unreadable germ, a corrupt body, or a curved
+    /// edge whose two readings of the touch disagree.
     pub const fn refusal(self) -> Result<Refusal, Aborts> {
         match self {
             Self::InBand | Self::PieceInBand => Ok(Refusal::InBand),
             Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
-            Self::EdgeTangent(why) => why.refusal(),
-            Self::Unreadable | Self::Corrupt => Err(Aborts),
-        }
-    }
-}
-
-/// Why a curved edge's tangent at a touch point did not read
-/// ([`TouchUnread::EdgeTangent`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum EdgeTangentUnread {
-    /// The edge's span does not certify the point on its interior: two
-    /// readings of one fact (the touch held inside the edge, and the
-    /// span) disagree. An abort.
-    #[default]
-    OffInterior,
-    /// The edge carries no certified curve. A limit.
-    NoCurve,
-    /// The edge's speed bound meters no reach over its span. A limit.
-    NoReach,
-    /// The edge's least speed meters no length over its span. A limit.
-    NoLength,
-    /// A spline edge's piece walk could not run: unsettled where it ran
-    /// past its budget, a limit where it has no speed bound
-    /// ([`Refusal`]'s `From<geom::PieceWalkRefusal>`).
-    Unwalked(geom::PieceWalkRefusal),
-}
-
-impl EdgeTangentUnread {
-    /// What this reason is to a ladder, as each variant's docs state it.
-    ///
-    /// # Errors
-    ///
-    /// [`Aborts`], where the edge's two readings of the touch disagree.
-    pub const fn refusal(self) -> Result<Refusal, Aborts> {
-        match self {
-            Self::OffInterior => Err(Aborts),
-            Self::NoCurve | Self::NoReach | Self::NoLength => Ok(Refusal::Limit),
-            Self::Unwalked(why) => Ok(Refusal::of_walk(why)),
-        }
-    }
-
-    /// The one sentence this reason is rendered by.
-    #[must_use]
-    pub const fn sentence(self) -> &'static str {
-        match self {
-            Self::OffInterior => {
-                "a curved edge whose span does not certify the point on its interior"
-            }
-            Self::NoCurve => "a curved edge with no certified curve",
-            Self::NoReach => "a curved edge whose speed bound meters no reach over its span",
-            Self::NoLength => "a curved edge whose least speed meters no length over its span",
-            Self::Unwalked(why) => why.sentence(),
+            Self::EdgeTangent(why) => Ok(why.refusal()),
+            Self::Unreadable | Self::OffInterior | Self::Corrupt => Err(Aborts),
         }
     }
 }
@@ -991,15 +947,13 @@ fn pairing<T: Decide>(
 
 /// A chord from the touch point to `q`, as its length: a number, or a
 /// [`TouchUnread::ChordScale`] refusal for an edge too long or too
-/// short to measure. The one home of that question in the analysis.
+/// short to measure. The analysis's other `ChordScale` refusals are of
+/// scalar lengths (a clearance, a face's reach, a lever), not of a
+/// chord.
 fn chord<T: Real>(p: Point3<T>, q: Point3<T>) -> Result<T, TouchUnread> {
-    let v = q - p;
-    let len = v.norm();
-    if !geom_core::is_finite_length(len) || geom_core::is_underflowed_length(len, v.norm_witness())
-    {
-        return Err(TouchUnread::ChordScale);
-    }
-    Ok(len)
+    (q - p)
+        .checked_length()
+        .map_err(|_| TouchUnread::ChordScale)
 }
 
 /// A boundary edge of a face, as its two end points.

@@ -36,12 +36,22 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCertifyError};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::pcurves::validate_pcurves;
 use topo::{Body, FaceKey, LoopKey, PcurveMintError};
+
+/// Whether a finding is the mint's refusal of a carrier decided off its
+/// chart, read by the one incidence classifier.
+fn off_chart(finding: &PcurveMintError) -> bool {
+    matches!(
+        finding,
+        PcurveMintError::Certify { error, .. }
+            if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
+    )
+}
 
 fn tol() -> Tol {
     Tol::witness()
@@ -1473,13 +1483,7 @@ fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
         "tier 3 re-derives both rowless pieces and names each one's refusal: {findings:?}"
     );
     assert!(
-        findings.iter().all(|f| matches!(
-            f,
-            PcurveMintError::Certify {
-                error: PcurveCertifyError::CarrierOffChart { .. },
-                ..
-            }
-        )),
+        findings.iter().all(off_chart),
         "the mint reads the chord off the wall: {findings:?}"
     );
     let refused = topo::mint_pcurves(&mut s.body, tol())
@@ -1866,15 +1870,7 @@ fn an_edge_carrier_swap_off_the_chart_leaves_its_faces_rowless() {
     let findings = validate_pcurves(&s.body, band());
     let refused = topo::mint_pcurves(&mut s.body, tol()).unwrap_err();
     assert!(
-        findings.len() == 2
-            && findings.iter().all(|f| matches!(
-                f,
-                PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart { .. },
-                    ..
-                }
-            ))
-            && findings.contains(&refused),
+        findings.len() == 2 && findings.iter().all(off_chart) && findings.contains(&refused),
         "tier 3 reads the mint's refusal on each face the line bounds: {findings:?}"
     );
 }
