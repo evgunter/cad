@@ -884,21 +884,24 @@ pub(crate) enum Unread<T> {
     },
     /// No reference to read by: the cone has no wedge, no plane `q`'s
     /// side of is decided, or every reference's arc to `q` decidedly
-    /// meets the apex.
+    /// meets the apex. In band (`[failure.taxonomy]` row 1(b)), carrying
+    /// no margin: a plane left undecided is one `q` reads in band of
+    /// (`Against::Off`, outside its sector), and a reference refused out
+    /// at its reach is dropped here, so a tighter band may decide a
+    /// reference to read by.
     NoReference,
 }
 
 impl<T: Decide> Unread<T> {
     /// What this refusal is to a ladder: its reading's
-    /// ([`Unsettled::refusal`]), and a limit where no reference was
-    /// there to read by ([`Unread::NoReference`]: no reading is built for
-    /// such a cone, whatever the band).
+    /// ([`Unsettled::refusal`]), and in band where no reference was there
+    /// to read by ([`Unread::NoReference`]'s doc says why).
     ///
     /// # Errors
     ///
     /// [`Aborts`], where its reading's standing does.
     pub(crate) fn refusal(&self) -> Result<Refusal, Aborts> {
-        self.why().map_or(Ok(Refusal::Limit), Unsettled::refusal)
+        self.why().map_or(Ok(Refusal::InBand), Unsettled::refusal)
     }
 
     /// Whether the refusal is a given side the cone's own reading
@@ -2072,9 +2075,14 @@ impl<T: Decide> Cone<T> {
                 Against::Inside | Against::Bound => (None, None),
             })
             .unzip();
-        // Every reference reads one material (the cone closes), so any
-        // reference that reads answers, whatever an earlier one refused
-        // ([`climb`], [`Answering::Any`]). Every reference is read at
+        // Every reference reads one material where the cone closes, so any
+        // reference that reads would answer alike. That is a premise about
+        // the input, not a theorem of the rule
+        // (`work/oneread/a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie.md`
+        // shows it failing), so the ladder climbs under
+        // [`Answering::First`]: a reference refused ahead of the answer
+        // stays live on the record, pending 6592's `Alike`
+        // (`work/onecopy/side-at-infinity-aimed-rays-disagree.md`). Every reference is read at
         // `q`'s distance first; only where none answers there is each read
         // again out at its wedge's reach ([`ArcReach::Out`]). A reference
         // refused at `q`'s distance is kept by its standing
@@ -2100,7 +2108,7 @@ impl<T: Decide> Cone<T> {
                         .map(|c| (arc, t, base, c, ray))
                 })
             });
-        let climbed = climb(Answering::Any, references, |(arc, t, base, c, ray)| {
+        let climbed = climb(Answering::First, references, |(arc, t, base, c, ray)| {
             let w = arc.reference(p, q, c, ray);
             let refused = |why: Unread<T>| match arc {
                 ArcReach::Near => Rung::refused(why, Unread::refusal),
@@ -6151,14 +6159,16 @@ mod tests {
 }
 
 /// Each cone refusal's standing on a ladder, as its variant's doc
-/// states its `[failure.taxonomy]` row: a band reading is kept in band,
-/// a given side the cone contradicts aborts, and a cone with no
-/// reference is a limit.
+/// states its `[failure.taxonomy]` row: a band reading is kept in band
+/// (a margin by its margin), a given side the cone contradicts aborts,
+/// and a cone with no reference is in band.
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod standing_rows {
     use geom_brep::ladder::{Aborts, Refusal};
+    use geom_core::{Band, Indeterminate, MarginDiag, Point3, Vec3};
 
-    use super::{Unread, Unsettled};
+    use super::{Distance, Unread, Unsettled};
 
     #[test]
     fn a_band_reading_is_in_band_and_a_contradiction_aborts() {
@@ -6170,6 +6180,19 @@ mod standing_rows {
             why: Unsettled::Unplaced,
         };
         assert_eq!(arc.refusal(), Ok(Refusal::InBand));
-        assert_eq!(Unread::<f64>::NoReference.refusal(), Ok(Refusal::Limit));
+        assert_eq!(Unread::<f64>::NoReference.refusal(), Ok(Refusal::InBand));
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        let zero = Unsettled::Zero("t", Distance::of(origin, origin, Vec3::new(0.0, 0.0, 1.0)));
+        assert_eq!(zero.refusal(), Ok(Refusal::InBand));
+        let diag = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).expect("a valid band"),
+            predicate: Some("t"),
+            terminal_sliver: false,
+        };
+        assert_eq!(
+            Unsettled::<f64>::InBand(diag).refusal(),
+            Ok(Refusal::Margin(diag))
+        );
     }
 }

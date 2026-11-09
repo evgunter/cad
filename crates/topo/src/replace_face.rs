@@ -222,12 +222,13 @@ use std::sync::Arc;
 
 use geom::SurfaceKind;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::ladder::{Answering, Climb, Kept, Rung, climb, decided};
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfacePair};
 use geom_core::k_stats::decide;
 use geom_core::{
-    Affine3, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    KERNEL_OR_FILE_DEFECT_ENDING, Margin, NOT_YET_ENDING, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Band, BandError, COINCIDENCE_RECOURSE, Decide, Decided, Indeterminate,
+    KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, Margin, NOT_YET_ENDING, Point3, Real, Sign,
+    Tol, Vec3,
 };
 
 use crate::attach::Rechart;
@@ -3278,32 +3279,33 @@ fn carried_alike<T: Decide>(
     // A side with no image is no witness, whatever the other side read
     // ([`climb`], [`Answering::Any`]): an escalation on one side is kept,
     // and refuses only where the other side has an image.
-    let mut images = Vec::with_capacity(2);
-    let unwitnessed = climb(Answering::Any, [a, b], |c| match transport(c) {
-        Ok(Some(image)) => {
-            images.push(image);
-            Rung::Passes
-        }
-        Ok(None) => Rung::Answers(Ok(())),
-        Err(e) => Rung::refused(e, ReplaceFaceError::refusal),
-    });
-    match unwitnessed {
-        Climb::Answered { answer, .. } => return answer.map(|()| None),
-        Climb::Undecided(e) => return Err(e),
-        Climb::Passed => {}
-    }
-    let [on_a, (on_b, _)] = <[_; 2]>::try_from(images)
-        .unwrap_or_else(|_| unreachable!("every side passed, so each pushed its image"));
+    let (mut on_a, mut on_b) = (None, None);
+    let unwitnessed = climb(
+        Answering::Any,
+        [(a, &mut on_a), (b, &mut on_b)],
+        |(c, image)| match transport(c) {
+            Ok(Some(read)) => {
+                *image = Some(read);
+                Rung::Passes
+            }
+            Ok(None) => Rung::Answers(Ok(())),
+            Err(e) => Rung::refused(e, ReplaceFaceError::refusal),
+        },
+    );
+    let (on_a, (on_b, _)) = match (unwitnessed, on_a, on_b) {
+        (Climb::Answered { answer, .. }, ..) => return answer.map(|()| None),
+        (Climb::Undecided(e), ..) => return Err(e),
+        (Climb::Passed, Some(on_a), Some(on_b)) => (on_a, on_b),
+        (Climb::Passed, ..) => unreachable!("every side passed, so each side's image was read"),
+    };
     let tm = (t0 + t1) * T::from_f64(0.5);
     // Alike at every sample: any sample decided past ε answers "not
-    // alike", whatever an earlier sample read ([`gap_past_eps`]).
-    let apart = climb(Answering::Any, [t0, tm, t1], |t| {
-        gap_past_eps(on_a.0.eval(t).distance(on_b.eval(t)), tol, band)
-    });
-    match apart {
-        Climb::Answered { .. } => Ok(None),
-        Climb::Passed => Ok(Some(on_a)),
-        Climb::Undecided(source) => Err(ReplaceFaceError::Escalated { source }),
+    // alike", whatever an earlier sample read ([`gaps_apart`]).
+    let samples = [t0, tm, t1].map(|t| on_a.0.eval(t).distance(on_b.eval(t)));
+    match gaps_apart(samples, tol, band) {
+        Ok(Some(_)) => Ok(None),
+        Ok(None) => Ok(Some(on_a)),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
 }
 
@@ -4191,16 +4193,45 @@ fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<
 /// 2ε reads coincident, one past ε + K·ε does not, and one between the
 /// two escalates by the predicate's name.
 fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, ReplaceFaceError<T>> {
-    climb(Answering::Any, [gap], |gap| gap_past_eps(gap, tol, band))
-        .into_reading()
-        .map(|past| past.is_none())
-        .map_err(|source| ReplaceFaceError::Escalated { source })
+    decided(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band)
+        .map(|d| !past_eps(&d))
+        .map_err(|kept| {
+            let (Kept::InBand(source) | Kept::Blocked(source)) = kept;
+            ReplaceFaceError::Escalated { source }
+        })
+}
+
+/// [`gap_within_eps`]'s sign test, the file's one spelling of it: the
+/// margin `ε − gap` decided negative is a gap past ε.
+fn past_eps(d: &Decided) -> bool {
+    d.sign == Sign::Negative
+}
+
+/// **Whether every gap of `gaps` is within ε**, the file's one reading
+/// of "every gap within ε": any gap decided past ε is the disagreement,
+/// whatever an earlier gap read ([`climb`], [`Answering::Any`]; a gap
+/// in band is kept). `Some` of that gap and its index where one is past
+/// ε, `None` where every gap is within it.
+///
+/// # Errors
+///
+/// The kept reading, where no gap is past ε and one is in band.
+fn gaps_apart<T: Decide>(
+    gaps: impl IntoIterator<Item = T>,
+    tol: Tol,
+    band: Band,
+) -> Result<Option<(usize, T)>, Indeterminate> {
+    climb(Answering::Any, gaps.into_iter().enumerate(), |(at, gap)| {
+        Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
+            past_eps(&d).then_some((at, gap))
+        })
+    })
+    .into_reading()
 }
 
 /// **Whether one corner's solved points are one point**: every pair
-/// within ε, any pair decided past it the disagreement, whatever an
-/// earlier pair read ([`gap_past_eps`]). `Some` of that pair's gap
-/// where one is past ε, `None` where every pair is within it.
+/// within ε ([`gaps_apart`]). `Some` of a pair's gap where one is past
+/// ε, `None` where every pair is within it.
 ///
 /// # Errors
 ///
@@ -4214,18 +4245,7 @@ fn corner_apart<T: Decide>(
         .iter()
         .enumerate()
         .flat_map(|(i, a)| points[i + 1..].iter().map(move |b| a.distance(*b)));
-    climb(Answering::Any, pairs, |gap| gap_past_eps(gap, tol, band)).into_reading()
-}
-
-/// [`gap_within_eps`] as a rung, the file's one sign test of it: a gap
-/// decided past ε answers with the gap, one within it passes, and one
-/// in band is kept. A reader of "every gap within ε" climbs these under
-/// [`Answering::Any`]: any gap past ε is the disagreement, whatever an
-/// earlier gap read.
-fn gap_past_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Rung<T, Indeterminate> {
-    Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
-        (d.sign == Sign::Negative).then_some(gap)
-    })
+    gaps_apart(pairs, tol, band).map(|apart| apart.map(|(_, gap)| gap))
 }
 
 /// [`gap_within_eps`]'s predicate name.
@@ -4804,18 +4824,14 @@ fn read_ends<T: Decide>(
         }
     };
     // Both ends on the carrier: either end past ε the disagreement
-    // ([`gap_past_eps`]).
+    // ([`gaps_apart`]).
     let ends = [(plan.start, p_start, t0), (plan.end, p_end, t1)];
-    let off = climb(Answering::Any, ends, |(_, point, t)| {
-        gap_past_eps(carrier.eval(t).distance(point), tol, band)
-    });
-    match off {
-        Climb::Answered { at, answer: gap } => {
-            let (vertex, ..) = ends[at];
-            return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
-        }
-        Climb::Undecided(source) => return Err(ReplaceFaceError::Escalated { source }),
-        Climb::Passed => {}
+    let gaps = ends.map(|(_, point, t)| carrier.eval(t).distance(point));
+    if let Some((at, gap)) =
+        gaps_apart(gaps, tol, band).map_err(|source| ReplaceFaceError::Escalated { source })?
+    {
+        let (vertex, ..) = ends[at];
+        return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
     }
     plan.spec.param_start = t0;
     plan.spec.param_end = t1;
@@ -6237,10 +6253,9 @@ mod refusal_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod corner_rows {
-    use geom_brep::ladder::Rung;
     use geom_core::{Band, Point3, Tol};
 
-    use super::{corner_apart, gap_past_eps};
+    use super::{corner_apart, gaps_apart};
 
     /// A corner whose first pair is in band and whose next pair is a unit
     /// apart disagrees: the pair past ε answers past the pair in band.
@@ -6251,7 +6266,7 @@ mod corner_rows {
         // itself over a fine geometric sweep (the file reads ε once).
         let in_band = (0..2000)
             .map(|k| 1e-14 * 1.01f64.powi(k))
-            .find(|&g| matches!(gap_past_eps(g, tol, band), Rung::InBand(_)))
+            .find(|&g| gaps_apart([g], tol, band).is_err())
             .expect("some gap between ε and its band's edge reads in band");
         let points = [
             Point3::new(0.0, 0.0, 0.0),

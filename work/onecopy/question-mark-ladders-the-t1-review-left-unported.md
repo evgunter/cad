@@ -24,13 +24,7 @@ Found by the FULL review of PR 6617 (QML T1, head 11222df9). Line numbers are at
 1. **F3:**
    - `carried_alike`'s two transports climb under `Any`: a side with no image answers "no witness", whatever the other read, and an escalation is kept by `ReplaceFaceError::refusal`.
    - `face_nappe_reading` climbs its two extremes under `Any`: the lowest station decided above the apex answers `Opening`, and the highest decided below answers `Mirror`, each alone, since `station_min ≤ station_max`. Only where neither does are both read through the old table. In `f64` a lo in band beside a decided-negative hi cannot occur (lo ≤ hi), so this port is reached only at interval width.
-2. **F4:** the file's sign test is one rung, `gap_past_eps` (a gap decided past ε answers with the gap). It is read by:
-   - `gap_within_eps`, a one-rung climb;
-   - `carried_alike`'s samples;
-   - the corner's pairs, `corner_apart`;
-   - `read_ends`' two ends.
-
-   The last two loops are climbs under `Any`, answering `VertexDisagreement` with the gap past ε. `plan_reanchors`' per-endpoint read stays one read through the same rung: its loop is the re-anchor pipeline, with each endpoint's own refusals and a clamp-recovery branch, not a loop over gaps.
+2. **F4:** the file reads "every gap within ε" one way, `gaps_apart` (any gap decided past ε answers with its index and gap; a gap in band is kept). It is read by `carried_alike`'s samples, the corner's pairs (`corner_apart`) and `read_ends`' two ends. `gap_within_eps` reads one gap's rung directly (`decided`), and both share one sign test, `past_eps`. `plan_reanchors`' per-endpoint read stays one read through `gap_within_eps`: its loop is the re-anchor pipeline, with each endpoint's own refusals and a clamp-recovery branch, not a loop over gaps. `gaps_apart` answers with a witness (which gap), which `an-any-climb-answering-with-a-witness-is-first-shaped` takes up.
 3. **F6:** `Variety::read_piece` reads `read_identity(..).holds()`.
 4. **F7, narrowed:** the two spellings follow one rule, now stated once on `read_identity`'s doc. A datum's name is a literal at the datum; a crate whose roster runs `predicate_census` (which reads names at `decide*` calls only) declares a `const` carrier. Topo runs no roster, which is filed as `topo-has-no-predicate-name-roster` (P3).
 

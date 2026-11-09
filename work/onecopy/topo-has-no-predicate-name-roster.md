@@ -17,3 +17,5 @@ Found by QML T1's review (F7 of `question-mark-ladders-the-t1-review-left-unport
 - the identity data the ladder ports moved off `decide("…")` (`rim_wedge::rides`' `seam_line_collinear`, `surface_group::WrapRims::holds`' `bool_wrap_rim`, `splitting::containment::certify_plane`'s `point_in_loop_*`, and the older `rim_circle_*`, `carrier_eq` data) left the literal at the datum, which the census cannot read (it reads names at `decide*` calls, or from a declared `NameCarrier`).
 
 `geom_brep::ladder::read_identity`'s doc states the spelling rule: a literal at the datum, and a `const` declared as a `NameCarrier::Const` where a roster reads the crate (sweep's `LOFT_RIM_PINNED`). A topo roster would declare each identity datum's name that way and list the boolean, splitting and replace-face doors' names against their error types, as sweep's lists its doors.
+
+**Closing this row updates `geom_brep::ladder::read_identity`'s doc** (`crates/geom-brep/src/ladder.rs`, the paragraph on where a datum's name is spelled), which names topo as a crate with no roster.
