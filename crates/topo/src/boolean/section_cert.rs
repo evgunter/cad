@@ -892,7 +892,16 @@ fn torus_pair<T: Decide>(
             // station from the pivot times `1 − cos` (at most `sin²`),
             // and by the offset's part along the tilted axis.
             let turn = |t: &Turn<T>| (c - t.at).dot(a).abs() * t.tilt.powi(2) + t.offset * t.tilt;
-            match axis_pose((c, a), (apex, d), turn, reach.ball(), band) {
+            match axis_pose(
+                geom::Line { origin: c, dir: a },
+                geom::Line {
+                    origin: apex,
+                    dir: d,
+                },
+                turn,
+                reach.ball(),
+                band,
+            ) {
                 AxisPose::Coaxial { slack, .. } => {
                     // In the meridian half-plane about the apex, each
                     // nappe's generator is a line through it at `α` from
@@ -1088,8 +1097,14 @@ fn cone_pair<T: Decide>(
             radius: rc,
             ..
         } => match axis_pose(
-            (apex, cone.a),
-            (origin, d.normalize()),
+            geom::Line {
+                origin: apex,
+                dir: cone.a,
+            },
+            geom::Line {
+                origin,
+                dir: d.normalize(),
+            },
             |_| T::zero(),
             reach.ball(),
             band,
@@ -1111,8 +1126,14 @@ fn cone_pair<T: Decide>(
             half_angle: half_angle2,
             u_ref: u_ref2,
         } => match axis_pose(
-            (apex, cone.a),
-            (apex2, d.normalize()),
+            geom::Line {
+                origin: apex,
+                dir: cone.a,
+            },
+            geom::Line {
+                origin: apex2,
+                dir: d.normalize(),
+            },
             // The apexes' gap is read off `apex2` itself, which the turn
             // onto the first axis moves along it by its station from the
             // pivot times `1 − cos`, at most `sin²`.

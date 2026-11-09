@@ -1237,10 +1237,8 @@ fn door_on(
     {
         return edit(instance);
     }
-    let read = match crate::world::seat_read(doc, node, body) {
-        (at, Some(port)) => Operand::output(at, port),
-        (at, None) => Operand::Node(at),
-    };
+    let (at, port) = crate::world::seat_read(doc, node, body);
+    let read = crate::seats::Output::named(port).read(at);
     let read = crate::session::as_body(doc, read);
     if gated && !crate::session::admits_read(doc, &read, crate::session::NodeKindWanted::Body) {
         return refused(MateToolEvent::NotPlaceable {
@@ -1285,10 +1283,8 @@ fn on_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
                         (at, u32::from(port))
                     }),
             };
-            let body = match crate::world::seat_read(doc, at, Some(port)) {
-                (at, Some(port)) => Operand::output(at, port),
-                (at, None) => Operand::Node(at),
-            };
+            let (at, port) = crate::world::seat_read(doc, at, Some(port));
+            let body = crate::seats::Output::named(port).read(at);
             let read = Operand::select(body, vec![pick.name().clone()]);
             (SitedRef::new(at, pick.name().clone()), read)
         }
