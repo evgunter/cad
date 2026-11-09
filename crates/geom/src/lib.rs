@@ -174,8 +174,8 @@ pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_secon
 pub use curves::{
     CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
-    FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, MajorFrame, NurbsCurve2, NurbsCurve3,
-    OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
+    FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, LinePair, MajorFrame, NurbsCurve2,
+    NurbsCurve3, OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
     ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime, SpiricRegimeSites,
     compose_chain, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range,
     spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
