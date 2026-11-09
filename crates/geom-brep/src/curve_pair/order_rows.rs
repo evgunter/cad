@@ -1068,4 +1068,3 @@ fn thin_ellipses_tangent_at_a_vertex_meet_once_on_the_local_distance() {
     }
     assert_eq!(agree("thin", (&small, &long), &got, &back, at), None);
 }
-
