@@ -147,11 +147,7 @@ fn an_extruded_one_segment_circle_is_one_wall_with_a_seam_strut() {
                 "{what}: the strut is the wall's seam"
             );
             for rim in [&wall.top_rim, &wall.bottom_rim] {
-                let e = t.body.get_edge(*rim).unwrap();
-                let (a, b) = (
-                    t.body.get_half_edge(e.he_plus).unwrap().start,
-                    t.body.get_half_edge(e.he_minus).unwrap().start,
-                );
+                let (a, b) = t.body.edge_vertices(*rim).unwrap();
                 assert_eq!(a, b, "{what}: a rim is a self-loop");
             }
             close(volume(&t.body), PI * 1.5 * 1.5 * 2.0, &what);

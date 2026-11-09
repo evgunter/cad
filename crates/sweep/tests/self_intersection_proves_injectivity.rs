@@ -1152,11 +1152,8 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
         };
         let strut = body
             .edges()
-            .find(|(_, e)| {
-                let ends = [
-                    body.get_half_edge(e.he_plus).unwrap().start,
-                    body.get_half_edge(e.he_minus).unwrap().start,
-                ];
+            .find(|&(k, _)| {
+                let ends = <[_; 2]>::from(body.edge_vertices(k).unwrap());
                 ends.contains(&s_lo) && ends.contains(&s_hi)
             })
             .unwrap()

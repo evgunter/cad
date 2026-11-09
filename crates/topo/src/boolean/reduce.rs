@@ -6768,14 +6768,7 @@ mod declaration_order_rows {
             })
             .map(|(k, e)| (k, e.clone()))
             .expect("the bottom edge");
-        let (a, c) = (
-            x.get_half_edge(edge.he_plus)
-                .expect("a live half-edge")
-                .start,
-            x.get_half_edge(edge.he_minus)
-                .expect("a live half-edge")
-                .start,
-        );
+        let (a, c) = crate::query::edge_ends(&x, edge_key);
         let mut y: crate::body::Body<f64> = crate::body::Body::new();
         let wall = cyl_wall_sheet(
             &mut y,

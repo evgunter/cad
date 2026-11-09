@@ -690,10 +690,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
         })
         .map(|(k, e)| (k, e.clone()))
         .unwrap();
-    let (a, c) = (
-        x.get_half_edge(edge.he_plus).unwrap().start,
-        x.get_half_edge(edge.he_minus).unwrap().start,
-    );
+    let (a, c) = crate::query::edge_ends(&x, edge_key);
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
     let wall = cyl_wall_sheet(
         &mut y,

@@ -32,9 +32,11 @@
 #  2. `B.get_surface(B'.get_face(K)….surface)`, and
 #     `get_face(K).and_then(|f| …get_surface(f.surface))`: a face's
 #     surface walked by hand.
-#  3. `[E.he_plus, E.he_minus].map(…start…)`, and
-#     `start(E.he_plus) … start(E.he_minus)`: an edge's two ends spelled
-#     inline.
+#  3. `[E.he_plus, E.he_minus].map(…start…)`,
+#     `start(E.he_plus) … start(E.he_minus)`, and
+#     `get_half_edge(E.he_plus)….start … get_half_edge(E.he_minus)….start`
+#     (an array, a tuple or a comparison): an edge's two ends spelled
+#     inline, the last two off the twin.
 #
 # KNOWN GAPS. The matcher reads text, not types. It cannot see:
 #  - a face record bound in one statement whose `.surface` key is
@@ -49,9 +51,10 @@
 #    `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`);
 #  - the outer loop and the rings read in separate statements;
 #  - an edge's end read as `half_edge_end(e.he_plus)`, which is also a
-#    half-edge's own end and so cannot be told apart by text. Those test
-#    sites are on the slate as the narrowed
-#    `an-edges-end-vertices-are-spelled-inline-beside-query-edge-ends`.
+#    half-edge's own end. That holds even beside `get_half_edge(e.he_plus)
+#    .start` in one statement, the spelling `Body::edge_vertices` itself
+#    reads through its door. Those test sites are on the slate as the
+#    narrowed `an-edges-end-vertices-are-spelled-inline-beside-query-edge-ends`.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -67,6 +70,7 @@ SURFACE_NESTED='get_surface\(\s*[\w.()&*]*\.get_face\('
 SURFACE_AND_THEN='get_face\(.*\)\s*\.and_then\(\s*\|\s*(\w+)\s*\|.*get_surface\(\s*\1\.surface\b'
 ENDS_ARRAY='\[\s*(\w+(?:\.\w+)*)\.he_plus\s*,\s*\1\.he_minus\s*\]\s*\.map\(.*(\.start\b|half_edge_start_point)'
 ENDS_STARTS='start\(\s*(\w+(?:\.\w+)*)\.he_plus\s*\).*start\(\s*\1\.he_minus\s*\)'
+ENDS_HALVES='get_half_edge\(\s*(\w+(?:\.\w+)*)\.he_plus\s*\)[^;]*\.start\b[^;]*get_half_edge\(\s*\1\.he_minus\s*\)[^;]*\.start\b'
 
 gate_files() {
   local roots=()
@@ -94,7 +98,7 @@ gate() {
     exit 1
   fi
   local needle all=''
-  for needle in "$LOOPS" "$SURFACE_NESTED" "$SURFACE_AND_THEN" "$ENDS_ARRAY" "$ENDS_STARTS"; do
+  for needle in "$LOOPS" "$SURFACE_NESTED" "$SURFACE_AND_THEN" "$ENDS_ARRAY" "$ENDS_STARTS" "$ENDS_HALVES"; do
     hits=$(printf '%s\n' "$view" | gate_grep -P "$needle" || true)
     all=$(printf '%s\n%s\n' "$all" "$hits")
   done
@@ -146,6 +150,18 @@ plant_ends_array() {
     > "$1/crates/planted/tests/a.rs"
 }
 
+plant_ends_halves() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'fn e(body: &B, d: &Edge) -> Option<[V; 2]> {\n'
+    printf '    Some([\n'
+    printf '        body.get_half_edge(d.he_plus)?.start,\n'
+    printf '        body.get_half_edge(d.he_minus)?.start,\n'
+    printf '    ])\n'
+    printf '}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
 plant_ends_in_topo() {
   mkdir -p "$1/crates/topo/src"
   printf 'fn e(edge: &Edge) -> (V, V) { (start(edge.he_plus), start(edge.he_minus)) }\n' \
@@ -182,8 +198,9 @@ gate_selftest() {
   gate_selftest_case "$want" plant_surface_and_then
   gate_selftest_case "$want" plant_ends_array
   gate_selftest_case "$want" plant_ends_in_topo
+  gate_selftest_case "$want" plant_ends_halves
   gate_selftest_passes "the doors, prose, string literals, a chart's surface key, the halves read for their faces, and the homes' own walks" plant_near_misses
-  printf '%s selftest OK: passes a clean fixture and the near misses; fires on an inline loop walk (one line, and rustfmt-wrapped in a demo root), a nested and an and_then face-to-surface walk, an inline edge-ends array in a test root and a closure spelling inside topo; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and the near misses; fires on an inline loop walk (one line, and rustfmt-wrapped in a demo root), a nested and an and_then face-to-surface walk, an inline edge-ends array in a test root, a closure spelling inside topo and a rustfmt-wrapped twin-starts array; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -252,13 +252,8 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
     // names the crease end it retracted from and the support it lies
     // in; a cut-off arc names the crease end it cuts off and the crease
     // whose band it bounds; a fragment names a cap rim of the source.
-    let ends_of = |e: EdgeKey| -> [VertexKey; 2] {
-        let ed = source.get_edge(e).expect("a source edge");
-        [
-            source.get_half_edge(ed.he_plus).unwrap().start,
-            source.half_edge_end(ed.he_plus).unwrap(),
-        ]
-    };
+    let ends_of =
+        |e: EdgeKey| -> [VertexKey; 2] { source.edge_vertices(e).expect("a source edge").into() };
     let faces_of = |e: EdgeKey| -> [FaceKey; 2] {
         let ed = source.get_edge(e).expect("a source edge");
         let face = |he| {

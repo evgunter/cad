@@ -345,12 +345,7 @@ impl<T: crate::props::AtRestPolicy> SplitResult<T> {
                         .is_some_and(|fs| fs.into_iter().any(section))
                 };
                 for &e in &pieces {
-                    let Some(ends) = body.get_edge(e).and_then(|d| {
-                        Some([
-                            body.get_half_edge(d.he_plus)?.start,
-                            body.get_half_edge(d.he_minus)?.start,
-                        ])
-                    }) else {
+                    let Some(ends) = body.edge_vertices(e).map(<[_; 2]>::from) else {
                         continue;
                     };
                     for v in ends.into_iter().filter(|&v| on_section(v)) {
