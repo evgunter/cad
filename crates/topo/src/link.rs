@@ -437,7 +437,7 @@ impl<T> From<metric::Refusal> for Unsettled<T> {
 }
 
 /// What the local analysis of one touch between two solids decided.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum TouchVerdict {
     /// Every piece of both links read, on decided readings, as no
     /// crossing: the materials' interiors are disjoint near the touch.
@@ -478,8 +478,12 @@ pub(crate) enum TouchVerdict {
 ///
 /// Each variant states its standing to a ladder over the faces or
 /// sectors that read it ([`Self::refusal`]), with its reason.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "test-support"),
+    derive(strum::EnumIter, strum::EnumDiscriminants),
+    strum_discriminants(name(TouchUnreadKind), derive(strum::IntoStaticStr))
+)]
 pub enum TouchUnread {
     /// A sign the analysis needed is in band. In band.
     #[default]
@@ -531,6 +535,10 @@ pub enum TouchUnread {
     /// ([`crate::face_normal::NormalAtError::standing`]): the point read
     /// off the face's surface, the kernel's fault, or a torus outside the
     /// ring convention, an invalid input. An abort.
+    ///
+    /// Not iterated (it carries no default row): the samples list its
+    /// rows ([`crate::face_normal::NORMAL_INVALID_INPUTS`]).
+    #[cfg_attr(any(test, feature = "test-support"), strum(disabled))]
     NormalFault(crate::face_normal::NormalAbort),
     /// The topology around the touch did not read. The census runs only
     /// on bodies tier 1 admits (loops closed, every key resolving), so
@@ -544,7 +552,7 @@ impl TouchUnread {
     /// in band, by margin or not, or unsettled, is [`Self::InBand`]; a
     /// limit is [`Self::Unanalysed`]. **Lossy**, not an inverse of
     /// [`Self::refusal`]: a margin's diagnostics are dropped (no arm here
-    /// carries one, and the type is `Eq`), and an unsettled reading reads
+    /// carries one), and an unsettled reading reads
     /// back as in band, ranked ahead of where it stood.
     #[must_use]
     pub const fn kept(standing: Refusal) -> Self {

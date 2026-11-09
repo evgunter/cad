@@ -94,6 +94,27 @@ impl TorusConvention {
     }
 }
 
+impl TorusConvention {
+    /// **The decided refusal about `whose` torus, ended by the half's one
+    /// lever** ([`Self::sized`]) read at `at`; the clause alone
+    /// ([`Self::refused`]) where `at` is `None`, as a `Display` writes
+    /// it. Every door that renders a torus decided outside the
+    /// convention says it so.
+    #[must_use]
+    pub fn refused_ended(
+        self,
+        whose: &str,
+        verdict: Refused,
+        at: Option<crate::recourse::ReadAt>,
+    ) -> String {
+        let clause = self.refused(whose, verdict);
+        match at {
+            Some(at) => format!("{clause}. {}", self.sized().recourse(verdict.arm(), at)),
+            None => clause,
+        }
+    }
+}
+
 /// **A torus refused at one half of its ring convention**, in band or
 /// decided: the half and its verdict, carried from the door that decides
 /// it to the one that renders it, whose `Display` ends in the half's one
@@ -195,11 +216,7 @@ impl TorusRefusal {
                 )
             ),
             (TorusVerdict::Refused(verdict), at) => {
-                f.write_str(&self.convention.refused("a torus's", *verdict))?;
-                match at {
-                    Some(at) => write!(f, ". {}", sized.recourse(verdict.arm(), at)),
-                    None => Ok(()),
-                }
+                f.write_str(&self.convention.refused_ended("a torus's", *verdict, at))
             }
         }
     }

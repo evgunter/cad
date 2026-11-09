@@ -3,7 +3,7 @@
 //! on both sides of the split. Red where an arm is re-classed by hand, a
 //! delegate stops reading its payload, or a split reads one side for both.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom_brep::ladder::{Aborts, Refusal};
 use geom_core::{Band, Indeterminate, MarginDiag};
@@ -274,23 +274,26 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         Ok(Refusal::Limit),
         "an edge in a face, a parting not built"
     );
-    let torus = in_face(super::slit::EdgeInFaceGap::DegenerateTorus(horn()))
-        .render(geom_brep::recourse::Reading::Build);
-    let lever = geom_brep::TorusConvention::Ring.sized().recourse(
-        geom_brep::recourse::Refused::Negative {
-            margin: MarginDiag::INVALID,
-        }
-        .arm(),
-        geom_brep::recourse::ReadAt::from(geom_brep::recourse::Reading::Build),
-    );
-    assert!(
-        torus.contains("a torus face's tube radius")
-            && torus.ends_with(lever.as_str())
-            && !torus.contains(geom_core::KERNEL_DEFECT_ENDING)
-            && !torus.contains(geom_core::NOT_YET_ENDING),
-        "an edge in a face on a torus outside the ring convention ends on the convention's \
-         lever: {torus}"
-    );
+    for abort in crate::face_normal::NORMAL_INVALID_INPUTS {
+        let torus = abort.torus().unwrap();
+        let geom_brep::TorusVerdict::Refused(verdict) = torus.verdict else {
+            panic!("{torus:?} is decided")
+        };
+        let text = in_face(super::slit::EdgeInFaceGap::DegenerateTorus(torus))
+            .render(geom_brep::recourse::Reading::Build);
+        let lever = torus.convention.sized().recourse(
+            verdict.arm(),
+            geom_brep::recourse::ReadAt::from(geom_brep::recourse::Reading::Build),
+        );
+        assert!(
+            text.contains(torus.convention.refused("a torus face's", verdict).as_str())
+                && text.ends_with(lever.as_str())
+                && !text.contains(geom_core::KERNEL_DEFECT_ENDING)
+                && !text.contains(geom_core::NOT_YET_ENDING),
+            "an edge in a face on a torus outside the ring convention ends on its half's \
+             lever: {text}"
+        );
+    }
     // The delegates read their payload's own standing.
     let solid = PointInSolidError::ZeroVolumeBody;
     assert_eq!(
@@ -362,33 +365,48 @@ fn in_face(gap: super::slit::EdgeInFaceGap) -> BooleanError {
 }
 
 /// **A face's normal that aborted a Boolean reading is answered by its
-/// row** ([`BooleanError::of_aborted_normal`]): a torus outside the ring
-/// convention, an invalid input, is the Boolean's torus refusal on the
-/// face it names; the point off the surface, a kernel fault, is the
-/// invariant the caller names.
+/// row** ([`BooleanError::of_aborted_normal`], which takes the abort
+/// alone): a torus outside the ring convention, an invalid input, is the
+/// Boolean's torus refusal on the face it names, on either half; the
+/// point off the surface, a kernel fault, is the invariant the caller
+/// names.
 #[test]
 fn an_aborted_normal_is_answered_by_its_row() {
-    use crate::face_normal::NormalAtError;
+    use crate::face_normal::{NORMAL_INVALID_INPUTS, NormalAbort};
     let face = FaceKey::default();
-    let horn = NormalAtError::DegenerateTorus {
-        convention: geom_brep::TorusConvention::Ring,
-        verdict: geom_brep::recourse::Refused::Negative {
-            margin: MarginDiag::INVALID,
-        },
-    };
-    let input = BooleanError::of_aborted_normal(horn, (Operand::B, face), "off");
-    assert!(
-        matches!(
-            input,
-            BooleanError::DegenerateTorus {
-                operand: Operand::B,
-                ..
-            }
-        ),
-        "an invalid input: {input:?}"
-    );
+    for abort in NORMAL_INVALID_INPUTS {
+        let NormalAbort::InvalidInput {
+            convention,
+            verdict,
+        } = abort
+        else {
+            panic!("{abort:?} is an invalid input")
+        };
+        let input = BooleanError::of_aborted_normal(abort, (Operand::B, face), "off");
+        assert!(
+            matches!(
+                input,
+                BooleanError::DegenerateTorus {
+                    operand: Operand::B,
+                    convention: c,
+                    verdict: v,
+                    ..
+                } if c == convention && v == verdict
+            ),
+            "an invalid input: {input:?}"
+        );
+        let text = input.render(geom_brep::recourse::Reading::Build);
+        let lever = convention.sized().recourse(
+            verdict.arm(),
+            geom_brep::recourse::ReadAt::from(geom_brep::recourse::Reading::Build),
+        );
+        assert!(
+            text.ends_with(lever.as_str()),
+            "{convention:?} ends on its own lever: {text}"
+        );
+    }
     let fault =
-        BooleanError::of_aborted_normal(NormalAtError::OffSurface, (Operand::A, face), "off");
+        BooleanError::of_aborted_normal(NormalAbort::KernelFault, (Operand::A, face), "off");
     assert!(
         matches!(fault, BooleanError::ClassificationInvariant { what: "off" }),
         "a kernel fault: {fault:?}"

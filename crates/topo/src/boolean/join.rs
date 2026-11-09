@@ -5519,10 +5519,11 @@ fn sliver_along_a_slit<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] where two chords read the
 /// loop's regions on opposite sides: they flank one crossing, so that is
-/// a kernel defect; where a chord's point reads definitely off the
-/// surface of the region it bounds; and where the region is a torus
-/// decided outside the ring convention, which the chord's germ pair's
-/// frame refuses first ([`section_refusal`]). [`BooleanError::JoinDesync`] where
+/// a kernel defect; and where a chord's point reads definitely off the
+/// surface of the region it bounds. [`BooleanError::DegenerateTorus`]
+/// where the region is a torus decided outside the ring convention, the
+/// operand's invalid input ([`BooleanError::of_aborted_normal`]).
+/// [`BooleanError::JoinDesync`] where
 /// the chord's edge, curve or region no longer resolves. And the walk's
 /// and [`holding_face_normal`]'s own.
 fn seam_germ_side<T: Decide>(
@@ -5586,14 +5587,15 @@ fn seam_germ_side<T: Decide>(
                 // spindle torus here. That face is the operand's invalid
                 // input, not a kernel fault.
                 Err(why) => {
-                    return rung_or_abort(why.refusal(), why, |why| {
-                        Err(BooleanError::of_aborted_normal(
-                            why,
+                    return match why.standing() {
+                        Ok(standing) => standing.rung(why),
+                        Err(abort) => Rung::Aborts(Err(BooleanError::of_aborted_normal(
+                            abort,
                             (other_is.other(), region),
                             "a section chord's point reads off the surface of the region it \
                              bounds",
-                        ))
-                    })
+                        ))),
+                    }
                     .map_kept(|_| ());
                 }
             };
@@ -5779,9 +5781,14 @@ impl HoldingUnread {
                 face,
                 refusal,
             },
-            Self::Normal { operand, face, why } => {
-                BooleanError::of_aborted_normal(why, (operand, face), HOLDING_OFF_SURFACE)
-            }
+            Self::Normal { operand, face, why } => match why.standing() {
+                Err(abort) => {
+                    BooleanError::of_aborted_normal(abort, (operand, face), HOLDING_OFF_SURFACE)
+                }
+                Ok(_) => BooleanError::ClassificationInvariant {
+                    what: HOLDING_OFF_SURFACE,
+                },
+            },
             Self::Placement {
                 why: PlacementError::OnPlane(_),
                 ..

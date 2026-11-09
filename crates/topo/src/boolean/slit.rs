@@ -287,10 +287,8 @@ impl EdgeInFaceGap {
                  the edge's own faces none at the midpoint (a spline face among them), to read \
                  the side by"
             }
-            Self::DegenerateTorus(_) => {
-                "the face, or one of the edge's own faces, is a torus outside the ring \
-                 convention (a horn or spindle torus), a shape the kernel does not represent"
-            }
+            // Rendered by its own refusal ([`Self::torus`]), never by words.
+            Self::DegenerateTorus(_) => "the face, or one of the edge's own faces, is a torus",
             Self::Shared => {
                 "an end of the edge lies on the face's boundary more than once, or the edge's \
                  faces go into the material of two faces it lies in, wholly in one of them"
@@ -1971,13 +1969,13 @@ fn walls_inside<T: Decide>(
         }
         // A normal kept as its refusal states it is this reading's limit;
         // an abort is answered by its own row.
-        Err(why) => Err(match (why.standing(), why.torus_refusal()) {
-            (Ok(_), _) => refused(EdgeInFaceGap::NoNormal),
-            (Err(crate::face_normal::NormalAbort::InvalidInput), Some(torus)) => {
-                refused(EdgeInFaceGap::DegenerateTorus(torus))
-            }
-            (Err(_), _) => BooleanError::ClassificationInvariant {
-                what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
+        Err(why) => Err(match why.standing() {
+            Ok(_) => refused(EdgeInFaceGap::NoNormal),
+            Err(abort) => match abort.torus() {
+                Some(torus) => refused(EdgeInFaceGap::DegenerateTorus(torus)),
+                None => BooleanError::ClassificationInvariant {
+                    what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
+                },
             },
         }),
     };

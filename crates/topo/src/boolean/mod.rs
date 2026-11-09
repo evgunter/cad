@@ -3023,19 +3023,23 @@ pub enum BooleanError {
         /// Its surface kind — the C5 table row the refusal cites.
         kind: geom::SurfaceKind,
     },
-    /// A pierced face's torus is definitely outside the ring convention
+    /// An operand's torus face is definitely outside the ring convention
     /// (D3: a horn or spindle torus, or one with no tube), a shape the
-    /// kernel has no representation for. The decided arm of the
-    /// convention half whose in-band arm is
+    /// kernel has no representation for, read where its normal is
+    /// asked: the pierced face's ([`Self::of_pierced_normal`]), or a
+    /// section chord's region or holding face
+    /// ([`Self::of_aborted_normal`]). No tier-3 premise keeps one out:
+    /// at a dual an operand is a `Replay`, tier 2 alone. The decided arm
+    /// of the convention half whose in-band arm is
     /// [`BooleanDecision::Torus`], and it ends in the same lever.
     ///
     /// As the convention states a torus decided outside it
     /// ([`geom_brep::TorusRefusal::refusal`]): an abort, a shape
     /// the kernel's model never represents (row 1(a)).
     DegenerateTorus {
-        /// The pierced face's operand.
+        /// The face's operand.
         operand: Operand,
-        /// The pierced face.
+        /// The torus face.
         face: FaceKey,
         /// The half of the convention that refused.
         convention: TorusConvention,
@@ -4538,7 +4542,7 @@ pub enum BooleanError {
 }
 
 /// What [`BooleanError::LineWedges`] found on the result's line.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LineWedgeFault {
     /// The two edges' material wedges overlap: the line's material is
     /// counted twice.
@@ -4832,20 +4836,28 @@ impl BooleanError {
     }
 
     /// **A face's outward normal that aborted a reading**, by the abort's
-    /// own row ([`crate::face_normal::NormalAtError::standing`]): an
-    /// invalid input is that refusal on `operand`'s `face`, in the
-    /// Boolean's words ([`Self::of_pierced_normal`]); a kernel fault is
-    /// the invariant `kernel` names, as a refusal that keeps its query
-    /// never reaches here.
-    pub(in crate::boolean) fn of_aborted_normal(
-        refusal: crate::face_normal::NormalAtError,
+    /// own row ([`crate::face_normal::NormalAtError::standing`]), which is
+    /// all it takes, so a refusal that keeps its query cannot reach it:
+    /// an invalid input is the torus refusal on `operand`'s `face`
+    /// ([`Self::DegenerateTorus`]); a kernel fault is the invariant
+    /// `kernel` names.
+    pub(in crate::boolean) const fn of_aborted_normal(
+        abort: crate::face_normal::NormalAbort,
         (operand, face): (Operand, FaceKey),
         kernel: &'static str,
     ) -> Self {
         use crate::face_normal::NormalAbort;
-        match refusal.standing() {
-            Err(NormalAbort::InvalidInput) => Self::of_pierced_normal(refusal, operand, face),
-            Err(NormalAbort::KernelFault) | Ok(_) => Self::ClassificationInvariant { what: kernel },
+        match abort {
+            NormalAbort::InvalidInput {
+                convention,
+                verdict,
+            } => Self::DegenerateTorus {
+                operand,
+                face,
+                convention,
+                verdict,
+            },
+            NormalAbort::KernelFault => Self::ClassificationInvariant { what: kernel },
         }
     }
 
@@ -5260,13 +5272,7 @@ impl BooleanError {
                 convention,
                 verdict,
                 ..
-            } => {
-                f.write_str(&convention.refused("a torus face's", *verdict))?;
-                match at {
-                    Some(at) => write!(f, ". {}", convention.sized().recourse(verdict.arm(), at)),
-                    None => Ok(()),
-                }
-            }
+            } => f.write_str(&convention.refused_ended("a torus face's", *verdict, at)),
             Self::CurvedPierceUnsupported { operand, .. } => write!(
                 f,
                 "an edge of the {} operand touches or crosses a curved face of the \
@@ -6039,24 +6045,16 @@ impl BooleanError {
             Self::EdgeInFace { edge, face, gap } => {
                 if let Some(torus) = gap.torus() {
                     write!(f, "edge {edge:?} of the result lies in face {face:?}, and ")?;
-                    match torus.verdict {
-                        geom_brep::TorusVerdict::Refused(verdict) => {
-                            f.write_str(&torus.convention.refused("a torus face's", verdict))?;
-                            match at {
-                                Some(at) => write!(
-                                    f,
-                                    ". {}",
-                                    torus.convention.sized().recourse(verdict.arm(), at)
-                                ),
-                                None => Ok(()),
-                            }
-                        }
-                        geom_brep::TorusVerdict::Undecided(diag) => write!(
-                            f,
-                            "{}. {}",
-                            gap.words(),
-                            diag.ending(geom_core::COINCIDENCE_RECOURSE)
+                    match (torus.verdict, at) {
+                        (geom_brep::TorusVerdict::Refused(verdict), at) => f.write_str(
+                            &torus
+                                .convention
+                                .refused_ended("a torus face's", verdict, at),
                         ),
+                        (geom_brep::TorusVerdict::Undecided(_), Some(at)) => {
+                            f.write_str(&torus.render(at))
+                        }
+                        (geom_brep::TorusVerdict::Undecided(_), None) => write!(f, "{torus}"),
                     }
                 } else if gap.is_defect() {
                     write!(
@@ -6126,7 +6124,7 @@ impl BooleanError {
                     f,
                     "an edge on the line from {from} to {to}, where two or more of the \
                      result's edges lie, bounds material the check cannot read: {}",
-                    why.sentence_on_line()
+                    why.sentence_on_line(at)
                 ),
             },
         }
