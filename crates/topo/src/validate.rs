@@ -9040,7 +9040,10 @@ pub(crate) fn point_corners<T: Decide>(
 /// **The normal check 9 reads a corner's wedge about**: `face_key`'s
 /// outward normal at `vertex`'s point
 /// ([`crate::face_normal::face_outward_normal_at`]); `None` where that
-/// door gives none there (`pinch_corner_errors`' residue).
+/// door gives none there (`pinch_corner_errors`' residue), a vertex the
+/// door reads off the face's surface among them: that is check 3's
+/// finding, and a caller that needs the normal refuses its absence
+/// (`splitting::section_cones`).
 ///
 /// # Errors
 ///
