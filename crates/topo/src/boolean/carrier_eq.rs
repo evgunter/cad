@@ -62,7 +62,7 @@
 //! in band is a sliver and refuses ([`CarrierEqError::Undecided`]).
 
 use geom_brep::ladder::{IdentityLadder, Kept};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Vec3};
 
 use crate::validate::decide_reported;
 
@@ -176,8 +176,9 @@ pub enum CarrierEqError {
 /// ([`CarrierEqError::Undecided`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CoincidenceMeasure {
-    /// A datum, or the displacement's bound over the pair's extent, did
-    /// not decide zero: in band, or past it where the bound stands off.
+    /// A datum, or the displacement over the pair's extent, did not
+    /// decide: in band, or read `Zero` from below and past the band from
+    /// above, a straddle ([`geom_brep::ladder::data_beneath_sum`]).
     Undecided(Indeterminate),
     /// A datum is not finite: poisoned input, which no move of the
     /// faces reads.
@@ -485,32 +486,12 @@ pub(crate) fn carrier_eq_reading<T: Decide>(
                 outward: w2,
             },
         ) => {
-            let same = if w1 == w2 {
-                CarrierRelation::SameOriented
-            } else {
-                CarrierRelation::SameOpposite
-            };
-            let undecided = |coincidence| CarrierEqError::Undecided {
-                coincidence,
-                relation: same,
-            };
-            match geom_brep::tori_coincide(
-                torus((*p1, *a1, *r1, *t1)),
-                torus((*p2, *a2, *r2, *t2)),
+            let (coincidence, same) = tori_pair(
+                (*p1, *a1, *r1, *t1, *w1),
+                (*p2, *a2, *r2, *t2, *w2),
                 band,
-            ) {
-                geom_brep::TorusCoincidence::One(margin) => Ok(CarrierVerdict::One {
-                    relation: same,
-                    margin,
-                }),
-                geom_brep::TorusCoincidence::Apart { by, .. } => Ok(CarrierVerdict::Apart(by)),
-                geom_brep::TorusCoincidence::Undecided(diag) => {
-                    Err(undecided(CoincidenceMeasure::not_zero(diag)))
-                }
-                geom_brep::TorusCoincidence::OffRing { torus, refusal } => {
-                    Err(CarrierEqError::OffRing { torus, refusal })
-                }
-            }
+            );
+            torus_verdict(coincidence, same)
         }
         (
             CarrierDesc::Cone {
@@ -554,18 +535,83 @@ pub(super) fn pair_door_reading<T: Decide>(
 ) -> Result<CarrierVerdict, CarrierEqError> {
     match carrier_eq_reading(c1, c2, extent, band) {
         Ok(CarrierVerdict::One { relation, margin }) => {
-            let sum = coincident_over_extent(c1, c2, extent, relation, band).map_err(|diag| {
-                CarrierEqError::Undecided {
+            let margin = coincident_over_extent(c1, c2, extent, (relation, margin), band)
+                .map_err(|diag| CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::not_zero(diag),
                     relation,
-                }
-            })?;
-            Ok(CarrierVerdict::One {
-                relation,
-                margin: sum.map_or(margin, |s| margin.jointly(s)),
-            })
+                })?;
+            Ok(CarrierVerdict::One { relation, margin })
         }
         verdict => verdict,
+    }
+}
+
+/// **Two torus descriptions' coincidence** ([`geom_brep::tori_coincide`]),
+/// read over the whole ring, with the orientation their senses make;
+/// `None` unless both are tori. The face-pair door reads it here to ask
+/// the faces for a witness of the ring's apart
+/// ([`super::carrier_pair::carrier_pair_decided`]).
+pub(super) fn tori_coincidence<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    band: Band,
+) -> Option<(geom_brep::TorusCoincidence, CarrierRelation)> {
+    let fields = |c: &CarrierDesc<T>| match *c {
+        CarrierDesc::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            outward,
+        } => Some((center, axis, major_radius, minor_radius, outward)),
+        _ => None,
+    };
+    Some(tori_pair(fields(c1)?, fields(c2)?, band))
+}
+
+/// A torus description's fields: centre, axis, both radii, outward.
+type TorusFields<T> = (Point3<T>, Vec3<T>, T, T, bool);
+
+/// [`tori_coincidence`] on two tori's fields.
+fn tori_pair<T: Decide>(
+    (p1, a1, r1, t1, w1): TorusFields<T>,
+    (p2, a2, r2, t2, w2): TorusFields<T>,
+    band: Band,
+) -> (geom_brep::TorusCoincidence, CarrierRelation) {
+    let same = if w1 == w2 {
+        CarrierRelation::SameOriented
+    } else {
+        CarrierRelation::SameOpposite
+    };
+    (
+        geom_brep::tori_coincide(torus((p1, a1, r1, t1)), torus((p2, a2, r2, t2)), band),
+        same,
+    )
+}
+
+/// Two tori's coincidence as the ladder's verdict, `same` the orientation
+/// their senses make: the ring apart on its datum's reading.
+///
+/// # Errors
+///
+/// The coincidence undecided, or a torus off its ring convention.
+pub(super) fn torus_verdict(
+    coincidence: geom_brep::TorusCoincidence,
+    same: CarrierRelation,
+) -> Result<CarrierVerdict, CarrierEqError> {
+    match coincidence {
+        geom_brep::TorusCoincidence::One(margin) => Ok(CarrierVerdict::One {
+            relation: same,
+            margin,
+        }),
+        geom_brep::TorusCoincidence::Apart { by, .. } => Ok(CarrierVerdict::Apart(by)),
+        geom_brep::TorusCoincidence::Undecided(diag) => Err(CarrierEqError::Undecided {
+            coincidence: CoincidenceMeasure::not_zero(diag),
+            relation: same,
+        }),
+        geom_brep::TorusCoincidence::OffRing { torus, refusal } => {
+            Err(CarrierEqError::OffRing { torus, refusal })
+        }
     }
 }
 
@@ -701,9 +747,12 @@ fn at_consumed_extent<T: geom_core::Real>(
 /// Every datum decided zero says "one carrier"; the face-pair door reads
 /// the data's SUM, the displacement's upper bound at every point of the
 /// extent's ball, so the coincidence stands only where that sum decides
-/// zero too, whatever K. Where it does not, the refusal carries its
-/// reading, in band or past it; where it does, its reading, which the
-/// coincidence's margin stands for too.
+/// zero too, whatever K. Each datum bounds the displacement from below,
+/// so where the sum decides past the band beside them the two bounds
+/// straddle it ([`geom_brep::ladder::data_beneath_sum`]), under the
+/// kind's straddle row; where it decides nothing, the refusal carries its
+/// reading; where it decides zero, `data`'s margin, the data's joint
+/// `Zero`, standing for the sum's too.
 ///
 /// Per kind (`c` the ball's centre, `R` its radius, `t` the tilt as
 /// [`line_tilt`]'s chord, which bounds how far a unit offset turns):
@@ -726,48 +775,31 @@ fn coincident_over_extent<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     extent: &ConsumedExtent<T>,
-    relation: CarrierRelation,
+    (relation, data): (CarrierRelation, MarginDiag),
     band: Band,
-) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
-    // Two tori's coincidence already stands on this bound.
-    if matches!(
-        (c1, c2),
-        (CarrierDesc::Torus { .. }, CarrierDesc::Torus { .. })
-    ) {
-        return Ok(None);
-    }
+) -> Result<MarginDiag, Indeterminate> {
     let sigma = match relation {
         CarrierRelation::SameOpposite => -T::one(),
         CarrierRelation::SameOriented | CarrierRelation::Distinct => T::one(),
     };
-    let Some((upper_name, upper)) = reading(c1, c2, extent.reach, sigma) else {
-        return Ok(None);
+    // Two tori's coincidence already stands on this bound.
+    let Some(((row, straddle), upper)) = reading(c1, c2, extent.reach, sigma) else {
+        return Ok(data);
     };
-    match decide_reported(upper_name, Margin::of(upper), band) {
-        Ok(Decided {
-            sign: Sign::Zero,
-            margin,
-        }) => Ok(Some(margin)),
-        Ok(Decided { margin, .. }) => Err(Indeterminate {
-            margin,
-            band,
-            predicate: Some(upper_name),
-            terminal_sliver: false,
-        }),
-        Err(diag) => Err(diag),
-    }
+    let upper = decide_reported(row, Margin::of(upper), band);
+    geom_brep::ladder::data_beneath_sum(straddle, data, upper, band).map(|sum| data.jointly(sum))
 }
 
 /// The displacement's upper bound between a same-kind, non-torus pair
-/// over `reach`, with its predicate's name ([`coincident_over_extent`]),
-/// the planes' orientation sign `sigma` decided; `None` for a kind
-/// mismatch or two tori.
+/// over `reach`, with its predicate's name and its straddle row's
+/// ([`coincident_over_extent`]), the planes' orientation sign `sigma`
+/// decided; `None` for a kind mismatch or two tori.
 fn reading<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     reach: geom_brep::ExtentBall<T>,
     sigma: T,
-) -> Option<(&'static str, T)> {
+) -> Option<((&'static str, &'static str), T)> {
     Some(match (*c1, *c2) {
         (
             CarrierDesc::Plane {
@@ -782,7 +814,10 @@ fn reading<T: Decide>(
             let centre = reach.center();
             let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
             let swing = Margin::levered((n1 - n2 * sigma).norm(), reach.lever()).value();
-            ("bool_plane_reach", offset.abs() + swing)
+            (
+                ("bool_plane_reach", "bool_plane_reach_straddle"),
+                offset.abs() + swing,
+            )
         }
         (
             CarrierDesc::Sphere {
@@ -795,7 +830,10 @@ fn reading<T: Decide>(
                 radius: r2,
                 ..
             },
-        ) => ("carrier_sphere_reach", (r1 - r2).abs() + (p1 - p2).norm()),
+        ) => (
+            ("carrier_sphere_reach", "carrier_sphere_reach_straddle"),
+            (r1 - r2).abs() + (p1 - p2).norm(),
+        ),
         (
             CarrierDesc::Cylinder {
                 origin: o1,
@@ -817,7 +855,10 @@ fn reading<T: Decide>(
             let apart = perpendicular(pivot - o1, a1).norm();
             let arm = reach.lever_from_within(pivot, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
-            ("carrier_cyl_reach", (r1 - r2).abs() + core)
+            (
+                ("carrier_cyl_reach", "carrier_cyl_reach_straddle"),
+                (r1 - r2).abs() + core,
+            )
         }
         (
             CarrierDesc::Cone {
@@ -836,7 +877,7 @@ fn reading<T: Decide>(
             let apart = (p1 - p2).norm();
             let arm = reach.lever_from_within(p1, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2) + (t1 - t2).abs(), arm).value();
-            ("carrier_cone_reach", core)
+            (("carrier_cone_reach", "carrier_cone_reach_straddle"), core)
         }
         _ => return None,
     })
@@ -878,7 +919,7 @@ fn data_rungs<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::Tol;
+    use geom_core::{Sign, Tol};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()

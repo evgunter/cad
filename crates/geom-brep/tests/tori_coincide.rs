@@ -99,13 +99,21 @@ fn the_pose_reads_two_tori_one_where_the_decision_does() {
     }
     let apart = data(Point3::origin(), z, 5.0, 0.06 + 1000.0 * b.escalate());
     match tori_coincide(ring, apart, b) {
-        TorusCoincidence::Apart { datum, by } => {
+        TorusCoincidence::Apart { datum, by, upper } => {
             assert_eq!(datum, TorusDatum::MinorRadius, "the tube is what moved");
             assert_eq!(by.sign, geom_core::Sign::Negative, "{by:?}");
             assert_eq!(
                 by.margin,
                 geom_core::MarginDiag::value(0.06 - (0.06 + 1000.0 * b.escalate())),
                 "apart keeps the margin it was decided on"
+            );
+            assert_eq!(
+                upper,
+                geom_core::Decided {
+                    sign: geom_core::Sign::Positive,
+                    margin: geom_core::MarginDiag::value(TorusDisplacement::of(ring, apart).upper),
+                },
+                "apart keeps the bound's reading, past the band with its datum"
             );
         }
         other => panic!("the tube past the band: {other:?}"),
@@ -169,9 +177,10 @@ fn size(g: &mut fuzz::Rng) -> f64 {
 /// random diameter so its ring swings that far, slid, and each radius
 /// changed. The oracle is the exact distance from a grid of points on
 /// each torus to the other, which bounds how far the two stand apart
-/// from below. The displacement bounds that distance from above; a pair
-/// decided one stands within the zero band everywhere; a pair decided
-/// apart stands past it somewhere. The pose refuses exactly the pairs
+/// from below. The displacement bounds that distance from above, and is
+/// never short of any one datum, as computed; a pair decided one stands
+/// within the zero band everywhere; a pair decided apart stands past it
+/// somewhere, its bound past the band too. The pose refuses exactly the pairs
 /// decided one as a coincidence. Mutant: the tilt left out of the bound
 /// (a tilted pair stands past it).
 #[test]
@@ -202,7 +211,8 @@ fn a_pair_decided_one_or_apart_stands_where_the_decision_says() {
             a.minor_radius + size(&mut g) * if g.unit() < 0.5 { -1.0 } else { 1.0 },
         );
         let reach = sampled_reach(a, other).max(sampled_reach(other, a));
-        let upper = TorusDisplacement::of(a, other).upper;
+        let displacement = TorusDisplacement::of(a, other);
+        let upper = displacement.upper;
         // The oracle's own rounding: coordinates of the scale's size.
         let rounding = 64.0 * f64::EPSILON * 4.0 * scale;
         let what = format!("{a:?} against {other:?}: {}", fuzz::replay());
@@ -210,6 +220,13 @@ fn a_pair_decided_one_or_apart_stands_where_the_decision_says() {
             reach <= upper + rounding,
             "the bound {upper:e} under the sampled distance {reach:e}: {what}"
         );
+        for (datum, m) in displacement.data {
+            assert!(
+                upper >= m.value().abs(),
+                "the bound {upper:e} short of its datum {datum:?} {:e}: {what}",
+                m.value()
+            );
+        }
         let decided = tori_coincide(a, other, b);
         match decided {
             TorusCoincidence::One(_) => {
@@ -219,8 +236,13 @@ fn a_pair_decided_one_or_apart_stands_where_the_decision_says() {
                     "decided one at a sampled distance {reach:e}: {what}"
                 );
             }
-            TorusCoincidence::Apart { .. } => {
+            TorusCoincidence::Apart { by, upper, .. } => {
                 tally[1] += 1;
+                assert_eq!(
+                    upper.sign,
+                    geom_core::Sign::Positive,
+                    "decided apart on {by:?} beside a bound {upper:?} short of the band: {what}"
+                );
                 assert!(
                     reach > b.zero(),
                     "decided apart at a sampled distance {reach:e}: {what}"
@@ -283,18 +305,71 @@ fn data_each_zero_beside_a_bound_past_the_band_straddle() {
         5.0 + 0.9 * e,
         0.5 + 0.9 * e,
     );
+    let upper = TorusDisplacement::of(ring, other).upper;
     match tori_coincide(ring, other, b) {
         TorusCoincidence::Undecided(diag) => {
             assert_eq!(diag.predicate, Some("tt_coincident_straddle"));
+            assert_eq!(
+                diag.margin,
+                geom_core::MarginDiag::enclosure(0.0, upper),
+                "the enclosure from the first datum's Zero (the axes agree) to the bound"
+            );
+            assert!(
+                !diag.offers_tolerance() && !diag.terminal_sliver,
+                "a straddle offers no tolerance and is no sliver: {diag:?}"
+            );
         }
         other => panic!("the straddle: {other:?}"),
+    }
+}
+
+/// **A tilt decided past the band leaves the bound past it too**, where
+/// the chord the bound reads rounds below the sine the datum reads: two
+/// axes `3·10⁻⁶` apart (a pair a search found), against a band whose
+/// escalation edge is the tilt datum itself. The datum decides apart on
+/// the edge, and the bound, which takes the larger of the two, decides
+/// past it with it. Mutant: the bound on the chord alone reads in band.
+#[test]
+fn a_tilt_decided_apart_leaves_the_bound_past_the_band() {
+    let a = Vec3::new(
+        -2.982929517566955e-1,
+        -4.655643273331401e-1,
+        8.332293634090906e-1,
+    );
+    let b = Vec3::new(
+        -2.9829399965142683e-1,
+        -4.655617128384764e-1,
+        8.332304491020828e-1,
+    );
+    assert!(
+        geom_brep::line_tilt(a, b) < a.cross(b).norm(),
+        "the chord rounds below the sine"
+    );
+    let torus = |axis| TorusData {
+        center: Point3::origin(),
+        axis,
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    };
+    let (first, second) = (torus(a), torus(b));
+    let (datum, tilt) = TorusDisplacement::of(first, second).data[0];
+    assert_eq!(datum, TorusDatum::AxisTilt, "the first datum is the tilt");
+    let band = Band::new(0.5 * tilt.value(), tilt.value()).unwrap();
+    match tori_coincide(first, second, band) {
+        TorusCoincidence::Apart {
+            datum: TorusDatum::AxisTilt,
+            upper,
+            ..
+        } => assert_eq!(upper.sign, geom_core::Sign::Positive, "{upper:?}"),
+        other => panic!("the tilt on the band's edge: {other:?}"),
     }
 }
 
 /// **A torus off its ring convention is refused before any datum**, and
 /// a datum that is not finite reads as unreadable: a spindle (`r > R`)
 /// refuses on `ring_torus_convention` at the decision and the pose
-/// alike; a NaN centre leaves the pair undecided on an invalid margin.
+/// alike; a NaN centre leaves the pair undecided on an invalid margin,
+/// beside an axis decided apart too, since the bound reads the centre.
 #[test]
 fn an_off_ring_or_poisoned_pair_is_refused_not_decided() {
     let b = band();
@@ -321,4 +396,13 @@ fn an_off_ring_or_poisoned_pair_is_refused_not_decided() {
         TorusCoincidence::Undecided(diag) => assert!(diag.margin.is_invalid(), "{diag:?}"),
         other => panic!("the poisoned centre: {other:?}"),
     }
+    let tilted = data(Point3::new(f64::NAN, 0.0, 0.0), Vec3::unit_x(), 2.0, 0.5);
+    match tori_coincide(ring, tilted, b) {
+        TorusCoincidence::Undecided(diag) => assert!(
+            diag.margin.is_invalid() && diag.predicate == Some(geom_brep::TT_COINCIDENT),
+            "the bound reads the poisoned centre: {diag:?}"
+        ),
+        other => panic!("the poisoned centre beside an axis decided apart: {other:?}"),
+    }
 }
+

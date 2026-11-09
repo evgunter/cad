@@ -16,7 +16,10 @@
 //!   ladder reads a non-finite margin as a definite answer.
 //! - [`read_identity`] is the **identity ladder**, the ladder over banded
 //!   data each required `Zero` for two descriptions to be one, so any
-//!   datum decided apart answers.
+//!   datum decided apart answers. [`data_beneath_sum`] reads its data,
+//!   every one decided `Zero`, beside their sum: lower and upper bounds
+//!   on one displacement, which straddle the band where the sum decides
+//!   past it.
 //! - [`climb_agreeing`] is the **agreeing ladder**: it reads every rung
 //!   rather than stopping at the first answer, and hands back
 //!   [`Disagree`] where two decided answers differ. Its caller says what
@@ -635,6 +638,46 @@ pub fn read_identity<T: Decide>(
         } => IdentityLadder::Apart { at, decided },
         Climb::Passed => IdentityLadder::Zero(joint),
         Climb::Undecided(cause) => IdentityLadder::Undecided(cause),
+    }
+}
+
+/// **An identity's data beneath their sum**: two bounds on one
+/// displacement between two descriptions. Each datum bounds it from
+/// below and every one decided `Zero` (`data`, their joint margin,
+/// [`IdentityLadder::Zero`]); `upper`, the reading of a sum of the data's
+/// magnitudes, bounds it from above. The displacement is `Zero` where the
+/// sum decides `Zero` too, on the sum's margin. Where the sum decides past
+/// the band no verdict answers for it: the two bounds straddle the band,
+/// under the site's `straddle` row ([`geom_core::k_stats::straddle`]).
+///
+/// # Errors
+///
+/// That straddle, or the sum's own reading where it decides nothing.
+///
+/// # Panics
+///
+/// Where the sum decides `Negative`: a sum of magnitudes is no bound
+/// below zero ([`geom_core::k_stats::straddle`]'s panic).
+pub fn data_beneath_sum(
+    straddle: &'static str,
+    data: MarginDiag,
+    upper: Result<Decided, Indeterminate>,
+    band: Band,
+) -> Result<MarginDiag, Indeterminate> {
+    match upper? {
+        Decided {
+            sign: Sign::Zero,
+            margin,
+        } => Ok(margin),
+        upper => Err(geom_core::k_stats::straddle(
+            straddle,
+            Decided {
+                sign: Sign::Zero,
+                margin: data,
+            },
+            upper,
+            band,
+        )),
     }
 }
 
