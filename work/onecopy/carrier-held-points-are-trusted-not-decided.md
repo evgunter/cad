@@ -78,7 +78,10 @@ poison: a spline or approximated carrier). `placement_unheld` is the
 entry for a point not held, where `OffCarrier` is a reading:
 `face_placement`, reduce's `spline_interior` ends, and vtxfac's spline
 arm. Census `placed` and cell_region `place` check their own points
-with the same `Held::check`.
+with the same `Held::check`, each caller naming its own premise: census
+`in_overlap_closure`'s touch is `constructed`, and `meets_at`'s probe of
+one face's closure, on the other face's carrier only within Door 1's
+levered band, is `in_band`.
 
 ### The measurement
 
@@ -107,7 +110,9 @@ no outcome, and added about 51,000 logged decisions per run.
 Decide-and-fault (an `OnCarrier` minted by one deciding door) is the
 answer the day either happens:
 
-- a NURBS or approximated face reaches a trusting site, where the debug
-  check is skipped and the trust is unchecked;
+- a NURBS or approximated face reaches a `Held::constructed` site,
+  where the debug check is skipped and the trust is unchecked. (NURBS
+  faces already reach the `decided` sites, reduce's two, whose callers
+  decided the point on the carrier themselves; that is no flip);
 - any trusting site reads a point non-`Zero` (the debug check panics on
   it), i.e. a construction stops holding its point on the carrier.
