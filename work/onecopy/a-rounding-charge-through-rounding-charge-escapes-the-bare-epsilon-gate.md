@@ -21,3 +21,9 @@ Two sites charged a globally posed harmonic for its conditioning:
 ## Owed
 
 Sweep `rounding_charge` callers whose `terms` grow with a ratio or a distance from the origin, rather than with the magnitudes of the terms actually summed. Then extend the gate, or the `[simple.conditioned]` sweep, to see a charge routed through the door.
+
+## Resolved
+
+- **The gate.** `bare-rounding-allowlist.sh` derives its charge doors from `geom_core::running`'s `pub` items, so every door is counted the day it is declared there. That covers `direction_rounding`, `exact_vec`, `unit_defect`, `dot`/`cross` and the two ULP constants, which the hand-spelled list missed. It counts a door through a path, an alias, a module alias, a glob or a scoped import. A charge carried in a variable, field or helper is still one site at its making, and the gate names that as a known gap. The second-pass sweep found every production helper of that shape in a file the list already schedules.
+- **The sites.** `Window::read` was re-posed in PR 6525. `coplanar_ellipses` is `coplanar-ellipses-reads-the-level-from-its-global-harmonics`, closed by PR 6565. `transverse`'s `Range`, together with the PARALLEL screen and `coplanar_circles`, which read the same mint, is `transverse-range-charges-the-global-height-with-world-origin-noise`.
+- **The sweep** of terms that grow with distance from the origin is recorded on `work/oneround/site-rounding-charges-owed-a-re-posing.md`.

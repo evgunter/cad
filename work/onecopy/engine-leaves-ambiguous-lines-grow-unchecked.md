@@ -20,3 +20,7 @@ Every bare use of that name then leaves the count. `engine-leaves.sh`'s base com
 The open question is how to hold it, for example:
 - an `ambiguous` line new against the merge base reds unless it cites a row;
 - or the counter counts a name declared in both places wherever it resolves through the engine.
+
+## Resolved
+
+The first option. `engine_leaves.py` `raised`, the one place a pin is compared with the merge base, now reads `ambiguous NAME` lines as well. One absent from the base is `RAISED ambiguous NAME`, unless its note cites the row that retires the namesake (`CITED`). `pin-cites-an-open-row.sh` already holds such a cited row open.

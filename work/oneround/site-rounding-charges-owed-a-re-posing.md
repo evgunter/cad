@@ -154,6 +154,13 @@ re-posing that empties a file lowers or drops its row in the same change.
   (`pose`): `conditioned` reads `direction_rounding(arm)/s` against the
   band to decide whether two fans' crossing is read. That is rounding
   read as the zero of a pose, owed a decision at the band on `s` itself.
+  The same lane swept `rounding_charge` terms that grow with distance
+  from the world origin. Each hit is already scheduled, here or under
+  the far-centre row: `curve_face::circle_torus`'s centre term
+  (`(C − O) + (c − O) + R`, beside its harmonic rung), `implicit`'s
+  `sample_rounding`, `profile::seg`'s `reach(q) + reach(centre)`, and
+  `curve_pair::pose`'s `one_curve_gap`. `conic_conic`'s `noise` is filed
+  as `work/onecopy/transverse-range-charges-the-global-height-with-world-origin-noise.md`.
 
 ## Slate triage (2026-11-08, ONEHOME split)
 
