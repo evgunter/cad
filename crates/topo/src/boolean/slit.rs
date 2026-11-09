@@ -1159,7 +1159,7 @@ fn piece_rung(
             geom_brep::ladder::rung_or_abort(why.refusal(), unread(Some(why)), Err)
         }
         Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
-        Err(read) => geom_brep::ladder::rung_or_abort(read.refusal(), read, Err),
+        Err(read) => Rung::refused(read, BooleanError::refusal),
     }
 }
 
