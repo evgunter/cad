@@ -672,3 +672,4 @@
 - 2026-11-09 — The GitHub-releases 504 on lint's ruff download persists for runners (6552 at 06:25 failed again; my local curl gets 200). Holding re-triggers until it clears: 6552, 6605 and 6606 are waiting on a green lint.
 - 2026-11-09 — PR 6605 merged (pinch premise) on GATE GREEN at bc36a350; 6610 landed after, disjoint, workspace check of the merge clean.
 - 2026-11-09 — PR 6598 pass in (4ec53e77): one Rung::refused(e, standing, abort), refusing deleted, census:8513 ported; comments fixed; order pinned; nits; seed routed to honeroot. Delta review dispatched. 6598 still merges after 6576 (whose taxonomy pass is owed).
+- 2026-11-09 — PR 6599 second delta: MERGE. I dropped the stale comment and made the row say decide-and-fault myself, merged main (3fea0aeb, gates ok), and it is gating. 6606 went green at 9cc012e4, but 6605 then touched join.rs, so I merged again (25533bc6, gates ok) and it is re-gating.
