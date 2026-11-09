@@ -1764,8 +1764,8 @@ fn exact_chart_image<T: Decide>(
         });
     }
     let control = knots
-        .runs()
-        .map(|(t, _)| cache.pcurve().eval(t))
+        .breakpoints()
+        .map(|t| cache.pcurve().eval(t))
         .collect::<Vec<_>>();
     let weights = vec![T::one(); control.len()];
     let polyline = NurbsCurve2::new(knots.clone(), control, weights).map_err(|_| {

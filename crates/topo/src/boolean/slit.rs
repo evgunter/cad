@@ -1466,16 +1466,16 @@ fn conic_or_line_on<T: Decide>(
         _ => return Ok(Placed::Unread(EdgeInFaceGap::SplineFace)),
     };
     // The certificate holds only on a carrier whose residual is its whole
-    // variety: a torus not decided a ring is unread, its between-sample
-    // bound being a ring's.
-    let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band) else {
+    // variety: a torus decided not a ring is unread, its between-sample
+    // bound being a ring's, and one whose ring is in band escalates.
+    let refused = |diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag);
+    let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band).map_err(refused)? else {
         return Ok(Placed::Unread(EdgeInFaceGap::CarrierUnread));
     };
     let points = match samples {
         Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
         Samples::Even(n) => even_points(carrier, t0, n),
     };
-    let refused = |diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag);
     if variety.read_piece(&points, site, band).map_err(refused)? == Piece::Off {
         return Ok(Placed::Off);
     }
@@ -1603,7 +1603,7 @@ fn spiric_on_quadric<T: Decide>(
     if decided(offset)? == Sign::Zero || decided(big - small - offset.abs())? != Sign::Positive {
         return Ok(unread);
     }
-    let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band) else {
+    let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band).map_err(refused)? else {
         return Ok(unread);
     };
     let points: Vec<_> = [T::from_f64(0.25), T::from_f64(0.5), T::from_f64(0.75)]

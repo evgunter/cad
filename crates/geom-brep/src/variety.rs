@@ -2,15 +2,23 @@
 //! of the polynomial-identity certificate a boolean's coincidence readings
 //! rest on.
 //!
-//! A piece of a curve or a sheet that is polynomial (or trigonometric) in
-//! its parameters — a line, a conic, one Bézier piece of a spline — puts
-//! an analytic carrier's implicit equation along it as a polynomial in
-//! those parameters. Zero over any open set of the piece makes it zero
-//! over the whole piece, so the piece then lies on the carrier's whole
-//! real variety. One point of the piece decided off that variety
-//! therefore certifies the piece lies on the carrier along no part of it.
-//! Across a piece's boundary the polynomial changes, so each piece is read
-//! on its own, and one read off says nothing of another.
+//! **The argument.** Along a piece whose parameterisation is real-analytic
+//! on a connected parameter set, an analytic carrier's implicit equation
+//! is a real-analytic function of the piece's parameters. Zero over any
+//! open set of the piece makes it zero over the whole piece, so the piece
+//! then lies on the carrier's whole real variety. One point of the piece
+//! decided off that variety therefore certifies the piece lies on the
+//! carrier along no part of it. The pieces read here, in two forms:
+//! - **a polynomial or trigonometric piece**, where the equation along it
+//!   is itself a polynomial (or a trigonometric one): a line, a conic, one
+//!   Bézier piece of a spline. Across a piece's boundary the polynomial
+//!   changes, so each piece is read on its own, and one read off says
+//!   nothing of another;
+//! - **a spiric oval**, an irreducible quartic whose parameterisation is
+//!   real-analytic in its parameter over the whole oval, so the whole
+//!   oval is one piece.
+//!
+//! Readers cite this statement rather than restating it.
 //!
 //! The decided residual ([`crate::implicit::implicit_residual`]) is read as
 //! "off the variety", so the certificate holds only for a carrier whose
@@ -57,10 +65,20 @@ pub struct Variety<'s, T: geom_core::Real> {
 impl<'s, T: Decide> Variety<'s, T> {
     /// **`carrier`, where its decided residual vanishes on its whole real
     /// variety** (module docs): a plane, a cylinder, a sphere, a cone, and
-    /// a torus whose `R − r` is decided positive under `ring`; `None`
-    /// otherwise. The one list of the carriers the certificate holds for,
-    /// matched exhaustively so a new kind decides here.
-    pub fn of(carrier: &'s Surface<T>, ring: &'static str, band: Band) -> Option<Self> {
+    /// a torus whose `R − r` is decided positive under `ring`. `Ok(None)`
+    /// for every other kind, and for a torus decided `R ≤ r`. The one list
+    /// of the carriers the certificate holds for, matched exhaustively so a
+    /// new kind decides here.
+    ///
+    /// # Errors
+    ///
+    /// The ring decision's escalation, where a torus's `R − r` is in band:
+    /// a reader escalates there rather than reading the torus as no member.
+    pub fn of(
+        carrier: &'s Surface<T>,
+        ring: &'static str,
+        band: Band,
+    ) -> Result<Option<Self>, Indeterminate> {
         let whole = match *carrier {
             Surface::Plane { .. }
             | Surface::Cylinder { .. }
@@ -70,19 +88,10 @@ impl<'s, T: Decide> Variety<'s, T> {
                 major_radius,
                 minor_radius,
                 ..
-            } => matches!(
-                decide(ring, Margin::of(major_radius - minor_radius), band),
-                Ok(Sign::Positive)
-            ),
+            } => decide(ring, Margin::of(major_radius - minor_radius), band)? == Sign::Positive,
             Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => false,
         };
-        whole.then_some(Self { carrier })
-    }
-
-    /// The carrier.
-    #[must_use]
-    pub fn carrier(&self) -> &'s Surface<T> {
-        self.carrier
+        Ok(whole.then_some(Self { carrier }))
     }
 
     /// **A piece's `points` read against the variety** (module docs):
@@ -172,7 +181,7 @@ mod rows {
         ];
         for s in &admitted {
             assert!(
-                Variety::of(s, "variety_row_ring", band()).is_some(),
+                matches!(Variety::of(s, "variety_row_ring", band()), Ok(Some(_))),
                 "{s:?}"
             );
         }
@@ -189,10 +198,19 @@ mod rows {
         ];
         for s in &refused {
             assert!(
-                Variety::of(s, "variety_row_ring", band()).is_none(),
+                matches!(Variety::of(s, "variety_row_ring", band()), Ok(None)),
                 "{s:?}"
             );
         }
+    }
+
+    /// **A torus whose `R − r` is in band is neither a member nor not**:
+    /// the ring decision's escalation, which a reader escalates on.
+    #[test]
+    fn a_torus_whose_ring_is_in_band_escalates() {
+        let b = band();
+        let gap = 0.5 * (b.zero() + b.escalate());
+        assert!(Variety::of(&torus(1.0 + gap, 1.0), "variety_row_ring", b).is_err());
     }
 
     /// **One point off reads the piece off, whatever the others read; all
@@ -206,7 +224,9 @@ mod rows {
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        let variety = Variety::of(&cyl, "variety_row_ring", band()).unwrap();
+        let variety = Variety::of(&cyl, "variety_row_ring", band())
+            .unwrap()
+            .unwrap();
         let (on, off) = (Point3::new(1.0, 0.0, 0.5), Point3::new(2.0, 0.0, 0.5));
         assert_eq!(
             variety.read_piece(&[on, off], "variety_row_off", band()),

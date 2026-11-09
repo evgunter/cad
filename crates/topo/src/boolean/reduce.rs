@@ -4125,7 +4125,7 @@ fn spline_off_carrier<T: Decide>(
     band: Band,
 ) -> bool {
     use geom_brep::variety::{Piece, Variety};
-    let Some(variety) = Variety::of(carrier, SHEET_RING_TORUS, band) else {
+    let Ok(Some(variety)) = Variety::of(carrier, SHEET_RING_TORUS, band) else {
         return false;
     };
     // Clamped, so the first and last runs are the domain's ends.
