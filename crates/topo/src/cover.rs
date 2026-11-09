@@ -497,9 +497,11 @@ pub(crate) fn closes_in_chart<T: SpanLocate>(travel: T) -> bool {
 }
 
 /// **The boundary's cover**: each boundary edge's cover
-/// ([`edge_cover_linked`]), hulled with each isolated vertex. A face's
-/// region is not in it; a ruled one's is in its convex hull
-/// ([`Cover::convex`]).
+/// ([`edge_cover_linked`]), hulled with each isolated vertex and each
+/// placeholder's one point (a null edge whose two ends are one point,
+/// [`crate::null::is_placeholder`]); a null edge whose ends have parted
+/// is a gap, and has no cover. A face's region is not in it; a ruled
+/// one's is in its convex hull ([`Cover::convex`]).
 ///
 /// # Errors
 ///
@@ -514,6 +516,12 @@ pub(crate) fn boundary_cover<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> B
         let one = match member {
             BoundaryMember::Isolated { vertex, point } => {
                 Cover::points(vec![point]).ok_or_else(|| vec![BoundaryUnknown::Vertex(vertex)])
+            }
+            // A placeholder is a zero-length copy of its one point
+            // (`crate::null::is_placeholder`), which its neighbours hold.
+            BoundaryMember::Edge { ek, .. } if crate::null::is_placeholder(body, ek) => {
+                Cover::points(vec![body.member_point(&member)])
+                    .ok_or_else(|| vec![BoundaryUnknown::Edge(ek, EdgeUncovered::Ends)])
             }
             BoundaryMember::Edge { ek, edge, .. } => edge_cover_linked(body, ek, edge)
                 .map_err(|why| vec![BoundaryUnknown::Edge(ek, why)]),

@@ -167,6 +167,33 @@
 //!   edge's [`edge_cover`](crate::cover::edge_cover)) sizes the lever of a ruled face's crossings
 //!   in the same direction: a bigger cover lengthens it and can only
 //!   REFUSE more, never place a crossing wrongly.
+//! - the face reaches (`crate::cover::face_reach_from`,
+//!   `face_range_along`, `face_axial_range`, `cone_face_reach`, each a
+//!   read of [`face_cover`](crate::cover::face_cover)) size the levers
+//!   the split's sector rows, the section table's plane×cylinder,
+//!   plane×cone and plane×torus arms, the germ frame, the link fan and
+//!   the ray's skip questions (`solid_contain::selection_reach`) are
+//!   read on: a bigger cover lengthens each, so a reading lands in band
+//!   more readily and REFUSES more. On a two-sided served row (the
+//!   plane×cylinder rulings) a lever past the face's own reach can
+//!   serve a class the band cannot tell from its neighbour
+//!   (`geom_brep::Reach`'s module docs); the cover is the face's reach
+//!   there to its constructions' looseness, as its boundary edges'
+//!   covers are. A cover TIGHTER than its face is the unsound direction.
+//! - the carrier doors' face ball (`carrier_pair::face_ball`, the ball
+//!   of [`face_cover`](crate::cover::face_cover)) sizes the consumed
+//!   extent their tilts are levered over: a bigger ball REFUSES more,
+//!   and a face with no cover refuses its pair (`PairUnread::Extent`).
+//! - the tangent witness's span (`boolean::witness_span`, each face's
+//!   cover's range along the line) bounds the overlap the glue door and
+//!   the at-rest confirm read the line over: a bigger range admits a
+//!   pair to the exact line reading (more exact work), and lengthens
+//!   the span the witness is metered over, which can only refuse more.
+//! - `chart_region`'s carrier gates (`pair_cover`) read each face's
+//!   cover along the planes' normals and the cylinders' axes: a bigger
+//!   cover lengthens the margin and the transfer lever, so the pair
+//!   declines (`CarrierTilt`) or escalates more, never accepts a pair
+//!   whose carriers part on its region.
 //! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`](crate::cover::edge_cover)
 //!   read from below through `geom_brep::edge_reach_bounds`) reads NO
 //!   looseness: on a line the cover's far distance is its segment's
@@ -1590,10 +1617,14 @@ pub(crate) mod tests {
             ("validate.rs", 1),
         ];
         const HOMES: [&str; 2] = ["boolean/boxes.rs", "cover.rs"];
-        const DOORS: [&str; 12] = [
+        const DOORS: [&str; 16] = [
             "face_box",
             "face_box_of",
             "face_cover",
+            "face_reach_from",
+            "face_range_along",
+            "face_axial_range",
+            "cone_face_reach",
             "face_cover_toward",
             "face_nearest",
             "meet_within",

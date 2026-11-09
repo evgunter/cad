@@ -312,10 +312,6 @@ should know why. They live only in an `Indeterminate.predicate`:
     `bool_sphere_region_arc_straddle` and
     `bool_torus_region_arc_straddle` (each a circle edge's rows, whose
     two bounds are one, so neither is raised);
-  - `pc_axis_plane_parallel_straddle`, a plane×cylinder section on the
-    declared-tangency path read in the rulings' lane over a wall face's
-    reach measured over each edge's span and in the conic lane over it
-    measured round each edge's whole turn (`chord_join::agreed_section`);
   - `pm_census_ee_span_straddle` and `pm_census_ee_gap_straddle`, the
     lower and upper bound of a reach or of the lines' gap that the
     census's crossing lane reads off the closed form's rounding

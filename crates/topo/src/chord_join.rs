@@ -5966,11 +5966,9 @@ mod tests {
     /// patch (100 µm × 1 µm at ε = 1e-9) of a 1 km wall, bounded by two rim
     /// arcs and two rulings, read at a corner and cut by the plane through that corner and the axis
     /// tilted by `sin β = k·zero/e` about the radial: the patch stands
-    /// within `k·zero` of the corner's ruling. Read over its arcs' spans
-    /// the turn is Zero (the rulings); round the arcs' whole turn (2 km
-    /// across) it reads definite (a conic). The section serves only what
-    /// both readings serve ([`agreed_section`]), so it escalates on the
-    /// split, and never serves the whole turn's conic.
+    /// within `k·zero` of the corner's ruling. Read over the patch's cover
+    /// the turn is Zero, and the section is the rulings; round the arcs'
+    /// whole turn (2 km across) it would read definite (a conic).
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: the 1 km-radius rim rounds at its radius
@@ -6002,51 +6000,22 @@ mod tests {
                     let normal =
                         UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band)
                             .unwrap();
-                    let bracket = geom_core::k_stats::Bracket::open();
                     let got = wall_section(&body, band, base, normal, face, corner);
-                    let recorded = bracket.finish();
-                    let err = match got {
-                        Err(err @ SplitJoinError::Escalated { .. }) => err,
-                        got => panic!(
-                            "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
-                            got.map(|w| w.map(|w| match w.case {
-                                SectionCase::Straight(_) => "straight",
-                                SectionCase::Tangent(_) => "tangent",
-                                SectionCase::Conic(_) => "conic",
-                                SectionCase::Loops { .. } => "loops",
+                    assert!(
+                        matches!(
+                            &got,
+                            Ok(Some(WallSection {
+                                case: SectionCase::Straight(_),
+                                ..
                             }))
                         ),
-                    };
-                    let SplitJoinError::Escalated { diag, .. } = &err else {
-                        unreachable!("matched as an escalation")
-                    };
-                    assert_eq!(
-                        diag.predicate,
-                        Some("pc_axis_plane_parallel_straddle"),
-                        "k = {k}"
-                    );
-                    // The two readings' enclosure, on the frame: never poison.
-                    assert_eq!(
-                        diag.margin.kind(),
-                        geom_core::MarginKind::Enclosure,
-                        "k = {k}"
-                    );
-                    assert_eq!(
-                        recorded.escalations.last().map(|e| e.source),
-                        Some(*diag),
-                        "k = {k}: on the frame"
-                    );
-                    // The section's escalation ends as geom-brep ends it: the
-                    // enclosure's whole ending, kind lever first. (That a
-                    // straddle's enclosure reads as subdividable is open on the
-                    // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
-                    assert!(
-                        err.render(geom_brep::recourse::Reading::Build).contains(&format!(
-                            "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
-                         move the geometry",
-                            diag.payload()
-                        )),
-                        "k = {k}: {err_at}", err_at = err.render(geom_brep::recourse::Reading::Build)
+                        "k = {k}: the patch's rulings, got {:?}",
+                        got.map(|w| w.map(|w| match w.case {
+                            SectionCase::Straight(_) => "straight",
+                            SectionCase::Tangent(_) => "tangent",
+                            SectionCase::Conic(_) => "conic",
+                            SectionCase::Loops { .. } => "loops",
+                        }))
                     );
                 }
             },

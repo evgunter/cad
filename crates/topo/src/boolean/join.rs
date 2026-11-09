@@ -3489,7 +3489,7 @@ fn pair_reading<T: Decide>(
     let (plane, cone) = plane_and_cone(sa, sb).ok_or(BooleanError::JoinDesync {
         what: "a plane×cone germ's faces carry no plane and cone",
     })?;
-    cone_face_reach(extent)
+    cone_extent_reach(extent)
         .and_then(|reach| pk_section(plane, cone, &reach, band))
         .map_err(refused)
 }
@@ -3510,7 +3510,7 @@ pub(super) fn plane_and_cone<'s, T: geom_core::Real>(
 /// The cone face's reach a plane×cone pair is levered at
 /// ([`FrameExtent::Cone`], the only extent [`frame_extent`] hands the
 /// pair); any other extent is a desync.
-fn cone_face_reach<T: geom_core::Real>(
+fn cone_extent_reach<T: geom_core::Real>(
     extent: FrameExtent<T>,
 ) -> Result<geom_brep::Reach<T>, FrameError> {
     match extent {
@@ -4163,7 +4163,7 @@ fn pk_germ_frame<T: Decide>(
     extent: FrameExtent<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
-    match pk_section(plane, cone, &cone_face_reach(extent)?, band)? {
+    match pk_section(plane, cone, &cone_extent_reach(extent)?, band)? {
         PkSection::Loop(center, axis) => Ok(Some((center, axis))),
         PkSection::Lines(_) => Ok(None),
         PkSection::Unframed(e) => Err(e),
@@ -6646,15 +6646,13 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **The germ escalates where the wall's two measures of its reach
-    /// across disagree, and never names the whole turn's conic.** The
-    /// `1e5·ε × 1e3·ε` patch of a 1 km wall (`chord_join`'s rim-patch row),
-    /// cut by the plane through a corner and the axis tilted by
-    /// `sin β = k·ε/e`: the patch stands within `k·ε` of the corner's
-    /// ruling. Read over its arcs' spans the turn is Zero (the rulings);
-    /// round the arcs' whole turn it reads definite (a conic). The germ is
-    /// a declared-tangency path, which serves only what both measures
-    /// serve, so it escalates on the split.
+    /// **The germ reads a rim patch's turn over the patch's cover, and
+    /// never names the whole turn's conic.** The `1e5·ε × 1e3·ε` patch of
+    /// a 1 km wall (`chord_join`'s rim-patch row), cut by the plane through
+    /// a corner and the axis tilted by `sin β = k·ε/e`: the patch stands
+    /// within `k·ε` of the corner's ruling. Read over the patch's cover the
+    /// turn is Zero, so the germ's frame is the rulings' straight one;
+    /// round the arcs' whole turn it would read definite (a conic).
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_in_the_germ_frame() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: the 1 km-radius rim rounds at its radius
@@ -6679,29 +6677,11 @@ mod frame_dispatch_tests {
                     let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
                     for (label, got) in plane_frames(&body, face, Point3::new(r, 0.0, 0.0), normal)
                     {
-                        assert_eq!(
-                            verdict(&got),
-                            "pc_axis_plane_parallel_straddle",
-                            "k = {k} ({label}): the span's rulings against the whole turn's conic"
-                        );
-                        let Err(FrameError::Escalated { diag, .. }) = got else {
-                            unreachable!("named as an escalation")
-                        };
-                        // The Boolean's ending: the section question's lever alone,
-                        // the straddle's, with no unreadable-margin note — the
-                        // enclosure is read, where the poison it replaced was not.
-                        let said = crate::boolean::BooleanError::coincidence(
-                            crate::boolean::Coincide::Section,
-                            crate::boolean::DeclarationRead::Moot,
-                            diag,
-                        )
-                        .render(geom_brep::recourse::Reading::Build);
                         assert!(
-                        said.ends_with(
-                            "Recourse: move the parts so they clearly meet or clearly stand apart there"
-                        ) && !said.contains(geom_core::UNREADABLE_MARGIN_NOTE),
-                        "k = {k} ({label}): {said}"
-                    );
+                            matches!(got, Ok(None)),
+                            "k = {k} ({label}): the rulings' straight frame, got {}",
+                            verdict(&got)
+                        );
                     }
                 }
             },

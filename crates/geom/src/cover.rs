@@ -763,11 +763,14 @@ impl<T: Real> Node<T> {
                 smaller(both[0].ball(), both[1].ball()),
                 box_ball(self.world_box()),
             ),
+            // The ball about the two balls' centres' midpoint holds both,
+            // and so does the ball about the hull's box, which is the
+            // narrower where the pieces are many and small.
             Node::Hull(both) => {
                 let ((c0, r0), (c1, r1)) = (both[0].ball(), both[1].ball());
                 let c = c0 + (c1 - c0) * T::from_f64(0.5);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
-                (c, r)
+                smaller((c, r), box_ball(self.world_box()))
             }
             Node::Convex(inner) => inner.ball(),
         }

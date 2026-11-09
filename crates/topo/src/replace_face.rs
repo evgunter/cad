@@ -4843,11 +4843,12 @@ mod pose_reach_rows {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    /// **The reach bounds every point of an ellipse in either stored
+    /// **The reach bounds every point of an ellipse arc in either stored
     /// order.** The mint certifies an ellipse stored with `minor > major`;
     /// the span's lever from a surface's anchor must still be at least
-    /// each point's distance from it, round the whole turn. Read at
-    /// `major`, it falls short by `minor − major`.
+    /// each point's distance from it over the span, which runs past the
+    /// stored minor axis's vertex. Read at `major`, it falls short by
+    /// `minor − major`.
     #[test]
     fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
         let anchor = Point3::new(0.3, -0.2, 0.1);
@@ -4861,15 +4862,16 @@ mod pose_reach_rows {
                 major,
                 minor,
             ));
+            let span = 2.0;
             let reach = Reach::Span {
                 carrier: e.clone(),
                 t0: 0.0,
-                t1: 0.5,
+                t1: span,
             }
             .lever_from(anchor)
             .length();
             for k in 0..=720 {
-                let t = core::f64::consts::TAU * f64::from(k) / 720.0;
+                let t = span * f64::from(k) / 720.0;
                 let far = (e.eval(t) - anchor).norm();
                 assert!(
                     reach >= far,
