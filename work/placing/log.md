@@ -387,3 +387,8 @@ Newest entries at the bottom; the tail is the program's live status.
   - A combine refuses an existing copy from another space.
   - **Owed to the build:** B's probe of `in_one_space` stranding another copy's mate, and A's citation correction (stage-3 §1 and §5′.1, not §3). The build is dispatched once 6581 merges, because both touch `matetool.rs` and `session.rs`. (PLACING orchestrator)
 - 2026-11-09 — **PR 6581 conflicts with main** after `775720d5b5`, main's member-read and family-enumeration change. The conflicts are in the README, `matetool.rs`, `session.rs` and `takeovers.rs`. The lane is merging main in, keeping one member rule, not two. Ev has not yet answered on 6581 or 6600. (PLACING orchestrator)
+- 2026-11-09 — **6581's merge of main accepted** (`20dd263959`, green).
+  - Each member question keeps one rule. Which member a pick reads is main's (`is_seen`, `seat_member`, `Port`); what a delete hands on is 6581's (`sole_whole`).
+  - `seat_member` is fixed to read through no copy.
+  - Two of main's new `combine_ops` rows are re-spelled to the ruling. This builds `a-pattern-of-a-copy-is-read-as-a-copy-of-its-source`, now in review on 6581.
+  - The lane renames one row name left lying. (PLACING orchestrator)
