@@ -32,6 +32,10 @@ Step 1 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09). Eac
 
 None of the sites above names `MarginDiag::INVALID` or builds an `Indeterminate` by hand. Each moved arm's ending is pinned before and after, per the parent row's rule.
 
+## Dispatch (2026-11-09)
+
+Branch `seal/carrier-readings-keep-margins`. Review tier: **single, FULL**. The step threads kept margins through public types in topo and geom-brep and moves arm endings, so believing it takes more than reading it. It is no design decision: the fork settled the shapes.
+
 ## Closed (2026-11-09, PR 6634)
 
 Each reading on the row's list keeps the `geom_core::Decided` it decided on. The PR body has the per-site table (each ending before and after), the sweep, and the premise corrections.
