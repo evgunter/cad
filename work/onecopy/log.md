@@ -1324,3 +1324,6 @@
     - 6683 (small-sweeps) → FULL session_013mPGJ6BykCui8ak5yESubp.
     - 6685 (prose-census main red: #6430's `fn write` renderers; reader fixed): merging.
   - 6667's fix pass (73a616d0) is in, with a new recourse-ending-by-hand gate; merging.
+- 2026-11-09 23:20Z Merged, under the local-merge procedure:
+  - PR 6667 (carry-notes) → 41551bce; 12734/12734 over geom-core, geom-brep, topo, sweep and editor-core.
+  - PR 6685 (prose-census main red) → main; 7057/7057, plus pncad-py prose_census (slow) 19/19 on the merged tree.
