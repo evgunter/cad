@@ -115,3 +115,6 @@
     - **"Closing a duplication adds a copy":** the PairSide/PairFace matches, two `NonzeroSign`→`Sign` conversions, the `TorusVerdict` dispatch written four times. Fixed, or filed as rows, in the fix pass.
     - **A pre-existing blind spot:** `plane_eq::senses` decides `bool_plane_orient` a second time. The fix pass files it as a row.
     - **Two sweep tests fail `OutsideSessionBox` on main too.** The fix pass checks whether they are in the slow set; the nightly is GREEN's.
+- 2026-11-09 — **PR 6634 merged** (`ad8371a76f`). Glue step 1 is done, and step 4 (`a-corner-reads-only-its-own-sectors`) is open now. Lane, target and scratch reclaimed. Next, serially:
+  1. REFS `the-reference-path-reads-every-node-from-mint-to-read`.
+  2. Glue step 2 (`a-reach-straddle-goes-through-the-straddle-door`).
