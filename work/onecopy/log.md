@@ -1010,3 +1010,4 @@
   - foot-and-pinch lane → onecopy/pinch-side (not-crossed at a pinch; probe first).
   - spiric lane → onecopy/line-placement (loose line tuples and plane/line tuples).
 - 14:24Z PR 6637 delta (be4aec5e): MERGE (reads_given record identical in-suite; place superseded 0×; cone_fuzz reds are the splitdoor row's, 2 new seeds). Asked the lane, with its main merge, to split NoReference's mixed classes (in band vs limit), sharpen the body's record claim, and append the seeds to the splitdoor row.
+- 14:27Z census-rosters lane opened PR 6645 (point-walk-floors, fcd1a3cb): distance_within, plus closest_params → FULL review with session_013mPGJ3ykyNSXEK99MX4U6Q; gating. Lane → onecopy/ring-island.
