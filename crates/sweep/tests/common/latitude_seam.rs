@@ -464,8 +464,10 @@ fn latitude_arc(
                     Vec3::new(0.0, 1.0, 0.0),
                     from,
                 ),
-                axis_origin: Point3::new(0.0, 0.0, 0.0),
-                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                axis: geom::Line {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    dir: Vec3::new(0.0, 1.0, 0.0),
+                },
                 angle: theta,
             },
         )),

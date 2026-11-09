@@ -346,7 +346,15 @@ pub fn circle_torus_roots<T: Decide>(
     // `F` the jet reads: the exact third and fourth harmonics against the
     // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
     // `v_ref` the harmonics are built from.
-    let h = crate::conic_torus_harmonics(&circle, t_center, t_axis, major_radius, minor_radius);
+    let h = crate::conic_torus_harmonics(
+        &circle,
+        geom::Line {
+            origin: t_center,
+            dir: t_axis,
+        },
+        major_radius,
+        minor_radius,
+    );
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
     let harmonics = DegreeTwo::new(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
@@ -355,7 +363,16 @@ pub fn circle_torus_roots<T: Decide>(
     // The walk's Taylor terms, read at the point (module docs, "The
     // harmonics' noise, and the jet").
     let jet = |theta| {
-        crate::conic_torus_jet(&circle, t_center, t_axis, major_radius, minor_radius, theta)
+        crate::conic_torus_jet(
+            &circle,
+            geom::Line {
+                origin: t_center,
+                dir: t_axis,
+            },
+            major_radius,
+            minor_radius,
+            theta,
+        )
     };
     let noise = rounding_charge(h.terms) + T::from_f64(16.0) * dropped;
     door_half_angle_roots(
@@ -368,10 +385,12 @@ pub fn circle_torus_roots<T: Decide>(
                 speed_hi: radius,
                 noise,
                 f_per_metre: h.f_per_metre_lo,
-                // The clear margin is read through the FLOOR, which
-                // overstates it (`work/hone/circle-torus-clear-margin-reads-the-floor.md`).
-                f_per_metre_hi: h.f_per_metre_lo,
-                residual_reach: None,
+                // The clear margin is read through the torus's ceiling on
+                // `|F|` per metre, as the ellipse × torus door reads it:
+                // a lower bound on the residual, so a piece reads clear
+                // only past the band.
+                f_per_metre_hi: h.f_per_metre_surface,
+                residual_reach: Some(minor_radius / two),
             },
             jet: Some(Local {
                 at: &jet,
@@ -387,8 +406,10 @@ pub fn circle_torus_roots<T: Decide>(
             residual: &|theta| {
                 crate::conic_torus_implicit(
                     &circle,
-                    t_center,
-                    t_axis,
+                    geom::Line {
+                        origin: t_center,
+                        dir: t_axis,
+                    },
                     major_radius,
                     minor_radius,
                     theta,
@@ -1384,6 +1405,51 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **A circle passing the tube within the band's gap is no miss.**
+    /// Circles tangent to the torus's tube at points round it, bending
+    /// away from it, set off along the surface's normal by 7 and 9
+    /// zero widths at ε = 10⁻¹²: their least distance from the torus is
+    /// in the band's gap, which the band escalates. Red where the clear
+    /// margin is read through the floor on `|F|` per metre, which
+    /// overstates the residual and certifies them a miss.
+    #[test]
+    fn a_circle_passing_the_tube_in_the_bands_gap_is_no_miss() {
+        let b = Band::new(1e-12, 1e-11).unwrap();
+        let mut bad = Vec::new();
+        for (u, v) in [(0.3, 0.4), (1.7, 1.2), (2.9, -0.8), (4.4, 2.5), (5.6, 0.1)] {
+            let (cu, su, cv, sv) = (f64::cos(u), f64::sin(u), f64::cos(v), f64::sin(v));
+            let normal = Vec3::new(cv * cu, cv * su, sv);
+            let foot = Point3::new((R + RT * cv) * cu, (R + RT * cv) * su, RT * sv);
+            let along = Vec3::new(-su, cu, 0.0);
+            for gap in [7e-12, 9e-12] {
+                for rho in [0.3, 1.0] {
+                    let q = foot + normal * gap;
+                    let c = q + normal * rho;
+                    let axis = along.cross(normal).normalize();
+                    let got = door_answer(roots_of(
+                        c,
+                        axis,
+                        rho,
+                        (q - c).normalize(),
+                        -3.2,
+                        3.2,
+                        &torus(),
+                        b,
+                    ));
+                    if matches!(got, Ok(CircleRoots::Miss)) {
+                        bad.push(format!("at ({u}, {v}), {gap:e} off, radius {rho}"));
+                    }
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "{} misses in the gap:\n{}",
+            bad.len(),
+            bad.join("\n")
+        );
     }
 
     /// **The tilt a parallel pose was admitted with is charged.** The far

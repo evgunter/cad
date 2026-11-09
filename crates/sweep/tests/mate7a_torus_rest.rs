@@ -467,7 +467,7 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
 /// **A torus whose walls' sense bits are reversed is not a finished
 /// body**, so it cannot carry the guard this row was: that the
 /// routing reads the SECOND face's sense and not the first's twice
-/// (`verify_tangent_declaration` hands `classify_shared_rim` one bit
+/// (the glue door's `route_rim` hands `classify_shared_rim` one bit
 /// per face, two adjacent `bool`s a transposed call site compiles
 /// with). Reversing the outer torus's walls through `Body::set_face_sense`
 /// turns their outward normals inward, and the at-rest gate refuses

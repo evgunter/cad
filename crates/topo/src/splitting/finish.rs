@@ -138,28 +138,16 @@ pub(crate) enum RawPart<T: Real> {
     Empty,
 }
 
-pub(in crate::splitting) use raw::{RawSplit, ReducedRows};
+pub(in crate::splitting) use raw::RawSplit;
 
 /// [`RawSplit`] and the one way to make one: its record is the reduce's
-/// rows, so its constructor takes them as [`ReducedRows`], which only a
-/// [`SplitReduction`] gives, and its record field is private to this
-/// module.
+/// rows, so its constructor takes them as [`super::ReducedRows`], which
+/// only the reduce mints and a [`SplitReduction`] gives up by value, and
+/// its record field is private to this module.
 mod raw {
-    use super::{RawPart, SplitNaming, SplitReduction};
+    use super::super::ReducedRows;
+    use super::{RawPart, SplitNaming};
     use geom_core::Real;
-
-    /// **The reduce's coincidence rows, taken once** (D10): what a
-    /// split records, on the cut path and the uncut one alike, since
-    /// the reduce decides each the same way on either.
-    #[derive(Debug)]
-    pub(in crate::splitting) struct ReducedRows(Vec<crate::Coincidence>);
-
-    impl ReducedRows {
-        /// `red`'s rows, moved out of it.
-        pub(in crate::splitting) fn take<T: Real>(red: &mut SplitReduction<T>) -> Self {
-            Self(core::mem::take(&mut red.coincidences))
-        }
-    }
 
     /// The split pipeline's own result: [`super::SplitResult`] before
     /// its sides are gated at rest (`super::super::split`).
@@ -1269,7 +1257,7 @@ impl std::error::Error for SplitFinishError {}
 /// [`SplitFinishError`]; the scratch body is discarded on `Err` (the
 /// operand was never touched).
 pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
-    mut red: SplitReduction<T>,
+    red: SplitReduction<T>,
     completed: &[CompletedSection],
     face_fragments: crate::lineage::FaceDivisions,
     tol: Tol,
@@ -1293,7 +1281,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // tier-1 sweep over the reassembled body before it is carved into
     // the two sides. The guard owns the borrow, so a refusal on the
     // way closes the scope by dropping it.
-    let rows = ReducedRows::take(&mut red);
+    let rows = red.coincidences;
     let mut reassembled = red.body;
     let mut body = reassembled.begin_surgery();
     let solid = single_solid(&body)?;

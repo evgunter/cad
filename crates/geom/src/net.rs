@@ -299,21 +299,21 @@ pub(crate) fn removal_pass_bound<T: Real, P: ControlPoint<T>>(
     w_min.map_or_else(T::zero, |w_min| (c_max * bw + bwp) * (T::one() / w_min))
 }
 
-/// The middle of `[lo, hi]`, halved before the sum so it cannot
-/// overflow: where a cell's derivative is read about.
-pub(crate) fn middle(lo: f64, hi: f64) -> f64 {
-    0.5 * lo + 0.5 * hi
-}
-
 /// **The frame a rational net's derivative over a cell is read in**: a
 /// point of the cell's image, to `f64`, from an enclosure `p` of one
 /// (the evaluation at the cell's middle). `None` where a coordinate's
 /// middle is not finite: the evaluation at the cell is poison, and so is
 /// every reading of the cell. Nothing certifies the point, and nothing
 /// needs to ([`rational_slope`]).
+///
+/// The middle is [`geom_core::mid_param`], which is `∞` only where an
+/// enclosure's two ends sum past `f64::MAX`. A model's coordinates lie
+/// inside the session box (`geom_core::tolerance::SESSION_BOX_EXTENT`,
+/// D4), far below `f64::MAX / 2`, so an infinite middle is an evaluation
+/// that overflowed: poison, which this refuses, not a point lost.
 pub(crate) fn cell_origin(p: Point3<Interval>) -> Option<Point3<f64>> {
     use geom_core::Bounds as _;
-    let c = p.map(|x| middle(x.lo(), x.hi()));
+    let c = p.map(|x| geom_core::mid_param(x.lo(), x.hi()));
     [c.x, c.y, c.z].iter().all(|x| x.is_finite()).then_some(c)
 }
 

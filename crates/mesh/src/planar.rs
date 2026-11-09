@@ -274,36 +274,6 @@ pub(crate) fn tessellate_planar(
     })
 }
 
-/// Bit-equality of coordinates, which is NOT the same relation as "the
-/// same 3-D point". It is stricter than `==` in both directions that
-/// matter: `==` equates `+0.0` with `-0.0` and this does not, and `==`
-/// makes NaN unequal to itself while this makes it equal.
-///
-/// The strictness is deliberate — it is what makes
-/// [`ChartFrame::project`] a pure function of the point's BITS rather
-/// than of its walk position, which is what lets a slit seam's two
-/// traversals dedupe to one CDT handle.
-///
-/// **The ±0.0 gap, stated rather than left implied.** Two points that
-/// differ only in the sign of a zero coordinate are one point
-/// geometrically and two points here, so a `-0.0` twin of the far
-/// point does not receive the far-point write. That gap predates this
-/// code and is not created by it: before the write existed, such a
-/// twin already projected to its own residue and split into a second
-/// CDT vertex. What changes is the consequence. The twin's v is a
-/// residue of the same structural zero, so it lands in the same
-/// sub-floor band, and `mitigate_underflow` at the insert feed snaps it
-/// to `0.0` — the same value the write gives the far point itself. The
-/// two therefore arrive at spade as one coordinate pair and dedupe,
-/// which is why the floor makes this gap benign rather than merely
-/// documented. Above the floor the twin's v is a real value and the two
-/// points are genuinely distinct to the CDT, which is correct.
-fn same_position(a: Point3<f64>, b: Point3<f64>) -> bool {
-    a.x.to_bits() == b.x.to_bits()
-        && a.y.to_bits() == b.y.to_bits()
-        && a.z.to_bits() == b.z.to_bits()
-}
-
 /// The boundary-derived chart of a planar face: anchor, in-plane axes,
 /// and the far point `u` was built from.
 struct ChartFrame {
@@ -328,7 +298,18 @@ impl ChartFrame {
         // product is a determinant with a repeated row (module docs).
         // Written, not read back — the float residue is ~ν², which
         // goes sub-floor for spade and refuses the whole face.
-        let v = if same_position(p, self.far_at) {
+        //
+        // The far point is matched by its BITS, so the projection is a
+        // pure function of the bits rather than of the walk position,
+        // which is what lets a slit seam's two traversals dedupe to one
+        // CDT handle. A `-0.0` twin of the far point is two points here
+        // and one geometrically, so it does not receive the write. Its v
+        // is a residue of the same structural zero, under the floor,
+        // and `mitigate_underflow` at the insert feed snaps it to `0.0`,
+        // the write's own value, so the two still dedupe. Above the
+        // floor the twin's v is a real value and the two are genuinely
+        // distinct to the CDT.
+        let v = if Point3::same_bits(p, self.far_at) {
             0.0
         } else {
             w.dot(self.v_ref)
@@ -1178,7 +1159,7 @@ mod tests {
         // selection rule. (Asserting only that `far_at` is *some* input
         // point cannot fail: it is assigned from one by construction.)
         assert!(
-            super::same_position(frame.far_at, positions[3]),
+            Point3::same_bits(frame.far_at, positions[3]),
             "far must be the farthest walk point (index 3), got {:?}",
             frame.far_at
         );
@@ -1210,7 +1191,7 @@ mod tests {
             // The far point is (2, 1, 2ν) — the diagonal corner.
             let far = frame.far_at;
             assert!(
-                super::same_position(far, positions[2]),
+                Point3::same_bits(far, positions[2]),
                 "1e{exp}: far drifted off the diagonal corner: {far:?}"
             );
 
@@ -1260,7 +1241,7 @@ mod tests {
         let frame = super::chart_frame(&outer, &positions);
         for (i, p) in positions.iter().enumerate() {
             let [_, v] = frame.project(*p);
-            if super::same_position(*p, frame.far_at) {
+            if Point3::same_bits(*p, frame.far_at) {
                 continue;
             }
             let raw = (*p - frame.origin).dot(frame.v_ref);
@@ -1409,8 +1390,8 @@ mod tests {
         let b = f.project(pts[2]);
         println!("PROBE2: far_at={:?} a={a:?} b={b:?}", f.far_at);
         println!(
-            "PROBE2: same_position(p1,p2) = {}, p1 == p2 (float) = {}",
-            super::same_position(pts[1], pts[2]),
+            "PROBE2: Point3::same_bits(p1,p2) = {}, p1 == p2 (float) = {}",
+            Point3::same_bits(pts[1], pts[2]),
             pts[1].x == pts[2].x && pts[1].y == pts[2].y && pts[1].z == pts[2].z
         );
         // Documented, not asserted as a defect: record whether the two
@@ -1697,7 +1678,7 @@ mod tests {
         let f = super::chart_frame(&outer, &positions);
         let mut moved = 0;
         for (i, p) in positions.iter().enumerate() {
-            if super::same_position(*p, f.far_at) {
+            if Point3::same_bits(*p, f.far_at) {
                 continue;
             }
             let raw = (*p - f.origin).dot(f.v_ref);
@@ -1724,7 +1705,7 @@ mod tests {
         //! failure directions, by execution.
         #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-        use crate::planar::{ChartFrame, chart_frame, same_position, triangulate_chart};
+        use crate::planar::{ChartFrame, chart_frame, triangulate_chart};
         use geom_core::Point3;
         use topo::FaceKey;
 
@@ -1747,7 +1728,7 @@ mod tests {
             let (frame, positions, outer) =
                 frame_of(&[(1.0, 2.0, 3.0), (1.0, 2.0, 3.0), (1.0, 2.0, 3.0)]);
             assert!(
-                same_position(frame.far_at, positions[0]),
+                Point3::same_bits(frame.far_at, positions[0]),
                 "far degenerates to anchor"
             );
             let polys: Vec<Vec<[f64; 2]>> =
@@ -1791,7 +1772,7 @@ mod tests {
             let (frame, positions, outer) =
                 frame_of(&[(0.0, 0.0, 0.0), (s, 0.0, 0.0), (s, s, 0.0), (0.0, s, 0.0)]);
             assert!(
-                same_position(frame.far_at, positions[0]),
+                Point3::same_bits(frame.far_at, positions[0]),
                 "far collapses to anchor"
             );
             let polys: Vec<Vec<[f64; 2]>> =
@@ -1820,7 +1801,7 @@ mod tests {
             ]);
             // Walk order: (2,-1) comes first, so it is the far point.
             assert!(
-                same_position(frame.far_at, positions[1]),
+                Point3::same_bits(frame.far_at, positions[1]),
                 "first max in walk order must win the tie: {:?}",
                 frame.far_at
             );
@@ -1854,15 +1835,15 @@ mod tests {
                 (2.0, 1.0, 0.0),
                 (0.0, 1.0, nu),
             ]);
-            assert!(same_position(frame.far_at, positions[2]));
+            assert!(Point3::same_bits(frame.far_at, positions[2]));
             // The -0.0 twin of the far point: == equal, bits unequal.
             let twin = Point3::new(2.0, 1.0, -0.0);
             assert!(
-                twin.x == frame.far_at.x && twin.y == frame.far_at.y && twin.z == frame.far_at.z,
+                twin.equals_exactly(frame.far_at),
                 "same point under coordinate =="
             );
             assert!(
-                !same_position(twin, frame.far_at),
+                !Point3::same_bits(twin, frame.far_at),
                 "twin must differ in bits — probe broken otherwise"
             );
             let v_twin = frame.project(twin)[1];
@@ -1889,7 +1870,7 @@ mod tests {
                 (0.0, 1.0, 0.0),
             ]);
             let far = frame.far_at;
-            assert!(same_position(far, positions[2]));
+            assert!(Point3::same_bits(far, positions[2]));
             for (dx, dy, dz) in [(1i64, 0, 0), (0, 1, 0), (0, 0, 1), (-1, 0, 0)] {
                 let bump = |c: f64, d: i64| {
                     if d == 0 {
@@ -1899,7 +1880,7 @@ mod tests {
                     }
                 };
                 let q = Point3::new(bump(far.x, dx), bump(far.y, dy), bump(far.z, dz));
-                assert!(!same_position(q, far));
+                assert!(!Point3::same_bits(q, far));
                 let v = frame.project(q)[1];
                 let raw = (q - frame.origin).dot(frame.v_ref);
                 assert_eq!(

@@ -978,9 +978,10 @@ impl<T: SpanLocate> Reach<T> {
     /// than round its whole carrier, which on a short arc of a large
     /// conic is the conic's size, not the arc's: exact on a circle arc,
     /// and past an ellipse arc by at most a quarter of its span's bulge.
-    /// Never past [`Self::lever_from`] by more than that slack: over a
-    /// turn or more both read the whole conic, from the span's start and
-    /// from the carrier's zero. The face measures read it
+    /// Never past [`Self::lever_from`]: the span's cover is already the
+    /// meet with the whole conic's ([`geom::cover::Cover::arc`]), whose
+    /// far distance is the lesser of the two. The face
+    /// measures read it
     /// (`splitting::rules::face_reach_from` in `topo`); the section arms'
     /// anchors read [`Self::lever_from`].
     #[must_use]

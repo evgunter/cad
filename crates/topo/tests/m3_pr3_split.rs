@@ -108,12 +108,7 @@ fn section_faces_with(body: &Body<f64>, o: Point3<f64>, n: Vec3<f64>) -> Vec<top
     body.faces()
         .filter(|(fk, _)| match body.face_surface(*fk) {
             Some(Surface::Plane { origin, normal, .. }) => {
-                origin.x == o.x
-                    && origin.y == o.y
-                    && origin.z == o.z
-                    && normal.x == n.x
-                    && normal.y == n.y
-                    && normal.z == n.z
+                origin.equals_exactly(o) && normal.equals_exactly(n)
             }
             _ => false,
         })

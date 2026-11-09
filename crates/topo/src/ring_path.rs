@@ -82,6 +82,7 @@
 //! it escalate, and the caller asks another.
 
 use geom::Conic;
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, Vec3};
 
 use crate::validate::decide;
@@ -335,16 +336,48 @@ impl<T: Decide> Quadric<T> {
                 let mut paths = Vec::with_capacity(2);
                 // Round the start's meridian to `to`'s parallel, then round.
                 let turned = centre + axis * ht + ef * rt;
-                let meridian = parallel(kf, ef.cross(axis), off_t, start, turned);
-                let round = parallel(centre + axis * ht, axis, rt, turned, to);
+                let meridian = parallel(
+                    geom::Line {
+                        origin: kf,
+                        dir: ef.cross(axis),
+                    },
+                    off_t,
+                    start,
+                    turned,
+                );
+                let round = parallel(
+                    geom::Line {
+                        origin: centre + axis * ht,
+                        dir: axis,
+                    },
+                    rt,
+                    turned,
+                    to,
+                );
                 paths.push(Path {
                     pieces: vec![lead, Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
                 let turned = centre + axis * hs + et * rs;
-                let round = parallel(centre + axis * hs, axis, rs, start, turned);
-                let meridian = parallel(kt, et.cross(axis), off_t, turned, to);
+                let round = parallel(
+                    geom::Line {
+                        origin: centre + axis * hs,
+                        dir: axis,
+                    },
+                    rs,
+                    start,
+                    turned,
+                );
+                let meridian = parallel(
+                    geom::Line {
+                        origin: kt,
+                        dir: et.cross(axis),
+                    },
+                    off_t,
+                    turned,
+                    to,
+                );
                 paths.push(Path {
                     pieces: vec![lead, Piece::Arc(round), Piece::Meridian(meridian)],
                     arrival: meridian.tangent(meridian.span.1),
@@ -422,7 +455,15 @@ impl<T: Decide> Quadric<T> {
             Margin::of(charge(rise, slack)),
             band,
         )?;
-        let round_at_to = parallel(base + axis * ht, axis, rt, turned, to);
+        let round_at_to = parallel(
+            geom::Line {
+                origin: base + axis * ht,
+                dir: axis,
+            },
+            rt,
+            turned,
+            to,
+        );
         let turn = decide(
             "split_ring_path_turn",
             Margin::of(charge(
@@ -439,7 +480,15 @@ impl<T: Decide> Quadric<T> {
             });
         }
         if rise != Sign::Zero {
-            let round = parallel(base + axis * hf, axis, rf, from, below);
+            let round = parallel(
+                geom::Line {
+                    origin: base + axis * hf,
+                    dir: axis,
+                },
+                rf,
+                from,
+                below,
+            );
             paths.push(Path {
                 pieces: vec![Piece::Arc(round), piece(below, to, to)],
                 arrival: if rise == Sign::Positive {
@@ -457,12 +506,15 @@ impl<T: Decide> Quadric<T> {
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
 fn parallel<T: Decide>(
-    centre: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     radius: T,
     from: Point3<T>,
     to: Point3<T>,
 ) -> CircleArc<T> {
+    let geom::Line {
+        origin: centre,
+        dir: axis,
+    } = axis;
     let u = from - centre;
     let u = u.normalize();
     let w = to - centre;
@@ -1193,10 +1245,23 @@ pub(crate) fn path_parity<T: Decide>(
         Some(t) => t,
         None => unreachable!("only a conic or an oval arc is read as a section arc"),
     };
-    let mut odd = false;
     let last = path.pieces.len().saturating_sub(1);
-    for (i, piece) in path.pieces.iter().enumerate() {
-        for (j, arc) in arcs.iter().enumerate() {
+    // Every piece against every arc, as one ladder ([`climb`],
+    // [`Answering::Any`]: a theorem, any pair at which the path says
+    // nothing leaves the path saying nothing, and its `None` answers).
+    // A pair read in band is kept, refusing only where no pair answers;
+    // every other pair flips the parity by its crossings.
+    let pairs = path.pieces.iter().enumerate().flat_map(|(i, piece)| {
+        arcs.iter()
+            .enumerate()
+            .map(move |(j, arc)| (i, piece, j, arc))
+    });
+    let mut odd = false;
+    let climbed = climb(Answering::Any, pairs, |(i, piece, j, arc)| {
+        // `None` where the path says nothing at this pair; else whether
+        // its crossings flip the parity.
+        let pair = || -> Result<Option<bool>, Indeterminate> {
+            let mut flip = false;
             let arrival = i == last && arrives_on == Some(j);
             let mut readings: Vec<[Result<Sign, Indeterminate>; 5]> = Vec::with_capacity(2);
             match (*piece, arc.clone()) {
@@ -1209,7 +1274,7 @@ pub(crate) fn path_parity<T: Decide>(
                             && !arrival
                             && misses_in_plane(&p, conic, slack, band)?
                         {
-                            continue;
+                            return Ok(Some(flip));
                         }
                         return Ok(None);
                     };
@@ -1280,7 +1345,7 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let rho_less =
                         |p: Point3<T>| geom::Line { origin: c, dir: a }.distance(p) - major;
@@ -1311,7 +1376,7 @@ pub(crate) fn path_parity<T: Decide>(
                         return Ok(None);
                     }
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let s = p.circle.frame.axis.dot(p.circle.frame.origin - origin) / across;
                     let t = p.param(origin + dir * s);
@@ -1327,7 +1392,7 @@ pub(crate) fn path_parity<T: Decide>(
                     LoopArc::Conic(_) | LoopArc::Oval(_),
                 ) => {
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let sec = section(arc);
                     let offset = |x: Point3<T>| geom::plane_offset(sec.origin, sec.normal, x);
@@ -1346,7 +1411,7 @@ pub(crate) fn path_parity<T: Decide>(
                         && let LoopArc::Conic(conic) = arc
                         && segment_misses((from, to), conic, slack, band)?
                     {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     if s0 == Sign::Zero && s1 == Sign::Zero {
                         let point =
@@ -1358,7 +1423,7 @@ pub(crate) fn path_parity<T: Decide>(
                         let [a0, a1] = in_span(param(arc, from), sec.span, sec.speed);
                         let reading = [a0, a1, on_own(sec.own, from)];
                         if reading.contains(&Ok(Sign::Negative)) {
-                            continue;
+                            return Ok(Some(flip));
                         }
                         if let Some(&Err(diag)) = reading.iter().find(|r| r.is_err()) {
                             return Err(diag);
@@ -1366,7 +1431,7 @@ pub(crate) fn path_parity<T: Decide>(
                         return Ok(None);
                     }
                     if s0 == s1 {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let x = from + (to - from) * (d0 / (d0 - d1));
                     // The plane moved by δ moves the root by δ over the
@@ -1394,7 +1459,7 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     // Each direction's sine carries its ends' rounding
                     // over their distance: the ruling's over the lever,
@@ -1420,7 +1485,7 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let gap = geom::Line { origin, dir }.distance(from);
                     if decide_m(
@@ -1439,7 +1504,7 @@ pub(crate) fn path_parity<T: Decide>(
                     match spline_crossings(&piece, &arc, arrival, slack, band)? {
                         Some(n) => {
                             if n % 2 == 1 {
-                                odd = !odd;
+                                flip = !flip;
                             }
                         }
                         None => return Ok(None),
@@ -1456,11 +1521,24 @@ pub(crate) fn path_parity<T: Decide>(
                 if reading.contains(&Ok(Sign::Zero)) {
                     return Ok(None);
                 }
-                odd = !odd;
+                flip = !flip;
             }
+            Ok(Some(flip))
+        };
+        match pair() {
+            Ok(None) => Rung::Answers(()),
+            Ok(Some(flip)) => {
+                odd ^= flip;
+                Rung::Passes
+            }
+            Err(diag) => Rung::kept(diag),
         }
+    });
+    match climbed {
+        Climb::Answered { .. } => Ok(None),
+        Climb::Passed => Ok(Some(odd)),
+        Climb::Undecided(diag) => Err(diag),
     }
-    Ok(Some(odd))
 }
 
 /// **How many times `piece` crosses the spline arc `arc`**, read through
@@ -1554,7 +1632,7 @@ fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>
     use geom_brep::curve_pair::MeetKind;
     match fault.kind() {
         MeetKind::Escalated(diag) => Err(diag),
-        MeetKind::Touch(_) | MeetKind::Unread => Ok(None),
+        MeetKind::Touch(_) | MeetKind::Unread(_) => Ok(None),
         MeetKind::Fault { what } => {
             unreachable!("the meeting of a path's piece and a spline arc faulted: {what}")
         }
@@ -1563,19 +1641,22 @@ fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>
 
 impl<T: Decide> ConicArc<T> {
     /// A lower bound on the distance from `x` to the arc: the distance
-    /// to the arc of the circle of radius `b` over the same span, less
+    /// to the arc of the circle of radius `b` over the same span
+    /// ([`geom::Curve3::distance_within`], whose reading of a box is a
+    /// floor under each of its points: `ring_path::arc_floor_rows`), less
     /// `|a − b|`, which bounds how far a conic point lies from the
-    /// circle's at the same parameter. The circle arc's nearest point is
-    /// at `x`'s direction clamped to the span: on the span's branch the
-    /// end on `x`'s side is the nearer.
+    /// circle's at the same parameter.
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
-        let s = f.azimuth(x).near(geom::mid_param(self.span.0, self.span.1));
-        let s = s.max(self.span.0).min(self.span.1);
-        let (sn, cs) = s.sin_cos();
-        let nearest = f.origin + (f.u_ref * cs + f.v_ref() * sn) * b;
-        (x - nearest).norm() - (a - b).abs()
+        let circle = geom::Curve3::Circle(geom::Circle {
+            frame: *f,
+            radius: b,
+        });
+        let Some(arc) = circle.distance_within(x, self.span) else {
+            unreachable!("a circle's arc distance is closed-form")
+        };
+        arc - (a - b).abs()
     }
 }
 
@@ -1854,6 +1935,10 @@ pub(crate) mod cone_islands;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_path_grid;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod arc_floor_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -2299,7 +2384,7 @@ mod tests {
                     let arcs = torus_arcs(&quadric, &island);
                     for &a in &crests {
                         for &b in grid.iter().chain(&crests) {
-                            if (a - b).norm() == 0.0 {
+                            if a.equals_exactly(b) {
                                 continue;
                             }
                             let want = (island.inside)(a) != (island.inside)(b);
@@ -2948,7 +3033,9 @@ mod tests {
     /// A carrier the arm does not read is the kernel's fault, not the
     /// path's silence.
     #[test]
-    #[should_panic(expected = "faulted: a carrier the meeting table misread")]
+    #[should_panic(
+        expected = "the meeting of a path's piece and a spline arc faulted: a carrier the meeting table misread"
+    )]
     fn a_spline_meeting_that_misreads_a_carrier_is_a_kernel_fault() {
         let _ = meet_refused(geom_brep::curve_pair::MeetFault::Desync);
     }
@@ -2956,7 +3043,9 @@ mod tests {
     /// Two readings that contradict are the kernel's fault, not the
     /// path's silence.
     #[test]
-    #[should_panic(expected = "faulted: two readings")]
+    #[should_panic(
+        expected = "the meeting of a path's piece and a spline arc faulted: two readings"
+    )]
     fn a_spline_meeting_whose_readings_contradict_is_a_kernel_fault() {
         let _ = meet_refused(geom_brep::curve_pair::MeetFault::Contradiction {
             readings: "two readings",
