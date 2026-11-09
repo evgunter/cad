@@ -2668,7 +2668,7 @@ prefix `tcost/`; tag `(S-TCOST orchestrator)`; ab_band `1400-1499`.
 
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
-| P1 | `census-files-each-cut-a-files-shipped-part-by-hand` | issue | M | open | Eight source censuses each cut a file's shipped part by hand; one cut at the first cfg(test) line hid four copysign sites |  |  |
+| P1 | `census-files-each-cut-a-files-shipped-part-by-hand` | issue | M | open | Nine source censuses each cut a file's shipped part by hand; a tenth, the copysign census, cut at the first cfg(test) line and hid four sites until PR 6610 |  |  |
 | P2 | `the-tilted-rods-other-spins-row-runs-past-two-hours-at-1e-12-locally` | issue | C | open | germ_tilted_rod's other-spins row ran over 2h18m at 1e-12 on a session box, against 2096 s at 1e-9 and 486 s at 1e-6 |  |  |
 | P3 | `census-tuple-rows-assert-chi-not-genus` | issue | E | open | sweep's counts() tuple rows assert χ on door-read counts rather than genus() because the tuple carries no s |  |  |
 | P3 | `gated-marker-derivation-is-blind-to-include-str` | issue | D | open | The gated_to! tests/ half derives sibling mod imports only and cannot see include_str!/include_bytes! data dependencies |  |  |
