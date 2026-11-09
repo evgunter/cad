@@ -5,7 +5,7 @@ title: measure.rs spells carrier_cyl_axis_parallel as a literal beside its own A
 status: open
 opened: 2026-11-09
 priority: P3
-cost: S
+cost: E
 ---
 
 
