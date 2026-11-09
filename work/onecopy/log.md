@@ -975,3 +975,4 @@
   - half-open-angles (session_013mPGJ2rjX4txgofZqneoHj) → onecopy/face-placement: the face-placement dispatch's four copies; the lone off-plane vertex.
   - branch-band (session_013mPGJ54AuoykfmpoiLWxjq) → onecopy/foot-and-pinch: interval foot seeded far (probe first); uncut split drops pinch coincidences.
 - 13:10Z bracket-mid: 6632 FIX-A/FIX-B done at c2d2e7b5 (gate green; lerp(½) routed to mid, gate refuses it) → delta review with session_013mPGJ53sK2Km5Nsv98Fqam. Four slow-set reds identical on main a2a5b8e3 (m10_sym plate, seat4 blend digests, seat7 sweep digests, sym11) → main-reds lane to bisect and repin only where disclosed.
+- 13:12Z Ruled point-walk-floors row 1: (a) Curve3::distance_within as the one closed-form door (line foot_within read through it), Interval straddle documented and pinned, moved floors disclosed; clear_of's sentence comes via 6623.
