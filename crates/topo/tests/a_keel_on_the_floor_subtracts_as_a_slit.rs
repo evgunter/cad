@@ -208,9 +208,10 @@ fn vertices_at(body: &Body<f64>, pose: &Pose, p: [f64; 3]) -> usize {
 
 /// The edges of each loop of `face`, the outline first.
 fn loops(body: &Body<f64>, face: FaceKey) -> Vec<Vec<EdgeKey>> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .map(|l| match body.get_loop(l).unwrap().boundary {
             LoopBoundary::Cycle { first } => body
                 .loop_cycle(first)

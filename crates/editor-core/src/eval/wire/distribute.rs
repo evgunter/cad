@@ -2,10 +2,12 @@
 //! a `⊔` value is its pieces, so a boolean reading one acts on each
 //! piece and assembles what it made, `(p ⊔ q) − t = (p − t) ⊔ (q − t)`
 //! and `(p ⊔ q) ∩ t = (p ∩ t) ⊔ (q ∩ t)`. A meeting inside the `⊔` is
-//! its own decision and no boolean above it decides it again; this is
-//! also the kernel's own recourse for a cut through two pieces that
-//! touch (`topo::boolean`'s `VertexReadTwice`, "apply to each piece and
-//! combine").
+//! its own decision and no boolean above it decides it again. The
+//! kernel reads such a `⊔` whole too, where its pieces' seat is an area
+//! record (`topo::boolean`'s declared wall), so this is a second
+//! implementation of the rule, which
+//! `work/tally/the-editors-distribution-over-a-seat-retires-for-the-kernels-whole-body-boolean.md`
+//! retires.
 //!
 //! Each piece's result keeps that piece's records and is keyed by the
 //! piece's read, as the `⊔` keyed it ([`names::name_assemble`]); a
@@ -15,8 +17,9 @@
 //! node took it in by, so the coincidence door reads them where the
 //! operand stands.
 //!
-//! A `⊔` read as the TOOL of a cut is cut by whole
-//! (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`).
+//! A `⊔` read as the TOOL of a cut is cut by whole: the kernel refuses
+//! `ToolSeatCrossed` where the cut crosses the tool's seat
+//! (`work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md`).
 
 use std::sync::Arc;
 

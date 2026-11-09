@@ -873,8 +873,10 @@ fn ends<T: Decide>((p0, p1): Ends<T>) -> T {
     (p0 - Point3::origin()).norm() + (p1 - Point3::origin()).norm()
 }
 
-/// The projection of a line span's two ends on the line `(o, u)`, `u` a
-/// unit: their distances along it from `o`.
+/// The projection of a line span's two ends on `line`: their distances
+/// along it from its origin. Its one caller, `line_conic`, hands it the
+/// line with its direction already normalised (`unit`), so the dot is
+/// the metres and is not divided again as [`geom::Line::height`] would.
 fn on_line<T: Decide>(
     geom::Line { origin: o, dir: u }: geom::Line<T>,
     (p0, p1): Ends<T>,

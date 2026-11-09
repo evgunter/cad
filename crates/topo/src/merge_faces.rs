@@ -3630,8 +3630,7 @@ mod tests {
             };
             let (edge_key, edge) = body.edges().next().expect("an edge");
             let (hp, hm) = body.edge_halves(edge_key, edge);
-            let starts =
-                [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).expect("live").start);
+            let starts = <[_; 2]>::from(crate::query::edge_ends(&body, edge_key));
             let want = tear(&mut body, hp, hm, starts);
             let mut got = None;
             let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {

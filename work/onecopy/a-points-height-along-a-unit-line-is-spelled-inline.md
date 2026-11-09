@@ -2,8 +2,10 @@
 id: a-points-height-along-a-unit-line-is-spelled-inline
 kind: issue
 title: A point's height along a unit 3D line, (p − o)·u, is spelled inline beside geom::Line::height
-status: open
+status: closed
 opened: 2026-11-06
+closed: 2026-11-09
+pr: 6604
 ---
 
 

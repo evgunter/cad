@@ -71,12 +71,9 @@ fn walls_of(t: &Revolved<f64>, segs: &[usize]) -> BTreeSet<FaceKey> {
 fn cylinder_radii(t: &Revolved<f64>, shell: topo::ShellKey) -> Vec<f64> {
     let mut radii: Vec<f64> = shell_faces(t, shell)
         .into_iter()
-        .filter_map(|f| {
-            let face = t.body.get_face(f).unwrap();
-            match *t.body.get_surface(face.surface).unwrap() {
-                Surface::Cylinder { radius, .. } => Some(radius),
-                _ => None,
-            }
+        .filter_map(|f| match *t.body.face_surface(f).unwrap() {
+            Surface::Cylinder { radius, .. } => Some(radius),
+            _ => None,
         })
         .collect();
     radii.sort_by(f64::total_cmp);
@@ -281,9 +278,7 @@ fn a_half_annulus_revolves_to_a_hollow_ball() {
     );
     for (shell, radius) in [(t.shell, 2.0), (cavity, 1.0)] {
         for f in shell_faces(&t, shell) {
-            let face = t.body.get_face(f).unwrap();
-            let Surface::Sphere { radius: r, .. } = *t.body.get_surface(face.surface).unwrap()
-            else {
+            let Surface::Sphere { radius: r, .. } = *t.body.face_surface(f).unwrap() else {
                 panic!("a ball's wall is a sphere")
             };
             assert!((r - radius).abs() < 1e-12, "{r} vs {radius}");

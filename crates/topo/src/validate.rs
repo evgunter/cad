@@ -821,6 +821,11 @@ pub enum CensusUnsupportedCause {
     /// narrowed to say so, for the same reason [`Self::ChartRegion`]
     /// admits `Escalated`.
     ContactLane(ContactRefusal),
+    /// A curved edge the census reads did not read, for its typed reason,
+    /// whole ([`crate::link::EdgeTangentUnread`]). It renders and is
+    /// classed as the contact lane's [`ContactRefusal::NotCertifiable`]
+    /// with that reason's sentence.
+    CurvedEdge(crate::link::EdgeTangentUnread),
     /// The census's face-bounding sweep could not bound the face at
     /// all: it has no boundary vertex, because its outer loop is
     /// empty or its boundary does not resolve. Nothing about the
@@ -887,6 +892,13 @@ impl CensusUnsupportedCause {
         match self {
             Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
+            Self::CurvedEdge(why) => write!(
+                f,
+                "{}",
+                ContactRefusal::NotCertifiable {
+                    what: why.sentence()
+                }
+            ),
             // The containment door's reading, at a build, whichever door
             // reads the census.
             Self::Containment(e) => write!(
@@ -4295,6 +4307,12 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
             let (why, recourse) = classify_contact_lane(e);
             (why.into(), recourse.into())
         }
+        CensusUnsupportedCause::CurvedEdge(why) => {
+            let (why, recourse) = classify_contact_lane(&ContactRefusal::NotCertifiable {
+                what: why.sentence(),
+            });
+            (why.into(), recourse.into())
+        }
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
             "a face has no corner to bound it by (an empty or broken outer loop)".into(),
@@ -5940,14 +5958,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// # What tier 3 does NOT yet check (deferred, named)
 ///
 /// - **Global self-intersection / minimum clearance** — M3 partial
-///   (via booleans); the interval-based whole-body check is scheduled
-///   rather than dropped. `DESIGN.md` carries it twice — in the
-///   tier-3 bullet of the validation-tier list, and in the milestone
-///   list under the entry containing *"interval-based
-///   self-intersection / minimum-clearance checks over the parameter
-///   box"*. Quoted rather than dated on purpose: a milestone copied
-///   into this list is the rot the list keeps producing, and a quote
-///   is what survives the milestone being renumbered.
+///   (via booleans). The whole-body embedding certificate belongs to
+///   the at-rest gate (`DESIGN.md` `[topology.tiers]`), not to this
+///   pass, and is not built yet:
+///   `work/clear/the-at-rest-gate-certifies-embedding.md`.
 /// - **The wedge on a NURBS- or `Approx`-adjacent edge**: check 4 and
 ///   its material arm are both exempt by kind there (implicit-form
 ///   gradients are poison on a spline chart), so such an edge carries

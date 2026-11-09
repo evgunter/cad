@@ -64,7 +64,7 @@ pub(crate) fn face_loop_azimuth_travels<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Vec<Option<T>>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     view.loops()
         .filter_map(|(_, l, _)| match l.boundary {
             LoopBoundary::Cycle { first } => Some(first),
@@ -102,7 +102,7 @@ pub fn face_azimuth_window_traces<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     face_azimuth_window(body, view.surface(), face, band)
 }
 
@@ -186,7 +186,7 @@ pub(crate) fn face_azimuth_images<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<Vec<AzimuthImage<T>>>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let Some(halves) = view.outer_cycle() else {
         return Ok(None);
     };
