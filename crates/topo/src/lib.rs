@@ -1378,8 +1378,7 @@ pub use boolean::{
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
     CarrierEqError, CarrierRelation, CarrierVerdict, CarryRefusal, Cell, Coincide,
     CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
-    ContactPairError, ContactRecords, ContainDecision, ContainError, Contradiction,
-    DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
+    ContactPairError, ContactRecords, ContainDecision, ContainError, DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
     EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent, FfContact, Fusions,
     GlueVerdict, Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
     JoinUndecided, JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs,
@@ -1427,8 +1426,8 @@ pub use census::{
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactPair,
-    ContactRefusal, GlueClass,
+    CONTACT_RECOURSE, ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass,
+    RestRow, RestVerdict, TangentRow, TangentVerdict, Uncertified,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,

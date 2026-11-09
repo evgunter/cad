@@ -89,7 +89,7 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
                 .map(|class| GluedPair::decided(fa, fb, class, margin)),
             Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
             | Err(PairUnread::OutsideInventory) => {
-                tangency(a, fa, b, fb, band)?.then(|| GluedPair::new(fa, fb, GlueClass::Tangent))
+                tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency))
             }
             Ok(Err(reading)) => {
                 in_band.push(InBandPair {
@@ -113,14 +113,15 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
     Ok(Cow::Owned(out))
 }
 
-/// **Whether the witness lane verifies `fa` and `fb` tangent** along a
+/// **What the witness lane certifies of `fa` and `fb` tangent** along a
 /// locus ([`glued_tangency`]), asked only of a pair it has a locus for:
 /// a plane and a cylinder, two cylinders, or two faces ending on one
 /// circle. Along a rim the routing must also read the junction the two
 /// faces make as one the zip builds, the smooth seam.
 ///
-/// Counter-evidence, a pair outside the lane and a junction the routing
-/// places outside what the zip builds are no tangency. A refusal no
+/// A verdict that the pair is not tangent, a pair outside the lane and a
+/// junction the routing places outside what the zip builds are no
+/// tangency (`None`). A refusal no
 /// reading of the pair settles (an in-band margin, an undecidable rim
 /// identity, an unreadable face) is the operation's: a pair the lane has
 /// a locus for never reaches a later stage unglued on a reading the
@@ -139,23 +140,23 @@ fn tangency<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<bool, BooleanError> {
+) -> Result<Option<super::Tangency<T>>, BooleanError> {
     let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
     let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa), kind(b, fb)))
         && !super::rim_wedge::rim_exists(a, fa, b, fb, band)
             .map_err(|diag| BooleanError::coincidence(super::Coincide::Rim, read, diag))?
     {
-        return Ok(false);
+        return Ok(None);
     }
     match glued_tangency(a, fa, b, fb, read, band) {
-        Ok(_) => Ok(true),
+        Ok(tangency) => Ok(Some(tangency)),
         Err(TangencyFailure::Refused(e)) => Err(e),
         Err(
-            TangencyFailure::Contradicted { .. }
+            TangencyFailure::NotTangent
             | TangencyFailure::Unsupported
-            | TangencyFailure::Unrouted(_),
-        ) => Ok(false),
+            | TangencyFailure::Unrouted,
+        ) => Ok(None),
     }
 }
 

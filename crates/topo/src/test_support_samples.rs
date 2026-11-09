@@ -43,13 +43,15 @@ use geom_brep::pcurve_cache::{FittedEnding, FittedMagnitude, PcurveCertifyError,
 use geom_brep::props::PropsError;
 use geom_brep::recourse::{Classified, Refused};
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
+use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag, Sign};
 use strum::IntoEnumIterator as _;
 
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactFinding, ContactPair, ContactRefusal, GlueClass};
+use crate::contact::{
+    ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass, RestRow, TangentRow,
+};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -116,13 +118,55 @@ fn negative_verdict(margin: f64) -> Refused {
 
 /// The margin every `ContactRefusal::Contradicted` raise site carries:
 /// invalid, naming the contact predicate that decided.
-fn contradiction_margin(predicate: &'static str) -> Indeterminate {
-    Indeterminate {
-        margin: MarginDiag::INVALID,
-        band: band(),
-        predicate: Some(predicate),
-        terminal_sliver: false,
-    }
+/// Every verdict [`ValidationError::ContactContradicted`] carries, at
+/// each row and each sign its fact reads.
+fn contact_verdicts() -> Vec<ContactVerdict> {
+    let by = |sign| geom_core::Decided {
+        sign,
+        margin: MarginDiag::value(3e-6),
+    };
+    let mut v = vec![
+        ContactVerdict::Rest {
+            row: RestRow::SensesAligned,
+            by: None,
+        },
+        ContactVerdict::Rest {
+            row: RestRow::TwoCarriers,
+            by: Some(by(Sign::Positive)),
+        },
+        ContactVerdict::NotTangent {
+            apart: true,
+            predicate: "pc_parallel_gap",
+            by: by(Sign::Negative),
+        },
+        ContactVerdict::NotTangent {
+            apart: false,
+            predicate: "pc_parallel_gap",
+            by: by(Sign::Positive),
+        },
+        ContactVerdict::SidesMixed {
+            at: [by(Sign::Negative), by(Sign::Positive)],
+        },
+    ];
+    v.extend(
+        [
+            TangentRow::Opposed,
+            TangentRow::Independent,
+            TangentRow::Parallel,
+            TangentRow::Overlap,
+            TangentRow::Off(geom_brep::PairSide::First),
+            TangentRow::Off(geom_brep::PairSide::Second),
+        ]
+        .map(|row| ContactVerdict::Ruled {
+            row,
+            by: by(Sign::Positive),
+        }),
+    );
+    v.extend([Sign::Positive, Sign::Negative].map(|sign| ContactVerdict::Ruled {
+        row: TangentRow::Gap,
+        by: by(sign),
+    }));
+    v
 }
 
 fn band_errors() -> Vec<BandError> {
@@ -183,15 +227,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
 }
 
 fn contact_refusals() -> Vec<ContactRefusal> {
-    let mut v = vec![
-        ContactRefusal::Contradicted {
-            diag: contradiction_margin("contact_rest_senses_opposed"),
-        },
-        ContactRefusal::Contradicted {
-            diag: contradiction_margin("carrier_cyl_radius"),
-        },
-        ContactRefusal::Escalated { diag: diag() },
-    ];
+    let mut v = vec![ContactRefusal::Escalated { diag: diag() }];
     // The longest `what`s the raise sites write.
     v.extend(
         [
@@ -1840,31 +1876,22 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::StaleContactDeclaration { declaration },
         ));
     }
-    // Door 1's whole-surface verdict (a Rest record) and the tangent
-    // line of a face-face record on two carriers (a Tangent record),
-    // each.
-    for (class, witness, predicate) in [
-        (
-            GlueClass::Rest,
-            crate::census::CARRIER_COMPARISON_WITNESS,
-            "carrier_sphere_radius",
-        ),
-        (
-            GlueClass::Tangent,
-            crate::census::TANGENT_LOCUS_WITNESS,
-            "contact_tangent_opposed",
-        ),
-    ] {
+    // Every verdict a face–face record is contradicted by, each fact its
+    // sentence states.
+    for (i, verdict) in contact_verdicts().into_iter().enumerate() {
+        let class = match verdict {
+            ContactVerdict::Rest { .. } => GlueClass::Rest,
+            _ => GlueClass::Tangent,
+        };
         s.push((
-            format!("ContactContradicted/{}", class.name()),
+            format!("{}/{i}", label("ContactContradicted", &verdict)),
             ValidationError::ContactContradicted {
-                declaration: ContactPair {
+                record: ContactPair {
                     a: face,
                     b: face,
                     class,
                 },
-                witness: witness.to_owned(),
-                margin: contradiction_margin(predicate),
+                verdict,
             },
         ));
     }
@@ -2035,7 +2062,7 @@ where
 pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     use crate::boolean::ContainErrorKind;
     use crate::chart_region::ChartRegionErrorKind;
-    use crate::contact::ContactRefusalKind;
+    use crate::contact::{ContactRefusalKind, ContactVerdictKind, TangentRowKind};
     use crate::pcurves::PcurveMintErrorKind;
     use crate::props::MassPropsErrorKind;
     use crate::validate::{
@@ -2070,6 +2097,18 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         "ContactRefusal",
         &contact_refusals(),
     ));
+    out.extend(gaps::<_, ContactVerdictKind>(
+        "ContactVerdict",
+        &contact_verdicts(),
+    ));
+    let rows: Vec<TangentRow> = contact_verdicts()
+        .into_iter()
+        .filter_map(|v| match v {
+            ContactVerdict::Ruled { row, .. } => Some(row),
+            _ => None,
+        })
+        .collect();
+    out.extend(gaps::<_, TangentRowKind>("TangentRow", &rows));
     out.extend(gaps::<_, ContainErrorKind>(
         "ContainError",
         &contain_errors(),

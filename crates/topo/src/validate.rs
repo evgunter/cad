@@ -866,9 +866,8 @@ pub enum CensusUnsupportedCause {
     /// lead there and the `what` is the only honest steering.
     ///
     /// Only `NotCertifiable` reaches this arm today — the census
-    /// sends `Contradicted` to
-    /// [`ValidationError::ContactContradicted`] and the other two to
-    /// [`ValidationError::CensusEscalated`] — and the type is not
+    /// sends `Escalated` to [`ValidationError::CensusEscalated`] — and
+    /// the type is not
     /// narrowed to say so, for the same reason [`Self::ChartRegion`]
     /// admits `Escalated`.
     ContactLane(ContactRefusal),
@@ -2165,33 +2164,22 @@ pub enum ValidationError {
         /// The unconfirmed declaration.
         declaration: StaleDeclaration,
     },
-    /// Tier 3′ (C4): a contact record meets DEFINITE counter-evidence
+    /// Tier 3′ (C4): a reading rules out what a contact record claims
     /// — the record is a lie where it meets the geometry.
     ///
     /// Distinct from [`Self::StaleContactDeclaration`], which is the
-    /// *absence* of a witness: this is the presence of a
-    /// contradiction, and it fires at the AT-REST gate as well as at
-    /// use, because a false `Rest` must never be silent once it meets
-    /// the zip (S1's deviation-2 strictness). Every definite verdict
-    /// wins over every declaration.
+    /// *absence* of a witness: this is the presence of a definite
+    /// verdict against the record. Only a record is contradicted; the
+    /// same verdict on a pair no record names contradicts nothing
+    /// (`[verdicts.consumers]`). A record and its geometry are both
+    /// stored, so the contradiction is a defect of whatever wrote them
+    /// (D4 ¶1 (iv)).
     ContactContradicted {
-        /// The face pair and class that were declared.
-        declaration: ContactPair,
-        /// Where the contradiction holds, as a place read after
-        /// "contradicted" in the message, preposition included: across
-        /// both faces (the face–face record confirm pass's Door 1,
-        /// whose verdict compares whole surfaces), or the region the
-        /// conformal arm reads. Never the pair
-        /// again, and never a key: `declaration` carries both.
-        witness: String,
-        /// The margin that decided, and its predicate — carried for a
-        /// caller and rendered by `Debug`, never by the message. The
-        /// predicate names which check refused, but not in a way a
-        /// sentence can state truthfully for every site (the same
-        /// carrier predicate reports carriers apart at one site and a
-        /// coincidence at another), so the message states what is true
-        /// at all of them ([`crate::contact::CONTRADICTION_REASON`]).
-        margin: Indeterminate,
+        /// The face pair and class that were recorded.
+        record: ContactPair,
+        /// The verdict that rules it out, with the reading that decided
+        /// it.
+        verdict: crate::contact::ContactVerdict,
     },
     /// Tier 3′: a census predicate escalated (sliver band or poison) —
     /// indeterminate coincidence geometry at rest is a defect (the
@@ -4326,10 +4314,6 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
 
 fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
     match e {
-        ContactRefusal::Contradicted { .. } => (
-            crate::contact::CONTRADICTION_REASON,
-            crate::contact::CONTRADICTION_RECOURSE,
-        ),
         // A contact site's recourse has no tolerance arm
         // (`CONTACT_RECOURSE`): the faces are moved apart or together.
         ContactRefusal::Escalated { .. } => (
@@ -5040,16 +5024,13 @@ impl ValidationError {
                  Recourse: remove that declaration, \
                  or move the geometry so the contact exists"
             ),
-            Self::ContactContradicted {
-                declaration,
-                witness,
-                ..
-            } => write!(
+            Self::ContactContradicted { record, verdict } => write!(
                 f,
-                "the recorded {} contact is contradicted {witness}: {}. {}",
-                declaration.class.name(),
-                crate::contact::CONTRADICTION_REASON,
-                crate::contact::CONTRADICTION_RECOURSE,
+                "the recorded {} contact is contradicted {}: {}. {}",
+                record.class.name(),
+                verdict.witness(),
+                verdict.fact(),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             // Two long edges' ends read past their rounding: the
             // precision limit, whose recourse is no move apart.
