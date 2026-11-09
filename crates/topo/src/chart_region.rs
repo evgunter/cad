@@ -3368,9 +3368,8 @@ fn proper_crossings<T: Decide>(
                 // are that same length, so their max is a length and
                 // `Margin::of` is its door (the `carrier_agreement`
                 // precedent).
-                let pq = Vec2::new(T::zero() - qp.x, T::zero() - qp.y);
-                let off_a = (r.perp_dot(qp) / r_len).abs();
-                let off_b = (s.perp_dot(pq) / s_len).abs();
+                let off_a = geom_core::Line2 { origin: p, dir: r }.distance(q);
+                let off_b = geom_core::Line2 { origin: q, dir: s }.distance(p);
                 match decide(
                     "chart_region_collinear_offset",
                     Margin::of(off_a.max(off_b)),
