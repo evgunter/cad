@@ -92,7 +92,7 @@ use crate::half_angle::{
 };
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
 use geom_core::period::Period;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Sign};
 
 use geom_core::Indeterminate;
 use geom_core::k_stats::decide;
@@ -215,32 +215,6 @@ pub struct FirstHarmonic<T> {
     pub hi_noise: T,
     /// The bound on the phase components' error, in their units.
     pub phase_noise: T,
-}
-
-impl<T: Decide> FirstHarmonic<T> {
-    /// **A conic's signed distance off a plane**: the ellipse
-    /// `center + a·û cos θ + b·v̂ sin θ`, `v̂ = axis × û` (a circle where
-    /// `a = b`), against the plane through `on` of unit normal `n` — the
-    /// residual `n·(center − on) + a(n·û) cos θ + b(n·v̂) sin θ` and one
-    /// uniform rounding charge on the terms it is formed from, at the
-    /// larger semi-axis: a sphere face's arc against a cut.
-    pub fn conic_off_plane(conic: &dyn geom::Conic<T>, (on, n): (Point3<T>, Vec3<T>)) -> Self {
-        let (f, (a, b)) = (conic.frame(), conic.semi_axes());
-        let offset = f.origin - on;
-        let d = n.dot(offset);
-        let (cos_part, sin_part) = (a * n.dot(f.u_ref), b * n.dot(f.v_ref()));
-        let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-        let noise = geom_core::rounding_charge(offset.norm() + a.max(b));
-        Self {
-            lo: d - amplitude,
-            hi: d + amplitude,
-            cos_part,
-            sin_part,
-            lo_noise: noise,
-            hi_noise: noise,
-            phase_noise: T::zero(),
-        }
-    }
 }
 
 /// The predicate rows one caller of [`first_harmonic_roots`] meters
