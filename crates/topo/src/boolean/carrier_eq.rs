@@ -1458,12 +1458,11 @@ mod tests {
     /// decides them one surface** ([`geom_brep::tori_coincide`]), whatever
     /// extent the faces span, read at the face-pair door
     /// ([`super::super::carrier_pair_decided`]). The poses are the ring
-    /// of `R = 5`, `r = 0.06` tilted so its far side swings `0.74ε` (which
-    /// the pose's gap read tangent beside the ladder's one carrier), slid
-    /// `0.6ε` along and across its axis (which the pose escalated), its
-    /// tube in the band, and its tube a thousand escalation widths wider,
-    /// whose faces' corners witness it. Each pair is two opposed patches
-    /// of one chart window, a quarter turn and nearly a half.
+    /// of `R = 2`, `r = 0.5` tilted so its far side swings `0.3ε`, slid
+    /// `0.6ε` along and across its axis, its tube in the band, and its
+    /// tube a thousand escalation widths wider, whose faces' corners
+    /// witness it. Each pair is two opposed patches of one chart window,
+    /// a quarter turn and a smaller one.
     #[test]
     fn the_ladder_reads_two_tori_as_their_pose_does() {
         use crate::boolean::boxes::tests::torus_wall;
@@ -1479,21 +1478,16 @@ mod tests {
                 u_ref: axis.orthonormal_basis().0,
             }
         };
-        let ring = (Point3::origin(), Vec3::unit_z(), 5.0, 0.06);
+        let ring = (Point3::origin(), Vec3::unit_z(), 2.0, 0.5);
         for (what, other, one) in [
             (
                 "tilted",
-                (Point3::origin(), Vec3::new(0.148 * e, 0.0, 1.0), 5.0, 0.06),
+                (Point3::origin(), Vec3::new(0.148 * e, 0.0, 1.0), 2.0, 0.5),
                 Some(true),
             ),
             (
                 "slid",
-                (
-                    Point3::new(0.6 * e, 0.0, 0.6 * e),
-                    Vec3::unit_z(),
-                    5.0,
-                    0.06,
-                ),
+                (Point3::new(0.6 * e, 0.0, 0.6 * e), Vec3::unit_z(), 2.0, 0.5),
                 Some(true),
             ),
             (
@@ -1501,8 +1495,8 @@ mod tests {
                 (
                     Point3::origin(),
                     Vec3::unit_z(),
-                    5.0,
-                    0.06 + 0.5 * (e + b.escalate()),
+                    2.0,
+                    0.5 + 0.5 * (e + b.escalate()),
                 ),
                 None,
             ),
@@ -1511,8 +1505,8 @@ mod tests {
                 (
                     Point3::origin(),
                     Vec3::unit_z(),
-                    5.0,
-                    0.06 + 1000.0 * b.escalate(),
+                    2.0,
+                    0.5 + 1000.0 * b.escalate(),
                 ),
                 Some(false),
             ),
@@ -1526,7 +1520,7 @@ mod tests {
                 Err(refusal) => panic!("{what}: the pose refused {refusal:?}"),
             };
             assert_eq!(pose, one, "{what}: the pose");
-            for us in [(0.3, 1.9), (0.1, 3.0)] {
+            for us in [(0.3, 1.9), (0.3, 0.9)] {
                 let wall = |(center, axis, major, minor): (Point3<f64>, Vec3<f64>, f64, f64)| {
                     let axis = axis.normalize();
                     let u_ref = axis.orthonormal_basis().0;

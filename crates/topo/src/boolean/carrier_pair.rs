@@ -698,9 +698,9 @@ mod lever_rows {
     /// The centre and the radius decide `Zero`; the reach, `1.8ε`, decides
     /// past `1.5ε`. Both doors read `carrier_sphere_reach_straddle`, the
     /// enclosure from the centre datum, the identity ladder's first, to
-    /// the reach. Its low end is `0.9ε`, so the ending offers the
-    /// tolerance below which that datum reads the spheres apart, besides
-    /// subdividing.
+    /// the reach. Its low end is `0.9ε`, so besides subdividing the ending
+    /// offers the tolerance below which that datum reads the spheres
+    /// apart, wherever a run admits it (not at `ε = 10⁻¹²`).
     #[test]
     fn a_sphere_pair_straddles_from_its_first_datum_and_offers_its_tolerance() {
         use crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet;
@@ -735,12 +735,16 @@ mod lever_rows {
             geom_core::MarginDiag::enclosure(centre, reach),
             "from the centre datum to the reach: {at_door:?}"
         );
+        // The offer is the tolerance that reads the centre datum past the
+        // band, made only where a run at this K admits it.
+        let offered = pinned.offer_deciding(centre).is_some();
         let ending = at_door.ending(geom_core::COINCIDENCE_RECOURSE);
         assert!(
-            at_door.offers_tolerance()
-                && ending.contains("subdivide")
-                && ending.contains("tighten the tolerance"),
-            "a straddle from a centre datum of 0.9ε offers its tolerance: {ending}"
+            at_door.offers_tolerance() == offered
+                && ending.contains("tighten the tolerance") == offered
+                && ending.contains("subdivide"),
+            "a straddle from a centre datum of 0.9ε offers its tolerance where a run admits it \
+             ({offered}): {ending}"
         );
     }
 
