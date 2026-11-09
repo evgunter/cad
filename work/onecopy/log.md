@@ -1051,3 +1051,4 @@
   - 6656 coplanar-subdivision (f4622a8c; its row closes after 6642) → FULL with session_013mPGJ5pxD6AT4GPvwns2YC after 6642. Foot-and-pinch lane → onecopy/foot-followups (6644 F1–F4).
 - 16:15Z main-reds: the divisor measure showed no row moved (~45 reds identical on base, all main's); the K sweep is running.
 - 16:20Z Merged PR 6644 (foot-and-pinch) at gate-green a7fc0ad5 (FULL MERGE; disjoint from 6638; merge check clean).
+- 16:22Z Ruled main-reds K sweep (a): B′, edge_join_carried_far unlogged under F31 (or a new row citing it), the same_content premise stated and pinned by a both-spellings-agree test on a blend fixture; disagreement past the band → A′. (b) the gather 2409/2408 red: bisect and file on the mover.
