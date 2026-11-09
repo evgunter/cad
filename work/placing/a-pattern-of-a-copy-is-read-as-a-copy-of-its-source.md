@@ -2,13 +2,14 @@
 id: a-pattern-of-a-copy-is-read-as-a-copy-of-its-source
 kind: issue
 title: A pattern of a copy stands in the copy's space and the gesture vocabulary reads it as a copy of its source, so a pick on its member seats the undrawn copy
-status: review
+status: closed
 opened: 2026-11-09
 priority: P2
 cost: M
 design: true
 pr: 6581
 refs: [a-place-into-the-bodys-own-space-is-no-copy-to-the-gesture-vocabulary]
+closed: 2026-11-09
 ---
 
 
