@@ -551,7 +551,7 @@ fn arc_to<T: Decide>(
 ) -> Result<(Point2<T>, Vec3<T>), TraceStepFault> {
     let surface = traced(face, band)?;
     let radial = pen - centre;
-    let radius = radial.norm();
+    let (radial_hat, radius) = radial.direction_and_length();
     let up = match winding {
         ArcSweep::Ccw => T::one(),
         ArcSweep::Cw => T::zero() - T::one(),
@@ -561,7 +561,7 @@ fn arc_to<T: Decide>(
         map.transform_point(lift(centre)),
         map.transform_vec(Vec3::new(T::zero(), T::zero(), up)),
         radius,
-        map.transform_vec(lift_vec(radial / radius)),
+        map.transform_vec(lift_vec(radial_hat)),
     );
     let crossings =
         kernel::circle_crossings(surface, face.sense, circle, band).map_err(carrier_fault)?;

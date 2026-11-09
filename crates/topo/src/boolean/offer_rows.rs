@@ -2929,7 +2929,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "slit.rs",
-        "spiric_on_quadric",
+        "spiric_on_curved",
         "Coincide::EdgeOnCurvedFace",
         1,
     ),

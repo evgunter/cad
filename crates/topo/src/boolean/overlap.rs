@@ -534,13 +534,12 @@ fn half_plane<T: Decide>(
         .param_near(p, geom::mid_param(t0, t1))
         .ok_or(OverlapRefusal::Unread(OverlapUnread::UnplacedParameter))?;
     let d = carrier.deriv(t);
-    let speed = geom::carrier_speed::speed_at_any(carrier, t);
-    let unit = if forward { d / speed } else { -(d / speed) };
+    let (u, speed) = (d.normalize(), geom::carrier_speed::speed_at_any(carrier, t));
+    let unit = if forward { u } else { -u };
     let bend = match carrier {
         geom::Curve3::Line(_) => Some(Vec3::new(T::zero(), T::zero(), T::zero())),
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let dd = carrier.deriv2(t);
-            let u = d / speed;
             Some((dd - u * dd.dot(u)) / speed.powi(2))
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
