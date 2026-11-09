@@ -145,10 +145,11 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
 /// order.
 #[track_caller]
 pub fn construction_state(body: &Body<f64>, t: Tol) -> Vec<VertexKey> {
-    let Err(errors) = topo::AtRestBody::validate(body.clone(), t) else {
+    let Err(errors) = topo::finish(body.clone(), t) else {
         panic!("a body holding stations is not at rest");
     };
     errors
+        .into_findings()
         .into_iter()
         .map(|e| match e {
             topo::ValidationError::JoinableVertexAtRest { vertex } => vertex,

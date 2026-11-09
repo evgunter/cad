@@ -2,11 +2,13 @@
 id: three-readings-of-a-points-rounding-charge-it-three-ways
 kind: issue
 title: A conic point's rounding is read three ways: carrier_resolution (relative to the window), implicit::sample_rounding and ring_path::resolution (absolute)
-status: dispatched
+status: closed
 opened: 2026-10-14
 priority: P1
 cost: M
 branch: onehome/run-owns-rounding
+closed: 2026-11-08
+pr: 6380
 ---
 
 

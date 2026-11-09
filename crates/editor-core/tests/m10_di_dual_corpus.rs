@@ -126,7 +126,7 @@ fn every_document_evaluates_at_dual64_with_the_f64_value_channel() {
 /// DL3 working at the gather, with its witness sets pinned BY NAME:
 /// every corpus product gathers at `f64` (the refusal set is EMPTY —
 /// if a refusing document ever joins the corpus, this row is where the
-/// f64 `gate_at_rest` arm gains its corpus-level witness; today that
+/// f64 `finish` arm gains its corpus-level witness; today that
 /// arm's refusing pin is `topo`'s `at_rest_policy_tests`), every one
 /// gathers at `Dual64` too with a bit-equal value channel, and the
 /// documents whose product bodies the structural door refuses at
@@ -209,7 +209,7 @@ fn the_dl3_witnesses_are_refused_by_the_closed_form_alone_at_dual64() {
 /// The census arm at `Interval` (the certifying scalar the hosted
 /// interval lane gates): the at-rest check could not look at exactly the
 /// same corpus documents as at `f64`. This is the corpus-level pin of
-/// `Interval::gate_at_rest_declared` actually validating — gutting it
+/// `Interval::census_at_rest` actually validating — gutting it
 /// leaves the could-not-look documents clean and reds this row. (The
 /// refusing-subject pins for every certifying arm are `topo`'s
 /// `at_rest_policy_tests`.)

@@ -377,6 +377,9 @@ impl<'a, T: Decide> Net<'a, T> {
     fn read(&self, q: Point3<T>, band: Band) -> Read<T> {
         let moved = q - self.centre;
         let key_q = [moved.x, moved.y, moved.z].map(middle);
+        // Best first, not depth first: a queue keyed on each cell's
+        // nearness to the sample, so this walk is not
+        // `geom_core::bisect`'s, whose order is depth first.
         let mut seq = 0usize;
         let mut queue = std::collections::BinaryHeap::new();
         let mut push = |queue: &mut std::collections::BinaryHeap<Queued<T>>, cell: Cell<T>| {

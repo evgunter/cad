@@ -1559,8 +1559,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             geom_core::Lever::unsourced(hyp),
         ),
     )?;
-    let perp_a = a.axis_line().offset(b.origin).norm();
-    let perp_b = b.axis_line().offset(a.origin).norm();
+    let perp_a = a.axis_line().distance(b.origin);
+    let perp_b = b.axis_line().distance(a.origin);
     norm_gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
 
     // --- The transfer parameters (doc above). The sense margin is the

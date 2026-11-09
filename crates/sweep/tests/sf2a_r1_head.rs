@@ -16,7 +16,7 @@ use topo::{Body, ChartMove, FaceKey, ReplaceFaceError};
 /// has FOUR distinct planes (one cube face, two strips, one corner
 /// patch).
 fn chamfered_cube() -> Body<f64> {
-    let body = sweep::test_support::cube(1.0, Tol::witness());
+    let body = sweep::test_support::cube::<f64>(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
     sweep::chamfer::chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -26,6 +26,7 @@ fn chamfered_cube() -> Body<f64> {
     )
     .expect("a cube chamfers")
     .body
+    .into_body()
 }
 
 /// One chart as this file reads it: the faces wearing it, and the

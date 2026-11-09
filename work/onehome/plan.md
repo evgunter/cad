@@ -130,3 +130,12 @@ turns out to need one of the clusters above moves back.
 ## Exit criteria
 
 None set: the program closes when its slate is empty.
+
+## Split (2026-11-08)
+
+PRs 6371 and 6380 landed, and ONEHOME measured 78 budget points against 35. It was split along its seams:
+- **BOXFINISH** (`work/boxfinish/`) holds the rows that retire Ev's box-scalar switch: the side reader over a box, the tier-3 cost in replays, check 7's NURBS quadrature, the f64 hairline revolves, and the parked deletion row.
+- **ONEROUND** (`work/oneround/`) holds the rows on f64 rounding, levers and the consumed extent that PRs 6380 and 6391 filed.
+- **ONEHOME keeps** two things:
+  - `topo::star` stages 2 and 3, with the rows they fold: the run loops, the pierce's strut facing, the vertex-pair planner's nesting, the germ signing, the vertex section, the sliver vertex and the closed keel.
+  - The finished body's follow-ups: `CertifiedBody` as a second finished type, the Boolean's operand re-gate, the placement primitives, and the rigid motion's re-certification.

@@ -3,13 +3,13 @@
 //! the faces of a body and wants to touch only the faces that can reach
 //! it.
 //!
-//! Each box is [`crate::boolean::boxes::face_box`] at the sweep pad: a
-//! genuine superset of the face's locus on every surface kind, so a face
+//! Each box is the face's cover's ([`crate::face_cover`]) at the sweep
+//! pad: a genuine superset of the face's locus on every surface kind, so a face
 //! whose box misses a query box cannot meet anything the query box
 //! encloses. That is the only claim, and it runs in the conservative
 //! direction (a box-level miss is a disjointness certificate; a box-level
 //! meet says nothing): a caller prunes with it and decides with its own
-//! exact predicates. A POISON box (an unboxable boundary edge) meets every
+//! exact predicates. A POISON box (a face with no cover) meets every
 //! query, so an unboxable face is never pruned away.
 //!
 //! Every face of the body is boxed, in any shell of any solid: the faces
@@ -19,7 +19,6 @@ use bvh::{Aabb, Bvh};
 use geom_core::{Band, Bounds, Decide};
 
 use crate::body::Body;
-use crate::boolean::BooleanError;
 use crate::boolean::boxes::{face_box, sweep_pad};
 use crate::entity::FaceKey;
 
@@ -42,25 +41,20 @@ pub struct FaceBoxes {
 impl FaceBoxes {
     /// Boxes every face of `body` under `band`, and builds the tree once.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// The face that could not be boxed, with the box builder's own
-    /// [`BooleanError`]: a cylinder carrier whose axis is no direction,
-    /// which tier 3 refuses at rest. Boxed, because a [`BooleanError`]
-    /// is large.
-    pub fn of<T: Decide + Bounds>(
-        body: &Body<T>,
-        band: Band,
-    ) -> Result<Self, Box<(FaceKey, BooleanError)>> {
+    /// As [`crate::face_cover`], on a torn body.
+    #[must_use]
+    pub fn of<T: Decide + Bounds>(body: &Body<T>, band: Band) -> Self {
         let pad = sweep_pad(band);
         let mut faces = Vec::new();
         let mut boxes = Vec::new();
         for (face, _) in body.faces() {
             faces.push(face);
-            boxes.push(face_box(body, face, pad, band).map_err(|e| Box::new((face, e)))?);
+            boxes.push(face_box(body, face, pad, band));
         }
         let tree = Bvh::build(&boxes);
-        Ok(Self { faces, boxes, tree })
+        Self { faces, boxes, tree }
     }
 
     /// How far every box reaches past its face's locus: a box's cells
@@ -109,7 +103,7 @@ mod tests {
         let tol = Tol::witness();
         let body: Body<f64> = crate::test_support::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let band = Band::linear(tol).expect("the witness band");
-        let boxes = FaceBoxes::of(&body, band).expect("every face boxes");
+        let boxes = FaceBoxes::of(&body, band);
         let near_top = boxes.meeting([0.4, 0.4, 0.9], [0.6, 0.6, 1.1]);
         assert_eq!(
             near_top.len(),

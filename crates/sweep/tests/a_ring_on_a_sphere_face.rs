@@ -34,7 +34,7 @@ const SLAB: Bounds = [(0.0, 4.0), (0.0, 4.0), (0.0, 1.0)];
 fn boxed(b: Bounds) -> AtRestBody<f64> {
     finished(
         "the box",
-        brick(b[0], b[1], b[2], Tol::witness()),
+        brick::<f64>(b[0], b[1], b[2], Tol::witness()),
         Tol::witness(),
     )
 }

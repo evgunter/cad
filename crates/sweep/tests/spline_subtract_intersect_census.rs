@@ -87,6 +87,7 @@ fn wavy() -> topo::Body<f64> {
     sweep::loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0, 2.0, 3.0]), 2, tol())
         .expect("the wavy loft skins")
         .body
+        .into_body()
 }
 
 /// The block `x, z ∈ [−1, 1]`, `−2 ≤ y ≤ x·z`, lofted along `z`.
@@ -108,6 +109,7 @@ fn saddle() -> topo::Body<f64> {
     )
     .expect("the saddle block lofts")
     .body
+    .into_body()
 }
 
 /// A frustum about `y`, radius `r0` at `y0` and `r1` at `y1`, and its
@@ -558,7 +560,7 @@ fn finding_a_cavity_with_its_spline_walls_unreversed_passes_the_gate_at_the_true
     for &(k, _) in &walls {
         wrong = wrong.flipped_face_sense_for_tests(k).unwrap();
     }
-    let admitted = AtRestBody::validate(wrong, t).expect("the gate admits the wrong-sense cavity");
+    let admitted = topo::finish(wrong, t).expect("the gate admits the wrong-sense cavity");
     let v_wrong =
         topo::test_support::volume_at("the wrong-sense cavity", &admitted, t, 1e-6).volume;
     assert!((v_right - 135.0).abs() < 1e-6, "the cavity: {v_right}");

@@ -1640,9 +1640,11 @@ fn torus_between<T: Decide>(
 ) -> Result<Placed, geom_core::Indeterminate> {
     let mut worst = T::zero();
     for &p in points {
-        let w = p - center;
-        let h = w.dot(axis);
-        let rho = (w - axis * h).norm();
+        let (h, rho) = geom::Line {
+            origin: center,
+            dir: axis,
+        }
+        .height_and_distance(p);
         // The torus's equation over `2r`, the offset times `G`.
         let product = ((rho - big).powi(2) + h.powi(2) - small.powi(2))
             * ((rho + big).powi(2) + h.powi(2) - small.powi(2));

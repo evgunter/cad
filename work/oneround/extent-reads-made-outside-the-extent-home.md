@@ -59,3 +59,7 @@ sites), `pcurve_cache` spiric `chart_tilt` (`of_torus`), `intersect`
 `chord_join` `holds_outer`. Each should read the lever from its own
 pivot (`lever_from(pivot)`), which moves its margin and wants the
 row's own differential.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.

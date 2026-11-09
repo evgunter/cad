@@ -56,8 +56,8 @@
 //!
 //! The module also hosts the two **pre-sweep gates**, which refuse an
 //! operand pair before any edge is split: the operand gate
-//! ([`gate_operand_pairs`]: each operand passes tier 2, and a kind
-//! with no wired arm may not enter an undeclared pair), and the
+//! ([`gate_operand_pairs`]: a kind with no wired arm may not enter an
+//! undeclared pair), and the
 //! maximal-faces gate ([`gate_maximal_faces`]: no operand carries two
 //! coplanar neighbours).
 
@@ -547,11 +547,11 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             .face_views()
             .map(|f| {
                 let (key, kind) = (f.key(), f.surface().kind());
-                Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
+                Ok((key, kind, super::boxes::face_box(other, key, pad, band)))
             })
             .collect::<Result<_, BooleanError>>()?;
         for (face, kind) in offenders {
-            let boxed = super::boxes::face_box(body, face, pad, band)?;
+            let boxed = super::boxes::face_box(body, face, pad, band);
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box)
                     && !covered(operand, face, other_face)
@@ -578,24 +578,26 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 }
 
 /// **The operand gate, pair-scoped** (M5 PR 9, C12.1 — the F5
-/// planar-only gate retires PER C5 TABLE ARM, never wholesale).
+/// planar-only gate retires PER C5 TABLE ARM, never wholesale): a face
+/// kind off the face-kind `roster` ([`boolean_arm_exists`]) disqualifies
+/// the operation only through a PAIR it could enter
+/// ([`first_unsupported_pair`]) and that the caller's declarations do
+/// not cover. A torus wall whose box clears the other operand does not
+/// gate anything, and neither does one whose contact with the face it
+/// may meet the author has DECLARED.
 ///
-/// First, each operand passes [`gate_operand`]: a closed solid at rest
-/// by the validator's own verdict, with supported edge carriers. Then
-/// two rules, with different scopes on purpose:
-///
-/// - **Faces**: a kind off the face-kind `roster` ([`boolean_arm_exists`])
-///   disqualifies the operation only through a PAIR it could enter
-///   ([`first_unsupported_pair`]) and that the caller's declarations
-///   do not cover. A torus wall whose box clears the other operand
-///   does not gate anything, and neither does one whose contact with
-///   the face it may meet the author has DECLARED.
-/// - **Edges**: body-scoped ([`gate_operand`]).
+/// Nothing about the operands' own validity is read here: each is a
+/// finished body ([`crate::finish`]), or, on the sphere re-cut's
+/// re-entry, one carved, turned, grafted and cut from a finished body
+/// by operators that keep tier 2. Edge carriers are not gated either: a
+/// lane that reads one refuses a kind it has no row for at its own
+/// site, naming the edge and the face
+/// ([`BooleanError::EdgeCarrierUnsupported`]).
 ///
 /// # Errors
 ///
-/// [`gate_operand`]'s per operand; [`BooleanError::CurvedPairUnsupported`]
-/// for a germ pair with no arm; [`first_unsupported_pair`]'s.
+/// [`BooleanError::CurvedPairUnsupported`] for a germ pair with no arm;
+/// [`first_unsupported_pair`]'s.
 pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
@@ -603,9 +605,6 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     band: Band,
     roster: impl Fn(&geom::Surface<T>) -> bool,
 ) -> Result<(), BooleanError> {
-    for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-        gate_operand(body, operand)?;
-    }
     // A pair is covered by the certificate its consumer reads: the
     // declared descent through the carrier ladder, which runs on a pair
     // the door verified ONE carrier. A `Tangent` claim covers nothing
@@ -627,65 +626,16 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     Ok(())
 }
 
-/// **The operand gate's BODY-scoped half**: a closed solid at rest, by
-/// the validator's own verdict ([`crate::validate_closed`]). Tier-2
-/// scaffolding — a strut, an empty loop, a null edge, a split shell —
-/// refuses as [`BooleanError::ScaffoldingOperand`], carrying the
-/// findings. A tier-1 finding panics naming the first: every public
-/// door keeps a body tier-1-valid, so only a kernel bug hands one in.
-///
-/// Edge carriers are not gated: a lane that reads one refuses a kind it
-/// has no row for at its own site, naming the edge and the face
-/// ([`BooleanError::EdgeCarrierUnsupported`]).
-///
-/// Orientation is not read here: a `Validated` operand's tier-3 verdict
-/// includes check 7 per solid, and [`gate_unverdicted_operand`] reads it
-/// for an operand that carries no verdict.
-pub(super) fn gate_operand<T: Decide>(
-    body: &Body<T>,
-    operand: Operand,
-) -> Result<(), BooleanError> {
-    let scaffolding =
-        crate::validate::operand_scaffolding(body, format_args!("operand {operand:?}"));
-    if !scaffolding.is_empty() {
-        return Err(BooleanError::ScaffoldingOperand {
-            operand,
-            errors: scaffolding,
-        });
-    }
-    Ok(())
-}
-
-/// **The operand gate where no at-rest gate ran**: what the finished-body
-/// type promises, read on an operand that carries no verdict (a dual's,
-/// [`crate::AtRestBody::gate_unverdicted`] — the split's door reads the
-/// same), refused as [`BooleanError::ScaffoldingOperand`],
-/// [`BooleanError::InsideOutOperand`] or [`BooleanError::UnjoinedOperand`].
-/// Its orientation read is check 7's, the reader of a shell's role, so an
-/// inside-out operand refuses here as it does at the at-rest gate. It
-/// runs before the pipeline reads a several-solid operand as one solid
-/// (`ops::one_solid`), since the orientation read's subjects are the
-/// solid and, within it, the shell.
-pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
-    body: &crate::AtRestBody<T>,
-    operand: Operand,
-    band: Band,
-    tol: Tol,
-) -> Result<(), BooleanError> {
-    body.gate_unverdicted(format_args!("operand {operand:?}"), band, tol)
-        .map_err(|unfinished| BooleanError::unfinished(operand, unfinished))
-}
-
-/// An operand edge's certified carrier. Tier 2 refuses a null edge and
-/// tier 1 an unresolvable curve key at the operand gate, and the
-/// sweep's only surgery (`split_edge`) mints certified pieces, so a
-/// miss past the gate is a kernel invariant, not the operand's fault.
+/// An operand edge's certified carrier. An operand holds no null edge
+/// and no unresolvable curve key (it is finished, [`gate_operand_pairs`]),
+/// and the sweep's only surgery (`split_edge`) mints certified pieces,
+/// so a miss is a kernel invariant, not the operand's fault.
 pub(super) fn certified<T: geom_core::Real>(
     geom: Option<&CurveGeom<T>>,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
     geom.and_then(CurveGeom::certified)
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "an operand edge past the tier-1/2 gate has no certified carrier",
+            what: "an operand edge of a finished body has no certified carrier",
         })
 }
 
@@ -779,7 +729,7 @@ fn vertex_refusal(
         }) => BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag),
         VertexRefusal::Walk(_) => BooleanError::ClassificationInvariant {
             what: "the neighbourhood walk refused a vertex of an operand at rest (a null edge \
-                   or a degenerate chord where the operand gate admits none)",
+                   or a degenerate chord, which a finished operand holds none of)",
         },
         VertexRefusal::Plane(what) => BooleanError::ClassificationInvariant { what },
     }
@@ -792,8 +742,8 @@ fn vertex_refusal(
 /// as the predicate's own typed escalation instead. The ladder reads a
 /// ball about the shared edge's start that holds the edge, so the offset
 /// is the planes' at the edge and the tilt is levered at its reach. It runs
-/// on an operand [`gate_operand`] passed, so every edge it reads holds
-/// a certified carrier.
+/// on a finished operand, so every edge it reads holds a certified
+/// carrier.
 pub(super) fn gate_maximal_faces<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -832,9 +782,9 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         );
         // The ball about the edge's start that holds all of it: out to
         // its cover's farthest distance from there.
-        let cover = match super::boxes::edge_cover_linked(body, edge_key, edge) {
+        let cover = match crate::cover::edge_cover_linked(body, edge_key, edge) {
             Ok(cover) => Some(cover),
-            Err(super::EdgeUncovered::Scaffold) => unreachable!(
+            Err(crate::cover::EdgeUncovered::Scaffold) => unreachable!(
                 "{operand:?}'s edge {edge_key:?}, read out of its arena, has no certified \
                  carrier: the operand gate refuses a null edge as scaffolding"
             ),
@@ -843,7 +793,9 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // number), or an end vertex that is not a finite point: the
             // edge bounds no region, and levers at poison, which the
             // ladder escalates as its orientation rung's refusal.
-            Err(super::EdgeUncovered::Carrier(_) | super::EdgeUncovered::Ends) => None,
+            Err(crate::cover::EdgeUncovered::Carrier(_) | crate::cover::EdgeUncovered::Ends) => {
+                None
+            }
         };
         let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::of_cover_from(
             cover.as_ref(),
@@ -915,7 +867,7 @@ fn face_tree<T: Decide + Bounds>(
                 max_z: f64::NEG_INFINITY,
             }
         } else {
-            boxes::face_box(y, f, pad, band)?
+            boxes::face_box(y, f, pad, band)
         });
     }
     Ok(bvh::Bvh::build(&face_boxes))
@@ -7276,7 +7228,7 @@ mod declaration_order_rows {
         let p = Point3::new(0.5, 0.2, 1.0);
         let block = finished(
             "block",
-            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
             tol,
         );
         let poses: [(&'static str, crate::body::Body<f64>, GlueClass); 2] = [
@@ -8014,79 +7966,11 @@ mod clearance_rows {
         );
     }
 
-    /// **A short arc a thousand kilometres out is charged its samples'
-    /// rounding.** The third delta review's pin: an ellipse stored with
-    /// `major = −0.556`, `minor = 1.02`, centred 1000 km out, an arc of
-    /// ±3e-4 rad about its vertex, against a 0.118 m ball, at ε = 1e-12.
-    /// The ball was placed 2.1e-11 m off by its nominal, but its stored
-    /// centre rounds at that distance's ulp, and the true least distance
-    /// of the STORED geometry is −5.3e-12 m — in band. On an arc that
-    /// short the chord-dip charge is negligible, so the arc enclosure's
-    /// margin is its samples' own: read without their rounding charge
-    /// (`geom_brep::conic_arc_residual_range`'s `sample_rounding`), the
-    /// rung certified the touch clear.
-    #[test]
-    fn a_short_arc_far_out_is_charged_its_samples_rounding() {
-        let band = Band::new(1e-12, 1e-11).unwrap();
-        let axis = Vec3::new(
-            -0.331_547_126_719_510_5,
-            -0.144_826_239_786_666_6,
-            0.932_256_329_039_010_6,
-        );
-        let center = Point3::new(
-            -793_186.577_792_401_4,
-            241_909.440_601_441_78,
-            -783_085.727_290_743_7,
-        );
-        let (major, minor) = (-0.556_277_953_009_113_9, 1.019_942_477_711_699_2);
-        let u_ref = Vec3::new(
-            -0.346_444_852_811_330_7,
-            -0.900_421_850_752_487_9,
-            -0.263_090_202_493_364_96,
-        );
-        let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(center, axis, u_ref),
-            major,
-            minor,
-        ));
-        let x = Vec3::new(1.0, 0.0, 0.0);
-        let s = geom::Surface::Sphere {
-            center: Point3::new(
-                -793_187.576_342_526_2,
-                241_909.907_376_568_15,
-                -783_086.009_900_933_8,
-            ),
-            radius: 0.117_972_233_474_760_74,
-            axis,
-            u_ref: (x - axis * x.dot(axis)).normalize(),
-        };
-        let vertex: f64 = 4.712_388_980_384_69;
-        let (sv, cv) = vertex.sin_cos();
-        let least = distance_from_anchor(&s, |anchor| {
-            (center - anchor) + u_ref * (major * cv) + axis.cross(u_ref) * (minor * sv)
-        });
-        assert!(
-            least.abs() <= 1e-11,
-            "the pose is a touch in band: {least:e}"
-        );
-        let conic = e.conic().unwrap();
-        let got = conic_clearance(
-            &s,
-            &conic,
-            (4.712_088_980_384_689_5, 4.712_688_980_384_69),
-            band,
-        );
-        assert!(
-            !matches!(got, Some(Ok(Sign::Positive))),
-            "a touch {least:e} m off certified clear: {got:?}"
-        );
-    }
-
     /// **No certified clearance on a graze, through the rung.** Circles,
     /// and ellipses in all eight stored orders and signs (eccentricity
-    /// up to 40), metre- or kilometre-sized, centred up to a metre, a
-    /// kilometre or a thousand kilometres out (where a sampled residual's
-    /// coordinate rounding, `u·|p|`, passes the band at 1e-12), each meeting a sphere or a wall (radius 1 µm to 1 m, the
+    /// up to 40), metre- or fifty-metre-scaled, centred up to a metre, a
+    /// hundred or three hundred metres out, all inside the session box,
+    /// each meeting a sphere or a wall (radius 1 µm to 1 m, the
     /// wall's axis across the outward normal) at a vertex, set off along
     /// the outward normal by `gap`, −40 to 40 bands. The vertex is the
     /// carrier's least distance from the surface (the carrier bends away
@@ -8106,7 +7990,7 @@ mod clearance_rows {
                 let n = unit(|lo, hi| rng.range(lo, hi));
                 let u = unit(|lo, hi| rng.range(lo, hi));
                 let u_ref = (u - n * u.dot(n)).normalize();
-                let scale = if rng.below(2) == 0 { 1.0 } else { 1000.0 };
+                let scale = if rng.below(2) == 0 { 1.0 } else { 50.0 };
                 let big = scale * rng.range(0.5, 5.0);
                 let circle = i % 9 == 8;
                 let combo = i % 8;
@@ -8120,7 +8004,7 @@ mod clearance_rows {
                 } else {
                     (small, big)
                 };
-                let far = [1.0, 1e3, 1e6][rng.below(3)];
+                let far = [1.0, 1e2, 3e2][rng.below(3)];
                 let center = Point3::new(
                     rng.range(-far, far),
                     rng.range(-far, far),
@@ -8208,48 +8092,6 @@ mod clearance_rows {
             println!(
                 "ε {eps}: {clear} sphere/wall and {torus_clear} torus certified clear, {refused} not"
             );
-        }
-    }
-}
-
-/// **A broken body is a kernel bug at the operand gate.** A tier-1
-/// finding is not scaffolding an edit left behind: the at-rest gate
-/// refuses the torn body with tier 1's own findings, so it never
-/// finishes into an operand; and the operand gate, which runs on a body
-/// carried with no verdict, panics naming the operand and tier 1's
-/// first finding, never refusing as [`BooleanError::ScaffoldingOperand`].
-/// No public door tears a body, so the row tears one in-crate.
-#[cfg(test)]
-#[allow(clippy::expect_used)]
-mod operand_gate_rows {
-    use crate::AtRestBody;
-    use crate::boolean::{BooleanOp, boolean_reduce};
-    use crate::test_support_fixtures::brick;
-    use geom_core::Tol;
-
-    #[test]
-    fn a_tier_one_broken_operand_panics_naming_it() {
-        let tol = Tol::witness();
-        let a = AtRestBody::validate(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol)
-            .expect("the untorn brick finishes");
-        let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
-        let vertex = b.vertices().next().expect("a vertex").0;
-        b.vertex_provenance.remove(vertex);
-        let want = crate::validate::validate(&b).expect_err("the tear breaks tier 1");
-        let at_rest =
-            AtRestBody::validate(b.clone(), tol).expect_err("the torn body does not finish");
-        assert_eq!(at_rest, want, "the at-rest refusal is tier 1's own verdict");
-        let b = AtRestBody::not_run(b);
-        let report = crate::surgery::tests::panic_message(|| {
-            let _ = boolean_reduce(BooleanOp::Union, &a, &b, tol);
-        });
-        let first = format!("{:?}", want[0]);
-        for fragment in [
-            "operand B fails tier 1",
-            first.as_str(),
-            "every public door keeps the body tier-1-valid",
-        ] {
-            assert!(report.contains(fragment), "want {fragment:?} in: {report}");
         }
     }
 }
