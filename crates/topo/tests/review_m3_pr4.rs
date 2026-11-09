@@ -724,15 +724,15 @@ fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
             topo::ValidationError::Pcurve {
                 finding:
                     topo::PcurveMintError::Certify {
-                        half_edge,
-                        error:
-                            geom_brep::PcurveCertifyError::CarrierOffChart {
-                                chart: geom::SurfaceKind::Cone,
-                                ..
-                            },
-                        ..
+                        half_edge, error, ..
                     },
-            } => Some(*half_edge),
+            } if matches!(
+                geom_brep::IncidenceRead::of(error),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ) =>
+            {
+                Some(*half_edge)
+            }
             _ => None,
         })
         .collect();

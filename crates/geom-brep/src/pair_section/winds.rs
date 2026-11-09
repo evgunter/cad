@@ -114,6 +114,7 @@ impl Winding {
 
 /// **Why a loop's winding was not read.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
 pub enum WindsRefusal {
     /// The carrier is not a spline.
     NotSpline,
@@ -128,6 +129,40 @@ pub enum WindsRefusal {
     /// The loop's turning is not a whole number of turns: it does not
     /// close.
     Open,
+}
+
+impl WindsRefusal {
+    /// **The one sentence this refusal is rendered by.**
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::NotSpline => "the loop's carrier is not a spline",
+            Self::Unseparated => {
+                "a piece of the loop's tube reaches the axis or core it turns about, or turns \
+                 too far to be read from its ends"
+            }
+            Self::Untiled => "the loop's tube does not tile its carrier in order",
+            Self::Unordered => "the walk through the loop's tube is not shown to run round it once",
+            Self::Open => "the loop's turns are not a whole number",
+        }
+    }
+
+    /// **The recourse every rendering of this refusal ends with.** A
+    /// carrier that is not a spline, a tube that does not tile it, and a
+    /// closed loop whose turns are not whole contradict what the march
+    /// built (`Tube::of` checks the carrier, the tube
+    /// chain tiles by construction, and a closed fit's gap lies far
+    /// within `CLOSING_SLACK`), so each is a kernel defect. A tube
+    /// that cannot be read apart from a channel, or walked once round,
+    /// is a loop the reading does not settle yet, and a looser
+    /// tolerance only widens the tube.
+    #[must_use]
+    pub const fn recourse(self) -> &'static str {
+        match self {
+            Self::NotSpline | Self::Untiled | Self::Open => geom_core::KERNEL_DEFECT_ENDING,
+            Self::Unseparated | Self::Unordered => geom_core::NOT_YET_ENDING,
+        }
+    }
 }
 
 /// **The largest principal difference trusted as a piece's turning**:

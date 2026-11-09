@@ -110,6 +110,8 @@ mod overlap;
 pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
 mod section_table;
+#[cfg(test)]
+mod section_unbuilt_rows;
 mod spline_known;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
@@ -2807,6 +2809,11 @@ pub fn forget_branches(on: bool) {
 /// or nudges a part when it reads `Tangent`. Then
 /// carry it and delete this paragraph and the disposition row with it.
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    test,
+    strum_discriminants(name(SectionUnbuiltKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum SectionUnbuilt {
     /// The pair's section refused at the glue door, decided: an operand
     /// whose radius is not definitely positive.
@@ -2844,27 +2851,51 @@ pub enum SectionUnbuilt {
 }
 
 impl SectionUnbuilt {
+    /// **The recourse this refusal ends with**, where it is the
+    /// refusal's own: `None` exactly on the arms whose payload is ended
+    /// at the door that reads it ([`geom_brep::recourse::Ended`]).
+    ///
+    /// A carrier bound past its pad is a certified bound outrunning what
+    /// is read, the kernel's approximation limit; a NaN bound, or a tube
+    /// that cannot be read at all, is unreadable, which no tolerance
+    /// repairs. A loop's seat is a knot edit at a parameter the kernel
+    /// chose strictly inside the carrier, so its refusal is the kernel's.
+    #[must_use]
+    pub fn recourse(&self) -> Option<&'static str> {
+        match self {
+            Self::Refused(_) | Self::March(_) => None,
+            Self::Tangent(_) => {
+                Some("Recourse: move one face so the surfaces clearly cross or clearly part")
+            }
+            Self::NoLane { .. } => Some("Recourse: run the operation at f64"),
+            Self::Winds(why) => Some(why.recourse()),
+            Self::PadShort { hull_sup, .. } if hull_sup.is_nan() => {
+                Some(geom_core::KERNEL_DEFECT_ENDING)
+            }
+            Self::PadShort { .. } => Some(geom_core::KERNEL_LIMIT_RECOURSE),
+            Self::TubeUnread | Self::Seat(_) => Some(geom_core::KERNEL_DEFECT_ENDING),
+            Self::Unwalked(why) => Some(why.recourse()),
+        }
+    }
+
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
         match self {
-            Self::Refused(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
-            Self::Tangent(why) => write!(
-                f,
-                "{why}. Recourse: move one face so the surfaces clearly cross or clearly part"
-            ),
+            Self::Refused(e) => return write!(f, "{}", geom_brep::recourse::read_at(e, at)),
+            Self::March(e) => return write!(f, "{}", geom_brep::recourse::read_at(e, at)),
+            Self::Tangent(why) => write!(f, "{why}"),
             Self::NoLane { scalar } => write!(
                 f,
                 "the section is marched on the general rung, which is written at f64 and not at \
-                 {scalar}. Recourse: run the operation at f64"
+                 {scalar}"
             ),
-            Self::March(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::Winds(why) => write!(
                 f,
-                "a marched loop's turns about an operand's axis or core could not be read \
-                 ({why:?})"
+                "a marched loop's turns about an operand's axis or core could not be read: {}",
+                why.sentence()
             ),
             Self::TubeUnread => write!(
                 f,
@@ -2876,17 +2907,21 @@ impl SectionUnbuilt {
                 "a marched loop's carrier lies {hull_sup:e} m from the surfaces, past the {pad:e} m \
                  its points are read within"
             ),
-            Self::Seat(e) => write!(
+            Self::Seat(_) => write!(
                 f,
-                "the section's closed loop could not be opened at its first site ({e})"
+                "the section's closed loop could not be opened at its first site: the knot edit \
+                 refused"
             ),
             Self::Unwalked(why) => write!(
                 f,
                 "whether a marched loop's points lie on its fitted carrier could not be read: \
-                 {why}. {}",
-                why.recourse()
+                 {why}"
             ),
+        }?;
+        if let Some(recourse) = self.recourse() {
+            write!(f, ". {recourse}")?;
         }
+        Ok(())
     }
 }
 

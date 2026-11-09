@@ -149,12 +149,13 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
             *e,
             topo::PcurveMintError::Certify {
                 half_edge,
-                error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Cone,
-                    ..
-                },
+                ref error,
                 ..
-            } if half_edge == made.he_plus || half_edge == made.he_minus
+            } if (half_edge == made.he_plus || half_edge == made.he_minus)
+                && matches!(
+                    geom_brep::IncidenceRead::of(error),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                )
         )
     };
     let findings = validate_pcurves(&body, band());
