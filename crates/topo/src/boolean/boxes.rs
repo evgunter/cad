@@ -108,7 +108,8 @@
 //!   clear (`bool4r1_probes::probe_d`).
 //! - `census::depth_gap`, arm 1's clear on a gap in depth, GRANTS: it
 //!   reads each face's cover's distance range from an axis or a centre
-//!   ([`face_cover`]), and its boundary's ([`boundary_cover`]) where a
+//!   ([`face_cover`]), and its boundary's
+//!   ([`boundary_cover`](crate::cover::boundary_cover)) where a
 //!   plane face's least lies on it. A cover that holds more than its
 //!   face can only raise a face's greatest depth and lower its least,
 //!   so a looser reading REFUSES a pair that is apart and can never
@@ -158,16 +159,16 @@
 //!   reads transversality on, so it is more exact work, never a crossing
 //!   claimed on box overlap.
 //! - `splitting::containment`'s loop extent (`extent_from`, each edge's
-//!   [`edge_cover`](crate::cover::edge_cover) folded into a ball about the point) sizes the lever
+//!   [`edge_cover`] folded into a ball about the point) sizes the lever
 //!   the point-in-loop decisions are read on: a bigger cover lengthens
 //!   it, so a decision lands in band more readily and the walk REFUSES
 //!   more, never a wrong side. A cover TIGHTER than its edge is the
 //!   unsound direction: the lever could under-state a reading's reach.
 //! - `boolean::ruled_region`'s reach bound (`reach_bound`, each boundary
-//!   edge's [`edge_cover`](crate::cover::edge_cover)) sizes the lever of a ruled face's crossings
+//!   edge's [`edge_cover`]) sizes the lever of a ruled face's crossings
 //!   in the same direction: a bigger cover lengthens it and can only
 //!   REFUSE more, never place a crossing wrongly.
-//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`](crate::cover::edge_cover)
+//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`]
 //!   read along the world axes, `Cover::box_in`, from below through
 //!   `geom_brep::edge_coordinate_reach_below`) reads NO looseness: on a
 //!   line the cover's box is its segment's, at its ends, and on a circle
@@ -2588,8 +2589,8 @@ pub(crate) mod tests {
 
     /// **The §Geometry ORACLE**: the exact extremes of `e·S` over the
     /// chart rectangle, in closed form, spelled from the geometry
-    /// rather than from [`torus_rect_extent`]: what the rows measure
-    /// the lanes against, and not what any lane computes.
+    /// rather than from the patch cover's [`Cover::support`]: what the
+    /// rows measure the lanes against, and not what any lane computes.
     ///
     /// At fixed `v`, `f = e·c + (R + r cos v)·a(u) + r sin v·e_n` is
     /// affine in `a(u) = |e_⊥|·cos(u − u*)` with POSITIVE slope
