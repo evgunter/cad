@@ -517,8 +517,11 @@ pub(crate) enum Outcome {
 ///
 /// # Errors
 ///
-/// The torus that is not decided a ring, and a free-form carrier, which
-/// no kind makes injective: its own pairs go to the monotone arm.
+/// The torus that is not decided a ring, carrying the convention's
+/// refusal ([`geom_brep::TorusRefusal`]): a half decided outside it, or
+/// a half the band cannot decide, which escalates as its own margin and
+/// is never read as the definite miss. A free-form carrier, which no
+/// kind makes injective: its own pairs go to the monotone arm.
 pub(crate) fn by_kind(
     face: FaceKey,
     surface: &Surface<Interval>,
@@ -533,11 +536,12 @@ pub(crate) fn by_kind(
             major_radius,
             minor_radius,
             ..
-        } => geom::RingTorus::of_at(*major_radius, *minor_radius, RING_TORUS, band)
+        } => geom_brep::TorusRefusal::require_at(*major_radius, *minor_radius, RING_TORUS, band)
             .map(|_| ())
-            .map_err(|_| EngineRefusal::TorusNotRing {
+            .map_err(|refusal| EngineRefusal::TorusNotRing {
                 face,
                 side: Which::First,
+                refusal,
             }),
         Surface::Nurbs(_) | Surface::Approx(_) => Err(EngineRefusal::Unsupported {
             carrier: "a free-form face, which no carrier kind makes injective",
@@ -4845,6 +4849,60 @@ mod rows {
                 true
             ),
             "a periodic range through the seam"
+        );
+    }
+}
+
+/// **`by_kind` keeps the torus convention's verdict** (D3,
+/// escalate-never-guess): a torus whose ring half falls in the band is
+/// refused as that half undecided, never as a torus decided not a ring,
+/// and one whose tube is wider than its ring as the half decided.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod by_kind_rows {
+    use super::{EngineRefusal, by_kind};
+    use geom::Surface;
+    use geom_brep::{TorusConvention, TorusVerdict};
+    use geom_core::interval::Interval;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn torus(major: f64) -> Surface<Interval> {
+        let p = |x: f64| Interval::from_bounds(x, x);
+        Surface::Torus {
+            center: Point3::new(p(0.0), p(0.0), p(0.0)),
+            axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+            major_radius: p(major),
+            minor_radius: p(1.0),
+            u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
+        }
+    }
+
+    #[test]
+    fn a_torus_the_band_cannot_decide_a_ring_escalates_its_half() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let face = crate::FaceKey::default();
+        let verdict = |major: f64| match by_kind(face, &torus(major), band) {
+            Err(EngineRefusal::TorusNotRing { refusal, .. }) => {
+                assert_eq!(refusal.convention, TorusConvention::Ring, "{major}");
+                refusal.verdict
+            }
+            other => panic!("{major}: a torus not decided a ring: {other:?}"),
+        };
+        assert!(
+            matches!(
+                verdict(1.0 + 0.5 * (band.zero() + band.escalate())),
+                TorusVerdict::Undecided(_)
+            ),
+            "a ring half in band escalates as its own margin"
+        );
+        assert!(
+            matches!(verdict(0.5), TorusVerdict::Refused(_)),
+            "a tube wider than its ring is decided outside the convention"
+        );
+        assert_eq!(
+            by_kind(face, &torus(2.0), band),
+            Ok(()),
+            "a ring is injective"
         );
     }
 }

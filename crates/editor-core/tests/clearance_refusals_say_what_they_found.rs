@@ -182,15 +182,31 @@ fn a_one_face_refusal_names_its_side() {
         "a free-form face, which no carrier kind makes injective second=FaceKey(null)",
         "the payload names the side"
     );
-    assert_eq!(
+    // A torus decided outside the convention (its tube wider than its
+    // ring), and one whose ring half falls in the band: the second is an
+    // escalation of the convention's half, never the definite miss.
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let horn = |major: f64| {
         EngineRefusal::TorusNotRing {
             face: k,
             side: Which::First,
+            refusal: geom_brep::TorusRefusal::require(major, 1.0, band).unwrap_err(),
         }
-        .to_string(),
+        .to_string()
+    };
+    assert_eq!(
+        horn(0.5),
         "face FaceKey(null) of the first side lies on a torus not decided a ring (R > r), so its \
-         carrier meets itself",
+         carrier meets itself: a torus's tube radius is larger than its ring's (margin -0.5 m)",
         "the torus names its side"
+    );
+    let undecided = horn(1.0 + 0.5 * (band.zero() + band.escalate()));
+    assert!(
+        undecided.starts_with(
+            "face FaceKey(null) of the first side lies on a torus not decided a ring (R > r): \
+             whether a torus's tube radius is smaller than its ring radius is undecided: margin "
+        ) && !undecided.contains("meets itself"),
+        "an undecided half is said undecided, never a carrier that meets itself: {undecided}"
     );
     let collapsed = EngineRefusal::CollapsedChart {
         face: k,
