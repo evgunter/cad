@@ -47,6 +47,12 @@
 #     abort (`|e| { Err(e) }`), or the standing read by
 #     `if let Err(Aborts) = e.refusal() { .. }`: the statement view cuts a
 #     record at every `{` and `}`, so the arm and its body are two records;
+#   * the same table spelled through the ladder's one-step keep,
+#     `Err(X::Escalated { diag, .. }) => Rung::kept(diag).map_kept(..)`:
+#     the arm's braces split it on the statement view and its keep may
+#     sit on the next line. Two sites spell it today, `boolean::slit`'s
+#     holding (≈1163) and `chord_join::ring_side` (≈5484), both moved
+#     onto their type's `refusal()` by PR 6576;
 #   * a lone abort arm, `Err(e) => Rung::Aborts(Err(e))`: it is also how
 #     a type with no standing is read (every refusal of it stops the
 #     ladder), and the gate cannot tell the two apart. Seven sites spell it
