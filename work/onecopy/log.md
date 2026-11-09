@@ -881,3 +881,10 @@
   - N2: DESIGN has no rows 1(a)/1(b). They are defined once in ladder.rs as the code's reading of row 1, with no DESIGN change.
   - N5: holding_face_normal absorbs refusals as Ok(None).
   - N6 is checked with 6598's reviewer.
+- 10:45Z Merged PR 6552 (topo-handles) at 51f3ba8b. Gate green at d84f4bde; disjoint from main; the workspace check of the merge is clean.
+- 10:45Z Re-merges, each built and gated:
+  - 6609: main merged (1e44c64a), run-gates clean.
+  - 6614: main merged (69343e3f). One conflict in span_rows.rs: both sides added tests, kept both, with main's hairpin pin adapted to 6614's SpanRefusal. geom-brep+topo 5756/5756.
+  - 6616: main merged (7c1e3679).
+  - 6615 is gating at 87ee1cc9.
+- 10:45Z Disk ran out mid-build. Freed it by removing stale worktrees and a target dir.
