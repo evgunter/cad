@@ -94,3 +94,8 @@
   - The fix pass was sent to the implementer as one adjudicated list of 13 items.
   - **One class to note:** a gate's rows have to go red with the gate off. Here they did not, and the built rows passed a wrong body. That is item 4 of the fix list.
   - Off-target: R2 found the Express-lane bullet duplicated in `memories/agent-lane-operations.md`. That is a `memories/` edit, so it is Ev's. Noted, not fixed.
+- 2026-11-09 — **PR 6613 fix pass in; state-synced for merge.**
+  - The implementer took all 13 items and argued none down; CI is green at `5a2b000b`. I read the seat rule (`boolean::seat_crossed`, the second face's read in `vtxfac`) and accept it: a touch writes nothing on either face, and reads on both only in a cut by the seat.
+  - Filed by the pass: `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` (P1, M, by inspection). The crack and readers rows were restated.
+  - The plan's slate now lists the four glue steps, the umbrella, and the three rows this unit's review left.
+  - The implementer reports a red on main that is not this PR's: the slow-set row `union_fold_face_face_touch::a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line` fails "the body has a value: Unevaluated" on a clean main worktree. Its handling is below.
