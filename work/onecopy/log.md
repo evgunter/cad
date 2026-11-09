@@ -969,3 +969,8 @@
 - 13:00Z Merged PR 6622 (unbuilt-recourse) at gate-green 7f47d090; main had moved only by the STATUS render.
 - 13:02Z unbuilt-recourse → onecopy/unbuilt-recourse-2 on its own NOTE row (no-carrier-touch recourse, range ending). Merged main into the state branch.
 - 13:03Z census-rosters-2 opened PR 6640 (head 8e6f3d42; three rows closed) → FULL review with session_013mPGJ3QbgmieDwjQAcwUog; gating.
+- 13:08Z Four idle lanes dispatched on unassigned rows:
+  - census-rosters → onecopy/point-walk-floors: two-arc clearance floors beside point_walk; ray-segment closest approach.
+  - gate-blind-spots (session_013mPGJ52N2PWfmXiLPTVJMk) → onecopy/first-vertex-reads: the loop at two point keys and the two cycles at a cone's apex (one class).
+  - half-open-angles (session_013mPGJ2rjX4txgofZqneoHj) → onecopy/face-placement: the face-placement dispatch's four copies; the lone off-plane vertex.
+  - branch-band (session_013mPGJ54AuoykfmpoiLWxjq) → onecopy/foot-and-pinch: interval foot seeded far (probe first); uncut split drops pinch coincidences.
