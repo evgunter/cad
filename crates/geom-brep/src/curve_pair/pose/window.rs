@@ -101,7 +101,7 @@ use geom_core::bisect::Step;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 
-use super::super::span::Span;
+use super::super::span::{Place, Span};
 use super::{Conic, Level, level_on, up};
 
 /// The most turns of a window or a ring a span is read over.
@@ -132,6 +132,17 @@ enum Read {
     Recedes = 2,
     /// Off `b`'s span, not its carrier (module docs).
     OffSpan = 3,
+}
+
+/// How a point reads against `b`'s span (`Window::off_span`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SpanRead {
+    /// Every point within the reach is past `z` from the span.
+    Off,
+    /// The point itself is not read past `z` from the span.
+    Near,
+    /// Neither, at the walk's floor or past its budget.
+    Unread,
 }
 
 /// `p` over a piece: lower and upper bounds on `|p|` and on `|p′|`, and
@@ -273,10 +284,24 @@ impl<T: Decide> Window<'_, T> {
         if positive("curve_pair_window_off", h.lo.max(lower) - z) {
             return Some(Read::Off);
         }
-        if away.is_none() {
-            // Only off certifies an arc no ring bounds: a piece that does
-            // not read off is halved.
-            return self.off_span(q, reach, z, band).then_some(Read::Off);
+        // Unless the middle's foot on `b`'s carrier is read inside `b`'s
+        // span, the span is read instead of the carrier.
+        let past = || {
+            !matches!(
+                self.span_b.place(q, self.foot_seed(q), band),
+                Ok(Place::Inside)
+            )
+        };
+        // Only off certifies an arc no ring bounds: where the middle's foot
+        // is not read inside the span, a piece that does not read off the
+        // span is halved, unless its middle itself is not read off it,
+        // which no halving mends.
+        if away.is_none() && past() {
+            return match self.off_span(q, reach, z, band) {
+                SpanRead::Off => Some(Read::Off),
+                SpanRead::Near => Some(Read::On),
+                SpanRead::Unread => None,
+            };
         }
         if (height_recedes && (level_recedes || level_negligible)) || level_dominates {
             return Some(Read::Recedes);
@@ -288,16 +313,19 @@ impl<T: Decide> Window<'_, T> {
         if on(close) || on(gap) || on(self.along_b(m, w, &foot)) {
             return Some(Read::On);
         }
-        self.off_span(q, reach, z, band).then_some(Read::OffSpan)
+        (away.is_some() && past() && self.off_span(q, reach, z, band) == SpanRead::Off)
+            .then_some(Read::OffSpan)
     }
 
     /// **(i) off `b`'s span**, on an arc no ring bounds (module docs):
     /// whether every point within `reach` of `q` lies past `z` from `b`'s
     /// span, by its carrier's point walk ([`geom::Curve3::point_walk`]):
     /// each piece of the span settles where its middle's distance from
-    /// `q`, less its own reach and `reach`, reads past `z`. `false` once a
-    /// piece's reach is within `z`, or past the walk's budget.
-    fn off_span(&self, q: Point3<T>, reach: T, z: T, band: Band) -> bool {
+    /// `q`, less its own reach and `reach`, reads past `z`. Not off once a
+    /// piece's reach is within the band's zero: near where `q` itself is
+    /// not read past `z` from that piece, so that no narrower reach about
+    /// `q` reads it off; unread otherwise, and past the walk's budget.
+    fn off_span(&self, q: Point3<T>, reach: T, z: T, band: Band) -> SpanRead {
         let row = "curve_pair_window_off_span";
         let span = self.span_b;
         let walked = span
@@ -307,11 +335,20 @@ impl<T: Decide> Window<'_, T> {
                     return PieceStep::Settled;
                 }
                 if !positive(row, p.reach - T::from_f64(band.zero())) {
-                    return PieceStep::Stop(());
+                    let near = !positive(row, p.gap - p.reach - z);
+                    return PieceStep::Stop(if near {
+                        SpanRead::Near
+                    } else {
+                        SpanRead::Unread
+                    });
                 }
                 PieceStep::Halve
             });
-        matches!(walked, Ok(None))
+        match walked {
+            Ok(None) => SpanRead::Off,
+            Ok(Some(read)) => read,
+            Err(_) => SpanRead::Unread,
+        }
     }
 
     /// **An upper bound on `d` over the piece of half-width `w` about `m`,
@@ -383,8 +420,10 @@ impl<T: Decide> Window<'_, T> {
         let speed = self.a.speed_hi();
         let walked = geom_core::bisect::bisect([(l, r)], |(pl, pr)| {
             let mid = (pl + pr) / two;
-            if self.off_span(self.a.point_at(mid), speed * (pr - pl) / two, z, band) {
-                return Step::Settled;
+            match self.off_span(self.a.point_at(mid), speed * (pr - pl) / two, z, band) {
+                SpanRead::Off => return Step::Settled,
+                SpanRead::Near => return Step::Stop(()),
+                SpanRead::Unread => {}
             }
             if !positive("curve_pair_window_width", speed * (pr - pl) - z) {
                 return Step::Stop(());
