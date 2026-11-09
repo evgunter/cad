@@ -399,7 +399,9 @@ fn carrier(
         frame.origin + rho(t) * (major + minor * v.cos()) + a * (minor * v.sin())
     };
     let mut depth = depth;
-    let (piece, samples): (Piece<f64>, Vec<Point3<f64>>) = if i % 7 == 2 && i % 3 == 2 && i % 2 == 0
+    let (piece, samples): (Piece<f64>, Vec<Point3<f64>>) = if i % 7 == 2
+        && i % 3 == 2
+        && i.is_multiple_of(2)
     {
         // A ring patch: `R ≥ |r|`, `R` positive, as its premise reads.
         let minor = r.range(0.05, 1.0) * sign(r);
@@ -416,7 +418,7 @@ fn carrier(
                 on(t, w, (major, minor))
             })
             .collect();
-        if i % 4 == 0 {
+        if i.is_multiple_of(4) {
             depth = Around::Circle(Core {
                 center: frame.origin,
                 axis: a,
@@ -438,7 +440,7 @@ fn carrier(
         let major = match i % 3 {
             0 => 0.0,
             1 => minor.abs() * r.range(0.5, 1.0),
-            _ if i % 5 == 0 => minor.abs(),
+            _ if i.is_multiple_of(5) => minor.abs(),
             _ => minor.abs() * r.range(1.0, 3.0),
         } * sign(r);
         let samples = (0..128)
@@ -457,7 +459,7 @@ fn carrier(
             }
         };
         (piece, samples)
-    } else if i % 3 == 0 {
+    } else if i.is_multiple_of(3) {
         let half_angle = r.range(0.1, 1.2) * sign(r);
         let (s_a, c_a) = half_angle.sin_cos();
         let (v0, v1) = (r.range(-2.0, 0.0), r.range(0.0, 2.0));
