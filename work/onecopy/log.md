@@ -864,3 +864,12 @@
 - 10:15Z bracket-mid opened PR 6632 (head 2ef788bd, gate green). It routes 126 sites to two named forms with no bit moved, adds a new gate, and files the ½lo+½hi / f64::midpoint row. FULL review dispatched.
 - 10:15Z needle-tilts put S into 6623 (head 5e1ce5c1): Window reads off b's span through point_walk, all four tilts decide in both orders, and the row is closed. The reviewer was told the new head.
   - Next unit: the transverse-range row on `onecopy/transverse-range`, stacked on 6623.
+- 10:22Z PR 6623 FULL review (on bfd3b71e, before S): FIX.
+  - The probe was sound and order-free over 6,690 poses; every change is refused→decided.
+  - F1: the row's residue is a sample, so re-measure at head on a half-decade grid.
+  - F2: drop option F.
+  - F4: pins.
+  - F5: docs.
+  - S1: owed and height_extremes copy the extreme read, so give it one Range method.
+  - Sent to the lane. 6623 stays as A+S per the lane's choice.
+  - F3 filed: `a-height-in-the-gap-escalates-at-metres-in-the-parallel-and-offset-arms`.
