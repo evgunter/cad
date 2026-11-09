@@ -3439,25 +3439,26 @@ pub enum BooleanError {
         /// The datum's predicate, with its poisoned margin.
         diag: Indeterminate,
     },
-    /// A tangency in a configuration this op's classification cannot act
-    /// on: a pair with no witness
-    /// locus (neither the DEV-1 closed-form lane — plane×cylinder along a
-    /// ruling, parallel cylinders — nor a shared rim circle), a rim
-    /// whose junction the routing cannot place, or a locus whose span
-    /// bound the jet certificate's finest schedule leaves past the band,
-    /// so no arm can consume it. Refused at the door rather than carried into stages that would
-    /// ignore it — the vocabulary is wider than this op's envelope, and
-    /// the gap is typed, not silent.
+    /// A tangency the glue door reads in its lane that this op's
+    /// classification cannot act on: a locus whose span bound the jet
+    /// certificate's finest schedule leaves past the band, or a shared
+    /// rim whose stations disagree or with a spline face the routing reads
+    /// no wedge of. Refused at the door rather than carried into stages
+    /// that would ignore it, so the gap is typed, not silent. A pair with
+    /// no witness locus, or a rim whose junction the routing places outside
+    /// what the zip builds, is not glued at all.
     ///
     /// A limit: an arm that acts on the tangency not built (row 2).
     TangencyUnsupported,
-    /// **A glued shared rim whose carrier pair has no tangent-locus
-    /// arm.**
+    /// **A shared rim whose carrier pair has no tangent-locus arm.**
     ///
     /// The rim routing reads the two faces' outward normals opposed
     /// across the rim (wedge 0 or 2π). Building that junction needs the
-    /// tangent locus of the pair's two surface kinds, and this is raised
-    /// only where [`geom_brep::tangent_locus`] answers `Unsupported`.
+    /// tangent locus of the pair's two surface kinds. Nothing raises it
+    /// today: the glue door leaves such a rim unglued
+    /// ([`TangencyFailure::Unrouted`]), and the per-op routing that would
+    /// refuse with it is
+    /// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`.
     ///
     /// A limit: a tangent-locus arm not built (row 2).
     RimCuspArmUnbuilt {

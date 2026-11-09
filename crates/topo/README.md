@@ -1063,14 +1063,18 @@ arm, where every verdict but `Distinct` refuses.
 At rest a record is read as the glue door reads a pair: nothing is
 bridged. Each class states the facts that must verify DEFINITE and the
 rulings that rule it out. Its door returns a verdict (`RestVerdict`,
-`TangentVerdict`): the class on its margin, a ruling on its closed row
-(`RestRow`, `TangentRow`) with the reading that decided it, or a reading
-in band, which escalates (`ContactRefusal::{Escalated,
+`TangentVerdict`): the class on its margin, a ruling (`RestRuling`,
+`TangentRuling`) on its closed row with the reading that decided it, or
+a reading in band, which escalates (`ContactRefusal::{Escalated,
 NotCertifiable}`). Only a record is contradicted: a ruling against one
 is `ValidationError::ContactContradicted { record, verdict }`, a defect
-of what wrote the record or its geometry, and the same ruling on a pair
-the census discovers with no record is no touch, save a crescent both
-materials hold (`CuspEdgesMissing`).
+of what wrote the record or its geometry. A pair the census discovers
+with no record contradicts nothing. Where the line shows it apart or
+crossing it is no touch; where it touches with its sides wrong the
+defect is the body's: a crescent both materials hold
+(`CuspEdgesMissing`), or outward normals that agree, or agree at one
+tangent sample and oppose at another, the solid's material on both
+sides of a face (`MaterialOnBothSides`).
 
 - *`Rest`.* Must verify: one carrier through the face-pair door
   (`carrier_eq::INVENTORY`), each datum and the pair's displacement over
@@ -1092,8 +1096,11 @@ materials hold (`CuspEdgesMissing`).
   off a surface, and, for a contact, aligned senses or a crescent both
   materials hold. Two samples read tangent whose outward normals agree
   at one and oppose at the other are a definite crossing between them
-  (`TangentVerdict::SidesMixed`): read once a sample is tangent, so a
-  sample that is not ends as not parallel. Along a line of curvature of
+  (`TangentRuling::SidesMixed`). The senses are read against the claim,
+  and compared between samples, only once a sample is parallel, so a
+  sample that is not tangent ends on perpendicular normals, its gap, its
+  witness or its parallelism, never on agreeing or mixed senses. Along
+  a line of curvature of
   both surfaces, which every ruling the lane reads and every latitude
   circle of two coaxial surfaces of revolution is, `n₁·n₂` is constant,
   so neither reaches it; a Villarceau circle two tori share can. An

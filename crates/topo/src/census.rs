@@ -6870,11 +6870,12 @@ fn sweep_conformal_patches<T: Decide>(
 /// - A material crescent (a bore tangent to a face from inside) owes
 ///   two coincident cusp edges on the line (D1 tier 3), so a pair
 ///   running through it is [`ValidationError::CuspEdgesMissing`].
+/// - Outward normals that agree along the line, or agree at one tangent
+///   sample and oppose at another, put the solid's material on both
+///   sides of a face: [`ValidationError::MaterialOnBothSides`].
 /// - A table that reads the faces apart along the line (a definite gap,
-///   a witness off a carrier, normals not parallel) has no touch to
-///   report, as the carriers decided not tangent have none; one that
-///   reads the outward normals aligned or mixed is the lane refusing
-///   typed.
+///   a witness off a carrier, normals perpendicular or not parallel) has
+///   no touch to report, as the carriers decided not tangent have none.
 ///
 /// The candidates: faces of one solid on the line lane's carrier kinds
 /// ([`geom_brep::tangent_locus_kinds`]), on distinct carriers, sharing
@@ -21296,6 +21297,9 @@ mod same_solid_tangent_lines {
                 ValidationError::ContactContradicted { record, .. } if pair(record.a, record.b) => {
                     Some("contradicted".to_owned())
                 }
+                ValidationError::MaterialOnBothSides { a, b, ruling, .. } if pair(*a, *b) => {
+                    Some(format!("material on both sides: {}", ruling.fact()))
+                }
                 ValidationError::CensusUnsupported {
                     subject: CensusSubject::FacePair(x, y),
                     cause: CensusUnsupportedCause::ContactLane(r),
@@ -21351,12 +21355,13 @@ mod same_solid_tangent_lines {
 
     /// A rod of radius 0.5 inside a cylinder of radius 2, tangent to it
     /// from inside along x = 2, both materials inside, one solid: the
-    /// outward normals agree along the line, which rules out a touch
-    /// (`TangentRow::SensesAligned`). No record names the pair, so the ruling
-    /// contradicts nothing and the pass says nothing of it. Red when the
-    /// pass reads a ruling with no record as a refusal or a contradiction.
+    /// outward normals agree along the line, so the solid's material
+    /// winds twice there, on both sides of the rod's face. No record
+    /// names the pair, so nothing is contradicted, and the defect is the
+    /// body's: `MaterialOnBothSides`, on the senses' row. Red when the
+    /// pass reads the ruling as no touch, or as a record's contradiction.
     #[test]
-    fn a_ruled_out_tangency_no_record_names_says_nothing() {
+    fn a_rod_inside_a_cylinder_both_materials_inside_has_material_on_both_sides() {
         for flip in [false, true] {
             let (x, y) = (
                 (frame(0.0, 2.0, 1.0), true, 0.3),
@@ -21364,7 +21369,20 @@ mod same_solid_tangent_lines {
             );
             let (x, y) = if flip { (y, x) } else { (x, y) };
             let (errors, said) = walls(x, y, true);
-            assert_eq!(said, Vec::<String>::new(), "flip {flip}: {errors:?}");
+            assert_eq!(
+                said,
+                ["material on both sides: the two faces' outward normals agree"],
+                "flip {flip}: {errors:?}"
+            );
+            let text = errors
+                .iter()
+                .find(|e| matches!(e, ValidationError::MaterialOnBothSides { .. }))
+                .map(ToString::to_string)
+                .unwrap_or_default();
+            assert!(
+                text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+                "flip {flip}: the body's defect: {text}"
+            );
         }
     }
 
