@@ -901,3 +901,4 @@
 - 11:08Z PR 6627's fix pass (4c9538aa): every k_stats candidate is classified, unresolved bare calls are red, cone-flux is back to Site pairing, and the F35 figures are corrected. Delta sent to the reviewer.
 - 11:08Z PR 6632 is at bbdd9a05 with the NaN-exit pin; the reviewer was told.
 - 11:12Z PR 6623 delta (S, 5e1ce5c1): MERGE-WITH-FIXES. S is sound and order-free. D1: ringed arcs still refuse two shared-end poses; extend off_span to them (measured: fixes both, moves nothing else) or re-open the row narrowed. The clear_of census and copy note go to the lane with the pending fix list.
+- 11:15Z PR 6621's fix pass (bb162293): per-site names through SpiricRegimeSites, a typed RingTorus precondition, two pin rows, one decide_across path. Delta sent to the original reviewer.
