@@ -1,7 +1,7 @@
 ---
 id: not-crossed-means-one-side-at-a-pinch
 kind: issue
-title: the side ladders' 'not crossed, so one side' premise is the division's construction premise (measured, no reading wrong); its checked form waits on [ev] 6592's Alike
+title: the construction sites' 'not crossed, so one side' premise is the division's (measured, none disagrees on a valid body); its checked form waits on [ev] 6592's Alike
 status: parked
 opened: 2026-11-09
 priority: P3
@@ -88,7 +88,7 @@ cone winding whose fixture's island left its sheet,
 
 ## Narrowed (`onecopy/pinch-side`): measured, and waits on `[ev]` PR 6592
 
-**Measured: no reading answers wrong, and none disagrees.** A scratch
+**Measured: no reading answers wrong, and none disagrees on a valid body.** A scratch
 check read every rung beside the `Any` climb (`climb_agreeing`) at four
 sites: fate's rehome, chord_join's `ring_side`, the lone ring's outer
 side and `one_region::read_cycle`. It ran over:
@@ -131,5 +131,32 @@ identification. Reading every vertex at each site (`climb_agreeing`)
 would be the alternative 6592 rejects, a cost on valid bodies for a
 weaker second reading of a fact the division decides. This row waits on
 that answer. Then the sites read their ring through an `Alike` source:
-fate's rehome, `ring_side`, `path_ring_side`, the lone ring and
-`one_region::read_cycle`.
+fate's rehome, `ring_side`, `path_ring_side` and the lone ring
+(`one_region::read_cycle` moves out, below).
+
+### The validator's site moves out (review of PR 6651)
+
+`one_region::read_cycle` is a validator. No division runs there, and its
+premise is check 9's, not the division's: both topo `ci` disagreements
+above are at `read_cycle`, on invalid bodies. It is taken by PR 6649
+(the gate-blind-spots lane's `loop_side::inside_at_every_vertex` at
+`read_cycle` and `ring_nesting`), and leaves this row. What stays,
+parked on 6592, are the construction sites:
+- fate's rehome;
+- chord_join's `rehome_rings` / `ring_side` and `path_ring_side`;
+- the lone ring's outer side. Its premise is the division's too: the
+  ring meets the pierced face's boundary only at its one site, and on
+  the sphere its plane meets the surface in the ring alone
+  (`RimSide::holds_outer`).
+
+**Families measured but not shipped as tests.** The pin ships the
+diamond cut along `x = d`, at `d` ∈ {0, ½z, 3z, 3e}, by subtract,
+intersect and split. Measured and not shipped:
+- `d` = −½z and −3e;
+- the cuts `x + y = d` (and a tilted line through one corner), `y = 0`
+  and the quadrant `x, y ≥ 0`;
+- union beside subtract and intersect;
+- the reflex arrow ring `(1,−1), (0,0), (1,1), (−1,1), (−1,−1)` under
+  every cut above.
+
+Every one read its closed-form volume, or refused in band.
