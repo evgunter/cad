@@ -769,7 +769,7 @@ impl<T: Real> Node<T> {
             ),
             Node::Hull(both) => {
                 let ((c0, r0), (c1, r1)) = (both[0].ball(), both[1].ball());
-                let c = c0 + (c1 - c0) * T::from_f64(0.5);
+                let c = c0.mid(c1);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
                 (c, r)
             }
@@ -1243,7 +1243,7 @@ fn points_ball<T: Real>(points: &[Point3<T>]) -> Ball<T> {
         .fold((points[0], points[0]), |(lo, hi), &p| {
             (lo.min(p), hi.max(p))
         });
-    let c = lo + (hi - lo) * T::from_f64(0.5);
+    let c = lo.mid(hi);
     let r = points.iter().fold(T::zero(), |r, &p| r.max((p - c).norm()));
     (c, r)
 }

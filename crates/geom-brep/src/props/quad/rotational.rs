@@ -1020,7 +1020,7 @@ fn level_anchor(loops: &[Vec<EdgeTermQ>]) -> Result<f64, PropsError> {
             (lo.min(v), hi.max(v))
         });
     if lo <= hi {
-        Ok(lo + (hi - lo) * 0.5)
+        Ok(geom::bracket_mid((lo, hi)))
     } else {
         Err(PropsError::DegenerateFace)
     }

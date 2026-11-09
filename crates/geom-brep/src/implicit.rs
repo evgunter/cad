@@ -1874,7 +1874,7 @@ pub struct CircleSphereHarmonic<T> {
 impl<T: Real> CircleSphereHarmonic<T> {
     /// The constant term `c₀ = (lo + hi)/2`.
     pub fn c0(&self) -> T {
-        (self.lo + self.hi) / T::from_f64(2.0)
+        geom::mid_param(self.lo, self.hi)
     }
 
     /// The amplitude `A₁ = (hi − lo)/2 ≥ 0`.

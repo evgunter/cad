@@ -2681,7 +2681,7 @@ impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         let (lo, hi) = (seed.lo(), seed.hi());
-        carrier.project_from_seed(point, lo + 0.5 * (hi - lo))
+        carrier.project_from_seed(point, geom::bracket_mid((lo, hi)))
     }
 }
 
@@ -3359,7 +3359,7 @@ impl<T: SpanLocate> IntersectionDraft<T> {
             None => {
                 let chord = EdgeCurveSpec::line_between(p0, p1);
                 Self {
-                    witness: p0.lerp(p1, T::from_f64(0.5)),
+                    witness: p0.mid(p1),
                     carrier: chord.carrier,
                     param_start: chord.param_start,
                     param_end: chord.param_end,
@@ -3567,10 +3567,7 @@ fn gap_orientation<T: Decide>(
     let cause = match oriented {
         Ok(sign) => {
             geom_core::k_stats::splice(orientation);
-            return Ok(match sign {
-                geom_core::k_stats::NonzeroSign::Positive => T::from_f64(1.0),
-                geom_core::k_stats::NonzeroSign::Negative => T::from_f64(-1.0),
-            });
+            return Ok(sign.unit());
         }
         Err(cause) => cause,
     };

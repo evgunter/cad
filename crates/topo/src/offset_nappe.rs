@@ -205,7 +205,7 @@ pub fn group_nappe<T: Decide>(
         faces,
         |&face| match face_nappe(body, face, band) {
             Ok(here) => Rung::Answers(Ok((face, here))),
-            Err(e) => Rung::refused(e, ReplaceFaceError::refusal),
+            Err(e) => Rung::refused(e, ReplaceFaceError::refusal, Err),
         },
         |a, b| matches!((a, b), (Ok((_, x)), Ok((_, y))) if x == y),
     );

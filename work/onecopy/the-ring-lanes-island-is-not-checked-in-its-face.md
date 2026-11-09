@@ -2,10 +2,12 @@
 id: the-ring-lanes-island-is-not-checked-in-its-face
 kind: issue
 title: the boolean's ring lane reads an island's winding off its face's outer-loop points (chord_join::IslandReading::read_paths, Answering::Any) on the premise that the island lies in the face, which only the construction guarantees mid-operation
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6658
 ---
 
 

@@ -3258,10 +3258,9 @@ fn side_of<T: Decide>(
     what: &'static str,
     band: Band,
 ) -> Result<T, ReplaceFaceError<T>> {
-    match decide("offset_axial_side", Margin::of(x), band) {
-        Ok(Sign::Positive) => Ok(T::one()),
-        Ok(Sign::Negative) => Ok(-T::one()),
-        Ok(Sign::Zero) => Err(ReplaceFaceError::TogetherAxialCorner {
+    match decide("offset_axial_side", Margin::of(x), band).map(Sign::nonzero) {
+        Ok(Some(side)) => Ok(side.unit()),
+        Ok(None) => Err(ReplaceFaceError::TogetherAxialCorner {
             vertex,
             surfaces: 0,
             what,

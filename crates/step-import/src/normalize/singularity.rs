@@ -520,8 +520,7 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
     let walk =
         home::walk_loop(&inverse, &points, &images[0], read.coarser).ok_or(unreadable(face_id))?;
     match home::nappe(&walk) {
-        Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(1.0),
-        Ok(geom_core::k_stats::NonzeroSign::Negative) => Ok(-1.0),
+        Ok(side) => Ok(side.unit()),
         Err(why) => Err(read.unread(Unread::Side { r#loop: 0, why }, face_id)),
     }
 }
