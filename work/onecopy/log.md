@@ -942,3 +942,4 @@
 - 14:00Z PR 6629 re-confirmed MERGE at 271244b7. My main merge (30e8a9eb) is gating; merges on green.
 - 14:04Z PR 6632 delta: MERGE plus FIX-A (the Sym form of the 5 /2 sites changes, so keep one form and correct the 'no bit moves' claim) and FIX-B (lerp(q, ½) is a second door for mid; route its 6 sites and gate it). Sent to the lane.
 - 14:08Z Ladder leftovers: row 2 (pierce ranking) is deferred until 6598 lands, since its code exists only in 6598; the row will be narrowed. Rows 1 and 3 continue: F3/F4/F6 are ported, F7 is narrowed, and the missing topo roster gets a P3 row.
+- 14:12Z PR 6623 fix pass (0fe63bfb): ringed arcs read off the span through Window::chained, the span walk stops at zero, the grid is a slow row (red on main for 22 poses), and the row is narrowed to two measured residues. Delta sent to the reviewer. The T ruling was resent to the needle lane (the 10:58 message didn't arrive).
