@@ -537,7 +537,7 @@ pub mod test_support {
 
     /// Each face's aimed ray's own reading, every face aimed at
     /// (`side_reader`): the curved edge-meeting ray's probes read it.
-    pub fn each_aim(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+    pub fn each_aim<T: geom_core::Decide>(body: &Body<T>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::each_aim_report(body, band)
     }
 
@@ -1399,6 +1399,7 @@ pub use boolean::{
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
+    face_cover_toward, face_nearest,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
