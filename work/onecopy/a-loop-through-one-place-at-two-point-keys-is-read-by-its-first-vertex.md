@@ -49,3 +49,9 @@ corner arm.** At a shared key both are refused (see
 the strut-split cycles' corners there are not slices. At two keys within
 band the arm groups neither, so `one_region`'s read answers by its first
 vertex either way.
+
+## Resolved (`onecopy/first-vertex-reads`)
+
+The third option, in its general form: a validator now reads a loop's side at every vertex. `topo::loop_side::inside_at_every_vertex` sits on `ladder::climb_agreeing`, and `one_region::read_cycle` and check 9's `ring_nesting` both read through it. A cycle with vertices placed on both sides of the cut is `CycleOffFaceSide` at an off vertex, whichever vertex the walk starts at. The type offers no first-vertex answer.
+
+Probe: `one_region::tests::a_loop_crossing_itself_at_two_keys_within_band_reads_one_verdict_in_every_walk_order`. It is red on main (`["Face", "Off", "Face"]`) and red under a first-vertex mutant. The corner arm still groups corners by key. `pinch_corner_errors`' doc says where the two-key crossing is caught.
