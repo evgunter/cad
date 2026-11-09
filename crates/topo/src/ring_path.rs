@@ -789,7 +789,7 @@ impl<T: Decide> Oval<T> {
     /// The parameter of `x`, a point of the oval's plane, on the branch
     /// of its span's middle: the carrier's own reading.
     fn param(&self, x: Point3<T>) -> T {
-        let mid = (self.span.0 + self.span.1) * T::from_f64(0.5);
+        let mid = geom::mid_param(self.span.0, self.span.1);
         match self.carrier().param_near(x, mid) {
             Some(t) => t,
             None => unreachable!("a spiric carrier reads every point's parameter"),
@@ -1686,7 +1686,7 @@ fn segment_misses<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let half = (to - from).norm() * T::from_f64(0.5);
-    let mid = from + (to - from) * T::from_f64(0.5);
+    let mid = from.mid(to);
     Ok(decide(
         "split_ring_path_segment_apart",
         Margin::of(charge(conic.distance_floor(mid) - half, slack)),

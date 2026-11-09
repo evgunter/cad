@@ -140,89 +140,142 @@ pub enum SplineError {
     },
 }
 
-impl core::fmt::Display for SplineError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
+impl SplineError {
+    /// **What was refused, without the recourse**: the sentence a holder
+    /// renders when the spline is the kernel's own, so the recourse
+    /// [`Display`](core::fmt::Display) adds — addressed to whoever supplied
+    /// the spline — is not the user's.
+    pub fn fact(&self) -> impl core::fmt::Display + '_ {
+        core::fmt::from_fn(move |f| match self {
             SplineError::KnotVectorInvalid { reason } => {
-                write!(f, "invalid clamped knot vector: {reason}")
+                write!(f, "the clamped knot vector is invalid: {}", reason.fact())
             }
             SplineError::NonPositiveWeight { index, weight } => write!(
                 f,
                 "weight {index} is {}, not strictly positive (convex-hull invariant), and \
                  every hull bound this kernel certifies stands on the convex-combination \
-                 licence. Recourse: supply a strictly positive weight there rather than a \
-                 zero, a negative or a NaN",
+                 licence",
                 Readable(*weight)
             ),
             SplineError::NonFiniteWeight { index, weight } => write!(
                 f,
                 "weight {index} is {}, not finite: an infinite weight passes `> 0` but \
-                 is not usable structure. Recourse: supply a finite strictly positive weight \
-                 there",
+                 is not usable structure",
                 Readable(*weight)
             ),
             SplineError::ControlCountMismatch { control, expected } => write!(
                 f,
                 "control-point count {control} does not match the knot vector (expected \
-                 {expected}), and the two are one description. Recourse: supply {expected} \
-                 control points, or a knot vector of control + degree + 1 knots"
+                 {expected}), and the two are one description"
             ),
             SplineError::WeightCountMismatch { weights, control } => write!(
                 f,
-                "weight count {weights} does not match control-point count {control}. Recourse: \
-                 supply one weight per control point"
+                "weight count {weights} does not match control-point count {control}"
             ),
             SplineError::DomainInvalid { lo, hi } => write!(
                 f,
                 "the domain [{}, {}] is not a finite increasing interval of finite width, \
-                 and the defect is the REQUEST's, not the vector's. Recourse: ask on a domain \
-                 whose ends are finite with lo < hi and whose width does not overflow",
+                 and the defect is the REQUEST's, not the vector's",
                 Readable(*lo),
                 Readable(*hi)
             ),
             SplineError::KnotIsPoison { index } => write!(
                 f,
                 "breakpoint {index} is poison, so it names no place for the spans to be \
-                 located in. Recourse: supply a breakpoint that is a number there"
+                 located in"
             ),
             SplineError::KnotRunsNotIncreasing { index } => write!(
                 f,
                 "breakpoint {index} does not lie strictly above the one before it, so the two \
-                 would merge into one run or reverse the vector. Recourse: supply one \
-                 breakpoint with the summed multiplicity where the two are one knot, or \
-                 breakpoints that increase"
+                 would merge into one run or reverse the vector"
             ),
             SplineError::KnotRunsUndecided { index, margin } => write!(
                 f,
                 "whether breakpoint {index} lies above the one before it is undecided over \
                  the values they stand for: the step between them is {margin}, which does \
-                 not clear zero, so some members' runs would merge or cross. Recourse: \
-                 supply those breakpoints from inputs narrow enough that the step clears zero"
+                 not clear zero, so some members' runs would merge or cross"
             ),
             SplineError::CarrierKnotNotAPoint { index } => write!(
                 f,
                 "breakpoint {index} is an enclosure wider than a point, and a curve or \
                  surface reads its knots as single numbers. The width may be rounding alone \
                  (a re-expressed or averaged breakpoint at an enclosure scalar), so narrower \
-                 inputs need not lift it. Recourse: supply the carrier built at a point \
-                 scalar (`f64`) and lifted, so its breakpoints stay the numbers it was \
-                 built on"
+                 inputs need not lift it"
             ),
             SplineError::CarrierWeightNotAPoint { index } => write!(
                 f,
                 "weight {index} is an enclosure wider than a point, and a curve or surface \
                  reads its weights as single numbers. The width may be rounding alone (an \
-                 arc's cosine at an enclosure scalar), so narrower inputs need not lift it. \
-                 Recourse: supply the carrier built at a point scalar (`f64`) and lifted, so \
-                 its weights stay the numbers it was built on"
+                 arc's cosine at an enclosure scalar), so narrower inputs need not lift it"
             ),
             SplineError::WeightSignUndecided { index, margin } => write!(
                 f,
                 "whether weight {index} is strictly positive is undecided over the values it \
                  stands for: it is {margin}, which does not clear zero, so some members' \
-                 weights are not positive. Recourse: supply that weight from inputs narrow \
-                 enough that it clears zero, and, for a curve or surface, narrow enough that \
-                 it is a single number, which is all a carrier admits for now"
+                 weights are not positive"
+            ),
+        })
+    }
+}
+
+impl core::fmt::Display for SplineError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let fact = self.fact();
+        match self {
+            SplineError::KnotVectorInvalid { reason } => {
+                write!(f, "invalid clamped knot vector: {reason}")
+            }
+            SplineError::NonPositiveWeight { .. } => write!(
+                f,
+                "{fact}. Recourse: supply a strictly positive weight there rather than a \
+                 zero, a negative or a NaN"
+            ),
+            SplineError::NonFiniteWeight { .. } => write!(
+                f,
+                "{fact}. Recourse: supply a finite strictly positive weight there"
+            ),
+            SplineError::ControlCountMismatch { expected, .. } => write!(
+                f,
+                "{fact}. Recourse: supply {expected} control points, or a knot vector of \
+                 control + degree + 1 knots"
+            ),
+            SplineError::WeightCountMismatch { .. } => {
+                write!(f, "{fact}. Recourse: supply one weight per control point")
+            }
+            SplineError::DomainInvalid { .. } => write!(
+                f,
+                "{fact}. Recourse: ask on a domain whose ends are finite with lo < hi and \
+                 whose width does not overflow"
+            ),
+            SplineError::KnotIsPoison { .. } => write!(
+                f,
+                "{fact}. Recourse: supply a breakpoint that is a number there"
+            ),
+            SplineError::KnotRunsNotIncreasing { .. } => write!(
+                f,
+                "{fact}. Recourse: supply one breakpoint with the summed multiplicity where \
+                 the two are one knot, or breakpoints that increase"
+            ),
+            SplineError::KnotRunsUndecided { .. } => write!(
+                f,
+                "{fact}. Recourse: supply those breakpoints from inputs narrow enough that the \
+                 step clears zero"
+            ),
+            SplineError::CarrierKnotNotAPoint { .. } => write!(
+                f,
+                "{fact}. Recourse: supply the carrier built at a point scalar (`f64`) and \
+                 lifted, so its breakpoints stay the numbers it was built on"
+            ),
+            SplineError::CarrierWeightNotAPoint { .. } => write!(
+                f,
+                "{fact}. Recourse: supply the carrier built at a point scalar (`f64`) and \
+                 lifted, so its weights stay the numbers it was built on"
+            ),
+            SplineError::WeightSignUndecided { .. } => write!(
+                f,
+                "{fact}. Recourse: supply that weight from inputs narrow enough that it \
+                 clears zero, and, for a curve or surface, narrow enough that it is a single \
+                 number, which is all a carrier admits for now"
             ),
         }
     }
@@ -325,48 +378,78 @@ pub enum KnotVectorIssue {
     },
 }
 
-impl core::fmt::Display for KnotVectorIssue {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
+impl KnotVectorIssue {
+    /// **What was refused, without the recourse** ([`SplineError::fact`]).
+    pub fn fact(&self) -> impl core::fmt::Display + '_ {
+        core::fmt::from_fn(move |f| match self {
             KnotVectorIssue::DegreeZero => f.write_str(
                 "degree 0 is unsupported: a degree-0 locus is a step function rather than a \
-                 curve, and the form is a designed absence until a consumer exists. Recourse: \
-                 describe the geometry at degree 1 or above",
+                 curve, and the form is a designed absence until a consumer exists",
             ),
             KnotVectorIssue::TooShort => f.write_str(
                 "fewer than 2(degree+1) knots, and a clamped vector carries degree+1 of them at \
-                 each end. Recourse: supply the missing knots, or describe at the degree the \
-                 knots you have can clamp",
+                 each end",
             ),
             KnotVectorIssue::NonFinite { index } => write!(
                 f,
                 "knot {index} is not finite, and knots are structure, compared exactly and never \
-                 to a tolerance. Recourse: supply a finite value there"
+                 to a tolerance"
             ),
-            KnotVectorIssue::Decreasing { index } => write!(
-                f,
-                "knot {index} decreases, which a knot vector never does. Recourse: supply the \
-                 values in ascending order, repeating one to raise its multiplicity rather \
-                 than stepping back"
-            ),
+            KnotVectorIssue::Decreasing { index } => {
+                write!(f, "knot {index} decreases, which a knot vector never does")
+            }
             KnotVectorIssue::StartNotClamped => f.write_str(
                 "start multiplicity is not exactly degree+1, and clamped-v1 pins both ends so \
                  the first span is nonempty and the curve interpolates the first control \
-                 point. Recourse: repeat the first knot exactly degree+1 times (the periodic \
-                 and unclamped forms are a designed absence, not this refusal)",
+                 point",
             ),
             KnotVectorIssue::EndNotClamped => f.write_str(
                 "end multiplicity is not exactly degree+1, and clamped-v1 pins both ends so the \
-                 last span is nonempty and the curve interpolates the last control point. \
-                 Recourse: repeat the last knot exactly degree+1 times (the periodic and \
-                 unclamped forms are a designed absence, not this refusal)",
+                 last span is nonempty and the curve interpolates the last control point",
             ),
             KnotVectorIssue::InteriorMultiplicityTooHigh { index } => write!(
                 f,
                 "interior knot {index} has multiplicity > degree; an interior value may \
-                 repeat at most degree times (which drops continuity to C⁰). Recourse: drop \
-                 the surplus copies there"
+                 repeat at most degree times (which drops continuity to C⁰)"
             ),
+        })
+    }
+}
+
+impl core::fmt::Display for KnotVectorIssue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let fact = self.fact();
+        match self {
+            KnotVectorIssue::DegreeZero => write!(
+                f,
+                "{fact}. Recourse: describe the geometry at degree 1 or above"
+            ),
+            KnotVectorIssue::TooShort => write!(
+                f,
+                "{fact}. Recourse: supply the missing knots, or describe at the degree the \
+                 knots you have can clamp"
+            ),
+            KnotVectorIssue::NonFinite { .. } => {
+                write!(f, "{fact}. Recourse: supply a finite value there")
+            }
+            KnotVectorIssue::Decreasing { .. } => write!(
+                f,
+                "{fact}. Recourse: supply the values in ascending order, repeating one to raise \
+                 its multiplicity rather than stepping back"
+            ),
+            KnotVectorIssue::StartNotClamped => write!(
+                f,
+                "{fact}. Recourse: repeat the first knot exactly degree+1 times (the periodic \
+                 and unclamped forms are a designed absence, not this refusal)"
+            ),
+            KnotVectorIssue::EndNotClamped => write!(
+                f,
+                "{fact}. Recourse: repeat the last knot exactly degree+1 times (the periodic \
+                 and unclamped forms are a designed absence, not this refusal)"
+            ),
+            KnotVectorIssue::InteriorMultiplicityTooHigh { .. } => {
+                write!(f, "{fact}. Recourse: drop the surplus copies there")
+            }
         }
     }
 }
