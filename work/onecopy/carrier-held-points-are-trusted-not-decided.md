@@ -26,11 +26,14 @@ margin (as `rim_wedge`'s `RimUnread::Fault` does today).
 
 **The trusting sites** (no on-plane decision; curved `OffCarrier` read
 as Out):
-- `topo/src/census.rs` `placed`;
+- `topo/src/census.rs` `placed` and `topo/src/cell_region.rs` `place`.
+  These two still spell their own split over `contfp` and
+  `curved_face_containment`, because the dispatch is engine-private
+  until the containment door moves to the root
+  (`work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement.md`);
 - `topo/src/boolean/fate.rs`, a fate cut's end in a divided face's
   pieces;
 - `topo/src/boolean/fate.rs`, the ring-vertex ladder;
-- `topo/src/cell_region.rs` `place`;
 - `topo/src/boolean/carrier_touch.rs` `ball_off_face` (OffCarrier →
   not clear).
 

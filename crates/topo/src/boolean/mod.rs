@@ -189,7 +189,7 @@ pub use contain::{
 // places a record's point in its face through the boolean's own read.
 pub(crate) use contain::{
     CurvedPlacement, PlacementError, curved_face_placement, cycle_side, driver_face_stale,
-    face_placement, loop_circle, placement_on_carrier,
+    face_placement, loop_circle,
 };
 pub use discard::DiscardRow;
 pub use fate::{SubstitutedFace, UncutFace};

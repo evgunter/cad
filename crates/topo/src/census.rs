@@ -1928,18 +1928,20 @@ fn face_cone<T: Decide>(
 /// reads it; `None` where the door refused (pushed).
 fn placed<T: Decide>(
     body: &Body<T>,
+    geo: &Geo<T>,
     f: FaceKey,
     q: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
-    use crate::boolean::CurvedPlacement;
-    let read = crate::boolean::placement_on_carrier(body, f, q, band).map(|(at, _, _)| match at {
-        // OffCarrier → Out (trusted on carrier).
-        CurvedPlacement::OffCarrier => Some(FaceContainment::Out),
-        CurvedPlacement::Trim(at) => at,
-    });
-    read_containment(f, read, errors)
+    match planar_face(geo, f) {
+        Some(g) => contain(body, g, q, band, errors).map(Some),
+        None => read_containment(
+            f,
+            crate::boolean::curved_face_containment(body, f, q, band),
+            errors,
+        ),
+    }
 }
 
 /// **Whether `q` lies in the closure of a confirmed pair's overlap**
@@ -1989,13 +1991,13 @@ fn in_overlap_closure<T: Decide>(
     let Some(contact) = pair_contact(body, geo, fx, fy, band) else {
         return unbuilt(errors);
     };
-    let Some(cx) = placed(body, fx, q, band, errors)? else {
+    let Some(cx) = placed(body, geo, fx, q, band, errors)? else {
         return unbuilt(errors);
     };
     if cx == FaceContainment::Out {
         return Some(false);
     }
-    let Some(cy) = placed(body, fy, q, band, errors)? else {
+    let Some(cy) = placed(body, geo, fy, q, band, errors)? else {
         return unbuilt(errors);
     };
     if cy == FaceContainment::Out {
@@ -11820,7 +11822,7 @@ fn meets_at<T: Decide>(
     read: &mut Vec<ValidationError>,
 ) -> Result<bool, InteriorsUnread> {
     let before = read.len();
-    let Some(placed) = placed(body, y, q, band, read) else {
+    let Some(placed) = placed(body, geo, y, q, band, read) else {
         return Err(escalated_since(read, before));
     };
     match placed.ok_or(InteriorsUnread::Unbuilt)? {

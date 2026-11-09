@@ -865,7 +865,7 @@ pub(crate) fn face_placement<T: Decide>(
 /// # Errors
 ///
 /// As [`face_placement`].
-pub(crate) fn face_placement_decided<T: Decide>(
+fn face_placement_decided<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
@@ -900,7 +900,7 @@ pub(crate) fn face_placement_decided<T: Decide>(
 /// # Errors
 ///
 /// The containment door's own refusal.
-pub(crate) fn placement_on_carrier<T: Decide>(
+pub(in crate::boolean) fn placement_on_carrier<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
