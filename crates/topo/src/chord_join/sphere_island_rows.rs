@@ -99,7 +99,10 @@ fn spec(body: &mut Body<f64>, surface: SurfaceKey, a: &Arc3) -> EdgeCurveSpec<f6
 /// A face of the sphere between the latitudes ±0.97 and the meridians
 /// at azimuths ±2.9.
 fn sheet(s: Sph, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
-    let (lo, hi, t) = (-0.97, 0.97, 2.9);
+    // The loop runs counterclockwise about the face's outward normal, so
+    // the face is the region between the latitudes and the meridians at
+    // either sense: at sense `false` it is walked from the other meridian.
+    let (lo, hi, t) = (-0.97, 0.97, if sense { 2.9 } else { -2.9 });
     let mut body = Body::<f64>::new();
     let start = s.at(-t, lo);
     let seed = body.mvfs(start, sense).unwrap();
@@ -182,7 +185,14 @@ fn sheet(s: Sph, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
     (body, face, surface)
 }
 
+/// The ring lies in the face: its point is not placed outside it by the
+/// face's own region door, which a sheet built the wrong way round fails.
 fn empty_ring(body: &mut Body<f64>, face: FaceKey, p: Point3<f64>) -> LoopKey {
+    let at = crate::boolean::curved_face_containment(body, face, p, Band::linear(tol()).unwrap());
+    assert!(
+        !matches!(at, Ok(Some(crate::boolean::FaceContainment::Out))),
+        "a ring planted off its face at {p:?}: {at:?}"
+    );
     let outer = body.get_face(face).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("outer is a cycle");

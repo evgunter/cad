@@ -116,9 +116,10 @@ names-boolean               3  cert_m3r1_probes.rs
 names-boolean               3  chart_groups.rs
 names-boolean               5  chart_region.rs
 names-boolean              23  chord_join.rs
-names-boolean               1  chord_join/cone_ring_rows.rs
+names-boolean               3  chord_join/cone_ring_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean               1  chord_join/sibling_escalation_rows.rs
-names-boolean               2  chord_join/sphere_island_rows.rs
+names-boolean               4  chord_join/sphere_island_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
+names-boolean               2  chord_join/torus_ring_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean              11  clearance.rs
 names-boolean              18  coincidence.rs
 names-boolean              10  construction.rs

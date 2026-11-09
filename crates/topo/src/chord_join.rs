@@ -3970,10 +3970,14 @@ impl<T: Decide> IslandReading<T> {
     /// ([`outer_references`]), in the order they are asked, each read by
     /// `read` until one decides: a side ladder ([`paths_rung`]), so a
     /// path set aside ahead of one that decides is superseded. Its
-    /// premise is the input's: the ring lies in its face, so every
-    /// outer-loop point is on one side of the island (check 9's ring
-    /// nesting establishes it at rest), an input premise rather than a
-    /// theorem: `Alike` once `[ev]` PR 6592 lands.
+    /// premise is the input's, not a theorem: the island lies in the
+    /// face, so every outer-loop point is on the same side of it. The
+    /// boolean's ring lane reads it mid-operation (`boolean::join`'s
+    /// `ring_run_ccw`), on a run of a ring of the operand's face, which
+    /// check 9 placed in the face at rest, closed by a section piece the
+    /// reduction kept where the face holds it. That is the construction's
+    /// guarantee: no check re-reads the island against the outer loop
+    /// there (`work/onecopy/the-ring-lanes-island-is-not-checked-in-its-face.md`).
     pub(crate) fn read_paths<R>(
         &self,
         body: &Body<T>,

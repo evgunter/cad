@@ -67,14 +67,18 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
 }
 
 /// **The face of `torus` over the chart rectangle `(±U) × (±V)`**, of
-/// sense `sense`, and its surface: from its corner `(−U, −V)` along the
+/// sense `sense`, and its surface: at sense `true` from its corner `(−U, −V)` along the
 /// parallel, up the meridian at `U`, back along the parallel at `V` and
 /// down the meridian at `−U`. It spans more than half a turn about the
 /// axis and the tube's outer side, top, bottom and most of its inner
 /// side.
 fn sheet(f: Frame, torus: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
+    // The loop runs counterclockwise about the face's outward normal, so
+    // the face is the chart rectangle at either sense: at sense `false` it
+    // is walked from the other meridian.
+    let u = if sense { U } else { -U };
     let mut body = Body::<f64>::new();
-    let start = on_torus(f, -U, -V);
+    let start = on_torus(f, -u, -V);
     let seed = body.mvfs(start, sense).unwrap();
     let surface = body
         .set_face_surface(
@@ -85,42 +89,42 @@ fn sheet(f: Frame, torus: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKe
             },
         )
         .unwrap();
-    let low = edge_spec(&mut body, surface, &parallel(f, -V, (-U, U)));
+    let low = edge_spec(&mut body, surface, &parallel(f, -V, (-u, u)));
     let first = body
         .mev(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            on_torus(f, U, -V),
+            on_torus(f, u, -V),
             low,
             tol(),
         )
         .unwrap();
-    let side = edge_spec(&mut body, surface, &meridian(f, U, (-V, V)));
+    let side = edge_spec(&mut body, surface, &meridian(f, u, (-V, V)));
     let up = body
         .mev(
             MevSite::Fan {
                 he1: first.he_minus,
                 he2: first.he_minus,
             },
-            on_torus(f, U, V),
+            on_torus(f, u, V),
             side,
             tol(),
         )
         .unwrap();
-    let high = edge_spec(&mut body, surface, &parallel(f, V, (U, -U)));
+    let high = edge_spec(&mut body, surface, &parallel(f, V, (u, -u)));
     let last = body
         .mev(
             MevSite::Fan {
                 he1: up.he_minus,
                 he2: up.he_minus,
             },
-            on_torus(f, -U, V),
+            on_torus(f, -u, V),
             high,
             tol(),
         )
         .unwrap();
-    let back = edge_spec(&mut body, surface, &meridian(f, -U, (-V, V)));
+    let back = edge_spec(&mut body, surface, &meridian(f, -u, (-V, V)));
     let face = body
         .mef(
             MefSite::Chords {
@@ -141,7 +145,14 @@ fn sheet(f: Frame, torus: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKe
 
 /// An empty ring of `face` at `p`, bridged from the outer loop's first
 /// vertex and the bridge killed.
+/// The ring lies in the face: its point is not placed outside it by the
+/// face's own region door, which a sheet built the wrong way round fails.
 fn empty_ring(body: &mut Body<f64>, face: FaceKey, p: Point3<f64>) -> LoopKey {
+    let at = crate::boolean::curved_face_containment(body, face, p, Band::linear(tol()).unwrap());
+    assert!(
+        !matches!(at, Ok(Some(crate::boolean::FaceContainment::Out))),
+        "a ring planted off its face at {p:?}: {at:?}"
+    );
     let outer = body.get_face(face).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("outer is a cycle");

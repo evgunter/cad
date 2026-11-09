@@ -68,7 +68,8 @@ fn sheet(f: Frame, cone: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKey
 }
 
 /// [`sheet`] between the rulings at azimuths `a0 < a1`, its first vertex
-/// on the rim at height 0.05 and azimuth `a0`.
+/// on the rim at height 0.05 and azimuth `a0` (at sense `true`; `a1` at
+/// sense `false`, whose loop runs the other way).
 fn sheet_to(
     f: Frame,
     cone: geom::Surface<f64>,
@@ -85,6 +86,15 @@ fn sheet_up_to(
     sense: bool,
     ((a0, a1), hi): ((f64, f64), f64),
 ) -> (Body<f64>, FaceKey, SurfaceKey) {
+    assert!(
+        a0 < a1,
+        "a sheet's rulings run from {a0} to {a1}, in increasing azimuth"
+    );
+    // The loop runs counterclockwise about the face's outward normal, so
+    // the face is the region between the rims and the rulings at either
+    // sense: a sense-`false` face's normal points the other way, and its
+    // loop is walked from the other ruling.
+    let (a0, a1) = if sense { (a0, a1) } else { (a1, a0) };
     let lo = 0.05;
     let mut body = Body::<f64>::new();
     let start = on_nappe(f, lo, a0);
@@ -204,55 +214,22 @@ fn run_from(
     ((first, last), island.edges[(r + n - 1) % n].clone())
 }
 
-/// **The island lies in the sheet**: every corner of it, and its edges at
-/// nine interior stations each, lie strictly between the sheet's rims
-/// and its rulings, read in the cone's own frame (height along its axis,
-/// azimuth from its `u_ref`) against its outer loop's corners. A ring
-/// whose island crosses the sheet's outer loop is no face of the sheet,
-/// and the winding's premise, that every outer-loop point lies on one
-/// side of the island, fails on it. Read off the geometry, not the
-/// face's region, which a sheet of sense `false` winds as its complement.
+/// **The island lies in the sheet**, sampled: no corner of it, and no
+/// point of its edges at nine interior stations each, is placed outside
+/// the face by the face's own region door, read while the face holds
+/// only its outer loop. A ring whose island crosses the sheet's outer
+/// loop is no face of the sheet, and the winding's premise, that every
+/// outer-loop point is on the same side of the island, fails on it.
 fn assert_island_in_face(body: &Body<f64>, face: FaceKey, island: &Island) {
-    let view = body.passed_face(face).unwrap();
-    let geom::Surface::Cone {
-        apex, axis, u_ref, ..
-    } = *view.surface()
-    else {
-        panic!("a cone sheet");
-    };
-    let v = axis.cross(u_ref);
-    let read = |p: Point3<f64>| {
-        let w = p - apex;
-        (w.dot(axis), w.dot(v).atan2(w.dot(u_ref)))
-    };
-    let outer = body.get_face(face).unwrap().outer;
-    let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
-        panic!("the sheet's outer loop is a cycle");
-    };
-    let corners: Vec<(f64, f64)> = body
-        .loop_cycle(first)
-        .unwrap()
-        .iter()
-        .map(|&he| read(body.half_edge_start_point(he).unwrap()))
-        .collect();
-    let range = |k: fn(&(f64, f64)) -> f64| {
-        corners
-            .iter()
-            .map(k)
-            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), x| {
-                (lo.min(x), hi.max(x))
-            })
-    };
-    let (h, a) = (range(|c| c.0), range(|c| c.1));
     let stations = island.edges.iter().flat_map(|e| {
         let (t0, t1) = e.params;
         (1..10).map(move |k| e.carrier.eval(t0 + (t1 - t0) * f64::from(k) / 10.0))
     });
     for p in island.corners.iter().copied().chain(stations) {
-        let (ph, pa) = read(p);
+        let at = crate::boolean::curved_face_containment(body, face, p, band());
         assert!(
-            h.0 < ph && ph < h.1 && a.0 < pa && pa < a.1,
-            "the island leaves its sheet at {p:?}: height {ph} in {h:?}, azimuth {pa} in {a:?}"
+            !matches!(at, Ok(Some(crate::boolean::FaceContainment::Out))),
+            "the island leaves its sheet at {p:?}: {at:?}"
         );
     }
 }
