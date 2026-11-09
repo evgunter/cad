@@ -445,6 +445,16 @@ fn edge_span<T: Decide>(
 /// A certified carrier and its span.
 type CarrierSpan<'a, T> = (&'a geom::Curve3<T>, (T, T));
 
+/// Half-edge `he`, one of a face's loops ([`loops`]): a miss is a torn
+/// body ([`OverlapUnread::TornBoundary`]).
+fn half_edge<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+) -> Result<&crate::entity::HalfEdge, OverlapRefusal> {
+    body.get_half_edge(he)
+        .ok_or(OverlapRefusal::Unread(OverlapUnread::TornBoundary))
+}
+
 /// The certified carrier and span of half-edge `he`'s edge, and the
 /// edge's record. A record that does not resolve past a resolved face is
 /// a torn body ([`OverlapUnread::TornBoundary`]); a curve with no
@@ -455,8 +465,7 @@ fn edge_record<T: Decide>(
 ) -> Result<(CarrierSpan<'_, T>, &crate::entity::Edge), OverlapRefusal> {
     let torn = OverlapRefusal::Unread(OverlapUnread::TornBoundary);
     let edge = body
-        .get_half_edge(he)
-        .and_then(|h| body.get_edge(h.edge))
+        .get_edge(half_edge(body, he)?.edge)
         .ok_or(torn.clone())?;
     let curve = body
         .get_curve_geom(edge.curve)
@@ -481,7 +490,7 @@ fn vertex_corners<T: Decide>(
     let mut out = Vec::new();
     for cycle in loops((body, face))? {
         for (i, &he) in cycle.iter().enumerate() {
-            if body.get_half_edge(he).is_none_or(|h| h.start != v) {
+            if half_edge(body, he)?.start != v {
                 continue;
             }
             let into = cycle[(i + cycle.len() - 1) % cycle.len()];
@@ -505,7 +514,7 @@ fn edge_corners<T: Decide>(
     let mut out = Vec::new();
     for cycle in loops((body, face))? {
         for &he in &cycle {
-            if body.get_half_edge(he).is_some_and(|h| h.edge == e) {
+            if half_edge(body, he)?.edge == e {
                 out.push(half_plane(body, he, p)?);
             }
         }
@@ -525,11 +534,8 @@ fn half_plane<T: Decide>(
     he: HalfEdgeKey,
     p: Point3<T>,
 ) -> Result<Corner<T>, OverlapRefusal> {
-    let forward = body
-        .get_half_edge(he)
-        .and_then(|h| body.get_edge(h.edge))
-        .is_some_and(|e| e.he_plus == he);
     let ((carrier, (t0, t1)), edge) = edge_record(body, he)?;
+    let forward = edge.he_plus == he;
     let t = carrier
         .param_near(p, geom::mid_param(t0, t1))
         .ok_or(OverlapRefusal::Unread(OverlapUnread::UnplacedParameter))?;

@@ -33,7 +33,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         EdgeKey::default(),
         VertexKey::default(),
     );
-    let fixed: [(&str, BooleanError, Result<Refusal, Aborts>); 18] = [
+    let fixed: [(&str, BooleanError, Result<Refusal, Aborts>); 17] = [
         (
             "an escalation",
             BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag()),
@@ -70,11 +70,6 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
                 face,
                 kind: geom::SurfaceKind::Torus,
             },
-            Ok(Refusal::Limit),
-        ),
-        (
-            "a result the representation does not hold",
-            BooleanError::UnrepresentableResult,
             Ok(Refusal::Limit),
         ),
         (
@@ -149,6 +144,87 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         ),
     ];
     for (label, error, want) in fixed {
+        assert_eq!(error.refusal(), want, "{label}");
+    }
+    let unsettled = |why| BooleanError::SplineCrossingUnsettled {
+        operand: op,
+        edge,
+        face,
+        face_of: Operand::B,
+        why,
+    };
+    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 10] = [
+        (
+            "a result no model represents, non-manifold",
+            BooleanError::NonManifoldResult {
+                a_vertex: vertex,
+                b_vertices: [vertex; 2],
+            },
+            Err(Aborts),
+        ),
+        (
+            "a result no model represents, unbounded",
+            BooleanError::UnrepresentableResult,
+            Err(Aborts),
+        ),
+        (
+            "a torus no model represents",
+            BooleanError::DegenerateTorus {
+                operand: op,
+                face,
+                convention: geom_brep::TorusConvention::Tube,
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1.0),
+                },
+            },
+            Err(Aborts),
+        ),
+        (
+            "a chord past the format's scale",
+            BooleanError::NonFiniteSectorChord { vertex, face },
+            Ok(Refusal::Limit),
+        ),
+        (
+            "a chart image that refused, not yet split",
+            BooleanError::JoinUndecided(super::edge_join::JoinUndecided {
+                vertex,
+                reading: super::edge_join::JoinReading::ChartClass(
+                    geom_brep::IsoFamilyRefusal::Image(
+                        geom_brep::PcurveCertifyError::UnsupportedChart {
+                            chart: geom::SurfaceKind::Torus,
+                        },
+                    ),
+                ),
+            }),
+            Err(Aborts),
+        ),
+        (
+            "a line's faces read against each other within the tolerance",
+            line(LineUnread::Contradicted),
+            Ok(Refusal::InBand),
+        ),
+        (
+            "a meeting in band of a cone's apex",
+            unsettled(geom_brep::roots::Unsettled::AtApex),
+            Ok(Refusal::InBand),
+        ),
+        (
+            "a meeting at a spline's crease",
+            unsettled(geom_brep::roots::Unsettled::Crease),
+            Ok(Refusal::Limit),
+        ),
+        (
+            "a line along a cone's generator",
+            unsettled(geom_brep::roots::Unsettled::Degenerate),
+            Ok(Refusal::Limit),
+        ),
+        (
+            "a walk past its budget",
+            unsettled(geom_brep::roots::Unsettled::Exhausted),
+            Ok(Refusal::Unsettled),
+        ),
+    ];
+    for (label, error, want) in more {
         assert_eq!(error.refusal(), want, "{label}");
     }
     assert_eq!(

@@ -2899,7 +2899,7 @@ geom_brep::ended_by_write!(SectionUnbuilt);
 pub enum BooleanError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     ///
-    /// An abort: an invalid input (row 1), a tolerance that forms no band.
+    /// An abort: an invalid input (row 1(a)), a tolerance that forms no band.
     Band(BandError),
     /// A face's kind has no wired boolean arm at the classification
     /// site that met it (M5 PR 9: the F5 planar-only gate retired PER
@@ -2943,7 +2943,7 @@ pub enum BooleanError {
     /// convention half whose in-band arm is
     /// [`BooleanDecision::Torus`], and it ends in the same lever.
     ///
-    /// A limit: a shape the kernel has no representation for (row 2), its decided arm.
+    /// An abort: a shape the kernel's model never represents, an invalid input (row 1(a)).
     DegenerateTorus {
         /// The pierced face's operand.
         operand: Operand,
@@ -3025,7 +3025,7 @@ pub enum BooleanError {
     /// [`BooleanDecision::BoundaryMeeting`] off it). Its story is
     /// `decision`'s.
     ///
-    /// Ranked by its margin (row 1, in band).
+    /// Ranked by its margin (row 1(b), in band).
     CurvedPierceEscalated {
         /// The operand whose edge met the curved face.
         operand: Operand,
@@ -3049,7 +3049,7 @@ pub enum BooleanError {
     /// layer refuses rather than answer. The definite half: an in-band
     /// apex distance refuses the same way, with no tolerance named.
     ///
-    /// In band (row 1), as a normal at a cone's apex is (`NormalAtError::refusal`).
+    /// In band (row 1(b)), as a normal at a cone's apex is (`NormalAtError::refusal`).
     CrossingAtConeApex {
         /// The operand whose edge met the cone face.
         operand: Operand,
@@ -3066,7 +3066,7 @@ pub enum BooleanError {
     /// against. The definite half: an in-band distance off the axis
     /// refuses the same way, with no tolerance named.
     ///
-    /// In band (row 1), as a normal at a cone's apex is (`NormalAtError::refusal`).
+    /// In band (row 1(b)), as a normal at a cone's apex is (`NormalAtError::refusal`).
     NormalAtConeApex {
         /// The operand the cone face belongs to.
         operand: Operand,
@@ -3100,7 +3100,7 @@ pub enum BooleanError {
     /// off its apex, where the tangent plane is read ill-conditioned, or
     /// neither off it nor at it decided.
     ///
-    /// In band (row 1), as a normal at a cone's apex is (`NormalAtError::refusal`).
+    /// In band (row 1(b)), as a normal at a cone's apex is (`NormalAtError::refusal`).
     VertexNearConeAxis {
         /// The operand the cone face belongs to.
         operand: Operand,
@@ -3159,7 +3159,7 @@ pub enum BooleanError {
     /// pins the mapping on the shared walk's fixture, and `vtxfac`'s
     /// spline pierce rows on the pierce's.
     ///
-    /// In band (row 1): the decided and the in-band crease are one refusal here, and the in-band
+    /// In band (row 1(b)): the decided and the in-band crease are one refusal here, and the in-band
     /// one a tighter tolerance may decide.
     NormalAtSplineCrease {
         /// The operand the spline face belongs to.
@@ -3179,7 +3179,8 @@ pub enum BooleanError {
     /// C⁰ crease anywhere refuses here too, however far the crease lies
     /// (`work/encl/the-patch-bound-refuses-an-integral-chart-with-a-crease-anywhere`).
     ///
-    /// A limit: the chart's certified arm, which no tolerance moves (row 2).
+    /// A limit: the chart's certified arm unread, an arm not built (row 2) or a precision limit of
+    /// the chart (row 1(b)).
     PierceLeverUnread {
         /// The operand the spline face belongs to.
         operand: Operand,
@@ -3328,7 +3329,7 @@ pub enum BooleanError {
     /// material. In each case it refuses rather than answering for the
     /// complement.
     ///
-    /// An abort: an invalid input (row 1), an operand the Boolean does not serve.
+    /// An abort: an invalid input (row 1(a)), an operand the Boolean does not serve.
     InsideOutOperand {
         /// The offending operand.
         operand: Operand,
@@ -3340,7 +3341,7 @@ pub enum BooleanError {
     /// declaredly coplanar — the operand is not maximal-faced; run
     /// `merge_coplanar_faces` explicitly first.
     ///
-    /// An abort: an invalid input (row 1), an operand the Boolean does not serve.
+    /// An abort: an invalid input (row 1(a)), an operand the Boolean does not serve.
     NonMaximalFaces {
         /// The offending operand.
         operand: Operand,
@@ -3353,7 +3354,7 @@ pub enum BooleanError {
     /// the refusal ends in the gate's own lever
     /// ([`refusal_routes::NEIGHBOUR_OFFSET`]) and offers no declaration.
     ///
-    /// Ranked by its margin (row 1, in band): the offset.
+    /// Ranked by its margin (row 1(b), in band): the offset.
     CoplanarNeighbours {
         /// The operand both faces belong to.
         operand: Operand,
@@ -3368,9 +3369,9 @@ pub enum BooleanError {
     /// purpose — nothing about this is a band question, and no
     /// tolerance lever reaches it.
     ///
-    /// An abort until it is split: it holds a poisoned component, an invalid input, and an
-    /// overflowed norm, a limit of the format, so the abort is not the class of every case it
-    /// carries, and a ladder that reads one splits it first.
+    /// A limit: a precision limit the model controls (row 1(b)), the parts' scale. Its components
+    /// are differences of finite points, so one is not a number only past an overflow, which the
+    /// input's scale causes.
     NonFiniteSectorChord {
         /// The vertex being classified.
         vertex: VertexKey,
@@ -3384,7 +3385,7 @@ pub enum BooleanError {
     /// [`BooleanError::Escalated`] on purpose — nothing about this is
     /// a band question, and no tolerance lever reaches it.
     ///
-    /// A limit: the format's, which no tolerance moves (row 3).
+    /// A limit: a precision limit the model controls (row 1(b)), the parts' scale.
     UnderflowedSectorChord {
         /// The vertex being classified.
         vertex: VertexKey,
@@ -3395,7 +3396,7 @@ pub enum BooleanError {
     /// the operand pair is ill-conditioned at this ε — a genuine sliver
     /// (F6). Never a snap, never a guess.
     ///
-    /// Ranked by its margin (row 1, in band).
+    /// Ranked by its margin (row 1(b), in band).
     Escalated {
         /// The decision that escalated, which the refusal's ending
         /// follows from.
@@ -3410,7 +3411,8 @@ pub enum BooleanError {
     /// came from, as tier 3's [`ValidationError::PoisonedSurfaceDatum`]
     /// reads the same datum.
     ///
-    /// An abort: an invalid input (row 1), a poisoned datum.
+    /// An abort: a poisoned datum no lever cures, an invalid input from the operand's file (row
+    /// 1(a)), or, at a scalar whose at-rest gate refuses it, a kernel fault (row 4).
     PoisonedCarrierDatum {
         /// The face pair compared, each face with its operand: a face of
         /// each, or two neighbours of one at the maximal-faces gate.
@@ -3501,7 +3503,7 @@ pub enum BooleanError {
     /// non-planar given face) — a caller bug, refused before any
     /// classification runs (M4 PR 5).
     ///
-    /// An abort: an invalid input (row 1), a caller's key that does not resolve.
+    /// An abort: an invalid input (row 1(a)), a caller's key that does not resolve.
     InvalidInput {
         /// The operand whose key failed.
         operand: Operand,
@@ -3572,7 +3574,7 @@ pub enum BooleanError {
     /// through the other's line cone): `why` says what stopped it.
     ///
     /// A limit where the bound runs along the line ([`LineUnread::Along`], row 2); in band
-    /// otherwise (row 1), a reading within the input tolerance.
+    /// otherwise (row 1(b)), a reading within the input tolerance.
     LineMaterialUnread {
         /// A's vertex on the line: a key of A's working copy.
         a_vertex: VertexKey,
@@ -3616,8 +3618,8 @@ pub enum BooleanError {
     /// there, so the cone holds no class for it, and the vertex's edges
     /// are classed together or not at all (`in_band` names the edge).
     ///
-    /// In band where an edge reads in band of the cone (`in_band`, row 1); a limit otherwise (row
-    /// 2).
+    /// In band where an edge reads in band of the cone (`in_band`, row 1(b)); a limit otherwise
+    /// (row 2).
     VertexReadTwice {
         /// The operand whose vertex is read twice.
         operand: Operand,
@@ -3664,7 +3666,7 @@ pub enum BooleanError {
     /// this refusal is permanent at any tolerance
     /// (`insert::reconcile_shared`).
     ///
-    /// A limit: a result the representation does not hold (row 2).
+    /// An abort: a result the kernel's model never represents, manifold only (row 1(a)).
     NonManifoldResult {
         /// A's vertex at the point.
         a_vertex: VertexKey,
@@ -4053,8 +4055,10 @@ pub enum BooleanError {
     /// vertex is a regular point of its edges' carrier: a reading in
     /// the margin band (D4 ¶3).
     ///
-    /// Ranked by its margin where it carries one ([`edge_join::JoinUndecided::diag`]); in band
-    /// otherwise (row 1).
+    /// Ranked by its margin where it carries one ([`edge_join::JoinUndecided::diag`], row 1(b)). An
+    /// abort until it is split where the chart image's derivation refused: that refusal mixes
+    /// capability gaps with a body defect, so the abort is not the class of every case it carries,
+    /// and a ladder that reads one splits it first.
     JoinUndecided(edge_join::JoinUndecided),
     /// **A curved join on a carrier the stage cannot run on.** The join
     /// restates the kept edge over both edges' span on its own carrier
@@ -4134,8 +4138,8 @@ pub enum BooleanError {
     /// [`BooleanError::Escalated`] of
     /// [`BooleanDecision::EdgeOnFaces`].
     ///
-    /// A limit on a fitted carrier, the certification's own (row 2); an abort otherwise, a kernel
-    /// fault (row 4).
+    /// A limit on a fitted carrier, the certification's own last resort (row 1(b)); an abort
+    /// otherwise, a kernel fault (row 4).
     EdgeUndescribed {
         /// The edge, diagnostic only: the result is never returned.
         edge: EdgeKey,
@@ -4186,7 +4190,7 @@ pub enum BooleanError {
     /// arm.
     ///
     /// As its first in-band witness states it (`PointInSolidError::refusal`); in band where it
-    /// carries none (row 1).
+    /// carries none (row 1(b)).
     ShellWitnessExhausted {
         /// The operand whose shell was probed.
         operand: Operand,
@@ -4266,7 +4270,7 @@ pub enum BooleanError {
     /// operands, e.g. ∪ of a body with its own complement) — no
     /// boundary representation exists for it.
     ///
-    /// A limit: a result the representation does not hold (row 2).
+    /// An abort: a result the kernel's model never represents, unbounded (row 1(a)).
     UnrepresentableResult,
     /// Re-attaching a grafted edge description against the combined
     /// body's surfaces, through the scalar's edge door, refused (the
@@ -4846,12 +4850,24 @@ impl BooleanError {
     /// states its standing here before it compiles.
     ///
     /// **A variant's class is its `[failure.taxonomy]` class** (DESIGN):
-    /// a reading in band (row 1's terminal indeterminate) is ranked by its
-    /// margin or kept in band; an arm not built or a capability the kernel
-    /// lacks (row 2) is a limit; an invalid input (row 1) or a kernel fault
-    /// (row 4) aborts; and a payload that mixes faults with limits aborts
-    /// until it is split, its doc saying so. Whether a ladder stops early
-    /// is the ladder's concern, never the class.
+    ///
+    /// - row 1(a), a terminal invalid input, aborts: a request whose
+    ///   result the kernel's model never represents (manifold only,
+    ///   bounded) among them;
+    /// - row 1(b), a precision limit the model controls (a lever or a
+    ///   tolerance cures it, `KERNEL_LIMIT_RECOURSE`), is ranked by its
+    ///   margin where it carries one, kept in band where a tighter
+    ///   tolerance may decide it, and a limit otherwise;
+    /// - row 2, valid input the kernel has not built (`Unsupported*`, and
+    ///   nothing else), is a limit;
+    /// - row 3, poison, flows through values only: where it reaches a
+    ///   decision, that decision's refusal is row 1(b) where input causes
+    ///   it and row 4 where no input can;
+    /// - row 4, a kernel fault, aborts;
+    /// - a payload that mixes classes aborts until it is split, its doc
+    ///   saying so.
+    ///
+    /// Whether a ladder stops early never decides the class.
     ///
     /// # Errors
     ///
@@ -4869,7 +4885,7 @@ impl BooleanError {
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
-            Self::JoinUndecided(u) => Ok(u.diag().map_or(Refusal::InBand, |d| Refusal::Margin(*d))),
+            Self::JoinUndecided(u) => u.diag().map_or(Err(Aborts), |d| Ok(Refusal::Margin(*d))),
             Self::LineMaterialUnread { why, .. } => Ok(match why {
                 LineUnread::Along => Refusal::Limit,
                 LineUnread::Unplaced | LineUnread::Contradicted => Refusal::InBand,
@@ -4887,11 +4903,9 @@ impl BooleanError {
             | Self::NormalAtConeApex { .. }
             | Self::VertexNearConeAxis { .. }
             | Self::NormalAtSplineCrease { .. } => Ok(Refusal::InBand),
-            Self::DegenerateTorus { .. }
-            | Self::CurvedSectorSideUnsupported { .. }
+            Self::CurvedSectorSideUnsupported { .. }
             | Self::CurvedPierceUnsupported { .. }
             | Self::CurvedBooleanUnsupported { .. }
-            | Self::UnrepresentableResult
             | Self::VertexPairAtConeApex { .. }
             | Self::ResultPinchedAtConeApex { .. }
             | Self::PierceLeverUnread { .. }
@@ -4900,6 +4914,7 @@ impl BooleanError {
             | Self::GermEdgeCarrierUnsupported { .. }
             | Self::ArcLoopContainmentUnsupported { .. }
             | Self::UnderflowedSectorChord { .. }
+            | Self::NonFiniteSectorChord { .. }
             | Self::TangencyUnsupported
             | Self::RimCuspArmUnbuilt { .. }
             | Self::HeldPierceUnbuilt { .. }
@@ -4907,7 +4922,6 @@ impl BooleanError {
             | Self::PinchRaysInAFace { .. }
             | Self::CrossingsAlongAContactLine { .. }
             | Self::PartnerAlongFace { .. }
-            | Self::NonManifoldResult { .. }
             | Self::CurvedPairUnsupported { .. }
             | Self::NurbsExtentUnsupported { .. }
             | Self::FallbackExtentUnsupported { .. }
@@ -4926,10 +4940,12 @@ impl BooleanError {
             | Self::SlitFaceClosesMidSlit { .. }
             | Self::LineWedges { .. } => Ok(Refusal::Limit),
             Self::Band(_)
+            | Self::DegenerateTorus { .. }
+            | Self::NonManifoldResult { .. }
+            | Self::UnrepresentableResult
             | Self::ApexSection { .. }
             | Self::InsideOutOperand { .. }
             | Self::NonMaximalFaces { .. }
-            | Self::NonFiniteSectorChord { .. }
             | Self::PoisonedCarrierDatum { .. }
             | Self::ContactContradicted { .. }
             | Self::InvalidInput { .. }

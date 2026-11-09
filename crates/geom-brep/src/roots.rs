@@ -172,22 +172,28 @@ pub enum Unsettled {
 }
 
 impl Unsettled {
-    /// What this refusal is to a ladder ([`crate::ladder::Refusal`]):
-    /// every case is unsettled, a reading that did not settle on no
-    /// margin and in a way the band moves ([`crate::ladder::Rung::Unsettled`]).
-    /// Exhaustive, so a case added here states its own.
+    /// What this refusal is to a ladder ([`crate::ladder::Refusal`]), per
+    /// case and exhaustive, so a case added here states its own:
+    ///
+    /// - a meeting within the band of a cone's apex is in band, as the
+    ///   normal at a cone's apex is (`topo`'s `NormalAtError::refusal`);
+    /// - a meeting at a spline's crease, and a line along a cone's
+    ///   generator, are limits: the crossing layer reads neither pose
+    ///   (`DESIGN [failure.taxonomy]` row 2), as a decided crease is to
+    ///   the normal;
+    /// - every other case did not settle on no margin and in a way the
+    ///   band or a budget moves ([`crate::ladder::Rung::Unsettled`]).
     #[must_use]
     pub const fn refusal(self) -> crate::ladder::Refusal {
         match self {
+            Self::AtApex => crate::ladder::Refusal::InBand,
+            Self::Crease | Self::Degenerate => crate::ladder::Refusal::Limit,
             Self::Tangency
             | Self::Meter { .. }
             | Self::Exhausted
             | Self::Floor
             | Self::Resolvent
-            | Self::CountDisagrees { .. }
-            | Self::AtApex
-            | Self::Degenerate
-            | Self::Crease => crate::ladder::Refusal::Unsettled,
+            | Self::CountDisagrees { .. } => crate::ladder::Refusal::Unsettled,
         }
     }
 }
