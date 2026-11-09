@@ -367,8 +367,10 @@ fn door_sites(files: &[(PathBuf, String)], doors: &[(&str, usize)]) -> Vec<Site>
             }
         }
     }
-    hits.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
-    hits.dedup_by(|a, b| a.file == b.file && a.line == b.line);
+    hits.sort_by(|a, b| (&a.file, a.line, &a.ledger_row).cmp(&(&b.file, b.line, &b.ledger_row)));
+    // Only an identical citation is a duplicate: two door calls on one line
+    // citing different rows are two sites, and each row is checked.
+    hits.dedup_by(|a, b| a.file == b.file && a.line == b.line && a.ledger_row == b.ledger_row);
     hits
 }
 
