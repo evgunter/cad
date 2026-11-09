@@ -76,3 +76,21 @@
 
     The umbrella row is parked on them; its design flag is cleared and it is re-costed H.
   - Next, serially: step 1 once PR 6613 merges.
+- 2026-11-09 — **PR 6613: the dual review is in, APPROVE-WITH-FIXES twice, no MAJOR.**
+  - **Shared findings:**
+    - `ToolSeatCrossed` refuses tools that only touch the seat (∅ is right);
+    - the wall's In-wins edge-class gather has no row (mutants survive), and it feeds naming;
+    - the mirror check has no row;
+    - the PR body misdescribes main, and main's `cap − seat` built a silently wrong record-held floor that this PR's gate now refuses (unclaimed);
+    - stale docs;
+    - an undisclosed parallel gather path beside `cone_classes`;
+    - the area-record predicate is written twice.
+  - **R2 only:**
+    - the built rows assert nothing the wrong `cap − seat` fails (face counts, one shell holding both record faces);
+    - a curved area seat used as a cut's tool can still build that floor (by inspection);
+    - collar `CarryRefused`;
+    - the redundant flush refusals.
+  - **R1 only:** both operands carrying records refuses `CarryRefused`; `sample_errors`.
+  - The fix pass was sent to the implementer as one adjudicated list of 13 items.
+  - **One class to note:** a gate's rows have to go red with the gate off. Here they did not, and the built rows passed a wrong body. That is item 4 of the fix list.
+  - Off-target: R2 found the Express-lane bullet duplicated in `memories/agent-lane-operations.md`. That is a `memories/` edit, so it is Ev's. Noted, not fixed.
