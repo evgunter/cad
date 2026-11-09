@@ -914,9 +914,10 @@ where one crosses the other's plane, through the plane door
 (`curve_face::plane_crossing`), at a root on the curve's own section of
 that plane, read through the surface's chart: the co-surface arm
 (`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
-harmonic (`pose::height`). A curve on a surface is built from the
-surface record and chart coordinates and from nothing else, so the
-premise is the type's. Every consumer holding two curves on one surface
+harmonic (`pose::height`). A curve on a surface is built from a surface
+value and chart coordinates, so the premise that both curves lie on one
+surface is the type's; the value may be one a caller synthesises, not a
+face's record. Every consumer holding two curves on one surface
 reads that arm (the region doors' landings, the sphere cut-in), and
 none hands the pair to `meet`.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
