@@ -1200,7 +1200,8 @@ suits the slot.
 - *2-D poses:* `Point2`, `Direction2`, in one profile's coordinates
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
-  is a `Count`; and `Profile`. Only an operation defines a shape. A
+  is a `Count`; and `Profile`. An operation defines a shape; a
+  **source** or a pick reads one ([placement.placement]). A
   `Profile` is 2-D shape whose numbers are read only against each
   other; a sweep reads a profile and, at most, a heading and a tilt in
   the profile's own axes (an extrude's signed depth, above or below the
@@ -1220,8 +1221,8 @@ suits the slot.
 
 **Free and defined.** A variable is **free** — a value, its written
 unit ([units]) and optionally a distribution — or **defined**: by an
-`Expr` over other variables, by a selection of a `Body` variable, or
-as an output of an operation. Poses are only defined, and spaces only
+`Expr` over other variables, by a selection of a `Body` variable, as
+a read of a body (a source, a pick), or as an output of an operation. Poses are only defined, and spaces only
 minted.
 
 **No dimensioned literal.** `[variables.literals]` A dimensioned
@@ -1299,7 +1300,8 @@ operand stays a first-class value after a boolean reads it.
 **Bodies and operators.** `[operations.operators]` A body variable is
 defined by exactly one of: a construction; a one-input operation (a
 fillet, a shell, a split, a mirror); an operator over bodies; or a
-placement ([placement.placement]). There are four operators, REFERENCES
+placement ([placement.placement]); and a `Body` variable is also
+defined as a read of one of these, a source or a pick. There are four operators, REFERENCES
 DM4's `Union`, `Subtract` and `Intersect` and one more: `∪` union
 (n-ary) fuses its operands into one material, `−` cut is binary, `∩`
 meet is n-ary, and `⊔` assemble (n-ary, `Assemble`) keeps its operands
@@ -1452,7 +1454,18 @@ file edited by hand or merged into that state loads with them marked.
 **source**, a **target** and a bundle of constraints, mates and
 values. The source is always a body, of this document or another
 document's product (an instance), never a space; the target is a
-space. The placement defines one body, a copy of the source in the
+space. A placement of this document's body reads it through a
+**source**, a `Body` variable defined as a read of one body (`bracket
+= B`): a plain body, a member `xs[k]`, a pick or another source. A
+source is a variable like any other, so the naming rule holds
+unchanged (VARIABLES VR2): a lone placement's source is anonymous and
+its own, and two or more placements share it only by its name, given
+by the person when the body is placed a second time. Re-pointing the
+placements of a body is redefining their source (`bracket = F`), one
+action with the rebinds of what reads the copies; a later placement of
+`bracket` reads `bracket`. A source adds no name segment, so a copy's
+mate `on` sides select the source (`bracket.top`). An operation's
+output keeps its exemption from naming everywhere else. The placement defines one body, a copy of the source in the
 target space under the one rigid motion its constraints state, which
 carries every pose of the source as the source carries it, and the
 source's contact records and census decisions, which stay the
@@ -1460,7 +1473,7 @@ source's. What reads a copy downstream reads a body, never a
 placement: a body is the same to its readers whether it was built in
 its space, placed there, or placed through other spaces. A
 sub-assembly is a body written with `⊔` in its space, placed as many
-times as it is wanted, so no placement's data is ever repeated. A
+times as it is wanted through one named source, so no placement's data is ever repeated. A
 **pick** is a `Body` variable defined as one piece of a copy: it names
 the placement and the piece's variable in the source, through the
 placements inside the source down to the first variable it reaches,
