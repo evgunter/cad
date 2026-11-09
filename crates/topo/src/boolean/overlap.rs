@@ -41,7 +41,7 @@ use std::sync::Arc;
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::Span;
-use geom_brep::ladder::Evidence;
+use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
@@ -123,8 +123,10 @@ pub enum OverlapUnread {
     /// A boundary edge whose carrier places no parameter at a point. A
     /// limit.
     UnplacedParameter,
-    /// A boundary edge, or a vertex of one, that does not resolve past a
-    /// face that does. An abort: a torn body.
+    /// A record past a face that resolves does not: a boundary
+    /// half-edge's edge, its curve, its mate, or a vertex of it. An abort:
+    /// a torn body, a kernel fault (row 4), one class at every such
+    /// lookup.
     TornBoundary,
     /// Two corner bounds leave along one ray with no bend to part them.
     /// A limit.
@@ -181,7 +183,7 @@ impl OverlapUnread {
             Self::UncertifiedEdge => "a boundary edge with no certified curve",
             Self::UncertifiedBound => "a corner bound with no certified curve",
             Self::UnplacedParameter => "a boundary edge whose carrier places no parameter",
-            Self::TornBoundary => "a boundary edge, or a vertex of one, that does not resolve",
+            Self::TornBoundary => "a boundary record past a resolved face that does not resolve",
             Self::AlongOneRay => "two corner bounds leave along one ray with no bend to part them",
             Self::RechartedRegionLost => "a lost region of a face a sphere's re-chart turned",
             Self::HeldElsewhere => "a row says the face holds an accumulation face lying elsewhere",
@@ -297,9 +299,6 @@ impl core::error::Error for OverlapRefusal {}
 /// carrier, a key that does not resolve, or, where no witness decides, a
 /// decision in band or a reading with no verdict.
 ///
-/// # Panics
-///
-/// Where a record past a resolved face does not resolve (D2 row 4).
 pub fn overlap<T: Decide>(
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
@@ -440,13 +439,31 @@ fn edge_span<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
 ) -> Result<(&geom::Curve3<T>, (T, T)), OverlapRefusal> {
-    let curve = body
+    edge_record(body, he).map(|(curve, _)| curve)
+}
+
+/// A certified carrier and its span.
+type CarrierSpan<'a, T> = (&'a geom::Curve3<T>, (T, T));
+
+/// The certified carrier and span of half-edge `he`'s edge, and the
+/// edge's record. A record that does not resolve past a resolved face is
+/// a torn body ([`OverlapUnread::TornBoundary`]); a curve with no
+/// certificate is [`OverlapUnread::UncertifiedEdge`].
+fn edge_record<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+) -> Result<(CarrierSpan<'_, T>, &crate::entity::Edge), OverlapRefusal> {
+    let torn = OverlapRefusal::Unread(OverlapUnread::TornBoundary);
+    let edge = body
         .get_half_edge(he)
         .and_then(|h| body.get_edge(h.edge))
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(|c| c.certified())
+        .ok_or(torn.clone())?;
+    let curve = body
+        .get_curve_geom(edge.curve)
+        .ok_or(torn)?
+        .certified()
         .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))?;
-    Ok((curve.carrier(), curve.params()))
+    Ok(((curve.carrier(), curve.params()), edge))
 }
 
 /// The corner of `face` at its vertex `v`: each, where its loops pass `v`
@@ -455,7 +472,12 @@ fn vertex_corners<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
     v: VertexKey,
 ) -> Result<Vec<Corner<T>>, OverlapRefusal> {
-    let unread = || OverlapRefusal::Unread(OverlapUnread::UncertifiedBound);
+    // A bound whose records resolve and whose curve is certified, read
+    // with no departure, is a bound the reach reading does not bound.
+    let bound = |h: HalfEdgeKey| {
+        edge_span(body, h)?;
+        departure(body, h).ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedBound))
+    };
     let mut out = Vec::new();
     for cycle in loops((body, face))? {
         for (i, &he) in cycle.iter().enumerate() {
@@ -463,11 +485,10 @@ fn vertex_corners<T: Decide>(
                 continue;
             }
             let into = cycle[(i + cycle.len() - 1) % cycle.len()];
-            let back = body.mate(into).ok_or_else(unread)?;
-            out.push((
-                departure(body, he).ok_or_else(unread)?,
-                departure(body, back).ok_or_else(unread)?,
-            ));
+            let back = body
+                .mate(into)
+                .ok_or(OverlapRefusal::Unread(OverlapUnread::TornBoundary))?;
+            out.push((bound(he)?, bound(back)?));
         }
     }
     Ok(out)
@@ -508,12 +529,12 @@ fn half_plane<T: Decide>(
         .get_half_edge(he)
         .and_then(|h| body.get_edge(h.edge))
         .is_some_and(|e| e.he_plus == he);
-    let (carrier, (t0, t1)) = edge_span(body, he)?;
+    let ((carrier, (t0, t1)), edge) = edge_record(body, he)?;
     let t = carrier
         .param_near(p, geom::mid_param(t0, t1))
         .ok_or(OverlapRefusal::Unread(OverlapUnread::UnplacedParameter))?;
     let d = carrier.deriv(t);
-    let speed = d.norm();
+    let speed = geom::carrier_speed::speed_at_any(carrier, t);
     let unit = if forward { d / speed } else { -(d / speed) };
     let bend = match carrier {
         geom::Curve3::Line(_) => Some(Vec3::new(T::zero(), T::zero(), T::zero())),
@@ -526,10 +547,6 @@ fn half_plane<T: Decide>(
     };
     // The piece from `p` to a vertex: the edge's start at `t0`, its end
     // at `t1`.
-    let edge = body
-        .get_half_edge(he)
-        .and_then(|h| body.get_edge(h.edge))
-        .ok_or(OverlapRefusal::Unread(OverlapUnread::TornBoundary))?;
     let vertex = |end| {
         body.half_edge_start_point(end)
             .ok_or(OverlapRefusal::Unread(OverlapUnread::TornBoundary))
@@ -627,12 +644,26 @@ fn piece_witness<T: Decide>(
     }
     let n = turned(normal_at(x, q, band)?, x_rev);
     let mine = as_read(half_plane(x.0, he, q)?, x_rev);
-    for cy in ys {
-        if corners_meet(mine, as_read(cy, y_rev), n, band)? {
-            return Ok(true);
-        }
+    any_corner_meets(ys, |cy| corners_meet(mine, as_read(cy, y_rev), n, band))
+}
+
+/// **Whether any of `corners` meets the piece** ([`piece_witness`]'s
+/// ladder, each corner read by `meets`): a ladder over them ([`climb`],
+/// [`Answering::Any`]: every corner meeting the piece says the same "a
+/// witness"), so a corner read in band refuses only where no later one
+/// meets it, each refusal kept by its standing
+/// ([`OverlapRefusal::refusal`]).
+fn any_corner_meets<C>(
+    corners: impl IntoIterator<Item = C>,
+    mut meets: impl FnMut(C) -> Result<bool, OverlapRefusal>,
+) -> Result<bool, OverlapRefusal> {
+    match climb(Answering::Any, corners, |c| {
+        Rung::holds(meets(c), true, OverlapRefusal::refusal)
+    }) {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed => Ok(false),
+        Climb::Undecided(r) => Err(r),
     }
-    Ok(false)
 }
 
 /// Keeps a piece's refusal `r` in `kept` by its standing
@@ -678,7 +709,7 @@ fn edge_witness<T: Decide>(
             // The ends sorted with the cuts, so a window's end at one is
             // one cut there.
             let mut cuts = [t0, t1].into_iter().chain(located.cuts()).collect();
-            let speed = carrier.deriv(geom::mid_param(t0, t1)).norm();
+            let speed = geom::carrier_speed::speed_at_any(carrier, geom::mid_param(t0, t1));
             if let Err(r) = sort_params(&mut cuts, speed, band) {
                 keep(r)?;
                 continue;
@@ -804,6 +835,33 @@ mod piece_ranking {
         assert!(
             keep_piece_refusal(&mut Evidence::default(), contradiction).is_err(),
             "two readings that contradict stop the search"
+        );
+    }
+
+    /// **A corner meeting the piece answers past a corner read in band**
+    /// (`piece_witness` climbs `y`'s corners through
+    /// [`super::any_corner_meets`]). The readings are fed to the
+    /// production ladder through its reader.
+    #[test]
+    fn a_corner_that_meets_answers_past_one_in_band() {
+        let read = |r: Vec<Result<bool, OverlapRefusal>>| super::any_corner_meets(r, |r| r);
+        assert!(
+            matches!(read(vec![Err(in_band()), Ok(true)]), Ok(true)),
+            "a later corner that meets answers past an earlier one in band"
+        );
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Err(unread())]),
+                Err(OverlapRefusal::Unread { .. })
+            ),
+            "a limit outranks the corner in band read before it"
+        );
+        assert!(
+            matches!(
+                read(vec![Err(in_band()), Ok(false)]),
+                Err(OverlapRefusal::OnPlane(_))
+            ),
+            "with no corner meeting the piece, the corner in band refuses"
         );
     }
 }

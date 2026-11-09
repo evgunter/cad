@@ -3616,3 +3616,30 @@ These join:
 
 `plane_crossing_root_in_span` and `plane_crossing_belly_graze` gain the
 region doors' populations.
+
+## ONECOPY addendum (2026-11-06): the sphere cut-in reads the co-surface arm
+
+**Roster change: four names leave, and one joins.** `apply_cut_ins`
+(`topo/src/boolean/ops.rs`) reads where a sphere face's boundary arc meets
+the cut's half-meridian through `geom_brep::curve_pair::on_surface`: the
+arc across the meridian's plane through the plane door
+(`span_plane_meet`, its `plane_crossing_*` rows), each root placed on the
+arc's span by the door (`span_place`), and the root then on the meridian's
+half-plane through the chart's channels. These leave the roster:
+- `bool_sphere_cut_roots_{noise,coaxial,extreme,slack}`, the cut-in's
+  `FirstHarmonicRows`; `circle_roots::FirstHarmonic::conic_off_plane`,
+  which they metered, has no caller left and is retired.
+
+This joins:
+- `bool_sphere_cut_in_plane`: an arc's offset from the meridian's plane
+  it is parallel to (in it, the cut-in refuses as before).
+
+These stay: `bool_sphere_cut_span`, now read only for an arc's direction
+and for the order of two ends split on one arc (a root's place on its
+arc is the plane door's); `bool_sphere_cut_half`, read now as the
+meridian's section of its plane (`SurfaceCurve::section_of`, the same
+length, `h·(p − c)`); `bool_sphere_cut_pole` and
+`bool_sphere_cut_vertex`.
+
+`plane_crossing_root_in_span`, `plane_crossing_belly_graze` and
+`plane_crossing_plane_parallel` gain the cut-in's population.

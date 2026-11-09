@@ -584,10 +584,14 @@ pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> 
 /// [`sampled_near`].
 fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T> {
     let (t0, t1) = (e.t0, e.t1);
-    let Some((t, speed)) = foot(&e.carrier, x, t0)
-        .and_then(|t| Some((t, geom::carrier_speed::speed_at(&e.carrier, t)?)))
-    else {
+    let Some(t) = foot(&e.carrier, x, t0) else {
         return sampled_near(e, x, band);
+    };
+    let Some(speed) = geom::carrier_speed::speed_at(&e.carrier, t) else {
+        unreachable!(
+            "`foot` places a closed-form foot only on a line or a circle (`Curve3::nearest`), \
+             whose speed `speed_at` reads in closed form"
+        )
     };
     if !(strictly_inside(t - t0, speed) && strictly_inside(t1 - t, speed)) {
         return Near::Off;

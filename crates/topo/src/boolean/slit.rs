@@ -123,7 +123,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 
 use super::contain::ContainError;
 use super::ops::{DoorInBand, PieceRead, piece_reading};
@@ -1146,8 +1146,8 @@ fn holding<T: Decide>(
 /// [`super::fate`]'s ring rehoming reads too): a limit ahead of a piece
 /// read in band, and a refusal of the whole query (a corrupt face, two
 /// readings of an arc's end that contradict) aborts. A curved region
-/// that gives no verdict is a limit. An escalation is ranked by its
-/// margin; any other refusal is a limit.
+/// that gives no verdict is a limit. A refusal of the read itself is
+/// what the Boolean states it ([`BooleanError::refusal`]).
 fn piece_rung(
     reading: Result<PieceRead, BooleanError>,
     unread: impl FnOnce(Option<ContainError>) -> BooleanError,
@@ -1159,8 +1159,7 @@ fn piece_rung(
             geom_brep::ladder::rung_or_abort(why.refusal(), unread(Some(why)), Err)
         }
         Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
-        Err(read @ BooleanError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| read),
-        Err(read) => Rung::Blocked(read),
+        Err(read) => Rung::refused(read, BooleanError::refusal),
     }
 }
 
@@ -1470,8 +1469,16 @@ fn conic_or_line_on<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => torus_between(&points, (center, axis), (major_radius, minor_radius), band)
-            .map_err(refused),
+        } => torus_between(
+            &points,
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            (major_radius, minor_radius),
+            band,
+        )
+        .map_err(refused),
         _ => Ok(Placed::On),
     }
 }
@@ -1603,21 +1610,17 @@ fn even_points<T: Decide>(carrier: &geom::Curve3<T>, t0: T, n: u32) -> Vec<Point
 }
 
 /// [`carrier_on_surface`]'s bound between a conic's nine samples on the
-/// torus about `center` along unit `axis`, radii `(R, r)`, decided
+/// torus about the unit `axis` line, radii `(R, r)`, decided
 /// where every sample read on it.
 fn torus_between<T: Decide>(
     points: &[Point3<T>],
-    (center, axis): (Point3<T>, Vec3<T>),
+    axis: geom::Line<T>,
     (big, small): (T, T),
     band: Band,
 ) -> Result<Placed, geom_core::Indeterminate> {
     let mut worst = T::zero();
     for &p in points {
-        let (h, rho) = geom::Line {
-            origin: center,
-            dir: axis,
-        }
-        .height_and_distance(p);
+        let (h, rho) = axis.height_and_distance(p);
         // The torus's equation over `2r`, the offset times `G`.
         let product = ((rho - big).powi(2) + h.powi(2) - small.powi(2))
             * ((rho + big).powi(2) + h.powi(2) - small.powi(2));

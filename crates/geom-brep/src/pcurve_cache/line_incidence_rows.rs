@@ -143,15 +143,16 @@ fn distance(surface: &Surface<Interval>, line: &Curve3<Interval>, t: f64) -> f64
 }
 
 /// The axis of `surface`, where it has one.
-fn axis_of(surface: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
-    match *surface {
-        Surface::Cylinder { origin, axis, .. } => Some((origin, axis)),
-        Surface::Cone { apex, axis, .. } => Some((apex, axis)),
+fn axis_of(surface: &Surface<f64>) -> Option<geom::Line<f64>> {
+    let (origin, dir) = match *surface {
+        Surface::Cylinder { origin, axis, .. } => (origin, axis),
+        Surface::Cone { apex, axis, .. } => (apex, axis),
         Surface::Torus { center, axis, .. }
         | Surface::Spindle { center, axis, .. }
-        | Surface::Sphere { center, axis, .. } => Some((center, axis)),
-        _ => None,
-    }
+        | Surface::Sphere { center, axis, .. } => (center, axis),
+        _ => return None,
+    };
+    Some(geom::Line { origin, dir })
 }
 
 /// The hunt's largest distance over `[t0, t1]` (module docs).
@@ -188,7 +189,7 @@ fn hunt(
         .iter()
         .map(|s| (*s - line.origin).dot(line.dir) / uu)
         .collect();
-    if let Some((o, a)) = axis_of(surface) {
+    if let Some(geom::Line { origin: o, dir: a }) = axis_of(surface) {
         let a = a.normalize();
         let (q, u) = (line.origin - o, line.dir);
         let (qo, uo) = (q - a * q.dot(a), u - a * u.dot(a));
@@ -273,7 +274,7 @@ fn draw(rng: &mut fuzz::Rng, surface: &Surface<f64>, singular: &[Point3<f64>]) -
     let tilt = unit(rng) * tilt_by;
     let (point, dir) = match rng.below(5) {
         4 => match axis_of(surface) {
-            Some((o, a)) => (o + a * rng.range(-1.0, 1.0), a),
+            Some(axis) => (axis.at(rng.range(-1.0, 1.0)), axis.dir),
             None => (wall, unit(rng)),
         },
         0 | 1 => {

@@ -291,6 +291,31 @@ impl<A, E> Rung<A, E> {
     }
 }
 
+impl<A, E> Rung<Result<A, E>, E> {
+    /// **A reading of whether one rung holds** as its rung: holding
+    /// answers `Ok(yes)`, not holding passes, and a refusal stands by
+    /// `standing` ([`Self::refused`]). The one home of the reader that
+    /// answers a `bool` over a refusal with a standing.
+    pub fn holds(
+        reading: Result<bool, E>,
+        yes: A,
+        standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
+    ) -> Self {
+        match reading {
+            Ok(true) => Self::Answers(Ok(yes)),
+            Ok(false) => Self::Passes,
+            Err(e) => Self::refused(e, standing),
+        }
+    }
+
+    /// The rung a reading refused with `e` stands as, read off `e`
+    /// itself: kept by its kind, or, where it refuses the whole query,
+    /// stopping the ladder with `Err(e)` ([`rung_or_abort`]).
+    pub fn refused(e: E, standing: impl FnOnce(&E) -> Result<Refusal, Aborts>) -> Self {
+        rung_or_abort(standing(&e), e, Err)
+    }
+}
+
 /// **What an answer may do with the kept readings ahead of it**, which
 /// the caller of [`climb`] declares.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

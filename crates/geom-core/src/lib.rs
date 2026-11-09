@@ -23,6 +23,7 @@ pub mod exact;
 pub mod interval;
 pub mod k_stats;
 pub mod linalg;
+pub mod line2;
 pub mod one_line;
 pub mod period;
 pub mod predicate;
@@ -63,6 +64,7 @@ pub use linalg::{
     UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
     not_rigid_reading,
 };
+pub use line2::Line2;
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING, DEFAULT_K,
     DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading, FileCoincidence,

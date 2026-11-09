@@ -274,7 +274,7 @@ mod tests {
                     .map(|&r| {
                         let d = 1e-7;
                         let rise = distance(s, e.eval(r + d)) - distance(s, e.eval(r - d));
-                        (rise / (2.0 * d * e.deriv(r).norm())).abs()
+                        (rise / (2.0 * d * geom::carrier_speed::speed_at_any(e, r))).abs()
                     })
                     .fold(f64::INFINITY, f64::min);
                 let resolvable = 100.0 * noise / slope <= band.zero();
@@ -450,7 +450,9 @@ mod torus_rows {
     fn arc_off(e: &geom::Curve3<f64>, t: f64, roots: &[f64]) -> f64 {
         roots
             .iter()
-            .map(|&r| ((t - r + PI).rem_euclid(TAU) - PI).abs() * e.deriv(r).norm())
+            .map(|&r| {
+                ((t - r + PI).rem_euclid(TAU) - PI).abs() * geom::carrier_speed::speed_at_any(e, r)
+            })
             .fold(f64::INFINITY, f64::min)
     }
 
