@@ -518,10 +518,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
     // (`u_ref` rotated by t0; exactly `u_ref` for Full and t0 = 0). ----
     let x_dir = match window {
         TubeWindow::Full => u_ref,
-        TubeWindow::Arc { t0, .. } => {
-            let (s, c) = t0.sin_cos();
-            u_ref * c + v_ref * s
-        }
+        TubeWindow::Arc { t0, .. } => geom::radial_of_legs(u_ref, v_ref, t0),
     };
     let normal = x_dir.cross(axis);
     let place = Affine3::from_parts(

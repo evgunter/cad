@@ -826,6 +826,13 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     diag,
                 ));
             }
+            Err(super::PlaneEqError::OffRing { torus, refusal }) => {
+                return Err(super::off_ring_torus(
+                    torus,
+                    refusal,
+                    [(operand, f1), (operand, f2)],
+                ));
+            }
         }
     }
     Ok(())

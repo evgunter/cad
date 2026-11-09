@@ -5455,11 +5455,11 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// sections meet at one point — so its anchor alone can land `OnBoundary`
 /// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
 /// every vertex does: each such verdict is decided, so the ring is on
-/// the run. A vertex whose reading escalates says nothing either, and
-/// the next is asked; the first escalation escalates only where no
-/// vertex decides ([`climb`]). The vertices agree because the
-/// ring does not cross the run, and a touch switches no side
-/// ([`paths_rung`]'s premise).
+/// the run. A vertex whose reading refuses says nothing either, kept by
+/// its standing ([`PointInLoopError::refusal`]), and the next is asked;
+/// a kept refusal refuses only where no vertex decides ([`climb`]). The
+/// vertices agree because the ring does not cross the run, and a touch
+/// switches no side ([`paths_rung`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -5467,24 +5467,35 @@ fn ring_side<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let read = |v: VertexKey| match point_in_loop(
-        body,
-        run,
-        normal,
-        body.resolve_vertex_point(v, Proven),
-        band,
-    ) {
-        Ok(LoopContainment::In) => Rung::Answers(Ok(RingSide::In)),
-        Ok(LoopContainment::Out) => Rung::Answers(Ok(RingSide::Out)),
-        Ok(LoopContainment::OnBoundary) => Rung::Passes,
-        Err(e @ PointInLoopError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| e),
-        Err(e) => Rung::Aborts(Err(SplitJoinError::from(e))),
+    let read = |v: VertexKey| {
+        vertex_side(point_in_loop(
+            body,
+            run,
+            normal,
+            body.resolve_vertex_point(v, Proven),
+            band,
+        ))
     };
     match climb(Answering::Any, ring_vertices(body, ring)?, read) {
-        Climb::Answered { answer, .. } => answer,
+        Climb::Answered { answer, .. } => answer.map_err(SplitJoinError::from),
         Climb::Passed => Ok(RingSide::OnRun),
         Climb::Undecided(e) => Err(SplitJoinError::RingHoming(e)),
     }
+}
+
+/// One ring vertex's containment as [`ring_side`]'s rung
+/// ([`Rung::answers`]): a decided side answers, a vertex on the run
+/// passes, and a refusal stands by its own standing
+/// ([`PointInLoopError::refusal`]).
+fn vertex_side(
+    reading: Result<LoopContainment, PointInLoopError>,
+) -> Rung<Result<RingSide, PointInLoopError>, PointInLoopError> {
+    let side = |at| match at {
+        LoopContainment::In => Some(RingSide::In),
+        LoopContainment::Out => Some(RingSide::Out),
+        LoopContainment::OnBoundary => None,
+    };
+    Rung::answers(reading.map(side), PointInLoopError::refusal)
 }
 
 /// Where ring re-homing puts a bystander ring.
@@ -5577,6 +5588,8 @@ mod cone_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod island_rows;
+#[cfg(test)]
+mod ring_side_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;

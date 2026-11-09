@@ -51,7 +51,7 @@ use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, Sq
 use super::torus_coincidence::{TorusCoincidence, TorusData, tori_coincide};
 use super::{
     ClassCarrier, Coincident, ComponentShape, Components, PairPose, PairSection, SectionComponent,
-    SectionDecision, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
+    SectionDecision, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
 use crate::intersect::{SectionError, SectionRadius};
@@ -517,7 +517,7 @@ fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> Sec
         shape,
         winds,
         touch,
-        ClassCarrier::Unminted(TANGENT_COMPONENT),
+        ClassCarrier::Unminted(super::NoCarrier::Tangent),
     )
 }
 
@@ -1104,8 +1104,10 @@ impl<T: Decide> TorusTorusPose<T> {
             match tori_coincide(r1.data(), r2.data(), band) {
                 TorusCoincidence::One(_) => return Err(TorusPoseRefusal::Coincident),
                 TorusCoincidence::Undecided(diag) => return Err(undecided_symmetry(diag)),
-                TorusCoincidence::OffRing(t) => return Err(TorusPoseRefusal::Torus(t)),
-                TorusCoincidence::Apart => {}
+                TorusCoincidence::OffRing { refusal, .. } => {
+                    return Err(TorusPoseRefusal::Torus(refusal));
+                }
+                TorusCoincidence::Apart { .. } => {}
             }
             // Both balls hold the section: the smaller is the tighter
             // reach, and where the comparison is not decided either
