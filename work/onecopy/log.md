@@ -1357,3 +1357,17 @@
   - **6686 (topo-forwarders) opened,** stacked on 6679: 689 names, 112 newly read, no CallIn. Its review waits for 6679's FIX fold.
   - **torus-ring-names row 2: A,** reader enums in geom with private mints and a duplicate walk.
   - 6674 gate green; merge check running.
+- 2026-11-10 01:05Z
+  - **Rulings:**
+    - scope-parser: A, a new dev-only leaf crate source-scope on syn 2, the one home for scope questions per the reader_census ledger. C (a JSON tool for the Python gates) filed as a guard row.
+    - edge-ends-turns:
+      - split.rs `split_edge_param_interior` (a 4th span-membership spelling, speed floor) routes to Span::place_param here, not in 6687;
+      - no gate for metered end reads; the ~20 hits go on a row;
+      - `Period::forward` approved.
+  - **6688 FULL: FIX (small).**
+    - `incidence_kinds` re-walks readback, so delete it and give the kinds read one spelling.
+    - Scope the gate exemption to geom-brep/src.
+    - Keep a refusal-field pin.
+    - Drop the k_stats NonzeroSign path.
+    - Football's vacuous kind check.
+    - The body counts.
