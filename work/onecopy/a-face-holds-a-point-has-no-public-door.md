@@ -2,10 +2,11 @@
 id: a-face-holds-a-point-has-no-public-door
 kind: issue
 title: topo's 'does this face hold this point' dispatch (plane -> contfp, curved -> curved_face_containment) is pub(crate) face_placement, so editor-core's emit_topo and topo's rim_wedge and census each keep a copy with its own error policy
-status: open
+status: closed
 opened: 2026-10-18
 priority: P3
 cost: M
+closed: 2026-11-09
 ---
 
 
@@ -41,3 +42,14 @@ a face-face door answers a different question. The fix this row names,
 a public point door with one error policy, is still the one.
 
 Moved from `work/issues/` to `work/onecopy/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+Closed (`onecopy/face-holds`): `rim_wedge`'s `contains` now places its
+midpoint through `boolean::contain::face_placement` (on-plane predicate
+`bool_rim_wedge_on_plane`), the dispatch the census's `face_holds` already
+read, so one dispatch serves both. Each keeps a one-line decision on the
+typed error: the census reports it as findings (`read_containment`), and
+`rim_wedge` lifts a refusal by its standing (`ContainError::refusal`).
+The door stays crate-visible: its one outside consumer (`emit_topo`) is
+gone, and `test_support::face_holds` serves the tests. The four other
+copies of the dispatch the sweep found are
+`the-face-placement-dispatch-has-four-more-copies`.
