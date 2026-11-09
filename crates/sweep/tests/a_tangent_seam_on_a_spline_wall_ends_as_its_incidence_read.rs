@@ -3,8 +3,8 @@
 //! chart reaches `topo::pcurves::nurbs_iso_derive`'s last arm, which has
 //! no lane for it and refuses `IsoUnsupported`, "not yet": behind the
 //! chart's incidence read (`geom_brep::read_edge_incidence`), a carrier
-//! shown off the wall ends `CarrierOffChart` and one read in band ends in
-//! the read's lever instead.
+//! shown off the wall ends off it (`IncidenceRead::Off`) and one read in
+//! band (`IncidenceRead::Undecided`) ends in the read's lever instead.
 //!
 //! The fixture is a block with one top edge filleted, its quarter
 //! cylinder then swapped (`Body::with_surface_moved_for_tests`) for a
@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
-use geom_brep::{PcurveCertifyError, PcurveCheck};
+use geom_brep::PcurveCertifyError;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Tol};
 use sweep::blend::fillet_edges;
@@ -150,6 +150,13 @@ fn derived(radius: f64) -> Vec<Result<geom_brep::Pcurve<f64>, PcurveMintError>> 
     let mut moved = body.with_surface_moved_for_tests(key, net).unwrap();
     for &h in &seams {
         moved.detach_pcurve(h);
+        // The kinds the read is of, on the body's own face and edge: a
+        // line on the spline wall.
+        assert_eq!(
+            topo::test_support::incidence_kinds(&moved, h),
+            (geom::SurfaceKind::Nurbs, geom::CurveKind::Line),
+            "{h:?}: the seam is a line on the spline wall"
+        );
     }
     seams
         .iter()
@@ -169,29 +176,19 @@ fn a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read() {
             "a seam on the wall has no iso lane: {got:?}"
         );
     }
+    let read = |got: &Result<geom_brep::Pcurve<f64>, PcurveMintError>| {
+        error(got).as_ref().and_then(geom_brep::IncidenceRead::of)
+    };
     for got in derived(RADIUS + 1e-3) {
         assert!(
-            matches!(
-                error(&got),
-                Some(PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Nurbs,
-                    carrier: geom::CurveKind::Line,
-                    ..
-                })
-            ),
+            matches!(read(&got), Some(geom_brep::IncidenceRead::Off(_))),
             "a seam a millimetre inside the wall ends off it: {got:?}"
         );
     }
     let b = band();
     for got in derived(RADIUS + 0.5 * (b.zero() + b.escalate())) {
         assert!(
-            matches!(
-                error(&got),
-                Some(PcurveCertifyError::Escalated {
-                    check: PcurveCheck::ChartIncidence,
-                    ..
-                })
-            ),
+            matches!(read(&got), Some(geom_brep::IncidenceRead::Undecided(_))),
             "a seam in band of the wall ends in the read's lever: {got:?}"
         );
     }

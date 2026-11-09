@@ -168,18 +168,24 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     // longer lie on it, which its incidence read shows. Tier 3's claim
     // is checked after.
     let minted = topo::mint_pcurves(&mut body, Tol::witness());
+    let Err(topo::PcurveMintError::Certify {
+        half_edge,
+        ref error,
+    }) = minted
+    else {
+        panic!("the re-mint refuses a row on the degraded chart: {minted:?}")
+    };
     assert!(
         matches!(
-            minted,
-            Err(topo::PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Approx,
-                    ..
-                },
-                ..
-            })
+            geom_brep::IncidenceRead::of(error),
+            Some(geom_brep::IncidenceRead::Off(_))
         ),
         "the re-mint reads the degraded chart's carriers off it: {minted:?}"
+    );
+    assert_eq!(
+        topo::test_support::incidence_kinds(&body, half_edge).0,
+        geom::SurfaceKind::Approx,
+        "the row read off is on the degraded chart"
     );
     let errors = topo::validate_geometric(&body, Tol::witness())
         .expect_err("a degraded fit must not validate");
