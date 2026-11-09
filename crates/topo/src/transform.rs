@@ -970,14 +970,15 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
             MappedSource::RevolvedPoint {
                 point,
                 place,
-                axis_origin,
-                axis_dir,
+                axis,
                 angle,
             } => MappedSource::RevolvedPoint {
                 point,
                 place: *map * place,
-                axis_origin: map.transform_point(axis_origin),
-                axis_dir: hand.axial(map, axis_dir),
+                axis: geom::Line {
+                    origin: map.transform_point(axis.origin),
+                    dir: hand.axial(map, axis.dir),
+                },
                 angle,
             },
         },

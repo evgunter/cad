@@ -1208,7 +1208,7 @@ fn he_at(body: &Body<f64>, face: FaceKey, p: Point3<f64>) -> topo::HalfEdgeKey {
         .filter(|&he| {
             let v = body.get_half_edge(he).unwrap().start;
             let q = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            (q - p).norm() == 0.0
+            q.equals_exactly(p)
         })
         .collect();
     assert_eq!(hit.len(), 1, "one half-edge of the loop starts at {p:?}");

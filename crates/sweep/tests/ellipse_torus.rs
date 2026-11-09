@@ -284,7 +284,7 @@ fn a_torus_crossing_the_rim_reaches_the_join() {
                     BooleanError::GermSectionSpiric { .. } => true,
                     BooleanError::GermSectionUnbuilt {
                         why:
-                            topo::SectionUnbuilt::Carry(geom_brep::CarryError::March(
+                            topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::March(
                                 geom_brep::SsiError::TubeStraddles { .. },
                             )),
                         ..
