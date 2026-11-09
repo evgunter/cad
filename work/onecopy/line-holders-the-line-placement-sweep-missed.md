@@ -1,11 +1,11 @@
 ---
 id: line-holders-the-line-placement-sweep-missed
 kind: issue
-title: Three line holders the line-placement sweep missed: link.rs's forward decision, sweep revolve's AxisFrame, blend's Meridian
+title: geom::cover::Core holds its circle's axis as a loose center/axis pair, rebuilt into a Line by cover.rs's private axis_line
 status: open
 opened: 2026-11-09
 priority: P2
-cost: M
+cost: E
 ---
 
 
@@ -26,3 +26,12 @@ The port is a `Ray` door taking a point, its advance read as a length over a uni
 **3. `sweep/src/blend/arms.rs:852` `Meridian`.** It holds `origin` and the unit `axis` (a line) beside `rim`, and builds `geom::Line { origin: self.origin, dir: self.axis }` at `arms.rs:979`. The port is a `Line` field (or `Meridian::axis_line()`).
 
 **4. `geom/src/cover.rs` `Core` (arrived with main, 2026-11-09).** BOXES' redesign of the depth readings made `geom::cover::Core { center, axis, radius }` pub, read through `Around::Circle`. It holds the circle's axis as a loose `center` / `axis` pair, which a private `axis_line(center, axis)` in `cover.rs` rebuilds into a `Line` twice. This replaces PR 6665's private `Core { axis: Line, radius }` and `topo` `Depth::Core { axis: Line, major }`: the merge took main's side, because the redesign belongs to a program in flight. Porting `Core` to hold a `Line` is this row's.
+
+## Narrowed to item 4 (2026-11-09, `onecopy/line-holders`)
+
+Items 1 to 3 are settled. What stays open is item 4, BOXES' `geom::cover::Core`, left unported by ruling while its redesign is in flight.
+
+- **1, link's ahead: two decisions, not a port.** link's `ahead` / `ahead_settle` / `ahead_distance` and `FaceSector::chord`'s `past` decide a point's offset in metres, over a normalized direction. They decide it through `metric::settle`'s `Reading`, whose slack must hold over every sector within the tie, and through link's one verdict door (its single `Margin::of`, pinned by a row). The point is drawn in to the ray's reach first. `geom::Ray::ahead` decides a bare root parameter in units of `|dir|`, with no slack, and a metre slack cannot move a margin in `|dir|` units. Each doc now names the other and says why.
+- **2, revolve `AxisFrame`:** `o3` / `a3` became one `line3: geom::Line`, and the three hand-built lines read it.
+- **3, blend `Meridian`:** `origin` / `axis` became `axis: geom::Line`. `battery.rs` passes the rim circle's `frame.axis_line()`.
+- Found by the same pass: `sweep::blend::arms::line_meet` took two lines as four loose arguments. It now takes two `Line`s, and its callers pass their trimlines whole.
