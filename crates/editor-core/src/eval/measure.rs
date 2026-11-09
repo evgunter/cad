@@ -1384,6 +1384,9 @@ fn link_reads<T: Decide>(
                 "a cell on a curved edge whose direction does not read there"
             }
             LinkRefusal::Unread(TouchUnread::Corrupt) => "a cell whose topology does not read",
+            LinkRefusal::Unread(TouchUnread::LoneLoop) => {
+                "a cell on a face with a loop that is a lone vertex"
+            }
         };
         unsupported_as("gap", class, read.class())
     })

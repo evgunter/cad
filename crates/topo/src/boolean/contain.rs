@@ -366,6 +366,7 @@ impl From<PointInLoopError> for ContainError {
             },
             PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
             PointInLoopError::CorruptLoop { r#loop } => Self::LoopUnreadable(r#loop),
+            PointInLoopError::LoneLoop { r#loop } => Self::EmptyLoop(r#loop),
             PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
             PointInLoopError::OffPlane(_) => {
                 unreachable!("contfp reads loops through carrier_loop, which certifies no plane")

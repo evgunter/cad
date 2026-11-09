@@ -841,6 +841,10 @@ impl SaidFinding<'_> {
                         "its structure did not resolve ({at:?}), which is a tier-1 defect \
                          rather than a coherence one"
                     ),
+                    topo::Unexaminable::LoneLoop { .. } => f.write_str(
+                        "it is a lone vertex, construction scaffolding with no edge, so it \
+                         states no coordinate to compare",
+                    ),
                     topo::Unexaminable::NullScaffoldEdge { .. } => f.write_str(
                         "an edge of it carries construction scaffolding rather than a \
                          certified curve, so it states no coordinate to compare",
@@ -947,7 +951,7 @@ impl SaidFinding<'_> {
                  is a kernel finding"
             }
             CheckEvidence::ChartCoherenceUnexamined { unexamined } => match unexamined.why {
-                topo::Unexaminable::Corrupt { .. } => {
+                topo::Unexaminable::Corrupt { .. } | topo::Unexaminable::LoneLoop { .. } => {
                     "the body's structural validation names the defect this read could not \
                      get past"
                 }

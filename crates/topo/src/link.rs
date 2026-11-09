@@ -85,6 +85,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::live::UncheckedLoop;
 
 /// K name: a point's signed distance from the plane of a link's face
 /// through the touch point `p`, in metres — which side of the face's
@@ -529,6 +530,13 @@ pub enum TouchUnread {
     /// on bodies tier 1 admits (loops closed, every key resolving), so
     /// this is a kernel defect. An abort.
     Corrupt,
+    /// A face holds a lone-vertex loop where this reading takes none: at
+    /// the touch point, or in a planar face read as the polygon its
+    /// rings bound. Tier 1 admits the loop; tier 2 refuses it at rest
+    /// ([`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)).
+    /// A limit, standing and ending as the boolean's containment door's
+    /// lone-loop refusal does.
+    LoneLoop,
 }
 
 impl TouchUnread {
@@ -542,7 +550,9 @@ impl TouchUnread {
     pub const fn refusal(self) -> Result<Refusal, Aborts> {
         match self {
             Self::InBand | Self::PieceInBand => Ok(Refusal::InBand),
-            Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
+            Self::Unanalysed | Self::Degenerate | Self::ChordScale | Self::LoneLoop => {
+                Ok(Refusal::Limit)
+            }
             Self::EdgeTangent(why) => Ok(why.refusal()),
             Self::Unreadable | Self::OffInterior | Self::Corrupt => Err(Aborts),
         }
@@ -2430,8 +2440,11 @@ impl<T: Decide> FaceSector<T> {
             .vec();
         let mut loops = Vec::new();
         let mut rings = Vec::new();
-        for cycle in body.unchecked_face_cycles(face.record()) {
-            let cycle = cycle.map_err(|_| TouchUnread::Corrupt)?;
+        for read in body.unchecked_face_boundary(face.record()) {
+            let cycle = match read.map_err(|_| TouchUnread::Corrupt)? {
+                UncheckedLoop::Cycle(cycle) => cycle,
+                UncheckedLoop::Lone(_) => return Err(TouchUnread::LoneLoop),
+            };
             let mut keys = Vec::with_capacity(cycle.len());
             let mut ring = Vec::with_capacity(cycle.len());
             for he in cycle {
@@ -2516,8 +2529,18 @@ impl<T: Decide> FaceSector<T> {
             None => None,
         };
         let mut passes = Vec::new();
-        for cycle in body.unchecked_face_cycles(face.record()) {
-            for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+        for read in body.unchecked_face_boundary(face.record()) {
+            let cycle = match read.map_err(|_| TouchUnread::Corrupt)? {
+                UncheckedLoop::Cycle(cycle) => cycle,
+                // A lone vertex is a point of the boundary the disc meets
+                // none of.
+                UncheckedLoop::Lone(vertex) => {
+                    let c = (position(body, vertex)? - p).norm();
+                    radius = Some(radius.map_or(c, |r| r.min(c)));
+                    continue;
+                }
+            };
+            for he in cycle {
                 let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
                 let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
                 if let Some((a, b)) = edge
