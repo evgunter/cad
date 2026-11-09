@@ -4216,15 +4216,7 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     band: Band,
 ) -> Option<Result<bool, Indeterminate>> {
     use geom_brep::variety::{Piece, Variety};
-    if !matches!(
-        surface,
-        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
-    ) {
-        return None;
-    }
-    // A cylinder or a cone is a member whatever the ring site reads, since
-    // only a torus asks it.
-    let variety = Variety::of(surface, name, band).ok()??;
+    let variety = Variety::ruled(surface)?;
     Some(
         variety
             .read_piece(&[p0, p1, p0.mid(p1)], name, band)
@@ -4301,9 +4293,7 @@ mod variety_reading_rows {
             Point3::new(0.0, -1.2, 0.0),
             Point3::new(1.2, 0.0, 0.0),
         ];
-        let variety = geom_brep::variety::Variety::of(&sphere, "test_row", band())
-            .unwrap()
-            .unwrap();
+        let variety = geom_brep::variety::Variety::quadric(&sphere).unwrap();
         assert_eq!(
             variety.read_piece(&samples, "test_row", band()),
             Ok(geom_brep::variety::Piece::Off)
