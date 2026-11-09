@@ -1641,7 +1641,7 @@ impl<T: Decide> Sector<T> {
                         Rung::Passes
                     }
                     Ok(Place::Outside) => Rung::Passes,
-                    Err(why) => Rung::refused(why, Unsettled::refusal),
+                    Err(why) => Rung::refused(why, Unsettled::refusal, Err),
                 }
             },
         );
@@ -2084,7 +2084,7 @@ impl<T: Decide> Cone<T> {
         let climbed = climb(Answering::First, references, |(arc, t, base, c, ray)| {
             let w = arc.reference(p, q, c, ray);
             let mut refused = |why: Unread<T>| match arc {
-                ArcReach::Near => Rung::refused(why, Unread::refusal),
+                ArcReach::Near => Rung::refused(why, Unread::refusal, Err),
                 ArcReach::Out => {
                     in_band = true;
                     Rung::Passes
