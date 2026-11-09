@@ -1187,3 +1187,7 @@
     - small-sweeps (session_013mPGJ24qkgLmtv89XxUB8z): hypot-spelled-2d-normalizations and a-lone-loop-refuses-under-a-corruption-name.
     - chart-feet (session_013mPGJ4NYwAa9GMw2fnvHcH): the-ruled-and-torus-doors-read-the-querys-foot-back-through-the-chart, measure first.
     - topo-roster (session_013mPGJ5MoZ8dMKffPSjdc7q): topo-has-no-predicate-name-roster.
+- 2026-11-09 18:50Z Merged PR 6671 (foot-followups-2), 294a1c55.
+  - Delta review MERGE: F1a, F1b and F3a fixed; no outcome moved.
+  - Disjoint from main; the combined workspace check is clean (the one warning, pickindex `front_at_for_review`, is already on main).
+  - Its N1 (an audit row for `section_site_in_span_past`) and N2 (ReducedRows' "minted by the reduce alone" scope) went to the main-reds lane to fold into 6674.
