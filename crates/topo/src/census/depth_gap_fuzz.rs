@@ -21,7 +21,7 @@
 //! owe. In `Interval` the bound encloses the closed form's exact value,
 //! so only the samples' own rounding stands between them.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 test_utils::gated_to![
     "crates/topo/src/census/depth_gap.rs",
