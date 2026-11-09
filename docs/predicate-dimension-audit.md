@@ -1565,7 +1565,7 @@ Flagged, NOT fixed here (dispositions):
     lies within half a period of it. A tie, a mark decided zero or
     undecided, takes the upper copy.
   - `geom_core::Period::above` and `Period::at_or_above`
-    (`period_window_end`): the side of `a` on which `near`'s copy about
+    (`period_window_end`, a `k_stats::choose` under this row): the side of `a` on which `near`'s copy about
     `a` lies, which decides whether it is lifted a period into
     `(a, a + P]` or `[a, a + P)`. A tie, the side decided zero or
     undecided, takes the window's closed end. Step-import's conic edge
@@ -1594,8 +1594,9 @@ Flagged, NOT fixed here (dispositions):
   the driver an escalation no box answers, on every angle read half a
   turn from its reference.
 
-  **Carried as `k_stats::unlogged("F31", ..)`**, all at `Band::least()`.
-  Their K samples still reach the sink under the three names above. A
+  **Carried as `k_stats::unlogged("F31", ..)`**, and the window end as
+  `k_stats::choose(.., "F31")`, all at `Band::least()`. Their K samples
+  still reach the sink under the three names above. A
   margin decided at `Band::least()` is not a length against ε, and its
   sample says so (`MarginSample::reads_sign_only`), so a reader that
   asks how margins scale with the model, such as the twin suites, reads

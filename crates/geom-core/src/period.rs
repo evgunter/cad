@@ -381,13 +381,13 @@ impl<T: Decide> Period<T> {
     /// the side of `a` the window excludes.
     fn in_window(self, t: T, a: T, closed: Closed) -> T {
         let n = self.near(t, a);
-        let side = crate::k_stats::unlogged("F31", || {
-            decide("period_window_end", Margin::of(n - a), Band::least())
-        });
-        let lift = match (closed, side) {
-            (Closed::Upper, Ok(Sign::Positive))
-            | (Closed::Lower, Ok(Sign::Positive | Sign::Zero) | Err(_)) => false,
-            (Closed::Upper, _) | (Closed::Lower, Ok(Sign::Negative)) => true,
+        use crate::k_stats::Pick;
+        let lift = match (
+            closed,
+            crate::k_stats::choose("period_window_end", Margin::of(n - a), "F31"),
+        ) {
+            (Closed::Upper, Pick::Positive) | (Closed::Lower, Pick::Positive | Pick::Tie) => false,
+            (Closed::Upper, Pick::Negative | Pick::Tie) | (Closed::Lower, Pick::Negative) => true,
         };
         if lift { n + self.length } else { n }
     }

@@ -185,14 +185,18 @@ mod tests {
         );
         let seam = Point3::new(1.0, 0.0, 0.0);
         let below = Point3::new(0.0, -1.0, 0.0);
-        let (t0, t1) = endpoint_params(1, &carrier, seam, below, false).expect("an arc");
+        let Ok((t0, t1)) = endpoint_params(1, &carrier, seam, below, false) else {
+            panic!("an arc")
+        };
         assert_eq!(t0.to_bits(), 0.0_f64.to_bits(), "a seam start reads 0");
         assert!(
             (t1 - 1.5 * core::f64::consts::PI).abs() < 1e-12,
             "the end three quarters on: {t1}"
         );
         let p = Point3::new(0.89_f64.cos(), 0.89_f64.sin(), 0.0);
-        let (t0, t1) = endpoint_params(2, &carrier, p, p, false).expect("an arc");
+        let Ok((t0, t1)) = endpoint_params(2, &carrier, p, p, false) else {
+            panic!("an arc")
+        };
         let turn = geom_core::period::Period::new(core::f64::consts::TAU);
         assert_eq!(
             turn.near(t0, t0 + core::f64::consts::PI).to_bits(),

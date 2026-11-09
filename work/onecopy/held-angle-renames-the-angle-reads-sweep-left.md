@@ -21,6 +21,23 @@ site by site. Sweep them: each is either an extent that belongs on
 `Period::turn`'s reading, or a rename into a window from an end, which
 is `Period::above` / `Period::at_or_above`.
 
+Four of them are a rename into a window from an end, `lo + (t −
+lo).reduce_periodic(P)`, i.e. `[lo, lo + P)`, found by
+`onecopy/half-open-angles`' second sweep pass (shape
+`+ (x − y).reduce_periodic(`). Each is `Period::at_or_above(t, lo)`,
+except that at `Interval` the floor reads a turn wide across the cut,
+and the mark decision does not. They are generic in `T`, so repointing
+moves decisions at `Interval` and forms at `Sym`. Each wants its own
+test outcomes read:
+- `geom-brep/src/chart_singularity.rs` `foot` (`[from, from + τ]`, its
+  doc says the upper end is reached by rounding; step-import's ray walk
+  reads it);
+- `geom-brep/src/pair_section.rs` `within_span` (`lo + (t −
+  lo).reduce_periodic(2π)`);
+- `topo/src/chord_join.rs`'s `place` (`lo + (t − lo).reduce_periodic(turn)`);
+- `topo/src/shell.rs`'s moved-wall arc split (`from + (φ −
+  from).reduce_periodic(π)`, period π, then a decided walk).
+
 Blind spot of the shapes: a rename spelled through a local helper or a
 multi-line loop; `rim_wedge.rs`'s four floors wait on PR 6443.
 
