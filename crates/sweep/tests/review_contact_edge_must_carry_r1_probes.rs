@@ -328,8 +328,7 @@ fn r1_the_d_bore_crease_carves_in_its_caps_ring() {
             .unwrap()
             .face,
     ];
-    let start = body.get_half_edge(e.he_plus).unwrap().start;
-    let end = body.half_edge_end(e.he_plus).unwrap();
+    let (start, end) = body.edge_vertices(crease).unwrap();
     for v in [start, end] {
         let on_a_cap_ring = body.half_edges().any(|(_, h)| {
             if h.start != v {

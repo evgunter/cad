@@ -269,21 +269,36 @@ struct Arc<T: Real> {
     window: ParamWindow<T>,
 }
 
-/// An arc's mean circle as [`Arc::circle_about`] reads it about a point.
+/// **An arc's mean circle as a site reads it** ([`Arc::circle_about`]):
+/// the circle `scale·(b1·cos t + b2·sin t)` about the arc's centre,
+/// `b1` and `b2` orthogonal and `scale` their common factor, of radius
+/// `|rho|`, within `dev` of the arc at every `t`, and the site's offset
+/// `w` from the centre: `off_axis` of it in the circle's plane and `h`
+/// off it.
 struct Circle<T: Real> {
-    u_hat: Vec3<T>,
-    v_hat: Vec3<T>,
+    b1: Vec3<T>,
+    b2: Vec3<T>,
+    scale: T,
     rho: T,
     dev: T,
     w: Vec3<T>,
-    at: (T, T, T),
+    off_axis: T,
+    h: T,
 }
 
 impl<T: Real> Circle<T> {
-    /// The distance from the point to the circle's point at `t`.
+    /// The distance from the site to the circle's point at `t`.
     fn end(&self, t: T) -> T {
         let (s, c) = t.sin_cos();
-        (self.w - (self.u_hat * c + self.v_hat * s) * self.rho).norm()
+        (self.w - (self.b1 * c + self.b2 * s) * self.scale).norm()
+    }
+
+    /// The site's azimuth about the centre, as `ρ·(cos, sin)` of it.
+    fn azimuth(&self) -> (T, T) {
+        (
+            self.scale * self.w.dot(self.b1),
+            self.scale * self.w.dot(self.b2),
+        )
     }
 }
 
@@ -955,129 +970,139 @@ impl<T: Real> Arc<T> {
         hi
     }
 
-    /// **The distance range from a site.** From a point both ends are
-    /// posed as distances ([`Arc::point_near`], [`Arc::point_far`]): the
-    /// squared form below cancels where the point is near the arc, and
-    /// on a short arc far from its centre.
-    ///
-    /// From a line the squared form stands, since a line's distance to a
-    /// circle is a quartic's root with no closed form to pose it as: with
-    /// `w` the centre from the site and `P`, `Q` the semi-axis vectors,
-    /// all read as the site reads them, `|x − site|²` is
-    /// `|w|² + (|P|² + |Q|²)/2` plus a first harmonic
-    /// `2w·P cos t + 2w·Q sin t` plus a second
-    /// `(|P|² − |Q|²)/2·cos 2t + P·Q·sin 2t`, each bounded over the window
-    /// by [`ArcWindow`] and their sum by the sum of the bounds.
+    /// **The distance range from a site**, both ends posed as distances
+    /// over the circle [`Arc::circle_about`] reads ([`Arc::near`],
+    /// [`Arc::far`]): no squared form, which cancels where the site is
+    /// near the arc, and on a short arc far from its centre.
     fn range(&self, site: &Site<T>) -> (T, T) {
-        if let Site::Point(at) = site {
-            return (self.point_near(*at), self.point_far(*at));
-        }
-        let w = site.relative(vec_of(self.frame.origin));
-        let p = site.direction(self.frame.u_ref * self.semi_u);
-        let q = site.direction(self.frame.v_ref() * self.semi_v);
-        let two = T::from_f64(2.0);
-        let half = T::from_f64(0.5);
-        let k = w.norm_squared() + (p.norm_squared() + q.norm_squared()) * half;
-        let one = ArcWindow::new(self.window.lo, self.window.hi).extent(
-            T::zero(),
-            two * w.dot(p),
-            two * w.dot(q),
-        );
-        let two_t = ArcWindow::new(two * self.window.lo, two * self.window.hi).extent(
-            T::zero(),
-            (p.norm_squared() - q.norm_squared()) * half,
-            p.dot(q),
-        );
-        let far = (k + one.1 + two_t.1).max(T::zero()).sqrt();
-        let near = (k + one.0 + two_t.0).max(T::zero()).sqrt();
-        (near, far)
+        let c = self.circle_about(site);
+        (self.near(&c), self.far(&c, site))
     }
 
-    /// The circle [`Arc::point_near`] and [`Arc::point_far`] read the arc
-    /// against, and `at` in its frame: the orthonormalized `(û, v̂)`, the
-    /// mean radius `ρ̄` as that frame reads the two semi-axes, the Gram
-    /// bound `dev` of the semi-axis vectors' departures from it (zero for
-    /// a circle in an orthonormal frame, half the axes' difference for an
-    /// ellipse), and `at − centre`'s components `(x, y, h)` along `û`,
-    /// `v̂` and their normal.
-    fn circle_about(&self, at: Point3<T>) -> Circle<T> {
-        let half = T::from_f64(0.5);
-        let u_len = self.frame.u_ref.norm();
-        let u_hat = self.frame.u_ref / u_len;
-        let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
-        let v_hat = v_off.normalize();
-        let rho = (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
-        let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
-        let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;
-        let dev = gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq));
-        let w = at - self.frame.origin;
-        Circle {
-            u_hat,
-            v_hat,
-            rho,
-            dev,
-            w,
-            at: (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat))),
+    /// **The circle the arc is read against from `site`.**
+    ///
+    /// - From a point: the orthonormalized `(û, v̂)`, the mean radius `ρ̄`
+    ///   as that frame reads the two semi-axes, the Gram bound `dev` of
+    ///   the semi-axis vectors' departures from it (zero for a circle in
+    ///   an orthonormal frame, half the axes' difference for an ellipse),
+    ///   and the point's offset in that frame.
+    /// - From a line: the distance to the line is the length of the
+    ///   arc's offset off it, `w' + p·cos t + q·sin t` with `p`, `q` the
+    ///   semi-axis vectors off the line, a plane curve normal to the
+    ///   line's unit `â`. `p·cos t + q·sin t` splits exactly into a part
+    ///   turning with `t`, `g·cos t + (â × g)·sin t` with
+    ///   `g = (p − â × q)/2`, and one turning against it,
+    ///   `k·cos t − (â × k)·sin t` with `k = (p + â × q)/2`, each of
+    ///   constant length. The longer is the circle and the shorter its
+    ///   departure; with `p` and `q` both zero the circle is the centre.
+    fn circle_about(&self, site: &Site<T>) -> Circle<T> {
+        match site {
+            Site::Point(at) => {
+                let half = T::from_f64(0.5);
+                let (u_hat, u_len) = self.frame.u_ref.direction_and_length();
+                let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
+                let v_hat = v_off.normalize();
+                let rho =
+                    (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
+                let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
+                let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;
+                let dev = gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq));
+                let w = *at - self.frame.origin;
+                let (x, y, h) = (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat)));
+                Circle {
+                    b1: u_hat,
+                    b2: v_hat,
+                    scale: rho,
+                    rho,
+                    dev,
+                    w,
+                    off_axis: (x.powi(2) + y.powi(2)).sqrt(),
+                    h,
+                }
+            }
+            Site::Line(line) => {
+                let a = line.dir.normalize();
+                let p = site.direction(self.frame.u_ref * self.semi_u);
+                let q = site.direction(self.frame.v_ref() * self.semi_v);
+                let half = T::from_f64(0.5);
+                let with = (p - a.cross(q)) * half;
+                let against = (p + a.cross(q)) * half;
+                let (s_with, s_against) = (with.norm(), against.norm());
+                let choose = |x: T, y: T| (s_with - s_against).select_le_zero(x, y);
+                let choose_vec = |x: Vec3<T>, y: Vec3<T>| {
+                    Vec3::new(choose(x.x, y.x), choose(x.y, y.y), choose(x.z, y.z))
+                };
+                let w = -site.relative(vec_of(self.frame.origin));
+                Circle {
+                    b1: choose_vec(against, with),
+                    b2: choose_vec(-a.cross(against), a.cross(with)),
+                    scale: T::one(),
+                    rho: choose(s_against, s_with),
+                    dev: choose(s_with, s_against),
+                    w,
+                    off_axis: w.norm(),
+                    h: T::zero(),
+                }
+            }
         }
     }
 
-    /// **The nearest distance from `at`, as a distance.** The arc lies
-    /// within `dev` of the circular arc of radius `ρ̄` over the same window
+    /// **The nearest distance from the site, as a distance.** The arc
+    /// lies within `dev` of the circle's arc over the same window
     /// ([`Arc::circle_about`]). That arc's nearest point is the one in
-    /// `at`'s azimuth where the window holds that azimuth,
+    /// the site's azimuth where the window holds that azimuth,
     /// `√(h² + (ρ_at − |ρ̄|)²)`, and the nearer end where it does not;
     /// every term is a distance, so none cancels near the arc.
-    fn point_near(&self, at: Point3<T>) -> T {
-        let c = self.circle_about(at);
-        let (x, y, h) = c.at;
-        let off_axis = (x.powi(2) + y.powi(2)).sqrt();
-        let in_azimuth = (h.powi(2) + (off_axis - c.rho.abs()).powi(2)).sqrt();
+    fn near(&self, c: &Circle<T>) -> T {
+        let in_azimuth = (c.h.powi(2) + (c.off_axis - c.rho.abs()).powi(2)).sqrt();
         let ends = c.end(self.window.lo).min(c.end(self.window.hi));
+        let (x, y) = c.azimuth();
         let near = ArcWindow::new(self.window.lo, self.window.hi)
-            .crest_outside(c.rho * x, c.rho * y)
+            .crest_outside(x, y)
             .select_le_zero(in_azimuth, ends);
         (near - c.dev).max(T::zero())
     }
 
-    /// **The farthest distance from `at`, as a distance**: the lesser of
-    /// two bounds whose every term is a distance, so neither cancels on a
-    /// short arc read from near it.
+    /// **The farthest distance from the site, as a distance**: the lesser
+    /// of two bounds whose every term is a distance, so neither cancels
+    /// on a short arc read from near it.
     ///
     /// - The circular arc of [`Arc::circle_about`], widened by `dev`: its
-    ///   farthest point is the crest opposite `at`'s azimuth where the
-    ///   window holds it, `√(h² + (ρ_at + |ρ̄|)²)`, and the farther end
-    ///   where it does not. Exact for a circle in an orthonormal frame.
+    ///   farthest point is the crest opposite the site's azimuth where
+    ///   the window holds it, `√(h² + (ρ_at + |ρ̄|)²)`, and the farther
+    ///   end where it does not. Exact for a circle in an orthonormal
+    ///   frame read from a point, and for one normal to the line read
+    ///   from a line.
     /// - The arc cut into four pieces of half-width `h ≤ π/4` (the window
     ///   capped at one turn either way). The arc is an affine image of
     ///   the unit circle, on which a piece about its middle `m` lies in
     ///   the rectangle its chord spans out to its crest, so the piece lies
     ///   in the parallelogram on its ends shifted by its bulge
-    ///   `(1 − cos h)·(x(m) − c)`, and a distance from a point is convex,
-    ///   so it peaks at a corner. Past the arc by at most a piece's bulge.
-    fn point_far(&self, at: Point3<T>) -> T {
-        let c = self.circle_about(at);
-        let (x, y, h) = c.at;
-        let off_axis = (x.powi(2) + y.powi(2)).sqrt();
-        let crest = (h.powi(2) + (off_axis + c.rho.abs()).powi(2)).sqrt();
+    ///   `(1 − cos h)·(x(m) − c)`, and a distance from a point or a line
+    ///   is convex, so it peaks at a corner. Past the arc by at most a
+    ///   piece's bulge.
+    fn far(&self, c: &Circle<T>, site: &Site<T>) -> T {
+        let crest = (c.h.powi(2) + (c.off_axis + c.rho.abs()).powi(2)).sqrt();
         let (lo, hi) = (self.window.lo, self.window.hi);
         let ends = c.end(lo).max(c.end(hi));
+        let (x, y) = c.azimuth();
         let circle = ends.max(
             ArcWindow::new(lo, hi)
-                .crest_outside(T::zero() - c.rho * x, T::zero() - c.rho * y)
+                .crest_outside(T::zero() - x, T::zero() - y)
                 .select_le_zero(crest, T::zero()),
         ) + c.dev;
         let turn = T::tau();
         let quarter = ((hi - lo).max(T::zero() - turn).min(turn)) * T::from_f64(0.25);
         let shift = T::one() - (quarter * T::from_f64(0.5)).abs().cos();
         let point = |t: T| self.point(t);
-        let pieces = (0..4).fold((point(lo) - at).norm(), |far, k| {
+        let pieces = (0..4).fold(site.distance(point(lo)), |far, k| {
             let s0 = lo + quarter * T::from_f64(f64::from(k));
             let s1 = s0 + quarter;
             let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.frame.origin) * shift;
             let (x0, x1) = (point(s0), point(s1));
             [x0 + bulge, x1, x1 + bulge]
                 .into_iter()
-                .fold(far, |far, p| far.max((p - at).norm()))
+                .fold(far, |far, p| far.max(site.distance(p)))
         });
         circle.min(pieces)
     }

@@ -174,11 +174,22 @@ impl<T: Decide> ConeApex<T> {
         OutwardNormal::from_chart(chart.normalize(), self.sense)
     }
 
+    /// The cone's unit axis turned toward the nappe `like` (a ruling the
+    /// face leaves the apex along) lies on.
+    pub(crate) fn nappe_axis(&self, like: Vec3<T>) -> Vec3<T> {
+        self.axis.turned_toward(like)
+    }
+
     /// The unit ruling along the line through the apex along `d`, on the
     /// nappe `like` (a ruling the face leaves the apex along) lies on: the
-    /// line holds one ruling of each nappe, opposite in azimuth.
+    /// line holds one ruling of each nappe, opposite in azimuth. Turned
+    /// toward `like`'s axial part, `a(a·like)`, rather than toward
+    /// [`ConeApex::nappe_axis`], so the turn reads one sign: in real
+    /// arithmetic `d̂` agrees with the one where it agrees with the
+    /// other, and over an enclosure both hull where `a·like` holds a
+    /// zero.
     pub(crate) fn onto_nappe_of(&self, d: Vec3<T>, like: Vec3<T>) -> Vec3<T> {
-        d.normalize() * T::one().copysign(d.dot(self.axis) * like.dot(self.axis))
+        d.normalize().turned_toward(self.axis * like.dot(self.axis))
     }
 
     /// Which way round the axis the face's interior leaves the ruling
@@ -187,7 +198,11 @@ impl<T: Decide> ConeApex<T> {
     /// over the face's rulings.
     pub(crate) fn sweep(&self, d: Vec3<T>) -> T {
         let d = d.normalize();
-        T::one().copysign(self.normal_along(d).vec().cross(d).dot(self.axis.cross(d)))
+        self.normal_along(d)
+            .vec()
+            .cross(d)
+            .dot(self.axis.cross(d))
+            .unit_sign()
     }
 
     /// How far the face's sweep turns from the ruling along `from` to the
@@ -216,7 +231,9 @@ impl<T: Decide> ConeApex<T> {
     /// `from`'s nappe.
     pub(crate) fn ruling_from(&self, from: Vec3<T>, azimuth: T) -> Vec3<T> {
         let (e1, e2) = self.sweep_frame(from);
-        let along = self.axis * self.half_angle.cos().copysign(from.dot(self.axis));
+        // A cone's half-angle lies inside `(0, π/2)`, decided at rest, so
+        // `cos α > 0` and scaling the nappe axis by it keeps the nappe.
+        let along = self.nappe_axis(from) * self.half_angle.cos();
         along + (e1 * azimuth.cos() + e2 * azimuth.sin()) * self.half_angle.sin()
     }
 

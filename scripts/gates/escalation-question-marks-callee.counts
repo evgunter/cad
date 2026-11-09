@@ -62,7 +62,10 @@ crates/topo/src/boolean/fate.rs 2
 # way round a run is minted: WHICH. held_cut's three reads (`nested`, both
 # `tied_held`): its owner only names SharedVertexCrossings, so any held
 # cut answers: HAND-ROLLED (question-mark-ladders-the-gate-registered).
-crates/topo/src/boolean/insert.rs 6
+# reconcile_shared's fixpoint (`reconcile_pass(..)?` until a pass turns
+# nothing, then `return hang_at_shared(..)`): every pass is needed, so
+# NOT A SEARCH.
+crates/topo/src/boolean/insert.rs 7
 # join: bool_connect's partners, every segment's: NOT A SEARCH.
 crates/topo/src/boolean/join.rs 1
 # boolean mod: vertex_at, which vertex is at the point: WHICH.
@@ -115,9 +118,12 @@ crates/topo/src/ring_path.rs 5
 # shell: band_seam (any side not winding once answers "no") and
 # wraps_its_period (any start winding once answers "yes"): HAND-ROLLED.
 crates/topo/src/shell.rs 2
-# containment: place_off (WHICH, ruled); conic_crossings, both roots
-# counted: NOT A SEARCH.
-crates/topo/src/splitting/containment.rs 2
+# containment: place_off (WHICH, ruled). conic_crossings reads its roots
+# through the co-surface arm once, outside its loop; inside it, a root in
+# band of an arc's end returns its `Undecided` refusal, a `return Err` this
+# matcher does not read: NOT A SEARCH, a crossing count that needs every
+# root.
+crates/topo/src/splitting/containment.rs 1
 # section_cones: next_fusion, which section fuses: WHICH.
 crates/topo/src/splitting/section_cones.rs 1
 # stands: face_interior_point's three reads (any certified interior point

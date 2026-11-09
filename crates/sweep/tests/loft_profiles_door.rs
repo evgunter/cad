@@ -68,11 +68,10 @@ fn wall_values<
         .flatten()
         .flatten()
         .flat_map(|face| {
-            let face = lofted.body.body_of().get_face(*face).expect("a built face");
             match lofted
                 .body
                 .body_of()
-                .get_surface(face.surface)
+                .face_surface(*face)
                 .expect("a described face")
             {
                 Surface::Nurbs(n) => n

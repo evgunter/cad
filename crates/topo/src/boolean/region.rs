@@ -440,7 +440,7 @@ pub(crate) fn boundary<T: Decide>(
     admits: &[geom::CurveKind],
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.passed_face(face).ok_or_else(corrupt)?;
+    let f = body.face(face).ok_or_else(corrupt)?;
     let mut null = Vec::new();
     for (_, members, role) in f.boundary_by_loop() {
         for member in members {
@@ -1031,7 +1031,7 @@ impl<T: Decide> Line<T> {
 
 impl<T: Decide> Course<T> for Line<T> {
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
-        let s = (y - self.line.origin).dot(self.line.dir);
+        let s = self.line.height(y);
         match ray_walk::advance(at, Margin::of(s), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?
         {

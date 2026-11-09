@@ -10,7 +10,8 @@
 //! its plane ([`Section`]).
 //!
 //! A plane through a curve on the surface cuts the surface in that curve
-//! and a few others: a cylinder's plane through the axis in two rulings, a
+//! and a few others: a plane's square plane through a line of it in that
+//! line alone, a cylinder's plane through the axis in two rulings, a
 //! cone's in four half-generators, a torus's planes in two circles. Which
 //! of them a root lies on is read through the chart's channels
 //! ([`geom::ChartChannels::read`]) on the caller's row, so the reading
@@ -88,7 +89,8 @@ pub struct SurfaceCurve<T: Real> {
 /// is built on. It is the record's own surface as stored
 /// ([`Self::record`]), that surface turned about its own axis
 /// ([`Self::turned`]), or a sphere on another frame ([`Self::framed`]):
-/// the same surface on another chart, which is all a caller may change. The key names the record, so a curve built on it
+/// the same surface on another chart. A surface a caller builds instead
+/// is [`Self::held`], its premise the caller's. The key names the record, so a curve built on it
 /// is read only against edges of faces on that record
 /// ([`OnSurface::across`], [`OnSurface::under`]).
 #[derive(Clone, Debug)]
@@ -104,6 +106,14 @@ impl<T: Real> Charted<T> {
             key,
             surface: surface.clone(),
         }
+    }
+
+    /// **A surface the caller builds rather than reads off the record**,
+    /// under the record's key: one the caller holds to carry the curves of
+    /// the record's face it reads it against, on a premise of its own that
+    /// it names where it builds it (the planar loop walk's ray plane).
+    pub fn held(key: SurfaceKey, surface: geom::Surface<T>) -> Self {
+        Self { key, surface }
     }
 
     /// **The same surface turned about its own axis**, its seam at
@@ -410,6 +420,34 @@ impl<T: Decide> SurfaceCurve<T> {
                 opening,
             },
         }
+    }
+
+    /// **A plane's `u`-line through `uv`**: the line from the point `uv`
+    /// names along the plane's `u_ref`, normalised as [`Self::ruling`]'s
+    /// direction is, so places along it are metres. Its plane is the one
+    /// through it square to the surface, of unit normal `v_ref`, which cuts
+    /// the plane in this line alone ([`Section::Whole`]).
+    ///
+    /// # Errors
+    ///
+    /// [`NoSuchFamily`] on any surface but a plane.
+    pub fn u_line(on: &Charted<T>, uv: Point2<T>) -> Result<Self, NoSuchFamily> {
+        let surface = &on.surface;
+        let chart = Self::chart(on, "u-line")?;
+        if !matches!(chart.arm(), ChartArm::Plane) {
+            return Err(Self::refused("u-line", surface));
+        }
+        let f = *chart.frame();
+        let start = surface.eval(uv.x, uv.y);
+        Ok(Self {
+            chart,
+            shape: Shape::Line(geom::Line {
+                origin: start,
+                dir: f.u_ref.normalize(),
+            }),
+            plane: (start, f.v_ref().normalize()),
+            section: Section::Whole,
+        })
     }
 
     /// **A sphere's great circle through `uv`** along `t` there: the
@@ -812,6 +850,14 @@ mod tests {
         }
     }
 
+    fn plane() -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            origin: Point3::new(0.5, -1.0, 2.0),
+            normal: z(),
+            u_ref: Vec3::new(0.6, 0.8, 0.0),
+        }
+    }
+
     fn sphere() -> geom::Surface<f64> {
         geom::Surface::Sphere {
             center: Point3::new(1.0, -2.0, 0.5),
@@ -876,6 +922,7 @@ mod tests {
                 sphere(),
                 SurfaceCurve::about(&on(&sphere()), Point2::new(0.2, 0.4), uv, true),
             ),
+            (plane(), SurfaceCurve::u_line(&on(&plane()), uv)),
         ];
         for (i, (surface, curve)) in built.iter().enumerate() {
             let off = off_surface(surface, curve.as_ref().unwrap());
@@ -894,6 +941,8 @@ mod tests {
         assert!(SurfaceCurve::ruling(&on(&torus()), uv, true, true).is_err());
         assert!(SurfaceCurve::from_apex(&on(&cylinder()), uv, true).is_err());
         assert!(SurfaceCurve::great_circle(&on(&torus()), uv, z()).is_err());
+        assert!(SurfaceCurve::u_line(&on(&cylinder()), uv).is_err());
+        assert!(SurfaceCurve::parallel(&on(&plane()), uv, true).is_err());
     }
 
     /// **A cone's generator reads its own half-generator of its plane**:
@@ -1040,5 +1089,48 @@ mod tests {
             unreachable!()
         };
         assert_eq!((axis.x, axis.y, axis.z, radius), (1.0, 0.0, 0.0, 3.0));
+    }
+
+    /// **A plane's line crosses a circle of the plane where the circle
+    /// crosses the line's square plane**: the `u`-line along `x` through
+    /// the origin meets the unit circle about `(0, 0.5)` at `x = ±√0.75`,
+    /// both on the line's one section; a circle clear of the line meets
+    /// it nowhere, and one tangent to it touches.
+    #[test]
+    fn a_planes_line_crosses_a_circle_of_the_plane_twice() {
+        let plane = geom::Surface::Plane {
+            origin: Point3::origin(),
+            normal: z(),
+            u_ref: x(),
+        };
+        let line = SurfaceCurve::u_line(&on(&plane), Point2::new(0.0, 0.0)).unwrap();
+        let circle = |cy: f64| geom::Curve3::circle(Point3::new(0.0, cy, 0.0), z(), 1.0, x());
+        let near = circle(0.5);
+        let CoSurface::Roots(roots) = OnSurface::edge(key(), &near, (-PI, PI))
+            .across(&line, ROW, b())
+            .unwrap()
+        else {
+            unreachable!("a circle through the line crosses its plane")
+        };
+        let mut xs: Vec<f64> = roots.iter().map(|&(_, y)| y.x).collect();
+        xs.sort_by(f64::total_cmp);
+        assert_eq!(xs.len(), 2);
+        assert!((xs[0] + 0.75f64.sqrt()).abs() < 1e-12 && (xs[1] - 0.75f64.sqrt()).abs() < 1e-12);
+        for &(_, y) in &roots {
+            assert_eq!(line.section_of(y, ROW, b()).unwrap(), Sign::Positive);
+        }
+        let clear = circle(2.0);
+        let apart = OnSurface::edge(key(), &clear, (-PI, PI))
+            .across(&line, ROW, b())
+            .unwrap();
+        assert!(
+            matches!(apart, CoSurface::Roots(ref r) if r.is_empty()),
+            "{apart:?}"
+        );
+        let tangent = circle(1.0);
+        let touch = OnSurface::edge(key(), &tangent, (-PI, PI))
+            .across(&line, ROW, b())
+            .unwrap();
+        assert!(matches!(touch, CoSurface::Touch), "{touch:?}");
     }
 }

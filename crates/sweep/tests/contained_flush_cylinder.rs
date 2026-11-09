@@ -51,8 +51,8 @@ fn a_carried_edge_edge_row_on_a_discarded_wall_is_consumed() {
     let tol = Tol::witness();
     let cylinder = finished("the cylinder", disc_of_arcs(3, 0.5, 1.0, tol), tol);
     let ends = |k: topo::EdgeKey| {
-        let e = cylinder.get_edge(k).unwrap();
-        [e.he_plus, e.he_minus].map(|h| cylinder.half_edge_start_point(h).unwrap())
+        <[_; 2]>::from(cylinder.edge_vertices(k).unwrap())
+            .map(|v| topo::readback::vertex_point(&cylinder, v).unwrap())
     };
     let arc = |k: topo::EdgeKey| {
         topo::readback::edge_carrier_kind(&cylinder, k).is_ok_and(|c| c == geom::CurveKind::Circle)

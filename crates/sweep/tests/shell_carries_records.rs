@@ -19,9 +19,8 @@ fn shell_opens_lineage_reads_through_its_join() {
     let body = split_d_section(0.5, 0.8);
     let wall: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            body.get_surface(f.surface).map(geom::Surface::kind)
-                == Some(geom::SurfaceKind::Cylinder)
+        .filter(|(fk, _)| {
+            body.face_surface(*fk).map(geom::Surface::kind) == Some(geom::SurfaceKind::Cylinder)
         })
         .map(|(k, _)| k)
         .collect();

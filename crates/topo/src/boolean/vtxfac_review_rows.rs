@@ -71,6 +71,7 @@ fn classify(
         chart,
         &crate::sector_shape::SlitTips::default(),
         band(),
+        None,
     )
     .map(|out| out.classes.into_iter().map(|(_, c)| c).collect())
 }
