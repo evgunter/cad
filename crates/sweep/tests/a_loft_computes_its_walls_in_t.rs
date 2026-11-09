@@ -361,9 +361,8 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
         ),
     ] {
         match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
-            Err(LoftError::Skin(SkinError::Structure(SplineError::CarrierWeightNotAPoint {
-                ..
-            }))) => {}
+            Err(LoftError::Skin(SkinError::Structure(e)))
+                if matches!(e.refusal(), SplineError::CarrierWeightNotAPoint { .. }) => {}
             other => panic!(
                 "{what}: expected section 0's arc refusal, got {:?}",
                 other.map(|_| ())
@@ -378,9 +377,8 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
         1,
         Tol::witness(),
     ) {
-        Err(LoftError::Skin(SkinError::Structure(SplineError::CarrierKnotNotAPoint {
-            index: 1,
-        }))) => {}
+        Err(LoftError::Skin(SkinError::Structure(e)))
+            if matches!(e.refusal(), SplineError::CarrierKnotNotAPoint { index: 1 }) => {}
         other => panic!(
             "expected the wide interior knot's refusal, got {:?}",
             other.map(|_| ())
@@ -549,9 +547,13 @@ fn make_compatible_at_interval_runs_the_knot_algebra_homogeneous() {
     )
     .expect("an integral quadratic with an interior knot");
     match make_compatible(&[quadratic(0.7), with_knot]) {
-        Err(SkinError::KnotAlgebra(geom_core::spline::KnotAlgebraError::Structure(
-            SplineError::CarrierWeightNotAPoint { .. },
-        ))) => {}
+        Err(SkinError::KnotAlgebra(e))
+            if matches!(
+                e.refusal(),
+                geom_core::spline::KnotAlgebraError::Structure(
+                    SplineError::CarrierWeightNotAPoint { .. }
+                )
+            ) => {}
         other => panic!("a rational refinement at Interval: {:?}", other.map(|_| ())),
     }
     let same = make_compatible(&[line.clone(), line.clone()]).expect("two lines are compatible");

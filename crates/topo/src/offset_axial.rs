@@ -2129,8 +2129,7 @@ fn mint_carrier<T: Decide>(
     let (ca, cb) = charts;
     let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
     let translate = |delta: Vec3<T>| -> Result<Curve3<T>, ReplaceFaceError<T>> {
-        crate::replace_face::translate_curve(old, delta)
-            .map_err(|error| ReplaceFaceError::Structure { edge, error })
+        Ok(crate::replace_face::translate_curve(old, delta))
     };
 
     // A SEAM is not an intersection of two surfaces — the two are the

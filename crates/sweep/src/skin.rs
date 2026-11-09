@@ -92,10 +92,11 @@ use geom::NurbsSurface;
 use geom::curves::fit::{FitError, interpolate_columns_in};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
-use geom_core::spline::{KnotAlgebraError, Knots, SpanLocate, SplineError};
+use geom_core::spline::{Built, KnotAlgebraError, Knots, SpanLocate, SplineError};
 use geom_core::{
-    Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag,
-    Point2, Point3, RANGE_RECOURSE, Real, RigidMotion, TurnError, Turns, UnitVec3, UnitVec3Error,
+    Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate,
+    KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, MarginDiag, Point2, Point3, RANGE_RECOURSE, Real,
+    RigidMotion, TurnError, Turns, UnitVec3, UnitVec3Error,
 };
 use profile::{
     CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,
@@ -351,12 +352,26 @@ pub enum SkinError {
     },
     /// The v-direction interpolation refused.
     Fit(FitError),
-    /// A knot-algebra operation (degree elevation, refinement) refused.
-    KnotAlgebra(KnotAlgebraError),
-    /// The produced spline structure refused validated construction —
-    /// notably a non-positive interpolated weight, which would break
-    /// the convex-hull invariant every C9 bound stands on.
-    Structure(SplineError),
+    /// A knot-algebra operation the skin asked of its sections (degree
+    /// elevation, refinement) refused.
+    KnotAlgebra(Built<KnotAlgebraError>),
+    /// The spline structure the skin built refused validated
+    /// construction — notably a non-positive interpolated weight, which
+    /// would break the convex-hull invariant every C9 bound stands on.
+    Structure(Built<SplineError>),
+}
+
+/// The lever a loft refused over a value that is no point holds: the
+/// scalar it is evaluated in.
+const POINT_SCALAR_LEVER: &str = "evaluate the loft at a point scalar";
+
+/// Whether a refusal of what the skin built is over a knot or weight
+/// that is no point, which the scalar the loft is evaluated in decides.
+const fn no_point(e: &SplineError) -> bool {
+    matches!(
+        e,
+        SplineError::CarrierKnotNotAPoint { .. } | SplineError::CarrierWeightNotAPoint { .. }
+    )
 }
 
 /// The recourse a path sweep's vanishing tangent ends with.
@@ -461,7 +476,7 @@ impl core::fmt::Display for SkinError {
                 f,
                 "whether control row {row} moves between the sections is not decided over the \
                  values they stand for, so the skin's parameterization is not one for them \
-                 all. Recourse: narrow the range, or evaluate the loft at a point scalar"
+                 all. Recourse: narrow the range, or {POINT_SCALAR_LEVER}"
             ),
             Self::ArcSweepUndecided {
                 section,
@@ -476,25 +491,32 @@ impl core::fmt::Display for SkinError {
                  evaluate at a point scalar"
             ),
             Self::Fit(e) => write!(f, "{e}"),
-            Self::KnotAlgebra(e) => write!(f, "{e}"),
-            Self::Structure(e) => write!(f, "{e}"),
+            Self::KnotAlgebra(e) => match e.refusal() {
+                KnotAlgebraError::Structure(s) if no_point(s) => {
+                    write!(
+                        f,
+                        "a knot edit of the sections refused: {e}. Recourse: {POINT_SCALAR_LEVER}"
+                    )
+                }
+                _ => write!(
+                    f,
+                    "a knot edit of the sections refused: {e}. {KERNEL_DEFECT_ENDING}"
+                ),
+            },
+            Self::Structure(e) if no_point(e.refusal()) => {
+                write!(
+                    f,
+                    "the skin's spline refused: {e}. Recourse: {POINT_SCALAR_LEVER}"
+                )
+            }
+            Self::Structure(e) => {
+                write!(f, "the skin's spline refused: {e}. {KERNEL_LIMIT_RECOURSE}")
+            }
         }
     }
 }
 
 impl core::error::Error for SkinError {}
-
-impl From<KnotAlgebraError> for SkinError {
-    fn from(e: KnotAlgebraError) -> Self {
-        Self::KnotAlgebra(e)
-    }
-}
-
-impl From<SplineError> for SkinError {
-    fn from(e: SplineError) -> Self {
-        Self::Structure(e)
-    }
-}
 
 impl From<FitError> for SkinError {
     fn from(e: FitError) -> Self {
@@ -559,12 +581,9 @@ pub fn segment_curve<T: SpanLocate>(
             if !a.distance(b).structure_positive() {
                 return Err(degenerate("zero-length chord"));
             }
-            let knots = Knots::new(vec![(T::zero(), two), (T::one(), two)], 1)?;
-            Ok(NurbsCurve3::new(
-                knots,
-                vec![world(a), world(b)],
-                vec![T::one(), T::one()],
-            )?)
+            let knots = Knots::new(vec![(T::zero(), two), (T::one(), two)], 1).map_err(built)?;
+            NurbsCurve3::new(knots, vec![world(a), world(b)], vec![T::one(), T::one()])
+                .map_err(built)
         }
         SketchSegment::Arc { a, b, arc } => {
             let Arc2 {
@@ -706,7 +725,7 @@ pub fn segment_curve<T: SpanLocate>(
                 runs.push((T::from_f64(geom_brep::sub_arc_joint(k, m)), two));
             }
             runs.push((T::one(), three));
-            Ok(NurbsCurve3::new(Knots::new(runs, 2)?, control, weights)?)
+            NurbsCurve3::new(Knots::new(runs, 2).map_err(built)?, control, weights).map_err(built)
         }
     }
 }
@@ -767,13 +786,19 @@ pub fn make_compatible<T: SpanLocate>(
             if raise == 0 {
                 Ok(c.clone())
             } else {
-                c.elevate_degree(raise).map_err(SkinError::KnotAlgebra)
+                c.elevate_degree(raise)
+                    .map_err(|e| SkinError::KnotAlgebra(Built::new(e)))
             }
         })
         .collect::<Result<_, _>>()?;
     // §5.3: one common knot vector — the union, at one degree and on
     // one domain by the two checks above.
-    NurbsCurve3::refine_to_union(&elevated).map_err(SkinError::KnotAlgebra)
+    NurbsCurve3::refine_to_union(&elevated).map_err(|e| SkinError::KnotAlgebra(Built::new(e)))
+}
+
+/// A refusal of a spline the skin built.
+fn built(e: SplineError) -> SkinError {
+    SkinError::Structure(Built::new(e))
 }
 
 // ---------------------------------------------------------------------
@@ -1106,7 +1131,7 @@ pub fn skin_on<T: SpanLocate>(
         at += if lane.is_some() { 3 } else { 4 };
     }
     // `NurbsSurface::new` is the `w > 0` door (and the count door).
-    NurbsSurface::new(knots_u, knots_v, control, weights).map_err(SkinError::Structure)
+    NurbsSurface::new(knots_u, knots_v, control, weights).map_err(built)
 }
 
 // ---------------------------------------------------------------------
@@ -1940,4 +1965,46 @@ pub fn sweep_places<T: Real>(
     tol: Tol,
 ) -> Result<Vec<SketchPlane<T>>, SkinError> {
     PathCarry::of(path, stations, tol)?.place(plane)
+}
+
+#[cfg(test)]
+mod ending_tests {
+    use super::*;
+
+    /// **What the skin built ends at the skin's door, decided on the
+    /// payload**: a knot or weight that is no point ends in the lever the
+    /// loft's user holds, the scalar; any other arm in the kernel's own
+    /// ending; and none passes the spline layer's caller recourse on.
+    #[test]
+    fn a_refusal_of_what_the_skin_built_ends_on_its_payload() {
+        let no_point = SplineError::CarrierWeightNotAPoint { index: 1 };
+        let other = SplineError::DomainInvalid { lo: 1.0, hi: 0.0 };
+        let rows = [
+            (
+                SkinError::Structure(Built::new(no_point.clone())),
+                POINT_SCALAR_LEVER,
+            ),
+            (
+                SkinError::Structure(Built::new(other)),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                SkinError::KnotAlgebra(Built::new(KnotAlgebraError::Structure(no_point))),
+                POINT_SCALAR_LEVER,
+            ),
+            (
+                SkinError::KnotAlgebra(Built::new(KnotAlgebraError::KnotNotPresent { u: 0.5 })),
+                KERNEL_DEFECT_ENDING,
+            ),
+        ];
+        for (refusal, ending) in &rows {
+            let text = refusal.to_string();
+            assert!(text.ends_with(ending), "the door's ending: {text}");
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&text),
+                1,
+                "one repair, the door's: {text}"
+            );
+        }
+    }
 }

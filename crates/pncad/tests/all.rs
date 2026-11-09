@@ -150,15 +150,16 @@ fn section_payload(e: &pncad::geom_brep::SectionError) {
 
 // sweep::SkinError carries geom::FitError and — the first of
 // the three payloads that are NOT at their owning crate's root —
-// geom_core::spline::KnotAlgebraError.
+// geom_core::spline::Built over geom_core::spline::KnotAlgebraError.
 fn skin_payload(e: &pncad::sweep::SkinError) {
+    use pncad::geom_core::spline::Built;
     match e {
         pncad::sweep::SkinError::Fit(inner) => named::<&pncad::geom::FitError>(inner),
         pncad::sweep::SkinError::KnotAlgebra(inner) => {
-            named::<&pncad::geom_core::spline::KnotAlgebraError>(inner);
+            named::<&Built<pncad::geom_core::spline::KnotAlgebraError>>(inner);
         }
         pncad::sweep::SkinError::Structure(inner) => {
-            named::<&pncad::geom_core::SplineError>(inner);
+            named::<&Built<pncad::geom_core::SplineError>>(inner);
         }
         _ => {}
     }

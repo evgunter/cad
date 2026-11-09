@@ -990,7 +990,7 @@ mod kernel {
             EmptyGroup, GroupChartsDiffer, PlaceholderSurface, ApexWindow,
             NappeStraddles, ApexWindowUnknown, NeighborPairUnroutable,
             NeighborPoseUnroutable, FittedBoundaryUnsupported, CarrierLaneUnsupported,
-            IsoRow, Structure, VertexDisagreement, EdgeSection, CornerSection,
+            IsoRow, VertexDisagreement, EdgeSection, CornerSection,
             DeclaredEdgeTilted, MixedEdge, ReanchorPastCarrierEnd, ReanchorCollapse,
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
             TogetherPartialSet, TogetherCorner, TogetherChartMixed,
@@ -3420,7 +3420,9 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
         ),
         (
             "KnotAlgebra",
-            E::KnotAlgebra(geom_core::spline::KnotAlgebraError::KnotNotPresent { u: 0.5 }),
+            E::KnotAlgebra(geom_core::spline::Built::new(
+                geom_core::spline::KnotAlgebraError::KnotNotPresent { u: 0.5 },
+            )),
         ),
         (
             "PathUndecided",
@@ -3434,7 +3436,9 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
         ("Band", E::Band(payloads::band_error())),
         (
             "Structure",
-            E::Structure(geom_core::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 }),
+            E::Structure(geom_core::spline::Built::new(
+                geom_core::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+            )),
         ),
     ]
 }
@@ -5840,16 +5844,6 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 R::IsoRow {
                     edge,
                     error: geom_brep::IsoRowError::Escalated { source: diag() },
-                },
-            ),
-            (
-                "Structure",
-                R::Structure {
-                    edge,
-                    error: geom_core::spline::SplineError::WeightCountMismatch {
-                        weights: 3,
-                        control: 4,
-                    },
                 },
             ),
             (
