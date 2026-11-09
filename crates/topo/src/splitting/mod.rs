@@ -1238,12 +1238,7 @@ where
     } else {
         operand
     };
-    let finish::RawSplit {
-        above,
-        below,
-        naming,
-        coincidences,
-    } = split_direct(operand, plane, tol)?;
+    let (above, below, naming, coincidences) = split_direct(operand, plane, tol)?.into_parts();
     // Each side sorted into its pieces and gated at rest, the verdict kept
     // ([`finish::SplitPart::Body`]).
     let at_rest = |side, part| match part {

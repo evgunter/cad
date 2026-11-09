@@ -2951,14 +2951,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "BooleanDecision::ConicBend",
         1,
     ),
     ("vtxfac.rs", "unglued_flat_sector", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "Coincide::TangentSide",
         1,
     ),
