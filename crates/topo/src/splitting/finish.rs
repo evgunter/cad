@@ -2078,12 +2078,13 @@ fn shell_side<T: Decide>(
     for &face in &shell_data.faces {
         let view = body.linked_face(face, EntityId::Shell(shell), "faces");
         for member in view.boundary() {
-            let BoundaryMember::Edge { half, ek, edge, .. } = member else {
+            let vertex = member.vertex();
+            if seen_v.insert(vertex, ()).is_none() {
+                vertices.push(Reading::Vertex(vertex));
+            }
+            let BoundaryMember::Edge { ek, edge, .. } = member else {
                 continue;
             };
-            if seen_v.insert(half.start, ()).is_none() {
-                vertices.push(Reading::Vertex(half.start));
-            }
             if seen_e.insert(ek, ()).is_some() {
                 continue;
             }
@@ -3022,6 +3023,26 @@ mod whole_body_side_rows {
                 "the decided arc answers Above"
             ),
             Err(e) => panic!("the arc at height 1 decides Above: {e:?}"),
+        }
+    }
+
+    /// **A lone vertex is a vertex of its shell**: a bare seed, whose one
+    /// vertex sits in its face's empty outer loop off the plane, lies on
+    /// that vertex's side, where a reading of edge members alone read it
+    /// ON everywhere and refused `Corrupt`.
+    #[test]
+    fn a_shell_whose_one_vertex_is_lone_reads_that_vertexs_side() {
+        let tol = Tol::witness();
+        let mut body = Body::new();
+        let seed = body.mvfs(Point3::new(0.0, 1.0, 1.0), true).unwrap();
+        let mut sides = SecondaryMap::new();
+        sides.insert(seed.vertex, PlaneSide::Above);
+        match whole_body_side(body, &sides, &plane(Vec3::unit_z(), 0.0, tol), tol) {
+            Ok(split) => assert!(
+                matches!(split.above, RawPart::Body(_)) && matches!(split.below, RawPart::Empty),
+                "the lone vertex places its shell Above"
+            ),
+            Err(e) => panic!("the lone vertex decides Above: {e:?}"),
         }
     }
 

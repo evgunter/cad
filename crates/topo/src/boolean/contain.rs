@@ -486,6 +486,9 @@ pub fn contfp<T: Decide>(
 
 /// [`contfp`], with the margin that decided an `OnEdge` or `OnVertex`
 /// verdict (`None` for `In` and `Out`, which decide no coincidence).
+/// A site that reads a face of either kind reads
+/// [`placement_on_carrier`], the one dispatch, rather than this beside
+/// the curved door.
 ///
 /// # Errors
 ///
@@ -837,9 +840,10 @@ pub(crate) enum CurvedPlacement {
 /// and in a boolean's carry onto the pieces of a divided face, and a
 /// section witness in its face. On a plane, `q` is first decided on the
 /// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
-/// decision's nonzero, then [`contfp`] places it; on a curved face its
-/// region places it ([`curved_face_placement`]). `Trim(None)` is the
-/// curved door's remainder, a face it does not read.
+/// decision's nonzero, then [`placement_on_carrier`] places it; on a
+/// curved face that door places it outright. `Trim(None)` is the curved
+/// door's remainder, a face it does not read. The projection of
+/// [`face_placement_decided`].
 ///
 /// # Errors
 ///
@@ -852,22 +856,61 @@ pub(crate) fn face_placement<T: Decide>(
     band: Band,
     on_plane: &'static str,
 ) -> Result<CurvedPlacement, PlacementError> {
-    let f = body.proven_face(face);
-    match *f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => {
-            match decide(
-                on_plane,
-                Margin::of(geom::plane_offset(origin, normal, q)),
-                band,
-            ) {
-                Ok(Sign::Zero) => contfp(body, face, normal, q, band)
-                    .map(|at| CurvedPlacement::Trim(Some(at)))
-                    .map_err(PlacementError::Door),
-                Ok(Sign::Positive | Sign::Negative) => Ok(CurvedPlacement::OffCarrier),
-                Err(diag) => Err(PlacementError::OnPlane(diag)),
+    face_placement_decided(body, face, q, band, on_plane).map(|(at, _, _)| at)
+}
+
+/// [`face_placement`], with the margin that decided a boundary verdict
+/// and a spline face's in-trim foot ([`ChartedPlacement`]).
+///
+/// # Errors
+///
+/// As [`face_placement`].
+fn face_placement_decided<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    on_plane: &'static str,
+) -> Result<ChartedPlacement, PlacementError> {
+    if let geom::Surface::Plane { origin, normal, .. } = *body.proven_face(face).surface() {
+        match decide(
+            on_plane,
+            Margin::of(geom::plane_offset(origin, normal, q)),
+            band,
+        ) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => {
+                return Ok((CurvedPlacement::OffCarrier, None, None));
             }
+            Err(diag) => return Err(PlacementError::OnPlane(diag)),
         }
-        _ => curved_face_placement(body, face, q, band).map_err(PlacementError::Door),
+    }
+    placement_on_carrier(body, face, q, band).map_err(PlacementError::Door)
+}
+
+/// **Where a point the caller holds on `face`'s carrier lies against
+/// the face**: the dispatch of every placement, the plane's
+/// [`contfp_decided`] (with the face's stored normal, which it reads
+/// sign-blind) or the curved [`curved_face_placement_decided`]. On a
+/// plane it decides no on-plane margin and never answers `OffCarrier`:
+/// the caller's construction, or its own decision, put `q` there. What
+/// a curved face's `OffCarrier` means is the caller's to say, at the
+/// call.
+///
+/// # Errors
+///
+/// The containment door's own refusal.
+pub(in crate::boolean) fn placement_on_carrier<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<ChartedPlacement, ContainError> {
+    let view = body.face(face).ok_or(ContainError::StaleFace(face))?;
+    match *view.surface() {
+        geom::Surface::Plane { normal, .. } => contfp_decided(body, face, normal, q, band)
+            .map(|(at, margin)| (CurvedPlacement::Trim(Some(at)), margin, None)),
+        _ => curved_face_placement_decided(body, face, q, band),
     }
 }
 
@@ -909,7 +952,7 @@ pub(crate) type ChartedPlacement = (CurvedPlacement, Option<MarginDiag>, Option<
 /// # Errors
 ///
 /// As [`curved_face_containment`].
-pub(crate) fn curved_face_placement_decided<T: Decide>(
+fn curved_face_placement_decided<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
