@@ -14,11 +14,12 @@
 #     reads. A point pair's middle is `p.mid(q)` (`Point2`/`Point3`),
 #     `bracket_mid` per coordinate.
 # A hand spelling of either form is refused and named with the home of
-# ITS form, so moving a site onto its home changes no `f64` or
-# `Interval` bit. A `Sym` form whose halving was a division by 2 becomes
-# the home's multiplication by ½: the same value, a different form (its
-# digest, and which denominators `Form::add` shares). The home's own file
-# is exempt.
+# ITS form, so moving a site onto its home moves no `f64` or `Sym`
+# value. Where the halving was a division by 2, the home's
+# multiplication by ½ makes a different `Sym` form for the same value
+# (its digest, and which denominators `Form::add` shares), and at
+# `Interval` an endpoint of magnitude below about `2⁻⁹⁵⁹` can widen
+# outward by one ulp, which is sound. The home's own file is exempt.
 #
 # WHAT IS REFUSED, in production code under `crates/*/src` (comments and
 # string literals out, `#[cfg(test)]` modules and test-only mounts out,
@@ -58,7 +59,8 @@
 #     `work/onecopy/a-bracket-middle-is-also-spelled-half-lo-plus-half-hi-and-f64-midpoint.md`.
 #   * `hi - HALF(hi - lo)`, the middle read from the upper end.
 #   * A width or a half bound by `let` first (`let w = hi - lo; … lo +
-#     0.5 * w`), and a half held under a name (`HALF`, `let h = 0.5`).
+#     0.5 * w`), and a half held under a name (`HALF`, `let h = 0.5`),
+#     `p.lerp(q, half)` with the half in a variable included.
 #   * A PARENTHESISED OR INDEXED OPERAND in the first form
 #     (`(a - b) + 0.5 * (c - (a - b))`, `x[0] + 0.5 * (x[1] - x[0])`),
 #     since E is a chain of names, `()` calls and fields.

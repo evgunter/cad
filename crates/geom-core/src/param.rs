@@ -10,9 +10,12 @@
 //! Where `hi − lo` is exact (Sterbenz: ends of one sign within a factor
 //! of two, so every late step of a bisection) the two forms give the
 //! same bits at `f64`; otherwise they can differ in the last bit. A hand
-//! spelling moved onto the home of its own form keeps every `f64` and
-//! `Interval` bit; at `Sym`, a halving that was a division by 2 becomes
-//! the home's multiplication by ½, the same value in a different form.
+//! spelling moved onto the home of its own form moves no `f64` or `Sym`
+//! value; at `Sym`, a halving that was a division by 2 becomes the
+//! home's multiplication by ½, the same value in a different form. At
+//! `Interval`, an endpoint of magnitude below about `2⁻⁹⁵⁹` can widen
+//! outward by one ulp where the halving was a division: multiplication's
+//! exactness check gives up there, where division's detects an exact `/2`.
 
 use crate::Real;
 
