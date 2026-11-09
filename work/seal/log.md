@@ -22,3 +22,75 @@
   - The design is written into the row's `## Design`, and its `design` flag is cleared. The decisive first step is a prototype on the seat fixture, testing three stated assumptions.
   - Follow-up filed on TALLY, parked: `the-editors-distribution-over-a-seat-retires-for-the-kernels-whole-body-boolean` (P2 M).
   - Next: dispatch the prototype-then-build lane on `seal/vertex-reads-one-interface`. Tier **dual**, because the classification logic is especially tricky in shared boolean ground. It is decided at review time per `docs/DUAL-REVIEW-PROTOCOL.md`.
+- 2026-11-09 — **Prototype on `seal/vertex-reads-one-interface-prototype` (`ed87ae56c3`).** Assumptions 1 and 2 hold: two coincident sections on a crossing wall, and two strut runs at one vertex each paired with its own ring. Assumption 3 FAILS. In `X − S`, the two sections leave a zero-thickness crack of X between them, and it is kept as an Out piece that zips with the reverted seat patches into a lamina. Swapping the copies' order moves the crack to the other ops, and `bead − seat` also needs the top's patch divided along the bolt's foot edge.
+  - **Sound and correct per the design:** `seat − post` (22 faces, 0.948, record carried), both `∩`, a bead touching one piece, the bridged unions refusing, and the no-record negatives. Every built body passes tier 3/3′.
+  - **Not caused by this change:** `seat − ledge` refuses `ClassificationInvariant` on bare inputs too.
+  - **Sequencing call (mine, with recommendation; the alternative was sending the crack rule back to the designers first):** land step 2 now for everything shown sound, with `X − S` held to a typed refusal, and file the crack as its own P1 H design row. Reason: the landed part is sound and gives the design's outcomes for every op but one, and nothing is half-built. The crack is a finish-layer question the design text did not reach.
+- 2026-11-09 — **`vertex-reads-one-interface` is PR 6613, CI `gate ok` green on `a8d19a96b7e9`.** Dual review dispatched on that frozen head, protocol `db69dd9d5a`. Difficulty letter H, so the arm is CONCURRENT: R1 and R2 have the same brief and claims, and each is pointed at the style lane. The lane's own premise corrections and its two new rows are in the PR body. I reclaimed the implementer's 23 GB target before dispatch, because two review targets would not fit beside it.
+- 2026-11-09 — **`glue-disagreements-and-held-contradictions-after-stage-4` re-censused.** Stage 4 PR F (PR 4641) and `mates-declare-no-contact` (PR 5637) landed, which releases the row. A read-only census against main `b3363f462e` is written into the row: 22 of the 35 held arms are retired and 13 survive. C21 and C22 are not settled by the glue door, and stage 4 added six sites of the same shapes. I split the work into a mechanical unit and a design question: what a reading carries when two decided readings disagree, or a decided reading breaks a convention. The question went to fork `glue-disagreements-carry`, two designers (drawn arm; bytes on its analysis branch), problem only. The mechanical unit waits for the fork, since the fork may reshape the types it would write.
+- 2026-11-09 — **Fork `glue-disagreements-carry`: two first reports, agreeing on the premise and split on four points.**
+  - **Both reject the brief's "two decided readings disagree":**
+    - C21 is a straddle (data as lower bounds, the extent sum as the upper), for the funnel's `k_stats::straddle`, as `tori_coincide` already does;
+    - `off_ring` carries geom-brep's torus refusal and lever, not `PoisonedCarrierDatum`;
+    - the margins `IdentityLadder::Apart` and `NotTangent` drop are mechanical;
+    - the census's predicate-string dispatch goes (D4 ¶1 (ii));
+    - the glue door decides a tangency once;
+    - no `Definite` type;
+    - the parent row's item 7 is unratified agent text.
+  - **A:**
+    - the torus witness is a straddle;
+    - a reading's definite "no" is a typed verdict (`Ruled { row, by: Decided }`), a contradiction only against a record at rest;
+    - `sides_mixed` is a typed verdict;
+    - C22 is the corner's own decided Zero through `gate_rejection`.
+  - **B:**
+    - the witness Zero is a gate rejection;
+    - `Contradicted { fact, evidence: Option<Decided> }` at the reading, with `Decided` gaining a predicate;
+    - `sides_mixed` is an `unreachable!` invariant;
+    - C22 is one level up: the glue door keeps one verdict table for every pair it reads (Glued / InBand / Apart), and the corner reads it rather than re-deciding the pair, retiring README C4's agent-written corner sentence.
+  - Round 1 is running, each designer shown the other's `For Ev`.
+- 2026-11-09 — **Fork `glue-disagreements-carry`, round 1: both moved, and they crossed on three points.**
+  - **Now agreed:**
+    - a reading's definite "no" is a typed verdict, and a contradiction exists only at rest against a record. The Boolean then mints none: `BooleanError::ContactContradicted` and the conformal screen are decided-twice debris;
+    - `CarrierVerdict::{One, Apart(Decided)}`;
+    - the corner stops re-reading the carrier pair, and its Apart refusal is `Coincide::Sectors`;
+    - README C4's agent-written corner sentence retires.
+  - **Crossed:** A moved to B's first positions (the witness as a gate rejection, a door verdict table, `sides_mixed` unreachable), and B moved to A's (witness straddle, no table, `sides_mixed` typed). `Decided.predicate`: A adopted it and B withdrew it.
+  - Round 2 asks the question beneath each:
+    - is a carrier-wide upper an honest bound on the faces;
+    - does the lane admit a rim where n1·n2 varies;
+    - does any reader need the door's Apart for a decision or recourse;
+    - with row enums, does the predicate field have a reader.
+- 2026-11-09 — **Fork `glue-disagreements-carry` converged in round 2, with no question for Ev, so it has no fork-log row.**
+  - **Seat replacements.** Both round-1 lanes were stopped by an API safeguard flag (`reasoning_extraction`) after I asked each to copy its own report into a file. Fresh lanes of the same models took seats A and B for round 2, each handed its seat's round-1 text as its starting position. The note is on the fork's analysis branch. Lesson: never ask a lane to re-emit its own output; transcribe it myself.
+  - **Round 2.** Seat A moved to B's positions on all four crossed points, and seat B held them, each on a fact read from the tree:
+    - `TorusDisplacement::upper` bounds every point of both tori, so the witness is a straddle;
+    - `tangent_certificate_lane` admits Villarceau rims, so `SidesMixed` is typed;
+    - no corner branches on the door's Apart, so there is no table;
+    - no reader of a `Decided`'s name, so there is no field.
+  - **My adjudication of the residue.** The open corner case (`ReadOn::Faces`: near arm Zero, far bound off) ends `Coincide::Sectors` with `Off(Decided)`. I checked B's objection to A's gate rejection: `k_stats::gate_rejection` hits `unreachable!` when `passes` admits the sign, and `Sectors` passes `AnySign`. For `TorusCoincidence::Apart` I took B's `max(chord, sine)` guard over A's `Result` upper.
+  - **The design is in the row, cut into four P1 steps:**
+    - `carrier-readings-keep-the-margins-they-decided-on` (M);
+    - `a-reach-straddle-goes-through-the-straddle-door` (M);
+    - `a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted` (H);
+    - `a-corner-reads-only-its-own-sectors` (M, parked on step 1).
+
+    The umbrella row is parked on them; its design flag is cleared and it is re-costed H.
+  - Next, serially: step 1 once PR 6613 merges.
+- 2026-11-09 — **PR 6613: the dual review is in, APPROVE-WITH-FIXES twice, no MAJOR.**
+  - **Shared findings:**
+    - `ToolSeatCrossed` refuses tools that only touch the seat (∅ is right);
+    - the wall's In-wins edge-class gather has no row (mutants survive), and it feeds naming;
+    - the mirror check has no row;
+    - the PR body misdescribes main, and main's `cap − seat` built a silently wrong record-held floor that this PR's gate now refuses (unclaimed);
+    - stale docs;
+    - an undisclosed parallel gather path beside `cone_classes`;
+    - the area-record predicate is written twice.
+  - **R2 only:**
+    - the built rows assert nothing the wrong `cap − seat` fails (face counts, one shell holding both record faces);
+    - a curved area seat used as a cut's tool can still build that floor (by inspection);
+    - collar `CarryRefused`;
+    - the redundant flush refusals.
+  - **R1 only:** both operands carrying records refuses `CarryRefused`; `sample_errors`.
+  - The fix pass was sent to the implementer as one adjudicated list of 13 items.
+  - **One class to note:** a gate's rows have to go red with the gate off. Here they did not, and the built rows passed a wrong body. That is item 4 of the fix list.
+  - Off-target: R2 found the Express-lane bullet duplicated in `memories/agent-lane-operations.md`. That is a `memories/` edit, so it is Ev's. Noted, not fixed.
