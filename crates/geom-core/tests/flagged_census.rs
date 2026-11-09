@@ -163,19 +163,34 @@ const REPORTED: &str = "_reported";
 /// own, to excuse a fixture that had no reason to sit in `src/`.
 fn calls_in(text: &str) -> Vec<(usize, String)> {
     door_calls_in(text, "decide_flagged", 3, |_| false)
+        .into_iter()
+        .map(|(line, cite)| match cite {
+            Cite::Row(row) => (line, row),
+            Cite::Forwarded { .. } => unreachable!("decide_flagged forwards nothing"),
+        })
+        .collect()
+}
+
+/// What a door call cites as its ledger row.
+enum Cite {
+    /// A string literal: the row itself.
+    Row(String),
+    /// An identifier passed straight through, at byte `at` of the call: a
+    /// wrapper's forwarding, which [`forwarding_door`] resolves.
+    Forwarded { ident: String, at: usize },
 }
 
 /// [`calls_in`] for any door that cites a ledger row: every call of
 /// `door` in `text`, with the row its `cite`-th argument (from 0) names.
 /// The `_reported` suffix rides as it does for `decide_flagged`. An
-/// argument `forwards` accepts is read as an empty row rather than
-/// refused for not being a literal.
+/// argument `forwards` accepts is read as a forwarding ([`Cite::Forwarded`])
+/// rather than refused for not being a literal.
 fn door_calls_in(
     text: &str,
     door: &str,
     cite: usize,
     forwards: impl Fn(&str) -> bool,
-) -> Vec<(usize, String)> {
+) -> Vec<(usize, Cite)> {
     let code = test_utils::source::code_only(text);
     let bytes = code.as_bytes();
     let mut out = Vec::new();
@@ -191,6 +206,16 @@ fn door_calls_in(
             !(p.is_ascii_alphanumeric() || p == b'_')
         };
         if !prev_ok {
+            continue;
+        }
+        // A definition, generic or not (`fn check_unlogged(`), is the
+        // door's head, not a call of it.
+        if code[..at].trim_end().ends_with("fn")
+            && test_utils::source::boundary_before(
+                code[..at].trim_end(),
+                code[..at].trim_end().len() - 2,
+            )
+        {
             continue;
         }
         // `decide_flagged_reported` is the same lane keeping its
@@ -218,9 +243,12 @@ fn door_calls_in(
             out.push((
                 line,
                 if forwards(raw) {
-                    String::new()
+                    Cite::Forwarded {
+                        ident: raw.trim().to_string(),
+                        at,
+                    }
                 } else {
-                    ledger_row(raw)
+                    Cite::Row(ledger_row(raw))
                 },
             ));
             i = args;
@@ -268,35 +296,121 @@ fn sites_in_tree(dir: &Path, hits: &mut Vec<Site>, find: impl Fn(&str) -> Vec<(u
 }
 
 /// **The unlogged doors' sites**: `check_unlogged`, whose row is its
-/// fourth argument, and the scoped `unlogged`, whose row is its first.
-/// They carry the obligation `decide_flagged` does (their row argues why
-/// a decision is taken outside the log), and are not counted against
-/// [`LEDGER_FLAGGED_SITES`]. The one call that forwards a parameter
-/// rather than citing a row is `check_unlogged`'s own body in
-/// `k_stats.rs`, which hands its `ledger_row` to `unlogged`; it is the
-/// door's definition, not a site, and is the only one let through.
+/// fourth argument, and the scoped `unlogged`, whose row is its first,
+/// and every wrapper that forwards a row to one of them.
+///
+/// **A wrapper is a door in its own right.** A call that passes an
+/// identifier where a door reads its row, rather than a literal, is a
+/// forwarding: the enclosing fn must take that identifier as a
+/// `&'static str` parameter ([`forwarding_door`]), and then that fn is
+/// scanned as a door with its row at that parameter's index, so its own
+/// callers must cite a literal row that the ledger has. That runs to a
+/// fixed point, so a wrapper of a wrapper is read too, wherever it lives
+/// (`k_stats`'s own `check_unlogged` and `profile::gate`'s
+/// `check_unlogged` are two today). A forwarding that resolves to no
+/// such parameter is refused as a site citing no row.
 fn unlogged_sites() -> Vec<Site> {
     let crates_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("crates dir")
         .to_path_buf();
-    let find = |text: &str| {
-        let forwards = |raw: &str| raw.trim() == "ledger_row";
-        let mut out = door_calls_in(text, "check_unlogged", 3, forwards);
-        out.extend(door_calls_in(text, "unlogged", 0, forwards));
-        out
-    };
-    let mut hits = Vec::new();
+    let mut files = Vec::new();
     for entry in std::fs::read_dir(&crates_root).expect("crates dir listing") {
         let src = entry.expect("dir entry").path().join("src");
         if src.is_dir() {
-            sites_in_tree(&src, &mut hits, find);
+            for path in test_utils::source::rust_sources(&src) {
+                let text = std::fs::read_to_string(&path).expect("readable source file");
+                files.push((path, text));
+            }
         }
     }
-    hits.retain(|site| {
-        !(site.file.ends_with("geom-core/src/k_stats.rs") && site.ledger_row.is_empty())
-    });
+    door_sites(&files, &[("check_unlogged", 3), ("unlogged", 0)])
+}
+
+/// The sites of `doors` (each a name and its row's argument index) in
+/// `files`, wrappers resolved to a fixed point ([`unlogged_sites`]).
+fn door_sites(files: &[(PathBuf, String)], doors: &[(&str, usize)]) -> Vec<Site> {
+    let identifier = |raw: &str| {
+        !raw.trim().is_empty() && raw.trim().chars().all(|c| c.is_alphanumeric() || c == '_')
+    };
+    let mut known: Vec<(String, usize)> = doors.iter().map(|&(d, i)| (d.to_string(), i)).collect();
+    let mut hits: Vec<Site> = Vec::new();
+    let mut next = 0;
+    while next < known.len() {
+        let (door, cite) = known[next].clone();
+        next += 1;
+        for (path, text) in files {
+            let code = test_utils::source::code_only(text);
+            for (line, found) in door_calls_in(text, &door, cite, identifier) {
+                match found {
+                    Cite::Row(ledger_row) => hits.push(Site {
+                        file: path.clone(),
+                        line,
+                        ledger_row,
+                    }),
+                    Cite::Forwarded { ident, at } => match forwarding_door(text, &code, at, &ident) {
+                        Some(wrapper) => {
+                            if !known.contains(&wrapper) {
+                                known.push(wrapper);
+                            }
+                        }
+                        None => hits.push(Site {
+                            file: path.clone(),
+                            line,
+                            ledger_row: format!(
+                                "<forwards `{ident}`, which is no `&'static str` parameter of the fn \
+                                 around it>"
+                            ),
+                        }),
+                    },
+                }
+            }
+        }
+    }
+    hits.sort_by(|a, b| (&a.file, a.line, &a.ledger_row).cmp(&(&b.file, b.line, &b.ledger_row)));
+    // Only an identical citation is a duplicate: two door calls on one line
+    // citing different rows are two sites, and each row is checked.
+    hits.dedup_by(|a, b| a.file == b.file && a.line == b.line && a.ledger_row == b.ledger_row);
     hits
+}
+
+/// **The door a forwarding call makes of the fn around it**: the
+/// innermost `fn` whose body holds byte `at` of `code`, where it takes
+/// `ident` as a `&'static str` parameter, as its name and that
+/// parameter's index; `None` otherwise. `text` is the unblanked source at
+/// the same offsets, read for the parameter's type.
+fn forwarding_door(text: &str, code: &str, at: usize, ident: &str) -> Option<(String, usize)> {
+    use test_utils::source::{
+        ItemBody, balanced_end, boundary_before, ident as ident_at, item_body, top_level_split,
+    };
+    let heads: Vec<usize> = code[..at]
+        .match_indices("fn ")
+        .map(|(i, _)| i)
+        .filter(|&i| boundary_before(code, i))
+        .collect();
+    for &head in heads.iter().rev() {
+        let ItemBody::Body(body) = item_body(code, head) else {
+            continue;
+        };
+        if !body.contains(&at) {
+            continue;
+        }
+        let name_at = head + 3 + code[head + 3..].len() - code[head + 3..].trim_start().len();
+        let name = ident_at(code, name_at).to_string();
+        let open = name_at + code[name_at..].find('(')?;
+        let close = balanced_end(code, open)?;
+        let params = &text[open + 1..close];
+        let index = top_level_split(&code[open + 1..close], ',')
+            .into_iter()
+            .map(|r| &params[r])
+            .position(|param| {
+                param.split_once(':').is_some_and(|(n, ty)| {
+                    n.trim() == ident && ty.split_whitespace().collect::<String>() == "&'staticstr"
+                })
+            })?;
+        return Some((name, index));
+    }
+    None
 }
 
 fn shipped_sites() -> (PathBuf, Vec<Site>) {
@@ -369,4 +483,51 @@ fn every_shipped_site_cites_a_ledger_row_that_exists() {
             rows
         );
     }
+}
+
+/// **A forwarding wrapper is a door, and its callers are checked**: a fn
+/// that takes the row as `&'static str` and passes it on is read as a door
+/// with its row at that parameter's index, a wrapper of a wrapper too. Its
+/// callers' literals are the sites; a forwarding of something that is no
+/// such parameter is a site citing no row.
+#[test]
+fn a_forwarding_wrapper_is_a_door_and_its_callers_cite_their_rows() {
+    let file = |name: &str, text: &str| (PathBuf::from(name), text.to_string());
+    let files = [
+        file(
+            "door.rs",
+            "pub fn check_unlogged(name: &'static str, m: f64, band: B, ledger_row: &'static str) -> S {\n    unlogged(ledger_row, || m)\n}\n",
+        ),
+        file(
+            "wrap.rs",
+            "pub fn gated(g: G, m: f64, row: &'static str) -> S {\n    check_unlogged(g.name(), m, B, row)\n}\n\
+             pub fn twice(m: f64, ledger: &'static str) -> S {\n    gated(G, m, ledger)\n}\n",
+        ),
+        file(
+            "use.rs",
+            "fn a() { gated(G, 1.0, \"F1\"); }\nfn b() { twice(2.0, \"F2\"); }\nfn c(row: R) { check_unlogged(\"n\", 3.0, B, row); }\n",
+        ),
+    ];
+    let sites = door_sites(&files, &[("check_unlogged", 3), ("unlogged", 0)]);
+    let rows: Vec<(String, String)> = sites
+        .iter()
+        .map(|s| (s.file.display().to_string(), s.ledger_row.clone()))
+        .collect();
+    assert!(
+        rows.contains(&("use.rs".into(), "F1".into())),
+        "a wrapper's caller cites its row: {rows:?}"
+    );
+    assert!(
+        rows.contains(&("use.rs".into(), "F2".into())),
+        "a wrapper of a wrapper's caller cites its row: {rows:?}"
+    );
+    assert!(
+        rows.iter()
+            .any(|(f, r)| f == "use.rs" && r.starts_with("<forwards `row`")),
+        "forwarding a parameter that is no `&'static str` is a site citing no row: {rows:?}"
+    );
+    assert!(
+        !rows.iter().any(|(f, _)| f == "door.rs" || f == "wrap.rs"),
+        "a forwarding wrapper's own body is a door, not a site: {rows:?}"
+    );
 }

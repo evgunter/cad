@@ -10,10 +10,9 @@
 # work/onecopy/question-mark-ladders-the-gate-registered.md; lower the
 # count here as each is ported.
 #
-# solid_contain: point_in_faces's six on-face reads (any face holding the
-# point answers OnBoundary), hand-rolled; ray_crossings's denominator, a
-# crossing count, which needs every face.
-crates/topo/src/boolean/solid_contain.rs 7
+# solid_contain: ray_crossings's denominator, a crossing count, which
+# needs every face (point_in_faces's on-face reads climb).
+crates/topo/src/boolean/solid_contain.rs 1
 # rim_wedge: departures's abut (either pair abutting answers) and rides
 # (either end off the line answers "not"), hand-rolled; sort_params, a
 # sort, needs every comparison; reach reads every arc's traversal.
