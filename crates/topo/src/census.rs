@@ -4699,11 +4699,9 @@ fn refuse_crossing(face: FaceKey, r: CrossRefusal, errors: &mut Vec<ValidationEr
             subject: CensusSubject::Entity(EntityId::Face(face)),
             cause: CensusUnsupportedCause::Containment(cause),
         }),
-        CrossRefusal::Unread(what) => errors.push(ValidationError::CensusUnsupported {
+        CrossRefusal::Unread(why) => errors.push(ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Face(face)),
-            cause: CensusUnsupportedCause::ContactLane(
-                crate::contact::ContactRefusal::NotCertifiable { what },
-            ),
+            cause: CensusUnsupportedCause::Meeting(why),
         }),
     }
 }
@@ -4714,25 +4712,19 @@ enum CrossRefusal {
     Escalated(Vec<geom_core::Indeterminate>),
     /// The boundary could not be read, typed.
     Unsupported(ContainError),
-    /// The meeting reading refused past the band's own escalation.
-    Unread(&'static str),
+    /// The meeting reading did not run to an answer, typed.
+    Unread(geom_brep::curve_pair::MeetUnread),
 }
 
 /// **A refused meeting of a census edge and a face boundary edge**, as
 /// the crossing reading's refusal: in band as its cause, and a reading
-/// that did not run to an answer as its sentence. A kernel fault is the
+/// that did not run to an answer as its reason. A kernel fault is the
 /// census's ([`meet_fault`], reported `on` the pair).
 fn cross_refused(fault: MeetFault, on: core::fmt::Arguments<'_>) -> CrossRefusal {
-    match fault {
-        MeetFault::Escalated(cause) | MeetFault::Touch(cause) => {
-            CrossRefusal::Escalated(vec![cause])
-        }
-        MeetFault::Unsettled(_) => CrossRefusal::Unread(
-            "the meeting reading of a census edge and a face boundary edge could not settle a count",
-        ),
-        MeetFault::Unwalked(why) => CrossRefusal::Unread(why.sentence()),
-        MeetFault::Unsupported { pose } => CrossRefusal::Unread(pose),
-        fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => meet_fault(on, fault),
+    match fault.kind() {
+        MeetKind::Escalated(cause) | MeetKind::Touch(cause) => CrossRefusal::Escalated(vec![cause]),
+        MeetKind::Unread(why) => CrossRefusal::Unread(why),
+        MeetKind::Fault { .. } => meet_fault(on, fault),
     }
 }
 
@@ -7012,17 +7004,14 @@ fn line_unread(
             use geom_brep::curve_face::BoundaryRefusal;
             held.push(match refusal {
                 BoundaryRefusal::Escalated(cause)
-                | BoundaryRefusal::Meeting(cause)
-                | BoundaryRefusal::Touch(cause) => ValidationError::CensusEscalated { cause },
-                BoundaryRefusal::Unread(_) => pair_lane_refused(
-                    a,
-                    b,
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a face of a two-carrier face pair whose boundary the meeting \
-                               reading cannot read against the tangent line",
-                    },
-                ),
-                BoundaryRefusal::Fault { what } => census_fault(
+                | BoundaryRefusal::Met(MeetKind::Escalated(cause) | MeetKind::Touch(cause)) => {
+                    ValidationError::CensusEscalated { cause }
+                }
+                BoundaryRefusal::Met(MeetKind::Unread(why)) => ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(a, b),
+                    cause: CensusUnsupportedCause::Meeting(why),
+                },
+                BoundaryRefusal::Met(MeetKind::Fault { what }) => census_fault(
                     format_args!(
                         "a reading of face {:?} of the two-carrier pair ({a:?}, {b:?}) faulted",
                         [a, b][i]
@@ -11331,7 +11320,7 @@ impl InteriorsUnread {
     fn of(fault: MeetFault) -> Self {
         match fault.kind() {
             MeetKind::Escalated(_) | MeetKind::Touch(_) => Self::Undecided,
-            MeetKind::Unread => Self::Unbuilt,
+            MeetKind::Unread(_) => Self::Unbuilt,
             MeetKind::Fault { .. } => meet_fault(format_args!("two edges' interiors"), fault),
         }
     }
@@ -12133,36 +12122,49 @@ mod tests {
     }
 
     /// **A refused crossing of a census edge and a face boundary edge
-    /// says its reading's own sentence**: a walk that could not run says
-    /// the walk's, an unsettled meeting the census's, and a pose itself.
-    /// Red where a sentence is rewritten or swapped.
+    /// carries its reading's reason**: the meeting's own
+    /// ([`geom_brep::curve_pair::MeetKind::Unread`]), pushed whole as the
+    /// meeting cause, which renders it
+    /// (`curved::tests::a_refused_curved_meeting_reads_as_its_reason`).
+    /// Red where a reason is flattened or swapped on the way.
     #[test]
-    fn a_refused_boundary_crossing_says_its_readings_sentence() {
+    fn a_refused_boundary_crossing_carries_its_readings_reason() {
         use geom::PieceWalkRefusal::{Exhausted, Unbounded};
+        use geom_brep::curve_pair::MeetUnread;
         use geom_brep::roots::Unsettled;
-        for (fault, said) in [
+        for (fault, want) in [
             (
                 MeetFault::Unwalked(Exhausted),
-                "a spline's piece walk ran past its budget",
+                MeetUnread::Unwalked(Exhausted),
             ),
             (
                 MeetFault::Unwalked(Unbounded),
-                "a spline's speed bound is zero or poison",
+                MeetUnread::Unwalked(Unbounded),
             ),
             (
                 MeetFault::Unsettled(Unsettled::Exhausted),
-                "the meeting reading of a census edge and a face boundary edge could not settle a count",
+                MeetUnread::Unsettled(Unsettled::Exhausted),
             ),
-            (MeetFault::Unsupported { pose: "a pose" }, "a pose"),
+            (
+                MeetFault::Unsupported { pose: "a pose" },
+                MeetUnread::Unsupported { pose: "a pose" },
+            ),
         ] {
-            let got = cross_refused(fault, format_args!("a pair"));
+            let mut errors = Vec::new();
+            refuse_crossing(
+                FaceKey::default(),
+                cross_refused(fault, format_args!("a pair")),
+                &mut errors,
+            );
             assert!(
-                matches!(got, CrossRefusal::Unread(what) if what == said),
-                "{fault:?}: read as {}",
-                match got {
-                    CrossRefusal::Unread(what) => what,
-                    _ => "no sentence",
-                }
+                matches!(
+                    errors.as_slice(),
+                    [ValidationError::CensusUnsupported {
+                        cause: CensusUnsupportedCause::Meeting(why),
+                        ..
+                    }] if *why == want
+                ),
+                "{fault:?}: pushed as {errors:?}"
             );
         }
     }
@@ -13668,10 +13670,9 @@ mod tests {
     #[test]
     #[should_panic(expected = "census: a reading of face")]
     fn a_boundary_fault_on_a_census_pair_panics() {
-        let why =
-            crate::boolean::FaceUnread::Boundary(geom_brep::curve_face::BoundaryRefusal::Fault {
-                what: "planted",
-            });
+        let why = crate::boolean::FaceUnread::Boundary(
+            geom_brep::curve_face::BoundaryRefusal::Met(MeetKind::Fault { what: "planted" }),
+        );
         line_unread(FaceKey::default(), FaceKey::default())(0, why, &mut Vec::new());
     }
 

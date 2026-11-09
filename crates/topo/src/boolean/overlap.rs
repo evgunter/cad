@@ -40,6 +40,7 @@ use std::sync::Arc;
 
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
+use geom_brep::curve_pair::MeetKind;
 use geom_brep::curve_pair::Span;
 use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
@@ -154,19 +155,19 @@ impl OverlapRefusal {
                 BoundaryRefusal::Escalated(d) => {
                     write!(f, "a boundary vertex's place on an edge read in band: {d}")
                 }
-                BoundaryRefusal::Meeting(d) => {
+                BoundaryRefusal::Met(MeetKind::Escalated(d)) => {
                     write!(
                         f,
                         "an edge's meeting with a boundary edge read in band: {d}"
                     )
                 }
-                BoundaryRefusal::Touch(d) => {
+                BoundaryRefusal::Met(MeetKind::Touch(d)) => {
                     write!(f, "an edge and a boundary edge meet in band: {d}")
                 }
-                BoundaryRefusal::Unread(_) => {
+                BoundaryRefusal::Met(MeetKind::Unread(_)) => {
                     write!(f, "an edge's meeting with the boundary could not be read")
                 }
-                BoundaryRefusal::Fault { what } => {
+                BoundaryRefusal::Met(MeetKind::Fault { what }) => {
                     write!(f, "the meeting table's kernel fault: {what}")
                 }
             },
@@ -699,6 +700,7 @@ fn sort_params<T: Decide>(params: &mut Vec<T>, speed: T, band: Band) -> Result<(
 #[allow(clippy::expect_used)]
 mod piece_ranking {
     use geom_brep::curve_face::BoundaryRefusal;
+    use geom_brep::curve_pair::MeetKind;
     use geom_brep::ladder::Evidence;
     use geom_core::{Band, Indeterminate, MarginDiag};
 
@@ -730,11 +732,14 @@ mod piece_ranking {
         );
         let mut kept = Evidence::default();
         keep_piece_refusal(&mut kept, in_band()).expect("in band is kept");
-        let fault = OverlapRefusal::Meeting(BoundaryRefusal::Fault { what: "a misread" });
+        let fault =
+            OverlapRefusal::Meeting(BoundaryRefusal::Met(MeetKind::Fault { what: "a misread" }));
         assert!(
             matches!(
                 keep_piece_refusal(&mut kept, fault),
-                Err(OverlapRefusal::Meeting(BoundaryRefusal::Fault { .. }))
+                Err(OverlapRefusal::Meeting(BoundaryRefusal::Met(
+                    MeetKind::Fault { .. }
+                )))
             ),
             "a kernel fault refuses the whole query: the search stops on it"
         );

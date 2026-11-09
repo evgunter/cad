@@ -1903,6 +1903,19 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             CensusUnsupportedCause::CurvedEdge(why),
         ));
     }
+    for why in [
+        geom_brep::curve_pair::MeetUnread::Unsettled(geom_brep::roots::Unsettled::Exhausted),
+        geom_brep::curve_pair::MeetUnread::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        geom_brep::curve_pair::MeetUnread::Unwalked(geom::PieceWalkRefusal::Unbounded),
+        geom_brep::curve_pair::MeetUnread::Unsupported {
+            pose: "a pose the meeting table has no closed form for",
+        },
+    ] {
+        causes.push((
+            format!("CensusUnsupported/Meeting/{why:?}"),
+            CensusUnsupportedCause::Meeting(why),
+        ));
+    }
     for (l, cause) in causes {
         // The subject each cause is raised on: a face pair for the
         // chart-region and contact lanes, one face for the rest.
@@ -1911,7 +1924,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             CensusUnsupportedCause::Containment(_) | CensusUnsupportedCause::FaceUnboundable => {
                 CensusSubject::Entity(EntityId::Face(face))
             }
-            CensusUnsupportedCause::CurvedEdge(_) => {
+            CensusUnsupportedCause::CurvedEdge(_) | CensusUnsupportedCause::Meeting(_) => {
                 CensusSubject::Entity(EntityId::Edge(crate::entity::EdgeKey::default()))
             }
         };

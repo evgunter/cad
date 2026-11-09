@@ -22,8 +22,7 @@
 //! are no meeting of their own.
 
 use geom::Curve3;
-use geom_brep::curve_pair::{Hit, MeetFault, Meeting, Span, meet};
-use geom_brep::roots::Unsettled;
+use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, MeetUnread, Meeting, Span, meet};
 use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign};
 
 use super::{CensusSubject, CensusUnsupportedCause, ValidationError};
@@ -51,14 +50,12 @@ fn refuse(
     });
 }
 
-/// Pushes the meeting of two curved edges refused for `what`, a reason
-/// no edge-tangent reading carries.
-fn refuse_meeting(edge: EdgeKey, what: &'static str, errors: &mut Vec<ValidationError>) {
+/// Pushes the meeting of two curved edges refused for `why`, its
+/// reading's typed reason, carried whole.
+fn refuse_meeting(edge: EdgeKey, why: MeetUnread, errors: &mut Vec<ValidationError>) {
     errors.push(ValidationError::CensusUnsupported {
         subject: CensusSubject::Entity(EntityId::Edge(edge)),
-        cause: CensusUnsupportedCause::ContactLane(
-            crate::contact::ContactRefusal::NotCertifiable { what },
-        ),
+        cause: CensusUnsupportedCause::Meeting(why),
     });
 }
 
@@ -330,27 +327,18 @@ fn on_interior_at<T: Decide>(
     }
 }
 
-/// **What a refused meeting of two curved edges says**: the sentence of
-/// a reading that did not run to an answer, or `Err` with the cause of
-/// one in band. A kernel fault is the census's ([`super::meet_fault`],
+/// **What a refused meeting of two curved edges says**: the reason of a
+/// reading that did not run to an answer, or `Err` with the cause of one
+/// in band. A kernel fault is the census's ([`super::meet_fault`],
 /// reported `on` the pair).
 fn meeting_unread(
     fault: MeetFault,
     on: core::fmt::Arguments<'_>,
-) -> Result<&'static str, geom_core::Indeterminate> {
-    match fault {
-        MeetFault::Escalated(cause) | MeetFault::Touch(cause) => Err(cause),
-        MeetFault::Unsettled(Unsettled::Exhausted) => {
-            Ok("the meeting reading of two curved edges ran past its budget")
-        }
-        MeetFault::Unsettled(_) => {
-            Ok("the meeting reading of two curved edges could not settle a count")
-        }
-        MeetFault::Unwalked(why) => Ok(why.sentence()),
-        MeetFault::Unsupported { pose } => Ok(pose),
-        fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => {
-            super::meet_fault(on, fault)
-        }
+) -> Result<MeetUnread, geom_core::Indeterminate> {
+    match fault.kind() {
+        MeetKind::Escalated(cause) | MeetKind::Touch(cause) => Err(cause),
+        MeetKind::Unread(why) => Ok(why),
+        MeetKind::Fault { .. } => super::meet_fault(on, fault),
     }
 }
 
@@ -511,18 +499,18 @@ fn interior_meeting<T: Decide>(
             None => refusal,
         },
     };
-    let what = match meeting_unread(
+    let why = match meeting_unread(
         refusal.fault,
         format_args!("curved edges {:?} and {:?}", ra.edge, rb.edge),
     ) {
-        Ok(what) => what,
+        Ok(why) => why,
         Err(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
             return None;
         }
     };
-    refuse_meeting(ra.edge, what, errors);
-    refuse_meeting(rb.edge, what, errors);
+    refuse_meeting(ra.edge, why, errors);
+    refuse_meeting(rb.edge, why, errors);
     None
 }
 
@@ -571,38 +559,69 @@ mod tests {
         }
     }
 
-    /// **A refused meeting of two curved edges says its reading's own
-    /// sentence**: a walk that could not run says the walk's, a meeting
-    /// reading past its budget or unsettled says the census's, and a pose
-    /// says itself. Red where a sentence is rewritten or swapped.
+    /// **A refused meeting of two curved edges carries its reading's
+    /// reason and reads as it**: the reason is the meeting's own
+    /// ([`geom_brep::curve_pair::MeetKind::Unread`]), the cause renders the
+    /// reading and the reason's sentence, and a person reads the reason's
+    /// recourse after it. Red where a sentence or recourse is rewritten or
+    /// swapped, or the cause renders through anything but its reason.
     #[test]
-    fn a_refused_curved_meeting_says_its_readings_sentence() {
+    fn a_refused_curved_meeting_reads_as_its_reason() {
         use geom::PieceWalkRefusal::{Exhausted, Unbounded};
-        use geom_brep::curve_pair::MeetFault;
+        use geom_brep::curve_pair::{MeetFault, MeetUnread};
         use geom_brep::roots::Unsettled;
-        for (fault, said) in [
+        use geom_core::{KERNEL_LIMIT_RECOURSE, NOT_YET_ENDING};
+        for (fault, why, sentence, recourse) in [
             (
                 MeetFault::Unwalked(Exhausted),
+                MeetUnread::Unwalked(Exhausted),
                 "a spline's piece walk ran past its budget",
+                KERNEL_LIMIT_RECOURSE,
             ),
             (
                 MeetFault::Unwalked(Unbounded),
+                MeetUnread::Unwalked(Unbounded),
                 "a spline's speed bound is zero or poison",
+                NOT_YET_ENDING,
             ),
             (
                 MeetFault::Unsettled(Unsettled::Exhausted),
-                "the meeting reading of two curved edges ran past its budget",
+                MeetUnread::Unsettled(Unsettled::Exhausted),
+                "the walk ran past its piece budget",
+                NOT_YET_ENDING,
             ),
             (
                 MeetFault::Unsettled(Unsettled::Tangency),
-                "the meeting reading of two curved edges could not settle a count",
+                MeetUnread::Unsettled(Unsettled::Tangency),
+                "a double root",
+                NOT_YET_ENDING,
             ),
-            (MeetFault::Unsupported { pose: "a pose" }, "a pose"),
+            (
+                MeetFault::Unsupported { pose: "a pose" },
+                MeetUnread::Unsupported { pose: "a pose" },
+                "a pose",
+                NOT_YET_ENDING,
+            ),
         ] {
             assert_eq!(
                 super::meeting_unread(fault, format_args!("a pair")),
-                Ok(said),
-                "{fault:?}"
+                Ok(why),
+                "{fault:?}: the reason is the meeting's"
+            );
+            let reading = format!("the meeting reading of two edges did not settle: {sentence}");
+            assert_eq!(
+                crate::CensusUnsupportedCause::Meeting(why).to_string(),
+                reading,
+                "{why:?}: the cause renders its reason's sentence"
+            );
+            let mut errors = Vec::new();
+            super::refuse_meeting(EdgeKey::default(), why, &mut errors);
+            assert_eq!(
+                errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                [format!(
+                    "an edge could not be checked: {reading}. {recourse}"
+                )],
+                "{why:?}: a person reads the reason's sentence and recourse"
             );
         }
     }

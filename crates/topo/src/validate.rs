@@ -875,6 +875,11 @@ pub enum CensusUnsupportedCause {
     /// A curved edge the census reads did not read, for its typed reason,
     /// whole: it renders by the reason's sentence and recourse.
     CurvedEdge(EdgeTangentUnread),
+    /// The meeting reading of two edges the census reads did not run to
+    /// an answer, for its typed reason, whole
+    /// ([`geom_brep::curve_pair::MeetUnread`]): it renders by the
+    /// reason's sentence and recourse.
+    Meeting(geom_brep::curve_pair::MeetUnread),
     /// The census's face-bounding sweep could not bound the face at
     /// all: it has no boundary vertex, because its outer loop is
     /// empty or its boundary does not resolve. Nothing about the
@@ -942,6 +947,7 @@ impl CensusUnsupportedCause {
             Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
             Self::CurvedEdge(why) => f.write_str(why.sentence()),
+            Self::Meeting(why) => f.write_str(&meeting_unread(*why)),
             // The containment door's reading, at a build, whichever door
             // reads the census.
             Self::Containment(e) => write!(
@@ -4343,6 +4349,15 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
     }
 }
 
+/// [`CensusUnsupportedCause::Meeting`]'s words: the meeting reading,
+/// and the reason's own sentence.
+fn meeting_unread(why: geom_brep::curve_pair::MeetUnread) -> String {
+    format!(
+        "the meeting reading of two edges did not settle: {}",
+        why.sentence()
+    )
+}
+
 fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, Cow<'static, str>) {
     match cause {
         CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
@@ -4351,6 +4366,9 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
             (why.into(), recourse.into())
         }
         CensusUnsupportedCause::CurvedEdge(why) => (why.sentence().into(), why.recourse().into()),
+        CensusUnsupportedCause::Meeting(why) => {
+            (meeting_unread(*why).into(), why.recourse().into())
+        }
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
             "a face has no corner to bound it by (an empty or broken outer loop)".into(),

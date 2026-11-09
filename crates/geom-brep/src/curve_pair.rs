@@ -174,21 +174,14 @@ pub enum MeetFault {
 
 impl MeetFault {
     /// What this refusal is to a ladder over the readings that meet it
-    /// ([`crate::ladder::Refusal`]), as each variant's docs state it.
+    /// ([`crate::ladder::Refusal`]): its group's ([`MeetKind::refusal`]).
     ///
     /// # Errors
     ///
     /// [`crate::ladder::Aborts`] for a carrier the arm misread or two
     /// readings that contradict: a kernel fault, never a pose.
     pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
-        use crate::ladder::{Aborts, Refusal};
-        match self {
-            Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(*diag)),
-            Self::Unsettled(_) => Ok(Refusal::Unsettled),
-            Self::Unwalked(why) => Ok(Refusal::of_walk(*why)),
-            Self::Unsupported { .. } => Ok(Refusal::Limit),
-            Self::Desync | Self::Contradiction { .. } => Err(Aborts),
-        }
+        self.kind().refusal()
     }
 }
 
@@ -202,15 +195,93 @@ pub enum MeetKind {
     /// A meeting in band ([`MeetFault::Touch`]).
     Touch(Indeterminate),
     /// The reading did not run to an answer, and no margin says how far
-    /// it was: unsettled, a walk that could not run, or a pose with no
-    /// closed form.
-    Unread,
+    /// it was ([`MeetUnread`]).
+    Unread(MeetUnread),
     /// A kernel fault, never a pose: the carrier misread, or the readings
     /// that contradict.
     Fault {
         /// What faulted.
         what: &'static str,
     },
+}
+
+impl MeetKind {
+    /// What this group is to a ladder ([`crate::ladder::Refusal`]): an
+    /// escalation or a touch ranked by its margin, an unread reading as
+    /// it stands ([`MeetUnread::refusal`]), a kernel fault an abort. The
+    /// one table of a meeting refusal's standing.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a kernel fault.
+    pub const fn refusal(self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        use crate::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(diag)),
+            Self::Unread(why) => Ok(why.refusal()),
+            Self::Fault { .. } => Err(Aborts),
+        }
+    }
+}
+
+/// **A meeting reading that did not run to an answer**, with no margin
+/// to say how far it was ([`MeetKind::Unread`]): its sentence, recourse
+/// and standing are its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MeetUnread {
+    /// A root finder, a meter or the walk's budget reached its limit
+    /// ([`MeetFault::Unsettled`]).
+    Unsettled(Unsettled),
+    /// A spline's piece walk could not run ([`MeetFault::Unwalked`]).
+    Unwalked(geom::PieceWalkRefusal),
+    /// A pose the pair's arm has no closed form for
+    /// ([`MeetFault::Unsupported`]).
+    Unsupported {
+        /// The pose.
+        pose: &'static str,
+    },
+}
+
+impl Default for MeetUnread {
+    fn default() -> Self {
+        Self::Unsettled(Unsettled::Exhausted)
+    }
+}
+
+impl MeetUnread {
+    /// Its standing: unsettled (a coarser band may settle it), the walk's
+    /// ([`crate::ladder::Refusal::of_walk`]), or a limit.
+    #[must_use]
+    pub const fn refusal(self) -> crate::ladder::Refusal {
+        match self {
+            Self::Unsettled(_) => crate::ladder::Refusal::Unsettled,
+            Self::Unwalked(why) => crate::ladder::Refusal::of_walk(why),
+            Self::Unsupported { .. } => crate::ladder::Refusal::Limit,
+        }
+    }
+
+    /// The one sentence it is rendered by: the finder's
+    /// ([`Unsettled::sentence`]), the walk's
+    /// ([`geom::PieceWalkRefusal::sentence`]), or the pose.
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::Unsettled(why) => why.sentence(),
+            Self::Unwalked(why) => why.sentence(),
+            Self::Unsupported { pose } => pose,
+        }
+    }
+
+    /// The recourse its rendering ends with: the walk's own
+    /// ([`geom::PieceWalkRefusal::recourse`]); else a reading the kernel
+    /// does not settle yet.
+    #[must_use]
+    pub const fn recourse(self) -> &'static str {
+        match self {
+            Self::Unwalked(why) => why.recourse(),
+            Self::Unsettled(_) | Self::Unsupported { .. } => geom_core::NOT_YET_ENDING,
+        }
+    }
 }
 
 impl MeetFault {
@@ -220,7 +291,9 @@ impl MeetFault {
         match self {
             Self::Escalated(diag) => MeetKind::Escalated(*diag),
             Self::Touch(diag) => MeetKind::Touch(*diag),
-            Self::Unsettled(_) | Self::Unwalked(_) | Self::Unsupported { .. } => MeetKind::Unread,
+            Self::Unsettled(why) => MeetKind::Unread(MeetUnread::Unsettled(*why)),
+            Self::Unwalked(why) => MeetKind::Unread(MeetUnread::Unwalked(*why)),
+            Self::Unsupported { pose } => MeetKind::Unread(MeetUnread::Unsupported { pose }),
             Self::Desync => MeetKind::Fault {
                 what: "a carrier the meeting table misread",
             },

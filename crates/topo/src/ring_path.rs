@@ -1554,7 +1554,7 @@ fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>
     use geom_brep::curve_pair::MeetKind;
     match fault.kind() {
         MeetKind::Escalated(diag) => Err(diag),
-        MeetKind::Touch(_) | MeetKind::Unread => Ok(None),
+        MeetKind::Touch(_) | MeetKind::Unread(_) => Ok(None),
         MeetKind::Fault { what } => {
             unreachable!("the meeting of a path's piece and a spline arc faulted: {what}")
         }

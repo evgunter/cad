@@ -523,7 +523,7 @@ fn a_point_on_span_refusal_stands_as_its_carrier_refusal() {
         let grouped = matches!(
             (refused, fault.kind()),
             (CarrierRefusal::Escalated(_), MeetKind::Escalated(_))
-                | (CarrierRefusal::Unwalked(_), MeetKind::Unread)
+                | (CarrierRefusal::Unwalked(_), MeetKind::Unread(_))
         );
         assert!(grouped, "{refused:?}: grouped as {:?}", fault.kind());
     }

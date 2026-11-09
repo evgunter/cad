@@ -171,6 +171,25 @@ pub enum Unsettled {
     Crease,
 }
 
+impl Unsettled {
+    /// **The one sentence this refusal is rendered by**: what the finder
+    /// met, in words.
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::Tangency => "a double root",
+            Self::Meter { .. } => "a residual the band cannot meter",
+            Self::Exhausted => "the walk ran past its piece budget",
+            Self::Floor => "a piece at the walk's floor the band does not read past",
+            Self::Resolvent => "a resolvent with no positive root",
+            Self::CountDisagrees { .. } => "the built roots disagree with the certified count",
+            Self::AtApex => "a root at a cone's apex",
+            Self::Degenerate => "a residual whose leading term vanishes",
+            Self::Crease => "a meeting at a spline's crease",
+        }
+    }
+}
+
 /// Two of a root finder's own readings contradict where no legal input
 /// takes them apart: a charge the finder states is exceeded, a kernel
 /// fault. Only [`crate::half_angle::certified_subdivision`] raises one;

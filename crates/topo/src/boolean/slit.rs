@@ -2787,7 +2787,7 @@ fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
 fn meet_refused(fault: MeetFault, unread: BooleanError) -> BooleanError {
     match fault.kind() {
         MeetKind::Escalated(diag) | MeetKind::Touch(diag) => crossing_escalated(diag),
-        MeetKind::Unread => unread,
+        MeetKind::Unread(_) => unread,
         MeetKind::Fault { .. } => BooleanError::ClassificationInvariant {
             what: "the meeting reader contradicted itself on two edges' carriers",
         },
