@@ -1253,3 +1253,21 @@
 - 2026-11-09 20:25Z
   - **6664's gate at 9dd5e474 is red:** a slow-set timing flake, mesh10r1 class sweep at 1.049 s against the 1.0 s bound, unrelated. I opened PR 6680 (ci/mesh-class-sweep-slow) to move it to the slow set; it is gating. 6664 merges main once 6680 lands.
   - **6652 had a failed CI run** with no gate check at 4508ef18. I merged main (clean; 6906/6906, gates and fmt clean) and pushed 4ab44197; re-gating.
+- 2026-11-09 20:50Z
+  - **Merged PR 6648 (carrier-standing-2), af002229.** Gate green at 54e21f14; main had not moved since.
+  - **Merged PR 6680 (ci: mesh10r1 class sweep to the slow set), ae648ce9.**
+  - **6670 (shell-winding) is blocked on a cost regression its review missed.** The review timed topo only. Sweep runs 2–5× slower on 6670, with the same target dir measured locally:
+
+    | test | main | 6670 |
+    |---|---|---|
+    | revolve_axis_gaps | 1.12 s | 3.66 s |
+    | shell_general_door tangent_charts | 0.44 s | 2.18 s |
+    | shell7_r1_diff corpus | 1.10 s | 2.08 s |
+
+    Back to the gate-blind-spots lane to profile and make check 10 cheap (not the slow set). Main is merged in at b93d4078.
+  - **Re-merged main after 6648:**
+    - 6652 at 2135ea8e: a join.rs conflict in seam_germ_side's chord. Took main's `Rung<_, ()>` with `.map_kept`, and kept 6652's one change there, the tier-3 comment. 6914/6914.
+    - 6675 at 96bcb155: clean; 6916/6916.
+    - 6664 at 2b7545d7: the point-equality gate caught two test equalities main brought into census/depth_gap.rs, routed to `equals_exactly`.
+
+    All three are re-gating.
