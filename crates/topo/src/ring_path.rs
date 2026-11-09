@@ -1554,7 +1554,7 @@ fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>
     use geom_brep::curve_pair::MeetKind;
     match fault.kind() {
         MeetKind::Escalated(diag) => Err(diag),
-        MeetKind::Touch(_) | MeetKind::Unread => Ok(None),
+        MeetKind::Touch(_) | MeetKind::Unread(_) => Ok(None),
         MeetKind::Fault { what } => {
             unreachable!("the meeting of a path's piece and a spline arc faulted: {what}")
         }
@@ -2955,7 +2955,9 @@ mod tests {
     /// A carrier the arm does not read is the kernel's fault, not the
     /// path's silence.
     #[test]
-    #[should_panic(expected = "faulted: a carrier the meeting table misread")]
+    #[should_panic(
+        expected = "the meeting of a path's piece and a spline arc faulted: a carrier the meeting table misread"
+    )]
     fn a_spline_meeting_that_misreads_a_carrier_is_a_kernel_fault() {
         let _ = meet_refused(geom_brep::curve_pair::MeetFault::Desync);
     }
@@ -2963,7 +2965,9 @@ mod tests {
     /// Two readings that contradict are the kernel's fault, not the
     /// path's silence.
     #[test]
-    #[should_panic(expected = "faulted: two readings")]
+    #[should_panic(
+        expected = "the meeting of a path's piece and a spline arc faulted: two readings"
+    )]
     fn a_spline_meeting_whose_readings_contradict_is_a_kernel_fault() {
         let _ = meet_refused(geom_brep::curve_pair::MeetFault::Contradiction {
             readings: "two readings",
