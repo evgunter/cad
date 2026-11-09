@@ -8,5 +8,5 @@
 crates/editor-core/src/coincide/replay.rs 1
 # A region's placement against a ball: "not a decision about the pair".
 crates/geom-brep/src/pair_section/cylinders.rs 1
-# Exact comparisons at the least band: a parameter on a knot, a walk past its end.
-crates/topo/src/boolean/edge_join.rs 2
+# An exact comparison at the least band: a parameter on a knot or crease.
+crates/topo/src/boolean/edge_join.rs 1

@@ -1803,6 +1803,27 @@ Flagged, NOT fixed here (dispositions):
   the sink under `curve_pair_window_halve`. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F38** (added by ONECOPY's main-reds unit) `edge_join_carried_far`
+  — `topo/src/boolean/edge_join.rs` `carried_far`: whether the piece
+  `gone`, lying on `kept`'s very carrier (`Curve3::same_content`) and
+  standing at `kept`'s parameter `tw` at the vertex, ends past `tw`
+  away from `kept` (`gx − tw`, or `tw − gx` backward). Positive takes
+  `gx` as the joined edge's far parameter; otherwise the far end is read
+  off the carrier (`read_far`: the parameter of `gone`'s middle near
+  `tw`, then of the far point near that). What keeps it off the logged
+  doors is that **both outcomes name one parameter**: on the carrier
+  `gone` lies on, the reading off the carrier returns `gx` up to
+  rounding, wherever it reads one (a NURBS carrier it does not read,
+  and there the carry is the only spelling). Pinned by
+  `edge_join::carry::the_carried_far_parameter_is_the_one_the_carrier_reads`
+  on a line, circle, ellipse and spiric, forward and backward, at three
+  pieces each. F31's shape: a renaming between spellings of one value.
+
+  **Carried as `k_stats::choose(.., "F38")`**, its tie taking the
+  reading off the carrier. Its K samples reach the sink under
+  `edge_join_carried_far`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved
