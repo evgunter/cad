@@ -57,9 +57,9 @@ Measure first: read a ruled and a torus face on several frames, at the band's ze
 - Lattice and near-corner queries (3e-8 to 1e-4 from a corner) disagree nowhere: 568 queries on the cylinder and torus, 664 on the cone.
 
 **Done.**
-- `geom::Surface::foot` reads a point's foot in closed form, beside `chart_point`, from the surface's geometric fields alone. It never reads `u_ref` or a chart frame, and returns `None` where the direction is the zero vector, and for a spindle sheet or a spline.
+- `geom::Surface::foot` reads a point's foot in closed form, beside `chart_point`, from the surface's geometric fields alone. It never reads `u_ref` or a chart frame, and returns `None` where the direction may be the zero vector, and for a spindle sheet or a spline. "May be" is the C6 structure decision on its length: the exact zero vector at `f64`, and at `Interval` any enclosure that holds zero, such as a cone's apex.
 - `QueryFoot::read` reads it for every door. This retires the sphere's arm in `region`.
 - Pins:
   - `a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`;
   - `a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`;
-  - geom's `the_foot_is_the_charts_foot_on_no_chart` and `a_point_every_point_of_a_circle_is_nearest_has_no_foot`.
+  - geom's `the_foot_is_the_charts_foot_on_no_chart`, `a_point_every_point_of_a_circle_is_nearest_has_no_foot` and `an_enclosure_that_holds_the_zero_direction_has_no_foot`.
