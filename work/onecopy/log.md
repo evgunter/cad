@@ -900,3 +900,4 @@
 - 11:08Z Merged PR 6616 (variety-gaps) at its gate-green head 7c1e3679; main had not moved since. That closes `the-variety-certificate-leaves-two-gaps-its-review-found`.
 - 11:08Z PR 6627's fix pass (4c9538aa): every k_stats candidate is classified, unresolved bare calls are red, cone-flux is back to Site pairing, and the F35 figures are corrected. Delta sent to the reviewer.
 - 11:08Z PR 6632 is at bbdd9a05 with the NaN-exit pin; the reviewer was told.
+- 11:12Z PR 6623 delta (S, 5e1ce5c1): MERGE-WITH-FIXES. S is sound and order-free. D1: ringed arcs still refuse two shared-end poses; extend off_span to them (measured: fixes both, moves nothing else) or re-open the row narrowed. The clear_of census and copy note go to the lane with the pending fix list.
