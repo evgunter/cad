@@ -416,7 +416,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/solid_contain.rs: SCHEDULE_ROWS.reaches", ROW_FIELD),
     ("boolean/solid_contain.rs: name", FORWARDS),
     ("boolean/solid_contain.rs: order", FORWARDS),
-    ("boolean/solid_contain.rs: rows.advance", ROW_FIELD),
     ("boolean/solid_contain.rs: rows.beside", ROW_FIELD),
     ("boolean/solid_contain.rs: rows.clearance", ROW_FIELD),
     ("boolean/solid_contain.rs: rows.denom", ROW_FIELD),
@@ -426,15 +425,11 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/solid_contain.rs: rows.represents", ROW_FIELD),
     ("boolean/solid_contain.rs: rows.vertex", ROW_FIELD),
     (
-        "boolean/solid_contain/curved_edges.rs: rows.advance",
-        ROW_FIELD,
-    ),
-    (
         "boolean/solid_contain/curved_edges.rs: rows.order",
         ROW_FIELD,
     ),
     (
-        "boolean/surface_group.rs: read_identity(coaxial_margins(origin, axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)))",
+        "boolean/surface_group.rs: read_identity(coaxial_margins(self.axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)))",
         IDENTITY,
     ),
     ("boolean/trace.rs: name", FORWARDS),
