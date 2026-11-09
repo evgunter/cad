@@ -1054,9 +1054,11 @@ fn region_placement(
             diag,
         }),
         Err(RegionRefusal::RayExhausted { .. }) => Err(ContainError::RayExhausted),
-        Err(e @ (RegionRefusal::WoundPastPeriod | RegionRefusal::Unreadable(_))) => {
-            Err(solid_err(e.of_face(face)))
-        }
+        Err(
+            e @ (RegionRefusal::WoundPastPeriod
+            | RegionRefusal::OffRecord
+            | RegionRefusal::Unreadable(_)),
+        ) => Err(solid_err(e.of_face(face))),
     }
 }
 

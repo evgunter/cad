@@ -26,12 +26,15 @@
 //! off the surface.
 
 use geom_brep::curve_face::plane_crossing::{RootPlace, SpanEnds};
-use geom_brep::curve_pair::on_surface::{CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve};
+use geom_brep::curve_pair::on_surface::{
+    AcrossRefusal, CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve,
+};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey};
+use crate::geometry::SurfaceKey;
 use crate::live::BoundaryMember;
 use crate::null::Scaffolding;
 use crate::ray_walk::{self, Crossings, RayFault};
@@ -60,6 +63,10 @@ pub(crate) enum RegionRefusal {
     /// A boundary arc winds definitely past a whole turn, which bounds
     /// no region.
     WoundPastPeriod,
+    /// An edge was read against a leg charted from another surface record
+    /// than its face's ([`geom_brep::curve_pair::on_surface::AcrossRefusal`]):
+    /// a door read on two faces, which bounds no region.
+    OffRecord,
     /// The boundary reading of an edge on its own carrier ran out of depth
     /// or budget before it placed the point: no reading in the band, and
     /// no path starts from a point it has not placed.
@@ -78,7 +85,7 @@ impl RegionRefusal {
             Self::RayExhausted { outer } => {
                 PointInSolidError::Loop(PointInLoopError::RayExhausted { r#loop: outer })
             }
-            Self::WoundPastPeriod => PointInSolidError::CorruptFace { face },
+            Self::WoundPastPeriod | Self::OffRecord => PointInSolidError::CorruptFace { face },
             Self::Unreadable(cause) => PointInSolidError::EdgeCarrierUnsupported { face, cause },
         }
     }
@@ -273,8 +280,8 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
     let mut out = Vec::new();
     match door.across(leg, edge, band)? {
         ReadAcross::EdgeOverLeg => {
-            let on = OnSurface::edge(&edge.carrier, (edge.t0, edge.t1));
-            match on.across(&curve, D::COMPONENT, band).map_err(in_band)? {
+            let on = OnSurface::edge(edge.on, &edge.carrier, (edge.t0, edge.t1));
+            match on.across(&curve, D::COMPONENT, band).map_err(across)? {
                 CoSurface::InPlane => in_plane()?,
                 CoSurface::Touch => return Err(RayFault::Graze),
                 CoSurface::Unlaned => {
@@ -332,6 +339,16 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
     Ok(out)
 }
 
+/// An edge's reading against a leg refused: in band sets the path aside,
+/// and an edge of a face on another record than the leg's is a door built
+/// on two faces ([`RegionRefusal::OffRecord`]).
+fn across(refusal: AcrossRefusal) -> Fault {
+    match refusal {
+        AcrossRefusal::InBand(diag) => in_band(diag),
+        AcrossRefusal::OffRecord { .. } => RayFault::InBand(RegionRefusal::OffRecord),
+    }
+}
+
 /// Whether a root lies on the leg's own section of its plane
 /// ([`SurfaceCurve::section_of`]): one the reading cannot tell from
 /// another curve of the plane grazes.
@@ -361,6 +378,10 @@ pub(in crate::boolean) fn built<T: Decide>(
 /// on its certified carrier, of a kind its door admits ([`boundary`]).
 #[derive(Clone, Debug)]
 pub(crate) struct RegionEdge<T: geom_core::Real> {
+    /// The face's surface record, which tier 3 places the edge on: what
+    /// ties it to a leg charted from that record
+    /// ([`OnSurface::edge`]).
+    pub(crate) on: SurfaceKey,
     pub(crate) edge: EdgeKey,
     /// The loop the edge bounds.
     pub(crate) r#loop: LoopKey,
@@ -420,6 +441,7 @@ pub(crate) fn boundary<T: Decide>(
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.passed_face(face).ok_or_else(corrupt)?;
+    let record = f.record().surface;
     let mut null = Vec::new();
     for (_, members, role) in f.boundary_by_loop() {
         for member in members {
@@ -461,6 +483,7 @@ pub(crate) fn boundary<T: Decide>(
             };
             let (t0, t1) = curve.params();
             edges.push(RegionEdge {
+                on: record,
                 edge: h.edge,
                 r#loop: h.parent_loop,
                 cycle,
@@ -1090,6 +1113,7 @@ fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
 mod tests {
     use super::*;
     use core::f64::consts::{FRAC_PI_2, PI};
+    use geom_brep::curve_pair::on_surface::Charted;
     use slotmap::KeyData;
 
     fn b() -> Band {
@@ -1112,6 +1136,7 @@ mod tests {
 
     fn edge(carrier: geom::Curve3<f64>, (t0, t1): (f64, f64)) -> RegionEdge<f64> {
         RegionEdge {
+            on: Default::default(),
             edge: EdgeKey::from(KeyData::from_ffi(1)),
             r#loop: LoopKey::default(),
             cycle: 0,
@@ -1133,7 +1158,7 @@ mod tests {
             u_ref: Vec3::new(0.0, -1.0, 0.0),
         };
         Line::on(built(SurfaceCurve::ruling(
-            &cylinder,
+            Charted::new(Default::default(), &cylinder),
             Point2::new(0.0, 0.0),
             true,
             true,
@@ -1156,7 +1181,7 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         Round::on(built(SurfaceCurve::parallel(
-            &cylinder,
+            Charted::new(Default::default(), &cylinder),
             Point2::new(0.0, 0.0),
             true,
         )))

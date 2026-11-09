@@ -132,7 +132,7 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use geom_brep::curve_pair::on_surface::SurfaceCurve;
+use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use super::region::{
     self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
@@ -141,6 +141,7 @@ use super::region::{
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
+use crate::geometry::SurfaceKey;
 use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault};
 use crate::splitting::containment::{ConicRows, SCHEDULE};
@@ -165,6 +166,8 @@ const CLEARANCE_SAMPLES: usize = 32;
 /// the direction its loop traverses it.
 #[derive(Clone, Debug)]
 pub(crate) struct SphereFaceRegion<T: geom_core::Real> {
+    /// The face's surface record, the one its legs are charted from.
+    record: SurfaceKey,
     center: Point3<T>,
     radius: T,
     /// The face's sense bit: `false` points its outward normal at the
@@ -218,6 +221,7 @@ pub(crate) fn sphere_face_region<T: Decide>(
         return Ok(None);
     };
     Ok(Some(SphereFaceRegion {
+        record: f.surface,
         center,
         radius,
         sense: f.sense,
@@ -358,7 +362,8 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, foot: QueryFoot<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        let curve = SurfaceCurve::great_circle(&self.surface(), foot.uv(), t);
+        let curve =
+            SurfaceCurve::great_circle(Charted::new(self.record, &self.surface()), foot.uv(), t);
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -446,7 +451,12 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         // `side`; the corner is a foot of its own, read on the sphere.
         let surface = Legs::surface(self);
         let corner = QueryFoot::read(&surface, corner, band);
-        let curve = SurfaceCurve::about(&surface, p.uv(), corner.uv(), then_forward);
+        let curve = SurfaceCurve::about(
+            Charted::new(self.record, &surface),
+            p.uv(),
+            corner.uv(),
+            then_forward,
+        );
         let then = move || Leg::whole(Round::on(region::built(curve)));
         Ok((first, end, then))
     }
@@ -521,11 +531,13 @@ mod tests {
     /// `forward`, the rest of the sphere otherwise.
     fn carved(forward: bool) -> SphereFaceRegion<f64> {
         SphereFaceRegion {
+            record: Default::default(),
             center: Point3::origin(),
             radius: 1.0,
             sense: true,
             outer: LoopKey::default(),
             edges: vec![RegionEdge {
+                on: Default::default(),
                 edge: EdgeKey::from(KeyData::from_ffi(1)),
                 r#loop: LoopKey::default(),
                 cycle: 0,
@@ -596,6 +608,7 @@ mod tests {
     /// arc's circle runs on past its ends round the back of the sphere.
     fn lune() -> SphereFaceRegion<f64> {
         let meridian = |az: f64, forward: bool, key: u64| RegionEdge {
+            on: Default::default(),
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             cycle: 0,
@@ -611,6 +624,7 @@ mod tests {
             forward,
         };
         SphereFaceRegion {
+            record: Default::default(),
             center: Point3::origin(),
             radius: 1.0,
             sense: true,
@@ -635,6 +649,7 @@ mod tests {
         let pole = pole / pole.norm();
         let u = u_ref - pole * pole.dot(u_ref);
         RegionEdge {
+            on: Default::default(),
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             cycle: 0,
@@ -667,6 +682,7 @@ mod tests {
     /// A unit-sphere face of `sense` bounded by `edges`.
     fn face(sense: bool, edges: Vec<RegionEdge<f64>>) -> SphereFaceRegion<f64> {
         SphereFaceRegion {
+            record: Default::default(),
             center: Point3::origin(),
             radius: 1.0,
             sense,
@@ -1026,6 +1042,7 @@ mod tests {
         let v = |x: f64, y: f64, z: f64| Vec3::new(lift(x), lift(y), lift(z));
         let pi = core::f64::consts::PI;
         let edge = |carrier, (t0, t1): (f64, f64), forward, key| RegionEdge {
+            on: Default::default(),
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             cycle: 0,
@@ -1050,6 +1067,7 @@ mod tests {
             v(0.0, -1.0, 0.0),
         );
         SphereFaceRegion {
+            record: Default::default(),
             center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
             radius: lift(1.0),
             sense: true,
@@ -1348,6 +1366,7 @@ mod tests {
                 .map(|(k, &(cen, ax, rad, u, t0, t1, fwd))| {
                     let cen = rot(beta, cen);
                     RegionEdge {
+                        on: Default::default(),
                         edge: EdgeKey::from(KeyData::from_ffi(k as u64 + 1)),
                         r#loop: LoopKey::default(),
                         cycle: 0,
@@ -1365,6 +1384,7 @@ mod tests {
                 })
                 .collect();
             SphereFaceRegion {
+                record: Default::default(),
                 center: p3(c),
                 radius: l(r),
                 sense,

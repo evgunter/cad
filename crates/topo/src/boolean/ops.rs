@@ -6890,13 +6890,18 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // on the same sphere, so it meets the meridian where it crosses
         // the meridian's plane on the half-plane `h`
         // ([`geom_brep::curve_pair::on_surface`]).
+        // The sphere re-charted on `h` is the face's own record, `sphere`,
+        // on another frame: the cut's centre and radius are that record's.
         let meridian = match geom_brep::curve_pair::on_surface::SurfaceCurve::meridian(
-            &geom::Surface::Sphere {
-                center: cut.center,
-                radius: r,
-                axis,
-                u_ref: h,
-            },
+            geom_brep::curve_pair::on_surface::Charted::new(
+                sphere,
+                &geom::Surface::Sphere {
+                    center: cut.center,
+                    radius: r,
+                    axis,
+                    u_ref: h,
+                },
+            ),
             geom_core::Point2::new(T::zero(), T::zero()),
             true,
         ) {
@@ -6972,6 +6977,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         super::region::RegionRefusal::Escalated(diag) => esc(diag),
                         super::region::RegionRefusal::RayExhausted { .. }
                         | super::region::RegionRefusal::WoundPastPeriod
+                        | super::region::RegionRefusal::OffRecord
                         | super::region::RegionRefusal::Unreadable(_) => unread(),
                     };
                     let [lo, hi] = crossings;
@@ -7046,20 +7052,32 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                          its roots are not certified",
                     )
                 };
-                let roots =
-                    match geom_brep::curve_pair::on_surface::OnSurface::edge(carrier, (t0, t1))
-                        .across(&meridian, "bool_sphere_cut_in_plane", band)
-                    {
-                        Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
-                        Ok(
-                            geom_brep::curve_pair::on_surface::CoSurface::InPlane
-                            | geom_brep::curve_pair::on_surface::CoSurface::Touch
-                            | geom_brep::curve_pair::on_surface::CoSurface::Unlaned,
-                        ) => return Err(uncertified()),
-                        // A rung of the plane door escalated: the cut-in's own
-                        // question, in band.
-                        Err(diag) => return Err(esc(diag)),
-                    };
+                let roots = match geom_brep::curve_pair::on_surface::OnSurface::edge(
+                    view.record().surface,
+                    carrier,
+                    (t0, t1),
+                )
+                .across(&meridian, "bool_sphere_cut_in_plane", band)
+                {
+                    Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
+                    Ok(
+                        geom_brep::curve_pair::on_surface::CoSurface::InPlane
+                        | geom_brep::curve_pair::on_surface::CoSurface::Touch
+                        | geom_brep::curve_pair::on_surface::CoSurface::Unlaned,
+                    ) => return Err(uncertified()),
+                    // A rung of the plane door escalated: the cut-in's own
+                    // question, in band.
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::InBand(diag)) => {
+                        return Err(esc(diag));
+                    }
+                    // A piece of the cut face on another record than the
+                    // face's own sphere: the piece set is corrupt.
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::OffRecord { .. }) => {
+                        return Err(corrupt(
+                            "cut-in: a piece of the sphere face lies on another surface record",
+                        ));
+                    }
+                };
                 let rising = sign(
                     "bool_sphere_cut_span",
                     Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),

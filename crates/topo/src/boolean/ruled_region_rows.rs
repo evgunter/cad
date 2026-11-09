@@ -28,6 +28,7 @@ fn key(k: u64) -> EdgeKey {
 
 fn edge(k: u64, curve: geom::Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -> Edge<f64> {
     RegionEdge {
+        on: Default::default(),
         edge: key(k),
         r#loop: LoopKey::default(),
         cycle: 0,
@@ -58,6 +59,7 @@ fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> Edge<f64> {
 
 fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
     RuledFaceRegion {
+        record: Default::default(),
         surface: Ruled::Cylinder {
             origin: Point3::origin(),
             axis: z_axis(),
@@ -231,6 +233,7 @@ fn a_wall_under_a_tilted_section_reads_its_region() {
 
 fn cone(edges: Vec<Edge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
     RuledFaceRegion {
+        record: Default::default(),
         surface: Ruled::Cone {
             apex: Point3::origin(),
             axis: z_axis(),
@@ -340,6 +343,7 @@ fn cone_faces_read_their_regions_through_the_apex() {
 #[test]
 fn a_reversed_face_reads_the_same_region() {
     let band = RuledFaceRegion {
+        record: Default::default(),
         sense: false,
         ..cylinder(vec![
             rim(1, 0.0, 1.0, (0.0, TAU), false),

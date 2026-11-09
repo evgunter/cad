@@ -20,15 +20,16 @@
 //! and from nothing else: its centre, radius and direction are that
 //! surface's own at those coordinates, so no curve off it can be built as
 //! one. The surface is a `geom::Surface` value, which a caller may
-//! synthesise rather than read off a face (the sphere cut-in charts the
+//! re-chart rather than read off a face (the sphere cut-in charts the
 //! face's sphere on its own `u_ref`; a region door rebuilds its surface
-//! from its own fields); the type ties the curve to that value, not to a
-//! face's record.
+//! from its own fields).
 //!
-//! An [`OnSurface`] edge is read against a curve on the same surface, and
-//! nothing in the types ties the two together: that the edge lies on the
-//! curve's surface is [`OnSurface::edge`]'s precondition, held by the
-//! caller.
+//! A curve and an edge are tied by record: a curve carries the key of the surface
+//! record it was charted from ([`Charted`]), an edge the key of its face's
+//! record ([`OnSurface::edge`]), and [`OnSurface::across`] refuses a pair
+//! on two records ([`AcrossRefusal::OffRecord`]). What the key does not
+//! prove is that a re-charted value is the record's surface: that stays
+//! the charting caller's, named where it re-charts.
 
 use geom::{Azimuth, ChartAngle, ChartArm, ChartChannels, ChartInverse, Circle, Curve3, Frame};
 use geom_core::k_stats::decide;
@@ -37,6 +38,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign,
 use crate::curve_face::plane_crossing::{
     ConicRootFault, SpanEnds, SpanPlaneMeet, SpanRoot, span_plane_meet,
 };
+use crate::keys::SurfaceKey;
 
 /// **Which of the curves its plane cuts from the surface a curve is**:
 /// what a root on that plane is read against ([`SurfaceCurve::section_of`]).
@@ -75,10 +77,54 @@ pub enum Shape<T: Real> {
 /// ([`Section`]).
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceCurve<T: Real> {
-    chart: ChartInverse<T>,
+    chart: Placed<T>,
     shape: Shape<T>,
     plane: (Point3<T>, Vec3<T>),
     section: Section<T>,
+}
+
+/// **A surface value and the key of the record it was charted from**:
+/// what a [`SurfaceCurve`] is built on. The value is the record's own
+/// surface or a re-charting of it (the same surface on another frame:
+/// the sphere cut-in's sphere on its cut's `u_ref`, a region door's
+/// surface rebuilt from its fields), and the key names that record, so a
+/// curve built on it is read only against edges of faces on that record
+/// ([`OnSurface::across`]).
+#[derive(Clone, Copy, Debug)]
+pub struct Charted<'s, T: Real> {
+    key: SurfaceKey,
+    surface: &'s geom::Surface<T>,
+}
+
+impl<'s, T: Real> Charted<'s, T> {
+    /// `surface`, charted from the record `key`: its own surface, or a
+    /// re-charting of it that the caller holds to be the same surface.
+    pub fn new(key: SurfaceKey, surface: &'s geom::Surface<T>) -> Self {
+        Self { key, surface }
+    }
+
+    /// The record's key.
+    pub fn key(&self) -> SurfaceKey {
+        self.key
+    }
+}
+
+/// A curve's chart: the surface's inversion and the record it was charted
+/// from.
+#[derive(Clone, Copy, Debug)]
+struct Placed<T: Real> {
+    inverse: ChartInverse<T>,
+    record: SurfaceKey,
+}
+
+impl<T: Real> Placed<T> {
+    fn arm(&self) -> ChartArm<T> {
+        self.inverse.arm()
+    }
+
+    fn frame(&self) -> &Frame<T> {
+        self.inverse.frame()
+    }
 }
 
 /// A surface kind a curve family is not built on.
@@ -91,13 +137,14 @@ pub struct NoSuchFamily {
 }
 
 impl<T: Decide> SurfaceCurve<T> {
-    fn chart(
-        surface: &geom::Surface<T>,
-        family: &'static str,
-    ) -> Result<ChartInverse<T>, NoSuchFamily> {
-        ChartInverse::of(surface).map_err(|_| NoSuchFamily {
+    fn chart(on: Charted<'_, T>, family: &'static str) -> Result<Placed<T>, NoSuchFamily> {
+        let inverse = ChartInverse::of(on.surface).map_err(|_| NoSuchFamily {
             family,
-            kind: surface.kind(),
+            kind: on.surface.kind(),
+        })?;
+        Ok(Placed {
+            inverse,
+            record: on.key,
         })
     }
 
@@ -109,7 +156,7 @@ impl<T: Decide> SurfaceCurve<T> {
     }
 
     fn circle(
-        chart: ChartInverse<T>,
+        chart: Placed<T>,
         center: Point3<T>,
         normal: Vec3<T>,
         radius: T,
@@ -136,11 +183,12 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// [`NoSuchFamily`] on any other surface.
     pub fn parallel(
-        surface: &geom::Surface<T>,
+        on: Charted<'_, T>,
         uv: Point2<T>,
         forward: bool,
     ) -> Result<Self, NoSuchFamily> {
-        let chart = Self::chart(surface, "parallel")?;
+        let surface = on.surface;
+        let chart = Self::chart(on, "parallel")?;
         let f = *chart.frame();
         let normal = if forward { f.axis } else { -f.axis };
         let start = surface.eval(uv.x, uv.y);
@@ -180,11 +228,12 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// [`NoSuchFamily`] on any other surface.
     pub fn meridian(
-        surface: &geom::Surface<T>,
+        on: Charted<'_, T>,
         uv: Point2<T>,
         forward: bool,
     ) -> Result<Self, NoSuchFamily> {
-        let chart = Self::chart(surface, "meridian")?;
+        let surface = on.surface;
+        let chart = Self::chart(on, "meridian")?;
         let f = *chart.frame();
         let radial = f.radial(uv.x);
         let normal = radial.cross(f.axis);
@@ -211,12 +260,13 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// [`NoSuchFamily`] on any other surface.
     pub fn ruling(
-        surface: &geom::Surface<T>,
+        on: Charted<'_, T>,
         uv: Point2<T>,
         opening: bool,
         outward: bool,
     ) -> Result<Self, NoSuchFamily> {
-        let chart = Self::chart(surface, "ruling")?;
+        let surface = on.surface;
+        let chart = Self::chart(on, "ruling")?;
         let f = *chart.frame();
         let start = surface.eval(uv.x, uv.y);
         let (dir, opening) = match chart.arm() {
@@ -238,11 +288,12 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// [`NoSuchFamily`] on any surface but a cone.
     pub fn from_apex(
-        surface: &geom::Surface<T>,
+        on: Charted<'_, T>,
         toward: Point2<T>,
         opening: bool,
     ) -> Result<Self, NoSuchFamily> {
-        let chart = Self::chart(surface, "generator from the apex")?;
+        let surface = on.surface;
+        let chart = Self::chart(on, "generator from the apex")?;
         if !matches!(chart.arm(), ChartArm::Cone { .. }) {
             return Err(Self::refused("generator from the apex", surface));
         }
@@ -257,13 +308,7 @@ impl<T: Decide> SurfaceCurve<T> {
         ))
     }
 
-    fn line(
-        chart: ChartInverse<T>,
-        start: Point3<T>,
-        dir: Vec3<T>,
-        u: T,
-        opening: Option<bool>,
-    ) -> Self {
+    fn line(chart: Placed<T>, start: Point3<T>, dir: Vec3<T>, u: T, opening: Option<bool>) -> Self {
         let f = *chart.frame();
         let (sin, cos) = u.sin_cos();
         let normal = f.axis.cross(f.radial(u));
@@ -287,11 +332,12 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// [`NoSuchFamily`] on any surface but a sphere.
     pub fn great_circle(
-        surface: &geom::Surface<T>,
+        on: Charted<'_, T>,
         uv: Point2<T>,
         t: Vec3<T>,
     ) -> Result<Self, NoSuchFamily> {
-        let chart = Self::chart(surface, "great circle")?;
+        let surface = on.surface;
+        let chart = Self::chart(on, "great circle")?;
         let ChartArm::Sphere { radius } = chart.arm() else {
             return Err(Self::refused("great circle", surface));
         };
@@ -326,12 +372,13 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// [`NoSuchFamily`] on any surface but a sphere.
     pub fn about(
-        surface: &geom::Surface<T>,
+        on: Charted<'_, T>,
         pole: Point2<T>,
         through: Point2<T>,
         forward: bool,
     ) -> Result<Self, NoSuchFamily> {
-        let chart = Self::chart(surface, "circle about a pole")?;
+        let surface = on.surface;
+        let chart = Self::chart(on, "circle about a pole")?;
         if !matches!(chart.arm(), ChartArm::Sphere { .. }) {
             return Err(Self::refused("circle about a pole", surface));
         }
@@ -349,6 +396,12 @@ impl<T: Decide> SurfaceCurve<T> {
             q,
             Section::Whole,
         ))
+    }
+
+    /// The key of the record the curve's surface was charted from
+    /// ([`Charted`]).
+    pub fn record(&self) -> SurfaceKey {
+        self.chart.record
     }
 
     /// The curve's shape.
@@ -492,8 +545,32 @@ fn decided<T: Decide>(
 /// [`super::Span`].
 #[derive(Clone, Copy, Debug)]
 pub struct OnSurface<'a, T: Real> {
+    on: SurfaceKey,
     carrier: &'a Curve3<T>,
     span: (T, T),
+}
+
+/// **Why an edge gives no reading against a curve**
+/// ([`OnSurface::across`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AcrossRefusal {
+    /// A rung of the plane door, or the parallel offset, in band.
+    InBand(Indeterminate),
+    /// The edge's face is on another record than the one the curve was
+    /// charted from: the pair is not known to be co-surface, so the arm
+    /// does not read it.
+    OffRecord {
+        /// The edge's face's record.
+        edge: SurfaceKey,
+        /// The curve's record.
+        curve: SurfaceKey,
+    },
+}
+
+impl From<Indeterminate> for AcrossRefusal {
+    fn from(diag: Indeterminate) -> Self {
+        Self::InBand(diag)
+    }
 }
 
 /// **Where an edge on a surface crosses a curve on it**
@@ -517,15 +594,18 @@ pub enum CoSurface<T: Real> {
 }
 
 impl<'a, T: Decide> OnSurface<'a, T> {
-    /// The span `(t0, t1)` of `carrier`, an edge of a face on the surface
-    /// its curves are read on.
-    ///
-    /// **Precondition**: the edge lies on the surface of every
-    /// [`SurfaceCurve`] it is read against. The types do not tie the two
-    /// (module docs); the caller holds it, as tier 3 places each edge on
-    /// its faces' carriers at rest.
-    pub fn edge(carrier: &'a Curve3<T>, span: (T, T)) -> Self {
-        Self { carrier, span }
+    /// The span `(t0, t1)` of `carrier`, an edge of a face whose surface
+    /// record is `on`. Tier 3 places each edge on its faces' carriers at
+    /// rest, so the edge lies on that record's surface, and it is read
+    /// only against a curve charted from the same record
+    /// ([`Self::across`]).
+    pub fn edge(on: SurfaceKey, carrier: &'a Curve3<T>, span: (T, T)) -> Self {
+        Self { on, carrier, span }
+    }
+
+    /// The edge's face's record.
+    pub fn record(&self) -> SurfaceKey {
+        self.on
     }
 
     /// The edge's carrier.
@@ -545,18 +625,26 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     ///
     /// # Errors
     ///
-    /// A rung of the plane door or an offset in band.
+    /// [`AcrossRefusal::OffRecord`] where the edge's record is not the
+    /// curve's; [`AcrossRefusal::InBand`] where a rung of the plane door or
+    /// an offset is in band.
     pub fn across(
         &self,
         curve: &SurfaceCurve<T>,
         row: &'static str,
         band: Band,
-    ) -> Result<CoSurface<T>, Indeterminate> {
+    ) -> Result<CoSurface<T>, AcrossRefusal> {
+        if self.on != curve.record() {
+            return Err(AcrossRefusal::OffRecord {
+                edge: self.on,
+                curve: curve.record(),
+            });
+        }
         let (on, normal) = curve.plane();
         match span_plane_meet(self.carrier, self.span, SpanEnds::Ended, on, normal, band) {
-            Ok(Some(found)) => decided(found, self.carrier, row, band),
+            Ok(Some(found)) => Ok(decided(found, self.carrier, row, band)?),
             Ok(None) => Ok(CoSurface::Unlaned),
-            Err(fault) => Err(ConicRootFault::diag(fault)),
+            Err(fault) => Err(ConicRootFault::diag(fault).into()),
         }
     }
 }
@@ -572,6 +660,16 @@ mod tests {
     }
 
     const ROW: &str = "test_on_surface_section";
+
+    /// The one record every fixture surface is charted from.
+    fn key() -> SurfaceKey {
+        let mut keys = slotmap::SlotMap::<SurfaceKey, ()>::with_key();
+        keys.insert(())
+    }
+
+    fn on(surface: &geom::Surface<f64>) -> Charted<'_, f64> {
+        Charted::new(key(), surface)
+    }
 
     fn z() -> Vec3<f64> {
         Vec3::new(0.0, 0.0, 1.0)
@@ -641,24 +739,27 @@ mod tests {
     fn every_family_lies_on_its_surface() {
         let uv = Point2::new(0.7, 1.3);
         let built = [
-            (cylinder(), SurfaceCurve::parallel(&cylinder(), uv, true)),
-            (cone(), SurfaceCurve::parallel(&cone(), uv, false)),
-            (torus(), SurfaceCurve::parallel(&torus(), uv, true)),
-            (torus(), SurfaceCurve::meridian(&torus(), uv, false)),
-            (sphere(), SurfaceCurve::meridian(&sphere(), uv, true)),
             (
                 cylinder(),
-                SurfaceCurve::ruling(&cylinder(), uv, true, false),
+                SurfaceCurve::parallel(on(&cylinder()), uv, true),
             ),
-            (cone(), SurfaceCurve::ruling(&cone(), uv, true, true)),
-            (cone(), SurfaceCurve::from_apex(&cone(), uv, true)),
+            (cone(), SurfaceCurve::parallel(on(&cone()), uv, false)),
+            (torus(), SurfaceCurve::parallel(on(&torus()), uv, true)),
+            (torus(), SurfaceCurve::meridian(on(&torus()), uv, false)),
+            (sphere(), SurfaceCurve::meridian(on(&sphere()), uv, true)),
+            (
+                cylinder(),
+                SurfaceCurve::ruling(on(&cylinder()), uv, true, false),
+            ),
+            (cone(), SurfaceCurve::ruling(on(&cone()), uv, true, true)),
+            (cone(), SurfaceCurve::from_apex(on(&cone()), uv, true)),
             (
                 sphere(),
-                SurfaceCurve::great_circle(&sphere(), Point2::new(0.7, 0.3), z()),
+                SurfaceCurve::great_circle(on(&sphere()), Point2::new(0.7, 0.3), z()),
             ),
             (
                 sphere(),
-                SurfaceCurve::about(&sphere(), Point2::new(0.2, 0.4), uv, true),
+                SurfaceCurve::about(on(&sphere()), Point2::new(0.2, 0.4), uv, true),
             ),
         ];
         for (i, (surface, curve)) in built.iter().enumerate() {
@@ -673,11 +774,11 @@ mod tests {
     #[test]
     fn a_family_is_refused_on_a_surface_without_it() {
         let uv = Point2::new(0.0, 0.5);
-        assert!(SurfaceCurve::parallel(&sphere(), uv, true).is_err());
-        assert!(SurfaceCurve::meridian(&cylinder(), uv, true).is_err());
-        assert!(SurfaceCurve::ruling(&torus(), uv, true, true).is_err());
-        assert!(SurfaceCurve::from_apex(&cylinder(), uv, true).is_err());
-        assert!(SurfaceCurve::great_circle(&torus(), uv, z()).is_err());
+        assert!(SurfaceCurve::parallel(on(&sphere()), uv, true).is_err());
+        assert!(SurfaceCurve::meridian(on(&cylinder()), uv, true).is_err());
+        assert!(SurfaceCurve::ruling(on(&torus()), uv, true, true).is_err());
+        assert!(SurfaceCurve::from_apex(on(&cylinder()), uv, true).is_err());
+        assert!(SurfaceCurve::great_circle(on(&torus()), uv, z()).is_err());
     }
 
     /// **A cone's generator reads its own half-generator of its plane**:
@@ -688,7 +789,7 @@ mod tests {
     #[test]
     fn a_cone_generator_reads_its_own_half_generator() {
         let cone = cone();
-        let g = SurfaceCurve::ruling(&cone, Point2::new(0.0, 2.0), true, true).unwrap();
+        let g = SurfaceCurve::ruling(on(&cone), Point2::new(0.0, 2.0), true, true).unwrap();
         let read = |p: Point3<f64>| g.section_of(p, ROW, b()).unwrap();
         assert_eq!(read(Point3::new(1.0, 0.0, 1.0)), Sign::Positive, "its own");
         assert_eq!(
@@ -717,10 +818,11 @@ mod tests {
     #[test]
     fn a_torus_parallel_crosses_a_meridians_plane_twice() {
         let torus = torus();
-        let meridian = SurfaceCurve::meridian(&torus, Point2::new(0.0, 0.3), true).unwrap();
-        let parallel = SurfaceCurve::parallel(&torus, Point2::new(FRAC_PI_2, 0.0), true).unwrap();
+        let meridian = SurfaceCurve::meridian(on(&torus), Point2::new(0.0, 0.3), true).unwrap();
+        let parallel =
+            SurfaceCurve::parallel(on(&torus), Point2::new(FRAC_PI_2, 0.0), true).unwrap();
         let carrier = parallel.carrier();
-        let CoSurface::Roots(roots) = OnSurface::edge(&carrier, (-1.0, 2.0 * PI - 1.0))
+        let CoSurface::Roots(roots) = OnSurface::edge(key(), &carrier, (-1.0, 2.0 * PI - 1.0))
             .across(&meridian, ROW, b())
             .unwrap()
         else {
@@ -734,7 +836,7 @@ mod tests {
         sides.sort_by(|a, b| a.0.total_cmp(&b.0));
         assert!((sides[0].0 + 6.5).abs() < 1e-12 && (sides[1].0 - 6.5).abs() < 1e-12);
         assert_eq!((sides[0].1, sides[1].1), (Sign::Negative, Sign::Positive));
-        let short = OnSurface::edge(&carrier, (0.2, 1.0))
+        let short = OnSurface::edge(key(), &carrier, (0.2, 1.0))
             .across(&meridian, ROW, b())
             .unwrap();
         assert!(
@@ -742,9 +844,44 @@ mod tests {
             "{short:?}"
         );
         let own = meridian.carrier();
-        let in_plane = OnSurface::edge(&own, (0.0, 1.0))
+        let in_plane = OnSurface::edge(key(), &own, (0.0, 1.0))
             .across(&meridian, ROW, b())
             .unwrap();
         assert!(matches!(in_plane, CoSurface::InPlane), "{in_plane:?}");
+    }
+
+    /// **An edge of a face on another record is not read**: a parallel
+    /// charted from one record against an arc of a face on another
+    /// refuses as off its record, whatever the geometry says; on its own
+    /// record the same pair reads its crossings.
+    #[test]
+    fn an_edge_on_another_record_refuses() {
+        let mut keys = slotmap::SlotMap::<SurfaceKey, ()>::with_key();
+        let (mine, other) = (keys.insert(()), keys.insert(()));
+        let torus = torus();
+        let meridian =
+            SurfaceCurve::meridian(Charted::new(mine, &torus), Point2::new(0.0, 0.3), true)
+                .unwrap();
+        let parallel = SurfaceCurve::parallel(
+            Charted::new(mine, &torus),
+            Point2::new(FRAC_PI_2, 0.0),
+            true,
+        )
+        .unwrap();
+        let carrier = parallel.carrier();
+        let span = (-1.0, 2.0 * PI - 1.0);
+        assert_eq!(
+            OnSurface::edge(other, &carrier, span)
+                .across(&meridian, ROW, b())
+                .unwrap_err(),
+            AcrossRefusal::OffRecord {
+                edge: other,
+                curve: mine
+            }
+        );
+        assert!(matches!(
+            OnSurface::edge(mine, &carrier, span).across(&meridian, ROW, b()),
+            Ok(CoSurface::Roots(ref roots)) if roots.len() == 2
+        ));
     }
 }

@@ -96,7 +96,7 @@
 use geom_brep::curve_face::plane_crossing::{RootPlace, span_place};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use geom_brep::curve_pair::on_surface::{Section, SurfaceCurve};
+use geom_brep::curve_pair::on_surface::{Charted, Section, SurfaceCurve};
 
 use super::region::{
     self, End, Fault, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge, RegionRefusal, Round,
@@ -105,6 +105,7 @@ use super::region::{
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
+use crate::geometry::SurfaceKey;
 use crate::null::Scaffolding;
 use crate::ray_walk::RayFault;
 use crate::splitting::containment::ConicRows;
@@ -134,6 +135,8 @@ const SPIRIC: ArcRows = ArcRows {
 /// the direction its loop traverses it.
 #[derive(Clone, Debug)]
 pub(crate) struct TorusFaceRegion<T: geom_core::Real> {
+    /// The face's surface record, the one its legs are charted from.
+    record: SurfaceKey,
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
@@ -196,6 +199,7 @@ pub(crate) fn torus_face_region<T: Decide>(
         return Ok(None);
     };
     Ok(Some(TorusFaceRegion {
+        record: f.record().surface,
         center,
         axis,
         major: major_radius,
@@ -242,14 +246,16 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// increasing) or back: the tube's circle at `p`'s tube angle, on
     /// the tube side `p` lies on ([`Section::TubeSide`]).
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::parallel(&self.surface(), p.uv(), forward);
+        let curve =
+            SurfaceCurve::parallel(Charted::new(self.record, &self.surface()), p.uv(), forward);
         Leg::whole(Round::on(region::built(curve)))
     }
 
     /// The meridian through `p`, run `forward` (the minor angle
     /// increasing) or back: the tube's circle at `p`'s azimuth.
     fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::meridian(&self.surface(), p.uv(), forward);
+        let curve =
+            SurfaceCurve::meridian(Charted::new(self.record, &self.surface()), p.uv(), forward);
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -547,6 +553,7 @@ mod tests {
     /// run with the major angle (`forward`) or against it.
     fn parallel(v: f64, forward: bool, key: u64) -> Edge<f64> {
         RegionEdge {
+            on: Default::default(),
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             cycle: 0,
@@ -568,6 +575,7 @@ mod tests {
     /// left under the outward normal.
     fn band(v0: f64, v1: f64) -> TorusFaceRegion<f64> {
         TorusFaceRegion {
+            record: Default::default(),
             center: Point3::origin(),
             axis: Vec3::new(0.0, 0.0, 1.0),
             major: R,
@@ -661,6 +669,7 @@ mod tests {
     fn villarceau_strip(phi1: f64) -> TorusFaceRegion<f64> {
         let (c0, n0, e0) = villarceau_frame();
         let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
+            on: Default::default(),
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             cycle: 0,
@@ -676,6 +685,7 @@ mod tests {
             forward,
         };
         TorusFaceRegion {
+            record: Default::default(),
             center: Point3::origin(),
             axis: Vec3::new(0.0, 0.0, 1.0),
             major: R,
@@ -801,6 +811,7 @@ mod tests {
             let n0 = Vec3::new(-sa, 0.0, ca);
             let e0 = Vec3::new(ca, 0.0, sa);
             let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
+                on: Default::default(),
                 edge: EdgeKey::from(KeyData::from_ffi(key)),
                 r#loop: LoopKey::default(),
                 cycle: 0,
@@ -822,6 +833,7 @@ mod tests {
             };
             for phi1 in [0.7, 4.0] {
                 let region = TorusFaceRegion {
+                    record: Default::default(),
                     center: Point3::origin(),
                     axis: Vec3::new(0.0, 0.0, 1.0),
                     major: big,
@@ -865,6 +877,7 @@ mod tests {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let refusal = |major: f64, minor: f64, p: Point3<f64>| {
             let region = TorusFaceRegion {
+                record: Default::default(),
                 major,
                 minor,
                 ..band(0.3, 1.0)
@@ -890,6 +903,7 @@ mod tests {
     /// A region on the torus `(R, r)` about `z` whose one edge is `edge`.
     fn holding(edge: Edge<f64>) -> TorusFaceRegion<f64> {
         TorusFaceRegion {
+            record: Default::default(),
             edges: vec![edge],
             ..band(0.0, 1.0)
         }
@@ -905,6 +919,7 @@ mod tests {
         (t0, t1): (f64, f64),
     ) -> Edge<f64> {
         RegionEdge {
+            on: Default::default(),
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
             cycle: 0,
@@ -1011,6 +1026,7 @@ mod tests {
     fn a_leg_keeps_the_crossing_on_the_edges_own_oval() {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let oval = RegionEdge {
+            on: Default::default(),
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
             cycle: 0,

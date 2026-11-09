@@ -112,7 +112,7 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use geom_brep::curve_pair::on_surface::SurfaceCurve;
+use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use super::region::{
     self, End, Fault, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
@@ -121,6 +121,7 @@ use super::region::{
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
+use crate::geometry::SurfaceKey;
 use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault, SegmentRows};
 use crate::splitting::containment::ConicRows;
@@ -211,6 +212,8 @@ impl<T: Decide> Ruled<T> {
 /// each with the direction its loop traverses it.
 #[derive(Clone, Debug)]
 pub(crate) struct RuledFaceRegion<T: geom_core::Real> {
+    /// The face's surface record, the one its legs are charted from.
+    record: SurfaceKey,
     surface: Ruled<T>,
     /// The face's sense bit: `false` points its outward normal at the
     /// axis.
@@ -352,6 +355,7 @@ pub(crate) fn ruled_face_region<T: Decide>(
         .collect();
     let scale = reach_bound(&surface, &covers);
     Ok(Some(RuledFaceRegion {
+        record: f.record().surface,
         surface,
         sense: f.sense(),
         outer: f.record().outer,
@@ -532,7 +536,11 @@ impl<T: Decide> RuledFaceRegion<T> {
     /// The parallel through `p`, run `forward` (right-handed about the
     /// axis) or back: at the surface's own radius at `p`'s height.
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::parallel(&self.surface.surface(), p.uv(), forward);
+        let curve = SurfaceCurve::parallel(
+            Charted::new(self.record, &self.surface.surface()),
+            p.uv(),
+            forward,
+        );
         Leg::whole(LegShape::Parallel(Round::on(region::built(curve))))
     }
 
@@ -544,7 +552,12 @@ impl<T: Decide> RuledFaceRegion<T> {
             Ruled::Cylinder { .. } => None,
             Ruled::Cone { apex, .. } => (!outward).then(|| (p.at() - apex).norm()),
         };
-        let curve = SurfaceCurve::ruling(&self.surface.surface(), p.uv(), opening, outward);
+        let curve = SurfaceCurve::ruling(
+            Charted::new(self.record, &self.surface.surface()),
+            p.uv(),
+            opening,
+            outward,
+        );
         Leg {
             course: LegShape::Ruling(Line::on(region::built(curve))),
             end: end.map(|place| End {
@@ -565,7 +578,8 @@ impl<T: Decide> RuledFaceRegion<T> {
         let opening = self.nappe(target, band).map_err(|_| RayFault::Unread)?;
         let surface = self.surface.surface();
         let target = QueryFoot::read(&surface, target, band);
-        let curve = SurfaceCurve::from_apex(&surface, target.uv(), opening);
+        let curve =
+            SurfaceCurve::from_apex(Charted::new(self.record, &surface), target.uv(), opening);
         Ok(Leg::whole(LegShape::Ruling(Line::on(region::built(curve)))))
     }
 }
