@@ -183,9 +183,9 @@ pub enum EdgeInFaceGap {
     /// read.
     SplineFace,
     /// The edge's carrier, a spline or a spiric, or any carrier against a
-    /// torus not decided a ring, is not certified off the face's surface over its whole
-    /// length, and nothing reads it on: whether it lies in the face along
-    /// some piece is not read ([`carrier_on_surface`]).
+    /// torus not decided a ring, is not certified off the face's surface
+    /// over its whole length, and nothing reads it on: whether it lies in
+    /// the face along some piece is not read ([`carrier_on_surface`]).
     CarrierUnread,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
@@ -3414,10 +3414,12 @@ mod spline_rider {
 /// **A spiric reads off a sphere, a cylinder or a cone by degree, and a
 /// ring torus by identity** ([`spiric_on_curved`]), only in the two-oval
 /// regime and only where a point of its span reads off. On its own torus,
-/// or on a torus not decided a ring, it stays unread.
+/// or on a torus not decided a ring, it stays unread. **A conic against
+/// a torus is read by the same identity certificate**
+/// ([`geom_brep::variety::Variety`]), gated on the ring alike.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod spiric_quadric_rows {
+mod curved_carrier_rows {
     use super::{EdgeInFaceGap, Placed, conic_or_line_on};
     use geom_core::{Band, Margin, Point3, Sign, Tol, Vec3};
 
@@ -3426,6 +3428,29 @@ mod spiric_quadric_rows {
     }
 
     const UNREAD: Placed = Placed::Unread(EdgeInFaceGap::CarrierUnread);
+
+    /// A torus of minor radius `0.3` whose `R − r` is midway between the
+    /// band's zero and its escalation: neither decided a ring nor not.
+    fn ring_in_band(center: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> geom::Surface<f64> {
+        let b = band();
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius: 0.3 + 0.5 * (b.zero() + b.escalate()),
+            minor_radius: 0.3,
+            u_ref,
+        }
+    }
+
+    /// Whether `read` is the ring decision's escalation
+    /// ([`super::RIDER_RING_TORUS`]), not some other refusal.
+    fn escalates_on_the_ring(read: Result<Placed, super::BooleanError>) -> bool {
+        matches!(
+            read,
+            Err(super::BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some(super::RIDER_RING_TORUS)
+        )
+    }
 
     /// The spiric about the `z` axis, `R = 2`, `r = 1`, in the plane
     /// `x = d`.
@@ -3753,11 +3778,46 @@ mod spiric_quadric_rows {
             UNREAD,
             "a spiric against a torus with R < r"
         );
-        let b = band();
-        let in_band = at(0.3 + 0.5 * (b.zero() + b.escalate()));
+        let in_band = ring_in_band(s.eval(0.0), Vec3::unit_x(), Vec3::unit_y());
         assert!(
-            conic_or_line_on(&s, (-0.5, 0.5), &in_band, b).is_err(),
-            "a torus whose ring is in band escalates"
+            escalates_on_the_ring(conic_or_line_on(&s, (-0.5, 0.5), &in_band, band())),
+            "a torus whose ring is in band escalates on the ring decision"
+        );
+    }
+
+    /// **A conic against a torus whose ring is in band escalates**, at the
+    /// conic site's ring gate in [`super::conic_or_line_on`]
+    /// ([`geom_brep::variety::Variety::of`]), as the spiric site's does:
+    /// the identity certificate holds only on a ring, and an `R − r` in
+    /// band is not read as no ring. The same circle against a ring torus
+    /// it misses reads off. Red where the conic site swallows the ring's
+    /// escalation (`.ok().flatten()`), which then reads the torus unread.
+    #[test]
+    fn a_conic_against_a_torus_whose_ring_is_in_band_escalates() {
+        let b = band();
+        let ring = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 0.3,
+            u_ref: Vec3::unit_x(),
+        };
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 5.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
+        let span = (0.0, core::f64::consts::TAU);
+        assert_eq!(
+            conic_or_line_on(&circle, span, &ring, b).unwrap(),
+            Placed::Off,
+            "a circle far above a ring torus reads off"
+        );
+        let in_band = ring_in_band(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        assert!(
+            escalates_on_the_ring(conic_or_line_on(&circle, span, &in_band, b)),
+            "a torus whose ring is in band escalates on the ring decision"
         );
     }
 
