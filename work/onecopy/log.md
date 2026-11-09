@@ -737,3 +737,8 @@
   - needle-tilts: A proceeds. F is refused under the across-key class finding (a chooser asked which reading certifies). S is the direction.
   - bracket-mid (d): one formula, mid_param.
   - The 22 slow-set reds from 6608 went to the main-reds lane, to re-check on current main.
+- 07:52Z The branch-band lane opened PR 6618, head 077faec0. It holds the pinned current-behaviour row (far-seed Interval reads On, tangent reversed), the h=0.2 escalation row filed, and the main row narrowed to design.
+  - I read the diff: a sound pin, test-only.
+- 07:52Z Designer A's first report is in. It is recorded off-PR until B delivers.
+- 07:52Z 6611's gate went red on ruff 504 alone.
+  - 6607, 6611, 6614 and 6618 are queued to merge main once 6619 lands.
