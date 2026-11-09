@@ -134,6 +134,7 @@
 
 use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
+use geom_brep::ladder::{IdentityLadder, read_identity};
 use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Sign, Vec3};
@@ -1805,9 +1806,11 @@ fn certify_plane<T: Decide>(
     let origin = steps.first().ok_or_else(corrupt)?.point;
     let (_, reach) = loop_reach(body, r#loop)?;
     let unit = Margin::levered(normal.norm() - T::one(), reach);
-    if decide("point_in_loop_normal", unit, band).map_err(escalate)? != Sign::Zero {
-        return Err(off_plane(OffPlaneCause::NormalNotUnit));
-    }
+    // One identity over every datum ([`read_identity`]): the normal is
+    // unit, every point and axis of the loop's carriers lies on the
+    // plane, and so does `q`. Any datum decided apart answers "off the
+    // plane", whatever an earlier one read; its cause only names which.
+    let mut data = vec![("point_in_loop_normal", unit, OffPlaneCause::NormalNotUnit)];
     let off = |p: Point3<T>| Margin::of(geom::plane_offset(origin, normal, p));
     let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
     // A conic's whole carrier, read from its centre.
@@ -1839,16 +1842,19 @@ fn certify_plane<T: Decide>(
                 margins.extend(n.control().iter().map(|&p| off(p)));
             }
         }
-        for m in margins {
-            if decide("point_in_loop_plane", m, band).map_err(escalate)? != Sign::Zero {
-                return Err(off_plane(OffPlaneCause::Loop { edge: step.edge }));
-            }
-        }
+        let cause = OffPlaneCause::Loop { edge: step.edge };
+        data.extend(
+            margins
+                .into_iter()
+                .map(|m| ("point_in_loop_plane", m, cause)),
+        );
     }
-    if decide("point_in_loop_query", off(q), band).map_err(escalate)? != Sign::Zero {
-        return Err(off_plane(OffPlaneCause::Query));
+    data.push(("point_in_loop_query", off(q), OffPlaneCause::Query));
+    match read_identity(data.iter().map(|&(name, m, _)| (name, m)), band) {
+        IdentityLadder::Zero(_) => Ok(()),
+        IdentityLadder::Apart { at, .. } => Err(off_plane(data[at].2)),
+        IdentityLadder::Undecided(cause) => Err(escalate(cause)),
     }
-    Ok(())
 }
 
 /// [`point_in_loop`] for a caller whose own boundary pass
