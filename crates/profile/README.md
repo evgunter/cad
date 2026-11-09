@@ -529,8 +529,9 @@ the anchor's target; `radius_at_anchor` is this corner's bound for the
 radius. The sentence names, for each overrunning leg, where its anchor
 must lie, and the radius, each rendered strictly on the fitting side of
 the exact value (an exact boundary value typed back lands in the band):
-"anchor that leg at least S m from the corner (it is A m now), or use a
-radius of X m or less". It promises this corner's
+"anchor that leg at least S m from the corner, or use a radius of X m or
+less" (the sentence's cause clause has already given both legs' setbacks
+and where their anchors are). It promises this corner's
 anchor fit and nothing more; a smaller radius can still refuse at
 another gate, in that gate's own words. Where `radius_at_anchor` is
 `None` the radius lever is named without a value. A corner's recourse
