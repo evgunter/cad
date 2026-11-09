@@ -1607,7 +1607,10 @@ fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>
     use geom_brep::curve_pair::MeetFault;
     match fault {
         MeetFault::Escalated(diag) => Err(diag),
-        MeetFault::Touch(_) | MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => Ok(None),
+        MeetFault::Touch(_)
+        | MeetFault::Unsettled(_)
+        | MeetFault::Unwalked(_)
+        | MeetFault::Unsupported { .. } => Ok(None),
         MeetFault::Desync => {
             unreachable!("the meeting of a path's piece and a spline arc misread a carrier's kind")
         }

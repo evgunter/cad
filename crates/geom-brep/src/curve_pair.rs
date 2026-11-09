@@ -152,6 +152,9 @@ pub enum MeetFault {
     /// before it could certify the candidates. Unsettled: no margin, and
     /// a coarser band may settle it.
     Unsettled(Unsettled),
+    /// A spline's piece walk could not run, reading a point on a span. As
+    /// the walk's refusal stands ([`crate::ladder::Refusal::of_walk`]).
+    Unwalked(geom::PieceWalkRefusal),
     /// A pose the pair's arm has no closed form for. A limit.
     Unsupported {
         /// The pose.
@@ -182,6 +185,7 @@ impl MeetFault {
         match self {
             Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(*diag)),
             Self::Unsettled(_) => Ok(Refusal::Unsettled),
+            Self::Unwalked(why) => Ok(Refusal::of_walk(*why)),
             Self::Unsupported { .. } => Ok(Refusal::Limit),
             Self::Desync | Self::Contradiction { .. } => Err(Aborts),
         }
@@ -202,15 +206,8 @@ impl From<RootRefusal> for MeetFault {
 }
 
 impl From<geom::PieceWalkRefusal> for MeetFault {
-    /// A spline's walk past its budget as unsettled, and a spline with no
-    /// speed bound as a pose the reader does not serve.
     fn from(why: geom::PieceWalkRefusal) -> Self {
-        match why {
-            geom::PieceWalkRefusal::Exhausted => Self::Unsettled(Unsettled::Exhausted),
-            geom::PieceWalkRefusal::Unbounded => Self::Unsupported {
-                pose: "a spline whose speed bound is zero or poison",
-            },
-        }
+        Self::Unwalked(why)
     }
 }
 

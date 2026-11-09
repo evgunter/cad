@@ -431,6 +431,7 @@ fn arc_pair_meets<T: Decide>(
             MeetFault::Escalated(_)
             | MeetFault::Touch(_)
             | MeetFault::Unsettled(_)
+            | MeetFault::Unwalked(_)
             | MeetFault::Unsupported { .. } => Ok(refusal.found.iter().any(off_shared)),
         },
     }

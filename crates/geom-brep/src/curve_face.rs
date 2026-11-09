@@ -531,7 +531,9 @@ impl BoundaryRefusal {
         match fault {
             MeetFault::Escalated(diag) => Self::Meeting(diag),
             MeetFault::Touch(diag) => Self::Touch(diag),
-            MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => Self::Unread(fault),
+            MeetFault::Unsettled(_) | MeetFault::Unwalked(_) | MeetFault::Unsupported { .. } => {
+                Self::Unread(fault)
+            }
             MeetFault::Desync => Self::Fault {
                 what: "a carrier the meeting table misread",
             },

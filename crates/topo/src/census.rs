@@ -4835,6 +4835,7 @@ fn meetings<T: Decide>(
             MeetFault::Unsettled(_) => {
                 CrossRefusal::Unread("the meeting reading of a census edge and a face boundary edge could not settle a count")
             }
+            MeetFault::Unwalked(why) => CrossRefusal::Unread(why.sentence()),
             MeetFault::Unsupported { pose } => CrossRefusal::Unread(pose),
             fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => meet_fault(
                 format_args!("edge {:?} against boundary edge {:?}", e.key, side.key),
@@ -7662,7 +7663,7 @@ impl TouchUnread {
             Self::Unanalysed => Undecided::TouchUnanalysed,
             Self::Degenerate => Undecided::TouchDegenerate,
             Self::ChordScale => Undecided::TouchChordScale,
-            Self::EdgeTangent(_) => Undecided::TouchEdgeTangent,
+            Self::EdgeTangent(_) | Self::OffInterior => Undecided::TouchEdgeTangent,
             Self::Corrupt => Undecided::CorruptInstance,
         }
     }
@@ -7730,7 +7731,7 @@ impl TouchUnread {
                 "an edge there is too long or too short to measure. Recourse: rescale the \
                  model so every edge length is an ordinary number"
             }
-            Self::EdgeTangent(_) => concat!(
+            Self::EdgeTangent(_) | Self::OffInterior => concat!(
                 "a curved edge meets the point, and the check could not read its direction \
                  there. ",
                 geom_core::not_yet_ending!(),
@@ -8809,9 +8810,7 @@ fn half_edge_tangent<T: Decide>(
     let tangent = match curved::edge_tangent_at(body, half.edge, p, band, &mut refused) {
         Some(Some(tangent)) => tangent,
         Some(None) => {
-            return Err(TouchUnread::EdgeTangent(
-                crate::link::EdgeTangentUnread::OffInterior,
-            ));
+            return Err(TouchUnread::OffInterior);
         }
         None => return Err(curved::edge_tangent_refusal(&refused)),
     };
@@ -11318,7 +11317,9 @@ impl InteriorsUnread {
     fn of(fault: MeetFault) -> Self {
         match fault {
             MeetFault::Escalated(_) | MeetFault::Touch(_) => Self::Undecided,
-            MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => Self::Unbuilt,
+            MeetFault::Unsettled(_) | MeetFault::Unwalked(_) | MeetFault::Unsupported { .. } => {
+                Self::Unbuilt
+            }
             fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => {
                 meet_fault(format_args!("two edges' interiors"), fault)
             }
@@ -21653,7 +21654,7 @@ mod line_wedges_ranking {
 #[cfg(test)]
 mod link_faces_ranking {
     use super::{TouchUnread, sectors_of_faces};
-    use crate::link::EdgeTangentUnread;
+    use crate::validate::EdgeTangentUnread;
 
     fn read(faces: Vec<Result<(), TouchUnread>>) -> Option<TouchUnread> {
         sectors_of_faces(faces, |face| face)

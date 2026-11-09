@@ -391,9 +391,12 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
 /// half an escalation off the carrier, out from its centre, beside a
 /// parameter `at` of the span. `at`, whose point lies within the
 /// escalation of the member, lies in the window (red where the piece it
-/// is on is cleared), and the window is at most three pieces on the
-/// circle and clears a piece on the ellipse (red where the arm falls back
-/// to the whole span).
+/// is on is cleared), and the window is a few escalations of arc about it
+/// (red where the walk keeps a piece it could clear, or falls back to the
+/// whole span). Each is read again with a second point ten metres off,
+/// so the member's ball is five metres across about a centre far from the
+/// arc: `at` still lies in the window (red where the ball's radius is
+/// left out of the reach, which clears every piece near `at`).
 #[test]
 fn a_refused_members_window_on_an_arc_is_its_stretch() {
     let esc = band().escalate();
@@ -401,22 +404,14 @@ fn a_refused_members_window_on_an_arc_is_its_stretch() {
         ("circle", circle(), Point3::new(0.0, 0.0, 1.0)),
         ("ellipse", ellipse(), Point3::origin()),
     ] {
-        let (t0, t1) = (0.0, PI);
-        let span = Span::new(&carrier, (t0, t1));
+        let span = Span::new(&carrier, (0.0, PI));
+        let slowest = span.speeds().0.get();
         for at in [0.4, 1.3, 2.9] {
             let p = carrier.eval(at);
             let q = p + (p - centre).normalize() * (0.5 * esc);
-            let member = geom::cover::Cover::points(vec![q]).unwrap();
-            let (w0, w1) = span.window_near(Some(&member), band());
-            // A circle arc's cover reads its distance exactly, so the
-            // window is the piece `at` is on and its neighbours; an
-            // ellipse arc's bound is looser, and clears some piece.
-            let piece = (t1 - t0) / f64::from(super::span::WINDOW_PIECES);
-            let widest = if kind == "circle" {
-                3.0 * piece
-            } else {
-                t1 - t0 - piece
-            };
+            let point = geom::cover::Cover::points(vec![q]).unwrap();
+            let (w0, w1) = span.window_near(Some(&point), band());
+            let widest = 8.0 * esc / slowest;
             assert!(
                 w1 - w0 <= widest,
                 "{kind} at {at}: the window ({w0}, {w1}) is wider than {widest}"
@@ -425,6 +420,14 @@ fn a_refused_members_window_on_an_arc_is_its_stretch() {
                 w0 <= at && at <= w1,
                 "{kind} at {at}: the point half an escalation from the member lies outside \
                  ({w0}, {w1})"
+            );
+            let far = q + Vec3::new(0.0, 0.0, 10.0);
+            let pair = geom::cover::Cover::points(vec![q, far]).unwrap();
+            let (w0, w1) = span.window_near(Some(&pair), band());
+            assert!(
+                w0 <= at && at <= w1,
+                "{kind} at {at}: with a far second point, the point half an escalation from \
+                 the member lies outside ({w0}, {w1})"
             );
         }
     }

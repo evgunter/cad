@@ -701,12 +701,63 @@ impl core::fmt::Display for CensusSubject {
     }
 }
 
+/// **Why the census did not read a curved edge**, typed: the reason
+/// [`CensusUnsupportedCause::CurvedEdge`] carries, and an edge tangent's
+/// at a touch ([`crate::link::TouchUnread::EdgeTangent`]). Its sentence,
+/// recourse and standing are its own.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EdgeTangentUnread {
+    /// The edge carries no certified curve. A limit.
+    #[default]
+    NoCurve,
+    /// The edge's speed bound meters no reach over its span. A limit.
+    NoReach,
+    /// The edge's least speed meters no length over its span. A limit.
+    NoLength,
+    /// A spline edge's piece walk could not run, standing as the walk's
+    /// refusal does ([`geom_brep::ladder::Refusal::of_walk`]).
+    Unwalked(geom::PieceWalkRefusal),
+}
+
+impl EdgeTangentUnread {
+    /// What this reason is to a ladder, as each variant's docs state it.
+    /// It never refuses the whole query.
+    #[must_use]
+    pub const fn refusal(self) -> geom_brep::ladder::Refusal {
+        match self {
+            Self::NoCurve | Self::NoReach | Self::NoLength => geom_brep::ladder::Refusal::Limit,
+            Self::Unwalked(why) => geom_brep::ladder::Refusal::of_walk(why),
+        }
+    }
+
+    /// The one sentence this reason is rendered by.
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::NoCurve => "a curved edge with no certified curve",
+            Self::NoReach => "a curved edge whose speed bound meters no reach over its span",
+            Self::NoLength => "a curved edge whose least speed meters no length over its span",
+            Self::Unwalked(why) => why.sentence(),
+        }
+    }
+
+    /// The recourse its rendering ends with: a curve the kernel does not
+    /// read yet, or the walk's own ([`geom::PieceWalkRefusal::recourse`]).
+    #[must_use]
+    pub const fn recourse(self) -> &'static str {
+        match self {
+            Self::NoCurve | Self::NoReach | Self::NoLength => NOT_YET_ENDING,
+            Self::Unwalked(why) => why.recourse(),
+        }
+    }
+}
+
 /// **WHY a census decline declined** — the refusing lane's own typed
 /// refusal, carried instead of discarded.
 ///
-/// [`ValidationError::CensusUnsupported`] is raised by four
-/// different lanes, and until this was carried they all arrived at a
-/// consumer as one sentence about an uncertifiable inventory. That
+/// [`ValidationError::CensusUnsupported`] is raised by several
+/// lanes, one arm each, and until this was carried they all arrived at
+/// a consumer as one sentence about an uncertifiable inventory. That
 /// sentence is not always the true cause: a chart-region
 /// [`WitnessSegmentCapExceeded`](ChartRegionError::WitnessSegmentCapExceeded)
 /// or [`WitnessCellCapExceeded`](ChartRegionError::WitnessCellCapExceeded)
@@ -822,10 +873,8 @@ pub enum CensusUnsupportedCause {
     /// admits `Escalated`.
     ContactLane(ContactRefusal),
     /// A curved edge the census reads did not read, for its typed reason,
-    /// whole ([`crate::link::EdgeTangentUnread`]). It renders and is
-    /// classed as the contact lane's [`ContactRefusal::NotCertifiable`]
-    /// with that reason's sentence.
-    CurvedEdge(crate::link::EdgeTangentUnread),
+    /// whole: it renders by the reason's sentence and recourse.
+    CurvedEdge(EdgeTangentUnread),
     /// The census's face-bounding sweep could not bound the face at
     /// all: it has no boundary vertex, because its outer loop is
     /// empty or its boundary does not resolve. Nothing about the
@@ -892,13 +941,7 @@ impl CensusUnsupportedCause {
         match self {
             Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
-            Self::CurvedEdge(why) => write!(
-                f,
-                "{}",
-                ContactRefusal::NotCertifiable {
-                    what: why.sentence()
-                }
-            ),
+            Self::CurvedEdge(why) => f.write_str(why.sentence()),
             // The containment door's reading, at a build, whichever door
             // reads the census.
             Self::Containment(e) => write!(
@@ -4307,12 +4350,7 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
             let (why, recourse) = classify_contact_lane(e);
             (why.into(), recourse.into())
         }
-        CensusUnsupportedCause::CurvedEdge(why) => {
-            let (why, recourse) = classify_contact_lane(&ContactRefusal::NotCertifiable {
-                what: why.sentence(),
-            });
-            (why.into(), recourse.into())
-        }
+        CensusUnsupportedCause::CurvedEdge(why) => (why.sentence().into(), why.recourse().into()),
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
             "a face has no corner to bound it by (an empty or broken outer loop)".into(),
