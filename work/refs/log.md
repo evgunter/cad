@@ -215,3 +215,13 @@
   - Split halves already worked; this PR adds an end-to-end test.
   - **New:** a viewport pick on a pattern member authors `xs[i]` (`BodyRead<Formula>`). A tree pick reads the family whole, and a panel row can re-read it as one member. No editor-core change was needed.
   - **Filed:** DOORS `a-combine-of-a-world-copied-familys-member-leaves-the-copy-drawing-it` (P2, design).
+- 2026-11-09 — **PR 6593 review: APPROVE-WITH-FIXES, with two probed regressions against main. Fix pass sent.**
+  - **First regression:** a split of a family lost its half choice, and the panel offered member rows that could only refuse.
+  - **Second regression:** a member picked through a world copy now authors a combine the world does not show. Main's whole-family read and takeover are kept for copied families until DOORS rules, and the DOORS row is re-banded P1.
+  - **Also taken:**
+    - a pattern standing in a copy space read as its source's copy;
+    - grid, port-carry and headless member-row tests;
+    - one "is a family" definition (the viewer's and the door's disagreed);
+    - `reads_member` made exhaustive and tied to the door;
+    - the README's 2417 divergence for non-boolean seats.
+  - **Class:** a new seat state (`Member`) checked before an existing one (`HalfUnchosen`), where a node can be both. Seat states compose, and the code assumed they were exclusive.
