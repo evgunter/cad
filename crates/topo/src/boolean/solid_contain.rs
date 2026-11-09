@@ -2066,7 +2066,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                     },
                 );
             }
-            Err(other) => return Rung::refused(other, PointInSolidError::refusal),
+            Err(other) => return Rung::refused(other, PointInSolidError::refusal, Err),
         };
         geos.push((face, geo));
         Rung::holds(
