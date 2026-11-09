@@ -18,7 +18,7 @@ Found by the FULL review of PR 6483 (`onecopy/foot-certificate`), its MINOR-1.
 A reader of the branch's own geometry at `On`'s `t` (a tangent, a curvature, a side) can read the wrong branch's. `topo::census`'s `half_edge_tangent` is one: through `curved::param_on_interior` and `Span::read` it reads `deriv(t)`. `Span::read` refuses the far branch only when that branch lies outside the span.
 
 Where I looked for a door that excludes such an edge, and found none:
-- `geom_brep::certify`'s `SpanMeterCollapsed`: the spline's speed floor excludes a stall, not a fold whose speed stays positive;
+- `geom_brep::certify`'s `SpanMeterCollapsed`: it refuses this cubic, at `h = 3e-10` and at `h = 2e-8` alike. Its tip speed is `1.5·h`, so its `speed_lower_bound` over the unit knot domain meters `1.5e-18` and `6.8e-15` m. The meter excludes only a fold whose speed sinks below it. A fold that stays fast still evades it: a semicircle of radius below the band, traversed over a short knot span between legs on long ones, keeps the meter well above the band while its branches lie within it;
 - the census's curved edge×edge pass (5′): it reads pairs of edges, and does not read an edge against its own far parameters;
 - `topo::injective` / `clearance`: their arms read face cells that touch, as the clearance assertion asks, not an edge's distance from itself.
 
@@ -30,7 +30,7 @@ The first is a gate on bodies, and the second is a reading. Either way, `Foot`'s
 
 ## Measured, and what remains
 
-The span reader is pinned as `geom_brep::curve_pair::span_rows::a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch`. The whole span of the 3e-10 hairpin is read as an edge is read, about a point on the near branch at `t = 0.08`:
+The span reader is pinned, on the cubic as a bare carrier, as `geom_brep::curve_pair::span_rows::a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch`. The whole span of the 3e-10 hairpin is read as an edge is read, about a point on the near branch at `t = 0.08`:
 - at `f64`, it reads the near branch from either seed;
 - at `Interval` with a ±1e-10 box, seeded at the span's middle (the census's seed), it escalates;
 - at `Interval` with a ±1e-10 box, seeded on the far branch, it reads `On` at `t ≈ 0.92`, the tangent reversed, with nothing logged;
@@ -43,6 +43,6 @@ Readers that can hand `Span::read` or `Foot::on_carrier` a seed other than the s
 - `pair_section` (seeded at the span's start);
 - `slit` and `carrier_cross`, which cut at `Hit::On`'s `t`.
 
-No door refuses such an edge. Tier 3 names global self-intersection and minimum clearance as deferred (`topo::validate`'s tier-3 docs), and the clearance engine runs at no gate at rest.
+No door refuses such an edge where its fold stays fast (the semicircle above); the cubic is refused only by its meter. Tier 3 names global self-intersection and minimum clearance as deferred (`topo::validate`'s tier-3 docs), and the clearance engine runs at no gate at rest.
 
 What remains is the fork, which awaits its designers: a self-clearance check in `EdgeCurve::certify` (a gate, and a change to its check sequence), a branch certificate on `Foot` that branch readers take (a reading), or doc only.

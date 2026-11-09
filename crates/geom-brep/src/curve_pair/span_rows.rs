@@ -412,14 +412,18 @@ fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
 
 /// **A span over a hairpin closer than the band reads `On` at the
 /// seed's branch at `Interval`**. The whole span of a hairpin whose
-/// branches lie 3e-10 apart, inside the 1e-9 zero, read as an edge is
-/// read: at a ±1e-10 box about a point of the near branch (`t = 0.08`)
-/// seeded on the far branch, it reads `On` at `t ≈ 0.92`, where the
-/// tangent is reversed, with nothing logged; seeded at the span's middle
-/// (the census's seed) it escalates; at `f64` it reads the near branch
-/// from either seed. The far-seed read is what
-/// `a-carriers-branches-within-the-band-of-each-other` decides: red here
-/// is that row's fix landing.
+/// branches lie 3e-10 apart, inside the 1e-9 zero, read the way an edge's
+/// span is read: at a ±1e-10 box about a point of the near branch
+/// (`t = 0.08`) seeded on the far branch, it reads `On` at `t ≈ 0.92`,
+/// where the tangent is reversed, with nothing logged; seeded at the
+/// span's middle (the census's seed) it escalates; at `f64` it reads the
+/// near branch from either seed.
+///
+/// The carrier is not one an edge can hold: its tip speed is `1.5·h`, so
+/// `EdgeCurve::certify` refuses it `SpanMeterCollapsed`. The row pins the
+/// reader on a bare carrier. A fix that gates edges at the certificate
+/// leaves it green, and one that certifies the branch at the reader turns
+/// it red (`a-carriers-branches-within-the-band-of-each-other`).
 #[test]
 fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
     use super::Reading;
