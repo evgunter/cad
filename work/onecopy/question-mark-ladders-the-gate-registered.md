@@ -25,13 +25,13 @@ measured yet.** Read each in full before porting it.
 | ~~`boolean::rim_wedge::departures` (`abut`)~~ | **ported** (`onecopy/refusal-standing`, QML T1): `climb(Any)` over the two end pairs, a theorem (either abuts) | — |
 | ~~`boolean::rim_wedge::rides`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over both ends | — |
 | ~~`splitting::containment::certify_plane`~~ | **ported** (`onecopy/refusal-standing`, QML T1): one `read_identity` over every datum; the datum apart names the cause | — |
-| `boolean::sectors`' crescent search (two reads) | a crescent found answers | `climb`, `Any` |
+| ~~`boolean::sectors`' crescent search (two reads)~~ | **ported** (`onecopy/refusal-standing`, QML T2): `climb(Any)` over the four bound pairs, a theorem; a pair's premise in band is kept (`BooleanError::margin_or_abort`) | — |
 | `splitting::join::conic_pairs` (the first cut) | **WHICH** (place_off ruling, QML T1): the cut rotates the pairing; the `?` stands, the site says so | — |
-| `shell`'s moved-walls overlap search | an overlap found answers | `climb`, `Any` |
+| ~~`shell`'s moved-walls overlap search~~ | **ported** (`onecopy/refusal-standing`, QML T2): `climb(Any)` over the pieces, read lazily; the overlap only names the fault | — |
 | ~~`boolean::surface_group::WrapRims::holds`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over the two coaxial margins | — |
 | `boolean::reduce`'s line-cone apex end search | **WHICH** (place_off ruling, QML T1): the end is the root whose spread is read next; the `?` stands | — |
-| `ring_path`'s lead-point read | an arc that is not a point answers `None` | `climb`, `Any` |
-| `offset_derive::nearest` | an argmin | see below |
+| ~~`ring_path`'s lead-point read~~ | **ported** (`onecopy/refusal-standing`, QML T2): `path_parity` climbs every (piece, arc) pair; any pair at which the path says nothing answers `None`, a pair in band is kept, the rest fold the parity | — |
+| `offset_derive::nearest` | an argmin | **filed** (`onecopy/refusal-standing`, QML T2): `an-argmin-by-decided-comparison-is-spelled-three-ways` (a copy of `join::keep_nearer`, and the argmin rule is a design question) |
 | ~~`sweep::loft::stacking::rim_pinned`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over the rows | — |
 | `boolean::edge_join::joinable` (the chart-class read over the two surfaces) | **WHICH** (place_off ruling, QML T1): the carrying surface is in the locus compared; the `?` stands | — |
 
@@ -65,7 +65,7 @@ measured yet.
 | `boolean::carrier_touch::off_face`, `ball_off_face` | any cluster or edge not off answers "not off" | `climb`, `Any` |
 | `boolean::region::on_boundary` | any edge holding the point | `climb`, `Any` |
 | `boolean::sectors::rays_within` | any ray not within answers "no" | `climb`, `Any` |
-| `boolean::sectors::crescent` (its callee reads, beside its decide sites) | a crescent found | `climb`, `Any` |
+| ~~`boolean::sectors::crescent` (its callee reads, beside its decide sites)~~ | **ported** (`onecopy/refusal-standing`, QML T2), with its decide sites | — |
 | `boolean::rim_wedge::departures` (its cover reads) | either pair's departure | `climb`, `Any` |
 | `census::span_clear` | anything meeting answers "not clear" | `climb`, `Any` |
 | `chart_region::polygon_relation` | the first decisive vertex | `climb`, `Any` (check every non-boundary vertex reads alike) |

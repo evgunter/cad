@@ -124,10 +124,7 @@ impl OverlapRefusal {
             Self::Placement(e) => e.refusal(),
             Self::Meeting(e) => e.refusal(),
             Self::Normal(e) => e.refusal(),
-            Self::Boundary(e) | Self::Corner(e) => match **e {
-                BooleanError::Escalated { diag, .. } => Ok(Refusal::Margin(diag)),
-                _ => Err(Aborts),
-            },
+            Self::Boundary(e) | Self::Corner(e) => e.margin_or_abort(),
             Self::Unread { .. } => Ok(Refusal::Limit),
         }
     }

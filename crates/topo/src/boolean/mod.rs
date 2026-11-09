@@ -4439,6 +4439,26 @@ pub enum BooleanErrorKind {
 }
 
 impl BooleanError {
+    /// **The standing a search may keep this refusal by**, until
+    /// `BooleanError` states one per variant
+    /// (`work/onecopy/boolean-error-states-no-standing.md`): an
+    /// [`Escalated`](Self::Escalated) reading is kept by its margin, and
+    /// every other kind stops the search, since nothing here tells a
+    /// limit from a kernel fault. Sound, and incomplete where the error
+    /// was a limit a later reading could answer past.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`] for every kind but `Escalated`.
+    pub(crate) const fn margin_or_abort(
+        &self,
+    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        match self {
+            Self::Escalated { diag, .. } => Ok(geom_brep::ladder::Refusal::Margin(*diag)),
+            _ => Err(geom_brep::ladder::Aborts),
+        }
+    }
+
     /// A curve × face root door's refusal
     /// ([`geom_brep::curve_face::circle_roots::DoorRefusal`], which the
     /// conic doors and the line × torus door refuse in), its in-band sign
