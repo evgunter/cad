@@ -455,7 +455,7 @@ fn on_a_crease<T: Decide>(
                 chart.ders(u, c).point
             }
         };
-        let runs: Vec<T> = knots.runs().map(|(value, _)| value).collect();
+        let runs: Vec<T> = knots.breakpoints().collect();
         for r in knots.structure().crease_runs() {
             if let Some(reading) = near(at_line(runs[r])) {
                 return Some(reading);
