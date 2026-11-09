@@ -24,7 +24,7 @@ predicate set`: the millimetre pipe (radius 1e-3, a thousand ε) records
 `side_at_infinity_met_edge_represents`, and the metre pipe records none
 of them. The verdicts agree. At 1e-9 and 1e-12 both twins fire the same
 set (and the row stops on
-`work/onecopy/ray-wall-twins-read-f31-angle-renames-as-margins-that-must-scale.md`).
+`work/onecopy/the-ray-wall-twins-read-the-angle-predicates-off-scale.md`).
 
 Whether the small twin taking a branch the large one does not is a
 defect (an aim chosen by an absolute length) or a correct reading of a
