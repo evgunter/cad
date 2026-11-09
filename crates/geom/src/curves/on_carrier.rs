@@ -356,9 +356,8 @@ impl<T: Decide> Curve3<T> {
     /// **The point-against-span piece walk**: `(t0, t1)` halved depth
     /// first ([`geom_core::bisect`]), each piece read against `q` as
     /// [`PieceRead`], with `hi` a bound on the carrier's speed. What a
-    /// reading settles is `visit`'s: the one walk behind
-    /// [`Self::clear_of`] and every other reading of a point against a
-    /// span by its pieces.
+    /// reading settles is `visit`'s: [`Self::clear_of`] is one, and
+    /// `geom_brep`'s window of a span near a member's ball is another.
     ///
     /// # Errors
     ///

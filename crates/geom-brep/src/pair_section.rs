@@ -1452,8 +1452,10 @@ pub enum SiteRefusal {
     /// The site lies on no component, or on two: the site was not read
     /// from this section.
     Desync(&'static str),
-    /// A spline component's piece walk could not run: a limit, not a
-    /// fault.
+    /// A spline component's piece walk could not run: not a fault. It
+    /// stands as the walk's refusal does
+    /// ([`crate::ladder::Refusal::of_walk`]): unsettled past its budget,
+    /// a limit where the spline bounds no speed.
     Unwalked(geom::PieceWalkRefusal),
 }
 

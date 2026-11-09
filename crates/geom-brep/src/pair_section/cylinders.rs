@@ -28,9 +28,10 @@ use super::{
 use crate::ExtentBall;
 use crate::extent::Reach;
 use crate::intersect::{
-    SectionError, SectionRadius, cylinder_axes_parallel_reported, decide_across_reported,
-    parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, tilted_section_major,
+    SectionError, SectionRadius, cylinder_axes_parallel_reported, parallel_axes_at,
+    parallel_cylinder_gap_reported, parallel_swing, tilted_section_major,
 };
+use geom_core::k_stats::decide_across_reported;
 
 /// **The questions the cylinder pair's pose decides**, each on one
 /// margin in metres.
