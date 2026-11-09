@@ -140,6 +140,14 @@
 //! there. The roots are read from the extreme nearer zero
 //! ([`crate::roots::arc_past`]).
 //!
+//! **A conic's height above the other's plane is not its distance from
+//! the other**, only a lower bound on it, so an extreme of the height in
+//! the gap, the other extreme definite past it, says nothing the band
+//! answers: it places a touch there, read through its window and
+//! polished as any plane root's ("A crossing of the other's plane",
+//! below), and its escalation stands only where the polish's basin is not
+//! proved.
+//!
 //! **A double root is decided by the gap between its roots along the
 //! curve**, never by the margin of a centre or an extreme: the chord
 //! between the two root points (`curve_pair_pose_root_gap`) decides one
@@ -1368,7 +1376,20 @@ fn transverse<T: Decide>(
         }
         .closest(band)
     };
-    Ok(match harmonic_roots(ka, &range, band)? {
+    let extremes = match height_extremes(&range, band)? {
+        Extremes::Read(signs) => signs,
+        Extremes::Gap(theta, gap) => {
+            return match near(theta) {
+                Ok(Some(c)) => Ok(Pose::Tangent(c)),
+                Ok(None) => Ok(Pose::Apart),
+                Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN })) => {
+                    Err(MeetFault::Escalated(gap))
+                }
+                Err(other) => Err(other),
+            };
+        }
+    };
+    Ok(match harmonic_roots(ka, &range, extremes, band)? {
         Harmonic::Apart => Pose::Apart,
         Harmonic::Touch(theta) => match near(theta)? {
             Some(c) => Pose::Tangent(c),
@@ -1768,20 +1789,54 @@ fn owed<T: Decide>(
     band: Band,
 ) -> Result<Harmonic<T>, MeetFault> {
     Ok(match found {
-        [] => harmonic_roots(k, r, band)?,
+        [] => {
+            let read = |x: T| extreme_sign(row::EXTREME, x, r.noise, band);
+            harmonic_roots(k, r, (read(r.lo)?, read(r.hi)?), band)?
+        }
         [theta] => Harmonic::Cross(vec![r.at_hi + r.at_hi - *theta]),
         _ => Harmonic::Cross(Vec::new()),
     })
 }
 
-/// A first harmonic's roots along `k` (module docs).
+/// How a height's extremes read (module docs, "A first harmonic's
+/// roots").
+enum Extremes<T> {
+    /// Each extreme's sign.
+    Read((Sign, Sign)),
+    /// One extreme in the band's gap, the other past it on its far side:
+    /// the angle of the one in the gap, and its escalation.
+    Gap(T, geom_core::Indeterminate),
+}
+
+/// **A conic's height above the other's plane, its extremes read**
+/// (module docs, "A first harmonic's roots"): as a distance's are, but
+/// for an extreme in the band's gap with the other definite past it,
+/// which places a touch for its window ([`Extremes::Gap`]).
+fn height_extremes<T: Decide>(r: &Range<T>, band: Band) -> Result<Extremes<T>, MeetFault> {
+    let read = |x: T| extreme_sign(row::EXTREME, x, r.noise, band);
+    let lo = match read(r.lo) {
+        Err(gap) => {
+            return match read(r.hi) {
+                Ok(Sign::Positive) => Ok(Extremes::Gap(r.at_hi + T::pi(), gap)),
+                _ => Err(gap.into()),
+            };
+        }
+        Ok(lo) => lo,
+    };
+    Ok(match read(r.hi) {
+        Err(gap) if lo == Sign::Negative => Extremes::Gap(r.at_hi, gap),
+        hi => Extremes::Read((lo, hi?)),
+    })
+}
+
+/// A first harmonic's roots along `k`, its extremes `lo` and `hi` read
+/// (module docs).
 fn harmonic_roots<T: Decide>(
     k: &dyn Conic<T>,
     r: &Range<T>,
+    (lo, hi): (Sign, Sign),
     band: Band,
 ) -> Result<Harmonic<T>, MeetFault> {
-    let lo = extreme_sign(row::EXTREME, r.lo, r.noise, band)?;
-    let hi = extreme_sign(row::EXTREME, r.hi, r.noise, band)?;
     // The angle from `hi` of the roots read from each extreme: none
     // crossed reads a double root at that extreme.
     let past = |cross: T| arc_past(cross.max(T::zero()).min(T::one()));

@@ -640,9 +640,12 @@ fn spun(c: &Curve3<f64>, at: Point3<f64>, k: Vec3<f64>, t: f64) -> Curve3<f64> {
 /// both orders. And the near-circle alone turned about the tangent, the
 /// long ellipse's normal and their cross, by up to `10⁻⁴` either way: the
 /// end stays shared ([`span_gap`] in the zero band), and each pose reads
-/// one meeting in both orders, but for three that refuse in both
+/// one meeting in both orders, but for one that refuses in both
 /// (`meet-refuses-a-near-tangent-tilt-in-both-orders`). A refused pose
-/// that comes to decide reads one meeting too.
+/// that comes to decide reads one meeting too. Turned about the cross by
+/// `±10⁻⁵`, the near-circle's height above the long ellipse's plane dips
+/// into the band's gap: red where an extreme of a height in the gap
+/// escalates rather than placing a touch for its window.
 #[test]
 fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
     let [(a, sa), (b, sb)] = needle_pair();
@@ -669,8 +672,8 @@ fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
             bad.extend(agree(&label, (&a, &b), &got, &back, at));
         }
     }
-    // The residue's three, `(axis, tilt)`.
-    let refused = [(1, -1e-4), (2, 1e-5), (2, -1e-5)];
+    // The residue's one, `(axis, tilt)`.
+    let refused = [(1, -1e-4)];
     for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
         .iter()
         .enumerate()
@@ -1065,3 +1068,4 @@ fn thin_ellipses_tangent_at_a_vertex_meet_once_on_the_local_distance() {
     }
     assert_eq!(agree("thin", (&small, &long), &got, &back, at), None);
 }
+
