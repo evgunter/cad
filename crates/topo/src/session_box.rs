@@ -5,7 +5,7 @@
 //! body it refuses has a point past the box. What it does not certify is
 //! the converse: a curved face's interior extreme, bounded by no edge,
 //! is not read, so a body it admits may still reach past the box there
-//! (`work/onecopy/the-session-box-reads-no-curved-face-so-an-interior-extreme-pokes-out.md`).
+//! (`work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md`).
 //!
 //! An edge's reach is the edge's one reading, its cover
 //! (`Body::edge_cover`), read along the world axes from below

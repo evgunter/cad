@@ -92,14 +92,15 @@ fn quarter_arc_cylinder(
 
 /// **An in-box body of line and arc edges builds out on the box's
 /// diagonal.** The session box bounds each coordinate, so it is a cube:
-/// a cylinder of radius 400 about `(580, 580)`, its circle four quarter
-/// arcs, has every coordinate within 980 m and points 1.22 km from the
+/// a cylinder of radius 400 about `(590, 590)`, its circle four quarter
+/// arcs, has every coordinate within 990 m and points 1.23 km from the
 /// origin; a brick `[0, 990]² × [0, 1 mm]` has every coordinate within
 /// 990 m and its far corner 1.4 km out. Each arc's coordinate range is
 /// its cover's, exact, and each line's is at its ends. Both pass the
 /// finished-body gate; a cylinder of radius 1010 about the origin does
 /// not. Red against a session box that reads a distance from the origin
-/// (a ball), at the vertices or on either edge kind.
+/// (a ball), at the vertices or on either edge kind, and against an arc
+/// or line arm read 2% looser than exact (990 m reads 1009.8).
 ///
 /// A pinned red at ε = 1e-12 for the in-box cylinder,
 /// `work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`:
@@ -110,14 +111,14 @@ fn line_and_arc_edges_in_the_box_read_their_exact_reach() {
     let tol = Tol::witness();
     let box_refusal = |e: &dyn std::fmt::Debug| format!("{e:?}").contains("OutsideSessionBox");
     if let Some(near) = test_utils::kernel_limit::pinned(
-        quarter_arc_cylinder((580.0, 580.0), 400.0),
+        quarter_arc_cylinder((590.0, 590.0), 400.0),
         tol.eps(),
         &[1e-12],
         "the cylinder out on the diagonal",
     ) {
         assert!(
             topo::validate_geometric(&near, tol).is_ok(),
-            "the cylinder of quarter arcs about (580, 580) lies in the box"
+            "the cylinder of quarter arcs about (590, 590) lies in the box"
         );
     }
     let brick = finished(

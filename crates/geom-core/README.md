@@ -340,7 +340,7 @@ This section is where that rule's parts live.
   gate asks it, and the refusal names the operation. A body it refuses
   has a point past the box; a curved face's interior extreme is not
   read, so one it admits may still reach past it there
-  (`work/onecopy/the-session-box-reads-no-curved-face-so-an-interior-extreme-pokes-out.md`).
+  (`work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md`).
 - **The Interval lane** makes an ill-posed formula loud (its
   enclosure lands in the band, which is terminal); it does not certify
   around it.
