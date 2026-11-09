@@ -520,3 +520,4 @@
 - 2026-11-09 — PR 6577 merged (980557aa71) on GATE GREEN (7f09284d). 6606's gate was red only from lint's ruff download (504, infra); merged main (with 6577) as 929d1a87, re-gating. 6604 pass in (82a722c5: raw Surface::axis_line with Line::unit, meet_transversal, reach s0); merged main as a9c1a594, gating.
 - 2026-11-09 — PR 6611 delta: FIX. The pinch_corner_errors blind spots are still unnamed (cone apex etc.), the probe docs don't say ill-formed, and BoundaryCrossesItself is solid-scoped. Sent.
 - 2026-11-09 — PR 6610 FULL review: MERGE. Merged main (515e10cb, gates ok); gating. Leftovers filed: the-exact-unit-sign-of-a-value-has-no-home (P3).
+- 2026-11-09 — PR 6607 delta: FIX (small). The guard is vacuous: the cone re-homing rows read only EmptyLoop (bystanders planted first); torus/sphere read only the first corner; it rejects only Out. Asked for one shared helper, read before bystanders, accepting only In. The reviewer concedes N1.
