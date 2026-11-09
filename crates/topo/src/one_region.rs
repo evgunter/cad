@@ -223,12 +223,12 @@ pub(crate) fn door_side<T: Decide>(
 /// the cycle does not cross the cut: a cycle that only touches it, at a
 /// vertex it shares with a cycle of the cut (set aside), lies on one
 /// side (`chord_join::paths_rung`'s premise). Nothing joins here: the
-/// cycles are the face's own, so a crossing is the validator's to find.
-/// One inside two edges is the census's `EdgeEdgeCross`; one at a vertex
-/// the two cycles share reads as the first vertex placed says, and can
-/// pass a cycle off the face's side
-/// (`work/onecopy/one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex.md`).
-/// So a
+/// cycles are the face's own, so a crossing is the validator's to find,
+/// and none reaches this read alone. One inside two edges is the
+/// census's `EdgeEdgeCross`. One at a point two loops share is check 9's
+/// contact half, whose first arm reads points on any carrier
+/// (`RingMeetsOuter`, `RingMeetsRing`), and one where a single loop
+/// passes a point twice is check 9's `PinchCornerCrossed`. So a
 /// vertex read in band ahead of the answer is superseded. An unplaced
 /// vertex is exempt and passes, so a cycle no vertex places is exempt
 /// unless one read in band.
@@ -273,10 +273,58 @@ fn first_edge<T: Decide>(body: &Body<T>, cycle: &[HalfEdgeKey]) -> Option<EdgeKe
 }
 
 #[cfg(test)]
-#[allow(clippy::panic)]
+#[allow(clippy::panic, clippy::expect_used)]
 mod tests {
     use super::*;
     use crate::joint::{Deck, Winding};
+
+    /// **Two cycles crossing at points they share are check 9's
+    /// `RingMeetsOuter`**, so `read_cycle` never stands alone on them. A
+    /// cylinder sheet over `u ∈ [0, π]`, `v ∈ [0, 1]` carries a ring
+    /// through two of its outer corners, at `(0, 0)` and `(0, 1)`, with one
+    /// corner inside the sheet and one outside it: the ring crosses the
+    /// outer loop at those two points and nowhere else. Arm 1 of check 9's
+    /// contact half reads points, whatever the carrier, and refuses the
+    /// ring standing on the outer vertex.
+    #[test]
+    fn a_ring_crossing_its_outer_loop_at_shared_points_is_check_9s() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, plant_ring_face};
+        let tol = geom_core::Tol::witness();
+        let frame = CylFrame::canonical(1.0);
+        let mut body = Body::<f64>::new();
+        let face = cyl_wall_sheet(
+            &mut body,
+            frame,
+            (0.0, core::f64::consts::PI),
+            (0.0, 1.0),
+            tol,
+        );
+        let outer = body.get_face(face).expect("the sheet").outer;
+        let crate::entity::LoopBoundary::Cycle { first } =
+            body.get_loop(outer).expect("its outer loop").boundary
+        else {
+            panic!("the sheet's outer loop is a cycle")
+        };
+        let rim = [
+            frame.at(0.5, 0.5),
+            frame.at(0.0, 1.0),
+            frame.at(-0.5, 0.5),
+            frame.at(0.0, 0.0),
+        ];
+        plant_ring_face(&mut body, first, &rim, tol);
+        let errors = crate::validate_geometric(&body, tol).expect_err("the ring crosses");
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                crate::ValidationError::RingMeetsOuter {
+                    face: f,
+                    contact: crate::RingContact::Vertex { .. },
+                    ..
+                } if *f == face
+            )),
+            "check 9 refuses the ring on the outer vertex: {errors:?}"
+        );
+    }
 
     fn wound(u: i32) -> WoundCycle {
         let deck = Deck {
