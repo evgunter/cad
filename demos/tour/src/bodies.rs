@@ -572,4 +572,5 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     pncad::sweep::blend::fillet_edges(&finished("body", body, tol), &mouth, S::from_f64(0.05), tol)
         .expect("the sphere-cone mouth rim fillets")
         .body
+        .into_body()
 }
