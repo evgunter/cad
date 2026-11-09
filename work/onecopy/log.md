@@ -1240,3 +1240,13 @@
   - **PR 6655 (normal-refusals):** merged → 2b94b5e5. Main merged in at 09f8e6f1 (check, gates, fmt clean; geom-core+geom-brep+topo 6905/6905), gate green; disjoint from BOXES' 6639; combined check clean.
   - **6664 (point-equality):** re-merged main after 6655 (reduce.rs) at 9dd5e474. Clean; 8681/8681 over geom-core, geom-brep, topo, profile and viewer. Re-gating.
   - **6648 (carrier-standing-2):** re-merged main three times (6671, 6677 ring_path.rs, 6655 reduce/slit). The last merge's only conflict was the add/add of the normal-readers row; took main's (closed by 6655). Clean; 6912/6912. Re-gating at the new head.
+- 2026-11-09 20:05Z Reports and rulings:
+  - **lone-loop:** routed to `ContainError::EmptyLoop`'s Limit + KERNEL_OR_FILE_DEFECT_ENDING (the existing home). The gate question goes to option 2: move `From<PointInLoopError> for ContainError` out of boolean to a root file per [topo.homes]. A rise was refused, since that would be a gate-policy change.
+  - **kernel-built-recourse, skin: (a).** Built payloads; the not-a-point arms end in the loft-level scalar lever, the rest KERNEL_LIMIT / KERNEL_DEFECT. The carverest skin row may close with it.
+  - **6667 FULL: FIX.** Stale doc links; Desync-ending assert (M2 was green); a CarryError discriminant roster; the ~15 inline `Recourse: {RANGE_RECOURSE}` sites routed to RANGE_ENDING plus a gate; a Refused-renders-as-inner row; LoopTubeRefusal; S2/S6 recorded.
+  - **6678 (any-witness) opened:** measured_ends reports the worst end; three sites keep Any with reasons; the type route is filed P2. FULL review: session_013mPGJ1cVzXvXxQM81KFSNR.
+  - **T4 (local):** departures as WHICH approved (doc it First by construction). ChartRegionError's 16 classes are to be argued per variant in the PR body (DegenerateLoop/PeriodFold InBand, TrimOffFace, EdgeScale flagged).
+  - **6670 (shell-winding) FULL: MERGE.** I merged main (engine-leaves conflict: stands.rs to 21, per the gate). Clean; 6907/6907; re-gating at 4f48470d.
+  - **6665's fix pass** (9e9a1962) is red in CI: fuzz `a_wall_and_its_clockwise_twin_read_complementary_sides` at 1e-6, seed 0x2ca1e53eb1681d40. Back to its lane to reproduce on main vs branch.
+  - 6669, 6660 and 6666 are approved but overlap the moved main, so their lanes merge main and report.
+  - bracket-mid measured 0 bit moves over 16185 rows at both ε; ruling A stands.
