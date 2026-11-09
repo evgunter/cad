@@ -2992,7 +2992,8 @@ mod tests {
                 [r0.lo(), r1.hi(), z0.lo(), z1.hi()]
             }};
         }
-        let tol = 1e-9;
+        // The lean tips the wall's ends by its radius times the lean.
+        let tol = band.zero();
         for (scalar, [r0, r1, z0, z1]) in [
             ("f64", clip!(f64)),
             ("Interval", clip!(geom_core::interval::Interval)),
