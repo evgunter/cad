@@ -49,7 +49,7 @@ use pncad::document::{
     TraceCrossing, TracePassage, TraceRefusal, TraceSense, TraceStepFault, ValuePayload,
     WrittenLoopFault, resolve_written_loops,
 };
-use pncad::geom_core::{Arc2, Point2, Point3, Tol};
+use pncad::geom_core::{Arc2, Point2, Point3, Tol, Vec2};
 use pncad::profile::path::program::{FusedConstruction, replay_drawn};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
@@ -2440,31 +2440,15 @@ pub const TIP_MARK_PX: f64 = 20.0;
 /// the heading a reader wants there is the one it arrived on.
 ///
 /// **A separation that is not a finite length has no direction
-/// either**, which is the second thing the `None` arm says. Two
-/// flattened points a few hundred orders of magnitude apart differ by
-/// ordinary numbers whose `hypot` overflows: the length is then `inf`,
-/// which is greater than zero, and each component divided by it is
-/// `0.0`. A zero vector handed out under the name of a unit one is
-/// this arm not being taken — the caller draws its tip mark along
-/// nothing and cannot tell that from a mark it drew.
+/// either**, which is the second thing the `None` arm says: two
+/// flattened points far enough apart that a component of the
+/// separation overflows, or a poisoned point. A zero vector handed out
+/// under the name of a unit one is this arm not being taken — the
+/// caller would draw its tip mark along nothing and could not tell that
+/// from a mark it drew.
 ///
-/// **Unit LENGTH is a property of the separation and not of the
-/// guard.** What the guard buys is that no component exceeds a finite
-/// length, so each quotient lands in `[-1, 1]`; the pair is a unit
-/// vector to within a rounding step only while the length is a NORMAL
-/// number. Below that the division has no precision left to divide
-/// with: `dx = dy = 1e-320` answers a length of 1.000129 and
-/// `dx = dy = 5e-324` answers `[1.0, 1.0]`, of length 1.4142.
-///
-/// It is still a DIRECTION there, which is why this is stated rather
-/// than refused. Both components are divided by one length, and that
-/// length's own rounding is a common factor: over every separation
-/// whose components are the first 400 multiples of `5e-324` the angle
-/// is wrong by at most one rounding step (2.2e-16 rad) while the
-/// length is wrong by up to 41%. The caller scales a screen mark by
-/// the pair, so what a subnormal separation costs is a mark up to 41%
-/// long and pointing the right way — and `None`, this door's only
-/// other answer, would draw no mark at all.
+/// Every other separation, subnormal ones included, answers its unit
+/// direction to rounding ([`Vec2::direction_and_length`]'s prescale).
 pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]> {
     let (from, to) = if at + 1 < points.len() {
         (points[at], points[at + 1])
@@ -2475,11 +2459,8 @@ pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]>
     } else {
         return None;
     };
-    let (dx, dy) = (to[0] - from[0], to[1] - from[1]);
-    let length = dx.hypot(dy);
-    // Finite and non-zero is what makes each quotient below land in
-    // [-1, 1]; normal is what makes the pair unit length. See above.
-    (length.is_finite() && length > 0.0).then(|| [dx / length, dy / length])
+    let (direction, length) = Vec2::new(to[0] - from[0], to[1] - from[1]).direction_and_length();
+    (length.is_finite() && length > 0.0).then_some([direction.x, direction.y])
 }
 
 #[cfg(test)]
@@ -3299,6 +3280,34 @@ mod tests {
                 }
             ),
             "{refused}"
+        );
+    }
+
+    #[test]
+    fn a_heading_is_a_unit_direction_at_every_finite_separation() {
+        for (to, want) in [
+            ([1.0e-320, 1.0e-320], core::f64::consts::FRAC_1_SQRT_2),
+            ([5.0e-324, 5.0e-324], core::f64::consts::FRAC_1_SQRT_2),
+            ([1.0e300, 1.0e300], core::f64::consts::FRAC_1_SQRT_2),
+            ([3.0e-320, 0.0], 1.0),
+        ] {
+            let [x, y] = super::heading(&[[0.0, 0.0], to], 0, false).expect("a heading");
+            assert!(
+                (x - want).abs() <= 1.0e-15 && x.hypot(y) - 1.0 <= 1.0e-15,
+                "the separation {to:?} heads ({x}, {y}), not a unit direction along it"
+            );
+        }
+        for to in [[0.0, 0.0], [f64::MAX, f64::NAN]] {
+            assert_eq!(
+                super::heading(&[[0.0, 0.0], to], 0, false),
+                None,
+                "the separation {to:?} has no direction"
+            );
+        }
+        assert_eq!(
+            super::heading(&[[-f64::MAX, 0.0], [f64::MAX, 0.0]], 0, false),
+            None,
+            "a separation whose component overflows has no direction"
         );
     }
 }
