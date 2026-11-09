@@ -2320,7 +2320,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                     return Ok(None);
                 }
                 let (placement, _, _) =
-                    super::contain::curved_face_placement_decided(piercing_body, face, p, band)
+                    super::contain::placement_on_carrier(piercing_body, face, p, band)
                         .map_err(|e| super::reduce::esc(e, piercing, face))?;
                 let kind = kind_of(piercing_body, face);
                 match placement {
@@ -2331,7 +2331,8 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                         return Err(unbuilt(face, kind, false));
                     }
                     // Off the face, or on its boundary, which the sweep's
-                    // pierces and splits hold.
+                    // pierces and splits hold. OffCarrier → not held (the
+                    // residual above decided `p` on the carrier).
                     super::contain::CurvedPlacement::OffCarrier
                     | super::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
                 }
@@ -2369,10 +2370,10 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 // point lies in the face. On the face's boundary the point
                 // is a vertex or an edge of the piercing body: the sweep's
                 // pierces and splits hold it.
-                let (at, _) =
-                    super::contain::contfp_decided(piercing_body, face, plane.normal, p, band)
-                        .map_err(|e| super::reduce::esc(e, piercing, face))?;
-                if at != FaceContainment::In {
+                let (at, _, _) = super::contain::placement_on_carrier(piercing_body, face, p, band)
+                    .map_err(|e| super::reduce::esc(e, piercing, face))?;
+                // OffCarrier → not held (the side above decided `p` on the plane).
+                if at != super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) {
                     return Ok(None);
                 }
                 (plane.normal, None, side)
