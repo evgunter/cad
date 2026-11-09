@@ -636,12 +636,15 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
     }
 }
 
-/// **The parameter span of the line `origin + t·dir`** (`dir` unit)
-/// inside `region`, `None` where the line is clear of it.
+/// **The parameter span of `line`** (its `dir` unit) inside `region`,
+/// `None` where the line is clear of it. The foot is read on `dir` as
+/// unit, not through `Line::param`'s `/|dir|²`: `dir` is a cylinder's
+/// axis, unit by the frame convention, and the half-chord beside it is
+/// built in the same unit metres (row
+/// `an-axis-reads-its-direction-as-unit-by-convention-not-type`).
 fn region_span<T: Decide>(
     region: ExtentBall<T>,
-    origin: Point3<T>,
-    dir: Vec3<T>,
+    geom::Line { origin, dir }: geom::Line<T>,
     band: Band,
 ) -> Option<(T, T)> {
     let to = region.center() - origin;
@@ -864,11 +867,12 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     };
     // A ruling through `p`, cut to the region, where it reaches it.
     let ruling = |p: Point3<T>| {
-        region_span(pose.region, p, axis, band).map(|span| {
-            let line = Curve3::Line(geom::Line {
-                origin: p,
-                dir: axis,
-            });
+        let line = geom::Line {
+            origin: p,
+            dir: axis,
+        };
+        region_span(pose.region, line, band).map(|span| {
+            let line = Curve3::Line(line);
             let witness = line.eval(geom::mid_param(span.0, span.1));
             (line, span, witness)
         })

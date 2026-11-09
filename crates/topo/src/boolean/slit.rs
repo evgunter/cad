@@ -2157,7 +2157,7 @@ fn bend_across<T: Decide>(
     let toward = match *surface {
         geom::Surface::Plane { .. } => return Some(geom_core::Vec3::zero()),
         geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. } => {
-            surface.frame()?.axis_line().foot(p) - p
+            surface.axis_line()?.foot(p) - p
         }
         _ => return None,
     };

@@ -500,51 +500,18 @@ impl<T: Real> Bound<T> {
 fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
     match s {
         Surface::Plane { origin, normal, .. } => Some((x - *origin).dot(normal.normalize())),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some(
-            sheet_of(
-                geom::Line {
-                    origin: *origin,
-                    dir: axis.normalize(),
-                },
-                x,
-            )
-            .0 - *radius,
-        ),
+        Surface::Cylinder { radius, .. } => Some(sheet_of(s.axis_line()?.unit(), x).0 - *radius),
         Surface::Sphere { center, radius, .. } => Some((x - *center).norm() - *radius),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => {
-            let (rho, z) = sheet_of(
-                geom::Line {
-                    origin: *apex,
-                    dir: axis.normalize(),
-                },
-                x,
-            );
+        Surface::Cone { half_angle, .. } => {
+            let (rho, z) = sheet_of(s.axis_line()?.unit(), x);
             Some(rho * half_angle.cos() - z.abs() * half_angle.sin())
         }
         Surface::Torus {
-            center,
-            axis,
             major_radius,
             minor_radius,
             ..
         } => {
-            let (rho, z) = sheet_of(
-                geom::Line {
-                    origin: *center,
-                    dir: axis.normalize(),
-                },
-                x,
-            );
+            let (rho, z) = sheet_of(s.axis_line()?.unit(), x);
             Some(((rho - *major_radius).powi(2) + z.powi(2)).sqrt() - *minor_radius)
         }
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
@@ -579,60 +546,31 @@ fn surface_range<T: Real>(s: &Surface<T>, cell: &Cell<T>) -> Option<(T, T)> {
 /// about its own axis, with that axis.
 fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, geom::Line<T>)> {
     let one = T::one();
-    match s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some((
-            SheetFn::Line {
-                alpha: one,
-                beta: T::zero(),
-                gamma: -*radius,
-            },
-            geom::Line {
-                origin: *origin,
-                dir: axis.normalize(),
-            },
-        )),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Some((
-            SheetFn::Cone {
-                q: T::zero(),
-                cos: half_angle.cos(),
-                sin: half_angle.sin(),
-                sigma: one,
-            },
-            geom::Line {
-                origin: *apex,
-                dir: axis.normalize(),
-            },
-        )),
+    let f = match s {
+        Surface::Cylinder { radius, .. } => SheetFn::Line {
+            alpha: one,
+            beta: T::zero(),
+            gamma: -*radius,
+        },
+        Surface::Cone { half_angle, .. } => SheetFn::Cone {
+            q: T::zero(),
+            cos: half_angle.cos(),
+            sin: half_angle.sin(),
+            sigma: one,
+        },
         Surface::Torus {
-            center,
-            axis,
             major_radius,
             minor_radius,
             ..
-        } => Some((
-            SheetFn::Circle {
-                p: *major_radius,
-                q: T::zero(),
-                r: *minor_radius,
-                sigma: one,
-            },
-            geom::Line {
-                origin: *center,
-                dir: axis.normalize(),
-            },
-        )),
-        _ => None,
-    }
+        } => SheetFn::Circle {
+            p: *major_radius,
+            q: T::zero(),
+            r: *minor_radius,
+            sigma: one,
+        },
+        _ => return None,
+    };
+    Some((f, s.axis_line()?.unit()))
 }
 
 /// **A surface's distance read in the sheet about the unit axis `a`
@@ -674,7 +612,7 @@ fn sheet_fn<T: Decide + Bounds>(
             )
         }
         Surface::Cylinder { axis, radius, .. } => {
-            let foot = s.frame()?.axis_line().foot(centre);
+            let foot = s.axis_line()?.foot(centre);
             (
                 SheetFn::Line {
                     alpha: one,
@@ -989,8 +927,8 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
         Surface::Cylinder { radius, .. } => link
             .blend
             .surface
-            .frame()
-            .map(|f| (f.axis_line().foot(p), radius)),
+            .axis_line()
+            .map(|axis| (axis.foot(p), radius)),
         Surface::Torus {
             center,
             axis,
@@ -1121,13 +1059,13 @@ fn straight_reach<T: Decide + Bounds>(
             }
             skip.push(f);
         }
-        let sv = (pv - start).dot(tau);
+        let sv = geom::plane_offset(start, tau, pv);
         ends.push(match patch {
             // The band ends at the patch, between its anchors' stations,
             // and its material inside the patch is the patch's: the core
             // stops at the vertex.
             Some((_, anchors)) => {
-                let at = |x: &Point3<T>| (*x - start).dot(tau);
+                let at = |x: &Point3<T>| geom::plane_offset(start, tau, *x);
                 let first = anchors.first().map_or(sv, at);
                 let (lo, hi) = anchors
                     .iter()
@@ -1140,7 +1078,7 @@ fn straight_reach<T: Decide + Bounds>(
             None => (sv - pad, sv + pad, sv - pad, sv + pad),
         });
     }
-    let s0 = (start - Point3::origin()).dot(tau);
+    let s0 = geom::plane_offset(Point3::origin(), tau, start);
     let window = |lo: T, hi: T| {
         [
             (
@@ -1490,7 +1428,10 @@ fn corner_reach<T: Decide + Bounds>(
             for l in links {
                 let far = if l.start == v { l.end } else { l.start };
                 let tau = point_of(body, far)? - pv;
-                if (c - pv).dot(tau).lo() > 0.0 {
+                // A sign read alone: `tau` is the edge's chord, not unit,
+                // so the offset is not metres, and only its sign (which
+                // scaling `tau` keeps) is read.
+                if geom::plane_offset(pv, tau, c).lo() > 0.0 {
                     bounds.push((Role::Other, half_space(c, tau, pv)));
                 }
             }
