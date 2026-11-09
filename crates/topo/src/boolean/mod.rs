@@ -7722,9 +7722,14 @@ fn route_rim<T: Decide>(
         .map_err(in_band)?;
     match routing {
         rim_wedge::RimRouting::Seam => {
-            match rim_wedge::departures(a, fa, b, fb, rim_wedge::Locus::Rim(rim), band)
-                .map_err(in_band)?
-            {
+            match rim_wedge::departures(a, fa, b, fb, rim_wedge::Locus::Rim(rim), band).map_err(
+                |e| match e {
+                    rim_wedge::RimUnread::InBand(diag) => in_band(diag),
+                    rim_wedge::RimUnread::Fault(what) => {
+                        Refused(BooleanError::ClassificationInvariant { what })
+                    }
+                },
+            )? {
                 rim_wedge::Departure::Opposite => Ok(()),
                 rim_wedge::Departure::Same
                 | rim_wedge::Departure::Mixed
