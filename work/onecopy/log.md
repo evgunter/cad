@@ -1050,3 +1050,4 @@
   - 6653 unbuilt-recourse-2 (4f49253c, gate green) → FULL with session_013mPGJ3c41XYUDnxTmdvo5v.
   - 6656 coplanar-subdivision (f4622a8c; its row closes after 6642) → FULL with session_013mPGJ5pxD6AT4GPvwns2YC after 6642. Foot-and-pinch lane → onecopy/foot-followups (6644 F1–F4).
 - 16:15Z main-reds: the divisor measure showed no row moved (~45 reds identical on base, all main's); the K sweep is running.
+- 16:20Z Merged PR 6644 (foot-and-pinch) at gate-green a7fc0ad5 (FULL MERGE; disjoint from 6638; merge check clean).
