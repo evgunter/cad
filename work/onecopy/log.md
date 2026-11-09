@@ -1371,3 +1371,13 @@
     - Drop the k_stats NonzeroSign path.
     - Football's vacuous kind check.
     - The body counts.
+- 2026-11-10 01:25Z
+  - **Merged PR 6674 (main-reds K and m10, F39),** under the local-merge procedure: 12737/12737 over geom-core, geom-brep, topo, sweep and editor-core.
+  - **6687 adversarial FULL review: FIX** (0 MAJOR).
+    - Oracle: 14,112 cases with 0 wrong at f64 and Interval, against 4,417 on main; mutants M1–M3 red.
+    - MINOR-1: e2e, the P0 now refuses at split_edge's floor-metered interiority gate, a typed refusal rather than a split. Correct the claim, add a sibling row and an e2e pin; the split itself lands in edge-ends-turns.
+    - MINOR-2: the root-order chord collapse is unpinned (M4 survives).
+    - Plus style items, and the restfront check-9 row cites retired arc_trim.
+    - The end-gap `Margin::metered` allowlist gate (~10 rows) goes to edge-ends-turns.
+  - **main-reds: circle_lane is a real undercount.** The torus charge read p at |S + R² − r²|, cancelled 18:1 on a fat torus; it now charges radii whole. A PR is coming, with the class swept; it adds and closes my state-branch row.
+  - 6663's plate pin moved after a main merge; bisect running, no re-pin until the mover is named.
