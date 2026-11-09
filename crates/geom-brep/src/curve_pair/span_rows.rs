@@ -473,6 +473,63 @@ fn a_refusal_names_the_reading_it_rests_on() {
     );
 }
 
+/// **A window piece whose reach ties the ball's is kept, off the verdict
+/// log** (ledger row F37): an exact tie at `f64`, and an `Interval` reach
+/// astride the ball's, each keep the piece; a reach past it halves, and
+/// one short of it keeps. Red where a tie halves, or the choice reaches
+/// the log.
+#[test]
+fn a_window_piece_at_the_balls_reach_or_astride_it_is_kept() {
+    use geom_core::Interval;
+    let bracket = geom_core::k_stats::Bracket::open();
+    assert!(!super::span::halves(0.5, 0.5), "an exact tie keeps");
+    assert!(
+        super::span::halves(0.75, 0.5),
+        "a reach past the ball's halves"
+    );
+    assert!(
+        !super::span::halves(0.25, 0.5),
+        "a reach short of the ball's keeps"
+    );
+    assert!(
+        !super::span::halves(
+            Interval::from_bounds(0.4, 0.6),
+            Interval::from_bounds(0.5, 0.5)
+        ),
+        "a reach astride the ball's keeps"
+    );
+    let recorded = bracket.finish();
+    assert!(
+        recorded.verdicts.is_empty() && recorded.escalations.is_empty(),
+        "the halving choice reached the verdict log"
+    );
+}
+
+/// **A meeting's kernel fault names what faulted** ([`super::MeetKind`]):
+/// a carrier the table misread, or the readings that contradict, which
+/// every consumer of the group reports as given (`sweep`'s stacking door
+/// returns it, `ring_path` panics with it). Red where either text is
+/// rewritten or the two are swapped.
+#[test]
+fn a_meeting_fault_names_what_faulted() {
+    use super::{MeetFault, MeetKind};
+    for (fault, what) in [
+        (MeetFault::Desync, "a carrier the meeting table misread"),
+        (
+            MeetFault::Contradiction {
+                readings: "two readings",
+            },
+            "two readings",
+        ),
+    ] {
+        assert!(
+            matches!(fault.kind(), MeetKind::Fault { what: got } if got == what),
+            "{fault:?}: {:?}",
+            fault.kind()
+        );
+    }
+}
+
 /// **A point-on-span refusal stands as its carrier refusal does**, through
 /// the meeting's fault: an escalation (either kind) ranked by its margin,
 /// a walk past its budget unsettled, and a spline with no speed bound a

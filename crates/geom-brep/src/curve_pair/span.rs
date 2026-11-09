@@ -69,6 +69,18 @@ use geom_core::k_stats::{self, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
 
+/// **Whether [`Span::window_near`]'s walk halves a piece it did not
+/// clear**: its reach chosen past `reach`, the member's ball's radius
+/// and the escalation. A heuristic's choice ([`k_stats::choose`], ledger
+/// row F37), not a `<`: either answer is sound, since a kept piece only
+/// widens the window. **At a tie the piece is kept**.
+pub(super) fn halves<T: Decide>(piece: T, reach: T) -> bool {
+    match k_stats::choose("curve_pair_window_halve", Margin::of(piece - reach), "F37") {
+        k_stats::Pick::Positive => true,
+        k_stats::Pick::Negative | k_stats::Pick::Tie => false,
+    }
+}
+
 /// A carrier and a parameter interval on it (module docs).
 #[derive(Clone, Copy)]
 pub struct Span<'a, T: Real> {
@@ -331,12 +343,7 @@ impl<'a, T: Decide> Span<'a, T> {
             if positive("curve_pair_window_clear", p.gap - p.reach - reach) {
                 return geom::PieceStep::Settled;
             }
-            if k_stats::choose(
-                "curve_pair_window_halve",
-                Margin::of(p.reach - reach),
-                "F37",
-            ) == k_stats::Pick::Positive
-            {
+            if halves(p.reach, reach) {
                 return geom::PieceStep::Halve;
             }
             kept = Some(kept.map_or(p.span, |(from, _)| (from, p.span.1)));

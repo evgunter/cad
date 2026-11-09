@@ -549,6 +549,14 @@ mod tests {
                 TouchUnread::EdgeTangent(EdgeTangentUnread::NoCurve),
                 concat!(geom_core::not_yet_ending!(), " for this shape"),
             ),
+            (
+                TouchUnread::EdgeTangent(EdgeTangentUnread::NoReach),
+                concat!(geom_core::not_yet_ending!(), " for this shape"),
+            ),
+            (
+                TouchUnread::EdgeTangent(EdgeTangentUnread::NoLength),
+                concat!(geom_core::not_yet_ending!(), " for this shape"),
+            ),
             (TouchUnread::OffInterior, geom_core::kernel_defect_ending!()),
         ] {
             assert!(
@@ -556,6 +564,9 @@ mod tests {
                 "{why:?}: {}",
                 why.sentence()
             );
+        }
+        for (i, why) in EdgeTangentUnread::ALL.into_iter().enumerate() {
+            assert_eq!(why.listed(), i, "{why:?} stands at its place in the list");
         }
     }
 

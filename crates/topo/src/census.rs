@@ -7643,6 +7643,33 @@ mod self_touch;
 #[cfg(test)]
 mod self_touch_curved;
 
+/// [`TouchUnread::EdgeTangent`]'s sentence: the touch, and the reason's
+/// own recourse ([`crate::validate::EdgeTangentUnread::recourse`]), the
+/// touch lane's "for this shape" on a reading not built yet. Each is
+/// built once, over every reason
+/// ([`crate::validate::EdgeTangentUnread::ALL`]).
+fn edge_tangent_touch(why: crate::validate::EdgeTangentUnread) -> &'static str {
+    use crate::validate::EdgeTangentUnread;
+    static SENTENCES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
+        EdgeTangentUnread::ALL
+            .iter()
+            .map(|why| {
+                let recourse = why.recourse();
+                let qualifier = if recourse == geom_core::NOT_YET_ENDING {
+                    " for this shape"
+                } else {
+                    ""
+                };
+                format!(
+                    "a curved edge meets the point, and the check could not read its \
+                     direction there. {recourse}{qualifier}"
+                )
+            })
+            .collect()
+    });
+    SENTENCES[why.listed()].as_str()
+}
+
 impl TouchUnread {
     /// The cross-solid backstop's reason for a touch left unread.
     fn undecided(self) -> Undecided {
@@ -7721,20 +7748,7 @@ impl TouchUnread {
                 "an edge there is too long or too short to measure. Recourse: rescale the \
                  model so every edge length is an ordinary number"
             }
-            // The reason's own recourse ([`crate::validate::EdgeTangentUnread::recourse`]).
-            Self::EdgeTangent(crate::validate::EdgeTangentUnread::Unwalked(
-                geom::PieceWalkRefusal::Exhausted,
-            )) => concat!(
-                "a curved edge meets the point, and the check could not read its direction \
-                 there. Recourse: loosen the tolerance, ",
-                geom_core::kernel_limit_last_resort!()
-            ),
-            Self::EdgeTangent(_) => concat!(
-                "a curved edge meets the point, and the check could not read its direction \
-                 there. ",
-                geom_core::not_yet_ending!(),
-                " for this shape"
-            ),
+            Self::EdgeTangent(why) => edge_tangent_touch(why),
             Self::OffInterior => concat!(
                 "a curved edge meets the point, and two readings of where the point lies on \
                  it disagree. ",

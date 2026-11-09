@@ -720,6 +720,30 @@ pub enum EdgeTangentUnread {
 }
 
 impl EdgeTangentUnread {
+    /// **Every reason**, for a reader that renders each once (the touch
+    /// lane's sentences). [`Self::listed`] matches every arm, so a new
+    /// one does not compile until it is added here.
+    pub const ALL: [Self; 5] = [
+        Self::NoCurve,
+        Self::NoReach,
+        Self::NoLength,
+        Self::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        Self::Unwalked(geom::PieceWalkRefusal::Unbounded),
+    ];
+
+    /// Where this reason stands in [`Self::ALL`]: the exhaustive match
+    /// that keeps the list whole.
+    #[must_use]
+    pub const fn listed(self) -> usize {
+        match self {
+            Self::NoCurve => 0,
+            Self::NoReach => 1,
+            Self::NoLength => 2,
+            Self::Unwalked(geom::PieceWalkRefusal::Exhausted) => 3,
+            Self::Unwalked(geom::PieceWalkRefusal::Unbounded) => 4,
+        }
+    }
+
     /// What this reason is to a ladder, as each variant's docs state it.
     /// It never refuses the whole query.
     #[must_use]
