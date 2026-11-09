@@ -25,3 +25,12 @@ same shape.
 
 Both restate a partial copy of `geom_core`'s length rule plus its zero
 question, which `Vec3::checked_nonzero_length` answers.
+
+## What else moved (6647's review, NOTE-1)
+
+Beyond the overflow refusal, an *accepted* chord's value moves in the
+prescale band: a chord whose largest component lies in about
+`(1e-162, 1.5e-154)` now reads the prescaled length, where the plain
+norm lost bits to subnormal squares (the same class PR 6628 disclosed
+for its plain-norm sites). PR 6647's body said only the overflow side
+changed; this is the correction.

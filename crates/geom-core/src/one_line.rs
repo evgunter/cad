@@ -104,7 +104,7 @@ impl<T: Real> OnOneLine<T> {
     /// apart).
     #[must_use]
     pub fn mid(&self) -> T {
-        (self.lo() + self.hi()) * T::from_f64(0.5)
+        crate::mid_param(self.lo(), self.hi())
     }
 
     /// The gap past the charge: positive where the intervals lie apart
