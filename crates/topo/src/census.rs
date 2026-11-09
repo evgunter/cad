@@ -2530,11 +2530,7 @@ pub(crate) fn line_wedges<T: Decide>(
     // refuses only where no later one overlaps, each refusal kept by its
     // standing ([`WedgeRefusal::refusal`]). A pair's two wedges are its
     // probes' premise.
-    fn kept<A>(
-        e: (usize, WedgeRefusal),
-    ) -> Rung<Result<A, (usize, WedgeRefusal)>, (usize, WedgeRefusal)> {
-        geom_brep::ladder::rung_or_abort(e.1.refusal(), e, Err)
-    }
+    let kept = |e: (usize, WedgeRefusal)| Rung::refused(e, |e| e.1.refusal());
     let climbed = climb(Answering::Any, pairs.iter().enumerate(), |(i, pair)| {
         let at = pair.ends[0] + (pair.ends[1] - pair.ends[0]) * T::from_f64(0.5);
         let read = |key: EdgeKey| wedge(body, &geo[&key], at, band).map_err(|r| (i, r));
@@ -2550,7 +2546,11 @@ pub(crate) fn line_wedges<T: Decide>(
             .into_iter()
             .flat_map(|(w, p)| [p.own, p.next, p.inside].map(|v| (w, v)));
         let inner = climb(Answering::Any, probes, |(w, v)| {
-            probe_rung(strictly_inside(w, v, band).map_err(|r| (i, r)))
+            Rung::holds(
+                strictly_inside(w, v, band).map_err(|r| (i, r)),
+                (),
+                |e| e.1.refusal(),
+            )
         });
         match inner {
             Climb::Answered { answer: Ok(()), .. } => Rung::Answers(Ok(i)),
@@ -2563,19 +2563,6 @@ pub(crate) fn line_wedges<T: Decide>(
         Climb::Answered { answer, .. } => answer.map(Some),
         Climb::Passed => Ok(None),
         Climb::Undecided(e) => Err(e),
-    }
-}
-
-/// One probe of [`line_wedges`] as a rung: a probe strictly inside the
-/// other wedge answers, one not passes, and a refusal is kept by its
-/// standing ([`WedgeRefusal::refusal`]).
-fn probe_rung(
-    reading: Result<bool, (usize, WedgeRefusal)>,
-) -> Rung<Result<(), (usize, WedgeRefusal)>, (usize, WedgeRefusal)> {
-    match reading {
-        Ok(true) => Rung::Answers(Ok(())),
-        Ok(false) => Rung::Passes,
-        Err(e) => geom_brep::ladder::rung_or_abort(e.1.refusal(), e, Err),
     }
 }
 
@@ -11654,11 +11641,7 @@ impl InteriorsUnread {
 fn meeting_rung(
     reading: Result<bool, InteriorsUnread>,
 ) -> Rung<Result<bool, InteriorsUnread>, InteriorsUnread> {
-    match reading {
-        Ok(true) => Rung::Answers(Ok(true)),
-        Ok(false) => Rung::Passes,
-        Err(why) => why.rung(),
-    }
+    Rung::holds(reading, true, |why| Ok(why.refusal()))
 }
 
 /// What a search for a meeting read: its answer (a meeting, or a
@@ -21891,7 +21874,11 @@ mod line_wedges_ranking {
     use geom_brep::ladder::{Answering, Climb, climb};
     use geom_core::{Band, Indeterminate, MarginDiag};
 
-    use super::{EdgeKey, TouchUnread, WedgeRefusal, probe_rung};
+    use super::{EdgeKey, TouchUnread, WedgeRefusal};
+    type W = (usize, WedgeRefusal);
+    fn probe_rung(r: Result<bool, W>) -> geom_brep::ladder::Rung<Result<(), W>, W> {
+        geom_brep::ladder::Rung::holds(r, (), |e: &W| e.1.refusal())
+    }
 
     fn in_band() -> (usize, WedgeRefusal) {
         (

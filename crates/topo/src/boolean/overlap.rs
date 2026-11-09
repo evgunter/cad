@@ -569,25 +569,16 @@ fn piece_witness<T: Decide>(
     // every corner meeting the piece says the same "a witness"), so a
     // corner read in band refuses only where no later one meets it.
     let climbed = climb(Answering::Any, ys, |cy| {
-        witness_rung(corners_meet(mine, as_read(cy, y_rev), n, band))
+        Rung::holds(
+            corners_meet(mine, as_read(cy, y_rev), n, band),
+            true,
+            OverlapRefusal::refusal,
+        )
     });
     match climbed {
         Climb::Answered { answer, .. } => answer,
         Climb::Passed => Ok(false),
         Climb::Undecided(r) => Err(r),
-    }
-}
-
-/// One reading of whether a piece is a witness, as a rung of a search for
-/// one: a witness answers, none passes, and a refusal is kept by its
-/// standing ([`OverlapRefusal::refusal`]).
-fn witness_rung(
-    reading: Result<bool, OverlapRefusal>,
-) -> Rung<Result<bool, OverlapRefusal>, OverlapRefusal> {
-    match reading {
-        Ok(true) => Rung::Answers(Ok(true)),
-        Ok(false) => Rung::Passes,
-        Err(r) => rung_or_abort(r.refusal(), r, Err),
     }
 }
 
@@ -764,7 +755,7 @@ mod piece_ranking {
     fn a_corner_that_meets_answers_past_one_in_band() {
         use geom_brep::ladder::{Answering, Climb, climb};
         let read =
-            |r: Vec<Result<bool, OverlapRefusal>>| climb(Answering::Any, r, super::witness_rung);
+            |r: Vec<Result<bool, OverlapRefusal>>| climb(Answering::Any, r, |r| geom_brep::ladder::Rung::holds(r, true, OverlapRefusal::refusal));
         assert!(
             matches!(
                 read(vec![Err(in_band()), Ok(true)]),
