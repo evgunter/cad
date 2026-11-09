@@ -1150,3 +1150,6 @@
 - 20:45Z Merged PR 6659 (foot-followups) at gate-green d65359b7 (FULL MERGE; disjoint; merge check clean). 6671 to merge main. 6668 gate green, waiting on its FULL review.
 - 20:50Z 6641 delta fix at abbc61ea: checked by diff (one value-identical ±1 reroute plus 3 real rows opened, wording); gating, merge when green.
 - 20:55Z half-open-angles opened PR 6669 (held-points, stacked on 6654; Held<T> with constructed/decided/in_band; debug check unlogged under F38; placement_unheld; K dump identical) → FULL with session_013mPGJ3BVt7iJw5XModx26D. F38 collision with main-reds' unmerged carried_far → main-reds renumbers to F39.
+- 21:05Z Merged PR 6598 (pierce pass onto the ladder) at gate-green a5b3df2b → d1cda16c. Second delta MERGE; disjoint; merge check clean.
+- 21:05Z 6652 overlapped 6598 (ladder.rs conflict): kept 6652's of_option delegation and passed 6598's abort map, refused(e, standing, Err). Build, gates, fmt and 5817 tests clean; pushed 4508ef18 (the pre-push hook first caught fmt); re-gating.
+- 21:05Z 6655 overlapped 6598 (offer_rows, slit) → merged main; clean; re-gating.
