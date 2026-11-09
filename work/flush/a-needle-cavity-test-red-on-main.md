@@ -2,8 +2,9 @@
 id: a-needle-cavity-test-red-on-main
 kind: issue
 title: topo shell_role_reader's needle-cavity test is red on main
-status: open
+status: closed
 opened: 2026-11-01
+closed: 2026-11-09
 ---
 
 

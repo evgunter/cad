@@ -2,10 +2,11 @@
 id: main-red-dual-corpus-reshaped-rod-census-disagrees-at-1e-12
 kind: issue
 title: m10_di_dual_corpus at_rest_census_verdicts_match_f64_at_interval is red at ε 1e-12 on main: reshaped_rod's census disagrees between f64 and Interval
-status: open
+status: closed
 opened: 2026-10-28
 priority: P3
 cost: M
+closed: 2026-11-09
 ---
 
 

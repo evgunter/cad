@@ -2,9 +2,10 @@
 id: an-interval-census-of-the-reshaped-rod-finds-what-f64-does-not-at-1e-12
 kind: issue
 title: at 1e-12 the census door finds a defect on the reshaped rod at Interval that it does not find at f64
-status: open
+status: closed
 priority: P1
 opened: 2026-10-19
+closed: 2026-11-09
 ---
 
 
