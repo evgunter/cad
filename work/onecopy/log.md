@@ -1235,3 +1235,8 @@
     - path_parity's band-zero note in the body;
     - a main merge.
   - 6648: merged main into it (topo boolean overlap with 6671 et al.); check, gates and fmt clean; nextest running.
+- 2026-11-09 19:45Z Merges:
+  - **PR 6677 (arc-floor-straddle):** merged → 66348cba. Disjoint; combined check clean. The census lane goes on to 6666's merge-forward with the A/B witness pins and the in-span-decider row.
+  - **PR 6655 (normal-refusals):** merged → 2b94b5e5. Main merged in at 09f8e6f1 (check, gates, fmt clean; geom-core+geom-brep+topo 6905/6905), gate green; disjoint from BOXES' 6639; combined check clean.
+  - **6664 (point-equality):** re-merged main after 6655 (reduce.rs) at 9dd5e474. Clean; 8681/8681 over geom-core, geom-brep, topo, profile and viewer. Re-gating.
+  - **6648 (carrier-standing-2):** re-merged main three times (6671, 6677 ring_path.rs, 6655 reduce/slit). The last merge's only conflict was the add/add of the normal-readers row; took main's (closed by 6655). Clean; 6912/6912. Re-gating at the new head.
