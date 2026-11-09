@@ -1931,17 +1931,14 @@ fn placed<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     f: FaceKey,
-    q: Point3<T>,
+    held: crate::held::Held<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
     if let Some(view) = body.face(f) {
-        crate::held::Held::constructed(
-            q,
-            "the touch of a confirmed pair's cells, on both carriers",
-        )
-        .check(view.surface(), band);
+        held.check(view.surface(), band);
     }
+    let q = held.point();
     match planar_face(geo, f) {
         Some(g) => contain(body, g, q, band, errors).map(Some),
         None => read_containment(
@@ -1999,13 +1996,16 @@ fn in_overlap_closure<T: Decide>(
     let Some(contact) = pair_contact(body, geo, fx, fy, band) else {
         return unbuilt(errors);
     };
-    let Some(cx) = placed(body, geo, fx, q, band, errors)? else {
+    // The touch of the pair's cells lies on both faces' carriers: a
+    // confirmed pair is one carrier.
+    let touch = crate::held::Held::constructed(q, "the touch of a confirmed pair's cells");
+    let Some(cx) = placed(body, geo, fx, touch, band, errors)? else {
         return unbuilt(errors);
     };
     if cx == FaceContainment::Out {
         return Some(false);
     }
-    let Some(cy) = placed(body, geo, fy, q, band, errors)? else {
+    let Some(cy) = placed(body, geo, fy, touch, band, errors)? else {
         return unbuilt(errors);
     };
     if cy == FaceContainment::Out {
@@ -11853,7 +11853,10 @@ fn meets_at<T: Decide>(
     read: &mut Vec<ValidationError>,
 ) -> Result<bool, InteriorsUnread> {
     let before = read.len();
-    let Some(placed) = placed(body, geo, y, q, band, read) else {
+    // `q` is a point of `x`'s closure, on `y`'s carrier only within Door
+    // 1's levered carrier-equality band, which decided the two one carrier:
+    // held in band, not by construction.
+    let Some(placed) = placed(body, geo, y, crate::held::Held::in_band(q), band, read) else {
         return Err(escalated_since(read, before));
     };
     match placed.ok_or(InteriorsUnread::Unbuilt)? {

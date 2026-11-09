@@ -59,8 +59,11 @@ impl<T: Decide> Held<T> {
     }
 
     /// A point whose margin from the face's carrier the caller read in
-    /// band, and places all the same, refusing the coincidence after
-    /// (`boolean::vtxfac`'s held reading): not definitely off it.
+    /// band, and places all the same: not definitely off it.
+    /// `boolean::vtxfac`'s held reading, which refuses the coincidence
+    /// after; and the census's `meets_at`, whose point lies on another
+    /// face's carrier, one with this face's within Door 1's levered
+    /// carrier-equality band.
     pub(crate) fn in_band(at: Point3<T>) -> Self {
         Self {
             at,
@@ -80,6 +83,16 @@ impl<T: Decide> Held<T> {
     /// held in band. Skipped only where the residual is honestly
     /// unavailable: a poison residual, which a spline or approximated
     /// carrier always reads, having no implicit form.
+    ///
+    /// **No lever.** The residual is a length, the point's offset from
+    /// the carrier (linearized on a curved one), read against the band's
+    /// own lengths, so no angular arm scales it. What could make a held
+    /// point read past the zero band is the rounding of the point and of
+    /// the residual, which grows with the coordinates; they are bounded
+    /// by the session box (D4 ¶4, [`geom_core::tolerance::SESSION_BOX_EXTENT`],
+    /// 1e3 m), where that rounding (about `1e3 · 2⁻⁵²` m, 2e-13) is below
+    /// the zero band at every ratified ε. The probe that ruled this design
+    /// read every constructed point `Zero`, at both ε and at `Interval`.
     ///
     /// # Panics
     ///
