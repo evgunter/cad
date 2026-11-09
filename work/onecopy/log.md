@@ -1165,3 +1165,4 @@
 - 21:25Z 6648 head → 1a9b10d5 (a comment naming the DegenerateTorus gap); reviewer told; re-gating.
 - 21:30Z ladder lane opened PR 6675 (QML T2, fab85620; the lane misnumbered it 6643): crescent/walls_cross/path_parity ported; argmin filed; clears conditioning row → FULL with session_013mPGJ5anAaqvSq3TzpQnZG; gating.
 - 21:35Z 6648 delta: MERGE, but dirty vs main → lane merges main again and folds NOTE-2 (exhaustive guard on edge_tangent_reasons), the 4 'move the geometry' spellings → COINCIDENCE_RECOURSE, optionally a const match instead of the memo, and the sample wording.
+- 21:38Z 6648 at 1a9b10d5: MERGE stands (comment-only). The DegenerateTorus gap is scheduled via a normal-fault-kind row the length-rule lane files now. 6648 still dirty vs main (lane merging).
