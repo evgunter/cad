@@ -22,3 +22,5 @@ Found by the delta review of PR 6627 (`onecopy/census-rosters`, 4c9538aa). All N
 4. **Style.** The gate's Band-naming rule and the census's `row_like` rule are two lexical shape rules for one home. k_stats' header now states the contract both rely on.
 
 Nothing in the real tree hits these today: the census still reads the same 27 sites.
+
+**The FIX pass of PR 6640** also reads a closure by its own `|…|` head where an expression starts, scoped to its body; a method binds nothing; a text array or slice is predicate names (so `decide_across` is no row-taker). The class behind the three passes is filed as `the-census-lexical-scope-reader-keeps-minting-blind-spots`.
