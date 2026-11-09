@@ -1100,3 +1100,9 @@
   - held-points: (b) Held<T> with per-premise constructors and an unlogged debug_assert; unheld entry for spline_interior (6643's comment was wrong).
   - shell-winding: A (re-point the cavity test to ShellWinding; file a census-coverage row).
 - 18:15Z PR 6658 FULL: MERGE (counts derived, not fitted; K-lint rule 1 = 0; the (a1) wording cites the wrong rule; N2 sibling Any ladders; N3 thin close-out). Main overlapped chord_join.rs → merged (61381a3cd1b99ec679db5ac4bca3c780a94cd5f4); check, gates, topo 3761 and chord_join slow clean; re-gating.
+- 18:20Z Merged:
+  - PR 6653 (unbuilt-recourse-2) at gate-green 55d5dd6b → daf399e1. Disjoint from 6649; merge check clean.
+  - PR 6662 (viewer mate snap row → slow set) at gate-green e9c0f9f5 → da8673a6.
+- 18:20Z Follow-ups:
+  - 6598 lane: merge main and re-gate.
+  - unbuilt-recourse lane → onecopy/carry-notes: the Desync frame, Carry admitting unbuilt arms, two TubeRefusal enums, KnotVectorInvalid's two spellings, recourse return shapes.
