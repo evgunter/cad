@@ -1125,3 +1125,4 @@
 - 18:55Z main-reds: B′ done (k_stats::choose under F38; pin across carrier kinds; corpus 0 <unnamed>). The battery red bisects to ONEHOME's 6380, filed there.
 - 19:00Z Merged PR 6632 (bracket-mid) at gate-green 66aecfb3; main had not moved since. bracket-mid lane → restore the sentences in 6661.
 - 19:10Z Background merges done: 6652 b006ea4c, 6655 85f19ecf, 6650 7ca16ca0, all gating. 6598, 6660, 6663, 6664 and 6656 gates green, waiting on their reviews. 6658 and 6659 overlap 6632 now → merging main into both in the background.
+- 19:15Z Ev asked on [ev] 6570 'why do we want it as a single point?' → answered: the arc is the band's footprint (√(2z/κ), ε-dependent), a run adds two end band-decisions, and downstream it makes an ε-sized sliver edge. Offered C (a point plus the arc as positional uncertainty) as a later addition. Waiting on Ev.
