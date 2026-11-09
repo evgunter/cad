@@ -5,7 +5,7 @@ title: A bracket's middle is also spelled ½lo + ½hi and f64::midpoint, beside 
 status: open
 opened: 2026-11-09
 priority: P3
-cost: S
+cost: M
 ---
 
 
