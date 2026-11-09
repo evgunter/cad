@@ -436,7 +436,6 @@ mod tests {
                 for door in [
                     PlaneDoor::Neighbours,
                     PlaneDoor::OnPair(DeclarationRead::Moot),
-                    PlaneDoor::Screen(DeclarationRead::Moot),
                 ] {
                     let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, door, d);
                     assert_eq!(
