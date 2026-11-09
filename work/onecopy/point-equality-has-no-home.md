@@ -83,3 +83,17 @@ local helpers are gone:
 in every crate source, tests included. It has a planted fixture per
 spelling and controls for the readers, a single vector read zero, and a
 point against two scalars.
+
+**The review of PR 6664** found three gaps, all now fixed:
+- **A fifth production site**, `editor-core` `mate::corner`'s
+  `corner_frame_in` vertex lookup (`[q.x, q.y, q.z] == [p.x, p.y, p.z]`).
+  It is routed to `equals_exactly`.
+- **Three more spellings** were live: `.distance(…) == 0.0` (14 sites),
+  array-literal compares (2), and `assert_eq!` of two `to_array()`s (6),
+  among them `profile` `path`'s `!=`/`||` bits chain. They are routed,
+  and the gate now refuses them. It also refuses the forms it had listed
+  as gaps: `!=`, a reversed `0.0 == …`, `norm_squared()` and `<= 0.0`.
+- **A misplaced doc block**: the readers' block had split `Sub`'s doc
+  from its impl, and now sits before it.
+
+The geom-core pin now reads each coordinate in turn.
