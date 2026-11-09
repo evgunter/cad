@@ -45,7 +45,10 @@ re-posing that empties a file lowers or drops its row in the same change.
   rounding charge.
 - `topo::census`, `pierce_span` / `span_reach` / the curve-clear
   charges: the pierce parameter `r0 / (r0 − r1)` and its reach, charged
-  through the division by the lever.
+  through the division by the lever. `span_reach` also charges
+  `rounding_charge(|p₀| + len·|t|)`, a world-origin term that grows with
+  the edge's distance from the origin rather than with what it sums
+  (PR 6638's review).
 - `topo::boolean::solid_contain`: the ray–plane crossing's `slack`, over
   `denom` (a near-grazing ray), the wall roots' `over_root_slope`, and the
   torus roots' slack.
@@ -65,8 +68,11 @@ re-posing that empties a file lowers or drops its row in the same change.
   form changes the enclosure's function.
 - `topo::boolean::section_cert::ruling` (`Rounded` throughout, its own
   `CEILING_PAD`), `geom_brep::curve_pair::pose` and `pose::window`
-  (the window polynomials' `noise`, six of `pose`'s seven sites and all
-  of `window`'s), `geom_brep::half_angle`,
+  (`pose`'s sites are the gate's row for it; its line router's two
+  world-origin mints are scheduled by
+  `work/onecopy/the-line-router-charges-its-margins-with-world-origin-noise.md`,
+  and `window`'s polynomials read locally since PR 6525),
+  `geom_brep::half_angle`,
   `geom_brep::chart_singularity`, `topo::sector_shape`.
 - `geom_brep::props::curved::require_turn_read`: a sign of an exact norm
   of two cancelling tangents, which a charge holds off zero; owed a
