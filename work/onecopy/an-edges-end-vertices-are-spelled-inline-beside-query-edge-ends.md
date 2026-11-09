@@ -14,8 +14,10 @@ Found by the sweep of `the-curve-pair-units-follow-ups-from-its-review` item 1, 
 ## Narrowed (2026-11-06, `onecopy/topo-handles`)
 
 An edge's two end vertices now have one home per lookup tier:
-- `Body::edge_vertices` (`crates/topo/src/body.rs`, public): the starts of `he_plus` and `he_minus`, `None` for a stale key;
-- `query::edge_ends` (`crates/topo/src/query.rs`, crate-private): the same two links, a miss panics (D2 row 4).
+- `Body::edge_vertices` (`crates/topo/src/body.rs`, public): `he_plus`'s start and its end, read as `Body::half_edge_end` reads it (`next`'s start); `None` for a stale key;
+- `query::edge_ends` (`crates/topo/src/query.rs`, crate-private): the same reading through `query::half_edge_ends`, each hop a link, so a miss panics (D2 row 4).
+
+The one reading of a half-edge's end is `next`'s start, not the twin's start: tier 1 checks `end(he_plus) = start(he_minus)` against it (`Body::half_edge_end`'s docs).
 
 The inline spellings in topo, the boolean `reduce.rs` and `attach.rs` helpers, mesh's `chords::edge_vertices`, editor-core's `names::emit::edge_ends`, step-export's writer and every `[e.he_plus, e.he_minus].map(..start..)` / `start(e.he_plus) .. start(e.he_minus)` statement outside topo were repointed. The gate `scripts/gates/topology-reads-through-topo.sh` holds those two shapes in every root.
 
