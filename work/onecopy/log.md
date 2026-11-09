@@ -719,3 +719,8 @@
   - The doors are derived from geom_core::running's pub items.
 - 07:34Z Ruled for unbuilt-recourse: its six recourse classes are approved, and each defect class must cite its guard.
 - 07:35Z Ruled for bracket-mid (b): the home's body is the midpoint rule (f64::midpoint, on Real if generic), it keeps the bracket_mid name, all four forms route to it and are gated, and moves are reported under (a) and (b).
+- 07:40Z Merged:
+  - 6602 at 7490947a. Its gate was green at d6c9e4aa; main had moved only by STATUS.md, and the workspace check passed.
+  - 6599 at 232df13f. Its gate was green at 8bb6cd31; it was disjoint from main, and the workspace check passed.
+- 07:40Z branch-band is a design fork. The draw is on `analysis/design-fork/onecopy-branch-band`: two designers, labels A and B, dispatched concurrently.
+  - The lane lands only its pinned probe row and a separate row for the h=0.2 escalation.
