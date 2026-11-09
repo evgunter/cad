@@ -476,7 +476,8 @@ struct FaceGeo<T: Real> {
     key: FaceKey,
     origin: Point3<T>,
     normal: Vec3<T>,
-    /// Every vertex on the face's outer loop and rings.
+    /// Every vertex on the face's outer loop and rings, a lone one
+    /// included.
     boundary: BTreeSet<VertexKey>,
     /// The face's loops, each its vertices in walk order (the outer
     /// loop first) — the order a corner is read in.
@@ -485,8 +486,8 @@ struct FaceGeo<T: Real> {
     /// face is the planar polygon its vertices bound, so it lies in
     /// their convex hull.
     polygon: bool,
-    /// Every loop walked and every half-edge resolved: a face tier 1
-    /// passed always is.
+    /// Every loop a cycle walked and every half-edge resolved: a face
+    /// tier 1 passed is, unless a loop of it is a lone vertex.
     walked: bool,
 }
 
@@ -2558,7 +2559,7 @@ fn wedges_overlap<P, W, D>(
     probes: impl Fn(&W) -> [D; 3],
     inside: impl Fn(&W, D) -> Result<bool, WedgeRefusal>,
 ) -> Result<Option<usize>, (usize, WedgeRefusal)> {
-    let kept = |e: (usize, WedgeRefusal)| Rung::refused(e, |e| e.1.refusal());
+    let kept = |e: (usize, WedgeRefusal)| Rung::refused(e, |e| e.1.refusal(), Err);
     let climbed = climb(Answering::Any, pairs.iter().enumerate(), |(i, pair)| {
         let a = match wedge(pair, 0) {
             Ok(a) => a,
@@ -2717,11 +2718,22 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         let mut walked = true;
         // A loop this cannot walk contributes no boundary vertex, and
         // the face is no polygon the touch analysis reads.
-        for cycle in body.unchecked_face_cycles(face) {
-            let Ok(cycle) = cycle else {
-                polygon = false;
-                walked = false;
-                continue;
+        for read in body.unchecked_face_boundary(face) {
+            let cycle = match read {
+                Ok(crate::live::UncheckedLoop::Cycle(cycle)) => cycle,
+                // A lone vertex bounds the face, but is no ring of the
+                // polygon readings, which keep their unwalked refusal.
+                Ok(crate::live::UncheckedLoop::Lone(vertex)) => {
+                    boundary.insert(vertex);
+                    polygon = false;
+                    walked = false;
+                    continue;
+                }
+                Err(_) => {
+                    polygon = false;
+                    walked = false;
+                    continue;
+                }
             };
             let mut ring = Vec::with_capacity(cycle.len());
             for he in cycle {
@@ -4204,15 +4216,7 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     band: Band,
 ) -> Option<Result<bool, Indeterminate>> {
     use geom_brep::variety::{Piece, Variety};
-    if !matches!(
-        surface,
-        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
-    ) {
-        return None;
-    }
-    // A cylinder or a cone is a member whatever the ring site reads, since
-    // only a torus asks it.
-    let variety = Variety::of(surface, name, band).ok()??;
+    let variety = Variety::ruled(surface)?;
     Some(
         variety
             .read_piece(&[p0, p1, p0.mid(p1)], name, band)
@@ -4289,9 +4293,7 @@ mod variety_reading_rows {
             Point3::new(0.0, -1.2, 0.0),
             Point3::new(1.2, 0.0, 0.0),
         ];
-        let variety = geom_brep::variety::Variety::of(&sphere, "test_row", band())
-            .unwrap()
-            .unwrap();
+        let variety = geom_brep::variety::Variety::quadric(&sphere).unwrap();
         assert_eq!(
             variety.read_piece(&samples, "test_row", band()),
             Ok(geom_brep::variety::Piece::Off)
@@ -8521,7 +8523,7 @@ fn sectors_of_faces<F>(
 ) -> Option<TouchUnread> {
     let climbed = climb(Answering::First, faces, |face| match read(face) {
         Ok(()) => Rung::Passes,
-        Err(why) => geom_brep::ladder::rung_or_abort(why.refusal(), why, |why| why),
+        Err(why) => Rung::refused(why, |why| why.refusal(), core::convert::identity),
     });
     match climbed {
         Climb::Passed => None,
@@ -11809,18 +11811,14 @@ fn normal_at<T: Decide>(
     }
 }
 
-/// Each vertex on `f`'s boundary, outer loop and rings, once: exactly
-/// the vertices [`snapshot`] records into `vertex_faces`. A loop that
-/// does not walk contributes none.
+/// Each vertex on `f`'s boundary, outer loop and rings, a lone one
+/// included, once: exactly the vertices [`snapshot`] records into
+/// `vertex_faces`. A loop that does not walk contributes none.
 fn face_vertices<T: Real>(body: &Body<T>, f: FaceKey) -> BTreeSet<VertexKey> {
     let Some(face) = body.get_face(f) else {
         return BTreeSet::new();
     };
-    body.unchecked_face_cycles(face)
-        .filter_map(Result::ok)
-        .flatten()
-        .filter_map(|he| body.half_edges.get(he).map(|h| h.start))
-        .collect()
+    body.unchecked_face_vertices(face).collect()
 }
 
 /// Whether `x`'s interior and `y`'s meet near `q`, a point of `x`'s
@@ -21790,6 +21788,39 @@ mod interiors_ranking {
             meeting_found(climb(Answering::Any, [Ok(false), Ok(false)], meeting_rung)),
             Ok(false),
             "every reading apart certifies apart"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod lone_vertex_rows {
+    use geom_core::Tol;
+
+    use crate::test_support_fixtures::box_with_a_lone_ring;
+
+    /// **A face's boundary holds its lone vertex**: the snapshot's
+    /// planar face, its `vertex_faces` incidence and [`super::face_vertices`]
+    /// each name the vertex of a one-vertex ring on a box's top face. Red
+    /// where they were read off the face's half-edges.
+    #[test]
+    fn a_faces_boundary_holds_its_lone_vertex() {
+        let (body, top, lone) = box_with_a_lone_ring(Tol::witness());
+        let geo = super::snapshot(&body);
+        let face = super::planar_face(&geo, top).expect("the top face is planar");
+        assert!(
+            face.boundary.contains(&lone),
+            "the snapshot's boundary holds it"
+        );
+        assert!(
+            geo.vertex_faces
+                .get(&lone)
+                .is_some_and(|faces| faces.contains(&top)),
+            "the incidence names the top face for it"
+        );
+        assert!(
+            super::face_vertices(&body, top).contains(&lone),
+            "face_vertices holds it"
         );
     }
 }

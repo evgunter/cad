@@ -188,8 +188,18 @@ fn run_from(
     (island, hair): (&Island, bool),
     r: usize,
 ) -> ((HalfEdgeKey, HalfEdgeKey), IslandEdge) {
-    let n = island.edges.len();
     assert_island_in_face(body, face, island, hair);
+    run_from_unchecked(body, (face, surface), island, r)
+}
+
+/// [`run_from`] without its check that the island lies in the face.
+fn run_from_unchecked(
+    body: &mut Body<f64>,
+    (face, surface): (FaceKey, SurfaceKey),
+    island: &Island,
+    r: usize,
+) -> ((HalfEdgeKey, HalfEdgeKey), IslandEdge) {
+    let n = island.edges.len();
     let ring = empty_ring(body, face, island.corners[r]);
     let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
     for k in 0..n - 1 {
@@ -328,6 +338,44 @@ fn a_cone_ring_run_winds_its_island_as_the_oracle_does() {
         }
     }
     assert!(seen[0] > 0 && seen[1] > 0, "both windings read: {seen:?}");
+}
+
+/// **An island that leaves its face is refused, not read by its first
+/// reference**: a sheet narrower than the lune, whose outer-loop corners
+/// lie on both sides of it (by its membership oracle), reads opposite
+/// windings from its references, and the reading refuses with
+/// `SectionInvariant` rather than answering with whichever reference it
+/// asks first.
+#[test]
+fn an_island_that_leaves_its_face_is_refused() {
+    let f = frames()[0];
+    let surface = cone(f, false);
+    let island = lune(f, &surface, 1.0);
+    let mut planted = 0;
+    for (a, hi) in [
+        (0.05, 0.6),
+        (0.1, 0.9),
+        (0.2, 1.2),
+        (0.3, 1.5),
+        (0.1, 2.0),
+        (0.4, 2.5),
+    ] {
+        let corners = [(0.05, -a), (0.05, a), (hi, -a), (hi, a)].map(|(h, az)| on_nappe(f, h, az));
+        let inside = corners.iter().filter(|&&p| (island.inside)(p)).count();
+        if inside == 0 || inside == corners.len() {
+            continue;
+        }
+        let (mut body, face, key) = sheet_up_to(f, surface.clone(), true, ((-a, a), hi));
+        let (run, closing) = run_from_unchecked(&mut body, (face, key), &island, 0);
+        let spec = edge_spec(&mut body, key, &closing);
+        let got = path_island_winding(&body, face, run, Some(&spec), band());
+        assert!(
+            matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
+            "a sheet of half-width {a} up to {hi}, {inside} of its corners in the lune: {got:?}"
+        );
+        planted += 1;
+    }
+    assert!(planted > 0, "some sheet's corners straddle the lune");
 }
 
 /// A point of the sheet inside `island` and one outside it, off its

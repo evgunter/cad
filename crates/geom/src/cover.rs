@@ -602,15 +602,24 @@ impl<T: Real> Cover<T> {
     /// over `window`: a circle's or an ellipse's on its [`Frame`]. Any
     /// frame and either sign. `None` for a datum that is not a finite
     /// number.
+    ///
+    /// The arc over `window` meets the whole conic's (`[0, τ]`): both
+    /// hold every point of the arc, and they round their reads apart
+    /// (the window's ends and crests against the whole turn's), so the
+    /// window's piece alone can read a far distance or a support an ulp
+    /// past the whole conic's. The meet reads the lesser of each, so no
+    /// reader of an arc's cover reads past its whole conic.
     pub fn arc(frame: &Frame<T>, (semi_u, semi_v): (T, T), window: ParamWindow<T>) -> Option<Self> {
-        (finite_frame(frame) && finite(&[semi_u, semi_v]) && window.finite()).then(|| {
+        let piece = |window| {
             Self::piece(Piece::Arc(Arc {
                 frame: *frame,
                 semi_u,
                 semi_v,
                 window,
             }))
-        })
+        };
+        (finite_frame(frame) && finite(&[semi_u, semi_v]) && window.finite())
+            .then(|| piece(window).meet(piece(ParamWindow::new(T::zero(), T::tau()))))
     }
 
     /// The axial slab: the solid cylinder of radius `|radius|` about the

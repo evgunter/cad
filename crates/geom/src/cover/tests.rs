@@ -2020,3 +2020,81 @@ fn a_nan_bound_in_one_lane_poisons_the_whole_box() {
     };
     assert_eq!(super::whole_poison(finite), finite, "a finite box is kept");
 }
+
+/// **An arc's cover never reads past its whole conic's**: the window's
+/// piece alone rounds its far distance from the conic's centre an ulp
+/// above the whole turn's piece on these arcs (`span_reach_hunt`'s seeds
+/// `0xe429b8c6a93f17ee` and `0x52cefed7fc20b9ed`), and [`Cover::arc`]'s
+/// meet with the whole conic reads the lesser.
+#[test]
+fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
+    let rows = [
+        (
+            [
+                0.830_304_973_648_282_8,
+                -0.416_467_848_902_350_56,
+                0.370_335_228_631_537_84,
+            ],
+            [
+                -0.828_978_939_411_948_3,
+                0.480_638_571_787_519,
+                -0.285_972_868_156_221,
+            ],
+            [
+                0.307_146_392_996_351_8,
+                0.818_559_802_054_640_1,
+                0.485_408_017_784_625_2,
+            ],
+            (866.025_403_784_438_6, 1000.0),
+            (-4.616_193_293_956_75, -3.767_850_344_482_187_4),
+        ),
+        (
+            [0.0, 0.0, 0.0],
+            [
+                0.414_840_037_039_107_05,
+                -0.735_167_300_097_304_7,
+                -0.536_131_312_774_241_9,
+            ],
+            [
+                0.119_112_848_247_196_9,
+                -0.540_275_439_858_399,
+                0.833_015_353_080_754_3,
+            ],
+            (1000.0, 141.067_359_796_658_93),
+            (-4.180_645_483_569_217, 8.234_684_407_467_041),
+        ),
+    ];
+    let v = |[x, y, z]: [f64; 3]| Vec3::new(x, y, z);
+    for (origin, axis, u_ref, (a, b), (t0, t1)) in rows {
+        let [x, y, z] = origin;
+        let centre = Point3::new(x, y, z);
+        let Curve3::Ellipse(ellipse) = Curve3::Ellipse(crate::Ellipse::new(
+            Frame::new(centre, v(axis), v(u_ref)),
+            a,
+            b,
+        )) else {
+            unreachable!()
+        };
+        let site = Site::Point(centre);
+        let got = Cover::arc(
+            &ellipse.frame,
+            (ellipse.semi_u, ellipse.semi_v),
+            ParamWindow::new(t0, t1),
+        )
+        .unwrap()
+        .distance_range(&site)
+        .1;
+        let whole = Cover::piece(super::Piece::Arc(super::Arc {
+            frame: ellipse.frame,
+            semi_u: ellipse.semi_u,
+            semi_v: ellipse.semi_v,
+            window: ParamWindow::new(0.0, TAU),
+        }))
+        .distance_range(&site)
+        .1;
+        assert!(
+            got <= whole,
+            "the arc over [{t0}, {t1}]: its cover reads {got}, past its whole conic's {whole}"
+        );
+    }
+}
