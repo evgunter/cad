@@ -359,7 +359,7 @@ fn quadric_ladder<T: Decide>(
             radius,
             ..
         } => (
-            geom_brep::conic_cylinder_harmonics(conic, origin, axis, radius),
+            geom_brep::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
             BooleanDecision::ArcCylinderRoots,
             (origin, Some(axis), radius),
         ),
@@ -449,7 +449,14 @@ fn cone_roots<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
-    let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
+    let h = geom_brep::conic_cone_harmonics(
+        conic,
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        },
+        half_angle,
+    );
     let noise = rounding_charge(h.terms) / h.per;
     if let ThroughTheApex::Read(found) =
         through_the_apex(conic, (apex, axis, half_angle), &h, noise, (t0, t1), band)
@@ -474,8 +481,17 @@ fn cone_roots<T: Decide>(
         }
         found
     } else {
-        let placed =
-            |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
+        let placed = |theta: T| {
+            geom_brep::conic_cone_residual(
+                conic,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle,
+                theta,
+            )
+        };
         let meter = RootSlack {
             row: CONE_ROOT_SLACK,
             residual: &placed,
@@ -597,7 +613,17 @@ fn through_the_apex<T: Decide>(
     // whole-bracket slope bound in place of their window's). A shallow
     // crossing reads neither, and refuses as the tangency it is near.
     let width = T::from_f64(64.0) * T::from_f64(band.escalate()) / conic.speed_lo();
-    let residual = |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
+    let residual = |theta: T| {
+        geom_brep::conic_cone_residual(
+            conic,
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            half_angle,
+            theta,
+        )
+    };
     let f = |theta: T| {
         let (s, c) = theta.sin_cos();
         let (s2, c2) = (two * theta).sin_cos();

@@ -11317,7 +11317,16 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
             axis,
             half_angle,
             ..
-        } => crate::implicit::cone_elevation(apex, axis, half_angle, None, p).abs(),
+        } => crate::implicit::cone_elevation(
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            half_angle,
+            None,
+            p,
+        )
+        .abs(),
         Surface::Torus {
             center,
             axis,

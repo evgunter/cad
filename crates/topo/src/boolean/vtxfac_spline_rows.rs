@@ -344,7 +344,7 @@ fn ring_at(mut body: Body<f64>, face: FaceKey, p: Point3<f64>, what: &str) -> Bo
         .get_point(body.get_vertex(vertex).unwrap().point)
         .unwrap();
     assert!(
-        [at.x, at.y, at.z] == [p.x, p.y, p.z],
+        at.equals_exactly(p),
         "{what}: the ring vertex sits at {at:?}, not {p:?}"
     );
     body
