@@ -631,13 +631,7 @@ fn a_region_bounded_off_one_plane_is_carried_about_its_own_point() {
     let planes: Vec<topo::FaceKey> = far
         .iter()
         .copied()
-        .filter(|&f| {
-            let face = body.get_face(f).unwrap();
-            matches!(
-                body.get_surface(face.surface).unwrap(),
-                geom::Surface::Plane { .. }
-            )
-        })
+        .filter(|&f| matches!(body.face_surface(f).unwrap(), geom::Surface::Plane { .. }))
         .collect();
     assert_eq!(planes.len(), 2, "both roof faces are in the far region");
     let carried = topo::mass_properties(

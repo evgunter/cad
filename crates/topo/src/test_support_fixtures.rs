@@ -69,7 +69,7 @@
 #![allow(dead_code)] // key bundles expose every minted key; a consumer picks what it needs
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use crate::{Body, FaceKey, HalfEdgeKey, LoopBoundary};
+use crate::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary};
 
 use crate::construction::{
     FaceSurface, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
@@ -894,13 +894,12 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
     tol: Tol,
 ) {
     let band = Band::linear(tol).unwrap();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (edge_key, edge) in edges {
+    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    for edge_key in edges {
         let (s1, s2) = crate::readback::edge_sides(body, edge_key)
             .unwrap()
             .surfaces();
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let (start, end) = crate::query::edge_ends(body, edge_key);
         let p0 = *body
             .get_point(body.get_vertex(start).unwrap().point)
             .unwrap();
@@ -935,13 +934,12 @@ pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRes
     tol: Tol,
 ) -> (Body<T>, Vec<crate::ValidationError>) {
     let mut body = body.clone();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (edge_key, edge) in &edges {
+    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    for edge_key in &edges {
         let (s1, s2) = crate::readback::edge_sides(&body, *edge_key)
             .unwrap()
             .surfaces();
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let (start, end) = crate::query::edge_ends(&body, *edge_key);
         let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let mut spec = EdgeCurveSpec::line_between(point(start), point(end));
         spec.description = EdgeDescriptionSpec::OnPair {
@@ -952,7 +950,7 @@ pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRes
     }
     let want = edges
         .into_iter()
-        .map(|(edge, _)| crate::ValidationError::TransverseNotIntrinsic { edge })
+        .map(|edge| crate::ValidationError::TransverseNotIntrinsic { edge })
         .collect();
     (body, want)
 }

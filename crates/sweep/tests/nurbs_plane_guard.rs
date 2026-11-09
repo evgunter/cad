@@ -73,8 +73,7 @@ fn lily(tol: Tol) -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
 }
 
 fn kind(body: &Body<f64>, face: topo::FaceKey) -> geom::SurfaceKind {
-    let fd = body.get_face(face).expect("a reported face resolves");
-    body.get_surface(fd.surface)
+    body.face_surface(face)
         .expect("its surface resolves")
         .kind()
 }
@@ -143,7 +142,7 @@ fn a_plane_cutting_the_blades_loft_clears() {
     let (leaf, _) = lily(tol);
     let walls: Vec<Surface<f64>> = leaf
         .faces()
-        .filter_map(|(_, f)| match leaf.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match leaf.face_surface(fk) {
             Some(s @ Surface::Nurbs(_)) => Some(s.clone()),
             _ => None,
         })
@@ -188,8 +187,8 @@ fn a_plane_cutting_the_blades_loft_clears() {
 fn cap_and_walls(body: &Body<f64>) -> (Surface<f64>, Vec<Surface<f64>>) {
     let mut cap = None;
     let mut walls = Vec::new();
-    for (_, face) in body.faces() {
-        match body.get_surface(face.surface) {
+    for (fk, _) in body.faces() {
+        match body.face_surface(fk) {
             Some(s @ Surface::Plane { origin, normal, .. })
                 if normal.y.abs() < 1e-9 && normal.z.abs() < 1e-9 && origin.x.abs() < 1e-9 =>
             {
@@ -355,7 +354,7 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
     let blade = raised_leaf(tol);
     let (ridge_face, ridge) = blade
         .faces()
-        .filter_map(|(k, f)| match blade.get_surface(f.surface) {
+        .filter_map(|(k, _)| match blade.face_surface(k) {
             Some(s @ Surface::Nurbs(n)) => {
                 let top = n.control().iter().map(|p| p.z).fold(f64::MIN, f64::max);
                 Some((k, s.clone(), top))
@@ -420,7 +419,7 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
     let floor = |block: &Body<f64>| {
         block
             .faces()
-            .find_map(|(k, f)| match block.get_surface(f.surface) {
+            .find_map(|(k, _)| match block.face_surface(k) {
                 Some(s @ Surface::Plane { origin, normal, .. })
                     if normal.z.abs() > 0.5 && (origin.z - h).abs() < 1e-12 =>
                 {

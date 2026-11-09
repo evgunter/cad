@@ -913,7 +913,7 @@ mod kernel {
         /// `TraceStepFault`'s arms, for the `Trace/` rows.
         pub(super) const TRACE_STEP_FAULT: TraceStepFault = [
             Undrawn, Unevaluated, NoSuchFace, NoPen, NoHeading, NotARun, OffTrace, NoTrace, NoSuchCrossing,
-            NoTangent, Unreached, Carrier,
+            NoTangent, Unreached, Carrier, Uncovered,
         ];
     }
 
@@ -4517,6 +4517,18 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         .collect()
 }
 
+/// A face with no cover: the Euler `mvfs` seed's one face, on the
+/// all-poison NURBS placeholder.
+fn uncovered_face() -> topo::FaceUncovered {
+    use topo::construction::Construct;
+    let mut body = topo::Body::<f64>::new();
+    let made = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+        .expect("the seed vertex-face-shell");
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band");
+    topo::face_cover(&body, made.face, band).expect_err("the placeholder has no cover")
+}
+
 /// A profile step reading a trace, refusing each way it can.
 fn trace() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{TraceCrossing, TracePassage, TraceRefusal, TraceStepFault as F};
@@ -4569,6 +4581,7 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
                 row: "test_meter",
             })),
         ),
+        ("Uncovered", F::Uncovered(uncovered_face())),
     ];
     faults
         .into_iter()

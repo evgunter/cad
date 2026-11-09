@@ -7499,7 +7499,7 @@ fn glued_face<T: Real>(
 ) -> Result<(geom::Surface<T>, bool), BooleanError> {
     let invalid = |what| BooleanError::InvalidInput { operand, what };
     let face = body
-        .passed_face(f)
+        .face(f)
         .ok_or_else(|| invalid("a glued face's key does not resolve"))?;
     Ok((face.surface().clone(), face.sense()))
 }
@@ -7721,9 +7721,14 @@ fn route_rim<T: Decide>(
         .map_err(in_band)?;
     match routing {
         rim_wedge::RimRouting::Seam => {
-            match rim_wedge::departures(a, fa, b, fb, rim_wedge::Locus::Rim(rim), band)
-                .map_err(in_band)?
-            {
+            match rim_wedge::departures(a, fa, b, fb, rim_wedge::Locus::Rim(rim), band).map_err(
+                |e| match e {
+                    rim_wedge::RimUnread::InBand(diag) => in_band(diag),
+                    rim_wedge::RimUnread::Fault(what) => {
+                        Refused(BooleanError::ClassificationInvariant { what })
+                    }
+                },
+            )? {
                 rim_wedge::Departure::Opposite => Ok(()),
                 rim_wedge::Departure::Same
                 | rim_wedge::Departure::Mixed
@@ -7788,7 +7793,7 @@ fn witness_span<T: Decide>(
     let at = line.param(Point3::origin());
     let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
         let invalid = |what| BooleanError::InvalidInput { operand, what };
-        body.passed_face(f)
+        body.face(f)
             .ok_or(invalid("declared face's boundary is unwalkable"))?;
         let cover = crate::cover::face_cover(body, f, band)
             .map_err(|_| invalid("a face of the pair has no cover to meter the tangent witness"))?;
@@ -8122,7 +8127,7 @@ fn validate_declarations<T: Decide>(
     // typed; every later read of it is proven.
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let surface = body
-            .passed_face(f)
+            .face(f)
             .map(|f| f.surface())
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         if carrier_eq::in_inventory(surface.kind()) {

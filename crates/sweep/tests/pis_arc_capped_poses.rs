@@ -345,9 +345,9 @@ type FaceRow<'a> = (
 fn plane_face(body: &Body<f64>, at: Point3<f64>, normal: Vec3<f64>) -> topo::FaceKey {
     let hits: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal: n, .. })
                     if n.cross(normal).norm() < 1e-12 && (at - *origin).dot(*n).abs() < 1e-12
             )
@@ -586,8 +586,11 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
 
     // The face's boundary, sampled from each edge's carrier, in the
     // plane's (across, up) coordinates.
-    let loops: Vec<_> = core::iter::once(data.outer)
-        .chain(data.rings.iter().copied())
+    let loops: Vec<_> = cavity
+        .face(spiric_face)
+        .expect("face")
+        .loops()
+        .map(|(lk, _, _)| lk)
         .collect();
     let mut segments = Vec::new();
     let mut spiric = None;
@@ -1206,8 +1209,7 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
     for case in tilted_cut_cases() {
         let mut sections = 0;
         for (key, face) in case.body.faces() {
-            let Some(geom::Surface::Plane { origin, normal, .. }) =
-                case.body.get_surface(face.surface)
+            let Some(geom::Surface::Plane { origin, normal, .. }) = case.body.face_surface(key)
             else {
                 continue;
             };

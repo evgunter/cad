@@ -150,7 +150,7 @@ pub(crate) const NEAREST_FOOT: &str = "cover_face_nearest_foot";
 /// # Panics
 ///
 /// As [`face_cover`]: `cover` is `face`'s.
-pub(crate) fn face_nearest<T: Decide>(
+pub fn face_nearest<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     cover: &Cover<T>,
@@ -293,7 +293,7 @@ pub fn face_cover<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> FaceC
 /// # Panics
 ///
 /// As [`face_cover`].
-pub(crate) fn face_cover_toward<T: Decide>(
+pub fn face_cover_toward<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,

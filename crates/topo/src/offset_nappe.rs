@@ -133,7 +133,7 @@ pub(crate) fn face_nappe_reading<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Nappe, NappeRefusal<T>> {
-    let view = body.passed_face(face).ok_or(NappeRefusal::Stale)?;
+    let view = body.face(face).ok_or(NappeRefusal::Stale)?;
     let Surface::Cone { apex, axis, .. } = view.surface() else {
         return Ok(Nappe::Opening);
     };

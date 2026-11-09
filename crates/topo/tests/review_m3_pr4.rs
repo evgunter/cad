@@ -706,10 +706,7 @@ fn not_adjacent_edges(errors: &[topo::ValidationError]) -> Vec<topo::EdgeKey> {
 /// face's first owed one (`topo::pcurves::validate_pcurves`, step 1).
 fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     assert!(
-        matches!(
-            b.get_surface(b.get_face(face).unwrap().surface),
-            Some(geom::Surface::Cone { .. })
-        ),
+        matches!(b.face_surface(face), Some(geom::Surface::Cone { .. })),
         "the relabelled face carries the cone"
     );
     let (edges, hes) = face_boundary(&b, face);

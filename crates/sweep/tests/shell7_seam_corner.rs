@@ -59,7 +59,7 @@ fn wall_volume(r: f64, t: f64) -> f64 {
 fn minor_radii(body: &Body<f64>) -> Vec<f64> {
     let mut out: Vec<f64> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
@@ -442,7 +442,7 @@ fn shells_with_one_surface_vertices(
 /// The surface key of `body`'s faces wearing `pred`'s surface.
 fn wall_key(body: &Body<f64>, pred: impl Fn(&Surface<f64>) -> bool) -> topo::SurfaceKey {
     body.faces()
-        .find(|(_, f)| body.get_surface(f.surface).is_some_and(&pred))
+        .find(|(fk, _)| body.face_surface(*fk).is_some_and(&pred))
         .expect("the wall")
         .1
         .surface
@@ -908,18 +908,15 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
                 &[(0.0, 0.0), (r0, 0.0), (r1, h), (0.0, h)],
                 Revolution::Partial(turn),
             );
-            let surface = |body: &Body<f64>, f: topo::FaceKey| {
-                body.get_surface(body.get_face(f).unwrap().surface)
-                    .unwrap()
-                    .clone()
-            };
+            let surface =
+                |body: &Body<f64>, f: topo::FaceKey| body.face_surface(f).unwrap().clone();
             // Every chart at `0` but the cone's, moved `d` out of the
             // material along its stored normal.
             let moves: Vec<topo::ChartMove<f64>> = charts(&body)
                 .into_iter()
                 .map(|faces| {
                     let face = body.get_face(faces[0]).expect("a live face");
-                    let distance = match body.get_surface(face.surface) {
+                    let distance = match body.face_surface(faces[0]) {
                         Some(Surface::Cone { .. }) if face.sense => d,
                         Some(Surface::Cone { .. }) => -d,
                         _ => 0.0,

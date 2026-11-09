@@ -117,7 +117,7 @@ fn stacked() -> (Body<f64>, ContactRecords) {
 pub(crate) fn interface_record(body: &Body<f64>) -> topo::Cited<topo::Contact> {
     let mut faces: Vec<_> = body
         .faces()
-        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+        .filter_map(|(k, _)| match body.face_surface(k) {
             Some(Surface::Plane { origin, .. }) if (origin.z - 1.0).abs() < 1e-9 => Some(k),
             _ => None,
         })
@@ -318,7 +318,7 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     // The two z = 1 planar faces (A's top, B's bottom).
     let mut ifaces: Vec<_> = body
         .faces()
-        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+        .filter_map(|(k, _)| match body.face_surface(k) {
             Some(Surface::Plane { origin, .. }) if (origin.z - 1.0).abs() < 1e-9 => Some(k),
             _ => None,
         })
@@ -345,7 +345,7 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     // and the record's own confirmation refuses anyway.
     let mut outers: Vec<_> = body
         .faces()
-        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+        .filter_map(|(k, _)| match body.face_surface(k) {
             Some(Surface::Plane { origin, .. })
                 if origin.z.abs() < 1e-9 || (origin.z - 2.0).abs() < 1e-9 =>
             {

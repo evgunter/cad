@@ -300,7 +300,7 @@ fn aim_at<T: Decide>(
         return Ok(crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal)));
     }
     let f = body
-        .passed_face(face)
+        .face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let surface = f.surface();
     let aim = match *geo {
@@ -833,7 +833,7 @@ pub struct EdgeFrame {
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
     let kind = |f: FaceKey| {
-        body.passed_face(f)
+        body.face(f)
             .map(|f| f.surface())
             .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
     };

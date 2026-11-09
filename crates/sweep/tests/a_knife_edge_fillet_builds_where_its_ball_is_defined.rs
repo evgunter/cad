@@ -826,9 +826,7 @@ fn a_crescent_whose_arc_is_shorter_than_its_foot_refuses() {
         };
         assert_eq!(margin.predicate, "fillet3_face_clearance");
         assert_eq!(margin.sign, geom_core::Sign::Negative, "r = {r}");
-        let surface = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap();
+        let surface = body.face_surface(face).unwrap();
         if arc {
             assert!(
                 matches!(surface, geom::Surface::Cylinder { .. }),

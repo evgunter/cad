@@ -147,7 +147,6 @@ REGISTER=(
   "crates/sweep/src/blend/battery.rs|screened_loop||1|audited: the discarded variant is refused by name, not passed over — a lone-vertex loop on a support face returns UnsupportedGeometry naming the loop, so predicate 2 never reports a face clear without having read it"
   "crates/sweep/src/blend/build.rs|face_cycle||1|unaudited"
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
-  "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/join.rs|region_halves||1|unaudited"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { return|1|audited: the discarded variant is refused by name — a lone-vertex loop on the face a cut crosses returns FallbackExtentUnsupported naming that face, so no boundary hit of the meridian goes unread"

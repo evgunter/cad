@@ -250,6 +250,20 @@ fn eps_row(eps: f64) -> usize {
 /// middle station are one [`geom::mid_param`] evaluation, and a second
 /// spelling of that point builds a second chain of forms, which reads
 /// here as `Plain/Decision` forms alone.
+///
+/// **Moved with PR 6594** (the profile's chord reads onto
+/// `geom_core::Line2`), with the calls unchanged:
+/// - `Line2::side` and `Line2::height` divide by `|dir|` (the A′
+///   metric reading), where the stored unit was read bare. That adds
+///   all of `Plain/Decision` 9789 → 9815 and `Early/Decision` 30 → 38,
+///   and 22 of each `Assertion` row's growth.
+/// - The other 12 of each (`Plain/Assertion` 2827 → 2861,
+///   `Early/Assertion` 4251 → 4295) are the line×arc pair and the ray
+///   cast: each reading now forms its own `C − a`, where the old code
+///   shared one `to_center`. The values are the same.
+///
+/// Measured by undoing each in turn on the PR's first commit: with both
+/// undone, the ε 1e-9 row's counts and digests are the old pin's.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 976 forms 9815 frozen 0 digest 193c741675d8d2590ab63e3f2f6bce90\n\

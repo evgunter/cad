@@ -979,7 +979,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     .ok_or(BooleanError::ClassificationInvariant {
                         what: "worklist edge vanished mid-sweep",
                     })?;
-            let ((u, pu), (v, pv)) = edge_ends(x, &edge)?;
+            let ((u, pu), (v, pv)) = edge_ends(x, edge_key)?;
             // Per-kind face dispatch (M5 PR 9, C12.1): planar faces run
             // the M3 lane below (bit-identically for line edges, plus
             // the conic ROOT lane); curved faces get the clearance /
@@ -1613,21 +1613,14 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// An edge end: the vertex and its point.
 type End<T> = (VertexKey, Point3<T>);
 
-/// An edge's two ends, `start(he_plus)` then `start(he_minus)`.
-fn edge_ends<T: Decide>(
-    x: &Body<T>,
-    edge: &crate::entity::Edge,
-) -> Result<(End<T>, End<T>), BooleanError> {
-    let vert = |he| -> Option<End<T>> {
-        let vk = x.get_half_edge(he)?.start;
-        Some((vk, *x.get_point(x.get_vertex(vk)?.point)?))
-    };
-    match (vert(edge.he_plus), vert(edge.he_minus)) {
-        (Some(a), Some(b)) => Ok((a, b)),
-        _ => Err(BooleanError::ClassificationInvariant {
+/// An edge's two ends ([`Body::edge_vertices`]) with their points.
+fn edge_ends<T: Decide>(x: &Body<T>, edge: EdgeKey) -> Result<(End<T>, End<T>), BooleanError> {
+    let end = |vk| -> Option<End<T>> { Some((vk, *x.get_point(x.get_vertex(vk)?.point)?)) };
+    x.edge_vertices(edge)
+        .and_then(|(a, b)| Some((end(a)?, end(b)?)))
+        .ok_or(BooleanError::ClassificationInvariant {
             what: "edge endpoints unresolvable",
-        }),
-    }
+        })
 }
 
 /// **The reduction sweep, both directions** (D9: A's edges first),
@@ -1765,12 +1758,11 @@ fn settle_in_plane<T: Decide>(
             .pieces_since(lie.x_is, lie.fragment, lie.mark)
             .0;
         for piece in pieces {
-            let edge = x
-                .get_edge(piece)
+            x.get_edge(piece)
                 .ok_or(BooleanError::ClassificationInvariant {
                     what: "a piece of an edge lying in a face vanished",
                 })?;
-            let ((w0, p0), (w1, p1)) = edge_ends(x, edge)?;
+            let ((w0, p0), (w1, p1)) = edge_ends(x, piece)?;
             let held = [w0, w1]
                 .into_iter()
                 .any(|w| contacts.rests_in(lie.x_is, w, lie.face))
@@ -1873,7 +1865,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     .ok_or(BooleanError::ClassificationInvariant {
                         what: "a deferred edge's fragment vanished",
                     })?;
-            let ((u, pu), (v, pv)) = edge_ends(x, &edge)?;
+            let ((u, pu), (v, pv)) = edge_ends(x, fragment)?;
             if let Some(tr) = trace.as_deref_mut() {
                 tr.examine((fragment, d.face));
             }
@@ -3445,8 +3437,8 @@ fn twin_edge<T: Decide>(
         let e = y
             .get_edge(ek)
             .ok_or_else(|| lost("spline face: a vertex's edge is lost"))?;
-        let starts = [e.he_plus, e.he_minus].map(|he| y.get_half_edge(he).map(|h| h.start));
-        if starts != [Some(wu), Some(wv)] && starts != [Some(wv), Some(wu)] {
+        let starts = y.edge_vertices(ek);
+        if starts != Some((wu, wv)) && starts != Some((wv, wu)) {
             continue;
         }
         let Some(CurveGeom::Certified(curve)) = y.get_curve_geom(e.curve) else {
@@ -4112,60 +4104,24 @@ const SHEET_RING_TORUS: &str = "bool_spline_sheet_ring_torus";
 /// **Whether spline sheet `sheet` lies on analytic `carrier` along no
 /// piece**: true where every Bézier piece of the net (each cell between
 /// consecutive distinct breakpoints of both knot vectors, whatever their
-/// multiplicities) has a point decided definitely off `carrier` under
-/// [`SHEET_OFF_CARRIER`] ([`crate::census::points_on_surface`]); false
-/// otherwise, a piece with every point on or in band included. It never
-/// reads the two as one.
-///
-/// On one piece the sheet is a rational polynomial patch, so the
-/// carrier's polynomial equation along it, cleared of its weight, is a
-/// polynomial in the piece's two parameters. A patch lying on the carrier
-/// over any open set makes that polynomial zero there, so zero over the
-/// whole piece, and the patch lies on the carrier's whole real variety.
-/// One point of the piece off that VARIETY therefore certifies the piece
-/// lies on the carrier along no part of it. Across a breakpoint the
-/// polynomial changes, so every piece is read, and one piece read off
-/// says nothing of another.
-///
-/// The decided residual is read as "off the variety", so the argument
-/// holds only for a carrier whose residual vanishes on its whole real
-/// variety: a plane, a cylinder, a sphere, a ring torus (`R > r`,
-/// decided here under [`SHEET_RING_TORUS`]) and a cone, whose residual
-/// reads both nappes (`|h|`). Every other carrier is unread. A spindle's
-/// residual vanishes on one of its torus's two sheets, while the quartic
-/// vanishes on both: a patch lying on the read sheet over an open set and
-/// running on into the other reads off there, so the spindle is out, as
-/// is every kind not listed.
+/// multiplicities) reads off `carrier`'s variety
+/// ([`geom_brep::variety::Variety`], under [`SHEET_OFF_CARRIER`]);
+/// false otherwise, a piece with every point on or in band included, and
+/// a carrier the certificate does not hold for. It never reads the two as
+/// one. The certificate, and which carriers it holds for, is
+/// [`geom_brep::variety`]'s; the schedule is this reading's: five interior
+/// points of each piece.
 fn spline_off_carrier<T: Decide>(
     sheet: &geom::NurbsSurface<T>,
     carrier: &geom::Surface<T>,
     band: Band,
 ) -> bool {
-    let whole_variety = match *carrier {
-        geom::Surface::Plane { .. }
-        | geom::Surface::Cylinder { .. }
-        | geom::Surface::Sphere { .. }
-        | geom::Surface::Cone { .. } => true,
-        geom::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => matches!(
-            crate::validate::decide(
-                SHEET_RING_TORUS,
-                Margin::of(major_radius - minor_radius),
-                band
-            ),
-            Ok(Sign::Positive)
-        ),
-        _ => false,
-    };
-    if !whole_variety {
+    use geom_brep::variety::{Piece, Variety};
+    let Ok(Some(variety)) = Variety::of(carrier, SHEET_RING_TORUS, band) else {
         return false;
-    }
+    };
     // Clamped, so the first and last runs are the domain's ends.
-    let breaks =
-        |knots: &geom_core::spline::Knots<T>| -> Vec<T> { knots.runs().map(|(v, _)| v).collect() };
+    let breaks = |knots: &geom_core::spline::Knots<T>| -> Vec<T> { knots.breakpoints().collect() };
     let (bu, bv) = (breaks(sheet.knot_values_u()), breaks(sheet.knot_values_v()));
     // The piece's centre, then four points about it, as fractions of
     // its two sides.
@@ -4185,8 +4141,8 @@ fn spline_off_carrier<T: Decide>(
                 .map(|&(fu, fv)| sheet.eval(at(u[0], u[1], fu), at(v[0], v[1], fv)))
                 .collect();
             matches!(
-                crate::census::points_on_surface(carrier, &points, SHEET_OFF_CARRIER, band),
-                Ok(false)
+                variety.read_piece(&points, SHEET_OFF_CARRIER, band),
+                Ok(Piece::Off)
             )
         })
     })
@@ -6770,21 +6726,13 @@ mod declaration_order_rows {
         };
         let (edge_key, edge) = x
             .edges()
-            .find(|(_, e)| {
-                let ends = [e.he_plus, e.he_minus]
-                    .map(|he| x.get_half_edge(he).expect("a live half-edge").start);
-                ends == [u, v] || ends == [v, u]
+            .find(|&(k, _)| {
+                let ends = crate::query::edge_ends(&x, k);
+                ends == (u, v) || ends == (v, u)
             })
             .map(|(k, e)| (k, e.clone()))
             .expect("the bottom edge");
-        let (a, c) = (
-            x.get_half_edge(edge.he_plus)
-                .expect("a live half-edge")
-                .start,
-            x.get_half_edge(edge.he_minus)
-                .expect("a live half-edge")
-                .start,
-        );
+        let (a, c) = crate::query::edge_ends(&x, edge_key);
         let mut y: crate::body::Body<f64> = crate::body::Body::new();
         let wall = cyl_wall_sheet(
             &mut y,
@@ -6980,8 +6928,7 @@ mod declaration_order_rows {
             if !matches!(c.carrier(), geom::Curve3::Circle(..)) {
                 continue;
             }
-            let start = |he| x.get_half_edge(he).expect("a live half-edge").start;
-            let (a, c) = (start(edge.he_plus), start(edge.he_minus));
+            let (a, c) = crate::query::edge_ends(&x, edge_key);
             let pt = |k: VertexKey| {
                 *x.get_point(x.get_vertex(k).expect("a live vertex").point)
                     .expect("a live point")
@@ -7183,8 +7130,7 @@ mod declaration_order_rows {
             })
             .map(|(k, e)| (k, e.clone()))
             .expect("the sheet's top parallel");
-        let start = |he| x.get_half_edge(he).expect("a live half-edge").start;
-        let (a, c) = (start(edge.he_plus), start(edge.he_minus));
+        let (a, c) = crate::query::edge_ends(&x, edge_key);
         let pt = |k: VertexKey| {
             *x.get_point(x.get_vertex(k).expect("a live vertex").point)
                 .expect("a live point")
@@ -7627,11 +7573,11 @@ mod lying_on_rows {
 
     fn edge_between(y: &Body<f64>, a: VertexKey, b: VertexKey) -> EdgeKey {
         y.edges()
-            .find(|(_, e)| {
-                let ends = [e.he_plus, e.he_minus].map(|h| y.get_half_edge(h).unwrap().start);
-                ends == [a, b] || ends == [b, a]
-            })
             .map(|(k, _)| k)
+            .find(|&k| {
+                let ends = crate::query::edge_ends(y, k);
+                ends == (a, b) || ends == (b, a)
+            })
             .expect("an edge between the two vertices")
     }
 
@@ -8983,7 +8929,7 @@ mod spline_face_rows {
         acc: &mut ContactAcc,
     ) -> Result<CurvedEvent<f64>, BooleanError> {
         let edge = x.get_edge(ek).unwrap().clone();
-        let ((u, pu), (v, pv)) = edge_ends(x, &edge).unwrap();
+        let ((u, pu), (v, pv)) = edge_ends(x, ek).unwrap();
         let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
         curved_face_arm(
             x,

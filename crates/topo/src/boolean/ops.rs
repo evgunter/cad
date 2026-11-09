@@ -1885,7 +1885,7 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
         .map(|fd| {
             let (face, surface) = (fd.key(), fd.surface().clone());
             let cover = crate::cover::face_cover(body, face, band);
-            let bbox = boxes::face_box_of(&cover, pad);
+            let bbox = boxes::cover_box(cover.as_ref().ok(), pad);
             Ok(FaceRow {
                 face,
                 key: fd.record().surface,
@@ -2921,7 +2921,7 @@ pub(crate) fn boundary_edges<T: Real>(
     let mut seen: BTreeSet<crate::entity::EdgeKey> = BTreeSet::new();
     let mut edges = Vec::new();
     for f in faces {
-        let Some(face) = body.passed_face(f) else {
+        let Some(face) = body.face(f) else {
             continue;
         };
         for member in face.boundary() {
@@ -3022,14 +3022,9 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
         let sides = crate::readback::edge_sides_of(body, edge, &edge_data);
         let (s1, s2) = sides.surfaces();
-        let he_plus = sides.plus.half_edge;
-        let start = proven(&body.half_edges, he_plus, EntityId::HalfEdge).start;
-        let p0 = body.linked_vertex_point(start, EntityId::HalfEdge(he_plus), "start");
-        let p1 = body.linked_vertex_point(
-            body.proven_half_edge_end(he_plus),
-            EntityId::HalfEdge(he_plus),
-            "end",
-        );
+        let (v0, v1) = crate::query::edge_ends(body, edge);
+        let p0 = body.linked_vertex_point(v0, EntityId::HalfEdge(sides.plus.half_edge), "start");
+        let p1 = body.linked_vertex_point(v1, EntityId::HalfEdge(sides.plus.half_edge), "end");
         let surface_of = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface();
         let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
         let existing = body
