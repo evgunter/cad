@@ -1583,8 +1583,13 @@ impl<'a> Resolver<'a> {
         // meridians (`geom::pole_form`), through u = 0 and u = π, each
         // starting AT the north pole (angle 0) and reaching the south
         // at angle π.
-        let [(_, north), (_, south)] =
-            geom_brep::chart_singularity::sphere_poles(center, axis, radius);
+        let [(_, north), (_, south)] = geom_brep::chart_singularity::sphere_poles(
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            radius,
+        );
         let (north, south) = (
             signed_zero::plus_zero_point(north),
             signed_zero::plus_zero_point(south),

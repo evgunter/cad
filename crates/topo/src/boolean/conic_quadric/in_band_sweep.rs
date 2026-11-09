@@ -643,11 +643,10 @@ fn a_circle_of_radius_1500_places_its_roots_within_the_zero_band() {
 /// and truly in its gap** (module docs). Each pose crosses, grazes or
 /// clears a torus `R = 1` of tube `0.05 ≤ r < 1` at a point anywhere on
 /// the tube by a depth drawn inside the zero band, inside its gap, or
-/// zero, at any tilt. Unlike the wall's ladder arm, the torus door may
-/// answer a pose in the gap: its clear margin is read through the floor
-/// on `|F|/|res|` (`work/hone/circle-torus-clear-margin-reads-the-floor.md`),
-/// so a pose whose shallowest extreme lies between `ε` and `Kε` can read
-/// clear. Such an answer must be true; one within `ε` must not be given.
+/// zero, at any tilt. The torus door reads its clear margin through the
+/// torus's ceiling on `|F|/|res|`, so no piece reads clear short of the
+/// band; an answer it gives must be true, and none within `ε` may be
+/// given.
 #[test]
 fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
     let mut rng = fuzz::start("conic_quadric_in_band_torus_sweep");

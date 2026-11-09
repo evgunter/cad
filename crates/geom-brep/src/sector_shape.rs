@@ -633,14 +633,6 @@ mod tests {
         }
     }
 
-    /// `Vec3` carries no `PartialEq`; these rows want BIT equality, not
-    /// a tolerance.
-    fn bits_eq(a: Vec3<f64>, b: Vec3<f64>) -> bool {
-        a.x.to_bits() == b.x.to_bits()
-            && a.y.to_bits() == b.y.to_bits()
-            && a.z.to_bits() == b.z.to_bits()
-    }
-
     fn assert_dir(got: Vec3<f64>, want: Vec3<f64>) {
         assert!(
             (got.x - want.x).abs() < 1e-15
@@ -678,7 +670,7 @@ mod tests {
         // own = +x, next = +y: (ŷ × x̂)·ẑ = −1 ⇒ reflex.
         let s = shape(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), false).unwrap();
         let b = s.bisector.expect("a reflex corner subdivides");
-        assert!(bits_eq(b, -(Vec3::new(1.0, 1.0, 0.0).normalize())));
+        assert!(b.same_bits(-(Vec3::new(1.0, 1.0, 0.0).normalize())));
         // The sector sweeps +y → +x the LONG way; the bisector is
         // strictly interior to it, i.e. on the far side from (+1, +1).
         assert!(b.dot(Vec3::new(-1.0, -1.0, 0.0)) > 0.0);
@@ -962,7 +954,7 @@ mod tests {
             from_own
                 .iter()
                 .zip(&from_next)
-                .all(|(&a, &b)| bits_eq(a, b)),
+                .all(|(&a, &b)| a.same_bits(b)),
             "the orbit order lists the same quarters reversed"
         );
         let mut fractions = TurnOrder::FromOwn.quarter_fractions();

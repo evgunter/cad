@@ -349,11 +349,19 @@ pub struct SplitReduction<T: Real> {
     pub(crate) apex_germs: SecondaryMap<HalfEdgeKey, Vec3<T>>,
     /// The pinches the ON verdicts decided, in ON-vertex order, keyed in
     /// the operand ([`crate::coincidence`]).
-    pub coincidences: Vec<crate::Coincidence>,
+    pub coincidences: ReducedRows,
     /// Each piece a crossing split minted, `(new edge, divided-from
     /// edge)` in mint order, checked as each was minted.
     pub edge_pieces: crate::lineage::SplitEdgeDivisions,
 }
+
+/// **The reduce's coincidence rows** (D10): what a split records, on the
+/// cut path and the uncut one alike, since the reduce decides each the
+/// same way on either. Minted by the reduce alone; with no `Default` and
+/// no `take`, a split's record moves out of its reduction once, by value
+/// (`finish::RawSplit::from_reduction`).
+#[derive(Debug)]
+pub struct ReducedRows(Vec<crate::Coincidence>);
 
 /// **A knife edge the split would mint and cannot declare.** The plane
 /// is tangent to a curved wall that bends away from its material (a
@@ -713,7 +721,7 @@ impl SplitReduceError {
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
         use core::fmt::Display as _;
-        use geom_core::RANGE_RECOURSE;
+        use geom_core::RANGE_ENDING;
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::CurvedBooleanUnsupported { kind, .. } => write!(
@@ -828,12 +836,12 @@ impl SplitReduceError {
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
                 "a chord at a vertex has no finite length (a component overflows the norm \
-                 or is not a number). Recourse: {RANGE_RECOURSE}"
+                 or is not a number). {RANGE_ENDING}"
             ),
             Self::UnderflowedSectorChord { .. } => write!(
                 f,
-                "a chord at a vertex has a length that underflows to zero. Recourse: \
-                 {RANGE_RECOURSE}"
+                "a chord at a vertex has a length that underflows to zero. \
+                 {RANGE_ENDING}"
             ),
             Self::ConsecutiveOnSectors { vertex } => write!(
                 f,
@@ -1020,7 +1028,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         on_vertices,
         null_edges,
         apex_germs,
-        coincidences,
+        coincidences: ReducedRows(coincidences),
         edge_pieces,
     })
 }
@@ -1238,12 +1246,7 @@ where
     } else {
         operand
     };
-    let finish::RawSplit {
-        above,
-        below,
-        naming,
-        coincidences,
-    } = split_direct(operand, plane, tol)?;
+    let (above, below, naming, coincidences) = split_direct(operand, plane, tol)?.into_parts();
     // Each side sorted into its pieces and gated at rest, the verdict kept
     // ([`finish::SplitPart::Body`]).
     let at_rest = |side, part| match part {

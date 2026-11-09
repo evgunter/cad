@@ -5559,7 +5559,7 @@ impl GluedSurfaces {
                 .pairs
                 .iter()
                 .filter_map(|pair| {
-                    let relation = pair.class.carrier_relation()?;
+                    let relation = pair.class().carrier_relation()?;
                     // A-clone surface keys ARE result keys (carve/clone
                     // preserve them); B bridges through the graft.
                     let ka = a.get_face(pair.a)?.surface;
@@ -5823,9 +5823,14 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
                     continue;
                 }
                 let p = body.linked_vertex_point(half.start, EntityId::Face(face), "loop");
-                if let Ok(crate::face_normal::ConePoint::Apex) =
-                    crate::face_normal::cone_point(apex, axis, p, band)
-                {
+                if let Ok(crate::face_normal::ConePoint::Apex) = crate::face_normal::cone_point(
+                    geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    p,
+                    band,
+                ) {
                     return Err(BooleanError::ResultPinchedAtConeApex {
                         apex: crate::census::witness(p),
                     });

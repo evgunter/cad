@@ -75,7 +75,7 @@ from rather than this list.
 - approx_lane_unsupported (2): transform_error_tag validation_error_tag
 - assertion_dimension (2): edit_error_tag node_error_tag
 - certify (2): blend_error_tag transform_error_tag
-- contact_contradicted (2): boolean_error_tag validation_error_tag
+- contact_contradicted (2): boolean_error_tag validation_error_tag — `boolean_error_tag` no longer mints it (2026-11-09, PR 6673: `BooleanError::ContactContradicted` is deleted), so it is `validation_error_tag`'s alone
 - corrupt (2): transform_error_tag unexaminable_tag — `shell_error_tag` no longer mints it (2026-10-04: `ShellError::Corrupt` is deleted)
 - cosurface_escalated (2): extrude_error_tag revolve_error_tag
 - dangling_geometry (2): readback_error_tag validation_error_tag — `readback_error_tag` no longer mints it (2026-10-04: `DanglingRef` is deleted), so it is `validation_error_tag`'s alone
