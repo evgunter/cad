@@ -748,3 +748,4 @@
   - The crux is whether the injectivity concession "near the shared cell" is metric or parametric. Round 1 asks each designer about it.
   - The branch-band lane is probing the injectivity question on a hairpin wall at 3e-10 and at 2e-8.
 - 07:58Z 6552's gate went green at 88bc2a6a, but main overlaps it in 4 topo files (boolean/mod.rs, rim_wedge.rs, census.rs, lib.rs). It joins the post-6619 re-merge queue: 6552, 6607, 6611, 6614, 6618.
+- 08:00Z Branch-band fork, round 1 results. A moved to B's primary position: the ratified gate is the home and no text changes. A now names three defects in the engine as built (by_kind, monotone on the surface, whole-edge Near). Round 2 tests the cross-face Near crux, A's construction readers, and K<2. The lane's probe now adds a hairpin-fin case and a cylinder-trim case.
