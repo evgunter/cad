@@ -2,11 +2,13 @@
 id: a-normals-abort-is-labelled-the-kernels-without-its-kind
 kind: issue
 title: A face normal's abort is labelled the kernel's (off the surface) by callers that assume OffSurface is the only abort; DegenerateTorus (row 1(a)) aborts too
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 cost: E
 refs: [6655, 6648, 6660]
+closed: 2026-11-09
+pr: 6689
 ---
 
 
