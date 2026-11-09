@@ -541,6 +541,8 @@ which is what actually moves the number.
 
 | site | predicate | comparand | dim | status |
 |---|---|---|---|---|
+| vertex_section.rs (`read_sections`, through `geom_core::running::Rounded::divisor`) | vertex_section_sine | the least entered face's section sine, moved toward zero by its own running bound (`Rounded::room`), read at `Band::enclosure_sign()`: past its rounding, it divides the vertex's offset into a reading; within it, the vertex reads on the plane | dimensionless (sign only) | OK (logged: an undecided room is recorded in the verdict log and picks the on-plane answer; nothing refuses) |
+| boolean/section_cert/ruling.rs (`clearance`, through `Rounded::divisor`) | ruling_clearance_across | the clearance bound's divisor moved toward zero by its running bound: `‖w × d‖` against a cylinder (unit `d`, per unit of `w`), `16·‖u⊥‖` against a cone (m), read at `Band::enclosure_sign()`: within its rounding the bound has no bound of its own and is not read | per unit `w` / m (sign only) | OK (logged: an undecided room is recorded in the verdict log and withholds the bound; nothing refuses) |
 | boolean/contact_verify.rs (`touching`, `tangent_locus_reading`) | contact_tangent_gap / contact_tangent_touch | the pair's separation `ε₁r₁ + ε₂r₂` (each implicit residual, /2r-normalized, read as the witness's height above its face); its sampled max plus `TangentSpanBounds::gap_sag`, as `tangent_gap_hull_sup` | m | OK |
 | boolean/contain.rs (`boundary_pre_pass`) | bool_contact_vertex / bool_contact_edge_length / bool_contact_edge | point distance; a straight edge's own length (the degeneracy gate) and the distance from the point to its closed segment, through `ray_walk::on_segment` | m | OK (CONTACT-4) |
 | boolean/contain.rs (`boundary_pre_pass`, a conic's `End`) | bool_contact_arc_end_vertex | the distance from a conic edge's carrier end to a stored vertex, a norm (`decide_magnitude_reported`) — any in-band value escalates; with all four decided, the point at the end is the finding `ContainError::ArcEndClearOfCorners`, carrying them. The ends are read through `Curve3::eval`, as certification reads them, so at the run's band the finding is the band's own parting (`K < 2`); an end off both corners is read at a caller's band finer than the run's, or where the certifier's distance and this reading part by rounding across a band narrower than it (`K` near one), which the census reports as a defect (`ValidationError::ArcEndOffCorner`) | m | OK (CONTACT-4) |
@@ -762,7 +764,8 @@ which is what actually moves the number.
 | chord_join.rs (`carried_chord_spec`) | chord_carried_forward | the parameter travel from the chord's start to its end the way it leaves, metered by the carrier's speed at the start; only its sign is consumed | m | OK (SECT) |
 | pair_section.rs (`seat_at`) | ssi_seat_at_the_start | where the knot edit opening a loop at `at` refuses: the seat's distance from the fitted loop's start (or end, one point), `‖C(at) − C(t₀)‖`; decided within the band the loop is kept, undecided the seat escalates | m | OK (SECT) |
 | pair_section.rs (`at_node`, read by `CarriedSection::site` and `CarriedComponent::place`) | section_site_at_node | whether a site stands at a node the section lists: its distance from the node, `‖p − node‖`; Zero is the node, an undecided one escalates, and a site decided off every node yet on two arcs that share one escalates on that distance | m | OK (SECT) |
-| pair_section.rs (`CarriedComponent::within_span`, read by `CarriedComponent::reads`) | section_site_in_span | whether a foot on an open arc of a circle or an ellipse lies within the arc's span: the span's last parameter less the foot's, read in the turn the span starts, metered by the carrier's speed at the foot; Zero is the arc's end, within the band of the node every reading tests first: a site decided off that node yet there lies in the band of two arcs crossing at it, and escalates | m (metered) | OK (SECT) |
+| pair_section.rs (`CarriedComponent::within_span`, read by `CarriedComponent::reads`) | section_site_in_span | whether a foot on an open arc of a circle or an ellipse lies within the arc's span: the span's last parameter less the foot's, read in the turn the span starts, metered by the carrier's speed at the foot; Zero is the arc's end, within the band of the node every reading tests first: a site decided off that node yet there lies in the band of two arcs crossing at it, and escalates. A Negative reading is confirmed by the second reading below before the site is excluded | m (metered) | OK (SECT) |
+| pair_section.rs (`CarriedComponent::within_span`, on `section_site_in_span`'s Negative arm) | section_site_in_span_past | whether the reading's witness stands past the span's end by more than any carrier point within the zero of the site could: `section_site_in_span`'s metered margin plus twice the band's zero, `Margin::of`. The witness is a parameter where the carrier passes within the zero of the site, not its foot, so a point within the zero of the site lies within twice the zero of the witness's. Negative excludes the site; Positive (a witness read past the span reads inside it nearer by twice the zero) refuses as a desync; undecided escalates. Sound only for a closed-form conic component, which carries no pad; a conic component with a pad refuses as a desync before either reading | m | OK (SECT) |
 | pair_section.rs (`CarriedComponent::holds`, the counted section's cross-check) | curve_carrier_gap / curve_carrier_clear / curve_carrier_straddle | a listed component's closed-form witness against a marched branch's fitted carrier, `geom`'s on-carrier reading at the witness's foot, in a band widened by the branch's tube radius (the section lies within it of the carrier) | m | OK (SECT) |
 | ring_path.rs (`Quadric::paths`) | split_ring_path_off_core | a torus path end's distance from the core circle, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (GERM) |
 | ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_meridian | `n̂·â` (the cosine between a loop circle's axis and the torus's), levered at the circle's radius | m | OK (GERM) |
@@ -1831,6 +1834,31 @@ Flagged, NOT fixed here (dispositions):
   residual is poison (a spline or approximated carrier, which has no
   implicit form). Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
   does not move.
+
+- **F39** (added by ONECOPY's main-reds unit) `edge_join_carried_far`
+  — `topo/src/boolean/edge_join.rs` `carried_far`: whether the piece
+  `gone`, lying on `kept`'s very carrier (`Curve3::same_content`) and
+  standing at `kept`'s parameter `tw` at the vertex, ends past `tw`
+  away from `kept` (`gx − tw`, or `tw − gx` backward). Positive takes
+  `gx` as the joined edge's far parameter; otherwise the far end is read
+  off the carrier (`read_far`: the parameter of `gone`'s middle near
+  `tw`, then of the far point near that). What keeps it off the logged
+  doors is that **both outcomes name one parameter**: on the carrier
+  `gone` lies on, the reading off the carrier returns `gx` up to
+  rounding, wherever it reads one (a NURBS carrier it does not read,
+  and there the carry is the only spelling). Pinned by
+  `edge_join::carry::the_carried_far_parameter_is_the_one_the_carrier_reads`
+  on a line, circle, ellipse and spiric, forward and backward, at three
+  pieces each. F31's shape: a renaming between spellings of one value.
+  On a NURBS carrier the tie or negative arm of an open join takes
+  `read_far`, which is `None` there, so the join ends in
+  `JoinCarrierUnsupported` (a closed join on NURBS ends there by its own
+  arm); that arm is unreachable short of a zero-length `gone` piece.
+
+  **Carried as `k_stats::choose(.., "F39")`**, its tie taking the
+  reading off the carrier. Its K samples reach the sink under
+  `edge_join_carried_far`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
