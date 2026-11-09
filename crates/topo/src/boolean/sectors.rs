@@ -2687,13 +2687,13 @@ fn crescent<T: Decide>(
     // A ladder over the four pairs of bounds ([`climb`],
     // [`Answering::Any`]: a theorem, any pair that opens a crescent is an
     // overlap), so a pair read in band is kept and refuses only where no
-    // other pair opens one ([`BooleanError::margin_or_abort`]).
+    // other pair opens one ([`BooleanError::refusal`]).
     let bounds = |s: &BoolSector<T>| [(true, s.start, s.start_reach), (false, s.end, s.end_reach)];
     let pairs = bounds(a)
         .into_iter()
         .flat_map(|x| bounds(b).map(|y| (x, y)));
     match climb(Answering::Any, pairs, |p| {
-        Rung::holds(pair(p), (), BooleanError::margin_or_abort)
+        Rung::holds(pair(p), (), BooleanError::refusal)
     }) {
         Climb::Answered { answer, .. } => answer.map(|()| true),
         Climb::Passed => Ok(false),

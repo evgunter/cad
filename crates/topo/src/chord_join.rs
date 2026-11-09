@@ -5459,11 +5459,11 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// sections meet at one point — so its anchor alone can land `OnBoundary`
 /// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
 /// every vertex does: each such verdict is decided, so the ring is on
-/// the run. A vertex whose reading escalates says nothing either, and
-/// the next is asked; the first escalation escalates only where no
-/// vertex decides ([`climb`]). The vertices agree because the
-/// ring does not cross the run, and a touch switches no side
-/// ([`paths_rung`]'s premise).
+/// the run. A vertex whose reading refuses says nothing either, kept by
+/// its standing ([`PointInLoopError::refusal`]), and the next is asked;
+/// a kept refusal refuses only where no vertex decides ([`climb`]). The
+/// vertices agree because the ring does not cross the run, and a touch
+/// switches no side ([`paths_rung`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -5481,8 +5481,9 @@ fn ring_side<T: Decide>(
         Ok(LoopContainment::In) => Rung::Answers(Ok(RingSide::In)),
         Ok(LoopContainment::Out) => Rung::Answers(Ok(RingSide::Out)),
         Ok(LoopContainment::OnBoundary) => Rung::Passes,
-        Err(e @ PointInLoopError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| e),
-        Err(e) => Rung::Aborts(Err(SplitJoinError::from(e))),
+        Err(e) => {
+            geom_brep::ladder::rung_or_abort(e.refusal(), e, |e| Err(SplitJoinError::from(e)))
+        }
     };
     match climb(Answering::Any, ring_vertices(body, ring)?, read) {
         Climb::Answered { answer, .. } => answer,

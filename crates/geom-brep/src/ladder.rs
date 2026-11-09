@@ -112,8 +112,8 @@ impl Kept<Indeterminate> {
 /// - one that never refuses the whole query returns `Refusal`, and is a
 ///   rung by [`Refusal::rung`] alone: no answer is needed, so none can
 ///   be supplied;
-/// - one with a variant that does (a corrupt input, two readings that
-///   contradict, a refusal every point reads alike) returns
+/// - one with a variant that does (an invalid input, a kernel fault,
+///   two readings that contradict) returns
 ///   `Result<Refusal, Aborts>`, and its caller names the answer the
 ///   ladder stops with ([`rung_or_abort`]).
 ///
