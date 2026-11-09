@@ -3564,6 +3564,38 @@ pub enum BooleanError {
         /// How the partner meets the face.
         along: AlongFace,
     },
+    /// **The result would touch itself over an area**: one shell of it
+    /// holds both faces of a face–face record `operand` carried in,
+    /// pieces of it that rested on each other and that the operation
+    /// joined into one solid elsewhere, so the two faces lie on each
+    /// other inside one shell (`crates/topo/README.md`, the conventions:
+    /// until the census and tier 3′ read an area self-touch inside one
+    /// shell, an operator whose result holds one refuses, naming the
+    /// pair). Raised where the result is sorted into solids.
+    TouchesItself {
+        /// The operand whose record it is.
+        operand: Operand,
+        /// The record's index in that operand's records.
+        record: u32,
+        /// The record's two faces, keys of that operand.
+        faces: [FaceKey; 2],
+    },
+    /// **A cut reaches across a seat inside its tool**: `B` holds pieces
+    /// resting on each other, two faces a face–face record of `B`'s
+    /// declares one wall, and `A`'s material crosses that wall. Each
+    /// face holds `B`'s material on its own side, so `A − B` keeps
+    /// nothing at the wall; but the operation cuts `A` along each face
+    /// apart, and the sliver of `A` between the two cuts, with both
+    /// faces about it, is what the finish keeps
+    /// (`work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md`).
+    /// Raised where a vertex of `A` pierces both faces, before any pass
+    /// writes, and where a shell of the result holds both.
+    ToolSeatCrossed {
+        /// The record's index in `B`'s records.
+        record: u32,
+        /// The record's two faces, keys of `B`.
+        faces: [FaceKey; 2],
+    },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
     /// (two crossing pairs share both their vertices). Each solid's
@@ -4352,6 +4384,10 @@ pub enum BooleanErrorKind {
     VertexReadTwice,
     /// [`BooleanError::PartnerAlongFace`].
     PartnerAlongFace,
+    /// [`BooleanError::TouchesItself`].
+    TouchesItself,
+    /// [`BooleanError::ToolSeatCrossed`].
+    ToolSeatCrossed,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -4604,6 +4640,8 @@ impl BooleanError {
             Self::LineMaterialUnread { .. } => BooleanErrorKind::LineMaterialUnread,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
+            Self::TouchesItself { .. } => BooleanErrorKind::TouchesItself,
+            Self::ToolSeatCrossed { .. } => BooleanErrorKind::ToolSeatCrossed,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -5323,6 +5361,24 @@ impl BooleanError {
                     AlongFace::Flush => "a face of the first corner on that face",
                     AlongFace::FacesInOnePlane => "a face of each corner in one plane",
                 }
+            ),
+            Self::TouchesItself {
+                operand, record, ..
+            } => write!(
+                f,
+                "the result would be one solid touching itself over an area, where pieces \
+                 of the {} solid rest on each other (its contact record {record}) and the \
+                 operation joins them elsewhere; the Boolean cannot yet hold that. \
+                 Recourse: unite the resting pieces first, or keep what joins them off one \
+                 of them",
+                operand_word(*operand),
+            ),
+            Self::ToolSeatCrossed { record, .. } => write!(
+                f,
+                "the cut's tool is pieces resting on each other (its contact record \
+                 {record}) and the cut crosses their seat, where the Boolean cannot yet drop \
+                 the sliver it would leave between the seat's two faces. Recourse: cut by \
+                 each piece of the tool in turn",
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,
@@ -6113,13 +6169,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut unread_partners = Vec::new();
 
     let (rereads, walls) =
-        vtxfac::pierced_and_paired(&contacts, [&decls.records_a, &decls.records_b])?;
-    let mut pristine: std::collections::BTreeMap<(Operand, VertexKey), Body<T>> =
-        std::collections::BTreeMap::new();
-    let mut wall_classes: std::collections::BTreeMap<
-        (Operand, VertexKey),
-        Vec<(HalfEdgeKey, SideCode)>,
-    > = std::collections::BTreeMap::new();
+        vtxfac::pierced_and_paired(&contacts, [&decls.records_a, &decls.records_b], op)?;
     // Each vertex that touches a face and pairs, its rows combined once
     // every pair is read, and each vertex in pairs alone, likewise
     // (`vtxfac::cone_classes`).
@@ -6134,6 +6184,22 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         (Operand::B, &contacts.b_on_a),
     ] {
         let mut minted = Vec::with_capacity(pierced.len());
+        // A wall's second face reads its vertex's orbit on the operand as
+        // this pass began (`vtxfac::WallRead`), held only where a vertex
+        // of it pierces a wall; and each wall's first face's moved halves
+        // and edge classes, which the second reads against and gathers.
+        let unwritten = walls
+            .keys()
+            .any(|&(o, _)| o == operand)
+            .then(|| match operand {
+                Operand::A => Body::clone(&a),
+                Operand::B => Body::clone(&b),
+            });
+        #[allow(clippy::type_complexity)]
+        let mut first_faces: std::collections::BTreeMap<
+            VertexKey,
+            (Vec<Vec<HalfEdgeKey>>, Vec<(HalfEdgeKey, SideCode)>),
+        > = std::collections::BTreeMap::new();
         for (k, c) in pierced.iter().map(|c| c.record).enumerate() {
             let reread = rereads.get(&(operand, c.vertex)).copied();
             let (piercing_body, pierced_body) = match operand {
@@ -6141,13 +6207,19 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 Operand::B => (&mut b, &mut a),
             };
             let wall = walls.get(&(operand, c.vertex)).copied();
-            if wall.is_some_and(|[first, _]| first == c.face) {
-                pristine.insert((operand, c.vertex), Body::clone(piercing_body));
-            }
-            let second = wall
-                .filter(|&[_, second]| second == c.face)
-                .and_then(|_| pristine.get(&(operand, c.vertex)))
-                .map(|pristine| vtxfac::WallRead { pristine });
+            let second = match (wall, &unwritten) {
+                (Some(w), Some(unwritten)) if w.faces[1] == c.face => Some(vtxfac::WallRead {
+                    unwritten,
+                    first: w.faces[0],
+                    moved: &first_faces
+                        .get(&c.vertex)
+                        .ok_or(BooleanError::ClassificationInvariant {
+                            what: "a wall's second face is read before its first",
+                        })?
+                        .0,
+                }),
+                _ => None,
+            };
             let out = match vtxfac::classify_vertex_on_face(
                 piercing_body,
                 pierced_body,
@@ -6183,6 +6255,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         )
                         .collect::<Vec<_>>();
                     for (operand, c) in later {
+                        // A wall's second face reads against its first
+                        // face's mint, which this pass may not have made.
+                        if walls
+                            .get(&(operand, c.vertex))
+                            .is_some_and(|w| w.faces[1] == c.face)
+                        {
+                            continue;
+                        }
                         let (piercing_body, pierced_body) = match operand {
                             Operand::A => (&mut a, &mut b),
                             Operand::B => (&mut b, &mut a),
@@ -6234,22 +6314,33 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         pairs: Vec::new(),
                     },
                 );
-            } else if let Some([first, _]) = wall {
-                // A wall's two faces each own their side: an edge is In
-                // where either face reads it In.
-                if first == c.face {
-                    wall_classes.insert((operand, c.vertex), out.classes.clone());
+            } else if let Some(w) = wall {
+                // Each face of a wall holds the material on its own side,
+                // so an edge is In where either face reads it In.
+                if w.faces[0] == c.face {
+                    if out.flush || out.moved.is_empty() {
+                        return Err(BooleanError::VertexReadTwice {
+                            operand,
+                            vertex: c.vertex,
+                            reads: [
+                                SectorRead::Pierce(w.faces[0]),
+                                SectorRead::Pierce(w.faces[1]),
+                            ],
+                            in_band: None,
+                        });
+                    }
+                    first_faces.insert(c.vertex, (out.moved, out.classes));
                 } else {
-                    let held = wall_classes
-                        .remove(&(operand, c.vertex))
-                        .unwrap_or_default();
+                    let (_, first) = first_faces.remove(&c.vertex).unwrap_or_default();
                     let gathered: Vec<_> = out
                         .classes
                         .iter()
                         .map(|&(he, class)| {
-                            let other = held.iter().find(|(h, _)| *h == he).map(|&(_, c)| c);
-                            match (class, other) {
-                                (SideCode::In, _) | (_, Some(SideCode::In)) => (he, SideCode::In),
+                            let held = first.iter().find(|(h, _)| *h == he);
+                            match (class, held) {
+                                (SideCode::In, _) | (_, Some((_, SideCode::In))) => {
+                                    (he, SideCode::In)
+                                }
                                 _ => (he, class),
                             }
                         })
@@ -9498,6 +9589,8 @@ mod tests {
                 BooleanErrorKind::LineMaterialUnread => "LineMaterialUnread",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
+                BooleanErrorKind::TouchesItself => "TouchesItself",
+                BooleanErrorKind::ToolSeatCrossed => "ToolSeatCrossed",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

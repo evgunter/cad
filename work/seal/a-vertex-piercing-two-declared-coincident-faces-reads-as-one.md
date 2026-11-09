@@ -2,10 +2,12 @@
 id: a-vertex-piercing-two-declared-coincident-faces-reads-as-one
 kind: issue
 title: A vertex piercing two faces a recorded face–face contact declares one interface refuses VertexReadTwice: a union bridging two pieces of a ⊔, and a ⊔ as a cut's tool, cannot build
-status: open
+status: closed
 opened: 2026-10-24
 priority: P1
 cost: H
+closed: 2026-11-09
+refs: [a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections, a-declared-wall-is-read-only-by-a-vertex-crossing-it]
 ---
 
 
@@ -50,19 +52,24 @@ distribution reaches:
 
 ## Done when
 
-A vertex that pierces two faces a recorded face–face contact of its
-operand declares coincident reads them as one interface. The bridged
-union then refuses as the typed self-touch naming the seat's pair, and
-`t − (bolt ⊔ plate)` builds. The pinned rows flip:
-`a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice`
-and `a_seat_as_a_cuts_tool_is_cut_by_whole`
-(`crates/editor-core/tests/intent_dprime3_assemble_product_slot.rs`).
+Narrowed 2026-11-09 to what the Design section's rule builds: the cut
+whose tool is the seat (`X − S`) leaves a sliver of `X` between the
+seat's two sections, which is its own row,
+`a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections`
+(the orchestrator's sequencing ruling, logged on SEAL).
 
-The seat's record reaches the boolean once the census runs at the
-`⊔`'s door and its value carries the verdict
-(`work/intent/assemble-is-an-operator-and-the-product-is-a-slot.md`,
-the fix pass's first item). Until then a `⊔` read directly carries no
-record of its seat, and only an instance of a part carries one.
+A vertex that pierces two faces a record of the pierced operand
+declares a wall is read once, each face's crossing minted at it. `S −
+X`, both `∩`, and a union with a block on one piece build on the whole
+body, the record carried; a union bridging the pieces refuses typed
+naming the record (`TouchesItself`); `X − S` refuses typed naming the
+record (`ToolSeatCrossed`), never a lamina; with no record, a vertex
+through both faces still refuses `VertexReadTwice`. The pinned rows
+flip: the bridged union to `TouchesItself`
+(`a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_touches_itself`),
+and `a_seat_as_a_cuts_tool_is_cut_by_whole` re-pinned to
+`ToolSeatCrossed`
+(`crates/editor-core/tests/intent_dprime3_assemble_product_slot.rs`).
 
 ## Slate triage
 
@@ -96,3 +103,26 @@ If the prototype shows the gathered read cannot be made sound, stop and report. 
 - A proposed README clause, "an operator never reads across a contact inside an operand": it is the opposite of this rule and is not added.
 
 **Follow-up:** once this lands, the editor's `distribute.rs` retires, and result pieces are keyed from lineage. That is its own row.
+
+## Closed (2026-11-09)
+
+A record's face–face pair is one two-sided wall to the vertex-on-face
+pass: `vtxfac::pierced_and_paired` reads the pierced operand's records
+through the door the boolean already carries them by
+(`Glue::records_a/b`) and returns each vertex piercing both faces
+(`vtxfac::Wall`); the first face mints its Out run as any pierce, and
+the second reads the vertex's orbit on the operand as its pass began
+and mints its In run at the first face's copy (`vtxfac::WallRead`),
+its ring's struts Out (`RingPlan::strut_side`). Where the vertex only
+touches the wall, pairs on it, or its two reads part from the mirror
+the record declares, it is still read twice: those readers are
+`a-declared-wall-is-read-only-by-a-vertex-crossing-it`. The result gate refuses a shell holding both faces of a
+carried record (`ops::Held::apart`): `TouchesItself`, or
+`ToolSeatCrossed` in a cut by the record's operand, which the vertex
+pass also raises before writing. Rows:
+`crates/topo/tests/a_vertex_through_a_declared_seat.rs`.
+
+Premise corrections: the seat's record already reached the boolean
+when a `⊔` is read directly (the census at the `⊔`'s door, `0373eb3288`,
+PR 5636's fix pass); and the README's "refuses typed, naming the pair"
+had no variant until this row's `TouchesItself`.

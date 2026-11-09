@@ -226,7 +226,8 @@ not (
   (binary_id(topo::all) & (test(=a_vertex_read_by_two_sector_passes::a_partner_tipped_off_the_face_still_ends_the_cut))) |
   (binary_id(sweep::all) & test(=a_conical_ended_football_revolves::props_meets_an_independent_quadrature_on_every_band)) |
   (binary_id(sweep::all) & test(=the_football_revolves::a_football_revolved_part_way_refuses_typed)) |
-  (binary_id(geom-brep) & test(=pcurve_cache::circle_lane_rows::a_circles_projected_envelope_covers_its_residual))
+  (binary_id(geom-brep) & test(=pcurve_cache::circle_lane_rows::a_circles_projected_envelope_covers_its_residual)) |
+  (binary_id(topo::all) & (test(=a_vertex_through_a_declared_seat::a_cut_or_meet_through_a_seat_builds_on_the_whole_body) | test(=a_vertex_through_a_declared_seat::a_union_bridging_a_seat_touches_itself_and_one_on_a_piece_builds) | test(=a_vertex_through_a_declared_seat::a_cut_across_its_tools_seat_refuses_typed)))
 )
 """
 

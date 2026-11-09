@@ -1167,21 +1167,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // Each parted edge now bounds a face of each operand, as a seam does.
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
-    {
-        let pad = super::boxes::sweep_pad(band);
-        let face_box = |body: &Body<T>, f| Some(super::boxes::face_box(body, f, pad, band));
-        crate::pieces::sort_into_pieces(&mut finished, band, tol, T::quad_lane(), Some(&face_box))
-            .map_err(BooleanError::Pieces)?;
-        for (x, y) in contacts.face_face() {
-            let solid = |f| crate::census::census_cell_solid(&finished, crate::Cell::Face(f));
-            if solid(x).is_some() && solid(x) == solid(y) {
-                return Err(BooleanError::JoinDesync {
-                    what: "PROBE: one solid holds both faces of a carried face-face record",
-                });
-            }
-        }
-    }
-    let body = gate(finished, band, tol)?;
+    let body = gate(finished, Some(&Held::of(op, &contacts, decls)), band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
     let [mut face_fragments_a, face_fragments_b] = fragments;
@@ -5611,9 +5597,77 @@ impl GluedSurfaces {
     }
 }
 
+/// **The face–face records an operand carried into a result**, which
+/// the result gate reads once the result is sorted into solids
+/// ([`gate`]): each record's two faces, carried, must lie in two shells.
+pub(super) struct Held<'a> {
+    op: BooleanOp,
+    contacts: &'a ContactRecords,
+    records: [&'a OperandRecords; 2],
+}
+
+impl<'a> Held<'a> {
+    /// The records `contacts` carries from `decls`' operands, in `op`.
+    pub(super) fn of<T: Real>(
+        op: BooleanOp,
+        contacts: &'a ContactRecords,
+        decls: &'a Glue<T>,
+    ) -> Self {
+        Self {
+            op,
+            contacts,
+            records: [&decls.records_a, &decls.records_b],
+        }
+    }
+
+    /// **No shell holds both faces of a carried face–face record.** Two
+    /// pieces an operand held apart over an area, joined into one solid
+    /// elsewhere, lie on each other inside one shell, which the census
+    /// and tier 3′ do not read: [`BooleanError::TouchesItself`], or, in
+    /// a cut whose tool's record it is, [`BooleanError::ToolSeatCrossed`]
+    /// (the sliver the cut leaves between the seat's two sections).
+    fn apart<T: Real>(&self, body: &Body<T>) -> Result<(), BooleanError> {
+        let shell = |f: FaceKey| body.get_face(f).map(|d| d.shell);
+        for row in self.contacts.rows() {
+            let crate::ContactKind::FaceFace(x, y) = row.record.kind() else {
+                continue;
+            };
+            if shell(x).is_none() || shell(x) != shell(y) {
+                continue;
+            }
+            for backing in row.cites.iter() {
+                let Backing::Carried { input, record } = backing else {
+                    continue;
+                };
+                let operand = if input == 0 { Operand::A } else { Operand::B };
+                let Some(carried) = self.records[usize::from(operand == Operand::B)]
+                    .ff
+                    .iter()
+                    .find(|c| c.record == record)
+                else {
+                    continue;
+                };
+                let faces = [carried.contact.a, carried.contact.b];
+                return Err(match (self.op, operand) {
+                    (BooleanOp::Subtract, Operand::B) => {
+                        BooleanError::ToolSeatCrossed { record, faces }
+                    }
+                    _ => BooleanError::TouchesItself {
+                        operand,
+                        record,
+                        faces,
+                    },
+                });
+            }
+        }
+        Ok(())
+    }
+}
+
 /// **The result gate every [`BooleanBody`] passes**, at the site that
 /// built it: the body is sorted one solid per piece of material
-/// ([`crate::pieces`]), then finished ([`AtRestPolicy::finish`]), so the
+/// ([`crate::pieces`]), and no shell holds both faces of a face–face
+/// record an operand carried in ([`Held::apart`]), then finished ([`AtRestPolicy::finish`]), so the
 /// finish rides the result and is taken on the bits the caller
 /// receives. A solid whose only shell check 7 certified in band passes:
 /// how thin a result is gets judged by its pairs alone (D10, Booleans).
@@ -5627,6 +5681,7 @@ impl GluedSurfaces {
 /// [`coincident_wedges_disjoint`]'s.
 pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     body: Body<T>,
+    held: Option<&Held<'_>>,
     band: Band,
     tol: Tol,
 ) -> Result<T::Finished, BooleanError> {
@@ -5635,6 +5690,9 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     let face_box = |body: &Body<T>, f| Some(super::boxes::face_box(body, f, pad, band));
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
+    if let Some(held) = held {
+        held.apart(&body)?;
+    }
     pinched_at_cone_apex(&body, band)?;
     #[cfg(feature = "door-tier3-meter")]
     let from = std::time::Instant::now();
@@ -7677,7 +7735,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 crate::pcurves::mint_pcurves(&mut body, tol)
                     .map_err(|source| BooleanError::Pcurves { source })?;
             }
-            let body = gate(body, band, tol)?;
+            let body = gate(body, Some(&Held::of(op, &contacts, decls)), band, tol)?;
             let FallbackFates {
                 substituted,
                 uncut,
@@ -8029,7 +8087,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&a_view, &b_view],
         band,
     )?;
-    let body = gate(body, band, tol)?;
+    let body = gate(body, Some(&Held::of(op, &contacts, decls)), band, tol)?;
     let own = |v: VertexKey| carved.contains(&v).then_some(v);
     let absent = |_: VertexKey| None;
     let kept: [super::discard::InResult<'_>; 2] = match kind {
@@ -8554,7 +8612,8 @@ mod tests {
             "the raw box is closed"
         );
         let band = Band::linear(tol).unwrap();
-        let Err(BooleanError::ResultInvalid { findings: errors }) = gate(raw.clone(), band, tol)
+        let Err(BooleanError::ResultInvalid { findings: errors }) =
+            gate(raw.clone(), None, band, tol)
         else {
             panic!("the raw box's chords are scaffolds at rest");
         };
@@ -8572,7 +8631,7 @@ mod tests {
         let described =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         assert_eq!(
-            gate(described, band, tol)
+            gate(described, None, band, tol)
                 .map(|_| ())
                 .map_err(|e| e.render(geom_brep::recourse::Reading::Build)),
             Ok(()),
@@ -8588,7 +8647,8 @@ mod tests {
     ) -> usize {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let Err(BooleanError::ResultInvalid { findings: errors }) = gate(body, band, tol) else {
+        let Err(BooleanError::ResultInvalid { findings: errors }) = gate(body, None, band, tol)
+        else {
             panic!("{what}: the result gate refuses it");
         };
         assert!(errors.iter().all(want), "{what}: {errors:?}");
@@ -8679,7 +8739,8 @@ mod tests {
             .unwrap()
             .params();
         let split = body.split_edge(edge, (t0 + t1) * 0.5, tol).unwrap().vertex;
-        let Err(BooleanError::ResultInvalid { findings }) = gate(body.clone(), band, tol) else {
+        let Err(BooleanError::ResultInvalid { findings }) = gate(body.clone(), None, band, tol)
+        else {
             panic!("a split vertex is no output's");
         };
         assert_eq!(
@@ -8690,7 +8751,7 @@ mod tests {
             .join_edges(band, tol)
             .expect("the split edge joins back");
         assert_eq!(joins.len(), 1, "the split vertex, joined");
-        gate(body, band, tol).expect("the joined box passes");
+        gate(body, None, band, tol).expect("the joined box passes");
     }
 
     /// An operand's own scaffold never reaches the door: the undescribed

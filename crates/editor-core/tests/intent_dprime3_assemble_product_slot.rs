@@ -437,10 +437,8 @@ fn refused(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<topo::BooleanErro
 /// through the bolt and the plate, through the face they meet over,
 /// makes `(bolt − pin) ⊔ (plate − pin)`. Its pieces are keyed by the
 /// reads the `⊔` read them through, and its names carry each piece's
-/// names keyed by that read. The same cut of the `⊔` read whole is the
-/// kernel's `VertexReadTwice`: a pin vertex pierces the bolt's foot and
-/// the plate's top, two faces the boolean reads apart. A placement of
-/// the seat is cut the same way where it stands.
+/// names keyed by that read. A placement of the seat is cut the same
+/// way where it stands.
 ///
 /// *Breaks if* a cut re-decides the meeting inside the `⊔` it reads.
 #[test]
@@ -534,8 +532,7 @@ fn a_cut_drops_the_pieces_it_empties() {
 
 /// **`∩` distributes over `⊔` on either side**: `(bolt ⊔ plate) ∩ t`
 /// and `t ∩ (bolt ⊔ plate)`, `t` a post standing through the bolt's
-/// foot, keep the part of each piece inside `t`, two pieces, where the
-/// `⊔` read whole is the kernel's `VertexReadTwice`.
+/// foot, keep the part of each piece inside `t`, two pieces.
 #[test]
 fn a_meet_with_a_seat_meets_each_piece() {
     let (doc, seat, bolt, plate) = seat("dprime3-seat-meet");
@@ -566,14 +563,14 @@ fn a_meet_with_a_seat_meets_each_piece() {
     }
 }
 
-/// **A `⊔` read as a cut's tool is cut by whole, today**: `t − (bolt ⊔
-/// plate)`, `t` a post standing through the bolt's foot, refuses as the
-/// kernel's `VertexReadTwice`.
-/// `t − (a ⊔ b)` is `(t − a) − b`, a fold of cuts rather than a cut per
-/// piece; it lands with the kernel reading a declared seat as one
-/// interface
-/// (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`),
-/// when this row builds.
+/// **A `⊔` read as a cut's tool is cut by whole, and refuses where the
+/// cut crosses its seat**: `t − (bolt ⊔ plate)`, `t` a post standing
+/// through the bolt's foot, refuses the kernel's `ToolSeatCrossed`. The
+/// kernel reads the seat as one wall, each face holding its piece's
+/// material, but its cut along the two faces apart would leave a sliver
+/// of `t` between them, which it cannot yet drop
+/// (`work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md`);
+/// this row builds when that row lands.
 #[test]
 fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
     let (doc, seat, _, plate) = seat("dprime3-seat-tool");
@@ -588,7 +585,7 @@ fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
     let ev = run(&doc, &EvalOptions::default());
     assert_eq!(
         refused(&ev, cut),
-        Some(topo::BooleanErrorKind::VertexReadTwice),
+        Some(topo::BooleanErrorKind::ToolSeatCrossed),
         "{:?}",
         ev.result(cut)
     );
@@ -599,15 +596,11 @@ fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
 /// own, the bolt–plate meeting not decided again.
 ///
 /// A bead bridging bolt and plate makes one solid touching itself where
-/// they met. Today the union refuses where the kernel reads the bolt's
-/// foot and the plate's top apart: `VertexReadTwice`, a bead vertex
-/// piercing both. When the kernel reads a declared seat as one
-/// interface
-/// (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`)
-/// this row's bridged union is the typed self-touch refusal naming the
-/// seat's pair, and its assert says so.
+/// they met: the kernel reads the seat as one wall, unites the bead
+/// with both pieces, and refuses the result whose one shell holds both
+/// faces of the seat's record, `TouchesItself` naming the pair.
 #[test]
-fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice() {
+fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_touches_itself() {
     let (doc, seat, _, plate) = seat("dprime3-bead");
     let (doc, side) = beside(doc, plate, [0.25, 0.0, 0.6], 0.1, 0.2);
     let (doc, bridge) = beside(doc, plate, [0.25, 0.0, 0.1], 0.1, 0.3);
@@ -645,8 +638,8 @@ fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice() {
     );
     assert_eq!(
         refused(&ev, fused),
-        Some(topo::BooleanErrorKind::VertexReadTwice),
-        "a bridged seat refuses where the kernel reads the seat's two faces apart: {:?}",
+        Some(topo::BooleanErrorKind::TouchesItself),
+        "a bridged seat is one solid touching itself over the rest of the seat: {:?}",
         ev.node_error(fused)
     );
 }
