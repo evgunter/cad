@@ -281,8 +281,10 @@ fn the_wrap_scan_panics_on_a_torn_outer_link() {
     use super::surface_group::{WrapRims, wrap_rims};
     let (mut body, face) = cyl_sheet();
     let rims = WrapRims {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        axis: geom::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_z(),
+        },
     };
     assert!(
         wrap_rims(&body, face, rims, band()).is_ok(),
@@ -305,8 +307,10 @@ fn the_wrap_scan_panics_on_a_torn_curve() {
     use super::surface_group::{WrapRims, wrap_rims};
     let (mut body, face) = cyl_sheet();
     let rims = WrapRims {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        axis: geom::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_z(),
+        },
     };
     assert!(
         wrap_rims(&body, face, rims, band()).is_ok(),

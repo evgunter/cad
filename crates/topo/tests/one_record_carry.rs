@@ -188,10 +188,7 @@ fn a_split_across_a_resting_ridge_lands_its_minted_vertex_on_the_minted_chord() 
 /// The vertex of `body` at `p`.
 fn vertex_at(body: &topo::Body<f64>, p: Point3<f64>) -> topo::VertexKey {
     body.vertices()
-        .find(|(_, v)| {
-            body.get_point(v.point)
-                .is_some_and(|q| q.x == p.x && q.y == p.y && q.z == p.z)
-        })
+        .find(|(_, v)| body.get_point(v.point).is_some_and(|q| q.equals_exactly(p)))
         .map(|(k, _)| k)
         .expect("a vertex there")
 }

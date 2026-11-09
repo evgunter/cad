@@ -3536,7 +3536,7 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
 impl crate::mate::SolveScalar for geom_core::Interval {
     fn quoted(self) -> f64 {
         use geom_core::Bounds;
-        0.5 * self.lo() + 0.5 * self.hi()
+        geom::mid_param(self.lo(), self.hi())
     }
 
     fn upper(self) -> f64 {

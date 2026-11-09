@@ -179,11 +179,11 @@ fn r1_c1_collapse_matches_evaluation_f64() {
         for (u, end) in [(0.0, false), (1.0, true)] {
             let a = interior_iso_u(&s, u).unwrap();
             let b = boundary_iso_u(&s, end).unwrap();
-            let bit = a.control().iter().zip(b.control()).all(|(p, q)| {
-                p.x.to_bits() == q.x.to_bits()
-                    && p.y.to_bits() == q.y.to_bits()
-                    && p.z.to_bits() == q.z.to_bits()
-            });
+            let bit = a
+                .control()
+                .iter()
+                .zip(b.control())
+                .all(|(p, q)| p.same_bits(*q));
             assert!(
                 bit,
                 "{name}: the domain-end collapse is the boundary row's control bitwise"

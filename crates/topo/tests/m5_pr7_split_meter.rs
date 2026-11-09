@@ -220,7 +220,7 @@ fn the_end_to_end_nurbs_split_row() {
         .get_point(body.get_vertex(created.vertex).unwrap().point)
         .unwrap();
     assert!(
-        p_split.distance(carrier.eval(t_split)) == 0.0,
+        p_split.equals_exactly(carrier.eval(t_split)),
         "the split vertex is the carrier point exactly (D9)"
     );
 }
@@ -414,7 +414,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
         .get_point(body.get_vertex(created.vertex).unwrap().point)
         .unwrap();
     assert!(
-        p_split.distance(carrier.eval(t_split)) == 0.0,
+        p_split.equals_exactly(carrier.eval(t_split)),
         "the split vertex is the carrier point exactly (D9)"
     );
 
