@@ -126,15 +126,14 @@
 //!     distance from the second circle has those extremes less `r₂`,
 //!     exactly; and its square is a first harmonic in the first circle's
 //!     angle, whose roots are read from the extremes (below);
-//!   - **a circle and an ellipse**: the ellipse's distance from the
-//!     circle, `|E(θ) − c| − r`, whose square less `r²` is of degree two in
-//!     the ellipse's angle, goes to the certified subdivision
-//!     ([`crate::half_angle::certified_subdivision`]);
-//!   - **two ellipses**: the first's level on the second, of degree two
-//!     in the first's angle, goes to the certified subdivision in the
-//!     metres of the lower bound on a point's distance from an ellipse
-//!     ([`geom::ellipse_level_clearance`], [`Curve3::clearance`]'s), with
-//!     a ceiling on the level per metre of it (`coplanar_ellipses`).
+//!   - **two ellipses, or an ellipse and a circle**: the first's level on
+//!     the second, of degree two in the first's angle, goes to the
+//!     certified subdivision ([`crate::half_angle::certified_subdivision`])
+//!     in the metres of the lower bound on a point's distance from an
+//!     ellipse ([`geom::ellipse_level_clearance`], [`Curve3::clearance`]'s),
+//!     with a ceiling on the level per metre of it (`coplanar_ellipses`).
+//!     A circle is the ellipse of its equal semi-axes, its level
+//!     `(|q − c|² − r²)/r²`; the ellipse is the one parametrized.
 //!
 //! # A first harmonic's roots, and a double root
 //!
@@ -201,8 +200,7 @@
 //! the arc between the piece's roots is read
 //! (`curve_pair_coplanar_sub_touch`): the most `|F|` convexity leaves
 //! there, over the frame's floor on `|F|` per metre. Neither door charges
-//! a jet's rounding: the coplanar ellipses read `F` locally and exactly
-//! ([`Level`]), the circle and ellipse from their harmonics.
+//! a jet's rounding: `F` is read locally and exactly ([`Level`]).
 //! - **Zero** is one touch. The arc lies everywhere within the zero band
 //!   of the other carrier, so by C5 (`crates/geom-brep/README.md`: a
 //!   meeting is a longest interval of one span everywhere definitely on
@@ -428,8 +426,7 @@ use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 use super::span::Span;
 use super::{Arm, MeetFault, Method};
 use crate::half_angle::{
-    DegreeTwo, Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows,
-    certified_subdivision_touching,
+    Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows, certified_subdivision_touching,
 };
 use crate::roots::{Roots, Unsettled, arc_past};
 use geom::Conic;
@@ -547,7 +544,7 @@ mod row {
     pub(super) const ACROSS: &str = "curve_pair_pose_across";
 }
 
-/// The coplanar circle × ellipse subdivision's rows.
+/// The coplanar conic subdivision's rows.
 const COPLANAR_ROWS: SubdivisionRows = SubdivisionRows {
     clear: "curve_pair_coplanar_sub_clear",
     monotone: "curve_pair_coplanar_sub_monotone",
@@ -598,11 +595,11 @@ pub(super) fn closed<T: Decide>(
         Arm::LineConic => line_conic(a, b, known, band),
         Arm::ConicLine => Ok(swapped(line_conic(b, a, &flipped, band)?)),
         Arm::CircleCircle => conic_conic(a, b, Coplanar::Circles, known, band),
-        Arm::EllipseCircle => conic_conic(a, b, Coplanar::EllipseCircle, known, band),
+        Arm::EllipseCircle => conic_conic(a, b, Coplanar::Ellipses, known, band),
         Arm::CircleEllipse => Ok(swapped(conic_conic(
             b,
             a,
-            Coplanar::EllipseCircle,
+            Coplanar::Ellipses,
             &flipped,
             band,
         )?)),
@@ -1191,9 +1188,8 @@ fn line_conic<T: Decide>(
 enum Coplanar {
     /// Two circles.
     Circles,
-    /// An ellipse, then a circle.
-    EllipseCircle,
-    /// Two ellipses.
+    /// Two conics, not both circles: an ellipse and a circle are read as
+    /// two ellipses, the circle's level that of its equal semi-axes.
     Ellipses,
 }
 
@@ -1295,7 +1291,6 @@ fn conic_conic<T: Decide>(
     };
     match coplanar {
         Coplanar::Circles => coplanar_circles(&ka, &kb, slant, &place, known, band),
-        Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
         Coplanar::Ellipses => coplanar_ellipses(a, &ka, &kb, &place, band),
     }
 }
@@ -1523,47 +1518,6 @@ fn coplanar_circles<T: Decide>(
         Harmonic::Touch(theta) => Pose::Tangent(place(theta)),
         Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
-}
-
-/// An ellipse `ke` (the span `e`) and a circle `kc` in one plane, not one
-/// curve (module docs): the ellipse's distance from the circle, through
-/// the certified subdivision in the ellipse's angle.
-fn coplanar_ellipse_circle<T: Decide>(
-    e: &Span<'_, T>,
-    ke: &dyn Conic<T>,
-    kc: &dyn Conic<T>,
-    place: &impl Fn(T) -> Candidate<T>,
-    band: Band,
-) -> Result<Pose<T>, MeetFault> {
-    let r = kc.speed_hi();
-    let w = ke.frame().origin - kc.frame().origin;
-    let (a, b) = ke.semi_axes();
-    let two = T::from_f64(2.0);
-    // `|E(θ) − c|² − r²` in the ellipse's angle.
-    let poly = DegreeTwo::new(
-        w.norm_squared() + (a.powi(2) + b.powi(2)) / two - r.powi(2),
-        two * a * w.dot(ke.frame().u_ref),
-        two * b * w.dot(ke.frame().v_ref()),
-        (a.powi(2) - b.powi(2)) / two,
-        T::zero(),
-    )
-    .poly();
-    let terms = (w.norm() + a.abs() + b.abs()).powi(2) + r.powi(2);
-    let (t0, t1) = e.params();
-    // `F = (ρ − r)(ρ + r)` in the distance `ρ` from the centre: `|F|` per
-    // metre of `ρ − r` is `ρ + r`, at least `r`, and at most `3r` within
-    // `r` of the circle.
-    let frame = SubdivisionFrame {
-        t0,
-        t1,
-        speed_hi: ke.speed_hi(),
-        noise: geom_core::rounding_charge(terms),
-        f_per_metre: r,
-        f_per_metre_hi: T::from_f64(3.0) * r,
-        residual_reach: Some(r),
-    };
-    let residual = |theta: T| (ke.point_at(theta) - kc.frame().origin).norm() - r;
-    subdivided(Terms::Harmonics(&poly), &residual, &frame, place, band)
 }
 
 /// A coplanar pair's roots and touches from the certified subdivision

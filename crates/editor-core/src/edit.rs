@@ -7266,26 +7266,40 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
 ) -> Vec<RecipeNodeId> {
+    walk_readers(doc, id, |_, _| true)
+}
+
+/// **The walk a delete of `id` takes over its readers**, the one both
+/// deletes share ([`cascade_delete_order`] and
+/// [`crate::continuation::splice`]): in evaluation order, each node that
+/// reads a node the walk has taken — through [`Doc::upstream`] or a
+/// space it reads by name — is handed to `joins`, and is taken with
+/// `id` where `joins` answers `true`. Answers the taken nodes in the
+/// order the door accepts their deletes: consumers first, `id` last, a
+/// `new_space()` (scheduled nowhere) after everything. Empty for an id
+/// the document does not hold.
+pub(crate) fn walk_readers<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+    mut joins: impl FnMut(RecipeNodeId, &Node<P>) -> bool,
+) -> Vec<RecipeNodeId> {
     use std::collections::BTreeSet;
     let Some(root) = doc.node(id) else {
         return Vec::new();
     };
-    let spaces_read = |n: RecipeNodeId| -> Vec<RecipeNodeId> {
-        doc.node(n)
-            .into_iter()
-            .flat_map(|node| doc.spaces_read(node))
-            .map(|(_, at)| at)
-            .collect()
-    };
     let order = crate::eval::schedule::schedule(doc).order;
     let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
     for &n in &order {
-        if doc
+        if doomed.contains(&n) {
+            continue;
+        }
+        let Some(node) = doc.node(n) else { continue };
+        let reads_a_doomed = doc
             .upstream(n)
             .into_iter()
-            .chain(spaces_read(n))
-            .any(|input| doomed.contains(&input))
-        {
+            .chain(doc.spaces_read(node).into_iter().map(|(_, at)| at))
+            .any(|input| doomed.contains(&input));
+        if reads_a_doomed && joins(n, node) {
             doomed.insert(n);
         }
     }

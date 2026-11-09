@@ -61,7 +61,7 @@ use pncad::document::{
     DocumentId, EditError, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, HeldNodes,
     Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartResolver, ProductError,
     ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
-    apply, cascade_delete_order, parse_formula, product_recorded, run_checks_at_rest_on,
+    apply, parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -2270,7 +2270,8 @@ impl DocSession {
             | SessionOp::AddFillet { .. }
             | SessionOp::AddChamfer { .. }
             | SessionOp::AddPart { .. }
-            | SessionOp::AddInstance { .. }) => {
+            | SessionOp::AddInstance { .. }
+            | SessionOp::RepointPlacements { .. }) => {
                 let inserts = matches!(op, SessionOp::AddInstance { .. });
                 let door = self.creation_door(op);
                 let outcome = self.create(labelled.take(), door, outside);
@@ -2354,6 +2355,7 @@ impl DocSession {
             } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
             SessionOp::AddPart { of, select } => self.add_part(of, select),
             SessionOp::AddInstance { id } => self.add_instance(id),
+            SessionOp::RepointPlacements { body, onto } => self.repoint_placements(&body, onto),
             other => unreachable!("only a creating operation reaches its door: {other:?}"),
         }
     }
@@ -3367,7 +3369,8 @@ impl DocSession {
     /// **"Sketch on this face"** ([`SessionOp::SketchOnFace`]): the
     /// kernel's one gesture (`Recording::sketch_on_face`) over the body
     /// the face is on, and the union taking over what read that body
-    /// ([`Takeover`]), in one action.
+    /// ([`Takeover`]), in one action. The node made is the profile, the
+    /// piece the gesture adds.
     fn sketch_on_face(
         &self,
         face: &FaceSelection,
@@ -3395,7 +3398,15 @@ impl DocSession {
                 &opts,
                 &pncad::document::CancelToken::new(),
             )?;
-            Ok(Wrote::one(sketched.union))
+            // The made node is the added piece's root (the profile), so
+            // deleting it collapses the union back to the body
+            // (`editor_core::continuation::splice`); the union replaces the body.
+            Ok(Wrote {
+                made: sketched.profile,
+                replacement: sketched.union,
+                whole: None,
+                intact: Vec::new(),
+            })
         }))
     }
 
@@ -3639,8 +3650,11 @@ impl DocSession {
     /// its tool the plane it is handed, a picked face read as its plane
     /// on the body it was picked on, as the mirror reads its plane.
     /// Where something reads the target along a seen path, `above ⊔
-    /// below` takes it over there ([`Takeover`]), so each copy shows the
-    /// two halves where it showed the body.
+    /// below` takes it over there ([`Takeover`]), so each `⊔` and the
+    /// product show the two halves where they showed the body. Where
+    /// placements read the target, `above ⊔ below` is written as well:
+    /// the new body the split makes, onto which they can be re-pointed
+    /// ([`SessionOp::RepointPlacements`]), as onto a fillet.
     fn add_split(&self, target: Operand, plane: &SplitPlane) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
         let target = as_body(doc, target);
@@ -3653,7 +3667,10 @@ impl DocSession {
             SplitPlane::Read(read) => read.clone(),
         };
         let takeover = self.takeover(&target)?;
-        let seen = !takeover.is_empty();
+        // Where placements read the body, the `⊔` is written too: what
+        // they would be re-pointed onto ([`SessionOp::RepointPlacements`]).
+        let seen =
+            !takeover.is_empty() || !crate::world::placements_of_read(doc, &target).is_empty();
         Ok(taking_over(takeover, move |run| {
             let split = run.insert(Node::Split {
                 target: target.into(),
@@ -4000,14 +4017,11 @@ impl DocSession {
         // canonical form is what makes two recipes over the same edges
         // bit-identical, and `persist`'s strict door treats a
         // non-canonical set on the wire as a corrupt file.
-        // A pick on a copy is read on its body (A10): the body the
-        // placement places, and the body's own name for each edge.
+        // A pick on a copy is read on that copy (Ev, PR 6353), under the
+        // names it carries verbatim from its body; any target is read as
+        // the body it defines: a revolve's body, not its axis.
         let doc = self.committed_doc();
-        // A copy carries its body's names, so the edges' names are the
-        // body's already. Any other target is read as the body it
-        // defines: a revolve's body, not its axis.
-        let read: Operand = crate::world::placed_var(doc, target)
-            .map_or_else(|| as_body(doc, target.into()), Operand::from);
+        let read = as_body(doc, target.into());
         match read {
             // A node with no body output: the kind gate's own refusal.
             Operand::Node(node) => self.require_kind(node, NodeKindWanted::Body)?,
@@ -4025,6 +4039,54 @@ impl DocSession {
         Ok(taking_over(takeover, move |run| {
             let result = run.insert(node)?;
             Ok(Wrote::one(result))
+        }))
+    }
+
+    /// **Re-point the placements of `body` onto `onto`**
+    /// ([`SessionOp::RepointPlacements`]): every placement reading the
+    /// variable `body` names, its source set to `onto`'s body through the
+    /// kernel's takeover, which rebinds what reads each copy where `onto`
+    /// carries the name, and each copy's mates' `on` sides read off
+    /// `onto` ([`on_sides_follow`]). Refused [`Refusal::NothingPlaced`]
+    /// where nothing places `body`, and where a re-point would strand a
+    /// pick ([`Takeover::stranded_pick`]); a placement `onto` itself reads
+    /// refuses at the slot door (`EditError::WouldCycle`).
+    fn repoint_placements(&self, body: &Operand, onto: RecipeNodeId) -> Result<Creating, Refusal> {
+        let doc = self.committed_doc();
+        let body = as_body(doc, body.clone());
+        let var = crate::world::read_var(doc, &body).ok_or_else(|| Refusal::NotABodyRead {
+            read: Box::new(body.clone()),
+        })?;
+        let onto_read = as_body(doc, onto.into());
+        self.require_read(&onto_read, NodeKindWanted::Body)?;
+        let resolver = self.run_resolver();
+        let takeover = Takeover {
+            reads: TakeoverReads {
+                prior: self.memo_under(&resolver),
+                resolver,
+            },
+            ..Takeover::placements_of(doc, var, onto)
+        };
+        // A split's halves carry the body's entities as themselves: the
+        // takeover looks for a name's successor in them too.
+        let intact = split_halves_read(doc, onto);
+        if takeover.copies.is_empty() {
+            return Err(Refusal::NothingPlaced {
+                body: doc.spoken_var(var),
+            });
+        }
+        takeover.stranded_pick(doc)?;
+        let copies = takeover.copies.clone();
+        let reads = takeover.reads.clone();
+        let tol = self.tol();
+        Ok(Box::new(move |run, held| {
+            let wrote = Wrote {
+                intact,
+                ..Wrote::one(onto)
+            };
+            let made = takeover.repoint(run, wrote, held)?;
+            on_sides_follow(run, &copies, (var, &onto_read), &reads, tol)?;
+            Ok(made)
         }))
     }
 
@@ -4066,13 +4128,14 @@ impl DocSession {
 
     /// **A combine's takeover**: the first operand, in the spec's order,
     /// that something reads along a seen path ([`Takeover`]), refused
-    /// where it would strand a pick; and every other such operand's
-    /// copies, to delete, since its material is in the result. So a
-    /// combine of placed bodies leaves `[result]`. A repeated operand
-    /// counts once; operands nothing reads re-point nothing, and nor
-    /// does a member read (`xs[i]`): a copy draws its family whole, so
-    /// re-pointing it would lose the other members. Read off the
-    /// committed document before the operands are placed, the one
+    /// where it would strand a pick; and every other such operand, whose
+    /// `⊔` seats are dropped and whose product slot the result takes,
+    /// since its material is in the result. So a combine of the product's
+    /// bodies leaves `[result]`, and no placement is written. A repeated
+    /// operand counts once; operands nothing reads re-point nothing, and
+    /// nor does a member read (`xs[i]`): what reads the family reads it
+    /// whole, so re-pointing it would lose the other members. Read off
+    /// the committed document before the operands are placed, the one
     /// takeover the run then makes.
     fn combine_in_world(
         &self,
@@ -4093,8 +4156,13 @@ impl DocSession {
             return Ok(Takeover::of_var(doc, None));
         };
         first.stranded_pick(doc)?;
+        let rest: Vec<Takeover> = read.collect();
+        for other in &rest {
+            other.stranded_pick(doc)?;
+        }
         Ok(Takeover {
-            dropped: read.flat_map(|takeover| takeover.copies).collect(),
+            product: first.product || rest.iter().any(|other| other.product),
+            dropped: rest.iter().filter_map(|other| other.taken).collect(),
             ..first
         })
     }
@@ -4378,42 +4446,24 @@ impl DocSession {
         })
     }
 
-    /// **Delete a feature and everything downstream of it**, as one
-    /// action and therefore one undo.
-    ///
-    /// A recipe node that anything consumes cannot leave the document
-    /// alone — `DocEdit::DeleteNode` refuses a delete that would
-    /// dangle a live reference, and in a chain-shaped model (a boolean
-    /// per feature) that is every node but the last. The whole
-    /// dependent cone therefore goes, consumers first, which is the
-    /// order [`cascade_delete_order`] hands back and the order the
-    /// door accepts.
-    ///
-    /// **The cone, not the chain's remainder**: nodes whose only tie
-    /// to the target is that they fed it survive, so deleting one pip's
-    /// boolean out of a die leaves that pip's body in the document,
-    /// unconsumed and unplaced — the cone takes the boolean's world
-    /// placements with it, since they read it. Reconnecting a deleted node's
-    /// consumers to its input instead — splice, the CAD-conventional
-    /// delete — needs an edit that rewires a live node's inputs. The
-    /// vocabulary has ONE such edit now, `DocEdit::SetMembers`, and it
-    /// reaches only the LIST inputs (a `Union`'s members, a `Loft`'s
-    /// sections): a splice has to rewire a NAMED operand, which nothing
-    /// here does. Still open as issue #1324.
+    /// **Delete a node by continuation**, as one action and therefore
+    /// one undo (DM6, `editor_core::continuation::splice`): each reader of the
+    /// node is handed to the body it continues — a fillet's input, the
+    /// one operand an operator is left with, a cut's target once its
+    /// tool goes — through explicit edits, and the readers of a node
+    /// that continues nothing go with it, consumers first. Nothing is
+    /// recorded about how the node was made: the plan is read off the
+    /// recipe, so adding a fillet and deleting it leaves the document as
+    /// it was, after a reopen as before it.
     ///
     /// An id the document does not hold takes the single-edit path so
     /// the typed refusal comes from the door rather than from here.
     fn delete_node(&mut self, node: RecipeNodeId) -> OpOutcome {
-        let doomed = cascade_delete_order(self.committed_doc(), node);
-        if doomed.is_empty() {
-            return self.commit(DocEdit::DeleteNode { id: node });
+        match spliced(self.committed_doc(), node) {
+            Ok(Some(splice)) => self.commit_run(|run| splice.apply(run)),
+            Ok(None) => self.commit(DocEdit::DeleteNode { id: node }),
+            Err(refusal) => OpOutcome::refused(refusal),
         }
-        self.commit_action(
-            doomed
-                .into_iter()
-                .map(|id| DocEdit::DeleteNode { id })
-                .collect(),
-        )
     }
 
     /// **What `SessionOp::DeleteNode` would answer for `node` because
@@ -4422,8 +4472,8 @@ impl DocSession {
     /// the op.
     ///
     /// It walks [`Self::delete_node`]'s own branch over the document
-    /// that op reads: an empty cascade takes the single edit, and that
-    /// edit is staged through the door ([`Self::stage_run`]) and never
+    /// that op reads: a node it does not hold takes the single edit, and
+    /// that edit is staged through the door ([`Self::stage_run`]) and never
     /// recorded, so the refusal is `EditError`'s and has one home. A
     /// selection can outlive its feature here — a face resolves
     /// against the last LANDED run, which still holds a feature the
@@ -4432,14 +4482,15 @@ impl DocSession {
     ///
     /// Not everything `perform` can answer: a held value gesture
     /// refuses the op before this admission runs, and a held node's
-    /// cascade is applied at the click rather than rehearsed every
-    /// frame.
+    /// splice is applied at the click rather than rehearsed every frame.
     pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
-        if !cascade_delete_order(self.committed_doc(), node).is_empty() {
-            return None;
+        match spliced(self.committed_doc(), node) {
+            Ok(Some(_)) => None,
+            Ok(None) => self
+                .stage_run(|run| run.apply(DocEdit::DeleteNode { id: node }).map(drop))
+                .err(),
+            Err(refusal) => Some(refusal),
         }
-        self.stage_run(|run| run.apply(DocEdit::DeleteNode { id: node }).map(drop))
-            .err()
     }
 
     /// The same door for an action that takes SEVERAL edits, a fixed
@@ -4703,8 +4754,7 @@ impl DocSession {
         }
         self.require_placeable(&body)?;
         let target = self.home_space(&body)?;
-        let mut takeover = Takeover::of(doc, &body);
-        takeover.copies.clear();
+        let takeover = Takeover::of(doc, &body);
         takeover.stranded_pick(doc)?;
         Ok(taking_over(takeover, move |run| {
             let placement = run.insert(Node::place(
@@ -5129,15 +5179,17 @@ impl ProductDoor {
     }
 }
 
-/// **What a takeover re-points** (spec §5′.3 (a)): every read of the
-/// body `taken` along a path the picture is seen through — a gesture's
-/// copy of it (a placement's source, [`crate::world::placements_of_var`]),
-/// a `⊔` operand, and the product slot — read off the committed
-/// document before the gesture's own nodes exist.
+/// **What a takeover re-points** (spec §5′.3 (a)): the reads of the
+/// body `taken` along a path the picture is seen through — a `⊔`
+/// operand and the product slot — read off the committed document
+/// before the gesture's own nodes exist; or, for the re-point a person
+/// accepts ([`SessionOp::RepointPlacements`]), the placements that read
+/// it. No feature gesture re-points a placement's source (Ev, PR 6353).
 struct Takeover {
     /// The body taken over.
     taken: Option<VarId>,
-    /// Each copy of `taken`, its source re-pointed.
+    /// Each placement of `taken`, its source re-pointed: empty but for
+    /// the accepted re-point ([`Takeover::placements_of`]).
     copies: Vec<RecipeNodeId>,
     /// Each `⊔` operand reading `taken` whole, by node and seat.
     operands: Vec<(RecipeNodeId, OperandSlot)>,
@@ -5146,10 +5198,10 @@ struct Takeover {
     /// What the kernel's takeover reads the result's table under
     /// ([`DocSession::unchecked_takeover`]).
     reads: TakeoverReads,
-    /// Copies of other bodies the action deletes once it has taken
+    /// Other bodies whose `⊔` seats the action drops once it has taken
     /// these over: a combine's other operands, whose material is in the
     /// result ([`DocSession::combine_in_world`]).
-    dropped: Vec<RecipeNodeId>,
+    dropped: Vec<VarId>,
 }
 
 impl Takeover {
@@ -5170,30 +5222,28 @@ impl Takeover {
         Self::of_var(doc, crate::world::read_var(doc, read))
     }
 
-    /// The takeover of `taken` in `doc`.
+    /// The takeover of `taken` in `doc`: its `⊔` seats and the product
+    /// slot.
     fn of_var(doc: &Doc<ProfileProgram>, taken: Option<VarId>) -> Self {
         let Some(var) = taken else {
             return Self::nothing();
         };
-        let operands = doc
-            .ids()
-            .into_iter()
-            .filter_map(|id| Some((id, doc.node(id)?)))
-            .filter(|(_, node)| matches!(node, Node::Assemble { .. }))
-            .flat_map(|(id, node)| {
-                node.body_reads()
-                    .into_iter()
-                    .filter(|(_, read)| read.read == var && !read.is_indexed())
-                    .map(move |(seat, _)| (id, seat))
-            })
-            .collect();
         Self {
             taken,
-            copies: crate::world::placements_of_var(doc, var),
-            operands,
+            operands: assemble_seats(doc, var),
             product: doc.product() == Some(var),
-            reads: TakeoverReads::default(),
-            dropped: Vec::new(),
+            ..Self::nothing()
+        }
+    }
+
+    /// **The re-point of `var`'s placements onto `onto`**: the
+    /// placements the offer names ([`crate::world::repoint_targets`]),
+    /// each source to be re-pointed, and nothing else.
+    fn placements_of(doc: &Doc<ProfileProgram>, var: VarId, onto: RecipeNodeId) -> Self {
+        Self {
+            taken: Some(var),
+            copies: crate::world::repoint_targets(doc, var, onto),
+            ..Self::nothing()
         }
     }
 
@@ -5202,7 +5252,6 @@ impl Takeover {
     fn is_empty(&self) -> bool {
         self.copies.is_empty() && self.operands.is_empty() && !self.product
     }
-
     /// Whether a reader takes only one body: a `⊔` operand or the
     /// product slot, where a family is read through a `⊔` over it.
     fn reads_one_body(&self) -> bool {
@@ -5270,16 +5319,15 @@ impl Takeover {
         Ok(())
     }
 
-    /// **Re-point every reader to what the action `wrote`** (A10, Ev's
-    /// residue 1), in the action that authored it: a `⊔` reads it as its
-    /// operand and the product slot reads it, through the slot door, the
-    /// `whole` where there is one; a copy of the body copies
-    /// `replacement` in its place through the kernel's takeover
-    /// (`Recording::take_over`), asked about the `intact` reads beside
-    /// the body,
-    /// which rebinds what read the copy where the result carries its
-    /// names, and answers where they moved for the picks `held` says are
-    /// held outside the document.
+    /// **Re-point every reader to what the action `wrote`** (A10), in the
+    /// action that authored it: a `⊔` reads it as its operand and the
+    /// product slot reads it, through the slot door, the `whole` where
+    /// there is one; and, for the accepted re-point alone, each placement
+    /// of the body copies `replacement` in its place through the kernel's
+    /// takeover (`Recording::take_over`), asked about the `intact` reads
+    /// beside the body, which rebinds what read the copy where the
+    /// result carries its names, and answers where they moved for the
+    /// picks `held` says are held outside the document.
     ///
     /// The `⊔` and product re-points come first, so the takeover reads
     /// the document as the action leaves it.
@@ -5322,8 +5370,8 @@ impl Takeover {
             self.reads.prior.as_deref(),
             held,
         )?;
-        for placement in self.dropped {
-            run.apply(DocEdit::DeleteNode { id: placement })?;
+        for var in self.dropped {
+            drop_seats(run, var)?;
         }
         // The door's run, which carries the document it ran on and the
         // resolver it ran under: the seed the run of the recorded document
@@ -5337,11 +5385,209 @@ impl Takeover {
     }
 }
 
+/// **Each mate of `copies` reads its `on` side off `onto`** once their
+/// sources are re-pointed from `was` ([`SessionOp::RepointPlacements`]):
+/// a placement's `on` reads the body it copies
+/// (`editor_core::mate::solve::on_reads_the_copy`), so each selection
+/// an `on` side reads in `was` is read in `onto` instead, under the name
+/// `onto`'s table gives the entity it carries whole
+/// (`editor_core::names::successors`), and as it was where `onto`
+/// carries none — which the mate's own evaluation then reports. The
+/// table is read off an evaluation of the document as the re-point left
+/// it, made only where an `on` side reads `was`.
+fn on_sides_follow(
+    run: &mut Recording<'_, ProfileProgram>,
+    copies: &[RecipeNodeId],
+    (was, onto): (VarId, &Operand),
+    TakeoverReads { resolver, prior }: &TakeoverReads,
+    tol: Tol,
+) -> Result<(), EditError> {
+    let Some(was_at) = run.doc().operation_of(was) else {
+        return Ok(());
+    };
+    let Some(now) = crate::world::read_var(run.doc(), onto) else {
+        return Ok(());
+    };
+    let sides: Vec<(RecipeNodeId, OperandSlot, VarId)> = copies
+        .iter()
+        .filter_map(|&copy| Some((copy, run.doc().node(copy)?)))
+        .flat_map(|(copy, node)| {
+            node.operand_rows()
+                .into_iter()
+                .filter(|(seat, _)| {
+                    matches!(
+                        seat,
+                        OperandSlot::Side {
+                            side: pncad::document::MateSide::On,
+                            ..
+                        }
+                    )
+                })
+                .map(move |(seat, var)| (copy, seat, var))
+        })
+        .filter(|&(_, _, var)| {
+            run.doc()
+                .read_ports(var)
+                .iter()
+                .any(|&(at, _)| at == was_at)
+        })
+        .collect();
+    if sides.is_empty() {
+        return Ok(());
+    }
+    let answered = pncad::document::Answered::evaluate(
+        Arc::new(run.doc().clone()),
+        prior.as_deref(),
+        &pncad::document::CancelToken::new(),
+        &crate::evalseam::options(resolver),
+        tol,
+    );
+    let moved = answered
+        .evaluation()
+        .table(now)
+        .map(|table| editor_core::names::successors(table, &[was]))
+        .unwrap_or_default();
+    for (copy, seat, var) in sides {
+        let written = run.doc().written_operand(var);
+        let read = followed(run.doc(), &written, was, now, &moved);
+        if read != written {
+            run.apply(DocEdit::SetParam {
+                node: copy,
+                slot: SlotId::Operand(seat),
+                value: pncad::document::SlotValue::Read(read),
+                fresh: Vec::new(),
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// **`read` with each selection it holds in `was` held in `now`**, each
+/// name moved where `moved` says ([`on_sides_follow`]).
+fn followed(
+    doc: &Doc<ProfileProgram>,
+    read: &Operand,
+    was: VarId,
+    now: VarId,
+    moved: &std::collections::BTreeMap<StableName, StableName>,
+) -> Operand {
+    match read {
+        Operand::Select { body, names } if crate::world::read_var(doc, body) == Some(was) => {
+            Operand::Select {
+                body: Box::new(Operand::Var(now)),
+                names: names
+                    .iter()
+                    .map(|name| moved.get(name).cloned().unwrap_or_else(|| name.clone()))
+                    .collect(),
+            }
+        }
+        Operand::Pose(def) => {
+            let def = def.try_map(
+                &mut |_, read| {
+                    Ok::<_, core::convert::Infallible>(followed(doc, read, was, now, moved))
+                },
+                &mut |_, scalar: &Formula| Ok(scalar.clone()),
+            );
+            let Ok(def) = def;
+            Operand::Pose(Box::new(def))
+        }
+        _ => read.clone(),
+    }
+}
+
+/// **The halves of the one split `node`'s `⊔` reads**, where `node` is a
+/// `⊔` spelling exactly a split's two outputs (the split gesture's
+/// `above ⊔ below`); empty for any other node.
+fn split_halves_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId> {
+    let Some(Node::Assemble {
+        members: pncad::document::Bodies::Spelled(members),
+    }) = doc.node(node)
+    else {
+        return Vec::new();
+    };
+    let Some(split) = members
+        .first()
+        .and_then(|member| doc.operation_of(member.read))
+        .filter(|&at| matches!(doc.node(at), Some(Node::Split { .. })))
+    else {
+        return Vec::new();
+    };
+    let halves = doc.outputs(split);
+    let read: Vec<VarId> = members.iter().map(|member| member.read).collect();
+    if read == halves { halves } else { Vec::new() }
+}
+
+/// **The delete of `node` by continuation, planned**
+/// ([`editor_core::continuation::splice`]): `None` for a node `doc` does
+/// not hold, its fault as the session's refusal.
+fn spliced(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Result<Option<editor_core::continuation::Splice<ProfileProgram>>, Refusal> {
+    editor_core::continuation::splice(doc, node).map_err(|fault| {
+        use editor_core::continuation::SpliceFault;
+        let at = match fault {
+            SpliceFault::MemberAtSeat { reader, .. } => reader,
+            SpliceFault::MemberAtProduct => node,
+            SpliceFault::MemberOfAMember { node } | SpliceFault::ContinuationCycle { node } => node,
+        };
+        Refusal::Unspliced {
+            node: doc.spoken(at),
+            fault,
+        }
+    })
+}
+
+/// **The `⊔` seats reading `var` whole**, by node and seat, in document
+/// order ([`editor_core::continuation::spelled`]).
+fn assemble_seats(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<(RecipeNodeId, OperandSlot)> {
+    doc.ids()
+        .into_iter()
+        .filter(|&id| matches!(doc.node(id), Some(Node::Assemble { .. })))
+        .filter_map(|id| Some((id, editor_core::continuation::spelled(doc, id)?)))
+        .flat_map(|(id, members)| {
+            members
+                .into_iter()
+                .enumerate()
+                .filter(|(_, (stored, _))| stored.read == var && !stored.is_indexed())
+                .map(move |(i, _)| (id, OperandSlot::Member(i)))
+        })
+        .collect()
+}
+
+/// **Every `⊔` seat reading `var` whole dropped from its list**, the rest
+/// as written ([`DocEdit::SetMembers`]).
+fn drop_seats(run: &mut Recording<'_, ProfileProgram>, var: VarId) -> Result<(), EditError> {
+    let doc = run.doc();
+    let nodes: std::collections::BTreeSet<RecipeNodeId> = assemble_seats(doc, var)
+        .into_iter()
+        .map(|(node, _)| node)
+        .collect();
+    let written: Vec<_> = nodes
+        .into_iter()
+        .filter_map(|node| {
+            let kept = editor_core::continuation::spelled(doc, node)?
+                .into_iter()
+                .filter(|(stored, _)| stored.read != var || stored.is_indexed())
+                .map(|(_, authored)| authored)
+                .collect();
+            Some((node, kept))
+        })
+        .collect();
+    for (node, members) in written {
+        run.apply(DocEdit::SetMembers {
+            node,
+            members: pncad::document::Bodies::Spelled(members),
+        })?;
+    }
+    Ok(())
+}
+
 /// **What a takeover reads the result's table under**: the session's
 /// evaluation options, and its landed run as the memo
 /// ([`DocSession::takeover`]). The default (no resolver, no memo) is a
 /// [`Takeover`]'s until the session gives it its own.
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct TakeoverReads {
     /// The resolver the door's evaluation runs under: its options are
     /// this resolver's ([`crate::evalseam::options`]), and its seed
@@ -5607,18 +5853,17 @@ impl core::fmt::Display for SketchTraceFault {
 
 impl core::error::Error for SketchTraceFault {}
 
-/// **The body a pick is read on, and the entity's name there**
-/// (`crate::world::body_of`; a copy carries its body's names, so the
-/// name is the pick's): the node's output by its port where it holds
-/// several, its body output otherwise.
+/// **The body a pick is read on, and the entity's name there**: the
+/// drawn body it landed on, a copy as itself (a copy carries its body's
+/// names, so the name is the pick's) — the node's output by its port
+/// where it holds several, its body output otherwise.
 pub(crate) fn picked_body(
     doc: &Doc<ProfileProgram>,
     pick: &impl crate::tree::PickedEntity,
 ) -> (Operand, StableName) {
     let on = pick.on();
-    let (at, port) = crate::world::body_of(doc, on.node(), on.body());
     let name = pick.name().clone();
-    let body = match crate::world::seat_read(doc, at, Some(port)) {
+    let body = match crate::world::seat_read(doc, on.node(), Some(on.body())) {
         (at, None) => body_of(doc, at),
         (at, port) => crate::seats::Output::named(port).read(at),
     };
