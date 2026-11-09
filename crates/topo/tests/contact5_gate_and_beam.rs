@@ -102,8 +102,6 @@ fn refusals(body: &Body<f64>, errors: &[ValidationError]) -> Vec<&'static str> {
         .collect()
 }
 
-const CROSSING: &str = "another finding reports one part's boundary crossing itself";
-
 /// The solid pairs the findings decide interfere, each once, in order.
 fn interfering(
     body: &Body<f64>,
@@ -509,41 +507,37 @@ fn a_declared_seat_with_a_keel_is_probed() {
     }
 }
 
-/// **One solid's boundary crossing itself blocks its pairs.** Solid A
-/// is a plate `[0, 3] × [0, 3] × [0, 1]` with a cavity
-/// `[2, 4] × [1, 2] × [0.25, 0.75]` filed under it that pokes out through
-/// its `x = 3` wall: one `Outer` and one `Void`, whose first witnesses
-/// wind as check 10 wants, and whose edges pierce that wall. A block B
-/// rests on A's `x = 0` wall, face to face. Every finding between A and B is a rest,
-/// but A's own edge crossings say its boundary crosses itself, and no
-/// placement can be read against such a material. Those crossings are
-/// A's alone, no placement of A against B: red, a decided overlap beside
-/// the refusal, where one solid's own pierce is read as a pair.
+/// **A solid whose cavity crosses its wall is refused at tier 3, in
+/// either walk order.** Solid A is a plate `[0, 3] × [0, 3] × [0, 1]`
+/// with a cavity filed under it that pokes out through one of its walls,
+/// `x = 3` or `x = 0`: one `Outer` and one `Void`. Check 10 reads every
+/// witness of the cavity, and those outside the plate wind `0` where a
+/// `Void` needs `1`, so the crossing is `ShellWinding` at the cavity
+/// whichever corner its walk reads first, and the census behind tier 3
+/// is not reached. A block B rests on the plate's other wall.
 #[test]
-fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
-    let mut body = block((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
-    let cavity = block((2.0, 4.0), (1.0, 2.0), (0.25, 0.75))
-        .revert()
-        .unwrap();
-    topo::graft_disjoint(&mut body, &cavity).unwrap();
-    let mut body = body.with_solids_merged_for_tests();
-    topo::graft_disjoint(&mut body, &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0))).unwrap();
-    let errors = errors_of(&body);
-    assert!(
-        !errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::ShellWinding { .. })),
-        "the premise: check 10 passes the crossing cavity: {errors:?}"
-    );
-    assert!(pierces(&errors) > 0, "{errors:?}");
-    assert_eq!(refusals(&body, &errors), [CROSSING], "{errors:?}");
-    // A's own pierces are its boundary crossing itself, no placement.
-    assert!(
-        !errors
-            .iter()
-            .any(|e| topo::census_interference_solids(&body, e).is_some()),
-        "no decided overlap beside the refusal: {errors:?}"
-    );
+fn a_solid_whose_cavity_crosses_its_wall_is_refused_by_check_10_in_either_order() {
+    for (cavity_x, rest_x) in [((2.0, 4.0), (-1.0, 0.0)), ((-1.0, 1.0), (3.0, 4.0))] {
+        let mut body = block((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
+        let cavity = block(cavity_x, (1.0, 2.0), (0.25, 0.75)).revert().unwrap();
+        topo::graft_disjoint(&mut body, &cavity).unwrap();
+        let mut body = body.with_solids_merged_for_tests();
+        topo::graft_disjoint(&mut body, &block(rest_x, (1.0, 2.0), (0.0, 1.0))).unwrap();
+        let cavity_shell = body.shells().nth(1).expect("the cavity").0;
+        let errors = errors_of(&body);
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::ShellWinding { shell, winding: 0, .. } if *shell == cavity_shell
+            )),
+            "the cavity across x = {cavity_x:?} winds 0 outside the plate: {errors:?}"
+        );
+        assert_eq!(
+            pierces(&errors),
+            0,
+            "tier 3 refuses first, so the census is not read: {errors:?}"
+        );
+    }
 }
 
 /// A block `outer` with the block `void` cut out of it as a cavity: one
