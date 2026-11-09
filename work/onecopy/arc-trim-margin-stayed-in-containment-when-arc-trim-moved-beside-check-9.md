@@ -2,8 +2,11 @@
 id: arc-trim-margin-stayed-in-containment-when-arc-trim-moved-beside-check-9
 kind: issue
 title: Span membership is spelled two ways: arc_trim's chord distances (check 9) and span_place's parameter·meter
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6687
+branch: onecopy/needle-basin
 ---
 
 

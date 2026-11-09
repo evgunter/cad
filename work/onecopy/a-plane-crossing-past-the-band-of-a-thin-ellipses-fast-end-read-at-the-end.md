@@ -2,10 +2,13 @@
 id: a-plane-crossing-past-the-band-of-a-thin-ellipses-fast-end-read-at-the-end
 kind: issue
 title: A plane crossing past the band of a thin ellipse's fast end was read at the end, and the split dropped it: span_place metered the end gap at the inf speed
-status: open
+status: closed
 opened: 2026-11-09
 priority: P0
 cost: E
+closed: 2026-11-09
+pr: 6687
+branch: onecopy/needle-basin
 ---
 
 
