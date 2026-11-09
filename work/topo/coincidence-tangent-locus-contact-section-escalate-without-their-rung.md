@@ -19,7 +19,7 @@ escalation does not say which rung refused (`LeverPass::ByRung`,
 
 - `Coincide::TangentLocus`: `geom_brep::tangent_locus` returns a bare
   `Indeterminate` (`TangentLocusError::Escalated`), wrapped at
-  `boolean::verify_tangent_declaration` (`mod.rs`) and at
+  `boolean::verify_tangency` (`mod.rs`, the glue door's tangency check) and at
   `insert::record_germ_dir` and `sectors::tangent_lump`;
 - `Coincide::Contact`: `contact::ContactRefusal::{Escalated, Undeclared}`
   at the declared-contact verdict door (`mod.rs`, `contact_pair_verdict`'s

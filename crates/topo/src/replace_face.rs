@@ -790,7 +790,9 @@ pub enum ReplaceFaceError<T: Real> {
     /// words. The door does not validate the body it is handed, so the
     /// neighbour's torus is whatever the body carries.
     ///
-    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
+    /// Standing: as the convention states it
+    /// ([`geom_brep::TorusRefusal::refusal`]): ranked by its margin in
+    /// band, an abort where decided outside the convention.
     DegenerateTorus {
         /// The edge whose section read the torus.
         edge: EdgeKey,
@@ -871,6 +873,7 @@ impl<T: Real> ReplaceFaceError<T> {
     ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         match self {
             Self::Escalated { source } => Ok(geom_brep::ladder::Refusal::Margin(*source)),
+            Self::DegenerateTorus { refusal, .. } => refusal.refusal(),
             Self::ReanchorInconclusive { .. } => Ok(geom_brep::ladder::Refusal::Unsettled),
             Self::ApproxLaneUnsupported { .. }
             | Self::NeighborPairUnroutable { .. }
@@ -910,7 +913,6 @@ impl<T: Real> ReplaceFaceError<T> {
             | Self::CornerSection { .. }
             | Self::TogetherAxialEdge { .. }
             | Self::TogetherConicArc { .. }
-            | Self::DegenerateTorus { .. }
             | Self::Op { .. }
             | Self::Pcurve { .. }
             | Self::Join { .. } => Err(geom_brep::ladder::Aborts),

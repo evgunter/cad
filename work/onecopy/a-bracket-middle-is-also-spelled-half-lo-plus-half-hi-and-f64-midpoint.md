@@ -2,10 +2,12 @@
 id: a-bracket-middle-is-also-spelled-half-lo-plus-half-hi-and-f64-midpoint
 kind: issue
 title: A bracket's middle is also spelled ½lo + ½hi and f64::midpoint, beside its two homes
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6681
 ---
 
 
