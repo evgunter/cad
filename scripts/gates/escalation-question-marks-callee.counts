@@ -62,7 +62,10 @@ crates/topo/src/boolean/fate.rs 2
 # way round a run is minted: WHICH. held_cut's three reads (`nested`, both
 # `tied_held`): its owner only names SharedVertexCrossings, so any held
 # cut answers: HAND-ROLLED (question-mark-ladders-the-gate-registered).
-crates/topo/src/boolean/insert.rs 6
+# reconcile_shared's fixpoint (`reconcile_pass(..)?` until a pass turns
+# nothing, then `return hang_at_shared(..)`): every pass is needed, so
+# NOT A SEARCH.
+crates/topo/src/boolean/insert.rs 7
 # join: bool_connect's partners, every segment's: NOT A SEARCH.
 crates/topo/src/boolean/join.rs 1
 # boolean mod: vertex_at, which vertex is at the point: WHICH.
