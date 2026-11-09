@@ -838,11 +838,12 @@ pub(crate) enum Unread<T> {
         sector: Option<usize>,
         why: Unsettled<T>,
     },
-    /// No reference to read by, and no tighter band gives one: the cone
-    /// has no wedge (a whole-plane sector), or every reference's arc to
-    /// `q` decidedly meets the apex (a clearance decided negative; one the
-    /// band reads zero is a refusal of its own, [`ArcReach::clears`]). A
-    /// limit (`[failure.taxonomy]` row 2).
+    /// No reference to read by, and no tighter band gives one: every
+    /// sector whose side of `q` the cone decided is a whole plane, with no
+    /// wedge to take a reference from. An arc to a reference never
+    /// decidedly meets the apex ([`ArcReach::clears`]: a clearance reads or
+    /// refuses), so this is the only way none is read without a refusal.
+    /// A limit (`[failure.taxonomy]` row 2).
     NoReference,
     /// No reference read, where a tighter band may give one: a plane `q`
     /// reads in band of outside its sector (`Against::Off`), a side given
@@ -1389,28 +1390,40 @@ impl ArcReach {
     /// arc the other way round. At one distance both ends ahead of the
     /// plane normal to their bisector is that clearance; with the ends
     /// at two distances it is the segment's nearest point's
-    /// ([`foot`]). `Ok(false)` where it decidedly does not clear; the
-    /// escalation where it is in band, and [`Unsettled::Zero`] where the
-    /// band reads the clearance zero (in band: a tighter band may part it
-    /// from the apex), so a decided "does not clear" is only a negative
-    /// clearance.
+    /// ([`foot`]). `Ok(())` where it clears; the escalation where it is
+    /// in band; and [`Unsettled::Zero`] where the band reads the clearance
+    /// zero (in band: a tighter band may part it from the apex).
+    ///
+    /// **Both clearances are nonnegative by construction**: an end's
+    /// distance along the bisector of the two ends' directions is its
+    /// length times the cosine of half the angle between them (at most a
+    /// half-turn), and the foot's is a length. So no clearance is decided
+    /// negative, and nothing here reads "decidedly meets the apex": a
+    /// clearance either reads or refuses. A negative reading would be a
+    /// defect of the reading itself; it fails a debug build, and a
+    /// release build refuses it in band, as a zero.
     fn clears<T: Decide>(
         self,
         p: Point3<T>,
         q: Point3<T>,
         w: Point3<T>,
         rd: Reading<T>,
-    ) -> Result<bool, Unsettled<T>> {
+    ) -> Result<(), Unsettled<T>> {
         let ends = |name, d: Distance<T>| match metric::settle(name, d, rd)? {
-            Sign::Positive => Ok(true),
-            Sign::Negative => Ok(false),
-            Sign::Zero => Err(Unsettled::Zero(name, d)),
+            Sign::Positive => Ok(()),
+            sign => {
+                debug_assert!(
+                    sign == Sign::Zero,
+                    "a clearance is nonnegative by construction ({name})"
+                );
+                Err(Unsettled::Zero(name, d))
+            }
         };
         match self {
             Self::Near => {
                 let half = ((q - p).normalize() + (w - p).normalize()).normalize();
-                Ok(ends(LINK_ARC, Distance::of(q, p, half))?
-                    && ends(LINK_ARC, Distance::of(w, p, half))?)
+                ends(LINK_ARC, Distance::of(q, p, half))?;
+                ends(LINK_ARC, Distance::of(w, p, half))
             }
             Self::Out => {
                 let m = foot(p, (q, w));
@@ -2056,7 +2069,7 @@ impl<T: Decide> Cone<T> {
         // refused at `q`'s distance is kept by its standing
         // ([`Unread::refusal`]) and ranked ([`Evidence`]); one refused out
         // at its reach passes, so a refusal names a reading at `q`'s
-        // distance. An arc decided to meet the apex passes.
+        // distance.
         let (sides_at, own_at) = (&sides, &own);
         let references = [ArcReach::Near, ArcReach::Out]
             .into_iter()
@@ -2090,10 +2103,8 @@ impl<T: Decide> Cone<T> {
                     Rung::Passes
                 }
             };
-            match arc.clears(p, q, w, rd) {
-                Ok(true) => {}
-                Ok(false) => return Rung::Passes,
-                Err(why) => return refused(Unread::Arc { sector: None, why }),
+            if let Err(why) = arc.clears(p, q, w, rd) {
+                return refused(Unread::Arc { sector: None, why });
             }
             let mut held = base == Sign::Negative;
             for (k, s) in self.sectors.iter().enumerate() {
@@ -2200,7 +2211,7 @@ impl<T: Decide> Cone<T> {
         let p = self.p;
         [ArcReach::Near, ArcReach::Out].into_iter().find_map(|arc| {
             let w = arc.reference(p, q, w - p, (w - p).norm());
-            arc.clears(p, q, w, rd).ok()?.then_some(())?;
+            arc.clears(p, q, w, rd).ok()?;
             self.winds_from((on, q), (from, w), rd)
         })
     }
