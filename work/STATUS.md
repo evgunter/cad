@@ -2434,7 +2434,7 @@ prefix `onecopy/`; tag `(ONECOPY orchestrator)`.
 | — | `frame-azimuth-waits-on-the-frame-module` | issue | — | open | Frame::azimuth, the third angle birth, waits on PR 6463's geom::frame module |  |  |
 | — | `held-angle-renames-the-angle-reads-sweep-left` | issue | — | open | The forward reductions into [0, τ) that the angle-reads sweep left are extents, the turn rule's question, not swept site by site |  |  |
 | — | `incidence-pins-in-three-rows-name-the-variant` | issue | — | open | Three rows pick out an incidence read by its PcurveCertifyError or CertifyError variant instead of the classifier |  |  |
-| — | `meet-refuses-a-near-tangent-tilt-in-both-orders` | issue | — | open | meet refuses four needle tilts in both orders, two on the basin and two on the extreme, where the pair holds one meeting or is apart past the band |  |  |
+| — | `meet-refuses-a-near-tangent-tilt-in-both-orders` | issue | — | open | meet escalates a needle near-miss within two zero widths past the band's escalation |  |  |
 | — | `spline-error-holders-may-pass-a-caller-recourse-to-the-user` | issue | — | open | Twelve SplineError holders may render its caller-facing recourse where the kernel built the spline |  |  |
 | — | `the-typed-refusal-reason-leaves-an-unused-second-spelling-and-unpinned-reads` | issue | — | open | PR 6614's typed reason left a second carrier-refusal spelling, a stale walk claim, and reads its tests cannot see |  |  |
 | — | `two-arc-clearance-floors-read-a-point-by-even-steps-beside-point-walk` | issue | — | open | Two circle-arc clearance floors read a point against an arc by 32 even steps beside Curve3::point_walk |  |  |
