@@ -2,10 +2,12 @@
 id: a-loop-through-one-place-at-two-point-keys-is-read-by-its-first-vertex
 kind: issue
 title: a curved face's loop that passes one place twice through two distinct point keys within band is grouped by neither check 9's corner arm nor arm 1, so one_region's Any read answers its crossing by the first vertex placed
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6649
 ---
 
 

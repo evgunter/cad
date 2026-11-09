@@ -2,10 +2,12 @@
 id: two-cycles-crossing-at-a-cones-apex-are-read-by-their-first-vertex
 kind: issue
 title: two surface cycles of a cone face's loop that cross at the cone's apex are read by neither check 9's corner arm (silent at an apex, which has no normal) nor arm 1, so one_region's Any read answers by its first vertex placed
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6649
 ---
 
 
