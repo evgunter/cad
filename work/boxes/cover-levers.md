@@ -2,11 +2,12 @@
 id: cover-levers
 kind: unit
 title: The levers read the cover: the split and join reaches, the carrier doors, the tangent witness span, the containment selection reach and side reader, and geom_brep::Reach built from cover queries
-status: dispatched
+status: review
 opened: 2026-11-02
 priority: P1
 cost: H
 branch: boxes/cover-levers
+pr: 6596
 ---
 
 

@@ -20,6 +20,6 @@ A `scripts/gates/` check that fails when a file outside the cover modules matche
 
 - **`geom_brep::Reach::foot_on` / `reading_point`** still match on kind to choose a pivot. Where the pivot feeds a lever (`foot_lever`'s floor), it is a region read. `cover-levers`' fix pass corrects the floor; this unit makes the pivot choice read the cover, or shows it is not a region question.
 - **Folded edge sites that still read the whole carrier rather than the span:** props, arcs, trace, `chord_join::SectionCurve::lever`, `RimSide`.
-- **Any of `cover-levers`' item-7 list it leaves:** `containment::arc_distance_floor`'s conic annulus floor, the `chart_region` sphere and spindle radial arms, and the `pcurve_cache` `R + r` sites.
+- **`containment::arc_distance_floor`'s conic annulus floor**, which `cover-levers` left: a per-kind tightening of a nearest distance. It belongs in the cover's arc near reading (`geom::cover` `Arc::point_near`), and moves the clearance and touch gates' verdicts, which need re-measuring. (`cover-levers` fixed `pcurve_cache`'s `R + r` angular arm. It showed that `rho_sum`, a Lipschitz factor, and `chart_region`'s `R + r·cos v`, a chart metric, are not region bounds.)
 
 The gate's job is to make every such site red. Its shape needs to see inline arms, `speed_lo()` annuli and literal `R + r` sums. Name-keyed greps missed each of these. (BOXES orchestrator)
