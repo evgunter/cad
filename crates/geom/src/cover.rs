@@ -667,7 +667,7 @@ impl<T: Real> Cover<T> {
     /// lies in. A point `v` along a generator stands
     /// `t = v·(cos α·|axis| + sin α·ρ(u)·â)` high and `|v·sin α|·|ρ(u)|`
     /// off the axis at most, so its offset is within `|t|·tan` with
-    /// `tan = |sin α|·ρ_off / (cos α·|axis| − |sin α|·tilt)` ([`Radial`]),
+    /// `tan = |sin α|·ρ_off / (cos α·|axis| − |sin α|·tilt)` (Gram bounds),
     /// `|tan α|` for a unit orthogonal frame. The frustum is measured
     /// about the axis ([`Cover::about`]) and lies at no level about it.
     /// `None` for a datum, or a bound of `within`, that is not a finite
@@ -762,7 +762,7 @@ impl<T: Real> Cover<T> {
     }
 
     /// **The whole torus's surface**: the points of [`Cover::tube`], its
-    /// [`Shell`] about its core, which [`Cover::level`] reports. `None`
+    /// shell about its core, which [`Cover::level`] reports. `None`
     /// for a datum that is not a finite number.
     pub fn torus(frame: &Frame<T>, major: T, minor: T) -> Option<Self> {
         Tube::new(frame, major, minor).map(|t| Self::piece(Piece::Tube(t.shell())))
@@ -770,7 +770,7 @@ impl<T: Real> Cover<T> {
 
     /// **The whole sphere's surface**: the points
     /// `center + r·(cos v·ρ(u) + sin v·axis)`, for any frame and either
-    /// sign of `r`, the torus's of no spine, its [`Shell`] about its
+    /// sign of `r`, the torus's of no spine, its shell about its
     /// centre, which [`Cover::level`] reports. `None` for a datum that
     /// is not a finite number.
     pub fn sphere(frame: &Frame<T>, radius: T) -> Option<Self> {
