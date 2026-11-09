@@ -55,7 +55,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::{
     CancelToken, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation, Formula,
     LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag, Selector,
-    SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
+    SplitHalf, StableName, Start, apply, evaluate, p2, select,
 };
 use pncad::profile::ClosedLoop;
 use pncad::topo::{Body, mass_properties};
@@ -251,9 +251,10 @@ fn half_at(ev: &Evaluation<f64>, split: RecipeNodeId, half: SplitHalf) -> Body<f
 }
 
 fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId, tol: Tol) -> Body<S> {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        other => panic!("expected a body, got {other:?}"),
+    let payload = &ev.value(id).expect("the node evaluated").payload;
+    match payload.one_body() {
+        Some(Some(b)) => crate::world::in_its_space(b, tol),
+        _ => panic!("expected a body, got {payload:?}"),
     }
 }
 

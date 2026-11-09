@@ -651,6 +651,21 @@ fn order_ending(diag: &Indeterminate) -> String {
     }
 }
 
+/// **The join's refusal for a site its section could not place** on the
+/// face the division divides: the one sort of a [`geom_brep::SiteRefusal`]
+/// into the join's vocabulary. An escalation is the division's, a site off
+/// its component a section invariant, a spline walk that could not run its
+/// limit.
+impl From<(FaceKey, geom_brep::SiteRefusal)> for SplitJoinError {
+    fn from((face, refused): (FaceKey, geom_brep::SiteRefusal)) -> Self {
+        match refused {
+            geom_brep::SiteRefusal::Escalated(diag) => Self::Escalated { face, diag },
+            geom_brep::SiteRefusal::Desync(what) => Self::SectionInvariant { face, what },
+            geom_brep::SiteRefusal::Unwalked(why) => Self::SectionUnwalked(why),
+        }
+    }
+}
+
 impl SplitJoinError {
     fn write(
         &self,
@@ -2962,9 +2977,7 @@ fn carried_chord_spec<T: Decide>(
                 None => t,
             })),
             Ok(end) => Ok(end),
-            Err(geom_brep::SiteRefusal::Escalated(diag)) => Err(escalated(diag)),
-            Err(geom_brep::SiteRefusal::Desync(what)) => Err(invariant(what)),
-            Err(geom_brep::SiteRefusal::Unwalked(why)) => Err(SplitJoinError::SectionUnwalked(why)),
+            Err(refused) => Err((face, refused).into()),
         }
     };
     if leave.datum != Datum::Germ {
@@ -3420,7 +3433,11 @@ fn between_edge_is_section<T: Decide>(
             })
         }
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {
-            let margin = Margin::of((curve.mid_point() - ctx.origin).dot(ctx.normal.get()));
+            let margin = Margin::of(geom::plane_offset(
+                ctx.origin,
+                ctx.normal.get(),
+                curve.mid_point(),
+            ));
             match decide("split_conic_inplane_mid", margin, band) {
                 Ok(Sign::Zero) => Ok(Some(true)),
                 Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
@@ -7376,8 +7393,9 @@ mod cone_window_rows {
     /// is a patch.** Patches `u ∈ [0, u1] × z ∈ [z0, z1]` of the cone of
     /// half-angle `1/2` about `z` from the origin
     /// (`boxes::tests::cone_wall`), read from a corner: the window is
-    /// `[z0, z1]` to rounding under three quarters of a turn, and holds
-    /// the apex past it, where a boundary may enclose it. A window that
+    /// `[z0, z1]` to rounding at every span, past three quarters of a turn
+    /// too, since the patch's loop closes in the chart and so leaves the
+    /// apex out (`cover::cone_may_hold_apex`). A window that
     /// misses any of the face lets the arm serve a line pair over points
     /// nearer the apex than it reads.
     #[test]
@@ -7408,18 +7426,10 @@ mod cone_window_rows {
                     lo <= z0 + 1e-12 && hi >= z1 - 1e-12,
                     "{label}, from {at:?}: the window [{lo}, {hi}] misses some of the face"
                 );
-                if u1 < 1.5 * core::f64::consts::PI {
-                    assert!(
-                        lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
-                        "{label}, from {at:?}: the window [{lo}, {hi}] reaches past the face"
-                    );
-                } else {
-                    assert!(
-                        lo <= 0.0,
-                        "{label}, from {at:?}: past three quarters of a turn the window \
-                         [{lo}, {hi}] holds the apex"
-                    );
-                }
+                assert!(
+                    lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
+                    "{label}, from {at:?}: the window [{lo}, {hi}] reaches past the face"
+                );
             }
         }
     }

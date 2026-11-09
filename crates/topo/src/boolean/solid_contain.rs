@@ -450,8 +450,8 @@ impl PointInSolidError {
     /// **What a solid read inside-out is owed**, whichever reader found
     /// its material holding the side at infinity: this door
     /// ([`Self::InsideOut`]), the Boolean's per-solid read of an operand
-    /// ([`crate::ValidationError::SliverInsideOut`]), or an unverdicted
-    /// door's check 7 and check 10 ([`crate::Unfinished::InsideOut`]). The
+    /// ([`crate::ValidationError::SliverInsideOut`]), or the finish's
+    /// check 7 and check 10 ([`crate::ValidationError::NegativeVolume`]). The
     /// lever is the solid's orientation, so every such refusal ends in it.
     pub const INSIDE_OUT_RECOURSE: &'static str = inside_out_recourse!();
 
@@ -476,9 +476,11 @@ impl PointInSolidError {
     /// kind with no arm, a corrupt or inside-out body, a solid that is
     /// not there), so a ladder over points reading it again gains
     /// nothing: it aborts ([`geom_brep::ladder::Aborts`]).
-    pub(in crate::boolean) fn refusal(
-        &self,
-    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`], for a refusal of the whole query.
+    pub fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         use geom_brep::ladder::{Aborts, Refusal};
         if self.in_band() {
             match self {
@@ -1218,9 +1220,11 @@ pub(super) fn torus_elevation<T: Decide>(
     minor_radius: T,
     p: Point3<T>,
 ) -> T {
-    let w = p - center;
-    let h = w.dot(axis);
-    let rho = (w - axis * h).norm();
+    let (h, rho) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(p);
     ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
 }
 
@@ -1355,10 +1359,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut levels: Vec<(T, T)> = Vec::new();
     // A point's own exact meridian-half-plane pair.
-    let pair = |p: Point3<T>| -> (T, T) {
-        let w = p - center;
-        let h = w.dot(axis);
-        (h, (w - axis * h).norm())
+    let axis_line = geom::Line {
+        origin: center,
+        dir: axis,
     };
     for he in body
         .loop_cycle(first)
@@ -1372,7 +1375,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             .get_vertex(he_data.start)
             .and_then(|v| body.get_point(v.point))
             .ok_or(PointInSolidError::CorruptFace { face })?;
-        levels.push(pair(v));
+        levels.push(axis_line.height_and_distance(v));
         let edge = linked(
             &body.edges,
             he_data.edge,
@@ -2061,7 +2064,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                 // Orientation-free: a residual compared against Zero
                 // answers the same whichever way the normal points,
                 // and `point_in_face` below is ray parity (ditto).
-                let elev = (q - origin).dot(normal);
+                let elev = geom::plane_offset(origin, normal, q);
                 match decide("bool_point_in_solid_plane", Margin::of(elev), band) {
                     // In-plane: ON the boundary iff within the face
                     // region (a loop-boundary graze is also ON).
@@ -2916,7 +2919,7 @@ fn ray_passes_beside<T: Decide>(
     let (verts, covers) = crate::splitting::containment::loop_hull(body, f.outer)
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
     let m = normal.cross(d);
-    let m = m / m.norm();
+    let m = m.normalize();
     let base = (q - Point3::origin()).dot(m);
     let (mut above, mut below) = (None::<T>, None::<T>);
     // Each part's least height above the plane, and least depth below it:
@@ -3400,10 +3403,9 @@ impl<T: Decide> EdgeMeets<T> {
     /// **Reads vertex `v`** of an edge between `faces` against the ray
     /// segment `ray` along `d`, once per vertex: within the band of the
     /// ray it is a corner, on it a graze, marked where the ray comes
-    /// closest to it. Its distance from the ray is enclosed by its
-    /// rounding charge ([`geom_core::rounding_charge`] over the lengths
-    /// it is read from), and the enclosure's lower end is decided, as an
-    /// edge's gap is.
+    /// closest to it. Its distance from the ray, a short chain on in-box
+    /// coordinates, is decided as read: its rounding is the run's
+    /// (`geom_core::tolerance::admissible`), not charged here.
     #[allow(clippy::too_many_arguments)] // the vertex, its faces, the ray and the rows
     fn vertex(
         &mut self,
@@ -3428,14 +3430,10 @@ impl<T: Decide> EdgeMeets<T> {
             }))?;
         let ray = geom::Line { origin: q, dir: d };
         let along = ray.param(at);
-        let gap = (at - ray.foot_within(at, (T::zero(), top))).norm();
-        // The distance is a short chain (differences, a projection, a
-        // norm), each rounding under half an ulp of the lengths it is
-        // read from: the kernel's one charge for such a chain.
-        let low = gap - geom_core::rounding_charge((at - q).norm() + gap);
+        let distance = (at - ray.foot_within(at, (T::zero(), top))).norm();
         match geom_core::k_stats::decide_magnitude(
             rows.vertex,
-            Margin::of(low.max(T::zero())),
+            Margin::of(distance.max(T::zero())),
             band,
         ) {
             Ok(geom_core::k_stats::Magnitude::Positive) => {}
@@ -3524,13 +3522,11 @@ fn wall_crosses_by_turn<T: Decide>(
     ray: TurnRay,
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
     let band = ray.band;
-    let axis = axis / axis.norm();
+    let axis = axis.normalize();
     let radius = radius.abs();
     let split = |x: Point3<T>| {
-        let w = x - origin;
-        let h = w.dot(axis);
-        let radial = w - axis * h;
-        (h, radial / radial.norm())
+        let (h, radial) = geom::Line { origin, dir: axis }.param_and_offset(x);
+        (h, radial.normalize())
     };
     let (h_p, e1) = split(p);
     let e2 = axis.cross(e1);
@@ -3590,8 +3586,8 @@ fn wall_crosses_by_turn<T: Decide>(
                     },
                 radius: r,
             }) => {
-                r.abs() * (normal / normal.norm()).cross(axis).norm()
-                    + geom::Line { origin, dir: axis }.offset(center).norm()
+                r.abs() * normal.normalize().cross(axis).norm()
+                    + geom::Line { origin, dir: axis }.distance(center)
             }
             _ => return Ok(None),
         };
@@ -4359,7 +4355,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             // outside the face, so a miss is asked, not assumed: q
             // definitely off the plane, or the face definitely to one
             // side of the ray.
-            let clear = clear_of_carrier((q - origin).dot(normal), face, band, rows);
+            let clear = clear_of_carrier(geom::plane_offset(origin, normal, q), face, band, rows);
             if matches!(clear, Ok(true)) || ray_passes_beside(body, face, q, d, normal, band, rows)?
             {
                 continue;
@@ -5158,6 +5154,110 @@ const AT_INFINITY: crate::props::RoleNames =
 /// The side-at-infinity decision's name on the interval re-derivation.
 const AT_INFINITY_ENCLOSURE: crate::props::RoleNames =
     crate::props::RoleNames::one("bool_point_in_solid_infinity_enclosure");
+
+/// **The census's material probe ranks this door's refusals by their
+/// standing** ([`PointInSolidError::refusal`], read through
+/// [`crate::census::probe_vertices`], which states each refusal with the
+/// census's own reason): a refusal of the whole query stops the probe
+/// ahead of a later vertex inside; a limit outranks an in-band refusal
+/// read before it; a vertex inside still answers past an in-band one;
+/// and a vertex the census answered in band
+/// ([`crate::census::answered_in_band`]) is passed, its refusal unread.
+/// Fed the readings directly, since no body a constructor builds refuses
+/// two ways in one probe.
+#[cfg(test)]
+mod census_probe_ranking {
+    use super::{PointInSolidError, SolidContainment};
+    use crate::census::{Probe, Undecided, answered_in_band, probe_vertices};
+    use crate::entity::{EntityId, SolidKey, VertexKey};
+    use crate::validate::Undecidable;
+
+    fn keys() -> (VertexKey, VertexKey) {
+        let mut keys = slotmap::SlotMap::<VertexKey, ()>::with_key();
+        (keys.insert(()), keys.insert(()))
+    }
+
+    /// The probe over `readings`, one vertex each, the first two `keys`,
+    /// with the census's exemption over `answered`.
+    fn probe(
+        readings: Vec<Result<SolidContainment, PointInSolidError>>,
+        answered: &[((EntityId, EntityId), Undecidable)],
+    ) -> Probe {
+        let (a, b) = keys();
+        let vertices: Vec<_> = [a, b].into_iter().zip(0..readings.len()).collect();
+        let solid_of = |id| match id {
+            EntityId::Solid(s) => Some(s),
+            _ => None,
+        };
+        probe_vertices(
+            &vertices,
+            |i| readings[i].clone(),
+            |v| answered_in_band(answered, solid_of, SolidKey::default(), v),
+        )
+    }
+
+    fn what(e: &PointInSolidError) -> &'static str {
+        Undecided::of_point_in_solid(e).what()
+    }
+
+    #[test]
+    fn an_abort_stops_the_probe_and_a_limit_outranks_in_band() {
+        let gone = || PointInSolidError::NoSuchSolid {
+            solid: SolidKey::default(),
+        };
+        assert_eq!(
+            probe(vec![Err(gone()), Ok(SolidContainment::In)], &[]),
+            Probe::Refused(what(&gone())),
+            "a solid that is not there refuses the whole query: no later vertex is read"
+        );
+        assert_eq!(
+            probe(
+                vec![
+                    Err(PointInSolidError::RayExhausted),
+                    Err(PointInSolidError::ZeroVolumeBody)
+                ],
+                &[]
+            ),
+            Probe::Refused(what(&PointInSolidError::ZeroVolumeBody)),
+            "a limit outranks an in-band refusal read before it"
+        );
+        let (first, _) = keys();
+        assert_eq!(
+            probe(
+                vec![
+                    Err(PointInSolidError::RayExhausted),
+                    Ok(SolidContainment::In)
+                ],
+                &[]
+            ),
+            Probe::In(keys().1),
+            "a vertex inside answers past an in-band refusal"
+        );
+        assert_eq!(
+            probe(
+                vec![
+                    Err(PointInSolidError::RayExhausted),
+                    Ok(SolidContainment::Out)
+                ],
+                &[]
+            ),
+            Probe::Refused(what(&PointInSolidError::RayExhausted)),
+            "with no vertex inside, the kept refusal refuses"
+        );
+        let answered = [(
+            (
+                EntityId::Vertex(first),
+                EntityId::Solid(SolidKey::default()),
+            ),
+            Undecidable::ThinInBand,
+        )];
+        assert_eq!(
+            probe(vec![Err(gone()), Ok(SolidContainment::Out)], &answered),
+            Probe::Clear,
+            "a vertex answered in band is passed, even where its refusal would abort"
+        );
+    }
+}
 
 #[cfg(test)]
 mod volume_refusal_rows {

@@ -158,9 +158,11 @@ impl<T: Decide> Quadric<T> {
 
     /// `p`'s height along a cone's axis and its offset from the axis.
     fn axial(apex: Point3<T>, axis: Vec3<T>, p: Point3<T>) -> (T, Vec3<T>) {
-        let w = p - apex;
-        let h = w.dot(axis);
-        (h, w - axis * h)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .param_and_offset(p)
     }
 
     /// The length a dimensionless reading at `p` is levered by: the
@@ -205,7 +207,7 @@ impl<T: Decide> Quadric<T> {
             } => {
                 let (h, w) = Self::axial(apex, axis, p);
                 let (s, c) = half_angle.sin_cos();
-                w / w.norm() * c - axis * h.select_le_zero(-s, s)
+                w.normalize() * c - axis * h.select_le_zero(-s, s)
             }
             Self::Torus {
                 centre,
@@ -214,7 +216,7 @@ impl<T: Decide> Quadric<T> {
                 ..
             } => {
                 let tube = p - Self::core(centre, axis, major, p);
-                tube / tube.norm()
+                tube.normalize()
             }
         }
     }
@@ -222,7 +224,7 @@ impl<T: Decide> Quadric<T> {
     /// The core circle's point at `p`'s azimuth, `p` off the axis.
     fn core(centre: Point3<T>, axis: Vec3<T>, major: T, p: Point3<T>) -> Point3<T> {
         let w = Self::axial(centre, axis, p).1;
-        centre + w / w.norm() * major
+        centre + w.normalize() * major
     }
 
     /// The outward normal at `p` of a face of sense `sense`
@@ -444,7 +446,7 @@ impl<T: Decide> Quadric<T> {
         let (rise, ruling_at_to) = match *self {
             Self::Cone { .. } => {
                 let e = to - base;
-                (e.norm() - (below - base).norm(), e / e.norm())
+                (e.norm() - (below - base).norm(), e.normalize())
             }
             _ => (ht - hf, axis),
         };
@@ -455,7 +457,7 @@ impl<T: Decide> Quadric<T> {
                 Piece::Segment {
                     from: a,
                     to: b,
-                    ruling: e / e.norm(),
+                    ruling: e.normalize(),
                     lever: geom_brep::ExtentBall::point(base).lever_from(on),
                 }
             }
@@ -508,7 +510,7 @@ fn parallel<T: Decide>(
     to: Point3<T>,
 ) -> CircleArc<T> {
     let u = from - centre;
-    let u = u / u.norm();
+    let u = u.normalize();
     let w = to - centre;
     let phi = w.dot(axis.cross(u)).atan2(w.dot(u));
     // The way round is a raw pick: either is a path between the same
@@ -890,7 +892,7 @@ impl<T: Real> LoopSplit<T> {
                 origin,
                 axis,
                 radius,
-            } => (p - origin).cross(axis).norm() - radius,
+            } => geom::Line { origin, dir: axis }.distance(p) - radius,
         }
     }
 
@@ -1028,7 +1030,7 @@ impl<T: Decide> Quadric<T> {
     /// coordinate resolution: a section lane mints a circle's axis and
     /// radius from the plane's and the torus's stored directions and
     /// radii, never from a difference of far points
-    /// (`far_frame_rows::a_torus_circle_the_section_lane_mints_in_the_box_reads_its_kind_at_the_origin`).
+    /// (`box_edge_rows::a_torus_circle_the_section_lane_mints_in_the_box_reads_its_kind_at_the_origin`).
     pub(crate) fn torus_circle_arc(
         &self,
         carrier: &geom::Curve3<T>,
@@ -1085,7 +1087,7 @@ impl<T: Decide> Quadric<T> {
             return Ok(Some(arc(ArcLoop {
                 split: LoopSplit::Side {
                     origin: centre,
-                    dir: w / w.norm(),
+                    dir: w.normalize(),
                 },
                 positive: true,
             })));
@@ -1188,16 +1190,19 @@ impl<T: Decide> Quadric<T> {
 ///   the arc's length).
 /// - On a torus, a meeting point counts only on the arc's own loop of
 ///   its plane ([`ArcLoop`], **`split_ring_path_torus_loop`**).
-/// - Every reading above is charged the [`resolution`] of the path's
-///   points and the arcs' centres ([`charge`]), but the cosine across,
+/// - Every reading above is charged the path's resolution
+///   ([`path_resolution`], [`charge`]): the spread of its pieces' stored
+///   terms and the arcs' stored centres, origins or ends, and a conic
+///   arc's own carrier resolution — but the cosine across,
 ///   read between two directions, and two readings whose zero only hands
 ///   the case to charged readings, so that a charge would only widen it:
 ///   the lead's length, and [`misses_in_plane`]'s
 ///   **`split_ring_path_same_circle`**, whose zero hands the arcs' ends
-///   to the in-span readings. In a frame far from the
-///   origin, points that should lie on one plane or one circle are
-///   stored further apart than the band, and a margin inside their
-///   rounding stands down rather than decide.
+///   to the in-span readings. Where a stored term lies far from the
+///   arc it serves (a section's centre far along its plane), points
+///   that should lie on one plane or one circle are stored further apart
+///   than the band, and a margin inside their rounding stands down
+///   rather than decide.
 /// - Each meeting point counts when it lies strictly inside the piece's
 ///   span and the arc's (**`split_ring_path_in_span`**: the distance
 ///   along the piece or the arc to a span end — a parameter levered at a
@@ -1294,7 +1299,7 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     let e = geom::Line { origin: c, dir: a }.offset(p.circle.frame.origin);
-                    let e = e / e.norm();
+                    let e = e.normalize();
                     let Some(roots) =
                         plane_roots(&p, (p.circle.frame.origin, e), arrival, slack, band)?
                     else {
@@ -1324,7 +1329,7 @@ pub(crate) fn path_parity<T: Decide>(
                         continue;
                     }
                     let rho_less =
-                        |p: Point3<T>| geom::Line { origin: c, dir: a }.offset(p).norm() - major;
+                        |p: Point3<T>| geom::Line { origin: c, dir: a }.distance(p) - major;
                     let side = |p| {
                         decide_m(
                             "split_ring_path_crest_side",
@@ -1371,7 +1376,7 @@ pub(crate) fn path_parity<T: Decide>(
                         continue;
                     }
                     let sec = section(arc);
-                    let offset = |x: Point3<T>| sec.normal.dot(x - sec.origin);
+                    let offset = |x: Point3<T>| geom::plane_offset(sec.origin, sec.normal, x);
                     let (d0, d1) = (offset(from), offset(to));
                     let side =
                         |d| decide_m("split_ring_path_segment_side", Margin::of(charge(d, slack)));
@@ -1463,7 +1468,7 @@ pub(crate) fn path_parity<T: Decide>(
                     if arrival {
                         continue;
                     }
-                    let gap = (from - origin).cross(dir).norm() / dir.norm();
+                    let gap = geom::Line { origin, dir }.distance(from);
                     if decide_m(
                         "split_ring_path_rulings_distinct",
                         Margin::of(charge(gap, slack)),
@@ -1654,30 +1659,38 @@ fn charge<T: Real>(m: T, slack: T) -> T {
     (m - slack).max(T::zero()) + (m + slack).min(T::zero())
 }
 
-/// **How far apart points stored at `points`' distances from the
-/// origin may lie where they should coincide**: `4ε` times the farthest
-/// distance `far`. A rounding to the grid moves a coordinate of a point
-/// within `far` of the origin by at most half an ulp, `ε·far/2`. Each of
-/// two points that should coincide is rounded at most twice: when it is
-/// stored, and in the one step that places it from stored points (a
-/// centre moved along an axis, a point placed round a circle, a lead's
-/// end moved along a tube radius). So they part by at most `2ε·far` in
-/// each coordinate, and by at most `2√3·ε·far` as a vector, which
-/// `4ε·far` bounds. A margin's own arithmetic adds nothing at that
-/// scale: its subtraction of stored coordinates rounds relative to
-/// their difference, and the rest relative to the margin. A reading
-/// between such points charges the resolution to its margin, so that
-/// where coordinates cannot resolve the band it stands down rather than
-/// deciding on their rounding.
+/// **How far a reading's stored terms may part where they should
+/// coincide, read about the reading's own point**: `4ε` times the
+/// farthest of `points` from the first, `points[0]` the reading's own
+/// point. A term stored far from the geometry a reading serves (a
+/// cylinder's origin far along its axis, a section's centre far from its
+/// arc) is summed with the reading's own coordinates, so the reading
+/// rounds at that term's length: the stored form's amplification. The
+/// coordinates' own rounding, about the world origin, is the run's
+/// (`geom_core::tolerance::admissible`), and is not charged here. Each of
+/// two points that should coincide is rounded at most twice, when it is
+/// stored and in the one step that places it from stored points, so they
+/// part by at most `2√3·ε·far` as a vector, which `4ε·far` bounds. A
+/// reading charges this to its margin, so that where its stored terms
+/// cannot resolve the band it stands down rather than decide on their
+/// rounding.
 fn resolution<T: Real>(points: &[Point3<T>]) -> T {
+    let Some(&at) = points.first() else {
+        return T::zero();
+    };
     let far = points
         .iter()
-        .fold(T::zero(), |m, &x| m.max((x - Point3::origin()).norm()));
+        .fold(T::zero(), |m, &x| m.max((x - at).norm()));
     far * T::from_f64(4.0 * f64::EPSILON)
 }
 
 /// **The [`resolution`] of a reading between `path` and `arcs`**: of
-/// every piece's ends and centre and every arc's centre.
+/// every piece's ends and centre and every arc's stored centre, origin
+/// or ends, read about the first of them (the first piece's first
+/// stored term: an arc piece's centre, a segment's start); and a conic
+/// arc's own
+/// resolution over its span ([`geom_brep::carrier_resolution`]), the
+/// rounding its stored semi-axes and far centre amplify.
 fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     let mut points = Vec::with_capacity(3 * path.pieces.len() + arcs.len());
     for piece in &path.pieces {
@@ -1692,7 +1705,7 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     }
     for arc in arcs {
         match arc {
-            LoopArc::Conic(c) => points.push(c.conic().frame().origin),
+            LoopArc::Conic(_) => {}
             LoopArc::Crest { circle, .. } => points.push(circle.frame.origin),
             LoopArc::Oval(Oval { centre, .. }) => points.push(*centre),
             LoopArc::Line { line, .. } => points.push(line.origin),
@@ -1701,7 +1714,13 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
             }
         }
     }
-    resolution(&points)
+    let carriers = arcs.iter().filter_map(|arc| match arc {
+        LoopArc::Conic(c) => {
+            geom_brep::carrier_resolution::resolution(&c.carrier, c.span.0, c.span.1)
+        }
+        _ => None,
+    });
+    carriers.fold(resolution(&points), T::max)
 }
 
 /// **Whether the segment `from → to`, an end of which lies on
@@ -1853,10 +1872,11 @@ fn plane_roots<T: Decide>(
     // roots lie `2rω` apart along the arc, so the root error against
     // their separation is `δ/(2rρ·sin ω·ω) ≈ δ/(4g)` for the gap
     // `g = rρ − |D| ≈ rρω²/2`. The pick holds while that is under a half.
-    // The gap is charged the coordinates' resolution `s`, so a decided
-    // gap is `g > Kε + s`, and the rounding is `δ ≤ ε + s`: the ratio is
-    // under a quarter wherever the frame lies, and at most `1/(4K)` where
-    // the coordinates resolve the band (`s ≪ ε`). The bound is the guard.
+    // The gap is charged its stored terms' resolution `s`, so a decided
+    // gap is `g > Kε + s`; the rounding is the coordinates' own, within
+    // the headroom the run's admission rule leaves (`(K − 1)ε`), plus
+    // `s`: `δ ≤ (K − 1)ε + s`, so the ratio is under a quarter however
+    // far the stored terms lie. The bound is the guard.
     let roots = if arrival {
         let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
         vec![nearer.select_le_zero(r1, r0)]
@@ -1888,7 +1908,7 @@ mod cone_path_grid;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod far_frame_rows;
+mod box_edge_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -2772,61 +2792,171 @@ mod tests {
         assert!(apart > 20_000, "{apart} segments read apart");
     }
 
-    /// **A reading between far points stands down inside their
-    /// resolution** ([`resolution`]): the unit circle about
-    /// `(2^k, 0, 0)` against the unit circle two ulps of `2^k` beyond
-    /// touching it, and against the radial segment from two ulps
-    /// outside it, outward one metre. Both margins are exactly two ulps,
-    /// past the band's escalation threshold, and the resolution is four:
-    /// neither is read apart. About the origin the same margins are read
-    /// apart. Red against the mutant "no resolution charged" for either
-    /// reading.
-    #[test]
-    fn a_reading_between_far_points_stands_down_inside_their_resolution() {
-        let esc = band().escalate();
-        let k = (2.0 * esc).log2().ceil() + 51.0;
-        let far = 2f64.powf(k);
-        let ulp = far * f64::EPSILON;
-        assert!(2.0 * ulp >= 2.0 * esc, "two ulps clear the band");
-        for o in [far, 0.0] {
-            let at = |x: f64| Point3::new(o + x, 0.0, 0.0);
-            let conic = ConicArc::of_frame(
-                geom::Frame::new(at(0.0), Vec3::unit_z(), Vec3::unit_x()),
-                (1.0, 1.0),
-                (-1.0, 1.0),
-                None,
+    /// The far-centre graze rows' readings at `slack`: `(poses read,
+    /// of them read wrong)`. Each pose is a unit circle in the box near a
+    /// graze of the plane of a section conic stored `far` along that plane
+    /// (a shallow cut's ellipse, its arc by the circle), its gap set within
+    /// twice the band's escalation and read exactly (`two_product` and
+    /// `two_sum`). A reading is wrong where it is definite on a gap the
+    /// band does not decide (within `Kε`), or definite against the exact
+    /// gap's sign.
+    fn far_centre_grazes(far: f64, slack_of: impl Fn(&geom::Curve3<f64>) -> f64) -> (usize, usize) {
+        use geom_core::exact::{two_product, two_sum};
+        let band = Band::linear_at(geom_core::Tol::witness(), 1e-12).unwrap();
+        let mut rng = test_utils::fuzz::start("ring_path::far_centre_grazes");
+        let unit = |rng: &mut test_utils::fuzz::Rng| {
+            Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            )
+            .normalize()
+        };
+        let (mut read, mut wrong) = (0, 0);
+        for _ in 0..test_utils::fuzz::scaled(2000) {
+            let c = Point3::new(
+                rng.range(-500.0, 500.0),
+                rng.range(-500.0, 500.0),
+                rng.range(-500.0, 500.0),
             );
+            let axis = unit(&mut rng);
+            let u_ref = unit(&mut rng).cross(axis).normalize();
             let piece = CircleArc {
-                circle: geom::Circle::new(
-                    geom::Frame::new(at(2.0 + 2.0 * ulp), Vec3::unit_z(), Vec3::unit_x()),
-                    1.0,
-                ),
-                span: (2.0, 4.0),
+                circle: geom::Circle::new(geom::Frame::new(c, axis, u_ref), 1.0),
+                span: (0.0, 6.0),
             };
-            let lead = (at(1.0 + 2.0 * ulp), at(2.0 + 2.0 * ulp));
-            let read = (
-                misses_in_plane(
-                    &piece,
-                    &conic,
-                    resolution(&[piece.circle.frame.origin, conic.conic().frame().origin]),
-                    band(),
+            let n = unit(&mut rng);
+            let frame = &piece.circle.frame;
+            let rho = (n.dot(frame.u_ref).powi(2) + n.dot(frame.v_ref()).powi(2)).sqrt();
+            let w = n.cross(unit(&mut rng)).normalize();
+            let gap = rng.range(-2.0, 2.0) * band.escalate();
+            let o = c - n * (rho - gap) + w * far;
+            // The exact `n·(c − o)`, compensated: each difference and
+            // product error-free, their sum to the last bit.
+            let (mut hi, mut lo) = (0.0, 0.0);
+            for (a, b, k) in [(c.x, o.x, n.x), (c.y, o.y, n.y), (c.z, o.z, n.z)] {
+                let (d, de) = two_sum(a, -b);
+                let (pd, pe) = two_product(d, k);
+                let (s, se) = two_sum(hi, pd);
+                hi = s;
+                lo += se + pe + de * k;
+            }
+            let exact = rho - (hi + lo).abs();
+            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(o, n, w),
+                far,
+                far / 100.0,
+            ));
+            read += 1;
+            let got = plane_roots(&piece, (o, n), false, slack_of(&carrier), band);
+            let definite = match got {
+                Ok(Some(roots)) => Some(!roots.is_empty()),
+                _ => None,
+            };
+            if let Some(meets) = definite
+                && (exact.abs() < band.escalate() || meets != (exact > 0.0))
+            {
+                wrong += 1;
+            }
+        }
+        (read, wrong)
+    }
+
+    /// **A graze against a far-centred section's plane is read wrong
+    /// nowhere**: the conic's stored centre lies `far` along its plane
+    /// from the arc a unit circle in the box grazes, so the gap
+    /// `r·ρ − |n·(c − o)|` rounds at that length, past the band at ε =
+    /// 1e-12 from about a megametre. Charged the conic's own resolution
+    /// over its span ([`geom_brep::carrier_resolution`], as
+    /// [`path_resolution`] charges it), no reading is definite where the
+    /// exact gap is not; charged nothing, some are (the amplification the
+    /// run's admission rule does not cover).
+    #[test]
+    fn a_graze_against_a_far_centred_sections_plane_is_read_wrong_nowhere() {
+        let charge = |carrier: &geom::Curve3<f64>| {
+            geom_brep::carrier_resolution::resolution(carrier, -0.01, 0.01).unwrap()
+        };
+        for far in [1e4, 1e5, 1e6] {
+            // The charge is the conic's resolution, not a stand-down at
+            // any price: a few dozen roundings of its far terms.
+            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
                 ),
-                segment_misses(
-                    lead,
-                    &conic,
-                    resolution(&[lead.0, lead.1, conic.conic().frame().origin]),
-                    band(),
-                ),
+                far,
+                far / 100.0,
+            ));
+            let slack = charge(&carrier);
+            assert!(
+                slack.is_finite() && slack <= 128.0 * f64::EPSILON * far,
+                "far {far:e}: the charge {slack:e} is the conic's resolution"
             );
-            if o == 0.0 {
-                assert_eq!(read, (Ok(true), Ok(true)), "about the origin");
-            } else {
+            let charged = far_centre_grazes(far, charge);
+            assert_eq!(
+                charged.1, 0,
+                "far {far:e}: read wrong, charged: {charged:?}"
+            );
+            let bare = far_centre_grazes(far, |_| 0.0);
+            println!("far {far:e}: charged {charged:?}, bare {bare:?}");
+            if far >= 1e6 {
+                // The row can go red: read bare, the pose is read wrong.
                 assert!(
-                    !matches!(read.0, Ok(true)) && !matches!(read.1, Ok(true)),
-                    "about {o}: {read:?}"
+                    bare.1 > 0,
+                    "far {far:e}: bare reads nothing wrong: {bare:?}"
                 );
             }
         }
+    }
+
+    /// **A loop conic stored far from its arc charges the path its own
+    /// resolution** ([`path_resolution`]'s conic fold): a unit circle
+    /// piece in the box against a section ellipse whose centre is a
+    /// megametre out reads at least the conic's
+    /// [`geom_brep::carrier_resolution`], far past what the path's points
+    /// alone resolve (red against the mutant "the fold reads no conic").
+    #[test]
+    fn a_far_centred_loop_conic_charges_the_path_its_resolution() {
+        let far = 1e6;
+        let piece = CircleArc {
+            circle: geom::Circle::new(
+                geom::Frame::new(Point3::new(100.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+                1.0,
+            ),
+            span: (0.0, 1.0),
+        };
+        let path = Path {
+            pieces: vec![Piece::Arc(piece)],
+            arrival: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let span = (-0.01, 0.01);
+        let conic = ConicArc::of_frame(
+            geom::Frame::new(
+                Point3::new(100.0 - far, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            (far, far / 100.0),
+            span,
+            None,
+        );
+        let own = geom_brep::carrier_resolution::resolution(&conic.carrier, span.0, span.1)
+            .expect("an ellipse has a resolution");
+        let points = [
+            piece.circle.frame.origin,
+            piece.at(span.0),
+            piece.at(span.1),
+        ];
+        assert!(
+            resolution(&points) * 1e3 < own,
+            "the points alone resolve far finer"
+        );
+        let read = path_resolution(&path, &[LoopArc::Conic(conic)]);
+        assert!(
+            read >= own,
+            "the path reads {read:e}, the conic's own {own:e}"
+        );
     }
 
     /// A refused meeting of a piece and a spline arc says nothing where

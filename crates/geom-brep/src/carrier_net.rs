@@ -1494,11 +1494,10 @@ mod tests {
         )
         .unwrap();
         let o = Point3::new(999.0, -1000.0, 999.5);
-        let n = |v: Vec3<f64>| v / v.norm();
         let axes = [
-            n(Vec3::new(1.0, 2.0, 3.0)),
-            n(Vec3::new(-2.0, 1.0, 0.0)),
-            n(Vec3::new(3.0, 6.0, -5.0)),
+            Vec3::new(1.0, 2.0, 3.0).normalize(),
+            Vec3::new(-2.0, 1.0, 0.0).normalize(),
+            Vec3::new(3.0, 6.0, -5.0).normalize(),
         ];
         let frame = super::Frame::of(o, axes);
         let net = super::framed_carrier_net(

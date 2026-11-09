@@ -16,11 +16,13 @@
 //!   Gauss–Newton. The unit-coordinate angle alone is not a foot: its
 //!   point lies up to `(1 + a/b)·d` from a point `d` off the ellipse;
 //! - a spiric oval: [`Curve3::param_near`]'s angle, then Gauss–Newton;
-//! - a spline: the best of the caller's seed and a few samples on each
-//!   knot span, then Gauss–Newton, held to the domain; and Gauss–Newton
-//!   from each end of the domain, the smallest gap kept. A closed
-//!   spline's two ends are one point, so a descent held at one end
-//!   continues from the other.
+//! - a spline: Gauss–Newton, held to the domain, from the caller's seed
+//!   and from some of a few samples on each knot span and the domain's
+//!   ends, the smallest gap kept. The samples polished from are the
+//!   ends, each local minimum of the sampled gaps, and the few least
+//!   gaps, so a branch whose nearest sample sits beside a nearer one of
+//!   another branch is still descended. A closed spline's two ends are
+//!   one point, so a descent held at one end continues from the other.
 //!
 //! A closed kind's angle is read relative to the seed's direction, or to
 //! its opposite where the point lies definitely behind it, so an
@@ -87,13 +89,17 @@
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::{check_unlogged, decide, decide_reported, straddle};
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed, Vec3,
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed,
 };
 
 use super::Curve3;
 
 /// The Gauss–Newton steps a foot is polished by.
 const POLISH_STEPS: usize = 6;
+
+/// How many of a spline's least-gap samples its foot search polishes
+/// from, beside each local minimum of the sampled gaps.
+const LEAST_SAMPLES: usize = 4;
 
 /// Where a spline's foot search samples each knot span, as fractions of
 /// it.
@@ -250,7 +256,7 @@ impl CarrierEscalation {
 }
 
 /// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
 pub enum PieceWalkRefusal {
     /// The walk ran past its budget.
     Exhausted,
@@ -273,12 +279,31 @@ impl PieceWalkRefusal {
     }
 }
 
-impl core::fmt::Display for PieceWalkRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
+impl PieceWalkRefusal {
+    /// **The one sentence this refusal is rendered by**, for a site that
+    /// carries a `&'static str` ([`core::fmt::Display`] writes it too).
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
             Self::Exhausted => "a spline's piece walk ran past its budget",
             Self::Unbounded => "a spline's speed bound is zero or poison",
-        })
+        }
+    }
+
+    /// The refusal [`Self::sentence`] renders, where it is one, over every
+    /// variant ([`strum::VariantArray`]).
+    #[must_use]
+    pub fn of_sentence(sentence: &str) -> Option<Self> {
+        <Self as strum::VariantArray>::VARIANTS
+            .iter()
+            .copied()
+            .find(|why| why.sentence() == sentence)
+    }
+}
+
+impl core::fmt::Display for PieceWalkRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.sentence())
     }
 }
 
@@ -410,19 +435,17 @@ impl<T: Decide> Curve3<T> {
         let knots = n.knot_values();
         let (lo, hi) = knots.domain();
         let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
-        let mut best = self.foot_at(q, near.max(lo).min(hi));
+        let mut samples = vec![self.foot_at(q, lo)];
         for k in breaks.windows(2) {
-            for s in SPLINE_SAMPLES {
-                let f = self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s));
-                if smaller(f.gap, best.gap) {
-                    best = f;
-                }
-            }
+            samples.extend(
+                SPLINE_SAMPLES.map(|s| self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s))),
+            );
         }
+        samples.push(self.foot_at(q, hi));
         let domain = Some((lo, hi));
-        let mut foot = self.polish(q, best, domain);
-        for end in [lo, hi] {
-            let f = self.polish(q, self.foot_at(q, end), domain);
+        let mut foot = self.polish(q, self.foot_at(q, near.max(lo).min(hi)), domain);
+        for i in spline_starts(&samples) {
+            let f = self.polish(q, samples[i], domain);
             if smaller(f.gap, foot.gap) {
                 foot = f;
             }
@@ -484,9 +507,9 @@ impl<T: Decide> Curve3<T> {
     /// piece walk ([`Self::clear_of`]).
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
-            Self::Line(line) => line.offset(q).norm(),
+            Self::Line(line) => line.distance(q),
             Self::Circle(c) => {
-                let (h, rho) = height_and_radius(q - c.frame.origin, c.frame.axis);
+                let (h, rho) = c.frame.axis_line().height_and_distance(q);
                 (h.powi(2) + (rho - c.radius).powi(2)).sqrt()
             }
             Self::Ellipse(e) => {
@@ -504,7 +527,11 @@ impl<T: Decide> Curve3<T> {
             } => {
                 let w = q - center;
                 let plane = (w.dot(u_ref) - offset).abs();
-                let (h, rho) = height_and_radius(w, axis);
+                let (h, rho) = crate::Line {
+                    origin: center,
+                    dir: axis,
+                }
+                .height_and_distance(q);
                 let (major, minor) = (major_radius.abs(), minor_radius.abs());
                 let torus = ((rho - major).powi(2) + h.powi(2)).sqrt() - minor;
                 let side =
@@ -533,6 +560,14 @@ impl<T: Decide> Curve3<T> {
     /// not, once its reach is within the band (`curve_carrier_piece`). A
     /// lower bound on `q`'s distance from the interval, past the band,
     /// where it is `Clear`.
+    ///
+    /// One of three readings of a point against a pieced curve, each a
+    /// [`Self::point_walk`] whose visit is its stop rule: this one decides
+    /// against the band, logged, and returns the deciding reading, so it
+    /// stops on a piece's reach. `topo`'s containment `ArcPieces::clear`
+    /// reads a caller's unlogged lever as a bool and stops on a failing
+    /// middle point; `pieced_arc`'s `contact` asks where the point sits
+    /// (an end, on, off) on its own ball cover, not a clearance.
     ///
     /// # Errors
     ///
@@ -596,10 +631,30 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
     two * f / (g2.sqrt() + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt())
 }
 
-/// `w`'s height along `axis` and its distance from the axis.
-pub(super) fn height_and_radius<T: Decide>(w: Vec3<T>, axis: Vec3<T>) -> (T, T) {
-    let h = w.dot(axis);
-    (h, (w - axis * h).norm())
+/// **The samples a spline's foot search polishes from**, by index, in
+/// order: both ends of the domain, each local minimum of the sampled
+/// gaps, and the [`LEAST_SAMPLES`] least gaps. A local minimum finds a
+/// branch whose samples dip toward the point; the least gaps find one
+/// whose nearest sample sits beside a nearer one on another branch
+/// (a cusp, or a hairpin narrower than the sampling).
+fn spline_starts<T: Decide>(samples: &[Foot<'_, T>]) -> Vec<usize> {
+    let gap = |i: usize| samples[i].gap;
+    let not_below = |i: usize, j: Option<usize>| j.is_none_or(|j| !smaller(gap(j), gap(i)));
+    let mut starts: Vec<usize> = (0..samples.len())
+        .filter(|&i| {
+            i == 0 || i + 1 == samples.len() || {
+                not_below(i, i.checked_sub(1)) && not_below(i, Some(i + 1))
+            }
+        })
+        .collect();
+    for _ in 0..LEAST_SAMPLES {
+        let least = (0..samples.len())
+            .filter(|i| !starts.contains(i))
+            .reduce(|a, b| if smaller(gap(b), gap(a)) { b } else { a });
+        starts.extend(least);
+    }
+    starts.sort_unstable();
+    starts
 }
 
 /// Whether `a` is decided smaller than `b`: a heuristic's choice, read

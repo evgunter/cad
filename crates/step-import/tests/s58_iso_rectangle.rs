@@ -61,10 +61,14 @@ fn imports_and_measures(name: &str, exact: f64) {
     else {
         panic!("{name} must import as a solid");
     };
-    topo::validate_geometric(body.body(), Tol::witness())
+    topo::validate_geometric(&*body, Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must pass tier 3: {e:?}"));
     let mp = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
+        &topo::test_support::finished(
+            "the measured body",
+            body.clone().into_body(),
+            Tol::witness(),
+        ),
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )

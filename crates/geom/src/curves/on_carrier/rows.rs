@@ -367,15 +367,15 @@ fn a_hairpin_closer_than_the_band_certifies_on_at_the_seeds_branch_at_interval()
     );
 }
 
-/// **A foot on a far branch at `f64` is the certificate's to read**: on
+/// **A spline's foot finds the point's own branch from any seed**: on
 /// a cubic spline of five knot spans, a point on the carrier at
-/// `t = 0.35` polishes, from every seed but its own parameter, to a
-/// stationary point near `t = 0.03`, 0.05 away. No tie and no log is involved, so no tie log
-/// could catch it; what a reader can hold is the certificate, and it
-/// says neither `On` (the foot's gap is far past the band) nor `Off`
-/// (the point is on the carrier): it escalates.
+/// `t = 0.35` lies 0.05 from a stationary point near `t = 0.03` whose
+/// basin holds the least-gap sample. Polishing from that sample alone
+/// lands there; the search also polishes from each local minimum of the
+/// sampled gaps and the few least gaps, and reads `On` at `t = 0.35`
+/// from every seed.
 #[test]
-fn a_foot_on_a_far_branch_at_f64_is_the_certificates_to_read() {
+fn a_splines_foot_finds_the_points_own_branch_from_any_seed() {
     let c = Curve3::Nurbs(std::sync::Arc::new(
         crate::NurbsCurve3::new(
             geom_core::spline::KnotVector::clamped(
@@ -403,17 +403,10 @@ fn a_foot_on_a_far_branch_at_f64_is_the_certificates_to_read() {
     ));
     let p = c.eval(0.35);
     for seed in [0.0, 0.3, 0.5, 1.0] {
-        let foot = c.foot(p, seed);
+        let read = c.foot(p, seed).on_carrier(band());
         assert!(
-            foot.gap() > 1e-3,
-            "seed {seed}: the search lands on the far branch, at {} gap {:e}",
-            foot.seed(),
-            foot.gap()
-        );
-        assert_eq!(
-            name(foot.on_carrier(band())),
-            "escalated",
-            "seed {seed}: neither on at the far foot nor off the carrier"
+            matches!(read, Ok(OnCarrier::On { t, .. }) if (t - 0.35).abs() < 1e-6),
+            "seed {seed}: on at the point's own branch: {read:?}"
         );
     }
 }
@@ -478,7 +471,7 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
     const READERS: &[(&str, usize, &str)] = &[
         (
             "geom/src/curves/on_carrier/rows.rs",
-            6,
+            5,
             "the foot's own rows",
         ),
         (
@@ -541,4 +534,69 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
         found, want,
         "a foot's seed read outside its list, or a listed count moved"
     );
+}
+
+#[test]
+#[ignore = "measurement: cargo nextest run -p geom --cargo-profile release --run-ignored only -E 'test(measure_spline_foot_misses)' --no-capture"]
+fn measure_spline_foot_misses() {
+    let mut rng = test_utils::fuzz::Rng::from_seed(0x5eed_f007);
+    let (mut misses, mut total) = (0usize, 0usize);
+    let mut curves_missing = 0usize;
+    let mut spent = std::time::Duration::ZERO;
+    for _ in 0..300 {
+        let ctrl: Vec<Point3<f64>> = (0..8)
+            .map(|_| {
+                Point3::new(
+                    rng.range(0.0, 1.5),
+                    rng.range(0.0, 1.8),
+                    rng.range(0.0, 0.2),
+                )
+            })
+            .collect();
+        let c = Curve3::Nurbs(std::sync::Arc::new(
+            crate::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(
+                    vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0],
+                    3,
+                )
+                .unwrap(),
+                ctrl,
+                vec![1.0; 8],
+            )
+            .unwrap(),
+        ));
+        let before = misses;
+        for k in 1..100 {
+            let p = c.eval(f64::from(k) / 100.0);
+            for s in 0..21 {
+                total += 1;
+                let clock = std::time::Instant::now();
+                let gap = c.foot(p, f64::from(s) / 20.0).gap();
+                spent += clock.elapsed();
+                if gap > 1e-6 {
+                    misses += 1;
+                }
+            }
+        }
+        curves_missing += usize::from(misses > before);
+    }
+    eprintln!(
+        "MEASURE misses {misses} of {total}; curves with a miss {curves_missing} of 300; {:.2} us a foot",
+        spent.as_secs_f64() * 1e6 / total as f64
+    );
+}
+
+/// **Every walk refusal's sentence reads back as itself**, over every
+/// variant: no two share a sentence, so a reader that parses one (the
+/// census) cannot take one refusal for another.
+#[test]
+fn every_walk_refusal_reads_back_from_its_sentence() {
+    for &why in <PieceWalkRefusal as strum::VariantArray>::VARIANTS {
+        assert_eq!(
+            PieceWalkRefusal::of_sentence(why.sentence()),
+            Some(why),
+            "{why:?}"
+        );
+    }
+    assert_eq!(PieceWalkRefusal::of_sentence("no walk's sentence"), None);
 }

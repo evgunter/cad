@@ -997,15 +997,15 @@ fn step_control(ui: &mut egui::Ui, glyph: &str, action: &str, blocked: Option<&s
 /// The control that drops a pending draft.
 pub(crate) const DISCARD: &str = "Discard pending changes";
 
-/// **The editor's one way out of a pending draft**: live only while the
-/// editor has changes the document does not (`pending`), which never
-/// landed. Answers whether it was clicked, which a disabled control
-/// never is.
-fn discard_control(ui: &mut egui::Ui, pending: bool) -> bool {
+/// **An editor's one way out of a pending draft** — the profile
+/// editor's and the placement editor's: live only while the editor has
+/// changes the document does not (`pending`), which never landed.
+/// Answers whether it was clicked, which a disabled control never is.
+pub(crate) fn discard_control(ui: &mut egui::Ui, pending: bool) -> bool {
     let button = ui.add_enabled(pending, egui::Button::new(DISCARD));
     if pending {
         button
-            .on_hover_text("drop the pending changes and show the profile as the document has it")
+            .on_hover_text("drop the pending changes and show it as the document has it")
             .clicked()
     } else {
         button

@@ -742,7 +742,7 @@ fn distance<T: Decide>(
                 pose: Pose::Point(p),
                 ..
             },
-        ) => Ok(magnitude((*p - *origin).dot(*normal))),
+        ) => Ok(magnitude(geom::plane_offset(*origin, *normal, *p))),
         // Plane x plane: defined ONLY between parallel planes — the
         // distance between non-parallel planes is zero along their
         // line of intersection and unbounded away from it, so there is
@@ -909,8 +909,7 @@ fn magnitude<T: Decide>(d: T) -> T {
 /// of the separation orthogonal to a UNIT direction. A metre quantity
 /// throughout.
 fn axis_offset<T: Decide>(origin: Point3<T>, axis: Vec3<T>, point: Point3<T>) -> T {
-    let rel = point - origin;
-    (rel - axis * rel.dot(axis)).norm()
+    geom::Line { origin, dir: axis }.distance(point)
 }
 
 /// `angle(a, b)` -> Angle: the unsigned angle in `[0, pi]` between two
@@ -1490,7 +1489,7 @@ impl core::error::Error for ObservedRefusal {}
 /// [`ObservedRefusal::Measure`] when a measure under `var` has no value
 /// in `results`, and [`ObservedRefusal::Expr`] when an evaluation over
 /// the bound values refuses.
-pub(crate) fn observe<T: Decide, P>(
+pub(crate) fn observe<T: topo::AtRestPolicy + Decide, P>(
     doc: &crate::Doc<P>,
     env: &crate::expr::VarEnv<T>,
     results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
@@ -1550,7 +1549,7 @@ pub(crate) fn observe<T: Decide, P>(
 /// # Errors
 ///
 /// As [`observe`].
-pub(crate) fn observe_formula<T: Decide, P>(
+pub(crate) fn observe_formula<T: topo::AtRestPolicy + Decide, P>(
     doc: &crate::Doc<P>,
     env: &crate::expr::VarEnv<T>,
     results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
@@ -1595,7 +1594,7 @@ fn definitions_under<P>(
 }
 
 /// **What the measure defining `output` computed in this run.**
-fn measured<T: Decide, P>(
+fn measured<T: topo::AtRestPolicy + Decide, P>(
     doc: &crate::Doc<P>,
     results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
     output: crate::VarId,

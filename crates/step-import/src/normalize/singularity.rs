@@ -1032,9 +1032,8 @@ fn interior(
     {
         let lp = &solid.faces[fi].loops[0];
         let radial = |p: Point3<f64>| {
-            let w = p - origin;
-            let r = w - axis * w.dot(axis);
-            (r.norm() > read.escalate).then(|| r / r.norm())
+            let r = geom::Line { origin, dir: axis }.offset(p);
+            (r.norm() > read.escalate).then(|| r.normalize())
         };
         let mut sum = Vec3::new(0.0, 0.0, 0.0);
         let mut count = 0.0;

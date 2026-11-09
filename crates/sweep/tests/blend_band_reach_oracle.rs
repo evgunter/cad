@@ -99,7 +99,7 @@ fn a_concave_cavity_meets_a_ball_island_where_the_oracle_says() {
         judge(
             &format!("concave s {s} {what}"),
             depth,
-            out.map(|f| f.body).map_err(|e| e.error),
+            out.map(|f| f.body.into_body()).map_err(|e| e.error),
         );
     }
 }
@@ -141,7 +141,7 @@ fn a_convex_block_meets_a_ball_void_where_the_oracle_says() {
         judge(
             &format!("convex s {s} {what}"),
             depth,
-            out.map(|f| f.body).map_err(|e| e.error),
+            out.map(|f| f.body.into_body()).map_err(|e| e.error),
         );
     }
 }
@@ -174,7 +174,7 @@ fn a_chamfered_cavity_meets_a_ball_island_where_the_oracle_says() {
         judge(
             &format!("chamfer s {s} {what}"),
             depth,
-            out.map(|f| f.body).map_err(|e| e.error),
+            out.map(|f| f.body.into_body()).map_err(|e| e.error),
         );
     }
 }
@@ -244,7 +244,7 @@ fn a_concave_floor_rim_meets_a_ball_island_where_the_oracle_says() {
         judge(
             &format!("floor rim s {s} {what}"),
             ball_depth(c, s, depth),
-            out.map(|f| f.body).map_err(|e| e.error),
+            out.map(|f| f.body.into_body()).map_err(|e| e.error),
         );
     }
 }
@@ -330,7 +330,7 @@ fn an_oblique_cavity_s_corners_meet_a_ball_island_where_the_oracle_says() {
         judge(
             &format!("oblique s {s} {what}"),
             depth,
-            out.map(|f| f.body).map_err(|e| e.error),
+            out.map(|f| f.body.into_body()).map_err(|e| e.error),
         );
     }
 }

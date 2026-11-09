@@ -783,18 +783,17 @@ pub(crate) fn face_axial_range<T: Decide>(
 
 /// **How far along a cone's axis a face reaches**: bounds `(lo, hi)` on
 /// `(x − apex)·axis` over `face`, read off its boundary as
-/// [`face_axial_range`] reads it, each edge over the span it holds.
+/// [`face_axial_range`] reads it, each edge over the span it holds, so
+/// a working body's null scaffolding is read as its chord.
 ///
 /// A face on the cone itself can hold the apex inside its boundary (a
 /// tip bounded by its rim alone), where its range is not its
 /// boundary's: the axis coordinate peaks on a smooth surface only at
 /// the boundary, and the apex is not smooth. So a face on a cone keeps
-/// its boundary's range only where every loop's azimuth window is
-/// decided narrower than three quarters of a turn: a boundary loop that
-/// encloses the apex winds a whole turn about the axis. Anywhere else
-/// (a wider window, an unread one, a refusal reading it) the range is
-/// widened to hold the apex. A face on any other surface keeps its
-/// boundary's range: on a plane the coordinate is linear.
+/// its boundary's range only where the face cover's apex rule
+/// (`cover::cone_may_hold_apex`: every loop closes in the chart) says
+/// it holds no apex; anywhere else the range is widened to hold it. A
+/// face on any other surface keeps its boundary's range.
 ///
 /// # Errors
 ///
@@ -833,24 +832,11 @@ pub(crate) fn cone_axial_window<T: Decide>(
     let own @ geom::Surface::Cone { .. } = body.proven_face(face).surface() else {
         return Ok((lo, hi));
     };
-    let widened = (lo.min(T::zero()), hi.max(T::zero()));
-    let quarters = T::from_f64(1.5 * core::f64::consts::PI);
-    // Every loop, not the outer alone: a file's designated outer bound
-    // can be a hole, and the loop enclosing the apex then a ring.
-    let wide = match crate::chart_window::face_loop_azimuth_windows(body, own, face, band) {
-        Ok(windows) => windows
-            .into_iter()
-            .try_fold(T::zero() - quarters, |wide, w| {
-                w.map(|(from, to)| wide.max(to - from - quarters))
-            }),
-        Err(_) => None,
-    };
-    Ok(wide.map_or(widened, |wide| {
-        (
-            wide.select_le_zero(lo, widened.0),
-            wide.select_le_zero(hi, widened.1),
-        )
-    }))
+    if crate::cover::cone_may_hold_apex(body, face, own, band) {
+        Ok((lo.min(T::zero()), hi.max(T::zero())))
+    } else {
+        Ok((lo, hi))
+    }
 }
 
 /// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),

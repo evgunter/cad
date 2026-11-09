@@ -119,7 +119,7 @@ pub use words::{LeafRole, leaf_role, role_leaf};
 /// [`crate::Node::fillet`]. Empty if `node` has no value, no table, or
 /// no edges — the fillet's insert refuses an empty selection, so the
 /// emptiness surfaces there rather than here.
-pub fn all_edges<T: geom_core::Decide>(
+pub fn all_edges<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
     at: impl Into<crate::At>,
 ) -> Vec<StableName> {
@@ -129,7 +129,7 @@ pub fn all_edges<T: geom_core::Decide>(
 /// **Every face name of a node's output body, as of THIS evaluation**
 /// — [`all_edges`]'s sibling (LIB-U7 deliverable 1), same contract:
 /// filter, sort, dedup; empty for a node with no value or no table.
-pub fn all_faces<T: geom_core::Decide>(
+pub fn all_faces<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
     at: impl Into<crate::At>,
 ) -> Vec<StableName> {
@@ -138,7 +138,7 @@ pub fn all_faces<T: geom_core::Decide>(
 
 /// **Every vertex name of a node's output body, as of THIS
 /// evaluation** — [`all_edges`]'s sibling, same contract.
-pub fn all_vertices<T: geom_core::Decide>(
+pub fn all_vertices<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
     at: impl Into<crate::At>,
 ) -> Vec<StableName> {
@@ -150,7 +150,7 @@ pub fn all_vertices<T: geom_core::Decide>(
 /// row (a body-producing op mints one [`RoleSeg::OutputBody`]); a
 /// family's members are the plural case. A split's halves are two
 /// reads with a row each, and a split named alone has none.
-pub fn all_bodies<T: geom_core::Decide>(
+pub fn all_bodies<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
     at: impl Into<crate::At>,
 ) -> Vec<StableName> {
@@ -159,7 +159,7 @@ pub fn all_bodies<T: geom_core::Decide>(
 
 /// The one body of all four materializers (they differ only in the
 /// kind they keep): the node's table, filtered, in canonical order.
-fn all_of_kind<T: geom_core::Decide>(
+fn all_of_kind<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
     at: crate::At,
     kind: EntityKind,

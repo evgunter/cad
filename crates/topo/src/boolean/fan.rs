@@ -47,9 +47,11 @@ use geom_core::Lever;
 /// far point reads it at its reach.
 pub(super) fn nappe_offset<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>, q: Point3<T>) -> T {
     let a = nappe_axis(apex, like);
-    let r = q - apex.apex;
-    let z = r.dot(a);
-    let rho = (r - a * z).norm();
+    let (z, rho) = geom::Line {
+        origin: apex.apex,
+        dir: a,
+    }
+    .height_and_distance(q);
     let (sin, cos) = apex.half_angle.sin_cos();
     geom_brep::implicit::cone_offset(rho, z, sin, cos)
 }

@@ -181,9 +181,9 @@ type Arc<T> = RegionEdge<T>;
 /// component along `a` its own size times the rounding, which no ray
 /// parameter survives, so the projection is taken again.
 fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
-    let t = raw / raw.norm();
+    let t = raw.normalize();
     let t = t - a * a.dot(t);
-    t / t.norm()
+    t.normalize()
 }
 
 /// `face`'s region on its sphere `(center, radius)`, or `None` when an
@@ -316,7 +316,7 @@ impl<T: Decide> SphereFaceRegion<T> {
         let w = m - self.center;
         let into = self.outward(m).cross(arc.traversal(t));
         let (sin, cos) = phi.sin_cos();
-        Some(self.center + (w / w.norm() * cos + into / into.norm() * sin) * self.radius)
+        Some(self.center + (w.normalize() * cos + into.normalize() * sin) * self.radius)
     }
 
     /// A lower bound on the distance from `m` to every arc but the `k`th:
@@ -368,7 +368,7 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The unit direction of `foot` from the centre.
     fn unit(&self, foot: QueryFoot<T>) -> Vec3<T> {
         let w = foot.at() - self.center;
-        w / w.norm()
+        w.normalize()
     }
 }
 
@@ -421,7 +421,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         }
         let unit = |y: Point3<T>| {
             let w = y - self.center;
-            w / w.norm()
+            w.normalize()
         };
         let (a, b) = (self.unit(p), unit(target));
         let across = a.cross(b);
@@ -517,7 +517,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
         let w = y - self.center;
-        geom_brep::OutwardNormal::from_chart(w / w.norm(), self.sense).vec()
+        geom_brep::OutwardNormal::from_chart(w.normalize(), self.sense).vec()
     }
 }
 

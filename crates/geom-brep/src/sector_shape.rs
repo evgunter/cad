@@ -116,7 +116,7 @@
 use crate::OutwardNormal;
 use geom_core::k_stats::{decide, decide_negative, decide_positive};
 use geom_core::{
-    Band, Decide, Indeterminate, Lever, Margin, Point3, Real, Sign, Vec3, is_finite_length,
+    Band, Decide, Indeterminate, Lever, Margin, Real, Sign, Vec3, is_finite_length,
     is_underflowed_length,
 };
 
@@ -552,28 +552,6 @@ pub fn reads_slit_tip_turn(bounds: CornerBounds, fault: &SectorFault, along: Sig
         )
 }
 
-/// **A point's signed distance from a plane, in metres**: `q` against
-/// the plane through `origin` with unit normal `normal`, positive on
-/// the normal's side. A point needs no lever: its distance is what a
-/// margin measures.
-pub fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> T {
-    (q - origin).dot(normal)
-}
-
-/// [`plane_offset`] with a first-order bound on its own rounding, its
-/// inputs exact ([`geom_core::running`]): the value is bit-identical to
-/// [`plane_offset`]'s, so a door that decides on one charges the other.
-pub fn plane_offset_rounded<T: Real>(
-    origin: Point3<T>,
-    normal: Vec3<T>,
-    q: Point3<T>,
-) -> geom_core::running::Rounded<T> {
-    use geom_core::running::{self, Rounded};
-    let d = [(q.x, origin.x), (q.y, origin.y), (q.z, origin.z)]
-        .map(|(a, b)| Rounded::exact(a) - Rounded::exact(b));
-    running::dot(d, running::exact_vec(normal))
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -957,8 +935,9 @@ mod tests {
     /// stop guarding its old retired spellings, and whoever renames one
     /// carries them forward by hand.
     ///
-    /// The check is textual over the quoted forms, so a doc comment
-    /// that quotes a retired name reds it too; backticks do not.
+    /// The check reads each file's code and string literals
+    /// (`test_utils::source::code_and_literals`), where a predicate name
+    /// is spelled; a name quoted in prose is not a spelling.
     #[test]
     fn the_rungs_are_decided_in_one_place() {
         let (pooled, retired) = rung_rosters();
@@ -971,7 +950,17 @@ mod tests {
             files.len()
         );
         for path in &files {
-            let text = std::fs::read_to_string(path).expect("a readable source file");
+            let raw = std::fs::read_to_string(path).expect("a readable source file");
+            // A file whose text holds no rung name cannot spell one in a
+            // literal, so only the files that do are lexed.
+            if !pooled
+                .iter()
+                .chain(&retired)
+                .any(|name| raw.contains(name.as_str()))
+            {
+                continue;
+            }
+            let text = test_utils::source::code_and_literals(&raw);
             for name in &retired {
                 assert!(
                     !text.contains(name.as_str()),
@@ -991,7 +980,9 @@ mod tests {
                 );
             }
         }
-        let here = std::fs::read_to_string(&home).expect("the home module is readable");
+        let here = test_utils::source::code_and_literals(
+            &std::fs::read_to_string(&home).expect("the home module is readable"),
+        );
         for name in &pooled {
             assert!(
                 here.contains(name.as_str()),

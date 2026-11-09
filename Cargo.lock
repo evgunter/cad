@@ -1179,6 +1179,7 @@ version = "0.0.0"
 dependencies = [
  "bvh",
  "curvo",
+ "geom",
  "geom-core",
  "nalgebra 0.35.0",
  "num-bigint",
@@ -1195,6 +1196,7 @@ version = "0.0.0"
 dependencies = [
  "bvh",
  "geom",
+ "geom-brep",
  "geom-core",
  "num-bigint",
  "proptest",
@@ -1207,6 +1209,7 @@ dependencies = [
 name = "geom-core"
 version = "0.0.0"
 dependencies = [
+ "geom-core",
  "interval-transcendentals",
  "libm",
  "num-bigint",
