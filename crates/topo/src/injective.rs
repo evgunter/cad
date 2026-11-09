@@ -538,7 +538,7 @@ pub(crate) fn by_kind(
             .map_err(|refusal| EngineRefusal::TorusNotRing {
                 face,
                 side: Which::First,
-                refusal,
+                refusal: Box::new(refusal),
             }),
         Surface::Nurbs(_) | Surface::Approx(_) => Err(EngineRefusal::Unsupported {
             carrier: "a free-form face, which no carrier kind makes injective",

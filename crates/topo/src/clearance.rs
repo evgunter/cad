@@ -552,8 +552,10 @@ pub enum EngineRefusal {
         face: FaceKey,
         /// The side it is on.
         side: Which,
-        /// The convention's half and its verdict.
-        refusal: geom_brep::TorusRefusal,
+        /// The convention's half and its verdict, boxed: its undecided
+        /// verdict carries an [`geom_core::Indeterminate`], which would
+        /// make every engine refusal as large.
+        refusal: Box<geom_brep::TorusRefusal>,
     },
     /// A cell pair the interval pass classified as a definite violation
     /// of a lower bound, or as within an upper one, whose witness the

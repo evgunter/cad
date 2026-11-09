@@ -917,15 +917,10 @@ fn cavity_refusal_ending(
         // as the convention ends it at the door that reads it
         // (`TorusConvention::sized`); read as the payload alone, in the
         // lever, as this map's other arms are.
-        R::TorusNotRing {
-            refusal:
-                geom_brep::TorusRefusal {
-                    convention,
-                    verdict: geom_brep::TorusVerdict::Undecided(diag),
-                },
-            ..
-        } => {
-            let sized = convention.sized();
+        R::TorusNotRing { refusal, .. }
+            if let geom_brep::TorusVerdict::Undecided(diag) = &refusal.verdict =>
+        {
+            let sized = refusal.convention.sized();
             match at {
                 Some(at) => sized
                     .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at)
@@ -3763,14 +3758,12 @@ mod cavity_torus_endings {
         let wall = |major: f64| EngineRefusal::TorusNotRing {
             face: crate::FaceKey::default(),
             side: Which::First,
-            refusal: geom_brep::TorusRefusal::require(major, 1.0, band).unwrap_err(),
+            refusal: Box::new(geom_brep::TorusRefusal::require(major, 1.0, band).unwrap_err()),
         };
         let undecided = wall(1.0 + 0.5 * (band.zero() + band.escalate()));
         let lever = geom_brep::TorusConvention::Ring.sized().lever;
-        let ending = cavity_refusal_ending(
-            &undecided,
-            Some(geom_brep::recourse::Reading::Build.into()),
-        );
+        let ending =
+            cavity_refusal_ending(&undecided, Some(geom_brep::recourse::Reading::Build.into()));
         assert!(ending.contains(lever), "{ending}");
         assert!(
             !cavity_refusal_said(&undecided).contains("meets itself"),

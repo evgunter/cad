@@ -190,7 +190,7 @@ fn a_one_face_refusal_names_its_side() {
         EngineRefusal::TorusNotRing {
             face: k,
             side: Which::First,
-            refusal: geom_brep::TorusRefusal::require(major, 1.0, band).unwrap_err(),
+            refusal: Box::new(geom_brep::TorusRefusal::require(major, 1.0, band).unwrap_err()),
         }
         .to_string()
     };
