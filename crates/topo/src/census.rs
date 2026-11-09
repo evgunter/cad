@@ -7252,7 +7252,8 @@ pub(crate) enum Undecided {
     /// ([`TouchUnread::EdgeTangent`]).
     TouchEdgeTangent,
     /// Arm 1's touch backstop: a face's normal at the touch refuses the
-    /// whole reading ([`TouchUnread::NormalFault`]). A kernel defect.
+    /// whole reading ([`TouchUnread::NormalFault`]). A kernel defect, and
+    /// it waits as every aborting touch does ([`Self::is_undecided_touch`]).
     TouchNormalFault,
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
@@ -7335,6 +7336,7 @@ impl Undecided {
                 | Self::TouchDegenerate
                 | Self::TouchChordScale
                 | Self::TouchEdgeTangent
+                | Self::TouchNormalFault
         )
     }
 
@@ -7740,6 +7742,53 @@ mod normal_fault_rows {
         );
     }
 
+    /// **The aborting set is the two the census's premise names**: a new
+    /// variant of [`NormalAtError`] fails to compile here until it is
+    /// sorted, and one that aborts reds the assertion before the census
+    /// labels it the kernel's.
+    #[test]
+    fn exactly_the_off_surface_point_and_the_degenerate_torus_abort() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("{e:?}"));
+        let diag = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band,
+            predicate: Some("t"),
+            terminal_sliver: false,
+        };
+        let samples = [
+            NormalAtError::Escalated {
+                decision: crate::face_normal::NormalDecision::OnSurface,
+                diag,
+            },
+            NormalAtError::DegenerateTorus {
+                convention: geom_brep::TorusConvention::Ring,
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: geom_core::MarginDiag::INVALID,
+                },
+            },
+            NormalAtError::OffSurface,
+            NormalAtError::AtConeApex { band },
+            NormalAtError::SplineCrease {
+                band,
+                reading: Err(diag),
+            },
+            NormalAtError::SplineIrregular {
+                band,
+                reading: Ok(geom_core::MarginDiag::value(0.0)),
+            },
+        ];
+        for why in samples {
+            let aborts = match why {
+                NormalAtError::OffSurface | NormalAtError::DegenerateTorus { .. } => true,
+                NormalAtError::Escalated { .. }
+                | NormalAtError::AtConeApex { .. }
+                | NormalAtError::SplineCrease { .. }
+                | NormalAtError::SplineIrregular { .. } => false,
+            };
+            assert_eq!(why.refusal().is_err(), aborts, "{why:?}");
+        }
+    }
+
     #[test]
     fn a_normals_fault_ends_with_the_kernel_defect_ending() {
         for (what, text) in [
@@ -7759,11 +7808,18 @@ mod normal_fault_rows {
 /// either abort is the kernel's. The point read off the face's surface
 /// breaks the door's caller's invariant (DESIGN `[failure.taxonomy]` row
 /// 4). A torus outside the ring convention is an invalid input (row
-/// 1(a)) that tier 3 refuses before any census reading
+/// 1(a)) that tier 3 refuses before the census runs at rest
 /// (`ValidationError::DegenerateTorus`, in `tier3_local_checks`, which
-/// `census_verdict` follows only clean), so one reaching the census
-/// passed the kernel's own gate. A refusal that keeps its query is a
-/// reading the census does not build.
+/// `census_verdict` follows only clean), so on that path one reaching a
+/// reader passed the kernel's own gate. A refusal that keeps its query is
+/// a reading the census does not build.
+///
+/// The premise covers the census run at rest (`census_verdict`) alone.
+/// The Boolean also reads a result's line wedges through [`wedge`]
+/// (`boolean::ops::coincident_wedges_disjoint` → [`line_wedges`]) on
+/// operands only tier 2 admitted, so a degenerate torus can reach it
+/// there and read as the kernel's: filed on
+/// `work/onecopy/a-normals-abort-is-labelled-the-kernels-without-its-kind.md`.
 fn normal_aborts(why: &crate::face_normal::NormalAtError) -> bool {
     why.refusal().is_err()
 }
