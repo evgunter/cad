@@ -150,7 +150,9 @@ impl KnotAlgebraError {
     /// knot API's caller — is not the user's.
     pub fn fact(&self) -> impl core::fmt::Display + '_ {
         core::fmt::from_fn(move |f| match self {
-            KnotAlgebraError::Structure(_) => write!(f, "the knot edit refused its inputs"),
+            KnotAlgebraError::Structure(e) => {
+                write!(f, "the knot edit refused its inputs: {}", e.fact())
+            }
             KnotAlgebraError::ParameterOutsideDomain { u } => write!(
                 f,
                 "knot parameter {} is not strictly inside the domain",

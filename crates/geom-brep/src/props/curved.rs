@@ -1416,7 +1416,7 @@ fn cylinder_chart<T: Decide>(
             what: "curved face without a rim (non-sphere)",
         });
     }
-    let anchor = lo + (hi - lo) * T::from_f64(0.5);
+    let anchor = geom::bracket_mid((lo, hi));
     // One loop's anchored chart area and boundary length.
     let loop_chart = |rims: &[(T, T)], lines: T| {
         rims.iter().fold((T::zero(), lines), |(a, l), &(v, du)| {
@@ -5706,7 +5706,7 @@ fn sheet_material_sign<T: Decide>(
 /// A meridian's middle point, where its half-plane is read beside an
 /// apex: off the axis, as its ends at an apex are not.
 fn meridian_middle<T: Decide>(e: &LoopEdge<T>) -> Point3<T> {
-    e.carrier.eval((e.t0 + e.t1) * T::from_f64(0.5))
+    e.carrier.eval(geom::mid_param(e.t0, e.t1))
 }
 
 /// Which revolved circle a face's chart Green form reads

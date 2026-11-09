@@ -152,7 +152,6 @@ mod datum;
 mod frame;
 mod memo;
 mod net;
-mod param;
 mod periodic;
 pub mod pole_form;
 mod projection_policy;
@@ -175,8 +174,8 @@ pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_secon
 pub use curves::{
     CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
-    FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, MajorFrame, NurbsCurve2, NurbsCurve3,
-    OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
+    FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, LinePair, MajorFrame, NurbsCurve2,
+    NurbsCurve3, OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
     ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime, SpiricRegimeSites,
     compose_chain, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range,
     spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
@@ -184,14 +183,13 @@ pub use curves::{
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use frame::{Frame, plane_offset, plane_offset_rounded};
-pub use param::mid_param;
+pub use geom_core::{bracket_mid, mid_param};
 pub use periodic::periodic_window_may_hold;
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
-// public names both halves' callers have always used, and its bracket
-// midpoint is the one a selection outside this crate reads.
+// public names both halves' callers have always used.
 pub use projection_policy::{
-    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, bracket_mid,
+    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
     AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
