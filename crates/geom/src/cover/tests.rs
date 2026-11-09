@@ -1741,9 +1741,10 @@ fn a_carriers_surface_reads_its_level_about_its_own_site() {
         ("sphere", sphere, 0.7, frame.origin),
         ("torus", torus, 0.5, on_core),
     ] {
-        let site = shell
-            .level()
-            .unwrap_or_else(|| panic!("the {name} lies at a level"));
+        let site = match shell.about()[..] {
+            [site] => site,
+            ref other => panic!("the {name} is measured about one site: {other:?}"),
+        };
         assert_eq!(shell.range_about(&site), (level, level), "the {name}");
         let met = trim.clone().meet(shell.clone());
         assert_eq!(
@@ -1753,27 +1754,29 @@ fn a_carriers_surface_reads_its_level_about_its_own_site() {
         );
         let inside = Cover::points(vec![inside]).unwrap();
         let hull = shell.clone().hull(inside);
-        assert!(hull.level().is_none(), "the {name}'s hull reports no level");
+        assert!(hull.about().is_empty(), "the {name}'s hull proposes none");
         assert!(
             hull.range_about(&site).0 < level,
             "the {name}'s hull reads below it"
         );
         let convex = shell.clone().convex();
         assert!(
-            convex.level().is_none(),
-            "the {name}'s convex hull reports no level"
+            convex.about().is_empty(),
+            "the {name}'s convex hull proposes none"
         );
         assert!(
             convex.range_about(&site).0 < level,
             "the {name}'s convex hull reads below it"
         );
     }
-    assert!(
-        Cover::tube(&frame, 2.0, 0.5).unwrap().level().is_none(),
-        "a solid tube lies at no level"
+    let solid = Cover::tube(&frame, 2.0, 0.5).unwrap();
+    assert_eq!(
+        solid.range_about(&solid.about()[0]).0,
+        0.0,
+        "a solid tube lies at no level about its core"
     );
     let spindle = Cover::torus(&frame, 0.4, 0.5).unwrap();
-    let site = spindle.level().expect("a spindle reports its core");
+    let site = spindle.about()[0];
     assert_eq!(
         spindle.range_about(&site).0,
         0.0,
@@ -1846,7 +1849,8 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
             "the {name}'s axis"
         );
     }
-    assert!(cone.level().is_none(), "a frustum lies at no level");
+    let (near, far) = cone.range_about(&cone.about()[0]);
+    assert!(near < far, "a frustum lies at no level: {near}, {far}");
     let centre = |c: &Cover<f64>| match c.about()[..] {
         [Around::Point(p)] => xyz(p),
         ref other => panic!("one centre: {other:?}"),
@@ -1858,13 +1862,6 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     assert_eq!(
         centre(&Cover::torus(&frame, 0.0, 0.7).unwrap()),
         xyz(frame.origin)
-    );
-    assert!(
-        matches!(
-            Cover::sphere(&frame, 0.7).unwrap().level(),
-            Some(Around::Point(p)) if xyz(p) == xyz(frame.origin)
-        ),
-        "a sphere's level is about its centre"
     );
     for cover in [
         Cover::torus(&frame, 2.0, 0.5).unwrap(),
@@ -1883,7 +1880,11 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     )
     .unwrap();
     assert!(patch.about().is_empty(), "a patch proposes none");
-    assert!(patch.level().is_none(), "a patch is no shell of its own");
+    let core = core_about(frame.origin, frame.axis, 2.0);
+    assert!(
+        patch.range_about(&core).0 < 0.5,
+        "a patch is no shell of its own"
+    );
     let met = cone.clone().meet(wall.clone());
     assert_eq!(met.about().len(), 2, "a meet proposes both sides'");
     assert!(cone.clone().hull(wall).about().is_empty(), "a hull none");
@@ -1948,6 +1949,41 @@ fn a_cones_frustum_holds_its_surface_on_any_frame() {
         }
     }
     assert!(held > 1000, "the window holds samples: {held}");
+}
+
+/// **A cone's frustum is tight on a skewed frame**: `u_ref = (1, 0, ½)`
+/// tilted toward the unit axis `z`, half-angle 0.4. The radial
+/// direction's part off the axis is unit at every azimuth while the
+/// whole of it reaches `√1.25`, and its tilt is ½, so the bound is
+/// `tan = sin α / (cos α − ½·sin α)`; the generator at `u = π` attains
+/// it (its height is shortest there for its offset). Red where the
+/// bound reads the radial direction's whole length (`√1.25` times this)
+/// rather than its part off the axis, or drops the tilt.
+#[test]
+fn a_cones_frustum_is_tight_on_a_skewed_frame() {
+    let apex = Point3::new(0.5, -1.0, 2.0);
+    let frame = Frame::new(apex, Vec3::unit_z(), Vec3::new(1.0, 0.0, 0.5));
+    let alpha = 0.4f64;
+    let (s_a, c_a) = alpha.sin_cos();
+    let within = Cover::segment(apex + Vec3::unit_z() * 0.5, apex + Vec3::unit_z() * 2.0).unwrap();
+    let cone = Cover::cone(&frame, alpha, &within).unwrap();
+    let super::Node::Piece(super::Piece::Frustum(f)) = &cone.0 else {
+        panic!("a cone's cover is its frustum");
+    };
+    let want = s_a / (c_a - 0.5 * s_a);
+    assert!(
+        (f.tan - want).abs() <= 1e-15 * want,
+        "tan {} against {want}",
+        f.tan
+    );
+    // The generator at `u = π`, at unit `v`: its offset over its height.
+    let rho = frame.u_ref * -1.0;
+    let step = frame.axis * c_a + rho * s_a;
+    let attained = super::off_line(step, Vec3::unit_z()).norm() / step.z;
+    assert!(
+        (attained - want).abs() <= 1e-15 * want,
+        "the generator at u = π attains it: {attained}"
+    );
 }
 
 /// **A NaN bound in one lane poisons the whole box**: the box `[0, 1]³`

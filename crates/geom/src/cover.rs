@@ -20,8 +20,8 @@
 //! [`Cover::ball`], and at a bracketed scalar [`Cover::aabb`], the one
 //! place the bracket is taken. The cover also says what it is measured
 //! about: [`Cover::about`], the axes, centres and cores of its pieces of
-//! revolution, and [`Cover::level`], the one of them a carrier's surface
-//! lies exactly at.
+//! revolution. A carrier's surface that lies at a level about its own
+//! site (a wall, a shell) is read there by [`Cover::range_about`].
 //! **The values follow `[simple.conditioned]`**: at `f64` each is the
 //! real-arithmetic bound computed as if exact, and nothing charges float
 //! rounding; at `Interval` each is an enclosure, by the scalar's own
@@ -118,8 +118,7 @@ pub enum Site<T: Real> {
 }
 
 /// **What a region is measured about** ([`Cover::about`],
-/// [`Cover::level`], [`Cover::range_about`]): a line, a point, or a
-/// circle ([`Core`]).
+/// [`Cover::range_about`]): a line, a point, or a circle ([`Core`]).
 #[derive(Clone, Copy, Debug)]
 pub enum Around<T: Real> {
     /// A whole line; its direction need not be unit.
@@ -454,7 +453,7 @@ fn gram_low<T: Real>(xx: T, yy: T, xy: T) -> T {
 /// over the turn, against the direction `d`**: Gram bounds, the one
 /// reading of them for every piece a frame turns. Each length is `1` and
 /// `tilt` is `0` for a unit orthogonal frame and its own unit axis.
-struct Radial<T: Real> {
+struct OffAxis<T: Real> {
     /// The longest `|ρ(u)|`.
     top: T,
     /// The shortest and longest `|ρ(u)|` off `d`'s line (not a number
@@ -465,7 +464,7 @@ struct Radial<T: Real> {
     tilt: T,
 }
 
-impl<T: Real> Radial<T> {
+impl<T: Real> OffAxis<T> {
     fn of(frame: &Frame<T>, d: Vec3<T>) -> Self {
         let (u, v) = (frame.u_ref, frame.v_ref());
         let (p, q) = (off_line(u, d), off_line(v, d));
@@ -480,6 +479,12 @@ impl<T: Real> Radial<T> {
 
 fn vec_of<T: Real>(p: Point3<T>) -> Vec3<T> {
     p - Point3::origin()
+}
+
+/// **The axis line of a piece of revolution** through `origin` along
+/// `dir`: a circle's, a slab's, a frustum's. The one constructor of it.
+fn axis_line<T: Real>(origin: Point3<T>, dir: Vec3<T>) -> Line<T> {
+    Line { origin, dir }
 }
 
 /// A free direction `v`'s part off the line direction `d` (a point's
@@ -636,7 +641,7 @@ impl<T: Real> Cover<T> {
     /// points lie between `|r|` times the least and the greatest
     /// `|ρ(u)|` off the axis (Gram bounds, each `1` for a unit
     /// orthogonal frame): the wall's level about its axis line, which
-    /// [`Cover::level`] reports. `None` for a datum, or a bound of
+    /// [`Cover::range_about`] from it reads. `None` for a datum, or a bound of
     /// `within`, that is not a finite number, an axis of zero length
     /// among them.
     pub fn wall(frame: &Frame<T>, radius: T, within: &Self) -> Option<Self> {
@@ -644,7 +649,7 @@ impl<T: Real> Cover<T> {
         let base = vec_of(frame.origin).dot(axis);
         let (lo, hi) = within.range_along(axis);
         let window = ParamWindow::new(lo - base, hi - base);
-        let (low, top) = Radial::of(frame, axis).off;
+        let (low, top) = OffAxis::of(frame, axis).off;
         let r = radius.abs();
         let (inner, outer) = (r * low, r * top);
         (finite_frame(frame) && finite_vec(axis) && finite(&[inner, outer]) && window.finite())
@@ -679,7 +684,7 @@ impl<T: Real> Cover<T> {
         let base = vec_of(frame.origin).dot(axis);
         let (lo, hi) = within.range_along(axis);
         let window = ParamWindow::new(lo - base, hi - base);
-        let radial = Radial::of(frame, axis);
+        let radial = OffAxis::of(frame, axis);
         let (sin, cos) = half_angle.sin_cos();
         let climb = cos * frame.axis.norm() - sin.abs() * radial.tilt;
         let tan = climb.select_le_zero(geom_core::poison(), sin.abs() * radial.off.1 / climb);
@@ -762,7 +767,7 @@ impl<T: Real> Cover<T> {
     }
 
     /// **The whole torus's surface**: the points of [`Cover::tube`], its
-    /// shell about its core, which [`Cover::level`] reports. `None`
+    /// shell about its core, which [`Cover::range_about`] from it reads. `None`
     /// for a datum that is not a finite number.
     pub fn torus(frame: &Frame<T>, major: T, minor: T) -> Option<Self> {
         Tube::new(frame, major, minor).map(|t| Self::piece(Piece::Tube(t.shell())))
@@ -771,7 +776,7 @@ impl<T: Real> Cover<T> {
     /// **The whole sphere's surface**: the points
     /// `center + r·(cos v·ρ(u) + sin v·axis)`, for any frame and either
     /// sign of `r`, the torus's of no spine, its shell about its
-    /// centre, which [`Cover::level`] reports. `None` for a datum that
+    /// centre, which [`Cover::range_about`] from it reads. `None` for a datum that
     /// is not a finite number.
     pub fn sphere(frame: &Frame<T>, radius: T) -> Option<Self> {
         Cover::torus(frame, T::zero(), radius)
@@ -848,31 +853,17 @@ impl<T: Real> Cover<T> {
     /// about its own axis by whoever holds it as a curve.
     ///
     /// A site proposes, and decides nothing: [`Cover::range_about`]
-    /// from it is the bound, which on the site's own level
-    /// ([`Cover::level`]) reads that level.
+    /// from it is the bound. Where the piece that proposes it is a
+    /// carrier's surface at a level about it (a cylinder's wall, a
+    /// torus's or a sphere's shell), that is the level: `|r|` for a unit
+    /// orthogonal frame and, on a torus, only where `|R| ≥ |r|`, since a
+    /// spindle's points come nearer its core. A frustum's axis has no
+    /// level; it is proposed all the same. A meet's range reads every
+    /// side, so a level one side holds survives a trim met with it.
     pub fn about(&self) -> Vec<Around<T>> {
         let mut sites = Vec::new();
         self.0.about(&mut sites);
         sites
-    }
-
-    /// **The site the region lies at a level about**, where a piece it
-    /// is met from is a carrier's surface that lies at one: a cylinder's
-    /// wall about its axis line ([`Cover::wall`]), a torus's surface
-    /// about its core ([`Cover::torus`]), a sphere's about its centre
-    /// ([`Cover::sphere`]). [`Cover::range_about`] from it reads the
-    /// level: `|r|` for a unit orthogonal frame and, on a torus, only
-    /// where `|R| ≥ |r|`, since a spindle's points come nearer its core.
-    /// The level is a claim, and one source of the sites the region is
-    /// measured about ([`Cover::about`]), not all of them: a cone's
-    /// frustum has an axis and no level.
-    ///
-    /// A meet lies at both sides' levels and reports the first: any one
-    /// level is a true one, and [`Cover::range_about`] from it reads
-    /// every side of the meet; [`Cover::about`] proposes every side's
-    /// site. A hull and a convex hull report none.
-    pub fn level(&self) -> Option<Around<T>> {
-        self.0.level()
     }
 
     /// **The nearest and farthest the region stands from `around`**: a
@@ -895,17 +886,10 @@ impl<T: Real> Cover<T> {
 
 impl<T: Real> Core<T> {
     /// The axis line.
-    fn axis_line(&self) -> Line<T> {
-        Line {
-            origin: self.center,
-            dir: self.axis,
-        }
-    }
-
     /// The circle's distance range over a region read through its range
     /// from the axis line (`line`) and its support (`support`).
     fn through(&self, line: impl Fn(&Site<T>) -> (T, T), support: impl Fn(Vec3<T>) -> T) -> (T, T) {
-        let (near, far) = line(&Site::Line(self.axis_line()));
+        let (near, far) = line(&Site::Line(axis_line(self.center, self.axis)));
         let a = self.axis.normalize();
         let base = vec_of(self.center).dot(a);
         let (below, above) = (T::zero() - support(-a) - base, support(a) - base);
@@ -921,7 +905,7 @@ impl<T: Real> Core<T> {
 
     /// The exact distance of a point from the circle.
     fn offset(&self, p: Point3<T>) -> T {
-        let (t, rho) = self.axis_line().height_and_distance(p);
+        let (t, rho) = axis_line(self.center, self.axis).height_and_distance(p);
         ((rho - self.radius.abs()).powi(2) + t.powi(2)).sqrt()
     }
 }
@@ -1013,14 +997,6 @@ impl<T: Real> Node<T> {
         }
     }
 
-    fn level(&self) -> Option<Around<T>> {
-        match self {
-            Node::Piece(p) => p.level(),
-            Node::Meet(both) => both[0].level().or_else(|| both[1].level()),
-            Node::Hull(_) | Node::Convex(_) => None,
-        }
-    }
-
     fn ball(&self) -> Ball<T> {
         match self {
             Node::Piece(p) => p.ball(),
@@ -1097,7 +1073,7 @@ impl<T: Real> Tube<T> {
     /// `r·(s·cos v, α·sin v)`, at least `r·min(s, α)` long, plus
     /// `(R·(s − 1), k·τ·cos u)`, at most `R·|s − 1| + (R + r)·|τ|`
     /// long, with `s` between the Gram bounds of `u_ref` and `v_ref` off
-    /// the axis and `|τ|` within their tilt ([`Radial`]): `r` for a unit
+    /// the axis and `|τ|` within their tilt ([`OffAxis`]): `r` for a unit
     /// orthogonal frame. `k ≥ 0` holds where `R ≥ r`; where `R = 0` the
     /// first component's sign does not change the length; otherwise (a
     /// spindle) zero. So the bound drops to zero as `R` passes below `r`:
@@ -1106,11 +1082,11 @@ impl<T: Real> Tube<T> {
     fn shell_inner(&self) -> T {
         let (r, big) = (self.minor, self.major);
         let (unit, alpha) = self.frame.axis.direction_and_length();
-        let Radial {
+        let OffAxis {
             off: (low, top),
             tilt: tau,
             ..
-        } = Radial::of(&self.frame, unit);
+        } = OffAxis::of(&self.frame, unit);
         let one = T::one();
         let spread = (one - low).abs().max((top - one).abs());
         let error = big * spread + (big + r) * tau;
@@ -1164,7 +1140,7 @@ impl<T: Real> Tube<T> {
     /// non-decreasing.
     fn reaches(&self) -> (T, T) {
         let a = self.frame.axis;
-        let Radial { top: rho, tilt, .. } = Radial::of(&self.frame, a);
+        let OffAxis { top: rho, tilt, .. } = OffAxis::of(&self.frame, a);
         (rho, gram_top(rho.powi(2), a.norm_squared(), tilt))
     }
 
@@ -1250,13 +1226,6 @@ impl<T: Real> Patch<T> {
 }
 
 impl<T: Real> Slab<T> {
-    fn axis_line(&self) -> Line<T> {
-        Line {
-            origin: self.origin,
-            dir: self.axis,
-        }
-    }
-
     fn support(&self, e: Vec3<T>) -> T {
         let (lo, hi) = self.window.ordered();
         let ae = self.axis.dot(e);
@@ -1274,7 +1243,7 @@ impl<T: Real> Slab<T> {
     /// axis as unit.
     fn point_range(&self, q: Point3<T>) -> (T, T) {
         let (lo, hi) = self.window.ordered();
-        let (h, rho) = self.axis_line().height_and_distance(q);
+        let (h, rho) = axis_line(self.origin, self.axis).height_and_distance(q);
         let dh = (lo - h).max(h - hi).max(T::zero());
         let fh = (h - lo).abs().max((h - hi).abs());
         let radial = (rho - self.radius).max(self.inner() - rho).max(T::zero());
@@ -1577,29 +1546,13 @@ impl<T: Real> Piece<T> {
     /// axis says here whether it proposes it.
     fn about(&self) -> Option<Around<T>> {
         match self {
-            Piece::Slab(slab) => Some(Around::Line(slab.axis_line())),
-            Piece::Frustum(f) => Some(Around::Line(Line {
-                origin: f.apex,
-                dir: f.axis,
-            })),
+            Piece::Slab(slab) => Some(Around::Line(axis_line(slab.origin, slab.axis))),
+            Piece::Frustum(f) => Some(Around::Line(axis_line(f.apex, f.axis))),
             Piece::Tube(tube) => Some(tube.hub()),
             Piece::Patch(_)
             | Piece::Points(_)
             | Piece::Segment(_)
             | Piece::Arc(_)
-            | Piece::Net(_) => None,
-        }
-    }
-
-    fn level(&self) -> Option<Around<T>> {
-        match self {
-            Piece::Slab(slab) => slab.wall.map(|_| Around::Line(slab.axis_line())),
-            Piece::Tube(tube) => tube.shell.map(|_| tube.hub()),
-            Piece::Patch(_)
-            | Piece::Points(_)
-            | Piece::Segment(_)
-            | Piece::Arc(_)
-            | Piece::Frustum(_)
             | Piece::Net(_) => None,
         }
     }

@@ -15,7 +15,7 @@
 //! **Which depths.** Each face of the pair proposes every site its cover
 //! is measured about ([`Cover::about`]: a cylinder wall's or a cone's
 //! axis, a sphere's centre, a torus's core circle), whether or not the
-//! face lies at a level about it ([`Cover::level`]), and the axis of
+//! face lies at a level about it, and the axis of
 //! every circle or ellipse on its boundary ([`face_read`]).
 //!
 //! **The bounds.** A face's depths are read off its cover
@@ -37,8 +37,8 @@
 //!
 //! The same depths also aim directions ([`toward`]): the offset from an
 //! axis or centre to the other face's nearest segment point, which arm
-//! 1's turned-direction test reads; the faces' arcs and carriers aim
-//! more ([`across`]). That proposes; it decides nothing.
+//! 1's turned-direction test reads; the faces' arcs and the sites their
+//! covers are measured about ([`Cover::about`]) aim more ([`across`]). That proposes; it decides nothing.
 
 use geom::cover::{Around, Cover, Site};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
@@ -60,8 +60,8 @@ pub(crate) const DEPTH_GAP: &str = "census_backstop_depth_gap";
 pub(crate) const DEPTH_TOWARD: &str = "census_backstop_depth_toward";
 
 /// K name: an arc's chord normal (its conic's unit normal crossed with
-/// the chord), or the offset between two carriers' axes or centres
-/// (metres), before it is read as a unit direction ([`across`]).
+/// the chord), or the offset between two cover sites' axes or centres
+/// ([`Cover::about`], metres), before it is read as a unit direction ([`across`]).
 pub(crate) const DEPTH_ACROSS: &str = "census_backstop_depth_across";
 
 /// A depth, and where it came from.
@@ -297,7 +297,7 @@ pub(super) fn toward<T: Decide>(
 }
 
 /// **The directions two faces, read as `ra` and `rb` ([`face_read`]),
-/// aim across the pair from their own arcs and carriers**, which
+/// aim across the pair from their own arcs and cover sites**, which
 /// [`toward`] does not read:
 ///
 /// - each circle or ellipse arc on either boundary proposes its chord's
@@ -306,7 +306,7 @@ pub(super) fn toward<T: Decide>(
 ///   of its chord, and a flat cut along the chord (a D's flat, a
 ///   half-disc's diameter, the line through a lens's tips) faces that
 ///   way. A closed rim (`p = q`) has no chord and proposes nothing: the
-///   wall it bounds proposes through its carrier, below;
+///   wall it bounds proposes through its cover's sites, below;
 /// - every pair of sites the two covers are measured about
 ///   ([`Cover::about`]), one from each face, proposes the line between
 ///   them: the offset of each axis's origin off the other's (for
@@ -504,7 +504,7 @@ mod tests {
     fn a_carriers_cover_reads_its_level_about_its_own_site() {
         let about = |surface: Surface<f64>| {
             let cover = surface.cover().expect("a bounded carrier");
-            let site = cover.level().expect("a carrier's surface lies at a level");
+            let site = cover.about()[0];
             cover.range_about(&site)
         };
         let torus = |major_radius, minor_radius| Surface::Torus {
@@ -525,8 +525,8 @@ mod tests {
             u_ref: v(1.0, 0.0, 0.0),
         };
         assert!(
-            matches!(sphere.cover().unwrap().level(), Some(Around::Point(c)) if (c - p(0.0, 1.0, 0.0)).norm() == 0.0),
-            "a sphere's level is about its centre"
+            matches!(sphere.cover().unwrap().about()[..], [Around::Point(c)] if (c - p(0.0, 1.0, 0.0)).norm() == 0.0),
+            "a sphere is measured about its centre"
         );
         assert_eq!(
             about(sphere),
@@ -562,7 +562,7 @@ mod tests {
             )
             .unwrap();
             let cover = carrier.meet(patch);
-            let depth = cover.level().expect("the patch's carrier lies at a level");
+            let depth = cover.about()[0];
             Read {
                 cover,
                 segments: Vec::new(),
@@ -616,7 +616,7 @@ mod tests {
         let (a, b) = (wall(&mut body, 1.0), wall(&mut body, 1.05));
         let read = |f| face_read(&body, f, band()).expect("a wall is read");
         let (ra, rb) = (read(a), read(b));
-        let axis = ra.cover.level().expect("a wall lies at a level");
+        let axis = ra.cover.about()[0];
         assert!(
             matches!(axis, Around::Line(geom::Line { origin, dir }) if (origin - p(0.0, 0.0, 0.0)).norm() == 0.0 && dir.cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
             "about its axis: {axis:?}"

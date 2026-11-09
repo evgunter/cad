@@ -22,7 +22,7 @@ impl<T: Real> Surface<T> {
     /// no spine, the sheet's about the spine `|R|`, which holds its whole
     /// revolved circle; along a unit `e` in a unit orthogonal frame the
     /// support is `c·e + R·|e⊥| + r`), which lies at its level about its
-    /// centre or core ([`Cover::level`]); a spline's control net (the
+    /// centre or core ([`Cover::about`], [`Cover::range_about`]); a spline's control net (the
     /// fit's, for an approximating surface).
     ///
     /// # Errors
