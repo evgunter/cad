@@ -60,8 +60,8 @@
 //! past, the point is off the span, on the carrier
 //! ([`Reading::Carrier`]) or not ([`Reading::Off`], an undecided carrier
 //! included, since no answer to it puts the point on the span). A place
-//! the band cannot read is a refusal: the carrier's where it refused
-//! too, else the place's.
+//! the band cannot read is a refusal, the place's, with the carrier's
+//! beside it where that refused too ([`SpanRefusal`]).
 
 use geom::cover::Cover;
 use geom::{CarrierEscalation, CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
@@ -162,35 +162,47 @@ pub enum Reading<T> {
     Off,
 }
 
-/// Which of [`Span::read`]'s two readings a [`SpanRefusal`] rests on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SpanReading {
+/// **Why [`Span::read`] refused**: which of its two readings refused,
+/// each refusal its own.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SpanRefusal {
     /// The place read the foot inside the span, and the carrier's
     /// reading refused.
-    Carrier,
-    /// The place against the span's ends refused, whatever the carrier
-    /// read: the refusal carried is the carrier's where both refused.
-    Place,
-}
-
-/// **Why [`Span::read`] refused**: the refusal, and the reading the
-/// answer rests on.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SpanRefusal {
-    /// The refusal.
-    pub refused: CarrierRefusal,
-    /// The reading it rests on.
-    pub of: SpanReading,
+    Carrier(CarrierRefusal),
+    /// The place against the span's ends refused, and the carrier read.
+    Place(CarrierRefusal),
+    /// The place against the span's ends refused, and so did the
+    /// carrier's reading.
+    Both {
+        /// The carrier's refusal.
+        carrier: CarrierRefusal,
+        /// The place's refusal.
+        place: Box<CarrierRefusal>,
+    },
 }
 
 impl SpanRefusal {
-    /// The band's escalation this refusal is ([`CarrierRefusal::escalation`]).
+    /// **The refusal the answer is ranked by**: the one reading's that
+    /// refused, and the carrier's where both did. A place presupposes the
+    /// point on the carrier, so where the carrier is undecided the
+    /// place's refusal is a question about a point the carrier may not
+    /// hold.
+    #[must_use]
+    pub const fn refused(&self) -> CarrierRefusal {
+        match self {
+            Self::Carrier(refused) | Self::Place(refused) => *refused,
+            Self::Both { carrier, .. } => *carrier,
+        }
+    }
+
+    /// The band's escalation this refusal is ranked by
+    /// ([`Self::refused`], [`CarrierRefusal::escalation`]).
     ///
     /// # Errors
     ///
     /// [`geom::PieceWalkRefusal`]: the refusal is no escalation.
-    pub fn escalation(self) -> Result<Indeterminate, geom::PieceWalkRefusal> {
-        self.refused.escalation()
+    pub fn escalation(&self) -> Result<Indeterminate, geom::PieceWalkRefusal> {
+        self.refused().escalation()
     }
 }
 
@@ -574,10 +586,7 @@ impl<'a, T: Decide> Span<'a, T> {
         Ok(match place {
             Ok(Place::End(which)) => Reading::End(which),
             Ok(Place::Inside) => {
-                let (t, margin) = on.map_err(|refused| SpanRefusal {
-                    refused,
-                    of: SpanReading::Carrier,
-                })?;
+                let (t, margin) = on.map_err(SpanRefusal::Carrier)?;
                 Reading::On {
                     t: self.branch(t),
                     margin,
@@ -587,10 +596,13 @@ impl<'a, T: Decide> Span<'a, T> {
                 Ok(_) => Reading::Carrier,
                 Err(_) => Reading::Off,
             },
-            Err(refused) => {
-                return Err(SpanRefusal {
-                    refused: on.err().unwrap_or(refused),
-                    of: SpanReading::Place,
+            Err(place) => {
+                return Err(match on {
+                    Ok(_) => SpanRefusal::Place(place),
+                    Err(carrier) => SpanRefusal::Both {
+                        carrier,
+                        place: Box::new(place),
+                    },
                 });
             }
         })

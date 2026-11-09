@@ -433,16 +433,18 @@ fn a_refused_members_window_on_an_arc_is_its_stretch() {
     }
 }
 
-/// **A refusal says which reading it rests on** ([`super::SpanReading`]):
+/// **A refusal says which reading refused** ([`super::SpanRefusal`]):
 /// on the circle's span, a point half the band off the carrier at the
 /// span's middle refuses on the carrier, the place reading it inside;
 /// a point on the carrier half the band past the span's start, its chord
-/// to the start in band, refuses on the place. Red where the two are
-/// swapped, which reads a wedge in band as a graze at the solid door's
-/// curved edges, or the reverse.
+/// to the start in band, refuses on the place; and a point half the band
+/// off the carrier there refuses on both, ranked by the carrier's
+/// ([`super::SpanRefusal::refused`]). Red where the readings are swapped,
+/// which reads a wedge in band as a graze at the solid door's curved
+/// edges, or the reverse, or where both rank by the place's.
 #[test]
 fn a_refusal_names_the_reading_it_rests_on() {
-    use super::{SpanReading, SpanRefusal};
+    use super::SpanRefusal;
     let half = 0.5 * (band().zero() + band().escalate());
     let carrier = circle();
     let span = Span::new(&carrier, (0.5, 2.5));
@@ -450,26 +452,20 @@ fn a_refusal_names_the_reading_it_rests_on() {
     let mid = carrier.eval(1.5);
     let off = mid + (mid - centre).normalize() * half;
     assert!(
-        matches!(
-            span.read(off, 1.5, band()),
-            Err(SpanRefusal {
-                of: SpanReading::Carrier,
-                ..
-            })
-        ),
+        matches!(span.read(off, 1.5, band()), Err(SpanRefusal::Carrier(_))),
         "off the carrier in band, inside the span"
     );
     let past = carrier.eval(0.5 - half / 2.0);
     assert!(
-        matches!(
-            span.read(past, 0.5, band()),
-            Err(SpanRefusal {
-                of: SpanReading::Place,
-                ..
-            })
-        ),
+        matches!(span.read(past, 0.5, band()), Err(SpanRefusal::Place(_))),
         "on the carrier, in band of the start: {:?}",
         span.read(past, 0.5, band())
+    );
+    let both = past + (past - centre).normalize() * (half / 2.0);
+    let read = span.read(both, 0.5, band());
+    assert!(
+        matches!(&read, Err(r @ SpanRefusal::Both { carrier, .. }) if r.refused() == *carrier),
+        "off the carrier in band, in band of the start: {read:?}"
     );
 }
 
@@ -709,11 +705,8 @@ fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
     let mid = span.read(boxed(p, 1e-10), Interval::from_f64(0.5), band());
     assert!(
         matches!(
-            mid,
-            Err(super::SpanRefusal {
-                refused: geom::CarrierRefusal::Escalated(_),
-                ..
-            })
+            &mid,
+            Err(r) if matches!(r.refused(), geom::CarrierRefusal::Escalated(_))
         ),
         "Interval, the span's middle: escalates: {mid:?}"
     );

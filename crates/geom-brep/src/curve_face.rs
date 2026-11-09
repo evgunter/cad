@@ -399,7 +399,7 @@ fn pass<T: Decide>(
         Ok(None) => {}
         Err(refusal) => pass.undecided.push(Undecided {
             window: window(geom::cover::Cover::points(vec![point])),
-            why: carrier(refusal.refused),
+            why: carrier(refusal.refused()),
         }),
     };
     let mut met_edges = Vec::with_capacity(edges.len());
