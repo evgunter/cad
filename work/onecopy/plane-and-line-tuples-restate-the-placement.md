@@ -39,7 +39,7 @@ That unit gave a point's offset from a plane one home, `geom::plane_offset{,_rou
 
 Not ported, and a different reading: the sites that divide by `normal.norm()` or normalize the normal first. These are a plane offset for a non-unit normal: `boolean/slit.rs`, `step-import/src/adopt.rs`, `geom-brep/src/edge_nurbs.rs`, `pcurve_cache.rs`, and `sweep/src/blend/reach.rs` (×2).
 
-## Narrowed to the plane half (2026-11-09, onecopy/line-placement)
+## Narrowed to the plane half (2026-11-09, PR 6665)
 
 The line half is done: `onecopy/line-tuples` (PR 6601), then
 `onecopy/line-placement` for the loose pairs filed as

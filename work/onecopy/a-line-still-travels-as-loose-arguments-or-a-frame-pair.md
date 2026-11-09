@@ -2,10 +2,12 @@
 id: a-line-still-travels-as-loose-arguments-or-a-frame-pair
 kind: issue
 title: A line still travels as loose (point, dir) arguments, or as a conic's (center, axis) frame pair
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6665
 ---
 
 
@@ -39,7 +41,7 @@ The sweep cannot see a line passed as two loose arguments under other names, or 
 - `q: Point3<T>,` followed by `d: Vec3<T>` on the next line;
 - `(Point3<T>, Vec3<T>)` in type position.
 
-## Closed (2026-11-09, onecopy/line-placement)
+## Closed (2026-11-09, PR 6665)
 
 - **The ray question.** It is ruled as `geom::Ray { line }`, with one plain reading `advance(p)` and one decided reading `ahead(at, site, band)` under the reader's own row.
   - The solid_contain ray doors, `curved_edges`, `trace::ray_crossings` and test-support `ray_counts` take `&Ray`.
