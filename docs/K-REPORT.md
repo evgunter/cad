@@ -3643,3 +3643,25 @@ length, `h·(p − c)`); `bool_sphere_cut_pole` and
 
 `plane_crossing_root_in_span`, `plane_crossing_belly_graze` and
 `plane_crossing_plane_parallel` gain the cut-in's population.
+
+## ONECOPY addendum (2026-11-09): the planar loop walk's ray reads the co-surface arm
+
+**Roster change: three names leave, and one joins.** A ray of the arc-bearing
+loop walk (`splitting/containment.rs` `conic_crossings`) and a conic arc of the
+loop lie on one plane, so they meet where the arc crosses the ray's square
+plane: through `geom_brep::curve_pair::on_surface` (`SurfaceCurve::u_line` on
+the plane through `q` along `d`, `OnSurface::across`), on the plane door's own
+rows, the root's place on the arc's span among them. These leave the roster:
+- `point_in_arc_loop_conic_disc`, the unit-circle chord's discriminant;
+- `point_in_arc_loop_conic_window` and `point_in_arc_loop_conic_end`,
+  `arc_trim`'s two rows on a ray's crossing (`ARC_LOOP_TRIM`, retired).
+  `arc_trim` keeps its one other consumer, check 9's `ring_outer_arc_*`.
+
+This joins:
+- `point_in_arc_loop_conic_in_plane`: an arc's offset from the ray's square
+  plane it is parallel to, which only the projected read can reach.
+
+`point_in_arc_loop_conic_advance` stays, now `(y − q)·d` in metres along the
+unit ray (the old `s/dn`, the same quantity). `plane_crossing_belly_graze`,
+`_plane_parallel`, `_graze_side` and `_root_in_span` gain the walk's
+population.
