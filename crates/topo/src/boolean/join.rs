@@ -3758,25 +3758,11 @@ pub(super) fn section_unbuilt(
             }
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
-        Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Unminted(*why)),
-        Uncarried::Carry(CarryError::Winds(e)) => unbuilt(SectionUnbuilt::Winds(*e)),
-        Uncarried::Carry(CarryError::PadShort { pad, hull_sup }) => {
-            unbuilt(SectionUnbuilt::PadShort {
-                pad: *pad,
-                hull_sup: *hull_sup,
-            })
-        }
-        Uncarried::Carry(CarryError::TubeUnread) => unbuilt(SectionUnbuilt::TubeUnread),
-        Uncarried::Carry(CarryError::NoLane { scalar }) => {
-            unbuilt(SectionUnbuilt::NoLane { scalar })
-        }
-        Uncarried::Carry(CarryError::March(e)) => unbuilt(SectionUnbuilt::March(e.clone())),
-        Uncarried::Carry(CarryError::Seat(e)) => unbuilt(SectionUnbuilt::Seat(e.clone())),
-        Uncarried::Carry(CarryError::Unwalked(why)) => unbuilt(SectionUnbuilt::Unwalked(*why)),
+        Uncarried::Carry(CarryError::Desync(what)) => BooleanError::JoinDesync { what },
+        Uncarried::Carry(e) => unbuilt(SectionUnbuilt::Carry(e.clone())),
         Uncarried::Component => BooleanError::JoinDesync {
             what: "a germ's branch names a component its carried section does not have",
         },
-        Uncarried::Carry(CarryError::Desync(what)) => BooleanError::JoinDesync { what },
     }
 }
 
@@ -7902,7 +7888,7 @@ mod of_join_rows {
                 matches!(
                     &got,
                     BooleanError::GermSectionUnbuilt {
-                        why: super::super::SectionUnbuilt::Unwalked(w),
+                        why: super::super::SectionUnbuilt::Carry(geom_brep::CarryError::Unwalked(w)),
                         ..
                     } if *w == why
                 ),
