@@ -73,8 +73,8 @@ pub use predicate::{
     Indeterminate, IndeterminatePayload, IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING,
     KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Lever,
     MOVE_RECOURSE, Margin, MarginDiag, MarginKind, MissReading, MissSource, MissingRecourse,
-    NOT_YET_ENDING, RANGE_RECOURSE, Recourse, RefusedReading, SPLIT_PLANE_RECOURSE, Sign,
-    SizedPass, SizedWords, StoredCulprit, SupSpeed, UNNAMED_DECISION, UNNAMED_PREDICATE,
+    NOT_YET_ENDING, RANGE_ENDING, RANGE_RECOURSE, Recourse, RefusedReading, SPLIT_PLANE_RECOURSE,
+    Sign, SizedPass, SizedWords, StoredCulprit, SupSpeed, UNNAMED_DECISION, UNNAMED_PREDICATE,
     UNREADABLE_FILE_MARGIN_NOTE, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE,
     UndecidedRefusal, UnderTail, floor_note, lever_recourse, noted,
 };

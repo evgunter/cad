@@ -3724,7 +3724,9 @@ pub(super) fn section_unbuilt(
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
         Uncarried::Carry(CarryError::Desync(what)) => BooleanError::JoinDesync { what },
-        Uncarried::Carry(e) => unbuilt(SectionUnbuilt::Carry(e.clone())),
+        Uncarried::Carry(CarryError::Refused(refusal)) => {
+            unbuilt(SectionUnbuilt::Carry(refusal.clone()))
+        }
         Uncarried::Component => BooleanError::JoinDesync {
             what: "a germ's branch names a component its carried section does not have",
         },
@@ -8048,7 +8050,7 @@ mod of_join_rows {
             geom::PieceWalkRefusal::Exhausted,
             geom::PieceWalkRefusal::Unbounded,
         ] {
-            let carry = geom_brep::CarryError::Unwalked(why);
+            let carry = geom_brep::CarryError::Refused(geom_brep::CarryRefusal::Unwalked(why));
             let got = section_unbuilt(
                 super::super::section_table::Uncarried::Carry(&carry),
                 (face, geom::SurfaceKind::Cylinder),
@@ -8058,7 +8060,7 @@ mod of_join_rows {
                 matches!(
                     &got,
                     BooleanError::GermSectionUnbuilt {
-                        why: super::super::SectionUnbuilt::Carry(geom_brep::CarryError::Unwalked(w)),
+                        why: super::super::SectionUnbuilt::Carry(geom_brep::CarryRefusal::Unwalked(w)),
                         ..
                     } if *w == why
                 ),

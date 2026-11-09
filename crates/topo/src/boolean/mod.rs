@@ -2959,10 +2959,10 @@ pub enum SectionUnbuilt {
     /// The pair's section refused at the glue door, decided: an operand
     /// whose radius is not definitely positive.
     Refused(geom_brep::SectionError),
-    /// The section did not carry. Its escalation and its desync are not
-    /// held here: they refuse as the decision and as the join's desync
-    /// (`join::section_unbuilt`).
-    Carry(geom_brep::CarryError),
+    /// The section's carry refused, decided. A carry that escalated or
+    /// desynced is not this: it refuses as the decision and as the join's
+    /// desync (`join::section_unbuilt`).
+    Carry(geom_brep::CarryRefusal),
 }
 
 impl SectionUnbuilt {
@@ -5545,7 +5545,7 @@ impl BooleanError {
             Self::FallbackExtentUnsupported { what, .. } => write!(
                 f,
                 "the solids' boundaries do not cross, and the Boolean cannot be sure \
-                 whether one lies inside the other ({what}). Recourse: {}",
+                 whether one lies inside the other ({what}). {}",
                 refusal_routes::EXTENT_LEVER,
             ),
             // No operand is named, as the scan's other refusals name none.
@@ -5638,14 +5638,14 @@ impl BooleanError {
                 "a direction the Boolean measures where the solids meet has no finite \
                  length \u{2014} its components overflow, or one of them is not a \
                  number. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                geom_core::RANGE_ENDING
             ),
             Self::UnderflowedSectorChord { .. } => write!(
                 f,
                 "a direction the Boolean measures where the solids meet is too small \
                  for its length to be represented, so it measures exactly zero; no \
-                 tolerance reaches this. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 tolerance reaches this. {}",
+                geom_core::RANGE_ENDING
             ),
             Self::Escalated { decision, diag } => write!(f, "{}", decision.written(diag, at)),
             Self::CoplanarNeighbours {

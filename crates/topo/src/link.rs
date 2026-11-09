@@ -1374,9 +1374,13 @@ fn foot<T: Real>(p: Point3<T>, (a, b): Segment<T>) -> Point3<T> {
     .foot_within(p, (T::zero(), T::one()))
 }
 
-/// `p`'s distance from the segment `a`–`b` ([`foot`]).
+/// `p`'s distance from the segment `a`–`b` ([`geom::Line::distance_within`]).
 pub(crate) fn to_segment<T: Real>(p: Point3<T>, seg: Segment<T>) -> T {
-    (foot(p, seg) - p).norm()
+    geom::Line {
+        origin: seg.0,
+        dir: seg.1 - seg.0,
+    }
+    .distance_within(p, (T::zero(), T::one()))
 }
 
 /// **Where a parity arc's reference is read** ([`Cone::reads_given`],
