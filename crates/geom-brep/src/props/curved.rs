@@ -37,7 +37,7 @@ use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
-use crate::ladder::{Climb, Kept, Rung, climb_agreeing};
+use crate::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
 
 /// The flux and area of a curved face from its **outer** loop:
@@ -1289,10 +1289,7 @@ fn unanimous_rim_side<T: Decide>(
         &b.rims,
         |rim| match rim_side(rim, lo, hi, b.arms, band) {
             Ok(s) => Rung::Answers(Ok(s)),
-            Err(PropsError::Escalated { cause, check }) => Kept::of(cause)
-                .map(|cause| PropsError::Escalated { cause, check })
-                .into(),
-            Err(e) => Rung::Aborts(Err(e)),
+            Err(e) => Rung::refused(e, PropsError::margin_or_abort),
         },
         |a, b| matches!((a, b), (Ok(x), Ok(y)) if x == y),
     );
@@ -4150,12 +4147,29 @@ pub fn sphere_region_material_sign<T: Decide>(
     };
     agreed_side(axis, |pole| {
         let p = center + pole * radius;
-        for arc in region.members.iter().flat_map(|m| &m.arcs) {
-            if pole_against_arc(arc, p, band)?.1 {
-                return Ok(pole_side(center, radius, pole, one, band)?.map(Sign::flip));
+        // A pole on any member's arc ([`climb`], [`Answering::Any`]: a
+        // theorem, the boundary holds that pole whichever arc it lies on),
+        // so an arc read in band is kept and refuses only where no other
+        // arc holds the pole.
+        let held = climb(
+            Answering::Any,
+            region.members.iter().flat_map(|m| &m.arcs),
+            |arc| {
+                Rung::holds(
+                    pole_against_arc(arc, p, band).map(|(_, on)| on),
+                    (),
+                    PropsError::margin_or_abort,
+                )
+            },
+        );
+        match held {
+            Climb::Answered { answer, .. } => {
+                answer?;
+                Ok(pole_side(center, radius, pole, one, band)?.map(Sign::flip))
             }
+            Climb::Passed => Ok(None),
+            Climb::Undecided(e) => Err(e),
         }
-        Ok(None)
     })
 }
 
@@ -4375,12 +4389,24 @@ fn pole_side<T: Decide>(
 ) -> Result<Option<Sign>, PropsError> {
     let p = center + pole * radius;
     let mut circulations = Vec::with_capacity(lp.arcs.len());
-    for arc in &lp.arcs {
-        let (plane, on) = pole_against_arc(arc, p, band)?;
-        if on {
-            return Ok(None);
+    // The pole on any arc leaves its side unread ([`climb`],
+    // [`Answering::Any`]: a theorem, whichever arc holds it), so an arc
+    // read in band is kept and refuses only where no other arc holds the
+    // pole; every arc off it adds its circulation.
+    let on_an_arc = climb(Answering::Any, &lp.arcs, |arc| {
+        match pole_against_arc(arc, p, band) {
+            Ok((_, true)) => Rung::Answers(Ok(())),
+            Ok((plane, false)) => {
+                circulations.push(Some(circulation(arc, plane)));
+                Rung::Passes
+            }
+            Err(e) => Rung::refused(e, PropsError::margin_or_abort),
         }
-        circulations.push(Some(circulation(arc, plane)));
+    });
+    match on_an_arc {
+        Climb::Answered { answer, .. } => return answer.map(|()| None),
+        Climb::Undecided(e) => return Err(e),
+        Climb::Passed => {}
     }
     let Some(turning) = pole_turning(center, pole, lp, &circulations, band)? else {
         unreachable!("every circulation is read, so the turning is")

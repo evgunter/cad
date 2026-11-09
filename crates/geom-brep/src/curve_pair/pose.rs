@@ -399,6 +399,7 @@ use crate::half_angle::{
     DegreeTwo, Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows,
     certified_subdivision_touching,
 };
+use crate::ladder::read_identity;
 use crate::roots::{Roots, Unsettled, arc_past, extreme_sign};
 use geom::Conic;
 
@@ -949,14 +950,15 @@ fn one_line<T: Decide>(
     (b, lb): (Ends<T>, geom::Line<T>),
     band: Band,
 ) -> Result<bool, MeetFault> {
-    for ((p0, p1), other) in [(a, lb), (b, la)] {
-        for q in [p0, p1] {
-            if definite(row::OFFSET, Margin::of(other.distance(q)), band)? {
-                return Ok(false);
-            }
-        }
-    }
-    Ok(true)
+    // One line is an identity: any end decided off the other's line
+    // answers "not one line", whatever an earlier end read
+    // ([`read_identity`]).
+    let offsets = [(a, lb), (b, la)]
+        .into_iter()
+        .flat_map(|((p0, p1), other)| {
+            [p0, p1].map(|q| (row::OFFSET, Margin::of(other.distance(q))))
+        });
+    Ok(read_identity(offsets, band).holds()?)
 }
 
 /// Two lines (module docs).

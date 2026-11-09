@@ -613,6 +613,27 @@ impl PropsCheck {
     }
 }
 
+impl PropsError {
+    /// **The standing a search may keep this refusal by**
+    /// ([`crate::ladder::Refusal`]): an [`Escalated`](Self::Escalated)
+    /// reading is kept by its margin, and every other kind stops the
+    /// search. Those are definite findings about the face (degenerate,
+    /// off its surface, not an iso rectangle) or a lane not built, none of
+    /// which a later reading answers past.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for every kind but `Escalated`.
+    pub(crate) const fn margin_or_abort(
+        &self,
+    ) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self {
+            Self::Escalated { cause, .. } => Ok(crate::ladder::Refusal::Margin(*cause)),
+            _ => Err(crate::ladder::Aborts),
+        }
+    }
+}
+
 /// `at` ends a decision's refusal at the door that reads it; `None`
 /// writes the payload alone, as `Display` does. Every other arm carries
 /// its own recourse.

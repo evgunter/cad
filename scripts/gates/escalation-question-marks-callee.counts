@@ -19,13 +19,10 @@
 # editor-core trace: resolve_chain's steps, each read from the pen the
 # step before left: NOT A SEARCH.
 crates/editor-core/src/trace.rs 4
-# pose: one_line (either line off the other answers "not one line"):
-# HAND-ROLLED.
-crates/geom-brep/src/curve_pair/pose.rs 1
-# props curved: sphere_region_material_sign (2) and pole_side (1), an arc
-# against the pole answers: HAND-ROLLED; pole_turning (1) sums every arc's
-# turning: NOT A SEARCH.
-crates/geom-brep/src/props/curved.rs 4
+# props curved: pole_turning (1) sums every arc's turning: NOT A SEARCH.
+# (sphere_region_material_sign and pole_side climb their arcs; pose's
+# one_line reads one identity.)
+crates/geom-brep/src/props/curved.rs 1
 # quadrature rounds: each round's extent is the premise of its estimate:
 # NOT A SEARCH.
 crates/geom-brep/src/props/quad/patch.rs 1
