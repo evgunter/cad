@@ -35,3 +35,5 @@ PR 6572 kept 23 sites dividing by hand because the length feeds other arithmetic
 PR 6575 gave the pair its home, `Vec2`/`Vec3::direction_and_length` through `normalize`'s prescale, with `normalize` as its first half. It ported 44 sites. `scripts/gates/normalize-by-hand.sh` now refuses `let n = v.norm(); … v / n`, and its header names the blind spots, including the two named above.
 
 `ruled_region.rs`'s guarded `dir` and `UnitVec3::new`'s unscaled-norm refusals stay as they are, for the reasons given in the PR body.
+
+The review fix pass (same PR) gave "what an out-of-range direction does" one home, `geom_core::length_out_of_format`. It is `UnitVec3::new`'s refusal of a plain norm that overflowed or underflowed, extracted, and every door that refuses a direction reads it. The total readings, `normalize` and `direction_and_length`, answer past either end.
