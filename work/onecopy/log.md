@@ -710,3 +710,6 @@
   - census-rosters stacks on 6602.
   - carrier-standing keeps `Refusal::of_carrier`/`of_walk` as the home and adds `MeetFault::Unwalked`. Any standing it moves must be disclosed.
   - The move of `of_*` onto `CarrierRefusal`/`PieceWalkRefusal` goes to the ladder lane with geom_core::ladder; that lane has been told.
+- 07:33Z Ruled for half-open-angles:
+  - Q1(b): add `Period::above`/`at_or_above` over one helper built on `near`. This is an API addition under the existing home; no ratified clause lists Period's readings, only the F31 audit entry. The rows must pin both ends and the tie, and the audit F31 entry is updated.
+  - Q2: no `separation`; close that bullet with the lattice-distance argument.
