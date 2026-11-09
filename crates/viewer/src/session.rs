@@ -5619,8 +5619,8 @@ pub(crate) fn picked_body(
     let (at, port) = crate::world::body_of(doc, on.node(), on.body());
     let name = pick.name().clone();
     let body = match crate::world::seat_read(doc, at, Some(port)) {
-        (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),
+        (at, port) => crate::seats::Output::named(port).read(at),
     };
     (body, name)
 }

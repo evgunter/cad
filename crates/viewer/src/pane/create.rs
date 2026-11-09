@@ -180,9 +180,17 @@ pub(crate) fn boolean_family_picks(
         .collect()
 }
 
-/// **One row per pick reading a family**, each offering every member of
-/// it by the indices a read of it spells (`[1]`): the answer is the
-/// pick and the member a click chose, which it then reads alone.
+/// **The most members a member row offers as one button each**: a
+/// larger family is offered as a member number and one read button,
+/// so its row stays one line whatever its count.
+pub(crate) const MEMBER_BUTTONS: usize = 8;
+
+/// **One row per pick reading a family**, offering its members by the
+/// indices a read of each spells (`[1]`): one button per member up to
+/// [`MEMBER_BUTTONS`], else the member's number among `members` (from
+/// zero, held in the row's own memory) and a button reading it. The
+/// answer is the pick and the member a click chose, which it then reads
+/// alone.
 pub(crate) fn member_rows(
     ui: &mut egui::Ui,
     waiting: impl IntoIterator<Item = (usize, String, Vec<Vec<i64>>)>,
@@ -191,10 +199,29 @@ pub(crate) fn member_rows(
     for (i, said, members) in waiting {
         ui.horizontal_wrapped(|ui| {
             ui.label(format!("{said}: read member"));
-            for at in members {
-                if ui.button(crate::seats::member_said(&at)).clicked() {
-                    chosen = Some((i, at));
+            if members.len() <= MEMBER_BUTTONS {
+                for at in members {
+                    if ui.button(crate::seats::member_said(&at)).clicked() {
+                        chosen = Some((i, at));
+                    }
                 }
+                return;
+            }
+            let id = ui.id().with(("member row", i));
+            let mut position = ui.data_mut(|d| *d.get_temp_mut_or(id, 0_usize));
+            ui.add(
+                egui::DragValue::new(&mut position)
+                    .range(0..=members.len() - 1)
+                    .speed(COUNT_DRAG_SPEED),
+            );
+            ui.data_mut(|d| d.insert_temp(id, position));
+            ui.label(format!("of {}", members.len()));
+            if let Some(at) = members.get(position)
+                && ui
+                    .button(format!("read {}", crate::seats::member_said(at)))
+                    .clicked()
+            {
+                chosen = Some((i, at.clone()));
             }
         });
     }
@@ -1870,6 +1897,45 @@ mod tests {
         });
         assert!(drawn.contains("half not chosen"), "{drawn}");
         assert_eq!(chosen, Some((0, SplitHalf::Below)), "{drawn}");
+    }
+
+    /// **A boolean pick reading a family offers its members**, one
+    /// button each, and a click answers the pick and the member's index
+    /// values; a family over [`super::MEMBER_BUTTONS`] offers a member
+    /// number and one read button instead.
+    #[test]
+    fn a_boolean_pick_reading_a_family_offers_its_members() {
+        let tol = Tol::witness();
+        for (count, target, want) in [(2, "[1]", vec![1]), (10, "read [0]", vec![0])] {
+            let (doc, block, _) = crate::test_support::boss_on_block("members-row", tol);
+            let (doc, row) = crate::test_support::row_of_copies(
+                &doc,
+                block,
+                count,
+                (pncad::document::TargetAxis::X, 0.1),
+                tol,
+            );
+            let mut tool = BooleanTool::new();
+            tool.pick(&doc, row);
+            assert!(
+                tool.line(Speaker::of(&doc)).contains("every member"),
+                "{}",
+                tool.line(Speaker::of(&doc))
+            );
+            let mut chosen = None;
+            let drawn = painted_after_clicking(target, |ui| {
+                let waiting = super::boolean_family_picks(&tool, &doc);
+                if let Some(choice) = super::member_rows(ui, waiting) {
+                    chosen = Some(choice);
+                }
+            });
+            assert!(drawn.contains("member 1: read member"), "{drawn}");
+            assert!(
+                !drawn.contains("[9]"),
+                "a large family is not one button per member: {drawn}"
+            );
+            assert_eq!(chosen, Some((0, want)), "{count} members: {drawn}");
+        }
     }
 
     /// The part form paints the index field with its numbering

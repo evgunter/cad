@@ -141,12 +141,7 @@ fn members_read(
     family: RecipeNodeId,
     at: &[VarId],
 ) -> Option<Vec<u32>> {
-    let family_reach = doc.node_reach(family);
-    let members: Vec<Vec<i64>> = doc
-        .member_envs::<f64>(family_reach.chain()?)
-        .map(|member| member.map(|member| member.at))
-        .collect::<Result<_, _>>()
-        .ok()?;
+    let members = members_of(doc, family)?;
     let reader_reach = doc.node_reach(reader);
     let chain = reader_reach.chain()?;
     let envs = if chain.is_empty() {
@@ -194,12 +189,10 @@ fn body_count(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<u32> {
     if matches!(doc.node(node)?, Node::Split { .. }) {
         return Some(2);
     }
-    let reach = doc.node_reach(node);
-    let chain = reach.chain()?;
-    if chain.is_empty() {
+    if doc.node_reach(node).chain()?.is_empty() {
         return Some(1);
     }
-    u32::try_from(doc.member_envs::<f64>(chain).count()).ok()
+    u32::try_from(members_of(doc, node)?.len()).ok()
 }
 
 /// **Whether a read at `seat` reads a body as a body**: an operand of
@@ -683,17 +676,25 @@ pub fn seat_read(
     (node, port.filter(|_| names_a_port(doc, node)))
 }
 
-/// **Whether `node` is a family**: evaluated once per member
-/// ([`members_of`]), so a read of it may name one member (`xs[i]`).
-pub fn is_family(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    members_of(doc, node).is_some()
+/// **Whether something reads a body of `node` along a seen path**: a
+/// copy of one of its outputs ([`placements_of`]), a `⊔` operand reading
+/// one whole, or the product slot — the readers a gesture's takeover
+/// re-points (`crate::session`'s `Takeover`).
+pub fn is_seen(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    let outputs = doc.outputs(node);
+    let assembled = doc.ids().into_iter().any(|id| {
+        matches!(doc.node(id), Some(assemble @ Node::Assemble { .. })
+        if assemble.body_reads().iter().any(|(_, read)| {
+            outputs.contains(&read.read) && !read.is_indexed()
+        }))
+    });
+    is_placed(doc, node) || assembled || product_reads(doc).iter().any(|var| outputs.contains(var))
 }
 
-/// **The member a pick on body `body` of `node` reaches**, for a seat
-/// reading one body: the family the seat reads ([`seat_read`],
-/// [`is_family`]) and the index values of the member drawn there
-/// ([`members_of`]) — through a copy, the member of the family it
-/// copies. `None` where the seat's read is no family's.
+/// **The member a pick on body `body` of `node` reaches**: the node the
+/// seat reads ([`seat_read`]) and the index values of the member of it
+/// drawn there ([`members_of`]) — through a copy, the member of the
+/// family it copies. `None` where the seat's read is evaluated once.
 pub fn seat_member(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
@@ -701,7 +702,7 @@ pub fn seat_member(
 ) -> Option<(RecipeNodeId, Vec<i64>)> {
     let (family, _) = seat_read(doc, node, Some(body));
     let (operation, body) = body_of(doc, node, body);
-    if operation != family || !is_family(doc, family) {
+    if operation != family {
         return None;
     }
     let at = members_of(doc, family)?

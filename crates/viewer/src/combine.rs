@@ -175,8 +175,9 @@ impl BooleanTool {
             // A pick on a copy is a pick of the body it places
             // ([`crate::world::seat_read`]), as in the two seats.
             BooleanPicks::Members(members) => {
-                let (node, port) = Port::at_seat(doc, node, body, Seat::Member);
-                members.push((doc.spoken(node), port));
+                let read = crate::world::seat_read(doc, node, body);
+                let port = Port::at_seat(doc, node, read, body, Seat::Member);
+                members.push((doc.spoken(read.0), port));
             }
             BooleanPicks::Pair(seats) => seats.pick_at(doc, node, body),
         }
@@ -188,7 +189,7 @@ impl BooleanTool {
         match &mut self.held {
             BooleanPicks::Members(members) => {
                 if let Some((_, port)) = members.get_mut(i) {
-                    *port = core::mem::replace(port, Port::Alone).chosen(half);
+                    *port = core::mem::replace(port, Port::ALONE).chosen(half);
                 }
             }
             BooleanPicks::Pair(seats) => seats.choose_half(i, half),
@@ -196,14 +197,14 @@ impl BooleanTool {
     }
 
     /// **The member pick `i` reads**, by its index values
-    /// ([`crate::world::members_of`]), when it reads a family, whole
-    /// or one member: member `i` of a union or an intersect, seat `i`
-    /// of a subtraction.
+    /// ([`crate::world::members_of`]), where it reads a family nothing
+    /// copies, whole or one member: member `i` of a union or an
+    /// intersect, seat `i` of a subtraction. A no-op on any other pick.
     pub fn choose_member(&mut self, i: usize, at: Vec<i64>) {
         match &mut self.held {
             BooleanPicks::Members(members) => {
                 if let Some((_, port)) = members.get_mut(i) {
-                    *port = core::mem::replace(port, Port::Alone).chosen_member(at);
+                    *port = core::mem::replace(port, Port::ALONE).chosen_member(at);
                 }
             }
             BooleanPicks::Pair(seats) => seats.choose_member(i, at),
@@ -235,7 +236,7 @@ impl BooleanTool {
             BooleanPicks::Members(members) => members
                 .iter()
                 .enumerate()
-                .filter(|(_, (_, port))| *port == Port::HalfPending)
+                .filter(|(_, (_, port))| port.awaits_half())
                 .map(|(i, _)| i)
                 .collect(),
             BooleanPicks::Pair(seats) => (0..2).filter(|&i| seats.awaits_half(i)).collect(),
@@ -298,7 +299,7 @@ impl BooleanTool {
                 Err(SeatError::Empty { seat: Seat::Member })
             }
             BooleanPicks::Members(members) => {
-                if members.iter().any(|(_, port)| *port == Port::HalfPending) {
+                if members.iter().any(|(_, port)| port.awaits_half()) {
                     return Err(SeatError::HalfUnchosen { seat: Seat::Member });
                 }
                 let members = members
@@ -1003,7 +1004,7 @@ impl ClearanceTool {
     /// as a seat says its node, a face as the chrome says a held pick.
     pub fn line(&self, by: Speaker<'_>) -> String {
         let said = |i: usize| match &self.picks[i] {
-            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, &Port::Alone)),
+            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
             Some(ClearancePick::Face(held)) => Some(Said(held, by).to_string()),
             None => None,
         };
@@ -1816,10 +1817,18 @@ pub fn part_node(
     let PartSelectSpec::Instance(index) = select;
     let target = doc.node_space(of)?;
     Some(Node::place(
-        pncad::document::BodyRead::indexed(of, vec![Formula::count(index)]),
+        member_read(of, &[index]),
         Operand::Var(target),
         pncad::document::stand().bundle(),
     ))
+}
+
+/// **One member of the family `read` reads**, at the index values
+/// `at`, each an exact `Count` literal (spec D3: an index is never a
+/// continuous expression) — the one lowering of a picked member, the
+/// part form's and a boolean seat's (`seats::Port::body_read`).
+pub fn member_read(read: impl Into<Operand>, at: &[i64]) -> pncad::document::BodyRead<Formula> {
+    pncad::document::BodyRead::indexed(read, at.iter().map(|&i| Formula::count(i)).collect())
 }
 
 /// **Whether a node, named alone, reads as a single body** — the
