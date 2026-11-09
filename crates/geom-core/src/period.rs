@@ -99,6 +99,16 @@ pub struct WalkStop {
     pub astride: Option<[i32; 2]>,
 }
 
+/// Which end of a one-period window holds its own copy
+/// ([`Period::above`], [`Period::at_or_above`]).
+#[derive(Clone, Copy, Debug)]
+enum Closed {
+    /// `(a, a + P]`.
+    Upper,
+    /// `[a, a + P)`.
+    Lower,
+}
+
 /// **A periodic channel's period**: the length one whole turn of the
 /// channel spans, which every whole-period question of that channel is
 /// asked of. Today that is τ in azimuth, its half on a sphere joint's
@@ -317,6 +327,11 @@ impl<T: Decide> Period<T> {
     /// `k = 0` returns `t` itself, bit for bit. A `t` or `reference` that
     /// is not finite, or a gap no `i32` of periods names, has no copy, and
     /// reads NaN.
+    ///
+    /// A rename into a window that STARTS at a value, rather than one
+    /// centred on it, is [`Period::above`] (`(a, a + P]`) or
+    /// [`Period::at_or_above`] (`[a, a + P)`): `near` about `a + P/2`
+    /// rounds that centre, so it does not hold the window's end exactly.
     #[must_use]
     pub fn near(self, t: T, reference: T) -> T {
         let k = crate::k_stats::unlogged("F31", || {
@@ -330,6 +345,51 @@ impl<T: Decide> Period<T> {
             Some(k) => t + self.times(k),
             None => T::from_f64(f64::NAN),
         }
+    }
+
+    /// **`t` renamed by whole periods into `(a, a + length]`**, the
+    /// window open at `a`: a copy that reads `a` itself moves a whole
+    /// period, so an arc from `a` to a value equal to it is a whole turn,
+    /// never zero length. The open end is decided on `t`'s copy
+    /// [`Period::near`] `a`, against `a` itself, so it holds exactly: a
+    /// `t` equal to `a` reads `a + length`, and one past it by an ulp
+    /// reads itself.
+    ///
+    /// **A tie takes the closed end.** Where the copy's side of `a`
+    /// decides zero or is undecided, the answer is the copy at
+    /// `a + length`, as [`Period::near`]'s tie takes its upper copy; both
+    /// copies name the same point, so the decision is outside the log (F31,
+    /// as `near`'s). Its twin closed at `a` is [`Period::at_or_above`].
+    #[must_use]
+    pub fn above(self, t: T, a: T) -> T {
+        self.in_window(t, a, Closed::Upper)
+    }
+
+    /// **`t` renamed by whole periods into `[a, a + length)`**, the
+    /// window closed at `a`: a `t` equal to `a` reads itself, bit for bit,
+    /// and one equal to `a + length` reads `a`'s copy. A tie (the copy's
+    /// side of `a` decided zero or undecided) takes the closed end, the
+    /// copy at `a`. The twin open at `a`, and the rest of the reading, is
+    /// [`Period::above`].
+    #[must_use]
+    pub fn at_or_above(self, t: T, a: T) -> T {
+        self.in_window(t, a, Closed::Lower)
+    }
+
+    /// The copy of `t` in the window of one period from `a`, closed at
+    /// `closed`: `t`'s copy near `a`, lifted a period where it lies on
+    /// the side of `a` the window excludes.
+    fn in_window(self, t: T, a: T, closed: Closed) -> T {
+        let n = self.near(t, a);
+        let side = crate::k_stats::unlogged("F31", || {
+            decide("period_window_end", Margin::of(n - a), Band::least())
+        });
+        let lift = match (closed, side) {
+            (Closed::Upper, Ok(Sign::Positive))
+            | (Closed::Lower, Ok(Sign::Positive | Sign::Zero) | Err(_)) => false,
+            (Closed::Upper, _) | (Closed::Lower, Ok(Sign::Negative)) => true,
+        };
+        if lift { n + self.length } else { n }
     }
 
     /// **The turn rule** (module docs): `extent` against one period, at
@@ -867,6 +927,91 @@ mod period_rows {
         assert_eq!(period.near(-1.0, 1.0), 3.0, "from below");
         assert_eq!(period.near(3.0, 1.0), 3.0, "from above");
         assert_eq!(period.near(-5.0, 1.0), 3.0, "a turn below the lower tie");
+    }
+
+    /// **`above` and `at_or_above` hold both ends of their windows.** At
+    /// `f64`: a `t` at exactly `a` (on an `a` whose `a + π` rounds short),
+    /// one at `a + P`, one a whole period below, and one an ulp inside
+    /// the open end. At `Interval`: a `t` astride `a` is undecided and
+    /// takes the closed end, as narrow as `t`.
+    #[test]
+    fn the_windows_from_an_end_hold_both_ends() {
+        use crate::Bounds;
+        let tau = f64::tau();
+        let period = Period::new(tau);
+        let a = 0.89_f64;
+        assert_eq!(
+            period.near(a, a + core::f64::consts::PI).to_bits(),
+            a.to_bits(),
+            "near about a + π keeps a, the zero-length arc these windows exist to refuse"
+        );
+        let bits = |x: f64| x.to_bits();
+        assert_eq!(
+            bits(period.above(a, a)),
+            bits(a + tau),
+            "above: a reads a + P"
+        );
+        assert_eq!(
+            bits(period.at_or_above(a, a)),
+            bits(a),
+            "at_or_above: a reads a"
+        );
+        // `b ± P` rounds back to `b` both ways, so `b + P` IS the closed
+        // end's value and `b − P` a whole turn below.
+        let b = 0.5_f64;
+        let (up, below) = (b + tau, b - tau);
+        assert_eq!(
+            (bits(up - tau), bits(below + tau)),
+            (bits(b), bits(b)),
+            "b ± P is exact"
+        );
+        assert_eq!(
+            bits(period.above(up, b)),
+            bits(up),
+            "above: b + P reads itself"
+        );
+        assert_eq!(
+            bits(period.at_or_above(up, b)),
+            bits(b),
+            "at_or_above: b + P reads b"
+        );
+        assert_eq!(
+            bits(period.above(below, b)),
+            bits(up),
+            "above: a turn below b reads b + P"
+        );
+        assert_eq!(
+            bits(period.at_or_above(below, b)),
+            bits(b),
+            "at_or_above: a turn below b reads b"
+        );
+        let inside = a.next_up();
+        assert_eq!(
+            bits(period.above(inside, a)),
+            bits(inside),
+            "above: an ulp past a"
+        );
+        assert_eq!(
+            bits(period.at_or_above(a.next_down(), a)),
+            bits(a.next_down() + tau),
+            "at_or_above: an ulp under a"
+        );
+        let ia = Interval::from_f64(a);
+        let w = Interval::from_f64(1e-12);
+        let t = (ia - w).enclosure_hull(ia + w);
+        let period = Period::new(Interval::tau());
+        let width = |x: Interval| x.hi() - x.lo();
+        let (hi, lo) = (period.above(t, ia), period.at_or_above(t, ia));
+        assert!(
+            hi.lo() <= a + tau && a + tau <= hi.hi(),
+            "above: a tie takes a + P, {hi:?}"
+        );
+        assert!(width(hi) < 1e-11, "above: as narrow as t, {hi:?}");
+        assert_eq!(
+            (lo.lo(), lo.hi()),
+            (t.lo(), t.hi()),
+            "at_or_above: a tie takes a, t itself"
+        );
     }
 
     /// **A `t` that has no copy reads NaN**, rather than answering.

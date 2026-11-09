@@ -12,6 +12,7 @@
 //! derivation cannot survive to rest.
 
 use geom::Curve3;
+use geom_core::period::Period;
 use geom_core::{Point3, Real};
 
 use crate::error::StepImportError;
@@ -86,8 +87,8 @@ pub(crate) fn endpoint_params(
             // The read is total over a finite direction (the centre
             // answers the reference, 0) and NaN over a non-finite one,
             // so a non-finite angle means non-finite vertex or
-            // placement data reached it. Both returned parameters are
-            // therefore finite, and the wrap loop below terminates.
+            // placement data reached it, and both returned parameters
+            // are finite.
             let angle = |p: Point3<f64>| -> Result<f64, StepImportError> {
                 let t = conic.azimuth(p).near(0.0);
                 if t.is_finite() {
@@ -101,19 +102,12 @@ pub(crate) fn endpoint_params(
                     })
                 }
             };
-            let tau = f64::tau();
-            let mut t0 = angle(p_start)?;
-            if t0 < 0.0 {
-                t0 += tau;
-            }
+            let turn = Period::new(f64::tau());
+            let t0 = turn.at_or_above(angle(p_start)?, 0.0);
             if self_loop {
-                return Ok((t0, t0 + tau));
+                return Ok((t0, t0 + turn.length()));
             }
-            let mut t1 = angle(p_end)?;
-            while t1 <= t0 {
-                t1 += tau;
-            }
-            Ok((t0, t1))
+            Ok((t0, turn.above(angle(p_end)?, t0)))
         }
         // No STEP entity is recognized as a spiric: the import mints
         // `Line`, `Circle`, `Ellipse` and `Nurbs` carriers only
