@@ -918,7 +918,8 @@ harmonic (`pose::height`). A curve on a surface is built from a surface
 value and chart coordinates, so the premise that both curves lie on one
 surface is the type's; the value may be one a caller synthesises, not a
 face's record. Every consumer holding two curves on one surface
-reads that arm (the region doors' landings, the sphere cut-in), and
+reads that arm (the region doors' landings, the sphere cut-in, the
+planar loop walk's ray against a conic arc), and
 none hands the pair to `meet`.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
