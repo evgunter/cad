@@ -925,7 +925,7 @@ impl<T: Real> Meridian<T> {
                 ..
             } => {
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let nappe = T::one().copysign((self.rim - apex).dot(axis) * axis.dot(self.axis));
+                let nappe = ((self.rim - apex).dot(axis) * axis.dot(self.axis)).unit_sign();
                 Some((
                     SupportTrace::Straight {
                         normal: radial * cos_a - self.axis * (nappe * sin_a),

@@ -651,7 +651,9 @@ fn the_shapes_the_negative_arm_must_not_fold() {
 /// the tier that mint a `copysign` atom; a list in a doc-comment is a
 /// claim, and SYM-12's own first cut of it was wrong twice (a site
 /// dropped, four never named). This row is the register: every
-/// `.copysign(` call in the shipped sources of every crate under
+/// `.copysign(` call, and every `.unit_sign(` call (`Real::unit_sign`,
+/// a `copysign` of one, mints the same atom), in the shipped sources
+/// of every crate under
 /// `crates/`, outside `geom-core/src/sym/` (the tier, where the atom is
 /// consumed) and outside the files that DEFINE `fn copysign(` (the
 /// scalar impls, which forward it), read over the gate's production
@@ -678,7 +680,7 @@ fn the_copysign_mint_sites_the_tree_holds_are_these() {
         if shipped.contains("fn copysign(") {
             continue;
         }
-        let n = shipped.matches(".copysign(").count();
+        let n = shipped.matches(".copysign(").count() + shipped.matches(".unit_sign(").count();
         if n > 0 {
             found.insert(rel, n);
         }

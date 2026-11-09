@@ -263,15 +263,25 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     pad: f64,
     band: Band,
 ) -> Aabb {
-    cover_box(face_cover(body, face, band).as_ref().ok(), pad)
+    cover_box(&face_cover(body, face, band), pad)
 }
 
-/// **A held cover's padded box, the one home**: its bracketed world box
-/// ([`Cover::aabb`]), or the poison box where
-/// there is no cover. A face's, an edge's and a section circle's box
-/// each read it off the cover they hold.
-pub(in crate::boolean) fn cover_box<T: Bounds>(cover: Option<&Cover<T>>, pad: f64) -> Aabb {
-    cover.map_or_else(Aabb::poison, |c| c.aabb(pad))
+/// **A held cover's padded box, the one home of the PRUNING
+/// direction**: its bracketed world box ([`Cover::aabb`]), or the poison
+/// box where the cover is refused, whatever the refusal. A face's, an
+/// edge's and a section circle's box each read it off the cover they
+/// hold.
+///
+/// The GRANTING direction refuses instead of poisoning, and its readers
+/// keep their own spelling because each refuses a different box:
+/// `sweep`'s blend reach (`sheet_clip`'s edge box, refused where a
+/// coordinate is not finite), `step-import`'s `piece_box` (refused where
+/// a bracket is not ordered) and `geom-brep`'s `quadric_readout` (the
+/// two operands' meet, read as brackets whatever they hold).
+pub(in crate::boolean) fn cover_box<T: Bounds, E>(cover: &Result<Cover<T>, E>, pad: f64) -> Aabb {
+    cover
+        .as_ref()
+        .map_or_else(|_| Aabb::poison(), |c| c.aabb(pad))
 }
 
 /// A vector's three brackets: the key the narrow phase's axis set
@@ -288,7 +298,7 @@ pub(crate) fn axis_key<T: Bounds>(v: Vec3<T>) -> [(f64, f64); 3] {
 /// extent, which turns with it. The poison box where a datum is not a
 /// finite number.
 pub(crate) fn circle_box<T: Bounds>(circle: &super::separating::Circle<T>, pad: f64) -> Aabb {
-    cover_box(circle.cover().as_ref(), pad)
+    cover_box(&circle.cover().ok_or(()), pad)
 }
 
 /// The box of the ball about `c` of radius `r`, from their enclosures,
@@ -318,7 +328,7 @@ pub(crate) fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> Aabb {
 /// the separation and the operand gate) or the reduction's working
 /// copies, whose links hold by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f64) -> Aabb {
-    cover_box(edge_cover(body, edge).as_ref().ok(), pad)
+    cover_box(&edge_cover(body, edge), pad)
 }
 
 #[cfg(test)]

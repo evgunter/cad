@@ -36,35 +36,26 @@
 //!
 //! **What the census proves, and what the list is.** Two different
 //! claims, kept apart. (1) The EMPIRICAL claim, which covers every
-//! mint site whether named below or not: on the seven measured
+//! mint site whether named below or not: on the eight measured
 //! documents whose nominal replay the shape report can take (the
-//! plate, the annulus, the link, the bracket, R1's segment boss, both
-//! D-tabs), no `copysign` atom from any site stands in a residual the
-//! tier is asked to decide, with rule F on or shut
+//! plate, the bracket, the annulus, the rounded pad, the link, R1's
+//! segment boss, both D-tabs), no `copysign` atom from any site stands
+//! in a residual the tier is asked to decide, with rule F on or shut
 //! (`m10_10_evidence_interval`'s
-//! `sym12_the_copysign_census_at_the_nominal`): the plate renders 8
-//! early forms, the bracket 46, the link 44, the literal D-tab 68 and
-//! the parameter D-tab 72, the annulus and the boss none, and not one
-//! of them carries a `copysign` atom. On the five cheap documents the
-//! gating half
+//! `sym12_the_copysign_census_at_the_nominal`): the bracket renders 33
+//! early forms, the rounded pad 12, the link 52, the boss 8, the
+//! literal D-tab 72 and the parameter D-tab 80, the plate and the
+//! annulus none, and not one of them carries a `copysign` atom. On the
+//! five cheap documents the gating half
 //! (`sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`)
 //! asserts it. So the reach either arm has MEASURED is still the
-//! orthonormal basis's atoms alone.
-//! `geom-brep/src/quartic.rs`'s second site, the Cardano root's
-//! `(A − B).copysign(−Q)`, is measured directly on the plate, the
-//! bracket and the annulus (0 atoms each; the run is OOM-killed on the
-//! next document on a small box), and covered on the other four by
-//! construction: it runs only inside the one-real-root branch of
-//! `cubic_largest_real_root`, in the same call as `cbrt`'s own
-//! `copysign`, and both flow into the one returned `z`. The census's
-//! measurement of those four documents was taken at a head where
-//! `cbrt`'s arguments in that branch were the signed forms
-//! `−Q/2 ± √(…)`, so every `z` the branch returned carried a `copysign`
-//! atom; none stood in a decided residual, so no `z` from that branch
-//! does, and this site's atom exists only inside one.
+//! orthonormal basis's atoms alone; `geom-brep/src/quartic.rs`'s
+//! Cardano root's `(A − B).copysign(−Q)` is among the sites so
+//! measured.
 //! (2) The sites the tree holds at
 //! this commit, outside this module and the scalar impls that merely
-//! forward the function: `linalg/svd.rs`'s Householder (`f64`
+//! forward the function (a `Real::unit_sign` call is a `copysign` of
+//! one, a site where it is called): `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom/src/curves/banded.rs`'s dropped `L` zero, which takes
 //! its pivot's sign (`f64` only); `geom-brep/src/implicit.rs`'s cone
 //! gradient;

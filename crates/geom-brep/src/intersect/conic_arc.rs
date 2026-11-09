@@ -293,7 +293,7 @@ impl<T: Real> OpenConicSection<T> {
             u,
             v: n.cross(u),
             delta,
-            delta_sigma: delta * T::one().copysign(tilt.c),
+            delta_sigma: delta * tilt.c.unit_sign(),
             tilt,
         }
     }
@@ -352,7 +352,7 @@ impl<T: Decide> OpenConicSection<T> {
         }
         // The near vertex lies on the side `sign(δσ)` of the centre.
         let centre = self.tilt.centre(self.delta);
-        let side = ((seed - self.foot).dot(self.u) - centre) * T::one().copysign(self.delta_sigma);
+        let side = ((seed - self.foot).dot(self.u) - centre) * self.delta_sigma.unit_sign();
         match decide("pn_conic_branch", Margin::of(side), band).map_err(ConicArcError::Escalated)? {
             Sign::Positive => Ok(self.near()),
             Sign::Negative => Ok(self.far()),

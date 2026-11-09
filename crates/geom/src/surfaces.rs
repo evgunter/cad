@@ -669,7 +669,7 @@ pub fn spindle_sheet<T: geom_core::Decide>(
 /// gives it a zero, and at `Interval` an enclosure of `R` that holds
 /// no zero gives the point `±1`, never the hull.
 pub fn meridian_side<T: Real>(major_radius: T) -> T {
-    T::one().copysign(major_radius)
+    major_radius.unit_sign()
 }
 
 /// A spindle sheet's apexes, as [`sheet_apex`] places them: their
