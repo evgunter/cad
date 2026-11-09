@@ -650,15 +650,6 @@ fn trim_cells<T: Decide>(
     Ok(out)
 }
 
-/// The distinct breakpoints of a knot vector, ascending — the cell
-/// boundaries of every rule below.
-fn breakpoints(kv: &KnotVector) -> Vec<f64> {
-    let mut b: Vec<f64> = kv.knots().to_vec();
-    b.sort_by(f64::total_cmp);
-    b.dedup();
-    b
-}
-
 /// The `[lo, hi]` cell of a breakpoint list containing `t` (clamped to
 /// the ends): the cell whose polynomial the rules evaluate.
 fn cell_of(breaks: &[f64], t: f64) -> (f64, f64) {
@@ -1107,8 +1098,8 @@ fn chord_polygon_flux(
         sliver: 0.0,
         removable: 0.0,
     };
-    let ubreaks = breakpoints(kv_u);
-    let vbreaks = breakpoints(kv_v);
+    let ubreaks: Vec<f64> = kv_u.breakpoints().collect();
+    let vbreaks: Vec<f64> = kv_v.breakpoints().collect();
     let mut total = Interval::zero();
     let mut sliver = 0.0f64;
     let mut removable = 0.0f64;
@@ -1331,8 +1322,8 @@ fn chord_polygon_area(
     kv_v: &KnotVector,
     cells: &[TrimCell],
 ) -> Interval {
-    let ku = breakpoints(kv_u);
-    let kvb = breakpoints(kv_v);
+    let ku: Vec<f64> = kv_u.breakpoints().collect();
+    let kvb: Vec<f64> = kv_v.breakpoints().collect();
     let v0 = kvb[0];
     let mut total = Interval::zero();
     for c in cells {

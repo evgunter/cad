@@ -744,6 +744,19 @@ impl<T: Real> Vec3<T> {
         (b1, self.cross(b1))
     }
 
+    /// This vector or its negation, whichever agrees with `like`: `self`
+    /// scaled by `like · self`'s sign as an exact `±1`
+    /// ([`Real::copysign`]). The one home of turning a direction —
+    /// a cone's axis toward a ruling's nappe, an axis toward a reference —
+    /// to agree with another.
+    ///
+    /// It transfers a sign, so it inherits `copysign`'s contract: an
+    /// enclosure of `like · self` that holds a zero turns it by the hull
+    /// `[−1, 1]`, and an `f64` zero by its sign bit.
+    pub fn turned_toward(self, like: Self) -> Self {
+        self * T::one().copysign(like.dot(self))
+    }
+
     /// [`Real::select_le_zero`] componentwise on one decision — `when_le`
     /// if `d ≤ 0`, else `when_gt`.
     ///

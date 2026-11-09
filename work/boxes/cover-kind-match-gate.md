@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [cover-levers, cover-app-readers]
+blocked_on: [cover-levers]
 ---
 
 

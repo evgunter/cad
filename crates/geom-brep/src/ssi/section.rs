@@ -295,7 +295,7 @@ impl Pieces {
         let refinement = RingRefinement::new(kv, &add).ok()?;
         let (h, w) = (refinement.refine(&h), refinement.refine(&w));
         let knots = refinement.knots();
-        let breaks: Vec<f64> = knots.knot_runs().map(|(k, _)| k).collect();
+        let breaks: Vec<f64> = knots.breakpoints().collect();
         let mut pieces = Vec::new();
         for (i, pair) in breaks.windows(2).enumerate() {
             let lo = i * p;
