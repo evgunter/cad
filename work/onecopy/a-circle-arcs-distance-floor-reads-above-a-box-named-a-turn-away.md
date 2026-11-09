@@ -2,10 +2,12 @@
 id: a-circle-arcs-distance-floor-reads-above-a-box-named-a-turn-away
 kind: issue
 title: A circle arc's distance floor reads above a point of a box whose azimuth is named a turn away
-status: open
+status: closed
 opened: 2026-11-09
 priority: P1
 cost: E
+closed: 2026-11-09
+pr: 6677
 ---
 
 
