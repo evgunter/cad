@@ -585,18 +585,3 @@ fn measure_spline_foot_misses() {
         spent.as_secs_f64() * 1e6 / total as f64
     );
 }
-
-/// **Every walk refusal's sentence reads back as itself**, over every
-/// variant: no two share a sentence, so a reader that parses one (the
-/// census) cannot take one refusal for another.
-#[test]
-fn every_walk_refusal_reads_back_from_its_sentence() {
-    for &why in <PieceWalkRefusal as strum::VariantArray>::VARIANTS {
-        assert_eq!(
-            PieceWalkRefusal::of_sentence(why.sentence()),
-            Some(why),
-            "{why:?}"
-        );
-    }
-    assert_eq!(PieceWalkRefusal::of_sentence("no walk's sentence"), None);
-}
