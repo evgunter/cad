@@ -182,8 +182,8 @@ pub enum EdgeInFaceGap {
     /// reading goes: whether the chart holds the edge's carrier is not
     /// read.
     SplineFace,
-    /// The edge's carrier, a spline or a spiric, or a conic on a fat
-    /// torus, is not certified off the face's surface over its whole
+    /// The edge's carrier, a spline or a spiric, or any carrier against a
+    /// torus not decided a ring, is not certified off the face's surface over its whole
     /// length, and nothing reads it on: whether it lies in the face along
     /// some piece is not read ([`carrier_on_surface`]).
     CarrierUnread,
@@ -1262,14 +1262,14 @@ pub(super) enum Placed {
 /// unread. A line on a plane is read at both its ends, and on a cylinder
 /// or cone by [`crate::census::line_on_quadric_carrier`]
 /// (`bool_line_face_carrier_offset`); no line lies along a piece of a
-/// sphere or a ring torus. A conic in a plane is read by its own plane's
+/// sphere or of any torus, a quartic, which meets a line in four points
+/// at most. A conic in a plane is read by its own plane's
 /// offset from it (`bool_conic_face_plane_offset`), and on a sphere,
 /// cylinder, cone or torus at points equispaced over its carrier's whole
 /// turn from `t0`, five and nine ([`Samples`], [`even_points`]). A line
 /// or a conic lies on such a surface along a piece exactly where its
-/// whole carrier does (the surface's equation along it is a polynomial,
-/// or a trigonometric one, zero on an interval only where zero
-/// everywhere), so the edge's own span does not matter: each point's
+/// whole carrier does (the identity certificate, [`geom_brep::variety`]),
+/// so the edge's own span does not matter: each point's
 /// offset is decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]),
 /// every point before the answer, and one definitely off reads it off.
 ///
@@ -1281,7 +1281,7 @@ pub(super) enum Placed {
 /// whole length ([`clears_plane`], a plane's). A spiric lies along no
 /// piece of a sphere, a cylinder or a cone by degree, and on a ring torus
 /// lies along a piece only where along all of it; either way it reads off
-/// where a point of its span reads off ([`spiric_on_quadric`]). A spline
+/// where a point of its span reads off ([`spiric_on_curved`]). A spline
 /// not certified off, and any carrier against a torus not decided a ring,
 /// is unread ([`EdgeInFaceGap::CarrierUnread`]); nothing reads a spiric
 /// on. Every point read off is read through the one certificate
@@ -1302,7 +1302,9 @@ pub(super) enum Placed {
 /// over the nine samples ([`LEBESGUE_NINE`]). That bound is decided after
 /// the samples read zero: zero reads the conic on the torus, beyond the
 /// band leaves it unread (the samples cannot certify a fat torus's conic),
-/// in band escalates; D3's torus is a ring, `R > r`. On a cone
+/// in band escalates. The bound is a ring's (`R > r`), so a torus decided
+/// not a ring is unread before the samples are read, and one whose ring
+/// is in band escalates ([`geom_brep::variety::Variety::of`]). On a cone
 /// the offset is not a polynomial along a conic and the samples are not
 /// bounded between
 /// (`work/parting/a-conic-on-a-cone-face-is-read-at-five-samples-unbounded-between.md`).
@@ -1395,8 +1397,9 @@ fn conic_or_line_on<T: Decide>(
             RIDER_ON_CURVED,
             Coincide::EdgeOnCurvedFace,
         ),
-        // No line lies along any piece of a sphere or a ring torus: a
-        // degree argument, as for a spiric on a quadric below.
+        // No line lies along any piece of a sphere or of any torus (a
+        // quartic meets a line in four points at most): a degree argument,
+        // as for a spiric on a quadric below, so no ring is asked.
         (geom::Curve3::Line(_), geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }) => {
             return Ok(Placed::Off);
         }
@@ -1412,7 +1415,7 @@ fn conic_or_line_on<T: Decide>(
             | geom::Surface::Cone { .. }
             | geom::Surface::Torus { .. },
         ) => {
-            return spiric_on_quadric(
+            return spiric_on_curved(
                 carrier,
                 (t0, t1),
                 (major_radius, minor_radius, offset),
@@ -1523,7 +1526,7 @@ fn clears_plane<T: Decide>(
     }
 }
 
-/// The site [`spiric_on_quadric`] decides a spiric's offset off zero, and
+/// The site [`spiric_on_curved`] decides a spiric's offset off zero, and
 /// short of `R − r`, under.
 const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 
@@ -1532,11 +1535,9 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 /// wherever its section is in the two-oval regime and a point of the
 /// span's interior reads definitely off; otherwise unread. Never on.
 ///
-/// **On a ring torus** the certificate is the identity one, not a degree
-/// bound: the spiric is an irreducible quartic and the torus's equation
-/// along it is real-analytic in its parameter, so a point decided off the
-/// torus's variety reads it off along every piece
-/// ([`geom_brep::variety`]). A torus not decided a ring is unread. A
+/// **On a ring torus** the certificate is the identity one
+/// ([`geom_brep::variety`], its spiric form), not a degree bound. A torus
+/// decided not a ring is unread, and one whose ring is in band escalates. A
 /// spiric on its own torus decides on at every sample, which certifies
 /// nothing between them, so it stays unread.
 ///
@@ -1559,7 +1560,7 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 /// is poison. Offset zero (two circles), the offsets from `R − r` on, and
 /// any offset decided in the zero band of either end read unread.
 ///
-/// None of the three surfaces holds a plane, so each meets the spiric's
+/// None of the three quadrics holds a plane, so each meets the spiric's
 /// plane in a curve of degree two at most:
 /// - a sphere in a circle, a point or nothing;
 /// - a cylinder in an ellipse (a circle where the plane is square to the
@@ -1588,7 +1589,7 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 ///
 /// [`BooleanError::Escalated`] where the regime, or a sample with none
 /// off, is in the band's gap, as the conic arms beside it escalate.
-fn spiric_on_quadric<T: Decide>(
+fn spiric_on_curved<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     (big, small, offset): (T, T, T),
@@ -3406,9 +3407,10 @@ mod spline_rider {
     }
 }
 
-/// **A spiric reads off a sphere, a cylinder or a cone by degree**
-/// ([`spiric_on_quadric`]), only in the two-oval regime and only where a
-/// point of its span reads off, and stays unread on a torus.
+/// **A spiric reads off a sphere, a cylinder or a cone by degree, and a
+/// ring torus by identity** ([`spiric_on_curved`]), only in the two-oval
+/// regime and only where a point of its span reads off. On its own torus,
+/// or on a torus not decided a ring, it stays unread.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spiric_quadric_rows {
@@ -3532,28 +3534,15 @@ mod spiric_quadric_rows {
         }
     }
 
-    /// **Out of the two-oval regime, or on a torus, a spiric stays
-    /// unread against the surface.** On its own torus it lies on the
-    /// surface, which no arm reads, so it is never off there. At offset
-    /// zero its plane cuts the torus in two circles. At an offset in band
+    /// **Out of the two-oval regime a spiric stays unread against the
+    /// surface** (on its own torus is its own row). At offset zero its
+    /// plane cuts the torus in two circles. At an offset in band
     /// of zero, or from `R − r` on, the section is not the irreducible
     /// quartic the degree bound needs. Each case is against the
     /// cylinder about the spiric's `v = 0` point. Red on any of them
     /// read off.
     #[test]
-    fn a_spiric_out_of_regime_or_on_a_torus_stays_unread() {
-        let own = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            major_radius: 2.0,
-            minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
-        assert_eq!(
-            conic_or_line_on(&spiric(0.5), (-0.5, 0.5), &own, band()).unwrap(),
-            UNREAD,
-            "on its own torus"
-        );
+    fn a_spiric_out_of_regime_stays_unread() {
         let eps = Tol::witness().eps();
         for (what, offset) in [
             ("offset zero", 0.0),
@@ -3729,6 +3718,79 @@ mod spiric_quadric_rows {
             conic_or_line_on(&s, (-0.5, 0.5), &own, band()).unwrap(),
             UNREAD,
             "a spiric on its own torus"
+        );
+    }
+
+    /// **A spiric against a torus not decided a ring stays unread, and one
+    /// whose ring is in band escalates**: the identity certificate holds
+    /// only on a ring ([`geom_brep::variety::Variety::of`]). A sample off a
+    /// torus with `R < r` still reads unread. Red where the gate in
+    /// [`super::spiric_on_curved`] is removed.
+    #[test]
+    fn a_spiric_against_a_torus_not_a_ring_is_unread_or_escalates() {
+        let s = spiric(0.5);
+        let at = |major_radius: f64| geom::Surface::Torus {
+            center: s.eval(0.0),
+            axis: Vec3::unit_x(),
+            major_radius,
+            minor_radius: 0.3,
+            u_ref: Vec3::unit_y(),
+        };
+        let spindle = at(0.1);
+        assert!(
+            matches!(
+                read(&spindle, s.eval(0.25)),
+                Ok(Sign::Positive | Sign::Negative)
+            ),
+            "a sample is off the torus"
+        );
+        assert_eq!(
+            conic_or_line_on(&s, (-0.5, 0.5), &spindle, band()).unwrap(),
+            UNREAD,
+            "a spiric against a torus with R < r"
+        );
+        let b = band();
+        let in_band = at(0.3 + 0.5 * (b.zero() + b.escalate()));
+        assert!(
+            conic_or_line_on(&s, (-0.5, 0.5), &in_band, b).is_err(),
+            "a torus whose ring is in band escalates"
+        );
+    }
+
+    /// **A spindle's meridian circle is unread, where it once read off**: the
+    /// circle lies on the spindle-proportioned torus's quartic (`R < r`), but
+    /// its half across the axis is on the sheet the residual does not read,
+    /// so a sample there decides off. The ring gate reads it unread. Red
+    /// where a torus not decided a ring is read.
+    #[test]
+    fn a_spindles_meridian_circle_is_unread_not_off() {
+        let (big, small) = (0.5, 1.0);
+        let spindle = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: big,
+            minor_radius: small,
+            u_ref: Vec3::unit_x(),
+        };
+        let meridian = geom::Curve3::circle(
+            Point3::new(big, 0.0, 0.0),
+            Vec3::unit_y(),
+            small,
+            Vec3::unit_x(),
+        );
+        let samples: Vec<_> = (0..9)
+            .map(|k| meridian.eval(core::f64::consts::TAU * f64::from(k) / 9.0))
+            .collect();
+        assert!(
+            samples
+                .iter()
+                .any(|&p| matches!(read(&spindle, p), Ok(Sign::Positive | Sign::Negative))),
+            "a sample on the other sheet reads off the residual"
+        );
+        assert_eq!(
+            conic_or_line_on(&meridian, (0.0, core::f64::consts::TAU), &spindle, band()).unwrap(),
+            UNREAD,
+            "a meridian circle of a torus with R < r"
         );
     }
 
