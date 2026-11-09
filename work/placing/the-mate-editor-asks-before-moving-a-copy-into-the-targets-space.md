@@ -76,3 +76,7 @@ mate-tool section, which is a design page, so the PR implementing it
 needs Ev's sign-off before it merges. The Create door's
 "placement and its first mates in one Apply" is filed separately, on
 `creating-a-thing-and-editing-it-are-two-implementations`.
+
+## Ev's reservation on where Place puts its placement (2026-11-09, PR 6580)
+
+Ev approved PR 6580's rule that every placement is a copy, but reserved judgement on the designers' supporting claim: "idk about 'Place keeps landing in the body's own space, so two Places of one body sit in one space and can be mated to each other'". Since PR 6578, `DocSession::place` targets the body's own space. This unit decides the placement's target as the placement's own property, so where Place lands, and how a person chooses or changes it, is decided here, not inherited from 6578. The designers weigh it before the build.

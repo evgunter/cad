@@ -360,3 +360,7 @@ Newest entries at the bottom; the tail is the program's live status.
   - `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space`: P1 M. It is Ev's 2026-11-01 direction, and since 6578 Place targets the body's own space, so it bites every cross-space mate. It is the next unit after 6581, because both touch `matetool.rs` and `session.rs`.
   - The preview row: P2.
   - The pick-starts-a-mate, per-frame and parse-wording rows: P3. (PLACING orchestrator)
+- 2026-11-09 — **`[ev]` PR 6580 approved and merged** (`1b31bac52e`). Ev: "it sounds like the actual change you're making is independent of this, so seems good".
+  - Ev reserved judgement on Place landing in the body's own space ("idk about").
+  - That point is recorded on `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space` (P1, next unit after 6581), which goes to designers before its build.
+  - Fork row 253 is filled in. Match: both. (PLACING orchestrator)
