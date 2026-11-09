@@ -237,3 +237,14 @@
 - 2026-11-09 — **PR 6555 merged main again (`0b43587b69`). Its fork row is now 254**: main's PLACING fork took 253 on 2026-11-08. When Ev answers, the row's second commit goes on 254, and the PR body's "Fork row 253" line is corrected in the same in-place update. Ev has not yet answered on rewrite vs refuse.
 - 2026-11-09 — **Next REFS unit, queued behind SEAL's glue step 1 (one implementation lane at a time):** `the-reference-path-reads-every-node-from-mint-to-read` (P2, M). Ev ruled it on PR 4691, and the PR 4674 it waited on has landed.
 - 2026-11-09 — **The P2 unit queued above is withdrawn.** The sitting ends a track once its P0/P1 rows are done (orchestration model). SEAL's P1 rows still stand, so the sitting works those. `the-reference-path-reads-every-node-from-mint-to-read` stays `open` for a later sitting. REFS stays `active` only for `[ev]` PR 6555's row.
+- 2026-11-09 — **On PR 6555, Ev asked whether there should be two forms at all.**
+  - **Answer, on the PR:** no. Keep one form, form 2: a selection reads one body, and its names are that body's own.
+    - Form 1 survives only as `repetition::names_members`' special case, which reads the family whole. It predates indexed reads.
+    - `Member { (k, i), e }` stays as a name *inside* a body built from the whole family, such as a union's result.
+  - **Proposed:**
+    - the door refuses form 1 outright;
+    - the viewport pick authors `xs[i]` (as since PR 6593);
+    - Python `select` on a family read whole refuses;
+    - `names_members`, its `Reach` exception and the three whole-read branches are deleted;
+    - no converter helper.
+  - Waiting for Ev's confirmation before DM3 is written and the unit is built into the PR.
