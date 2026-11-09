@@ -339,7 +339,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | crate::census::LINE_WEDGE_STRAIGHT => BooleanDecision::LineWedges.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
-        "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
+        carrier_eq::CARRIER_CYL_AXIS_PARALLEL => refusal_routes::CYLINDER_AXES_PARALLEL,
         crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | crate::cover::SPHERE_AXIS
@@ -404,7 +404,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_curved_contain_carrier"
         | "bool_wall_outline_reach"
         | "bool_wall_turn_true"
-        | "bool_wrap_rim"
+        | surface_group::BOOL_WRAP_RIM
         | "bool_sphere_iso_meridian"
         | "bool_sphere_iso_rim"
         | "bool_sphere_trim_antipode"
@@ -474,8 +474,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spline_side"
         | "point_in_arc_loop_spline_turn"
         | "point_in_arc_loop_spline_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
-        spline_region::CARRIER => "how far a point lies off a spline face's carrier",
-        spline_region::ARM | spline_region::TRIM => {
+        spline_region::SPLINE_REGION_CARRIER => "how far a point lies off a spline face's carrier",
+        spline_region::SPLINE_REGION_ARM | spline_region::SPLINE_REGION_TRIM => {
             "whether a point of a spline face's carrier lies clear of the face's trim"
         }
         _ => return None,

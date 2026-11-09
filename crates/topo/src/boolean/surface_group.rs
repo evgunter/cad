@@ -90,13 +90,16 @@ pub(super) struct WrapRims<T: geom_core::Real> {
     pub(super) axis: Vec3<T>,
 }
 
+/// The name a rim's coaxial margins are each decided under.
+pub(super) const BOOL_WRAP_RIM: &str = "bool_wrap_rim";
+
 impl<T: Decide> WrapRims<T> {
     /// Coaxial is an identity: either margin decided apart answers
     /// "not coaxial", whatever the other read ([`read_identity`]).
     fn holds(self, rim: &Rim<T>, band: Band) -> Result<bool, Indeterminate> {
         let Self { origin, axis } = self;
         read_identity(
-            coaxial_margins(origin, axis, rim).map(|margin| ("bool_wrap_rim", margin)),
+            coaxial_margins(origin, axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)),
             band,
         )
         .holds()

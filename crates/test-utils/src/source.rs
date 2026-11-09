@@ -1556,6 +1556,13 @@ pub struct PredicateCensus {
 /// spellings: a turbofish, and a one-line wrapper around a declared
 /// carrier. Both are read here; anything still unread is reported, not
 /// dropped.
+///
+/// **`geom_brep::ladder::read_identity` is a funnel too**, deciding each
+/// datum under the name it is handed beside it, and its data are an
+/// iterator this reader cannot follow. Every call of it is therefore an
+/// `indirect` site, `<file>: read_identity(<its first argument's head>)`,
+/// so a crate's roster lists each and declares where its data's names
+/// are spelled.
 #[must_use]
 pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> PredicateCensus {
     let mut out = PredicateCensus::default();
@@ -1590,6 +1597,9 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                 }
             }
         }
+        for head in identity_sites(&bare, &code) {
+            out.indirect.insert(format!("{rel}: read_identity({head})"));
+        }
         for carrier in carriers {
             match *carrier {
                 NameCarrier::Call(token) => {
@@ -1608,11 +1618,12 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                     }
                 }
                 NameCarrier::Const(token) => {
-                    if let Some(decl) = find_word(&bare, &format!("const {token}")) {
+                    for decl in const_decls(&bare, token) {
                         match const_literal(&code[decl..]) {
-                            Some(name) => {
+                            Some(Some(name)) => {
                                 out.names.insert(name);
                             }
+                            Some(None) => {}
                             None => {
                                 out.unreadable.insert(format!("{rel}: const {token}"));
                             }
@@ -1621,7 +1632,7 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                 }
             }
         }
-        for (needle, raw) in [("include!", &bare), ("#[path", &text)] {
+        for (needle, raw) in [("include!", &bare), ("#[path", &code)] {
             let mut at = 0usize;
             while let Some(hit) = raw[at..].find(needle) {
                 let start = at + hit;
@@ -1717,6 +1728,10 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         let open = cursor;
         at = open + 1;
         let arg = code[open + 1..].trim_start();
+        if let Some(names) = literal_tuple(&bare[bare.len() - arg.len()..], arg) {
+            out.extend(names.into_iter().map(|name| (SiteKind::Name, name)));
+            continue;
+        }
         match first_literal(arg) {
             Some(name) => out.push((SiteKind::Name, name)),
             None => {
@@ -1731,6 +1746,62 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         }
     }
     out
+}
+
+/// The head of the first argument of every `read_identity` call in a
+/// blanked view — up to its first top-level comma, on one line.
+fn identity_sites(bare: &str, code: &str) -> Vec<String> {
+    const TOKEN: &str = "read_identity";
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find(TOKEN) {
+        let start = at + hit;
+        at = start + TOKEN.len();
+        if !boundary_before(bare, start) || !boundary_after(bare, at) {
+            continue;
+        }
+        let before = bare[..start].trim_end();
+        if before.ends_with("fn") && boundary_before(before, before.len() - 2) {
+            continue;
+        }
+        let rest = bare[at..].trim_start();
+        if !rest.starts_with('(') {
+            // An import or a doc path, not a call.
+            continue;
+        }
+        let open = bare.len() - rest.len();
+        let Some(close) = balanced_end(bare, open) else {
+            out.push("… unclosed".to_string());
+            continue;
+        };
+        let inner = &bare[open + 1..close];
+        let first = top_level_split(inner, ',')
+            .into_iter()
+            .next()
+            .map_or(0..inner.len(), |r| r);
+        let head = &code[open + 1 + first.start..open + 1 + first.end];
+        out.push(one_line(head.trim().lines().next().unwrap_or("")));
+    }
+    out
+}
+
+/// The names of a tuple of plain string literals at the head of `code`
+/// — a funnel deciding under a row and its straddle row
+/// (`decide_levered(("row", "row_straddle"), …)`) — or `None` where the
+/// head is not such a tuple. `bare` is the same text blanked, so its
+/// brackets are real.
+fn literal_tuple(bare: &str, code: &str) -> Option<Vec<String>> {
+    if !bare.starts_with('(') {
+        return None;
+    }
+    let close = balanced_end(bare, 0)?;
+    let names: Vec<String> = top_level_split(&bare[1..close], ',')
+        .into_iter()
+        .map(|r| code[1 + r.start..1 + r.end].trim())
+        .filter(|item| !item.is_empty())
+        .map(|item| plain_string_literal(item).map(str::to_string))
+        .collect::<Option<_>>()?;
+    (!names.is_empty()).then_some(names)
 }
 
 /// The contents of a plain string literal at the head of `text`.
@@ -1754,9 +1825,11 @@ fn carrier_groups(code: &str, token: &str) -> Vec<usize> {
             continue;
         }
         let before = code[..start].trim_end();
-        if DECLARERS
-            .iter()
-            .any(|kw| before.ends_with(kw) && boundary_before(before, before.len() - kw.len()))
+        // A return type (`-> Rows {`) opens the body, not a literal.
+        if before.ends_with("->")
+            || DECLARERS
+                .iter()
+                .any(|kw| before.ends_with(kw) && boundary_before(before, before.len() - kw.len()))
         {
             continue;
         }
@@ -1795,23 +1868,42 @@ fn direct_literals(inner: &str) -> Vec<String> {
 
 /// The first plain literal of a `const NAME: &str = "…";` declaration
 /// whose head starts at the front of `text`.
-fn const_literal(text: &str) -> Option<String> {
+///
+/// `Some(None)` where the declaration is not a name: a `const` of the
+/// same identifier and another type (a tuple, a number), or a trait's
+/// declaration with no value, whose implementations carry the names.
+/// `None` where it is a `&str` this reader cannot read.
+fn const_literal(text: &str) -> Option<Option<String>> {
     let end = text.find(';')?;
-    let open = text[..end].find('"')?;
-    first_literal(&text[open..])
+    let decl = &text[..end];
+    let Some((head, value)) = decl.split_once('=') else {
+        return Some(None);
+    };
+    let ty: String = head
+        .split_once(':')
+        .map_or("", |(_, ty)| ty)
+        .split_whitespace()
+        .collect();
+    if ty != "&str" && ty != "&'staticstr" {
+        return Some(None);
+    }
+    plain_string_literal(value).map(|name| Some(name.to_string()))
 }
 
-/// The offset of `needle` as a whole word, if the view holds one.
-fn find_word(code: &str, needle: &str) -> Option<usize> {
+/// The offset of every `const <token>` declaration, as a whole word, in
+/// a blanked view.
+fn const_decls(code: &str, token: &str) -> Vec<usize> {
+    let needle = format!("const {token}");
+    let mut out = Vec::new();
     let mut at = 0usize;
-    while let Some(hit) = code[at..].find(needle) {
+    while let Some(hit) = code[at..].find(&needle) {
         let start = at + hit;
         at = start + needle.len();
-        if boundary_before(code, start) {
-            return Some(start);
+        if boundary_before(code, start) && boundary_after(code, at) {
+            out.push(start);
         }
     }
-    None
+    out
 }
 
 /// `text` with its whitespace collapsed, for an assertion message.
@@ -2104,6 +2196,87 @@ mod tests {
         assert_eq!(found.len(), 2, "{found:?}");
         assert!(found.iter().any(|p| p.ends_with("hidden.rs")), "{found:?}");
         std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    /// **Every `read_identity` call is an indirect site**, named by its
+    /// first argument's head; its declaration, an import and a doc
+    /// mention are not calls, and a literal datum inside the call does
+    /// not make the site readable.
+    #[test]
+    fn a_read_identity_call_is_an_indirect_site() {
+        let raw = "use ladder::{read_identity};\n\
+                   /// [`read_identity`] reads data.\n\
+                   pub fn read_identity<T>(d: T) {}\n\
+                   fn f() { geom_brep::ladder::read_identity(\n    [(\"lit\", m)], band); \
+                   read_identity(xs.map(|x| (NAME, x)), band); }\n";
+        let sites = super::identity_sites(&code_only(raw), &code_and_literals(raw));
+        assert_eq!(sites, ["[(\"lit\", m)]", "xs.map(|x| (NAME, x))"], "{raw}");
+    }
+
+    /// **A `Const` carrier reads every `&str` declaration of its name
+    /// and only those**: a longer identifier is not it, a same-named
+    /// const of another type or a trait's valueless declaration is not
+    /// a name, and a `&str` whose value is not a plain literal is
+    /// unreadable.
+    #[test]
+    fn a_const_carrier_reads_each_str_declaration_of_its_name() {
+        let raw = "const APEX_DOWN: &str = \"no\";\n\
+                   mod a { pub(crate) const APEX: &str = \"one\"; }\n\
+                   mod b { const APEX: &'static str = \"two\"; }\n\
+                   mod t { const APEX: (f64, f64) = (0.0, 1.0); }\n\
+                   trait R { const APEX: &'static str; }\n\
+                   const APEX: &str = concat!(\"a\", \"b\");\n";
+        let (bare, code) = (code_only(raw), code_and_literals(raw));
+        let read: Vec<Option<Option<String>>> = super::const_decls(&bare, "APEX")
+            .into_iter()
+            .map(|at| super::const_literal(&code[at..]))
+            .collect();
+        assert_eq!(
+            read,
+            [
+                Some(Some("one".to_string())),
+                Some(Some("two".to_string())),
+                Some(None),
+                Some(None),
+                None,
+            ],
+            "{raw}"
+        );
+    }
+
+    /// **A tuple of plain literals at a funnel's head is its names**: a
+    /// row and its straddle row are both read, and a tuple holding
+    /// anything but literals is an indirect site.
+    #[test]
+    fn a_funnels_literal_tuple_is_read_as_its_names() {
+        let raw = "decide_levered((\"row\", \"row_straddle\"), x, band); \
+                   decide_levered((\"lone\", s), x, band);";
+        let sites = super::funnel_sites(&code_only(raw), &code_and_literals(raw));
+        let named: Vec<&str> = sites
+            .iter()
+            .filter(|(kind, _)| matches!(kind, super::SiteKind::Name))
+            .map(|(_, name)| name.as_str())
+            .collect();
+        assert_eq!(named, ["row", "row_straddle"], "{raw}");
+        assert!(
+            sites
+                .iter()
+                .any(|(kind, expr)| matches!(kind, super::SiteKind::Indirect)
+                    && expr.starts_with("(\"lone\"")),
+            "a part-literal tuple is indirect: {raw}"
+        );
+    }
+
+    /// **A return type is not a struct literal**: `-> Rows {` opens the
+    /// function's body, and only the literal inside it is a carrier
+    /// group.
+    #[test]
+    fn a_return_type_opens_no_carrier_group() {
+        let raw = "fn rows() -> Rows { Rows { a: \"x\" } }";
+        let bare = code_only(raw);
+        let groups = super::carrier_groups(&bare, "Rows");
+        assert_eq!(groups.len(), 1, "{groups:?}");
+        assert!(raw[groups[0]..].starts_with("{ a:"), "{raw}");
     }
 
     /// A required needle answers its offsets, and one that matches

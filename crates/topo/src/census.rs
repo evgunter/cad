@@ -3891,9 +3891,9 @@ fn pierce_span<T: Decide>(
     let [c0, c1] = [e.p0, e.p1].map(|p| residual_charge(f, p));
     let lever = r0 - r1;
     let (size, slack) = (lever.abs(), c0 + c1);
-    let decide = magnitude_door("pm_census_ef_pierce_lever", band);
+    let door = magnitude_door("pm_census_ef_pierce_lever", band);
     let bounds = [(size - slack).max(T::zero()), size + slack];
-    match enclosure_reading(bounds, "pm_census_ef_pierce_lever_straddle", band, decide) {
+    match enclosure_reading(bounds, "pm_census_ef_pierce_lever_straddle", band, door) {
         Ok(Enclosed::Above) => {}
         Ok(Enclosed::AtMost(_)) => return None,
         Err(cause) => {
@@ -3974,8 +3974,8 @@ fn pierce_inside<T: Decide>(
     let length = (q_hi - q_lo).norm();
     let short = || {
         let half = [T::zero(), length * T::from_f64(0.5)];
-        let decide = magnitude_door("pm_census_ef_pierce_span", band);
-        enclosure_reading(half, "pm_census_ef_pierce_span_straddle", band, decide)
+        let door = magnitude_door("pm_census_ef_pierce_span", band);
+        enclosure_reading(half, "pm_census_ef_pierce_span_straddle", band, door)
             .map(|read| matches!(read, Enclosed::AtMost(_)))
     };
     let on = |at| matches!(at, OnEdge(_) | OnVertex(_));
@@ -3999,13 +3999,13 @@ fn pierce_inside<T: Decide>(
         errors.push(ValidationError::CensusEscalated { cause });
         return None;
     }
-    let decide = magnitude_door("pm_census_ef_pierce_place", band);
+    let door = magnitude_door("pm_census_ef_pierce_place", band);
     let reach = length + T::from_f64(band.zero());
     if let Err(cause) = enclosure_reading(
         [T::zero(), reach],
         "pm_census_ef_pierce_straddle",
         band,
-        decide,
+        door,
     ) {
         errors.push(ValidationError::CensusEscalated { cause });
     }
@@ -4089,9 +4089,9 @@ fn span_clear<T: Decide>(
         return Some(false);
     };
     let reach = span_reach(e, [lo, hi], lever, band);
-    let decide = magnitude_door("pm_census_ef_pierce_height", within);
+    let door = magnitude_door("pm_census_ef_pierce_height", within);
     let straddle = "pm_census_ef_pierce_height_straddle";
-    match enclosure_reading([T::zero(), reach], straddle, within, decide) {
+    match enclosure_reading([T::zero(), reach], straddle, within, door) {
         Ok(Enclosed::AtMost(_)) => {}
         Ok(Enclosed::Above) => return Some(false),
         Err(cause) => {
@@ -5575,16 +5575,16 @@ enum Enclosed {
 }
 
 /// The one reading of a quantity known only to lie in `[lo, hi]`, each
-/// bound decided by `decide`: [`Enclosed`], else the escalation of a
+/// bound decided by `door`: [`Enclosed`], else the escalation of a
 /// bound that did not decide, or the bounds' straddle of the band under
 /// `straddle`, the site's own row.
 fn enclosure_reading<T: Decide>(
     [lo, hi]: [T; 2],
     straddle: &'static str,
     band: Band,
-    decide: impl Fn(T) -> Result<geom_core::Decided, Indeterminate>,
+    door: impl Fn(T) -> Result<geom_core::Decided, Indeterminate>,
 ) -> Result<Enclosed, Indeterminate> {
-    match (decide(lo), decide(hi)) {
+    match (door(lo), door(hi)) {
         (Ok(b), _) if b.sign == Sign::Positive => Ok(Enclosed::Above),
         (_, Ok(a)) if a.sign != Sign::Positive => Ok(Enclosed::AtMost(a.margin)),
         (Ok(b), Ok(a)) => Err(geom_core::k_stats::straddle(straddle, b, a, band)),
@@ -5616,8 +5616,8 @@ fn magnitude_door<T: Decide>(
 /// span: `Ok(true)` above `Kε`; `Ok(false)` at most `ε`, so the closest
 /// point lies at an end or past it ([`enclosure_reading`]).
 fn span_reading<T: Decide>(reach: [T; 2], band: Band) -> Result<bool, Indeterminate> {
-    let decide = |m| geom_core::k_stats::decide_reported("pm_census_ee_span", Margin::of(m), band);
-    enclosure_reading(reach, "pm_census_ee_span_straddle", band, decide)
+    let door = |m| geom_core::k_stats::decide_reported("pm_census_ee_span", Margin::of(m), band);
+    enclosure_reading(reach, "pm_census_ee_span_straddle", band, door)
         .map(|read| matches!(read, Enclosed::Above))
 }
 
@@ -5627,8 +5627,8 @@ fn span_reading<T: Decide>(reach: [T; 2], band: Band) -> Result<bool, Indetermin
 /// (`lo` a `max` from zero, `hi` the least `|e·n|/s` plus its charge), the magnitude
 /// door's precondition.
 fn gap_reading<T: Decide>(gap: [T; 2], band: Band) -> Result<Option<MarginDiag>, Indeterminate> {
-    let decide = magnitude_door("pm_census_ee_gap", band);
-    enclosure_reading(gap, "pm_census_ee_gap_straddle", band, decide).map(|read| match read {
+    let door = magnitude_door("pm_census_ee_gap", band);
+    enclosure_reading(gap, "pm_census_ee_gap_straddle", band, door).map(|read| match read {
         Enclosed::Above => None,
         Enclosed::AtMost(margin) => Some(margin),
     })

@@ -1172,7 +1172,6 @@ pub(crate) fn path_parity<T: Decide>(
     arrives_on: Option<usize>,
     band: Band,
 ) -> Result<Option<bool>, Indeterminate> {
-    let decide_m = |name, margin| decide(name, margin, band);
     let slack = path_resolution(path, arcs);
     // A crossing's in-span readings are kept whole, escalations included:
     // one decided out of span passes the crossing over whatever the
@@ -1230,9 +1229,10 @@ pub(crate) fn path_parity<T: Decide>(
                         core: (.., major), ..
                     },
                 ) => {
-                    if decide_m(
+                    if decide(
                         "split_ring_path_crest_graze",
                         Margin::of(charge(p.circle.radius - major, slack)),
+                        band,
                     )? == Sign::Zero
                     {
                         return Ok(None);
@@ -1285,9 +1285,10 @@ pub(crate) fn path_parity<T: Decide>(
                     let rho_less =
                         |p: Point3<T>| geom::Line { origin: c, dir: a }.distance(p) - major;
                     let side = |p| {
-                        decide_m(
+                        decide(
                             "split_ring_path_crest_side",
                             Margin::of(charge(rho_less(p), slack)),
+                            band,
                         )
                     };
                     let (s0, s1) = (side(from)?, side(to)?);
@@ -1303,9 +1304,10 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     let across = p.circle.frame.axis.dot(dir);
-                    if decide_m(
+                    if decide(
                         "split_ring_path_line_across",
                         Margin::levered(across, Lever::curvature_radius(p.circle.radius)),
+                        band,
                     )? == Sign::Zero
                     {
                         return Ok(None);
@@ -1332,8 +1334,13 @@ pub(crate) fn path_parity<T: Decide>(
                     let sec = section(arc);
                     let offset = |x: Point3<T>| geom::plane_offset(sec.origin, sec.normal, x);
                     let (d0, d1) = (offset(from), offset(to));
-                    let side =
-                        |d| decide_m("split_ring_path_segment_side", Margin::of(charge(d, slack)));
+                    let side = |d| {
+                        decide(
+                            "split_ring_path_segment_side",
+                            Margin::of(charge(d, slack)),
+                            band,
+                        )
+                    };
                     let (s0, s1) = (side(d0)?, side(d1)?);
                     // A segment decided apart from a conic arc meets it
                     // nowhere. One along the plane says nothing unless its
@@ -1349,9 +1356,11 @@ pub(crate) fn path_parity<T: Decide>(
                         continue;
                     }
                     if s0 == Sign::Zero && s1 == Sign::Zero {
-                        let point =
-                            decide_m("split_ring_path_lead_point", Margin::of((to - from).norm()))?
-                                == Sign::Zero;
+                        let point = decide(
+                            "split_ring_path_lead_point",
+                            Margin::of((to - from).norm()),
+                            band,
+                        )? == Sign::Zero;
                         if !point {
                             return Ok(None);
                         }
@@ -1400,9 +1409,10 @@ pub(crate) fn path_parity<T: Decide>(
                     // over their distance: the ruling's over the lever,
                     // the arc's over its length.
                     let rounding = slack / lever.length() + slack / (span.1 - span.0);
-                    if decide_m(
+                    if decide(
                         "split_ring_path_rulings_apart",
                         Margin::levered(charge(ruling.cross(dir).norm(), rounding), lever),
+                        band,
                     )? != Sign::Positive
                     {
                         return Ok(None);
@@ -1423,9 +1433,10 @@ pub(crate) fn path_parity<T: Decide>(
                         continue;
                     }
                     let gap = geom::Line { origin, dir }.distance(from);
-                    if decide_m(
+                    if decide(
                         "split_ring_path_rulings_distinct",
                         Margin::of(charge(gap, slack)),
+                        band,
                     )? != Sign::Positive
                     {
                         return Ok(None);

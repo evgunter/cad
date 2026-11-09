@@ -69,6 +69,11 @@ const INDIRECT: &[(&str, &str)] = &[
          `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
     ),
     (
+        "loft/stacking.rs: read_identity(a.iter())",
+        "the loft's pinned-rim identity, whose data are named by `LOFT_RIM_PINNED`, a declared \
+         carrier",
+    ),
+    (
         "swept.rs: name",
         "the swept-traversal funnel, forwarding its parameter",
     ),

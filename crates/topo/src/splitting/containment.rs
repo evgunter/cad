@@ -1775,6 +1775,11 @@ pub(crate) fn point_in_loop_projected<T: Decide>(
     )
 }
 
+/// The names [`certify_plane`]'s data are decided under.
+const POINT_IN_LOOP_NORMAL: &str = "point_in_loop_normal";
+const POINT_IN_LOOP_PLANE: &str = "point_in_loop_plane";
+const POINT_IN_LOOP_QUERY: &str = "point_in_loop_query";
+
 /// **[`point_in_loop`]'s preconditions, certified**: `normal` is a unit
 /// vector, the whole loop lies in the plane through its first vertex
 /// with that normal, and so does `q` (the module docs' three rows). A
@@ -1802,7 +1807,7 @@ fn certify_plane<T: Decide>(
     // unit, every point and axis of the loop's carriers lies on the
     // plane, and so does `q`. Any datum decided apart answers "off the
     // plane", whatever an earlier one read; its cause only names which.
-    let mut data = vec![("point_in_loop_normal", unit, OffPlaneCause::NormalNotUnit)];
+    let mut data = vec![(POINT_IN_LOOP_NORMAL, unit, OffPlaneCause::NormalNotUnit)];
     let off = |p: Point3<T>| Margin::of(geom::plane_offset(origin, normal, p));
     let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
     // A conic's whole carrier, read from its centre.
@@ -1835,13 +1840,9 @@ fn certify_plane<T: Decide>(
             }
         }
         let cause = OffPlaneCause::Loop { edge: step.edge };
-        data.extend(
-            margins
-                .into_iter()
-                .map(|m| ("point_in_loop_plane", m, cause)),
-        );
+        data.extend(margins.into_iter().map(|m| (POINT_IN_LOOP_PLANE, m, cause)));
     }
-    data.push(("point_in_loop_query", off(q), OffPlaneCause::Query));
+    data.push((POINT_IN_LOOP_QUERY, off(q), OffPlaneCause::Query));
     match read_identity(data.iter().map(|&(name, m, _)| (name, m)), band) {
         IdentityLadder::Zero(_) => Ok(()),
         IdentityLadder::Apart { at, .. } => Err(off_plane(data[at].2)),
