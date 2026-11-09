@@ -873,3 +873,11 @@
   - S1: owed and height_extremes copy the extreme read, so give it one Range method.
   - Sent to the lane. 6623 stays as A+S per the lane's choice.
   - F3 filed: `a-height-in-the-gap-escalates-at-metres-in-the-parallel-and-offset-arms`.
+- 10:28Z PR 6576 taxonomy-pass delta: FIX. Sent to the lane.
+  - F1: NormalAtSplineCrease collapses a Margin/Limit payload into InBand.
+  - F2: DegenerateTorus is Limit on the payload but Abort on the wrapper, and the PR's own overlap delegation reads the stale class.
+  - F3: Unsettled::Crease is mixed, not Limit.
+  - F4: a stalled spline end gives a NaN chord with no overflow.
+  - N2: DESIGN has no rows 1(a)/1(b). They are defined once in ladder.rs as the code's reading of row 1, with no DESIGN change.
+  - N5: holding_face_normal absorbs refusals as Ok(None).
+  - N6 is checked with 6598's reviewer.
