@@ -771,3 +771,5 @@
   - The C5 rewording of Ev's 6567 sentence is judged descriptive. That sentence recorded the gap this PR closes, and C5's decision is unchanged.
   - It conflicts with 6609 (`u_line`) in on_surface.rs and C5; whichever merges second keys `u_line`.
 - 08:20Z spiric-regime opened PR 6621 (head a43b5c58), with hosted CI green. It adds one predicate, geom::spiric_regime, and the three deciders route to it. FULL review dispatched; it also asks whether spiric_regime spells the ring question a third time.
+- 08:22Z gate-blind-spots opened PR 6620 (head ec30ddcd); scripts only, gate green. FULL review dispatched.
+  - New row `transverse-range-charges-the-global-height-with-world-origin-noise`, held for the needle-tilts lane once its PR is up, since both are in pose.rs.
