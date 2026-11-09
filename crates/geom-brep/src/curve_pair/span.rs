@@ -69,6 +69,10 @@ use geom_core::k_stats::{self, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
 
+/// **How many equal pieces [`Span::window_near`] reads a span off a line
+/// in**: the window it returns is a hull of whole pieces.
+pub const WINDOW_PIECES: usize = 32;
+
 /// A carrier and a parameter interval on it (module docs).
 #[derive(Clone, Copy)]
 pub struct Span<'a, T: Real> {
@@ -252,12 +256,18 @@ impl<'a, T: Decide> Span<'a, T> {
     /// span stands within the band's escalation of `member`, the
     /// member's cover. On a line, the cover's range along it
     /// ([`Cover::range_along`]) widened by the escalation either way,
-    /// within the span; on any other carrier, or for a member with no
-    /// cover (`None`), the whole span.
+    /// within the span. On any other carrier, the hull of the span's
+    /// [`WINDOW_PIECES`] equal pieces not decided farther than the
+    /// escalation from the cover's ball ([`Cover::ball`]), each piece read
+    /// by its own cover ([`Curve3::cover_over`]); the whole span where a
+    /// piece has no cover, or for a member with none (`None`).
     pub fn window_near(&self, member: Option<&Cover<T>>, band: Band) -> (T, T) {
         let (lo, hi) = (self.t0.min(self.t1), self.t0.max(self.t1));
-        let (Curve3::Line(geom::Line { origin, dir }), Some(cover)) = (self.carrier, member) else {
+        let Some(cover) = member else {
             return (lo, hi);
+        };
+        let Curve3::Line(geom::Line { origin, dir }) = self.carrier else {
+            return self.pieces_near(cover, (lo, hi), band);
         };
         let (near, far) = cover.range_along(*dir);
         let base = (*origin - Point3::origin()).dot(*dir);
@@ -268,6 +278,38 @@ impl<'a, T: Decide> Span<'a, T> {
             within((near - base - reach) / per),
             within((far - base + reach) / per),
         )
+    }
+
+    /// [`Self::window_near`] off a line: the hull of the pieces of
+    /// `(lo, hi)` a point within the escalation of `cover` may lie on.
+    /// A piece is cleared where its cover's least distance from the
+    /// cover's ball's centre, less the ball's radius, is decided past the
+    /// escalation on an exact order: the gap between the two covers, a
+    /// length.
+    fn pieces_near(&self, cover: &Cover<T>, (lo, hi): (T, T), band: Band) -> (T, T) {
+        let (centre, radius) = cover.ball();
+        let reach = radius + T::from_f64(band.escalate());
+        let at = |i: usize| lo + (hi - lo) * T::from_f64(i as f64 / WINDOW_PIECES as f64);
+        let mut kept: Option<(T, T)> = None;
+        for i in 0..WINDOW_PIECES {
+            let (a, b) = (at(i), at(i + 1));
+            let Ok(piece) = self.carrier.cover_over(geom::cover::ParamWindow::new(a, b)) else {
+                return (lo, hi);
+            };
+            let near = piece.distance_range(&geom::cover::Site::Point(centre)).0;
+            let clear = matches!(
+                k_stats::decide(
+                    "curve_pair_window_clear",
+                    Margin::of(near - reach),
+                    Band::least()
+                ),
+                Ok(Sign::Positive)
+            );
+            if !clear {
+                kept = Some(kept.map_or((a, b), |(from, _)| (from, b)));
+            }
+        }
+        kept.unwrap_or((lo, lo))
     }
 
     /// `t` within half a turn of the span's middle on a closed carrier,

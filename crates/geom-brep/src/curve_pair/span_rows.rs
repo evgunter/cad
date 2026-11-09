@@ -385,3 +385,47 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
         }
     }
 }
+
+/// **On an arc, a refused member's window is its stretch of the arc**:
+/// half of the circle and of the ellipse, each against a point standing
+/// half an escalation off the carrier, out from its centre, beside a
+/// parameter `at` of the span. `at`, whose point lies within the
+/// escalation of the member, lies in the window (red where the piece it
+/// is on is cleared), and the window is at most three pieces on the
+/// circle and clears a piece on the ellipse (red where the arm falls back
+/// to the whole span).
+#[test]
+fn a_refused_members_window_on_an_arc_is_its_stretch() {
+    let esc = band().escalate();
+    for (kind, carrier, centre) in [
+        ("circle", circle(), Point3::new(0.0, 0.0, 1.0)),
+        ("ellipse", ellipse(), Point3::origin()),
+    ] {
+        let (t0, t1) = (0.0, PI);
+        let span = Span::new(&carrier, (t0, t1));
+        for at in [0.4, 1.3, 2.9] {
+            let p = carrier.eval(at);
+            let q = p + (p - centre).normalize() * (0.5 * esc);
+            let member = geom::cover::Cover::points(vec![q]).unwrap();
+            let (w0, w1) = span.window_near(Some(&member), band());
+            // A circle arc's cover reads its distance exactly, so the
+            // window is the piece `at` is on and its neighbours; an
+            // ellipse arc's bound is looser, and clears some piece.
+            let piece = (t1 - t0) / super::span::WINDOW_PIECES as f64;
+            let widest = if kind == "circle" {
+                3.0 * piece
+            } else {
+                t1 - t0 - piece
+            };
+            assert!(
+                w1 - w0 <= widest,
+                "{kind} at {at}: the window ({w0}, {w1}) is wider than {widest}"
+            );
+            assert!(
+                w0 <= at && at <= w1,
+                "{kind} at {at}: the point half an escalation from the member lies outside \
+                 ({w0}, {w1})"
+            );
+        }
+    }
+}
