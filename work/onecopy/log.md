@@ -1385,3 +1385,14 @@
   - **6689 (normal-fault-kind).** `NormalAtError::standing` is the one home. The dual-scalar premise is dropped in join, and slit takes (b). Review: session_013mPGJ5mQsYAZcC2HjbyjwU. Its lane goes on to carrier-held-points plus the pierce-pass-ranking (onecopy/held-and-pierce).
   - **6690 (bracket-mid-3).** Knot vectors refuse an end past MAX/2 (PastHalfMax); ReflectionNotFinite is retired; a latent CarrierDomainRefusal panic is fixed; lifted halvings are routed; the gate is widened. Review: session_013mPGJ5PRHzVoBDbq2Vx2Ch. Its lane goes on to placement-holders plus plane-and-line-tuples (onecopy/placement-holders), options first if it needs stage-3 Plane.
   - The 6687 fix pass is under way (style done, restfront check-9 row pinned); its e2e pin uses the reviewer's oblique_rim_wall construction.
+- 2026-11-10 02:10Z
+  - **6689 FULL: FIX.**
+    - Three hand copies of the torus recourse are wrong for the Tube half (InvalidInput drops the convention), so they must render through `TorusConvention::refused`. This is the fix minting the defect.
+    - Also: fate.rs `normal_at` is a missed second spelling; misplaced doc; stale premise prose.
+    - New P2 row: dual-skips-tier-3 premises (torus_region, ruled_region, solid_contain, contain, contact_verify).
+  - **New PRs:**
+    - 6691 (main-reds triage) → FULL session_013mPGJ5fwij8kEFzHsjAmfs.
+    - 6692 (loft-rim-red: #6484's double arc-rim certification; the certificate is now reused) → FULL session_013mPGJ3TrPdKprncJzzMCwb. Its lane goes on to the slow-set-reach class (ciw row), options first.
+  - **6688's fix pass** is in (a2014a65) → delta by the original reviewer.
+  - **6663** at 68a2ab0f re-pinned after the bisect named BOXES 6639 and 6631 as undisclosed plate movers (filed on the BOXES row and counted on Ev's row); gating.
+  - **placement-holders:** (A) do the no-new-type work now; stage-3 Plane stays parked. swept::Turn keeps its UnitVec3 as a decided-unit holder (unit-axis ruled A).
