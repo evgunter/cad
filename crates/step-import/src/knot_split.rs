@@ -546,7 +546,7 @@ fn clear_of(
     // The region's knot cells: an enclosure is tightest inside one.
     let breaks = |kv: &Knots<f64>, (a, b): (f64, f64)| -> Vec<f64> {
         let mut out = vec![a];
-        out.extend(kv.runs().map(|(k, _)| k).filter(|&k| a < k && k < b));
+        out.extend(kv.breakpoints().filter(|&k| a < k && k < b));
         out.push(b);
         out
     };

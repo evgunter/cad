@@ -120,7 +120,10 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                 "a ruled link's band is not a cylinder about its ruling",
             ));
         };
-        let (q_a, q_b) = (open_trimline(l, l.face_a)?.0, open_trimline(l, l.face_b)?.0);
+        let (q_a, q_b) = (
+            open_trimline(l, l.face_a)?.origin,
+            open_trimline(l, l.face_b)?.origin,
+        );
 
         // The supports: each carries its half of the crease, and a
         // CURVED one is ring-free — a ring on a curved support is not
@@ -272,10 +275,9 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds + topo::AtRestPolicy>(
                 tol,
             )
             .map_err(|e| op("ruled trimline mef", e))?;
-        let (origin, dir) = open_trimline(l, face)?;
         described.push((
             created.edge,
-            ContactCarrier::TrimLine(geom::Line { origin, dir }),
+            ContactCarrier::TrimLine(open_trimline(l, face)?),
             crease,
         ));
         rec.trims.push((created.edge, crease, face));

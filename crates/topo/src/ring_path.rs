@@ -286,7 +286,7 @@ impl<T: Decide> Quadric<T> {
     ) -> Result<Vec<Path<T>>, Indeterminate> {
         match *self {
             Self::Cylinder { origin, axis, .. } => self.ruled_paths(
-                (origin, axis),
+                geom::Line { origin, dir: axis },
                 (from, to),
                 resolution(&[from, to, origin]),
                 band,
@@ -296,7 +296,7 @@ impl<T: Decide> Quadric<T> {
                 let a = (from - centre) / radius;
                 let b = (to - centre) / radius;
                 let m = a.cross(b);
-                let sine = m.norm();
+                let (axis, sine) = m.direction_and_length();
                 if decide(
                     "split_ring_path_span",
                     Margin::levered(
@@ -308,7 +308,6 @@ impl<T: Decide> Quadric<T> {
                 {
                     return Ok(Vec::new());
                 }
-                let axis = m / sine;
                 let arc = CircleArc {
                     circle: geom::Circle::new(geom::Frame::new(centre, axis, a), radius),
                     span: (T::zero(), sine.atan2(a.dot(b))),
@@ -334,7 +333,15 @@ impl<T: Decide> Quadric<T> {
                 if side == Sign::Zero || nappe(to)? != side {
                     return Ok(Vec::new());
                 }
-                self.ruled_paths((apex, axis), (from, to), slack, band)
+                self.ruled_paths(
+                    geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    (from, to),
+                    slack,
+                    band,
+                )
             }
             Self::Torus {
                 centre,
@@ -430,13 +437,16 @@ impl<T: Decide> Quadric<T> {
     /// decided past the band that offset lies in.
     fn ruled_paths(
         &self,
-        (base, axis): (Point3<T>, Vec3<T>),
+        line @ geom::Line {
+            origin: base,
+            dir: axis,
+        }: geom::Line<T>,
         (from, to): (Point3<T>, Point3<T>),
         slack: T,
         band: Band,
     ) -> Result<Vec<Path<T>>, Indeterminate> {
-        let (hf, wf) = Self::axial(base, axis, from);
-        let (ht, wt) = Self::axial(base, axis, to);
+        let (hf, wf) = line.param_and_offset(from);
+        let (ht, wt) = line.param_and_offset(to);
         let (rf, rt) = (wf.norm(), wt.norm());
         let (uf, ut) = (wf / rf, wt / rt);
         let turned = base + axis * ht + uf * rt;
@@ -772,12 +782,9 @@ impl<T: Real> LoopArc<T> {
     /// The straight arc from `from` to `to`.
     pub(crate) fn segment(from: Point3<T>, to: Point3<T>) -> Self {
         let d = to - from;
-        let length = d.norm();
+        let (dir, length) = d.direction_and_length();
         Self::Line {
-            line: geom::Line {
-                origin: from,
-                dir: d / length,
-            },
+            line: geom::Line { origin: from, dir },
             span: (T::zero(), length),
         }
     }
