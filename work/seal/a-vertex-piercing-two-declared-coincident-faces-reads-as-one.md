@@ -7,6 +7,7 @@ opened: 2026-10-24
 priority: P1
 cost: H
 closed: 2026-11-09
+pr: 6613
 refs: [a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections, a-declared-wall-is-read-only-by-a-vertex-crossing-it]
 ---
 
@@ -104,7 +105,7 @@ If the prototype shows the gathered read cannot be made sound, stop and report. 
 
 **Follow-up:** once this lands, the editor's `distribute.rs` retires, and result pieces are keyed from lineage. That is its own row.
 
-## Closed (2026-11-09)
+## Closed (2026-11-09, PR 6613)
 
 A record's face–face pair is one two-sided wall to the vertex-on-face
 pass: `vtxfac::pierced_and_paired` reads the pierced operand's records
