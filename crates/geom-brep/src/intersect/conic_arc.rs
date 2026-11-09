@@ -352,6 +352,10 @@ impl<T: Decide> OpenConicSection<T> {
         }
         // The near vertex lies on the side `sign(δσ)` of the centre.
         let centre = self.tilt.centre(self.delta);
+        // Read on `û` as the section's own frame builds every point on
+        // it (`vertex = foot + û·ξ`), not through `Line::height`'s `/|û|`:
+        // one frame, one convention, until the axis is a typed unit
+        // (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
         let side = ((seed - self.foot).dot(self.u) - centre) * T::one().copysign(self.delta_sigma);
         match decide("pn_conic_branch", Margin::of(side), band).map_err(ConicArcError::Escalated)? {
             Sign::Positive => Ok(self.near()),
