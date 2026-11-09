@@ -39,6 +39,6 @@ rim's direction and a torus meridian's orientation as `NonzeroSign`, so
 
 ## Note (2026-11-09, review of PR 6641)
 
-`NonzeroSign`'s `unit` and `flip` live in `geom_core::k_stats`, beside the type, while `Sign`'s readings live in `predicate.rs`. This is left as is: the type is k_stats', and moving it is a placement question of its own.
+`NonzeroSign`'s `unit` and `flip` live in `geom_core::k_stats`, beside the type, while `Sign`'s readings live in `predicate.rs`. This is left as is: the type is k_stats', and moving it is a placement question of its own. Scheduled as `work/onecopy/nonzero-signs-readings-live-in-k-stats-apart-from-signs.md`.
 
-Four more spellings, missed by the first sweep because their arms were wrapped in `Ok(..)`, `Some(..)` or a tuple, now read `unit` too: `offset_axial.rs` `side_of`, `boolean/plane_eq.rs`'s σ, `profile` `sugar.rs` `turn_side`, and `step-import` `normalize/singularity.rs` `nappe`.
+Four more spellings, missed by the first sweep because their arms were wrapped in `Ok(..)`, `Some(..)` or a tuple, now read `unit` too: `offset_axial.rs` `side_of`, `boolean/plane_eq.rs`'s σ, `profile` `sugar.rs` `turn_side`, and `step-import` `normalize/singularity.rs` `nappe`. A fifth, whose arm pattern was a struct holding the sign (`Decided { sign: Sign::Positive, .. }`), was found by the delta review: `geom-brep` `pcurve_cache.rs` `pcurve_chart_orientation`, now `.sign.nonzero()` then `unit`.

@@ -10264,20 +10264,13 @@ fn derive_class_zero<T: Decide>(
                         band,
                     )
                     .map_err(incidence::undecided(shown))?
+                    .sign
+                    .nonzero()
                     {
-                        Decided {
-                            sign: Sign::Positive,
-                            ..
-                        } => T::one(),
-                        Decided {
-                            sign: Sign::Negative,
-                            ..
-                        } => T::zero() - T::one(),
+                        Some(side) => side.unit(),
                         // The class rate read Zero: not this class, and no
                         // reading of incidence: the general lane, behind the test.
-                        Decided {
-                            sign: Sign::Zero, ..
-                        } => return Err(incidence::general_lane(shown, None)),
+                        None => return Err(incidence::general_lane(shown, None)),
                     };
                     // The vertex at `t = 0` lies along `ra` from the axis:
                     // `r0 = −e·ra` (the focus), so `r0 + ra = (1 − e)·ra`,
