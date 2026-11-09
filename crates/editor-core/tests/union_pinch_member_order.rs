@@ -462,11 +462,8 @@ fn far_end_backed(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
     };
     let line: Vec<(topo::EdgeKey, [topo::VertexKey; 2])> = body
         .edges()
-        .filter_map(|(e, d)| {
-            let ends = [
-                body.get_half_edge(d.he_plus)?.start,
-                body.get_half_edge(d.he_minus)?.start,
-            ];
+        .filter_map(|(e, _)| {
+            let ends = <[_; 2]>::from(body.edge_vertices(e)?);
             (ends[0] != ends[1] && ends.iter().all(|&v| on_line(v))).then_some((e, ends))
         })
         .collect();

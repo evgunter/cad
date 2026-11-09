@@ -238,7 +238,7 @@ fn check(
             continue;
         };
         let ok = match read {
-            Read::Off => ds.iter().all(|&d| d > z - tol),
+            Read::Off | Read::OffSpan => ds.iter().all(|&d| d > z - tol),
             Read::On => ds.iter().all(|&d| d <= z + tol),
             Read::Recedes => {
                 let mut seq = ds.clone();
@@ -286,7 +286,7 @@ fn each_window_reading_holds_on_a_dense_distance() {
             match check(&a, &b, (axes, scale), (m - half, m + half), away, band) {
                 Ok(made) => {
                     for read in made {
-                        counts[read as usize] += 1;
+                        counts[read as usize % 3] += 1;
                     }
                 }
                 Err(why) => bad.push(format!("draw {draw} {why}: a {a:?} b {axes:?}")),
@@ -345,7 +345,7 @@ fn each_window_reading_holds_on_a_dense_distance_at_a_touch() {
                 match check(&a, &b, (axes, scale), (m - half, m + half), away, band) {
                     Ok(made) => {
                         for read in made {
-                            counts[read as usize] += 1;
+                            counts[read as usize % 3] += 1;
                         }
                     }
                     Err(why) => bad.push(format!("draw {draw} {why}: a {a:?} b {axes:?}")),

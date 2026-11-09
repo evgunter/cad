@@ -335,7 +335,7 @@ fn assert_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
 fn stored_minors(body: &Body<f64>) -> Vec<f64> {
     let mut out: Vec<f64> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
@@ -348,8 +348,8 @@ fn stored_minors(body: &Body<f64>) -> Vec<f64> {
 /// The faces of the plane chart at station `y`.
 pub fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)

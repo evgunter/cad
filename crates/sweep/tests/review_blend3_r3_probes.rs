@@ -27,9 +27,7 @@ fn surfaces_of(body: &Body<f64>, e: EdgeKey) -> (Surface<f64>, Surface<f64>) {
     let surface = |he| {
         let h = body.get_half_edge(he).unwrap();
         let f = body.get_loop(h.parent_loop).unwrap().face;
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .cloned()
-            .unwrap()
+        body.face_surface(f).cloned().unwrap()
     };
     (surface(ed.he_plus), surface(ed.he_minus))
 }
