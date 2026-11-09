@@ -537,4 +537,4 @@ Into the fix pass:
   
   **Friction finding:** runner tool downloads (actionlint, the python suite's tools) returned 504 several times on 2026-11-09, failing lint and the python suite before any check ran. This integration cannot re-run jobs (403), so a 504 costs a fresh push.
   
-  Routed: a fifth `OutsideSessionBox` row as evidence on ONEHOME's main-red, and `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` into `work/issues/` (TCOST and TINT share its file). (BOXES orchestrator)
+  Routed: a fifth `OutsideSessionBox` row as evidence on ONEHOME's main-red, and `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` on TINT (TCOST and TINT share its file; `work/issues/` no longer exists). (BOXES orchestrator)
