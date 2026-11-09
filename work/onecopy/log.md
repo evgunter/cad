@@ -1309,3 +1309,18 @@
     - T3/T4 to open (ladder lane).
     - line-holders-the-line-placement-sweep-missed (line lane).
     - incidence-pins-in-three-rows and nonzero-signs-readings (point-equality lane, onecopy/sign-homes).
+- 2026-11-09 22:55Z
+  - **Merged PR 6660 (census-normal-refusals), a1577ca5,** under the local-merge procedure: 9857/9857. Normal-fault-kind starts.
+  - **Rulings:**
+    - bracket-mid-3: (ii), one admission rule at the parameter door (knot vectors refuse an end past MAX/2). Not Ev's: no ratified clause governs magnitude; only geom-core S1 pairing is ratified.
+    - shell-winding: option 1. Land the rung-at-a-time read and move the three to the slow set. The suite total equals main (211 s); the per-test floor is stated; option 3 is filed P3.
+    - unit-axis: the reclassification is right (four are stored axes); end_face is (iii), no arm, with a P2 row for `EdgeCurve::certify` checking a Line's span in metres (or fixed in the same PR).
+    - needle-basin: P0 confirmed and fixed in-unit (span_place's AtEnd metered at the smaller semi-axis could certify a crossing 500 zero widths from an ellipse's fast end as interior). One home: curve_pair::Span (chord at the ends, sup-metered side). Filed as a closed P0 in its PR.
+  - **Reviews:**
+    - 6679 FIX → topo-roster lane: main merge, read_identity keying by call site, slow-set honesty, stale carriers, a shared roster harness in test_utils, etc.
+    - 6666 changed its circle arm (cosine form, no azimuth) → delta review by 6677's reviewer.
+  - **New PRs:**
+    - 6684 (kernel-built-recourse) → FULL session_013mPGJ4waHX2uoW7zMfwrAe; its lane goes on to the main red loft rim_theorems 18 vs 10.
+    - 6683 (small-sweeps) → FULL session_013mPGJ6BykCui8ak5yESubp.
+    - 6685 (prose-census main red: #6430's `fn write` renderers; reader fixed): merging.
+  - 6667's fix pass (73a616d0) is in, with a new recourse-ending-by-hand gate; merging.
