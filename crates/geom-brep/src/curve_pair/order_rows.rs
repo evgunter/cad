@@ -1225,3 +1225,63 @@ fn the_needle_far_from_the_origin_reads_as_at_it() {
     }
     assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// **A line beside a circle, and two lines, read far from the origin read
+/// as at it.** A line tangent to the unit circle in its plane, on it and
+/// `5·10⁻¹³` off it, and two parallel lines `2·10⁻¹¹` apart, each pair
+/// moved by `10²` and `10³` along `(1, −0.7, 0.3)`: each reads what it
+/// reads at the origin, in both orders. Red where the router charges its
+/// screens with a rounding that grows with distance from the origin: at
+/// `10³` the tangent lines escalate and the parallel lines refuse.
+#[test]
+fn a_line_beside_a_circle_or_a_line_far_from_the_origin_reads_as_at_it() {
+    let at = needle_band();
+    let c = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let x = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let pairs = [
+        (
+            "tangent",
+            line([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            (-0.5, 0.5),
+            &c,
+            (-PI, PI),
+        ),
+        (
+            "tangent 5e-13 off",
+            line([1.0 + 5e-13, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            (-0.5, 0.5),
+            &c,
+            (-PI, PI),
+        ),
+        (
+            "parallel lines 2e-11 apart",
+            line([0.0, 2e-11, 0.0], [1.0, 0.0, 0.0]),
+            (-1.0, 1.0),
+            &x,
+            (-1.0, 1.0),
+        ),
+    ];
+    let count = |r: &Read| r.as_ref().map(|m| m.points.len()).ok();
+    let mut bad = Vec::new();
+    for (label, a0, sa, b0, sb) in pairs {
+        let home = read((&a0, sa), (b0, sb), at);
+        if count(&home).is_none() {
+            bad.push(format!("{label}: refused at the origin: {home:?}"));
+        }
+        for off in [1e2, 1e3] {
+            let v = Vec3::new(off, -0.7 * off, 0.3 * off);
+            let (a, b) = (a0.translated(v).unwrap(), b0.translated(v).unwrap());
+            for (order, r) in [
+                ("first first", read((&a, sa), (&b, sb), at)),
+                ("second first", read((&b, sb), (&a, sa), at)),
+            ] {
+                if count(&r) != count(&home) {
+                    bad.push(format!(
+                        "{label}, moved {off:e}, {order}: {r:?}, at the origin {home:?}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} pairs:\n{}", bad.len(), bad.join("\n"));
+}
