@@ -391,18 +391,22 @@ impl ChartRegionError {
     /// - Kept by its margin (row 1(b)): [`Self::Escalated`].
     /// - In band, with no margin carried (row 1(b): a tighter band may
     ///   decide it): [`Self::RayExhausted`] (every ray grazed),
-    ///   [`Self::TouchingBoundary`] (not decidable at this ε),
-    ///   [`Self::DegenerateLoop`] (no orientation at this ε) and
-    ///   [`Self::PeriodFold`] (a tie on a half-period mark).
+    ///   [`Self::TouchingBoundary`] (not decidable at this ε) and
+    ///   [`Self::PeriodFold`] (a gap decided on a half-period mark, the
+    ///   branches astride it disagreeing).
     /// - A limit (row 2: a reading not built, or a bound on the work):
     ///   [`Self::ChartDivergence`], [`Self::NonPlanarTrim`],
     ///   [`Self::ArmUnbounded`], [`Self::SeamBranch`], both witness caps,
     ///   and [`Self::EdgeScale`] (an edge length no ordinary number holds).
     /// - An abort: [`Self::MissingCache`] (a body that must re-mint, row
     ///   1(a)); [`Self::CarrierTilt`] (the declaration's carriers
-    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4); and
-    ///   [`Self::TrimOffFace`], whose incidence read mixes a decided miss
-    ///   with an undecided one, until it is split.
+    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4); and two
+    ///   payloads that mix classes, until they are split
+    ///   (`work/onecopy/chart-region-refusals-that-mix-classes-await-their-split.md`):
+    ///   [`Self::TrimOffFace`], whose incidence read is a decided miss, a
+    ///   pose, or an undecided read; and [`Self::DegenerateLoop`], raised
+    ///   both for a loop with under three chart points (structure) and for
+    ///   an orientation the band decides zero (in band).
     ///
     /// # Errors
     ///
@@ -413,10 +417,7 @@ impl ChartRegionError {
         use geom_core::ladder::{Aborts, Refusal};
         match self {
             Self::Escalated(diag) => Ok(Refusal::Margin(*diag)),
-            Self::RayExhausted
-            | Self::TouchingBoundary
-            | Self::DegenerateLoop { .. }
-            | Self::PeriodFold => Ok(Refusal::InBand),
+            Self::RayExhausted | Self::TouchingBoundary | Self::PeriodFold => Ok(Refusal::InBand),
             Self::ChartDivergence { .. }
             | Self::NonPlanarTrim { .. }
             | Self::ArmUnbounded { .. }
@@ -427,7 +428,8 @@ impl ChartRegionError {
             Self::MissingCache { .. }
             | Self::CarrierTilt
             | Self::Corrupt
-            | Self::TrimOffFace { .. } => Err(Aborts),
+            | Self::TrimOffFace { .. }
+            | Self::DegenerateLoop { .. } => Err(Aborts),
         }
     }
 
@@ -3833,7 +3835,7 @@ fn polygon_relation<T: Decide>(
         match point_in_polygon(to, *v, band) {
             Ok(PolyContainment::OnBoundary) => Rung::Passes,
             Ok(verdict) => Rung::Answers(Ok(verdict)),
-            Err(e) => Rung::refused(e, ChartRegionError::refusal),
+            Err(e) => Rung::refused(e, ChartRegionError::refusal, Err),
         }
     })
     .into_reading()
@@ -3874,6 +3876,11 @@ mod tests {
         assert_eq!(ChartRegionError::EdgeScale.refusal(), Ok(Refusal::Limit));
         assert_eq!(ChartRegionError::Corrupt.refusal(), Err(Aborts));
         assert_eq!(ChartRegionError::CarrierTilt.refusal(), Err(Aborts));
+        let degenerate = ChartRegionError::DegenerateLoop {
+            face: FaceKey::default(),
+            r#loop: LoopKey::default(),
+        };
+        assert_eq!(degenerate.refusal(), Err(Aborts), "mixed until split");
     }
 
     /// **A trim off its plane ends by the door that reads it**: a
