@@ -275,7 +275,7 @@ pub(super) fn span_cells(kv: &KnotVector, cuts: &[f64]) -> Result<Vec<SpanCell>,
 /// midpoint unless that rounds up to `hi`, which on a cell an ulp wide
 /// is the next span's first knot; `lo` then.
 pub(super) fn cell_midpoint(lo: f64, hi: f64) -> (f64, Interval) {
-    let m = lo.midpoint(hi);
+    let m = geom::mid_param(lo, hi);
     (
         if m < hi { m } else { lo },
         ((pt(lo) + pt(hi)) * pt(0.5)).clamped_to(lo, hi),

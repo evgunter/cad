@@ -147,9 +147,7 @@ fn probe_peg_offset_one_ulp_characterized() {
             assert!(
                 matches!(
                     err,
-                    BooleanError::Escalated { .. }
-                        | BooleanError::ContactContradicted { .. }
-                        | BooleanError::CurvedPierceUnsupported { .. }
+                    BooleanError::Escalated { .. } | BooleanError::CurvedPierceUnsupported { .. }
                 ),
                 "typed only: {err:?}"
             );

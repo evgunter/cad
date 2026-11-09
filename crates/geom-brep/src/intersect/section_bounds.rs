@@ -614,7 +614,7 @@ fn witness<T: CertifiedBounds>(carrier: &NurbsCurve3<T>, params: (T, T)) -> Opti
         return None;
     }
     let lifted = carrier.map_scalar(Interval::from_certified);
-    let p = lifted.eval(Interval::point(0.5 * lo + 0.5 * hi));
+    let p = lifted.eval(Interval::point(geom::mid_param(lo, hi)));
     [p.x, p.y, p.z]
         .iter()
         .all(|c| c.is_certified())
@@ -628,7 +628,7 @@ fn witness<T: CertifiedBounds>(carrier: &NurbsCurve3<T>, params: (T, T)) -> Opti
 /// sides `±A` along `uᵢ`. Each side's value is `Qᵢ(c) + ∇Qᵢ(c)·(y − c)`
 /// within `qᵢ‖y − c‖²`, exact for a quadric.
 fn miranda(a: Quadric, b: Quadric, at: V3, reach: f64) -> bool {
-    let mid = |i: Interval| 0.5 * i.lo() + 0.5 * i.hi();
+    let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
     let c = Vec3::new(
         Interval::point(mid(at.x)),
         Interval::point(mid(at.y)),
