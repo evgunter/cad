@@ -205,3 +205,23 @@
   - `a-family-of-bodies-has-two-payloads` is closed, with the WIREREST and BIND residue rows.
 - 2026-11-06 — **PR 6564 merged** (one payload for a family of bodies). Next REFS P1, serially: `slot-forms-want-one-trait`, unit branch `reads/slot-forms-trait`. The row is a month old and the tree has moved, so the lane re-takes the census first and may report that the need is gone. Tier **single, STYLE**: a compiler-checked refactor with no behaviour change, where the risk is the abstraction's shape and not correctness.
 - 2026-11-06 — **PR 6569 (`slot-forms-want-one-trait`): the need is gone. The row is closed with the census, and three dead wrappers are deleted.** Re-authoring now writes `Formula::var(var, dim)`, with the dimension taken from the slot's address, so a `try_map_slots`-only trait cannot express it. Lowering mints into a document, and its one home is `edit::lower_value`. The slot walks come in three shapes (slots only, reads only, both). Nine slot-bearing types have landed since the row was filed, and none brought an `authored`/`stored` copy. The generic consumer already exists as `ProfilePayload`. **Tier re-set to the orchestrator's read:** the shipped diff is dead-code deletion plus one conversion delegating to its twin, and is CI-green. I accept the closure; the lane's premise correction is in the row.
+- 2026-11-06 — **PR 6569 merged.** Last dispatchable REFS P1: `viewer-boolean-tool-cannot-pick-a-read`, unit branch `reads/viewer-boolean-reads`. The boolean tool's operands are body seats, not selections, so the unit does not wait on 6555. The lane is fenced off selections and stops if it meets 6555's question. Part of the row was done after it was filed (`Operand`s, split halves by port), so the lane re-takes what is still missing first. Tier **single, STYLE**.
+- 2026-11-09 — **Ev asked on 6555 what the difference is between the two forms the door would rewrite between.** I answered on the PR:
+  - form 1 is the whole-family read with the copy index inside each name (`Member{(k,2), e}`), which is what the kernel's materializers and viewport picks hand back;
+  - form 2 is the indexed read `xs[2]` with the copy's own names, the only stored form.
+
+  The viewer lane hit the weekly usage limit mid-unit on 2026-11-06 and was resumed today.
+- 2026-11-09 — **PR 6593 (the viewer boolean tool reads what a pick reaches) green at `8be69fc4f0`; single STYLE review dispatched.**
+  - Split halves already worked; this PR adds an end-to-end test.
+  - **New:** a viewport pick on a pattern member authors `xs[i]` (`BodyRead<Formula>`). A tree pick reads the family whole, and a panel row can re-read it as one member. No editor-core change was needed.
+  - **Filed:** DOORS `a-combine-of-a-world-copied-familys-member-leaves-the-copy-drawing-it` (P2, design).
+- 2026-11-09 — **PR 6593 review: APPROVE-WITH-FIXES, with two probed regressions against main. Fix pass sent.**
+  - **First regression:** a split of a family lost its half choice, and the panel offered member rows that could only refuse.
+  - **Second regression:** a member picked through a world copy now authors a combine the world does not show. Main's whole-family read and takeover are kept for copied families until DOORS rules, and the DOORS row is re-banded P1.
+  - **Also taken:**
+    - a pattern standing in a copy space read as its source's copy;
+    - grid, port-carry and headless member-row tests;
+    - one "is a family" definition (the viewer's and the door's disagreed);
+    - `reads_member` made exhaustive and tied to the door;
+    - the README's 2417 divergence for non-boolean seats.
+  - **Class:** a new seat state (`Member`) checked before an existing one (`HalfUnchosen`), where a node can be both. Seat states compose, and the code assumed they were exclusive.
