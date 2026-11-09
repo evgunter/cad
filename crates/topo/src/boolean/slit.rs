@@ -122,7 +122,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
-use geom_brep::ladder::{Climb, Rung, agree_ok, climb_any};
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::contain::ContainError;
@@ -1128,16 +1128,12 @@ fn holding<T: Decide>(
     let pieces = ends
         .windows(2)
         .map(|piece| carrier.eval(geom::mid_param(piece[0], piece[1])));
-    match climb_any(
-        pieces,
-        |mid| {
-            piece_rung(
-                piece_reading(body, f, mid, band, DoorInBand::Containment),
-                unread,
-            )
-        },
-        agree_ok,
-    ) {
+    match climb(Answering::Any, pieces, |mid| {
+        piece_rung(
+            piece_reading(body, f, mid, band, DoorInBand::Containment),
+            unread,
+        )
+    }) {
         Climb::Answered { answer, .. } => answer.map(|()| Some(divided)),
         Climb::Passed => Ok(None),
         Climb::Undecided(read) => unplaced(read),

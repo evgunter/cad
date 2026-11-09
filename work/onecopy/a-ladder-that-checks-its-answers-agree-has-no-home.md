@@ -60,15 +60,8 @@ is reached only by its own unit test
   agree, it answers the first, and the kept runs are recorded as
   superseded (`Any`'s record). Where nothing answers, it refuses with
   the evidence, as `climb_evidence` does.
-- `climb_any(rungs, read, agree)` is `climb(Answering::Any)` in
-  production. Under `debug_assertions`, where it answered and did not
-  abort, it reads the remaining rungs detached (unrecorded) and panics
-  where an answer fails `agree`. So the `Any` premise is read, not
-  assumed. The debug cost on topo `ci` is about 25% with every `Any`
-  site wired, and within noise on the five that are wired.
-- `agree_ok` compares two `Result` answers, `Ok` and equal.
-- `climb_evidence`, `climb_agreeing` and `climb_any` share one recording
-  (`Held`), so a pass ahead of every kept run is spliced at once.
+- `climb_evidence` and `climb_agreeing` share one recording (`Held`),
+  so a pass ahead of every kept run is spliced at once.
 
 **A disagreement is an abort that the caller maps.** Two readings that
 contradict are the ladder's own abort wording. Both ports map it to
@@ -84,15 +77,15 @@ did.
 - `sectors::tangent_lump`'s two bounds climb agreeing. An in-band bound
   is kept, and refuses only where neither bound shows a side, as before.
 
-**`climb_any` wired** at `one_region::read_cycle`, `fate::rehome`,
-`slit::holding`, `chord_join::holds_outer` and `chord_join::ring_side`.
-
-**Not wired:**
-- `chart_singularity::Sides::holds`: it answers `()`, so there is
-  nothing to compare.
-- `stands::ladder`: it climbs with `climb_evidence`.
-- `side_reader::cast_aims` and `splitting::finish::whole_body_side`:
-  their premise is false on fixtures. They stay on plain `climb`, with
-  the check off rather than loosened. They are filed P1 as
-  `side-at-infinity-aimed-rays-disagree` and
-  `whole-body-side-reads-both-sides-at-a-pinch`.
+**The debug check on the `Any` ladders is not in this row's PR.** It
+was built (`climb_any`: `climb(Any)` in production, and in a debug build
+every rung after the answer read off the record and asserted to agree),
+and wired at five sites whose premise held. It cost about 25% on topo
+`ci` with every `Any` site wired. It found two premises false, filed P1
+as `side-at-infinity-aimed-rays-disagree` and
+`whole-body-side-reads-both-sides-at-a-pinch`. The design fork those
+raised converged on a different form: `Answering::Any` kept for theorems
+of the rule, an `Alike` kind for "every rung reads one fact of one
+input", and the every-rung audit as a probe-gated test, not a debug
+build's. That goes to Ev as an `[ev]` PR, and the wiring waits on its
+answer, so it is the fork's to land, not this row's.

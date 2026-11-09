@@ -10,8 +10,13 @@ cost: M
 
 
 Found by `a-ladder-that-checks-its-answers-agree-has-no-home`
-(`onecopy/refusal-standing`), wiring `geom_brep::ladder::climb_any` in as
-the debug check on `Answering::Any` ladders.
+(`onecopy/refusal-standing`), whose first form wired a debug check of
+the `Answering::Any` premise (`climb_any`: read every rung after the
+answer and assert each agrees) into the `Any` ladders. That wiring is
+held while the design fork on `Any`'s premise goes to Ev (`Any` kept for
+theorems of the rule, an `Alike` kind for "every rung reads one fact of
+one input", audited by a probe-gated test), so the check is not on
+main.
 
 ## What
 
@@ -30,13 +35,12 @@ infinity, and every consumer of it (`point_in_faces`'s `missed_side`,
 `census::sweep_cross_solid_backstop`, the shell-role reads) with it.
 
 The site stays on plain `climb` with a pointer to this row
-(`side_reader.rs`, above `let read = climb(`): `climb_any`'s debug
-check is off there, not loosened.
+(`side_reader.rs`, above `let read = climb(`).
 
 ## The disagreement shape
 
 Rungs are faces, each an aimed ray (`aim_at`, then `aimed_ray`). Under
-`climb_any` the debug run printed 48 disagreements over the topo `ci`
+the debug check the run printed 48 disagreements over the topo `ci`
 suite: **`Ok(Out)` then `Ok(In)` 44 times, `Ok(In)` then `Ok(Out)` 4
 times.** The backtrace runs `side_at_infinity` ← `missed_side` ←
 `point_in_faces` ← `census::sweep_cross_solid_backstop`.
@@ -62,8 +66,8 @@ turned by `aim_turn`); the probe did not print it.
 
 ## The failing tests
 
-With `climb_any` at `cast_aims` (debug, topo `ci` profile), these panic
-with `an Any ladder's answers differ`:
+With the debug check at `cast_aims` (debug, topo `ci` profile), these
+panicked with `an Any ladder's answers differ`:
 
 - bool4r2_probes::the_per_solid_door_reads_the_container_s_own_sign_at_infinity
 - census::records_by_carrier::a_face_pair_on_two_carriers_is_confirmed_along_its_tangent_line
@@ -91,13 +95,14 @@ with `an Any ladder's answers differ`:
 - tier3_tests::the_census_gate_finds_a_far_slab_nested_in_another_solid
 
 To reproduce: swap the site's `climb(Answering::Any, &geos, ..)` for
-`geom_brep::ladder::climb_any(&geos, .., geom_brep::ladder::agree_ok)`
-and run `cargo nextest run -p topo --cargo-profile ci`.
+`geom_brep::ladder::climb_agreeing(&geos, .., same)`, where `same` holds
+for two `Ok` answers that are equal, have its `Err(Disagree { .. })`
+panic, and run `cargo nextest run -p topo --profile ci`.
 
 ## Done when
 
 Either the rays agree on every fixture (a ray that reads the wrong side
 is fixed or set aside, e.g. an aim on an edge two selected faces share),
-and the site moves to `climb_any`; or the premise is retired and the
+and the site passes the every-rung audit; or the premise is retired and the
 reader climbs every ray, refusing where two disagree
 (`ladder::climb_agreeing`), with the consumers taking the refusal.

@@ -38,7 +38,7 @@
 //! (`finish::discarded`).
 
 use geom_brep::LeverBounds;
-use geom_brep::ladder::{Climb, Rung, agree_ok, climb_any};
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::sectors::reading_lever;
@@ -1355,38 +1355,34 @@ fn rehome<T: Decide>(
         // placed reads it alike ([`Answering::Any`]). A vertex on the
         // boundary passes; a limit and a vertex in band are kept, ranked,
         // and refuse only where no vertex places the ring.
-        let placed = climb_any(
-            vertices,
-            |v| {
-                let Some(p) = body
-                    .get_vertex(v)
-                    .and_then(|v| body.get_point(v.point))
-                    .copied()
-                else {
-                    return Rung::Aborts(Err(desync("a ring's vertex has no point")));
-                };
-                let at = match normal {
-                    Some(n) => super::contfp(body, new, n.vec(), p, band).map(Some),
-                    None => super::curved_face_containment(body, new, p, band),
-                };
-                match at {
-                    Ok(Some(super::FaceContainment::In)) => Rung::Answers(Ok(true)),
-                    Ok(Some(super::FaceContainment::Out)) => Rung::Answers(Ok(false)),
-                    // The face was just made by the driver: one that does not
-                    // resolve is a desync.
-                    Err(super::ContainError::StaleFace(face)) => {
-                        super::contain::driver_face_stale(face)
-                    }
-                    // Every other refusal is kept, or aborts, as the door's
-                    // refusal states it is ([`super::ContainError::refusal`]).
-                    Err(e) => geom_brep::ladder::rung_or_abort(e.refusal(), contained(e, ""), Err),
-                    // On the new face's boundary, or a curved region with no
-                    // verdict: the vertex says nothing.
-                    Ok(_) => Rung::Passes,
+        let placed = climb(Answering::Any, vertices, |v| {
+            let Some(p) = body
+                .get_vertex(v)
+                .and_then(|v| body.get_point(v.point))
+                .copied()
+            else {
+                return Rung::Aborts(Err(desync("a ring's vertex has no point")));
+            };
+            let at = match normal {
+                Some(n) => super::contfp(body, new, n.vec(), p, band).map(Some),
+                None => super::curved_face_containment(body, new, p, band),
+            };
+            match at {
+                Ok(Some(super::FaceContainment::In)) => Rung::Answers(Ok(true)),
+                Ok(Some(super::FaceContainment::Out)) => Rung::Answers(Ok(false)),
+                // The face was just made by the driver: one that does not
+                // resolve is a desync.
+                Err(super::ContainError::StaleFace(face)) => {
+                    super::contain::driver_face_stale(face)
                 }
-            },
-            agree_ok,
-        );
+                // Every other refusal is kept, or aborts, as the door's
+                // refusal states it is ([`super::ContainError::refusal`]).
+                Err(e) => geom_brep::ladder::rung_or_abort(e.refusal(), contained(e, ""), Err),
+                // On the new face's boundary, or a curved region with no
+                // verdict: the vertex says nothing.
+                Ok(_) => Rung::Passes,
+            }
+        });
         match placed {
             Climb::Answered { answer, .. } => {
                 if answer? {

@@ -650,8 +650,8 @@ fn cast_aims<T: Decide>(
     // the rays: a limit a ray met is NOT ranked ahead of a pair, since
     // the volume, not a refusal, is what follows it.
     let (mut aimed, mut set_aside) = (0, Vec::new());
-    // Not `climb_any`: its debug check finds this premise false on
-    // fixtures whose rays disagree
+    // This premise is false on fixtures whose rays disagree, and the
+    // first ray's side is taken
     // (`work/onecopy/side-at-infinity-aimed-rays-disagree.md`).
     let read = climb(Answering::Any, &geos, |&(face, ref geo)| {
         let (aim, normal) = match aim_at(body, face, geo, band) {

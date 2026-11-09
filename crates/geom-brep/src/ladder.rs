@@ -499,55 +499,6 @@ pub fn climb_agreeing<I, A, E>(
     })
 }
 
-/// Whether two answers that are readings are one ([`climb_agreeing`]'s
-/// and [`climb_any`]'s `agree`): both `Ok` and equal. An `Err` answer is
-/// a refusal handed back as an answer, which agrees with nothing.
-pub fn agree_ok<T: PartialEq, E>(a: &Result<T, E>, b: &Result<T, E>) -> bool {
-    matches!((a, b), (Ok(x), Ok(y)) if x == y)
-}
-
-/// **[`climb`] under [`Answering::Any`], its premise checked in debug
-/// builds**: the outcome and the record are [`climb`]'s, which stops at
-/// the first answer; a debug build then reads every rung after it, its
-/// recording discarded, and asserts each answer `agree`s with the first
-/// ([`climb_agreeing`]'s check, kept off the record). An `Any` ladder
-/// whose answers can differ is a defect of its caller's premise.
-///
-/// # Panics
-///
-/// In a debug build, where a later rung answers differently from the
-/// first.
-pub fn climb_any<I, A: core::fmt::Debug, E>(
-    rungs: impl IntoIterator<Item = I>,
-    mut read: impl FnMut(I) -> Rung<A, E>,
-    agree: impl Fn(&A, &A) -> bool,
-) -> Climb<A, E> {
-    let mut rungs = rungs.into_iter();
-    let mut aborted = false;
-    let climbed = climb(Answering::Any, rungs.by_ref(), |rung| {
-        let got = read(rung);
-        aborted = matches!(got, Rung::Aborts(_));
-        got
-    });
-    #[cfg(debug_assertions)]
-    if let (Climb::Answered { answer, .. }, false) = (&climbed, aborted) {
-        for rung in rungs {
-            // The check's own reading is off the record: the outcome
-            // rests on the rungs `climb` read, and the check moves none.
-            let (got, _discarded) = detached(|| read(rung));
-            if let Rung::Answers(other) = got {
-                assert!(
-                    agree(answer, &other),
-                    "an Any ladder's answers differ: {answer:?} then {other:?}"
-                );
-            }
-        }
-    }
-    #[cfg(not(debug_assertions))]
-    let _ = (rungs, aborted, agree);
-    climbed
-}
-
 /// What an identity ladder's data answer ([`read_identity`]): a
 /// [`Climb`] in the identity's own terms, which carry what `Climb` does
 /// not — the answering datum's sign, and the data's joint margin where
@@ -923,46 +874,6 @@ mod tests {
         );
     }
 
-    /// **`climb_any` checks its premise in a debug build**: a later rung
-    /// answering differently from the first panics, past the answer
-    /// `climb` stopped at.
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "an Any ladder's answers differ")]
-    fn climb_any_reads_on_and_panics_where_answers_differ() {
-        let _ = super::climb_any(
-            [Rung::<_, ()>::Answers(1), Rung::Passes, Rung::Answers(2)],
-            |r| r,
-            PartialEq::eq,
-        );
-    }
-
-    /// **`climb_any` is `climb` where its answers agree**, and stops at an
-    /// abort without reading on.
-    #[test]
-    fn climb_any_is_climb_where_answers_agree() {
-        assert_eq!(
-            super::climb_any(
-                [
-                    Rung::<_, ()>::InBand(()),
-                    Rung::Answers(1),
-                    Rung::Answers(1)
-                ],
-                |r| r,
-                PartialEq::eq
-            ),
-            Climb::Answered { at: 1, answer: 1 }
-        );
-        assert_eq!(
-            super::climb_any(
-                [Rung::<_, ()>::Aborts(9), Rung::Answers(2)],
-                |r| r,
-                PartialEq::eq
-            ),
-            Climb::Answered { at: 0, answer: 9 },
-            "an abort is not compared with what follows it"
-        );
-    }
 
     /// **A later definite datum answers past an earlier in-band one**,
     /// and the kept reading's escalation leaves the log, since the

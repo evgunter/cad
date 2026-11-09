@@ -2067,8 +2067,8 @@ fn whole_body_side<T: Decide>(
             .is_curved()
             .then(|| Reading::Edge(key, curve.carrier().clone(), curve.params()))
     });
-    // Not `climb_any`: its debug check finds this premise false at a
-    // pinch (`work/onecopy/whole-body-side-reads-both-sides-at-a-pinch.md`).
+    // This premise is false at a pinch, and the first vertex's side is
+    // taken (`work/onecopy/whole-body-side-reads-both-sides-at-a-pinch.md`).
     let side = match climb(
         Answering::Any,
         vertices.chain(edges),

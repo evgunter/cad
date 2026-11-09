@@ -10,8 +10,13 @@ cost: M
 
 
 Found by `a-ladder-that-checks-its-answers-agree-has-no-home`
-(`onecopy/refusal-standing`), wiring `geom_brep::ladder::climb_any` in as
-the debug check on `Answering::Any` ladders.
+(`onecopy/refusal-standing`), whose first form wired a debug check of
+the `Answering::Any` premise (`climb_any`: read every rung after the
+answer and assert each agrees) into the `Any` ladders. That wiring is
+held while the design fork on `Any`'s premise goes to Ev (`Any` kept for
+theorems of the rule, an `Alike` kind for "every rung reads one fact of
+one input", audited by a probe-gated test), so the check is not on
+main.
 
 ## What
 
@@ -29,12 +34,11 @@ filed on depends on the order of the body's vertices, not on the
 geometry.
 
 The site stays on plain `climb` with a pointer to this row
-(`finish.rs`, above `let side = match climb(`): `climb_any`'s debug
-check is off there, not loosened.
+(`finish.rs`, above `let side = match climb(`).
 
 ## The disagreement shape
 
-Rungs are vertices (then curved edges). Under `climb_any` the debug run
+Rungs are vertices (then curved edges). Under the debug check the run
 printed **`Below` then `Above`** (twice over the suite). On
 `census::split_wedge_tests::a_split_through_a_pinch_keeps_its_wedges_disjoint`
 (the union of bricks `[0,1]×[0,1]×[0,1]` and `[1,2]×[1,2]×[0,1]`,
@@ -50,17 +54,17 @@ is not the answer.
 
 ## The failing tests
 
-With `climb_any` at `whole_body_side` (debug, topo `ci` profile):
+With the debug check at `whole_body_side` (debug, topo `ci` profile):
 
 - census::split_wedge_tests::a_split_through_a_pinch_keeps_its_wedges_disjoint
 
 To reproduce: swap the site's `climb(Answering::Any, vertices.chain(edges), ..)`
-for `geom_brep::ladder::climb_any(vertices.chain(edges), .., PartialEq::eq)`
-and run that test.
+for `geom_brep::ladder::climb_agreeing(vertices.chain(edges), .., PartialEq::eq)`,
+have its `Err(Disagree { .. })` panic, and run that test.
 
 ## Done when
 
 The body that reaches `whole_body_side` lies on one side (the cut at a
-pinch is made upstream), and the site moves to `climb_any`; or a body
+pinch is made upstream), and the site passes the every-rung audit; or a body
 read on both sides refuses (`ladder::climb_agreeing`) and the split
 takes the refusal.
