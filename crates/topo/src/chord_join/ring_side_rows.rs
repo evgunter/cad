@@ -1,54 +1,43 @@
-//! **A ring vertex whose containment refuses with a standing is kept, and
-//! a later vertex answers** (`vertex_side`): an exhausted ray schedule
-//! (in band) or an edge no ray crosses (a limit) at the first vertex,
-//! then a decided `In`, answers `In`; a loop that does not walk aborts at
-//! once, before the later answer. Red where the side reads every
-//! refusal but an escalation as an abort.
+//! **A ring vertex whose reading refuses with a standing is kept, and a
+//! later vertex answers** (`vertex_side`): a refusal kept in band or as a
+//! limit at the first vertex, then a decided `In`, answers `In`; one that
+//! aborts stops the ring at once, before the later answer. Red where the
+//! side reads every refusal but an escalation as an abort.
 
-use geom_brep::ladder::{Answering, Climb, climb};
+use geom_brep::ladder::{Aborts, Answering, Climb, Refusal, climb};
 
 use super::{RingSide, vertex_side};
-use crate::entity::{EdgeKey, LoopKey};
-use crate::splitting::Uncrossable;
-use crate::splitting::containment::{LoopContainment, PointInLoopError, UncrossableCarrier};
+
+/// A refusal standing as the row says.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Refused(Result<Refusal, Aborts>);
 
 #[test]
 fn a_kept_vertex_refusal_lets_a_later_vertex_answer() {
-    let r#loop = LoopKey::default();
-    for refused in [
-        PointInLoopError::RayExhausted { r#loop },
-        PointInLoopError::Uncrossable(Uncrossable {
-            r#loop,
-            edge: EdgeKey::default(),
-            carrier: UncrossableCarrier::Spline,
-        }),
-    ] {
-        let got = climb(
+    let side = |first: Refused| {
+        climb(
             Answering::Any,
-            [Err(refused.clone()), Ok(LoopContainment::In)],
-            vertex_side,
-        );
+            [Err(first), Ok(Some(RingSide::In))],
+            |reading| vertex_side(reading, |r: &Refused| r.0),
+        )
+    };
+    for kept in [Refusal::InBand, Refusal::Limit] {
         assert!(
             matches!(
-                got,
+                side(Refused(Ok(kept))),
                 Climb::Answered {
                     answer: Ok(RingSide::In),
                     ..
                 }
             ),
-            "{refused:?} is kept and the next vertex answers"
+            "{kept:?} is kept and the next vertex answers"
         );
     }
-    let got = climb(
-        Answering::Any,
-        [
-            Err(PointInLoopError::CorruptLoop { r#loop }),
-            Ok(LoopContainment::In),
-        ],
-        vertex_side,
-    );
     assert!(
-        matches!(got, Climb::Answered { answer: Err(_), .. }),
-        "a loop that does not walk aborts, never answering past itself"
+        matches!(
+            side(Refused(Err(Aborts))),
+            Climb::Answered { answer: Err(_), .. }
+        ),
+        "an abort stops the ring before the next vertex answers"
     );
 }
