@@ -2169,6 +2169,19 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     out
 }
 
+/// Every reason the census refuses a curved edge for, each walk refusal
+/// its own: the samples' list, which a new reason joins.
+fn edge_tangent_reasons() -> [crate::validate::EdgeTangentUnread; 5] {
+    use crate::validate::EdgeTangentUnread as E;
+    [
+        E::NoCurve,
+        E::NoReach,
+        E::NoLength,
+        E::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        E::Unwalked(geom::PieceWalkRefusal::Unbounded),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use geom_brep::recourse::DoorCheck as _;
@@ -2932,17 +2945,4 @@ mod tests {
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
-}
-
-/// Every reason the census refuses a curved edge for, each walk refusal
-/// its own: the samples' list, which a new reason joins.
-fn edge_tangent_reasons() -> [crate::validate::EdgeTangentUnread; 5] {
-    use crate::validate::EdgeTangentUnread as E;
-    [
-        E::NoCurve,
-        E::NoReach,
-        E::NoLength,
-        E::Unwalked(geom::PieceWalkRefusal::Exhausted),
-        E::Unwalked(geom::PieceWalkRefusal::Unbounded),
-    ]
 }
