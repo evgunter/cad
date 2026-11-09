@@ -12,16 +12,16 @@
 //! the other's least, no point of one is a point of the other: the pair
 //! is apart. That is the verdict, and the only one.
 //!
-//! **Which depths.** Each face of the pair proposes the depth its cover
-//! lies at a level about ([`Cover::level`]: a cylinder wall's axis, a
-//! sphere's centre, a torus's core circle) and the axis of every circle
-//! or ellipse on its boundary ([`face_read`]). A cone's faces have no
-//! one depth about its axis, and propose only their rims'.
+//! **Which depths.** Each face of the pair proposes every site its cover
+//! is measured about ([`Cover::about`]: a cylinder wall's or a cone's
+//! axis, a sphere's centre, a torus's core circle), whether or not the
+//! face lies at a level about it ([`Cover::level`]), and the axis of
+//! every circle or ellipse on its boundary ([`face_read`]).
 //!
 //! **The bounds.** A face's depths are read off its cover
 //! ([`face_cover`]): its distance range from an axis line, from a
-//! centre, or from a core circle ([`Cover::range_about`]), which on the
-//! face's own level is that level wherever the trim leaves it.
+//! centre, or from a core circle ([`Cover::range_about`]), which on a
+//! level the face lies at is that level wherever the trim leaves it.
 //!
 //! A least axis or centre depth is topo's reading of the face's nearest
 //! distance from that line or point ([`face_nearest`]), which on a
@@ -74,8 +74,8 @@ pub(super) struct Proposed<T: geom_core::Real> {
 /// What proposed a depth.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Source<T: geom_core::Real> {
-    /// The face's own carrier.
-    Carrier,
+    /// The face's cover: a site it is measured about ([`Cover::about`]).
+    Cover,
     /// A circle or ellipse arc on the boundary, with its two ends.
     Arc(Point3<T>, Point3<T>),
 }
@@ -91,18 +91,19 @@ pub(super) struct Read<T: geom_core::Real> {
 }
 
 impl<T: geom_core::Real> Read<T> {
-    /// The depth the face's own carrier proposes, where it proposes one.
-    fn carrier(&self) -> Option<Around<T>> {
+    /// The depths the face's cover proposes ([`Source::Cover`]).
+    fn cover_sites(&self) -> impl Iterator<Item = Around<T>> + '_ {
         self.depths
             .iter()
-            .find(|p| matches!(p.source, Source::Carrier))
+            .filter(|p| matches!(p.source, Source::Cover))
             .map(|p| p.depth)
     }
 }
 
 /// **`f` read for the depth gap** (module docs): its cover, its
-/// straight edges, and the depths it proposes — its carrier's and the
-/// axis of every conic on its boundary. `None` for a face with no cover.
+/// straight edges, and the depths it proposes — every site its cover is
+/// measured about and the axis of every conic on its boundary. `None`
+/// for a face with no cover.
 ///
 /// # Panics
 ///
@@ -112,12 +113,12 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
     let face = body.proven_face(f);
     let cover = face_cover(body, f, band).ok()?;
     let mut depths: Vec<Proposed<T>> = cover
-        .level()
+        .about()
+        .into_iter()
         .map(|depth| Proposed {
             depth,
-            source: Source::Carrier,
+            source: Source::Cover,
         })
-        .into_iter()
         .collect();
     let mut segments = Vec::new();
     for member in face.boundary() {
@@ -173,7 +174,7 @@ fn nearest_offset<T: Decide>(depth: Around<T>, p: Point3<T>, q: Point3<T>) -> Op
             (split(p - origin, a).0, split(q - p, a).0)
         }
         Around::Point(center) => (p - center, q - p),
-        Around::Circle { .. } => return None,
+        Around::Circle(_) => return None,
     };
     // A point (`w = 0`) has no direction to slide along.
     let s = -(u.dot(w)) / w.dot(w);
@@ -222,7 +223,7 @@ fn least_on<T: Decide>(
     let near = match proposed.depth {
         Around::Line(line) => face_nearest(body, f, &read.cover, &Site::Line(line), band),
         Around::Point(center) => face_nearest(body, f, &read.cover, &Site::Point(center), band),
-        Around::Circle { .. } => read.cover.range_about(&proposed.depth).0,
+        Around::Circle(_) => read.cover.range_about(&proposed.depth).0,
     };
     greatest([Some(near)].into_iter())
 }
@@ -261,7 +262,7 @@ pub(super) fn apart_in_depth<T: Decide>(
 /// no segment proposes nothing, and neither does an offset the band cannot
 /// read as a unit direction.
 ///
-/// The same axis proposed twice (a carrier's and each coaxial rim's)
+/// The same axis proposed twice (a cover's and each coaxial rim's)
 /// proposes two directions that agree only to rounding. They are kept,
 /// as [`crate::boolean::separating::face_axes`] keeps every normal at a
 /// scalar with no bracket to key them by: a second reading of a span
@@ -305,11 +306,12 @@ pub(super) fn toward<T: Decide>(
 ///   half-disc's diameter, the line through a lens's tips) faces that
 ///   way. A closed rim (`p = q`) has no chord and proposes nothing: the
 ///   wall it bounds proposes through its carrier, below;
-/// - the two carriers' axes or centres, one from each face, propose the
-///   line between them: the offset of each axis's origin off the
-///   other's (for parallel axes, the line of centres); the offset of a
-///   centre off an axis; the offset between two centres. A torus's core
-///   proposes nothing.
+/// - every pair of sites the two covers are measured about
+///   ([`Cover::about`]), one from each face, proposes the line between
+///   them: the offset of each axis's origin off the other's (for
+///   parallel axes, the line of centres); the offset of a centre off an
+///   axis; the offset between two centres. A torus's core proposes
+///   nothing.
 ///
 /// Two skew axes are not given their common normal here: a cylinder
 /// wall's seam rulings run along its axis, so [`toward`]'s offset from
@@ -319,7 +321,7 @@ pub(super) fn toward<T: Decide>(
 /// the clamped offset aims at.
 ///
 /// That is at most one direction per arc of the two boundaries, and
-/// two per pair of carriers. As [`toward`]'s, they only propose, and
+/// two per pair of cover sites. As [`toward`]'s, they only propose, and
 /// an offset the band cannot read as a unit proposes nothing.
 pub(super) fn across<T: Decide>(
     ra: &Read<T>,
@@ -342,21 +344,24 @@ pub(super) fn across<T: Decide>(
             })
     });
     let off = |x: Point3<T>, origin: Point3<T>, axis: Vec3<T>| unit(split(x - origin, axis).0);
-    let between = match (ra.carrier(), rb.carrier()) {
+    let between = |x: Around<T>, y: Around<T>| match (x, y) {
         (
-            Some(Around::Line(geom::Line { origin: o, dir: a })),
-            Some(Around::Line(geom::Line { origin: p, dir: b })),
+            Around::Line(geom::Line { origin: o, dir: a }),
+            Around::Line(geom::Line { origin: p, dir: b }),
         ) => {
             vec![off(p, o, a), off(o, p, b)]
         }
-        (Some(Around::Line(geom::Line { origin, dir: axis })), Some(Around::Point(center)))
-        | (Some(Around::Point(center)), Some(Around::Line(geom::Line { origin, dir: axis }))) => {
+        (Around::Line(geom::Line { origin, dir: axis }), Around::Point(center))
+        | (Around::Point(center), Around::Line(geom::Line { origin, dir: axis })) => {
             vec![off(center, origin, axis)]
         }
-        (Some(Around::Point(c)), Some(Around::Point(d))) => vec![unit(d - c)],
+        (Around::Point(c), Around::Point(d)) => vec![unit(d - c)],
         _ => Vec::new(),
     };
-    chords.chain(between.into_iter().flatten()).collect()
+    let pairs = ra
+        .cover_sites()
+        .flat_map(|x| rb.cover_sites().flat_map(move |y| between(x, y)));
+    chords.chain(pairs.flatten()).collect()
 }
 
 #[cfg(test)]
@@ -398,11 +403,11 @@ mod tests {
     }
 
     fn core(radius: f64) -> Around<f64> {
-        Around::Circle {
+        Around::Circle(geom::cover::Core {
             center: p(0.0, 0.0, 0.0),
             axis: v(0.0, 0.0, 1.0),
             radius,
-        }
+        })
     }
 
     /// **The clear is a strict gap past the pad, and nothing less.** A
@@ -564,7 +569,7 @@ mod tests {
                 segments: Vec::new(),
                 depths: vec![Proposed {
                     depth,
-                    source: Source::Carrier,
+                    source: Source::Cover,
                 }],
             }
         };
@@ -732,10 +737,10 @@ mod tests {
         }
     }
 
-    fn carrier(depth: Around<f64>) -> Proposed<f64> {
+    fn cover_site(depth: Around<f64>) -> Proposed<f64> {
         Proposed {
             depth,
-            source: Source::Carrier,
+            source: Source::Cover,
         }
     }
 
@@ -793,13 +798,13 @@ mod tests {
             dirs(&rim, &empty).is_empty(),
             "a closed rim proposes nothing"
         );
-        let ball = |c| read_of(vec![carrier(Around::Point(c))]);
+        let ball = |c| read_of(vec![cover_site(Around::Point(c))]);
         assert!(
             dirs(&ball(p(1.0, 2.0, 3.0)), &ball(p(1.0, 2.0, 3.0))).is_empty(),
             "coincident centres propose nothing"
         );
         let wall = |o, a| {
-            read_of(vec![carrier(Around::Line(geom::Line {
+            read_of(vec![cover_site(Around::Line(geom::Line {
                 origin: o,
                 dir: a,
             }))])

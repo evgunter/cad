@@ -1,14 +1,17 @@
 //! **The depth bounds are bounds**: [`depth_gap`]'s read of a depth's
 //! least and greatest value over a cover ([`Cover::range_about`], the
 //! cover's distance range from an axis line, a centre or a core circle),
-//! over a tube, a torus's or a sphere's surface, a cylinder's wall or a
-//! segment, against the exact depth of points sampled on it.
+//! over a tube, a torus's or a sphere's surface, a torus's chart patch,
+//! a cylinder's wall, a cone's frustum or a segment, against the exact
+//! depth of points sampled on it.
 //!
-//! A shape-1 counterexample search: random tubes, surfaces, walls and
-//! segments of every pose against random axes, centres and core circles,
-//! a surface's or a wall's on a frame skewed off unit and orthogonal, as
-//! its evaluator reads one, and its depth half the time its own level's
-//! site ([`Cover::level`]), where the bounds are tight; half the rings
+//! A shape-1 counterexample search: random tubes, surfaces, patches,
+//! walls, frustums and segments of every pose against random axes,
+//! centres and core circles, a carrier's on a frame skewed off unit and
+//! orthogonal, as its evaluator reads one, horn tori (`|R| = |r|`
+//! exactly) among them, and its depth half the time the site it is
+//! measured about ([`Cover::about`]), where on a level the bounds are
+//! tight; half the rings
 //! coaxial with the depth's own axis, the pose the census meets most
 //! and where the bounds are tight. A ring is sampled inside its tube
 //! and on the tube's surface, where its depths are extreme, and a
@@ -36,14 +39,14 @@ use geom::cover::{Cover, ParamWindow};
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz::Rng;
 
-use geom::cover::Around;
+use geom::cover::{Around, Core};
 
 use super::depth_gap::split;
 
 /// A drawn piece: a tube (a circle where `minor` is zero) about a unit
-/// `normal`, a torus's surface (a sphere's where `major` is zero) on any
-/// frame, a cylinder's wall over heights along its unit axis, or a
-/// segment.
+/// `normal`, a torus's surface (a sphere's where `major` is zero) or a
+/// sphere's on any frame, a ring torus's chart patch, a cylinder's wall
+/// or a cone's frustum over heights along its unit axis, or a segment.
 #[derive(Clone, Copy, Debug)]
 enum Piece<T: Real> {
     Tube {
@@ -58,6 +61,22 @@ enum Piece<T: Real> {
         frame: geom::Frame<T>,
         major: T,
         minor: T,
+    },
+    Sphere {
+        frame: geom::Frame<T>,
+        radius: T,
+    },
+    Patch {
+        frame: geom::Frame<T>,
+        major: T,
+        minor: T,
+        u: (T, T),
+        v: (T, T),
+    },
+    Cone {
+        frame: geom::Frame<T>,
+        half_angle: T,
+        heights: (T, T),
     },
     Wall {
         frame: geom::Frame<T>,
@@ -94,6 +113,28 @@ fn cover_of<T: Real>(piece: Piece<T>) -> Cover<T> {
             major,
             minor,
         } => Cover::torus(&frame, major, minor),
+        Piece::Sphere { frame, radius } => Cover::sphere(&frame, radius),
+        Piece::Patch {
+            frame,
+            major,
+            minor,
+            u,
+            v,
+        } => Cover::patch(
+            &frame,
+            (major, minor),
+            Some(ParamWindow::new(u.0, u.1)),
+            ParamWindow::new(v.0, v.1),
+        ),
+        Piece::Cone {
+            frame,
+            half_angle,
+            heights: (lo, hi),
+        } => {
+            let a = frame.axis.normalize();
+            let within = Cover::segment(frame.origin + a * lo, frame.origin + a * hi).unwrap();
+            Cover::cone(&frame, half_angle, &within)
+        }
         Piece::Wall {
             frame,
             radius,
@@ -124,13 +165,13 @@ fn exact<T: geom_core::Decide>(depth: Around<T>, x: Point3<T>) -> T {
     match depth {
         Around::Line(line) => line.distance(x),
         Around::Point(center) => (x - center).norm(),
-        Around::Circle {
+        Around::Circle(Core {
             center,
             axis,
             radius: major,
-        } => {
+        }) => {
             let (off, t) = split(x - center, axis);
-            ((off.norm() - major).powi(2) + t.powi(2)).sqrt()
+            ((off.norm() - major.abs()).powi(2) + t.powi(2)).sqrt()
         }
     }
 }
@@ -169,11 +210,11 @@ fn draw(r: &mut Rng, i: usize) -> (Around<f64>, Piece<f64>, Vec<Point3<f64>>, f6
     let depth = match i % 3 {
         0 => Around::Line(geom::Line { origin, dir: axis }),
         1 => Around::Point(origin),
-        _ => Around::Circle {
+        _ => Around::Circle(Core {
             center: origin,
             axis,
             radius: r.range(0.0, 2.0),
-        },
+        }),
     };
     if i % 7 == 2 || i % 7 == 4 {
         return carrier(r, i, depth, far, scale);
@@ -245,15 +286,15 @@ fn lift_depth(d: Around<f64>) -> Around<Interval> {
             dir: ivec(axis),
         }),
         Around::Point(center) => Around::Point(ip(center)),
-        Around::Circle {
+        Around::Circle(Core {
             center,
             axis,
             radius,
-        } => Around::Circle {
+        }) => Around::Circle(Core {
             center: ip(center),
             axis: ivec(axis),
             radius: iv(radius),
-        },
+        }),
     }
 }
 
@@ -287,6 +328,32 @@ fn lift_piece(piece: Piece<f64>) -> Piece<Interval> {
             major: iv(major),
             minor: iv(minor),
         },
+        Piece::Sphere { frame, radius } => Piece::Sphere {
+            frame: lift_frame(frame),
+            radius: iv(radius),
+        },
+        Piece::Patch {
+            frame,
+            major,
+            minor,
+            u,
+            v,
+        } => Piece::Patch {
+            frame: lift_frame(frame),
+            major: iv(major),
+            minor: iv(minor),
+            u: (iv(u.0), iv(u.1)),
+            v: (iv(v.0), iv(v.1)),
+        },
+        Piece::Cone {
+            frame,
+            half_angle,
+            heights: (lo, hi),
+        } => Piece::Cone {
+            frame: lift_frame(frame),
+            half_angle: iv(half_angle),
+            heights: (iv(lo), iv(hi)),
+        },
         Piece::Wall {
             frame,
             radius,
@@ -300,10 +367,12 @@ fn lift_piece(piece: Piece<f64>) -> Piece<Interval> {
     }
 }
 
-/// A carrier draw: a torus's or a sphere's surface, or a cylinder's
-/// wall, on a frame skewed up to 5% off unit and orthogonal, with
-/// signed radii, sampled through its evaluator's formula; its depth is
-/// its own level's site on odd draws.
+/// A carrier draw: a torus's or a sphere's surface (a horn torus's
+/// exactly `|R| = |r|` one ring draw in five), a ring torus's chart
+/// patch, a cylinder's wall or a cone's frustum, on a frame skewed up to
+/// 5% off unit and orthogonal, with signed radii, sampled through its
+/// evaluator's formula; its depth is the first site it is measured about
+/// on odd draws, and a patch's its core on even draws in four.
 fn carrier(
     r: &mut Rng,
     i: usize,
@@ -326,24 +395,94 @@ fn carrier(
     let sign = |r: &mut Rng| if r.unit() < 0.5 { -1.0 } else { 1.0 };
     let rho = |t: f64| u * t.cos() + a.cross(u) * t.sin();
     let tau = core::f64::consts::TAU;
-    let (piece, samples): (Piece<f64>, Vec<Point3<f64>>) = if i % 7 == 2 {
+    let on = |t: f64, v: f64, (major, minor): (f64, f64)| {
+        frame.origin + rho(t) * (major + minor * v.cos()) + a * (minor * v.sin())
+    };
+    let mut depth = depth;
+    let (piece, samples): (Piece<f64>, Vec<Point3<f64>>) = if i % 7 == 2 && i % 3 == 2 && i % 2 == 0
+    {
+        // A ring patch: `R ≥ |r|`, `R` positive, as its premise reads.
+        let minor = r.range(0.05, 1.0) * sign(r);
+        let major = minor.abs() * r.range(1.0, 3.0);
+        let (u0, v0) = (r.range(-tau, tau), r.range(-tau, tau));
+        let (u, v) = ((u0, u0 + r.range(0.1, 3.0)), (v0, v0 + r.range(0.1, 3.0)));
+        let samples = (0..128)
+            .map(|k| {
+                let (t, w) = if k < 4 {
+                    ([u.0, u.1][k % 2], [v.0, v.1][k / 2])
+                } else {
+                    (r.range(u.0, u.1), r.range(v.0, v.1))
+                };
+                on(t, w, (major, minor))
+            })
+            .collect();
+        if i % 4 == 0 {
+            depth = Around::Circle(Core {
+                center: frame.origin,
+                axis: a,
+                radius: major,
+            });
+        }
+        (
+            Piece::Patch {
+                frame,
+                major,
+                minor,
+                u,
+                v,
+            },
+            samples,
+        )
+    } else if i % 7 == 2 {
         let minor = r.range(0.05, 1.0) * sign(r);
         let major = match i % 3 {
             0 => 0.0,
             1 => minor.abs() * r.range(0.5, 1.0),
+            _ if i % 5 == 0 => minor.abs(),
             _ => minor.abs() * r.range(1.0, 3.0),
         } * sign(r);
         let samples = (0..128)
-            .map(|_| {
-                let (t, v) = (r.range(0.0, tau), r.range(0.0, tau));
-                frame.origin + rho(t) * (major + minor * v.cos()) + a * (minor * v.sin())
-            })
+            .map(|_| on(r.range(0.0, tau), r.range(0.0, tau), (major, minor)))
             .collect();
-        (
+        let piece = if major == 0.0 && i % 4 < 2 {
+            Piece::Sphere {
+                frame,
+                radius: minor,
+            }
+        } else {
             Piece::Surface {
                 frame,
                 major,
                 minor,
+            }
+        };
+        (piece, samples)
+    } else if i % 3 == 0 {
+        let half_angle = r.range(0.1, 1.2) * sign(r);
+        let (s_a, c_a) = half_angle.sin_cos();
+        let (v0, v1) = (r.range(-2.0, 0.0), r.range(0.0, 2.0));
+        let samples = (0..128)
+            .map(|k| {
+                let v = if k < 4 {
+                    [v0, v1][k % 2]
+                } else {
+                    r.range(v0, v1)
+                };
+                frame.origin + (a * c_a + rho(r.range(0.0, tau)) * s_a) * v
+            })
+            .collect::<Vec<_>>();
+        let unit_axis = a / a.norm();
+        let heights = samples
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &x| {
+                let h = (x - frame.origin).dot(unit_axis);
+                (lo.min(h), hi.max(h))
+            });
+        (
+            Piece::Cone {
+                frame,
+                half_angle,
+                heights,
             },
             samples,
         )
@@ -376,13 +515,13 @@ fn carrier(
             samples,
         )
     };
-    let depth = if i % 2 == 1 {
-        cover_of(piece)
-            .level()
-            .expect("a carrier's surface lies at a level")
-    } else {
-        depth
-    };
+    if i % 2 == 1 {
+        depth = cover_of(piece)
+            .about()
+            .first()
+            .copied()
+            .unwrap_or(depth);
+    }
     (depth, piece, samples, scale)
 }
 

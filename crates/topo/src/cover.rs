@@ -243,7 +243,9 @@ pub(crate) fn hull_of_covers<T: Real>(
 /// - **Cone**: the convex hull of the boundary and, where the face may
 ///   hold the apex, the apex: the rulings run through it. A face holds
 ///   the apex only where a loop winds round the axis
-///   ([`cone_may_hold_apex`]).
+///   ([`cone_may_hold_apex`]). Met with the carrier's frustum over the
+///   heights the hull spans ([`Cover::cone`]), which is measured about
+///   the axis ([`Cover::about`]).
 /// - **Sphere**: the ball, met with the chart rectangle or latitude zone
 ///   its boundary spans ([`sphere_window`]), and with the pole-side cut
 ///   along an aim where one is read ([`face_cover_toward`]).
@@ -331,7 +333,12 @@ fn face_cover_in<T: Decide>(
                 .and_then(|h| Cover::wall(&frame, *radius, h));
             and_proven(and_trim(carrier, hull), wall)
         }
-        Surface::Cone { apex, .. } => {
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => {
             let Some(at_apex) = Cover::points(vec![*apex]) else {
                 return carrier;
             };
@@ -340,8 +347,12 @@ fn face_cover_in<T: Decide>(
                 boundary.map(|b| b.hull(at_apex))
             } else {
                 boundary
-            };
-            and_trim(carrier, hull.map(Cover::convex))
+            }
+            .map(Cover::convex);
+            let frustum = hull.as_ref().ok().and_then(|h| {
+                Cover::cone(&geom::Frame::new(*apex, *axis, *u_ref), *half_angle, h)
+            });
+            and_proven(and_trim(carrier, hull), frustum)
         }
         Surface::Sphere { center, radius, .. } => {
             let zone = sphere_window(body, f, surface, band);
