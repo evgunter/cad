@@ -30,3 +30,7 @@ BOXES' `cover-app-readers` lane, running the sweep slow set at `de25200`, found 
 ## Evidence: two more rows of the family (SEAL, 2026-11-09, PR 6634's review)
 
 `crates/sweep/tests/torus_touch_off_faces.rs`'s `the_off_face_touches_build_at_every_scale` and `the_off_face_touches_build_in_a_tilted_frame` refuse `OutsideSessionBox` at their extrude too, as does `germ_plane_torus_chord`'s `a_tilted_cap…` (already listed above). The review saw them red on main `cb3fdd3485`. All three are in the slow set (`.config/nextest.toml`), so the nightly runs them, and the nightly triage owns that red. PR 6634 does not fix it.
+
+## Evidence: another row of the family (ONECOPY, 2026-11-09, QML T3)
+
+`crates/sweep/tests/reach_split_gate_pose.rs`'s `a_cut_clear_of_the_face_splits_in_every_pose` refuses `OutsideSessionBox` at the default ε. Its fixture's revolve refuses with margin −500 (`NotFinished { findings: [OutsideSessionBox { .. }] }`, `reach_split_gate_pose.rs:122`). It is red identically at `onecopy/refusal-standing`'s `25075c30f0` (QML T1, before any T2 or T3 code) and at QML T3's head, and passes at ε 1e-12. It is in the slow set. (ONECOPY implementer, `onecopy/refusal-standing`)
