@@ -633,6 +633,7 @@ which is what actually moves the number.
 | bound_side.rs (`read`, through `boolean::sectors::bound_read` / `given_side` — the edge-sector site, the pierce, recl's line cone (`sheet_side`), `vtxfac::cone_classes` and `partner_side` — and `splitting`'s `read_plane_side`) | bool_chord_side / enters_material / bool_pierce_sector_side_curved | a LINE bound: its far vertex's signed distance from the plane through the base vertex (`link::metric::Distance::of`); a curved bound: cos × its own extent; a bisector: cos × its sector's arm (`Distance::departure`'s rise, `geom_brep::rise`); both decided through `link::metric::settle` on the caller's `Reading` — the band alone, or a cone's over its tie (`link::Cone::reading`; a vertex pair's for `partner_side`), where a definite sign also clears the slack and one that does not is a tie; the curvature charge: the bound's tangent RAY's least separation from the face past the sagitta, `slope·l − l²/lever` at `l = min(slope·lever/2, reach)`, where it peaks within the bound's own reach (a statement about the ray for every reach kind, not a point of a curved edge or a bisector) | m | FIXED (CONTACT-9; every bound was cos × the shorter sector arm, so a long line edge read On while its far end stood hundreds of bands off) |
 | bound_side.rs (`Tie::descend`) | tangent_sector_order2 / tangent_sector_order2_arm | a first-order tie's parting: the bound's bend past the face's normal section along it, × arm²/2 at the shortest of the bound's reach, the face's lever and its least radius (`geom_brep::parting`, through `link::metric::Distance::departure`), decided through `link::metric::settle` on the first order's `Reading`, the arm gated by `geom_brep::parting_arm`; over a cone's tie a parting that does not clear the slack is unresolved, and a tie the slack made reads the rise at the arm and the parting together (`Departure::Jet`), its point's displacement to second order | m | OK |
 | geom-brep/src/conic_bend.rs (`conic_bend_side`; the one bound-side reading's descent, `topo::bound_side::Tie::descend`, reads it for the boolean's vertex-on-face pass and the splitting lane's `neighborhood` alike) | conic_flat / conic_bend / conic_bend_side | a conic bound tied with a plane at first order: the whole edge's height bound `|t̂·n̂|·reach + |N̂·n̂|·rise` (sines × the carrier's point-set radius from the vertex and its rise off the tangent line there); the bend's certified lift less the first-order residue, `|N̂·n̂|·2·sin²(κ_min·l/2)/κ_min − |t̂·n̂|·l` at `l = min(max(extent, arc), lifts_to)` (`arc` a lower bound on the edge's arc length; `lifts_to` a half turn on a circle, a quarter turn at `κ_max` on an ellipse); and its side, that signed lift | m | OK |
+| geom-brep/src/curve_pair/span.rs (`Span::window_near`, off a line, `pieces_near`) | curve_pair_window_clear | a span piece's least distance from a refused member's cover ball's centre (`Cover::distance_range` over the piece's `Curve3::cover_over`) less the ball's radius and the escalation: the gap between the two covers past the escalation, decided on an exact order (`Band::least`) to clear the piece from the member's window | m | OK |
 | boolean/solid_contain.rs (`FaceGeo::PartialWall`, `FaceGeo::PartialCone`) | bool_wall_outline_reach / bool_cone_partial_reach | distance to the ball's centre − its radius | m | OK |
 | boolean/ruled_region.rs (`RuledFaceRegion::contains`'s boundary pass, through `splitting::containment::ConicArc::hit` on a circle or ellipse edge and `ray_walk::on_segment` on a line edge) | bool_ruled_region_arc_span / bool_ruled_region_edge_length / bool_ruled_region_edge | `(τ − w)` through the turn rule (`Period::turn`), as `ConicArc::of` reads it (`point_in_arc_loop_conic_span`'s row); a segment's length; a point's distance from a closed segment | m | OK |
 | boolean/ruled_region.rs (the paths) | bool_ruled_region_frame / bool_ruled_region_nappe / bool_ruled_region_component / bool_ruled_region_at / bool_ruled_region_end / bool_ruled_region_corner / bool_ruled_region_order / bool_ruled_region_cross | the point's distance from a cylinder's axis or a cone's apex; a point's height over the apex along the axis; a root's separation from a ruling leg's plane's other curves, through the chart's channels (`region::on_leg_section`: a cone root's height for its nappe, then its azimuth direction along the leg's, `ρ·cos Δu`), and an edge's offset from a leg's plane it is parallel to; a crossing's place along its leg (arc length on a parallel, metres on a ruling) against the leg's start, its end, or another crossing; an aimed ruling's run to its corner; the heading's sine against the face side × the face's scale (the radius, or a bound on the cone face's reach from its apex, never under it) | m | OK |
@@ -702,6 +703,7 @@ which is what actually moves the number.
 | face_normal.rs (`face_outward_normal_at_foot`) | foot_off_locus | a point's distance off a cylinder's axis or from a sphere's centre (`Margin::norm3`), and its height over a cone's apex plane along the axis (`Margin::of`), in m | m | OK (CLEAVE) |
 | splitting/classify.rs (`split_vertex_side`) | split_vertex_side | plane residual | m | OK |
 | geom-brep curve_face/plane_crossing.rs (`conic_plane_candidates`, `span_roots`, `span_plane_meet`, `span_place`) | plane_crossing_plane_parallel / plane_crossing_belly_graze / plane_crossing_graze_side / plane_crossing_root_in_span / plane_crossing_root_order | plane residual; rooted amplitude; (rad)×minor semi-axis, or a line's parameter × its speed | m | OK |
+| geom-brep curve_face/plane_crossing.rs (`span_plane_meet`'s graze, `graze_reaches_span`) | plane_crossing_graze_reach | a graze extremum's parameter distance into the span widened by its root spread `acos(1 − z/r)`, × the smaller semi-axis (`conic_meter`) | m | OK |
 | geom-brep curve_face/plane_crossing.rs (`span_plane_meet`'s line arm) | plane_crossing_line_parallel | a line's slope across the plane `d̂·n̂` × the span's length: the change in its signed distance across the span | m | OK |
 | splitting/classify.rs `reach_clears` | split_gate_box_side | an unarmed entity's reach, read in the plane's own frame, against the plane: its gap from the plane's offset along the unit normal, less the sweep pad (metres) | m | OK |
 | cover.rs `sphere_window` | cover_sphere_axis | a sphere's polar axis, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
@@ -714,7 +716,7 @@ which is what actually moves the number.
 | splitting/containment.rs (the frame gate) | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | ray_walk.rs (via `containment.rs`'s `ARC_LOOP_ROWS`) | point_in_arc_loop_segment/boundary/side/advance | the point_in_loop rows over an arc-bearing loop's STRAIGHT edges (`on_segment` per chord edge, `ray_crossings` masked to chord edges): distances; m²/m advance | m | OK (ATREST-9) |
 | splitting/containment.rs (`point_in_loop`) | point_in_arc_loop_arm / point_in_arc_loop_reach | the frame gate, as point_in_loop_arm with the curved edges' reach in the extent; the reach row is a spiric piece's (below) | m | OK (ATREST-9; reach row CONTACT-4) |
-| splitting/containment.rs (`ConicArc`, `conic_crossings`) | point_in_arc_loop_conic_span / _straddle / _window / _disc / _advance | `_span` / `_straddle`: (τ − width) through the turn rule (geom-brep's table, `Period::turn`) at `Exact(radius)` on a circle and `Bounded(turn_defect_speed_lo, turn_defect_speed_hi)` on an ellipse, read for "not over" (an undecided turn is kept as an arc only where `TurnUndecided::not_over_at_sup` admits it; any other escalates); the rest are unit-circle quantities levered by the conic's SMALLER semi-axis: `arc_trim`'s chordal-defect sum on a ray's crossing (with `_end` its step 1); (1 − h²)/2 — exact lengths for a circle (the last is (r² − h²)/2r, the perpendicular-offset form), a lower bound for an ellipse, where a `Zero` or an in-band margin only abandons the ray; the root's advance t is metres along a unit ray | m | OK (ATREST-9; window ATREST-12) |
+| splitting/containment.rs (`ConicArc`, `conic_crossings`) | point_in_arc_loop_conic_span / _straddle / _advance / _in_plane | `_span` / `_straddle`: (τ − width) through the turn rule (geom-brep's table, `Period::turn`) at `Exact(radius)` on a circle and `Bounded(turn_defect_speed_lo, turn_defect_speed_hi)` on an ellipse, read for "not over" (an undecided turn is kept as an arc only where `TurnUndecided::not_over_at_sup` admits it; any other escalates); a ray's crossing is the co-surface arm's (`geom_brep::curve_pair::on_surface`, the plane door's `plane_crossing_*` rows, the root's place on the arc's span among them): `_advance` the root's distance `(y − q)·d` along the unit ray, `_in_plane` an arc's offset from the ray's square plane it is parallel to (only on the projected read) | m | OK (ATREST-9) |
 | splitting/spiric_arc.rs (`PiecedArc::contact` on a `SpiricArc`, through `LoopEdge::contact`) | point_in_arc_loop_spiric_end / _clear / _on / _leaf; bool_contact_spiric_end / _clear / bool_contact_spiric / _leaf | the distance from the point to an end of the arc; `|q − P(v_m)| − S·h`, a piece's ball's clearance from the point; `|q − P(v_m)|`; `S·h`, the ball's own radius | m | OK (CLEAVE) |
 | splitting/spiric_arc.rs (`PiecedArc::crossings` on a `SpiricArc`) | point_in_arc_loop_spiric_side / _turn / _advance (and point_in_arc_loop_reach) | `(P(v) − q)·n`, a piece end's offset from the ray line; `|s(v_b) − s(v_a)| − 2·A·h²` (A in m/rad², h in rad; `S` and `A` over the piece's own window, `geom::spiric_rate_bounds`); `(c − q)·d ∓ S·h`; the ball's in-plane clearance from the ray less `S·h` | m | OK (CLEAVE) |
 | splitting/spline_arc.rs (`PiecedArc::contact` on a `SplineArc`, through `LoopEdge::contact`) | point_in_arc_loop_spline_end / _clear / _on / _leaf; bool_contact_spline_end / _clear / bool_contact_spline / _leaf | the distance from the point to an end of the arc; `|q − c| − ρ`, a piece's control ball's clearance from the point (`c` its Bézier net's bounding-box centre, `ρ` its farthest control point's distance from `c`); `|q − c_0|`, the distance to the piece's start point; `ρ`, the ball's own radius | m | OK (SPLICE) |
@@ -1557,12 +1559,27 @@ Flagged, NOT fixed here (dispositions):
   site; `LEDGER_FLAGGED_SITES` does not move.
 
 - **F31** (added by ONECOPY's foot-and-angle unit, widened by its
-  angle-reads unit) — **a renaming between copies equal modulo a
-  period.** Two sites, each choosing between names of one value:
+  angle-reads unit, and by its half-open-angles unit) — **a renaming
+  between copies equal modulo a period.** Three sites, each choosing
+  between names of one value:
   - `geom_core::Period::near` (`period_near_mark`): the half-period
     marks about a reference that pick which copy `t + k·P` of a value
     lies within half a period of it. A tie, a mark decided zero or
     undecided, takes the upper copy.
+  - `geom_core::Period::above` and `Period::at_or_above`
+    (`period_window_end`, a `k_stats::choose` under this row): the side of `a` on which `near`'s copy about
+    `a` lies, which decides whether it is lifted a period into
+    `(a, a + P]` or `[a, a + P)`. A tie, the side decided zero or
+    undecided, takes the window's closed end. Closed at `a`, a point
+    lift that rounds onto `a + P` (`period_window_open_end`, the same
+    door) reads `a`: at `f64`, every finite value. An enclosure that
+    ties there keeps its lifted copy, which it encloses. Step-import's conic edge
+    intervals, its rim split and its ray walk read here.
+    Those three read at `f64`, where the side of `a` is a float
+    difference's sign and is exact. An extent formed off the window
+    (an arc's `t1 − t0`: a whole turn or none at a tie) is a reading
+    of the decision, so an enclosure caller that forms one would need
+    the side logged at its own band, as `pcurve_chart_cut_side` is.
   - `geom::Azimuth::near` (`azimuth_near_cut_side`): which of the angle
     window's two `atan2` formulas, equal modulo a turn, reads the
     direction, before `Period::near` renames the read. A harmonic's
@@ -1582,8 +1599,9 @@ Flagged, NOT fixed here (dispositions):
   the driver an escalation no box answers, on every angle read half a
   turn from its reference.
 
-  **Carried as `k_stats::unlogged("F31", ..)`**, both at `Band::least()`.
-  Their K samples still reach the sink under the two names above. A
+  **Carried as `k_stats::unlogged("F31", ..)`**, and the window end as
+  `k_stats::choose(.., "F31")`, all at `Band::least()`. Their K samples
+  still reach the sink under the three names above. A
   margin decided at `Band::least()` is not a length against ε, and its
   sample says so (`MarginSample::reads_sign_only`), so a reader that
   asks how margins scale with the model, such as the twin suites, reads
@@ -1634,7 +1652,8 @@ Flagged, NOT fixed here (dispositions):
     that `editor-core`'s `drive::log_read` reads as the leaf's verdict
     and no box answers.
 
-  **Carried as `k_stats::check_unlogged(.., "F32")`**. Its K samples
+  **Carried as `k_stats::choose(.., "F32")`**, its tie (a decided
+  zero or an undecided difference) keeping the held candidate. Its K samples
   still reach the sink under `curve_foot_polish`. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
@@ -1656,8 +1675,11 @@ Flagged, NOT fixed here (dispositions):
   Logged, every undecided pick at `Interval` would hand the driver an
   escalation for a choice that decides nothing.
 
-  **Carried as `k_stats::check_unlogged(.., "F33")`**. Its K samples
-  still reach the sink under `curve_pair_pose_across`. Not a
+  **Carried as `k_stats::choose(.., "F33")`**, its tie reading the
+  first conic. Its K samples still reach the sink under
+  `curve_pair_pose_across`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
 - **F34** (added by ONEHOME's finished-body lane, PR 6371)
   `topo/src/props.rs` `AtRestPolicy::leaf` at `f64` and `Probe`: the
   finish of a body the box scalars hold as a tier-2 leaf. That is a
@@ -1690,6 +1712,76 @@ Flagged, NOT fixed here (dispositions):
 
   **Carried as a held `Recorded` relogged at `topo::take`**. Not a
   `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
+
+- **F35** (added by ONECOPY's choose-door unit)
+  `curve_pair_walk_polish_step` — `geom-brep/src/curve_pair/walk.rs`
+  `step_taken`: whether a Gauss–Newton step that moves the polished point
+  `moved` metres is kept, against `16·slack`, sixteen times the most the
+  polished point can lie from where it started. A step kept or dropped
+  picks between two sound points, and what keeps it off the logged
+  doors is that **no reader can rest on the pick**:
+  - A polish step is F32's class. A polished parameter is read, never
+    trusted, so the bound can lose a meeting's foot but never invent
+    one: the point the polish ends at is read on both spans
+    (`Span::contact`), logged on its own rows.
+  - **A dropped step loses no meeting.** The pair it ends at is read with
+    the window its pieces make, the polish's run included, and an Off
+    there prunes only where the window's bound says the pieces hold no
+    meeting. Where its premise is not proved (`curve_pair_walk_basin`,
+    logged) the window is undecided and the Off escalates
+    (`walk.rs`'s module docs, the paragraph ending "so no meeting is
+    left unread"). A point left short of the meeting by a dropped step
+    is such a pair: it reads On, or an Off the window proves, or an
+    escalation.
+  - So the logged tie was never the driver's only cue. Where a dropped
+    step leaves a meeting unproved, the window's escalation is the cue,
+    on a row a box answers.
+  - Measured (`ci` profile, default ε, instrumented locally and not
+    kept), over the `geom-brep` and `topo` suites: `step_taken` is read
+    31,304 times at `f64`, which keeps 25,997 steps and drops 5,305 (one
+    of them a tie), and twice at `Interval`, which keeps one and drops
+    one, a tie. A dropped step ends the polish (`polish::pair`): the
+    iterate has not moved, so the next step would be the same one.
+    `editor-core`'s suite reaches no polish step. The move changes no
+    outcome those suites reach; it is argued on the tie's soundness,
+    which
+    `curve_pair::walk::tests::a_polish_step_at_its_bound_or_astride_it_is_dropped`
+    pins (an exact `16·slack` and an enclosure astride it are dropped,
+    off the verdict log).
+
+  **Carried as `k_stats::choose(.., "F35")`**, its tie (a decided zero
+  or an undecided difference) dropping the step. Its K samples still
+  reach the sink under `curve_pair_walk_polish_step`; the verdict log
+  no longer carries it. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
+- **F36** (added by ONECOPY's choose-door unit) `pn_conic_span_weight`
+  — `geom-brep/src/intersect/conic_arc.rs` `halvings_to_settle`: whether
+  a hyperbola's span, halved `k` times, weighs at most `√2`, the least
+  `k` whose `2^k` equal spans each weigh at most that (`cosh(h/2) =
+  √((cosh h + 1)/2)`). What keeps it off the logged doors is that **no
+  outcome is a reading, only a span count**:
+  - The spans are each read exactly at any count, so a halving more
+    doubles the span count and never costs exactness. The curve the
+    arc builds is the same branch between the same ends either way.
+  - So the logged tie was never the driver's only cue: an undecided
+    weight at `Interval` handed it an escalation that the next halving
+    already answered, and no box narrower than the scalar's own reading
+    changes which count is sound.
+  - Measured as F35's was: no weight tied in the `geom-brep`, `topo` or
+    `editor-core` suites at either scalar.
+    `intersect::conic_arc::tests::a_span_weighing_root_two_or_astride_it_halves_once_more`
+    pins the tie: a weight of exactly `√2` at `f64` and an enclosure
+    astride it each halve once, the float below `√2` settles at none,
+    and none of it reaches the verdict log.
+
+  **Carried as `k_stats::choose(.., "F36")`**, its tie (a decided zero
+  or an undecided weight) halving once more. That includes an exact
+  zero, which the logged door read as settled: the one outcome this
+  move changes, and it doubles the span count, never exactness. Its K
+  samples still reach the sink under `pn_conic_span_weight`; the verdict
+  log no longer carries it. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

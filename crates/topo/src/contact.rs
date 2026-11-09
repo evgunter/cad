@@ -239,6 +239,21 @@ pub struct ContactFinding {
     pub pair: ContactPair,
 }
 
+/// **Whether a face–face record of `x` and `y` holds two pieces apart
+/// over an area**: both faces planar. Planar faces a record holds apart
+/// lie on one plane and meet over an area, since two planes meet along a
+/// line only by crossing; a record of curved faces may be a tangency
+/// along a line, which this does not tell from an area, and reads
+/// `false`.
+pub(crate) fn area_record<T: geom_core::Decide>(
+    body: &crate::body::Body<T>,
+    x: FaceKey,
+    y: FaceKey,
+) -> bool {
+    let planar = |f| crate::face_normal::face_plane(body, f).is_some();
+    planar(x) && planar(y)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

@@ -396,9 +396,10 @@ fn winds(ring: &[Point3<f64>], q: Point3<f64>) -> bool {
 
 /// The points of each loop of `face`, in walk order.
 fn rings(body: &Body<f64>, face: FaceKey) -> Vec<Vec<Point3<f64>>> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|l| match body.get_loop(l).unwrap().boundary {
             LoopBoundary::Cycle { first } => Some(
                 body.loop_cycle(first)

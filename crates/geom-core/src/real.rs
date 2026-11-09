@@ -680,6 +680,17 @@ pub trait Real:
     ///   unbounded slope).
     fn copysign(self, sign: Self) -> Self;
 
+    /// **The exact unit sign of `self`**: `±1`, `self`'s sign carried
+    /// onto one — [`Real::copysign`] of one, so every one of its
+    /// per-instantiation semantics holds: an `f64` zero answers by its
+    /// sign bit, an enclosure holding a zero answers the hull `[−1, 1]`,
+    /// and poison answers poison. The one home of a `±1` read off a
+    /// value's sign; a two-way CHOICE keyed on a sign is
+    /// [`Real::select_le_zero`]'s.
+    fn unit_sign(self) -> Self {
+        Self::one().copysign(self)
+    }
+
     /// **The value-level decision door**: `when_le` if `self ≤ 0`, else
     /// `when_gt` — a two-way selection keyed on the sign of a
     /// difference, with the TIE (`self == 0`) on the `when_le` side.

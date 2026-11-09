@@ -56,6 +56,11 @@ message.
 seed `0x5a8a9d9e82406bc6` at ε 1e-12 reports `cone 31, split`, the
 same message, and is red at that branch's merge base `dc4e9b279e` too.
 
+**A fourth seed** (SEAL's lane, a full local `topo` run, 2026-11-09):
+seed `0xec7d0a99c56b41cc` (`CAD_FUZZ_EFFORT=1`) at ε 1e-9 reports
+`cone 2, split` and `cone 2, conic`, the same message. The lane's diff
+touches no file under `crates/topo/src/link/`.
+
 **Another, from ONECOPY's `onecopy/length-rule`**: seed
 `0x85b149a16ec6139e` with `CAD_FUZZ_EFFORT=30` reports `ε 1e-12,
 cone 806, split`, the same message, and is red identically with the
