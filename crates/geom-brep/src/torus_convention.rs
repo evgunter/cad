@@ -116,6 +116,23 @@ pub enum TorusVerdict {
 }
 
 impl TorusRefusal {
+    /// **This refusal's standing** ([`crate::ladder::Refusal`]), the one
+    /// home of a torus convention's class, which the normal door, the
+    /// Boolean and the face replacement read: an undecided half is ranked
+    /// by its margin (row 1(b)), and a torus decided outside the
+    /// convention is a shape the kernel's model never represents, an
+    /// invalid input (row 1(a)), so it aborts.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a torus decided outside the convention.
+    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self.verdict {
+            TorusVerdict::Undecided(diag) => Ok(crate::ladder::Refusal::Margin(diag)),
+            TorusVerdict::Refused(_) => Err(crate::ladder::Aborts),
+        }
+    }
+
     /// The refusal `convention`'s half gives on `decided` at `band`, or
     /// `None` where the half holds.
     #[must_use]
@@ -148,8 +165,8 @@ impl TorusRefusal {
     ) -> Result<geom::RingTorus<T>, Self> {
         geom::RingTorus::of(major, minor, band).map_err(|not| {
             let (convention, verdict) = match not {
-                geom::NotARing::Tube(verdict) => (TorusConvention::Tube, verdict),
-                geom::NotARing::Ring(verdict) => (TorusConvention::Ring, verdict),
+                geom::NotARing::Tube { verdict, .. } => (TorusConvention::Tube, verdict),
+                geom::NotARing::Ring { verdict, .. } => (TorusConvention::Ring, verdict),
             };
             Self::of(convention, verdict, band).unwrap_or_else(|| {
                 unreachable!("`RingTorus::of` refuses only a half that did not read Positive")

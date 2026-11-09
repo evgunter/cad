@@ -185,9 +185,9 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             Err(Aborts),
         ),
         (
-            "a chord with no finite length, not yet split",
+            "a chord with no finite length, past the format's scale",
             BooleanError::NonFiniteSectorChord { vertex, face },
-            Err(Aborts),
+            Ok(Refusal::Limit),
         ),
         (
             "a chart image that refused, not yet split",

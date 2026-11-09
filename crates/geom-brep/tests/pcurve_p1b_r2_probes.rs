@@ -200,11 +200,11 @@ fn r2_the_rest_conversion_moves_only_the_description() {
             }),
         ) => {
             assert!(
-                o0.x == o1.x && o0.y == o1.y && o0.z == o1.z,
+                o0.equals_exactly(*o1),
                 "the carrier origin is bitwise untouched"
             );
             assert!(
-                d0.x == d1.x && d0.y == d1.y && d0.z == d1.z,
+                d0.equals_exactly(*d1),
                 "the carrier direction is bitwise untouched"
             );
         }

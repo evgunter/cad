@@ -1019,7 +1019,7 @@ impl<T: Decide> ConicArc<T> {
         use geom_brep::curve_pair::{Reading, Span};
         let span = Span::new(&self.carrier, self.span);
         let near = geom::mid_param(self.span.0, self.span.1);
-        Ok(match span.read(q, near, band).map_err(|r| r.refused) {
+        Ok(match span.read(q, near, band).map_err(|r| r.refused()) {
             Ok(Reading::Off) => ConicHit::Off,
             Ok(Reading::Carrier) => ConicHit::Carrier,
             Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
@@ -1040,21 +1040,6 @@ impl<T: Decide> ConicArc<T> {
             Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
         })
     }
-}
-
-/// The arc trim's step 2 alone (`validate`'s check 9 reads the whole
-/// trim, `arc_trim`) — the sum of two chordal defects,
-/// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, positive on the arc and
-/// never compressed below the angle to the nearer end — for a caller that
-/// has decided the ends by another metric first (an ellipse's exact end
-/// distances, [`ConicArc::hit`]). The one body of the construction.
-pub(crate) fn arc_trim_margin<T: Decide>(
-    p: Point3<T>,
-    a: Point3<T>,
-    apex: Point3<T>,
-    anti: Point3<T>,
-) -> T {
-    ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
 }
 
 /// One boundary edge of a planar loop, on its own carrier.

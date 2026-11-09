@@ -249,7 +249,14 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
     let f = body.proven_face(face);
     match *f.surface() {
         geom::Surface::Cone { apex, axis, .. } => !matches!(
-            crate::face_normal::cone_point(apex, axis, at, band),
+            crate::face_normal::cone_point(
+                geom::Line {
+                    origin: apex,
+                    dir: axis
+                },
+                at,
+                band
+            ),
             Ok(crate::face_normal::ConePoint::Apex)
         ),
         geom::Surface::Cylinder { .. }
