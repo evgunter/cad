@@ -11,12 +11,14 @@
 # included, since a test's equality is the same question:
 #
 #   * the zero read of a difference's or sum's `.norm()` or
-#     `.norm_squared()`, or of a `.distance(…)`, by `==`, `!=` or
+#     `.norm_squared()`, or of a `.distance(…)` or `.distance_squared(…)`,
+#     by `==`, `!=` or
 #     `<= 0.0`, either way round: NOT exact, since the squared norm
 #     underflows and points about 1e-170 apart read as one;
 #   * componentwise `a.x == b.x && a.y == b.y …`, or its `!=`/`||`
 #     negation;
-#   * array literals `[a.x, a.y, …] == [b.x, …]`;
+#   * array or tuple literals `[a.x, a.y, …] == [b.x, …]`,
+#     `(a.x, a.y, …) != (b.x, …)`;
 #   * `to_array() ==`/`!=`, and `assert_eq!`/`assert_ne!` of two
 #     `to_array()`s (with or without `.map(f64::to_bits)`);
 #   * componentwise `.x.to_bits() ==`/`!=` … `.y.to_bits()`.
@@ -30,6 +32,14 @@
 # (`let a = p.to_array(); a == q`) passes; `.distance(…)` is read on
 # its name, so a line's `distance(p) == 0.0` (a point on a line, a
 # different question) would fire, and none is in the tree.
+#
+# FALSE FIRES (none in the tree; each would be routed or reworded): a
+# componentwise compare of two structs that are not points but carry `x`
+# and `y` fields; `to_array() == [a literal array]`, a point against
+# literal coordinates, which `equals_exactly(Point3::from_array(…))`
+# says as well; a grouping parenthesis holding a difference that is not
+# two points' (`(s - t).norm() == 0.0` over two vectors whose difference
+# is the question).
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -41,16 +51,23 @@ CMP='(==|!=|<=)'
 RCMP='(==|!=|>=)'
 NORM='\.(norm|norm_squared)\(\)'
 # A difference's or sum's norm, or a distance, read zero, either way round.
-DIFF="\\([^;]* [-+] [^;]*\\)$NORM"
-DIST='\.distance\([^;]*\)'
+# A grouping parenthesis, not a call's: none follows a name, and its
+# content is balanced to one level, so `c.eval(t + 1.0).norm()` is a
+# vector's norm and passes.
+BAL='([^()]|\([^()]*\))*'
+DIFF="(^|[^[:alnum:]_])\\($BAL [-+] $BAL\\)$NORM"
+DIST="\\.distance(_squared)?\\($BAL\\)"
 ZEROED="($DIFF|$DIST)[[:space:]]*$CMP[[:space:]]*$ZERO|$ZERO[[:space:]]*$RCMP[^;]*($DIFF|$DIST)"
 # Componentwise, as a chain or as array literals; whole arrays; bits.
 COMPONENTS="($NAME)\\.x[[:space:]]*(==|!=)[[:space:]]*($NAME)\\.x[^;]*(&&|\\|\\|)[[:space:]]*\\1\\.y[[:space:]]*(==|!=)[[:space:]]*\\3\\.y"
-LITERALS="\\[[[:space:]]*$NAME\\.x,[[:space:]]*$NAME\\.y[^]]*\\][[:space:]]*(==|!=)[[:space:]]*\\["
+# Both sides a point's coordinates: a point against literal coordinates
+# is a point against scalars, and passes.
+LITERALS="\\[[[:space:]]*$NAME\\.x,[[:space:]]*$NAME\\.y[^]]*\\][[:space:]]*(==|!=)[[:space:]]*\\[[[:space:]]*$NAME\\.x"
+TUPLES="\\([[:space:]]*$NAME\\.x,[[:space:]]*$NAME\\.y[^)]*\\)[[:space:]]*(==|!=)[[:space:]]*\\([[:space:]]*$NAME\\.x"
 ARRAYS="to_array\\(\\)[[:space:]]*(==|!=)|assert_(eq|ne)!\\([^;]*to_array\\(\\)[^;]*,[^;]*to_array\\(\\)"
 BITS="\\.x\\.to_bits\\(\\)[[:space:]]*(==|!=)[^;]*\\.x\\.to_bits\\(\\)[^;]*\\.y\\.to_bits\\(\\)[[:space:]]*(==|!=)[^;]*\\.y\\.to_bits\\(\\)"
 # One pass per shape: COMPONENTS numbers its own back references.
-SHAPES=("$ZEROED" "$COMPONENTS" "$LITERALS" "$ARRAYS" "$BITS")
+SHAPES=("$ZEROED" "$COMPONENTS" "$LITERALS" "$TUPLES" "$ARRAYS" "$BITS")
 
 gate() {
   gate_require_crate_sources
@@ -77,6 +94,10 @@ plant() { mkdir -p "$1/crates/planted/src"; printf '%s\n' "$2" > "$1/crates/plan
 plant_norm() { plant "$1" 'pub fn e(a: P, b: P) -> bool { (a - b).norm() == 0.0 }'; }
 plant_norm_reversed() { plant "$1" 'pub fn e(a: P, b: P) -> bool { 0.0 != (a - b).norm_squared() }'; }
 plant_norm_at_most() { plant "$1" 'pub fn e(a: P, b: P) -> bool { (a + b).norm() <= 0.0 }'; }
+plant_distance_squared() { plant "$1" 'pub fn e(a: P, b: P) -> bool { 0.0 == a.distance_squared(b) }'; }
+plant_tuples() { plant "$1" 'pub fn e(a: P, b: P) -> bool { (a.x, a.y) != (b.x, b.y) }'; }
+plant_literal_coordinates() { plant "$1" 'pub fn e(p: P) -> bool { (p.x, p.y, p.z) == (1.0, 0.0, 0.0) || [p.x, p.y] == [1.0, 0.0] }'; }
+plant_call_argument() { plant "$1" 'pub fn z(c: C, t: f64) -> bool { assert!(c.eval(t + 1.0).norm() == 0.0); true }'; }
 plant_distance() { plant "$1" 'pub fn e(a: P, b: P) -> bool { a.distance(b) == 0.0 }'; }
 plant_components() { plant "$1" 'pub fn e(a: P, b: P) -> bool { a.x == b.x && a.y == b.y && a.z == b.z }'; }
 plant_components_apart() { plant "$1" 'pub fn e(a: P, b: P) -> bool { a.x != b.x || a.y != b.y }'; }
@@ -93,13 +114,16 @@ gate_selftest() {
   gate_selftest_clean
   gate_selftest_without_tool grep "it is grep saying it could not search"
   for planter in plant_norm plant_norm_reversed plant_norm_at_most plant_distance \
-    plant_components plant_components_apart plant_literals plant_array plant_array_assert plant_bits; do
+    plant_distance_squared plant_components plant_components_apart plant_literals plant_tuples \
+    plant_array plant_array_assert plant_bits; do
     gate_selftest_case "$want" "$planter"
   done
   gate_selftest_passes "the two readers" plant_reader
   gate_selftest_passes "a single vector read zero" plant_zero_vector
+  gate_selftest_passes "a vector at a call whose argument is a sum, read zero" plant_call_argument
+  gate_selftest_passes "a point against literal coordinates, as a tuple or an array" plant_literal_coordinates
   gate_selftest_passes "a point's coordinates against two scalars" plant_scalars
-  printf '%s selftest OK: fires on a difference'"'"'s norm read zero (==, a reversed !=, <=, norm_squared), distance(…) == 0.0, componentwise == and its != negation, array literals, to_array() == (in a test) and an assert_eq! of to_bits arrays, and componentwise to_bits split over lines; passes the two readers, a single vector read zero and a point against two scalars; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: fires on a difference'"'"'s norm read zero (==, a reversed !=, <=, norm_squared), distance(…) == 0.0 and a reversed distance_squared, componentwise == and its != negation, array and tuple literals, to_array() == (in a test) and an assert_eq! of to_bits arrays, and componentwise to_bits split over lines; passes the two readers, a single vector read zero (also at a call whose argument is a sum) a point against two scalars, and a point against literal coordinates; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

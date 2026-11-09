@@ -18035,7 +18035,7 @@ mod tests {
             .vertices()
             .filter(|(_, v)| {
                 let p = above.points[v.point];
-                (p.x, p.y, p.z) == (tip.x, tip.y, tip.z)
+                p.equals_exactly(tip)
             })
             .map(|(k, _)| k)
             .collect();
