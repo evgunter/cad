@@ -4572,11 +4572,13 @@ pub(crate) fn ray_crossings<T: Decide>(
     // against the face's own region: a root outside it is no crossing of
     // this face, and one on its boundary, or one the region cannot place,
     // reads no side. Faces on one carrier share its roots, and each face
-    // that definitely holds one crosses there: faces of one sense tile
-    // their carrier (a seam split), so one holds it, and a sheet's two
-    // faces, opposite senses over one trim, both hold it and cancel. Where
-    // a face holds it, the others' readings of it, in band, faulted or
-    // not, decide nothing; a fault stands only where no face holds it. ----
+    // that definitely holds one crosses there, none assumed to hold it
+    // alone: faces of one sense tile their carrier (a seam split), so one
+    // holds it; a sheet's two faces, opposite senses over one trim, both
+    // hold it and cancel; two of one sense that overlap turn the count by
+    // two, which reads nothing ([`Crossings::first_count`]). Where a face
+    // holds it, the others' readings of it, in band, faulted or not,
+    // decide nothing; a fault stands only where no face holds it. ----
     let mut read = vec![false; roots.len()];
     for k in 0..roots.len() {
         if read[k] {
