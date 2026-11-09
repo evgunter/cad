@@ -370,7 +370,9 @@ fn a_tilt_decided_apart_leaves_the_bound_past_the_band() {
 /// a datum that is not finite reads as unreadable: a spindle (`r > R`)
 /// refuses on `ring_torus_convention` at the decision and the pose
 /// alike; a NaN centre leaves the pair undecided on an invalid margin,
-/// beside an axis decided apart too, since the bound reads the centre.
+/// beside a major radius decided apart too, since the bound reads the
+/// centre. (The axis datum reads no number there: it is levered at the
+/// spine's reach, whose cover a NaN centre poisons.)
 #[test]
 fn an_off_ring_or_poisoned_pair_is_refused_not_decided() {
     let b = band();
@@ -397,12 +399,12 @@ fn an_off_ring_or_poisoned_pair_is_refused_not_decided() {
         TorusCoincidence::Undecided(diag) => assert!(diag.margin.is_invalid(), "{diag:?}"),
         other => panic!("the poisoned centre: {other:?}"),
     }
-    let tilted = data(Point3::new(f64::NAN, 0.0, 0.0), Vec3::unit_x(), 2.0, 0.5);
-    match tori_coincide(ring, tilted, b) {
+    let wider = data(Point3::new(f64::NAN, 0.0, 0.0), Vec3::unit_z(), 3.0, 0.5);
+    match tori_coincide(ring, wider, b) {
         TorusCoincidence::Undecided(diag) => assert!(
             diag.margin.is_invalid() && diag.predicate == Some(geom_brep::TT_COINCIDENT),
             "the bound reads the poisoned centre: {diag:?}"
         ),
-        other => panic!("the poisoned centre beside an axis decided apart: {other:?}"),
+        other => panic!("the poisoned centre beside a major radius decided apart: {other:?}"),
     }
 }
