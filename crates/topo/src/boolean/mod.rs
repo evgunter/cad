@@ -4061,6 +4061,8 @@ pub enum BooleanError {
     /// D4 ¶2).
     ///
     /// An abort: the result's own pass, which no later reading answers past.
+    /// Its payload mixes limits and kernel faults, so the abort is not
+    /// that payload's class: a ladder that reads one splits it first.
     Pcurves {
         /// The typed pcurve-pass refusal, nested whole.
         source: crate::pcurves::PcurveMintError,
@@ -4070,6 +4072,8 @@ pub enum BooleanError {
     /// which is [`Self::LineageRow`] ([`BooleanJoin`]).
     ///
     /// An abort: the result's own pass, which no later reading answers past.
+    /// Its payload mixes limits and kernel faults, so the abort is not
+    /// that payload's class: a ladder that reads one splits it first.
     Join(BooleanJoin),
     /// The output stage's join could not decide whether a valence-2
     /// vertex is a regular point of its edges' carrier: a reading in
@@ -4104,6 +4108,8 @@ pub enum BooleanError {
     /// with nothing removed to consume it.
     ///
     /// An abort: the result's own pass, which no later reading answers past.
+    /// Its payload mixes limits and kernel faults, so the abort is not
+    /// that payload's class: a ladder that reads one splits it first.
     CarryRefused {
         /// Whose record it is, which says what the refusal's record
         /// index counts.
@@ -4177,6 +4183,8 @@ pub enum BooleanError {
     /// witness.
     ///
     /// An abort: the result's own seam, which no later reading answers past.
+    /// Its payload mixes limits and kernel faults, so the abort is not
+    /// that payload's class: a ladder that reads one splits it first.
     MixedSeam {
         /// The seam, diagnostic only: the result is never returned.
         edge: EdgeKey,
@@ -4263,6 +4271,8 @@ pub enum BooleanError {
     /// as the Boolean's own description does ([`BooleanMerge`]).
     ///
     /// An abort: the result's own pass, which no later reading answers past.
+    /// Its payload mixes limits and kernel faults, so the abort is not
+    /// that payload's class: a ladder that reads one splits it first.
     Merge(BooleanMerge),
     /// The result did not pass the door's at-rest gate (tier 3,
     /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
@@ -4306,6 +4316,8 @@ pub enum BooleanError {
     /// grouping.
     ///
     /// An abort: the result's own pass, which no later reading answers past.
+    /// Its payload mixes limits and kernel faults, so the abort is not
+    /// that payload's class: a ladder that reads one splits it first.
     Pieces(crate::pieces::PieceSortError),
     /// ∖ reverts an operand's kept part, two of whose edges lie on one
     /// line, and nothing joins the reverted part afterwards: the
