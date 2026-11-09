@@ -521,10 +521,11 @@ mod tests {
 /// other, through its major end: its two ends are its fast ends, where it
 /// runs 1000 m/rad. A plane square to the major axis, `s` along it from
 /// the ends, crosses the arc `s` (by chord) from each end. The plane door
-/// places the roots inside past the band for every `s` here; the split's
+/// places the roots inside past the band for every `s` here (50, 500 and
+/// 5000 zeros); the split's
 /// interiority gate, at the speed floor 1 m/rad, reads `s/1000`, at the
 /// end or in band, and refuses. Main dropped the crossings and split
-/// nothing. A cut a millimetre in splits, as a control. Flips to a split
+/// nothing. A cut 10⁵ zeros in splits, as a control. Flips to a split
 /// with `the-euler-splits-interiority-gate-meters-an-end-gap-at-the-speed-floor`.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -613,7 +614,9 @@ mod thin_ellipse_rows {
             super::insert_crossings(&mut body, &plane, &mut sides, &mut on, tol)
                 .map(|_| body.edges().count() - edges)
         };
-        for s in [5e-8, 5e-7, 5e-6] {
+        // The chord past the band; its gap at the floor, `s/1000`, at a
+        // twentieth of the zero, half of it, and in the band's gap.
+        for s in [50.0, 500.0, 5000.0].map(|k| k * band.zero()) {
             match cut(s) {
                 Err(crate::SplitReduceError::CrossingInsertion { source, .. }) => assert!(
                     matches!(
@@ -627,9 +630,9 @@ mod thin_ellipse_rows {
             }
         }
         assert_eq!(
-            cut(1e-3).unwrap(),
+            cut(1e5 * band.zero()).unwrap(),
             2,
-            "a millimetre in, both crossings split"
+            "a hundred thousand zeros in, both crossings split"
         );
     }
 }
