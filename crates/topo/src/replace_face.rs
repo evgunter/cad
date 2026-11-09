@@ -6247,9 +6247,10 @@ mod corner_rows {
     #[test]
     fn a_pair_past_eps_answers_past_a_pair_in_band() {
         let (tol, band) = (Tol::witness(), Band::linear(Tol::witness()).unwrap());
-        let eps = tol.eps();
-        let in_band = (1..400)
-            .map(|k| eps * f64::from(k) * 0.05)
+        // A gap between ε and the band's edge, found by reading the rung
+        // itself over a fine geometric sweep (the file reads ε once).
+        let in_band = (0..2000)
+            .map(|k| 1e-14 * 1.01f64.powi(k))
             .find(|&g| matches!(gap_past_eps(g, tol, band), Rung::InBand(_)))
             .expect("some gap between ε and its band's edge reads in band");
         let points = [
