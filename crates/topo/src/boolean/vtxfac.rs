@@ -79,7 +79,7 @@
 //! same cone, its partners' faces alone.
 
 use geom_brep::OutwardNormal;
-use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence, rung_or_abort};
+use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb, climb_evidence, rung_or_abort};
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -1862,31 +1862,37 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
             // Two pierces of one face at one point would mint two ring
             // vertices there. No row reaches the pose, so no answer here
             // is checked: it refuses, before anything is written.
-            let mut escalated = None;
-            for earlier in reads.iter().filter(|r| r.face == read.face) {
-                match super::one_vertex_at(earlier.point, read.point, band) {
-                    Ok(Some(_)) => {
-                        let kind = |body: &Body<T>, face| body.proven_face(face).surface().kind();
-                        return Rung::Aborts(BooleanError::HeldPierceUnbuilt {
-                            operand: read.piercing,
-                            face: read.face,
-                            pierced: read.pierced,
-                            kind: kind(&*piercing_body, read.face),
-                            pierced_kind: kind(pierced_body, read.pierced),
-                            placed: true,
-                        });
-                    }
-                    Ok(None) => {}
-                    Err(diag) => {
-                        escalated.get_or_insert(BooleanError::Escalated {
-                            decision: super::BooleanDecision::VertexOnVertex,
-                            diag,
-                        });
-                    }
+            let earlier = reads.iter().filter(|r| r.face == read.face);
+            let rung = match climb(
+                Answering::First,
+                earlier,
+                |earlier| match super::one_vertex_at(earlier.point, read.point, band) {
+                    Ok(Some(_)) => Rung::Aborts(()),
+                    Ok(None) => Rung::Passes,
+                    Err(diag) => Rung::kept(diag),
+                },
+            ) {
+                Climb::Answered { .. } => {
+                    let kind = |body: &Body<T>, face| body.proven_face(face).surface().kind();
+                    return Rung::Aborts(BooleanError::HeldPierceUnbuilt {
+                        operand: read.piercing,
+                        face: read.face,
+                        pierced: read.pierced,
+                        kind: kind(&*piercing_body, read.face),
+                        pierced_kind: kind(pierced_body, read.pierced),
+                        placed: true,
+                    });
                 }
-            }
+                Climb::Passed => Rung::Passes,
+                Climb::Undecided(diag) => {
+                    Rung::kept(diag).map_kept(|diag| BooleanError::Escalated {
+                        decision: super::BooleanDecision::VertexOnVertex,
+                        diag,
+                    })
+                }
+            };
             reads.push(read);
-            escalated.map_or(Rung::Passes, Rung::InBand)
+            rung
         });
         match climbed {
             Ok((_, definite)) => return Err(definite),
