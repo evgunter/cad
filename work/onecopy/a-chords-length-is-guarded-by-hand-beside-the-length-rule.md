@@ -2,10 +2,12 @@
 id: a-chords-length-is-guarded-by-hand-beside-the-length-rule
 kind: issue
 title: fit's chord_params and clearance's candidate axes guard a vector's norm by hand beside checked_nonzero_length
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6647
 ---
 
 
