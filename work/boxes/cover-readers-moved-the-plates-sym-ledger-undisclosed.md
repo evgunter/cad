@@ -24,3 +24,16 @@ The PR's body says the row passes at its final head. Main at its merge fails it,
 That none of the plate's decisions moved is a fact about the plate at the ε measured, not a rule: freezing is not monotone in reach, so a form frozen past the budget can flip a verdict on another document or at another ε. The review checked the five sym11 documents across PR 6588 and found no verdict moved on any of them.
 
 What is owed: say whether the plain walk's 26 newly frozen forms and the 2214 forms are the price of the cover reading, or whether the reach can be read without building them (the decisions do not need them, since none moved).
+
+## Two more BOXES moves of the same line (ONECOPY, PR 6663, 2026-11-09)
+
+After PR 6588, the plate's `Plain/Decision` walk moved twice more on 2026-11-09, both cover changes, both undisclosed. Bisected first-parent at ε 1e-9 from `337c944730`, where the ledger read `forms 53631 frozen 62`:
+
+| merge | PR | `Plain/Decision` |
+|---|---|---|
+| `bc04d87117` | 6639 `boxes/nightly-reds` (the span-reach clamp, `geom/src/cover.rs`) | forms 53631 → 55116, frozen 62 → 66 |
+| `296779102b` | 6631 `boxes/cover-carrier-level-piece` (a carrier's surface at a level in its cover) | forms 55116 → 55907 |
+
+Calls (1203) and every other walk line are unchanged, and so is the largest form (38). PR 6639's description says "`m10_sym` plates (38 against 28) and slabs (green) are unchanged": it read the largest-form bound, which held, and not the forms line, which moved. PR 6631's description does not mention the plate. PR 6663 re-pins the plate at main's `forms 55907 frozen 66`.
+
+So the cover's readings have now grown the plate's plain walk three times (6588, 6639, 6631), 51423 → 55907 forms and 36 → 66 frozen. The question this row owes is now about all three: whether that growth is the price of the cover reading, or whether the reach can be read without building forms the decisions never needed.

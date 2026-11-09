@@ -428,7 +428,7 @@ const PLATE_MAX_TERMS: usize = 38;
 /// freezing is not monotone in reach, so a form frozen past the degree
 /// budget can flip a verdict elsewhere.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1203 forms 53631 frozen 62 digest 5df7c7ece7524e793ed0648e5ab4c98f\n\
+     Plain/Decision calls 1203 forms 55907 frozen 66 digest 2b516892cf60afa28b5f21bfa2380ad9\n\
      Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
      Early/Decision calls 412 forms 42505 frozen 0 digest 2694202f7b062a10a6e74f46b875d770\n\
      Early/Assertion calls 824 forms 10519 frozen 0 digest 2348058666416ec4901cd72db6861631\n\
