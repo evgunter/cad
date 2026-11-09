@@ -124,3 +124,6 @@
   - **Leftovers recorded:** I1/I2 on step 3's row, I7 on SECTOR's row.
   - **Filed in `work/seal/`, all P3:** four rows, three from the review's style findings and the `plane_eq::senses` second decision.
   - **The two `OutsideSessionBox` slow-set rows** are evidence on ONEHOME's existing `main-red-four-sweep-slow-rows-refuse-outside-session-box`. The nightly red is GREEN's.
+- 2026-11-09 — **Glue step 2 is PR 6646, CI `gate ok` green on `d89337d37d`.** Single FULL review dispatched on that frozen head. The implementer's target is reclaimed.
+  - **Shape:** one helper, `geom_brep::ladder::data_beneath_sum`, serves C21 and `tori_coincide`. `TorusCoincidence::Apart` gains `upper`, and its tilt term is `max(chord, sine)`.
+  - **Premise correction to rule on at adjudication:** apart-beside-NaN now ends `Undecided(poison)` where main read `Apart`.
