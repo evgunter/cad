@@ -2,10 +2,12 @@
 id: main-red-prose-census-reads-no-write-renderer
 kind: issue
 title: Main red: pncad-py's prose census reads 138 sites, under its 200 floor, and its undecided roster drifted: it never read a renderer written in an inherent fn write
-status: open
+status: closed
 opened: 2026-11-09
 priority: P1
 cost: M
+closed: 2026-11-09
+pr: 6685
 ---
 
 
