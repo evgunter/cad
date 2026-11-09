@@ -252,7 +252,11 @@ fn a_point_of_a_spline_face_is_placed_in_or_out_by_its_trim() {
     let Err(crate::boolean::ContainError::Escalated { diag, .. }) = in_band else {
         panic!("a point in the band of the carrier escalates: {in_band:?}");
     };
-    assert_eq!(diag.predicate, Some(super::SPLINE_REGION_CARRIER), "{diag:?}");
+    assert_eq!(
+        diag.predicate,
+        Some(super::SPLINE_REGION_CARRIER),
+        "{diag:?}"
+    );
 }
 
 /// **A point on the trim's boundary within the band** is the boundary

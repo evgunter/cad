@@ -1673,6 +1673,12 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         if before.ends_with("fn") && boundary_before(before, before.len() - 2) {
             continue;
         }
+        // `let decide_m = |name, m| decide(name, m, band);` binds a local
+        // funnel: the binding is not a call, and the closure's body and
+        // its call sites are read where they stand.
+        if before.ends_with("let") && boundary_before(before, before.len() - 3) {
+            continue;
+        }
         // The suffixed spellings of the same door (`_flagged`,
         // `_invariant`) are part of the token; a BARE alphanumeric
         // continuation is a different identifier (`decided`), not a
@@ -2265,6 +2271,19 @@ mod tests {
                     && expr.starts_with("(\"lone\"")),
             "a part-literal tuple is indirect: {raw}"
         );
+    }
+
+    /// **A `let` binding of a local funnel is not a call**: its body and
+    /// its call sites are, each read where it stands.
+    #[test]
+    fn a_let_bound_funnel_is_read_at_its_body_and_its_calls() {
+        let raw = "let decide_m = |name, m| decide(name, m, band); decide_m(\"lit\", m)?;";
+        let sites = super::funnel_sites(&code_only(raw), &code_and_literals(raw));
+        let read: Vec<(bool, &str)> = sites
+            .iter()
+            .map(|(kind, s)| (matches!(kind, super::SiteKind::Name), s.as_str()))
+            .collect();
+        assert_eq!(read, [(false, "name"), (true, "lit")], "{raw}");
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the

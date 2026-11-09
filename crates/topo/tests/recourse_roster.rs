@@ -397,6 +397,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "ray_walk.rs: { segment: self.segment, boundary: self.boundary, }",
         ROW_FIELD,
     ),
+    ("ring_path.rs: name", FORWARDS),
     ("splitting/containment.rs: arm_row", FORWARDS),
     (
         "splitting/containment.rs: read_identity(data.iter().map(|&(name, m, _)| (name, m)))",
