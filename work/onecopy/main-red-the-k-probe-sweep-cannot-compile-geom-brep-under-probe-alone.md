@@ -35,7 +35,7 @@ Nothing in CI runs the K probe sweep. So a feature-gate move breaks it silently.
 
 ## Narrowed by PR 6560 (2026-11-06)
 
-Items 1 and 2 are done: geom-brep (and geom, geom-core) carry the self dev-dependency enabling `test-support`, held by `scripts/gates/test-support-self-edge.sh`; `ray_wall_margin_twins` is re-pinned per ε (movers PR 5781, 6349, 6482, 6491, 6559) on `work/onecopy/ray-wall-twins-read-f31-angle-renames-as-margins-that-must-scale.md` and `work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`.
+Items 1 and 2 are done: geom-brep (and geom, geom-core) carry the self dev-dependency enabling `test-support`, held by `scripts/gates/test-support-self-edge.sh`; `ray_wall_margin_twins` is re-pinned per ε (movers PR 5781, 6349, 6482, 6491, 6559) on `work/onecopy/the-ray-wall-twins-read-the-angle-predicates-off-scale.md` and `work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`.
 
 **What remains: item 3, the revalue.** The sweep now runs its whole plain half and stops at its first corpus dump, `m4_pr8_k_probe` at 1e-6, on two reds owned elsewhere:
 - the probe/f64 key splits, off their pin since PR 6341: `work/tally/probe-lane-content-and-naming-keys-split-from-f64-on-every-corpus-document.md`;

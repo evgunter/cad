@@ -144,23 +144,84 @@ pub(crate) fn half_rows(
 }
 
 /// **The boolean tool's picks still waiting for a half**, each called
-/// as its panel line calls it: a member by its place in the list, a
-/// subtraction's seat by its role.
+/// as its panel line calls it ([`boolean_pick_called`]).
 pub(crate) fn boolean_waiting(tool: &BooleanTool) -> Vec<(usize, String)> {
     tool.awaiting_half()
         .into_iter()
-        .map(|i| {
-            let said = match tool.operation() {
-                BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
-                    .name()
-                    .to_owned(),
-                BooleanOp::Union | BooleanOp::Intersect => {
-                    format!("{} {}", Seat::Member.name(), i + 1)
-                }
-            };
-            (i, said)
+        .map(|i| (i, boolean_pick_called(tool, i)))
+        .collect()
+}
+
+/// **Pick `i` of the boolean tool as its panel line calls it**: a
+/// member by its place in the list, a subtraction's seat by its role.
+fn boolean_pick_called(tool: &BooleanTool, i: usize) -> String {
+    match tool.operation() {
+        BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
+            .name()
+            .to_owned(),
+        BooleanOp::Union | BooleanOp::Intersect => format!("{} {}", Seat::Member.name(), i + 1),
+    }
+}
+
+/// **The boolean tool's picks reading a family**, each called as its
+/// panel line calls it, with its family's members by their index values
+/// ([`crate::world::members_of`]) — a family whose count does not
+/// evaluate offers none.
+pub(crate) fn boolean_family_picks(
+    tool: &BooleanTool,
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+) -> Vec<(usize, String, Vec<Vec<i64>>)> {
+    tool.family_picks()
+        .into_iter()
+        .map(|(i, family)| {
+            let members = crate::world::members_of(doc, family).unwrap_or_default();
+            (i, boolean_pick_called(tool, i), members)
         })
         .collect()
+}
+
+/// **The most members a member row offers as one button each**: a
+/// larger family is offered as a member number and one read button,
+/// so its row stays one line whatever its count.
+pub(crate) const MEMBER_BUTTONS: usize = 8;
+
+/// **One row per pick reading a family**, offering its members by the
+/// indices a read of each spells (`[1]`): one button per member up to
+/// [`MEMBER_BUTTONS`], else the member's number among `members` (from
+/// zero, held in the row's own memory) and a button reading it. The
+/// answer is the pick and the member a click chose, which it then reads
+/// alone.
+pub(crate) fn member_rows(
+    ui: &mut egui::Ui,
+    waiting: impl IntoIterator<Item = (usize, String, Vec<Vec<i64>>)>,
+) -> Option<(usize, Vec<i64>)> {
+    let mut chosen = None;
+    for (i, said, members) in waiting {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(format!("{said}: read member"));
+            if members.len() <= MEMBER_BUTTONS {
+                for at in members {
+                    if ui.button(crate::seats::member_said(&at)).clicked() {
+                        chosen = Some((i, at));
+                    }
+                }
+                return;
+            }
+            let id = ui.id().with(("member row", i));
+            let mut position = ui.data_mut(|d| *d.get_temp_mut_or(id, 0_usize));
+            ui.add(number_field(&mut position, COUNT_DRAG_SPEED).range(0..=members.len() - 1));
+            ui.data_mut(|d| d.insert_temp(id, position));
+            ui.label(format!("of {}", members.len()));
+            if let Some(at) = members.get(position)
+                && ui
+                    .button(format!("read {}", crate::seats::member_said(at)))
+                    .clicked()
+            {
+                chosen = Some((i, at.clone()));
+            }
+        });
+    }
+    chosen
 }
 
 /// **What the boolean tool asks for under `op`**: any number of bodies
@@ -1138,6 +1199,10 @@ impl ViewerBehavior<'_> {
         if let Some((pick, half)) = half_rows(ui, boolean_waiting(&tool), &self.theme) {
             self.tools.choose_half(pick, half);
         }
+        let waiting = boolean_family_picks(&tool, self.session.committed_doc());
+        if let Some((pick, at)) = member_rows(ui, waiting) {
+            self.tools.choose_member(pick, at);
+        }
         let Some(tool) = self.tools.boolean() else {
             return;
         };
@@ -1828,6 +1893,45 @@ mod tests {
         });
         assert!(drawn.contains("half not chosen"), "{drawn}");
         assert_eq!(chosen, Some((0, SplitHalf::Below)), "{drawn}");
+    }
+
+    /// **A boolean pick reading a family offers its members**, one
+    /// button each, and a click answers the pick and the member's index
+    /// values; a family over [`super::MEMBER_BUTTONS`] offers a member
+    /// number and one read button instead.
+    #[test]
+    fn a_boolean_pick_reading_a_family_offers_its_members() {
+        let tol = Tol::witness();
+        for (count, target, want) in [(2, "[1]", vec![1]), (10, "read [0]", vec![0])] {
+            let (doc, block, _) = crate::test_support::boss_on_block("members-row", tol);
+            let (doc, row) = crate::test_support::row_of_copies(
+                &doc,
+                block,
+                count,
+                (pncad::document::TargetAxis::X, 0.1),
+                tol,
+            );
+            let mut tool = BooleanTool::new();
+            tool.pick(&doc, row);
+            assert!(
+                tool.line(Speaker::of(&doc)).contains("every member"),
+                "{}",
+                tool.line(Speaker::of(&doc))
+            );
+            let mut chosen = None;
+            let drawn = painted_after_clicking(target, |ui| {
+                let waiting = super::boolean_family_picks(&tool, &doc);
+                if let Some(choice) = super::member_rows(ui, waiting) {
+                    chosen = Some(choice);
+                }
+            });
+            assert!(drawn.contains("member 1: read member"), "{drawn}");
+            assert!(
+                !drawn.contains("[9]"),
+                "a large family is not one button per member: {drawn}"
+            );
+            assert_eq!(chosen, Some((0, want)), "{count} members: {drawn}");
+        }
     }
 
     /// The part form paints the index field with its numbering
