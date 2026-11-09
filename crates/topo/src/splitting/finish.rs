@@ -3035,8 +3035,8 @@ mod whole_body_side_rows {
         let mut sides = SecondaryMap::new();
         sides.insert(seed.vertex, PlaneSide::Above);
         match whole_body_side(body, &sides, &plane(Vec3::unit_z(), 0.0, tol), tol) {
-            Ok(split) => assert!(
-                matches!(split.above, RawPart::Body(_)) && matches!(split.below, RawPart::Empty),
+            Ok((above, below)) => assert!(
+                matches!(above, RawPart::Body(_)) && matches!(below, RawPart::Empty),
                 "the lone vertex places its shell Above"
             ),
             Err(e) => panic!("the lone vertex decides Above: {e:?}"),
