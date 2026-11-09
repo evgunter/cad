@@ -4665,7 +4665,7 @@ impl<T: Real> InPlane<T> {
 
 /// **`face`'s footprint in `frame`**: the `(u, v)` box holding its
 /// whole boundary — every vertex, and every edge's arc on its carrier
-/// ([`carrier_box`]). The vertices alone are not enough: an arc bowing
+/// ([`edge_box_in`]). The vertices alone are not enough: an arc bowing
 /// out of the vertex hull carries region past it, and an extruded
 /// disc's cap has its two vertices on one diameter. A poisoned term
 /// poisons all four ends. `None` for a face with no boundary member to
@@ -4677,18 +4677,12 @@ fn footprint<T: Decide>(
     frame: &InPlane<T>,
 ) -> Option<((T, T), (T, T))> {
     let mut points = Vec::new();
-    for he in body.proven_face(face).half_edges() {
-        let h = proven(&body.half_edges, he, EntityId::HalfEdge);
-        let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
-        points.push((start.x, start.y));
-        let edge = linked(
-            &body.edges,
-            h.edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        points.extend(edge_box_in(body, h.edge, edge, frame));
+    for member in body.proven_face(face).boundary() {
+        let at = frame.point(body.member_point(&member));
+        points.push((at.x, at.y));
+        if let crate::live::BoundaryMember::Edge { ek, edge, .. } = member {
+            points.extend(edge_box_in(body, ek, edge, frame));
+        }
     }
     let poison = points
         .iter()
