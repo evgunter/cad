@@ -258,13 +258,13 @@ pub(crate) const NORMAL_INVALID_INPUTS: [NormalAbort; 2] = [
     NormalAbort::InvalidInput {
         convention: TorusConvention::Tube,
         verdict: Refused::Negative {
-            margin: geom_core::MarginDiag::value(-1.0),
+            margin: geom_core::MarginDiag::INVALID,
         },
     },
     NormalAbort::InvalidInput {
         convention: TorusConvention::Ring,
         verdict: Refused::Negative {
-            margin: geom_core::MarginDiag::value(-0.5),
+            margin: geom_core::MarginDiag::INVALID,
         },
     },
 ];
