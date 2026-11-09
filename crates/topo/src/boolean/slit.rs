@@ -1212,8 +1212,7 @@ pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 
 /// The rows [`carrier_on_surface`] decides a torus face a ring under, its
 /// tube and then its ring ([`geom_brep::variety::Variety::of`]).
-const RIDER_RING_TORUS: geom::RingSites =
-    geom::RingSites::new("bool_rider_torus_tube", "bool_rider_ring_torus");
+const RIDER_RING_TORUS: geom::RingSites = geom::RingReader::BooleanRider.sites();
 
 /// The site [`carrier_on_surface`] decides a spiric's plane against a
 /// plane face's under: their tilt over the spiric's reach, then the
@@ -1525,11 +1524,7 @@ fn clears_plane<T: Decide>(
 
 /// The rows [`spiric_on_curved`] reads a spiric's regime under
 /// ([`geom::spiric_regime`]): its offset off zero, and short of `R − r`.
-const RIDER_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricRegimeSites::new(
-    "bool_rider_spiric_off_axis",
-    "bool_rider_spiric_regime",
-    "bool_rider_spiric_regime_floor",
-);
+const RIDER_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricReader::BooleanRider.sites();
 
 /// **Where spiric `carrier`, over `(t0, t1)`, lies against sphere,
 /// cylinder, cone or ring torus `surface`**: off it along every piece

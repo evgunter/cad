@@ -133,10 +133,7 @@ pub(crate) const MONOTONE: &str = "self_intersection_monotone";
 /// The funnel rows of a torus's ring condition
 /// ([`geom::RingTorus::of_at`]): its minor radius, then its major radius
 /// less its minor radius, metres.
-pub(crate) const RING_TORUS: geom::RingSites = geom::RingSites::new(
-    "self_intersection_torus_tube",
-    "self_intersection_ring_torus",
-);
+pub(crate) const RING_TORUS: geom::RingSites = geom::RingReader::SelfIntersection.sites();
 
 // ------------------------------------------------- the lifted boundary
 
