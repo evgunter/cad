@@ -1545,34 +1545,26 @@ fn common_line<T: geom_core::Real>(
 
 /// **The line's own refusal for a cone's unread reading**, where it is
 /// not a margin a coincidence names ([`resolve_edge_edge`]): a held
-/// face's side the cone decided against, that contradiction; and where
-/// no gate's margin refused (a reference a tighter band may give, an
-/// unplaced crossing), the line's faces too close to place it. `None`
-/// where the cause escalated on a margin, which the caller names as a
-/// coincidence.
-///
-/// # Errors
-///
-/// [`BooleanError::ClassificationInvariant`] for
-/// [`crate::link::Unread::NoReference`]: the line cone always holds its
-/// wedges' flank sectors, so a sector whose side the cone decided has a
-/// wedge to take a reference from, and a cone of whole planes alone
-/// (that variant's one case) is not one this site builds.
+/// face's side the cone decided against, that contradiction; no
+/// reference that any band gives ([`crate::link::Unread::NoReference`]),
+/// that limit; and where no gate's margin refused (a reference a tighter
+/// band may give, an unplaced crossing), the line's faces too close to
+/// place it. `None` where the cause escalated on a margin, which the
+/// caller names as a coincidence.
 fn line_unread_of<T: Decide>(
     cause: &crate::link::Unread<T>,
     escalated: bool,
-) -> Option<Result<super::LineUnread, BooleanError>> {
+) -> Option<super::LineUnread> {
     use super::LineUnread;
     use crate::link::Unread;
     match cause {
-        _ if cause.contradicted() => Some(Ok(LineUnread::Contradicted)),
-        Unread::NoReference => Some(Err(BooleanError::ClassificationInvariant {
-            what: "a line cone read no reference, yet every sector it decided has a wedge",
-        })),
+        _ if cause.contradicted() => Some(LineUnread::Contradicted),
+        // No reference no band gives: a limit, not a sliver.
+        Unread::NoReference => Some(LineUnread::NoReference),
         // A reference a tighter band may give: the faces too close.
-        Unread::ReferenceInBand => Some(Ok(LineUnread::Unplaced)),
+        Unread::ReferenceInBand => Some(LineUnread::Unplaced),
         _ if escalated => None,
-        _ => Some(Ok(LineUnread::Unplaced)),
+        _ => Some(LineUnread::Unplaced),
     }
 }
 
@@ -1869,7 +1861,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 let sheet = cause.sector().map(|k| from[k]);
                 let escalation = cause.escalation(band);
                 if let Some(why) = line_unread_of(&cause, escalation.is_some()) {
-                    return why.map_or_else(|fault| fault, unread);
+                    return unread(why);
                 }
                 match (cause, sheet, escalation) {
                     (Unread::Place { .. }, Some(Sheet::Sector(oi)), Some(diag)) => {
@@ -2487,42 +2479,35 @@ mod tests {
         );
     }
 
-    /// **The line's own refusal for each unescalated cause**
-    /// ([`line_unread_of`], PR 6637's reviews): a reference a tighter band
-    /// may give is the faces too close; a side the cone contradicted is
-    /// that contradiction; an escalated cause is the caller's coincidence
-    /// (`None`); and no reference at all, which this site's cones cannot
-    /// read (each holds its wedges' sectors), is a kernel fault, not a
-    /// user limit.
+    /// **A cone with no reference that any band gives refuses as a limit
+    /// on the line, not as a sliver** (PR 6637's delta review): the line's
+    /// own refusal for each unescalated cause ([`line_unread_of`]).
+    /// `resolve_edge_edge` cannot build a line cone of whole planes alone:
+    /// each wedge's flanks add their sectors, and only the held face is a
+    /// whole plane. So the mapping is read here, by the function the site
+    /// calls.
     #[test]
-    fn a_cones_unread_cause_is_the_lines_refusal() {
+    fn no_reference_is_a_limit_on_the_line_and_one_in_band_a_sliver() {
         use super::super::LineUnread;
-        use crate::link::{Unread, Unsettled};
-        let arc = Unread::<f64>::Arc {
-            sector: None,
-            why: Unsettled::Unplaced,
-        };
-        assert!(matches!(
-            line_unread_of(&Unread::<f64>::ReferenceInBand, false),
-            Some(Ok(LineUnread::Unplaced))
-        ));
-        assert!(matches!(
-            line_unread_of(&arc, false),
-            Some(Ok(LineUnread::Unplaced))
-        ));
-        assert!(line_unread_of(&arc, true).is_none());
-        let contradicted = Unread::<f64>::Side {
-            sector: 0,
-            why: Unsettled::Contradicted,
-        };
-        assert!(matches!(
-            line_unread_of(&contradicted, true),
-            Some(Ok(LineUnread::Contradicted))
-        ));
-        assert!(matches!(
+        use crate::link::Unread;
+        assert_eq!(
             line_unread_of(&Unread::<f64>::NoReference, false),
-            Some(Err(BooleanError::ClassificationInvariant { .. }))
-        ));
+            Some(LineUnread::NoReference)
+        );
+        assert_eq!(
+            line_unread_of(&Unread::<f64>::ReferenceInBand, false),
+            Some(LineUnread::Unplaced)
+        );
+        assert_eq!(
+            line_unread_of(
+                &Unread::<f64>::Arc {
+                    sector: None,
+                    why: crate::link::Unsettled::Unplaced
+                },
+                false
+            ),
+            Some(LineUnread::Unplaced)
+        );
     }
 
     /// **A milliradian wedge's unread reading carries a cause** (review
