@@ -1630,7 +1630,8 @@ Flagged, NOT fixed here (dispositions):
     that `editor-core`'s `drive::log_read` reads as the leaf's verdict
     and no box answers.
 
-  **Carried as `k_stats::check_unlogged(.., "F32")`**. Its K samples
+  **Carried as `k_stats::choose(.., "F32")`**, its tie (a decided
+  zero or an undecided difference) keeping the held candidate. Its K samples
   still reach the sink under `curve_foot_polish`. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
@@ -1652,8 +1653,11 @@ Flagged, NOT fixed here (dispositions):
   Logged, every undecided pick at `Interval` would hand the driver an
   escalation for a choice that decides nothing.
 
-  **Carried as `k_stats::check_unlogged(.., "F33")`**. Its K samples
-  still reach the sink under `curve_pair_pose_across`. Not a
+  **Carried as `k_stats::choose(.., "F33")`**, its tie reading the
+  first conic. Its K samples still reach the sink under
+  `curve_pair_pose_across`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
 - **F34** (added by ONEHOME's finished-body lane, PR 6371)
   `topo/src/props.rs` `AtRestPolicy::leaf` at `f64` and `Probe`: the
   finish of a body the box scalars hold as a tier-2 leaf. That is a
@@ -1686,6 +1690,43 @@ Flagged, NOT fixed here (dispositions):
 
   **Carried as a held `Recorded` relogged at `topo::take`**. Not a
   `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
+
+- **F35** (added by ONECOPY's choose-door unit)
+  `curve_pair_walk_polish_step` — `geom-brep/src/curve_pair/walk.rs`
+  `step_taken`: whether a Gauss–Newton step that moves the polished point
+  `moved` metres is kept, against `16·slack`, sixteen times the most the
+  polished point can lie from where it started. A polish step is F32's
+  class: a polished parameter is read, never trusted, so the bound can
+  lose a meeting's foot but never invent one. A step kept or dropped
+  picks between two sound feet, each of which is read and logged on its
+  own rows. What keeps it off the logged doors is that no outcome is a
+  reading. Logged, every undecided step at `Interval` handed the driver
+  an escalation no box answers, on every walk that polishes.
+
+  **Carried as `k_stats::choose(.., "F35")`**, its tie (a decided zero
+  or an undecided difference) dropping the step. Its K samples still
+  reach the sink under `curve_pair_walk_polish_step`; the verdict log
+  no longer carries it. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
+- **F36** (added by ONECOPY's choose-door unit) `pn_conic_span_weight`
+  — `geom-brep/src/intersect/conic_arc.rs`: whether a hyperbola's span,
+  halved `k` times, weighs at most `√2`, the least `k` whose `2^k` equal
+  spans each weigh at most that (`cosh(h/2) = √((cosh h + 1)/2)`). A
+  count is structure, chosen on the sign alone, and a reading the scalar
+  cannot place halves once more, which costs a span and never
+  exactness: the spans are each read exactly at any count. What keeps it
+  off the logged doors is that no outcome is a reading, only a span
+  count. Logged, an undecided weight at `Interval` handed the driver an
+  escalation that a further halving already answered.
+
+  **Carried as `k_stats::choose(.., "F36")`**, its tie (a decided zero
+  or an undecided weight) halving once more. That includes an exact
+  zero, which the logged door read as settled: the one outcome this
+  move changes, a span more, never exactness. Its K samples still reach
+  the sink under `pn_conic_span_weight`; the verdict log no longer
+  carries it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does
+  not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

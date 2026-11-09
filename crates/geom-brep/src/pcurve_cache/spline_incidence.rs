@@ -519,11 +519,7 @@ impl<'a, T: Decide> Net<'a, T> {
 /// too and may hold such a point.
 fn past_zero<T: Decide>(gap: T, band: Band) -> bool {
     matches!(
-        decide(
-            HULL,
-            Margin::of(gap - T::from_f64(band.zero())),
-            Band::least()
-        ),
+        geom_core::k_stats::prove(HULL, Margin::of(gap - T::from_f64(band.zero()))),
         Ok(Sign::Positive)
     )
 }

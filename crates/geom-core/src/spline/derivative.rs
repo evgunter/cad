@@ -3025,7 +3025,7 @@ mod tests {
     fn both_bernstein_products_enclose_the_exact_rational_product() {
         use super::super::compose::exact_q::Q;
         let q = |x: i128| Q::from_f64(x as f64);
-        let choose = |n: usize, k: usize| Q::from_f64(super::binomial(n, k));
+        let binom = |n: usize, k: usize| Q::from_f64(super::binomial(n, k));
         let iv = |x: i128| Interval::from_f64(x as f64);
         let grid = |r: &[i128]| {
             super::Grid::new(1, r.iter().map(|&x| super::Vector([iv(x)])).collect())
@@ -3050,13 +3050,13 @@ mod tests {
             for k in 0..=da + db {
                 let exact = (k.saturating_sub(db)..=k.min(da))
                     .map(|i| {
-                        choose(da, i)
-                            .mul(&choose(db, k - i))
+                        binom(da, i)
+                            .mul(&binom(db, k - i))
                             .mul(&q(a[i]))
                             .mul(&q(b[k - i]))
                     })
                     .fold(q(0), |acc, t| acc.add(&t))
-                    .div(&choose(da + db, k));
+                    .div(&binom(da + db, k));
                 for (home, x) in [("compose", compose[k]), ("derivative", ours.c[k].0[0])] {
                     use core::cmp::Ordering::{Greater, Less};
                     assert!(

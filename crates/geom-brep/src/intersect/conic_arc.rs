@@ -498,15 +498,15 @@ impl<T: Decide> ConicBranch<T> {
                 // scalar cannot place halves once more, which costs a
                 // span and never exactness.
                 let mut weight = (e1 / e0 + e0 / e1) / T::from_f64(2.0);
+                // A heuristic's choice (ledger row F36). **At a tie the span
+                // halves once more**, an exact zero included: sound, since a
+                // halving costs a span and never exactness.
                 let settled = |weight: T| {
-                    matches!(
-                        decide(
-                            "pn_conic_span_weight",
-                            Margin::of(weight - T::from_f64(SPAN_WEIGHT_MAX)),
-                            Band::least(),
-                        ),
-                        Ok(Sign::Zero | Sign::Negative)
-                    )
+                    geom_core::k_stats::choose(
+                        "pn_conic_span_weight",
+                        Margin::of(weight - T::from_f64(SPAN_WEIGHT_MAX)),
+                        "F36",
+                    ) == geom_core::k_stats::Pick::Negative
                 };
                 let mut halvings = 0_u32;
                 while !settled(weight) {

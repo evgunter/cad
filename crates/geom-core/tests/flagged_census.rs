@@ -268,7 +268,8 @@ fn sites_in_tree(dir: &Path, hits: &mut Vec<Site>, find: impl Fn(&str) -> Vec<(u
 }
 
 /// **The unlogged doors' sites**: `check_unlogged`, whose row is its
-/// fourth argument, and the scoped `unlogged`, whose row is its first.
+/// fourth argument, `choose`, whose row is its third, and the scoped
+/// `unlogged`, whose row is its first.
 /// They carry the obligation `decide_flagged` does (their row argues why
 /// a decision is taken outside the log), and are not counted against
 /// [`LEDGER_FLAGGED_SITES`]. The one call that forwards a parameter
@@ -283,6 +284,7 @@ fn unlogged_sites() -> Vec<Site> {
     let find = |text: &str| {
         let forwards = |raw: &str| raw.trim() == "ledger_row";
         let mut out = door_calls_in(text, "check_unlogged", 3, forwards);
+        out.extend(door_calls_in(text, "choose", 2, forwards));
         out.extend(door_calls_in(text, "unlogged", 0, forwards));
         out
     };
