@@ -381,7 +381,7 @@ pub(crate) struct RegionEdge<T: geom_core::Real> {
     /// The face's surface record, which tier 3 places the edge on: what
     /// ties it to a leg charted from that record
     /// ([`OnSurface::edge`]).
-    pub(crate) on: SurfaceKey,
+    pub(in crate::boolean) on: SurfaceKey,
     pub(crate) edge: EdgeKey,
     /// The loop the edge bounds.
     pub(crate) r#loop: LoopKey,
