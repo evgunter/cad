@@ -348,7 +348,7 @@ impl<T: Real> Cell<T> {
     }
 
     fn mid(&self) -> f64 {
-        0.5 * (self.lo + self.hi)
+        geom::mid_param(self.lo, self.hi)
     }
 
     fn width(&self) -> f64 {
@@ -998,7 +998,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         let (mut lo, mut hi) = (cell.lo, cell.hi);
         let at = |phi: f64| self.ruled.meeting(&Cell::at(phi), sheet);
         for _ in 0..SETTLE {
-            let mid = 0.5 * (lo + hi);
+            let mid = geom::mid_param(lo, hi);
             let past = self.past(at(mid));
             match (self.reads(Row::Cut, past), entering) {
                 // Outside at `mid`: the root lies on the inside's side.
@@ -1010,7 +1010,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
                 (None, _) => return Ok(at(mid).mid()),
             }
         }
-        Ok(at(0.5 * (lo + hi)).mid())
+        Ok(at(geom::mid_param(lo, hi)).mid())
     }
 
     /// **A leaf as one reading along its loop**, `backward` where the
@@ -1324,7 +1324,7 @@ pub(crate) fn coverage(
         if depth >= COVERAGE_DEPTH || read.cells >= COVERAGE_CELLS {
             return Step::Stop([lo, hi]);
         }
-        let mid = 0.5 * (lo + hi);
+        let mid = geom::mid_param(lo, hi);
         Step::Halve([(lo, mid, depth + 1), (mid, hi, depth + 1)])
     });
     match walked {

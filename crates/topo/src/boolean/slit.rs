@@ -1160,7 +1160,7 @@ fn piece_rung(
             geom_brep::ladder::rung_or_abort(why.refusal(), unread(Some(why)), Err)
         }
         Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
-        Err(read) => Rung::refused(read, BooleanError::refusal),
+        Err(read) => Rung::refused(read, BooleanError::refusal, Err),
     }
 }
 
@@ -1210,9 +1210,10 @@ pub(super) const RIDER_ON_PLANE: &str = "bool_rider_on_plane";
 /// under.
 pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 
-/// The site [`carrier_on_surface`] decides a torus face a ring under
-/// ([`geom_brep::variety::Variety::of`]).
-const RIDER_RING_TORUS: &str = "bool_rider_ring_torus";
+/// The rows [`carrier_on_surface`] decides a torus face a ring under, its
+/// tube and then its ring ([`geom_brep::variety::Variety::of`]).
+const RIDER_RING_TORUS: geom::RingSites =
+    geom::RingSites::new("bool_rider_torus_tube", "bool_rider_ring_torus");
 
 /// The site [`carrier_on_surface`] decides a spiric's plane against a
 /// plane face's under: their tilt over the spiric's reach, then the
@@ -1931,10 +1932,7 @@ fn walls_inside<T: Decide>(
         .ok_or_else(desync)?;
     let (t0, t1) = curve.params();
     let mid = curve.mid_point();
-    let tangent = curve
-        .carrier()
-        .deriv((t0 + t1) * T::from_f64(0.5))
-        .normalize();
+    let tangent = curve.carrier().deriv(geom::mid_param(t0, t1)).normalize();
     let normal = |read: Result<
         Option<geom_brep::OutwardNormal<T>>,
         crate::face_normal::NormalAtError,
@@ -3441,7 +3439,7 @@ mod curved_carrier_rows {
         matches!(
             read,
             Err(super::BooleanError::Escalated { diag, .. })
-                if diag.predicate == Some(super::RIDER_RING_TORUS)
+                if diag.predicate == Some(super::RIDER_RING_TORUS.ring())
         )
     }
 

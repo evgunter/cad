@@ -78,11 +78,7 @@ pub(crate) fn turn_sense(turn: Sign) -> Option<ArcSweep> {
 /// A decided turn's side σ as the literal ±1 (`+1` left), or `None`
 /// for a turn decided Zero, which has no side.
 pub(crate) fn turn_side<T: Real>(turn: Sign) -> Option<T> {
-    match turn {
-        Sign::Positive => Some(T::one()),
-        Sign::Negative => Some(-T::one()),
-        Sign::Zero => None,
-    }
+    turn.nonzero().map(geom_core::k_stats::NonzeroSign::unit)
 }
 
 /// The shape of one leg of a fillet corner
@@ -1454,9 +1450,7 @@ impl<T: Real> ArcCarrier<T> {
                 centre + spoke * (offset / spoke.norm())
             };
             let (on_self, on_other) = (near(self.center, r1), near(other.center, r2));
-            return Ok(OffsetCentres::tangent(
-                on_self + (on_other - on_self) * T::from_f64(0.5),
-            ));
+            return Ok(OffsetCentres::tangent(on_self.mid(on_other)));
         }
         let half = (rho1.powi(2) - along.powi(2)).sqrt();
         let offset = left_normal(link) * (half / dist);
@@ -1526,7 +1520,7 @@ pub(crate) fn centre_split<T: Real>(
 ) -> (T, T) {
     let chord = b - a;
     let len = chord.norm();
-    let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
+    let offset = (centre - a.mid(b)).dot(Vec2::new(-chord.y, chord.x)) / len;
     (sgn * (len * T::from_f64(0.5)), sgn * offset)
 }
 
