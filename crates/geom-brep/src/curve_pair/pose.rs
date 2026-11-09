@@ -76,8 +76,8 @@
 //! - **Two conics.** Each conic's height above the other's plane is a
 //!   first harmonic `c₀ + A·cos(θ − φ)` in its own angle, `A` its swing.
 //!   **The parallel argument runs first, whatever the swing reads**, as
-//!   the router's does: where the height read with its swing and its
-//!   rounding as its spread, `c₀ ∓ (A + noise)`, decides one-signed for
+//!   the router's does: where the height read with its swing as its
+//!   spread, `c₀ ∓ A`, decides one-signed for
 //!   either conic (`curve_pair_pose_parallel`), that conic
 //!   lies wholly on one side of the other's plane, past the band, and the
 //!   pair is [`Pose::Apart`]. Only then are the two swings read
@@ -137,7 +137,8 @@
 //! spans ([`crate::roots::extreme_sign`]): definitely one-signed is
 //! [`Pose::Apart`], definitely straddling is two crossings, an end of a
 //! distance in the escalation gap escalates (a height's, below), and an
-//! extreme in the zero band is a touch there. The roots are read from the extreme nearer zero
+//! extreme in the zero band is a touch there (below). Two definite
+//! crossings are read from the extreme nearer zero
 //! ([`crate::roots::arc_past`]).
 //!
 //! **A conic's height above the other's plane is not its distance from
@@ -149,17 +150,24 @@
 //! escalation is the refusal: what is open is the band's question, which
 //! a finer band decides, not the polish's premise.
 //!
-//! **A double root is decided by the gap between its roots along the
-//! curve**, never by the margin of a centre or an extreme: the chord
-//! between the two root points (`curve_pair_pose_root_gap`) decides one
-//! touch or two crossings. Two near-concentric circles stay within
-//! `d + |Δr|` of each other all the way round, so an extreme in the band
-//! says nothing about where they meet; the root gap does. Where the
-//! extreme is in the zero band, its crossing is read at the least its
-//! rounding allows, the extreme less its noise: roots that only the
-//! noise puts apart are a double root the band cannot split. Merged so,
-//! two crossings can lie up to about `√(8R·noise)` apart along a carrier
-//! of radius `R`, each within the zero band of the touch's point.
+//! **An extreme in the zero band is a touch at the extreme**, whatever lies
+//! between its roots, by C5 (`crates/geom-brep/README.md`: a meeting is a
+//! longest interval of one span everywhere definitely on the other):
+//!
+//! - **a distance** (a conic's signed distance from a line in its plane,
+//!   a circle's from a circle in its plane): between the roots the
+//!   residual runs from zero to the extreme and back, so the whole arc
+//!   between them lies within the zero band of the other carrier. It is
+//!   one meeting, however far apart its roots lie, and its touch is the
+//!   extreme's point;
+//! - **a height**: the touch is a locator, not a meeting. Its window and
+//!   the polish read what the arc about it holds ("A crossing of the
+//!   other's plane", below), as they do for an extreme in the gap.
+//!
+//! **The gap between the roots along the curve decides only two definite
+//! crossings** (`curve_pair_pose_root_gap`): their chord in the zero band
+//! is one touch, the double root the band cannot split, and otherwise
+//! they are two crossings.
 //!
 //! **In one plane, a candidate admitted under a `Zero` reading is placed
 //! by the exactly degenerate formula**: a touch is the extreme's own
@@ -1867,31 +1875,25 @@ fn harmonic_roots<T: Decide>(
     let from_hi = past(r.cross_hi);
     let from_lo = T::pi() - past(r.cross_lo);
     let at_lo = r.at_hi + T::pi();
-    // An extreme in the zero band has crossed by no more than its own
-    // rounding can account for: its roots are read for the gap at the
-    // least crossing that rounding allows, its value less its noise, so
-    // two roots the noise alone puts apart read as the touch they are.
-    let least = |cross: T, extreme: T| {
-        let size = extreme.abs();
-        let past = crate::roots::past_noise(size, r.noise);
-        // An extreme of exactly zero has not crossed: its ratio is zero.
-        cross * (past / size.max(r.noise).max(T::from_f64(f64::MIN_POSITIVE)))
-    };
-    let (psi, gap_psi, at_near) = match (lo, hi) {
+    let (psi, at_near) = match (lo, hi) {
         (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Harmonic::Apart),
         (Sign::Zero, Sign::Zero) => return Err(MeetFault::Unsettled(Unsettled::Tangency)),
-        (Sign::Zero, Sign::Positive) => (from_lo, T::pi() - past(least(r.cross_lo, r.lo)), at_lo),
-        (Sign::Negative, Sign::Zero) => (from_hi, past(least(r.cross_hi, r.hi)), r.at_hi),
+        // An extreme in the zero band is a touch at the extreme (module
+        // docs, "A first harmonic's roots").
+        (Sign::Zero, Sign::Positive) => return Ok(Harmonic::Touch(at_lo)),
+        (Sign::Negative, Sign::Zero) => return Ok(Harmonic::Touch(r.at_hi)),
         // Two definite crossings: read from the extreme that has crossed
         // the less, to its own relative precision.
         (Sign::Negative, Sign::Positive) => {
             let nearer_hi = r.cross_hi - r.cross_lo;
-            let psi = nearer_hi.select_le_zero(from_hi, from_lo);
-            (psi, psi, nearer_hi.select_le_zero(r.at_hi, at_lo))
+            (
+                nearer_hi.select_le_zero(from_hi, from_lo),
+                nearer_hi.select_le_zero(r.at_hi, at_lo),
+            )
         }
     };
     let roots = [r.at_hi + psi, r.at_hi - psi];
-    let gap = Margin::norm3(k.point_at(r.at_hi + gap_psi) - k.point_at(r.at_hi - gap_psi));
+    let gap = Margin::norm3(k.point_at(r.at_hi + psi) - k.point_at(r.at_hi - psi));
     Ok(match decide(row::ROOT_GAP, gap, band)? {
         Sign::Zero => Harmonic::Touch(at_near),
         Sign::Positive | Sign::Negative => Harmonic::Cross(roots.to_vec()),

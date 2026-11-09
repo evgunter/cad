@@ -50,3 +50,7 @@ The witness search reads a crossing only from a meeting set the reader
 did not refuse, or reads the lens at second order. Either way the row's
 known `Ok(true)` below the zero turns to unread or `Ok(false)`, and the
 row is turned with it.
+
+## Evidence from `onecopy/transverse-range` (2026-11-09)
+
+The orchestrator ruled that an extreme of a first harmonic in the zero band reads its touch at the extreme, by C5 (`curve_pair::pose`'s module docs, "A first harmonic's roots"). Since then, two coplanar circular arcs bounding a lens shallower than the zero meet in one touch, and both readings read them touching (`Ok(false)`) at 0.05ε, 0.3ε and 0.9ε on arcs of 20, 100 and 1000 widths. `census.rs` `arc_interiors::a_lens_across_the_band_is_never_read_apart` now pins that. The witness search still reads as shared interior whatever two crossings the meeting reader parts within the band. Lenses of non-circular arcs, which the coplanar subdivisions read, were not measured.
