@@ -2399,14 +2399,14 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UnderflowedDirection { role } => write!(
                 f,
                 "the {role} underflowed to zero length, though it still names a \
-                 direction. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 direction. {}",
+                geom_core::RANGE_ENDING
             ),
             Self::NonFiniteDirection { role } => write!(
                 f,
                 "the {role} has no finite length (a component overflows the norm or is \
-                 not a number). Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 not a number). {}",
+                geom_core::RANGE_ENDING
             ),
             Self::Band(e) => write!(
                 f,

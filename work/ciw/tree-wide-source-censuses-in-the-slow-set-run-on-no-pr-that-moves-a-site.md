@@ -53,6 +53,14 @@ All four (with `flagged_census`, PR 6603) were red together on
 
 A is the smallest change to the gate, and with the three missing markers added it catches each move at its PR.
 
+## A fifth instance: pncad-py's prose census (2026-11-09, `onecopy/prose-census-red`)
+
+`crates/pncad-py/src/prose_census.rs`'s rows read every `crates/*/src` and take about 4–5 s each, so they're in the slow set. They stood red on main from 2026-11-03 to 2026-11-09:
+- the vacuity floor, 138 sites under 200, from PR 6430;
+- the undecided roster, from PRs 6448, 6549 and 6579.
+
+None of those PRs runs a pncad-py slow row (`work/onecopy/main-red-prose-census-reads-no-write-renderer.md`). Under option A, `prose_census.rs` needs a `gated_to!` naming every crate its walk reads, like `certified_endpoint_census`'s. The prose census has gone main-red five times since 2026-10-27 (`work/{bind,clear,contacthold,splice}/main-red-prose-census-*`); every time a PR outside pncad-py moved a renderer.
+
 ## The class is wider than censuses (2026-11-09, `onecopy/loft-rim-red`)
 
 A behaviour test in the slow set has the same blind spot: `sweep::all a_loft_computes_its_walls_in_t::a_lofted_arc_wall_is_a_function_of_the_sections_bulge` counts the iso-boundary decisions a loft records.
