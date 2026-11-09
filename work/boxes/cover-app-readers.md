@@ -25,3 +25,5 @@ That also retires `bandreach/blend-sheet-clip-picks-its-coaxial-arm-on-a-bracket
 ## Closed (PR 6588, 2026-11-09)
 
 sweep's `sheet_clip` and editor-core's measure, mate and trace reaches read topo's face cover. `carrier_extent` is deleted, and `at_rest::beyond`'s plane/cylinder gate is gone. The line-site range is posed as distances (the rotating and counter-rotating parts). One full review and one fix pass. The sheet-clip aim went: no face today's doors build lets the pole cut bite. (BOXES orchestrator)
+
+What PR 6588's readers cost the sym walks (the plate's ledger, and freezes across the sym11 corpus) is filed as `work/boxes/cover-readers-moved-the-plates-sym-ledger-undisclosed.md`.
