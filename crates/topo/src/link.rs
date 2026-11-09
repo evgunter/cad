@@ -527,6 +527,13 @@ pub enum TouchUnread {
     /// interior, where the touch was held inside the edge: two readings
     /// of one fact disagree. An abort.
     OffInterior,
+    /// A face's outward normal at the touch point refuses the whole
+    /// reading ([`crate::face_normal::NormalAtError::refusal`] aborts): the
+    /// point read off the face's surface, or a torus outside the ring
+    /// convention, which tier 3 refuses before the census runs
+    /// (`ValidationError::DegenerateTorus`). Either is the kernel's: an
+    /// abort.
+    NormalFault,
     /// The topology around the touch did not read. The census runs only
     /// on bodies tier 1 admits (loops closed, every key resolving), so
     /// this is a kernel defect. An abort.
@@ -570,7 +577,7 @@ impl TouchUnread {
                 Ok(Refusal::Limit)
             }
             Self::EdgeTangent(why) => Ok(why.refusal()),
-            Self::Unreadable | Self::OffInterior | Self::Corrupt => Err(Aborts),
+            Self::Unreadable | Self::OffInterior | Self::NormalFault | Self::Corrupt => Err(Aborts),
         }
     }
 }
@@ -1419,7 +1426,13 @@ impl ArcReach {
     /// escalation where it is in band, and [`Unsettled::Zero`] where the
     /// band reads the clearance zero (in band: a tighter band may part it
     /// from the apex), so a decided "does not clear" is only a negative
-    /// clearance.
+    /// clearance. One is reachable: with the two ends' directions nearly
+    /// opposite, their bisector is rounding noise, an end's distance
+    /// along it may be decided negative, and the segment does run by the
+    /// apex (a `debug_assert` that no clearance reads negative fails on
+    /// `a_doubled_line_does_not_revert`'s pinch). That is a conditioning
+    /// defect, to be re-posed
+    /// (`work/onecopy/link-near-clearance-divides-by-a-vanishing-bisector.md`).
     fn clears<T: Decide>(
         self,
         p: Point3<T>,

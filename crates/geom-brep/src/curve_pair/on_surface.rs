@@ -351,7 +351,12 @@ impl<T: Decide> SurfaceCurve<T> {
             _ => return Err(Self::refused("ruling", surface)),
         };
         let dir = if outward { dir } else { -dir };
-        Ok(Self::line(chart, start, dir, uv.x, opening))
+        Ok(Self::line(
+            chart,
+            geom::Line { origin: start, dir },
+            uv.x,
+            opening,
+        ))
     }
 
     /// **A cone's generator from its apex** through the point `toward`
@@ -374,21 +379,23 @@ impl<T: Decide> SurfaceCurve<T> {
         let g = surface.eval(toward.x, toward.y) - chart.frame().origin;
         Ok(Self::line(
             chart,
-            apex,
-            g.normalize(),
+            geom::Line {
+                origin: apex,
+                dir: g.normalize(),
+            },
             toward.x,
             Some(opening),
         ))
     }
 
-    fn line(chart: Placed<T>, start: Point3<T>, dir: Vec3<T>, u: T, opening: Option<bool>) -> Self {
+    fn line(chart: Placed<T>, line: geom::Line<T>, u: T, opening: Option<bool>) -> Self {
         let f = *chart.frame();
         let (sin, cos) = u.sin_cos();
         let normal = f.axis.cross(f.radial(u));
         Self {
             chart,
-            shape: Shape::Line(geom::Line { origin: start, dir }),
-            plane: (start, normal.normalize()),
+            shape: Shape::Line(line),
+            plane: (line.origin, normal.normalize()),
             section: Section::HalfPlane {
                 toward: Azimuth::of(sin, cos),
                 opening,

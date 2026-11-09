@@ -301,7 +301,7 @@ fn same_net(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>, what: &str) {
     assert_eq!(a.control().len(), b.control().len(), "{what}: net size");
     for (i, (p, q)) in a.control().iter().zip(b.control()).enumerate() {
         assert!(
-            p.x == q.x && p.y == q.y && p.z == q.z,
+            p.equals_exactly(*q),
             "{what}: control point {i} is {p:?}, not the mapped {q:?}"
         );
     }

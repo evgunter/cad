@@ -161,8 +161,10 @@ fn a_declared_rim_in_the_caps_chart_is_restated_as_the_section_too() {
         drum_with_a_rim_in_the_caps_chart(Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(R, H),
             place: Affine3::identity(),
-            axis_origin: Point3::new(0.0, 0.0, 0.0),
-            axis_dir: Vec3::new(0.0, 1.0, 0.0),
+            axis: geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 1.0, 0.0),
+            },
             angle: std::f64::consts::PI,
         })));
     let minted = offset_the_wall(&mut body, wall);
@@ -459,8 +461,7 @@ fn cube_with_a_spline_seam_on_the_top(bow: f64) -> (Body<f64>, EdgeKey, SurfaceK
                 let v = body.get_half_edge(he).unwrap().start;
                 body.get_point(body.get_vertex(v).unwrap().point)
                     .unwrap()
-                    .distance(at)
-                    == 0.0
+                    .equals_exactly(at)
             })
             .expect("a half-edge of the top leaves the corner")
     };

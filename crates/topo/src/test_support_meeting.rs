@@ -1164,7 +1164,7 @@ pub fn fin_crown_body(pose: &Pose, tol: Tol) -> Body<f64> {
     // where Newell's centroid sum cancels to about 1e-11: it takes the
     // plane through its corner at `c0`, where its two edges meet square.
     let plane_of = |corners: &[Point3<f64>]| {
-        let at = |q| corners.iter().position(|&p| same(p, q));
+        let at = |q| corners.iter().position(|&p| p.equals_exactly(q));
         match (at(c0), at(c2)) {
             (Some(k), Some(_)) => {
                 let n = corners.len();
@@ -1185,7 +1185,7 @@ pub fn fin_crown_body(pose: &Pose, tol: Tol) -> Body<f64> {
     let mut body = crown_faces(&outer, FIN_BOTTOM, pose, tol, plane_of);
     let vertex = |body: &Body<f64>, p: Point3<f64>| {
         body.vertices()
-            .find(|(_, v)| body.get_point(v.point).is_some_and(|q| same(*q, p)))
+            .find(|(_, v)| body.get_point(v.point).is_some_and(|q| q.equals_exactly(p)))
             .map(|(k, _)| k)
             .unwrap()
     };
@@ -1234,17 +1234,12 @@ pub fn fin_crown_body(pose: &Pose, tol: Tol) -> Body<f64> {
     let faces: Vec<_> = body.faces().map(|(f, _)| f).collect();
     for f in faces {
         let corners = corners_of(&body, f);
-        if corners.iter().any(|&p| same(p, c1)) {
+        if corners.iter().any(|&p| p.equals_exactly(c1)) {
             body.set_face_surface(f, face(&corners)).unwrap();
         }
     }
     describe_as_intersections(&mut body, tol);
     body
-}
-
-/// Whether two points are one, bit for bit.
-fn same(p: Point3<f64>, q: Point3<f64>) -> bool {
-    (p.x, p.y, p.z) == (q.x, q.y, q.z)
 }
 
 /// Whether an edge joins `a` and `b`.

@@ -1353,7 +1353,10 @@ mod tests {
         let vertex = body
             .vertices()
             .map(|(k, _)| k)
-            .find(|&v| (body.resolve_vertex_point(v, Proven) - Point3::origin()).norm() == 0.0)
+            .find(|&v| {
+                body.resolve_vertex_point(v, Proven)
+                    .equals_exactly(Point3::origin())
+            })
             .expect("the cube has a corner at the origin");
         let orbit = body.vertex_orbit_linked(vertex);
         (body, vertex, orbit)
@@ -1395,7 +1398,7 @@ mod tests {
                 let crate::sector_face::VertexFace::Tangent(n_face) = n_face else {
                     panic!("a cube corner has a tangent plane on every face")
                 };
-                ((n_face.vec() - n).norm() == 0.0).then_some((he, n_face))
+                (n_face.vec().equals_exactly(n)).then_some((he, n_face))
             })
             .expect("a face at the corner has that normal")
     }
