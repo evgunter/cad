@@ -1072,3 +1072,4 @@
 - 16:45Z 6654 lone-vertices (98c1b844, gate green; engine-leaves no longer counts Iterator<Item=>, 40 pins fall) → FULL with session_013mPGJ5b622qiPFUqnsiotH.
 - 16:50Z Merged PR 6657 (chord-length notes: docs plus the point-equality row; gate green; disjoint).
 - 16:50Z census lane opened PR 6658 (ring-island, d5f1d714): climb_agreeing at read_paths. K (a1): no unlogged precedent, since an abort changes what is certified; 3 torus_ring_rows re-pinned ×8 → FULL with session_013mPGJ49aLEyBb6JNAZiN5E; gating. Lane → onecopy/distance-homes.
+- 16:55Z foot-and-pinch opened PR 6659 (foot-followups, 9b97eb2e): F1 within_span argued sound (pad=0 on conics, debug_assert), F2 disclosed, F3+F4 RawSplit::from_reduction in a private raw module → FULL with session_013mPGJ3tyjcmbPeAmhwAP32; gating. Lane → onecopy/point-equality (decision first).
