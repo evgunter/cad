@@ -442,3 +442,4 @@
   - M2: put recourse on `PieceWalkRefusal`, so the join and section renderings agree.
   - S2 and S3.
   - A P3 class row for three clearance walks, two `SiteRefusal` sorts and the census's `WALK_*`.
+- 2026-11-09 — [ev] PR 6592 opened (onecopy/ev-side-at-infinity) from fork9's agreed recommendation: topo README tier-3 orientation plus one [coincidence.booleans] clause, fork-log row 253 (labels only). Subscribed.
