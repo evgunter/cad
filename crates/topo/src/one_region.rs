@@ -227,9 +227,9 @@ pub(crate) fn door_side<T: Decide>(
 /// One inside two edges is the census's `EdgeEdgeCross`, and two loops
 /// meeting at a point are check 9's contact arm 1 (`RingMeetsOuter`,
 /// `RingMeetsRing`). Two surface cycles of one loop, split by a seam or
-/// a strut, that share a vertex and cross there would read as the first
-/// vertex placed says
-/// (`work/onecopy/one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex.md`).
+/// a strut, that share a point pass it at two corners of the loop, and a
+/// crossing there is check 9's `PinchCornerCrossed`. None reaches this
+/// read alone.
 /// So a
 /// vertex read in band ahead of the answer is superseded. An unplaced
 /// vertex is exempt and passes, so a cycle no vertex places is exempt
@@ -279,6 +279,95 @@ fn first_edge<T: Decide>(body: &Body<T>, cycle: &[HalfEdgeKey]) -> Option<EdgeKe
 mod tests {
     use super::*;
     use crate::joint::{Deck, Winding};
+
+    /// **Two surface cycles of ONE loop crossing at a point they share
+    /// are check 9's `PinchCornerCrossed`.** A cylinder sheet's outer loop
+    /// carries a strut from its corner `A` at `(0, 0)` to an inner corner
+    /// `W`, and a polygon `W → X → Y` closed at `W` by a membrane, the
+    /// strut kept: one loop, whose surface boundary drops the strut and
+    /// walks two cycles, the outer one and the polygon. `X` is moved onto
+    /// `A`'s point, with `W` inside the sheet and `Y` outside it, so the
+    /// polygon crosses the outer cycle there. The loop passes that point at
+    /// two corners, so check 9's corner arm reads it and refuses the
+    /// crossing.
+    #[test]
+    fn two_surface_cycles_of_one_loop_crossing_at_a_shared_point_are_check_9s() {
+        use crate::construction::{MefSite, MevSite};
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        let tol = geom_core::Tol::witness();
+        let frame = CylFrame::canonical(1.0);
+        let mut body = Body::<f64>::new();
+        let face = cyl_wall_sheet(
+            &mut body,
+            frame,
+            (0.0, core::f64::consts::PI),
+            (0.0, 1.0),
+            tol,
+        );
+        let outer = body.get_face(face).expect("the sheet").outer;
+        let crate::entity::LoopBoundary::Cycle { first } =
+            body.get_loop(outer).expect("its outer loop").boundary
+        else {
+            panic!("the sheet's outer loop is a cycle")
+        };
+        let a = body.get_half_edge(first).expect("a half-edge").start;
+        let a_point = body.get_vertex(a).expect("A").point;
+        let a_at = body.half_edge_start_point(first).expect("A's point");
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                frame.at(0.5, 0.5),
+                tol,
+            )
+            .expect("the strut");
+        let x = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: strut.he_minus,
+                    he2: strut.he_minus,
+                },
+                a_at + (frame.at(0.5, 0.5) - a_at) * 0.5,
+                tol,
+            )
+            .expect("W to X");
+        let y = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: x.he_minus,
+                    he2: x.he_minus,
+                },
+                frame.at(-0.5, 0.5),
+                tol,
+            )
+            .expect("X to Y");
+        body.mef_chord(
+            MefSite::Chords {
+                he1: x.he_plus,
+                he2: y.he_minus,
+            },
+            tol,
+        )
+        .expect("the membrane");
+        let cycles = crate::surface_boundary::surface_cycles(&body, face).expect("the cycles");
+        assert_eq!(cycles.len(), 2, "one loop walks two surface cycles");
+        // `X` onto `A`'s point: the loop now passes that point twice.
+        let x_vertex = body.get_half_edge(x.he_minus).map(|h| h.start).expect("X");
+        let gone = body.get_vertex(x_vertex).expect("X").point;
+        body.vertices.get_mut(x_vertex).expect("X").point = a_point;
+        body.points.remove(gone);
+        let errors = crate::validate_geometric(&body, tol).expect_err("the cycles cross");
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                crate::ValidationError::PinchCornerCrossed { face: f, vertex, .. }
+                    if *f == face && body.get_vertex(*vertex).map(|v| v.point) == Some(a_point)
+            )),
+            "check 9's corner arm refuses the crossing: {errors:?}"
+        );
+    }
 
     /// **Two cycles crossing at points they share are check 9's
     /// `RingMeetsOuter`**, so `read_cycle` never stands alone on them. A
