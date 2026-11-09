@@ -3674,7 +3674,7 @@ population.
 
 ## ONECOPY addendum (2026-11-09): span membership reads `curve_pair::Span`
 
-**Roster change: three names leave; none join.** A point's or a
+**Roster change: three names leave; one joins.** A point's or a
 parameter's place on a curve span has one reading, `geom_brep::curve_pair::Span`'s:
 an end by the raw chord to its point (`curve_pair_span_end_chord`), else the
 side by the parameter metered at the span's greatest speed
@@ -3686,5 +3686,7 @@ side by the parameter metered at the span's greatest speed
 - `ring_outer_arc_end` and `ring_outer_arc_trim`: check 9's `arc_trim` rows.
   Check 9's arc window reads `Span::place`, and `arc_trim` is retired.
 
-`plane_crossing_root_order` stays and changes its quantity: the chord between
-two roots' points, then their parameter gap metered at the span's greatest speed.
+**One joins:** `plane_crossing_roots_apart`, the chord between two roots'
+points: Zero collapses them to one root. `plane_crossing_root_order` stays and
+changes its quantity: the roots' parameter gap metered at the span's greatest
+speed, read only where their chord is past the band.

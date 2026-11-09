@@ -16730,6 +16730,56 @@ mod tests {
         }
     }
 
+    /// **An arc's window reads a point off its circle at the point's
+    /// foot** (`work/restfront/check-9-reads-an-internal-tangencys-trims-at-the-radical-foot.md`).
+    /// A decided internal tangency's radical foot stands about `g·r/d`
+    /// off both circles: 0.029·r near-concentric. The window projects it
+    /// onto the circle, so an arc ending 0.01 rad short of the tangency
+    /// direction reads it OUT whether it stands inside or outside the
+    /// circle, and whether the arc's apex is 2.5 rad or 0.3 rad away.
+    /// The old chordal-defect reading put the inside point in at the far
+    /// apex (+0.0063) and the outside one in at the near one (+0.0116).
+    /// An arc holding the tangency reads it in from either side.
+    #[test]
+    fn an_arc_window_reads_an_off_circle_point_at_its_foot() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let short = 0.01_f64.to_degrees();
+        for (name, arc, off, inside) in [
+            (
+                "far apex, point inside",
+                arc_segment(o, 1.0, short, short + 2.0 * 2.49_f64.to_degrees()),
+                0.971,
+                false,
+            ),
+            (
+                "near apex, point outside",
+                arc_segment(o, 1.0, short, short + 2.0 * 0.29_f64.to_degrees()),
+                1.029,
+                false,
+            ),
+            (
+                "holding it, point inside",
+                arc_segment(o, 1.0, -30.0, 30.0),
+                0.971,
+                true,
+            ),
+            (
+                "holding it, point outside",
+                arc_segment(o, 1.0, -30.0, 30.0),
+                1.029,
+                true,
+            ),
+        ] {
+            let got = window(arc, Point3::new(off, 0.0, 0.0), band);
+            assert_eq!(
+                (matches!(got, Window::In), matches!(got, Window::Out)),
+                (inside, !inside),
+                "[{name}]"
+            );
+        }
+    }
+
     /// **Arm 5's branches no body in the rows above reaches first**,
     /// asked of the pair function directly (the arms before it answer
     /// these shapes on a real loop pair, which is the argument for the
