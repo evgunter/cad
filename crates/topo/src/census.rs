@@ -11544,7 +11544,7 @@ impl InteriorsUnread {
     /// This refusal as a ladder's rung ([`Self::refusal`]), an abort
     /// stopping the search on itself.
     fn rung<V>(self) -> Rung<Result<V, Self>, Self> {
-        Rung::refused(self, |why| why.refusal())
+        Rung::refused(self, |why| why.refusal(), Err)
     }
 
     /// A meeting reading's refusal: an escalation or a touch undecided,
