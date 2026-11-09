@@ -706,3 +706,7 @@
   - 6598 delta: MERGE. It still merges after 6576. Its N1 and N3 are filed as `the-pierce-pass-ranking-is-pinned-only-at-the-ladder`, along with an unrouted 1e-12 cone_rows seed, 0x3bf35ddc97f968bd, which is also forwarded to the main-reds lane.
 - 07:30Z Lanes:
   - unit-sign opened 6615, head 55adff6b, with hosted CI green. Its FULL review is with session_013mPGJ2hSBgSQxpZsuEFRGx.
+- 07:31Z Sequencing:
+  - census-rosters stacks on 6602.
+  - carrier-standing keeps `Refusal::of_carrier`/`of_walk` as the home and adds `MeetFault::Unwalked`. Any standing it moves must be disclosed.
+  - The move of `of_*` onto `CarrierRefusal`/`PieceWalkRefusal` goes to the ladder lane with geom_core::ladder; that lane has been told.
