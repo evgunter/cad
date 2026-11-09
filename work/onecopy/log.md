@@ -1153,3 +1153,12 @@
 - 21:05Z Merged PR 6598 (pierce pass onto the ladder) at gate-green a5b3df2b → d1cda16c. Second delta MERGE; disjoint; merge check clean.
 - 21:05Z 6652 overlapped 6598 (ladder.rs conflict): kept 6652's of_option delegation and passed 6598's abort map, refused(e, standing, Err). Build, gates, fmt and 5817 tests clean; pushed 4508ef18 (the pre-push hook first caught fmt); re-gating.
 - 21:05Z 6655 overlapped 6598 (offer_rows, slit) → merged main; clean; re-gating.
+- 21:20Z Batch:
+  - 6670 shell-winding (62aa2963) → FULL with session_013mPGJ3BVt7iJw5XModx26D.
+  - 6674 K unit (eee3131e; F38→F39 renumber asked) → FULL with session_013mPGJ27fuyNTJqAZo7LZBN.
+  - 6664 fix (019d722b) → delta with session_013mPGJ51wDjzTLeTSQjXSqC.
+  - 6661 at 309d8bfd (the exact wording) gating.
+  - 6671 head 6ca1a40a.
+  - foot-closed-forms ruled: land Surface::foot as the one home plus QueryFoot plus zero-band pins; the leg half as a C5 design-question row.
+- 21:20Z 6660 FULL: MERGE, plus small fixes before merge (TouchNormalFault waits per 11(B)(i); pin the abort set; the ops.rs path premise). Class follow-up: one NormalAtError fault-kind method read by 6655 slit, 6648 HoldingUnread and 6660 census (DegenerateTorus aborts since 498685d1) → length-rule lane after 6655/6660. 6648 lane heads-up.
+- 21:20Z 6669 FULL: MERGE after 6654; fix census placed's premise (meets_at is in_band) and the unlevered check → lane.
