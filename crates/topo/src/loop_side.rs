@@ -46,11 +46,11 @@ pub(crate) enum EveryVertex<E> {
 /// A vertex kept in band beside a decided reading is superseded, as
 /// [`ladder::climb_agreeing`] records it.
 pub(crate) fn inside_at_every_vertex<E>(
-    vertices: impl IntoIterator<Item = VertexKey>,
+    vertices: &[VertexKey],
     mut place: impl FnMut(VertexKey) -> Rung<bool, E>,
 ) -> EveryVertex<E> {
     let read = ladder::climb_agreeing(
-        vertices,
+        vertices.iter().copied(),
         |v| match place(v) {
             Rung::Answers(inside) => Rung::Answers((inside, v)),
             Rung::Aborts(inside) => Rung::Aborts((inside, v)),
@@ -94,7 +94,8 @@ mod tests {
         (0..sides.len())
             .map(|r| {
                 let order: Vec<usize> = (r..sides.len()).chain(0..r).collect();
-                inside_at_every_vertex(order.iter().map(|&i| vs[i]), |v| {
+                let walk: Vec<VertexKey> = order.iter().map(|&i| vs[i]).collect();
+                inside_at_every_vertex(&walk, |v| {
                     let i = vs.iter().position(|&w| w == v).expect("a vertex");
                     sides[i].map_or(Rung::Passes, Rung::Answers)
                 })
@@ -114,9 +115,7 @@ mod tests {
                 "a crossing reads outside: {verdict:?}"
             );
         }
-        let crossing = inside_at_every_vertex(vs.iter().copied(), |v| {
-            Rung::<bool, ()>::Answers(v != vs[2])
-        });
+        let crossing = inside_at_every_vertex(&vs, |v| Rung::<bool, ()>::Answers(v != vs[2]));
         assert_eq!(
             crossing,
             EveryVertex::Outside { at: vs[2] },

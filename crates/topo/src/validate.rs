@@ -10286,7 +10286,7 @@ fn ring_nesting<T: Decide>(
     // in-plane precondition; the off-boundary one is the contact arms'
     // where they can see the edge (the doc above). On the boundary is the
     // contact half's question, not this one.
-    match crate::loop_side::inside_at_every_vertex(queries, |rv| {
+    match crate::loop_side::inside_at_every_vertex(&queries, |rv| {
         let Some(rp) = vertex_point(body, rv) else {
             return geom_brep::ladder::Rung::Passes;
         };

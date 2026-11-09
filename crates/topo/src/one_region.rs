@@ -235,10 +235,11 @@ fn read_cycle<T: Decide>(
     cut: &[usize],
     band: Band,
 ) -> Read {
-    let vertices = cycle
+    let vertices: Vec<VertexKey> = cycle
         .iter()
-        .filter_map(|&h| body.get_half_edge(h).map(|h| h.start));
-    match inside_at_every_vertex(vertices, |vertex| {
+        .filter_map(|&h| body.get_half_edge(h).map(|h| h.start))
+        .collect();
+    match inside_at_every_vertex(&vertices, |vertex| {
         let Some(q) = body
             .get_vertex(vertex)
             .and_then(|v| body.points.get(v.point))
@@ -326,7 +327,7 @@ mod tests {
         meet: bool,
     ) -> (Vec<ValidationError>, crate::geometry::PointKey) {
         let (body, face, a_point) =
-            strut_split_sheet(y, if meet { Meet::Shared } else { Meet::Apart });
+            strut_split_sheet(y, if meet { Meet::Shared } else { Meet::AsBuilt });
         let errors = crate::validate_geometric(&body, geom_core::Tol::witness())
             .err()
             .unwrap_or_default();
@@ -347,7 +348,7 @@ mod tests {
     #[derive(Clone, Copy)]
     enum Meet {
         /// Where it was built, apart from `A`.
-        Apart,
+        AsBuilt,
         /// On `A`'s point key.
         Shared,
         /// On a key of its own, this far from `A`'s point along the
@@ -427,7 +428,7 @@ mod tests {
         assert_eq!(cycles.len(), 2, "one loop walks two surface cycles");
         let x_vertex = body.get_half_edge(x.he_minus).map(|h| h.start).expect("X");
         let target = match meet {
-            Meet::Apart => None,
+            Meet::AsBuilt => None,
             Meet::Shared => Some(a_point),
             Meet::Near(d) => {
                 let a = *body.points.get(a_point).expect("A's point");
