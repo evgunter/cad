@@ -8243,7 +8243,7 @@ mod neighbour_extent_rows {
             let key = body.vertices[body.half_edges[he].start].point;
             let i = unit
                 .iter()
-                .position(|&c| (c - body.points[key]).norm() == 0.0)
+                .position(|&c| c.equals_exactly(body.points[key]))
                 .expect("a corner of the unit triangle");
             body.points[key] = Point3::new(1.0 + small[i].0, 1.0 + small[i].1, 1.0);
         }
@@ -8300,7 +8300,7 @@ mod neighbour_extent_rows {
             let key = body.vertices[body.half_edges[he].start].point;
             let i = unit
                 .iter()
-                .position(|&c| (c - body.points[key]).norm() == 0.0)
+                .position(|&c| c.equals_exactly(body.points[key]))
                 .expect("a corner of the unit triangle");
             body.points[key] = Point3::new(1.0 + small[i].0, 1.0 + small[i].1, 1.0);
         }
@@ -9551,7 +9551,7 @@ mod spline_face_rows {
         assert!(matches!(got, Ok(CurvedEvent::Recorded)), "{got:?}");
         let w = x
             .vertices()
-            .find(|(_, v)| (*x.get_point(v.point).unwrap() - end).norm() == 0.0)
+            .find(|(_, v)| x.get_point(v.point).unwrap().equals_exactly(end))
             .map(|(k, _)| k)
             .expect("the line's upper end");
         let uv = *acc
@@ -9577,7 +9577,7 @@ mod spline_face_rows {
         let (mut y, face, x, _) = twisted_and_a_line(at, Point3::new(0.5, 0.5, 1.0));
         let w = x
             .vertices()
-            .find(|(_, v)| (*x.get_point(v.point).unwrap() - at).norm() == 0.0)
+            .find(|(_, v)| x.get_point(v.point).unwrap().equals_exactly(at))
             .map(|(k, _)| k)
             .unwrap();
         let mut acc = ContactAcc::default();
@@ -9781,7 +9781,10 @@ mod spline_face_rows {
                 let corner = x
                     .vertices()
                     .map(|(v, _)| v)
-                    .find(|&v| (x.resolve_vertex_point(v, crate::live::Proven) - p).norm() == 0.0)
+                    .find(|&v| {
+                        x.resolve_vertex_point(v, crate::live::Proven)
+                            .equals_exactly(p)
+                    })
                     .expect("the block's corner at the point");
                 match super::split_other_at_point(
                     &mut y,
@@ -9796,7 +9799,7 @@ mod spline_face_rows {
                     Ok(w) => {
                         let at = y.resolve_vertex_point(w, crate::live::Proven);
                         assert!(
-                            (at - p).norm() == 0.0,
+                            at.equals_exactly(p),
                             "{phi} at {t}: the vertex is the point"
                         );
                         for e in y.edges_of_vertex(w).unwrap() {

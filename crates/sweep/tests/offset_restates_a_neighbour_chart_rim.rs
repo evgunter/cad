@@ -461,8 +461,7 @@ fn cube_with_a_spline_seam_on_the_top(bow: f64) -> (Body<f64>, EdgeKey, SurfaceK
                 let v = body.get_half_edge(he).unwrap().start;
                 body.get_point(body.get_vertex(v).unwrap().point)
                     .unwrap()
-                    .distance(at)
-                    == 0.0
+                    .equals_exactly(at)
             })
             .expect("a half-edge of the top leaves the corner")
     };

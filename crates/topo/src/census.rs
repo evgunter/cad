@@ -13589,7 +13589,7 @@ mod tests {
                     .find(|e| {
                         let far = e.p1;
                         [(a, b), (b, a)].iter().any(|&(p, q)| {
-                            (e.p0 - p).norm() == 0.0 && (far - q).norm() <= 1e-3 * band.zero()
+                            e.p0.equals_exactly(p) && (far - q).norm() <= 1e-3 * band.zero()
                         })
                     })
                     .unwrap_or_else(|| panic!("{what}: the edge {a:?} → {b:?}"))
@@ -18084,7 +18084,7 @@ mod tests {
             .vertices()
             .filter(|(_, v)| {
                 let p = above.points[v.point];
-                (p.x, p.y, p.z) == (tip.x, tip.y, tip.z)
+                p.equals_exactly(tip)
             })
             .map(|(k, _)| k)
             .collect();
@@ -21018,7 +21018,7 @@ mod edge_pairs_as_segments {
                 ..seg(b, at_v)
             };
             assert!(
-                (ee_cross_point(&ea, &eb) - pt(at_v)).norm() == 0.0,
+                ee_cross_point(&ea, &eb).equals_exactly(pt(at_v)),
                 "{label}: the crossing is the shared point"
             );
             assert_eq!(meet(&ea, &eb, at), (Some(false), 0), "{label}, band {at:?}");
