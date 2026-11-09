@@ -551,13 +551,10 @@ impl<T: Decide> Curve3<T> {
     /// lower bound on `q`'s distance from the interval, past the band,
     /// where it is `Clear`.
     ///
-    /// One of three readings of a point against a pieced curve, each a
-    /// [`Self::point_walk`] whose visit is its stop rule: this one decides
-    /// against the band, logged, and returns the deciding reading, so it
-    /// stops on a piece's reach. `topo`'s containment `ArcPieces::clear`
-    /// reads a caller's unlogged lever as a bool and stops on a failing
-    /// middle point; `pieced_arc`'s `contact` asks where the point sits
-    /// (an end, on, off) on its own ball cover, not a clearance.
+    /// Every reading of a point against a span by its pieces is a
+    /// [`Self::point_walk`] whose visit is its stop rule, and its callers
+    /// are that list. This one decides against the band, logged, and
+    /// returns the deciding reading, so it stops on a piece's reach.
     ///
     /// # Errors
     ///

@@ -79,7 +79,7 @@
 //! refuted one.
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Point3, Vec3, length_out_of_format};
+use geom_core::{LengthOutOfFormat, NoDirection, Point3, Vec3};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
@@ -270,10 +270,13 @@ fn try_cylinder(
     for iu in 0..nu {
         axis_sum = axis_sum + (at(iu, nv - 1) - at(iu, 0));
     }
-    let (axis, axis_norm) = axis_sum.direction_and_length();
-    if !axis_norm.is_finite() {
-        return Ok(None);
-    }
+    // An underflowed or zero axis is the conditioning refusal below,
+    // at its mean span read through the prescale.
+    let (axis, axis_norm) = match axis_sum.checked_direction() {
+        Ok(pair) => pair,
+        Err(NoDirection::OutOfFormat(LengthOutOfFormat::NonFinite)) => return Ok(None),
+        Err(_) => return Err(axis_sum.direction_and_length().1 / (nu as f64)),
+    };
     // Divided by nu it is the mean v-span — a patch length. Below
     // ε_in no axis is determined at the budget.
     if axis_norm / (nu as f64) <= eps_in {
@@ -299,10 +302,9 @@ fn try_cylinder(
     // chord — collinear-at-ε_in samples determine no finite radius
     // (the near-flat patch; D7's ambiguity class).
     let chord = qb - q0;
-    let (chord_dir, chord_norm) = chord.direction_and_length();
-    if length_out_of_format(chord).is_some() || chord_norm <= 0.0 {
+    let Some((chord_dir, _)) = chord.checked_direction().ok() else {
         return Ok(None);
-    }
+    };
     let off = geom::Line {
         origin: q0,
         dir: chord_dir,
@@ -325,10 +327,9 @@ fn try_cylinder(
     let denom = 2.0 * axb.norm_squared();
     let center = q0 + (axb.cross(a) * b.norm_squared() + b.cross(axb) * a.norm_squared()) / denom;
     let radial = q0 - center;
-    let (radial_hat, radius) = radial.direction_and_length();
-    if length_out_of_format(radial).is_some() || radius <= 0.0 {
+    let Some((radial_hat, radius)) = radial.checked_direction().ok() else {
         return Ok(None);
-    }
+    };
     let cylinder = Surface::Cylinder {
         origin: plus_zero_point(center),
         axis: plus_zero(axis),
