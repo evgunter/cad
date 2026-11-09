@@ -408,3 +408,8 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Six forks remain:** where the name comes from; how far the exemption retreats; what reads the name; hand editing; several aliases; what an alias may read.
   - **Design fork dispatched** to two designers (arm byte 100, label byte 205; mapping on `analysis/design-fork/placing-named-source`). Brief: `~/.local/share/cad-work/placing-fork-named-brief.md`.
   - **The lane is idle** at `/home/user/wt-named-source` until the ruling. (PLACING orchestrator)
+- 2026-11-09 — **Named-source fork: the first reports are in.**
+  - **Shared by A and B:** a `Body` variable defined as a read (an alias, or a source). The re-point redefines it, and a later Place follows it. There is a hand-edit row in the variables pane and one offer row per handle. No name is minted.
+  - **A:** a lone placement reads `B` directly. The exemption retreats for placement sources only, with its own refusal. Mate `on` sides are rebound. Place on a copy places what it copies.
+  - **B:** every placement reads a source, anonymous when alone. Ordinary VR2 names it at the second Place, and the exemption is unchanged. `on` sides select the source, so `on_sides_follow` goes. Place on `B` reads its source, and asks which when there are several.
+  - **Round 1 dispatched.** (PLACING orchestrator)
