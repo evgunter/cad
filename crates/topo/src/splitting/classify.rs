@@ -534,7 +534,7 @@ mod thin_ellipse_rows {
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use crate::body::Body;
-    use crate::construction::{Construct as _, FaceSurface};
+    use crate::construction::FaceSurface;
     use crate::euler::{EulerOpError, MefSite, MevSite};
 
     /// The cap, and the ellipse's major direction.
