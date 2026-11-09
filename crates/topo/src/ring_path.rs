@@ -82,6 +82,7 @@
 //! it escalate, and the caller asks another.
 
 use geom::Conic;
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, Vec3};
 
 use crate::validate::decide;
@@ -1244,10 +1245,23 @@ pub(crate) fn path_parity<T: Decide>(
         Some(t) => t,
         None => unreachable!("only a conic or an oval arc is read as a section arc"),
     };
-    let mut odd = false;
     let last = path.pieces.len().saturating_sub(1);
-    for (i, piece) in path.pieces.iter().enumerate() {
-        for (j, arc) in arcs.iter().enumerate() {
+    // Every piece against every arc, as one ladder ([`climb`],
+    // [`Answering::Any`]: a theorem, any pair at which the path says
+    // nothing leaves the path saying nothing, and its `None` answers).
+    // A pair read in band is kept, refusing only where no pair answers;
+    // every other pair flips the parity by its crossings.
+    let pairs = path.pieces.iter().enumerate().flat_map(|(i, piece)| {
+        arcs.iter()
+            .enumerate()
+            .map(move |(j, arc)| (i, piece, j, arc))
+    });
+    let mut odd = false;
+    let climbed = climb(Answering::Any, pairs, |(i, piece, j, arc)| {
+        // `None` where the path says nothing at this pair; else whether
+        // its crossings flip the parity.
+        let pair = || -> Result<Option<bool>, Indeterminate> {
+            let mut flip = false;
             let arrival = i == last && arrives_on == Some(j);
             let mut readings: Vec<[Result<Sign, Indeterminate>; 5]> = Vec::with_capacity(2);
             match (*piece, arc.clone()) {
@@ -1260,7 +1274,7 @@ pub(crate) fn path_parity<T: Decide>(
                             && !arrival
                             && misses_in_plane(&p, conic, slack, band)?
                         {
-                            continue;
+                            return Ok(Some(flip));
                         }
                         return Ok(None);
                     };
@@ -1331,7 +1345,7 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let rho_less =
                         |p: Point3<T>| geom::Line { origin: c, dir: a }.distance(p) - major;
@@ -1362,7 +1376,7 @@ pub(crate) fn path_parity<T: Decide>(
                         return Ok(None);
                     }
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let s = p.circle.frame.axis.dot(p.circle.frame.origin - origin) / across;
                     let t = p.param(origin + dir * s);
@@ -1378,7 +1392,7 @@ pub(crate) fn path_parity<T: Decide>(
                     LoopArc::Conic(_) | LoopArc::Oval(_),
                 ) => {
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let sec = section(arc);
                     let offset = |x: Point3<T>| geom::plane_offset(sec.origin, sec.normal, x);
@@ -1397,7 +1411,7 @@ pub(crate) fn path_parity<T: Decide>(
                         && let LoopArc::Conic(conic) = arc
                         && segment_misses((from, to), conic, slack, band)?
                     {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     if s0 == Sign::Zero && s1 == Sign::Zero {
                         let point =
@@ -1409,7 +1423,7 @@ pub(crate) fn path_parity<T: Decide>(
                         let [a0, a1] = in_span(param(arc, from), sec.span, sec.speed);
                         let reading = [a0, a1, on_own(sec.own, from)];
                         if reading.contains(&Ok(Sign::Negative)) {
-                            continue;
+                            return Ok(Some(flip));
                         }
                         if let Some(&Err(diag)) = reading.iter().find(|r| r.is_err()) {
                             return Err(diag);
@@ -1417,7 +1431,7 @@ pub(crate) fn path_parity<T: Decide>(
                         return Ok(None);
                     }
                     if s0 == s1 {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let x = from + (to - from) * (d0 / (d0 - d1));
                     // The plane moved by δ moves the root by δ over the
@@ -1445,7 +1459,7 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     // Each direction's sine carries its ends' rounding
                     // over their distance: the ruling's over the lever,
@@ -1471,7 +1485,7 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     if arrival {
-                        continue;
+                        return Ok(Some(flip));
                     }
                     let gap = geom::Line { origin, dir }.distance(from);
                     if decide_m(
@@ -1490,7 +1504,7 @@ pub(crate) fn path_parity<T: Decide>(
                     match spline_crossings(&piece, &arc, arrival, slack, band)? {
                         Some(n) => {
                             if n % 2 == 1 {
-                                odd = !odd;
+                                flip = !flip;
                             }
                         }
                         None => return Ok(None),
@@ -1507,11 +1521,24 @@ pub(crate) fn path_parity<T: Decide>(
                 if reading.contains(&Ok(Sign::Zero)) {
                     return Ok(None);
                 }
-                odd = !odd;
+                flip = !flip;
             }
+            Ok(Some(flip))
+        };
+        match pair() {
+            Ok(None) => Rung::Answers(()),
+            Ok(Some(flip)) => {
+                odd ^= flip;
+                Rung::Passes
+            }
+            Err(diag) => Rung::kept(diag),
         }
+    });
+    match climbed {
+        Climb::Answered { .. } => Ok(None),
+        Climb::Passed => Ok(Some(odd)),
+        Climb::Undecided(diag) => Err(diag),
     }
-    Ok(Some(odd))
 }
 
 /// **How many times `piece` crosses the spline arc `arc`**, read through
