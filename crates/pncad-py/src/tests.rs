@@ -6030,6 +6030,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "off_trace",
             "on_carrier",
             "unbounded_carrier",
+            "uncovered",
             "undrawn",
             "unevaluated",
             "unreached",

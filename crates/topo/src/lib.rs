@@ -1398,6 +1398,7 @@ pub use boolean::{
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
+    face_cover_toward, face_nearest,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
