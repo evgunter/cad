@@ -115,10 +115,34 @@ impl Kept<Indeterminate> {
 /// - one that never refuses the whole query returns `Refusal`, and is a
 ///   rung by [`Refusal::rung`] alone: no answer is needed, so none can
 ///   be supplied;
-/// - one with a variant that does (a corrupt input, two readings that
-///   contradict, a refusal every point reads alike) returns
+/// - one with a variant that does (an invalid input, a kernel fault,
+///   two readings that contradict) returns
 ///   `Result<Refusal, Aborts>`, and its caller names the answer the
 ///   ladder stops with ([`rung_or_abort`]).
+///
+/// **A standing reads DESIGN `[failure.taxonomy]`'s rows.** Row 1 is
+/// read here in two parts, 1(a) and 1(b). That split is this code's
+/// reading of row 1's own bullets, not a sub-row of DESIGN's:
+///
+/// > *Row 1 absorbs the terminal indeterminates*, but the axis is
+/// > curable-vs-terminal, not bug-vs-invalid
+///
+/// > A site whose firing a correct kernel can reach is not a defect but a
+/// > precision limit the model controls (row 1, a lever and
+/// > `KERNEL_LIMIT_RECOURSE`)
+///
+/// - **1(a)**, the terminal half: an invalid input no lever cures,
+///   including a request whose result the kernel's model never
+///   represents (manifold only, bounded). It aborts.
+/// - **1(b)**, the curable half: a precision limit the model controls,
+///   which a lever or a tolerance cures. It is ranked by its margin where
+///   it carries one, kept in band where a tighter tolerance may decide
+///   it, and a limit otherwise.
+///
+/// Row 2 (valid input, unbuilt) is a limit, and row 4 (a kernel fault)
+/// aborts. Row 3's poison flows through values: where it reaches a
+/// decision, that refusal is 1(b) where input causes it and row 4 where
+/// none can. A payload that mixes classes aborts until it is split.
 ///
 /// [`Kept`] is not a standing: it is what a margin's reading leaves
 /// ([`decided`]), which is never unsettled and never aborts.
@@ -140,6 +164,28 @@ pub enum Refusal {
 pub struct Aborts;
 
 impl Refusal {
+    /// **A crease reading's standing**, stated once for every reader of
+    /// one (a spline chart's normal at a point within the band of a line
+    /// its normal is not continuous across, or of a pole): a distance in
+    /// band is ranked by its margin, and one decided zero is a limit no
+    /// tolerance moves, the pose not read (`[failure.taxonomy]` row 2).
+    #[must_use]
+    pub const fn of_crease(reading: crate::CreaseReading) -> Self {
+        match reading {
+            Err(diag) => Self::Margin(diag),
+            Ok(_) => Self::Limit,
+        }
+    }
+
+    /// **A reading within the band of a cone's apex**, stated once for
+    /// every reader of one: in band. It carries no reading to tell a point
+    /// at the apex from one in band of the axis, and a tighter tolerance
+    /// may part the latter from it (row 1(b) above).
+    #[must_use]
+    pub const fn of_apex() -> Self {
+        Self::InBand
+    }
+
     /// **A spline walk's refusal's standing**, stated once for every
     /// reader of one: a walk past its budget is unsettled (no margin, and
     /// a coarser band may settle it); a spline with no speed bound is a
@@ -306,16 +352,27 @@ impl<A, E> Rung<A, E> {
 impl<A, E> Rung<Result<A, E>, E> {
     /// **A reading of whether one rung holds** as its rung: holding
     /// answers `Ok(yes)`, not holding passes, and a refusal stands by
-    /// `standing` ([`Self::refused`]). The one home of the reader that
+    /// `standing` ([`Self::answers`]). The one home of the reader that
     /// answers a `bool` over a refusal with a standing.
     pub fn holds(
         reading: Result<bool, E>,
         yes: A,
         standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
     ) -> Self {
+        Self::answers(reading.map(|held| held.then_some(yes)), standing)
+    }
+
+    /// **A reading that answers `Some(a)`** as its rung: `Some` answers
+    /// `Ok(a)`, `None` passes, and a refusal stands by `standing`
+    /// ([`Self::refused`]): [`Self::holds`] where the answer is read
+    /// rather than fixed.
+    pub fn answers(
+        reading: Result<Option<A>, E>,
+        standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
+    ) -> Self {
         match reading {
-            Ok(true) => Self::Answers(Ok(yes)),
-            Ok(false) => Self::Passes,
+            Ok(Some(a)) => Self::Answers(Ok(a)),
+            Ok(None) => Self::Passes,
             Err(e) => Self::refused(e, standing),
         }
     }
