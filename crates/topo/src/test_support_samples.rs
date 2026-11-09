@@ -173,6 +173,12 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             cells: crate::chart_region::WITNESS_CELL_CAP,
         },
         ChartRegionError::EdgeScale,
+        ChartRegionError::FaceUncovered(crate::cover::FaceUncovered::of_carrier(
+            geom::cover::Uncovered::new(
+                geom::cover::Entity::Surface(geom::SurfaceKind::Plane),
+                geom::cover::Unknown::Unbounded,
+            ),
+        )),
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {
