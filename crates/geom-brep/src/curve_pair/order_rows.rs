@@ -1261,4 +1261,3 @@ fn two_circles_overlapping_by_a_lens_read_it_by_its_depth() {
     }
     assert!(bad.is_empty(), "{} lenses:\n{}", bad.len(), bad.join("\n"));
 }
-
