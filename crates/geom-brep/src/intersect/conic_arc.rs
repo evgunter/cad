@@ -494,19 +494,21 @@ impl<T: Decide> ConicBranch<T> {
                 )?;
                 // The least `k` whose `2^k` equal spans each weigh at
                 // most `√2`: `cosh(h/2) = √((cosh h + 1)/2)`. A count is
-                // structure, read on the sign alone, and a reading the
-                // scalar cannot place halves once more, which costs a
-                // span and never exactness.
+                // structure, a heuristic's choice on the sign alone
+                // (ledger row F36). **At a tie the span halves once more**,
+                // an exact zero included: sound, since a halving doubles
+                // the span count and never costs exactness.
                 let mut weight = (e1 / e0 + e0 / e1) / T::from_f64(2.0);
-                // A heuristic's choice (ledger row F36). **At a tie the span
-                // halves once more**, an exact zero included: sound, since a
-                // halving costs a span and never exactness.
                 let settled = |weight: T| {
-                    geom_core::k_stats::choose(
+                    use geom_core::k_stats::Pick;
+                    match geom_core::k_stats::choose(
                         "pn_conic_span_weight",
                         Margin::of(weight - T::from_f64(SPAN_WEIGHT_MAX)),
                         "F36",
-                    ) == geom_core::k_stats::Pick::Negative
+                    ) {
+                        Pick::Negative => true,
+                        Pick::Positive | Pick::Tie => false,
+                    }
                 };
                 let mut halvings = 0_u32;
                 while !settled(weight) {

@@ -140,13 +140,18 @@ fn surely<T: Decide>(name: &'static str, margin: T, band: Band, sign: Sign) -> b
 /// A heuristic's choice ([`geom_core::k_stats::choose`], ledger row F35),
 /// not a `<`, because an enclosure that straddles it is neither taken nor
 /// dropped by a `<`. **At a tie the step is dropped**: sound for the
-/// reason above, since a dropped step loses at most a foot.
+/// reason above. A dropped step leaves the point unpolished, and the
+/// window read at it (module docs) prunes only where its premise is proved,
+/// so an unproved premise escalates the Off rather than losing a meeting.
 fn step_taken<T: Decide>(moved: T, slack: T) -> bool {
-    choose(
+    match choose(
         "curve_pair_walk_polish_step",
         Margin::of(slack * T::from_f64(16.0) - moved),
         "F35",
-    ) == Pick::Positive
+    ) {
+        Pick::Positive => true,
+        Pick::Negative | Pick::Tie => false,
+    }
 }
 
 /// Whether a piece of reach `reach` is small enough to stop at, decided on

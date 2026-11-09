@@ -1216,7 +1216,11 @@ fn conic_conic<T: Decide>(
         // rows, and the window certifies a tangent pair's touch either way;
         // the difference is antisymmetric bit for bit, so at `f64` only an
         // exact zero reads by argument order.
-        if choose(row::ACROSS, Margin::of(by_b), "F33") == Pick::Positive {
+        let across_b = match choose(row::ACROSS, Margin::of(by_b), "F33") {
+            Pick::Positive => true,
+            Pick::Negative | Pick::Tie => false,
+        };
+        if across_b {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
             let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
             return Ok(swapped(read?));
