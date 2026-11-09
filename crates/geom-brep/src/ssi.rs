@@ -736,8 +736,8 @@ pub enum SsiError {
     /// that validated, and surfaced with the spline layer's own
     /// refusal rather than swallowed (D4 ¶2).
     ChartRow {
-        /// The spline layer's typed refusal.
-        source: geom_core::spline::SplineError,
+        /// The spline layer's typed refusal of the row read.
+        source: geom_core::spline::Built<geom_core::spline::SplineError>,
     },
     /// The NURBS × NURBS boundary pass isolated no answer on a face of
     /// the two knot rectangles' product, or could not read a row or
@@ -1261,9 +1261,9 @@ impl core::fmt::Display for SsiError {
                 write!(f, "ssi: {what}")
             }
             Self::CarrierEnclosure(r) => write!(f, "ssi: {r}"),
-            Self::ChartRow { .. } => write!(
+            Self::ChartRow { source } => write!(
                 f,
-                "ssi: a NURBS wall's boundary row is not valid spline structure"
+                "ssi: a NURBS wall's boundary row is not valid spline structure: {source}"
             ),
             Self::PairBoundaryUnresolved { pieces, cause } => match cause {
                 PairBoundaryCause::Unresolved => write!(
@@ -1569,6 +1569,7 @@ impl SsiError {
                 | FitError::DegenerateChord { .. }
                 | FitError::ParamCountMismatch { .. }
                 | FitError::Structure(_)
+                | FitError::Assembly(_)
                 | FitError::Lsq(_),
             ) => Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
@@ -3560,7 +3561,7 @@ fn plane_pcurve(
         control,
         carrier.weights().to_vec(),
     )
-    .map_err(|e| SsiError::Fit(geom::FitError::Structure(e)))
+    .map_err(|e| SsiError::Fit(geom::FitError::Assembly(geom_core::spline::Built::new(e))))
 }
 
 /// The ℝ⁴ trace's fitted product **without a certificate** — the OQ4
@@ -5125,10 +5126,12 @@ mod ending_tests {
             (
                 "chart row",
                 SsiError::ChartRow {
-                    source: geom_core::spline::SplineError::ControlCountMismatch {
-                        control: 3,
-                        expected: 4,
-                    },
+                    source: geom_core::spline::Built::new(
+                        geom_core::spline::SplineError::ControlCountMismatch {
+                            control: 3,
+                            expected: 4,
+                        },
+                    ),
                 },
             ),
             (

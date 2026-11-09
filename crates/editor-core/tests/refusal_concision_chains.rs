@@ -3478,7 +3478,10 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
         (
             "SeamStructure",
             E::SeamStructure {
-                source: geom_core::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+                source: geom_core::spline::Built::new(geom_core::SplineError::DomainInvalid {
+                    lo: 1.0,
+                    hi: 0.0,
+                }),
             },
         ),
         ("SectionStructure", E::SectionStructure),

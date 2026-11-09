@@ -57,7 +57,7 @@ pub enum PcurveError {
     SpanExceedsPeriod,
     /// The rational-quadratic chain's structure refused (unreachable
     /// for valid spans; typed rather than assumed).
-    Structure(geom_core::spline::SplineError),
+    Structure(geom_core::spline::Built<geom_core::spline::SplineError>),
     /// The PR 4 fitting loop refused (typed, nested whole).
     Fit(FitError),
 }
@@ -199,8 +199,10 @@ pub fn ellipse_pcurve_on_plane(
         }
     }
     knots.extend_from_slice(&[1.0, 1.0, 1.0]);
-    let kv = KnotVector::clamped(knots, 2).map_err(PcurveError::Structure)?;
-    NurbsCurve2::new(kv, control, weights).map_err(PcurveError::Structure)
+    let kv = KnotVector::clamped(knots, 2)
+        .map_err(|e| PcurveError::Structure(geom_core::spline::Built::new(e)))?;
+    NurbsCurve2::new(kv, control, weights)
+        .map_err(|e| PcurveError::Structure(geom_core::spline::Built::new(e)))
 }
 
 /// The fitted pcurve of a **tilted-section ellipse on its cylinder

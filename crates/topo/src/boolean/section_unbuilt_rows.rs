@@ -12,7 +12,7 @@ use super::{BooleanError, SectionUnbuilt, SectionUnbuiltKind};
 use geom::{PieceWalkRefusal, SurfaceKind};
 use geom_brep::recourse::Reading;
 use geom_brep::{CarryError, CarryErrorKind, NoCarrier, TubeRefusal, WindsRefusal};
-use geom_core::spline::{KnotAlgebraError, KnotVectorIssue, SplineError};
+use geom_core::spline::{Built, Fact as _, KnotAlgebraError, KnotVectorIssue, SplineError};
 use strum::{IntoEnumIterator as _, VariantArray as _};
 use test_utils::refusal::Admission;
 
@@ -67,17 +67,17 @@ fn carried(kind: CarryErrorKind) -> Vec<(String, SectionUnbuilt)> {
         CarryErrorKind::Seat => vec![
             (
                 "Seat".to_owned(),
-                SectionUnbuilt::Carry(CarryError::Seat(KnotAlgebraError::KnotNotPresent {
-                    u: 0.5,
-                })),
+                SectionUnbuilt::Carry(CarryError::Seat(Built::new(
+                    KnotAlgebraError::KnotNotPresent { u: 0.5 },
+                ))),
             ),
             (
                 "Seat (structure)".to_owned(),
-                SectionUnbuilt::Carry(CarryError::Seat(KnotAlgebraError::Structure(
+                SectionUnbuilt::Carry(CarryError::Seat(Built::new(KnotAlgebraError::Structure(
                     SplineError::KnotVectorInvalid {
                         reason: KnotVectorIssue::Decreasing { index: 3 },
                     },
-                ))),
+                )))),
             ),
         ],
     }
@@ -155,9 +155,9 @@ fn every_section_unbuilt_arm_ends_on_one_recourse() {
 #[test]
 fn a_refused_seat_keeps_the_structures_fact() {
     let issue = KnotVectorIssue::Decreasing { index: 3 };
-    let text = CarryError::Seat(KnotAlgebraError::Structure(
+    let text = CarryError::Seat(Built::new(KnotAlgebraError::Structure(
         SplineError::KnotVectorInvalid { reason: issue },
-    ))
+    )))
     .render(Reading::Build);
     assert!(
         text.contains(&issue.fact().to_string())

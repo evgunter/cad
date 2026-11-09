@@ -70,9 +70,9 @@
 
 use core::num::NonZeroUsize;
 use geom_core::linalg::lsq::{self, LsqError};
-use geom_core::spline::{KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError, basis};
+use geom_core::spline::{Built, KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError, basis};
 use geom_core::spline::{KnotSpan, Knots, SpanLocate};
-use geom_core::{Point2, Point3, Readable};
+use geom_core::{KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, Point2, Point3, Readable};
 
 use crate::curves::banded::{self, BandedLu};
 use crate::curves::{NurbsCurve2, NurbsCurve3};
@@ -112,10 +112,13 @@ pub enum FitError {
     },
     /// A linear solve refused (degenerate collocation/normal system).
     Lsq(LsqError),
-    /// Spline structure construction refused.
+    /// The caller asked for a spline structure none has (degree 0).
     Structure(SplineError),
-    /// A knot-algebra operation refused unexpectedly.
-    KnotAlgebra(KnotAlgebraError),
+    /// A spline the fit assembled from the knots and control points it
+    /// computed refused structure: an approximation limit, or a defect.
+    Assembly(Built<SplineError>),
+    /// A knot edit the fit asked for refused.
+    KnotAlgebra(Built<KnotAlgebraError>),
     /// Explicit parameters were supplied whose count, ordering, or
     /// endpoints do not describe a valid clamped parameterization of
     /// the given points: one parameter per point, strictly ascending,
@@ -194,7 +197,15 @@ impl core::fmt::Display for FitError {
             ),
             FitError::Lsq(e) => write!(f, "the fit refused: {e}"),
             FitError::Structure(e) => write!(f, "the fit refused: {e}"),
-            FitError::KnotAlgebra(e) => write!(f, "the fit refused: {e}"),
+            FitError::Assembly(e) => write!(
+                f,
+                "the fit could not assemble a spline from the knots and control points it \
+                 computed: {e}. {KERNEL_LIMIT_RECOURSE}"
+            ),
+            FitError::KnotAlgebra(e) => write!(
+                f,
+                "a knot edit of the fit refused: {e}. {KERNEL_DEFECT_ENDING}"
+            ),
             FitError::RaggedRows { row, width, found } => write!(
                 f,
                 "the fit's column row {row} is {found} wide, row 0 is {width}, and every row of \
@@ -290,7 +301,7 @@ fn averaged_knots(params: &[f64], degree: usize) -> Result<KnotVector, FitError>
         knots.push(s / degree as f64);
     }
     knots.extend(core::iter::repeat_n(1.0, degree + 1));
-    KnotVector::clamped(knots, degree).map_err(FitError::Structure)
+    KnotVector::clamped(knots, degree).map_err(|e| FitError::Assembly(Built::new(e)))
 }
 
 /// The averaged knot vector this stack builds for `params` at
@@ -305,7 +316,8 @@ fn averaged_knots(params: &[f64], degree: usize) -> Result<KnotVector, FitError>
 /// # Errors
 ///
 /// [`FitError::TooFewPoints`] when `params.len() < degree + 1`;
-/// [`FitError::Structure`] if the resulting vector is not a valid
+/// [`FitError::Structure`] for degree zero, and
+/// [`FitError::Assembly`] if the resulting vector is not a valid
 /// clamped knot vector.
 pub fn averaged_knot_vector(params: &[f64], degree: usize) -> Result<KnotVector, FitError> {
     check_degree(params.len(), degree)?;
@@ -380,8 +392,8 @@ fn check_ordered<T: SpanLocate>(params: &[T]) -> Result<(), FitError> {
 /// parameterization that is not clamped `0 → 1` and ascending,
 /// [`FitError::RaggedRows`] for rows of differing width,
 /// [`FitError::NonFinitePoint`] naming the offending row,
-/// [`FitError::Lsq`] for a degenerate collocation system, and
-/// [`FitError::Structure`].
+/// [`FitError::Lsq`] for a degenerate collocation system,
+/// [`FitError::Structure`] for degree zero, and [`FitError::Assembly`].
 pub fn interpolate_columns(
     params: &[f64],
     degree: usize,
@@ -510,7 +522,7 @@ fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots
         Some((held, m)) if held.value_channel() == 1.0 => *m = m.saturating_add(degree + 1),
         _ => runs.push((T::one(), end)),
     }
-    Knots::new(runs, degree).map_err(FitError::Structure)
+    Knots::new(runs, degree).map_err(|e| FitError::Assembly(Built::new(e)))
 }
 
 /// [`rational_row`] at unit weights, in `T`: the basis values alive at
@@ -656,7 +668,8 @@ impl Collocation {
     /// [`FitError::ParamCountMismatch`] for parameters that are not a
     /// clamped ascending parameterization, [`FitError::TooFewPoints`]
     /// below `degree + 1` parameters, [`FitError::Structure`]
-    /// for degree zero or a knot vector that does not validate, and
+    /// for degree zero, [`FitError::Assembly`] for a knot vector that
+    /// does not validate, and
     /// [`FitError::Lsq`] for a degenerate collocation system.
     pub fn new(params: &[f64], degree: usize) -> Result<Self, FitError> {
         check_ordered(params)?;
@@ -866,7 +879,7 @@ macro_rules! nurbs_fit {
                         $Point::new($($c),+)
                     })
                     .collect();
-                Self::new(kv, control, weights).map_err(FitError::Structure)
+                Self::new(kv, control, weights).map_err(|e| FitError::Assembly(Built::new(e)))
             }
 
             /// Approximation with a certified steering bound — the
@@ -991,7 +1004,7 @@ macro_rules! nurbs_fit {
                                 // positive regime refuses THAT removal;
                                 // the curve stands and the sweep goes on.
                                 Err(KnotAlgebraError::WeightCollapse { .. }) => {}
-                                Err(e) => return Err(FitError::KnotAlgebra(e)),
+                                Err(e) => return Err(FitError::KnotAlgebra(Built::new(e))),
                             }
                         }
                         if !removed_any {
@@ -999,8 +1012,8 @@ macro_rules! nurbs_fit {
                         }
                     }
                     if d < degree {
-                        cur = cur.elevate_degree(1).map_err(FitError::KnotAlgebra)?;
-                        reference = reference.elevate_degree(1).map_err(FitError::KnotAlgebra)?;
+                        cur = cur.elevate_degree(1).map_err(|e| FitError::KnotAlgebra(Built::new(e)))?;
+                        reference = reference.elevate_degree(1).map_err(|e| FitError::KnotAlgebra(Built::new(e)))?;
                     }
                 }
                 let (curve, bound, refit_skip) =
@@ -1023,7 +1036,7 @@ macro_rules! nurbs_fit {
             /// docs).
             fn deviation_from(&self, reference: &Self) -> Result<f64, FitError> {
                 let mut shared = Self::refine_to_union([self, reference])
-                    .map_err(FitError::KnotAlgebra)?
+                    .map_err(|e| FitError::KnotAlgebra(Built::new(e)))?
                     .into_iter();
                 let (Some(a), Some(b)) = (shared.next(), shared.next()) else {
                     unreachable!(
@@ -1104,7 +1117,8 @@ macro_rules! nurbs_fit {
                 control[0] = q0;
                 control[n_ctrl - 1] = qm;
                 let refit =
-                    Self::new(kv.clone(), control, weights).map_err(FitError::Structure)?;
+                    Self::new(kv.clone(), control, weights)
+                        .map_err(|e| FitError::Assembly(Built::new(e)))?;
                 let refit_bound = refit.deviation_from(reference)?;
                 // `!(≤)` is NaN-catching: a poisoned refit bound keeps
                 // the certified pipeline curve.
@@ -1422,7 +1436,7 @@ mod tests {
         // A vocabulary, not a part-of-speech test: an arm that names
         // the lever the caller turns satisfies the claim the same way
         // an imperative does.
-        const RECOURSE_WORDS: &[&str] = &["supply", "drop", "ask", "lever", "raise"];
+        const RECOURSE_WORDS: &[&str] = &["supply", "drop", "ask", "lever", "raise", "describe"];
         let lsq = LsqError::LsqDegenerate {
             pivot_index: 2,
             pivot: 0.0,
@@ -1431,10 +1445,13 @@ mod tests {
             control: 3,
             expected: 4,
         });
-        let structure = SplineError::ControlCountMismatch {
+        let structure = SplineError::KnotVectorInvalid {
+            reason: KnotVectorIssue::DegreeZero,
+        };
+        let assembly = Built::new(SplineError::ControlCountMismatch {
             control: 3,
             expected: 4,
-        };
+        });
         let arms = [
             FitError::TooFewPoints { have: 3, need: 4 },
             FitError::NonFinitePoint { index: 2 },
@@ -1444,7 +1461,8 @@ mod tests {
             },
             FitError::Lsq(lsq.clone()),
             FitError::Structure(structure.clone()),
-            FitError::KnotAlgebra(knot_algebra.clone()),
+            FitError::Assembly(assembly.clone()),
+            FitError::KnotAlgebra(Built::new(knot_algebra.clone())),
             FitError::ParamCountMismatch {
                 params: 3,
                 points: 4,
@@ -1459,14 +1477,33 @@ mod tests {
                 achieved: 2e-3,
             },
         ];
-        assert_eq!(arms.len(), 10, "an arm was added without a row here");
+        assert_eq!(arms.len(), 11, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             let carrier = match arm {
                 FitError::Lsq(e) => Some(e.to_string()),
-                FitError::KnotAlgebra(e) => Some(e.to_string()),
                 _ => None,
             };
+            // A refusal of what the fit built ends at this door, on the
+            // fact alone: the payload's caller-facing recourse is not
+            // the user's.
+            let built = match arm {
+                FitError::Assembly(e) => Some((e.to_string(), KERNEL_LIMIT_RECOURSE)),
+                FitError::KnotAlgebra(e) => Some((e.to_string(), KERNEL_DEFECT_ENDING)),
+                _ => None,
+            };
+            if let Some((fact, ending)) = built {
+                assert!(
+                    msg.contains(&fact) && msg.ends_with(ending),
+                    "the fact, then the door's ending: {msg}"
+                );
+                assert_eq!(
+                    test_utils::refusal::recourse_markers(&msg),
+                    1,
+                    "not exactly one labelled repair: {msg}"
+                );
+                continue;
+            }
             if let Some(carrier) = carrier {
                 assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
                 // The carrier's own repair is the one the reader sees,

@@ -172,10 +172,15 @@ fn fit_payload(e: &pncad::geom::FitError) {
             named::<&pncad::geom_core::linalg::lsq::LsqError>(inner);
         }
         pncad::geom::FitError::KnotAlgebra(inner) => {
-            named::<&pncad::geom_core::spline::KnotAlgebraError>(inner);
+            named::<&pncad::geom_core::spline::Built<pncad::geom_core::spline::KnotAlgebraError>>(
+                inner,
+            );
         }
         pncad::geom::FitError::Structure(inner) => {
             named::<&pncad::geom_core::SplineError>(inner);
+        }
+        pncad::geom::FitError::Assembly(inner) => {
+            named::<&pncad::geom_core::spline::Built<pncad::geom_core::SplineError>>(inner);
         }
         _ => {}
     }

@@ -5,6 +5,7 @@
 //! deterministic f64 lane. Raw `f64` comparisons are legal throughout
 //! this file (structure selection, never a topology decision).
 
+use super::Fact;
 use super::range::{Param, ParamRange, last_at_or_below};
 use crate::exact::two_sum;
 use crate::readable::Readable;
@@ -140,12 +141,8 @@ pub enum SplineError {
     },
 }
 
-impl SplineError {
-    /// **What was refused, without the recourse**: the sentence a holder
-    /// renders when the spline is the kernel's own, so the recourse
-    /// [`Display`](core::fmt::Display) adds — addressed to whoever supplied
-    /// the spline — is not the user's.
-    pub fn fact(&self) -> impl core::fmt::Display + '_ {
+impl Fact for SplineError {
+    fn fact(&self) -> impl core::fmt::Display + '_ {
         core::fmt::from_fn(move |f| match self {
             SplineError::KnotVectorInvalid { reason } => {
                 write!(f, "the clamped knot vector is invalid: {}", reason.fact())
@@ -223,7 +220,7 @@ impl core::fmt::Display for SplineError {
         let fact = self.fact();
         match self {
             SplineError::KnotVectorInvalid { reason } => {
-                write!(f, "invalid clamped knot vector: {reason}")
+                write!(f, "the clamped knot vector is invalid: {reason}")
             }
             SplineError::NonPositiveWeight { .. } => write!(
                 f,
@@ -277,21 +274,6 @@ impl core::fmt::Display for SplineError {
                  clears zero, and, for a curve or surface, narrow enough that it is a single \
                  number, which is all a carrier admits for now"
             ),
-        }
-    }
-}
-
-impl SplineError {
-    /// What was refused, without its recourse: every arm's text is its
-    /// payload, then `. Recourse: ` and the recourse
-    /// (`every_spline_error_arm_names_a_recourse`), for a holder whose
-    /// door ends it by a decision of its own.
-    #[must_use]
-    pub fn payload(&self) -> String {
-        let text = self.to_string();
-        match text.find(". Recourse: ") {
-            Some(at) => text[..at].to_owned(),
-            None => text,
         }
     }
 }
@@ -378,9 +360,8 @@ pub enum KnotVectorIssue {
     },
 }
 
-impl KnotVectorIssue {
-    /// **What was refused, without the recourse** ([`SplineError::fact`]).
-    pub fn fact(&self) -> impl core::fmt::Display + '_ {
+impl Fact for KnotVectorIssue {
+    fn fact(&self) -> impl core::fmt::Display + '_ {
         core::fmt::from_fn(move |f| match self {
             KnotVectorIssue::DegreeZero => f.write_str(
                 "degree 0 is unsupported: a degree-0 locus is a step function rather than a \
@@ -2544,8 +2525,8 @@ mod tests {
                 | SplineError::CarrierWeightNotAPoint { .. }
                 | SplineError::WeightSignUndecided { .. } => {}
             }
-            // Its payload is its text up to its recourse, and carries none.
-            let (text, payload) = (e.to_string(), e.payload());
+            // Its fact is its text up to its recourse, and carries none.
+            let (text, payload) = (e.to_string(), e.fact().to_string());
             assert!(
                 !payload.contains("Recourse") && text.starts_with(&payload),
                 "{payload} | {text}"

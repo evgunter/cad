@@ -44,7 +44,7 @@
 use geom::Curve3;
 use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
-use geom_core::spline::SplineError;
+use geom_core::spline::{Built, SplineError};
 use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
@@ -758,7 +758,7 @@ fn iso_curve_candidates(
     fs_minus: topo::SurfaceKey,
     tol: Tol,
     candidates: &mut Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)>,
-) -> Result<(), SplineError> {
+) -> Result<(), Built<SplineError>> {
     // Carriers outside the rung's vocabulary — neither the bitwise
     // NURBS match nor the promoted-line vertex match — take no
     // candidates and read no wall columns.
@@ -1172,7 +1172,7 @@ enum ArcRimRefusal {
     /// body this reader assembles reaches it — and the refusal names
     /// which invariant broke rather than being reported as a rim
     /// deviation.
-    ChartRow(SplineError),
+    ChartRow(Built<SplineError>),
 }
 
 /// One side a described (non-placeholder) NURBS wall, the other a

@@ -89,8 +89,10 @@
 //! the knot structure, and dropping the multiplicity to `p − 1` would
 //! have to move control points. This door never moves a control point.
 
-use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Band, Indeterminate, Margin, Point3, Readable, Sign, Vec3, k_stats};
+use geom_core::spline::{Built, KnotAlgebraError, KnotVector, SplineError};
+use geom_core::{
+    Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, Point3, Readable, Sign, Vec3, k_stats,
+};
 
 use crate::curves::NurbsCurve3;
 
@@ -121,8 +123,9 @@ pub enum ComposeError {
     ElevationRefused {
         /// Index of the offending leg.
         leg: usize,
-        /// The knot-algebra refusal.
-        source: KnotAlgebraError,
+        /// The knot-algebra refusal of the elevation the kernel asked
+        /// for.
+        source: Built<KnotAlgebraError>,
     },
     /// The control difference that carries the seam tangent has zero
     /// length on the named side, so the seam has no direction to
@@ -195,10 +198,10 @@ pub enum ComposeError {
     /// The accumulated parameter scaling left a knot vector the
     /// clamped-v1 invariants refuse (non-finite or non-ascending
     /// after the affine remaps).
-    Knots(SplineError),
+    Knots(Built<SplineError>),
     /// The composed control net, weights, and knots did not form a
     /// valid curve.
-    Structure(SplineError),
+    Structure(Built<SplineError>),
 }
 
 impl core::fmt::Display for ComposeError {
@@ -212,7 +215,11 @@ impl core::fmt::Display for ComposeError {
                 )
             }
             Self::ElevationRefused { leg, source } => {
-                write!(f, "leg {leg} refused degree elevation: {source}")
+                write!(
+                    f,
+                    "leg {leg} could not be raised to the chain's degree: {source}. \
+                     {KERNEL_DEFECT_ENDING}"
+                )
             }
             Self::SeamTangentUndefined { seam, side } => {
                 write!(
@@ -258,8 +265,15 @@ impl core::fmt::Display for ComposeError {
                     Readable(*total)
                 )
             }
-            Self::Knots(e) => write!(f, "composed knot vector refused: {e}"),
-            Self::Structure(e) => write!(f, "composed curve refused: {e}"),
+            Self::Knots(e) => write!(
+                f,
+                "the legs' knots, remapped onto one parameter, did not stay a clamped knot \
+                 vector: {e}. {KERNEL_DEFECT_ENDING}"
+            ),
+            Self::Structure(e) => write!(
+                f,
+                "the composed curve is not a valid spline: {e}. {KERNEL_DEFECT_ENDING}"
+            ),
         }
     }
 }
@@ -305,11 +319,12 @@ pub fn compose_chain(
         if raise == 0 {
             raised.push(curve.clone());
         } else {
-            raised.push(
-                curve
-                    .elevate_degree(raise)
-                    .map_err(|source| ComposeError::ElevationRefused { leg, source })?,
-            );
+            raised.push(curve.elevate_degree(raise).map_err(|source| {
+                ComposeError::ElevationRefused {
+                    leg,
+                    source: Built::new(source),
+                }
+            })?);
         }
     }
 
@@ -582,6 +597,6 @@ fn assemble(
     }
     knots.extend(core::iter::repeat_n(1.0, degree + 1));
 
-    let kv = KnotVector::clamped(knots, degree).map_err(ComposeError::Knots)?;
-    NurbsCurve3::new(kv, control, weights).map_err(ComposeError::Structure)
+    let kv = KnotVector::clamped(knots, degree).map_err(|e| ComposeError::Knots(Built::new(e)))?;
+    NurbsCurve3::new(kv, control, weights).map_err(|e| ComposeError::Structure(Built::new(e)))
 }
