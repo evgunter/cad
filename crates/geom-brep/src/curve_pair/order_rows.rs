@@ -1173,12 +1173,12 @@ fn the_needle_tilted_on_a_half_decade_grid_reads_its_oracle_in_either_order() {
 
 /// **The needle read far from the origin reads as at it.** The near-circle
 /// turned about the shared end, about the tangent, the long ellipse's
-/// normal and their cross, by up to `10⁻⁴` either way, and the pair then
-/// moved by `10²` and `10³` along `(1, −0.7, 0.3)`: each pose reads what
-/// it reads at the origin, in both orders. Red where the pose's readings
-/// are charged with a rounding that grows with distance from the origin:
-/// turned about the normal by `−10⁻⁴` and moved by `10³`, the window then
-/// widens past what the polish's basin holds, and both orders refuse.
+/// normal and their cross, by up to `10⁻⁴` either way, and about the far
+/// vertex's tangent by `3.2·10⁻⁵`, the pair then moved by `10²` and `10³`
+/// along `(1, −0.7, 0.3)`: each pose reads what it reads at the origin, in
+/// both orders. Red where the pose's readings are charged with a rounding
+/// that grows with distance from the origin: the far vertex's pose, apart
+/// at the origin, then refuses at both distances.
 #[test]
 fn the_needle_far_from_the_origin_reads_as_at_it() {
     let [(a0, sa), (b0, sb)] = needle_pair();
@@ -1188,26 +1188,37 @@ fn the_needle_far_from_the_origin_reads_as_at_it() {
     let tangent = tangent.normalize();
     let normal = a0.conic().unwrap().frame().axis;
     let count = |r: &Read| r.as_ref().map(|m| m.points.len()).ok();
-    let mut bad = Vec::new();
+    let far = a0.eval(sa.0);
+    let (_, far_tangent) = a0.conic().unwrap().jet_at(sa.0);
+    let mut poses = vec![(
+        String::from("far vertex, tangent"),
+        far,
+        far_tangent.normalize(),
+        3.162_277_660_168_379_5e-5,
+    )];
     for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
         .iter()
         .enumerate()
     {
         for t in [0.0, 1e-8, -1e-8, 1e-6, -1e-6, 1e-5, -1e-5, 1e-4, -1e-4] {
-            let b1 = spun(&b0, vertex, *k, t);
-            let home = read((&a0, sa), (&b1, sb), at);
-            for off in [1e2, 1e3] {
-                let v = Vec3::new(off, -0.7 * off, 0.3 * off);
-                let (a, b) = (a0.translated(v).unwrap(), b1.translated(v).unwrap());
-                for (order, r) in [
-                    ("first first", read((&a, sa), (&b, sb), at)),
-                    ("second first", read((&b, sb), (&a, sa), at)),
-                ] {
-                    if count(&r).is_none() || count(&r) != count(&home) {
-                        bad.push(format!(
-                            "axis {n} by {t:e}, moved {off:e}, {order}: {r:?}, at the origin {home:?}"
-                        ));
-                    }
+            poses.push((format!("shared end, axis {n}"), vertex, *k, t));
+        }
+    }
+    let mut bad = Vec::new();
+    for (label, pivot, k, t) in poses {
+        let b1 = spun(&b0, pivot, k, t);
+        let home = read((&a0, sa), (&b1, sb), at);
+        for off in [1e2, 1e3] {
+            let v = Vec3::new(off, -0.7 * off, 0.3 * off);
+            let (a, b) = (a0.translated(v).unwrap(), b1.translated(v).unwrap());
+            for (order, r) in [
+                ("first first", read((&a, sa), (&b, sb), at)),
+                ("second first", read((&b, sb), (&a, sa), at)),
+            ] {
+                if count(&r).is_none() || count(&r) != count(&home) {
+                    bad.push(format!(
+                        "{label} by {t:e}, moved {off:e}, {order}: {r:?}, at the origin {home:?}"
+                    ));
                 }
             }
         }
