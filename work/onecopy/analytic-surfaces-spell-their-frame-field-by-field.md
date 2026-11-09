@@ -61,3 +61,12 @@ Stages 1 and 2 are `the-frame-carries-every-placement-reading`.
 - `pair_section.rs` `CylinderSpherePose`.
 
 The other `Frame::new` sites outside test code mint a new frame rather than rebuild a carrier's: the constructors (`Curve3::circle`, `Curve3::ellipse`, `Round::new`), the squared core (`gap::Core::of`), a reflection's image (`topo::transform`), step-import's placements, ring_path's new arcs, and a section's shape ellipse at the origin (`sweep::blend::open::end_face`).
+
+## Plane holders waiting on this stage (2026-11-09)
+
+`plane-and-line-tuples-restate-the-placement` lists the doors that carry
+a plane as a `(point, normal)` tuple, as loose arguments, or as struct
+fields (`SectionPlane::site`, `FaceGeo::Plane`, `SplitPlane`,
+`PlanarFace`, `SectionCtx`, …). Once `Plane { frame }` lands, they port
+onto it. That row also asks whether a seamless plane needs a reading of
+its own.
