@@ -20,13 +20,19 @@
 # path ending in it), a call of `carrier_resolution::resolution(`,
 # geom-brep's charge for a carrier's stored terms, or a use of one of
 # geom-core's CHARGE DOORS, read from geom-core itself (`doors`): every
-# `pub` item at the top of `geom_core::running`, so a door declared there
-# is counted the day it lands, and a `pub` item of a kind the gate cannot
-# classify reds UNRECOGNISED rather than going uncounted. The root's
+# `pub` item at the top of `geom_core::running`, wherever on its line it
+# starts (`#[inline] pub fn` included), so a door declared there is
+# counted the day it lands, and a `pub` item of a kind the gate cannot
+# classify, or one inside a macro's body, reds UNRECOGNISED rather than
+# going uncounted. The root's
 # re-exports of them (`lib.rs`'s `pub use running::…`, an `as` rename
 # included) are read the same way. A fn or constant counts by any path
-# through `running` (or a name it is imported or re-exported under), or
-# through `geom_core` (or a crate alias of it) for a re-exported one; a
+# through `geom_core::running` (or a name `running` is imported or
+# re-exported under), or through `geom_core` (or a crate alias of it,
+# direct or through another crate's re-export) for a re-exported one;
+# an alias resolves only inside its own block, or the file for a
+# top-level one, and `running` alone, never imported, is another crate's
+# module; a
 # type (`Rounded`) by a construction, `Rounded::…` or `Rounded { … }`,
 # or a qualified path `<Rounded<T>>::…`, never by naming it in a
 # signature. Bare, a door counts where a `use` or a `type` alias in scope
@@ -75,14 +81,15 @@
 #             (a site went: lower or drop the row in the same change, so
 #             the ratchet holds);
 #   UNRECOGNISED  a `pub` item of `running`, or a root re-export under
-#             it, that is no door kind the gate reads.
+#             it, that is no door kind the gate reads, and any `pub`
+#             inside a macro's body in `running`;
+#   REASON    a row whose reason (or one of its words) is not one of
+#             the six, `oracle` on a `prod` row, or `fixture` on a `test`
+#             row.
 #
 # The counts are compared with the tree, not with the merge base, so a
 # change may raise a row beside the site it adds; only review holds that
 # (`work/guard/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
-#   REASON    a row whose reason (or one of its words) is not one of
-#             the six, `oracle` on a `prod` row, or `fixture` on a `test`
-#             row.
 #
 # KNOWN GAPS. A token scan sees spellings, not values: a literal
 # `2.220446049250313e-16`, `2f64.powi(-52)`, `f64::EPSILON` re-exported
@@ -238,15 +245,37 @@ def lead(segs):
     return segs
 
 
+def pub_tokens(text):
+    """Every `pub` token of `text`, with where it sits: `top` (outside
+    every bracket: an item of the module, whatever precedes it on its
+    line), `macro` (inside the body of a macro, `name! { … }` or
+    `macro_rules! name { … }`, where an item is text the gate cannot
+    read) or `nested` (in an `impl`, a fn or a struct: a method or a
+    field, no door)."""
+    pubs = {m.start() for m in re.finditer(r"\bpub\b", text)}
+    out, stack = [], []
+    for i, c in enumerate(text):
+        if i in pubs:
+            out.append((i, "macro" if any(stack) else "nested" if stack else "top"))
+        if c in "{([":
+            stack.append(bool(re.search(r"!\s*(?:\w+\s*)?$", text[max(0, i - 64):i])))
+        elif c in "})]" and stack:
+            stack.pop()
+    return out
+
+
 def doors():
     """The charge doors, read from geom-core itself.
 
     DOORS maps every `pub` item at the top of `geom_core::running` to its
     kind: `fn`, `value` (a const or static) or `type` (a struct, enum,
-    union, type alias or trait). A `pub(…)`-restricted item cannot be
+    union, type alias or trait). Every `pub` token is read
+    (`pub_tokens`), wherever on its line it sits, so an attributed
+    `#[inline] pub fn` is a door. A `pub(…)`-restricted item cannot be
     reached outside geom-core, so it is no door. Any other `pub` item
-    (`pub mod`, `pub use`, a macro) is UNRECOGNISED and reds: the gate
-    never skips a door it cannot classify.
+    (`pub mod`, `pub use`), and any `pub` inside a macro's body, is
+    UNRECOGNISED and reds: the gate never skips a door it cannot
+    classify.
 
     ROOT maps each name `geom_core`'s `lib.rs` re-exports from `running`
     (renamed with `as`, through `crate::` or `self::`, or by a glob) to
@@ -257,7 +286,14 @@ def doors():
         if not os.path.isfile(need):
             sys.exit(f"REFUSED {need} is missing: the charge doors cannot be read")
     kinds, odd = {}, []
-    for m in re.finditer(r"^pub\b(\s*\([^)]*\))?\s*([^\n]*)", read_stripped(RUNNING), re.M):
+    text = read_stripped(RUNNING)
+    for at, where in pub_tokens(text):
+        m = re.match(r"pub\b(\s*\([^)]*\))?\s*([^\n]*)", text[at:])
+        if where == "nested":
+            continue
+        if where == "macro":
+            odd.append(f"UNRECOGNISED {RUNNING}: `pub {m.group(2).strip()}` sits in a macro's body, which this gate cannot read for a door")
+            continue
         if m.group(1):
             continue
         for kind, shape in ITEM:
@@ -270,7 +306,9 @@ def doors():
     if not kinds:
         sys.exit(f"REFUSED {RUNNING} declares no `pub` item: the charge doors cannot be read")
     root, rmods = {}, set()
-    for m in re.finditer(r"^\s*pub\s+use\s+([^;]*);", read_stripped(LIB), re.M):
+    lib = read_stripped(LIB)
+    reexports = [re.match(r"pub\s+use\s+([^;]*);", lib[at:]) for at, where in pub_tokens(lib) if where == "top"]
+    for m in filter(None, reexports):
         for segs, alias in use_items(m.group(1)):
             segs = lead(segs)
             if not segs or segs[0] != "running":
@@ -311,19 +349,29 @@ def bindings(text):
     """What a file's imports and aliases bind, each with the span it is in
     scope over (its block, or the whole file at the top level):
     `names`, a local name of a door; `modules`, a local name of the
-    `running` module; `crates`, a local name of `geom_core` itself. A
-    `type NAME = PATH;` naming a door type binds NAME like an import."""
+    `running` module (or of a root re-export of it); `crates`, a local
+    name of `geom_core` itself, by default `geom_core` over the file, and
+    any `as` name of a path ending in `geom_core`, direct or through
+    another crate (`use pncad::geom_core as gc`). A `type NAME = PATH;`
+    naming a door type binds NAME like an import. A path resolves
+    through an alias only inside that alias's own scope."""
     n = len(text)
     spans = blocks(text)
-    names, modules, crates = [], {"running"} | RMODS, {"geom_core"}
+    names, modules, crates = [], [], [("geom_core", (0, n))]
+
+    def in_scope(pairs, at):
+        return {name for name, (lo, hi) in pairs if lo <= at < hi}
+
     for m in re.finditer(r"\bextern\s+crate\s+geom_core\s+as\s+(\w+)", text):
-        crates.add(m.group(1))
+        crates.append((m.group(1), scope_of(spans, m.start(), n)))
     for m in USE.finditer(text):
         for segs, alias in use_items(m.group(1)):
-            if lead(segs) == ["geom_core"] and alias:
-                crates.add(alias)
+            if alias and lead(segs) and lead(segs)[-1] == "geom_core":
+                crates.append((alias, scope_of(spans, m.start(), n)))
     for m in USE.finditer(text):
         scope = scope_of(spans, m.start(), n)
+        crate_names = in_scope(crates, m.start())
+        module_names = in_scope(modules, m.start())
         for segs, alias in use_items(m.group(1)):
             segs = lead(segs)
             if segs and segs[-1] == "self":
@@ -331,23 +379,25 @@ def bindings(text):
             if len(segs) < 2:
                 continue
             head, last = segs[-2], segs[-1]
-            if head in crates and last in modules | {"running"}:
-                modules.add(alias or last)
-            elif last == "*" and head in modules:
+            if head in crate_names and last in RMODS | {"running"}:
+                modules.append((alias or last, scope))
+            elif last == "*" and head in module_names | ({"running"} if len(segs) >= 3 and segs[-3] in crate_names else set()):
                 names += [(d, d, scope) for d in DOORS]
-            elif last == "*" and head in crates and len(segs) == 2:
+            elif last == "*" and head in crate_names and len(segs) == 2:
                 names += [(r, d, scope) for r, d in ROOT.items()]
-            elif head in modules and last in DOORS:
+            elif last in DOORS and (head in module_names or (head in RMODS | {"running"} and len(segs) >= 3 and segs[-3] in crate_names)):
                 names.append((alias or last, last, scope))
-            elif head in crates and len(segs) == 2 and last in ROOT:
+            elif head in crate_names and len(segs) == 2 and last in ROOT:
                 names.append((alias or last, ROOT[last], scope))
-    bound = {local: door for local, door, _ in names}
     for m in re.finditer(r"\btype\s+(\w+)\s*(?:<[^=]*>)?\s*=\s*((?:\w+\s*::\s*)*\w+)", text):
         segs = lead(re.findall(r"\w+", m.group(2)))
+        bound = {local: door for local, door, (lo, hi) in names if lo <= m.start() < hi}
+        crate_names = in_scope(crates, m.start())
+        mods_here = in_scope(modules, m.start())
         door = None
-        if len(segs) >= 2 and segs[-2] in modules and segs[-1] in DOORS:
+        if len(segs) >= 2 and segs[-1] in DOORS and (segs[-2] in mods_here or (segs[-2] in RMODS | {"running"} and len(segs) >= 3 and segs[-3] in crate_names)):
             door = segs[-1]
-        elif len(segs) == 2 and segs[0] in crates and segs[1] in ROOT:
+        elif len(segs) == 2 and segs[0] in crate_names and segs[1] in ROOT:
             door = ROOT[segs[1]]
         elif len(segs) == 1 and segs[0] in bound:
             door = bound[segs[0]]
@@ -397,16 +447,22 @@ def sites(text):
     names, modules, crates = bindings(text)
     code = USE.sub(lambda m: " " * len(m.group(0)), text)
     n = len(code)
-    mods = "|".join(map(re.escape, sorted(modules)))
-    roots = "|".join(map(re.escape, sorted(crates)))
     at = {m.start() for m in FIXED.finditer(code)}
-    paths = [(r"\b(?:" + mods + r")::" + re.escape(d), d) for d in DOORS]
-    paths += [(r"\b(?:" + roots + r")::" + re.escape(r), d) for r, d in ROOT.items()]
-    for path, door in paths:
-        kind = DOORS[door]
-        at |= {m.start() for m in re.finditer(path + (SHAPE[kind] if kind == "type" else r"\b"), code)}
-        if kind == "type":
-            at |= qualified(code, path, 0, n)
+    # A path is a site at its door's name, so a path read two ways (a
+    # crate alias's `gc::running::dot` and a module's `running::dot`)
+    # is one site.
+    via = [(r"\b" + re.escape(c) + r"\s*::\s*(?:" + "|".join(map(re.escape, sorted(RMODS | {"running"}))) + r")\s*::\s*", scope, DOORS)
+           for c, scope in crates]
+    via += [(r"\b" + re.escape(mname) + r"\s*::\s*", scope, DOORS) for mname, scope in modules]
+    via += [(r"\b" + re.escape(c) + r"\s*::\s*", scope, ROOT) for c, scope in crates]
+    for prefix, (lo, hi), table in via:
+        for name in table:
+            door = table[name] if table is ROOT else name
+            kind = DOORS[door]
+            pat = re.compile("(" + prefix + ")" + re.escape(name) + (SHAPE[kind] if kind == "type" else r"\b"))
+            at |= {m.end(1) for m in pat.finditer(code, lo, hi)}
+            if kind == "type":
+                at |= qualified(code, prefix + re.escape(name), lo, hi, prefix="")
     names += [(d, d, (0, n)) for d in DOORS if d not in SHARED]
     names += [(r, d, (0, n)) for r, d in ROOT.items() if r not in SHARED and r not in DOORS]
     for name, door, (lo, hi) in names:
@@ -620,6 +676,40 @@ plant_crate_path_root() {
   printf 'pub use crate::running::DIRECTION_UNITS as UNITS;\n' >> "$1/crates/geom-core/src/lib.rs"
   add_clean "$1" 'pub fn pad(x: f64) -> f64 { x * geom_core::UNITS }'
 }
+# An attributed one-line door is a door; one a macro makes reds.
+plant_attributed_door() {
+  printf '#[inline] pub fn fresh_inline(t: f64) -> f64 { t }\n' >> "$1/crates/geom-core/src/running.rs"
+  add_clean "$1" 'pub fn pad(x: f64) -> f64 { geom_core::running::fresh_inline(x) }'
+}
+plant_macro_rules_door() {
+  printf 'macro_rules! doors { () => { pub fn made(t: f64) -> f64 { t } }; }\n' >> "$1/crates/geom-core/src/running.rs"
+}
+plant_macro_call_door() {
+  printf 'doors! {\n    pub fn made(t: f64) -> f64 { t }\n}\n' >> "$1/crates/geom-core/src/running.rs"
+}
+# An alias resolves inside its own scope only, and `running` unimported is
+# not geom-core's: neither call here is a site.
+plant_alias_out_of_scope() {
+  add_clean "$1" 'mod a { use geom_core as gc; }'
+  add_clean "$1" 'mod n { use other as gc; pub fn pad(x: f64) -> f64 { gc::rounding_charge(x) } }'
+  add_clean "$1" 'mod b { use geom_core::running as r; }'
+  add_clean "$1" 'mod m { use other::stuff as r; pub fn pad(x: f64) -> f64 { r::exact_vec(x) } }'
+}
+plant_running_unbound() { add_clean "$1" 'pub fn pad(x: f64) -> f64 { crate::running::exact_vec(x) }'; }
+# A crate alias through another crate's re-export of geom_core.
+plant_indirect_crate_alias() { add_clean "$1" 'use pncad::geom_core as gc;'; add_clean "$1" 'pub fn pad(x: f64) -> f64 { gc::rounding_charge(x) }'; }
+# A path read two ways is one site: listed at 1, it passes.
+plant_path_read_twice() {
+  listed_at "$1" 1
+  add_clean "$1" 'pub fn pad(x: f64) -> f64 { use geom_core::running; geom_core::running::exact_vec(x) }'
+}
+
+# A one-line attributed re-export is read like any other.
+plant_attributed_reexport() {
+  printf '#[doc(hidden)] pub use running::DIRECTION_UNITS as HIDDEN_UNITS;\n' >> "$1/crates/geom-core/src/lib.rs"
+  add_clean "$1" 'pub fn pad(x: f64) -> f64 { x * geom_core::HIDDEN_UNITS }'
+}
+
 plant_unrecognised_item() { printf 'pub mod inner {}\n' >> "$1/crates/geom-core/src/running.rs"; }
 plant_unrecognised_root() { printf 'pub use running::private_helper;\n' >> "$1/crates/geom-core/src/lib.rs"; }
 
@@ -642,6 +732,14 @@ gate_selftest() {
     gate_selftest_case "UNLISTED" "$p"
   done
   gate_selftest_passes "a const fn door at its count" plant_const_fn_door
+  gate_selftest_case "UNLISTED" plant_attributed_door
+  gate_selftest_case "UNRECOGNISED" plant_macro_rules_door
+  gate_selftest_case "UNRECOGNISED" plant_macro_call_door
+  gate_selftest_passes "an alias used outside its own scope" plant_alias_out_of_scope
+  gate_selftest_passes "another crate's running module" plant_running_unbound
+  gate_selftest_case "UNLISTED" plant_indirect_crate_alias
+  gate_selftest_case "UNLISTED" plant_attributed_reexport
+  gate_selftest_passes "a path read two ways, at its count of one" plant_path_read_twice
   gate_selftest_case "UNRECOGNISED" plant_unrecognised_item
   gate_selftest_case "UNRECOGNISED" plant_unrecognised_root
   gate_selftest_passes "a generic door name under its import, at its count" plant_scoped_import
@@ -653,7 +751,7 @@ gate_selftest() {
   gate_selftest_case "UNLISTED crates/clean/src/lib.rs (test)" plant_test_module_as_prod
   gate_selftest_passes "a listed site" plant_listed
   gate_selftest_passes "a comment, a string and geom-core's own" plant_not_sites
-  printf '%s selftest OK: passes a clean fixture, a listed site, a compound reason, comments, strings and geom-core itself, a generic door name counted only under its import in scope (a method of that name inside the scope not counted), and an import, a restricted item or a door type named in a signature, a generic list or <Vec<Rounded>>:: or a turbofish alone; fires on an unlisted site of each spelling (bare f64::EPSILON and UNIT_ROUNDOFF, a rounding_charge call, a Rounded path, a carrier_resolution call, direction_rounding and a constant the gate never names, a door declared in the fixture running module as a fn or a type alias), passing a const fn door at its exact count,, through each binding (a door alias, a running module alias, {self as r}, a running glob, a root glob, a crate alias, a type alias, a qualified path), through each root spelling (a re-export, renamed, through crate::), on an unrecognised running item or root re-export, an oracle inside a compound reason, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a listed site, a compound reason, comments, strings and geom-core itself, a generic door name counted only under its import in scope (a method of that name inside the scope not counted), and an import, a restricted item or a door type named in a signature, a generic list or <Vec<Rounded>>:: or a turbofish alone; fires on an unlisted site of each spelling (bare f64::EPSILON and UNIT_ROUNDOFF, a rounding_charge call, a Rounded path, a carrier_resolution call, direction_rounding and a constant the gate never names, a door declared in the fixture running module as a fn or a type alias), passing a const fn door at its exact count and a path read two ways at a count of one, an alias used outside its scope and the running module of another crate not counted, through each binding (a door alias, a running module alias, {self as r}, a running glob, a root glob, a crate alias, a type alias, a qualified path), through each root spelling (a re-export, renamed, through crate::), on an attributed one-line door and re-export, an indirect crate alias, on an unrecognised running item or root re-export, a pub item made by macro_rules! or a macro call, an oracle inside a compound reason, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

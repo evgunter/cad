@@ -561,8 +561,7 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     match locus {
         Locus::Line(line) => line.at(s),
         Locus::Rim(rim) => {
-            let (sin, cos) = s.sin_cos();
-            rim.center + (rim.u_ref * cos + rim.axis.cross(rim.u_ref) * sin) * rim.radius
+            rim.center + geom::Frame::new(rim.center, rim.axis, rim.u_ref).radial(s) * rim.radius
         }
     }
 }
