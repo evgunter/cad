@@ -138,3 +138,56 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
         }
     }
 }
+
+/// **Arcs whose span cover rounds past the whole turn**, read from the
+/// conic's centre: the arc's cover reads its far distance an ulp above
+/// the whole conic's cover. The hunt found each (seeds
+/// `0xe429b8c6a93f17ee` and `0x52cefed7fc20b9ed`).
+#[test]
+fn an_arc_read_from_its_centre_is_never_past_the_whole_turn() {
+    let ellipse = |origin: [f64; 3], axis: [f64; 3], u_ref: [f64; 3], a: f64, b: f64| {
+        let [x, y, z] = origin;
+        let v = |[x, y, z]: [f64; 3]| Vec3::new(x, y, z);
+        (
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(Point3::new(x, y, z), v(axis), v(u_ref)),
+                a,
+                b,
+            )),
+            Point3::new(x, y, z),
+        )
+    };
+    let rows = [
+        (
+            ellipse(
+                [0.830_304_973_648_282_8, -0.416_467_848_902_350_56, 0.370_335_228_631_537_84],
+                [-0.828_978_939_411_948_3, 0.480_638_571_787_519, -0.285_972_868_156_221],
+                [0.307_146_392_996_351_8, 0.818_559_802_054_640_1, 0.485_408_017_784_625_2],
+                866.025_403_784_438_6,
+                1000.0,
+            ),
+            (-4.616_193_293_956_75, -3.767_850_344_482_187_4),
+        ),
+        (
+            ellipse(
+                [0.0, 0.0, 0.0],
+                [0.414_840_037_039_107_05, -0.735_167_300_097_304_7, -0.536_131_312_774_241_9],
+                [0.119_112_848_247_196_9, -0.540_275_439_858_399, 0.833_015_353_080_754_3],
+                1000.0,
+                141.067_359_796_658_93,
+            ),
+            (-4.180_645_483_569_217, 8.234_684_407_467_041),
+        ),
+    ];
+    for ((carrier, centre), (t0, t1)) in rows {
+        let reach = Reach::Span { carrier, t0, t1 };
+        let (got, whole) = (
+            reach.span_reach_from(centre).length(),
+            reach.lever_from(centre).length(),
+        );
+        assert!(
+            got <= whole,
+            "the arc over [{t0}, {t1}]: its span reach {got} passes the whole turn {whole}"
+        );
+    }
+}

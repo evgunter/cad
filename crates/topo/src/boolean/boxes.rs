@@ -158,16 +158,16 @@
 //!   reads transversality on, so it is more exact work, never a crossing
 //!   claimed on box overlap.
 //! - `splitting::containment`'s loop extent (`extent_from`, each edge's
-//!   [`edge_cover`](crate::cover::edge_cover) folded into a ball about the point) sizes the lever
+//!   [`edge_cover`] folded into a ball about the point) sizes the lever
 //!   the point-in-loop decisions are read on: a bigger cover lengthens
 //!   it, so a decision lands in band more readily and the walk REFUSES
 //!   more, never a wrong side. A cover TIGHTER than its edge is the
 //!   unsound direction: the lever could under-state a reading's reach.
 //! - `boolean::ruled_region`'s reach bound (`reach_bound`, each boundary
-//!   edge's [`edge_cover`](crate::cover::edge_cover)) sizes the lever of a ruled face's crossings
+//!   edge's [`edge_cover`]) sizes the lever of a ruled face's crossings
 //!   in the same direction: a bigger cover lengthens it and can only
 //!   REFUSE more, never place a crossing wrongly.
-//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`](crate::cover::edge_cover)
+//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`]
 //!   read from below through `geom_brep::edge_reach_bounds`) reads NO
 //!   looseness: on a line the cover's far distance is its segment's
 //!   farther end, and on a circle arc its crest where the window holds it
@@ -2579,8 +2579,8 @@ pub(crate) mod tests {
 
     /// **The §Geometry ORACLE**: the exact extremes of `e·S` over the
     /// chart rectangle, in closed form, spelled from the geometry
-    /// rather than from [`torus_rect_extent`]: what the rows measure
-    /// the lanes against, and not what any lane computes.
+    /// rather than from the patch cover's [`Cover::support`]: what the
+    /// rows measure the lanes against, and not what any lane computes.
     ///
     /// At fixed `v`, `f = e·c + (R + r cos v)·a(u) + r sin v·e_n` is
     /// affine in `a(u) = |e_⊥|·cos(u − u*)` with POSITIVE slope
