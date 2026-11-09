@@ -25,9 +25,11 @@ Build an `OnSurface` from a face (its record and edge), and give a `SurfaceCurve
 
 ## Closed (2026-11-09, PR 6624)
 
-- A `SurfaceCurve` is charted from a `Charted` (a record's key and the value charted on it) and holds the key. `OnSurface::edge` takes its face record's key, and `across` refuses a pair on two records (`AcrossRefusal::OffRecord`).
-- Every caller has a record to hand:
-  - The region doors hold their face's record and chart their re-built surface under it. `RegionEdge` carries its face's key.
-  - `apply_cut_ins` charts the meridian under the sphere face's key.
-- That the charted value is the record's surface stays each re-charting caller's premise, documented at `Charted`.
-- The loop walk's `u_line` (PR 6609, open at closing) takes its key when the two meet.
+- A `SurfaceCurve` is charted on a `Charted`, which owns the record's key and surface. The surface is either as stored (`Charted::record`) or turned about its own axis onto another seam (`Charted::turned`).
+- `OnSurface::edge` takes its face record's key. Both readings of a pair, `across` (the edge across the curve's plane) and `under` (the curve across the edge's own plane), refuse a pair on two records (`AcrossRefusal::OffRecord`).
+- Every caller reads the key and the surface off one face:
+  - Each region door holds its face's `Charted`, and its geometry is read off it. The sphere door no longer takes a centre and radius from its callers. `landings` keys each edge by the door's record.
+  - `apply_cut_ins` turns the face's own sphere onto the cut's meridian.
+- A mismatch in either caller is a fault in its wiring (one record per door; every cut-in piece inherits the face's record), so it panics naming both keys.
+- The premise left to a caller is that the key and the surface it hands `Charted::record` are one record's.
+- The loop walk's `u_line` (PR 6609, open at closing) is keyed when the two meet. Its ray plane is synthesised, not read off the face's record, and its premise is named at `conic_crossings`.
