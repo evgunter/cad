@@ -5412,6 +5412,11 @@ fn line_cone_roots<T: Decide>(
             // crossing the caller places on the face's apex vertex, the
             // edge's incidence with it, which the vertex pair reads. The
             // root is the end the apex is decided at, else the foot.
+            // WHICH, not a search a later end may answer past (PR 6553's
+            // `place_off` ruling): the end the apex is decided at is the
+            // root, and its spread is read next, so an end in band ahead
+            // of the other decided at the apex may be the true root, and
+            // its escalation refuses.
             let mut at_apex = foot;
             for end in [t0, t1] {
                 if decide("bool_line_cone_apex", Margin::norm3(at(end)), band).map_err(escalate)?

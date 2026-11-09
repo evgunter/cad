@@ -22,18 +22,18 @@ measured yet.** Read each in full before porting it.
 | site | shape | port |
 |---|---|---|
 | ~~`boolean::solid_contain::point_in_faces` (six on-face reads)~~ | **ported** (`onecopy/refusal-standing`, tranche 5): the pre-pass climbs its faces | — |
-| `boolean::rim_wedge::departures` (`abut`) | either pair abutting answers | `read_identity`-shaped, `Any` |
-| `boolean::rim_wedge::rides` | either end off the line answers "not" | `read_identity` |
-| `splitting::containment::certify_plane` | any margin decided apart answers "off the plane" | `read_identity` |
+| ~~`boolean::rim_wedge::departures` (`abut`)~~ | **ported** (`onecopy/refusal-standing`, QML T1): `climb(Any)` over the two end pairs, a theorem (either abuts) | — |
+| ~~`boolean::rim_wedge::rides`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over both ends | — |
+| ~~`splitting::containment::certify_plane`~~ | **ported** (`onecopy/refusal-standing`, QML T1): one `read_identity` over every datum; the datum apart names the cause | — |
 | `boolean::sectors`' crescent search (two reads) | a crescent found answers | `climb`, `Any` |
-| `splitting::join::conic_pairs` (the first cut) | which gap is first decided apart | `climb`, `First` |
+| `splitting::join::conic_pairs` (the first cut) | **WHICH** (place_off ruling, QML T1): the cut rotates the pairing; the `?` stands, the site says so | — |
 | `shell`'s moved-walls overlap search | an overlap found answers | `climb`, `Any` |
-| `boolean::surface_group::Rim::holds` | any coaxial margin decided apart answers "no" | `read_identity` |
-| `boolean::reduce`'s line-cone apex end search | an end at the apex answers | `climb`, `First` |
+| ~~`boolean::surface_group::WrapRims::holds`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over the two coaxial margins | — |
+| `boolean::reduce`'s line-cone apex end search | **WHICH** (place_off ruling, QML T1): the end is the root whose spread is read next; the `?` stands | — |
 | `ring_path`'s lead-point read | an arc that is not a point answers `None` | `climb`, `Any` |
 | `offset_derive::nearest` | an argmin | see below |
-| `sweep::loft::stacking::rim_pinned` | any pair decided apart answers "not pinned" | `read_identity` |
-| `boolean::edge_join::joinable` (the chart-class read over the two surfaces) | which surface's class decides | `climb`, `First` |
+| ~~`sweep::loft::stacking::rim_pinned`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over the rows | — |
+| `boolean::edge_join::joinable` (the chart-class read over the two surfaces) | **WHICH** (place_off ruling, QML T1): the carrying surface is in the locus compared; the `?` stands | — |
 
 `offset_derive::nearest` is listed for its argument, not as a clear
 port. An in-band comparison between the best so far and a candidate
@@ -70,7 +70,7 @@ measured yet.
 | `census::span_clear` | anything meeting answers "not clear" | `climb`, `Any` |
 | `chart_region::polygon_relation` | the first decisive vertex | `climb`, `Any` (check every non-boundary vertex reads alike) |
 | `ray_walk::on_boundary` | any segment holding the point | `climb`, `Any` |
-| `replace_face::carried_alike` | any sample apart answers "not alike" | `read_identity` |
+| ~~`replace_face::carried_alike`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `climb(Any)`, any sample past ε answers "not alike" (a theorem) | — |
 | `shell::band_seam`, `wraps_its_period` | any side not winding once, any start winding once | `climb`, `Any` |
 | `stands::face_interior_point` | any certified interior point | `climb`, `Any` |
 | `stands::witness_insides` | its own ranking of `Witness` (`On`, `Blocked`, `InBand`) | its witnesses' standing, then `climb` |
@@ -98,7 +98,7 @@ once at its hit lines and its exits.
 | `geom_brep::pair_section::ended_by` | 1718, 1757 | NOT A SEARCH: a unique-holder read |
 | `geom_brep::pair_section::site` | 2684 | NOT A SEARCH: a unique-holder read (a site on two components refuses) |
 | `geom_brep::pcurve_cache::projected::met_floors` | 2354 | NOT A SEARCH: a fold |
-| `geom_brep::props::curved::unanimous_rim_side` | 1283 | **HAND-ROLLED, the agreeing shape**: every rim's side, refusing where two differ. A rim read in band refuses ahead of rims that agree. Candidate for `ladder::climb_agreeing`; read before porting |
+| `geom_brep::props::curved::unanimous_rim_side` | 1283 | **ported** (`onecopy/refusal-standing`, QML T1): `climb_agreeing` over the rims. No move is reachable: every rim lies at `lo` or `hi`, so each rim's margin is ±(hi − lo), and all are in band or none |
 | `geom_brep::props::curved::torus_chart` | 5389 | NOT A SEARCH: a fold over every loop |
 | `step_import::entities::loop_u_wrap` | 2084 | NOT A SEARCH: every use is read (an `Option` `?`, running `prev`) |
 | `sweep::blend::surgery::ring_clearance_pass` | 2874, 2887, 2896 | NOT A SEARCH: a minimum over every ring. It raises the argmin question `offset_derive::nearest` raises above |
@@ -114,7 +114,7 @@ once at its hit lines and its exits.
 | `topo::boolean::solid_contain::ray_crossings` | 4521 | NOT A SEARCH: every meeting is counted |
 | `topo::boolean::vtxfac::classify_vertex_on_face` | 867 | NOT A SEARCH: every sector is collected |
 | `topo::census::chord_on_edge` | 9213, 9239, 9244 | NOT A SEARCH: both halves are collected |
-| `topo::offset_nappe::group_nappe` | 181 | **HAND-ROLLED, the agreeing shape**: every face's nappe, refusing where two differ. Candidate for `ladder::climb_agreeing`; read before porting |
+| `topo::offset_nappe::group_nappe` | 181 | **ported** (`onecopy/refusal-standing`, QML T1): `climb_agreeing` over the faces; a face in band is kept, a stale or straddling face stops the read |
 | `topo::pcurves::pcurve_pass` | 5402 | NOT A SEARCH: every face's findings are collected |
 
 A unique-holder read is not the agreeing shape: two holders are a

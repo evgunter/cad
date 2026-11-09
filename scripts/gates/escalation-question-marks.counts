@@ -22,14 +22,14 @@ crates/topo/src/splitting/containment.rs 1
 # sectors: the crescent search's two reads (a crescent found answers),
 # hand-rolled.
 crates/topo/src/boolean/sectors.rs 2
-# join: conic_pairs's first cut (which gap is first decided apart answers),
-# hand-rolled.
+# join: conic_pairs's first cut: WHICH, the cut rotates the pairing
+# (PR 6553's place_off ruling; the site says so).
 crates/topo/src/splitting/join.rs 1
 # shell: the moved walls' overlap search (an overlap found answers),
 # hand-rolled.
 crates/topo/src/shell.rs 1
-# reduce: the line-cone apex end search (an end at the apex answers),
-# hand-rolled.
+# reduce: the line-cone apex end: WHICH, the end is the root whose spread
+# is read next (place_off ruling; the site says so).
 crates/topo/src/boolean/reduce.rs 1
 # ring_path: the lead-point read (an arc that is not a point answers
 # None), hand-rolled.
@@ -38,8 +38,9 @@ crates/topo/src/ring_path.rs 1
 # leaves the minimum open unless a later candidate is decided nearer than
 # both; listed with the hand-rolled sites for that argument.
 crates/topo/src/offset_derive.rs 1
-# edge_join: joinable's chart-class read over the two surfaces (which
-# surface's chart class decides is the answer: First), hand-rolled.
+# edge_join: joinable's chart-class read over the two surfaces: WHICH,
+# the carrying surface is in the locus compared (place_off ruling; the
+# site says so).
 crates/topo/src/boolean/edge_join.rs 1
 #
 # NOT A SEARCH: every element is needed, so the first refusal is as good
