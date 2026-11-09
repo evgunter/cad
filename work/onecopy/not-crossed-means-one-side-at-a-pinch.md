@@ -1,11 +1,12 @@
 ---
 id: not-crossed-means-one-side-at-a-pinch
 kind: issue
-title: a ring that crosses the run at a vertex the division did not identify reads both sides through the 'not crossed, so one side' ladders (fate's rehome, chord_join's rehome_rings); a torus's essential cycles unprobed
-status: open
+title: the side ladders' 'not crossed, so one side' premise is the division's construction premise (measured, no reading wrong); its checked form waits on [ev] 6592's Alike
+status: parked
 opened: 2026-11-09
 priority: P3
 cost: E
+blocked_on: [6592]
 ---
 
 
@@ -84,3 +85,51 @@ found and closed.
 The same instrument found one real disagreement that is not a pinch: a
 cone winding whose fixture's island left its sheet,
 `cone-ring-rows-sheets-do-not-hold-their-islands` (PR 6607).
+
+## Narrowed (`onecopy/pinch-side`): measured, and waits on `[ev]` PR 6592
+
+**Measured: no reading answers wrong, and none disagrees.** A scratch
+check read every rung beside the `Any` climb (`climb_agreeing`) at four
+sites: fate's rehome, chord_join's `ring_side`, the lone ring's outer
+side and `one_region::read_cycle`. It ran over:
+
+- **topo `ci` (3746 tests).** It found two disagreements, both in
+  `read_cycle`, on the bodies of
+  `two_surface_cycles_of_one_loop_crossing_at_a_shared_point_are_check_9s`
+  and `a_ring_crossing_its_outer_loop_at_shared_points_is_check_9s`.
+  These are invalid bodies whose crossing check 9 refuses, as those
+  tests pin.
+- **sweep `ci` (2874 tests).** None.
+- **Targeted fixtures.** A plate holed by a diamond, or by an arrow with
+  a reflex vertex, was cut through the ring's vertices along `x = d`,
+  `x + y = d`, `y = 0` and a quadrant, by subtract, intersect, union and
+  split, with `d` at 0, ±½ zero, 3 zeros and ±3 escalation bands.
+  - At `d` = 0 and inside the zero, the division identifies the
+    vertices and divides the ring there.
+  - In the band, it refuses: the booleans on `Coincidence(VertexOnFace)`,
+    the split on `SliverVertex`.
+  - Past the band, it divides the ring's edges.
+  - Every result's volume is its closed form, and subtract plus
+    intersect is the plate.
+
+The torus item is measured too. sweep `ci` reads a torus face's
+essential pair 3639 times in 337 tests, 29 of them with contractible
+cycles read against the pair, and finds no disagreement.
+
+So the premise holds, and it is a construction premise. A bystander
+ring does not cross the run, because the division identifies every
+vertex within the zero of the cut and refuses every vertex in its band.
+The residual case, a crossing at a vertex the division did not
+identify, is therefore not reached by any fixture or suite measured.
+Pinned:
+`crates/topo/tests/a_ring_crossed_at_its_vertices_is_divided_or_refused.rs`.
+
+**What remains: making the premise a checked fact.** That is `[ev]` PR
+6592's `Alike`: the rung source carries a token whose doc names the
+gate that establishes its premise, here the division's vertex
+identification. Reading every vertex at each site (`climb_agreeing`)
+would be the alternative 6592 rejects, a cost on valid bodies for a
+weaker second reading of a fact the division decides. This row waits on
+that answer. Then the sites read their ring through an `Alike` source:
+fate's rehome, `ring_side`, `path_ring_side`, the lone ring and
+`one_region::read_cycle`.
