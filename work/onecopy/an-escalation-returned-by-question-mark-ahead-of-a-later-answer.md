@@ -2,11 +2,12 @@
 id: an-escalation-returned-by-question-mark-ahead-of-a-later-answer
 kind: issue
 title: A reading's escalation returned by ? ahead of a later reading that could still answer: pieced_arc::contact's ends, CarrierLoop::place_off
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: M
-pr: 6553
+pr: 6574
+closed: 2026-11-06
 ---
 
 Found by `kept-refusal-loops-the-ladder-row-never-listed`'s second pass
@@ -69,3 +70,12 @@ So the port is one ladder over the vertices then each loop's edges
 carry the kept readings. It moves outcomes wherever a vertex or an outer
 loop is read in band ahead of a definite placement. Measure that and pin
 each move.
+
+## Closed (2026-11-06, PR 6574)
+
+`boundary_pre_pass`'s two `?`s are right under `place_off`'s ruling.
+Consumers read which cell holds the point (census's `OnEdge(e)` and
+`OnVertex(v)` arms, and `reduce`'s `OnEdge(ey)`). So a vertex or loop
+read in band may be the true holder, and no later cell answers past it.
+The function's doc says so. The vertex-then-edge order, which the
+`OnEdge::End` agreement argument rests on, is unchanged.
