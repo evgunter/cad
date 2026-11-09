@@ -861,3 +861,6 @@
 - 10:10Z PR 6616's gate was green at 257f0049, but main overlapped it in slit.rs. I merged main (7c3a6c43); the build and breakpoints gate are clean. Re-gating.
 - 10:10Z PR 6615's gate was green at 56319d41, but main overlapped it in 3 files. Merging main hit a conflict in conic_arc.rs: main had added a comment, and 6615 had ported the line to unit_sign. I kept both. Build and run-gates are clean (87ee1cc9). Re-gating.
 - 10:10Z PR 6617 is gate-green at 821e541a. It is held for the ladder lane's D1 push (exhaustive refusal() per taxonomy row).
+- 10:15Z bracket-mid opened PR 6632 (head 2ef788bd, gate green). It routes 126 sites to two named forms with no bit moved, adds a new gate, and files the ½lo+½hi / f64::midpoint row. FULL review dispatched.
+- 10:15Z needle-tilts put S into 6623 (head 5e1ce5c1): Window reads off b's span through point_walk, all four tilts decide in both orders, and the row is closed. The reviewer was told the new head.
+  - Next unit: the transverse-range row on `onecopy/transverse-range`, stacked on 6623.
