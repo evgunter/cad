@@ -1271,3 +1271,12 @@
     - 6664 at 2b7545d7: the point-equality gate caught two test equalities main brought into census/depth_gap.rs, routed to `equals_exactly`.
 
     All three are re-gating.
+- 2026-11-09 21:00Z
+  - **Merged PR 6652 (boolean-standing-2), 62399725.** Gate green at 2135ea8e; only 6680 was new on main, disjoint.
+  - **Reviews in:**
+    - 6668 FULL: FIX. Sound (0 gap Misses vs base 422 and 428); the liveness disclosure omits 122/67 lost root answers. Back to the needle-tilts lane, plus the torus_touch_off_faces witness for the onehome P0.
+    - 6678 FULL: MERGE, with prose minors (offending_face consumer, the "sizes ε_in" wording, the log holding both ends, the dead fallback, MarginDiag::worst's domain, the scope count). Folded after 6667's fixes.
+  - **6665's red is main's:** cleavetail's torus-twin fuzz row (seed appended there).
+  - **6681 (bracket-mid-2) opened:** 17 sites, 0 bit moves, gate widened. FULL review: session_013mPGJ56BD1kwnVWgVpdLbJ.
+  - **Main red reported by small-sweeps:** pncad-py prose_census, two slow rows (site-list drift; vacuity, 138 sites). Assigned to the bracket-mid lane (onecopy/prose-census-red), with the class question of why a slow census went red unseen.
+  - **Ready but overlapping the moved main:** 6669, 6660 and 6665 are back to their lanes for a main merge, merged in arrival order. I am re-merging 6675 and 6664 locally.
