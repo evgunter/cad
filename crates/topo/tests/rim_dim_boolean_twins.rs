@@ -60,7 +60,7 @@ use crate::common;
 use common::brick;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
-use geom_core::test_support::twins::{Streams, Twins, streams};
+use geom_core::test_support::twins::{Pairing, Streams, Twins, streams};
 use topo::{BooleanResult, subtract};
 
 /// Audited, documented non-length comparands still awaiting their own
@@ -186,7 +186,7 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
         // exactly those samples (that predicate, that bit pattern); a
         // real model span colliding with τ to the last bit is not a
         // realizable concern.
-        let pairs = twins.decisive_pairs(|margin| {
+        let pairs = twins.decisive_pairs(Pairing::Rank, |margin| {
             !(*pred == "interval_span_forward" && margin == core::f64::consts::TAU)
         });
         let mut worst: f64 = 0.0;

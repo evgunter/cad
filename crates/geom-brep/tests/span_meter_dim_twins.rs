@@ -53,7 +53,7 @@ use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
-use geom_core::test_support::twins::Twins;
+use geom_core::test_support::twins::{Pairing, Twins};
 use slotmap::SlotMap;
 
 /// The `x = 0` and `y = 0` planes: two analytic charts whose
@@ -168,7 +168,7 @@ fn the_span_meter_margin_scales_linearly_with_the_model() {
         small: &[mm],
         large: &[m],
     };
-    let pairs = twins.decisive_pairs(|_| true);
+    let pairs = twins.decisive_pairs(Pairing::Site, |_| true);
     assert_eq!(pairs.len(), 1, "both twins decide their meter: {pairs:?}");
     let ratio = pairs[0].1 / pairs[0].0;
     assert!(

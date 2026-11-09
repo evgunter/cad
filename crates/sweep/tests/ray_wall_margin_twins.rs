@@ -25,7 +25,7 @@
 use sweep::ExtrudeSide;
 
 use geom_core::k_stats::{self, Probe};
-use geom_core::test_support::twins::{Streams, Twins, streams};
+use geom_core::test_support::twins::{Pairing, Streams, Twins, streams};
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -125,7 +125,7 @@ fn the_wall_arms_margins_scale_linearly_with_the_model_row() {
         );
         // Not `dev > 1e-9`: a NaN ratio is a deviation too.
         let off: Vec<f64> = twins
-            .decisive_pairs(|_| true)
+            .decisive_pairs(Pairing::Rank, |_| true)
             .into_iter()
             .map(|(a, b)| (b / a / 1e3 - 1.0).abs())
             .filter(|dev| dev.is_nan() || *dev > 1e-9)

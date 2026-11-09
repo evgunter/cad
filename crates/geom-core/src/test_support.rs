@@ -105,6 +105,18 @@ pub mod twins {
         out
     }
 
+    /// How [`Twins::decisive_pairs`] pairs the twins' decisive margins.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Pairing {
+        /// By rank, each list sorted: for a predicate that fires on
+        /// several entities, where recording order pairs unrelated sites.
+        Rank,
+        /// By site, in recording order: for a fixture whose decisions are
+        /// made in the same order at both scales, where a swap of two
+        /// sites' margins is a divergence rank pairing would pass.
+        Site,
+    }
+
     /// One predicate's streams in the smaller twin and the larger.
     #[derive(Clone, Copy, Debug)]
     pub struct Twins<'a> {
@@ -136,12 +148,10 @@ pub mod twins {
             (read(self.small), read(self.large))
         }
 
-        /// **The decisive margins with a scale, paired by rank**: each
-        /// twin's definite nonzero samples not decided on their sign
-        /// alone ([`MarginSample::reads_sign_only`]), as `|margin|`,
-        /// those `keep` admits, sorted (recording order pairs unrelated
-        /// sites when a predicate fires on several entities), then
-        /// paired `(small, large)`.
+        /// **The decisive margins with a scale, paired**: each twin's
+        /// definite nonzero samples not decided on their sign alone
+        /// ([`MarginSample::reads_sign_only`]), as `|margin|`, those
+        /// `keep` admits, paired `(small, large)` as `pairing` says.
         ///
         /// # Panics
         ///
@@ -150,7 +160,11 @@ pub mod twins {
         /// two decisive lists differ in length: pairing them would drop
         /// the excess unread.
         #[must_use]
-        pub fn decisive_pairs(&self, keep: impl Fn(f64) -> bool) -> Vec<(f64, f64)> {
+        pub fn decisive_pairs(
+            &self,
+            pairing: Pairing,
+            keep: impl Fn(f64) -> bool,
+        ) -> Vec<(f64, f64)> {
             let mask = |l: &[MarginSample]| {
                 l.iter()
                     .map(MarginSample::reads_sign_only)
@@ -174,7 +188,9 @@ pub mod twins {
                     .map(|s| s.margin.abs())
                     .filter(|m| keep(*m))
                     .collect();
-                v.sort_by(f64::total_cmp);
+                if pairing == Pairing::Rank {
+                    v.sort_by(f64::total_cmp);
+                }
                 v
             };
             let (small, large) = (decisive(self.small), decisive(self.large));
@@ -232,9 +248,33 @@ pub mod twins {
                 large: &large,
             };
             assert_eq!(
-                twins.decisive_pairs(|_| true),
+                twins.decisive_pairs(Pairing::Rank, |_| true),
                 [(1e-3, 1.0), (2e-3, 2.0)],
                 "sign-only and zero samples drop out, and the rest pair by rank"
+            );
+        }
+
+        /// Site pairing catches two sites whose margins swapped between
+        /// the twins, which rank pairing passes.
+        #[test]
+        fn site_pairing_keeps_recording_order() {
+            let linear = (1e-9, 1e-6);
+            let small = [sample(1e-3, linear, POS), sample(2e-3, linear, POS)];
+            let large = [sample(2.0, linear, POS), sample(1.0, linear, POS)];
+            let twins = Twins {
+                predicate: "p",
+                small: &small,
+                large: &large,
+            };
+            assert_eq!(
+                twins.decisive_pairs(Pairing::Site, |_| true),
+                [(1e-3, 2.0), (2e-3, 1.0)],
+                "by site"
+            );
+            assert_eq!(
+                twins.decisive_pairs(Pairing::Rank, |_| true),
+                [(1e-3, 1.0), (2e-3, 2.0)],
+                "by rank"
             );
         }
 
@@ -249,7 +289,7 @@ pub mod twins {
                 small: &small,
                 large: &large,
             }
-            .decisive_pairs(|_| true);
+            .decisive_pairs(Pairing::Rank, |_| true);
         }
 
         #[test]
@@ -263,7 +303,7 @@ pub mod twins {
                 small: &small,
                 large: &large,
             }
-            .decisive_pairs(|m| m < 1.5);
+            .decisive_pairs(Pairing::Rank, |m| m < 1.5);
         }
     }
 }
