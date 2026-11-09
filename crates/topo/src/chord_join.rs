@@ -4040,14 +4040,10 @@ impl<T: Decide> IslandReading<T> {
 ///   `Spiric` and NURBS ones
 ///   (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
 ///   Mid-operation it is excluded where the division identifies every
-///   vertex it passes through. A loop that touches or crosses the run at
-///   a vertex the division did not identify (fate's rehome,
-///   [`ChordJoiner`]'s `rehome_rings`; the split identifies every vertex
-///   within band) is the residual
-///   (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`). Its
-///   guard, the debug check on the `Any` ports that their answers agree
-///   (`work/onecopy/a-ladder-that-checks-its-answers-agree-has-no-home.md`),
-///   waits on `[ev]` PR 6592.
+///   vertex it passes through. A loop that crosses the run at a vertex
+///   the division did not identify (fate's rehome, [`ChordJoiner`]'s
+///   `rehome_rings`; the split identifies every vertex within band) is
+///   the residual (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
 ///
 /// Under it, which decided reading is taken changes nothing.
 fn paths_rung<T: Decide, R>(

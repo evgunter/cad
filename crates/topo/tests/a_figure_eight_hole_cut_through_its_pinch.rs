@@ -1,13 +1,15 @@
 //! **A figure-eight hole cut through its pinch leaves each lobe on its
 //! own side.** A plate drilled through by a figure-eight, one loop through
 //! the origin twice, its lobes the squares `[-1, 0]²` and `[0, 1]²`, cut
-//! by the plane `x + y = 0` through the pinch: by the split, and by a
-//! subtract and an intersect with a prism whose face lies on that plane.
-//! Each side keeps one lobe, merged into its face's outer loop where the
-//! division runs through the pinch, so no ring is left a bystander that
-//! touches the division. It is the evidence behind
-//! `chord_join::paths_rung`'s premise, that a touch switches no side
-//! (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
+//! through the pinch: by the split along the plane `x + y = 0`, and by a
+//! subtract and an intersect with a prism whose face lies on `x + y = 0`
+//! or on `x = 0`, where the lobes' walls lie on the tool's face. Each side
+//! keeps one lobe, merged into its face's outer loop: every one of these
+//! divisions runs through the pinch vertex and identifies it, so no ring
+//! is left a bystander touching the division. It pins the identified
+//! case `chord_join::paths_rung`'s premise rests on. The residual, a
+//! division that crosses a ring at a vertex it does not identify, is not
+//! built here (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
 //!
 //! The plate is built raw (`drill_hole`, described, finished): the public
 //! doors refuse its subtract (`LineWedges` overlap at the pinch line).
@@ -81,14 +83,37 @@ fn a_figure_eight_hole_cut_through_its_pinch_keeps_each_lobe_on_its_side() {
         holds_one_lobe(&format!("split {what}"), &body, kept, gone);
     }
 
-    let tool = finished(
-        "the half-space prism",
-        prism_z::<f64>(&[(-4.0, 4.0), (4.0, -4.0), (4.0, 4.0)], -1.0, 2.0, tol).body,
-        tol,
+    let tool = |what, profile: &[(f64, f64)]| {
+        finished(what, prism_z::<f64>(profile, -1.0, 2.0, tol).body, tol)
+    };
+    let diagonal = tool(
+        "the diagonal prism",
+        &[(-4.0, 4.0), (4.0, -4.0), (4.0, 4.0)],
+    );
+    let upright = tool(
+        "the x = 0 prism",
+        &[(0.0, -4.0), (4.0, -4.0), (4.0, 4.0), (0.0, 4.0)],
     );
     for (what, r, kept, gone) in [
-        ("subtract", subtract(&plate, &tool, tol), down, up),
-        ("intersect", intersect(&plate, &tool, tol), up, down),
+        (
+            "subtract x + y = 0",
+            subtract(&plate, &diagonal, tol),
+            down,
+            up,
+        ),
+        (
+            "intersect x + y = 0",
+            intersect(&plate, &diagonal, tol),
+            up,
+            down,
+        ),
+        ("subtract x = 0", subtract(&plate, &upright, tol), down, up),
+        (
+            "intersect x = 0",
+            intersect(&plate, &upright, tol),
+            up,
+            down,
+        ),
     ] {
         let r = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
         let body = &r.body().unwrap_or_else(|| panic!("{what}: empty")).body;
