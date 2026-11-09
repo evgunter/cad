@@ -39,7 +39,7 @@ fn ellipse() -> Curve3<f64> {
 }
 
 /// What a contact reads as, for the table: its variant's name.
-fn name(got: Result<Option<Hit<f64>>, geom::CarrierRefusal>) -> &'static str {
+fn name(got: Result<Option<Hit<f64>>, super::SpanRefusal>) -> &'static str {
     match got {
         Ok(None) => "none",
         Ok(Some(Hit::On { .. })) => "on",
@@ -428,4 +428,44 @@ fn a_refused_members_window_on_an_arc_is_its_stretch() {
             );
         }
     }
+}
+
+/// **A refusal says which reading it rests on** ([`super::SpanReading`]):
+/// on the circle's span, a point half the band off the carrier at the
+/// span's middle refuses on the carrier, the place reading it inside;
+/// a point on the carrier half the band past the span's start, its chord
+/// to the start in band, refuses on the place. Red where the two are
+/// swapped, which reads a wedge in band as a graze at the solid door's
+/// curved edges, or the reverse.
+#[test]
+fn a_refusal_names_the_reading_it_rests_on() {
+    use super::{SpanReading, SpanRefusal};
+    let half = 0.5 * (band().zero() + band().escalate());
+    let carrier = circle();
+    let span = Span::new(&carrier, (0.5, 2.5));
+    let centre = Point3::new(0.0, 0.0, 1.0);
+    let mid = carrier.eval(1.5);
+    let off = mid + (mid - centre).normalize() * half;
+    assert!(
+        matches!(
+            span.read(off, 1.5, band()),
+            Err(SpanRefusal {
+                of: SpanReading::Carrier,
+                ..
+            })
+        ),
+        "off the carrier in band, inside the span"
+    );
+    let past = carrier.eval(0.5 - half / 2.0);
+    assert!(
+        matches!(
+            span.read(past, 0.5, band()),
+            Err(SpanRefusal {
+                of: SpanReading::Place,
+                ..
+            })
+        ),
+        "on the carrier, in band of the start: {:?}",
+        span.read(past, 0.5, band())
+    );
 }

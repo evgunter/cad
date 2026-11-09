@@ -493,15 +493,13 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
             "geom-brep/src/curve_pair/span.rs",
             1,
             "`Span::place` reads the ends' sides at the seed; `Span::read` takes \
-             `On`'s `t` for `Reading::On`. `place` is itself a reading, which \
-             `curved_edges::passes` reads directly \
-             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
+             `On`'s `t` for `Reading::On`",
         ),
         (
             "topo/src/boolean/solid_contain/curved_edges.rs",
             1,
-            "the ray's foot iteration seeds `on_carrier` and `Span::place` at its point \
-             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
+            "the ray's foot iteration carries its point to the closest approach, which \
+             `Span::read` reads",
         ),
         (
             "geom-brep/src/ssi/exhaust.rs",

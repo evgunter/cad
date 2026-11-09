@@ -154,6 +154,46 @@ pub enum Reading<T> {
     Off,
 }
 
+/// Which of [`Span::read`]'s two readings a [`SpanRefusal`] rests on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpanReading {
+    /// The place read the foot inside the span, and the carrier's
+    /// reading refused.
+    Carrier,
+    /// The place against the span's ends refused, whatever the carrier
+    /// read: the refusal carried is the carrier's where both refused.
+    Place,
+}
+
+/// **Why [`Span::read`] refused**: the refusal, and the reading the
+/// answer rests on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpanRefusal {
+    /// The refusal.
+    pub refused: CarrierRefusal,
+    /// The reading it rests on.
+    pub of: SpanReading,
+}
+
+impl SpanRefusal {
+    /// The band's escalation this refusal is ([`CarrierRefusal::escalation`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom::PieceWalkRefusal`]: the refusal is no escalation.
+    pub fn escalation(self) -> Result<Indeterminate, geom::PieceWalkRefusal> {
+        self.refused.escalation()
+    }
+
+    /// What this refusal is to a ladder: its carrier refusal's standing
+    /// ([`crate::ladder::Refusal::of_carrier`]), whichever reading it
+    /// rests on. It never refuses the whole query.
+    #[must_use]
+    pub fn refusal(self) -> crate::ladder::Refusal {
+        crate::ladder::Refusal::of_carrier(self.refused)
+    }
+}
+
 impl<T> Reading<T> {
     /// The reading as a side of a meeting, or `None` off the span.
     pub fn hit(self) -> Option<Hit<T>> {
@@ -506,8 +546,9 @@ impl<'a, T: Decide> Span<'a, T> {
     ///
     /// # Errors
     ///
-    /// Whichever reading the answer rests on refused (module docs).
-    pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, CarrierRefusal> {
+    /// Whichever reading the answer rests on refused (module docs), with
+    /// which ([`SpanRefusal`]).
+    pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, SpanRefusal> {
         let foot = self.carrier.foot(q, near);
         let (on, carrier) = k_stats::detached(|| foot.on_carrier(band));
         let on = match on {
@@ -530,7 +571,10 @@ impl<'a, T: Decide> Span<'a, T> {
         Ok(match place {
             Ok(Place::End(which)) => Reading::End(which),
             Ok(Place::Inside) => {
-                let (t, margin) = on?;
+                let (t, margin) = on.map_err(|refused| SpanRefusal {
+                    refused,
+                    of: SpanReading::Carrier,
+                })?;
                 Reading::On {
                     t: self.branch(t),
                     margin,
@@ -540,7 +584,12 @@ impl<'a, T: Decide> Span<'a, T> {
                 Ok(_) => Reading::Carrier,
                 Err(_) => Reading::Off,
             },
-            Err(refused) => return Err(on.err().unwrap_or(refused)),
+            Err(refused) => {
+                return Err(SpanRefusal {
+                    refused: on.err().unwrap_or(refused),
+                    of: SpanReading::Place,
+                });
+            }
         })
     }
 
@@ -555,7 +604,7 @@ impl<'a, T: Decide> Span<'a, T> {
         q: Point3<T>,
         near: T,
         band: Band,
-    ) -> Result<Option<Hit<T>>, CarrierRefusal> {
+    ) -> Result<Option<Hit<T>>, SpanRefusal> {
         self.read(q, near, band).map(Reading::hit)
     }
 }
