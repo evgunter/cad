@@ -2166,6 +2166,10 @@ fn pair_contact<T: Decide>(
             }),
         ) => return Some(PairContact::Area { aligned: true }),
         Ok(Ok(CarrierRelation::Distinct)) if !planes => {}
+        // A torus off its ring convention (`CarrierEqError::OffRing`)
+        // lands here too: tier 3 refuses such a face first
+        // (`ValidationError::DegenerateTorus`), so no validated body
+        // reaches it.
         _ => return None,
     }
     // A point touch on the point lane's own carriers ([`point::face_face`]):
@@ -6291,12 +6295,11 @@ fn planar_face_pairs<T: Decide>(
                 continue;
             }
             let (relation, margin) =
-                match crate::boolean::carrier_pair_decided(body, fa.key, body, fb.key, band) {
-                    Ok(Ok((relation, Some(margin)))) => (relation, margin),
-                    Ok(Err(
-                        err @ (crate::boolean::CarrierEqError::Undecided { .. }
-                        | crate::boolean::CarrierEqError::Escalated { .. }),
-                    )) => {
+                match crate::boolean::carrier_pair_decided(body, fa.key, body, fb.key, band)
+                    .map(|reading| reading.map(|verdict| verdict.one()))
+                {
+                    Ok(Ok(Some(one))) => one,
+                    Ok(Err(err)) => {
                         let unread = |reason| UnreadPair {
                             a: fa.key,
                             b: fb.key,
@@ -6453,8 +6456,9 @@ fn curved_same_side_pairs<T: Decide>(
                 Some(Ok(_)) => true,
                 Some(Err(_)) => continue,
             };
-            let Ok(Ok((crate::boolean::CarrierRelation::SameOriented, Some(margin)))) =
+            let Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) =
                 crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
+                    .map(|reading| reading.map(|verdict| verdict.one()))
             else {
                 continue;
             };
@@ -6507,6 +6511,8 @@ fn in_band_reading<T: Decide>(
     band: Band,
 ) -> InBand {
     use crate::boolean::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
+    // A torus off its ring convention read no coincidence at all, in band
+    // or decided, so the pair is unread whatever its convention's margin.
     let CarrierEqError::Undecided {
         coincidence: CoincidenceMeasure::Undecided(diag),
         relation,
@@ -10366,7 +10372,15 @@ fn confirm_face_pair<T: Decide>(
     match crate::boolean::carrier_pair_relation(body, a, body, b, band) {
         Ok(Ok(crate::boolean::CarrierRelation::Distinct))
         | Err(crate::boolean::PairUnread::OutsideInventory) => {}
-        Ok(Ok(_) | Err(crate::boolean::CarrierEqError::Undecided { .. })) => {
+        // A torus off its ring convention is tier 3's finding; the
+        // patch door reads the pair as it reads one in band.
+        Ok(
+            Ok(_)
+            | Err(
+                crate::boolean::CarrierEqError::Undecided { .. }
+                | crate::boolean::CarrierEqError::OffRing { .. },
+            ),
+        ) => {
             confirm_patch(body, a, b, band, region, errors);
             return;
         }
@@ -11172,8 +11186,10 @@ fn flush_pairs<T: Decide>(
             if ga == gb {
                 continue;
             }
-            let margin = match crate::boolean::carrier_pair_decided(body, fa, body, fb, band) {
-                Ok(Ok((crate::boolean::CarrierRelation::SameOriented, Some(margin)))) => margin,
+            let margin = match crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
+                .map(|reading| reading.map(|verdict| verdict.one()))
+            {
+                Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) => margin,
                 _ => continue,
             };
             let planar = planar_face(geo, fa).zip(planar_face(geo, fb));
@@ -11418,10 +11434,10 @@ fn planar_interiors_meet<T: Decide>(
 /// pieces between its meetings with the other boundary
 /// ([`arc_interiors_meet`]) decides. `Ok(false)` is a certificate on
 /// either path. `Ok(true)` is not, inside the band: the witness search
-/// reads two crossings it parts, and their cones, as shared interior,
-/// so a lens between two crossings shallower than the zero reads `true`
-/// (`work/atrest/an-in-band-lens-reads-as-shared-interior.md`), loud
-/// rather than silent.
+/// reads two crossings the meeting reader parts, and their cones, as
+/// shared interior (`work/atrest/an-in-band-lens-reads-as-shared-interior.md`),
+/// loud rather than silent. Two circular arcs bounding a lens shallower
+/// than the zero meet in one touch, by C5, and read `false`.
 fn face_interiors_meet<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -21426,17 +21442,13 @@ mod arc_interiors {
     }
 
     /// **A lens at every depth across the band, on arcs of 20, 100 and
-    /// 1000 widths' radius.** Past the zero no reading certifies the
-    /// interiors apart, and past the band both find the meeting. The
-    /// reading of pieces finds none inside the band: its piece between
-    /// the crossings places in the band. **Known, not correct:** the
-    /// faces' reading runs the witness search first, which finds the
-    /// crossings and reads their cones apart past the band, so it reads
-    /// a lens shallower than the zero as shared interior at every radius
-    /// here but the smallest lens on the smallest arc
-    /// (`work/atrest/an-in-band-lens-reads-as-shared-interior.md`). That
-    /// errs loud, an interference and never a clear; this row goes red
-    /// when it is fixed, and is turned then.
+    /// 1000 widths' radius**, read by the faces and by pieces. A lens
+    /// shallower than the zero lies everywhere within the zero band of the
+    /// other arc, so by C5 it is one touch: both read the arcs touching,
+    /// not sharing interior. In the band's gap neither reads apart, and
+    /// pieces leave it undecided. Past the band both find the meeting.
+    /// Red where the meeting reader splits an in-zero lens into two
+    /// crossings, which the witness search then reads as shared interior.
     #[test]
     fn a_lens_across_the_band_is_never_read_apart() {
         let tol = Tol::witness();
@@ -21447,17 +21459,13 @@ mod arc_interiors {
                 let depth = de * tol.eps();
                 let [faces, pieces] = read(r, depth);
                 let at = format!("a lens {de}ε deep on an arc of {rw} widths");
-                if depth > zero {
+                if depth < zero {
+                    assert_eq!([faces, pieces], [Ok(false); 2], "{at}: one touch");
+                } else if depth <= escalate {
                     assert_ne!(faces, Ok(false), "{at}: the faces' reading");
-                    assert_ne!(pieces, Ok(false), "{at}: the reading of pieces");
-                }
-                if depth > escalate {
-                    assert_eq!([faces, pieces], [Ok(true); 2], "{at}");
-                } else {
                     assert_eq!(pieces, Err(InteriorsUnread::Undecided), "{at}: pieces");
-                }
-                if depth < zero && !(rw == 20.0 && de == 0.05) {
-                    assert_eq!(faces, Ok(true), "{at}: known, the witness search");
+                } else {
+                    assert_eq!([faces, pieces], [Ok(true); 2], "{at}");
                 }
             }
         }

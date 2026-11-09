@@ -29,3 +29,14 @@ Main's own run shows the move predates it.
 The row's docs pin main's measurement "not explained" and name the PRs
 that moved it before. What moved it this time is unread: bisect main
 between the last commit that touched `PLATE_LEDGER` and `8ae2b9bfc`.
+
+**Still red at main `2fee45b9`** (measured by ONECOPY's
+`onecopy/length-rule`, PR 6628, with main's `crates/` checked out):
+`the_forms_the_plates_walks_build_are_pinned` reads largest form 38
+(pinned 28) and `Plain/Decision calls 1203 forms 53637 frozen 62`
+(pinned `forms 51397 frozen 36`), `Plain/Assertion … forms 9172`,
+`Early/Decision … forms 42505`, `Early/Assertion … forms 10583`,
+`Door/Decision … forms 13458`. PR 6628 moves only the
+Plain/Decision, Plain/Assertion and Early/Assertion lines further
+(53631, 9114, 10519; a refused direction reads its norm once), and
+leaves the plate pin for this row's owner to re-derive.

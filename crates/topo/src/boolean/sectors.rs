@@ -263,19 +263,27 @@ impl<T: Decide> BoolSector<T> {
     /// vertex with unit normal `n`** (`bool_sector_coplanar`), on the
     /// steeper bound's first-order departure ([`BoundSupport::departure`]):
     /// what a smaller tolerance reads off the plane first, and the
-    /// sector with it. `Err` where it does not decide off, with that
-    /// margin.
+    /// sector with it: the reading that decided it off, and `Err` where
+    /// it does not decide off, with that margin.
     pub(super) fn bounds_off(
         &self,
         n: Vec3<T>,
         band: Band,
-    ) -> Result<NonzeroSign, geom_core::Indeterminate> {
+    ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
         let steeper = self
             .start_reach
             .departure(self.start, n)
             .abs()
             .max(self.end_reach.departure(self.end, n).abs());
-        crate::validate::decide_nonzero("bool_sector_coplanar", Margin::of(steeper), band)
+        let (sign, margin) = geom_core::k_stats::decide_nonzero_reported(
+            "bool_sector_coplanar",
+            Margin::of(steeper),
+            band,
+        )?;
+        Ok(geom_core::Decided {
+            sign: sign.into(),
+            margin,
+        })
     }
 }
 
@@ -837,10 +845,11 @@ impl SectorFaceError {
                 face,
                 kind,
             },
-            Self::Crease { face, .. } => BooleanError::NormalAtSplineCrease {
+            Self::Crease { face, reading, .. } => BooleanError::NormalAtSplineCrease {
                 operand,
                 face,
                 band,
+                reading,
             },
             // A spline face whose rows are not owed (C4's exemption)
             // stores no chart image of the edge, which the arm reads the
@@ -5217,7 +5226,7 @@ mod spline_refusal_rows {
         assert!(
             matches!(
                 got,
-                Err(BooleanError::NormalAtSplineCrease { operand: Operand::B, face, band: b })
+                Err(BooleanError::NormalAtSplineCrease { operand: Operand::B, face, band: b, .. })
                     if face == top && b == band()
             ),
             "{got:?}"

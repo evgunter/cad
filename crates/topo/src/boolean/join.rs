@@ -3758,25 +3758,11 @@ pub(super) fn section_unbuilt(
             }
         }
         Uncarried::Section(e) => unbuilt(SectionUnbuilt::Refused(e.clone())),
-        Uncarried::Carry(CarryError::Unminted(why)) => unbuilt(SectionUnbuilt::Tangent(why)),
-        Uncarried::Carry(CarryError::Winds(e)) => unbuilt(SectionUnbuilt::Winds(*e)),
-        Uncarried::Carry(CarryError::PadShort { pad, hull_sup }) => {
-            unbuilt(SectionUnbuilt::PadShort {
-                pad: *pad,
-                hull_sup: *hull_sup,
-            })
-        }
-        Uncarried::Carry(CarryError::TubeUnread) => unbuilt(SectionUnbuilt::TubeUnread),
-        Uncarried::Carry(CarryError::NoLane { scalar }) => {
-            unbuilt(SectionUnbuilt::NoLane { scalar })
-        }
-        Uncarried::Carry(CarryError::March(e)) => unbuilt(SectionUnbuilt::March(e.clone())),
-        Uncarried::Carry(CarryError::Seat(e)) => unbuilt(SectionUnbuilt::Seat(e.clone())),
-        Uncarried::Carry(CarryError::Unwalked(why)) => unbuilt(SectionUnbuilt::Unwalked(*why)),
+        Uncarried::Carry(CarryError::Desync(what)) => BooleanError::JoinDesync { what },
+        Uncarried::Carry(e) => unbuilt(SectionUnbuilt::Carry(e.clone())),
         Uncarried::Component => BooleanError::JoinDesync {
             what: "a germ's branch names a component its carried section does not have",
         },
-        Uncarried::Carry(CarryError::Desync(what)) => BooleanError::JoinDesync { what },
     }
 }
 
@@ -5666,12 +5652,21 @@ fn seam_germ_side<T: Decide>(
                     "a section chord's region no longer resolves",
                 )));
             }
-            // A normal refused in band or at a limit is kept; a point
-            // off the region's own surface is a kernel defect.
+            // A normal refused in band or at a limit is kept. A point off
+            // the region's own surface is a kernel defect, and so is a
+            // region on a torus outside the ring convention: the germ
+            // pair's frame refuses that torus before any chord is joined.
             Err(why) => {
-                return rung_or_abort(why.refusal(), why, |_| {
+                return rung_or_abort(why.refusal(), why, |why| {
                     Err(BooleanError::ClassificationInvariant {
-                        what: "a section chord's point reads off the surface of the region it bounds",
+                        what: match why {
+                            NormalAtError::DegenerateTorus { .. } => {
+                                "a section chord's region is a torus outside the ring \
+                                 convention, which the germ pair's frame refuses first"
+                            }
+                            _ => "a section chord's point reads off the surface of the region \
+                                  it bounds",
+                        },
                     })
                 });
             }
@@ -7902,7 +7897,7 @@ mod of_join_rows {
                 matches!(
                     &got,
                     BooleanError::GermSectionUnbuilt {
-                        why: super::super::SectionUnbuilt::Unwalked(w),
+                        why: super::super::SectionUnbuilt::Carry(geom_brep::CarryError::Unwalked(w)),
                         ..
                     } if *w == why
                 ),

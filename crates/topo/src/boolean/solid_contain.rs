@@ -1002,7 +1002,7 @@ fn face_geo_arms<T: Decide>(
                 representative,
                 sense: proven(&body.faces, representative, EntityId::Face).sense,
             }),
-            None => match sphere_face_region(body, face, center, radius)? {
+            None => match sphere_face_region(body, face)? {
                 Some(region) => Ok(FaceGeo::SpherePatch {
                     center,
                     radius,
@@ -3774,16 +3774,10 @@ pub(crate) fn along_half<T: Decide>(
     Some((curve.carrier().eval(t), if plus { d } else { -d }))
 }
 
-/// How many even steps of an arc's span [`edge_clearance`] reads.
-const CLEARANCE_SAMPLES: u32 = 32;
-
 /// **A lower bound on the distance from `m` to the edge of `e`**, a line
-/// or a circle arc, by evaluation alone: a segment's exact distance, or
-/// for an arc the greater of two, each never above the true distance —
-/// `m`'s distance from the arc's whole circle (its carrier's closed-form
-/// clearance, [`geom::Curve3::clearance`]), and the least distance from
-/// `m` to the arc's points at [`CLEARANCE_SAMPLES`] even steps of its span
-/// less half the arc length between two of them. `None` for another edge.
+/// or a circle arc: its carrier's closed-form distance from the edge's
+/// span ([`geom::Curve3::distance_within`]), the segment between its
+/// vertices for a line. `None` for another edge.
 pub(crate) fn edge_clearance<T: Decide>(
     body: &Body<T>,
     e: &crate::live::FaceEdge,
@@ -3797,26 +3791,13 @@ pub(crate) fn edge_clearance<T: Decide>(
     match *curve.carrier() {
         geom::Curve3::Line(_) => {
             let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
-            let chord = geom::Line {
+            geom::Curve3::Line(geom::Line {
                 origin: a,
                 dir: b - a,
-            };
-            Some((m - chord.foot_within(m, (T::zero(), T::one()))).norm())
+            })
+            .distance_within(m, (T::zero(), T::one()))
         }
-        geom::Curve3::Circle(geom::Circle { radius, .. }) => {
-            let (t0, t1) = curve.params();
-            let n = T::from_f64(f64::from(CLEARANCE_SAMPLES));
-            let mut least: Option<T> = None;
-            for k in 0..=CLEARANCE_SAMPLES {
-                let p = curve
-                    .carrier()
-                    .eval(t0 + (t1 - t0) * T::from_f64(f64::from(k)) / n);
-                let d = (p - m).norm();
-                least = Some(least.map_or(d, |l: T| l.min(d)));
-            }
-            let gap = radius.abs() * (t1 - t0).abs() / (n * T::from_f64(2.0));
-            Some(curve.carrier().clearance(m)?.max(least? - gap))
-        }
+        geom::Curve3::Circle(_) => curve.carrier().distance_within(m, curve.params()),
         _ => None,
     }
 }

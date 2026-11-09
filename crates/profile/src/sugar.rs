@@ -78,11 +78,7 @@ pub(crate) fn turn_sense(turn: Sign) -> Option<ArcSweep> {
 /// A decided turn's side σ as the literal ±1 (`+1` left), or `None`
 /// for a turn decided Zero, which has no side.
 pub(crate) fn turn_side<T: Real>(turn: Sign) -> Option<T> {
-    match turn {
-        Sign::Positive => Some(T::one()),
-        Sign::Negative => Some(-T::one()),
-        Sign::Zero => None,
-    }
+    turn.nonzero().map(geom_core::k_stats::NonzeroSign::unit)
 }
 
 /// The shape of one leg of a fillet corner

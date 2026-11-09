@@ -41,7 +41,7 @@
 use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3};
 
-use crate::ladder::{IdentityLadder, read_identity};
+use crate::ladder::read_identity;
 
 /// What a piece's points read against a carrier ([`Variety::read_piece`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -152,11 +152,9 @@ impl<'s, T: Decide> Variety<'s, T> {
                 Margin::of(crate::implicit::implicit_residual(self.carrier, q)),
             )
         });
-        match read_identity(residuals, band) {
-            IdentityLadder::Apart { .. } => Ok(Piece::Off),
-            IdentityLadder::Zero(_) => Ok(Piece::Sampled),
-            IdentityLadder::Undecided(cause) => Err(cause),
-        }
+        read_identity(residuals, band)
+            .holds()
+            .map(|on| if on { Piece::Sampled } else { Piece::Off })
     }
 }
 

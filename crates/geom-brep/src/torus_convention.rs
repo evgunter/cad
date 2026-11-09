@@ -98,7 +98,7 @@ impl TorusConvention {
 /// decided: the half and its verdict, carried from the door that decides
 /// it to the one that renders it, whose `Display` ends in the half's one
 /// lever ([`TorusConvention::sized`]) read at a build.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TorusRefusal {
     /// The half that refused.
     pub convention: TorusConvention,
@@ -107,7 +107,7 @@ pub struct TorusRefusal {
 }
 
 /// How a half of the ring convention refused.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TorusVerdict {
     /// The margin landed in the band, or was poisoned.
     Undecided(Indeterminate),

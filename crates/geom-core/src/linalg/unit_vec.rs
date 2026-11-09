@@ -71,9 +71,9 @@
 use core::ops::Neg;
 
 use crate::k_stats::decide;
-use crate::linalg::Vec3;
+use crate::linalg::{LengthOutOfFormat, Vec3};
 use crate::predicate::{Band, Decide, Indeterminate, Lever, Margin, Sign};
-use crate::real::{Real, is_finite_length, is_underflowed_length};
+use crate::real::{Real, is_finite_length};
 use crate::spline::SpanLocate;
 
 /// **A direction that cannot be unnormalized.** The only spellings are
@@ -247,7 +247,7 @@ impl std::error::Error for LeveredUnitError {}
 ///    sound and simply refuses later, where a `f64` would answer a
 ///    definite wrong sign).
 /// 2. **Did that length UNDERFLOW to zero?** Asked through the same
-///    value channel ([`is_underflowed_length`]), against the largest
+///    value channel ([`is_underflowed_length`](crate::is_underflowed_length)), against the largest
 ///    absolute component as the nonzero witness. Components below
 ///    ~1e-162 square to zero, so the norm is exactly zero for a
 ///    vector that has a perfectly good direction — and the decision
@@ -306,27 +306,12 @@ pub fn decide_unit_direction<T: Decide>(
     decide_direction_by(v, site, band, Margin::norm3)
 }
 
-/// **Where a direction's length leaves the format**: the one rule a door
-/// that refuses a direction reads, [`UnitVec3::new`] and
-/// [`decide_unit_direction`] among them. `v`'s plain norm is
-/// [`UnitVec3Error::NonFiniteLength`] where it overflowed or is poison,
-/// and [`UnitVec3Error::UnderflowedLength`] where it underflowed out of
-/// the format against `v`'s largest component (`norm_witness`, the
-/// witness that question is asked against). `None` otherwise, the zero
-/// vector included: a length of exactly `0` is the door's own
-/// degeneracy question, not this rule's.
-///
-/// The total readings, [`Vec3::normalize`] and
-/// [`Vec3::direction_and_length`], answer past either end through their
-/// prescale; a door that refuses asks this first.
-pub fn length_out_of_format<T: Real>(v: Vec3<T>) -> Option<UnitVec3Error> {
-    let len = v.norm();
-    if !is_finite_length(len) {
-        Some(UnitVec3Error::NonFiniteLength)
-    } else if is_underflowed_length(len, v.norm_witness()) {
-        Some(UnitVec3Error::UnderflowedLength)
-    } else {
-        None
+impl From<LengthOutOfFormat> for UnitVec3Error {
+    fn from(e: LengthOutOfFormat) -> Self {
+        match e {
+            LengthOutOfFormat::NonFinite => Self::NonFiniteLength,
+            LengthOutOfFormat::Underflowed => Self::UnderflowedLength,
+        }
     }
 }
 
@@ -338,14 +323,12 @@ fn decide_direction_by<T: Decide>(
     band: Band,
     margin: impl FnOnce(Vec3<T>) -> Margin<T>,
 ) -> Result<Vec3<T>, UnitVec3Error> {
-    // `margin` recomputes this same norm (`Vec3::norm` is
+    // `margin` recomputes the plain norm the rule read (`Vec3::norm` is
     // deterministic), so the gates and the margin read the one length;
     // it is spelled twice rather than reached into.
-    if let Some(refusal) = length_out_of_format(v) {
-        return Err(refusal);
-    }
+    let (direction, _) = v.checked_direction_and_length()?;
     match decide(site, margin(v), band) {
-        Ok(Sign::Positive) => Ok(v.normalize()),
+        Ok(Sign::Positive) => Ok(direction),
         Ok(_) => Err(UnitVec3Error::Degenerate),
         Err(source) => Err(UnitVec3Error::Escalated(source)),
     }
@@ -564,7 +547,13 @@ mod tests {
             (Vec3::new(3.0, 4.0, 12.0), None),
             (Vec3::new(0.0, 0.0, 0.0), None),
         ] {
-            assert_eq!(length_out_of_format(v), want, "{v:?}");
+            assert_eq!(
+                v.checked_direction_and_length()
+                    .err()
+                    .map(UnitVec3Error::from),
+                want,
+                "{v:?}"
+            );
         }
     }
 

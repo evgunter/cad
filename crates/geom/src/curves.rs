@@ -716,7 +716,53 @@ pub struct Line<T: Real> {
     pub dir: Vec3<T>,
 }
 
+/// **Two lines' closest approach** ([`Line::closest_params`]): the
+/// parameter of each line's point nearest the other's, and how far from
+/// parallel the lines stand.
+#[derive(Clone, Copy, Debug)]
+pub struct LinePair<T> {
+    /// The parameter on the line `closest_params` is called on.
+    pub s: T,
+    /// The parameter on the other line.
+    pub t: T,
+    /// The squared sine of the angle between the two directions,
+    /// `(|d₁|²|d₂|² − (d₁·d₂)²) / (|d₁|²|d₂|²)`: zero for parallel lines,
+    /// one for perpendicular ones, and NaN where either direction is zero.
+    /// `s` and `t` divide by its numerator, so they mean nothing once it
+    /// is lost to cancellation; where that is, is the caller's to say.
+    pub sin2: T,
+}
+
 impl<T: Real> Line<T> {
+    /// **The closest approach of this line and `other`**, in closed form
+    /// ([`LinePair`]): `s` on this line and `t` on `other`, from the
+    /// lines' Gram system, and the squared sine between them. It decides
+    /// nothing: a parallel guard, a clamp to a segment and what a near
+    /// parallel pair means are the caller's, each named at its call.
+    ///
+    /// It is the plain closed form, for a caller that reads its answer as
+    /// a position. A caller that decides whether two edges cross reads the
+    /// certified reading instead: `topo`'s census `ee_lines_closest`, which
+    /// encloses the gap and each end's reach with their rounding charge
+    /// and is exact at a shared end. Two coplanar edges' meeting is read by
+    /// sides in `topo`'s `lines_meet`, which needs no closest point.
+    #[must_use]
+    pub fn closest_params(&self, other: &Self) -> LinePair<T> {
+        let w = self.origin - other.origin;
+        let (aa, ab, bb) = (
+            self.dir.dot(self.dir),
+            self.dir.dot(other.dir),
+            other.dir.dot(other.dir),
+        );
+        let (aw, bw) = (self.dir.dot(w), other.dir.dot(w));
+        let gram = aa * bb - ab.powi(2);
+        LinePair {
+            s: (ab * bw - bb * aw) / gram,
+            t: (aa * bw - ab * aw) / gram,
+            sin2: gram / (aa * bb),
+        }
+    }
+
     /// **The line's point at `t`**: `origin + dir·t`, the carrier's own
     /// parameterization ([`Curve3::eval`] on a line).
     #[must_use]
@@ -1766,6 +1812,61 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **Two lines' closest approach**: skew lines meet their common
+    /// perpendicular at the parameters the closed form reads, whatever the
+    /// directions' lengths; `sin2` is one for perpendicular lines, zero for
+    /// parallel ones (where `s` and `t` divide by zero), and NaN where a
+    /// direction is zero. Each point is the other line's nearest.
+    #[test]
+    fn two_lines_closest_approach_is_their_common_perpendicular() {
+        let x = Line {
+            origin: Point3::new(-2.0, 0.0, 0.0),
+            dir: Vec3::new(2.0, 0.0, 0.0),
+        };
+        let y = Line {
+            origin: Point3::new(3.0, 5.0, 1.0),
+            dir: Vec3::new(0.0, -0.5, 0.0),
+        };
+        let pair = x.closest_params(&y);
+        assert_eq!(
+            (pair.s, pair.t, pair.sin2),
+            (2.5, 10.0, 1.0),
+            "perpendicular skew lines"
+        );
+        let (p, q) = (x.at(pair.s), y.at(pair.t));
+        assert_eq!(
+            (p.x, p.y, p.z, q.x, q.y, q.z),
+            (3.0, 0.0, 0.0, 3.0, 0.0, 1.0),
+            "the common perpendicular"
+        );
+        let tilted = Line {
+            origin: Point3::new(0.3, -1.0, 2.0),
+            dir: Vec3::new(1.0, 2.0, -0.5),
+        };
+        let pair = x.closest_params(&tilted);
+        let (p, q) = (x.at(pair.s), tilted.at(pair.t));
+        assert!(
+            (p - q).dot(x.dir).abs() < 1e-12 && (p - q).dot(tilted.dir).abs() < 1e-12,
+            "the joining vector is square to both lines: {p:?} {q:?}"
+        );
+        let expected = 1.0 - (2.0_f64 / (2.0 * 5.25_f64.sqrt())).powi(2);
+        assert!(
+            (pair.sin2 - expected).abs() < 1e-15,
+            "sin² of the angle: {}",
+            pair.sin2
+        );
+        let parallel = Line {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            dir: Vec3::new(-3.0, 0.0, 0.0),
+        };
+        assert_eq!(x.closest_params(&parallel).sin2, 0.0, "parallel lines");
+        let point = Line {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 0.0),
+        };
+        assert!(x.closest_params(&point).sin2.is_nan(), "a zero direction");
+    }
 
     #[test]
     fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {

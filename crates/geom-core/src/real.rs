@@ -986,8 +986,9 @@ pub fn poison<T: Real>() -> T {
 /// is decided by the gates that read it as a lever and as a segment, so
 /// the chord door decides none and refuses nothing. It asks this of the
 /// chord's largest component only to choose how to divide (a component
-/// past the range keeps `atan2`'s heading), and prescales by that
-/// component, so no finite chord overflows or flushes its squares.
+/// past the range keeps `atan2`'s heading), and otherwise reads
+/// `Vec2::normalize`, whose prescale no finite chord overflows or
+/// flushes the squares of.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;
@@ -1034,23 +1035,16 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 /// doors that spell it, and a caller that reaches past them is making
 /// a claim this signature cannot check.
 ///
-/// **Which doors ask it**, and the claim is the enumeration rather
-/// than a generality — hand-kept, like its sibling's roster, and
-/// exactly as current as the last person to edit it:
-///
-/// - [`decide_unit_direction`](crate::decide_unit_direction), behind
-///   the datum door, the evaluation layer's `unit()` and every one of
-///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites, and
-///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
-///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
-///   and for a path sweep's station tangents and chords
-///   (`sweep_path_tangent`, `sweep_path_chord`);
-/// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
-///   arm — the arm is the two chords' `min`, which has no witness of
-///   its own and which an underflowed chord always wins, so asking the
-///   arm would refuse without ever naming the cause.
-/// - `profile`'s `path::arc_fillet::carrier_tangent`, of the anchor's
-///   displacement from the arc centre.
+/// **Which doors ask it**: a door that refuses a vector whose length
+/// leaves the format asks it through
+/// [`Vec3::checked_direction_and_length`](crate::Vec3::checked_direction_and_length),
+/// [`Vec3::checked_direction`](crate::Vec3::checked_direction), their
+/// length halves or their 2-D twins
+/// ([`LengthOutOfFormat`](crate::LengthOutOfFormat)), so the doors are
+/// those readers' callers rather than a roster here. A door refusing
+/// several vectors asks per vector, never of a length combined from
+/// them (a `min` has no witness of its own, and an underflowed term
+/// always wins it).
 ///
 /// `profile`'s OTHER 2-D director door, `unit_from_components`, asks
 /// [`is_finite_length`] and deliberately not this: the pair it refuses

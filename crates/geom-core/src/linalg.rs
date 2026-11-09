@@ -151,6 +151,5 @@ pub use rigid_motion::{
 pub use svd::{Svd, Svd2x3, Svd3x4};
 pub use unit_vec::{
     LeveredUnitError, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, decide_unit_direction,
-    length_out_of_format,
 };
-pub use vec::{Vec2, Vec3};
+pub use vec::{LengthOutOfFormat, NoDirection, Vec2, Vec3};
