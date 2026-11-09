@@ -2812,7 +2812,7 @@ pub fn forget_branches(on: bool) {
 #[cfg_attr(test, derive(strum::EnumDiscriminants))]
 #[cfg_attr(
     test,
-    strum_discriminants(name(SectionUnbuiltKind), vis(pub(crate)), derive(strum::EnumIter))
+    strum_discriminants(name(SectionUnbuiltKind), derive(strum::EnumIter))
 )]
 pub enum SectionUnbuilt {
     /// The pair's section refused at the glue door, decided: an operand
