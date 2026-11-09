@@ -491,7 +491,9 @@ impl SpiricRegimeSites {
     #[must_use]
     pub const fn new(off_axis: &'static str, far: &'static str, floor: &'static str) -> Self {
         assert!(
-            !str_eq(off_axis, far) && !str_eq(off_axis, floor) && !str_eq(far, floor),
+            !crate::str_eq(off_axis, far)
+                && !crate::str_eq(off_axis, floor)
+                && !crate::str_eq(far, floor),
             "a spiric regime's three rows need three names"
         );
         Self {
@@ -499,22 +501,6 @@ impl SpiricRegimeSites {
             two_ovals: [far, floor],
         }
     }
-}
-
-/// `a == b`, in a `const` context.
-const fn str_eq(a: &str, b: &str) -> bool {
-    let (a, b) = (a.as_bytes(), b.as_bytes());
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut k = 0;
-    while k < a.len() {
-        if a[k] != b[k] {
-            return false;
-        }
-        k += 1;
-    }
-    true
 }
 
 /// **Whether an axis-parallel plane at signed stand-off `offset` from

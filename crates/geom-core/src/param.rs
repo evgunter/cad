@@ -11,11 +11,11 @@
 //! of two, so every late step of a bisection) the two forms give the
 //! same bits at `f64`; otherwise they can differ in the last bit. A hand
 //! spelling moved onto the home of its own form moves no `f64` or `Sym`
-//! value; at `Sym`, a halving that was a division by 2 becomes the
-//! home's multiplication by ½, the same value in a different form. At
-//! `Interval`, an endpoint of magnitude below about `2⁻⁹⁵⁹` can widen
-//! outward by one ulp where the halving was a division: multiplication's
-//! exactness check gives up there, where division's detects an exact `/2`.
+//! value; at `Interval` an enclosure can only narrow, by one ulp under
+//! the backend's 2Prod floor where the halving was a division, and never
+//! widens (the product by ½ is exact at every normal magnitude). At
+//! `Sym` a halving that was a division by 2 becomes the home's
+//! multiplication by ½, the same value in a different form.
 
 use crate::Real;
 

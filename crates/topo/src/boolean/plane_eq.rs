@@ -171,15 +171,16 @@ pub(super) fn plane_ladder<T: Decide>(
     // `relation` rides beside σ: it is the orientation this decision
     // just made definite, and the relation the offset's Zero glues
     // under. A zero has no side to read, so it is the gate's rejection.
-    let (sigma, relation) = match decide_nonzero("bool_plane_orient", sign_margin, band) {
-        Ok(NonzeroSign::Positive) => (T::one(), PlaneRelation::SameOriented),
-        Ok(NonzeroSign::Negative) => (-T::one(), PlaneRelation::SameOpposite),
-        Err(diag) => {
-            return Err(PlaneEqError::Escalated {
-                rung: PlaneRung::Orientation,
-                diag,
-            });
+    let side = decide_nonzero("bool_plane_orient", sign_margin, band).map_err(|diag| {
+        PlaneEqError::Escalated {
+            rung: PlaneRung::Orientation,
+            diag,
         }
+    })?;
+    let sigma = side.unit::<T>();
+    let relation = match side {
+        NonzeroSign::Positive => PlaneRelation::SameOriented,
+        NonzeroSign::Negative => PlaneRelation::SameOpposite,
     };
     let offset_margin = Margin::of(d1 - sigma * d2);
     match CoincidenceMeasure::decide("bool_plane_offset", offset_margin, band) {

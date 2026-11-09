@@ -3563,10 +3563,7 @@ fn gap_orientation<T: Decide>(
     let cause = match oriented {
         Ok(sign) => {
             geom_core::k_stats::splice(orientation);
-            return Ok(match sign {
-                geom_core::k_stats::NonzeroSign::Positive => T::from_f64(1.0),
-                geom_core::k_stats::NonzeroSign::Negative => T::from_f64(-1.0),
-            });
+            return Ok(sign.unit());
         }
         Err(cause) => cause,
     };
