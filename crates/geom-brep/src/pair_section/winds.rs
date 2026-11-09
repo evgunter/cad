@@ -147,19 +147,26 @@ impl WindsRefusal {
         }
     }
 
-    /// **The recourse every rendering of this refusal ends with.** A
-    /// carrier that is not a spline, a tube that does not tile it, and a
-    /// closed loop whose turns are not whole contradict what the march
-    /// built (`Tube::of` checks the carrier, the tube
-    /// chain tiles by construction, and a closed fit's gap lies far
-    /// within `CLOSING_SLACK`), so each is a kernel defect. A tube
-    /// that cannot be read apart from a channel, or walked once round,
-    /// is a loop the reading does not settle yet, and a looser
-    /// tolerance only widens the tube.
+    /// **The recourse every rendering of this refusal ends with**: a
+    /// kernel defect where what the march built contradicts it, and "not
+    /// yet" where the reading does not settle a loop, which a looser
+    /// tolerance only makes worse by widening its tube.
     #[must_use]
     pub const fn recourse(self) -> &'static str {
         match self {
-            Self::NotSpline | Self::Untiled | Self::Open => geom_core::KERNEL_DEFECT_ENDING,
+            // Unreachable through `PairSection::carry`: `Tube::of` refuses
+            // a carrier that is not a spline as a desync before any winding
+            // is read. No row reaches it.
+            Self::NotSpline
+            // The tube's chain is one box per span of the carrier's refined
+            // vector, so it tiles the branch's span; the carry row that reads
+            // marched loops' winding about a wall's axis
+            // (`close_rings_carry_counted_and_marched`) refuses on a break.
+            | Self::Untiled
+            // A closed fit's ends are one point to its rounding, a gap many
+            // orders below `CLOSING_SLACK`; the same carry row refuses on a
+            // regression.
+            | Self::Open => geom_core::KERNEL_DEFECT_ENDING,
             Self::Unseparated | Self::Unordered => geom_core::NOT_YET_ENDING,
         }
     }

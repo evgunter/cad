@@ -2873,7 +2873,12 @@ impl SectionUnbuilt {
                 Some(geom_core::KERNEL_DEFECT_ENDING)
             }
             Self::PadShort { .. } => Some(geom_core::KERNEL_LIMIT_RECOURSE),
-            Self::TubeUnread | Self::Seat(_) => Some(geom_core::KERNEL_DEFECT_ENDING),
+            // Unreadable, which no tolerance repairs. Unreached by any row:
+            // a certified fit's refined net is never empty (`tube_chain`'s
+            // insertion chain holds its count by construction) and its
+            // points are finite, so only an overflowing coordinate gets here.
+            Self::TubeUnread => Some(geom_core::KERNEL_DEFECT_ENDING),
+            Self::Seat(_) => Some(geom_core::KERNEL_DEFECT_ENDING),
             Self::Unwalked(why) => Some(why.recourse()),
         }
     }
