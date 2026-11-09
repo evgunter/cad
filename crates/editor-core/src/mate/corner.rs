@@ -209,7 +209,7 @@ pub fn corner_frame_in(
             .find(|(v, _)| {
                 topo::readback::vertex_point(solid, *v)
                     .map(|q| framed.point_in_space(q))
-                    .is_ok_and(|q| [q.x, q.y, q.z] == [p.x, p.y, p.z])
+                    .is_ok_and(|q| q.equals_exactly(p))
             })
             .map(|(v, _)| v)
     };

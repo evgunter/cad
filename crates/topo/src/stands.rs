@@ -666,7 +666,7 @@ mod rung_three_rows {
         let first = triple_centroid(corners[0], corners[1], corners[2]);
         let q = interior(&body, top).expect("the top face offers a witness");
         assert!(
-            (q - first).norm() == 0.0,
+            q.equals_exactly(first),
             "the top face's witness {q:?}, not {first:?}"
         );
     }

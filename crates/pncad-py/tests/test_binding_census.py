@@ -4028,6 +4028,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SameSideInterference": "ValidationFinding.variant",
     "ValidationError::TouchInterference": "ValidationFinding.variant",
     "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",
+    "ValidationError::MaterialOnBothSides": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",
     "ValidationError::NextPrevMismatch": "ValidationFinding.variant",

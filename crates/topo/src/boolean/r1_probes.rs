@@ -48,14 +48,9 @@ fn f_geom(
 /// An INDEPENDENT root counter: dense sampling of `f_geom` plus
 /// bisection. Returns the sorted roots, and the smallest gap between
 /// consecutive ones (a proxy for how near a tangency the pose is).
-fn oracle_roots(
-    q: Point3<f64>,
-    d: Vec3<f64>,
-    c: Point3<f64>,
-    a: Vec3<f64>,
-    rr: f64,
-    r: f64,
-) -> (Vec<f64>, f64) {
+fn oracle_roots(ray: geom::Line<f64>, torus: geom::Line<f64>, rr: f64, r: f64) -> (Vec<f64>, f64) {
+    let geom::Line { origin: q, dir: d } = ray;
+    let geom::Line { origin: c, dir: a } = torus;
     let b = (q - c).dot(d);
     let ext = rr + r;
     let (lo, hi) = (-b - ext * 1.5, -b + ext * 1.5);
@@ -95,8 +90,11 @@ fn oracle_roots(
 }
 
 /// The torus centre and axis every probe below sweeps about.
-fn centre_and_axis() -> (Point3<f64>, Vec3<f64>) {
-    (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
+fn torus_axis() -> geom::Line<f64> {
+    geom::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(0.0, 1.0, 0.0),
+    }
 }
 
 /// The five `(R, r)` shapes the probes sweep — one per conditioning
@@ -152,11 +150,11 @@ impl Tally {
         o: Point3<f64>,
         dir: Vec3<f64>,
     ) {
-        let (c, a) = centre_and_axis();
+        let axis = torus_axis();
         let d = dir.normalize();
         self.checked += 1;
-        let got = line_torus_roots(o, d, c, a, rr, r, band());
-        let (oracle, gap) = oracle_roots(o, d, c, a, rr, r);
+        let got = line_torus_roots(geom::Line { origin: o, dir: d }, axis, rr, r, band());
+        let (oracle, gap) = oracle_roots(geom::Line { origin: o, dir: d }, axis, rr, r);
         match got {
             Ok(QuarticRoots::Certified(found)) => {
                 let (count, ts) = (found.count(), found.roots());
@@ -365,7 +363,16 @@ fn r1_the_hole_ray_certifies_exactly_four_roots() {
     let c = Point3::new(0.0, 0.0, 0.0);
     let a = Vec3::new(0.0, 1.0, 0.0);
     let d = Vec3::new(1.0, 0.0, 0.0);
-    match line_torus_roots(Point3::new(0.0, 0.0, 0.0), d, c, a, rr, r, band()) {
+    match line_torus_roots(
+        geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: d,
+        },
+        geom::Line { origin: c, dir: a },
+        rr,
+        r,
+        band(),
+    ) {
         Ok(QuarticRoots::Certified(found)) => {
             let (count, ts) = (found.count(), found.roots());
             let mut v = ts[..count].to_vec();
@@ -404,12 +411,13 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
         -0.6266073573218832,
     ];
     let pinned = Band::new(1e-12, 1e-11).unwrap();
-    let (c, a) = centre_and_axis();
+    let axis = torus_axis();
     let f64_roots = match line_torus_roots(
-        Point3::from_array(o),
-        Vec3::from_array(d),
-        c,
-        a,
+        geom::Line {
+            origin: Point3::from_array(o),
+            dir: Vec3::from_array(d),
+        },
+        axis,
         1.0,
         0.9,
         pinned,
@@ -432,10 +440,14 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
     }
     let iv = Interval::from_f64;
     match line_torus_roots(
-        Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
-        Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
-        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-        Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+        geom::Line {
+            origin: Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
+            dir: Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+        },
+        geom::Line {
+            origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            dir: Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+        },
         iv(1.0),
         iv(0.9),
         pinned,
@@ -483,10 +495,14 @@ fn r1_a_ray_on_the_resolvents_q_zero_surface_still_certifies_at_interval() {
     );
     let iv = Interval::from_f64;
     match line_torus_roots(
-        Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
-        Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
-        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-        Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+        geom::Line {
+            origin: Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
+            dir: Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+        },
+        geom::Line {
+            origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            dir: Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+        },
         iv(1.0),
         iv(0.9),
         Band::new(1e-12, 1e-11).unwrap(),
@@ -576,7 +592,7 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
         -1e-8, -1e-11, -1e-13, -1e-14, -1e-15, 0.0, 1e-15, 1e-14, 1e-13, 1e-11, 1e-8,
     ];
     let pinned = Band::new(1e-12, 1e-11).unwrap();
-    let (c, a) = centre_and_axis();
+    let axis = torus_axis();
     let iv = Interval::from_f64;
     for (k, (base, d)) in BASES.into_iter().enumerate() {
         let (mut signs, mut straddles) = (Vec::new(), 0usize);
@@ -587,8 +603,15 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
             if q_iv.lo() <= 0.0 && 0.0 <= q_iv.hi() {
                 straddles += 1;
             }
-            let (truth, _) =
-                oracle_roots(Point3::from_array(o), Vec3::from_array(d), c, a, 1.0, 0.9);
+            let (truth, _) = oracle_roots(
+                geom::Line {
+                    origin: Point3::from_array(o),
+                    dir: Vec3::from_array(d),
+                },
+                axis,
+                1.0,
+                0.9,
+            );
             assert_eq!(
                 truth.len(),
                 2,
@@ -596,10 +619,11 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
             );
             let at = format!("base {k}, step {h:e}");
             match line_torus_roots(
-                Point3::from_array(o),
-                Vec3::from_array(d),
-                c,
-                a,
+                geom::Line {
+                    origin: Point3::from_array(o),
+                    dir: Vec3::from_array(d),
+                },
+                axis,
                 1.0,
                 0.9,
                 pinned,
@@ -619,10 +643,14 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
                 other => panic!("F64 at {at} did not certify: {other:?}"),
             }
             match line_torus_roots(
-                Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
-                Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
-                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+                geom::Line {
+                    origin: Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
+                    dir: Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+                },
+                geom::Line {
+                    origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    dir: Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+                },
                 iv(1.0),
                 iv(0.9),
                 pinned,
