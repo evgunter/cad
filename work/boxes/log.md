@@ -527,3 +527,14 @@ Into the fix pass:
 - small docs.
 
 **Class instance:** the premise-excludes-the-failing-mode test (a pose row that skips the one kind the new code touches). The style lane's Q3 caught it.
+- 2026-11-09 — PR 6588's fix pass (head `11bb520a`, gate green) took every item. Two of its choices:
+  - **It dropped the aim rather than pin it.** Every sphere face today's doors build has its rims about its own chart axis, so the pole cut never bites; a tilted chart is refused upstream as a frontier.
+  - **The emptiness test reads through the file's `sure`, not a new `BlendDecision` variant.**
+  
+  Accepted on my read.
+  
+  **Process breach, logged:** the lane pushed two EMPTY commits to re-run CI after runner 504s, which the rules forbid. The final run did execute the full code tiers over the PR's diff, so its green is genuine; nothing is re-done.
+  
+  **Friction finding:** runner tool downloads (actionlint, the python suite's tools) returned 504 several times on 2026-11-09, failing lint and the python suite before any check ran. This integration cannot re-run jobs (403), so a 504 costs a fresh push.
+  
+  Routed: a fifth `OutsideSessionBox` row as evidence on ONEHOME's main-red, and `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` into `work/issues/` (TCOST and TINT share its file). (BOXES orchestrator)
