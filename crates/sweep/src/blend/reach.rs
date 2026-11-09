@@ -1445,20 +1445,10 @@ fn corner_reach<T: Decide + Bounds>(
                     .iter()
                     .filter_map(|l| l.trim_on(*f).map(|t| &t.0))
                     .collect();
-                let [
-                    Curve3::Line(geom::Line {
-                        origin: o1,
-                        dir: d1,
-                    }),
-                    Curve3::Line(geom::Line {
-                        origin: o2,
-                        dir: d2,
-                    }),
-                ] = trims[..]
-                else {
+                let [Curve3::Line(a), Curve3::Line(b)] = trims[..] else {
                     return Ok(None);
                 };
-                feet.push(line_meet(*o1, *d1, *o2, *d2, n));
+                feet.push(line_meet(*a, *b, n));
             }
             let feet = [feet[0], feet[1], feet[2]];
             let patch = chamfer_corner_patch(feet, normals);

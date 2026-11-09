@@ -100,6 +100,7 @@ PR 6665 gave the doors and holders below a `geom::Line`. Where the line came fro
 - `step-import/src/adopt.rs`: `mapped_self_description`
 - `step-import/src/entities.rs`: `as_bool`
 - `step-import/src/normalize/singularity.rs`: `meridian_rays`, `strut_tip`
+- `sweep/src/blend/battery.rs`: `turn_reading` (the mitre plane's cylinder pair, for `line_meet`; `onecopy/line-holders`)
 - `sweep/src/revolve/full.rs`: `build_wire`
 - `sweep/src/revolve/surfaces.rs`: `revolved_strut_spec`
 - `sweep/src/revolve/turn.rs`: `sweep_turn`

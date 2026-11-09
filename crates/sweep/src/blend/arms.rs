@@ -1279,20 +1279,14 @@ pub fn chamfer_strip<T: Real>(
 /// point where the two incident strips' trimlines on this support
 /// cross.
 ///
-/// Closed form: `s = ((o₂ − o₁) × d₂)·n / ((d₁ × d₂)·n)`, exact and
-/// total. Two parallel trimlines (a "corner" whose two edges are
+/// Closed form, for the lines `a = o₁ + d₁·s` and `b = o₂ + d₂·t`:
+/// `s = ((o₂ − o₁) × d₂)·n / ((d₁ × d₂)·n)`, exact and total. Two parallel trimlines (a "corner" whose two edges are
 /// collinear) drive the denominator to zero and poison the foot, which
 /// is the honest answer — there is no crossing there.
 #[must_use]
-pub fn line_meet<T: Real>(
-    o1: Point3<T>,
-    d1: Vec3<T>,
-    o2: Point3<T>,
-    d2: Vec3<T>,
-    n: Vec3<T>,
-) -> Point3<T> {
-    let s = (o2 - o1).cross(d2).dot(n) / d1.cross(d2).dot(n);
-    o1 + d1 * s
+pub fn line_meet<T: Real>(a: geom::Line<T>, b: geom::Line<T>, n: Vec3<T>) -> Point3<T> {
+    let s = (b.origin - a.origin).cross(b.dir).dot(n) / a.dir.cross(b.dir).dot(n);
+    a.origin + a.dir * s
 }
 
 /// **The chamfer's corner patch**: the plane through the three feet at
