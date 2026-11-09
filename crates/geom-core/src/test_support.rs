@@ -84,7 +84,8 @@ pub fn fixture_lever<T: crate::Real>(length: T) -> crate::Lever<T> {
 /// model scales, each run's [`MarginSample`](crate::k_stats::MarginSample)s
 /// grouped by predicate in recording order, and the two read side by side.
 /// A twin compares verdict streams sample for sample, and pairs only the
-/// decisive margins that have a scale ([`Twins::decisive_pairs`]).
+/// decisive margins that have a scale
+/// ([`Twins::decisive_pairs`](twins::Twins::decisive_pairs)).
 #[cfg(feature = "probe")]
 pub mod twins {
     use crate::Sign;
