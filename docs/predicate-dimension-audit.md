@@ -1699,13 +1699,34 @@ Flagged, NOT fixed here (dispositions):
   `curve_pair_walk_polish_step` — `geom-brep/src/curve_pair/walk.rs`
   `step_taken`: whether a Gauss–Newton step that moves the polished point
   `moved` metres is kept, against `16·slack`, sixteen times the most the
-  polished point can lie from where it started. A polish step is F32's
-  class: a polished parameter is read, never trusted, so the bound can
-  lose a meeting's foot but never invent one. A step kept or dropped
-  picks between two sound feet, each of which is read and logged on its
-  own rows. What keeps it off the logged doors is that no outcome is a
-  reading. Logged, every undecided step at `Interval` handed the driver
-  an escalation no box answers, on every walk that polishes.
+  polished point can lie from where it started. A step kept or dropped
+  picks between two sound points, and what keeps it off the logged
+  doors is that **no reader can rest on the pick**:
+  - A polish step is F32's class. A polished parameter is read, never
+    trusted, so the bound can lose a meeting's foot but never invent
+    one: the point the polish ends at is read on both spans
+    (`Span::contact`), logged on its own rows.
+  - **A dropped step loses no meeting.** The pair it ends at is read with
+    the window its pieces make, the polish's run included, and an Off
+    there prunes only where the window's bound says the pieces hold no
+    meeting. Where its premise is not proved (`curve_pair_walk_basin`,
+    logged) the window is undecided and the Off escalates
+    (`walk.rs`'s module docs, the paragraph ending "so no meeting is
+    left unread"). A point left short of the meeting by a dropped step
+    is such a pair: it reads On, or an Off the window proves, or an
+    escalation.
+  - So the logged tie was never the driver's only cue. Where a dropped
+    step leaves a meeting unproved, the window's escalation is the cue,
+    on a row a box answers.
+  - Measured on this unit's head (`ci` profile, instrumented locally and
+    not kept): over the `geom-brep` and `topo` suites, 17,883 steps
+    were dropped at `Interval`, every one decided, and no step tied at
+    either scalar; `editor-core`'s suite reaches no polish step. The
+    move changes no outcome those suites reach; it is argued on the
+    tie's soundness, which
+    `curve_pair::walk::tests::a_polish_step_at_its_bound_or_astride_it_is_dropped`
+    pins (an exact `16·slack` and an enclosure astride it are dropped,
+    off the verdict log).
 
   **Carried as `k_stats::choose(.., "F35")`**, its tie (a decided zero
   or an undecided difference) dropping the step. Its K samples still
@@ -1714,23 +1735,32 @@ Flagged, NOT fixed here (dispositions):
   `LEDGER_FLAGGED_SITES` does not move.
 
 - **F36** (added by ONECOPY's choose-door unit) `pn_conic_span_weight`
-  — `geom-brep/src/intersect/conic_arc.rs`: whether a hyperbola's span,
-  halved `k` times, weighs at most `√2`, the least `k` whose `2^k` equal
-  spans each weigh at most that (`cosh(h/2) = √((cosh h + 1)/2)`). A
-  count is structure, chosen on the sign alone, and a reading the scalar
-  cannot place halves once more, which costs a span and never
-  exactness: the spans are each read exactly at any count. What keeps it
-  off the logged doors is that no outcome is a reading, only a span
-  count. Logged, an undecided weight at `Interval` handed the driver an
-  escalation that a further halving already answered.
+  — `geom-brep/src/intersect/conic_arc.rs` `halvings_to_settle`: whether
+  a hyperbola's span, halved `k` times, weighs at most `√2`, the least
+  `k` whose `2^k` equal spans each weigh at most that (`cosh(h/2) =
+  √((cosh h + 1)/2)`). What keeps it off the logged doors is that **no
+  outcome is a reading, only a span count**:
+  - The spans are each read exactly at any count, so a halving more
+    doubles the span count and never costs exactness. The curve the
+    arc builds is the same branch between the same ends either way.
+  - So the logged tie was never the driver's only cue: an undecided
+    weight at `Interval` handed it an escalation that the next halving
+    already answered, and no box narrower than the scalar's own reading
+    changes which count is sound.
+  - Measured as F35's was: no weight tied in the `geom-brep`, `topo` or
+    `editor-core` suites at either scalar.
+    `intersect::conic_arc::tests::a_span_weighing_root_two_or_astride_it_halves_once_more`
+    pins the tie: a weight of exactly `√2` at `f64` and an enclosure
+    astride it each halve once, the float below `√2` settles at none,
+    and none of it reaches the verdict log.
 
   **Carried as `k_stats::choose(.., "F36")`**, its tie (a decided zero
   or an undecided weight) halving once more. That includes an exact
   zero, which the logged door read as settled: the one outcome this
-  move changes, a span more, never exactness. Its K samples still reach
-  the sink under `pn_conic_span_weight`; the verdict log no longer
-  carries it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does
-  not move.
+  move changes, and it doubles the span count, never exactness. Its K
+  samples still reach the sink under `pn_conic_span_weight`; the verdict
+  log no longer carries it. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

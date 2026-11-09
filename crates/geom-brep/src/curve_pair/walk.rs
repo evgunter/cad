@@ -448,8 +448,30 @@ mod tests {
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Point3, Sign, Vec3};
 
-    use super::{Read, witnesses};
+    use super::{Read, step_taken, witnesses};
     use crate::curve_pair::Span;
+
+    /// **F35's tie drops the step.** A step that moves its point exactly
+    /// `16·slack` is a decided zero against its bound at `f64`, and an
+    /// enclosure astride the bound is undecided: each is dropped, as a
+    /// step past the bound is, while one short of it is taken. None of
+    /// it reaches the verdict log. Red where the tie keeps the step.
+    #[test]
+    fn a_polish_step_at_its_bound_or_astride_it_is_dropped() {
+        use geom_core::Interval;
+        let bracket = geom_core::k_stats::Bracket::open();
+        assert!(step_taken(15.0_f64, 1.0));
+        assert!(!step_taken(16.0_f64, 1.0), "at the bound");
+        assert!(!step_taken(17.0_f64, 1.0));
+        let one = Interval::from_bounds(1.0, 1.0);
+        assert!(step_taken(Interval::from_bounds(15.0, 15.5), one));
+        assert!(
+            !step_taken(Interval::from_bounds(15.5, 16.5), one),
+            "astride the bound"
+        );
+        let recorded = bracket.finish();
+        assert!(recorded.verdicts.is_empty() && recorded.escalations.is_empty());
+    }
 
     /// **The walk's witnesses stand on polished feet.** A quadratic spline
     /// ending at the origin, which no closed form inverts, and a segment

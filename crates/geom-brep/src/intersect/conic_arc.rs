@@ -492,32 +492,7 @@ impl<T: Decide> ConicBranch<T> {
                     (self.hyperbolic_point(e0), self.hyperbolic_point(e1)),
                     band,
                 )?;
-                // The least `k` whose `2^k` equal spans each weigh at
-                // most `√2`: `cosh(h/2) = √((cosh h + 1)/2)`. A count is
-                // structure, a heuristic's choice on the sign alone
-                // (ledger row F36). **At a tie the span halves once more**,
-                // an exact zero included: sound, since a halving doubles
-                // the span count and never costs exactness.
-                let mut weight = (e1 / e0 + e0 / e1) / T::from_f64(2.0);
-                let settled = |weight: T| {
-                    use geom_core::k_stats::Pick;
-                    match geom_core::k_stats::choose(
-                        "pn_conic_span_weight",
-                        Margin::of(weight - T::from_f64(SPAN_WEIGHT_MAX)),
-                        "F36",
-                    ) {
-                        Pick::Negative => true,
-                        Pick::Positive | Pick::Tie => false,
-                    }
-                };
-                let mut halvings = 0_u32;
-                while !settled(weight) {
-                    if halvings == MAX_HALVINGS {
-                        return Err(ConicArcError::SpansUnsettled);
-                    }
-                    weight = ((weight + T::one()) / T::from_f64(2.0)).sqrt();
-                    halvings += 1;
-                }
+                let halvings = halvings_to_settle((e1 / e0 + e0 / e1) / T::from_f64(2.0))?;
                 // The `2^k + 1` breaks equal in `t`: each midpoint's
                 // `E` is the geometric mean of its neighbours'.
                 let mut breaks = vec![e0, e1];
@@ -574,6 +549,35 @@ impl<T: Decide> ConicBranch<T> {
 /// ([`ConicArcError::SpansUnsettled`]).
 const MAX_HALVINGS: u32 = 16;
 
+/// **The least `k` whose `2^k` equal spans each weigh at most `√2`**, for
+/// a whole span of weight `weight`: `cosh(h/2) = √((cosh h + 1)/2)` per
+/// halving. A count is structure, a heuristic's choice on the sign alone
+/// (ledger row F36). **At a tie the span halves once more**, an exact
+/// zero included: sound, since a halving doubles the span count and
+/// never costs exactness.
+fn halvings_to_settle<T: Decide>(mut weight: T) -> Result<u32, ConicArcError> {
+    let settled = |weight: T| {
+        use geom_core::k_stats::Pick;
+        match geom_core::k_stats::choose(
+            "pn_conic_span_weight",
+            Margin::of(weight - T::from_f64(SPAN_WEIGHT_MAX)),
+            "F36",
+        ) {
+            Pick::Negative => true,
+            Pick::Positive | Pick::Tie => false,
+        }
+    };
+    let mut halvings = 0_u32;
+    while !settled(weight) {
+        if halvings == MAX_HALVINGS {
+            return Err(ConicArcError::SpansUnsettled);
+        }
+        weight = ((weight + T::one()) / T::from_f64(2.0)).sqrt();
+        halvings += 1;
+    }
+    Ok(halvings)
+}
+
 /// The window's ends `given` against the branch's points `read` at their
 /// heights: each within the band of its own, and the two apart.
 fn window_on<T: Decide>(
@@ -605,5 +609,36 @@ fn window_on<T: Decide>(
     {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(ConicArcError::EmptyWindow),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use geom_core::Interval;
+    use geom_core::k_stats::Bracket;
+
+    use super::{SPAN_WEIGHT_MAX, halvings_to_settle};
+
+    /// **F36's tie halves once more.** A span weighing exactly `√2` at
+    /// `f64` is a decided zero against [`SPAN_WEIGHT_MAX`], and an
+    /// enclosure astride `√2` is undecided: each halves once, doubling
+    /// the span count, where the float below `√2` settles at once. None
+    /// of it reaches the verdict log. Red where the tie reads settled.
+    #[test]
+    fn a_span_weighing_root_two_or_astride_it_halves_once_more() {
+        let bracket = Bracket::open();
+        let below = f64::from_bits(SPAN_WEIGHT_MAX.to_bits() - 1);
+        assert_eq!(halvings_to_settle(below).unwrap(), 0);
+        assert_eq!(halvings_to_settle(SPAN_WEIGHT_MAX).unwrap(), 1, "exact √2");
+        let astride = Interval::from_bounds(below, f64::from_bits(SPAN_WEIGHT_MAX.to_bits() + 1));
+        assert_eq!(halvings_to_settle(astride).unwrap(), 1, "astride √2");
+        assert_eq!(
+            halvings_to_settle(Interval::from_bounds(below, below)).unwrap(),
+            0
+        );
+        let recorded = bracket.finish();
+        assert!(recorded.verdicts.is_empty() && recorded.escalations.is_empty());
     }
 }
