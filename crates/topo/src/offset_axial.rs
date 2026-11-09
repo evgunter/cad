@@ -1034,25 +1034,13 @@ fn axial_frame<T: Real>(
             continue;
         }
         let found = match f.surface() {
-            Surface::Cylinder { origin, axis, .. } => Some(geom::Line {
-                origin: *origin,
-                dir: axis.normalize(),
-            }),
-            Surface::Cone { apex, axis, .. } => Some(geom::Line {
-                origin: *apex,
-                dir: axis.normalize(),
-            }),
-            Surface::Sphere { center, axis, .. } => Some(geom::Line {
-                origin: *center,
-                dir: axis.normalize(),
-            }),
             // A torus carries `center` + `axis` exactly as a sphere
             // does: the centre is the tube midplane's own point on the
             // axis, and the axis is the revolution axis itself.
-            Surface::Torus { center, axis, .. } => Some(geom::Line {
-                origin: *center,
-                dir: axis.normalize(),
-            }),
+            surface @ (Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }) => surface.axis_line().map(geom::Line::unit),
             Surface::Plane { .. } => None,
             other => {
                 return Err(ReplaceFaceError::TogetherAxialUnsupported {
