@@ -478,10 +478,11 @@ pub(crate) enum TouchVerdict {
 ///
 /// Each variant states its standing to a ladder over the faces or
 /// sectors that read it ([`Self::refusal`]), with its reason.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum TouchUnread {
     /// A sign the analysis needed is in band. In band.
+    #[default]
     InBand,
     /// A face's piece at the touch did not build: a choice in building
     /// it was in band, or its readings contradicted each other within
