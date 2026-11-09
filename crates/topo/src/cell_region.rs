@@ -94,7 +94,7 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let Some(stored) = body.passed_face(face).map(|f| f.surface()) else {
+    let Some(stored) = body.face(face).map(|f| f.surface()) else {
         return CellRegion::Undecided;
     };
     cell_region_lifted(
@@ -173,7 +173,7 @@ pub fn station_region<T: Decide + CertifiedBounds>(
     (u, v): (f64, f64),
     band: Band,
 ) -> Option<FaceContainment> {
-    let surface = body.passed_face(face)?.surface();
+    let surface = body.face(face)?.surface();
     let station = surface.eval(T::from_computed(u), T::from_computed(v));
     place(body, face, surface, station, band)
 }
@@ -262,9 +262,11 @@ fn clear_of_singular(
     match *surface {
         Surface::Cone { apex, .. } => clear(SINGULAR, (station - apex).norm()),
         Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
-            let n = axis / axis.norm();
-            let w = station - center;
-            clear(SINGULAR, (w - n * w.dot(n)).norm())
+            let axis_line = geom::Line {
+                origin: center,
+                dir: axis,
+            };
+            clear(SINGULAR, axis_line.distance(station))
         }
         _ => true,
     }
@@ -293,7 +295,7 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
     face: FaceKey,
 ) -> Vec<BoundaryStop> {
     let mut stops = Vec::new();
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         stops.push(BoundaryStop::Unreadable);
         return stops;
     };

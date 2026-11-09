@@ -115,10 +115,7 @@
 
 use crate::OutwardNormal;
 use geom_core::k_stats::{decide, decide_negative, decide_positive};
-use geom_core::{
-    Band, Decide, Indeterminate, Lever, Margin, Point3, Real, Sign, Vec3, is_finite_length,
-    is_underflowed_length,
-};
+use geom_core::{Band, Decide, Indeterminate, LengthOutOfFormat, Lever, Margin, Real, Sign, Vec3};
 
 /// Rung 1's K name: the metering arm is positive. Private, as its two
 /// siblings are (module docs, "One K name per rung").
@@ -360,18 +357,19 @@ pub fn sector_arm<T: Decide>(
     dir_next: Vec3<T>,
     band: Band,
 ) -> Result<T, SectorFault> {
-    let (norm_own, norm_next) = (dir_own.norm(), dir_next.norm());
-    if !is_finite_length(norm_own) || !is_finite_length(norm_next) {
-        return Err(SectorFault::NonFiniteChord);
-    }
     // Per CHORD, against that chord's own witness — the arm below is
     // their `min`, which has no witness of its own and would hide the
-    // underflowed one behind the good one.
-    if is_underflowed_length(norm_own, dir_own.norm_witness())
-        || is_underflowed_length(norm_next, dir_next.norm_witness())
-    {
-        return Err(SectorFault::UnderflowedChord);
-    }
+    // underflowed one behind the good one. A non-finite chord is named
+    // before an underflowed one, whichever bound it is.
+    let (norm_own, norm_next) = match (dir_own.checked_length(), dir_next.checked_length()) {
+        (Ok(own), Ok(next)) => (own, next),
+        (Err(LengthOutOfFormat::NonFinite), _) | (_, Err(LengthOutOfFormat::NonFinite)) => {
+            return Err(SectorFault::NonFiniteChord);
+        }
+        (Err(LengthOutOfFormat::Underflowed), _) | (_, Err(LengthOutOfFormat::Underflowed)) => {
+            return Err(SectorFault::UnderflowedChord);
+        }
+    };
     let arm = norm_own.min(norm_next);
     decide_positive(SECTOR_ARM, Margin::of(arm), band).map_err(refused(SectorRung::Arm))?;
     Ok(arm)
@@ -552,38 +550,6 @@ pub fn reads_slit_tip_turn(bounds: CornerBounds, fault: &SectorFault, along: Sig
         )
 }
 
-/// **A point's signed distance from a plane, in metres**: `q` against
-/// the plane through `origin` with unit normal `normal`, positive on
-/// the normal's side. A point needs no lever: its distance is what a
-/// margin measures.
-pub fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> T {
-    (q - origin).dot(normal)
-}
-
-/// [`plane_offset`] with a first-order bound on its own rounding, its
-/// inputs exact ([`geom_core::running`]): the value is bit-identical to
-/// [`plane_offset`]'s, so a door that decides on one charges the other.
-pub fn plane_offset_rounded<T: Real>(
-    origin: Point3<T>,
-    normal: Vec3<T>,
-    q: Point3<T>,
-) -> geom_core::running::Rounded<T> {
-    use geom_core::running::{self, Rounded};
-    let d = [(q.x, origin.x), (q.y, origin.y), (q.z, origin.z)]
-        .map(|(a, b)| Rounded::exact(a) - Rounded::exact(b));
-    running::dot(d, running::exact_vec(normal))
-}
-
-/// **A point's distance from the closed segment `a → b`, in metres**:
-/// to the foot of the perpendicular where it falls on the segment, to
-/// the nearer end otherwise (the foot parameter clamped by `min`/`max`,
-/// no comparison). The segment has positive length.
-pub fn point_segment_distance<T: Real>(a: Point3<T>, b: Point3<T>, q: Point3<T>) -> T {
-    let (d, w) = (b - a, q - a);
-    let t = (w.dot(d) / d.norm_squared()).max(T::zero()).min(T::one());
-    (w - d * t).norm()
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -592,6 +558,56 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **The arm at the interval scalar reads each chord's prescaled
+    /// length.** An enclosure within the prescale's reach reads as
+    /// narrow as its plain norm or narrower, and decides as it did on
+    /// the plain norm: `[0.1, 1]` is a positive arm; `[1e-300, 1]`
+    /// encloses `[1e-300, ∞]` and escalates, as `[0, 1]` did. One that
+    /// spans more magnitude than any prescale arm holds (`[1, 1e300]`,
+    /// past `2⁵¹⁰`) loses its lower end to the squares, as
+    /// `Vec3::normalize`'s does, and escalates where the plain norm's
+    /// `[1, ∞]` decided positive: sound, and the documented width of the
+    /// one prescale.
+    #[test]
+    fn the_arm_of_an_interval_chord_is_its_prescaled_length() {
+        use geom_core::{Bounds, Interval};
+        let iv = Interval::from_bounds;
+        let chord = |lo: f64, hi: f64| Vec3::new(iv(lo, hi), iv(0.0, 0.0), iv(0.0, 0.0));
+        let unit = chord(1.0, 1.0);
+        let arm = sector_arm(chord(0.1, 1.0), unit, band()).expect("[0.1, 1] is a positive arm");
+        assert!(
+            arm.lo() <= 0.1 && arm.lo() > 0.09 && arm.hi() == 1.0,
+            "[0.1, 1]: {arm:?}"
+        );
+        for (lo, hi) in [(1e-300, 1.0), (1.0, 1e300)] {
+            let length = chord(lo, hi).checked_length().expect("in the format");
+            assert!(
+                length.lo() <= lo && lo <= length.hi() && hi <= length.hi(),
+                "[{lo:e}, {hi:e}] encloses its length: {length:?}"
+            );
+            assert!(
+                matches!(
+                    sector_arm(chord(lo, hi), unit, band()),
+                    Err(SectorFault::Rung {
+                        rung: SectorRung::Arm,
+                        ..
+                    })
+                ),
+                "[{lo:e}, {hi:e}] escalates at the arm"
+            );
+        }
+        assert_eq!(
+            chord(1.0, 1e300).checked_length().map(|n| n.lo()),
+            Ok(0.0),
+            "[1, 1e300] loses its lower end to the prescale"
+        );
+        assert_eq!(
+            chord(1e-300, 1.0).checked_length().map(|n| n.hi()),
+            Ok(f64::INFINITY),
+            "[1e-300, 1] loses its upper end to the prescale"
+        );
     }
 
     /// A rung refusal as `(rung, predicate, the margin's reading, the
@@ -967,8 +983,9 @@ mod tests {
     /// stop guarding its old retired spellings, and whoever renames one
     /// carries them forward by hand.
     ///
-    /// The check is textual over the quoted forms, so a doc comment
-    /// that quotes a retired name reds it too; backticks do not.
+    /// The check reads each file's code and string literals
+    /// (`test_utils::source::code_and_literals`), where a predicate name
+    /// is spelled; a name quoted in prose is not a spelling.
     #[test]
     fn the_rungs_are_decided_in_one_place() {
         let (pooled, retired) = rung_rosters();
@@ -981,7 +998,17 @@ mod tests {
             files.len()
         );
         for path in &files {
-            let text = std::fs::read_to_string(path).expect("a readable source file");
+            let raw = std::fs::read_to_string(path).expect("a readable source file");
+            // A file whose text holds no rung name cannot spell one in a
+            // literal, so only the files that do are lexed.
+            if !pooled
+                .iter()
+                .chain(&retired)
+                .any(|name| raw.contains(name.as_str()))
+            {
+                continue;
+            }
+            let text = test_utils::source::code_and_literals(&raw);
             for name in &retired {
                 assert!(
                     !text.contains(name.as_str()),
@@ -1001,7 +1028,9 @@ mod tests {
                 );
             }
         }
-        let here = std::fs::read_to_string(&home).expect("the home module is readable");
+        let here = test_utils::source::code_and_literals(
+            &std::fs::read_to_string(&home).expect("the home module is readable"),
+        );
         for name in &pooled {
             assert!(
                 here.contains(name.as_str()),

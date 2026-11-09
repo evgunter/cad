@@ -227,7 +227,7 @@ fn a_polar_cap_sizes_its_azimuth_at_its_widest_latitude() {
             .iter()
             .filter(|p| {
                 matches!(
-                    body.get_surface(body.get_face(p.face).unwrap().surface),
+                    body.face_surface(p.face),
                     Some(geom::Surface::Sphere { .. })
                 )
             })

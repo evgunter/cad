@@ -14,8 +14,8 @@
 
 use crate::doc::VarName;
 use crate::expr::{
-    AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind, ExprTree, Quantity, StoredLeaf,
-    Terminal, UnitSym, Unlowered,
+    AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind, ExprTree, Quantity, Terminal, UnitSym,
+    Unlowered,
 };
 use crate::var::{VarId, VarKind};
 
@@ -599,13 +599,7 @@ fn leaf_fault(
 /// leaf, reading every variable by id.
 impl From<&Expr> for Formula {
     fn from(stored: &Expr) -> Self {
-        let Ok(formula) = stored.try_map_leaves(&mut |leaf: &StoredLeaf,
-                                                      _|
-         -> Result<
-            Self,
-            core::convert::Infallible,
-        > { match *leaf {} });
-        formula
+        stored.to_formula()
     }
 }
 

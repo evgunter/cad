@@ -235,9 +235,11 @@ pub use ::profile::{
 //   orientation. All three are facts about the authored geometry, and
 //   a caller that cannot name the site cannot act on the refusal. The
 //   fillet construction is NOT among them: its gates leave through
-//   `PathError::Escalated`, whose Display selects the gate's own
-//   recourse from the predicate name rather than from a site
-//   discriminant.
+//   `PathError::Escalated`, whose site is `EscalatedAt`.
+// - `Gate` is what every escalation arm carries: the closed decision
+//   whose subject and ending the refusal states, and `EscalatedAt` the
+//   path door's site for one. `ArcRead` is which read of a constructed
+//   arc missed, in `PathError`'s two read-back arms.
 // - `SegmentRef` is the rung under that one, and under six arms
 //   besides: `DegenerateSegment`, `NearFullArc`, `InconsistentArc` and
 //   `ArcBelowSceneResolution` carry one, `NonSimple` and
@@ -266,6 +268,9 @@ pub use ::profile::{
 //   along; this is the fillet constructor's, one door over, with the
 //   same shape and different conditions. Carrying one of the two and
 //   not the other is the inconsistency, not the reach.
+// - `TurnLever` is `PathNoCornerReason::TurnWithinTolerance`'s: which
+//   length the corner's turn was levered by — the shorter leg's arm or
+//   the anchors' separation — and so which length the caller moves.
 //
 // **`Step` is NOT here, and that is measured — the `MappedCurve`
 // argument in group 4 read on a value rather than on a refusal.** It
@@ -292,7 +297,8 @@ pub use ::profile::{
 // first. Stated so the next curation pass re-measures rather than
 // re-derives.
 pub use ::profile::{
-    ArcCheck, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
+    ArcCheck, ArcRead, ContactKind, EscalatedAt, EscalationSite, FilletLeg, FilletLegCarrier, Gate,
+    NoCornerReason, SegmentRef, TurnLever,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -572,11 +578,9 @@ pub use topo::{
 // --- 6. Mass properties ---------------------------------------
 // `Settle` is what a measurement is asked (`[tolerance.measure]`), with
 // the vocabulary its variants carry, and `Stop` why it stopped.
-// `VolumeEnclosure` is a certificate's bracket, and `CertifiedBody` is
-// `StepImport::Solid::body`, the body held with its certificate: the
-// curated-type rule (the
-// `coherence` note below) says a caller able to hold it must be able to
-// spell it. `MassMeasurement` is what a measurement answers, and
+// `VolumeEnclosure` is a certificate's bracket. `MassMeasurement` is
+// what a measurement answers (a finished body's `AtRestBody::measure`
+// continues its finish's certificate to one), and
 // `SettleVerdict` what `Stop::Settled` says a deciding predicate
 // decided; each is the one name in Rust and Python (Python's
 // `MassMeasurement.verdict` is a `SettleVerdict`, spelled as its words).
@@ -584,8 +588,8 @@ pub use topo::{
 // `Unmet` what `MassMeasurement::met` answers where the number went
 // unmet.
 pub use topo::{
-    CertifiedBody, MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle,
-    SettleVerdict, ShellRole, SignNames, Stop, Unmet, VolumeEnclosure, mass_properties,
+    MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle, SettleVerdict, ShellRole,
+    SignNames, Stop, Unmet, VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

@@ -269,15 +269,19 @@ impl ContainError {
     /// loop the door cannot read a limit; a curved face's refusal as the
     /// solid door states it; a face that does not resolve, or two
     /// definite readings of an arc's end that disagree, a refusal of the
-    /// whole query.
-    pub(in crate::boolean) fn refusal(&self) -> geom_brep::ladder::Refusal {
-        use geom_brep::ladder::Refusal;
+    /// whole query ([`geom_brep::ladder::Aborts`]).
+    pub(in crate::boolean) fn refusal(
+        &self,
+    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
         match self {
-            Self::Escalated { diag, .. } => Refusal::Margin(*diag),
-            Self::RayExhausted => Refusal::InBand,
-            Self::EmptyLoop(_) | Self::LoopUnreadable(_) | Self::Uncrossable(_) => Refusal::Limit,
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted => Ok(Refusal::InBand),
+            Self::EmptyLoop(_) | Self::LoopUnreadable(_) | Self::Uncrossable(_) => {
+                Ok(Refusal::Limit)
+            }
             Self::Curved(e) => e.refusal(),
-            Self::StaleFace(_) | Self::ArcEndClearOfCorners(_) => Refusal::Abort,
+            Self::StaleFace(_) | Self::ArcEndClearOfCorners(_) => Err(Aborts),
         }
     }
 }
@@ -457,9 +461,7 @@ pub(crate) fn driver_face_stale(face: FaceKey) -> ! {
 /// `face`'s outer loop and rings ([`crate::live::FaceView::loops`]), the face
 /// the caller's key.
 fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, ContainError> {
-    let face_data = body
-        .passed_face(face)
-        .ok_or(ContainError::StaleFace(face))?;
+    let face_data = body.face(face).ok_or(ContainError::StaleFace(face))?;
     Ok(face_data.loops().map(|(lk, _, _)| lk).collect())
 }
 
@@ -484,6 +486,9 @@ pub fn contfp<T: Decide>(
 
 /// [`contfp`], with the margin that decided an `OnEdge` or `OnVertex`
 /// verdict (`None` for `In` and `Out`, which decide no coincidence).
+/// A site that reads a face of either kind reads
+/// [`placement_on_carrier`], the one dispatch, rather than this beside
+/// the curved door.
 ///
 /// # Errors
 ///
@@ -644,6 +649,12 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// — for the conic disposition — `bool_contact_arc_{span,straddle,end_vertex}`,
 /// for the spiric `bool_contact_spiric{,_end,_clear,_leaf}`, and for the
 /// spline `bool_contact_spline{,_end,_clear,_leaf}`.
+///
+/// Which cell holds `q` is the answer (`OnVertex(v)`, `OnEdge(e)`: its
+/// consumers read the key), so a cell read in band may be the true
+/// holder and no later cell answers past it: a vertex's escalation
+/// refuses ahead of every edge, and one loop's ahead of every later loop,
+/// as [`crate::splitting::containment::CarrierLoop::place_off`] refuses ahead of a later edge.
 fn boundary_pre_pass<T: Decide>(
     body: &Body<T>,
     loops: &[LoopKey],
@@ -829,9 +840,10 @@ pub(crate) enum CurvedPlacement {
 /// and in a boolean's carry onto the pieces of a divided face, and a
 /// section witness in its face. On a plane, `q` is first decided on the
 /// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
-/// decision's nonzero, then [`contfp`] places it; on a curved face its
-/// region places it ([`curved_face_placement`]). `Trim(None)` is the
-/// curved door's remainder, a face it does not read.
+/// decision's nonzero, then [`placement_on_carrier`] places it; on a
+/// curved face that door places it outright. `Trim(None)` is the curved
+/// door's remainder, a face it does not read. The projection of
+/// [`face_placement_decided`].
 ///
 /// # Errors
 ///
@@ -844,18 +856,61 @@ pub(crate) fn face_placement<T: Decide>(
     band: Band,
     on_plane: &'static str,
 ) -> Result<CurvedPlacement, PlacementError> {
-    let f = body.proven_face(face);
-    match *f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => {
-            match decide(on_plane, Margin::of((q - origin).dot(normal)), band) {
-                Ok(Sign::Zero) => contfp(body, face, normal, q, band)
-                    .map(|at| CurvedPlacement::Trim(Some(at)))
-                    .map_err(PlacementError::Door),
-                Ok(Sign::Positive | Sign::Negative) => Ok(CurvedPlacement::OffCarrier),
-                Err(diag) => Err(PlacementError::OnPlane(diag)),
+    face_placement_decided(body, face, q, band, on_plane).map(|(at, _, _)| at)
+}
+
+/// [`face_placement`], with the margin that decided a boundary verdict
+/// and a spline face's in-trim foot ([`ChartedPlacement`]).
+///
+/// # Errors
+///
+/// As [`face_placement`].
+fn face_placement_decided<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    on_plane: &'static str,
+) -> Result<ChartedPlacement, PlacementError> {
+    if let geom::Surface::Plane { origin, normal, .. } = *body.proven_face(face).surface() {
+        match decide(
+            on_plane,
+            Margin::of(geom::plane_offset(origin, normal, q)),
+            band,
+        ) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => {
+                return Ok((CurvedPlacement::OffCarrier, None, None));
             }
+            Err(diag) => return Err(PlacementError::OnPlane(diag)),
         }
-        _ => curved_face_placement(body, face, q, band).map_err(PlacementError::Door),
+    }
+    placement_on_carrier(body, face, q, band).map_err(PlacementError::Door)
+}
+
+/// **Where a point the caller holds on `face`'s carrier lies against
+/// the face**: the dispatch of every placement, the plane's
+/// [`contfp_decided`] (with the face's stored normal, which it reads
+/// sign-blind) or the curved [`curved_face_placement_decided`]. On a
+/// plane it decides no on-plane margin and never answers `OffCarrier`:
+/// the caller's construction, or its own decision, put `q` there. What
+/// a curved face's `OffCarrier` means is the caller's to say, at the
+/// call.
+///
+/// # Errors
+///
+/// The containment door's own refusal.
+pub(in crate::boolean) fn placement_on_carrier<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<ChartedPlacement, ContainError> {
+    let view = body.face(face).ok_or(ContainError::StaleFace(face))?;
+    match *view.surface() {
+        geom::Surface::Plane { normal, .. } => contfp_decided(body, face, normal, q, band)
+            .map(|(at, margin)| (CurvedPlacement::Trim(Some(at)), margin, None)),
+        _ => curved_face_placement_decided(body, face, q, band),
     }
 }
 
@@ -897,7 +952,7 @@ pub(crate) type ChartedPlacement = (CurvedPlacement, Option<MarginDiag>, Option<
 /// # Errors
 ///
 /// As [`curved_face_containment`].
-pub(crate) fn curved_face_placement_decided<T: Decide>(
+fn curved_face_placement_decided<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
@@ -930,8 +985,7 @@ fn curved_interior_placement<T: Decide>(
             radius,
             ..
         } => {
-            let w = q - origin;
-            let radial = w - axis * w.dot(axis);
+            let radial = geom::Line { origin, dir: axis }.offset(q);
             ruled_face_containment(body, face, radial.norm() - radius, q, band, cut)
         }
         // The whole DOUBLE cone ([`geom_brep::cone_elevation`] with no
@@ -1016,7 +1070,7 @@ fn sphere_face_containment<T: Decide>(
             Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
         }
     }
-    let region = match super::sphere_region::sphere_face_region(body, face, center, radius) {
+    let region = match super::sphere_region::sphere_face_region(body, face) {
         Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),

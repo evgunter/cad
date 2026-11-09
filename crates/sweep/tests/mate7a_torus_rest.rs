@@ -146,7 +146,7 @@ fn torus_faces(body: &Body<f64>, minor: f64) -> Vec<FaceKey> {
         .into_iter()
         .filter(|&f| {
             matches!(
-                body.get_face(f).and_then(|fd| body.get_surface(fd.surface)),
+                body.face_surface(f),
                 Some(geom::Surface::Torus { minor_radius, .. })
                     if (*minor_radius - minor).abs() < 1e-12
             )
@@ -426,7 +426,7 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     };
     let radii = |body: &Body<f64>| {
         body.faces()
-            .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            .filter_map(|(fk, _)| match body.face_surface(fk) {
                 Some(&geom::Surface::Torus { minor_radius, .. }) => Some(minor_radius),
                 _ => None,
             })
@@ -437,7 +437,7 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     }
     let plane_origins = |body: &Body<f64>| {
         body.faces()
-            .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            .filter_map(|(fk, _)| match body.face_surface(fk) {
                 Some(&geom::Surface::Plane { origin, .. }) => Some(origin),
                 _ => None,
             })
@@ -483,8 +483,7 @@ fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
         let s = b.get_face(fb).expect("the wall face resolves").sense;
         b.set_face_sense(fb, !s).expect("the key is live");
     }
-    let errors = topo::AtRestBody::validate(b, Tol::witness())
-        .expect_err("inward walls are not a finished body");
+    let errors = topo::finish(b, Tol::witness()).expect_err("inward walls are not a finished body");
     let mut inverted: Vec<_> = errors
         .iter()
         .map(|e| match e {

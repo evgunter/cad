@@ -266,9 +266,9 @@ authoring act.
   be written.
 - DOF check: arc 5; r binds 1; tangency to each fixed carrier
   binds 2 + 2 — exactly determined (#101's `LoopBuilder::fillet`
-  closed form at a virtual corner). Parallel/non-intersecting
-  carriers, or an intersection behind the ray start, refuse typed
-  `NoCornerForFillet`.
+  closed form at a virtual corner). Tangent/non-intersecting
+  carriers, a turn zero at tolerance, or an intersection behind the
+  ray start, refuse typed `NoCornerForFillet`.
 
 ### Closure: the `Start` token
 
@@ -972,8 +972,9 @@ the fused verb** (`arc_fillet`; a `nurbs_fillet` has no closed
 form and is an ABSENT VERB — unrepresentable, strictly better
 doctrine than the old typed wall); **bare `fillet` ⇔ tangent-ray
 extension**, uniform across line/arc/NURBS incomings. The one
-surviving refusal is `NoCornerForFillet` (parallel carriers /
-intersection behind the ray start) — geometry, not mechanism.
+surviving refusal is `NoCornerForFillet` (tangent or disjoint
+carriers, a turn zero at tolerance / intersection behind the ray
+start) — geometry, not mechanism.
 
 The program Step vocabulary carries the same spelling as the
 surface: pre-release, the step set is not a compatibility

@@ -42,3 +42,5 @@ Decide where an unresolved section carrier's rounding is typed so the result doe
 - or read `carrier_resolution` at the pcurve mint's refusal, the way `section_pin_refusal` does.
 
 The sibling for the square-to-axis reading is HONEPOSE's `a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12`.
+
+**A second witness moved the same way** (ONECOPY's harmonic-cut unit, 2026-11-06). `plane_crossing`'s conic phase now reads through `geom::Azimuth::near`, and the phase moves by one ulp: at `a = −0.2272…`, `atan2(b, a)` gives 1.7999999999999998 where the old `+π` formula gave …96. That moves `crates/sweep/tests/section_end_poses.rs` `AXIAL`'s `(0.7, 2, 3e-5, 0.5)` at ε = 1e-12 off the end pin and onto `MapResidual at sample 1 escalated`, on the same `3.638e-12` quantum (`2⁻³⁸`). The refusal is untyped, as this row's first witness was. The pose is re-posed to `(0.7, 2, 3e-5, 0.3)`, which still meets the end pin first.

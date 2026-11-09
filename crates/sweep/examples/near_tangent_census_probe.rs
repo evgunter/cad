@@ -40,8 +40,8 @@ use differential::{
 use geom_core::{Band, Point3, Tol};
 use topo::entity::{EntityId, LoopBoundary};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError, BooleanResult, CensusStrategy,
-    RegionLane, ValidationError, mass_properties,
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, CensusStrategy, RegionLane,
+    ValidationError, mass_properties,
 };
 
 type V3 = [f64; 3];
@@ -126,13 +126,12 @@ fn edge_ends(body: &Body<f64>, e: topo::EdgeKey) -> Option<String> {
 /// A planar face's plane and loops, every loop's vertex points in walk
 /// order.
 fn face_geo(body: &Body<f64>, f: topo::FaceKey) -> Option<String> {
-    let face = body.get_face(f)?;
-    let (origin, normal) = match body.get_surface(face.surface)? {
+    let (origin, normal) = match body.face_surface(f)? {
         geom::Surface::Plane { origin, normal, .. } => (*origin, *normal),
         _ => return None,
     };
     let mut loops = Vec::new();
-    for lk in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (lk, _, _) in body.face(f)?.loops() {
         let LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
             continue;
         };
@@ -259,24 +258,10 @@ fn run_all(
                         }
                     }
                 }
-                Err(BooleanError::ResultInvalid { errors }) => {
-                    for e in errors {
+                Err(BooleanError::ResultInvalid { findings: errors }) => {
+                    for e in errors.iter() {
                         after.push(format!("  REFUSAL {line} | {e:?}"));
                     }
-                    if op == "I" {
-                        after.extend(lumps.iter().cloned());
-                    }
-                }
-                // The finished-body gate's in-band typing: check 10's
-                // in-band shell.
-                Err(BooleanError::Escalated {
-                    decision: BooleanDecision::ShellRole { others, .. },
-                    diag,
-                }) => {
-                    after.push(format!(
-                        "  ESCALATED {line} | ShellRole {:e} (+{others} in band)",
-                        diag.margin
-                    ));
                     if op == "I" {
                         after.extend(lumps.iter().cloned());
                     }

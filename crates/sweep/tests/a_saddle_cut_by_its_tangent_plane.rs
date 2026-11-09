@@ -47,7 +47,7 @@ fn saddle_block() -> AtRestBody<f64> {
 fn above() -> AtRestBody<f64> {
     finished(
         "the half-space",
-        topo::test_support::brick((-4.0, 4.0), (0.0, 4.0), (-4.0, 4.0), tol()),
+        topo::test_support::brick::<f64>((-4.0, 4.0), (0.0, 4.0), (-4.0, 4.0), tol()),
         tol(),
     )
 }
@@ -56,7 +56,7 @@ fn above() -> AtRestBody<f64> {
 fn saddle_wall(s: &AtRestBody<f64>) -> topo::FaceKey {
     let walls: Vec<_> = s
         .faces()
-        .filter(|(_, fd)| match s.get_surface(fd.surface) {
+        .filter(|(fk, _)| match s.face_surface(*fk) {
             Some(geom::Surface::Nurbs(n)) => {
                 n.control().iter().all(|p| (p.y - p.x * p.z).abs() < 1e-12)
             }
@@ -72,9 +72,9 @@ fn saddle_wall(s: &AtRestBody<f64>) -> topo::FaceKey {
 fn cut_face(h: &AtRestBody<f64>) -> topo::FaceKey {
     let faces: Vec<_> = h
         .faces()
-        .filter(|(_, fd)| {
+        .filter(|(fk, _)| {
             matches!(
-                h.get_surface(fd.surface),
+                h.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if origin.y.abs() < 1e-12 && normal.y.abs() > 1.0 - 1e-12
             )

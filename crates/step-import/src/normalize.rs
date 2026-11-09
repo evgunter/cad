@@ -86,6 +86,7 @@ use std::collections::BTreeMap;
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::period::Period;
 
 use crate::entities::{EdgeSpec, EdgeUse, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
@@ -426,8 +427,11 @@ fn mint_band(
                         },
                     radius,
                 }) => {
-                    let d = center - axis_point;
-                    let off_axis = (d - s_axis * d.dot(s_axis)).norm();
+                    let off_axis = geom::Line {
+                        origin: axis_point,
+                        dir: s_axis,
+                    }
+                    .distance(center);
                     let tilt = radius * n.cross(s_axis).norm();
                     if ui == 0 {
                         raises = Some(u.forward == (n.dot(s_axis) > 0.0));
@@ -656,10 +660,7 @@ fn seam_vertex_on_loop(
             continue;
         };
         let q = crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius);
-        let mut t = geom::Conic::azimuth(circle, q).near(0.0);
-        while t <= spec.t0 {
-            t += TAU;
-        }
+        let t = Period::new(TAU).above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
         if t < spec.t1 {
             crossing = Some((u.edge, t, q));
             break;

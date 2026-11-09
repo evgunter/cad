@@ -78,11 +78,25 @@ pub(crate) struct AzimuthFrame<T: Real> {
 /// [`AzimuthFrame`]'s fields.
 pub(crate) fn frame<T: Real>(frame: &Frame<T>, u: T) -> AzimuthFrame<T> {
     let ((s, c), v_ref) = basis(frame, u);
-    let u_ref = frame.u_ref;
+    of_legs(frame.u_ref, v_ref, (s, c))
+}
+
+/// [`frame`] over two legs a caller holds verbatim, `u_ref` and `v_ref`,
+/// and the trig pair `(sin u, cos u)`: the two formulas, written once.
+fn of_legs<T: Real>(u_ref: Vec3<T>, v_ref: Vec3<T>, (s, c): (T, T)) -> AzimuthFrame<T> {
     AzimuthFrame {
         radial: Radial(u_ref * c + v_ref * s),
         tangential: Tangential(u_ref * (-s) + v_ref * c),
     }
+}
+
+/// **The unit radial direction at azimuth `u` over two legs held
+/// verbatim**, `u_ref·cos u + v_ref·sin u`: [`Frame::radial`] for a caller
+/// whose second leg is its own (a rigid motion's `v`), not the frame's
+/// `axis × u_ref`, which agrees with it only to rounding.
+#[must_use]
+pub fn radial_of_legs<T: Real>(u_ref: Vec3<T>, v_ref: Vec3<T>, u: T) -> Vec3<T> {
+    of_legs(u_ref, v_ref, u.sin_cos()).radial.0
 }
 
 /// **The principal window of an angular channel** starts here: an
@@ -217,6 +231,14 @@ impl<T: Real> Azimuth<T> {
     /// The direction's length: the radius its angle is read at.
     pub fn length(self) -> T {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
+    }
+
+    /// **The direction's component along `reference`**: `x·x_r + y·y_r`,
+    /// in the product of their units, positive on `reference`'s side of
+    /// the line square to it. A reading of which half-plane a point lies
+    /// in, with no angle in it.
+    pub fn along(self, reference: Self) -> T {
+        self.x * reference.x + self.y * reference.y
     }
 
     /// The angle named on the branch within half a turn of `centre`:
@@ -515,6 +537,22 @@ mod tests {
                 bits(f.tangential.0),
                 bits(u_ref * (-s) + v_ref * c),
                 "tangential at {u}"
+            );
+            let placed = crate::Frame::new(geom_core::Point3::origin(), axis, u_ref);
+            assert_eq!(
+                bits(placed.radial(u)),
+                bits(f.radial.0),
+                "Frame::radial at {u}"
+            );
+            assert_eq!(
+                bits(placed.tangential(u)),
+                bits(f.tangential.0),
+                "Frame::tangential at {u}"
+            );
+            assert_eq!(
+                bits(radial_of_legs(u_ref, v_ref, u)),
+                bits(f.radial.0),
+                "radial_of_legs at {u}"
             );
         }
     }

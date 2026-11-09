@@ -60,7 +60,7 @@ use crate::body::Body;
 use crate::contact::ContactRefusal;
 use crate::entity::FaceKey;
 
-use super::carrier_eq::{CarrierEqError, CarrierRelation};
+use super::carrier_eq::{CarrierEqError, CarrierRelation, CarrierVerdict};
 
 /// **The `Rest` contact door**: do these two faces rest on one
 /// carrier, opposed? The table (C4): one carrier through the face-pair
@@ -108,21 +108,32 @@ pub fn rest_pair_verdict<T: Decide>(
         terminal_sliver: false,
     };
     match outcome {
-        Ok((CarrierRelation::SameOpposite, Some(margin))) => Ok(margin),
-        // A one-carrier reading carries the margin that decided it
-        // (`CarrierReading`): only `Distinct` reads none.
-        Ok((CarrierRelation::SameOpposite, None)) => {
-            unreachable!("a carrier reading decided one carrier, opposed, and carries no margin")
-        }
-        Ok((CarrierRelation::SameOriented, _)) => Err(ContactRefusal::Contradicted {
+        Ok(CarrierVerdict::One {
+            relation: CarrierRelation::SameOpposite,
+            margin,
+        }) => Ok(margin),
+        Ok(CarrierVerdict::One {
+            relation: CarrierRelation::SameOriented,
+            ..
+        }) => Err(ContactRefusal::Contradicted {
             diag: definite("contact_rest_senses_opposed"),
         }),
-        Ok((CarrierRelation::Distinct, _)) => Err(ContactRefusal::Contradicted {
+        Ok(_) => Err(ContactRefusal::Contradicted {
             diag: definite("contact_rest_one_carrier"),
         }),
         Err(CarrierEqError::Escalated { diag, .. }) => Err(ContactRefusal::Escalated { diag }),
         Err(CarrierEqError::Undecided { coincidence, .. }) => Err(ContactRefusal::Escalated {
             diag: coincidence.reported(),
+        }),
+        // Every caller reads a validated body, and tier 3 refuses such a
+        // torus first (`ValidationError::DegenerateTorus`), so no row
+        // reaches this arm through one.
+        Err(CarrierEqError::OffRing { refusal, .. }) => Err(match refusal.verdict {
+            geom_brep::TorusVerdict::Undecided(diag) => ContactRefusal::Escalated { diag },
+            geom_brep::TorusVerdict::Refused(_) => ContactRefusal::NotCertifiable {
+                what: "a recorded face's torus is outside the ring convention (a horn or \
+                       spindle torus, or one with no tube), which no carrier is compared on",
+            },
         }),
     }
 }
@@ -174,10 +185,10 @@ pub fn tangent_pair_relation<T: Decide>(
     // This is a public door, so a stale face key is the caller's input
     // and refuses typed.
     let (face_a, face_b) = (
-        a.passed_face(fa).ok_or(ContactRefusal::NotCertifiable {
+        a.face(fa).ok_or(ContactRefusal::NotCertifiable {
             what: "the A-side face does not resolve",
         })?,
-        b.passed_face(fb).ok_or(ContactRefusal::NotCertifiable {
+        b.face(fb).ok_or(ContactRefusal::NotCertifiable {
             what: "the B-side face does not resolve",
         })?,
     );
@@ -409,6 +420,9 @@ impl From<ContactRefusal> for Unsettled {
     }
 }
 
+/// The row the jet's second-order margin `κ_rel` is decided on.
+const SECOND_ORDER: &str = "contact_tangent_second_order";
+
 /// One pass of [`tangent_table`] on a uniform `samples`-point schedule
 /// over `[t0, t1]`, `bounds` its span bounds.
 #[allow(clippy::too_many_arguments)]
@@ -536,8 +550,15 @@ fn tangent_pass<T: Decide>(
         // escalation reaches the frame's log only where the outcome
         // rests on it (`k_stats::splice_superseded`, below).
         let (second_order, second_order_log) = geom_core::k_stats::detached(|| {
-            crate::validate::decide("contact_tangent_second_order", so, band)
+            crate::validate::decide_reported(SECOND_ORDER, so, band)
         });
+        let positive = matches!(
+            second_order,
+            Ok(geom_core::Decided {
+                sign: Sign::Positive,
+                ..
+            })
+        );
         // (3) First-order tangency. With a definitely positive κ_rel
         // (an exact zero is the #175 neutral point: definite, and NOT a
         // usable lever) the lever is C7's own 1/κ_rel (`levered_inv`, verbatim what the edge
@@ -547,7 +568,7 @@ fn tangent_pass<T: Decide>(
         // spelling the edge certifier's namings read too). Here it is
         // the first-order verdict itself, so an in-band reading
         // escalates; there it only names a refusal already made.
-        let parallel = if matches!(second_order, Ok(Sign::Positive)) {
+        let parallel = if positive {
             Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs())
         } else {
             geom_brep::folded_parallelism(jet.sin_theta, arm)
@@ -563,19 +584,17 @@ fn tangent_pass<T: Decide>(
         // between samples keeping the margin from deciding, the second
         // order is the schedule's to settle, as the witness's sag is (its
         // run kept with the sag's).
-        let deferred = !matches!(second_order, Ok(Sign::Positive))
-            && matches!(first_order, Ok(Sign::Zero))
-            && {
-                let (at, log) = geom_core::k_stats::detached(|| {
-                    crate::validate::decide(
-                        "contact_tangent_second_order_at",
-                        Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
-                        band,
-                    )
-                });
-                geom_core::k_stats::splice_superseded(log);
-                matches!(at, Ok(Sign::Positive))
-            };
+        let deferred = !positive && matches!(first_order, Ok(Sign::Zero)) && {
+            let (at, log) = geom_core::k_stats::detached(|| {
+                crate::validate::decide(
+                    "contact_tangent_second_order_at",
+                    Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
+                    band,
+                )
+            });
+            geom_core::k_stats::splice_superseded(log);
+            matches!(at, Ok(Sign::Positive))
+        };
         if deferred {
             sag_logs.push(second_order_log);
         } else if second_order.is_err() && !matches!(first_order, Ok(Sign::Zero)) {
@@ -601,13 +620,17 @@ fn tangent_pass<T: Decide>(
             Err(diag) => return Err(Unsettled::Refused(ContactRefusal::Escalated { diag })),
         }
         // (4) The second-order margin. Definitely positive is the jet
-        // certificate's own verdict; an in-band κ_rel or an exact zero
-        // at an isolated neutral point escalates.
+        // certificate's own verdict; an in-band κ_rel escalates, and an
+        // exact zero at an isolated neutral point is the gate's
+        // rejection, minted only where the refusal quotes it.
         match second_order {
             // A definite κ_rel has a definite sign: the sheets leave the
             // locus one above the other, and a contact's materials must
             // be on the outer sides of that pair, not between it.
-            Ok(Sign::Positive) if claim == Claim::Contact => {
+            Ok(geom_core::Decided {
+                sign: Sign::Positive,
+                ..
+            }) if claim == Claim::Contact => {
                 let crescent = Margin::sagitta(
                     geom_brep::material_kappa_rel(jet.kappa_rel, sense1),
                     arm.length(),
@@ -629,21 +652,25 @@ fn tangent_pass<T: Decide>(
                     }
                 }
             }
-            Ok(Sign::Positive) => {}
-            residue => {
-                if deferred {
-                    unsettled(residue.err());
-                } else {
-                    return Err(Unsettled::Refused(ContactRefusal::Escalated {
-                        diag: residue.err().unwrap_or(Indeterminate {
-                            margin: geom_core::MarginDiag::INVALID,
-                            band,
-                            predicate: Some("contact_tangent_second_order"),
-                            terminal_sliver: false,
-                        }),
-                    }));
-                }
+            Ok(geom_core::Decided {
+                sign: Sign::Positive,
+                ..
+            }) => {}
+            // The schedule's to settle: an in-band reading stands as the
+            // sag's, a decided one as none.
+            Ok(_) if deferred => unsettled(None),
+            Err(diag) if deferred => unsettled(Some(diag)),
+            Ok(decided) => {
+                return Err(Unsettled::Refused(ContactRefusal::Escalated {
+                    diag: geom_core::k_stats::gate_rejection(
+                        SECOND_ORDER,
+                        decided,
+                        band,
+                        geom_core::SizedPass::Positive,
+                    ),
+                }));
             }
+            Err(diag) => return Err(Unsettled::Refused(ContactRefusal::Escalated { diag })),
         }
     }
     let (touch, log) = geom_core::k_stats::detached(|| span_touch(gap_max, bounds.gap_sag, band));
@@ -1134,10 +1161,23 @@ mod tests {
             finest > b.escalate(),
             "the finest schedule's sag stands past the band: {finest:e}"
         );
+        let bracket = geom_core::k_stats::Bracket::open();
         let span = tangency_reading(&near, true, &far, true, &meridian, -0.5 * arc, 0.5 * arc, b);
+        let log = bracket.finish();
         assert!(
             matches!(span, Err(TableRefusal::SagUnreached)),
             "the arc about the equator is past the finest schedule: {span:?}"
+        );
+        // The schedule left the second order to the span bound: the
+        // outcome rests on its decided reading, which is no escalation.
+        let second_order: Vec<_> = log
+            .escalations
+            .iter()
+            .filter(|e| e.source.predicate == Some(SECOND_ORDER))
+            .collect();
+        assert!(
+            second_order.is_empty(),
+            "a sag-only outcome logs no second-order rejection: {second_order:?}"
         );
         // The lane's other `NotCertifiable` is the contact's own refusal,
         // not the span bound's: a carrier outside the lane.
@@ -1149,9 +1189,22 @@ mod tests {
             ),
             "a line on two tori is outside the lane"
         );
-        match read(tau) {
+        let bracket = geom_core::k_stats::Bracket::open();
+        let whole = read(tau);
+        let log = bracket.finish();
+        match whole {
             Err(TableRefusal::Refused(ContactRefusal::Escalated { diag })) => {
+                assert!(
+                    log.escalations.iter().any(|e| e.source == diag),
+                    "the rejection the refusal quotes is on the log: {diag:?}"
+                );
                 assert_eq!(diag.predicate, Some("contact_tangent_second_order"));
+                assert_eq!(
+                    diag.margin.rejected_sign(),
+                    Some(geom_core::Sign::Negative),
+                    "the gate's rejection of κ_rel decided under its drift bound, on the \
+                     margin it was decided on: {diag:?}"
+                );
             }
             other => panic!("the whole circle osculates at the poles: {other:?}"),
         }

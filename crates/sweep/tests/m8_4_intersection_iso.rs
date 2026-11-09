@@ -66,6 +66,7 @@ fn prism(scale: f64) -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
+        .into_body()
 }
 
 /// Is this face's surface a described NURBS wall whose control net lies
@@ -1039,7 +1040,7 @@ fn a_degree_two_widening_tessellates_against_the_oracle() {
     let (gt, gi) = patch_size(&body, &got, key);
     let oracle_walls: Vec<(usize, usize)> = oracle
         .faces()
-        .filter(|(_, f)| matches!(oracle.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .filter(|(fk, _)| matches!(oracle.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
         .map(|(_, f)| patch_size(&oracle, &want, f.surface))
         .collect();
     println!(

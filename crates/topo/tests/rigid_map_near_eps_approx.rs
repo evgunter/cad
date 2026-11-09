@@ -217,7 +217,7 @@ fn body_with(face: geom::ApproxSurface<f64>) -> (Body<f64>, FaceKey) {
 }
 
 fn approx_on(body: &Body<f64>, face: FaceKey) -> Arc<geom::ApproxSurface<f64>> {
-    match body.get_surface(body.get_face(face).unwrap().surface) {
+    match body.face_surface(face) {
         Some(Surface::Approx(a)) => Arc::clone(a),
         other => panic!("{face:?} must wear an approximating surface, got {other:?}"),
     }

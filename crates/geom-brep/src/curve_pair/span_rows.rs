@@ -39,7 +39,7 @@ fn ellipse() -> Curve3<f64> {
 }
 
 /// What a contact reads as, for the table: its variant's name.
-fn name(got: Result<Option<Hit<f64>>, geom::CarrierRefusal>) -> &'static str {
+fn name(got: Result<Option<Hit<f64>>, super::SpanRefusal>) -> &'static str {
     match got {
         Ok(None) => "none",
         Ok(Some(Hit::On { .. })) => "on",
@@ -336,15 +336,14 @@ fn an_undecided_place_beside_an_off_carrier_is_off() {
 
 /// **A point on a circle's axis is off its span with no place read.**
 /// Every parameter of the carrier is its foot, and the one
-/// [`geom::Curve3::foot`] finds is the seed turned by `atan2` of two
-/// signed zeros: with the seed at a span's middle of 4π/3, where the
-/// middle's cosine and sine are both negative, `atan2(+0, −0) = π` puts
-/// the foot exactly antipodal to the middle. Read there, a half turn's
-/// cut decides from an exact zero, and a move off the axis flips it
-/// (boss_union's span branch, where a disc's three-arc rim
-/// puts the centroid of three of its vertices on the axis, and the arc's
-/// own middle is the seed). The carrier reads the point off, and that is
-/// the answer at every seed, the middle included, with the carrier's
+/// [`geom::Curve3::foot`] finds is the seed itself: the point's direction
+/// in the circle's plane is exactly zero, and [`geom::Azimuth::near`]
+/// reads a zero direction as its reference. So a seed past the span puts
+/// the foot past it, where a place read would decide a cut from an exact
+/// zero, and a move off the axis would flip it (boss_union's span
+/// branch, where a disc's three-arc rim puts the centroid of three of
+/// its vertices on the axis). The carrier reads the point off, and that
+/// is the answer at every seed, the middle included, with the carrier's
 /// reading recorded and no `curve_pair_span_*` row decided. Red where
 /// the place is read first, and where the carrier's reading is dropped.
 #[cfg(feature = "probe")]
@@ -360,12 +359,8 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
         Vec3::new(p(1.0), p(0.0), p(0.0)),
     );
     let centre = Point3::new(p(0.0), p(0.0), p(1.0));
-    let antipode = c.foot(centre, p(4.0 * PI / 3.0)).nearest().unwrap().0;
-    assert_eq!(
-        antipode,
-        7.0 * PI / 3.0,
-        "the middle's foot is its antipode"
-    );
+    let foot = c.foot(centre, p(4.0 * PI / 3.0)).nearest().unwrap().0;
+    assert_eq!(foot, 4.0 * PI / 3.0, "an axis point's foot is its seed");
     for (t0, t1) in [(2.0 * PI / 3.0, 4.0 * PI / 3.0), (PI, 5.0 * PI / 3.0)] {
         let span = Span::new(&c, (p(t0), p(t1)));
         let mid = 0.5 * (t0 + t1);
@@ -389,4 +384,276 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
             );
         }
     }
+}
+
+/// **On an arc, a refused member's window is its stretch of the arc**:
+/// half of the circle and of the ellipse, each against a point standing
+/// half an escalation off the carrier, out from its centre, beside a
+/// parameter `at` of the span. `at`, whose point lies within the
+/// escalation of the member, lies in the window (red where the piece it
+/// is on is cleared), and the window is a few escalations of arc about it
+/// (red where the walk keeps a piece it could clear, or falls back to the
+/// whole span). Each is read again with a second point ten metres off,
+/// so the member's ball is five metres across about a centre far from the
+/// arc: `at` still lies in the window (red where the ball's radius is
+/// left out of the reach, which clears every piece near `at`).
+#[test]
+fn a_refused_members_window_on_an_arc_is_its_stretch() {
+    let esc = band().escalate();
+    for (kind, carrier, centre) in [
+        ("circle", circle(), Point3::new(0.0, 0.0, 1.0)),
+        ("ellipse", ellipse(), Point3::origin()),
+    ] {
+        let span = Span::new(&carrier, (0.0, PI));
+        let slowest = span.speeds().0.get();
+        for at in [0.4, 1.3, 2.9] {
+            let p = carrier.eval(at);
+            let q = p + (p - centre).normalize() * (0.5 * esc);
+            let point = geom::cover::Cover::points(vec![q]).unwrap();
+            let (w0, w1) = span.window_near(Some(&point), band());
+            let widest = 8.0 * esc / slowest;
+            assert!(
+                w1 - w0 <= widest,
+                "{kind} at {at}: the window ({w0}, {w1}) is wider than {widest}"
+            );
+            assert!(
+                w0 <= at && at <= w1,
+                "{kind} at {at}: the point half an escalation from the member lies outside \
+                 ({w0}, {w1})"
+            );
+            let far = q + Vec3::new(0.0, 0.0, 10.0);
+            let pair = geom::cover::Cover::points(vec![q, far]).unwrap();
+            let (w0, w1) = span.window_near(Some(&pair), band());
+            assert!(
+                w0 <= at && at <= w1,
+                "{kind} at {at}: with a far second point, the point half an escalation from \
+                 the member lies outside ({w0}, {w1})"
+            );
+        }
+    }
+}
+
+/// **A refusal says which reading it rests on** ([`super::SpanReading`]):
+/// on the circle's span, a point half the band off the carrier at the
+/// span's middle refuses on the carrier, the place reading it inside;
+/// a point on the carrier half the band past the span's start, its chord
+/// to the start in band, refuses on the place. Red where the two are
+/// swapped, which reads a wedge in band as a graze at the solid door's
+/// curved edges, or the reverse.
+#[test]
+fn a_refusal_names_the_reading_it_rests_on() {
+    use super::{SpanReading, SpanRefusal};
+    let half = 0.5 * (band().zero() + band().escalate());
+    let carrier = circle();
+    let span = Span::new(&carrier, (0.5, 2.5));
+    let centre = Point3::new(0.0, 0.0, 1.0);
+    let mid = carrier.eval(1.5);
+    let off = mid + (mid - centre).normalize() * half;
+    assert!(
+        matches!(
+            span.read(off, 1.5, band()),
+            Err(SpanRefusal {
+                of: SpanReading::Carrier,
+                ..
+            })
+        ),
+        "off the carrier in band, inside the span"
+    );
+    let past = carrier.eval(0.5 - half / 2.0);
+    assert!(
+        matches!(
+            span.read(past, 0.5, band()),
+            Err(SpanRefusal {
+                of: SpanReading::Place,
+                ..
+            })
+        ),
+        "on the carrier, in band of the start: {:?}",
+        span.read(past, 0.5, band())
+    );
+}
+
+/// **A point-on-span refusal stands as its carrier refusal does**, through
+/// the meeting's fault: an escalation (either kind) ranked by its margin,
+/// a walk past its budget unsettled, and a spline with no speed bound a
+/// limit. Each groups as unread or escalated ([`super::MeetFault::kind`]),
+/// and a boundary pass reads the same standing. Red where a walk refusal
+/// is ranked as anything else at any of the three.
+#[test]
+fn a_point_on_span_refusal_stands_as_its_carrier_refusal() {
+    use super::{MeetFault, MeetKind};
+    use crate::curve_face::BoundaryRefusal;
+    use crate::ladder::Refusal;
+    use geom::{CarrierEscalation, CarrierRefusal, PieceWalkRefusal};
+    let diag = geom_core::k_stats::decide(
+        "curve_carrier_gap",
+        geom_core::Margin::of(0.5 * (band().zero() + band().escalate())),
+        band(),
+    )
+    .unwrap_err();
+    for (refused, standing) in [
+        (
+            CarrierRefusal::Escalated(CarrierEscalation::InBand(diag)),
+            Refusal::Margin(diag),
+        ),
+        (
+            CarrierRefusal::Escalated(CarrierEscalation::Straddle(diag)),
+            Refusal::Margin(diag),
+        ),
+        (
+            CarrierRefusal::Unwalked(PieceWalkRefusal::Exhausted),
+            Refusal::Unsettled,
+        ),
+        (
+            CarrierRefusal::Unwalked(PieceWalkRefusal::Unbounded),
+            Refusal::Limit,
+        ),
+    ] {
+        let fault = MeetFault::from(refused);
+        assert_eq!(
+            fault.refusal(),
+            Ok(standing),
+            "{refused:?}: the meeting's standing"
+        );
+        assert_eq!(
+            BoundaryRefusal::of(fault).refusal(),
+            Ok(standing),
+            "{refused:?}: the boundary pass's standing"
+        );
+        let grouped = matches!(
+            (refused, fault.kind()),
+            (CarrierRefusal::Escalated(_), MeetKind::Escalated(_))
+                | (CarrierRefusal::Unwalked(_), MeetKind::Unread)
+        );
+        assert!(grouped, "{refused:?}: grouped as {:?}", fault.kind());
+    }
+}
+
+/// **A refused member's window is the whole span where the walk cannot
+/// place it**, never an empty one: the boundary pass reads a member only
+/// inside its window, so an empty window drops its meetings.
+/// - On a rational spline whose middle weight is a million times its
+///   ends', against a point a metre off it: its speed bound, set by the
+///   fast ends, is so far above its speed through the slow middle that
+///   the pieces there clear only at a width the budget does not reach,
+///   and the walk runs past its budget.
+/// - On a spline whose control points coincide: its greatest speed is
+///   zero, so its pieces have no reach and the walk does not run.
+///
+/// Red where either fallback gives anything but the whole span.
+#[test]
+fn a_window_the_walk_cannot_place_is_the_whole_span() {
+    let spline = |pts: [Point3<f64>; 3], weights: [f64; 3]| {
+        Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                pts.to_vec(),
+                weights.to_vec(),
+            )
+            .unwrap(),
+        ))
+    };
+    let greatest = |c: &Curve3<f64>| geom::carrier_speed::speed_range(c).1.get();
+    let loose = spline(
+        [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ],
+        [1.0, 1e6, 1.0],
+    );
+    assert!(
+        greatest(&loose) > 1e6,
+        "the loose spline's speed bound: {}",
+        greatest(&loose)
+    );
+    let span = Span::new(&loose, (0.0, 1.0));
+    let member = geom::cover::Cover::points(vec![Point3::new(1.0, 1.0, 1.0)]).unwrap();
+    assert_eq!(
+        span.window_near(Some(&member), band()),
+        (0.0, 1.0),
+        "a walk past its budget"
+    );
+    let at = Point3::new(1.0, 2.0, 3.0);
+    let still = spline([at; 3], [1.0; 3]);
+    assert!(
+        greatest(&still) == 0.0,
+        "the still spline's speed bound: {}",
+        greatest(&still)
+    );
+    let span = Span::new(&still, (0.0, 1.0));
+    let member = geom::cover::Cover::points(vec![at]).unwrap();
+    assert_eq!(
+        span.window_near(Some(&member), band()),
+        (0.0, 1.0),
+        "a spline with no speed bound"
+    );
+}
+
+/// The cubic hairpin of `geom`'s on-carrier rows, its branches `h`
+/// apart, and an `Interval` box of `±r` about its point at `t = 0.08`.
+fn cubic_hairpin(h: f64) -> Curve3<f64> {
+    Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+                .unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.4, 0.0, 0.0),
+                Point3::new(1.4, h, 0.0),
+                Point3::new(0.0, h, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap(),
+    ))
+}
+
+fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
+    let w = |x: f64| geom_core::Interval::from_bounds(x - r, x + r);
+    Point3::new(w(p.x), w(p.y), w(p.z))
+}
+
+/// **A span over a hairpin closer than the band reads `On` at the
+/// seed's branch at `Interval`**. The whole span of a hairpin whose
+/// branches lie 1e-10 apart, inside the 1e-9 zero, read the way an edge's
+/// span is read: at a ±1e-10 box about a point of the near branch
+/// (`t = 0.08`) seeded on the far branch, it reads `On` at `t ≈ 0.92`,
+/// where the tangent is reversed, with nothing logged (the two branches'
+/// gaps tie on the box, and the polish keeps the seed's); seeded at the
+/// span's middle (the census's seed) it reads `On` at the near branch;
+/// at `f64` it reads the near branch from either seed.
+///
+/// The carrier is not one an edge can hold: its tip speed is `1.5·h`, so
+/// `EdgeCurve::certify` refuses it `SpanMeterCollapsed`. The row pins the
+/// reader on a bare carrier: what a reader of the branch rests on is
+/// the at-rest gate's embedding certificate (`DESIGN.md`
+/// `[topology.tiers]`), and a reader that certifies the branch itself
+/// turns it red.
+#[test]
+fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
+    use super::Reading;
+    use geom_core::{Bounds, Interval, Real};
+    let c = cubic_hairpin(1e-10);
+    let p = c.eval(0.08);
+    for seed in [0.5, 0.92] {
+        let read = Span::new(&c, (0.0, 1.0)).read(p, seed, band());
+        assert!(
+            matches!(read, Ok(Reading::On { t, .. }) if (t - 0.08).abs() < 1e-6),
+            "f64, seed {seed}: on at the near branch: {read:?}"
+        );
+    }
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let span = Span::new(&ci, (Interval::from_f64(0.0), Interval::from_f64(1.0)));
+    let far = span.read(boxed(p, 1e-10), Interval::from_f64(0.92), band());
+    assert!(
+        matches!(&far, Ok(Reading::On { t, .. }) if t.lo() > 0.5 && ci.deriv(*t).x.hi() < 0.0),
+        "Interval, far seed: on at the far branch, its tangent reversed: {far:?}"
+    );
+    let mid = span.read(boxed(p, 1e-10), Interval::from_f64(0.5), band());
+    assert!(
+        matches!(&mid, Ok(Reading::On { t, .. }) if t.hi() < 0.5),
+        "Interval, the span's middle: on at the near branch: {mid:?}"
+    );
 }

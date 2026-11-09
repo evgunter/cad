@@ -88,10 +88,7 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
         arcs += 1;
         let surfaces = [e.he_plus, e.he_minus].map(|h| {
             let f = out.body.face_of_half_edge(h).expect("an arc's face");
-            out.body
-                .get_surface(out.body.get_face(f).expect("a face").surface)
-                .expect("a stored surface")
-                .clone()
+            out.body.face_surface(f).expect("a stored surface").clone()
         });
         let (t0, t1) = c.params();
         for k in 0..=64 {
@@ -123,7 +120,9 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// quadrature lane's pad (zero on a closed-form `f64` inventory, the
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
-pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn volume_enclosure<
+    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     body: &Body<T>,
 ) -> (f64, f64) {
     let p = topo::mass_properties(
@@ -551,7 +550,7 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
 
     // Valence four: a chamfered cube's patch vertex, which a trimline of
     // the chamfer ends at.
-    let cube_body = cube(1.0, tol());
+    let cube_body = cube::<f64>(1.0, tol());
     let chamfered = chamfer_edges(
         &sweep::test_support::at_rest(&cube_body, tol()),
         &query::all_edges(&cube_body),

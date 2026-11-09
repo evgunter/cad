@@ -45,7 +45,9 @@ const MOVE: &str = "curve_pair_pose_move";
 /// pair (read at `T` at the iterate): the pair. A step whose value is a
 /// point is taken at `T`; one that is an enclosure moves the iterate by
 /// its middle, and the search is `f64` structure from there on (module
-/// docs). A step with no finite bracket ends the search where it stands.
+/// docs). A step with no finite bracket, or one `keep` refuses, ends the
+/// search where it stands: the iterate has not moved, so the next step
+/// would be the same one.
 pub(super) fn pair<T: Decide>(
     a: impl Fn(T) -> (Point3<T>, Vec3<T>),
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
@@ -63,7 +65,7 @@ pub(super) fn pair<T: Decide>(
             break;
         };
         if !keep(moved) {
-            continue;
+            break;
         }
         structure |= !(is_point(ds) && is_point(dt) && is_point(s) && is_point(t));
         if structure {
@@ -114,18 +116,14 @@ pub(super) fn bound<T: Decide>(
     curvature: T,
     (e, span): (T, T),
 ) -> Option<WindowBound<T>> {
-    let unit = |v: Vec3<T>| v * (T::one() / v.norm());
-    let sine = unit(da).cross(unit(db)).norm() - curvature * span;
+    let sine = da.normalize().cross(db.normalize()).norm() - curvature * span;
     let basin = sine - curvature * span;
     let basin = lever.map_or_else(|| Margin::of(basin), |lever| Margin::levered(basin, lever));
     if prove(row, basin) != Ok(Sign::Positive) {
         return None;
     }
-    let n = da.cross(db);
-    let n = n * (T::one() / n.norm());
-    let w = q - p;
-    let along = w.dot(n);
-    let slack = (w - n * along).norm();
+    let n = da.cross(db).normalize();
+    let (along, slack) = geom::Line { origin: p, dir: n }.height_and_distance(q);
     let excess = slack + e;
     let two = T::from_f64(2.0);
     let disc = sine.powi(2) - two * curvature * excess;

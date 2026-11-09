@@ -217,10 +217,7 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn band_torus(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, f64) {
-    match body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-    {
+    match body.face_surface(face).unwrap() {
         &Surface::Torus {
             center,
             major_radius,
@@ -441,7 +438,7 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets on the running result, got {e:?}"));
         bands += out.band_faces.len();
-        body = out.body;
+        body = out.body.into_body();
     }
     assert_eq!(bands, 3, "one band per rim");
     validate_geometric(&body, tol())

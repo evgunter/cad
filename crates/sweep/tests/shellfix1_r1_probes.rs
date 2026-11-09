@@ -45,6 +45,7 @@ fn revolved_full(pts: &[(f64, f64)]) -> Body<f64> {
     )
     .expect("meridian revolves")
     .body
+    .into_body()
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
@@ -61,14 +62,15 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     )
     .expect("profile extrudes")
     .body
+    .into_body()
 }
 
 /// Every planar face whose plane origin sits at height `y` about the
 /// revolve axis (+y fixtures).
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -78,8 +80,8 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 /// Planar faces at extrusion height `z` (xy-sketch extrudes along z).
 fn plane_chart_at_z(body: &Body<f64>, z: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.z - z).abs() < 1e-12
                         && normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9)

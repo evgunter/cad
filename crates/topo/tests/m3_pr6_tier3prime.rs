@@ -22,17 +22,20 @@ use common::{brick, finished, mapped_cube, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3, Vec3};
 use topo::{
-    AtRestBody, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError,
-    intersect, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold,
+    BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError, intersect,
+    mass_properties, subtract, union, validate_geometric, validate_pseudomanifold,
 };
 
-type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> =
+    fn(&topo::AtRestBody<T>, &topo::AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Runs one op, which must build a body.
-fn run_body<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+fn run_body<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     op: BoolOp<T>,
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
 ) -> BooleanBody<T> {
     match op(a, b, Tol::witness()).unwrap() {
         BooleanResult::Body(body) => body,
@@ -41,18 +44,20 @@ fn run_body<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 }
 
 /// The brick `x × y × z`, finished.
-fn finished_brick<T: Decide + topo::AtRestPolicy>(
+fn finished_brick<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
-) -> AtRestBody<T> {
+) -> topo::AtRestBody<T> {
     let tol = Tol::witness();
     finished("brick", brick::<T>(x, y, z, tol), tol)
 }
 
 /// The green/red promotion pair: 3′ passes with the carried contacts,
 /// and withholding them yields `UnrecordedContact` (and nothing else).
-fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+fn assert_promoted<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     b: &BooleanBody<T>,
 ) {
     assert_eq!(
@@ -73,7 +78,11 @@ fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 /// The keyed pair: 3′ passes with the carried contacts and without
 /// them, because each vertex-vertex record's two vertices sit on one
 /// point key, which the census reads as structure.
-fn assert_keyed<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(b: &BooleanBody<T>) {
+fn assert_keyed<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
+    b: &BooleanBody<T>,
+) {
     assert_eq!(
         validate_pseudomanifold(&b.body, &b.contacts, Tol::witness()),
         Ok(())
@@ -94,7 +103,9 @@ fn assert_keyed<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(b: 
 // ---------------------------------------------------------------
 
 /// Corner kiss (v-v): the PR 5 assembly, now certified at rest.
-fn corner_kiss_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn corner_kiss_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
@@ -112,7 +123,9 @@ fn corner_kiss_promoted() {
 /// two shared-endpoint v-v records and puts each pair on one key, and
 /// the census reads the full-length coincident-edge SEGMENT between
 /// the two shared keys as structure.
-fn tangent_edge_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn tangent_edge_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
@@ -134,7 +147,9 @@ fn tangent_edge_promoted() {
 /// that agrees — 3′ ≡ tier 3 on it. ∩: every touching sector
 /// classifies Out ⇒ the typed empty. ∖: operand A (records dropped
 /// with B absent), tier 3.
-fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn skew_edges_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
@@ -215,7 +230,9 @@ fn vertex_on_face_kiss_promoted() {
 /// away (maximal edges), which makes each v-v record a
 /// `(vertex, edge)` record, and the census certifies the collinear
 /// overlap segment from those bounding records (D3).
-fn edge_rest_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn edge_rest_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.0, 3.0), (-2.0, 0.0), (2.0, 4.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
@@ -249,7 +266,9 @@ fn edge_rest_promoted_d4_pin() {
 /// the same consumed class. ∖ returns
 /// operand A at tier 3, as before — pure REST subtracts never reach
 /// a join door.
-fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn flush_rests_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let pillar = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
     let body = run_body(union as BoolOp<T>, &slab, &pillar);
@@ -290,7 +309,9 @@ fn flush_rests() {
 /// D1.5's pin: on a tier-3 body with EMPTY declarations, the census
 /// must find nothing and 3′ ≡ tier 3 (plus the census actually run) —
 /// pinned on a plain prism, an L-prism, and a Seamed boolean result.
-fn tier3_equivalence_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn tier3_equivalence_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     let plain = brick::<T>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     assert_eq!(validate_geometric(&plain, Tol::witness()), Ok(()));
     assert_eq!(
@@ -429,7 +450,9 @@ fn hand_built_self_intersection_is_undeclared() {
 // ---------------------------------------------------------------
 
 /// The corner-kiss assembly (1 v-v declaration) as the 3′ base.
-fn kiss_base<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> BooleanBody<T> {
+fn kiss_base<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() -> BooleanBody<T> {
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     run_body(union as BoolOp<T>, &a, &b)

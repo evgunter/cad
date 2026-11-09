@@ -51,14 +51,12 @@ fn pole<T: Real>(wall: &geom::NurbsSurface<T>, iu: usize, iv: usize) -> usize {
 }
 
 /// The arc's wall: canonical segment 1, from `(1, −1)` to `(1, 1)`.
-fn arc_wall<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> geom::NurbsSurface<T> {
-    let face = lofted
-        .body
-        .get_face(lofted.side_faces[0][1][0])
-        .expect("a built face");
+fn arc_wall<T: topo::AtRestPolicy + geom_core::spline::SpanLocate>(
+    lofted: &Lofted<T>,
+) -> geom::NurbsSurface<T> {
     match lofted
         .body
-        .get_surface(face.surface)
+        .face_surface(lofted.side_faces[0][1][0])
         .expect("a described face")
     {
         Surface::Nurbs(n) => n.as_ref().clone(),
@@ -164,7 +162,7 @@ fn a_loft_over_a_wide_section_encloses_its_family_at_interval() {
     let (lo, hi) = box_about(1.2);
     let wide = Interval::from_bounds(lo, hi);
     let places = [0.0, 1.0, 2.0].map(|z| at_height(Interval::from_f64(z)));
-    let enclosing = loft_body::<Interval>(
+    let enclosing = sweep::test_support::loft_body_construction::<Interval>(
         &[quad(ends), quad(wide), quad(ends)],
         &places,
         2,
@@ -207,9 +205,13 @@ fn a_loft_over_a_wide_placement_encloses_its_family_at_interval() {
         at_height(Interval::zero()),
         at_height(Interval::from_bounds(lo, hi)),
     ];
-    let enclosing =
-        loft_body::<Interval>(&[quad(corner), quad(corner)], &places, 1, Tol::witness())
-            .expect("the square lofts over a wide placement at Interval");
+    let enclosing = sweep::test_support::loft_body_construction::<Interval>(
+        &[quad(corner), quad(corner)],
+        &places,
+        1,
+        Tol::witness(),
+    )
+    .expect("the square lofts over a wide placement at Interval");
     for z in [lo, 1.0, hi] {
         let sample = loft_body::<f64>(
             &[quad(1.2), quad(1.2)],
@@ -233,7 +235,7 @@ fn a_sweep_from_a_wide_start_frame_encloses_its_family_at_interval() {
     let shift =
         |x: Interval| SketchPlane::xy_at(Point3::new(x, Interval::zero(), Interval::zero()));
     let (lo, hi) = box_about(0.0);
-    let swept = sweep_body::<Interval>(
+    let swept = sweep::test_support::sweep_body_construction::<Interval>(
         &quad(Interval::from_f64(1.2)),
         shift(Interval::from_bounds(lo, hi)),
         &elbow_path(),
@@ -425,11 +427,8 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
         if zs.len() > degree + 1 {
             // The case's hypothesis: the body's walls carry the computed
             // interior knot.
-            let face = nominal
-                .body
-                .get_face(nominal.side_faces[0][0][0])
-                .expect("a built face");
-            let Some(Surface::Nurbs(net)) = nominal.body.get_surface(face.surface) else {
+            let Some(Surface::Nurbs(net)) = nominal.body.face_surface(nominal.side_faces[0][0][0])
+            else {
                 panic!("{what}: a lofted wall is a NURBS surface")
             };
             let knots = net.knot_values_v();
@@ -444,8 +443,13 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
             .iter()
             .map(|z| at_height(Interval::from_f64(*z)))
             .collect();
-        let enclosed = loft_body::<Interval>(&lifted, &lifted_places, degree, Tol::witness())
-            .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
+        let enclosed = sweep::test_support::loft_body_construction::<Interval>(
+            &lifted,
+            &lifted_places,
+            degree,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
         assert_eq!(
             points(&enclosed.section_params),
             nominal
@@ -562,17 +566,22 @@ fn make_compatible_at_interval_runs_the_knot_algebra_homogeneous() {
 
 /// The wall poles, weights and knots of every face a loft built, in face
 /// order, as bits of their value channel.
-fn wall_bits<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> Vec<u64> {
+fn wall_bits<
+    T: topo::AtRestPolicy + geom_core::spline::SpanLocate,
+    B: crate::common::enclosure::LoftedBody<T>,
+>(
+    lofted: &Lofted<T, B>,
+) -> Vec<u64> {
     lofted
         .side_faces
         .iter()
         .flatten()
         .flatten()
         .flat_map(|f| {
-            let face = lofted.body.get_face(*f).expect("a built face");
             match lofted
                 .body
-                .get_surface(face.surface)
+                .body_of()
+                .face_surface(*f)
                 .expect("a described face")
             {
                 Surface::Nurbs(n) => n
@@ -613,7 +622,7 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
     )
     .expect("the elbow sweeps at f64");
     let lane = lift_sections::<Interval>(core::slice::from_ref(&profile)).remove(0);
-    let enclosed = sweep_body::<Interval>(
+    let enclosed = sweep::test_support::sweep_body_construction::<Interval>(
         &lane,
         SketchPlane::xy(),
         &elbow_path(),
@@ -635,16 +644,20 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
 
 /// Every value of every wall a loft built, in face order: poles,
 /// weights, then the v knots, each read through `f`.
-fn wall_values<T: geom_core::spline::SpanLocate, R>(
-    lofted: &Lofted<T>,
+fn wall_values<
+    T: topo::AtRestPolicy + geom_core::spline::SpanLocate,
+    R,
+    B: crate::common::enclosure::LoftedBody<T>,
+>(
+    lofted: &Lofted<T, B>,
     f: impl Fn(T) -> R,
 ) -> Vec<R> {
     let mut out = Vec::new();
     for face in lofted.side_faces.iter().flatten().flatten() {
-        let face = lofted.body.get_face(*face).expect("a built face");
         match lofted
             .body
-            .get_surface(face.surface)
+            .body_of()
+            .face_surface(*face)
             .expect("a described face")
         {
             Surface::Nurbs(n) => {
@@ -814,12 +827,7 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
     // that carried any derivative at all would make the walls rational
     // in the height.
     for face in swept.side_faces.iter().flatten().flatten() {
-        let face = swept.body.get_face(*face).expect("a built face");
-        let Surface::Nurbs(n) = swept
-            .body
-            .get_surface(face.surface)
-            .expect("a described face")
-        else {
+        let Surface::Nurbs(n) = swept.body.face_surface(*face).expect("a described face") else {
             panic!("a swept wall is a NURBS surface");
         };
         assert!(

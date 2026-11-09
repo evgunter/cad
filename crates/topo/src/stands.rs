@@ -341,7 +341,7 @@ fn across_edges<T: Decide>(
     band: Band,
 ) -> Result<Vec<Point3<T>>, LadderRefusal> {
     let mut carriers: Vec<&geom::Curve3<T>> = Vec::new();
-    let mut feet: Vec<(Point3<T>, Vec3<T>)> = Vec::new();
+    let mut inward_lines: Vec<geom::Line<T>> = Vec::new();
     for he in face_loops(body, face)?.into_iter().flatten() {
         let e = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
         let Some(curve) = witnessed_curve(body, e) else {
@@ -353,14 +353,17 @@ fn across_edges<T: Decide>(
         let t = curve.carrier().deriv(geom::mid_param(t0, t1));
         let w = inward(normal, if plus { t } else { -t }).normalize();
         if [w.x, w.y, w.z].iter().all(|c| !c.is_poison()) {
-            feet.push((curve.mid_point(), w));
+            inward_lines.push(geom::Line {
+                origin: curve.mid_point(),
+                dir: w,
+            });
         }
     }
     let half = T::from_f64(0.5);
     let mut out = Vec::new();
-    for &(m, w) in &feet {
+    for &line @ geom::Line { origin: m, dir: w } in &inward_lines {
         for c in &carriers {
-            for s in line_meetings(c, normal, m, w) {
+            for s in line_meetings(c, normal, line) {
                 if geom_core::is_finite_length(s)
                     && crate::validate::definitely_positive("stands_across_meeting", s, band)
                 {
@@ -381,8 +384,7 @@ fn across_edges<T: Decide>(
 fn line_meetings<T: Decide>(
     c: &geom::Curve3<T>,
     normal: Vec3<T>,
-    m: Point3<T>,
-    w: Vec3<T>,
+    geom::Line { origin: m, dir: w }: geom::Line<T>,
 ) -> Vec<T> {
     let conic = |center: Point3<T>, axis: Vec3<T>, u: Vec3<T>, a: T, b: T| {
         let v = axis.cross(u);
@@ -433,7 +435,7 @@ fn face_loops<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, LadderRefusal> {
-    let f = body.passed_face(face).ok_or(LadderRefusal::Desync {
+    let f = body.face(face).ok_or(LadderRefusal::Desync {
         face,
         what: "face no longer resolves",
     })?;
@@ -468,7 +470,7 @@ fn triple_centroid<T: Decide>(a: Point3<T>, b: Point3<T>, c: Point3<T>) -> Point
 /// The midpoint of two of a face's vertices: a face-interior candidate
 /// wherever the chord between them is a diagonal of the face.
 fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
-    a.lerp(b, T::from_f64(0.5))
+    a.mid(b)
 }
 
 /// Does [`point_in_face`] certify `p` strictly inside planar `face`?

@@ -19,13 +19,14 @@ test_utils::gated_to![
     "crates/geom/src/curves/on_carrier.rs",
 ];
 
-use core::f64::consts::TAU;
+use core::f64::consts::{PI, TAU};
 
 use geom::Curve3;
 use geom_core::{Band, Point3, Vec3};
 use test_utils::fuzz;
 
 use super::{Joint, Read, Window};
+use crate::curve_pair::Span;
 use crate::curve_pair::pose::{height, level_on};
 use geom::Conic;
 
@@ -170,13 +171,13 @@ fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, 
 fn window<'w, T: geom_core::Decide>(
     ka: &'w dyn Conic<T>,
     kb: &'w dyn Conic<T>,
-    b: &'w Curve3<T>,
+    b: &'w Span<'w, T>,
 ) -> Window<'w, T> {
     Window {
         a: ka,
         span_a: (T::from_f64(-1.0), T::from_f64(1.0)),
         b: kb,
-        carrier_b: b,
+        span_b: b,
         height: height(ka, kb.frame().origin, kb.frame().axis),
     }
 }
@@ -197,16 +198,18 @@ fn check(
     let iv = |x: f64| geom_core::Interval::from_bounds(x, x);
     let (ia, ib) = (a.map_scalar(iv), b.map_scalar(iv));
     let (ika, ikb) = (ia.conic().unwrap(), ib.conic().unwrap());
+    let sb = Span::new(b, (-PI, PI));
+    let isb = Span::new(&ib, (iv(-PI), iv(PI)));
     let reads = [
         (
             "f64",
-            window(&ka, &kb, b).read(piece, away, &level_on(&ka, &kb), band),
+            window(&ka, &kb, &sb).read(piece, Some(away), &level_on(&ka, &kb), band),
         ),
         (
             "interval",
-            window(&ika, &ikb, &ib).read(
+            window(&ika, &ikb, &isb).read(
                 (iv(piece.0), iv(piece.1)),
-                away,
+                Some(away),
                 &level_on(&ika, &ikb),
                 band,
             ),
@@ -235,7 +238,7 @@ fn check(
             continue;
         };
         let ok = match read {
-            Read::Off => ds.iter().all(|&d| d > z - tol),
+            Read::Off | Read::OffSpan => ds.iter().all(|&d| d > z - tol),
             Read::On => ds.iter().all(|&d| d <= z + tol),
             Read::Recedes => {
                 let mut seq = ds.clone();
@@ -283,7 +286,7 @@ fn each_window_reading_holds_on_a_dense_distance() {
             match check(&a, &b, (axes, scale), (m - half, m + half), away, band) {
                 Ok(made) => {
                     for read in made {
-                        counts[read as usize] += 1;
+                        counts[read as usize % 3] += 1;
                     }
                 }
                 Err(why) => bad.push(format!("draw {draw} {why}: a {a:?} b {axes:?}")),
@@ -342,7 +345,7 @@ fn each_window_reading_holds_on_a_dense_distance_at_a_touch() {
                 match check(&a, &b, (axes, scale), (m - half, m + half), away, band) {
                     Ok(made) => {
                         for read in made {
-                            counts[read as usize] += 1;
+                            counts[read as usize % 3] += 1;
                         }
                     }
                     Err(why) => bad.push(format!("draw {draw} {why}: a {a:?} b {axes:?}")),
@@ -500,7 +503,8 @@ fn seam_pose(
     let parted = (1..400).any(|i| dist(delta * f64::from(i) / 400.0) > 1.2 * band.zero());
     let p_on = in_span(delta) && parted && dist(delta) < 0.9 * band.zero();
     let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
-    let mut w = window(&ka, &kb, &b);
+    let sb = Span::new(&b, (-PI, PI));
+    let mut w = window(&ka, &kb, &sb);
     w.span_a = span;
     let js: Vec<_> = joints
         .iter()

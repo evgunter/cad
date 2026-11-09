@@ -169,7 +169,7 @@ fn census(b: &Body<f64>) -> (usize, usize, usize) {
 fn bands(b: &Body<f64>) -> Vec<(u64, u64, u64)> {
     let mut out: Vec<(u64, u64, u64)> = b
         .faces()
-        .filter_map(|(_, f)| match b.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match b.face_surface(fk) {
             Some(Surface::Torus {
                 major_radius,
                 minor_radius,
@@ -415,7 +415,7 @@ fn one_request_builds_the_kernels_body() {
     );
     let order = |b: &Body<f64>| -> Vec<String> {
         b.faces()
-            .map(|(_, f)| match b.get_surface(f.surface) {
+            .map(|(fk, _)| match b.face_surface(fk) {
                 Some(Surface::Torus { center, .. }) => format!("torus@{}", center.y),
                 Some(Surface::Plane { .. }) => "plane".to_owned(),
                 Some(Surface::Cylinder { .. }) => "cylinder".to_owned(),
@@ -750,6 +750,6 @@ fn a_split_carries_a_held_slits_band() {
 
 /// `body` finished for a blend door, which takes finished bodies only.
 fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol)
+    pncad::topo::finish(body, tol)
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

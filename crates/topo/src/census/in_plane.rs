@@ -68,9 +68,10 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::boxes::{BoxFrame, edge_end_point, sweep_pad};
+use crate::boolean::boxes::sweep_pad;
 use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
-use crate::boolean::{CarrierRelation, CurvedPlacement, FaceContainment, face_placement};
+use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
+use crate::cover::{edge_cover, edge_end_point};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey};
 use crate::live::{BoundaryMember, proven};
 use crate::validate::decide;
@@ -153,10 +154,7 @@ pub(super) fn apart_in_plane<T: Decide>(
     };
     let one_plane = matches!(
         crate::boolean::carrier_pair_decided(body, a, body, b, band),
-        Ok(Ok((
-            CarrierRelation::SameOriented | CarrierRelation::SameOpposite,
-            Some(_)
-        )))
+        Ok(Ok(verdict)) if verdict.one().is_some()
     );
     if one_plane {
         return la.iter().all(|x| outside(body, b, x.point, band))
@@ -221,12 +219,12 @@ fn standing<T: Decide>(
                 return false;
             }
         }
-        if !matches!(
-            body.edge_curve_linked(e, edge)
-                .certified()
-                .map(geom_brep::EdgeCurve::carrier),
-            Some(geom::Curve3::Line(_))
-        ) {
+        let straight = body
+            .edge_curve_linked(e, edge)
+            .certified()
+            .and_then(|curve| curve.carrier().as_line())
+            .is_some();
+        if !straight {
             arcs.push(e);
         } else if s0 == Sign::Zero || s1 == Sign::Zero {
             touching.push((e, ends, [s0, s1]));
@@ -236,12 +234,13 @@ fn standing<T: Decide>(
         return false;
     };
     let off = |e: EdgeKey| {
-        let Some((lo, hi)) = super::edge_reach_in(body, e, &BoxFrame::aimed(n)) else {
+        let Ok(cover) = edge_cover(body, e) else {
             return false;
         };
+        let (lo, hi) = cover.range_along(n.get());
         let gap = match sense {
-            Sign::Positive => lo.x - level,
-            _ => level - hi.x,
+            Sign::Positive => lo - level,
+            _ => level - hi,
         };
         matches!(
             decide(REGION_ARC_SIDE, Margin::of(gap), band),

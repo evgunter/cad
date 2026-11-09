@@ -218,3 +218,13 @@ last three as typed refusals, since only `JoinDesync` is on its kind list
 ## The volume backstop left the operation path (2026-10-27)
 
 PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. Its `ResultVolumeImplausible` and `VolumeCorrupt` items, and the public door that made them class 1, are gone; the rest of the family stands.
+
+## Evidence: a meeting reading's fault, a panic at the census and typed in the op (onecopy/engine-leaves-pins, 2026-11-06)
+
+The census now panics on a meeting reading's kernel fault (`MeetFault::Desync`, `MeetFault::Contradiction`, `BoundaryRefusal::Fault`) and on a tangent face whose boundary holds no certified curve, through one door (`census.rs` `census_fault`), by `[failure.taxonomy]` row 4. The op's sites for the same states are still typed `ClassificationInvariant`:
+- `boolean/mod.rs` `locus_through_both_faces`: `BoundaryRefusal::Fault` and `FaceUnread::Uncertified` (the latter commented "the operand gate certified every curve");
+- `boolean/carrier_cross.rs` (`BoundaryRefusal::Fault { what } => … ClassificationInvariant`);
+- `boolean/overlap.rs` and `boolean/reduce.rs` (each a `BoundaryRefusal::Fault` arm);
+- `boolean/slit.rs` `meet_refused` (`MeetFault::Desync | MeetFault::Contradiction`).
+
+Outside topo, `sweep`'s `loft/stacking.rs` returns both faults as an `Err(&str)` reading.

@@ -331,7 +331,7 @@ impl<'a, T: Decide> Net<'a, T> {
             .map(|j| refined(ku, rows.iter().map(|r| r[j]).collect(), track))
             .collect::<Option<_>>()?;
         let nu = columns.first()?.len();
-        let (bu, bv) = (breaks(ku)?, breaks(kv)?);
+        let (bu, bv) = (ku.breakpoint_values()?, kv.breakpoint_values()?);
         let (cu, cv) = (bu.len() - 1, bv.len() - 1);
         if nu != cu * pu + 1 || nv != cv * pv + 1 {
             return None;
@@ -377,6 +377,9 @@ impl<'a, T: Decide> Net<'a, T> {
     fn read(&self, q: Point3<T>, band: Band) -> Read<T> {
         let moved = q - self.centre;
         let key_q = [moved.x, moved.y, moved.z].map(middle);
+        // Best first, not depth first: a queue keyed on each cell's
+        // nearness to the sample, so this walk is not
+        // `geom_core::bisect`'s, whose order is depth first.
         let mut seq = 0usize;
         let mut queue = std::collections::BinaryHeap::new();
         let mut push = |queue: &mut std::collections::BinaryHeap<Queued<T>>, cell: Cell<T>| {
@@ -429,8 +432,8 @@ impl<'a, T: Decide> Net<'a, T> {
             }
             let [u0, u1, v0, v1] = cell.rect;
             let centre = self.chart.eval(
-                T::from_computed(u0 + (u1 - u0) * 0.5),
-                T::from_computed(v0 + (v1 - v0) * 0.5),
+                T::from_computed(geom::bracket_mid((u0, u1))),
+                T::from_computed(geom::bracket_mid((v0, v1))),
             );
             let distance = (centre - q).norm();
 
@@ -512,15 +515,13 @@ impl<'a, T: Decide> Net<'a, T> {
 
 /// Whether an in-band floor is shown past the band's zero, so its cell
 /// holds no point within the zero band of the sample: an exact order
-/// ([`Band::least`]), since an enclosure straddling the zero is in band
-/// too and may hold such a point.
+/// ([`geom_core::k_stats::prove`]), since an enclosure straddling the
+/// zero is in band too and may hold such a point. Not a reading of the
+/// gap against the band: it is asked only where that reading
+/// ([`decide`] at `band`) refused, and the band would refuse it again.
 fn past_zero<T: Decide>(gap: T, band: Band) -> bool {
     matches!(
-        decide(
-            HULL,
-            Margin::of(gap - T::from_f64(band.zero())),
-            Band::least()
-        ),
+        geom_core::k_stats::prove(HULL, Margin::of(gap - T::from_f64(band.zero()))),
         Ok(Sign::Positive)
     )
 }
@@ -624,10 +625,10 @@ impl<T: Decide> Cell<T> {
         }
         let [u0, u1, v0, v1] = self.rect;
         let (rect_left, rect_right) = if along_u {
-            let mid = u0 + (u1 - u0) * 0.5;
+            let mid = geom::bracket_mid((u0, u1));
             ([u0, mid, v0, v1], [mid, u1, v0, v1])
         } else {
-            let mid = v0 + (v1 - v0) * 0.5;
+            let mid = geom::bracket_mid((v0, v1));
             ([u0, u1, v0, mid], [u0, u1, mid, v1])
         };
         let depth = self.depth + 1;
@@ -659,17 +660,10 @@ fn shadow_box<T: SpanLocate>(control: &[Point3<T>]) -> ([f64; 3], [f64; 3]) {
     (lo, hi)
 }
 
-/// The break values of `knots`, one per run, on the value channel.
-fn breaks<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
-    let out: Vec<f64> = knots.runs().map(|(v, _)| v.value_channel()).collect();
-    out.iter().all(|x| x.is_finite()).then_some(out)
-}
-
 /// The middle of a value's bracket: the walk's order, and the value an
 /// `f64` rounding bound is read at. NaN for the poison.
 fn middle<T: SpanLocate>(x: T) -> f64 {
-    x.structure_bracket()
-        .map_or(f64::NAN, |(lo, hi)| lo + (hi - lo) * 0.5)
+    x.structure_bracket().map_or(f64::NAN, geom::bracket_mid)
 }
 
 /// The squared gap from the sample to the cell's box and its squared

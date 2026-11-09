@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
+use crate::boolean::region::QueryFoot;
 use crate::entity::EdgeKey;
 use core::f64::consts::{PI, TAU};
 use slotmap::KeyData;
@@ -55,14 +56,25 @@ fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> Edge<f64> {
     edge(k, geom::Curve3::line(a, d / len), (0.0, len), true)
 }
 
+/// The region on `surface`, a cylinder or a cone, under the fixtures'
+/// one record.
+fn on(surface: &geom::Surface<f64>) -> (Charted<f64>, Ruled<f64>) {
+    (
+        Charted::record(Default::default(), surface),
+        Ruled::of(surface).unwrap(),
+    )
+}
+
 fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
+    let (charted, surface) = on(&geom::Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: z_axis(),
+        radius: 1.0,
+        u_ref: x_axis(),
+    });
     RuledFaceRegion {
-        surface: Ruled::Cylinder {
-            origin: Point3::origin(),
-            axis: z_axis(),
-            radius: 1.0,
-            u_ref: x_axis(),
-        },
+        charted,
+        surface,
         sense: true,
         outer: LoopKey::default(),
         scale: 1.0,
@@ -229,13 +241,15 @@ fn a_wall_under_a_tilted_section_reads_its_region() {
 }
 
 fn cone(edges: Vec<Edge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
+    let (charted, surface) = on(&geom::Surface::Cone {
+        apex: Point3::origin(),
+        axis: z_axis(),
+        half_angle: ALPHA,
+        u_ref: x_axis(),
+    });
     RuledFaceRegion {
-        surface: Ruled::Cone {
-            apex: Point3::origin(),
-            axis: z_axis(),
-            half_angle: ALPHA,
-            u_ref: x_axis(),
-        },
+        charted,
+        surface,
         sense: true,
         outer: LoopKey::default(),
         scale,
@@ -473,10 +487,14 @@ fn a_cone_faces_scale_bounds_its_reach_from_the_apex() {
         "the far point is between the three: {sampled} {three}"
     );
     let (t0, t1) = (arc.t0, arc.t1);
-    let cover =
-        crate::boolean::boxes::edge_cover_over(&arc.carrier, (t0, t1), (arc.at(t0), arc.at(t1)));
+    let cover = crate::cover::edge_cover_over(&arc.carrier, (t0, t1), (arc.at(t0), arc.at(t1)));
     let scale = reach_bound(&cone_surface(), &[cover]);
     assert!(scale >= sampled, "scale {scale} under the reach {sampled}");
+}
+
+/// `p`'s foot on the region's surface, as the door reads it.
+fn foot(region: &RuledFaceRegion<f64>, p: Point3<f64>) -> QueryFoot<f64> {
+    QueryFoot::read(Legs::charted(region).surface(), p, b())
 }
 
 /// **A generator edge through the apex reaches both nappes**, read at
@@ -500,15 +518,16 @@ fn a_generator_meets_no_conic_on_the_mirror_nappe() {
     let mirror = rim(1, -ALPHA.cos(), ALPHA.sin(), (0.0, TAU), true);
     let own = cone_rim(2, 2.0, (0.0, TAU), true);
     let region = cone(vec![mirror.clone(), own.clone()], 2.0);
-    let leg = region.ruling(on_cone(0.0, 1.0), true, true);
+    let leg = region.ruling(foot(&region, on_cone(0.0, 1.0)), true, true);
     assert!(
-        region
-            .landings(&mirror, &leg, b())
+        crate::boolean::region::landings(&region, &mirror, &leg, b())
             .ok()
             .is_some_and(|l| l.is_empty())
     );
     assert_eq!(
-        region.landings(&own, &leg, b()).ok().map(|l| l.len()),
+        crate::boolean::region::landings(&region, &own, &leg, b())
+            .ok()
+            .map(|l| l.len()),
         Some(1)
     );
 }
@@ -522,7 +541,7 @@ fn a_leg_along_an_edge_grazes() {
     assert!(matches!(
         region::read_path(
             &line,
-            wall(0.0, -0.5),
+            foot(&line, wall(0.0, -0.5)),
             region::Path::Single {
                 parallel: false,
                 forward: true
@@ -535,7 +554,7 @@ fn a_leg_along_an_edge_grazes() {
     assert!(matches!(
         region::read_path(
             &arc,
-            wall(2.0, 0.0),
+            foot(&arc, wall(2.0, 0.0)),
             region::Path::Single {
                 parallel: true,
                 forward: true
@@ -565,7 +584,7 @@ fn an_aimed_paths_first_leg_ends_at_its_corner() {
         then_forward: true,
     };
     assert!(matches!(
-        region::read_path(&region, wall(0.5, 0.0), spec, b()),
+        region::read_path(&region, foot(&region, wall(0.5, 0.0)), spec, b()),
         Ok(true)
     ));
 }
@@ -595,4 +614,97 @@ fn a_generator_from_the_apex_keeps_its_nappe() {
     assert_eq!(quarter.reaches_nappe(on_cone(0.7, -1.0), b()), Ok(false));
     assert_eq!(quarter.contains(on_cone(0.7, -1.0), b()), Ok(Some(false)));
     assert_eq!(quarter.contains(on_cone(0.7, 1.0), b()), Ok(Some(true)));
+}
+
+/// **A generator toward the apex lands nowhere at the apex.** A ruling
+/// leg run back toward the cone's apex ends there, and every generator
+/// edge through the apex meets its plane at that end: the leg runs up to
+/// the apex and not onto it, so the meeting is no place on it
+/// ([`region::End::open`]). A generator edge clear of the apex is met
+/// nowhere, and the rim the leg crosses short of the apex is its one
+/// crossing.
+#[test]
+fn a_generator_toward_the_apex_lands_nowhere_at_it() {
+    let through = segment(1, on_cone(1.0, 0.0), on_cone(1.0, 2.0));
+    let clear = segment(2, on_cone(2.0, 0.5), on_cone(2.0, 2.0));
+    let below = cone_rim(3, 0.5, (0.0, TAU), true);
+    let region = cone(vec![through.clone(), clear.clone(), below.clone()], 2.0);
+    let leg = region.ruling(foot(&region, on_cone(0.0, 1.0)), true, false);
+    assert!(
+        leg.end.is_some_and(|end| end.open),
+        "the leg ends at the apex"
+    );
+    let at = |e: &Edge<f64>| {
+        let landings = crate::boolean::region::landings(&region, e, &leg, b()).ok()?;
+        let mut placed = 0;
+        for (y, _, _) in landings {
+            if leg
+                .place(y, RuledFaceRegion::<f64>::AT, b())
+                .ok()?
+                .is_some()
+            {
+                placed += 1;
+            }
+        }
+        Some(placed)
+    };
+    assert_eq!(at(&through), Some(0), "the generator through the apex");
+    assert_eq!(at(&clear), Some(0), "a generator clear of the apex");
+    assert_eq!(at(&below), Some(1), "the rim short of the apex");
+}
+
+/// **A point off the surface reads as its foot**, on a cylinder and on a
+/// cone: ten times the band's escalation off along the surface normal,
+/// every lattice point clear of the boundary reads the side its foot
+/// reads, and a point off a rim is on the boundary. The legs and the
+/// boundary pre-pass read the foot (`region::QueryFoot`), never the point.
+#[test]
+fn a_point_off_the_surface_reads_as_its_foot() {
+    let off = 10.0 * b().escalate();
+    let rect = cylinder(window(1, (0.0, 3.0), (0.0, 2.0), false));
+    let normal = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);
+    for d in [off, -off] {
+        reads(
+            &rect,
+            lattice().map(|(u, z)| {
+                let truth = both(
+                    within(u.rem_euclid(TAU), (0.0, 3.0), 0.01),
+                    within(z, (0.0, 2.0), 0.01),
+                );
+                (wall(u, z) + normal(u) * d, truth)
+            }),
+            "the window, off its wall",
+        );
+        assert_eq!(
+            rect.contains(wall(1.0, 2.0) + normal(1.0) * d, b()),
+            Ok(None),
+            "off the window's top rim by {d:e}: on the boundary"
+        );
+    }
+    let frustum = cone(
+        vec![
+            cone_rim(1, 1.0, (0.0, TAU), true),
+            cone_rim(2, 2.0, (0.0, TAU), false),
+        ],
+        2.0,
+    );
+    let (s, c) = ALPHA.sin_cos();
+    let cone_normal = |u: f64| Vec3::new(c * u.cos(), c * u.sin(), -s);
+    for d in [off, -off] {
+        reads(
+            &frustum,
+            cone_lattice().filter(|&(_, v)| v > 0.01).map(|(u, v)| {
+                (
+                    on_cone(u, v) + cone_normal(u) * d,
+                    within(v, (1.0, 2.0), 0.01),
+                )
+            }),
+            "the frustum, off its cone",
+        );
+        assert_eq!(
+            frustum.contains(on_cone(0.4, 2.0) + cone_normal(0.4) * d, b()),
+            Ok(None),
+            "off the frustum's rim by {d:e}: on the boundary"
+        );
+    }
 }

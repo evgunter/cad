@@ -14,9 +14,9 @@
 //! SUM, never the two terms one at a time (each just inside the band
 //! would sum to nearly twice it). The section rows that serve a verdict
 //! beside such a datum read that sum on each verdict's own side
-//! (`decide_across` in `crate::intersect`): `pc_parallel_gap`,
+//! (`decide_across` in `geom_core::k_stats`): `pc_parallel_gap`,
 //! `cc_coaxial`, `cc_parallel_gap`, `tangent_locus_internal_gap`,
-//! `coc_coaxial`, `pt_spiric_two_ovals`, `pt_cap_gap` and
+//! `coc_coaxial`, `pt_spiric_two_ovals` (`geom::spiric_regime`), `pt_cap_gap` and
 //! `pn_apex_section`. The tightest lever reads the position
 //! datum at the pivot nearest the ball's centre ([`ExtentBall::foot_on`]
 //! for an axis), where the lever is little more than the ball's radius.
@@ -228,7 +228,7 @@ impl<T: Real> ExtentBall<T> {
         let (a, b) = (corners(a), corners(b));
         let lo: [f64; 3] = core::array::from_fn(|i| a.0[i].max(b.0[i]));
         let hi: [f64; 3] = core::array::from_fn(|i| a.1[i].min(b.1[i]));
-        let mid: [f64; 3] = core::array::from_fn(|i| (lo[i] + hi[i]) * 0.5);
+        let mid: [f64; 3] = core::array::from_fn(|i| geom::mid_param(lo[i], hi[i]));
         let half = Vec3::new(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]).norm() * 0.5;
         Self::new(
             Point3::new(
@@ -250,12 +250,11 @@ impl<T: Real> ExtentBall<T> {
         Lever::of_consumed_extent(self.reach_from(pivot) * T::from_f64(2.0))
     }
 
-    /// The point of the line `origin + s·axis` (`axis` unit) nearest
-    /// the ball's centre: where a datum on that line is read so that
-    /// the tilt's lever from it is least.
+    /// The point of `axis` nearest the ball's centre: where a datum on
+    /// that line is read so that the tilt's lever from it is least.
     #[must_use]
-    pub fn foot_on(self, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
-        Line { origin, dir: axis }.foot(self.center)
+    pub fn foot_on(self, axis: Line<T>) -> Point3<T> {
+        axis.foot(self.center)
     }
 
     /// The ball, if it reads: `None` where its centre or radius is
@@ -369,6 +368,16 @@ impl<T: Real> ExtentBall<T> {
         Self::new(center, radius)
     }
 
+    /// **The ball holding a region and every point within `tolerance`
+    /// of it**: the cover's ball ([`Self::of_cover`]) widened by a
+    /// geometric tolerance, such as the band a point of two regions'
+    /// section is read within.
+    #[must_use]
+    pub fn of_cover_within(cover: &Cover<T>, tolerance: T) -> Self {
+        let (center, radius) = cover.ball();
+        Self::new(center, radius + tolerance)
+    }
+
     /// **The ball holding a closed conic**: its centre, out to its
     /// largest speed (a circle's radius, an ellipse's larger semi-axis).
     /// `None` for every other kind.
@@ -402,7 +411,7 @@ impl<T: Real> ExtentBall<T> {
                 Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
             )
         });
-        let center = lo + (hi - lo) * T::from_f64(0.5);
+        let center = lo.mid(hi);
         Self::new(center, control_net_reach(net, center))
     }
 
@@ -700,13 +709,51 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     }
 }
 
-/// The farthest of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
-/// `k = 0..=16`, from `pivot`: each a point of the edge, so the edge's
-/// reach from `pivot` is never below it.
-fn sampled_reach<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T), pivot: Point3<T>) -> T {
+/// The largest `measure` of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
+/// `k = 0..=16`: each a point of the edge, so the edge's largest
+/// `measure` is never below it.
+fn sampled_reach<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+    measure: impl Fn(Point3<T>) -> T,
+) -> T {
     schedule(carrier, span, EXTENT_PIECES)
         .into_iter()
-        .fold(T::zero(), |far, x| far.max((x - pivot).norm()))
+        .fold(T::zero(), |far, x| far.max(measure(x)))
+}
+
+/// **Whether the region an edge's cover holds is the edge's own**, so a
+/// far distance or a coordinate range read off it is exact: on a line
+/// and on a circle arc, on no other kind. The one home of that split,
+/// which [`edge_reach_bounds`] and [`edge_coordinate_reach_below`] both
+/// read.
+fn cover_is_exact<T: Real>(carrier: &Curve3<T>) -> bool {
+    match carrier {
+        Curve3::Line(_) | Curve3::Circle(..) => true,
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => false,
+    }
+}
+
+/// **An edge's largest `|coordinate|`, bounded from below**: the session
+/// box's measure (`[tolerance.units]`: no coordinate of a model is larger
+/// in magnitude than the box). `world_box` is the box the region the edge
+/// occupies spans along the world axes, which the caller reads off that
+/// region (topo reads its edge's cover, `Cover::box_in` at
+/// `BoxAxes::World`). Where the cover is the edge's own
+/// ([`cover_is_exact`]) the box's largest `|coordinate|` is exact;
+/// otherwise, and where there is no box, the samples' largest, each a
+/// point of the edge. So a missing cover reads the edge's own points,
+/// never poison.
+pub fn edge_coordinate_reach_below<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+    world_box: Option<(Point3<T>, Point3<T>)>,
+) -> T {
+    let origin = Point3::origin();
+    match world_box.filter(|_| cover_is_exact(carrier)) {
+        Some((lo, hi)) => (lo - origin).norm_inf().max((hi - origin).norm_inf()),
+        None => sampled_reach(carrier, span, |x| (x - origin).norm_inf()),
+    }
 }
 
 /// **A lever known exactly, or only between two bounds.** A reading
@@ -782,12 +829,15 @@ pub fn edge_reach_bounds<T: SpanLocate>(
     pivot: Point3<T>,
     above: Lever<T>,
 ) -> LeverBounds<T> {
-    match carrier {
-        Curve3::Line(_) | Curve3::Circle(..) => LeverBounds::Exact(above),
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => LeverBounds::Between {
-            below: Lever::of_consumed_extent(sampled_reach(carrier, (t0, t1), pivot)),
+    if cover_is_exact(carrier) {
+        LeverBounds::Exact(above)
+    } else {
+        LeverBounds::Between {
+            below: Lever::of_consumed_extent(sampled_reach(carrier, (t0, t1), |x| {
+                (x - pivot).norm()
+            })),
             above,
-        },
+        }
     }
 }
 
@@ -1027,8 +1077,11 @@ impl<T: SpanLocate> Reach<T> {
     ) -> Lever<T> {
         Lever::of_consumed_extent(match self {
             Self::Face { at, across, .. } => {
-                let off = *at - hinge;
-                let off_perp = off - a * off.dot(a);
+                let off_perp = Line {
+                    origin: hinge,
+                    dir: a,
+                }
+                .offset(*at);
                 let off_axis = off_perp.norm();
                 let m = n - a * n.dot(a);
                 let len = m.norm().max(T::from_f64(f64::MIN_POSITIVE));
@@ -1067,7 +1120,7 @@ impl<T: SpanLocate> Reach<T> {
         Lever::of_consumed_extent(lo.abs().max(hi.abs()) / cos_a)
     }
 
-    /// The pivot on the line `origin + s·axis` (`axis` unit) the reach
+    /// The pivot on the line `axis` (its `dir` unit) the reach
     /// is read at.
     ///
     /// - [`Self::Ball`]: the foot of its centre; [`Self::Measured`]: the
@@ -1082,12 +1135,12 @@ impl<T: SpanLocate> Reach<T> {
     ///   than from any other point of the axis, the cylinder's stored
     ///   origin among them.
     #[must_use]
-    pub fn foot_on(&self, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
+    pub fn foot_on(&self, axis: Line<T>) -> Point3<T> {
         match self {
             Self::Span {
                 carrier: Curve3::Line(_) | Curve3::Nurbs(_),
                 ..
-            } => minimax_on_axis(&self.span_points(), origin, axis),
+            } => minimax_on_axis(&self.span_points(), axis),
             Self::Span {
                 carrier:
                     Curve3::Circle(geom::Circle {
@@ -1100,11 +1153,9 @@ impl<T: SpanLocate> Reach<T> {
                     })
                     | Curve3::Spiric { center, .. },
                 ..
-            } => Line { origin, dir: axis }.foot(*center),
-            Self::Ball(ball) => Line { origin, dir: axis }.foot(ball.center()),
-            Self::Measured { at, .. } | Self::Face { at, .. } => {
-                Line { origin, dir: axis }.foot(*at)
-            }
+            } => axis.foot(*center),
+            Self::Ball(ball) => axis.foot(ball.center()),
+            Self::Measured { at, .. } | Self::Face { at, .. } => axis.foot(*at),
         }
     }
 
@@ -1191,20 +1242,16 @@ impl<T: SpanLocate> Reach<T> {
     /// face shorter than the radius would be levered past its own
     /// measure, and a tilt the length leaves in the band served.
     #[must_use]
-    pub fn lever_between(
-        &self,
-        line1: (Point3<T>, Vec3<T>),
-        line2: (Point3<T>, Vec3<T>),
-    ) -> Lever<T> {
+    pub fn lever_between(&self, line1: Line<T>, line2: Line<T>) -> Lever<T> {
         self.foot_lever(line1).1.min(self.foot_lever(line2).1)
     }
 
     /// One line's half of [`Self::lever_between`]: the foot on the line
-    /// `origin + s·axis` ([`Self::foot_on`]) and its lever, floored at the
+    /// `axis` ([`Self::foot_on`]) and its lever, floored at the
     /// foot's distance from the reach's point.
     #[must_use]
-    pub fn foot_lever(&self, (origin, axis): (Point3<T>, Vec3<T>)) -> (Point3<T>, Lever<T>) {
-        let pivot = self.foot_on(origin, axis);
+    pub fn foot_lever(&self, axis: Line<T>) -> (Point3<T>, Lever<T>) {
+        let pivot = self.foot_on(axis);
         let lever = self
             .reach_from(pivot)
             .max((self.reading_point() - pivot).norm());
@@ -1213,9 +1260,9 @@ impl<T: SpanLocate> Reach<T> {
 }
 
 /// **The axis point whose farthest distance to `points` is least**: the
-/// `s*` minimising `maxᵢ √(ρᵢ² + (s − sᵢ)²)` on the line
-/// `origin + s·axis` (`axis` unit), `sᵢ` and `ρᵢ` each point's axial
-/// coordinate and distance from the line. Exact, and comparison-free
+/// `s*` minimising `maxᵢ √(ρᵢ² + (s − sᵢ)²)` on the line `axis`
+/// (its `dir` unit), `sᵢ` and `ρᵢ` each point's parameter on it and
+/// distance from it. Exact, and comparison-free
 /// (lattice `max`/`min` and [`Real::select_le_zero`]).
 ///
 /// The sublevel sets `{s : ρᵢ² + (s − sᵢ)² ≤ R}` are intervals, so by
@@ -1227,14 +1274,10 @@ impl<T: SpanLocate> Reach<T> {
 /// `Rᵢⱼ = max(ρᵢ², ρⱼ²)` when `d² ≤ Δ` (one interval holds the other's
 /// centre), else `q + ((d² + Δ)/(2d))²` (they meet where the two
 /// distances are equal, between the two points).
-fn minimax_on_axis<T: Real>(points: &[Point3<T>], origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
+fn minimax_on_axis<T: Real>(points: &[Point3<T>], axis: Line<T>) -> Point3<T> {
     let sq: Vec<(T, T)> = points
         .iter()
-        .map(|&p| {
-            let w = p - origin;
-            let s = w.dot(axis);
-            (s, (w - axis * s).dot(w - axis * s))
-        })
+        .map(|&p| (axis.param(p), axis.offset(p).norm_squared()))
         .collect();
     let two = T::from_f64(2.0);
     let mut r_star = T::zero();
@@ -1257,7 +1300,7 @@ fn minimax_on_axis<T: Real>(points: &[Point3<T>], origin: Point3<T>, axis: Vec3<
     }
     let lower = |&(s, q): &(T, T)| s - (r_star - q).max(T::zero()).sqrt();
     let s_star = sq[1..].iter().fold(lower(&sq[0]), |m, p| m.max(lower(p)));
-    origin + axis * s_star
+    axis.at(s_star)
 }
 
 #[cfg(test)]
@@ -1265,6 +1308,40 @@ fn minimax_on_axis<T: Real>(points: &[Point3<T>], origin: Point3<T>, axis: Vec3<
 mod tests {
     use super::*;
     use geom::Surface;
+
+    /// **The sampled arm reads coordinates, not distances**: an ellipse
+    /// out on the box's diagonal, centred at `(700, 700, 0)` with semi-axes
+    /// 150 and 100 in the `xy` plane, has every coordinate within 850 m and
+    /// points up to about 1.14 km from the origin. Its largest `|coordinate|`
+    /// from below is the samples' (the `x` extreme, 850, is a sample), in
+    /// the box; a distance read there is past it. Red against the sampled
+    /// arm reading `norm()`. A line or arc with no cover reads its samples
+    /// too, never poison.
+    #[test]
+    fn an_edge_out_on_the_diagonal_reads_its_largest_coordinate() {
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(700.0, 700.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            150.0,
+            100.0,
+        ));
+        let reach = edge_coordinate_reach_below(&ellipse, (0.0, core::f64::consts::TAU), None);
+        assert!((reach - 850.0).abs() < 1e-9, "{reach}");
+        assert!(reach < geom_core::tolerance::SESSION_BOX_EXTENT);
+        let line = Curve3::Line(geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(1.0, 1.0, 0.0).normalize(),
+        });
+        let reach = edge_coordinate_reach_below(&line, (0.0, 1200.0), None);
+        assert!(
+            reach.is_finite(),
+            "an uncovered line reads its samples: {reach}"
+        );
+        assert!((reach - 1200.0 / 2f64.sqrt()).abs() < 1e-9, "{reach}");
+    }
 
     /// **A conic span's lever reaches every point of it** from any pivot,
     /// round the whole turn, and on the circle no farther than the whole
@@ -1712,7 +1789,7 @@ mod tests {
                 vec![p(1.0, -1.0), p(0.5, 0.3), p(0.5, 0.3), p(1.0, 1.0)],
             ),
         ] {
-            let foot = minimax_on_axis(&pts, origin, axis);
+            let foot = minimax_on_axis(&pts, Line { origin, dir: axis });
             let lever = pts.iter().fold(iv(0.0), |m, q| m.max((*q - foot).norm()));
             for (what, v) in [("foot", foot.z), ("lever", lever)] {
                 assert!(
@@ -1752,7 +1829,7 @@ mod tests {
         for net in nets {
             let pts: Vec<Point3<f64>> = net.iter().map(|&(x, y, z)| Point3::new(x, y, z)).collect();
             let lever = |p: Point3<f64>| pts.iter().fold(0.0_f64, |m, q| m.max((*q - p).norm()));
-            let best = lever(minimax_on_axis(&pts, origin, axis));
+            let best = lever(minimax_on_axis(&pts, Line { origin, dir: axis }));
             for k in -4000..=4000 {
                 let z = f64::from(k) * 0.002;
                 let other = lever(Point3::new(0.0, 0.0, z));

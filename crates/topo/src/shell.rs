@@ -8,20 +8,19 @@
 //!
 //! # The operand is at rest
 //!
-//! Both doors take a finished body ([`AtRestBody`]), the Boolean's and
+//! Both doors take a finished body ([`AtRestBody`](crate::AtRestBody)), the Boolean's and
 //! the split's operand type: tier 3 passed on these bits. The verb
 //! answers for the material the operand bounds, so what tier 3 decides
 //! is what the construction reads: an inside-out solid (check 7,
-//! [`ValidationError::NegativeVolume`]) or an inside-out shell (check
+//! [`ValidationError::NegativeVolume`](crate::ValidationError::NegativeVolume)) or an inside-out shell (check
 //! 10) would be hollowed as its complement, and a stale or missing
 //! pcurve row would vanish under the closing mint below. Neither
-//! reaches the verb, because neither is an [`AtRestBody`].
+//! reaches the verb, because neither is an [`AtRestBody`](crate::AtRestBody).
 //!
-//! The door reads no second gate where the Boolean and the split read
-//! [`AtRestBody::gate_unverdicted`]: that read is for an operand
-//! carrying no verdict, which only a dual's
-//! [`crate::AtRestPolicy::gate_at_rest_kept`] keeps, and this door is
-//! bounded on the certification right a dual does not hold.
+//! The door reads no second gate: what it takes is the scalar's finished
+//! body ([`crate::AtRestPolicy::Finished`]), and it is bounded on the
+//! certification right a dual, whose finished body is a [`crate::Replay`]
+//! carrying no verdict, does not hold.
 //!
 //! **The offset doors this verb steps through take construction state.**
 //! A door whose argument means something about material — this verb's
@@ -329,7 +328,7 @@
 //! - **A window that does not wrap** is a ring, exactly as on a plane.
 //!   What its readers cannot yet read is theirs and refuses where they
 //!   read it: a ringed sphere face at tier 3's check 7
-//!   ([`ValidationError::VolumeUncomputable`]), through
+//!   ([`ValidationError::VolumeUncomputable`](crate::ValidationError::VolumeUncomputable)), through
 //!   [`ShellError::NotValid`] as the boolean's does, and a ringed cone
 //!   or cylinder wall — which props reads — at the mesh.
 //!
@@ -361,14 +360,14 @@
 //! designated face's, a promoted rim face whose own boundary meets the
 //! hole it would carry, or more than one hole to pair. The invariant is
 //! stated once more at rest by tier 3's check 9
-//! ([`ValidationError::RingMeetsOuter`]), so a ring standing on its own
+//! ([`ValidationError::RingMeetsOuter`](crate::ValidationError::RingMeetsOuter)), so a ring standing on its own
 //! outer loop is loud wherever it is minted and not only here.
 //!
 //! **Check 9 has a second half now, and it states the other half of
 //! the same sentence**: a ring must lie strictly INSIDE its face's
 //! outer loop, not merely stand clear of it
-//! ([`ValidationError::RingOutsideOuter`], with
-//! [`ValidationError::RingNestingUndecided`] for the pair it cannot
+//! ([`ValidationError::RingOutsideOuter`](crate::ValidationError::RingOutsideOuter), with
+//! [`ValidationError::RingNestingUndecided`](crate::ValidationError::RingNestingUndecided) for the pair it cannot
 //! certify). That is the statement an inverted host/guest pick at the
 //! rim glue below falsifies, and it reaches every planar face whose
 //! outer loop carries lines, circle arcs or ellipse arcs; check 9's own
@@ -405,7 +404,6 @@ use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, linked, proven};
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
-use crate::validate::{AtRestBody, ValidationError, validate_geometric};
 
 /// Typed refusal of the shell verb (closed enum, D4 ¶3).
 #[derive(Clone, Debug)]
@@ -674,10 +672,12 @@ pub enum ShellError<T: Real> {
         /// Why the join refused, typed and keyless.
         refusal: crate::boolean::JoinRefusal,
     },
-    /// The assembled result does not validate, so it is discarded.
+    /// The assembled result is not a finished body
+    /// ([`crate::AtRestPolicy::finish`]), so it is discarded: every
+    /// finding, each read through its family.
     NotValid {
-        /// The validator's report.
-        errors: Vec<ValidationError>,
+        /// The finish's findings.
+        findings: crate::NotFinished,
     },
 }
 
@@ -831,11 +831,10 @@ impl<T: Real> ShellError<T> {
             Self::Join { refusal } => {
                 write!(f, "the assembled thin solid: {}", read_at(refusal, at))
             }
-            Self::NotValid { errors } => write!(
+            Self::NotValid { findings } => write!(
                 f,
-                "the assembled thin solid is not valid ({}) and is discarded. \
-                 {KERNEL_DEFECT_ENDING}",
-                crate::replace_face::error_count(errors.len())
+                "the assembled thin solid is not a finished body, so it is discarded: {}",
+                read_at(findings, at)
             ),
         }
     }
@@ -1071,17 +1070,17 @@ impl<T: Real> AsShelled<'_, T> {
 /// Everything [`shell`] / [`shell_open`] built: the thin solid and the
 /// birth record its consumers name entities through.
 #[derive(Debug)]
-pub struct Shelled<T: Real> {
-    /// The thin solids — one per operand SHELL of every operand SOLID,
-    /// in one body. A plain single-solid operand yields exactly one; a
-    /// hollow one yields `k + 1` for its `k` voids; a multi-solid
-    /// operand yields every solid's, side by side.
-    pub body: Body<T>,
+pub struct Shelled<T: crate::props::AtRestPolicy> {
+    /// The thin solids, finished — one per operand SHELL of every
+    /// operand SOLID, in one body. A plain single-solid operand yields
+    /// exactly one; a hollow one yields `k + 1` for its `k` voids; a
+    /// multi-solid operand yields every solid's, side by side.
+    pub body: T::Finished,
     /// The mint-time naming facts of the construction that built it.
     pub naming: ShellNaming,
 }
 
-impl<T: Decide> Shelled<T> {
+impl<T: crate::props::AtRestPolicy> Shelled<T> {
     /// `records`, the operand's, carried onto the thin solid through
     /// [`Self::lineage`] ([`crate::ContactRecords::carried_through`], at `band`
     /// through `region`).
@@ -1099,7 +1098,7 @@ impl<T: Decide> Shelled<T> {
     }
 }
 
-impl<T: Real> Shelled<T> {
+impl<T: crate::props::AtRestPolicy> Shelled<T> {
     /// **What the shell made of each operand cell** (D1), read through
     /// the closing join. The outer walls keep their operand keys and
     /// their places. The rim surgery opens each designated chart: on the
@@ -1109,11 +1108,12 @@ impl<T: Real> Shelled<T> {
     /// opening removed, the rings' edges and vertices minted in it; a
     /// divided seam ([`RimNaming::seam_pieces`]) into its pieces and the
     /// ring corners its pieces end on, its span across the opening
-    /// removed; and a seam, slit or apex the chart reduction retired
-    /// ([`ShellNaming::dead`]) into the rims, the rest removed. On a
-    /// void, the designated faces are removed, the rim being their
+    /// removed; and an operand seam, slit or apex the chart reduction
+    /// retired ([`ShellNaming::dead`]) into the rims, the rest removed.
+    /// On a void, the designated faces are removed, the rim being their
     /// cavity twin's. The cavity twins are new cells and no operand
-    /// record names one. Any other operand cell whose geometry the shell
+    /// record names one, so a twin the reduction or the glue retired has
+    /// no fate here. Any other operand cell whose geometry the shell
     /// changed under its key is read, not kept: the lineage carries the
     /// operand's geometry ([`crate::Lineage::from_source`]).
     #[must_use]
@@ -1162,14 +1162,28 @@ impl<T: Real> Shelled<T> {
                 .unwrap_or_else(|e| unreachable!("the shell states only removals: {e:?}"))
         };
         let mut lineage = crate::Lineage::new().through_joins(&naming.edge_joins);
-        for &e in &naming.dead.edges {
+        // `dead` is in result keys, and the reductions and the glue kill
+        // cavity twins too, cells the operand never had: a fate is stated
+        // only for a retired key the operand carried.
+        let (minted_edges, minted_vertices) = naming.row_mints();
+        for &e in naming
+            .dead
+            .edges
+            .iter()
+            .filter(|e| !minted_edges.contains(e))
+        {
             lineage = remove(
                 lineage,
                 Cell::Edge(e),
                 opened(every_rim.clone(), Vec::new()),
             );
         }
-        for &v in &naming.dead.vertices {
+        for &v in naming
+            .dead
+            .vertices
+            .iter()
+            .filter(|v| !minted_vertices.contains(v))
+        {
             lineage = remove(
                 lineage,
                 Cell::Vertex(v),
@@ -1292,6 +1306,44 @@ impl ShellNaming {
     #[must_use]
     pub fn rim_of(&self, designated: FaceKey) -> Option<&RimNaming> {
         self.rims.iter().find(|r| r.sources.contains(&designated))
+    }
+
+    /// The edges and vertices a row MINTS: the result half of every row
+    /// whose two columns differ. Survivors keep their operand keys, so a
+    /// row naming a key other than its source names a cell the
+    /// construction made (a cavity twin, a divided seam's later piece);
+    /// a row with equal columns names one the operand carried.
+    #[must_use]
+    pub(crate) fn row_mints(
+        &self,
+    ) -> (
+        std::collections::BTreeSet<EdgeKey>,
+        std::collections::BTreeSet<VertexKey>,
+    ) {
+        let edges = self
+            .inner_edges
+            .iter()
+            .chain(self.rims.iter().flat_map(|rim| {
+                rim.ring_edges
+                    .iter()
+                    .chain(&rim.seam_pieces)
+                    .chain(rim.holes.iter().flat_map(|h| &h.ring_edges))
+            }))
+            .filter(|(result, source)| result != source)
+            .map(|&(result, _)| result)
+            .collect();
+        let vertices = self
+            .inner_vertices
+            .iter()
+            .chain(self.rims.iter().flat_map(|rim| {
+                rim.ring_vertices
+                    .iter()
+                    .chain(rim.holes.iter().flat_map(|h| &h.ring_vertices))
+            }))
+            .filter(|(result, source)| result != source)
+            .map(|&(result, _)| result)
+            .collect();
+        (edges, vertices)
     }
 
     /// The cavity twin of a source edge, in result keys.
@@ -1497,7 +1549,7 @@ pub struct ShellRetired {
 ///
 /// The operand is a finished body (module docs, "The operand is at
 /// rest"): an inside-out or stale-row body refuses where it is gated,
-/// at [`AtRestBody::validate`], and never reaches the verb.
+/// at the scalar's finish ([`crate::finish`]), and never reaches the verb.
 ///
 /// # Errors
 ///
@@ -1507,16 +1559,19 @@ pub struct ShellRetired {
 /// void door's refusals, the closing pcurve mint's refusal, and a
 /// result that does not validate.
 /// **The scalar must be able to certify**, because this verb validates
-/// what it built: its last act is [`validate_geometric`], whose +V
+/// what it built: its last act is [`validate_geometric`](crate::validate_geometric), whose +V
 /// invariant is a certified claim. A scalar without certification
 /// rights cannot form the call — there is no arm and no refusal — and
 /// the recourse is not a weaker shell but the ordinary one, built at a
 /// certifying scalar.
-pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
-    body: &AtRestBody<T>,
-    thickness: T,
+pub fn shell<F: crate::FinishedBody>(
+    body: &F,
+    thickness: F::Scalar,
     tol: Tol,
-) -> Result<Shelled<T>, ShellError<T>> {
+) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
+where
+    F::Scalar: geom_core::CertifiedBounds,
+{
     shell_open(body, thickness, &[], tol)
 }
 
@@ -1541,8 +1596,22 @@ pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy
 /// must resolve, be named once, leave a nonempty and connected
 /// remainder) and the rim surgery's own refusal.
 /// The certification bound is [`shell`]'s, for [`shell`]'s reason.
-pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
-    body: &AtRestBody<T>,
+pub fn shell_open<F: crate::FinishedBody>(
+    body: &F,
+    thickness: F::Scalar,
+    open_faces: &[FaceKey],
+    tol: Tol,
+) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
+where
+    F::Scalar: geom_core::CertifiedBounds,
+{
+    shell_open_at(body, thickness, open_faces, tol)
+}
+
+/// [`shell_open`] at its scalar: the body of the door
+/// ([`crate::ShellDoor`] holds it).
+pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+    body: &T::Finished,
     thickness: T,
     open_faces: &[FaceKey],
     tol: Tol,
@@ -2351,12 +2420,146 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         .map_err(|refusal| ShellError::Join {
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })?;
-    validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
+    #[cfg(debug_assertions)]
+    record_rooted(body, &out_body, &naming);
     naming.source = crate::SourceGeometry::of(body);
-    Ok(Shelled {
-        body: out_body,
-        naming,
-    })
+    let body = T::finish(out_body, tol).map_err(|findings| ShellError::NotValid { findings })?;
+    Ok(Shelled { body, naming })
+}
+
+/// **Every key the record names is rooted, and every retired key is
+/// gone**: a row's source half is a key the operand carries; a
+/// retirement is a key the operand carries or a row's result half
+/// ([`ShellRetired`]: scaffolding is in no row and not listed); and no
+/// retired key resolves in the result. A key this call minted and then
+/// killed is absent from the result, so no output-side walk sees a row
+/// naming one, and `emit_shell` consults the retired set only for a key
+/// no row mints, so a retired key that is a row's result half and still
+/// live passes it too. Only the operand, the result and the record
+/// together see both, and this is the one place that holds all three.
+#[cfg(debug_assertions)]
+fn record_rooted<T: Real>(operand: &Body<T>, result: &Body<T>, naming: &ShellNaming) {
+    use std::collections::BTreeSet;
+    /// The postcondition's one message shape: the key, and what it
+    /// `breaks` when it does not hold.
+    #[track_caller]
+    fn check(holds: bool, key: &dyn core::fmt::Debug, breaks: &str) {
+        assert!(holds, "shell postcondition: {key:?} {breaks} (kernel bug)");
+    }
+    const SOURCE: &str = "is a row's source half, and the operand does not carry it";
+    const ROOTED: &str = "is retired, and neither the operand carries it nor a row mints it";
+    const GONE: &str = "is retired, and the result still carries it";
+    // Exhaustive, so a new row kind cannot join the record without
+    // saying here where its two halves are.
+    let ShellNaming {
+        outer,
+        inner,
+        inner_edges,
+        inner_vertices,
+        rims,
+        thickened,
+        dead:
+            ShellRetired {
+                faces: dead_faces,
+                edges: dead_edges,
+                vertices: dead_vertices,
+                loops: dead_loops,
+                surfaces: dead_surfaces,
+                shells: dead_shells,
+            },
+        // The closing join's rows are in the result's key space at both
+        // halves, and what it kills is listed there, never in `dead`
+        // (`ShellRetired`): no half of one names an operand key, and the
+        // join is checked by its own door.
+        edge_joins: _,
+        source: _,
+    } = naming;
+    let faces: Vec<(FaceKey, FaceKey)> = outer.iter().chain(inner).copied().collect();
+    let mut edges: Vec<(EdgeKey, EdgeKey)> = inner_edges.clone();
+    let mut vertices: Vec<(VertexKey, VertexKey)> = inner_vertices.clone();
+    let mut designated: Vec<FaceKey> = Vec::new();
+    // A rim face stands for a whole chart, so it has no source half.
+    let mut rim_faces: Vec<FaceKey> = Vec::new();
+    // Loops, surfaces and shells are rooted neither way: a rim's `ring`
+    // (`RimNaming::ring`, `HoleRim::ring`) is a result loop with no
+    // source half, and a cavity twin's loops, surface and shell are
+    // minted with no row at all. Their retirements are checked against
+    // the result alone.
+    for RimNaming {
+        sources,
+        side: _,
+        rim,
+        ring: _,
+        ring_edges,
+        ring_vertices,
+        holes,
+        seam_pieces,
+    } in rims
+    {
+        designated.extend(sources);
+        rim_faces.push(*rim);
+        edges.extend(ring_edges.iter().chain(seam_pieces));
+        vertices.extend(ring_vertices);
+        for HoleRim {
+            face,
+            ring: _,
+            ring_edges,
+            ring_vertices,
+        } in holes
+        {
+            rim_faces.push(*face);
+            edges.extend(ring_edges);
+            vertices.extend(ring_vertices);
+        }
+    }
+    for &(_, s) in thickened {
+        check(operand.get_shell(s).is_some(), &s, SOURCE);
+    }
+    for s in faces.iter().map(|&(_, s)| s).chain(designated) {
+        check(operand.get_face(s).is_some(), &s, SOURCE);
+    }
+    for &(_, s) in &edges {
+        check(operand.get_edge(s).is_some(), &s, SOURCE);
+    }
+    for &(_, s) in &vertices {
+        check(operand.get_vertex(s).is_some(), &s, SOURCE);
+    }
+    let minted_f: BTreeSet<FaceKey> = faces.iter().map(|&(r, _)| r).chain(rim_faces).collect();
+    let minted_e: BTreeSet<EdgeKey> = edges.iter().map(|&(r, _)| r).collect();
+    let minted_v: BTreeSet<VertexKey> = vertices.iter().map(|&(r, _)| r).collect();
+    for &f in dead_faces {
+        check(
+            minted_f.contains(&f) || operand.get_face(f).is_some(),
+            &f,
+            ROOTED,
+        );
+        check(result.get_face(f).is_none(), &f, GONE);
+    }
+    for &e in dead_edges {
+        check(
+            minted_e.contains(&e) || operand.get_edge(e).is_some(),
+            &e,
+            ROOTED,
+        );
+        check(result.get_edge(e).is_none(), &e, GONE);
+    }
+    for &v in dead_vertices {
+        check(
+            minted_v.contains(&v) || operand.get_vertex(v).is_some(),
+            &v,
+            ROOTED,
+        );
+        check(result.get_vertex(v).is_none(), &v, GONE);
+    }
+    for &l in dead_loops {
+        check(result.get_loop(l).is_none(), &l, GONE);
+    }
+    for &g in dead_surfaces {
+        check(result.get_surface(g).is_none(), &g, GONE);
+    }
+    for &s in dead_shells {
+        check(result.get_shell(s).is_none(), &s, GONE);
+    }
 }
 
 /// A rim ring's two row lists: its edge rows and its vertex rows.
@@ -2857,11 +3060,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         face: designated,
         error: error.from_driver(),
     };
-    let ends = |body: &Body<T>, edge: EdgeKey| {
-        let data = proven(&body.edges, edge, EntityId::Edge);
-        let start = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start;
-        (start, body.proven_half_edge_end(data.he_plus))
-    };
+    let ends = crate::query::edge_ends::<T>;
     // The pole: the one vertex every seam reaches and nothing else does.
     let pole = {
         let (a, b) = ends(body, seams[0]);
@@ -3338,10 +3537,7 @@ fn strictly_inside<T: Decide>(
     band: Band,
 ) -> Result<Option<T>, ShellError<T>> {
     let (s0, s1) = (stretch.param_start, stretch.param_end);
-    let Some(s) = stretch
-        .carrier
-        .param_near(corner, (s0 + s1) / T::from_f64(2.0))
-    else {
+    let Some(s) = stretch.carrier.param_near(corner, geom::mid_param(s0, s1)) else {
         return Ok(None);
     };
     let scale = (to - from).norm() / (s1 - s0);
@@ -3372,7 +3568,7 @@ fn along<T: Decide>(
         unreachable!("{edge:?} is a seam of a finished wall, and a finished wall has no null edge")
     };
     let (t0, t1) = curve.params();
-    let near = (t0 + t1) / T::from_f64(2.0);
+    let near = geom::mid_param(t0, t1);
     // Whether the carrier runs forward from `from` to `to`: the
     // parameter gap, metered at the stretch's average speed (the chord
     // over the gap) so the margin is a length.
@@ -4265,7 +4461,7 @@ fn wall_clearance<T: Decide>(
             // offsets close that separation by `t·(1 − n_a·n_b) ≤ 2t`, so
             // a wall of at least `2t` everywhere keeps them apart. Read in either window, so a tilted pair the cosine
             // admits is not measured as parallel.
-            let gap = (b.origin - a.origin).dot(a.normal).abs();
+            let gap = geom::plane_offset(a.origin, a.normal, b.origin).abs();
             match decide(
                 "shell_wall_clearance",
                 Margin::of(gap - drift - two_t),
@@ -4511,7 +4707,7 @@ fn footprint<T: Decide>(
 }
 
 /// The `(u, v)` box of `frame` holding `edge`: its cover's box in the
-/// frame's rows (`boolean::boxes::edge_cover_linked`), about the frame's
+/// frame's rows (`boolean::crate::cover::edge_cover_linked`), about the frame's
 /// origin. Nothing for null scaffolding, a zero-length chord its vertex
 /// holds. Both corners are poison, and so the footprint, where the edge
 /// has no cover: its spline net carries poison, a datum or a computed
@@ -4524,8 +4720,8 @@ fn edge_box_in<T: Decide>(
     edge: &crate::entity::Edge,
     frame: &InPlane<T>,
 ) -> Vec<(T, T)> {
-    use crate::boolean::EdgeUncovered;
-    match crate::boolean::boxes::edge_cover_linked(body, key, edge) {
+    use crate::cover::EdgeUncovered;
+    match crate::cover::edge_cover_linked(body, key, edge) {
         Ok(cover) => cover_box_in(&cover, frame).to_vec(),
         Err(EdgeUncovered::Scaffold) => Vec::new(),
         Err(EdgeUncovered::Carrier(_) | EdgeUncovered::Ends) => {
@@ -4713,9 +4909,9 @@ fn walls_cross<T: Decide>(
     }
     // The point of `L` nearest `a`'s box centre, so every side
     // and position below is a short difference.
-    let d = cross / cross.norm();
+    let d = cross.normalize();
     let k = a.normal.dot(b.normal);
-    let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
+    let q = a.lo.mid(a.hi);
     let r_a = a.normal.dot(a.origin - q);
     let r_b = b.normal.dot(b.origin - q);
     let det = cross.norm_squared();
@@ -4723,7 +4919,7 @@ fn walls_cross<T: Decide>(
     let line = geom::Line { origin: p0, dir: d };
     let on_a = a.cut(line, band)?;
     let on_b = b.cut(line, band)?;
-    let along = |p: geom_core::Point3<T>| line.param(p);
+    let along = |p: geom_core::Point3<T>| line.height(p);
     // Where the two faces are joined: every moved common edge, which
     // lies on `L`, and every shared vertex, widened to twice the
     // escalation width either side. Two joined faces come arbitrarily
@@ -4896,7 +5092,7 @@ impl<T: Decide> ArcPiece<T> {
     /// The two halves of this piece and the carrier point between them.
     fn split(&self) -> (Self, geom_core::Point3<T>, Self) {
         let (t0, t1) = self.window;
-        let mid = (t0 + t1) * T::from_f64(0.5);
+        let mid = geom::mid_param(t0, t1);
         let half = |window| Self {
             window,
             ..self.clone()
@@ -4907,7 +5103,8 @@ impl<T: Decide> ArcPiece<T> {
 
 impl<T: Decide> MovedWall<T> {
     /// The intervals of the line `L` (its `dir` unit, in this face's
-    /// plane) the face covers, as `(lo, hi)` in `L`'s parameter (module
+    /// plane) the face covers, as `(lo, hi)` in heights along `L`
+    /// ([`geom::Line::height`], its parameter where `dir` is unit; module
     /// docs of [`moved_walls_cross`] for the reading): the union of the
     /// two readings that count a point on `L` with one side and with the
     /// other. Each reading holds the boundary stretches on `L` of a face
@@ -5016,9 +5213,9 @@ impl<T: Decide> MovedWall<T> {
                     }
                     // A piece in the half-turn after `φ` holds `φ + root`,
                     // one in the half-turn before it `φ − root`.
-                    let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
+                    let half = (geom::mid_param(lo, hi) - phi).reduce_periodic(T::tau());
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
-                    crossings.push(line.param(at(theta)));
+                    crossings.push(line.height(at(theta)));
                 }
                 continue;
             }
@@ -5038,10 +5235,10 @@ impl<T: Decide> MovedWall<T> {
                 let mut splits = 0;
                 while let Some((piece, a, b)) = work.pop_front() {
                     let (c, rho) = piece.ball();
-                    let along = line.param(c);
-                    // The offset off `L` as a vector, not `|w|² − along²`,
-                    // which cancels to noise when a small ball sits close.
-                    let perp = (c - line.foot(c)).norm();
+                    // The offset off `L` as its own distance, not
+                    // `|w|² − along²`, which cancels to noise when a small
+                    // ball sits close.
+                    let (along, perp) = line.height_and_distance(c);
                     // Undecided reaches: the read only grows the set.
                     if !matches!(
                         decide("shell_moved_wall_ball_reach", Margin::of(rho - perp), band),
@@ -5064,7 +5261,7 @@ impl<T: Decide> MovedWall<T> {
                     if side_of(a)? != side_of(b)? {
                         let (sp, sq) = ((a.1 - line.origin).dot(m), (b.1 - line.origin).dot(m));
                         let x = a.1 + (b.1 - a.1) * (sp / (sp - sq));
-                        crossings.push(line.param(x));
+                        crossings.push(line.height(x));
                     }
                 }
                 continue;
@@ -5073,7 +5270,7 @@ impl<T: Decide> MovedWall<T> {
             if side_of(key(edge.start))? != side_of(key(edge.end))? {
                 let (sp, sq) = ((p - line.origin).dot(m), (q - line.origin).dot(m));
                 let x = p + (q - p) * (sp / (sp - sq));
-                crossings.push(line.param(x));
+                crossings.push(line.height(x));
             }
         }
         // Ordered by decided comparisons, a selection rather than a
@@ -5139,11 +5336,11 @@ fn moved_walls<T: Decide>(
                 );
                 let (start, end) = (ends[i], ends[(i + 1) % ends.len()]);
                 let certified = cavity.edge_curve_linked(h.edge, edge).certified();
-                // The edge's cover (`boolean::boxes::edge_cover_linked`):
+                // The edge's cover (`boolean::crate::cover::edge_cover_linked`):
                 // `None` for null scaffolding, a chord the wall's own
                 // vertices below hold.
-                let cover = match crate::boolean::boxes::edge_cover_linked(cavity, h.edge, edge) {
-                    Err(crate::boolean::EdgeUncovered::Scaffold) => None,
+                let cover = match crate::cover::edge_cover_linked(cavity, h.edge, edge) {
+                    Err(crate::cover::EdgeUncovered::Scaffold) => None,
                     other => Some(other),
                 };
                 let curve = match certified {
@@ -5406,6 +5603,81 @@ mod tests {
     mod footprint_fuzz;
     #[allow(clippy::panic)]
     mod speed_fuzz;
+
+    /// **The closing postcondition goes red in each of its three
+    /// directions** (`record_rooted`). Its inputs are the operand, the
+    /// result and a record with public fields, so each row hands it a
+    /// record no construction writes: a key of a second body stands for
+    /// one this call minted, which the operand does not carry.
+    #[cfg(debug_assertions)]
+    mod record_rooted {
+        use super::super::{Body, EdgeKey, ShellNaming, ShellRetired, record_rooted};
+
+        fn prism() -> Body<f64> {
+            crate::test_support::prism::<f64>(
+                &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+                1.0,
+                geom_core::Tol::witness(),
+            )
+            .body
+        }
+
+        fn an_edge(body: &Body<f64>) -> EdgeKey {
+            body.edges().next().expect("a prism has edges").0
+        }
+
+        /// A retirement of a key the operand never carried and no row
+        /// mints: BLEND unit 8's defect, on the shell.
+        #[test]
+        #[should_panic(
+            expected = "is retired, and neither the operand carries it nor a row mints it"
+        )]
+        fn a_retirement_no_row_mints_is_red() {
+            let operand = Body::<f64>::new();
+            let naming = ShellNaming {
+                dead: ShellRetired {
+                    edges: vec![an_edge(&prism())],
+                    ..ShellRetired::default()
+                },
+                ..ShellNaming::default()
+            };
+            record_rooted(&operand, &operand, &naming);
+        }
+
+        /// A row whose source half is a key the operand never carried.
+        #[test]
+        #[should_panic(expected = "is a row's source half, and the operand does not carry it")]
+        fn a_row_rooted_at_a_minted_key_is_red() {
+            let operand = Body::<f64>::new();
+            let minted = an_edge(&prism());
+            let naming = ShellNaming {
+                inner_edges: vec![(minted, minted)],
+                ..ShellNaming::default()
+            };
+            record_rooted(&operand, &operand, &naming);
+        }
+
+        /// A retirement that is a row's result half, rooted both ways,
+        /// and still live in the result: the case `emit_shell`'s guard
+        /// passes, since it consults the retired set only for a key no
+        /// row mints.
+        #[test]
+        #[should_panic(expected = "is retired, and the result still carries it")]
+        fn a_retired_key_the_result_still_carries_is_red() {
+            let operand = prism();
+            let result = operand.clone();
+            let kept = an_edge(&operand);
+            let naming = ShellNaming {
+                inner_edges: vec![(kept, kept)],
+                dead: ShellRetired {
+                    edges: vec![kept],
+                    ..ShellRetired::default()
+                },
+                ..ShellNaming::default()
+            };
+            record_rooted(&operand, &result, &naming);
+        }
+    }
 
     /// **The wall wrapper words the curvature-headroom meter in the
     /// meter's own idiom**: the zero arm is "not shown below", never
@@ -5879,8 +6151,9 @@ mod tests {
 
     /// **A spline piece is read in the smaller of its two balls.** On the
     /// weight-`40` parabola the speed bound's ball over the whole window
-    /// has radius about `90`, while the control net's ball has radius
-    /// `√2`: the piece, and so the wall's box, is read in the latter.
+    /// has radius about `90`, while the cover's ball has radius at most
+    /// the control net's `√2`: the piece, and so the wall's box, is read
+    /// in the latter.
     #[test]
     fn a_rational_spline_piece_is_read_in_its_control_ball() {
         let carrier = weighted_parabola(40.0);
@@ -5899,10 +6172,21 @@ mod tests {
             "the speed ball is wide, radius {}",
             speed.get() * 0.5
         );
+        // The cover's ball is the meet's: no wider than the control net's
+        // `√2` about `(0, 1)`, and narrower where the window's pieces'
+        // box is (`geom::cover::Cover::ball`).
         assert!(
-            (radius - 2.0_f64.sqrt()).abs() < 1e-12 && (centre.y - 1.0).abs() < 1e-12,
-            "the piece is read in the control ball about (0, 1), radius √2, got {centre:?}, {radius}"
+            radius <= 2.0_f64.sqrt() + 1e-12 && centre.x.abs() < 1e-12,
+            "the piece is read in its cover's ball, at most the control ball's √2, got \
+             {centre:?}, {radius}"
         );
+        for k in 0..=2_000 {
+            let p = carrier.eval(f64::from(k) / 2_000.0);
+            assert!(
+                (p - centre).norm() <= radius + 1e-12,
+                "the piece's point {p:?} lies outside its ball about {centre:?}, radius {radius}"
+            );
+        }
     }
 
     /// **A contact on `L` is read whichever side the face lies on, and
@@ -6269,9 +6553,9 @@ mod tests {
         });
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;
-        let errors = AtRestBody::validate(body, tol).expect_err("a torn body is not finished");
+        let errors = crate::finish(body, tol).expect_err("a torn body is not finished");
         assert!(
-            errors.contains(&ValidationError::DanglingGeometry {
+            errors.contains(&crate::ValidationError::DanglingGeometry {
                 from: EntityId::Face(face),
                 to: crate::entity::GeomRef::Surface(dead),
             }),
@@ -6315,7 +6599,8 @@ mod tests {
     #[test]
     fn a_stale_designation_stays_typed() {
         let tol = Tol::witness();
-        let body = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let stale = FaceKey::default();
         assert!(matches!(
             shell_open(&finished("the brick", body, tol), 0.1, &[stale], tol),

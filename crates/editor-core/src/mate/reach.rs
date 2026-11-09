@@ -14,43 +14,19 @@
 //! part-local origin to any point of the body, at the body's own
 //! scalar `T` — the evaluation reads it back as an `f64` upper bound
 //! where it holds the ratified compound (`eval`'s `EvalScalar`, the
-//! bracket's `hi`). The maximum over the body's faces of each face's
-//! own bound, and the bound is stated per surface kind rather than
-//! assumed:
-//!
-//! * a **plane** or **cylinder** patch is bounded by its rim: the
-//!   distance from a point is convex along every line in a plane,
-//!   and strictly convex along a cylinder's rulings, so no interior
-//!   point of a patch is a local maximum and the maximum over a
-//!   compact patch lies on its boundary. The boundary is walked by
-//!   the measure site's own [`reach_of`] — line ends, the containing
-//!   circle or ellipse of a conic, a NURBS control hull — which is
-//!   an upper bound on the rim, hence on the patch.
-//! * a **cone** patch is bounded by its rim OR its apex: distance is
-//!   strictly convex along every ruling, so an interior maximum can
-//!   only sit where a ruling degenerates, which is the apex (with
-//!   the origin on the axis above a cone tip, the tip is the
-//!   farthest point of the tip face and no rim point reaches it).
-//! * a **sphere** is bounded by the whole carrier, `‖centre‖ + r`;
-//!   a **torus** by `‖centre‖ + R + r`. A hemisphere's rim is its
-//!   equator, so the rim argument fails for both and the carrier
-//!   bound is the honest one.
-//! * a **NURBS** or **approximating** patch is bounded by its control
-//!   hull (positive weights; the assumption
-//!   `geom::surfaces::boxes::nurbs_surface_aabb` states), the fit
-//!   being the geometry an approximating surface evaluates as.
+//! bracket's `hi`). It is the maximum over the body's faces of each
+//! face's farthest distance from the origin as its cover reads it
+//! (`topo`'s reading of the region a face can occupy,
+//! [`topo::face_cover`]), the measure site's own [`reach_of`].
 //!
 //! Over-refusal is the safe direction, so every bound is an upper
-//! one and none is dropped: a face whose bound cannot be stated — a
-//! boundary that does not walk, an empty or placeholder (all-poison)
-//! control net — refuses typed ([`ReachRefusal::FaceUnbounded`]),
-//! never a guess; a face whose surface key does not resolve is a
-//! malformed body and refuses in that voice
-//! ([`ReachRefusal::MalformedBody`]); a bound that reads back
-//! non-finite refuses where it is read.
+//! one and none is dropped: a face with no cover refuses typed
+//! ([`ReachRefusal::FaceUnbounded`]), never a guess; a face whose
+//! surface key does not resolve is a malformed body and refuses in
+//! that voice ([`ReachRefusal::MalformedBody`]); a bound that reads
+//! back non-finite refuses where it is read.
 
-use geom::Surface;
-use geom_core::{Decide, Point3};
+use geom_core::{Band, Decide, Point3};
 use topo::Body;
 use topo::entity::FaceKey;
 
@@ -73,8 +49,8 @@ pub enum ReachRefusal {
         /// The resolver's fault.
         fault: crate::eval::PartFault,
     },
-    /// The body has a face whose reach this module cannot bound
-    /// ([`body_reach`]'s per-kind table).
+    /// The body has a face with no cover ([`topo::face_cover`]), so its
+    /// reach cannot be bounded.
     FaceUnbounded {
         /// The face, in the part body's own arena.
         face: FaceKey,
@@ -132,21 +108,22 @@ impl core::fmt::Display for ReachRefusal {
 }
 
 /// The kind a refusal names a face's surface by — `geom`'s closed
-/// mirror of [`Surface`], with its one name table
+/// mirror of [`geom::Surface`], with its one name table
 /// ([`SurfaceKind::name`]), so no second string table stands beside
 /// it and a caller branches on the value.
 pub use geom::SurfaceKind;
 
 /// **A part's reach as the solve reads it**: [`body_reach`] with a
 /// faceless body refused ([`ReachRefusal::NoExtent`]) — the one
-/// answer the fold reads over an evaluated body.
+/// answer the fold reads over an evaluated body. Each face's cover is
+/// read under `band`.
 ///
 /// # Errors
 ///
 /// [`ReachRefusal::FaceUnbounded`], [`ReachRefusal::MalformedBody`],
 /// [`ReachRefusal::NoExtent`].
-pub fn part_reach<T: Decide>(body: &Body<T>) -> Result<T, ReachRefusal> {
-    part_reach_from(body, Point3::origin())
+pub fn part_reach<T: Decide>(body: &Body<T>, band: Band) -> Result<T, ReachRefusal> {
+    part_reach_from(body, Point3::origin(), band)
 }
 
 /// [`part_reach`] about `about` rather than the body's own origin: a
@@ -156,13 +133,17 @@ pub fn part_reach<T: Decide>(body: &Body<T>) -> Result<T, ReachRefusal> {
 /// # Errors
 ///
 /// As [`part_reach`].
-pub fn part_reach_from<T: Decide>(body: &Body<T>, about: Point3<T>) -> Result<T, ReachRefusal> {
-    reach_from(body, about)?.ok_or(ReachRefusal::NoExtent)
+pub fn part_reach_from<T: Decide>(
+    body: &Body<T>,
+    about: Point3<T>,
+    band: Band,
+) -> Result<T, ReachRefusal> {
+    reach_from(body, about, band)?.ok_or(ReachRefusal::NoExtent)
 }
 
 /// **An upper bound on the distance from the body's own origin to any
 /// point of it** — the reach `R` of a part (module docs), at the
-/// body's own scalar.
+/// body's own scalar, each face's cover read under `band`.
 ///
 /// `Ok(None)` for a body with no faces, which has no extent to lever
 /// over; the caller says what that means for it (the solve refuses,
@@ -170,69 +151,31 @@ pub fn part_reach_from<T: Decide>(body: &Body<T>, about: Point3<T>) -> Result<T,
 ///
 /// # Errors
 ///
-/// [`ReachRefusal::FaceUnbounded`], naming the first face whose reach
-/// cannot be stated — in the body's own face order, so the answer is
+/// [`ReachRefusal::FaceUnbounded`], naming the first face with no
+/// cover — in the body's own face order, so the answer is
 /// deterministic; [`ReachRefusal::MalformedBody`] for a face whose
 /// surface key resolves to nothing, which is a fault of the body and
 /// not of this table.
-pub fn body_reach<T: Decide>(body: &Body<T>) -> Result<Option<T>, ReachRefusal> {
-    reach_from(body, Point3::origin())
+pub fn body_reach<T: Decide>(body: &Body<T>, band: Band) -> Result<Option<T>, ReachRefusal> {
+    reach_from(body, Point3::origin(), band)
 }
 
 /// [`body_reach`] about `origin`.
-fn reach_from<T: Decide>(body: &Body<T>, origin: Point3<T>) -> Result<Option<T>, ReachRefusal> {
+fn reach_from<T: Decide>(
+    body: &Body<T>,
+    origin: Point3<T>,
+    band: Band,
+) -> Result<Option<T>, ReachRefusal> {
     let mut reach: Option<T> = None;
     for (key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
             return Err(ReachRefusal::MalformedBody { face: key });
         };
-        let bound = face_reach(body, key, surface, origin).ok_or(ReachRefusal::FaceUnbounded {
+        let bound = reach_of(body, key, origin, band).ok_or(ReachRefusal::FaceUnbounded {
             face: key,
             kind: surface.kind(),
         })?;
         reach = Some(reach.map_or(bound, |r| r.max(bound)));
     }
     Ok(reach)
-}
-
-/// One face's bound from `origin`, per surface kind (module docs).
-/// `None` where the bound cannot be stated.
-fn face_reach<T: Decide>(
-    body: &Body<T>,
-    key: FaceKey,
-    surface: &Surface<T>,
-    origin: Point3<T>,
-) -> Option<T> {
-    let from = |p: Point3<T>| (p - origin).norm();
-    match surface {
-        Surface::Plane { .. } | Surface::Cylinder { .. } => reach_of(body, key, origin),
-        Surface::Cone { apex, .. } => Some(reach_of(body, key, origin)?.max(from(*apex))),
-        Surface::Sphere { center, radius, .. } => Some(from(*center) + *radius),
-        Surface::Torus {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(from(*center) + *major_radius + *minor_radius),
-        Surface::Spindle {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(from(*center) + major_radius.abs() + *minor_radius),
-        // The placeholder net is all-poison by construction — a
-        // surface representable but not described — and describes no
-        // locus to bound.
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            let chart = surface.spline_chart()?;
-            if chart.is_placeholder() {
-                return None;
-            }
-            chart
-                .control()
-                .iter()
-                .map(|p| from(*p))
-                .reduce(|a, b| a.max(b))
-        }
-    }
 }

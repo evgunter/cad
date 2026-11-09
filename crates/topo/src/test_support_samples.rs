@@ -1639,6 +1639,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     for error in band_errors() {
         s.push((label("Band", &error), ValidationError::Band { error }));
     }
+    s.push((
+        "OutsideSessionBox".into(),
+        ValidationError::OutsideSessionBox {
+            margin: geom_core::MarginDiag::value(-2.5e3),
+        },
+    ));
     for error in offset_fit_errors() {
         s.push((
             label("ApproxCertification", &error),
@@ -1885,6 +1891,18 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "CensusUnsupported/FaceUnboundable".to_owned(),
         CensusUnsupportedCause::FaceUnboundable,
     ));
+    for why in [
+        crate::validate::EdgeTangentUnread::NoCurve,
+        crate::validate::EdgeTangentUnread::NoReach,
+        crate::validate::EdgeTangentUnread::NoLength,
+        crate::validate::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        crate::validate::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Unbounded),
+    ] {
+        causes.push((
+            format!("CensusUnsupported/CurvedEdge/{why:?}"),
+            CensusUnsupportedCause::CurvedEdge(why),
+        ));
+    }
     for (l, cause) in causes {
         // The subject each cause is raised on: a face pair for the
         // chart-region and contact lanes, one face for the rest.
@@ -1892,6 +1910,9 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             CensusUnsupportedCause::ChartRegion(_) | CensusUnsupportedCause::ContactLane(_) => pair,
             CensusUnsupportedCause::Containment(_) | CensusUnsupportedCause::FaceUnboundable => {
                 CensusSubject::Entity(EntityId::Face(face))
+            }
+            CensusUnsupportedCause::CurvedEdge(_) => {
+                CensusSubject::Entity(EntityId::Edge(crate::entity::EdgeKey::default()))
             }
         };
         s.push((l, ValidationError::CensusUnsupported { subject, cause }));

@@ -635,8 +635,8 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
 /// patches `u ∈ [0, u1] × z ∈ [z0, z1]` of the cone of half-angle `1/2`
 /// about `z` from the origin (`boxes::tests::cone_wall`), read from a
 /// corner in both member orders: its [`FrameExtent::Cone`] window is
-/// `[z0, z1]` to rounding under three quarters of a turn, and holds the
-/// apex past it. A window that misses any of the face lets the frame
+/// `[z0, z1]` to rounding at every span, since each patch's loop closes
+/// in the chart and leaves the apex out. A window that misses any of the face lets the frame
 /// serve a line pair over points nearer the apex than it reads.
 #[test]
 fn the_frames_cone_window_holds_its_face() {
@@ -662,14 +662,10 @@ fn the_frames_cone_window_holds_its_face() {
                 lo <= z0 + 1e-12 && hi >= z1 - 1e-12,
                 "{label}: the window [{lo}, {hi}] misses some of the face"
             );
-            if u1 < 1.5 * core::f64::consts::PI {
-                assert!(
-                    lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
-                    "{label}: the window [{lo}, {hi}] reaches past the face"
-                );
-            } else {
-                assert!(lo <= 0.0, "{label}: the window [{lo}, {hi}] holds the apex");
-            }
+            assert!(
+                lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
+                "{label}: the window [{lo}, {hi}] reaches past the face"
+            );
         }
     }
 }
@@ -775,10 +771,7 @@ fn apex_pair() -> (crate::body::Body<f64>, crate::body::Body<f64>) {
     let tol = Tol::witness();
     let (mut wall, face) =
         super::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
-    let carrier = wall
-        .get_surface(wall.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let carrier = wall.proven_face(face).surface().clone();
     let twin = wall.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     wall.lifting_rechart_refusals_for_tests(|b| {
         b.set_face_surfaces_describing(
@@ -803,7 +796,7 @@ fn apex_pair_faces(
     let face_of = |body: &crate::body::Body<f64>, keep: &dyn Fn(&geom::Surface<f64>) -> bool| {
         body.faces()
             .map(|(k, _)| k)
-            .find(|&k| keep(body.get_surface(body.get_face(k).unwrap().surface).unwrap()))
+            .find(|&k| keep(body.proven_face(k).surface()))
             .unwrap()
     };
     let cone = face_of(cone_body, &|s| matches!(s, geom::Surface::Cone { .. }));

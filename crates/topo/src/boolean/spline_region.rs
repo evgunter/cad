@@ -391,7 +391,7 @@ impl Rect {
     }
 
     fn centre(self) -> (f64, f64) {
-        (mid(self.u), mid(self.v))
+        (geom::bracket_mid(self.u), geom::bracket_mid(self.v))
     }
 
     fn size(self) -> (f64, f64) {
@@ -411,10 +411,6 @@ impl Rect {
             v: (self.v.0 + dv, self.v.1 + dv),
         }
     }
-}
-
-fn mid((a, b): (f64, f64)) -> f64 {
-    a + (b - a) * 0.5
 }
 
 /// The gap between two closed intervals, zero where they meet.
@@ -710,8 +706,7 @@ fn point_rounding<T: Decide, const N: usize>((h, e): &Control<T, N>) -> [f64; N]
 /// The middle of a value's bracket, the value an `f64` rounding bound is
 /// read at; NaN for the poison.
 fn middle<T: Decide>(x: T) -> f64 {
-    x.structure_bracket()
-        .map_or(f64::NAN, |(lo, hi)| lo + (hi - lo) * 0.5)
+    x.structure_bracket().map_or(f64::NAN, geom::bracket_mid)
 }
 
 /// **A homogeneous row refined along `knots`** by inserting `add`,
@@ -786,9 +781,9 @@ fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Patch<T>>> {
         }
     }
     let centre = Vec3::new(
-        T::from_computed(mid((lo[0], hi[0]))),
-        T::from_computed(mid((lo[1], hi[1]))),
-        T::from_computed(mid((lo[2], hi[2]))),
+        T::from_computed(geom::bracket_mid((lo[0], hi[0]))),
+        T::from_computed(geom::bracket_mid((lo[1], hi[1]))),
+        T::from_computed(geom::bracket_mid((lo[2], hi[2]))),
     );
     // Moved and out to homogeneous form: the difference and the product
     // round each coordinate by `u` of it.
@@ -828,7 +823,7 @@ fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Patch<T>>> {
     {
         return None;
     }
-    let (bu, bv) = (breaks(ku)?, breaks(kv)?);
+    let (bu, bv) = (ku.breakpoint_values()?, kv.breakpoint_values()?);
     let (cu, cv) = (bu.len() - 1, bv.len() - 1);
     if nu != cu * pu + 1 || nv != cv * pv + 1 {
         return None;
@@ -905,12 +900,6 @@ fn bezier_insertions<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
         add.extend(core::iter::repeat_n(x, p - m));
     }
     Some(add)
-}
-
-/// The break values of `knots`, one per run.
-fn breaks<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
-    let out: Vec<f64> = knots.runs().map(|(v, _)| v.value_channel()).collect();
-    out.iter().all(|x| x.is_finite()).then_some(out)
 }
 
 /// **One piece of the trim's chain**: a rational Bézier curve in the

@@ -113,6 +113,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     )
     .expect("the probe profile extrudes")
     .body
+    .into_body()
 }
 
 /// A two-vertex full circle (two semicircular arcs), counterclockwise.
@@ -158,6 +159,7 @@ fn revolved(points: &[(f64, f64, f64)], rev: Revolution<f64>) -> Body<f64> {
     )
     .expect("the probe profile revolves")
     .body
+    .into_body()
 }
 
 // =====================================================================
@@ -386,7 +388,7 @@ fn fillet_products_carry_no_scaffold_at_rest() {
     // reverted site says the strut "reaches rest through the
     // scaffolding door and tier 3's transience fence names it"; this
     // row measures what the finished body actually carries.
-    let body = sweep::test_support::cube(1.0, Tol::witness());
+    let body = sweep::test_support::cube::<f64>(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let filleted = fillet_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -405,8 +407,8 @@ fn fillet_products_carry_no_scaffold_at_rest() {
 
 fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-9)
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no planar face at y = {y}"))
@@ -414,8 +416,8 @@ fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
 
 fn cylinder_face_at(body: &Body<f64>, radius: f64) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no cylinder face at r = {radius}"))

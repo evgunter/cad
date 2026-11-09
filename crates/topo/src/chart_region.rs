@@ -1155,10 +1155,10 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// **A face's surface, as this module refuses it**: [`Body::passed_face`]'s [`crate::live::FaceView::surface`],
+/// **A face's surface, as this module refuses it**: [`Body::face`]'s [`crate::live::FaceView::surface`],
 /// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    body.passed_face(face)
+    body.face(face)
         .map(|f| f.surface())
         .ok_or(ChartRegionError::Corrupt)
 }
@@ -1184,7 +1184,7 @@ fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
-    let view = body.passed_face(face).ok_or(ChartRegionError::Corrupt)?;
+    let view = body.face(face).ok_or(ChartRegionError::Corrupt)?;
     view.boundary()
         .map(|member| match member {
             BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
@@ -1559,8 +1559,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             geom_core::Lever::unsourced(hyp),
         ),
     )?;
-    let perp_a = a.axis_line().offset(b.origin).norm();
-    let perp_b = b.axis_line().offset(a.origin).norm();
+    let perp_a = a.axis_line().distance(b.origin);
+    let perp_b = b.axis_line().distance(a.origin);
     norm_gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
 
     // --- The transfer parameters (doc above). The sense margin is the
@@ -2415,12 +2415,8 @@ fn declared_chart<T: Decide + Bounds>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let fa = body_a
-        .passed_face(face_a)
-        .ok_or(ChartRegionError::Corrupt)?;
-    let fb = body_b
-        .passed_face(face_b)
-        .ok_or(ChartRegionError::Corrupt)?;
+    let fa = body_a.face(face_a).ok_or(ChartRegionError::Corrupt)?;
+    let fb = body_b.face(face_b).ok_or(ChartRegionError::Corrupt)?;
     let s_a = fa.surface();
     if std::ptr::eq(body_a, body_b) && fa.record().surface == fb.record().surface {
         return Ok(s_a.clone());
@@ -3320,7 +3316,10 @@ fn proper_crossings<T: Decide>(
             let s = b[(bi + 1) % b.len()] - q;
             let s_len = b_lens[bi];
             let qp = q - p;
-            let denom = r.perp_dot(s);
+            let (line_a, line_b) = (
+                geom_core::Line2 { origin: p, dir: r },
+                geom_core::Line2 { origin: q, dir: s },
+            );
             // ARGUMENT-ORDER INVARIANT (#1063 fix pass): both levers
             // here are UNION-MAX forms, so the margin is a `max` over a
             // multiset that swapping `(A, B)` for `(B, A)` only
@@ -3331,58 +3330,65 @@ fn proper_crossings<T: Decide>(
             // `|r|` lever is what made the SAME pair certify one way
             // and escalate the other.
             let lever = r_len.min(s_len);
-            let d_sign = decide(
-                "chart_region_parallel",
-                Margin::over_lever(denom, lever),
-                band,
-            )
-            .map_err(escalate)?;
-            if d_sign == Sign::Zero {
-                // Parallel lane. Same discipline: the two candidate
-                // offsets are `q`'s distance from `r`'s line and `p`'s
-                // from `s`'s, and the row takes their max. Only the
-                // MAGNITUDE is read below (Zero versus anything
-                // definite), so a max of magnitudes says exactly what
-                // the row asks — "are these two lines definitely
-                // apart" — with neither description privileged.
-                //
-                // Dimensional argument, the `over_lever` door's own:
-                // `perp_dot(r, q − p) / |r|` is a determinant (m2) over
-                // the length that levers it, i.e. `q`'s perpendicular
-                // distance from `r`'s line, in metres. Both candidates
-                // are that same length, so their max is a length and
-                // `Margin::of` is its door (the `carrier_agreement`
-                // precedent).
-                let pq = Vec2::new(T::zero() - qp.x, T::zero() - qp.y);
-                let off_a = (r.perp_dot(qp) / r_len).abs();
-                let off_b = (s.perp_dot(pq) / s_len).abs();
-                match decide(
-                    "chart_region_collinear_offset",
-                    Margin::of(off_a.max(off_b)),
-                    band,
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Zero => {
-                        // Collinear: do the spans share length?
-                        let rhat = r.normalize();
-                        let s0 = qp.dot(rhat);
-                        let s1 = (b[(bi + 1) % b.len()] - p).dot(rhat);
-                        let (lo, hi) = (s0.min(s1), s0.max(s1));
-                        let overlap = hi.min(r_len) - lo.max(T::zero());
-                        match decide("chart_region_collinear_overlap", Margin::of(overlap), band)
+            let meet = line_a
+                .meet(&line_b, |denom| {
+                    decide(
+                        "chart_region_parallel",
+                        Margin::over_lever(denom, lever),
+                        band,
+                    )
+                })
+                .map_err(escalate)?;
+            let (t, u, d_sign) = match meet {
+                geom_core::LineMeet::Cross { t, s: u, turn, .. } => (t, u, turn),
+                geom_core::LineMeet::Parallel { .. } => {
+                    // Parallel lane. Same discipline: the two candidate
+                    // offsets are `q`'s distance from `r`'s line and `p`'s
+                    // from `s`'s, and the row takes their max. Only the
+                    // MAGNITUDE is read below (Zero versus anything
+                    // definite), so a max of magnitudes says exactly what
+                    // the row asks — "are these two lines definitely
+                    // apart" — with neither description privileged.
+                    //
+                    // Dimensional argument, the `over_lever` door's own:
+                    // `perp_dot(r, q − p) / |r|` is a determinant (m2) over
+                    // the length that levers it, i.e. `q`'s perpendicular
+                    // distance from `r`'s line, in metres. Both candidates
+                    // are that same length, so their max is a length and
+                    // `Margin::of` is its door (the `carrier_agreement`
+                    // precedent).
+                    let off_a = line_a.distance(q);
+                    let off_b = line_b.distance(p);
+                    match decide(
+                        "chart_region_collinear_offset",
+                        Margin::of(off_a.max(off_b)),
+                        band,
+                    )
+                    .map_err(escalate)?
+                    {
+                        Sign::Zero => {
+                            // Collinear: do the spans share length?
+                            let rhat = r.normalize();
+                            let s0 = qp.dot(rhat);
+                            let s1 = (b[(bi + 1) % b.len()] - p).dot(rhat);
+                            let (lo, hi) = (s0.min(s1), s0.max(s1));
+                            let overlap = hi.min(r_len) - lo.max(T::zero());
+                            match decide(
+                                "chart_region_collinear_overlap",
+                                Margin::of(overlap),
+                                band,
+                            )
                             .map_err(escalate)?
-                        {
-                            Sign::Positive => return Err(ChartRegionError::TouchingBoundary),
-                            _ => continue,
+                            {
+                                Sign::Positive => return Err(ChartRegionError::TouchingBoundary),
+                                _ => continue,
+                            }
                         }
+                        _ => continue, // parallel, definitely offset lines
                     }
-                    _ => continue, // parallel, definitely offset lines
                 }
-            }
-            // Transverse lane: intersection fractions.
-            let t = qp.perp_dot(s) / denom;
-            let u = qp.perp_dot(r) / denom;
+            };
+            // Transverse lane: the intersection fractions `t`, `u`.
             let one = T::one();
             let spans = [(t, r_len), (one - t, r_len), (u, s_len), (one - u, s_len)];
             // All four clearances are decided BEFORE any verdict: a

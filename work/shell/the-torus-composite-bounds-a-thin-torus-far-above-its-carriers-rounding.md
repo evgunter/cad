@@ -47,3 +47,12 @@ composite change; neither is designed.
 **Not wanted.** Loosening ε; reading the bound at points.
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
+
+- 2026-11-02 — PR 6380 (`onehome/run-owns-rounding`) pins one more row
+  here: `crates/sweep/tests/session_box_reach.rs`
+  `a_bar_cutting_a_large_torus_inside_the_box_builds` (torus R = 700,
+  r = 50, R/r 14, about `(0, 300, 0)`, cut by the bar
+  `[100, 400] × [200, 400] × [400, 800]`). At ε = 1e-12 its spiric section
+  refuses limb 2 as `KernelLimit` with a bound of 8.6e-11 m over 113 m,
+  against a carrier enclosure width of 3.9e-12 m (b / w ≈ 22); it builds
+  at the default ε and at 1e-6.

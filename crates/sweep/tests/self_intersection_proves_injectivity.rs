@@ -44,6 +44,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use topo::LeafBody as _;
 
 use geom::{NurbsCurve3, Surface};
 use geom_core::k_stats::decide;
@@ -53,7 +54,7 @@ use geom_core::{
 use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start, ValidatedProfile};
 use std::collections::BTreeSet;
 use sweep::test_support::revolved_about_y_at;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve, sweep_body};
+use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve, sweep_body};
 use topo::clearance::{
     BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CellReceipt, CertificateArm,
     ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, Which,
@@ -77,8 +78,14 @@ fn band() -> Band {
 }
 
 /// The scalars a row builds its body at.
-trait Scalar: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy {}
-impl<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy> Scalar for T {}
+trait Scalar:
+    Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<Self>>
+{
+}
+impl<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>
+    Scalar for T
+{
+}
 
 /// The middle of `x`'s bracket: `x` itself at `f64`.
 fn mid<T: Bounds>(x: T) -> f64 {
@@ -137,9 +144,7 @@ struct Witness {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Surface<T> {
-    body.get_surface(body.get_face(f).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(f).unwrap().clone()
 }
 
 /// **The witness check**: the closest pair of the two cells' on-face
@@ -234,9 +239,10 @@ fn pairs(n: usize) -> usize {
 /// touch, and a touching pair is discharged only by a certificate.
 fn touching_pairs<T: Real>(body: &Body<T>) -> BTreeSet<(FaceKey, FaceKey)> {
     let vertices = |f: FaceKey| -> BTreeSet<VertexKey> {
-        let face = body.get_face(f).unwrap();
-        core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
+        body.face(f)
+            .unwrap()
+            .loops()
+            .map(|(lk, _, _)| lk)
             .flat_map(|l| match body.get_loop(l).unwrap().boundary {
                 LoopBoundary::Empty { vertex } => vec![vertex],
                 LoopBoundary::Cycle { first } => body
@@ -387,7 +393,7 @@ fn helix(turns: f64, pitch: f64) -> NurbsCurve3<f64> {
 }
 
 /// The wall of a sweep whose centre point is highest.
-fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T>) -> FaceKey {
+fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T, Body<T>>) -> FaceKey {
     let centre = |f: FaceKey| {
         let s = surface(&lofted.body, f);
         let Surface::Nurbs(net) = &s else {
@@ -426,7 +432,8 @@ fn a_370_degree_flat_ribbon_reads_violated() {
             (-0.1, 0.02),
         ]));
         let swept =
-            sweep_body::<T>(&profile, place, &path, 48, 3, tol()).expect("the ribbon sweeps");
+            sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 48, 3, tol())
+                .expect("the ribbon sweeps");
         let wall = top_wall(&swept);
         (injective(&swept.body, Some(vec![wall]), BUDGET), wall)
     }
@@ -454,7 +461,7 @@ fn a_370_degree_flat_ribbon_reads_violated() {
 /// **The carvetail loft**: two pentagons at `z = 0` and `z = 1`,
 /// lofted at `v_degree = 1`; joint 1 turns +170° in one section and
 /// −170° in the other.
-fn carvetail<T: Scalar>() -> sweep::Lofted<T> {
+fn carvetail<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
     let pent = |pts: [(f64, f64); 5]| {
         lifted(&[ProfileLoop::polygon(
             pts.iter().map(|&(x, y)| Point2::new(x, y)),
@@ -477,7 +484,8 @@ fn carvetail<T: Scalar>() -> sweep::Lofted<T> {
         ]),
     ];
     let places = [0.0, 1.0].map(|z| plane_at(&SketchPlane::xy_at(Point3::new(0.0, 0.0, z))));
-    loft_body::<T>(&sections, &places, 1, tol()).expect("the carvetail lofts")
+    sweep::test_support::loft_body_construction::<T>(&sections, &places, 1, tol())
+        .expect("the carvetail lofts")
 }
 
 /// **The carvetail fold reads `Violated`, its witness at `v ≈ ½`.** In
@@ -487,7 +495,7 @@ fn carvetail<T: Scalar>() -> sweep::Lofted<T> {
 /// one the global drop never examined.
 #[test]
 fn the_carvetail_fold_reads_violated_at_its_middle_station() {
-    fn fold<T: Scalar>() -> (sweep::Lofted<T>, Vec<FaceKey>) {
+    fn fold<T: Scalar>() -> (sweep::Lofted<T, Body<T>>, Vec<FaceKey>) {
         let lofted = carvetail::<T>();
         // Walls 0 and 1: the two whose boundary holds the seam over (2, 0).
         let on_seam = |f: FaceKey| {
@@ -537,12 +545,13 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
 #[test]
 fn a_revolved_cone_holds() {
     fn cone<T: Scalar>() -> Body<T> {
-        let profile = validated(&[ProfileLoop::polygon(
+        let profile = validated::<T>(&[ProfileLoop::polygon(
             [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
         )]);
         revolve(&profile, axis_y(), Revolution::Full, tol())
             .unwrap()
             .body
+            .into_body()
     }
     holds_at_both("the cone", cone::<f64>(), cone::<Interval>());
 }
@@ -554,7 +563,7 @@ fn a_revolved_cone_holds() {
 fn a_pyramid_holds() {
     fn pyramid<T: Scalar>() -> Body<T> {
         use topo::test_support::meeting::{Pose, posed_pyramid_at};
-        posed_pyramid_at(
+        posed_pyramid_at::<T>(
             &[
                 [0.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
@@ -583,7 +592,7 @@ fn an_embedded_triangle_loft_holds() {
         };
         let sections = [tri(1.0, 0.0), tri(0.6, 0.3)];
         let places = [0.0, 1.0].map(|z| plane_at(&SketchPlane::xy_at(Point3::new(0.0, 0.0, z))));
-        loft_body::<T>(&sections, &places, 1, tol())
+        sweep::test_support::loft_body_construction::<T>(&sections, &places, 1, tol())
             .expect("the triangles loft")
             .body
     }
@@ -598,9 +607,10 @@ fn an_embedded_triangle_loft_holds() {
 #[test]
 fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
     fn kiss<T: Scalar>() -> Body<T> {
-        extrude(&validated(&[lune()]), to_offset(1.0), tol())
+        extrude(&validated::<T>(&[lune()]), to_offset(1.0), tol())
             .unwrap()
             .body
+            .into_body()
     }
     fn lune() -> ProfileLoop<f64> {
         Open.at(Point2::new(0.0, 4.0))
@@ -654,11 +664,11 @@ fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
 #[test]
 fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
     fn walls<T: Scalar>() -> (Body<T>, FaceKey, FaceKey) {
-        let profile = validated(&quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]));
+        let profile = validated::<T>(&quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]));
         let built = extrude(&profile, to_offset(1.0), tol()).unwrap();
         let walls = built.side_faces();
         let (fa, fb) = (walls[0][0], walls[0][1]);
-        (built.body, fa, fb)
+        (built.body.into_body(), fa, fb)
     }
     fn apart<T: Scalar>(
         body: &Body<T>,
@@ -728,13 +738,14 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
 fn a_full_torus_certifies_by_kind() {
     fn torus<T: Scalar>() -> Body<T> {
         revolve(
-            &validated(&[donut_profile()]),
+            &validated::<T>(&[donut_profile()]),
             axis_y(),
             Revolution::Full,
             tol(),
         )
         .unwrap()
         .body
+        .into_body()
     }
     let body = torus::<f64>();
     for report in holds_at_both("the torus", body.clone(), torus::<Interval>()) {
@@ -762,7 +773,7 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
             (0.08, 0.08),
             (-0.08, 0.08),
         ]));
-        sweep_body::<T>(&profile, place, &path, 65, 3, tol())
+        sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 65, 3, tol())
             .expect("the helix sweeps")
             .body
     }
@@ -772,7 +783,10 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
 // ------------------------------------- walls one half of an axis spans
 
 /// A loft face's role: `top`, `bottom`, or `wall j` of the outer loop.
-fn role<T: Real>(lofted: &sweep::Lofted<T>, f: FaceKey) -> String {
+fn role<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
+    lofted: &sweep::Lofted<T, Body<T>>,
+    f: FaceKey,
+) -> String {
     if f == lofted.top {
         return "top".into();
     }
@@ -790,8 +804,8 @@ fn role<T: Real>(lofted: &sweep::Lofted<T>, f: FaceKey) -> String {
 /// the `f64` report, for the row's pins.
 fn decided_at_both(
     what: &str,
-    float: &sweep::Lofted<f64>,
-    interval: &sweep::Lofted<Interval>,
+    float: &sweep::Lofted<f64, Body<f64>>,
+    interval: &sweep::Lofted<Interval, Body<Interval>>,
     budget: usize,
 ) -> BoundReport<Witness> {
     let report = injective(&float.body, None, budget);
@@ -811,11 +825,12 @@ fn decided_at_both(
 
 /// A 0.1 square lofted along [`arc_spine_places`] at 17 stations,
 /// `v`-degree 3.
-fn arc_spine<T: Scalar>(curl: f64) -> sweep::Lofted<T> {
+fn arc_spine<T: Scalar>(curl: f64) -> sweep::Lofted<T, Body<T>> {
     let square = quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)]);
     let sections: Vec<_> = (0..17).map(|_| lifted(&square)).collect();
     let places: Vec<_> = arc_spine_places(curl, 17).iter().map(plane_at).collect();
-    loft_body::<T>(&sections, &places, 3, tol()).expect("the arc spine lofts")
+    sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
+        .expect("the arc spine lofts")
 }
 
 /// The station-angle of a point on the arc spine, folded into one turn.
@@ -878,7 +893,7 @@ fn an_arc_spine_short_of_a_full_turn_holds() {
 /// two caps lie on one plane at `(3, 0, 0)`.
 #[test]
 fn a_closed_spine_reads_violated_top_against_bottom() {
-    fn closed<T: Scalar>() -> sweep::Lofted<T> {
+    fn closed<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let pts: Vec<Point3<f64>> = (0..=32)
             .map(|k| {
                 let a = TAU * f64::from(k % 32) / 32.0;
@@ -893,7 +908,8 @@ fn a_closed_spine_reads_violated_top_against_bottom() {
             (0.25, 0.25),
             (-0.25, 0.25),
         ]));
-        sweep_body::<T>(&profile, place, &path, 9, 3, tol()).expect("the closed spine sweeps")
+        sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 9, 3, tol())
+            .expect("the closed spine sweeps")
     }
     let lofted = closed::<f64>();
     let report = decided_at_both("the closed spine", &lofted, &closed::<Interval>(), BUDGET);
@@ -1023,7 +1039,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
 /// exact, so none sits ulps off a split point.
 #[test]
 fn the_s_duct_walls_hold_against_themselves() {
-    fn duct<T: Scalar>() -> sweep::Lofted<T> {
+    fn duct<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let (r, h) = (2.0, 0.25);
         let quarter = core::f64::consts::FRAC_PI_2;
         let points: Vec<Point3<f64>> = (0..=8)
@@ -1039,7 +1055,8 @@ fn the_s_duct_walls_hold_against_themselves() {
         let path = NurbsCurve3::interpolate(&points, 3).expect("the S path interpolates");
         let place = plane_at(&normal_start_place(&path));
         let profile = lifted(&quad([(-h, -h), (h, -h), (h, h), (-h, h)]));
-        sweep_body::<T>(&profile, place, &path, 13, 3, tol()).expect("the S path sweeps")
+        sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 13, 3, tol())
+            .expect("the S path sweeps")
     }
     let float = duct::<f64>();
     let walls: Vec<FaceKey> = float
@@ -1135,11 +1152,8 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
         };
         let strut = body
             .edges()
-            .find(|(_, e)| {
-                let ends = [
-                    body.get_half_edge(e.he_plus).unwrap().start,
-                    body.get_half_edge(e.he_minus).unwrap().start,
-                ];
+            .find(|&(k, _)| {
+                let ends = <[_; 2]>::from(body.edge_vertices(k).unwrap());
                 ends.contains(&s_lo) && ends.contains(&s_hi)
             })
             .unwrap()
@@ -1246,12 +1260,12 @@ fn kind<T: Real>(body: &Body<T>, f: FaceKey) -> &'static str {
 fn a_filleted_drum_certifies_across_its_fillet() {
     fn filleted<T: Scalar>() -> Body<T> {
         use sweep::blend::fillet_edges;
-        use sweep::test_support::finished;
-        let drum = finished(
-            "the drum",
-            extrude(&disc(), to_offset(2.0), tol()).unwrap().body,
+
+        let drum = sweep::test_support::taken::<T>(
+            extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body,
             tol(),
-        );
+        )
+        .expect("the drum is a finished body");
         let rim: Vec<topo::EdgeKey> = drum
             .edges()
             .filter(|(_, e)| {
@@ -1266,6 +1280,7 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             .map_err(|e| e.error)
             .expect("the rim fillets")
             .body
+            .into_body()
     }
     let body: &Body<f64> = &filleted::<f64>();
     let report = injective(body, None, BUDGET);
@@ -1353,13 +1368,15 @@ fn slab<T: Scalar>(top: f64) -> topo::AtRestBody<T> {
     use sweep::test_support::{brick, finished};
     finished(
         "the slab",
-        brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, top), tol()),
+        brick::<T>((-50.0, 50.0), (-50.0, 50.0), (-100.0, top), tol()),
         tol(),
     )
 }
 
 /// The body a boolean built.
-fn built<T: Real>(r: Result<topo::BooleanResult<T>, topo::BooleanError>) -> topo::AtRestBody<T> {
+fn built<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
+    r: Result<topo::BooleanResult<T>, topo::BooleanError>,
+) -> topo::AtRestBody<T> {
     match r {
         Ok(topo::BooleanResult::Body(b)) => b.body,
         other => panic!("the op builds: {other:?}"),
@@ -1391,12 +1408,12 @@ fn rod<T: Scalar>((z0, z1): (f64, f64)) -> topo::AtRestBody<T> {
 fn oblique_cut<T: Scalar>() -> topo::AtRestBody<T> {
     use core::f64::consts::PI;
     use geom_core::{Affine3, Vec3};
-    use sweep::test_support::finished;
-    let drum = finished(
-        "the drum",
-        extrude(&disc(), to_offset(2.0), tol()).unwrap().body,
+
+    let drum = sweep::test_support::taken::<T>(
+        extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body,
         tol(),
-    );
+    )
+    .expect("the drum is a finished body");
     let tilt = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), PI / 7.0);
     built(topo::subtract(&drum, &moved(&slab(1.0), &tilt), tol()))
 }
@@ -1705,6 +1722,7 @@ fn corpus_pot<T: Scalar>() -> Body<T> {
     revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// **The corpus pot holds at both scalars, reading no corner.** At
@@ -1757,7 +1775,7 @@ fn cavity_of<T: Scalar>(body: Body<T>, t: f64) -> (Body<T>, Vec<FaceKey>) {
         .filter(|(_, f)| f.shell == void)
         .map(|(k, _)| k)
         .collect();
-    (hollow, faces)
+    (hollow.into_body(), faces)
 }
 
 /// **The klein elbow** (`torax_interval`'s): a disc of radius `0.275`
@@ -1776,7 +1794,10 @@ fn klein_elbow<T: Scalar>() -> Body<T> {
         dir: geom_core::Vec2::new(0.0, -1.0).map(T::from_f64),
     };
     let quarter = Revolution::Partial(T::from_f64(-core::f64::consts::FRAC_PI_2));
-    revolve(&profile, axis, quarter, tol()).unwrap().body
+    revolve(&profile, axis, quarter, tol())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 /// **The klein elbow's cavity holds across its spiric caps at both
@@ -1844,7 +1865,6 @@ fn the_klein_elbows_cavity_holds_across_its_spiric_caps() {
 fn torus_cut_off_its_axis<T: Scalar>() -> topo::AtRestBody<T> {
     use core::f64::consts::FRAC_PI_2;
     use geom_core::{Affine3, Vec3};
-    use sweep::test_support::finished;
     let (c, s) = (0.5 * 0.3f64.cos(), 0.5 * 0.3f64.sin());
     let lp = profile::test_support::bulge_loop(vec![
         (Point2::new(2.0 + c, s).map(T::from_f64), T::one()),
@@ -1856,7 +1876,7 @@ fn torus_cut_off_its_axis<T: Scalar>() -> topo::AtRestBody<T> {
     let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body;
-    let ring = finished("the torus", ring, tol());
+    let ring = sweep::test_support::taken::<T>(ring, tol()).expect("the torus is a finished body");
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
     built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
 }
@@ -1958,7 +1978,6 @@ fn a_folded_torus_cut_reads_violated_off_its_spiric_edges() {
 fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
     use core::f64::consts::FRAC_PI_2;
     use geom_core::{Affine3, Vec3};
-    use sweep::test_support::finished;
     let phase = 0.3f64;
     let lp: ProfileLoop<T> = RawLoop::new([(
         Point2::new(2.0 + 0.5 * phase.cos(), 0.5 * phase.sin()).map(T::from_f64),
@@ -1974,7 +1993,8 @@ fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
     let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body;
-    let ring = finished("the one-face torus", ring, tol());
+    let ring = sweep::test_support::taken::<T>(ring, tol())
+        .expect("the one-face torus is a finished body");
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
     built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
 }
@@ -2064,6 +2084,7 @@ fn frustum<T: Scalar>(r1: f64) -> Body<T> {
     revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// **A cone frustum holds at both scalars, and so does its cavity**
@@ -2168,7 +2189,7 @@ fn lens_loft<T: Scalar>() -> Body<T> {
         &sweep::test_support::stacked_at(&[0.0, 1.0, 2.0]),
         tol(),
     );
-    loft_body::<T>(&sections, &places, 2, tol())
+    sweep::test_support::loft_body_construction::<T>(&sections, &places, 2, tol())
         .expect("the lens loft lofts")
         .body
 }
@@ -2289,7 +2310,7 @@ fn a_twisted_loft_holds_along_its_seams_at_both_scalars() {
         top.rotate_left(1);
         let sections = lift_sections::<T>(&[quad(PRISM_SQUARE), quad(PRISM_TRAPEZOID), quad(top)]);
         let places = lift_places::<T>(&stacked_at(&[0.0, 1.0, 2.0]), tol());
-        loft_body::<T>(&sections, &places, 2, tol())
+        sweep::test_support::loft_body_construction::<T>(&sections, &places, 2, tol())
             .expect("the twisted sections loft")
             .body
     }
@@ -2355,7 +2376,7 @@ fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
             (0.08, 0.08),
             (-0.08, 0.08),
         ]));
-        sweep_body::<T>(&profile, place, &path, 33, 3, tol())
+        sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 33, 3, tol())
             .expect("the helix sweeps")
             .body
     }
@@ -2393,7 +2414,11 @@ fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
 /// the `xz` plane, the whole turned `phi` about the world `y` axis.
 /// Its two wide walls are near-parallel sheets `g` apart with a radius
 /// of about 1, sharing no vertex; they are returned with the body.
-fn slab_wall_pair<T: Scalar>(g: f64, curl: f64, phi: f64) -> (sweep::Lofted<T>, [FaceKey; 2]) {
+fn slab_wall_pair<T: Scalar>(
+    g: f64,
+    curl: f64,
+    phi: f64,
+) -> (sweep::Lofted<T, Body<T>>, [FaceKey; 2]) {
     use geom_core::{Affine3, Mat3, Vec3};
     let section = quad([
         (-0.4, -g / 2.0),
@@ -2416,7 +2441,8 @@ fn slab_wall_pair<T: Scalar>(g: f64, curl: f64, phi: f64) -> (sweep::Lofted<T>, 
         })
         .collect();
     let sections: Vec<_> = (0..5).map(|_| lifted(&section)).collect();
-    let lofted = loft_body::<T>(&sections, &places, 3, tol()).expect("the slab lofts");
+    let lofted = sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
+        .expect("the slab lofts");
     let walls = [lofted.side_faces[0][0][0], lofted.side_faces[0][2][0]];
     (lofted, walls)
 }

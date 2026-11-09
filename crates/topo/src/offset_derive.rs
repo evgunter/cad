@@ -574,7 +574,7 @@ fn running_with<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
-    let half = (t0 + t1) * T::from_f64(0.5);
+    let half = geom::mid_param(t0, t1);
     let (mid, tangent) = old.ders1(half);
     let Some(at) = candidate.param_near(mid, T::zero()) else {
         return Ok(Err(SectionVerdict::Unsupported {
@@ -927,7 +927,7 @@ fn plane_wall_section<'w, 's>(
         unreachable!("the spline lane is handed a plane")
     };
     let mid = old.mid_point(t0, t1);
-    let tangent = old.deriv(0.5 * (t0 + t1));
+    let tangent = old.deriv(geom::mid_param(t0, t1));
     let carrier = match level_row(wall, origin, normal, extent, band)? {
         Some(Ok(row)) => row,
         Some(Err(v)) => return Ok(Err(v)),
@@ -1043,7 +1043,7 @@ fn pair_section<'w, 's>(
     band: Band,
 ) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
     let mid = old.mid_point(t0, t1);
-    let tangent = old.deriv(0.5 * (t0 + t1));
+    let tangent = old.deriv(geom::mid_param(t0, t1));
     // The rectangles bound the search; the window a plane would need
     // is the extent about the middle, and bounds nothing here.
     let domain = SsiDomain {
@@ -1194,11 +1194,11 @@ fn bisect(
     normal: Vec3<f64>,
     bracket: (f64, f64),
 ) -> f64 {
-    let phi = |t: f64| (c.eval(t) - origin).dot(normal);
+    let phi = |t: f64| geom::plane_offset(origin, normal, c.eval(t));
     let (mut a, mut b) = bracket;
     let fa = phi(a);
     for _ in 0..64 {
-        let m = 0.5 * (a + b);
+        let m = geom::mid_param(a, b);
         if m <= a || m >= b {
             break;
         }
@@ -1267,7 +1267,7 @@ fn plane_spline_root(
     };
     let near = |r: &&geom_brep::ssi::SectionRoot| {
         let (a, b) = r.bracket;
-        (0.5 * (a + b) - seed).abs()
+        (geom::mid_param(a, b) - seed).abs()
     };
     if let Some(root) = roots.iter().min_by(|a, b| near(a).total_cmp(&near(b))) {
         return Ok(SplineRoot::At(bisect(
@@ -1283,7 +1283,7 @@ fn plane_spline_root(
     } else {
         (hi, lo)
     };
-    let phi = |t: f64| (carrier.eval(t) - origin).dot(normal).abs();
+    let phi = |t: f64| geom::plane_offset(origin, normal, carrier.eval(t)).abs();
     Ok(SplineRoot::Short {
         end: near_end,
         near_gap: phi(near_end),

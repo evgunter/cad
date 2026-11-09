@@ -47,7 +47,7 @@ fn prism() -> Body<f64> {
         depth: 1.5,
         side: ExtrudeSide::Along,
     };
-    extrude(&profile, along, tol()).unwrap().body
+    extrude(&profile, along, tol()).unwrap().body.into_body()
 }
 
 fn cylinder() -> Body<f64> {
@@ -66,7 +66,7 @@ fn cylinder() -> Body<f64> {
         depth: 2.0,
         side: ExtrudeSide::Along,
     };
-    extrude(&profile, along, tol()).unwrap().body
+    extrude(&profile, along, tol()).unwrap().body.into_body()
 }
 
 /// The profile `points` (bulges `0`, a polygon; `1`, a semicircle) on
@@ -80,7 +80,10 @@ fn revolved(points: Vec<(Point2<f64>, f64)>, revolution: Revolution<f64>) -> Bod
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&profile, axis, revolution, tol()).unwrap().body
+    revolve(&profile, axis, revolution, tol())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 fn ball() -> Body<f64> {
@@ -141,6 +144,7 @@ fn loft() -> Body<f64> {
     sweep::loft_body(&sections, &places, 2, tol())
         .expect("the arc-sided square lofts")
         .body
+        .into_body()
 }
 
 /// A torus (major `1.5`, minor `0.5`, about `y`) less the brick
@@ -292,11 +296,7 @@ fn charts_are_the_convention(
     r: &Reflection<f64>,
 ) {
     let map = r.to_affine();
-    let surface_of = |b: &Body<f64>, face| {
-        b.get_surface(b.get_face(face).expect("a face").surface)
-            .expect("a surface")
-            .clone()
-    };
+    let surface_of = |b: &Body<f64>, face| b.face_surface(face).expect("a surface").clone();
     for (face, _) in body.faces() {
         let (s, s_image) = (surface_of(body, face), surface_of(image, face));
         let mut samples: Vec<(f64, f64)> = Vec::new();

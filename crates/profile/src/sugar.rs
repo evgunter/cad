@@ -28,10 +28,8 @@
 //! that [`crate::Profile::validate`] rejects with typed errors — the
 //! sugar never guesses and never panics.
 
-use geom_core::k_stats::decide;
-use geom_core::{
-    Band, BandError, Circles, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2,
-};
+use crate::gate::{Escalation, Gate, decide, prove};
+use geom_core::{Band, BandError, Circles, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use crate::validate::{FilletLeg, NoCornerReason};
 
@@ -244,7 +242,7 @@ pub(crate) enum TrimRefusal<T: Real> {
     },
     /// An in-band or poisoned fit margin (doubled-back corners and
     /// zero legs land here).
-    Escalated(Indeterminate),
+    Escalated(Escalation),
 }
 
 /// The ratified line×line fillet closed form (#101 review MAJOR-1;
@@ -276,11 +274,8 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     let setback = radius * half_tan.abs();
     let len1 = v1.norm_squared().sqrt();
     let len2 = v2.norm_squared().sqrt();
-    // The exact-order band (validate module docs): no representable
-    // f64 lies strictly inside it, so f64 classification is total.
-    let exact = Band::least();
     let fit = |len: T, leg: FilletLeg| -> Result<Sign, TrimRefusal<T>> {
-        match decide("fillet_leg_fit", Margin::of(len - setback), exact) {
+        match prove(Gate::FilletLegFit, Margin::of(len - setback)) {
             Ok(Sign::Negative) => Err(TrimRefusal::DoesNotFit {
                 leg,
                 setback,
@@ -394,18 +389,14 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     /// reading of the joint: the turn is taken at the corner's legs
     /// before any setback, and validation reads the stored joint by its
     /// own rule, so it does not name the corner tangent. The payload is
-    /// the gate's own diagnostic; the surviving door maps the VARIANT
-    /// (to the parallel-carriers refusal) and reads none of it — kept
-    /// because it is the CONSTRUCTION's channel, not one caller's.
+    /// the margin's two factors, so the door can say which a caller may
+    /// move.
     TurnInBand {
+        /// `dir_in × dir_out`: the sine of the turn.
+        sin_turn: T,
         /// `dir_in · dir_out` — negative means the legs double back.
-        #[allow(dead_code)]
         align: T,
-        /// The turn margin in meters.
-        #[allow(dead_code)]
-        margin: T,
-        /// The lever arm it was levered by.
-        #[allow(dead_code)]
+        /// The lever arm the turn was levered by.
         arm: T,
     },
     /// `fillet_offset_lever` not Positive: the leg's **offset radius**
@@ -494,7 +485,7 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         reason: NoCornerReason,
     },
     /// An in-band or poisoned gate margin.
-    Escalated(Indeterminate),
+    Escalated(Escalation),
     /// The band could not be formed. Not ε alone: this arm carries
     /// [`Band::linear`]'s two, which need a near-`f64::MAX` ε or a
     /// subnormal one with a K near 1 — stated with their conditions at
@@ -563,15 +554,12 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     tol: Tol,
 ) -> Result<ArcFilletOutcome<T>, ArcTrimRefusal<T>> {
     let band = Band::linear(tol).map_err(ArcTrimRefusal::Band)?;
-    // The exact-order band (validate module docs): no representable
-    // f64 lies strictly inside it, so f64 classification is total.
-    let exact = Band::least();
     let leg_in = Leg::at_corner(incoming, corner, head, FilletLeg::Incoming);
     let leg_out = Leg::at_corner(outgoing, corner, next, FilletLeg::Outgoing);
 
     // (1) the lever arm: an angle is nothing without one (D4 ¶1).
     let arm = leg_in.arm.min(leg_out.arm);
-    if decide("fillet_corner_arm", Margin::of(arm), band).map_err(ArcTrimRefusal::Escalated)?
+    if decide(Gate::FilletCornerArm, Margin::of(arm), band).map_err(ArcTrimRefusal::Escalated)?
         != Sign::Positive
     {
         return Err(ArcTrimRefusal::LegDegenerate {
@@ -589,11 +577,11 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
         leg_in.dir.perp_dot(leg_out.dir),
         geom_core::Lever::unsourced(arm),
     );
-    let decided = decide("fillet_corner_turn", turn, band).map_err(ArcTrimRefusal::Escalated)?;
+    let decided = decide(Gate::FilletCornerTurn, turn, band).map_err(ArcTrimRefusal::Escalated)?;
     let Some((sgn, sense)) = turn_side::<T>(decided).zip(turn_sense(decided)) else {
         return Err(ArcTrimRefusal::TurnInBand {
+            sin_turn: leg_in.dir.perp_dot(leg_out.dir),
             align: leg_in.dir.dot(leg_out.dir),
-            margin: turn.value(),
             arm,
         });
     };
@@ -625,7 +613,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     for (slot, leg) in swallowed.iter_mut().zip([&leg_in, &leg_out]) {
         let Some(arc) = leg.arc else { continue };
         let rho = offset_radius(&arc, sgn, radius);
-        if decide("fillet_enclosing_carrier", Margin::of(rho), band)
+        if decide(Gate::FilletEnclosingCarrier, Margin::of(rho), band)
             .map_err(ArcTrimRefusal::Escalated)?
             == Sign::Negative
         {
@@ -678,16 +666,16 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
         let t2 = leg_out.tangent_point(center, sgn, radius);
         let sb_in = leg_in.setback(t1, corner);
         let sb_out = leg_out.setback(t2, corner);
-        let reach_in = decide("fillet_leg_reach", Margin::of(sb_in), exact)
-            .map_err(ArcTrimRefusal::Escalated)?;
-        let reach_out = decide("fillet_leg_reach", Margin::of(sb_out), exact)
-            .map_err(ArcTrimRefusal::Escalated)?;
+        let reach_in =
+            prove(Gate::FilletLegReach, Margin::of(sb_in)).map_err(ArcTrimRefusal::Escalated)?;
+        let reach_out =
+            prove(Gate::FilletLegReach, Margin::of(sb_out)).map_err(ArcTrimRefusal::Escalated)?;
         let margin_in = leg_in.len - sb_in;
         let margin_out = leg_out.len - sb_out;
-        let fit_in = decide("fillet_leg_fit", Margin::of(margin_in), exact)
-            .map_err(ArcTrimRefusal::Escalated)?;
-        let fit_out = decide("fillet_leg_fit", Margin::of(margin_out), exact)
-            .map_err(ArcTrimRefusal::Escalated)?;
+        let fit_in =
+            prove(Gate::FilletLegFit, Margin::of(margin_in)).map_err(ArcTrimRefusal::Escalated)?;
+        let fit_out =
+            prove(Gate::FilletLegFit, Margin::of(margin_out)).map_err(ArcTrimRefusal::Escalated)?;
         let corner_side = reach_in != Sign::Negative && reach_out != Sign::Negative;
         if corner_side && fit_in != Sign::Negative && fit_out != Sign::Negative {
             survivors.push(ArcFilletCandidate {
@@ -1041,9 +1029,9 @@ impl<T: Real> Leg<T> {
                     FilletLeg::Incoming => corner - far,
                     FilletLeg::Outgoing => far - corner,
                 };
-                let len = v.norm_squared().sqrt();
+                let (dir, len) = v.direction_and_length();
                 Self {
-                    dir: v / len,
+                    dir,
                     arc: None,
                     len,
                     arm: len,
@@ -1174,8 +1162,16 @@ impl<T: Real> Leg<T> {
     fn setback(&self, tangent: Point2<T>, corner: Point2<T>) -> T {
         match self.arc {
             None => match self.side {
-                FilletLeg::Incoming => (corner - tangent).dot(self.dir),
-                FilletLeg::Outgoing => (tangent - corner).dot(self.dir),
+                FilletLeg::Incoming => geom_core::Line2 {
+                    origin: tangent,
+                    dir: self.dir,
+                }
+                .height(corner),
+                FilletLeg::Outgoing => geom_core::Line2 {
+                    origin: corner,
+                    dir: self.dir,
+                }
+                .height(tangent),
             },
             Some(arc) => {
                 let to_tangent = tangent - arc.center;
@@ -1217,12 +1213,20 @@ impl<T: Real> Leg<T> {
         T: Decide,
     {
         let normal = left_normal(self.dir);
-        let on_offset = corner + normal * (sgn * radius);
+        let offset = geom_core::Line2 {
+            origin: corner + normal * (sgn * radius),
+            dir: self.dir,
+        };
         let rho = offset_radius(&arc, sgn, radius);
-        let h = (arc.center - on_offset).dot(normal);
+        // The centre's side of the offset line and the half-chord are
+        // `Line2`'s readings. The candidates stand on the centre's foot
+        // `C − n̂·h`, which keeps an axis-aligned corner exact (the
+        // `path_differential` line-by-arc row), where `origin + dir·t`
+        // at `Line2::circle_heights` would round it off by an ulp.
+        let h = offset.side(arc.center);
         let foot = arc.center - normal * h;
         match decide(
-            "fillet_offset_line_circle",
+            Gate::FilletOffsetLineCircle,
             Margin::of(rho.abs() - h.abs()),
             band,
         )
@@ -1231,7 +1235,7 @@ impl<T: Real> Leg<T> {
             // powi(2)-discipline squares: ρ and h both straddle zero
             // in general (ci.yml's "interval-square powi(2) allowlist").
             Sign::Positive => {
-                let half = (rho.powi(2) - h.powi(2)).sqrt();
+                let half = offset.half_chord(arc.center, rho.powi(2));
                 Ok(OffsetCentres::crossing(vec![
                     foot + self.dir * half,
                     foot - self.dir * half,
@@ -1396,13 +1400,13 @@ impl<T: Real> ArcCarrier<T> {
         let dist = dist_squared.sqrt();
         let offsets = Circles::new(dist, r1, r2);
         let external = decide(
-            "fillet_offset_circles_external",
+            Gate::FilletOffsetCirclesExternal,
             Margin::of(offsets.reach()),
             band,
         )
         .map_err(ArcTrimRefusal::Escalated)?;
         let internal = decide(
-            "fillet_offset_circles_internal",
+            Gate::FilletOffsetCirclesInternal,
             Margin::of(offsets.internal()),
             band,
         )
@@ -1427,7 +1431,7 @@ impl<T: Real> ArcCarrier<T> {
         // here (`(Some(a), Some(b)) => a.offset_circles(b, ..)`, a being
         // the incoming leg's carrier), and the docs above say why the
         // exposed side is the second argument's rather than either.
-        if decide("fillet_offset_lever", Margin::of(r2 - least_lever), band)
+        if decide(Gate::FilletOffsetLever, Margin::of(r2 - least_lever), band)
             .map_err(ArcTrimRefusal::Escalated)?
             != Sign::Positive
         {
@@ -1450,9 +1454,7 @@ impl<T: Real> ArcCarrier<T> {
                 centre + spoke * (offset / spoke.norm())
             };
             let (on_self, on_other) = (near(self.center, r1), near(other.center, r2));
-            return Ok(OffsetCentres::tangent(
-                on_self + (on_other - on_self) * T::from_f64(0.5),
-            ));
+            return Ok(OffsetCentres::tangent(on_self.mid(on_other)));
         }
         let half = (rho1.powi(2) - along.powi(2)).sqrt();
         let offset = left_normal(link) * (half / dist);
@@ -1522,7 +1524,7 @@ pub(crate) fn centre_split<T: Real>(
 ) -> (T, T) {
     let chord = b - a;
     let len = chord.norm();
-    let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
+    let offset = (centre - a.mid(b)).dot(Vec2::new(-chord.y, chord.x)) / len;
     (sgn * (len * T::from_f64(0.5)), sgn * offset)
 }
 

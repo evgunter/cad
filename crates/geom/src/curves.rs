@@ -450,9 +450,122 @@ impl core::fmt::Display for EllipseInvalid {
 
 impl std::error::Error for EllipseInvalid {}
 
-/// Typed refusal of [`Curve3::spiric`] — the one place that decides a
-/// spiric's regime (one kind per configuration, D3; the constructor is
-/// the only decision point).
+/// **The section regime of an axis-parallel plane through a ring
+/// torus**, as [`spiric_regime`] decides it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpiricRegime {
+    /// `offset = 0`: the plane contains the axis, and cuts the two
+    /// meridian circles.
+    ThroughAxis,
+    /// `0 < |offset| < R − r`: the two ovals a [`Curve3::Spiric`]
+    /// carries.
+    TwoOvals,
+    /// `|offset| ≥ R − r`: a node, one folded loop or nothing.
+    PastInnerEquator,
+}
+
+/// **The site names one reader of [`spiric_regime`] decides under**, so a
+/// refusal and its `k_stats` stream name the reading that met them:
+/// three distinct names, one per margin ([`SpiricRegimeSites::new`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpiricRegimeSites {
+    off_axis: &'static str,
+    two_ovals: [&'static str; 2],
+}
+
+impl SpiricRegimeSites {
+    /// [`Curve3::spiric`]'s own rows.
+    pub const MINT: Self = Self::new(
+        "spiric_off_axis",
+        "spiric_two_ovals",
+        "spiric_two_ovals_floor",
+    );
+
+    /// The rows for the offset off zero (`off_axis`) and the two-oval
+    /// margin's far and floor rows ([`geom_core::k_stats::decide_across`]).
+    ///
+    /// # Panics
+    ///
+    /// Where two of the names are equal: each names its own margin. In a
+    /// `const` item the panic is a compile error.
+    #[must_use]
+    pub const fn new(off_axis: &'static str, far: &'static str, floor: &'static str) -> Self {
+        assert!(
+            !str_eq(off_axis, far) && !str_eq(off_axis, floor) && !str_eq(far, floor),
+            "a spiric regime's three rows need three names"
+        );
+        Self {
+            off_axis,
+            two_ovals: [far, floor],
+        }
+    }
+}
+
+/// `a == b`, in a `const` context.
+const fn str_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut k = 0;
+    while k < a.len() {
+        if a[k] != b[k] {
+            return false;
+        }
+        k += 1;
+    }
+    true
+}
+
+/// **Whether an axis-parallel plane at signed stand-off `offset` from
+/// the axis of ring torus `ring` cuts it in two ovals**,
+/// `0 < |offset| < R − r`: the regime's one statement, which
+/// [`Curve3::spiric`] mints under and every reader of a spiric's regime
+/// asks, each under its own `sites`.
+///
+/// - `sites.off_axis` — margin `offset` (m): Zero ⇒
+///   [`SpiricRegime::ThroughAxis`].
+/// - `sites.two_ovals` — margin `(R − r) − |offset|` (m), the length the
+///   regime closes by, decided before any root is taken, read with
+///   `swing` beside it ([`geom_core::k_stats::decide_across`]): Positive
+///   ⇒ [`SpiricRegime::TwoOvals`], else
+///   [`SpiricRegime::PastInnerEquator`].
+///
+/// `swing` is a length: the most a term the caller's own routing
+/// admitted (a plane's tilt off the axis, levered) moves the margin at a
+/// point the verdict serves. Zero where the plane and the torus are the
+/// carrier's own data.
+///
+/// # Errors
+///
+/// [`Indeterminate`], naming the row left in band.
+pub fn spiric_regime<T: Decide>(
+    ring: crate::RingTorus<T>,
+    offset: T,
+    swing: T,
+    sites: SpiricRegimeSites,
+    band: Band,
+) -> Result<SpiricRegime, Indeterminate> {
+    use geom_core::k_stats::{decide, decide_across};
+    if decide(sites.off_axis, Margin::of(offset), band)? == Sign::Zero {
+        return Ok(SpiricRegime::ThroughAxis);
+    }
+    Ok(
+        match decide_across(
+            sites.two_ovals,
+            (ring.major_radius() - ring.minor_radius()) - offset.abs(),
+            swing,
+            band,
+        )? {
+            Sign::Positive => SpiricRegime::TwoOvals,
+            Sign::Zero | Sign::Negative => SpiricRegime::PastInnerEquator,
+        },
+    )
+}
+
+/// Typed refusal of [`Curve3::spiric`], the one deciding door into the
+/// kind (one kind per configuration, D3); its regime is
+/// [`spiric_regime`]'s.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SpiricInvalid {
     /// The minor radius is not definitely positive (a degenerate tube,
@@ -474,7 +587,8 @@ pub enum SpiricInvalid {
     FrameNotOrthogonal,
     /// A constructor predicate landed in the ambiguity band or was
     /// poisoned (`spiric_minor_positive`, `ring_torus_convention`,
-    /// `spiric_off_axis`, `spiric_two_ovals`, `spiric_frame_orthogonal`).
+    /// `spiric_off_axis`, `spiric_two_ovals`, `spiric_two_ovals_floor`,
+    /// `spiric_frame_orthogonal`).
     Escalated(Indeterminate),
 }
 
@@ -598,9 +712,14 @@ pub enum CurveData<'a, T: Real> {
 /// centre), whose readings against a point are [`Self::param`] and
 /// [`Self::foot`].
 ///
-/// `dir` is unit by the carriers' convention; the readings divide by
-/// `dir·dir`, so they hold for any nonzero `dir`. **`dir` must be
-/// nonzero**: on a zero `dir` they divide `0/0`. Nothing here checks it;
+/// `dir` is unit by the carriers' convention. The parameter readings
+/// ([`Self::param`], [`Self::foot`], [`Self::offset`] and their kin)
+/// divide by `|dir|²`, so they hold for any nonzero `dir`, a chord `b − a`
+/// among them. The metric readings of a point against an axis
+/// ([`Self::height`], [`Self::distance`]) divide by `|dir|`, in metres
+/// for any nonzero `dir`. **`dir` must be
+/// nonzero**: on a zero `dir` the parameter readings divide `0/0`. Nothing
+/// here decides it;
 /// at rest, `topo`'s tier-3 check 1 refuses a zero direction on every
 /// edge carrier (crate docs, "Unit-vector and orthogonality fields").
 #[derive(Clone, Copy, Debug)]
@@ -611,34 +730,200 @@ pub struct Line<T: Real> {
     pub dir: Vec3<T>,
 }
 
+/// **Two lines' closest approach** ([`Line::closest_params`]): the
+/// parameter of each line's point nearest the other's, and how far from
+/// parallel the lines stand.
+#[derive(Clone, Copy, Debug)]
+pub struct LinePair<T> {
+    /// The parameter on the line `closest_params` is called on.
+    pub s: T,
+    /// The parameter on the other line.
+    pub t: T,
+    /// The squared sine of the angle between the two directions,
+    /// `(|d₁|²|d₂|² − (d₁·d₂)²) / (|d₁|²|d₂|²)`: zero for parallel lines,
+    /// one for perpendicular ones, and NaN where either direction is zero.
+    /// `s` and `t` divide by its numerator, so they mean nothing once it
+    /// is lost to cancellation; where that is, is the caller's to say.
+    pub sin2: T,
+}
+
 impl<T: Real> Line<T> {
-    /// The parameter of `p`'s foot: `(p − origin)·dir / (dir·dir)`.
+    /// **The closest approach of this line and `other`**, in closed form
+    /// ([`LinePair`]): `s` on this line and `t` on `other`, from the
+    /// lines' Gram system, and the squared sine between them. It decides
+    /// nothing: a parallel guard, a clamp to a segment and what a near
+    /// parallel pair means are the caller's, each named at its call.
+    ///
+    /// It is the plain closed form, for a caller that reads its answer as
+    /// a position. A caller that decides whether two edges cross reads the
+    /// certified reading instead: `topo`'s census `ee_lines_closest`, which
+    /// encloses the gap and each end's reach with their rounding charge
+    /// and is exact at a shared end. Two coplanar edges' meeting is read by
+    /// sides in `topo`'s `lines_meet`, which needs no closest point.
+    #[must_use]
+    pub fn closest_params(&self, other: &Self) -> LinePair<T> {
+        let w = self.origin - other.origin;
+        let (aa, ab, bb) = (
+            self.dir.dot(self.dir),
+            self.dir.dot(other.dir),
+            other.dir.dot(other.dir),
+        );
+        let (aw, bw) = (self.dir.dot(w), other.dir.dot(w));
+        let gram = aa * bb - ab.powi(2);
+        LinePair {
+            s: (ab * bw - bb * aw) / gram,
+            t: (aa * bw - ab * aw) / gram,
+            sin2: gram / (aa * bb),
+        }
+    }
+
+    /// **The line's point at `t`**: `origin + dir·t`, the carrier's own
+    /// parameterization ([`Curve3::eval`] on a line).
+    #[must_use]
+    pub fn at(&self, t: T) -> Point3<T> {
+        self.origin + self.dir * t
+    }
+
+    /// **The same line with its direction normalised**, for a reader that
+    /// takes the direction as unit (a meridian sheet's axis, a revolve's
+    /// seed). Readings on `self` itself need no unit direction.
+    #[must_use]
+    pub fn unit(self) -> Self {
+        Self {
+            origin: self.origin,
+            dir: self.dir.normalize(),
+        }
+    }
+
+    /// The parameter of `p`'s foot: `(p − origin)·dir / |dir|²`, the
+    /// coefficient of [`Vec3::project_onto`] in its association.
     #[must_use]
     pub fn param(&self, p: Point3<T>) -> T {
-        (p - self.origin).dot(self.dir) / self.dir.dot(self.dir)
+        self.coefficient(p - self.origin)
+    }
+
+    /// `w`'s coefficient along `dir`, `w·dir / |dir|²`: the one spelling
+    /// [`Self::param`] and [`Self::param_and_offset`] read.
+    fn coefficient(&self, w: Vec3<T>) -> T {
+        w.dot(self.dir) / self.dir.norm_squared()
     }
 
     /// **`p`'s foot**: the point of the line nearest `p`.
     #[must_use]
     pub fn foot(&self, p: Point3<T>) -> Point3<T> {
-        self.origin + self.dir * self.param(p)
+        self.at(self.param(p))
     }
 
-    /// **`p`'s offset from its foot**, square to the line:
-    /// `(p − origin) − dir·((p − origin)·dir / (dir·dir))`, whose norm is
-    /// `p`'s distance from the line.
+    /// **The parameter of `p`'s nearest point of the span `(t0, t1)`**
+    /// of the line, `t0 ≤ t1`: [`Self::param`] held to the span by
+    /// `max`/`min`, no comparison. A segment from `a` to `b` is the span
+    /// `(0, 1)` of `Line { origin: a, dir: b − a }`, and an edge its own
+    /// parameter span. A ray is held at one end ([`Self::foot_from`]).
+    #[must_use]
+    pub fn param_within(&self, p: Point3<T>, (t0, t1): (T, T)) -> T {
+        self.param(p).max(t0).min(t1)
+    }
+
+    /// **`p`'s foot on the span `(t0, t1)`**: the line's point at
+    /// [`Self::param_within`].
+    #[must_use]
+    pub fn foot_within(&self, p: Point3<T>, span: (T, T)) -> Point3<T> {
+        self.at(self.param_within(p, span))
+    }
+
+    /// **`p`'s foot on the ray from `t0`**, the points `t ≥ t0`:
+    /// [`Self::param`] held at `t0` by `max`.
+    #[must_use]
+    pub fn foot_from(&self, p: Point3<T>, t0: T) -> Point3<T> {
+        self.at(self.param(p).max(t0))
+    }
+
+    /// **`p`'s offset from its foot**, square to the line: `w = p − origin`
+    /// less its [projection](Vec3::project_onto) onto `dir`, the vector a
+    /// reader of a radial direction needs; its norm is `p`'s distance from
+    /// the line, which a reader of the distance alone reads as
+    /// [`Self::distance`]. It divides by `|dir|²`, so it holds
+    /// for any nonzero `dir` and a unit `dir`'s reading can move in the
+    /// last place against `w − dir·(w·dir)`. Subtractive rather than
+    /// [`Vec3::reject_from`]'s triple product, which amplifies a `dir`
+    /// carrying width: a computed carrier direction is that case.
     #[must_use]
     pub fn offset(&self, p: Point3<T>) -> Vec3<T> {
+        self.param_and_offset(p).1
+    }
+
+    /// **`p`'s distance from the line**: `|(p − origin) × dir| / |dir|`,
+    /// correct for any nonzero `dir`. The metric reading of a point
+    /// against an axis, beside [`Self::height`]; a reader of the distance
+    /// alone reads this rather than [`Self::offset`]'s norm.
+    ///
+    /// Its width at `Interval`, against the other spellings (mean widths
+    /// over 2000 random tilted axes normalized at `Interval`, origins to
+    /// ±500 m): tight where the point carries width, since the cross
+    /// product names `w = p − origin` once per component; about twice a
+    /// unit read's where only the axis does, since it divides by `|dir|`.
+    /// The unit read (`|w × dir|` alone) is no option here: a stored
+    /// carrier axis is unit only to the convention's ~1e-10 in `|dir|²`,
+    /// and a unit read of one is wrong by more than the band.
+    ///
+    /// | point | axis | this | `\|w × dir\|` (unit read) | `offset(p).norm()` |
+    /// |---|---|---|---|---|
+    /// | exact | rounding | 3.4e-15 | 1.9e-15 | 2.9e-15 |
+    /// | exact | ±1e-12 | 5.5e-12 | 3.2e-12 | 5.5e-12 |
+    /// | ±1e-9 | rounding | 3.3e-9 | 3.3e-9 | 5.2e-9 |
+    /// | ±1e-9 | ±1e-12 | 3.3e-9 | 3.3e-9 | 5.2e-9 |
+    #[must_use]
+    pub fn distance(&self, p: Point3<T>) -> T {
+        self.height_and_distance(p).1
+    }
+
+    /// **`p`'s height along the line**: `(p − origin)·dir / |dir|`,
+    /// metres from `origin`, correct for any nonzero `dir`. Where `dir`
+    /// is unit it is [`Self::param`]; it divides by `|dir|` where `param`
+    /// divides by `|dir|²`. Where only the axis carries width it is
+    /// between the two, about 1.5× a unit read; where the point does,
+    /// all three agree:
+    ///
+    /// | point | axis | this | `w·dir` (unit read) | `w·dir / \|dir\|²` |
+    /// |---|---|---|---|---|
+    /// | exact | rounding | 2.2e-15 | 1.2e-15 | 2.7e-15 |
+    /// | exact | ±1e-12 | 4.4e-12 | 3.0e-12 | 5.9e-12 |
+    /// | ±1e-9 | rounding | 3.1e-9 | 3.1e-9 | 3.1e-9 |
+    /// | ±1e-9 | ±1e-12 | 3.1e-9 | 3.1e-9 | 3.1e-9 |
+    #[must_use]
+    pub fn height(&self, p: Point3<T>) -> T {
+        self.height_and_distance(p).0
+    }
+
+    /// **`p`'s height and distance together** ([`Self::height`],
+    /// [`Self::distance`]) from one `w = p − origin` and one `|dir|`: a
+    /// point's place on an axis and its radius about it.
+    #[must_use]
+    pub fn height_and_distance(&self, p: Point3<T>) -> (T, T) {
         let w = p - self.origin;
-        w - self.dir * (w.dot(self.dir) / self.dir.dot(self.dir))
+        let len = self.dir.norm();
+        (w.dot(self.dir) / len, w.cross(self.dir).norm() / len)
+    }
+
+    /// **`p`'s parameter and offset together**: [`Self::param`]'s `t` and
+    /// [`Self::offset`]'s `w − dir·t`, from one `w = p − origin` and one
+    /// `t`, so a reader of both (a point's height on an axis and its
+    /// radial part) reads them consistent with each other and with the
+    /// two readings alone, bit for bit. `t` is a length along the line
+    /// only where `dir` is unit.
+    #[must_use]
+    pub fn param_and_offset(&self, p: Point3<T>) -> (T, Vec3<T>) {
+        let w = p - self.origin;
+        let t = self.coefficient(w);
+        (t, w - self.dir * t)
     }
 
     /// **`p`'s foot on the plane through `origin` square to the line**:
-    /// `p − dir·((p − origin)·dir / (dir·dir))`, the line read as that
-    /// plane's normal.
+    /// `p` less `p − origin` [projected](Vec3::project_onto) onto `dir`,
+    /// the line read as that plane's normal.
     #[must_use]
     pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
-        p - self.dir * ((p - self.origin).dot(self.dir) / self.dir.dot(self.dir))
+        p - (p - self.origin).project_onto(self.dir)
     }
 }
 
@@ -869,7 +1154,11 @@ fn tube_section<T: Decide>(
     major_radius: T,
     p: Point3<T>,
 ) -> Azimuth<T> {
-    let (h, rho) = on_carrier::height_and_radius(p - center, axis);
+    let (h, rho) = Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(p);
     Azimuth::tube(h, rho, major_radius)
 }
 
@@ -983,13 +1272,11 @@ impl<T: Decide> Curve3<T> {
     /// - `ring_torus_convention` ([`crate::ring_torus`], the convention's
     ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
-    /// - `spiric_off_axis` — margin `offset` (m): definitely nonzero
-    ///   required; else [`SpiricInvalid::ThroughAxis`] (one kind per
-    ///   configuration, most exact first: that oval is a `Circle`).
-    /// - `spiric_two_ovals` — margin `(major_radius − minor_radius) −
-    ///   |offset|` (m), the length the two-oval regime closes by,
-    ///   decided BEFORE any root is taken: Positive required; else
-    ///   [`SpiricInvalid::NotTwoOvals`].
+    /// - the regime, [`spiric_regime`] at no swing under
+    ///   [`SpiricRegimeSites::MINT`]: two ovals required;
+    ///   through the axis ⇒ [`SpiricInvalid::ThroughAxis`] (one kind per
+    ///   configuration, most exact first: that oval is a `Circle`); at
+    ///   or past the inner equator ⇒ [`SpiricInvalid::NotTwoOvals`].
     /// - `spiric_frame_orthogonal` — margin `axis · u_ref` levered at
     ///   `major_radius + minor_radius` (m, the farthest point the
     ///   frame places): Zero required; else
@@ -1018,20 +1305,16 @@ impl<T: Decide> Curve3<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::MinorNotPositive),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
-        let ring = major_radius - minor_radius;
         match crate::ring_torus(major_radius, minor_radius, band).map(|d| d.sign) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotARing),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
-        match decide("spiric_off_axis", Margin::of(offset), band) {
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Ok(Sign::Zero) => return Err(SpiricInvalid::ThroughAxis),
-            Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
-        }
-        match decide("spiric_two_ovals", Margin::of(ring - offset.abs()), band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotTwoOvals),
+        let ring = crate::RingTorus::decided(major_radius, minor_radius);
+        match spiric_regime(ring, offset, T::zero(), SpiricRegimeSites::MINT, band) {
+            Ok(SpiricRegime::TwoOvals) => {}
+            Ok(SpiricRegime::ThroughAxis) => return Err(SpiricInvalid::ThroughAxis),
+            Ok(SpiricRegime::PastInnerEquator) => return Err(SpiricInvalid::NotTwoOvals),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         match decide(
@@ -1058,6 +1341,25 @@ impl<T: Decide> Curve3<T> {
             minor_radius,
             offset,
         })
+    }
+}
+
+impl<T: Real> Curve3<T> {
+    /// A [`Curve3::Spiric`]'s torus; `None` for every other kind. It
+    /// rests on a premise, not a decision: that the spiric's data came
+    /// from its mint ([`Curve3::spiric`], the kind's one deciding door,
+    /// D3), which decided this torus a ring. A spiric spelled as a
+    /// literal past the mint carries no such verdict.
+    #[must_use]
+    pub fn spiric_torus(&self) -> Option<crate::RingTorus<T>> {
+        match *self {
+            Self::Spiric {
+                major_radius,
+                minor_radius,
+                ..
+            } => Some(crate::RingTorus::decided(major_radius, minor_radius)),
+            _ => None,
+        }
     }
 }
 
@@ -1355,7 +1657,7 @@ impl<T: SpanLocate> Curve3<T> {
     ///   the sealed seam; all-poison for the placeholder state).
     pub fn eval(&self, t: T) -> Point3<T> {
         match self {
-            Curve3::Line(Line { origin, dir }) => *origin + *dir * t,
+            Curve3::Line(line) => line.at(t),
             Curve3::Circle(c) => c.point_at(t),
             Curve3::Ellipse(e) => e.point_at(t),
             Curve3::Spiric {
@@ -1454,7 +1756,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// passes and are not projections of this one.
     pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Curve3::Line(Line { origin, dir }) => (*origin + *dir * t, *dir),
+            Curve3::Line(line) => (line.at(t), line.dir),
             Curve3::Circle(c) => c.jet_at(t),
             Curve3::Ellipse(e) => e.jet_at(t),
             Curve3::Spiric {
@@ -1524,6 +1826,61 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **Two lines' closest approach**: skew lines meet their common
+    /// perpendicular at the parameters the closed form reads, whatever the
+    /// directions' lengths; `sin2` is one for perpendicular lines, zero for
+    /// parallel ones (where `s` and `t` divide by zero), and NaN where a
+    /// direction is zero. Each point is the other line's nearest.
+    #[test]
+    fn two_lines_closest_approach_is_their_common_perpendicular() {
+        let x = Line {
+            origin: Point3::new(-2.0, 0.0, 0.0),
+            dir: Vec3::new(2.0, 0.0, 0.0),
+        };
+        let y = Line {
+            origin: Point3::new(3.0, 5.0, 1.0),
+            dir: Vec3::new(0.0, -0.5, 0.0),
+        };
+        let pair = x.closest_params(&y);
+        assert_eq!(
+            (pair.s, pair.t, pair.sin2),
+            (2.5, 10.0, 1.0),
+            "perpendicular skew lines"
+        );
+        let (p, q) = (x.at(pair.s), y.at(pair.t));
+        assert_eq!(
+            (p.x, p.y, p.z, q.x, q.y, q.z),
+            (3.0, 0.0, 0.0, 3.0, 0.0, 1.0),
+            "the common perpendicular"
+        );
+        let tilted = Line {
+            origin: Point3::new(0.3, -1.0, 2.0),
+            dir: Vec3::new(1.0, 2.0, -0.5),
+        };
+        let pair = x.closest_params(&tilted);
+        let (p, q) = (x.at(pair.s), tilted.at(pair.t));
+        assert!(
+            (p - q).dot(x.dir).abs() < 1e-12 && (p - q).dot(tilted.dir).abs() < 1e-12,
+            "the joining vector is square to both lines: {p:?} {q:?}"
+        );
+        let expected = 1.0 - (2.0_f64 / (2.0 * 5.25_f64.sqrt())).powi(2);
+        assert!(
+            (pair.sin2 - expected).abs() < 1e-15,
+            "sin² of the angle: {}",
+            pair.sin2
+        );
+        let parallel = Line {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            dir: Vec3::new(-3.0, 0.0, 0.0),
+        };
+        assert_eq!(x.closest_params(&parallel).sin2, 0.0, "parallel lines");
+        let point = Line {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 0.0),
+        };
+        assert!(x.closest_params(&point).sin2.is_nan(), "a zero direction");
+    }
 
     #[test]
     fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {
@@ -2195,6 +2552,50 @@ mod tests {
             mk(1.2, 0.225, 0.05, tilted).err(),
             Some(SpiricInvalid::FrameNotOrthogonal)
         );
+    }
+
+    /// **[`spiric_regime`] reads its two-oval margin across the swing.**
+    /// At `R − r = 0.975` beside a swing of `0.5`, a margin `0.6` holds
+    /// two ovals at every point served, a margin half a zero band past the
+    /// swing escalates on the caller's floor row, and a margin `−0.6`
+    /// reads past the inner equator; an offset in the zero band reads
+    /// through the axis under the caller's own name. Red on a swing
+    /// dropped (the half-band margin then reads two ovals) or on a row
+    /// decided under another caller's name.
+    #[test]
+    fn spiric_regime_reads_its_margin_across_the_swing() {
+        let ring = crate::RingTorus::decided(1.2, 0.225);
+        let sites =
+            SpiricRegimeSites::new("test_off_axis", "test_two_ovals", "test_two_ovals_floor");
+        let at = |margin: f64| spiric_regime(ring, 0.975 - margin, 0.5, sites, band());
+        assert_eq!(at(0.6), Ok(SpiricRegime::TwoOvals), "clear of the swing");
+        assert_eq!(
+            at(-0.6),
+            Ok(SpiricRegime::PastInnerEquator),
+            "past the equator by more than the swing"
+        );
+        let in_band = at(0.5 + 0.5 * band().zero()).expect_err("floor in band");
+        assert_eq!(
+            in_band.predicate,
+            Some("test_two_ovals_floor"),
+            "{in_band:?}"
+        );
+        assert_eq!(
+            spiric_regime(ring, 1e-12, 0.5, sites, band()),
+            Ok(SpiricRegime::ThroughAxis),
+            "an offset in the zero band"
+        );
+        let poison = spiric_regime(ring, f64::NAN, 0.0, sites, band()).expect_err("poison");
+        assert_eq!(poison.predicate, Some("test_off_axis"), "{poison:?}");
+    }
+
+    /// **A reader's three regime rows need three names**: one name on
+    /// two margins would merge them in the `k_stats` stream.
+    #[test]
+    #[should_panic(expected = "three rows need three names")]
+    fn spiric_regime_sites_refuse_a_shared_name() {
+        let shared = std::hint::black_box("shared");
+        let _ = SpiricRegimeSites::new(shared, shared, "floor");
     }
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {
