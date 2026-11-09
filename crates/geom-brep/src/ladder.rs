@@ -678,6 +678,14 @@ impl IdentityLadder {
 /// its own name: the ladder ([`climb`], [`Answering::Any`]: every datum
 /// decided apart says the same "not one") whose answer is a datum decided
 /// apart.
+///
+/// **A datum's name is spelled once, as a literal at the datum**, as a
+/// `decide*` call's is. `test_utils::source::predicate_census` reads
+/// names at `decide*` calls only, so a crate whose roster runs it
+/// (sweep's `recourse_roster`) carries each identity datum's name in a
+/// `const` and declares it (`NameCarrier::Const`, sweep's
+/// `LOFT_RIM_PINNED`). A crate with no such roster (topo) writes the
+/// literal.
 pub fn read_identity<T: Decide>(
     data: impl IntoIterator<Item = (&'static str, Margin<T>)>,
     band: Band,
