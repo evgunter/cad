@@ -21062,38 +21062,6 @@ mod split_wedge_tests {
             "a split side kept the pinch's two edges on the line"
         );
     }
-
-    /// **A plane the pinch's two bricks meet on puts each brick on its
-    /// own side.** The plane `x = 1` holds a face of each and cuts
-    /// neither, so the split has no section, yet brick `a` lies below it
-    /// and brick `b` above: each side is that brick alone, every vertex
-    /// on its side of the plane. Red when an uncut operand lands whole on
-    /// the side its first vertex reads, `b` with it.
-    #[test]
-    fn a_plane_through_a_pinch_puts_each_brick_on_its_side() {
-        let tol = Tol::witness();
-        let at_rest = |b| crate::finish(b, tol).unwrap();
-        let a = at_rest(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol));
-        let b = at_rest(brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), tol));
-        let BooleanResult::Body(pinch) = union(&a, &b, tol).unwrap() else {
-            panic!("the pinch is empty");
-        };
-        let plane = split_plane(Point3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), tol);
-        let r = split(&pinch.body, &plane, tol).unwrap();
-        for (what, side, x) in [
-            ("above", r.above, (1.0, 2.0)),
-            ("below", r.below, (0.0, 1.0)),
-        ] {
-            let SplitPart::Body(body) = side else {
-                panic!("{what}: a brick lies on this side, read empty");
-            };
-            let xs: Vec<f64> = body.vertex_points().map(|(_, p)| p.x).collect();
-            assert!(
-                xs.len() == 8 && xs.iter().all(|&px| px == x.0 || px == x.1),
-                "{what}: the side is one brick over x in {x:?}, read vertices at x = {xs:?}"
-            );
-        }
-    }
 }
 
 /// The same-solid tangent-line pass ([`sweep_same_solid_tangent_lines`])

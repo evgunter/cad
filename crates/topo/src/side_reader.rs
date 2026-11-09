@@ -1212,20 +1212,15 @@ mod pre_filter_tests {
         };
         let face = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
         set_sheet_sense(&mut body, face, true, tol);
-        let shell = body.get_face(face).expect("the sheet's face").shell;
-        let sel = SolidFaces::of_shell(&body, shell);
-        let senses: Vec<bool> = sel
-            .faces()
-            .iter()
-            .map(|&f| body.get_face(f).expect("a face").sense)
-            .collect();
+        let senses: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
         assert!(
             senses.len() == 2 && senses[0] != senses[1],
             "a sheet is two faces of opposite senses: {senses:?}"
         );
-        match cast_aims(&body, &sel, band) {
-            Ok(Rays::Unread { aimed, .. }) => assert_eq!(aimed, 2, "both faces are aimed at"),
-            other => panic!("no aim at a sheet reads a side: {other:?}"),
-        }
+        let read = shell_aims_report(&body, band);
+        assert!(
+            read.len() == 1 && read[0].starts_with("Ok(Unread { aimed: 2,"),
+            "both faces are aimed at and no aim at a sheet reads a side: {read:?}"
+        );
     }
 }
