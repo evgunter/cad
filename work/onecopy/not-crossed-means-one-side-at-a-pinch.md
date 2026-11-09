@@ -58,9 +58,11 @@ premise doc. Fate's rehome, `one_region::read_cycle`, chord_join's
 - **A torus face's essential cycles** in `one_region`, which are not
   probed.
 
-`one_region` is a validator, and nothing joins there. A cycle that crosses
-another at a vertex they share is its own row:
-`one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex`.
+`one_region` is a validator, and nothing joins there. A cycle that
+crosses another at a point they share is check 9's to refuse
+(`RingMeetsOuter` / `RingMeetsRing`, or `PinchCornerCrossed`), as
+`one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex`
+found and closed.
 
 **Evidence that a touch at a pinch reads one side.**
 

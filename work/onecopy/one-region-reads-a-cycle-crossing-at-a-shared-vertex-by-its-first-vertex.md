@@ -2,10 +2,11 @@
 id: one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex
 kind: issue
 title: one_region::read_cycle reads a curved face's cycle that crosses another at a vertex they share by its first placed vertex (Answering::Any), so a CycleOffFaceSide can pass unreported
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
 ---
 
 
@@ -36,3 +37,31 @@ every walk order. If another check refuses the body, record which check
 and close this row. If not, make the site read every vertex (the agreeing
 check, `a-ladder-that-checks-its-answers-agree-has-no-home`, after
 `[ev]` PR 6592) or refuse a crossing at the shared vertex.
+
+## Closed (`onecopy/shared-vertex-crossing`): check 9 catches it
+
+No check is missing. Two of a face's cycles can share a point in only two
+ways, and check 9 refuses both on a curved face as on a plane:
+
+- **Two loops at one point.** Check 9's contact half,
+  `validate::ring_outer_contact_about`, runs over every ring against its
+  outer loop and over every pair of rings, on every face. Its arm 1
+  ("kind-agnostic: it reads points") refuses a vertex of one loop
+  standing on a vertex of the other, with a key shared or two keys at one
+  point: `RingMeetsOuter` / `RingMeetsRing` with `Vertex`. It refuses the
+  touch whether or not it crosses, so a crossing there never reaches
+  `one_region` alone.
+- **One loop passing a point twice**, which `surface_cycles` can walk as
+  two cycles meeting at the pinch vertex. That is check 9's
+  `PinchCornerCrossed`.
+
+A strut, an edge the face lies on both sides of, joins its loops into one
+surface cycle (`surface_cycles` walks across it), so it adds no shared
+vertex between two cycles.
+
+**Probe:** `one_region::tests::a_ring_crossing_its_outer_loop_at_shared_points_is_check_9s`.
+A cylinder sheet carries a ring through two of its outer corners, with
+one corner of the ring inside the sheet and one outside, so the ring
+crosses the outer loop at exactly those two shared points.
+`validate_geometric` refuses it with `RingMeetsOuter { contact: Vertex }`.
+`one_region::read_cycle`'s doc now names these checks.
