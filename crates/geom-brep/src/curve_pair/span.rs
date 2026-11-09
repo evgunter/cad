@@ -311,7 +311,8 @@ impl<'a, T: Decide> Span<'a, T> {
     /// ([`Curve3::point_walk`]) about the cover's ball's centre: a piece is
     /// cleared where its floor on that distance, less the ball's radius,
     /// is proved past the escalation (a proof's inequality); halved while its
-    /// reach exceeds the ball's radius and the escalation; and kept once
+    /// reach is chosen past the ball's radius and the escalation (a
+    /// resolution, sound either way, ledger row F37); and kept once
     /// its reach is within them, so the window's ends are resolved to the
     /// member's own size, or the escalation for a point. The whole span
     /// where the carrier has no finite speed bound or the walk runs past
@@ -330,7 +331,12 @@ impl<'a, T: Decide> Span<'a, T> {
             if positive("curve_pair_window_clear", p.gap - p.reach - reach) {
                 return geom::PieceStep::Settled;
             }
-            if positive("curve_pair_window_halve", p.reach - reach) {
+            if k_stats::choose(
+                "curve_pair_window_halve",
+                Margin::of(p.reach - reach),
+                "F37",
+            ) == k_stats::Pick::Positive
+            {
                 return geom::PieceStep::Halve;
             }
             kept = Some(kept.map_or(p.span, |(from, _)| (from, p.span.1)));

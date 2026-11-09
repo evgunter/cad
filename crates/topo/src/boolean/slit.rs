@@ -122,7 +122,7 @@
 use geom_brep::variety::{Piece, Variety};
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
+use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, Span, SpanEnd, meet};
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 
@@ -2789,14 +2789,12 @@ fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
 /// face's loops: `unread` where the reader's walk or root finder does
 /// not settle it.
 fn meet_refused(fault: MeetFault, unread: BooleanError) -> BooleanError {
-    match fault {
-        MeetFault::Escalated(diag) | MeetFault::Touch(diag) => crossing_escalated(diag),
-        MeetFault::Unsettled(_) | MeetFault::Unwalked(_) | MeetFault::Unsupported { .. } => unread,
-        MeetFault::Desync | MeetFault::Contradiction { .. } => {
-            BooleanError::ClassificationInvariant {
-                what: "the meeting reader contradicted itself on two edges' carriers",
-            }
-        }
+    match fault.kind() {
+        MeetKind::Escalated(diag) | MeetKind::Touch(diag) => crossing_escalated(diag),
+        MeetKind::Unread => unread,
+        MeetKind::Fault { .. } => BooleanError::ClassificationInvariant {
+            what: "the meeting reader contradicted itself on two edges' carriers",
+        },
     }
 }
 

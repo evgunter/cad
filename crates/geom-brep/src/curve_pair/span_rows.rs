@@ -472,3 +472,121 @@ fn a_refusal_names_the_reading_it_rests_on() {
         span.read(past, 0.5, band())
     );
 }
+
+/// **A point-on-span refusal stands as its carrier refusal does**, through
+/// the meeting's fault: an escalation (either kind) ranked by its margin,
+/// a walk past its budget unsettled, and a spline with no speed bound a
+/// limit. Each groups as unread or escalated ([`super::MeetFault::kind`]),
+/// and a boundary pass reads the same standing. Red where a walk refusal
+/// is ranked as anything else at any of the three.
+#[test]
+fn a_point_on_span_refusal_stands_as_its_carrier_refusal() {
+    use super::{MeetFault, MeetKind};
+    use crate::curve_face::BoundaryRefusal;
+    use crate::ladder::Refusal;
+    use geom::{CarrierEscalation, CarrierRefusal, PieceWalkRefusal};
+    let diag = geom_core::Indeterminate {
+        margin: geom_core::MarginDiag::value(0.5 * band().escalate()),
+        band: band(),
+        predicate: Some("curve_carrier_gap"),
+        terminal_sliver: false,
+    };
+    for (refused, standing) in [
+        (
+            CarrierRefusal::Escalated(CarrierEscalation::InBand(diag)),
+            Refusal::Margin(diag),
+        ),
+        (
+            CarrierRefusal::Escalated(CarrierEscalation::Straddle(diag)),
+            Refusal::Margin(diag),
+        ),
+        (
+            CarrierRefusal::Unwalked(PieceWalkRefusal::Exhausted),
+            Refusal::Unsettled,
+        ),
+        (
+            CarrierRefusal::Unwalked(PieceWalkRefusal::Unbounded),
+            Refusal::Limit,
+        ),
+    ] {
+        let fault = MeetFault::from(refused);
+        assert_eq!(
+            fault.refusal(),
+            Ok(standing),
+            "{refused:?}: the meeting's standing"
+        );
+        assert_eq!(
+            BoundaryRefusal::of(fault).refusal(),
+            Ok(standing),
+            "{refused:?}: the boundary pass's standing"
+        );
+        let grouped = matches!(
+            (refused, fault.kind()),
+            (CarrierRefusal::Escalated(_), MeetKind::Escalated(_))
+                | (CarrierRefusal::Unwalked(_), MeetKind::Unread)
+        );
+        assert!(grouped, "{refused:?}: grouped as {:?}", fault.kind());
+    }
+}
+
+/// **A refused member's window is the whole span where the walk cannot
+/// place it**, never an empty one: the boundary pass reads a member only
+/// inside its window, so an empty window drops its meetings.
+/// - On a rational spline whose middle weight is a million times its
+///   ends', against a point a metre off it: its speed bound, set by the
+///   fast ends, is so far above its speed through the slow middle that
+///   the pieces there clear only at a width the budget does not reach,
+///   and the walk runs past its budget.
+/// - On a spline whose control points coincide: its greatest speed is
+///   zero, so its pieces have no reach and the walk does not run.
+///
+/// Red where either fallback gives anything but the whole span.
+#[test]
+fn a_window_the_walk_cannot_place_is_the_whole_span() {
+    let spline = |pts: [Point3<f64>; 3], weights: [f64; 3]| {
+        Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                pts.to_vec(),
+                weights.to_vec(),
+            )
+            .unwrap(),
+        ))
+    };
+    let greatest = |c: &Curve3<f64>| geom::carrier_speed::speed_range(c).1.get();
+    let loose = spline(
+        [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ],
+        [1.0, 1e6, 1.0],
+    );
+    assert!(
+        greatest(&loose) > 1e6,
+        "the loose spline's speed bound: {}",
+        greatest(&loose)
+    );
+    let span = Span::new(&loose, (0.0, 1.0));
+    let member = geom::cover::Cover::points(vec![Point3::new(1.0, 1.0, 1.0)]).unwrap();
+    assert_eq!(
+        span.window_near(Some(&member), band()),
+        (0.0, 1.0),
+        "a walk past its budget"
+    );
+    let at = Point3::new(1.0, 2.0, 3.0);
+    let still = spline([at; 3], [1.0; 3]);
+    assert!(
+        greatest(&still) == 0.0,
+        "the still spline's speed bound: {}",
+        greatest(&still)
+    );
+    let span = Span::new(&still, (0.0, 1.0));
+    let member = geom::cover::Cover::points(vec![at]).unwrap();
+    assert_eq!(
+        span.window_near(Some(&member), band()),
+        (0.0, 1.0),
+        "a spline with no speed bound"
+    );
+}

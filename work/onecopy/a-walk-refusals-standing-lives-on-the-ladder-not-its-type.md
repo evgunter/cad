@@ -6,14 +6,26 @@ status: open
 opened: 2026-11-09
 ---
 
+`geom_brep::ladder::Refusal::of_walk` is the one table of a spline walk refusal's standing: `Exhausted` is unsettled, `Unbounded` is a limit. It lives on the ladder only because `geom` cannot see `ladder::Refusal` (its own doc says so). Once the ladder lives in `geom_core`, the table becomes `PieceWalkRefusal::refusal()` in `geom`, beside its `sentence()` and `recourse()`, and each caller reads `why.refusal()`.
 
-`geom_brep::ladder::Refusal::of_walk` is the one table of a spline walk refusal's standing: `Exhausted` is unsettled, `Unbounded` is a limit. Every wrapper that carries a `geom::PieceWalkRefusal` delegates to it:
-- `curve_pair::MeetFault::Unwalked`;
-- `topo` `validate::EdgeTangentUnread::Unwalked`, and through it `link::TouchUnread::EdgeTangent`;
-- `curve_face::BoundaryRefusal::Unread`, through its `MeetFault`.
+**Wrappers that carry a `geom::PieceWalkRefusal`** (sweep at `onecopy/carrier-standing`, PR 6629):
+- Delegating to `of_walk`:
+  - `geom_brep::curve_pair::MeetFault::Unwalked`;
+  - `geom_brep::curve_face::BoundaryRefusal::Unread`, through its `MeetFault`;
+  - `topo` `validate::EdgeTangentUnread::Unwalked`, and through it `link::TouchUnread::EdgeTangent`.
+- Carrying it with no standing of their own; their docs now point at the walk's:
+  - `geom::CarrierRefusal::Unwalked`;
+  - `geom_brep::SiteRefusal::Unwalked` (`pair_section.rs`);
+  - `topo` `chord_join::SplitJoinError::SectionUnwalked`, which `boolean/join.rs` also raises.
+- Carrying it with no standing at all:
+  - `geom_brep::CarryError::Unwalked` (`pair_section.rs`);
+  - `topo` `boolean::SectionUnbuilt::Unwalked` (`boolean/mod.rs`).
+- **Folding both walk refusals into one variant:** `topo` `splitting/containment.rs` `ConicArc::hit`, `CarrierRefusal::Unwalked(_) => ConicHit::Unsettled`. `boolean/region.rs` then reads `ConicHit::Unsettled` as `RegionRefusal::RayExhausted`. So a carrier with no speed bound would be told as an exhausted ray. A conic's speed bound is its radius, so `Unbounded` does not reach it today. Splitting it needs a `RegionRefusal` arm for a missing bound.
 
-It lives on the ladder only because `geom` cannot see `ladder::Refusal` (its own doc says so). Once the ladder lives in `geom_core`, the table becomes `PieceWalkRefusal::refusal()` in `geom`, beside its `sentence()` and `recourse()`. The callers then read `why.refusal()`.
+**Sweep and its blind spot.** Pattern: `Unwalked\(|SectionUnwalked|PieceWalkRefusal` across `crates/`. Two kinds of site are invisible to a pattern on the walk's arms:
+- a wildcard `Unwalked(_)` fold, which hides that two standings were merged;
+- a standing stated only in prose ("a limit, not a fault"), which the type never checks.
 
-A carrier refusal's whole standing is `escalation()`, then `Margin` or the walk's. It needs no method of its own while no wrapper carries a whole `CarrierRefusal` into a ladder. `SpanRefusal` carries one, but nothing ranks it.
+Both were found by reading each hit, not by the pattern.
 
-Open this once the `geom_core::ladder` move has landed.
+Open this once the `geom_core::ladder` move has landed. The doc-only carriers then point at `PieceWalkRefusal::refusal()`.

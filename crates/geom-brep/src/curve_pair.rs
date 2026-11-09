@@ -192,6 +192,43 @@ impl MeetFault {
     }
 }
 
+/// **What a [`MeetFault`] is to a consumer that does not tell its
+/// limits apart** ([`MeetFault::kind`]): the one grouping of its arms,
+/// so no consumer spells the group by hand.
+#[derive(Clone, Copy, Debug)]
+pub enum MeetKind {
+    /// A decision fell in the band's gap ([`MeetFault::Escalated`]).
+    Escalated(Indeterminate),
+    /// A meeting in band ([`MeetFault::Touch`]).
+    Touch(Indeterminate),
+    /// The reading did not run to an answer, and no margin says how far
+    /// it was: unsettled, a walk that could not run, or a pose with no
+    /// closed form.
+    Unread,
+    /// A kernel fault, never a pose: the carrier misread, or the readings
+    /// that contradict.
+    Fault {
+        /// What faulted.
+        what: &'static str,
+    },
+}
+
+impl MeetFault {
+    /// This refusal's group ([`MeetKind`]).
+    #[must_use]
+    pub const fn kind(&self) -> MeetKind {
+        match self {
+            Self::Escalated(diag) => MeetKind::Escalated(*diag),
+            Self::Touch(diag) => MeetKind::Touch(*diag),
+            Self::Unsettled(_) | Self::Unwalked(_) | Self::Unsupported { .. } => MeetKind::Unread,
+            Self::Desync => MeetKind::Fault {
+                what: "a carrier the meeting table misread",
+            },
+            Self::Contradiction { readings } => MeetKind::Fault { what: readings },
+        }
+    }
+}
+
 impl From<RootRefusal> for MeetFault {
     fn from(refusal: RootRefusal) -> Self {
         match refusal {

@@ -6,7 +6,7 @@
 //! certificate (`work/lathe/self-overlapping-spines-build-and-validate.md`).
 
 use geom::Curve3;
-use geom_brep::curve_pair::{self, Hit, MeetFault, Span, SpanEnd};
+use geom_brep::curve_pair::{self, Hit, MeetKind, Span, SpanEnd};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Tol, Vec3};
 use profile::{SegmentKind, SketchPlane, ValidatedProfile};
 
@@ -425,14 +425,11 @@ fn arc_pair_meets<T: Decide>(
     let (a, b) = (Span::new(&x.carrier, x.span), Span::new(&y.carrier, y.span));
     match curve_pair::meet(&a, &b, band) {
         Ok(met) => Ok(met.points.iter().any(off_shared)),
-        Err(refusal) => match refusal.fault {
-            MeetFault::Contradiction { readings } => Err(readings),
-            MeetFault::Desync => Err("a carrier's kind against the arm the pair table chose"),
-            MeetFault::Escalated(_)
-            | MeetFault::Touch(_)
-            | MeetFault::Unsettled(_)
-            | MeetFault::Unwalked(_)
-            | MeetFault::Unsupported { .. } => Ok(refusal.found.iter().any(off_shared)),
+        Err(refusal) => match refusal.fault.kind() {
+            MeetKind::Fault { what } => Err(what),
+            MeetKind::Escalated(_) | MeetKind::Touch(_) | MeetKind::Unread => {
+                Ok(refusal.found.iter().any(off_shared))
+            }
         },
     }
 }

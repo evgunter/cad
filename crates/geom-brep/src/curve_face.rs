@@ -30,7 +30,7 @@
 use geom::{CurveKind, SurfaceKind};
 use geom_core::{Band, Decide, Indeterminate, Point3};
 
-use crate::curve_pair::{Hit, MeetFault, Meetings, Span, meet};
+use crate::curve_pair::{Hit, MeetFault, MeetKind, Meetings, Span, meet};
 
 /// The door that reads a span against a face's interior, once its
 /// boundary has left the span undecided.
@@ -528,16 +528,11 @@ impl BoundaryRefusal {
     /// A meeting reading's refusal, as the pass types it.
     #[must_use]
     pub fn of(fault: MeetFault) -> Self {
-        match fault {
-            MeetFault::Escalated(diag) => Self::Meeting(diag),
-            MeetFault::Touch(diag) => Self::Touch(diag),
-            MeetFault::Unsettled(_) | MeetFault::Unwalked(_) | MeetFault::Unsupported { .. } => {
-                Self::Unread(fault)
-            }
-            MeetFault::Desync => Self::Fault {
-                what: "a carrier the meeting table misread",
-            },
-            MeetFault::Contradiction { readings } => Self::Fault { what: readings },
+        match fault.kind() {
+            MeetKind::Escalated(diag) => Self::Meeting(diag),
+            MeetKind::Touch(diag) => Self::Touch(diag),
+            MeetKind::Unread => Self::Unread(fault),
+            MeetKind::Fault { what } => Self::Fault { what },
         }
     }
 }
