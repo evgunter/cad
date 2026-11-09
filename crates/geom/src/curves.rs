@@ -825,7 +825,8 @@ impl<T: Real> Line<T> {
     }
 
     /// **`p`'s foot on the span `(t0, t1)`**: the line's point at
-    /// [`Self::param_within`].
+    /// [`Self::param_within`]. `p`'s distance from the span is
+    /// [`Self::distance_within`].
     #[must_use]
     pub fn foot_within(&self, p: Point3<T>, span: (T, T)) -> Point3<T> {
         self.at(self.param_within(p, span))
