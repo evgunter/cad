@@ -2008,6 +2008,35 @@ impl MarginDiag {
         }
     }
 
+    /// **The larger of two misses**, each a reading of a distance (a
+    /// quantity never below zero), as one reading of the larger quantity:
+    /// the larger of two values, each within its reading, lies at or above
+    /// the larger of their lower ends and at or below the larger of their
+    /// upper ends. A decision that refuses on either of two misses reports
+    /// this, not either reading alone: `[2, 10]` and `[5, 6]` read
+    /// `[5, 10]`, wholly past `4` as the `[5, 6]` miss is. A poisoned
+    /// reading poisons it. It is untagged: a miss is not a Zero, so no
+    /// proof is carried.
+    #[must_use]
+    pub fn larger(self, other: Self) -> Self {
+        let ends = |m: Self| match m.0 {
+            Reading::Value(v, ..) => Some((v, v)),
+            Reading::Enclosure { lo, hi, .. } => Some((lo, hi)),
+            Reading::Invalid => None,
+        };
+        match (ends(self), ends(other)) {
+            (Some((a_lo, a_hi)), Some((b_lo, b_hi))) => {
+                let (lo, hi) = (a_lo.max(b_lo), a_hi.max(b_hi));
+                if lo == hi {
+                    Self::value(lo)
+                } else {
+                    Self::enclosure(lo, hi)
+                }
+            }
+            _ => Self::INVALID,
+        }
+    }
+
     /// **The enclosure of two readings of one quantity**: from the lower
     /// of their lower ends to the higher of their upper ends, untagged.
     /// `None` where either was poisoned, which bounds nothing.
@@ -3297,6 +3326,26 @@ mod tests {
     use crate::interval::certification::Certification;
     use crate::tolerance::{EPS_MIN, Tol};
     use proptest::prelude::*;
+
+    /// **The larger of two misses reads the larger quantity**: each end
+    /// the larger of the two readings' ends at that end, so `[2, 10]` and
+    /// `[5, 6]` read `[5, 10]` — wholly past `4`, as the `[5, 6]` miss is,
+    /// where the farther-reaching `[2, 10]` alone reads only partly past
+    /// it. Two equal ends read a value; a poisoned reading poisons it.
+    #[test]
+    fn the_larger_of_two_misses_reads_the_larger_quantity() {
+        let (a, b) = (MarginDiag::enclosure(2.0, 10.0), MarginDiag::enclosure(5.0, 6.0));
+        for (x, y) in [(a, b), (b, a)] {
+            let larger = x.larger(y);
+            assert_eq!(larger.magnitudes(), Some((5.0, 10.0)), "{larger:?}");
+            assert!(larger.within(4.0).is_none(), "wholly past 4: {larger:?}");
+        }
+        assert_eq!(a.within(4.0), Some(Within::Partly), "the wide miss alone reads partly");
+        let v = MarginDiag::value(3.0).larger(MarginDiag::value(1.0));
+        assert_eq!(v.magnitudes(), Some((3.0, 3.0)));
+        assert_eq!(v.kind(), MarginKind::Value, "{v:?}");
+        assert!(MarginDiag::INVALID.larger(a).is_invalid());
+    }
 
     /// **The session box's arm is the box's extent, and levers as one.**
     /// A sine of 1e-12 levered at it reads the displacement at the box's

@@ -2118,8 +2118,9 @@ fn free_residual<T: Decide>(
 ///
 /// Both ends passing certify the edge (`Some(Ok)`). The ends are an
 /// identity ([`crate::ladder::climb`], `Any`): a miss at either answers
-/// (`Some(Err)`) with the worse of the two ends' misses, whichever end
-/// answers, and with none an escalation refuses (`Some(Err)`); an end that is only an upper bound
+/// (`Some(Err)`) with the larger of the two ends' misses
+/// ([`MarginDiag::larger`]), whichever end answers, and with none an
+/// escalation refuses (`Some(Err)`); an end that is only an upper bound
 /// past the band, with neither, decides nothing (`None`), and [`limb2`]
 /// lets the composite's own stall stand. No ratio over the net's width
 /// enters, and no round-to-nearest product: at `f64` a dot product at
@@ -2131,9 +2132,10 @@ fn measured_ends(
     band: Band,
 ) -> Option<Result<(), AnalyticRung3Refusal>> {
     use crate::ladder::{Answering, Climb, Rung, climb};
-    // Both ends are read: a refusal reports the worse miss, whichever end
-    // the identity below meets first, since the import door sizes its
-    // stopgap on it.
+    // Both ends are read, and a refusal reports the larger of the ends'
+    // misses whichever end the identity below meets first: at the import
+    // door the miss decides whether "set ε to ε_in" is offered and in
+    // which words (`FileCoincidence::miss_recourse_in_file`).
     let read = ends.map(|(measure, lever)| {
         let distance = measure.abs();
         let end = geom_core::Margin::over_lever(distance, lever);
@@ -2142,34 +2144,38 @@ fn measured_ends(
             crate::dihedral::decide_reported("ssi_hull_value", end, band),
         )
     });
-    let worst = read
-        .iter()
-        .filter_map(|(_, decided)| match decided {
-            Ok(Decided { sign, margin }) if *sign != Sign::Zero => Some(*margin),
-            _ => None,
-        })
-        .reduce(geom_core::MarginDiag::worst);
+    // An end decided off the plane, and its miss.
+    let off = |decided: &Result<Decided, Indeterminate>| match decided {
+        Ok(Decided { sign, margin }) if *sign != Sign::Zero => Some(*margin),
+        _ => None,
+    };
     // An identity over the two ends: either one decided off the plane
     // says the edge is not on it. An escalation is kept by its margin and
     // a bare end as unsettled (ranked after it), the composite's stall.
-    let climbed = climb(Answering::Any, read, |(distance, decided)| match decided {
-        Ok(Decided {
-            sign: Sign::Zero, ..
-        }) => Rung::Passes,
-        Ok(Decided { margin, .. }) => Rung::Answers(worst.unwrap_or(margin)),
-        Err(cause) if geom_core::Bounds::lo(distance) > 0.0 => {
-            Rung::kept(cause).map_kept(|cause| {
-                Some(AnalyticRung3Refusal::Escalated {
-                    operand: Some(operand),
-                    limb: Rung3Limb::HullValue,
-                    cause,
-                })
-            })
+    let climbed = climb(Answering::Any, read, |(distance, decided)| {
+        if let Some(margin) = off(&decided) {
+            return Rung::Answers(margin);
         }
-        Err(_) => Rung::Unsettled(None),
+        match decided {
+            Ok(_) => Rung::Passes,
+            Err(cause) if geom_core::Bounds::lo(distance) > 0.0 => {
+                Rung::kept(cause).map_kept(|cause| {
+                    Some(AnalyticRung3Refusal::Escalated {
+                        operand: Some(operand),
+                        limb: Rung3Limb::HullValue,
+                        cause,
+                    })
+                })
+            }
+            Err(_) => Rung::Unsettled(None),
+        }
     });
     match climbed {
         Climb::Answered { answer: margin, .. } => {
+            let margin = read
+                .iter()
+                .filter_map(|(_, decided)| off(decided))
+                .fold(margin, geom_core::MarginDiag::larger);
             Some(Err(AnalyticRung3Refusal::Limb { operand, margin }))
         }
         Climb::Undecided(Some(refusal)) => Some(Err(refusal)),
@@ -3697,10 +3703,11 @@ mod tests {
         );
     }
 
-    /// **Two ends off a plane report the worse miss, in either order**
-    /// ([`measured_ends`]): the refusal's margin sizes the import door's
-    /// stopgap, so it is the larger of the two ends' misses, not the one
-    /// the identity happens to meet first. Both ends are read.
+    /// **Two ends off a plane report the larger miss, in either order**
+    /// ([`measured_ends`]): at the import door the refusal's miss decides
+    /// whether "set ε to ε_in" is offered and in which words, so it is the
+    /// larger of the two ends' misses, not the one the identity happens to
+    /// meet first. Both ends are read.
     #[test]
     fn two_ends_off_a_plane_report_the_worse_miss_in_either_order() {
         use geom::{Curve3, Surface};

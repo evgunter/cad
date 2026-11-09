@@ -4218,11 +4218,14 @@ fn past_eps(d: &Decided) -> bool {
 /// in band is kept). `Some` of that gap and its index where one is past
 /// ε, `None` where every gap is within it.
 ///
-/// **Which gap is reported does not matter to any consumer.** The index
+/// **Which gap is reported is a choice among true reports.** The index
 /// and the gap are a witness, and every answering rung's is a gap decided
-/// past ε. The callers read them only to name the disagreement in
-/// [`ReplaceFaceError::VertexDisagreement`]'s sentence, whose ending is
-/// "not yet" and sizes nothing. Any one of them is a true report.
+/// past ε. They become [`ReplaceFaceError::VertexDisagreement`]'s vertex
+/// and gap, whose ending is "not yet" and sizes nothing, and the shell
+/// operation reads the vertex back to name the face that failed
+/// (`shell::offending_face`, `ShellError::Face`; the editor's shell verb
+/// carries it on). So rung order chooses which disagreeing vertex, and
+/// which face, the user is told about, and every choice is a true one.
 ///
 /// # Errors
 ///

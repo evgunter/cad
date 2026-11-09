@@ -42,9 +42,14 @@ is on main. The orchestrator will say when it has landed.
 
 ## Scope
 
-- Every `climb`, `climb_evidence` and `climb_agreeing` caller: about 57
-  non-test `Answering::Any` sites across 18 files, plus the `First` sites.
-  The call-site spelling changes mechanically.
+- Every `climb`, `climb_evidence` and `climb_agreeing` caller, plus the
+  `First` sites. The call-site spelling changes mechanically. Counted on
+  2026-11-09 as the lines of code that name `Answering::Any`, outside
+  `ladder.rs` and outside comments
+  (`grep -rn 'Answering::Any' crates --include=*.rs | grep -v ladder.rs | grep -vE ':[0-9]+:\s*//'`):
+  36 lines in 18 files. That count includes `#[cfg(test)]` modules inside
+  `src/`, and no `tests/` directory names it. An earlier count of 57
+  included doc-comment mentions.
 - `rim_wedge::rims` takes its mode as a parameter and answers
   `Option<(Rim, MarginDiag)>`. Under the type route its `Any` caller
   (`rim_exists`) answers a witness-free `bool` itself, or wraps the rim
