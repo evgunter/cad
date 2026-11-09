@@ -1180,3 +1180,10 @@
   - 6648 merged main and folded NOTE-1/NOTE-2/MOVE_RECOURSE (38670bd2); gating.
   - 6664's FIX-D delta (b6f7a172) read; mechanical; gating, merges on green.
   - T3 is local until 6675 lands, and appends its OutsideSessionBox witness to the onehome P0.
+- 2026-11-09 18:42Z Usage to spend (user), so five units dispatched:
+  - exact-half lane: a-bracket-middle-is-also-spelled-half-lo-plus-half-hi-and-f64-midpoint (onecopy/bracket-mid-2).
+  - carry-notes lane: an-any-climb-answering-with-a-witness-is-first-shaped (onecopy/any-witness); the type route goes to me as a fork first.
+  - New lanes:
+    - small-sweeps (session_013mPGJ24qkgLmtv89XxUB8z): hypot-spelled-2d-normalizations and a-lone-loop-refuses-under-a-corruption-name.
+    - chart-feet (session_013mPGJ4NYwAa9GMw2fnvHcH): the-ruled-and-torus-doors-read-the-querys-foot-back-through-the-chart, measure first.
+    - topo-roster (session_013mPGJ5MoZ8dMKffPSjdc7q): topo-has-no-predicate-name-roster.
