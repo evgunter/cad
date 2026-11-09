@@ -1123,3 +1123,4 @@
   - 6654 L1/L2/L4b/L7 fixes at fb882bc1 (gate reads UncheckedLoop's variants from its declaration) → small delta with session_013mPGJ5b622qiPFUqnsiotH.
   - 6661 exact-half up (gate green): DInterval Mul exact by ±2ⁿ, 1232 narrowings, 0 wider; its sentence restorations wait on 6632.
 - 18:55Z main-reds: B′ done (k_stats::choose under F38; pin across carrier kinds; corpus 0 <unnamed>). The battery red bisects to ONEHOME's 6380, filed there.
+- 19:00Z Merged PR 6632 (bracket-mid) at gate-green 66aecfb3; main had not moved since. bracket-mid lane → restore the sentences in 6661.
