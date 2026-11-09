@@ -116,9 +116,26 @@ fn torus_walk<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
     let (center, axis, major_radius, minor_radius) = torus;
-    let h = crate::conic_torus_harmonics(conic, center, axis, major_radius, minor_radius);
+    let h = crate::conic_torus_harmonics(
+        conic,
+        geom::Line {
+            origin: center,
+            dir: axis,
+        },
+        major_radius,
+        minor_radius,
+    );
     let placed = |theta: T| {
-        crate::conic_torus_residual(conic, center, axis, major_radius, minor_radius, theta)
+        crate::conic_torus_residual(
+            conic,
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            major_radius,
+            minor_radius,
+            theta,
+        )
     };
     let meter = slack.map(|row| RootSlack {
         row,
@@ -266,8 +283,15 @@ mod tests {
                     unreachable!("a torus")
                 };
                 let conic = e.conic().unwrap();
-                let h =
-                    crate::conic_torus_harmonics(&conic, center, axis, major_radius, minor_radius);
+                let h = crate::conic_torus_harmonics(
+                    &conic,
+                    geom::Line {
+                        origin: center,
+                        dir: axis,
+                    },
+                    major_radius,
+                    minor_radius,
+                );
                 let noise = rounding_charge(h.terms) / h.f_per_metre_lo;
                 let slope = truth
                     .iter()
@@ -1052,8 +1076,10 @@ mod torus_rows {
                         .map(|&t| {
                             let r = crate::conic_torus_residual(
                                 &conic,
-                                *hub,
-                                *t_axis,
+                                geom::Line {
+                                    origin: *hub,
+                                    dir: *t_axis,
+                                },
                                 *major_radius,
                                 *minor_radius,
                                 t,

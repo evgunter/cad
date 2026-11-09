@@ -1001,6 +1001,42 @@ impl<T: Real> Vec3<T> {
     }
 }
 
+/// [`Point3`](crate::Point3)'s two exact equalities
+/// ([`Point3::equals_exactly`](crate::Point3::equals_exactly),
+/// [`Point3::same_bits`](crate::Point3::same_bits)), for a vector.
+impl Vec3<f64> {
+    /// Every component `==` ([`crate::Point3::equals_exactly`]).
+    #[must_use]
+    pub fn equals_exactly(self, other: Self) -> bool {
+        let (Self { x, y, z }, Self { x: u, y: v, z: w }) = (self, other);
+        x == u && y == v && z == w
+    }
+
+    /// Every component's bits equal ([`crate::Point3::same_bits`]).
+    #[must_use]
+    pub fn same_bits(self, other: Self) -> bool {
+        let (Self { x, y, z }, Self { x: u, y: v, z: w }) = (self, other);
+        x.to_bits() == u.to_bits() && y.to_bits() == v.to_bits() && z.to_bits() == w.to_bits()
+    }
+}
+
+/// [`Vec3`]'s two exact equalities, in the plane.
+impl Vec2<f64> {
+    /// Every component `==` ([`crate::Point3::equals_exactly`]).
+    #[must_use]
+    pub fn equals_exactly(self, other: Self) -> bool {
+        let (Self { x, y }, Self { x: u, y: v }) = (self, other);
+        x == u && y == v
+    }
+
+    /// Every component's bits equal ([`crate::Point3::same_bits`]).
+    #[must_use]
+    pub fn same_bits(self, other: Self) -> bool {
+        let (Self { x, y }, Self { x: u, y: v }) = (self, other);
+        x.to_bits() == u.to_bits() && y.to_bits() == v.to_bits()
+    }
+}
+
 impl<T: Real> Add for Vec2<T> {
     type Output = Self;
 

@@ -720,7 +720,14 @@ fn aimed_ray<T: Decide>(
     let from = aim + out * (beyond(body, faces, aim)? * T::from_f64(2.0));
     let d = (aim - from).normalize();
     let reach = selection_reach(body, faces, from)?;
-    let crossings = match ray_crossings(body, geos, from, d, reach, band, AIMED_ROWS) {
+    let crossings = match ray_crossings(
+        body,
+        geos,
+        &geom::Ray::new(from, d),
+        reach,
+        band,
+        AIMED_ROWS,
+    ) {
         Ok(crossings) => crossings,
         Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
             return Ok(Aimed::SetAside(SetAsideWhy::Limit(e)));
@@ -973,7 +980,7 @@ pub(crate) fn ray_at_report<T: Decide>(
     }
 }
 
-/// **Every crossing of the ray `q + s·d`** with the solid holding
+/// **Every crossing of `ray`** with the solid holding
 /// `face`, its faces' order turned left by `turn` and reversed where
 /// `reversed` (an order permutation), each as `(from, to, count,
 /// sideless)` — a mark is sideless — or the fault the walk raised, as
@@ -982,7 +989,7 @@ pub(crate) fn ray_at_report<T: Decide>(
 pub(crate) fn ray_counts(
     body: &Body<f64>,
     face: FaceKey,
-    (q, d): (Point3<f64>, Vec3<f64>),
+    ray: &geom::Ray<f64>,
     band: Band,
     (turn, reversed): (usize, bool),
 ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
@@ -1003,9 +1010,10 @@ pub(crate) fn ray_counts(
     }
     let n = geos.len().max(1);
     geos.rotate_left(turn % n);
-    let reach = selection_reach(body, sel.faces(), q).map_err(|e| format!("{e:?}"))?;
+    let reach =
+        selection_reach(body, sel.faces(), ray.line.origin).map_err(|e| format!("{e:?}"))?;
     let crossings =
-        ray_crossings(body, &geos, q, d, reach, band, AIMED_ROWS).map_err(|e| format!("{e:?}"))?;
+        ray_crossings(body, &geos, ray, reach, band, AIMED_ROWS).map_err(|e| format!("{e:?}"))?;
     Ok(crossings
         .all()
         .into_iter()

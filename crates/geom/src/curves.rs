@@ -913,6 +913,53 @@ impl<T: Real> Line<T> {
     }
 }
 
+/// **A half-line**: [`Ray::line`] read forward from its origin, the point
+/// `origin + dir·t` at advance `t > 0` ahead and at `t < 0` behind. An
+/// advance is in units of `|dir|`, as [`Line::param`]'s parameter is:
+/// a length only where the caller's `dir` is unit, which nothing here
+/// makes it (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
+/// The forward reading has one home, [`Ray::ahead`], decided under the
+/// reader's own row.
+#[derive(Clone, Copy, Debug)]
+pub struct Ray<T: Real> {
+    /// The line the ray runs along, from its origin.
+    pub line: Line<T>,
+}
+
+impl<T: Real> Ray<T> {
+    /// The ray from `origin` along `dir`, any nonzero `dir`: its advance
+    /// is in units of `|dir|` (the type's doc).
+    #[must_use]
+    pub fn new(origin: Point3<T>, dir: Vec3<T>) -> Self {
+        Self {
+            line: Line { origin, dir },
+        }
+    }
+}
+
+impl<T: Decide> Ray<T> {
+    /// **Whether advance `at` lies ahead of the ray's origin**, decided
+    /// under the reader's own `site`: `Positive` ahead, `Negative` behind,
+    /// `Zero` at the origin. Each reader keeps its own policy for `Zero`
+    /// and for an undecided reading.
+    ///
+    /// `at` is a parameter on this ray's own line (`origin + dir·at`), and
+    /// the margin decided is `at` itself, in units of `|dir|` (the type's
+    /// doc). The method takes the parameter, not a point, because every
+    /// reader holds only a parameter computed on [`Ray::line`]: a root
+    /// against a carrier (`line_*_roots`), or the closest-approach span of
+    /// an edge's passage. No point is minted before the forward test. The ray does not re-derive `at`; a
+    /// reader that passes a parameter of another line decides nothing
+    /// about this ray.
+    ///
+    /// # Errors
+    ///
+    /// [`Indeterminate`] where `at` is in band.
+    pub fn ahead(&self, at: T, site: &'static str, band: Band) -> Result<Sign, Indeterminate> {
+        geom_core::k_stats::decide(site, Margin::of(at), band)
+    }
+}
+
 impl<T: Real> Curve3<T> {
     /// The line `origin + dir·t` as a carrier.
     #[must_use]

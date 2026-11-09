@@ -172,8 +172,8 @@ fn sign_as(
     decide(name, margin, band).map_err(TraceFault::Escalated)
 }
 
-/// **The crossings of the ray `origin + dir·t`, `t > 0`, with
-/// `surface`**, nearest first. `dir` is unit; `reach` is a length the
+/// **The crossings of `ray` with `surface`**, nearest first, each ahead of
+/// its origin ([`geom::Ray::ahead`]). Its `dir` is unit; `reach` is a length the
 /// size of the scene the piece runs through, the lever its lead and
 /// its senses are read over. `sense` is the face's orientation sense.
 ///
@@ -183,12 +183,12 @@ fn sign_as(
 pub fn ray_crossings<T: Decide>(
     surface: &Surface<T>,
     sense: bool,
-    origin: Point3<T>,
-    dir: Vec3<T>,
+    ray: &geom::Ray<T>,
     reach: T,
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
     use super::reduce::SpanVerdict;
+    let geom::Line { origin, dir } = ray.line;
     // Unsourced lever: the ray's length, a scene size the caller hands
     // rather than geometry the extent home reads.
     let arm = geom_core::Lever::unsourced(reach);
@@ -216,7 +216,7 @@ pub fn ray_crossings<T: Decide>(
             });
         }
         _ => {
-            match super::reduce::line_wall_roots_of(origin, dir, (T::zero(), reach), surface, band)
+            match super::reduce::line_wall_roots_of(ray.line, (T::zero(), reach), surface, band)
                 .map_err(door)?
             {
                 None => {
@@ -234,7 +234,10 @@ pub fn ray_crossings<T: Decide>(
     };
     let mut out = Vec::new();
     for t in roots {
-        match sign_as(TRACE_CROSSING_AHEAD, Margin::of(t), band)? {
+        match ray
+            .ahead(t, TRACE_CROSSING_AHEAD, band)
+            .map_err(TraceFault::Escalated)?
+        {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => continue,
         }

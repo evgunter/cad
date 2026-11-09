@@ -1831,8 +1831,10 @@ impl<T: Real> EdgeCurveSpec<T> {
                 crate::mapped::MappedSource::RevolvedPoint {
                     point: Point2::new(T::zero(), T::zero()),
                     place: Affine3::translation(start - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: axis,
+                    axis: geom::Line {
+                        origin: center,
+                        dir: axis,
+                    },
                     angle: t1 - t0,
                 },
             )),
@@ -2006,8 +2008,10 @@ impl<T: Real> EdgeCurveSpec<T> {
                 crate::mapped::MappedSource::RevolvedPoint {
                     point: Point2::new(T::zero(), T::zero()),
                     place: Affine3::translation(p - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: Vec3::unit_z(),
+                    axis: geom::Line {
+                        origin: center,
+                        dir: Vec3::unit_z(),
+                    },
                     angle: T::tau(),
                 },
             )),
@@ -7072,8 +7076,10 @@ mod tests {
                 MappedSource::RevolvedPoint {
                     point: Point2::new(2.0, 2.0),
                     place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
-                    axis_origin: center,
-                    axis_dir: Vec3::unit_z(),
+                    axis: geom::Line {
+                        origin: center,
+                        dir: Vec3::unit_z(),
+                    },
                     angle: TAU,
                 },
             )),

@@ -181,14 +181,7 @@ fn cyclic_eq(a: &[Point3<f64>], b: &[Point3<f64>]) -> bool {
         return false;
     }
     let n = a.len();
-    (0..n).any(|s| {
-        (0..n).all(|i| {
-            let (p, q) = (a[(s + i) % n], b[i]);
-            p.x.to_bits() == q.x.to_bits()
-                && p.y.to_bits() == q.y.to_bits()
-                && p.z.to_bits() == q.z.to_bits()
-        })
-    })
+    (0..n).any(|s| (0..n).all(|i| a[(s + i) % n].same_bits(b[i])))
 }
 
 /// The 6-vertex all-line L (counterclockwise; canonical start (0,0)).
