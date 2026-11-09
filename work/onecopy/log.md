@@ -985,3 +985,14 @@
 - 13:28Z 6576 pin fix at 605815e7: the standing is PointInLoopError's own (Rung::answers beside holds), the pin drives ring_side's real path (A, B and a flipped arm red), the engine-leaves rise is cited to a onedoor move row → second delta with session_013mPGJ3tP1vesXb7WfFmp5N; gating.
 - 13:45Z Merged PR 6623 (needle-tilts) at gate-green dee0a10a; main had moved only by seal's 6634, disjoint; the workspace check of the merge was clean. 6638 retargeted onto main.
 - 13:45Z PR 6628 delta: MERGE. Main overlapped on topo/link.rs → merged main (5be070fa), build/gates/228 rows clean, re-gating. NOTE-A (fit.rs chord norm admits ∞) → length-rule lane's next unit. The stale 1e-12 pin m10_di_dual_corpus (reshaped_rod passes) → main-reds lane. Disk filled again mid-check (the topo compile "error" was ENOSPC); freed cadcopy and tgt-m.
+- 14:05Z Merged:
+  - PR 6628 (length-rule) at gate-green 5be070fa → eae91f88.
+  - PR 6576 (boolean-standing) at gate-green 892f5ee8 → 41a104c3. That head is my merge of main; it took one conflict in MeetFault::refusal, keeping 6576's per-class Unsettled and adding main's Unwalked arm. Its second delta was MERGE; the disjoint check against 6628 was clean.
+- 14:05Z The disk filled twice. Builds now run with CARGO_INCREMENTAL=0 and CARGO_PROFILE_{DEV,TEST}_DEBUG=0.
+- 14:05Z PR 6624 delta: MERGE. Main overlapped (geom lib.rs, rim_wedge, containment, injective) → merged main (04edc5ff); build, gates and geom+topo 4300/4300 clean; re-gating. Its D2 (the sphere door's decisions depend on its chart frame) wants a row.
+- 14:05Z Fix passes in:
+  - 6637 at be4aec5e (F1 First, F3 InBand, S9 row filed) → delta with session_013mPGJ5anAaqvSq3TzpQnZG; gating.
+  - 6640 at be2a8253 → delta with session_013mPGJ3QbgmieDwjQAcwUog; gating.
+- 14:05Z Main reds forwarded to main-reds: shell_role_reader needle cavity, pcurve circle_lane seed 0xbb6048d2e37fd735, reach_split_gate_azimuth OutsideSessionBox (a sixth onehome row), the stale m10_di_dual_corpus pin.
+- 14:05Z boolean-standing → onecopy/boolean-standing-2: leftovers row, fold Rung::of_reading into Rung::answers, correct the onedoor move row's scope.
+- 14:05Z 6598 merge of main conflicts in ladder.rs (refused's abort map vs answers) and boolean mod/sectors/vtxfac → sent to its lane (session_013mPGJ2bhto1oBKSPNU7Sa4).
