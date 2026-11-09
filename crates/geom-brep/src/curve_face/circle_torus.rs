@@ -539,10 +539,14 @@ enum Band3 {
 ///
 /// The remaining decisions are the plane's depth into the tube,
 /// `(r² − h₀²)/2r` — the residual of the tube's centre circle at that
-/// height, negated (`circle_torus_plane_height`) — and which side
-/// of the tube's centre circle an extreme outside the tube lies
-/// (`circle_torus_contour_side`, `ρ − R`, which is at least
-/// `√(r² − h₀²)` from zero there).
+/// height, negated (`circle_torus_plane_height`), a screen: definitely
+/// negative is a miss, and a graze (zero or in the gap) defers to the
+/// extremes — and which side of the tube's centre circle an extreme
+/// outside the tube lies (`circle_torus_contour_side`, `ρ − R`, which is
+/// at least `√(r² − h₀²)` from zero there). At a graze both extremes
+/// outside the tube on one side of the centre circle are a miss, since
+/// the residual grows away from the ring the plane touches; otherwise the
+/// graze's refusal stands.
 fn parallel_axes_roots<T: Decide>(
     pose: &ParallelPose<T>,
     torus: &geom::Surface<T>,
@@ -572,12 +576,18 @@ fn parallel_axes_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let depth = (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius);
-    match crate::roots::spread_signs("circle_torus_plane_height", depth, charge_h, band)? {
-        (Sign::Positive, _) => {}
-        // Definitely past the top or bottom of the tube, even charged.
-        (_, Sign::Negative) => return Ok(CircleRoots::Miss),
-        _ => return Err(Unsettled::Tangency.into()),
-    }
+    // A plane that grazes the tube meets it only about the ring of its
+    // top or bottom, of radius `R`: the depth is a screen, and the
+    // extremes' placements below say whether the carrier comes near that
+    // ring. The graze's own refusal stands only where it does.
+    let graze: Option<RootRefusal> =
+        match crate::roots::spread_signs("circle_torus_plane_height", depth, charge_h, band) {
+            Ok((Sign::Positive, _)) => None,
+            // Definitely past the top or bottom of the tube, even charged.
+            Ok((_, Sign::Negative)) => return Ok(CircleRoots::Miss),
+            Ok(_) => Some(Unsettled::Tangency.into()),
+            Err(gap) => Some(gap.into()),
+        };
     let rho_max = radius + offset;
     let rho_min = (radius - offset).abs();
     // Doubled: the bound above is for a point whose height and in-plane
@@ -615,6 +625,16 @@ fn parallel_axes_roots<T: Decide>(
     else {
         return Err(Unsettled::Tangency.into());
     };
+    // At a graze both extremes outside the tube on one side of the ring
+    // keep the whole carrier there, where the residual grows away from
+    // the ring: no point of it meets the torus.
+    if let Some(refusal) = graze {
+        return if far == near && far != Band3::Tube {
+            Ok(CircleRoots::Miss)
+        } else {
+            Err(refusal)
+        };
+    }
     let half = ((minor_radius.powi(2) - h0.powi(2)).max(T::zero())).sqrt();
     // Contour ρ− lies between the extremes iff the near one is in the
     // hole and the far one is not; ρ+ iff the far one is beyond and the
@@ -1339,6 +1359,50 @@ mod tests {
             u: [1.0, 0.0, 0.0],
         };
         assert!(matches!(door(pose, -3.0, 3.0), Ok(CircleRoots::Miss)));
+    }
+
+    /// **A plane grazing the tube is a miss where the circle keeps off
+    /// its ring.** A parallel circle in a plane at the tube's top or
+    /// bottom, to within the band's zero or in its gap: the plane meets
+    /// the torus only about the ring of radius `R` there. A circle whose
+    /// in-plane radii stay on one side of that ring is a miss; one that
+    /// straddles it keeps the graze's refusal, `Tangency` in the zero band
+    /// and the band's escalation in its gap. Red where the plane's depth
+    /// refuses the graze before the carrier's extremes are read.
+    #[test]
+    fn a_plane_grazing_the_tube_is_a_miss_off_its_ring() {
+        let z = band().zero();
+        for k in [0.0, 0.3, 3.0, 8.0] {
+            for sign in [1.0, -1.0] {
+                let h = RT + sign * k * z;
+                let at = |c: [f64; 2], rho| Pose {
+                    c: [c[0], c[1], h],
+                    n: [0.0, 0.0, 1.0],
+                    rho,
+                    u: [1.0, 0.0, 0.0],
+                };
+                for (label, pose) in [
+                    ("inside the ring", at([0.1, 0.0], 0.2)),
+                    ("outside the ring", at([2.5, 0.0], 0.3)),
+                ] {
+                    let got = door(pose, -3.0, 3.0);
+                    assert!(
+                        matches!(got, Ok(CircleRoots::Miss)),
+                        "{label} at {k}·zero, side {sign}: {got:?}"
+                    );
+                }
+                let got = door(at([0.5, 0.0], 0.5), -3.0, 3.0);
+                let want_refusal = if k < 1.0 {
+                    matches!(got, Err(Some(Unsettled::Tangency)))
+                } else {
+                    matches!(got, Err(None))
+                };
+                assert!(
+                    want_refusal,
+                    "across the ring at {k}·zero, side {sign}: {got:?}"
+                );
+            }
+        }
     }
 
     /// **The tilt a parallel pose was admitted with is charged.** The far

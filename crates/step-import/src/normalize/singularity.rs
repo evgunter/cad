@@ -46,6 +46,12 @@ use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
 use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalization};
 
+/// **Two lines this close to parallel have no crossing** for the pass: a
+/// squared sine between their directions ([`geom::LinePair::sin2`]) at or
+/// below it is a pair whose closest approach is lost to cancellation in
+/// `f64`, a dozen digits below the operands' own scale.
+const NO_CROSSING_SIN2: f64 = 1e-12;
+
 /// The surface data the pass reads: the axis through the singular
 /// points, the reference azimuth, and the points themselves.
 #[derive(Clone, Copy)]
@@ -839,14 +845,17 @@ fn crossings(
         ) => {
             // The closest approach of two lines; generators of one cone
             // meet only at its apex, which the caller's lead skips.
-            let wv = o - oe;
-            let (aa, bb, cc, dd, ee) = (g.dot(g), g.dot(ge), ge.dot(ge), g.dot(wv), ge.dot(wv));
-            let den = aa * cc - bb.powi(2);
-            if den.abs() <= 1e-12 * aa * cc {
+            let pair = geom::Line { origin: o, dir: g }.closest_params(&geom::Line {
+                origin: oe,
+                dir: ge,
+            });
+            // An import's policy: lines within NO_CROSSING_SIN2 of
+            // parallel (or with a zero direction, NaN) have no crossing.
+            let crossing = pair.sin2.abs() > NO_CROSSING_SIN2;
+            if !crossing {
                 return Some(Vec::new());
             }
-            let t = (bb * ee - cc * dd) / den;
-            let s = (aa * ee - bb * dd) / den;
+            let (t, s) = (pair.s, pair.t);
             let (p, q) = (ray.eval(t), other.eval(s));
             Some(if (p - q).norm() <= read.escalate {
                 vec![(t, p)]
