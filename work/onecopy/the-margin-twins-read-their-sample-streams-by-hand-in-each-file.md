@@ -2,10 +2,12 @@
 id: the-margin-twins-read-their-sample-streams-by-hand-in-each-file
 kind: issue
 title: The margin-scaling twins each hand-copy the sample-stream reader (outcomes, decisive) beside k_stats' one band rule, and pair the twins' lists by zip
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6627
 ---
 
 

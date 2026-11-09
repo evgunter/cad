@@ -2,10 +2,12 @@
 id: the-ledger-census-keys-doors-on-spelling
 kind: issue
 title: flagged_census resolves a forwarding wrapper by identifier name: shadowing launders a row, a wrapper reached by fn pointer or alias is silent, doors are keyed by bare fn name
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6627
 ---
 
 
