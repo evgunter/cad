@@ -2,10 +2,12 @@
 id: main-red-a-lofted-arc-walls-rim-zeros-count-eighteen
 kind: issue
 title: Main red: a_lofted_arc_wall_is_a_function_of_the_sections_bulge counts 18 symbolic rim Zeros where it pins 10
-status: open
+status: closed
 priority: P1
 cost: E
 opened: 2026-11-04
+closed: 2026-11-09
+pr: 6692
 ---
 
 
@@ -49,3 +51,7 @@ So every arc rim on a spline chart is certified twice per mint.
 The test runs only in the slow set, and PR 6484 does not spell its name, so its CI never ran it. That is the class in `work/ciw/tree-wide-source-censuses-in-the-slow-set-run-on-no-pr-that-moves-a-site.md`.
 
 `main-red-a-lofted-arc-walls-rim-zeros-count-eighteen-not-ten` is the same red, filed the same day by another lane, and is closed into this row.
+
+## Closed
+
+PR 6692. The arc rim's lane choice now hands its certificate on (`topo::pcurves::DerivedImage::Certified`), so `certify_walked` does not certify the rim again. The pin stays at 10, and gains a distinct-set assertion of 7.
