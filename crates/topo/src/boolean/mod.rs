@@ -7500,7 +7500,7 @@ fn glued_face<T: Real>(
 ) -> Result<(geom::Surface<T>, bool), BooleanError> {
     let invalid = |what| BooleanError::InvalidInput { operand, what };
     let face = body
-        .passed_face(f)
+        .face(f)
         .ok_or_else(|| invalid("a glued face's key does not resolve"))?;
     Ok((face.surface().clone(), face.sense()))
 }
@@ -7836,7 +7836,7 @@ fn conic_reach<T: Decide>(
     along: impl Fn(Point3<T>) -> T,
     dir: geom_core::Vec3<T>,
 ) -> Option<Vec<T>> {
-    let face = body.passed_face(f)?;
+    let face = body.face(f)?;
     let mut out = Vec::new();
     for (_, members, _) in face.boundary_by_loop() {
         for member in members {
@@ -8187,7 +8187,7 @@ fn face_boundary_points<T: Decide>(
         operand,
         what: "declared face's boundary is unwalkable",
     };
-    let f = body.passed_face(face).ok_or_else(bad)?;
+    let f = body.face(face).ok_or_else(bad)?;
     Ok(f.boundary()
         .map(|member| body.member_point(&member))
         .collect())
@@ -8216,7 +8216,7 @@ fn validate_declarations<T: Decide>(
     // typed; every later read of it is proven.
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let surface = body
-            .passed_face(f)
+            .face(f)
             .map(|f| f.surface())
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         if carrier_eq::in_inventory(surface.kind()) {

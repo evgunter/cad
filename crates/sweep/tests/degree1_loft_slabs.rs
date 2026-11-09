@@ -314,7 +314,7 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
             assert_eq!(walls.len(), slabs, "{what}: segment {j}'s slabs");
             for &w in walls {
                 let face = body.get_face(w).unwrap();
-                let Some(Surface::Nurbs(net)) = body.get_surface(face.surface) else {
+                let Some(Surface::Nurbs(net)) = body.face_surface(w) else {
                     panic!("{what}: wall {w:?} is a spline")
                 };
                 assert_eq!(

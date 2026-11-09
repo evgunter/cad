@@ -1064,10 +1064,7 @@ fn pairing_read<T: Decide>(
     band: Band,
 ) -> Option<PairingRead<'_, T>> {
     use crate::eval::measure::reach_of;
-    let carrier = |key: FaceKey| {
-        let face = body.get_face(key)?;
-        Some((body.get_surface(face.surface)?, face.sense))
-    };
+    let carrier = |key: FaceKey| Some((body.face_surface(key)?, body.get_face(key)?.sense));
     let (outer_carrier, inner_carrier) = (carrier(outer)?, carrier(inner)?);
     let at = face_point(body, outer)?;
     let (r_outer, r_inner) = (
@@ -1130,8 +1127,8 @@ fn constant_pairing<T: Decide>(
 
 /// A point of face `key`: the start of its outer loop.
 fn face_point<T: Decide>(body: &Body<T>, key: FaceKey) -> Option<geom_core::Point3<T>> {
-    let face = body.get_face(key)?;
-    let vertex = match body.get_loop(face.outer)?.boundary {
+    let (_, outer, _) = body.face(key)?.loops().next()?;
+    let vertex = match outer.boundary {
         topo::LoopBoundary::Empty { vertex } => vertex,
         topo::LoopBoundary::Cycle { first, .. } => body.get_half_edge(first)?.start,
     };
@@ -2018,10 +2015,7 @@ fn beyond(
     };
     // The region is turned with the carrier's own chart, so it moves
     // with the inputs and not with the computing axes.
-    let reference = match aggregate
-        .get_face(face)
-        .and_then(|f| aggregate.get_surface(f.surface))
-    {
+    let reference = match aggregate.face_surface(face) {
         Some(topo::Surface::Plane { u_ref, .. } | topo::Surface::Cylinder { u_ref, .. }) => *u_ref,
         _ => return Err("the carrier's surface is unreadable".to_owned()),
     };

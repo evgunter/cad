@@ -69,10 +69,7 @@ fn pt(body: &topo::Body<f64>, v: topo::VertexKey) -> String {
 fn live(out: &BooleanBody<f64>, rows: &[(topo::VertexKey, topo::VertexKey)]) -> Vec<String> {
     let body = &out.body;
     let settler = out.naming.settler(body);
-    let ends = |e: topo::EdgeKey| {
-        let d = body.get_edge(e).expect("a live edge");
-        [d.he_plus, d.he_minus].map(|h| body.get_half_edge(h).expect("a live half").start)
-    };
+    let ends = |e: topo::EdgeKey| <[_; 2]>::from(body.edge_vertices(e).expect("a live edge"));
     rows.iter()
         .map(|&(u, w)| {
             let (u, w) = match (settler.settle(u), settler.settle(w)) {

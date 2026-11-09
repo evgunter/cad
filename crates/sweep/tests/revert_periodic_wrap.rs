@@ -114,8 +114,8 @@ fn winding_kinds(
 )> {
     let band = Band::linear(tol()).unwrap();
     body.faces()
-        .map(|(fk, face)| {
-            let chart = body.get_surface(face.surface).unwrap();
+        .map(|(fk, _)| {
+            let chart = body.face_surface(fk).unwrap();
             let kind = topo::loop_windings(body, fk, chart, band)
                 .map(|read| read.iter().map(|w| (w.singular, w.zero)).collect())
                 .map_err(|e| discriminant(&e));
