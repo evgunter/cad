@@ -154,9 +154,9 @@ fn derived(radius: f64) -> Vec<Result<geom_brep::Pcurve<f64>, PcurveMintError>> 
         // line on the spline wall.
         assert_eq!(
             (
-                topo::readback::face_carrier_kind(&moved, &moved.face_of_half_edge(h).unwrap())
+                topo::readback::face_carrier_kind(&moved, moved.face_of_half_edge(h).unwrap())
                     .unwrap(),
-                topo::readback::edge_carrier_kind(&moved, &moved.get_half_edge(h).unwrap().edge)
+                topo::readback::edge_carrier_kind(&moved, moved.get_half_edge(h).unwrap().edge)
                     .unwrap(),
             ),
             (geom::SurfaceKind::Nurbs, geom::CurveKind::Line),

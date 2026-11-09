@@ -363,8 +363,8 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     for h in [strut.he_plus, strut.he_minus] {
         let got = topo::pcurve_of(&body, h, band());
         let kinds = (
-            topo::readback::face_carrier_kind(&body, &body.face_of_half_edge(h).unwrap()).unwrap(),
-            topo::readback::edge_carrier_kind(&body, &body.get_half_edge(h).unwrap().edge).unwrap(),
+            topo::readback::face_carrier_kind(&body, body.face_of_half_edge(h).unwrap()).unwrap(),
+            topo::readback::edge_carrier_kind(&body, body.get_half_edge(h).unwrap().edge).unwrap(),
         );
         assert_eq!(
             kinds,

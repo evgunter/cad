@@ -436,9 +436,9 @@ fn refused_on_the_relabelled_face(
     (
         finding.clone(),
         (
-            topo::readback::face_carrier_kind(&kept, &kept.face_of_half_edge(half_edge).unwrap())
+            topo::readback::face_carrier_kind(&kept, kept.face_of_half_edge(half_edge).unwrap())
                 .unwrap(),
-            topo::readback::edge_carrier_kind(&kept, &kept.get_half_edge(half_edge).unwrap().edge)
+            topo::readback::edge_carrier_kind(&kept, kept.get_half_edge(half_edge).unwrap().edge)
                 .unwrap(),
         ),
     )
