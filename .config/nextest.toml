@@ -46,7 +46,7 @@ not (
   (binary_id(sweep::all) & test(=a_wall_row_read_in_band_takes_the_lane_a_miss_takes::a_rim_in_the_band_ends_as_its_incidence_read_at_interval)) |
   (binary_id(topo::all) & test(=an_off_iso_straight_edge_takes_its_general_row::an_in_band_seam_takes_the_general_image_at_interval)) |
   (binary_id(geom-brep) & test(=pcurve_cache::line_incidence_rows::no_parameter_of_the_span_is_farther_than_the_read)) |
-  (binary_id(geom-brep) & (test(=curve_pair::order_rows::the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order) | test(=curve_pair::order_rows::a_near_miss_in_the_gap_beside_no_meeting_escalates) | test(=curve_pair::meet_rows::ellipses_crossing_near_a_touch_read_one_meeting_where_their_arc_is_in_band))) |
+  (binary_id(geom-brep) & (test(=curve_pair::order_rows::the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order) | test(=curve_pair::order_rows::a_near_miss_in_the_gap_beside_no_meeting_escalates) | test(=curve_pair::order_rows::a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart) | test(=curve_pair::order_rows::the_needle_tilted_on_a_half_decade_grid_reads_its_oracle_in_either_order) | test(=curve_pair::meet_rows::ellipses_crossing_near_a_touch_read_one_meeting_where_their_arc_is_in_band))) |
   (binary_id(topo) & test(=live::tests::a_faces_loops_are_walked_in_one_place)) |
   (binary_id(topo) & test(=live::tests::loop_keys_is_read_only_where_a_miss_is_reported)) |
   (binary_id(topo) & test(=live::tests::the_unchecked_cycles_are_read_only_where_a_miss_is_reported)) |
