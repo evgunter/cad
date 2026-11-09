@@ -320,8 +320,8 @@ This section is where that rule's parts live.
   (as a distance). A stored form that loses digits (a conic whose centre
   lies far from the arc it serves) is re-minted in a well-conditioned
   form. No `Margin` door takes hand-written slack. The backstop is a
-  tree gate on bare `f64::EPSILON` and `UNIT_ROUNDOFF` outside this
-  crate, whose allowlist only shrinks: each entry is a formula or a
+  tree gate on bare `f64::EPSILON` and on every use of
+  `running`'s charge doors (its `pub` items) outside this crate, whose allowlist only shrinks: each entry is a formula or a
   stored form owed a re-posing.
 - **A verdict's lever arm** (`Lever<T>`, the arm of
   `Margin::levered`). It is built only from its sources: a read of the
