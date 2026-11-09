@@ -116,9 +116,11 @@ fn a_conical_ended_football_revolves() {
         ("the lemon", LEMON),
         ("the apple", APPLE),
         ("the lemon near its apexes", near_apex),
-        // Far out, but inside the 1 km session box: at (1e3, 1e3) it
-        // reached about 1.41 km, past it, and the finished-body gate
-        // refuses that (`OutsideSessionBox`).
+        // Far out, its axis through (650, 650), and inside the 1 km
+        // session box, which bounds each coordinate: every one is within
+        // about 652 m. Its axis through (1e3, 1e3) put coordinates past
+        // 1 km, and the finished-body gate refuses that
+        // (`OutsideSessionBox`).
         (
             "the lemon 920 m out",
             Band {
@@ -144,7 +146,7 @@ fn a_conical_ended_football_revolves() {
         let sheets: Vec<f64> = built
             .body
             .faces()
-            .filter_map(|(_, f)| match built.body.get_surface(f.surface) {
+            .filter_map(|(fk, _)| match built.body.face_surface(fk) {
                 Some(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
                 _ => None,
             })
@@ -184,7 +186,7 @@ fn a_conical_ended_football_revolves() {
 /// The surface kinds of a body's faces, a sheet or torus with its `R`.
 fn kinds(body: &topo::Body<f64>) -> Vec<String> {
     body.faces()
-        .map(|(_, f)| match body.get_surface(f.surface).unwrap() {
+        .map(|(fk, _)| match body.face_surface(fk).unwrap() {
             geom::Surface::Spindle { major_radius, .. } => format!("spindle({major_radius})"),
             geom::Surface::Torus { major_radius, .. } => format!("torus({major_radius})"),
             s => format!("{:?}", s.kind()),

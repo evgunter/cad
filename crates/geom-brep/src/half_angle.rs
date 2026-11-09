@@ -970,7 +970,7 @@ fn subdivision<T: Decide>(
             } else {
                 T::zero() - T::one()
             };
-            let exactly = |x: T| decide(touch.convex, Margin::of(x), Band::least()).ok();
+            let exactly = |x: T| geom_core::k_stats::prove(touch.convex, Margin::of(x)).ok();
             let curve = toward * f2 - e2 - d3_hi * half - fourth_hi * half.powi(2) / two;
             let slope = |t: T| toward * taylor(t)[1].0;
             if exactly(curve) == Some(Sign::Positive)

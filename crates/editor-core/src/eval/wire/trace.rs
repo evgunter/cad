@@ -60,6 +60,7 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     };
     let sketch = Frame::Map(Arc::new(frame));
     let identity = RigidMotion::identity;
+    let band = super::band(tol)?;
     let faces = on
         .faces
         .iter()
@@ -88,6 +89,7 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             Ok(TracedFace {
                 surface: closed(surface),
                 sense,
+                cover: topo::face_cover(framed.body(), face, band),
                 sketch_to_body: body
                     .relative(&sketch)
                     .map_err(NodeErrorKind::Motion)?

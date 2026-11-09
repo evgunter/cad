@@ -134,7 +134,7 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// Where the surface a resolved face names does not resolve (D2 row 4):
 /// a torn surface is not a non-planar one.
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     match f.surface() {
         geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f.record(), *normal)),
         _ => None,
@@ -156,7 +156,7 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// Where `face` resolves and its surface does not (D2 row 4): a torn
 /// surface is not a non-planar one.
 pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(Point3<T>, Vec3<T>)> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     match f.surface() {
         geom::Surface::Plane { origin, normal, .. } => {
             Some((*origin, plane_outward_normal(f.record(), *normal).vec()))
@@ -178,7 +178,9 @@ pub enum NormalAtError {
     },
     /// The face's torus is definitely outside the ring convention: a
     /// shape with no regular normal on its tube, refused with the lever
-    /// the in-band arm of the same half names. A limit: a decided shape.
+    /// the in-band arm of the same half names. An abort: a shape the
+    /// kernel's model never represents, an invalid input
+    /// ([`geom_brep::ladder::Refusal`]'s row 1(a)).
     DegenerateTorus {
         /// The half of the convention that refused.
         convention: TorusConvention,
@@ -195,7 +197,7 @@ pub enum NormalAtError {
     /// tangent plane: definite or in band, there is no normal to answer
     /// with. In band: it carries no reading to tell a point at the apex
     /// from one in band of the axis, and a tighter tolerance may part the
-    /// latter from it.
+    /// latter from it ([`geom_brep::ladder::Refusal::of_apex`]).
     AtConeApex {
         /// The band the distance off the axis was classified against.
         band: Band,
@@ -204,8 +206,8 @@ pub enum NormalAtError {
     /// chart's normal is not continuous across (an interior knot run of
     /// multiplicity at least the degree, a closed chart's seam): the face
     /// has a normal on each side, and no one of them is the normal there
-    /// ([`geom_brep::chart_normal_at`]). Ranked by its distance's margin
-    /// where the distance is in band; a limit where it is decided zero.
+    /// ([`geom_brep::chart_normal_at`]). As its reading stands
+    /// ([`geom_brep::ladder::Refusal::of_crease`]).
     SplineCrease {
         /// The band the distance from the line was classified against.
         band: Band,
@@ -231,22 +233,17 @@ impl NormalAtError {
     /// # Errors
     ///
     /// [`geom_brep::ladder::Aborts`] for a point definitely off the
-    /// face's surface: the caller's invariant broken.
+    /// face's surface, the caller's invariant broken, and for a torus the
+    /// model never represents.
     pub const fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         use geom_brep::ladder::{Aborts, Refusal};
         match self {
-            Self::Escalated { diag, .. }
-            | Self::SplineCrease {
-                reading: Err(diag), ..
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::SplineCrease { reading, .. } | Self::SplineIrregular { reading, .. } => {
+                Ok(Refusal::of_crease(*reading))
             }
-            | Self::SplineIrregular {
-                reading: Err(diag), ..
-            } => Ok(Refusal::Margin(*diag)),
-            Self::AtConeApex { .. } => Ok(Refusal::InBand),
-            Self::DegenerateTorus { .. }
-            | Self::SplineCrease { reading: Ok(_), .. }
-            | Self::SplineIrregular { reading: Ok(_), .. } => Ok(Refusal::Limit),
-            Self::OffSurface => Err(Aborts),
+            Self::AtConeApex { .. } => Ok(Refusal::of_apex()),
+            Self::DegenerateTorus { .. } | Self::OffSurface => Err(Aborts),
         }
     }
 }
@@ -366,7 +363,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return Ok(None);
     };
     let surface = f.surface();
@@ -474,7 +471,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, FootNormalError> {
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return Ok(None);
     };
     let clear = |margin: Margin<T>| match decide("foot_off_locus", margin, band) {
@@ -576,7 +573,7 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     band: Band,
 ) -> Result<OutwardNormal<T>, SplineNormalError> {
     use geom_brep::ChartPointRefusal;
-    let f = body.passed_face(face).ok_or(SplineNormalError::StaleFace)?;
+    let f = body.face(face).ok_or(SplineNormalError::StaleFace)?;
     let surface = f.surface();
     let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
     if surface.is_placeholder_chart() {
@@ -1225,6 +1222,10 @@ mod tests {
             // chart coordinate.
             ("crates/topo/src/injective.rs", "side"),
             ("crates/topo/src/shell.rs", "thickness"),
+            // The loop rule's start: a test sheet's loop is walked from
+            // the mirrored chart coordinate at sense `false`
+            // (`chord_join::island_rows`), a chart coordinate, no normal.
+            ("crates/topo/src/chord_join/island_rows.rs", "at"),
         ]
         .into_iter()
         .map(|(f, a)| (f.to_string(), a.to_string()))

@@ -2457,7 +2457,11 @@ mod directed {
         /// ([`super::PendingRunOut::rides`]) each decide under a key of
         /// their own.
         pub(super) fn across(&self, p: Point2<T>) -> T {
-            self.dir.unit.perp_dot(p - self.anchor)
+            geom_core::Line2 {
+                origin: self.anchor,
+                dir: self.dir.unit,
+            }
+            .side(p)
         }
 
         /// How far along this line's direction `p` stands from `from`,
@@ -3504,6 +3508,14 @@ fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc
 /// angle about it is 2δ, whose quarter-tangent X is.
 fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
     let d = b - a;
+    // The unit read is the consistent one for this construction. With
+    // `c = a + perp(u)·ρ` and `ρ = |d|²/(2·u×d)` read on the same stored
+    // `u`, `‖a − c‖ = |u|·|ρ|` and `‖b − c‖² = |d|² − 2ρ·(u×d) + |u|²ρ²`,
+    // which is `|u|²ρ²` exactly: the centre sits on the chord's
+    // bisector whatever `|u|` is, so the arc meets both ends. Reading
+    // `across` through `Line2::side`'s `/|u|` would take it off the
+    // bisector by the unit's rounding (a recorded keep,
+    // `tangent-arcs-construction-reads-across-on-its-stored-unit`).
     let (along, across) = (u.dot(d), u.perp_dot(d));
     let x = crate::sugar::split_half_tan(across, along, d.norm());
     let rho = d.norm_squared() / (T::from_f64(2.0) * across);
@@ -3540,8 +3552,8 @@ fn tangent_arc_geom<T: Decide>(
 ) -> Result<TangentArcGeom<T>, PathError<T>> {
     let d = p - at;
     let u = dep.unit;
-    let along = u.dot(d);
-    let across = u.perp_dot(d);
+    let departure = geom_core::Line2 { origin: at, dir: u };
+    let (along, across) = (departure.height(p), departure.side(p));
     // A target ON the departure line is not a carrier question —
     // the 2026-09-02 ruling took those away — but it is still a
     // GEOMETRY one, and only forward of the tip is it answerable:
@@ -4400,18 +4412,36 @@ impl<T: Decide> Core<T> {
         let w = arr_pos - pending.origin;
         let wn = w.norm_squared().sqrt();
         // (1) a turn zero at tolerance admits no corner: the turn
-        // margin sin φ levered by the anchor separation.
-        let cross = u1.perp_dot(u2);
-        let turn = decide(
-            Gate::PathCornerTurn,
-            // Unsourced lever: the two anchors' separation, a length of the consumed path
-            // with no extent home in `profile`.
-            Margin::levered(cross, geom_core::Lever::unsourced(wn)),
-            band,
-        )
-        .map_err(PathError::escalated)?;
-        let Some((sgn, sense)) =
-            crate::sugar::turn_side::<T>(turn).zip(crate::sugar::turn_sense(turn))
+        // margin sin φ levered by the anchor separation, and only a turn
+        // decided nonzero places the corner (`Line2::meet`).
+        let incoming = geom_core::Line2 {
+            origin: pending.origin,
+            dir: u1,
+        };
+        let arrival = geom_core::Line2 {
+            origin: arr_pos,
+            dir: u2,
+        };
+        let meet = incoming
+            .meet(&arrival, |cross| {
+                decide(
+                    Gate::PathCornerTurn,
+                    // Unsourced lever: the two anchors' separation, a length of the consumed path
+                    // with no extent home in `profile`.
+                    Margin::levered(cross, geom_core::Lever::unsourced(wn)),
+                    band,
+                )
+            })
+            .map_err(PathError::escalated)?;
+        // (2) the corner must lie ahead of the incoming ray's origin
+        // and behind the arrival side's anchor (ray parameters, meters).
+        let (turn, cross, at) = match meet {
+            geom_core::LineMeet::Cross { t, s, turn, det } => (turn, det, Some((t, s))),
+            geom_core::LineMeet::Parallel { det } => (Sign::Zero, det, None),
+        };
+        let Some(((sgn, sense), (t_ray, s_arr))) = crate::sugar::turn_side::<T>(turn)
+            .zip(crate::sugar::turn_sense(turn))
+            .zip(at)
         else {
             return Err(PathError::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
@@ -4423,13 +4453,9 @@ impl<T: Decide> Core<T> {
                 radius: pending.radius,
             });
         };
-        // (2) the corner must lie ahead of the incoming ray's origin
-        // and behind the arrival side's anchor (ray parameters, meters).
-        let t_ray = w.perp_dot(u2) / cross;
-        let s_arr = w.perp_dot(u1) / cross;
         // The corner is derived before the windows are read, because a
         // window refusal is ABOUT it: the sentence names the point.
-        let corner = pending.origin + u1 * t_ray;
+        let corner = incoming.at(t_ray);
         match decide(Gate::PathCornerAdvance, Margin::of(t_ray), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
@@ -4861,14 +4887,13 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
 /// validated or drawn; a question here would be a second one about the
 /// same length, pre-empting the refusals that name it.
 ///
-/// The chord is divided by its largest component before it is
-/// normalized, so its squares are of order one whatever its scale: no
-/// finite chord overflows them or loses them to the subnormal range, at
-/// a point scalar or in an enclosure. Two chords have no length to
-/// divide by. The zero chord (the authored point IS the tip) names no
-/// ray and stands in `+x` for one; a component past the range (a tip
-/// that overflowed) keeps `atan2`'s reading of its heading, the limit
-/// along its infinite axis.
+/// The chord is normalized through [`Vec2::normalize`]'s exact
+/// power-of-two prescale, so no finite chord overflows its squares or
+/// loses them to the subnormal range, at a point scalar or in an
+/// enclosure. Two chords have no length to divide by. The zero chord
+/// (the authored point IS the tip) names no ray and stands in `+x` for
+/// one; a component past the range (a tip that overflowed) keeps
+/// `atan2`'s reading of its heading, the limit along its infinite axis.
 fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
     let witness = d.norm_witness();
     if !is_finite_length(witness) {
@@ -4877,8 +4902,7 @@ fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
     if geom_core::is_exact_zero(witness) {
         return Dir::from_unit(Vec2::new(T::one(), T::zero()));
     }
-    let scaled = d / witness;
-    Dir::from_unit(scaled.normalize())
+    Dir::from_unit(d.normalize())
 }
 
 /// The vector `v` rotated by `by` radians — the one spelling of a
@@ -5690,9 +5714,14 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         tol: Tol,
     ) -> Result<Option<BuiltArc<T>>, PathError<T>> {
         let at = self.tip_pos()?.at;
-        let chord_len = self.arc_chord(end, tol)?;
+        // The chord decided nonzero, so the line through it has a direction.
+        self.arc_chord(end, tol)?;
         let band = linear_band(tol)?;
-        let offset = (end - at).perp_dot(via - at) / chord_len;
+        let offset = geom_core::Line2 {
+            origin: at,
+            dir: end - at,
+        }
+        .side(via);
         // `via` left of the chord puts the arc on the chord's left, which
         // a clockwise turn from `at` traverses.
         let sense = match decide(Gate::PathArcViaOffset, Margin::of(offset), band) {
@@ -6240,7 +6269,13 @@ mod tests {
         assert_eq!(ray(0.0, 1e-13), (0.0, 1.0), "a sub-ε chord");
         assert_eq!(ray(0.0, 0.0), (1.0, 0.0), "the zero chord");
         assert_eq!(ray(-3e300, 4e300), (-0.6, 0.8), "an overflowed length");
-        assert_eq!(ray(3e-300, -4e-300), (0.6, -0.8), "an underflowed length");
+        // The two doubles' true ray is (0.6000000000000000212…,
+        // −0.7999999999999999840…), which rounds to these, not to −0.8.
+        assert_eq!(
+            ray(3e-300, -4e-300),
+            (0.6, -0.799_999_999_999_999_9),
+            "an underflowed length"
+        );
         assert_eq!(
             ray(f64::NEG_INFINITY, 1e307).0,
             -1.0,
@@ -6260,8 +6295,8 @@ mod tests {
     }
 
     /// **The chord door at the interval scalar is sound, and narrow at
-    /// both ends of the range.** The prescale by the largest component
-    /// is the same arithmetic in an enclosure, so an overflowed or an
+    /// both ends of the range.** The prescale is by an exact power of
+    /// two in an enclosure too, so an overflowed or an
     /// underflowed chord's ray encloses `(−1, 0)` and is as narrow as
     /// one along −x of ordinary length; and a chord on `atan2`'s branch
     /// cut (`x < 0`, `y` straddling zero) reads a narrow ray.

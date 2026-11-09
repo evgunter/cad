@@ -41,8 +41,8 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     // Both band faces share ONE sphere surface (the only surface).
     assert_eq!(t.body.surfaces().count(), 1);
     // Every face lies on the unit sphere centered at the origin.
-    let (_, face) = t.body.faces().next().unwrap();
-    let Surface::Sphere { center, radius, .. } = *t.body.get_surface(face.surface).unwrap() else {
+    let (face, _) = t.body.faces().next().unwrap();
+    let Surface::Sphere { center, radius, .. } = *t.body.face_surface(face).unwrap() else {
         panic!("ball face is a sphere");
     };
     assert!(center.distance(geom_core::Point3::origin()).abs() < 1e-12);

@@ -201,16 +201,10 @@ fn conic_plane_candidates<T: Decide>(
     near: T,
     band: Band,
 ) -> Result<([Option<T>; 2], bool), ConicPlaneMeet<T>> {
-    let geom::Frame {
-        origin: center,
-        axis,
-        u_ref,
-    } = *conic.frame();
-    let (s_u, s_v) = conic.semi_axes();
-    let v_ref = axis.cross(u_ref);
-    let d0 = geom::plane_offset(plane_origin, plane_normal, center);
-    let a = u_ref.dot(plane_normal) * s_u;
-    let b = v_ref.dot(plane_normal) * s_v;
+    // The conic's height above the plane, `d0 + a·cos θ + b·sin θ`: the
+    // first harmonic a curve pair's transverse reading is built on
+    // ([`crate::curve_pair::pose`]), one generator for both.
+    let (d0, a, b) = crate::curve_pair::pose::height(conic, plane_origin, plane_normal);
     // powi, NEVER a*a: both amplitudes straddle zero on near-parallel
     // frames (a rim circle against a perpendicular side plane), and a
     // plain interval product's spurious negative low end makes the
@@ -443,10 +437,14 @@ pub fn span_plane_meet<T: Decide>(
                 }
             }
             if graze {
-                return Ok(Some(if roots.is_empty() {
-                    SpanPlaneMeet::Roots(roots)
-                } else {
+                let touch = !roots.is_empty()
+                    || near_span(candidates, (t0, t1)).any(|t| {
+                        graze_reaches_span(conic, (plane_origin, plane_normal), t, (t0, t1), band)
+                    });
+                return Ok(Some(if touch {
                     SpanPlaneMeet::Touch
+                } else {
+                    SpanPlaneMeet::Roots(Vec::new())
                 }));
             }
             roots
@@ -497,6 +495,40 @@ fn near_span<T: Decide>(candidates: [Option<T>; 2], (t0, t1): (T, T)) -> impl It
         .into_iter()
         .flatten()
         .map(move |c| Period::new(T::tau()).near(c, mid))
+}
+
+/// **Whether a graze's roots can reach the span** ([`span_plane_meet`]):
+/// a belly decided `Zero` keeps only the sinusoid's extremum `t`, but the
+/// conic's true roots, if it crosses, lie within `δ = acos(1 − z/r)` of
+/// it (`z` the band's zero, `r` the sinusoid's amplitude), so an
+/// extremum off the span by less than `δ` may have a root on it. Read on
+/// `plane_crossing_graze_reach`, the extremum's metered distance into the
+/// span widened by `δ` at each end; anything short of definitely outside
+/// is a reach, and the door answers a touch.
+fn graze_reaches_span<T: Decide>(
+    conic: &dyn geom::Conic<T>,
+    (on, n): (geom_core::Point3<T>, geom_core::Vec3<T>),
+    t: T,
+    (t0, t1): (T, T),
+    band: Band,
+) -> bool {
+    let (_, a, b) = crate::curve_pair::pose::height(conic, on, n);
+    let r = (a.powi(2) + b.powi(2)).sqrt();
+    let z = T::from_f64(band.zero());
+    let delta = (T::one() - z / r).max(T::zero() - T::one()).acos();
+    let (s_u, s_v) = conic.semi_axes();
+    let meter = conic_meter(s_u, s_v);
+    [
+        Margin::metered(t - (t0 - delta), meter),
+        Margin::metered((t1 + delta) - t, meter),
+    ]
+    .into_iter()
+    .all(|margin| {
+        !matches!(
+            decide("plane_crossing_graze_reach", margin, band),
+            Ok(Sign::Negative)
+        )
+    })
 }
 
 /// **A parameter against a span's ends**, on the lane's own row
@@ -932,6 +964,44 @@ mod tests {
         assert!(
             matches!(parallel, Ok(Some(SpanPlaneMeet::Parallel { offset })) if (offset + 0.25).abs() < 1e-15),
             "parallel at its offset: {parallel:?}"
+        );
+    }
+
+    /// **A graze just off the span's end touches** (review of PR 6609,
+    /// M1): a plane cutting the unit circle `z/2` deep, its extremum half
+    /// the root spread `δ = acos(1 − z)` before `t₀ = 0.3`, crosses the
+    /// circle once inside `[0.3, 2.0]`. The belly reads it a graze and
+    /// keeps only the extremum, which lies off the span; the door still
+    /// answers a touch, never a miss. Clear of the span by twice the
+    /// spread it misses.
+    #[test]
+    fn a_graze_whose_roots_reach_the_span_touches() {
+        use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let z = band.zero();
+        let spread = (1.0 - z).acos();
+        let circle = Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let meet = |theta: f64| {
+            let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
+            let on = Point3::origin() + n * (1.0 - 0.5 * z);
+            span_plane_meet(&circle, (0.3, 2.0), SpanEnds::Ended, on, n, band)
+                .unwrap()
+                .unwrap()
+        };
+        assert!(
+            matches!(meet(0.3 - 0.5 * spread), SpanPlaneMeet::Touch),
+            "{:?}",
+            meet(0.3 - 0.5 * spread)
+        );
+        assert!(
+            matches!(meet(0.3 - 2.0 * spread), SpanPlaneMeet::Roots(ref r) if r.is_empty()),
+            "{:?}",
+            meet(0.3 - 2.0 * spread)
         );
     }
 }

@@ -644,10 +644,7 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         }
         let pt = |v: Vec3<f64>| [exact(v.x), exact(v.y), exact(v.z)];
         let v3 = |v: [f64; 3]| Vec3::new(v[0], v[1], v[2]);
-        let unit = |v: Vec3<f64>| {
-            let n = v.norm();
-            (n > 0.0 && n.is_finite()).then(|| v.normalize())
-        };
+        let unit = |v: Vec3<f64>| v.checked_direction().ok().map(|(d, _)| d);
         for reach in SECTOR_REACHES {
             let r = rho * reach;
             let dt = (r / self.speeds[0]).min(domain.0[0].1 - domain.0[0].0);

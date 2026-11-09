@@ -40,9 +40,9 @@ use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRol
 /// The planar face whose origin sits at height `y` (the caps).
 fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.z - y).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
             )
@@ -564,7 +564,7 @@ fn assert_the_arm_walls_refuse(body: &Body<f64>, t: f64, why: &str) {
             e_at = e.render(geom_brep::recourse::Reading::Build)
         );
     };
-    let normal_x = |f: FaceKey| match body.get_surface(body.get_face(f).unwrap().surface) {
+    let normal_x = |f: FaceKey| match body.face_surface(f) {
         Some(geom::Surface::Plane { normal, .. }) => normal.x.abs(),
         _ => panic!("{f:?} is planar"),
     };
@@ -644,7 +644,7 @@ fn assert_the_tilted_arm_walls_cross(body: &Body<f64>, t: f64, why: &str) -> f64
         );
     };
     assert_eq!(thickness, t, "{why}: the refusal quotes the wall");
-    let normal = |f: FaceKey| match body.get_surface(body.get_face(f).unwrap().surface) {
+    let normal = |f: FaceKey| match body.face_surface(f) {
         Some(geom::Surface::Plane { normal, .. }) => *normal,
         _ => panic!("{f:?} is planar"),
     };
@@ -1524,8 +1524,8 @@ fn a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate() {
     let mut body = tube(0.6, 1.0, 2.0);
     let cyl = |b: &Body<f64>, r: f64| -> FaceKey {
         b.faces()
-            .find(|(_, f)| {
-                matches!(b.get_surface(f.surface), Some(geom::Surface::Cylinder { radius, .. })
+            .find(|(fk, _)| {
+                matches!(b.face_surface(*fk), Some(geom::Surface::Cylinder { radius, .. })
                     if (*radius - r).abs() < 1e-9)
             })
             .map(|(k, _)| k)
@@ -1773,12 +1773,7 @@ fn the_klein_wall_pair_seals_to_its_measured_volume_and_opens_to_the_hand_built_
     let solid = klein_elbow(vec![circle_loop(KLEIN_R + KLEIN_WALL / 2.0)]);
     let caps: Vec<FaceKey> = solid
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                solid.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(solid.face_surface(*fk), Some(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
@@ -1875,12 +1870,7 @@ fn the_klein_elbow_opens_at_one_cap_to_its_measured_volume() {
     let solid = klein_elbow(vec![circle_loop(r)]);
     let cap = solid
         .faces()
-        .find(|(_, f)| {
-            matches!(
-                solid.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
+        .find(|(fk, _)| matches!(solid.face_surface(*fk), Some(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .expect("a partial revolve has a meridian end cap");
     let open = topo::shell_open(
@@ -2109,8 +2099,8 @@ fn a_box_with_an_off_centre_coaxial_bore_hollows_to_its_closed_form() {
 /// on a full revolve is what a cap is worn by.
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -2281,11 +2271,10 @@ fn the_old_rim_composition_refuses_at_the_glue_on_an_annular_cap() {
         (1, 1),
         "the annular cap and its counterpart are one face each"
     );
-    let plane_of =
-        |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
-            other => panic!("a non-planar cap: {other:?}"),
-        };
+    let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
+        Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+        other => panic!("a non-planar cap: {other:?}"),
+    };
     let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
     let (o_onto, _) = plane_of(&sealed, mouth[0]);
     let back = (o_onto - o_from).dot(n_from);
@@ -2353,11 +2342,10 @@ fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
         };
         sealed.mekr_chord(site, tol).expect("the slit mekr");
     }
-    let plane_of =
-        |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
-            other => panic!("a non-planar cap: {other:?}"),
-        };
+    let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
+        Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+        other => panic!("a non-planar cap: {other:?}"),
+    };
     let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
     let (o_onto, _) = plane_of(&sealed, mouth[0]);
     let back = (o_onto - o_from).dot(n_from);
@@ -2781,11 +2769,10 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
             .into_body();
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
-        let plane_of =
-            |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
-                other => panic!("{what}: a non-planar cap: {other:?}"),
-            };
+        let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            other => panic!("{what}: a non-planar cap: {other:?}"),
+        };
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
@@ -2869,11 +2856,10 @@ fn r2_probe_other_two_passes_dump() {
             .into_body();
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
-        let plane_of =
-            |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
-                other => panic!("non-planar: {other:?}"),
-            };
+        let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            other => panic!("non-planar: {other:?}"),
+        };
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
@@ -2994,7 +2980,7 @@ fn face_roles(body: &Body<f64>) -> Vec<(FaceKey, ShellRole)> {
 /// A planar face's origin and OUTWARD normal.
 fn plane_of(body: &Body<f64>, face: FaceKey) -> (geom_core::Point3<f64>, geom_core::Vec3<f64>) {
     let data = body.get_face(face).expect("the face");
-    let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(data.surface) else {
+    let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(face) else {
         panic!("{face:?} is not planar")
     };
     (
@@ -3031,8 +3017,7 @@ fn loop_vertices(body: &Body<f64>, r#loop: topo::LoopKey) -> Vec<topo::VertexKey
 fn boundary_edges(body: &Body<f64>, faces: &[FaceKey]) -> Vec<topo::EdgeKey> {
     let mut out = Vec::new();
     for &face in faces {
-        let data = body.get_face(face).expect("the face");
-        for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+        for (lk, _, _) in body.face(face).expect("the face").loops() {
             out.extend(loop_edges(body, lk));
         }
     }
@@ -3043,8 +3028,7 @@ fn boundary_edges(body: &Body<f64>, faces: &[FaceKey]) -> Vec<topo::EdgeKey> {
 fn boundary_vertices(body: &Body<f64>, faces: &[FaceKey]) -> Vec<topo::VertexKey> {
     let mut out = Vec::new();
     for &face in faces {
-        let data = body.get_face(face).expect("the face");
-        for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+        for (lk, _, _) in body.face(face).expect("the face").loops() {
             out.extend(loop_vertices(body, lk));
         }
     }
@@ -3595,8 +3579,8 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
     let tube_chart = plane_chart_at_y(&tube_body, 0.40);
     let cylinder_of = |body: &Body<f64>, radius: f64| -> Vec<FaceKey> {
         body.faces()
-            .filter(|(_, f)| {
-                matches!(body.get_surface(f.surface),
+            .filter(|(fk, _)| {
+                matches!(body.face_surface(*fk),
                     Some(geom::Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-12)
             })
             .map(|(k, _)| k)
@@ -3618,7 +3602,7 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
         .filter(|(_, f)| f.rings.len() == 1)
         .map(|(k, _)| k)
         .filter(|&k| {
-            matches!(slab.get_surface(slab.get_face(k).expect("face").surface),
+            matches!(slab.face_surface(k),
                 Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
         })
         .collect();
@@ -3628,12 +3612,7 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
     let (hollow_cap, void_cap, _) = hollow_capped_vessel();
     let capped_chart: Vec<FaceKey> = capped
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                capped.get_surface(f.surface),
-                Some(geom::Surface::Sphere { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(capped.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
     vec![
@@ -3815,7 +3794,7 @@ fn a_designated_face_with_a_hole_records_its_promoted_rim() {
         .filter(|(_, f)| f.rings.len() == 1)
         .map(|(k, _)| k)
         .filter(|&k| {
-            matches!(seamless.get_surface(seamless.get_face(k).expect("face").surface),
+            matches!(seamless.face_surface(k),
                 Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
         })
         .collect();

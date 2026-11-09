@@ -2767,7 +2767,7 @@ mod tests {
         assert_eq!(rims, 4, "two semicircles per section");
         let mut on = 0;
         for (fk, face) in body.faces() {
-            let surface = body.get_surface(face.surface).unwrap();
+            let surface = body.face_surface(fk).unwrap();
             let Some(chart) = surface.spline_chart() else {
                 continue;
             };
@@ -2901,7 +2901,7 @@ mod tests {
                 .unwrap();
         let (mut faces, mut worst) = (0, 0.0f64);
         for (fk, face) in body.faces() {
-            let surface = body.get_surface(face.surface).unwrap();
+            let surface = body.face_surface(fk).unwrap();
             if !super::takes_sphere_arm(&body, fk, surface).unwrap() {
                 continue;
             }
@@ -3074,7 +3074,7 @@ mod tests {
             crate::chords::compute_chords(&body, 1e-2, &vids, &mut positions, &mut bounds).unwrap();
         let mut with_poles = 0;
         for (fk, face) in body.faces() {
-            let surface = body.get_surface(face.surface).unwrap();
+            let surface = body.face_surface(fk).unwrap();
             if !super::takes_sphere_arm(&body, fk, surface).unwrap() {
                 continue;
             }

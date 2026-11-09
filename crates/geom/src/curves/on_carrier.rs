@@ -28,7 +28,12 @@
 //! its opposite where the point lies definitely behind it, so an
 //! enclosure of the point's direction never crosses the angle's own cut.
 //! Each polish step is kept only where it decides the gap smaller, so
-//! the foot's gap is never worse than its seed's.
+//! the foot's gap is never worse than its seed's. At a scalar that holds
+//! enclosures, each polish iterate is a point, its bracket's midpoint.
+//! The parameter certifies nothing, so it encloses nothing, and the gap
+//! read at a point carries only the width of `q` and of the carrier.
+//! An iterate held as an enclosure would carry that width into every
+//! later step and compound it.
 //!
 //! **Nearest.** On a line and a circle the foot is the point's nearest
 //! point of the whole carrier ([`Foot::nearest`]). On an ellipse, a
@@ -87,7 +92,7 @@
 //! escalates.
 
 use geom_core::bisect::{Step, bisect};
-use geom_core::k_stats::{check_unlogged, decide, decide_reported, straddle};
+use geom_core::k_stats::{Pick, choose, decide, decide_reported, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed,
 };
@@ -256,7 +261,8 @@ impl CarrierEscalation {
 }
 
 /// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
 pub enum PieceWalkRefusal {
     /// The walk ran past its budget.
     Exhausted,
@@ -288,16 +294,6 @@ impl PieceWalkRefusal {
             Self::Exhausted => "a spline's piece walk ran past its budget",
             Self::Unbounded => "a spline's speed bound is zero or poison",
         }
-    }
-
-    /// The refusal [`Self::sentence`] renders, where it is one, over every
-    /// variant ([`strum::VariantArray`]).
-    #[must_use]
-    pub fn of_sentence(sentence: &str) -> Option<Self> {
-        <Self as strum::VariantArray>::VARIANTS
-            .iter()
-            .copied()
-            .find(|why| why.sentence() == sentence)
     }
 }
 
@@ -364,10 +360,13 @@ pub struct PieceRead<T> {
 impl<T: Decide> Curve3<T> {
     /// **The point-against-span piece walk**: `(t0, t1)` halved depth
     /// first ([`geom_core::bisect`]), each piece read against `q` as
-    /// [`PieceRead`], with `hi` a bound on the carrier's speed. What a
-    /// reading settles is `visit`'s: the one walk behind
-    /// [`Self::clear_of`] and every other reading of a point against a
-    /// span by its pieces.
+    /// [`PieceRead`], with `hi` a bound on the carrier's speed. A point's
+    /// distance from an interval of a line or a circle is closed-form
+    /// ([`Self::distance_within`]); the walk is for what that does not
+    /// answer, a kind with no closed form or a question other than the
+    /// distance. What a
+    /// reading settles is `visit`'s: [`Self::clear_of`] is one, and
+    /// `geom_brep`'s window of a span near a member's ball is another.
     ///
     /// # Errors
     ///
@@ -434,7 +433,7 @@ impl<T: Decide> Curve3<T> {
         };
         let knots = n.knot_values();
         let (lo, hi) = knots.domain();
-        let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
+        let breaks: Vec<T> = knots.breakpoints().collect();
         let mut samples = vec![self.foot_at(q, lo)];
         for k in breaks.windows(2) {
             samples.extend(
@@ -464,7 +463,8 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// Gauss–Newton from `from`, each step kept only where it decides the
-    /// gap smaller, held to `domain` where there is one.
+    /// gap smaller, held to `domain` where there is one. Each iterate is a
+    /// point where the scalar can hold a wider value (module docs).
     fn polish<'c>(
         &'c self,
         q: Point3<T>,
@@ -477,6 +477,11 @@ impl<T: Decide> Curve3<T> {
             let mut t = best.t - (p - q).dot(d) / d.dot(d);
             if let Some((lo, hi)) = domain {
                 t = t.max(lo).min(hi);
+            }
+            if t.point_value().is_none()
+                && let Some((lo, hi)) = t.structure_bracket()
+            {
+                t = T::from_computed(0.5 * (lo + hi));
             }
             let next = self.foot_at(q, t);
             if !smaller(next.gap, best.gap) {
@@ -542,6 +547,37 @@ impl<T: Decide> Curve3<T> {
         })
     }
 
+    /// **`q`'s distance from the interval `(t0, t1)` of the carrier**, in
+    /// closed form where there is one: a line's span read through
+    /// [`crate::Line::foot_within`], and a circle's arc. `None` on every
+    /// other kind, whose reading of a point against an interval is the
+    /// piece walk ([`Self::point_walk`]).
+    ///
+    /// On a circle, the distance to the circle's point at an angle grows
+    /// with the angle's distance from `q`'s azimuth, so the arc's nearest
+    /// point is `q`'s foot on the whole circle where its azimuth, read
+    /// about the arc's middle, lies within half the span of it, and the
+    /// nearer end otherwise. The choice is
+    /// [`select_le_zero`](geom_core::Real::select_le_zero) on that
+    /// angular offset less the half span: exact at `f64`, and where the
+    /// test straddles at `Interval` it hulls both arms, whose low end is
+    /// the whole circle's [`Self::clearance`], so the reading is still a
+    /// lower bound on the distance. An arc of a turn or more is all
+    /// inside.
+    pub fn distance_within(&self, q: Point3<T>, (t0, t1): (T, T)) -> Option<T> {
+        match self {
+            Self::Line(line) => Some((q - line.foot_within(q, (t0.min(t1), t0.max(t1)))).norm()),
+            Self::Circle(_) => {
+                let mid = crate::mid_param(t0, t1);
+                let off = (self.param_near(q, mid)? - mid).abs();
+                let half = (t1 - t0).abs() * T::from_f64(0.5);
+                let ends = (q - self.eval(t0)).norm().min((q - self.eval(t1)).norm());
+                Some((off - half).select_le_zero(self.clearance(q)?, ends))
+            }
+            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+        }
+    }
+
     /// The parameter range a whole-carrier walk covers: a spline's
     /// domain, a closed kind's one turn, a line's nothing (a line's
     /// clearance is closed-form).
@@ -561,13 +597,13 @@ impl<T: Decide> Curve3<T> {
     /// lower bound on `q`'s distance from the interval, past the band,
     /// where it is `Clear`.
     ///
-    /// One of three readings of a point against a pieced curve, each a
-    /// [`Self::point_walk`] whose visit is its stop rule: this one decides
-    /// against the band, logged, and returns the deciding reading, so it
-    /// stops on a piece's reach. `topo`'s containment `ArcPieces::clear`
-    /// reads a caller's unlogged lever as a bool and stops on a failing
-    /// middle point; `pieced_arc`'s `contact` asks where the point sits
-    /// (an end, on, off) on its own ball cover, not a clearance.
+    /// Every reading of a point against a span by pieces whose reach is
+    /// the carrier's speed bound is a [`Self::point_walk`] whose visit is
+    /// its stop rule, and its callers are that list. A line's or a
+    /// circle's distance is closed-form ([`Self::distance_within`]), and
+    /// `topo`'s `pieced_arc` reads its own tighter ball cover. This one
+    /// decides against the band, logged, and returns the deciding reading,
+    /// so it stops on a piece's reach.
     ///
     /// # Errors
     ///
@@ -582,7 +618,7 @@ impl<T: Decide> Curve3<T> {
     ) -> Result<Clearance, CarrierRefusal> {
         let hi = crate::carrier_speed::speed_range(self).1;
         if !geom_core::is_finite_length(hi.get())
-            || decide("curve_carrier_speed", Margin::of(hi.get()), Band::least())
+            || geom_core::k_stats::prove("curve_carrier_speed", Margin::of(hi.get()))
                 != Ok(Sign::Positive)
         {
             return Err(PieceWalkRefusal::Unbounded.into());
@@ -657,14 +693,17 @@ fn spline_starts<T: Decide>(samples: &[Foot<'_, T>]) -> Vec<usize> {
     starts
 }
 
-/// Whether `a` is decided smaller than `b`: a heuristic's choice, read
-/// on the least band so it takes the sign alone, and decided outside the
-/// log (ledger row F32). An undecided pick keeps the candidate already
-/// held, which can lie on another branch of a spline; no reader rests on
+/// Whether `a` is decided smaller than `b`: a heuristic's choice
+/// ([`geom_core::k_stats::choose`], ledger row F32). **At a tie the
+/// candidate already held is kept** (`a` is not smaller): sound because
+/// the pick can lie on another branch of a spline, and no reader rests on
 /// which, since a foot's parameter is read only where something
 /// certifies it ([`OnCarrier::On`], [`Foot::nearest`]).
 fn smaller<T: Decide>(a: T, b: T) -> bool {
-    check_unlogged("curve_foot_polish", b - a, Band::least(), "F32") == Ok(Sign::Positive)
+    match choose("curve_foot_polish", Margin::of(b - a), "F32") {
+        Pick::Positive => true,
+        Pick::Negative | Pick::Tie => false,
+    }
 }
 
 #[cfg(test)]

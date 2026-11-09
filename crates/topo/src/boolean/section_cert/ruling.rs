@@ -458,8 +458,11 @@ pub(super) struct Chart<T: Real> {
 }
 
 impl<T: Real> Chart<T> {
-    fn line(&self, theta: T) -> (Point3<T>, Vec3<T>) {
-        (self.base + self.offset.at(theta), self.dir.at(theta))
+    fn line(&self, theta: T) -> geom::Line<T> {
+        geom::Line {
+            origin: self.base + self.offset.at(theta),
+            dir: self.dir.at(theta),
+        }
     }
 }
 
@@ -645,7 +648,7 @@ fn reading<T: Decide>(
     // One line as `P + u + t·w`, and its coefficients from the same
     // form, with their running bounds.
     let line_at = |theta: T| {
-        let (b, w) = chart.line(theta);
+        let geom::Line { origin: b, dir: w } = chart.line(theta);
         let (b, p) = (
             running::exact_vec(b - Point3::origin()),
             running::exact_vec(at - Point3::origin()),
@@ -748,7 +751,7 @@ fn reading<T: Decide>(
         // within a quarter of the roots' gap (on its branch) and only where
         // it lowers the level.
         let point = |theta: T, branch: Option<Sign>| {
-            let (b, w) = chart.line(theta);
+            let geom::Line { origin: b, dir: w } = chart.line(theta);
             let [p2, p1, p0] = at_line(theta).map(|x| x.value);
             let root = (p1.powi(2) - four * p2 * p0).max(T::zero()).sqrt();
             let q = (p1 + p1.select_le_zero(T::zero() - root, root)) / (T::zero() - two);

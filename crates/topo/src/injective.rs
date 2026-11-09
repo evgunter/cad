@@ -673,8 +673,7 @@ fn rect_jet(
 }
 
 fn unit(v: Vec3<f64>) -> Option<Vec3<f64>> {
-    let n = v.norm();
-    (n.is_finite() && n > 0.0).then(|| v * (1.0 / n))
+    v.checked_direction().ok().map(|(d, _)| d)
 }
 
 fn perp(v: Vec3<f64>, t: Vec3<f64>) -> Vec3<f64> {
@@ -2203,12 +2202,12 @@ impl Trig {
                 if !(exactly(h.pa[0], 0.0) && exactly(h.pb[0], 0.0) && exactly(h.pl[1], 0.0)) {
                     return None;
                 }
-                let v_ref = axis.cross(u_ref);
-                let (s, c) = h.p0[0].sin_cos();
+                let frame = geom::Frame::new(origin, axis, u_ref);
                 // cos(φ + w·t) = cos φ·cos t − w·sin φ·sin t, and
-                // sin(φ + w·t) = sin φ·cos t + w·cos φ·sin t.
-                let at_cos = (u_ref * c + v_ref * s) * radius;
-                let at_sin = (v_ref * c - u_ref * s) * (radius * at(w));
+                // sin(φ + w·t) = sin φ·cos t + w·cos φ·sin t: the radial
+                // and its derivative at φ.
+                let at_cos = frame.radial(h.p0[0]) * radius;
+                let at_sin = frame.tangential(h.p0[0]) * (radius * at(w));
                 Some(Self {
                     c: origin + axis * h.p0[1],
                     a: axis * h.pa[1] + at_cos,
@@ -4854,6 +4853,22 @@ mod rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod presentation_rows {
     use super::*;
+
+    /// **`unit` reads a heading as every refusing door does**: an
+    /// overflowed, underflowed or zero vector names no heading, and one
+    /// past the squares' range but in the format names its own.
+    #[test]
+    fn unit_refuses_a_vector_out_of_the_format_or_zero() {
+        for v in [
+            Vec3::new(1e200, 0.0, 0.0),
+            Vec3::new(1e-170, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+        ] {
+            assert!(unit(v).is_none(), "{v:?} names no heading");
+        }
+        let d = unit(Vec3::new(0.0, 3e-160, -4e-160)).expect("in the format");
+        assert_eq!(d.to_array(), [0.0, 0.6, -0.8], "a small heading");
+    }
     use crate::test_support_fixtures::trv;
     use geom_core::Tol;
 

@@ -225,8 +225,7 @@ fn the_sphere_trim_panics_on_a_torn_curve() {
 fn the_sphere_region_panics_on_a_torn_curve() {
     use super::sphere_region::sphere_face_region;
     let (mut body, face) = cyl_sheet();
-    let ask =
-        |b: &Body<f64>| sphere_face_region(b, face, Point3::origin(), 1.0).map(|r| r.is_some());
+    let ask = |b: &Body<f64>| sphere_face_region(b, face).map(|r| r.is_some());
     assert!(ask(&body).is_ok(), "the sound sheet answers");
     let he = outer_members(&body, face)[0];
     let named = drop_curve(&mut body, he);
@@ -448,6 +447,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             None,
             &crate::sector_shape::SlitTips::default(),
             band(),
+            None,
         )
         .map(drop)
     };

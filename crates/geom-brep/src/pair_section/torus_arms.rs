@@ -13,7 +13,7 @@ use geom_core::{
 };
 
 use super::{ClassCarrier, ComponentShape, SectionComponent};
-use crate::intersect::decide_across;
+use geom_core::k_stats::decide_across;
 
 /// **Why an arm did not count the section.**
 #[derive(Clone, Copy, Debug)]
@@ -780,18 +780,14 @@ const SQUARE_TRACE_ULPS: f64 = 2.0;
 /// `a` about the pivot, which moves it by less than the band anywhere the
 /// section can matter. An undecided margin is not a pose this arm claims.
 pub(super) fn square_pose<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
-    (o, d): (Point3<T>, Vec3<T>),
+    geom::Line { origin: c, dir: a }: geom::Line<T>,
+    partner @ geom::Line { origin: o, dir: d }: geom::Line<T>,
     ball: crate::ExtentBall<T>,
     band: Band,
 ) -> Option<SquareWall<T>> {
     if sign(
         "section_torus_square_wall_tilt",
-        Margin::levered(
-            a.dot(d),
-            super::torus::lever(ball.foot_on(geom::Line { origin: o, dir: d }), ball),
-        ),
+        Margin::levered(a.dot(d), super::torus::lever(ball.foot_on(partner), ball)),
         band,
     ) != Some(Sign::Zero)
     {

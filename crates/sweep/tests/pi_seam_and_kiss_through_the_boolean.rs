@@ -56,16 +56,16 @@ const H: f64 = 2.0;
 
 fn faces_of(b: &Body<f64>, kind: SurfaceKind) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(_, f)| b.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| b.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect()
 }
 
 fn planes_at_z(b: &Body<f64>, z: f64) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                b.get_surface(f.surface),
+                b.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.z - z).abs() < 1e-9 && normal.z.abs() > 0.5
             )

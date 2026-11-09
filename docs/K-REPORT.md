@@ -3616,3 +3616,58 @@ These join:
 
 `plane_crossing_root_in_span` and `plane_crossing_belly_graze` gain the
 region doors' populations.
+
+## ONECOPY addendum (2026-11-06): the sphere cut-in reads the co-surface arm
+
+**Roster change: four names leave, and one joins.** `apply_cut_ins`
+(`topo/src/boolean/ops.rs`) reads where a sphere face's boundary arc meets
+the cut's half-meridian through `geom_brep::curve_pair::on_surface`: the
+arc across the meridian's plane through the plane door
+(`span_plane_meet`, its `plane_crossing_*` rows), each root placed on the
+arc's span by the door (`span_place`), and the root then on the meridian's
+half-plane through the chart's channels. These leave the roster:
+- `bool_sphere_cut_roots_{noise,coaxial,extreme,slack}`, the cut-in's
+  `FirstHarmonicRows`; `circle_roots::FirstHarmonic::conic_off_plane`,
+  which they metered, has no caller left and is retired.
+
+This joins:
+- `bool_sphere_cut_in_plane`: an arc's offset from the meridian's plane
+  it is parallel to (in it, the cut-in refuses as before).
+
+These stay: `bool_sphere_cut_span`, now read only for an arc's direction
+and for the order of two ends split on one arc (a root's place on its
+arc is the plane door's); `bool_sphere_cut_half`, read now as the
+meridian's section of its plane (`SurfaceCurve::section_of`, the same
+length, `h·(p − c)`); `bool_sphere_cut_pole` and
+`bool_sphere_cut_vertex`.
+
+`plane_crossing_root_in_span`, `plane_crossing_belly_graze` and
+`plane_crossing_plane_parallel` gain the cut-in's population.
+
+## ONECOPY addendum (2026-11-09): the planar loop walk's ray reads the co-surface arm
+
+**Roster change: three names leave, and one joins.** A ray of the arc-bearing
+loop walk (`splitting/containment.rs` `conic_crossings`) and a conic arc of the
+loop lie on one plane, so they meet where the arc crosses the ray's square
+plane: through `geom_brep::curve_pair::on_surface` (`SurfaceCurve::u_line` on
+the plane through `q` along `d`, `OnSurface::across`), on the plane door's own
+rows, the root's place on the arc's span among them. These leave the roster:
+- `point_in_arc_loop_conic_disc`, the unit-circle chord's discriminant;
+- `point_in_arc_loop_conic_window` and `point_in_arc_loop_conic_end`,
+  `arc_trim`'s two rows on a ray's crossing (`ARC_LOOP_TRIM`, retired).
+  `arc_trim` keeps its one other consumer, check 9's `ring_outer_arc_*`.
+
+This joins:
+- `point_in_arc_loop_conic_in_plane`: an arc's offset from the ray's square
+  plane it is parallel to, which only the projected read can reach.
+
+**Joins with the door (PR 6609 review, M1):** `plane_crossing_graze_reach`, a
+graze's extremum's metered distance into the span widened by its root spread
+`acos(1 − z/r)` at each end. A belly read `Zero` keeps only the extremum, so
+an extremum just off the span answers a touch, not a miss
+(`span_plane_meet`, for every reader of the door).
+
+`point_in_arc_loop_conic_advance` stays, now `(y − q)·d` in metres along the
+unit ray (the old `s/dn`, the same quantity). `plane_crossing_belly_graze`,
+`_plane_parallel`, `_graze_side` and `_root_in_span` gain the walk's
+population.

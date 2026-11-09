@@ -250,22 +250,43 @@ fn eps_row(eps: f64) -> usize {
 /// middle station are one [`geom::mid_param`] evaluation, and a second
 /// spelling of that point builds a second chain of forms, which reads
 /// here as `Plain/Decision` forms alone.
+///
+/// **Moved with PR 6594** (the profile's chord reads onto
+/// `geom_core::Line2`), with the calls unchanged:
+/// - `Line2::side` and `Line2::height` divide by `|dir|` (the A′
+///   metric reading), where the stored unit was read bare. That adds
+///   all of `Plain/Decision` 9789 → 9815 and `Early/Decision` 30 → 38,
+///   and 22 of each `Assertion` row's growth.
+/// - The other 12 of each (`Plain/Assertion` 2827 → 2861,
+///   `Early/Assertion` 4251 → 4295) are the line×arc pair and the ray
+///   cast: each reading now forms its own `C − a`, where the old code
+///   shared one `to_center`. The values are the same.
+///
+/// Measured by undoing each in turn on the PR's first commit: with both
+/// undone, the ε 1e-9 row's counts and digests are the old pin's.
+///
+/// **When a refused direction began reading its norm once**
+/// (`Vec3::checked_direction_and_length`, which the direction door
+/// also takes its direction from rather than normalizing again):
+/// `Plain/Decision` 9815 →
+/// 9809, `Plain/Assertion` 2861 → 2807, `Early/Assertion` 4295 → 4235,
+/// with the same calls; `Early/Decision` does not move.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 976 forms 9789 frozen 0 digest 8858c21e7c09110b4a4a85bbf14ec889\n\
-     Plain/Assertion calls 532 forms 2827 frozen 0 digest 1e690da705f1ff979f6baa7ebd1b4117\n\
-     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4251 frozen 0 digest 6b3b7bf949a504555358aa0bb0aa7e70",
+     Plain/Decision calls 976 forms 9809 frozen 0 digest 85691fc488314dfa9178aada7b7d8a5c\n\
+     Plain/Assertion calls 532 forms 2807 frozen 0 digest 23aed61776245fd60ded06e51d1a64ba\n\
+     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
+     Early/Assertion calls 532 forms 4235 frozen 0 digest f7e79d81392ee399acb39ea4fe33d62a",
     "\
-     Plain/Decision calls 976 forms 9789 frozen 0 digest 08650e2e51b39ab8a7719732f4e2430a\n\
-     Plain/Assertion calls 532 forms 2827 frozen 0 digest c24c9cc21aa752ba8d607b8a2120d21f\n\
-     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4251 frozen 0 digest f9717af682f90b4f681bdb58875b7142",
+     Plain/Decision calls 976 forms 9809 frozen 0 digest 46a69cbf4d863556afffce3f2493df1a\n\
+     Plain/Assertion calls 532 forms 2807 frozen 0 digest ca86c0a2a8b953f421b787f18b851e46\n\
+     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
+     Early/Assertion calls 532 forms 4235 frozen 0 digest 2a81bb704ba55eefb96301de157dd239",
     "\
-     Plain/Decision calls 976 forms 9789 frozen 0 digest 4b7556244d138ea5c634de0f542b7f0a\n\
-     Plain/Assertion calls 532 forms 2827 frozen 0 digest eae6aef0526c86d2529a6cee68bfb8f7\n\
-     Early/Decision calls 16 forms 30 frozen 0 digest c109ddd3b905b5672a4454b753a3ed8e\n\
-     Early/Assertion calls 532 forms 4251 frozen 0 digest 190715b1f2234c1dd0f536f3d786cbbc",
+     Plain/Decision calls 976 forms 9809 frozen 0 digest 1be4aca2e27bcf361f51b6e4249b1db1\n\
+     Plain/Assertion calls 532 forms 2807 frozen 0 digest 400102962153fb1d7a98a6e99cb8559e\n\
+     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
+     Early/Assertion calls 532 forms 4235 frozen 0 digest b68d8cbe651229cac212e435995984d5",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built

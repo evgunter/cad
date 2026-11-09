@@ -131,7 +131,7 @@ fn mass_properties_reports_the_side_refusal_on_the_half_cap() {
     // exactly, which is what kept this defect out of reach of a branch
     // door (CERT-1's rows admit the pole-crossing arc on purpose).
     let face_a = body.get_face(cap).expect("the half-cap");
-    let surface = body.get_surface(face_a.surface).expect("its sphere");
+    let surface = body.face_surface(cap).expect("its sphere");
     let (outer, _) = topo::props::loop_edges(&body, face_a.outer).expect("its loop");
     let band = geom_core::Band::linear(Tol::witness()).expect("band");
     let fc = geom_brep::props::curved_face(surface, &outer, face_a.sense, band)

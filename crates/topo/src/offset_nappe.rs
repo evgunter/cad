@@ -48,7 +48,7 @@
 //! ([`ReplaceFaceError::NappeStraddles`]), never guessed.
 
 use geom::Surface;
-use geom_core::k_stats::decide;
+use geom_brep::ladder::{Answering, Climb, Disagree, Rung, climb, climb_agreeing};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -133,16 +133,37 @@ pub(crate) fn face_nappe_reading<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Nappe, NappeRefusal<T>> {
-    let view = body.passed_face(face).ok_or(NappeRefusal::Stale)?;
+    let view = body.face(face).ok_or(NappeRefusal::Stale)?;
     let Surface::Cone { apex, axis, .. } = view.surface() else {
         return Ok(Nappe::Opening);
     };
     let (station_min, station_max) = corner_stations(body, view, *apex, *axis);
-    let lo =
-        decide("offset_nappe", Margin::of(station_min), band).map_err(NappeRefusal::Escalated)?;
-    let hi =
-        decide("offset_nappe", Margin::of(station_max), band).map_err(NappeRefusal::Escalated)?;
-    match (lo, hi) {
+    // The lowest station decided above the apex puts every corner above
+    // it, and the highest decided below puts every corner below: either
+    // answers alone, whatever the other read (`station_min ≤
+    // station_max`; [`climb`], [`Answering::Any`]). Only where neither
+    // does are both read together.
+    let mut signs = [Sign::Zero; 2];
+    let extremes = [
+        (station_min, Sign::Positive, Nappe::Opening),
+        (station_max, Sign::Negative, Nappe::Mirror),
+    ];
+    let alone = climb(
+        Answering::Any,
+        extremes.into_iter().enumerate(),
+        |(at, (station, alone, nappe))| {
+            Rung::decide("offset_nappe", Margin::of(station), band, |d| {
+                signs[at] = d.sign;
+                (d.sign == alone).then_some(nappe)
+            })
+        },
+    );
+    match alone {
+        Climb::Answered { answer, .. } => return Ok(answer),
+        Climb::Undecided(cause) => return Err(NappeRefusal::Escalated(cause)),
+        Climb::Passed => {}
+    }
+    match (signs[0], signs[1]) {
         (Sign::Zero | Sign::Positive, Sign::Positive) => Ok(Nappe::Opening),
         (Sign::Negative, Sign::Negative | Sign::Zero) => Ok(Nappe::Mirror),
         _ => Err(NappeRefusal::Straddles {
@@ -176,32 +197,44 @@ pub fn group_nappe<T: Decide>(
     faces: &[FaceKey],
     band: Band,
 ) -> Result<Nappe, ReplaceFaceError<T>> {
-    let mut agreed: Option<Nappe> = None;
-    for &face in faces {
-        let here = face_nappe(body, face, band)?;
-        match agreed {
-            None => agreed = Some(here),
-            Some(first) if first == here => {}
-            Some(_) => {
-                // `face_nappe` resolved this face and answered `Mirror`
-                // or `Opening` against another member's other answer,
-                // and only a cone has two.
-                let view = body.proven_face(face);
-                let Surface::Cone { apex, axis, .. } = view.surface() else {
-                    unreachable!("{face:?} disagreed on a nappe, which only a cone face has")
-                };
-                let (station_min, station_max) = corner_stations(body, view, *apex, *axis);
-                return Err(ReplaceFaceError::NappeStraddles {
-                    face,
-                    station_min,
-                    station_max,
-                    what: "faces of one cone that do not all lie on the same side of its apex, \
-                           so one offset cannot move them all the same way",
-                });
-            }
+    // Every face's nappe, read as one ladder that checks its answers
+    // agree ([`climb_agreeing`]): a face read in band is kept, and
+    // refuses only where no other face decides; one that does not resolve
+    // or straddles the apex stops the read.
+    let climbed = climb_agreeing(
+        faces,
+        |&face| match face_nappe(body, face, band) {
+            Ok(here) => Rung::Answers(Ok((face, here))),
+            Err(e) => Rung::refused(e, ReplaceFaceError::refusal),
+        },
+        |a, b| matches!((a, b), (Ok((_, x)), Ok((_, y))) if x == y),
+    );
+    match climbed {
+        Ok(Climb::Answered { answer, .. }) => answer.map(|(_, nappe)| nappe),
+        Ok(Climb::Undecided(e)) => Err(e),
+        Ok(Climb::Passed) => Err(ReplaceFaceError::EmptyGroup),
+        // `face_nappe` resolved this face and answered `Mirror` or
+        // `Opening` against another member's other answer, and only a
+        // cone has two.
+        Err(Disagree { other, .. }) => {
+            let face = match other {
+                Ok((face, _)) => face,
+                Err(e) => return Err(e),
+            };
+            let view = body.proven_face(face);
+            let Surface::Cone { apex, axis, .. } = view.surface() else {
+                unreachable!("{face:?} disagreed on a nappe, which only a cone face has")
+            };
+            let (station_min, station_max) = corner_stations(body, view, *apex, *axis);
+            Err(ReplaceFaceError::NappeStraddles {
+                face,
+                station_min,
+                station_max,
+                what: "faces of one cone that do not all lie on the same side of its apex, \
+                       so one offset cannot move them all the same way",
+            })
         }
     }
-    agreed.ok_or(ReplaceFaceError::EmptyGroup)
 }
 
 /// `face`'s extreme corner stations `(min, max)` on the cone

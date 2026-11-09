@@ -37,3 +37,25 @@ pin.
 **Fix**: move the curved containment door and its types to root
 modules, repoint the boolean's readers, and drop `cover.rs`'s
 `names-boolean` line.
+
+## Note from `onecopy/path-parity` (2026-11-09)
+
+The chord_join ring rows on cone, torus and sphere sheets ask the curved
+containment door whether the islands they plant lie in their faces, in
+one test helper, `chord_join::island_rows::assert_in_face`, which reads
+`curved_face_containment`, `FaceContainment` and `ContainError`. Its
+`names-boolean` pin cites this row, and it reads the door from the root
+once the door moves.
+
+## Note from `onecopy/face-placement` (2026-11-09)
+
+The boolean's one placement dispatch is now
+`boolean::contain::placement_on_carrier` (a point held on the face's
+carrier; `face_placement` is the decided-on-plane form), engine-private
+under `[topo.homes]`. Two crate-root sites still spell their own
+plane/curved split over `contfp` and `curved_face_containment`, because
+they cannot reach it from the root: `census.rs` `placed` and
+`cell_region.rs` `place`. When the door moves to the root, they read
+it from there, each with its `OffCarrier → Out (trusted on carrier)`
+policy at the call
+(`work/onecopy/carrier-held-points-are-trusted-not-decided.md`).

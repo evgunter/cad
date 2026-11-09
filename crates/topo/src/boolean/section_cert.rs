@@ -892,7 +892,16 @@ fn torus_pair<T: Decide>(
             // station from the pivot times `1 − cos` (at most `sin²`),
             // and by the offset's part along the tilted axis.
             let turn = |t: &Turn<T>| (c - t.at).dot(a).abs() * t.tilt.powi(2) + t.offset * t.tilt;
-            match axis_pose((c, a), (apex, d), turn, reach.ball(), band) {
+            match axis_pose(
+                geom::Line { origin: c, dir: a },
+                geom::Line {
+                    origin: apex,
+                    dir: d,
+                },
+                turn,
+                reach.ball(),
+                band,
+            ) {
                 AxisPose::Coaxial { slack, .. } => {
                     // In the meridian half-plane about the apex, each
                     // nappe's generator is a line through it at `α` from
@@ -1088,8 +1097,14 @@ fn cone_pair<T: Decide>(
             radius: rc,
             ..
         } => match axis_pose(
-            (apex, cone.a),
-            (origin, d.normalize()),
+            geom::Line {
+                origin: apex,
+                dir: cone.a,
+            },
+            geom::Line {
+                origin,
+                dir: d.normalize(),
+            },
             |_| T::zero(),
             reach.ball(),
             band,
@@ -1111,8 +1126,14 @@ fn cone_pair<T: Decide>(
             half_angle: half_angle2,
             u_ref: u_ref2,
         } => match axis_pose(
-            (apex, cone.a),
-            (apex2, d.normalize()),
+            geom::Line {
+                origin: apex,
+                dir: cone.a,
+            },
+            geom::Line {
+                origin: apex2,
+                dir: d.normalize(),
+            },
             // The apexes' gap is read off `apex2` itself, which the turn
             // onto the first axis moves along it by its station from the
             // pivot times `1 − cos`, at most `sin²`.
@@ -1697,12 +1718,11 @@ fn sphere_plane<T: Decide>(
 
 /// **Sphere × sphere**: one circle.
 fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Band) -> Section<T> {
-    let dd = (c2 - c1).norm();
+    let (k, dd) = (c2 - c1).direction_and_length();
     const REACH: &str = "section_sphere_pair_reach";
     const NEST: &str = "section_sphere_pair_nest";
     match signs([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
         Ok([true, true]) => {
-            let k = (c2 - c1) / dd;
             let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
             let rad = ((r1 - x) * (r1 + x)).sqrt();
             // Picked off the axes, as `sphere_plane`'s witness is.
@@ -1722,7 +1742,6 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
             tan.into()
         }
         Err(tan) => touch(tan, &[REACH, NEST], || {
-            let k = (c2 - c1) / dd;
             c1 + k * ((dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd))
         }),
     }
