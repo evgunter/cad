@@ -81,12 +81,8 @@ fn the_chamfered_cube() {
 
     // Every face is a plane — the whole claim of the analytic case.
     for (k, _) in out_body.faces() {
-        let fd = out_body.get_face(k).expect("a face");
         assert!(
-            matches!(
-                out_body.get_surface(fd.surface),
-                Some(Surface::Plane { .. })
-            ),
+            matches!(out_body.face_surface(k), Some(Surface::Plane { .. })),
             "a chamfered cube carries planes only; face {k:?} does not"
         );
     }

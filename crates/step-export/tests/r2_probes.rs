@@ -38,12 +38,7 @@ fn r2_lamina_verdicts_versus_measured_volume() {
     );
     let walls: Vec<_> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     for k in walls {

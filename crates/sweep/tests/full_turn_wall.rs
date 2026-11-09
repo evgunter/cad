@@ -70,7 +70,7 @@ fn bead(pose: &Pose, big_r: f64, r: f64, turn: Revolution<f64>) -> Body<f64> {
 fn the_face(body: &Body<f64>, cyl: bool) -> FaceKey {
     let found: Vec<FaceKey> = body
         .faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
+        .filter(|(fk, _)| match body.face_surface(*fk) {
             Some(Surface::Cylinder { .. }) => cyl,
             Some(Surface::Sphere { .. }) => !cyl,
             _ => false,
@@ -258,7 +258,7 @@ fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
         .into_body();
     let sphere = body
         .faces()
-        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .expect("the sphere")
         .1
         .surface;
@@ -268,7 +268,7 @@ fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
     let on_sphere = |pol: f64, a: f64| pose.at(pol.sin(), pol.cos(), a);
     let sphere_faces = |body: &Body<f64>| -> Vec<FaceKey> {
         body.faces()
-            .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
             .map(|(k, _)| k)
             .collect()
     };
@@ -477,7 +477,7 @@ fn a_point_on_a_full_turn_walls_seam_is_on_its_edge() {
     ]);
     let cones: Vec<FaceKey> = frustum
         .faces()
-        .filter(|(_, f)| matches!(frustum.get_surface(f.surface), Some(Surface::Cone { .. })))
+        .filter(|(fk, _)| matches!(frustum.face_surface(*fk), Some(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(cones.len(), 1, "one full-turn cone wall");

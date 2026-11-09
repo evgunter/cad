@@ -90,7 +90,7 @@ pub enum PairUnread {
 /// an at-rest operand by tier 1, mid-operation by
 /// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     let ball = match f.surface().cover() {
         Ok(cover) => ExtentBall::of_cover(&cover),
         Err(_) => {
@@ -110,7 +110,7 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
 /// like any other), and a miss panics (on an at-rest body by tier 1,
 /// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     Some(
         f.boundary()
             .map(|member| match member {
@@ -182,7 +182,7 @@ pub(crate) fn pair_extent<T: Decide>(
 /// public door keeps live, and which the reduction's operators keep
 /// live mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]).
 pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     // `sense` is the material-side bit: true means the face's outward
     // normal IS the chart normal, which for a sphere/cylinder chart
     // points away from the centre/axis. Read as a BIT, never as a

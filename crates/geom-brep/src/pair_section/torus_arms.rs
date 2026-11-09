@@ -13,7 +13,7 @@ use geom_core::{
 };
 
 use super::{ClassCarrier, ComponentShape, SectionComponent};
-use crate::intersect::decide_across;
+use geom_core::k_stats::decide_across;
 
 /// **Why an arm did not count the section.**
 #[derive(Clone, Copy, Debug)]

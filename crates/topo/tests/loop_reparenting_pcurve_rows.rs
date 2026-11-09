@@ -263,10 +263,9 @@ fn sheet() -> Sheet {
 
 /// `(rows stored, half-edges with no row)` over every loop of `face`.
 fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
-    let f = body.get_face(face).unwrap();
     let mut stored = 0;
     let mut rowless = 0;
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             continue;
         };
@@ -717,9 +716,10 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
 
 /// Every half-edge of `face`'s loops.
 fn halves_of(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
             topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
             topo::LoopBoundary::Empty { .. } => None,
@@ -732,9 +732,8 @@ fn halves_of(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
 /// certificate and its joint element — what "byte for byte" means for
 /// a carry.
 fn rows_deep(body: &Body<f64>, face: FaceKey) -> Vec<String> {
-    let f = body.get_face(face).unwrap();
     let mut out = Vec::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             continue;
         };
@@ -1225,7 +1224,7 @@ fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurv
     let bottom = s.body.get_half_edge(he_at(&s.body, s.low, a)).unwrap().edge;
     let mid = s.body.get_half_edge(he_at(&s.body, s.low, c)).unwrap().edge;
     let back = s.body.get_face(s.plane).unwrap().clone();
-    let original = s.body.get_surface(back.surface).unwrap().clone();
+    let original = s.body.face_surface(s.plane).unwrap().clone();
     // A back on the cylinder under a second key (the second-key row)
     // contains the rims, and its key is that row's subject: it is left
     // where it is.

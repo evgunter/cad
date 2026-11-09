@@ -435,7 +435,7 @@ fn face_loops<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, LadderRefusal> {
-    let f = body.passed_face(face).ok_or(LadderRefusal::Desync {
+    let f = body.face(face).ok_or(LadderRefusal::Desync {
         face,
         what: "face no longer resolves",
     })?;

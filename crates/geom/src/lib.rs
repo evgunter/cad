@@ -176,9 +176,10 @@ pub use curves::{
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, MajorFrame, NurbsCurve2, NurbsCurve3,
     OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
-    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
-    ellipse_level_clearance, spiric_curvature_sup, spiric_f_range, spiric_period_rate_bounds,
-    spiric_radial, spiric_rate_bounds, spiric_window_rate_bounds,
+    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime, SpiricRegimeSites,
+    compose_chain, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range,
+    spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
+    spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use frame::{Frame, plane_offset, plane_offset_rounded};
@@ -191,9 +192,10 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate,
-    PLACEHOLDER_SURFACE, SheetApex, SpindleEnd, SpindleMiss, Surface, SurfaceData, SurfaceDatum,
-    SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind, SurfacePairing, SurfaceProjection,
-    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, is_ring_torus, meridian_side,
-    require_ring_torus, ring_torus, sheet_apex, spindle_sheet, torus_tube,
+    AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
+    OffsetCertificate, PLACEHOLDER_SURFACE, RingTorus, SheetApex, SpindleEnd, SpindleMiss, Surface,
+    SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind,
+    SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
+    is_ring_torus, meridian_side, require_ring_torus, ring_torus, sheet_apex, spindle_sheet,
+    torus_tube,
 };

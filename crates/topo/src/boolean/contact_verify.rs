@@ -174,10 +174,10 @@ pub fn tangent_pair_relation<T: Decide>(
     // This is a public door, so a stale face key is the caller's input
     // and refuses typed.
     let (face_a, face_b) = (
-        a.passed_face(fa).ok_or(ContactRefusal::NotCertifiable {
+        a.face(fa).ok_or(ContactRefusal::NotCertifiable {
             what: "the A-side face does not resolve",
         })?,
-        b.passed_face(fb).ok_or(ContactRefusal::NotCertifiable {
+        b.face(fb).ok_or(ContactRefusal::NotCertifiable {
             what: "the B-side face does not resolve",
         })?,
     );

@@ -321,20 +321,17 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     let mut body = plate.clone().into_body();
     let plate_faces: std::collections::BTreeSet<_> = body.faces().map(|(k, _)| k).collect();
     topo::graft_disjoint(&mut body, &boss).unwrap();
-    let is_cyl = |body: &Body<f64>, f: &topo::Face| {
-        matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Cylinder { .. })
-        )
+    let is_cyl = |body: &Body<f64>, f: topo::FaceKey| {
+        matches!(body.face_surface(f), Some(geom::Surface::Cylinder { .. }))
     };
     let plate_walls: Vec<_> = body
         .faces()
-        .filter(|(k, f)| plate_faces.contains(k) && is_cyl(&body, f))
+        .filter(|(k, _)| plate_faces.contains(k) && is_cyl(&body, *k))
         .map(|(k, _)| k)
         .collect();
     let boss_walls: Vec<_> = body
         .faces()
-        .filter(|(k, f)| !plate_faces.contains(k) && is_cyl(&body, f))
+        .filter(|(k, _)| !plate_faces.contains(k) && is_cyl(&body, *k))
         .map(|(k, _)| k)
         .collect();
     println!(

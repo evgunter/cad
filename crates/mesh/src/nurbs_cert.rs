@@ -2211,8 +2211,8 @@ pub(crate) mod tests {
     fn a_lofted_circle_straddler_reads_its_true_deviation() {
         let body = sweep::test_support::lofted_cylinder(1.0, Tol::witness());
         let mut walls = 0;
-        for (fk, face) in body.faces() {
-            let Some(geom::Surface::Nurbs(wall)) = body.get_surface(face.surface) else {
+        for (fk, _) in body.faces() {
+            let Some(geom::Surface::Nurbs(wall)) = body.face_surface(fk) else {
                 continue;
             };
             walls += 1;
@@ -2857,8 +2857,8 @@ pub(crate) mod tests {
         let body = sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
             .expect("the rational pie lofts")
             .body;
-        for (_, face) in body.faces() {
-            if let Some(geom::Surface::Nurbs(p)) = body.get_surface(face.surface)
+        for (fk, _) in body.faces() {
+            if let Some(geom::Surface::Nurbs(p)) = body.face_surface(fk)
                 && p.constant_weight().is_none()
             {
                 return (**p).clone();

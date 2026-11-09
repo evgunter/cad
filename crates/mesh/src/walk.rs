@@ -376,9 +376,10 @@ pub(crate) fn overused_identified_edge_in(
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
 /// of a whole number of turns from it; otherwise (`raw` about half a turn
 /// from `prev`) the copy of the two either side nearer `anchor` (module
-/// docs: the wire-band pole junction, meridians exactly π apart). A
-/// two-reference rule [`Period::near`] does not state, so it is not that
-/// door (`work/onecopy/held-angle-renames-the-angle-reads-sweep-left.md`).
+/// docs: the wire-band pole junction, meridians exactly π apart). Not
+/// [`Period::near`], which renames about one reference and breaks only an
+/// exact tie, to the upper copy: here a whole zone, a quarter turn either
+/// side of the tie, is placed by a second reference, `anchor`.
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
     let k = (prev - raw) / TAU;
     if (k - k.round()).abs() < 0.25 {
@@ -913,11 +914,7 @@ pub(crate) fn loop_polygon(
     let face_record = body
         .get_face(face)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    let surface = body
-        .get_surface(face_record.surface)
-        .ok_or(TessellateError::MissingEntity {
-            what: "face surface",
-        })?;
+    let surface = crate::tessellate::face_surface(body, face)?;
     let surface_kind = surface.kind();
     require_a_meridian(kinds, face, surface_kind)?;
     let m = travs.len();
@@ -2008,11 +2005,11 @@ mod tests {
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let chords =
             crate::chords::compute_chords(&body, 0.05, &vids, &mut positions, &mut bounds).unwrap();
-        let (fk, face) = body
+        let (fk, _) = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
             .expect("the revolve mints a sphere wall");
-        let chart = Chart::of(body.get_surface(face.surface).unwrap()).unwrap();
+        let chart = Chart::of(body.face_surface(fk).unwrap()).unwrap();
         for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
             let _ = loop_polygon(
                 &body,
