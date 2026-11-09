@@ -1215,3 +1215,10 @@
     - `SplineError::payload()` retires into `fact()`.
     - Mixed arms are split.
     - (C) is rejected: an ending in the wrapper would be a third spelling, and wrong at the stored and import doors.
+- 2026-11-09 19:10Z 6665 (line-placement) FULL review: FIX. Zero outcome moves at both ε; the merge is clean. Back to the spiric/line lane:
+  - five torus.rs Ring-field lines → `ring.frame().axis_line()`;
+  - `Ray::advance` has no caller;
+  - `Ray::ahead` ignores `self`;
+  - the unit-dir doc claim;
+  - the unrecorded holders: link.rs `ahead`/`past` under LINK_AHEAD, revolve `AxisFrame`, blend `Meridian`;
+  - the conearm row's priority/cost.
