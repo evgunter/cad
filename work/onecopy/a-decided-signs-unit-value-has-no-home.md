@@ -2,8 +2,10 @@
 id: a-decided-signs-unit-value-has-no-home
 kind: issue
 title: A ±1 read off a decided Sign is spelled six times, with −1 three ways, and has no NonzeroSign → T home
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6641
 ---
 
 
@@ -26,3 +28,11 @@ Found by the FULL review of PR 6615 (`onecopy/unit-sign`, head 55adff6b). That P
 **The sweep should also cover:**
 - `match … { Positive => one, Negative => -one }`, which 6615's second pass did not;
 - the three spellings of −1 above.
+
+## Closed (2026-11-09, PR 6641)
+
+`geom_core::k_stats::NonzeroSign::unit` is the home, with
+`Sign::nonzero` for each caller's own `Zero` refusal. The six listed
+sites and two more the sweep found read it. `props/curved.rs` carries a
+rim's direction and a torus meridian's orientation as `NonzeroSign`, so
+`t_sign` and `unreachable_zero` are gone.

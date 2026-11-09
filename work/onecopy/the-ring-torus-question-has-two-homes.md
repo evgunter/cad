@@ -2,8 +2,10 @@
 id: the-ring-torus-question-has-two-homes
 kind: issue
 title: Whether a torus is a ring is decided by geom::ring_torus and again by Variety::of, and census drops Variety::of's Indeterminate
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6641
 ---
 
 
@@ -27,3 +29,12 @@ Found by the FULL review of PR 6616 (`onecopy/variety-gaps`, head 94036920), not
 3. census.rs's site gets a type that cannot drop the refusal.
 
 **Note (2026-11-09, PR 6621).** PR 6621 adds `geom::RingTorus<T>`, a value that carries the ring decision. Once it can be made only by deciding (`RingTorus::of(major, minor, band)`), it is the typed carrier this row's fix wants. `Variety::of` can take one, or return one, instead of deciding R − r by its own spelling.
+
+## Closed (2026-11-09, PR 6641)
+
+`geom::RingTorus::of_at(major, minor, sites, band)` decides both halves
+of the convention under a reader's own rows (`geom::RingSites`).
+`Variety::of` and `injective.rs` `by_kind` read it. The convention's own
+doors read it under `RingSites::CONVENTION`. Census reads
+`Variety::quadric`, which decides nothing, so it has no refusal to drop.
+reduce's in-band → `false` reading is an explicit arm, pinned by a row.
