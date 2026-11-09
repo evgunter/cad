@@ -664,6 +664,13 @@ fn first_hit(
     let delta_of = |t: f64| (t - ray.from) * ray.sign;
     // How far along the ray its parameter `t` lies: on a circle, the
     // representative in `(lead, lead + τ]`, past the start by at most a turn.
+    // That window is a turn from the start only while `lead`, the band's
+    // escalation over the circle's radius, is under a turn: a circle that
+    // small is inside its own band.
+    debug_assert!(
+        !matches!(ray.carrier, Curve3::Circle(..)) || lead < core::f64::consts::TAU,
+        "a ray circle within its own band (lead {lead})"
+    );
     let walked = |t: f64| {
         let delta = delta_of(t);
         if matches!(ray.carrier, Curve3::Circle(..)) {

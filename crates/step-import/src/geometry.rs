@@ -172,7 +172,8 @@ mod tests {
 
     /// **A conic edge's interval is `[0, τ)` at its start and `(t0, t0 + τ]`
     /// at its end, exactly at both open ends.** A seam start reads `0`,
-    /// not `τ`; an end at the start's own point, on an edge whose two
+    /// not `τ`, and so does one a hair under the seam, whose lift rounds
+    /// onto `τ`; an end at the start's own point, on an edge whose two
     /// vertices are distinct, reads a whole turn on, never a zero-length
     /// arc, at a start where `Period::near` about `t0 + π` would keep it.
     #[test]
@@ -189,6 +190,14 @@ mod tests {
             panic!("an arc")
         };
         assert_eq!(t0.to_bits(), 0.0_f64.to_bits(), "a seam start reads 0");
+        let under_seam = Point3::new(1.0, -1e-17, 0.0);
+        let Ok((t0, _)) = endpoint_params(3, &carrier, under_seam, below, false) else {
+            panic!("an arc")
+        };
+        assert!(
+            (0.0..core::f64::consts::TAU).contains(&t0),
+            "a start a hair under the seam reads in [0, τ), not {t0}"
+        );
         assert!(
             (t1 - 1.5 * core::f64::consts::PI).abs() < 1e-12,
             "the end three quarters on: {t1}"

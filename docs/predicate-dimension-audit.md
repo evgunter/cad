@@ -1568,7 +1568,9 @@ Flagged, NOT fixed here (dispositions):
     (`period_window_end`, a `k_stats::choose` under this row): the side of `a` on which `near`'s copy about
     `a` lies, which decides whether it is lifted a period into
     `(a, a + P]` or `[a, a + P)`. A tie, the side decided zero or
-    undecided, takes the window's closed end. Step-import's conic edge
+    undecided, takes the window's closed end. Closed at `a`, a lift that
+    rounds onto `a + P` (`period_window_open_end`, the same door) reads
+    `a`. Step-import's conic edge
     intervals, its rim split and its ray walk read here.
     Those three read at `f64`, where the side of `a` is a float
     difference's sign and is exact. An extent formed off the window

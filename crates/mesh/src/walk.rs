@@ -376,9 +376,10 @@ pub(crate) fn overused_identified_edge_in(
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
 /// of a whole number of turns from it; otherwise (`raw` about half a turn
 /// from `prev`) the copy of the two either side nearer `anchor` (module
-/// docs: the wire-band pole junction, meridians exactly π apart). A
-/// two-reference rule [`Period::near`] does not state, so it is not that
-/// door.
+/// docs: the wire-band pole junction, meridians exactly π apart). Not
+/// [`Period::near`], which renames about one reference and breaks only an
+/// exact tie, to the upper copy: here a whole zone, a quarter turn either
+/// side of the tie, is placed by a second reference, `anchor`.
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
     let k = (prev - raw) / TAU;
     if (k - k.round()).abs() < 0.25 {

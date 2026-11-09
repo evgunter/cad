@@ -357,9 +357,13 @@ impl<T: Decide> Period<T> {
     ///
     /// **A tie takes the closed end.** Where the copy's side of `a`
     /// decides zero or is undecided, the answer is the copy at
-    /// `a + length`, as [`Period::near`]'s tie takes its upper copy; both
-    /// copies name the same point, so the decision is outside the log (F31,
-    /// as `near`'s). Its twin closed at `a` is [`Period::at_or_above`].
+    /// `a + length`, as [`Period::near`]'s tie takes its upper copy. The
+    /// two copies name the same point, but not the same window: an extent
+    /// formed off it (an arc's `t1 − t0`, a whole turn or none) rests on
+    /// the pick. It is outside the log (F31) because at `f64` the side is
+    /// a float difference's sign, which is exact. A caller that forms an
+    /// extent off the window at an enclosure scalar must decide the side
+    /// at its own band. Its twin closed at `a` is [`Period::at_or_above`].
     #[must_use]
     pub fn above(self, t: T, a: T) -> T {
         self.in_window(t, a, Closed::Upper)
@@ -369,8 +373,9 @@ impl<T: Decide> Period<T> {
     /// window closed at `a`: a `t` equal to `a` reads itself, bit for bit,
     /// and one equal to `a + length` reads `a`'s copy. A tie (the copy's
     /// side of `a` decided zero or undecided) takes the closed end, the
-    /// copy at `a`. The twin open at `a`, and the rest of the reading, is
-    /// [`Period::above`].
+    /// copy at `a`, and so does a copy just under `a` whose lift rounds
+    /// onto `a + length`, the excluded end. The twin open at `a`, and what
+    /// rests on the pick, is [`Period::above`].
     #[must_use]
     pub fn at_or_above(self, t: T, a: T) -> T {
         self.in_window(t, a, Closed::Lower)
@@ -378,18 +383,36 @@ impl<T: Decide> Period<T> {
 
     /// The copy of `t` in the window of one period from `a`, closed at
     /// `closed`: `t`'s copy near `a`, lifted a period where it lies on
-    /// the side of `a` the window excludes.
+    /// the side of `a` the window excludes. A copy an ulp or so under `a`
+    /// lifts to a value that rounds onto `a + length`; closed at `a`, that
+    /// is the excluded end, and the copy reads `a` instead.
     fn in_window(self, t: T, a: T, closed: Closed) -> T {
+        use crate::k_stats::{Pick, choose};
         let n = self.near(t, a);
-        use crate::k_stats::Pick;
         let lift = match (
             closed,
-            crate::k_stats::choose("period_window_end", Margin::of(n - a), "F31"),
+            choose("period_window_end", Margin::of(n - a), "F31"),
         ) {
             (Closed::Upper, Pick::Positive) | (Closed::Lower, Pick::Positive | Pick::Tie) => false,
             (Closed::Upper, Pick::Negative | Pick::Tie) | (Closed::Lower, Pick::Negative) => true,
         };
-        if lift { n + self.length } else { n }
+        if !lift {
+            return n;
+        }
+        let lifted = n + self.length;
+        let open_end = a + self.length;
+        match closed {
+            Closed::Lower
+                if choose(
+                    "period_window_open_end",
+                    Margin::of(lifted - open_end),
+                    "F31",
+                ) != Pick::Negative =>
+            {
+                a
+            }
+            _ => lifted,
+        }
     }
 
     /// **The turn rule** (module docs): `extent` against one period, at
@@ -932,8 +955,9 @@ mod period_rows {
     /// **`above` and `at_or_above` hold both ends of their windows.** At
     /// `f64`: a `t` at exactly `a` (on an `a` whose `a + π` rounds short),
     /// one at `a + P`, one a whole period below, and one an ulp inside
-    /// the open end. At `Interval`: a `t` astride `a` is undecided and
-    /// takes the closed end, as narrow as `t`.
+    /// the open end. At `Interval`: a `t` astride `a` is undecided, and
+    /// a `t` at `a` decides zero; each takes the closed end, as narrow as
+    /// `t`.
     #[test]
     fn the_windows_from_an_end_hold_both_ends() {
         use crate::Bounds;
@@ -991,10 +1015,16 @@ mod period_rows {
             bits(inside),
             "above: an ulp past a"
         );
+        let under = a.next_down();
         assert_eq!(
-            bits(period.at_or_above(a.next_down(), a)),
-            bits(a.next_down() + tau),
-            "at_or_above: an ulp under a"
+            bits(under + tau),
+            bits(a + tau),
+            "an ulp under a lifts onto a + P"
+        );
+        let r = period.at_or_above(under, a);
+        assert!(
+            a <= r && r < a + tau,
+            "at_or_above: an ulp under a reads in [a, a + P), not {r}"
         );
         let ia = Interval::from_f64(a);
         let w = Interval::from_f64(1e-12);
@@ -1011,6 +1041,16 @@ mod period_rows {
             (lo.lo(), lo.hi()),
             (t.lo(), t.hi()),
             "at_or_above: a tie takes a, t itself"
+        );
+        let (hi, lo) = (period.above(ia, ia), period.at_or_above(ia, ia));
+        assert!(
+            hi.lo() <= a + tau && a + tau <= hi.hi() && width(hi) < 1e-14,
+            "above: a decided zero takes a + P, {hi:?}"
+        );
+        assert_eq!(
+            (lo.lo(), lo.hi()),
+            (a, a),
+            "at_or_above: a decided zero is a itself"
         );
     }
 
