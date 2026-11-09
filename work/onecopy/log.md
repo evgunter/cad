@@ -947,3 +947,9 @@
 - 14:25Z PR 6576's gate is red on engine-leaves: names-splitting rose (chord_join.rs 42→44, ring_side_rows.rs 0→11) from the N4 vertex_side pin. My local run-gates passed only because it had no GATE_BASE. Sent to the lane. Local merge checks now run with GATE_BASE=origin/main.
 - 14:30Z The ladder lane opened PR 6637 (ladder leftovers rows 1 and 3, head 6b1a5bbe), stacked on 6576. It closes the T1-leftovers and cone rows and narrows pierce-ranking to wait on 6598. FULL review dispatched.
 - 2026-11-09 ~13:00Z: 6623 delta review (0fe63bfb→) MERGE, no FIX; head 73864634 (doc-only on_carrier.rs census line) gated green; overlapped main on window.rs + from-f64-sites.tsv → merged main (044629e5), build/run-gates clean, pushed, re-gating. N1 (one more pose_extreme log line on the in-plane path) left for the body. Merged 6636 (f5f1b607), 6621 (575ea9d0), 6629 (b9ce5d59), 6608 (397d6e1b) after a combined local merge of all four on main: check --tests + GATE_BASE run-gates clean. 6622 merged main (7f47d090, overlap pair_section/on_carrier; build, gates, pair_section 68/68 clean), re-gating now that the fast-set row moved. 6637 head corrected to 58f167fc for its reviewer.
+- ~13:15Z Re-dispatched three idle lanes (usage is to be spent):
+  - carrier-standing → `onecopy/carrier-standing-2`: typed-refusal items 3 (implement), 7 and 11 (questions to me first); f37 leftovers; holding_face_normal's Ok(None).
+  - census-rosters → `onecopy/census-rosters-2`: roster shape rules, breakpoints gate plants, bare-rounding column 0.
+  - spiric-regime → `onecopy/ring-torus`: ring-torus two homes, decided-sign unit value, arc_trim_margin move.
+  - Queued for needle-tilts once 6623 lands: the parallel/offset gap height and circle_torus graze rows.
+  - 6623 body: N1 disclosed.
