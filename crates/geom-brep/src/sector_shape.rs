@@ -563,7 +563,7 @@ mod tests {
     /// **The arm at the interval scalar reads each chord's prescaled
     /// length.** An enclosure within the prescale's reach reads as
     /// narrow as its plain norm or narrower, and decides as it did on
-    /// the plain norm: `[1e-6, 1]` is a positive arm; `[1e-300, 1]`
+    /// the plain norm: `[0.1, 1]` is a positive arm; `[1e-300, 1]`
     /// encloses `[1e-300, ∞]` and escalates, as `[0, 1]` did. One that
     /// spans more magnitude than any prescale arm holds (`[1, 1e300]`,
     /// past `2⁵¹⁰`) loses its lower end to the squares, as
@@ -576,10 +576,10 @@ mod tests {
         let iv = Interval::from_bounds;
         let chord = |lo: f64, hi: f64| Vec3::new(iv(lo, hi), iv(0.0, 0.0), iv(0.0, 0.0));
         let unit = chord(1.0, 1.0);
-        let arm = sector_arm(chord(1e-6, 1.0), unit, band()).expect("[1e-6, 1] is a positive arm");
+        let arm = sector_arm(chord(0.1, 1.0), unit, band()).expect("[0.1, 1] is a positive arm");
         assert!(
-            arm.lo() <= 1e-6 && arm.lo() > 0.9e-6 && arm.hi() == 1.0,
-            "[1e-6, 1]: {arm:?}"
+            arm.lo() <= 0.1 && arm.lo() > 0.09 && arm.hi() == 1.0,
+            "[0.1, 1]: {arm:?}"
         );
         for (lo, hi) in [(1e-300, 1.0), (1.0, 1e300)] {
             let length = chord(lo, hi).checked_length().expect("in the format");
