@@ -448,6 +448,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             None,
             &crate::sector_shape::SlitTips::default(),
             band(),
+            None,
         )
         .and_then(|read| super::vtxfac::mint_pierce(a, read))
         .map(drop)

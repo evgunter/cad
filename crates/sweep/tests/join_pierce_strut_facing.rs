@@ -321,8 +321,8 @@ fn a_pinch_keeps_one_vertex_per_cone() {
             "{order}: the intersection's cones at v"
         );
         assert_eq!(at_v.len(), 2, "{order}: one vertex per cone at v");
-        for (face, f) in body.faces() {
-            for &l in std::iter::once(&f.outer).chain(&f.rings) {
+        for (face, _) in body.faces() {
+            for (l, _, _) in body.face(face).expect("a live face").loops() {
                 if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
                     let starts: Vec<_> = body
                         .loop_cycle(first)

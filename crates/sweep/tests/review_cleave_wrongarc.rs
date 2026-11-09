@@ -91,9 +91,9 @@ fn disc_below(cx: f64, cy: f64, r: f64, h: f64, plane: &SplitPlane<f64>) -> f64 
 fn sections(half: &Body<f64>, plane: &SplitPlane<f64>) -> Vec<(bool, usize)> {
     let mut v: Vec<_> = half
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                half.get_surface(f.surface),
+                half.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.cross(plane.normal.get()).norm() < 1e-12
                         && (*origin - plane.origin).dot(plane.normal.get()).abs() < 1e-12

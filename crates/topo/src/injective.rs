@@ -673,8 +673,7 @@ fn rect_jet(
 }
 
 fn unit(v: Vec3<f64>) -> Option<Vec3<f64>> {
-    let n = v.norm();
-    (n.is_finite() && n > 0.0).then(|| v * (1.0 / n))
+    v.checked_direction().ok().map(|(d, _)| d)
 }
 
 fn perp(v: Vec3<f64>, t: Vec3<f64>) -> Vec3<f64> {
@@ -4854,6 +4853,22 @@ mod rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod presentation_rows {
     use super::*;
+
+    /// **`unit` reads a heading as every refusing door does**: an
+    /// overflowed, underflowed or zero vector names no heading, and one
+    /// past the squares' range but in the format names its own.
+    #[test]
+    fn unit_refuses_a_vector_out_of_the_format_or_zero() {
+        for v in [
+            Vec3::new(1e200, 0.0, 0.0),
+            Vec3::new(1e-170, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+        ] {
+            assert!(unit(v).is_none(), "{v:?} names no heading");
+        }
+        let d = unit(Vec3::new(0.0, 3e-160, -4e-160)).expect("in the format");
+        assert_eq!(d.to_array(), [0.0, 0.6, -0.8], "a small heading");
+    }
     use crate::test_support_fixtures::trv;
     use geom_core::Tol;
 

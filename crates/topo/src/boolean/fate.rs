@@ -562,9 +562,9 @@ pub(super) fn bisector<T: Decide>(
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     let mid = s.middle();
-    let len = mid.norm();
+    let (dir, len) = mid.direction_and_length();
     match sign(len, T::one(), band)? {
-        Sign::Positive => Ok(mid.normalize()),
+        Sign::Positive => Ok(dir),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
             what: "a sector a half-turn wide reached the fate reading, whose bounds name no inside",
         }),
@@ -1351,8 +1351,10 @@ fn rehome<T: Decide>(
                 .collect(),
         };
         // The ladder ([`climb`]) whose answer is the first vertex placed:
-        // a ring the cut does not cross is on one side, so every vertex
-        // placed reads it alike ([`Answering::Any`]). A vertex on the
+        // a ring the cut does not cross is on one side, and a touch
+        // switches no side, so every vertex placed reads it alike
+        // ([`Answering::Any`]; the premise and its residual, a vertex
+        // the cut did not identify: `chord_join::paths_rung`). A vertex on the
         // boundary passes; a limit and a vertex in band are kept, ranked,
         // and refuse only where no vertex places the ring.
         let placed = climb(Answering::Any, vertices, |v| {

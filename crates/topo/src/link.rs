@@ -79,6 +79,8 @@
 //! [`rest::by_round`] refuse it).
 
 use geom_brep::ladder::{Aborts, Refusal};
+
+use crate::validate::EdgeTangentUnread;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -519,6 +521,10 @@ pub enum TouchUnread {
     /// would part ([`Self::Unreadable`]). Its standing is the reason's
     /// ([`EdgeTangentUnread::refusal`]).
     EdgeTangent(EdgeTangentUnread),
+    /// A curved edge's span does not certify the touch point on its
+    /// interior, where the touch was held inside the edge: two readings
+    /// of one fact disagree. An abort.
+    OffInterior,
     /// The topology around the touch did not read. The census runs only
     /// on bodies tier 1 admits (loops closed, every key resolving), so
     /// this is a kernel defect. An abort.
@@ -531,49 +537,14 @@ impl TouchUnread {
     ///
     /// # Errors
     ///
-    /// [`Aborts`], for an unreadable germ, a corrupt body, or an edge
-    /// tangent whose two readings disagree.
+    /// [`Aborts`], for an unreadable germ, a corrupt body, or a curved
+    /// edge whose two readings of the touch disagree.
     pub const fn refusal(self) -> Result<Refusal, Aborts> {
         match self {
             Self::InBand | Self::PieceInBand => Ok(Refusal::InBand),
             Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
-            Self::EdgeTangent(why) => why.refusal(),
-            Self::Unreadable | Self::Corrupt => Err(Aborts),
-        }
-    }
-}
-
-/// Why a curved edge's tangent at a touch point did not read
-/// ([`TouchUnread::EdgeTangent`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum EdgeTangentUnread {
-    /// The edge's span does not certify the point on its interior: two
-    /// readings of one fact (the touch held inside the edge, and the
-    /// span) disagree. An abort.
-    #[default]
-    OffInterior,
-    /// The edge carries no certified curve. A limit.
-    NoCurve,
-    /// The edge's speed bounds meter no reach or no length over its
-    /// span. A limit.
-    Unmetered,
-    /// A spline edge's piece walk could not run: unsettled where it ran
-    /// past its budget, a limit where it has no speed bound
-    /// ([`Refusal`]'s `From<geom::PieceWalkRefusal>`).
-    Unwalked(geom::PieceWalkRefusal),
-}
-
-impl EdgeTangentUnread {
-    /// What this reason is to a ladder, as each variant's docs state it.
-    ///
-    /// # Errors
-    ///
-    /// [`Aborts`], where the edge's two readings of the touch disagree.
-    pub const fn refusal(self) -> Result<Refusal, Aborts> {
-        match self {
-            Self::OffInterior => Err(Aborts),
-            Self::NoCurve | Self::Unmetered => Ok(Refusal::Limit),
-            Self::Unwalked(why) => Ok(Refusal::of_walk(why)),
+            Self::EdgeTangent(why) => Ok(why.refusal()),
+            Self::Unreadable | Self::OffInterior | Self::Corrupt => Err(Aborts),
         }
     }
 }
@@ -929,15 +900,13 @@ fn pairing<T: Decide>(
 
 /// A chord from the touch point to `q`, as its length: a number, or a
 /// [`TouchUnread::ChordScale`] refusal for an edge too long or too
-/// short to measure. The one home of that question in the analysis.
+/// short to measure. The analysis's other `ChordScale` refusals are of
+/// scalar lengths (a clearance, a face's reach, a lever), not of a
+/// chord.
 fn chord<T: Real>(p: Point3<T>, q: Point3<T>) -> Result<T, TouchUnread> {
-    let v = q - p;
-    let len = v.norm();
-    if !geom_core::is_finite_length(len) || geom_core::is_underflowed_length(len, v.norm_witness())
-    {
-        return Err(TouchUnread::ChordScale);
-    }
-    Ok(len)
+    (q - p)
+        .checked_length()
+        .map_err(|_| TouchUnread::ChordScale)
 }
 
 /// A boundary edge of a face, as its two end points.
@@ -2358,7 +2327,7 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(TouchUnread::Unreadable);
@@ -2428,7 +2397,7 @@ impl<T: Decide> FaceSector<T> {
         p: Point3<T>,
         holds: &[Hold],
     ) -> Result<Vec<Self>, TouchUnread> {
-        let face = body.passed_face(f).ok_or(TouchUnread::Corrupt)?;
+        let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         let geom::Surface::Plane { u_ref, .. } = surface else {
             return Err(TouchUnread::Unreadable);
@@ -2779,15 +2748,13 @@ impl<T: Decide> FaceSector<T> {
         band: Band,
     ) -> Result<RuledChord<T>, TouchUnread> {
         use Sign::{Negative, Positive, Zero};
-        let (centre, axis, apex) = match face.surface {
-            geom::Surface::Cylinder { origin, axis, .. } => {
-                (origin + axis * axis.dot(p - origin), axis, None)
-            }
-            geom::Surface::Cone { apex, axis, .. } => {
-                (apex + axis * axis.dot(p - apex), axis, Some(apex))
-            }
+        let apex = match face.surface {
+            geom::Surface::Cylinder { .. } => None,
+            geom::Surface::Cone { apex, .. } => Some(apex),
             _ => return Err(TouchUnread::Unreadable),
         };
+        let line = face.surface.axis_line().ok_or(TouchUnread::Unreadable)?;
+        let (centre, axis) = (line.foot(p), line.dir);
         let (along, m0) = (face.along, face.outward);
         let radial = p - centre;
         let rho = radial.norm();

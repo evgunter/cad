@@ -51,11 +51,12 @@ use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, Sq
 use super::torus_coincidence::{TorusCoincidence, TorusData, tori_coincide};
 use super::{
     ClassCarrier, Coincident, ComponentShape, Components, PairPose, PairSection, SectionComponent,
-    SectionDecision, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
+    SectionDecision, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
-use crate::intersect::{SectionError, SectionRadius, decide_across_reported};
+use crate::intersect::{SectionError, SectionRadius};
 use crate::torus_convention::TorusRefusal;
+use geom_core::k_stats::decide_across_reported;
 
 // ---------------------------------------------------------------------
 // The axis pose
@@ -268,7 +269,7 @@ impl<T: Decide> Ring<T> {
         Some(
             TorusRefusal::require(major_radius + defect, minor_radius + defect, band)
                 .map_err(TorusPoseRefusal::Torus)
-                .map(|()| Self {
+                .map(|_| Self {
                     center,
                     axis,
                     u_ref,
@@ -516,7 +517,7 @@ fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> Sec
         shape,
         winds,
         touch,
-        ClassCarrier::Unminted(TANGENT_COMPONENT),
+        ClassCarrier::Unminted(super::NoCarrier::Tangent),
     )
 }
 
@@ -852,62 +853,47 @@ impl<T: Decide> CylinderTorusPose<T> {
             (Surface::Torus { .. }, Surface::Cylinder { .. }) => (b, a, false),
             _ => return None,
         };
-        let &Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } = cylinder
-        else {
+        let &Surface::Cylinder { radius, .. } = cylinder else {
             return None;
         };
+        let cylinder_axis = cylinder.axis_line()?.unit();
         let ring = Ring::of(torus, band)?;
         Some((|| {
             radius_guard("ct_cylinder_radius", SectionRadius::Cylinder, radius, band)?;
             let ring = ring?;
-            let d = axis.normalize();
-            let line = Spine::Line(geom::Line { origin, dir: d });
+            let ring_axis = ring.frame().axis_line();
+            let line = Spine::Line(cylinder_axis);
             let sweep = || swept(ring, line, [ring.r, radius], &CT_GAP, band);
-            let (stance, gap) = match axis_pose(
-                ring.frame().axis_line(),
-                geom::Line { origin, dir: d },
-                |_| T::zero(),
-                ring.ball(),
-                band,
-            ) {
-                AxisPose::Coaxial { slack, margin } => {
-                    const WALL: &str = "section_torus_coaxial_wall";
-                    let wall = decide_across_reported(
-                        [WALL, "section_torus_coaxial_wall_floor"],
-                        ring.r - (radius - ring.big_r).abs(),
-                        slack,
-                        band,
-                    )
-                    .map_err(undecided_gap)?;
-                    (
-                        CtStance::Coaxial {
-                            coaxial: margin,
-                            wall,
-                        },
-                        closed_gap(WALL, wall, None),
-                    )
-                }
-                AxisPose::Parallel { e, toward, slack } => {
-                    (CtStance::Parallel { e, toward, slack }, sweep()?)
-                }
-                AxisPose::Undecided(diag) => return Err(undecided_symmetry(diag)),
-                AxisPose::Other => {
-                    match torus_arms::square_pose(
-                        ring.frame().axis_line(),
-                        geom::Line { origin, dir: d },
-                        ring.ball(),
-                        band,
-                    ) {
-                        Some(wall) => (CtStance::Square(wall), sweep()?),
-                        None => (CtStance::General, sweep()?),
+            let (stance, gap) =
+                match axis_pose(ring_axis, cylinder_axis, |_| T::zero(), ring.ball(), band) {
+                    AxisPose::Coaxial { slack, margin } => {
+                        const WALL: &str = "section_torus_coaxial_wall";
+                        let wall = decide_across_reported(
+                            [WALL, "section_torus_coaxial_wall_floor"],
+                            ring.r - (radius - ring.big_r).abs(),
+                            slack,
+                            band,
+                        )
+                        .map_err(undecided_gap)?;
+                        (
+                            CtStance::Coaxial {
+                                coaxial: margin,
+                                wall,
+                            },
+                            closed_gap(WALL, wall, None),
+                        )
                     }
-                }
-            };
+                    AxisPose::Parallel { e, toward, slack } => {
+                        (CtStance::Parallel { e, toward, slack }, sweep()?)
+                    }
+                    AxisPose::Undecided(diag) => return Err(undecided_symmetry(diag)),
+                    AxisPose::Other => {
+                        match torus_arms::square_pose(ring_axis, cylinder_axis, ring.ball(), band) {
+                            Some(wall) => (CtStance::Square(wall), sweep()?),
+                            None => (CtStance::General, sweep()?),
+                        }
+                    }
+                };
             Ok(Self {
                 cylinder: cylinder.clone(),
                 torus: torus.clone(),
@@ -1118,8 +1104,10 @@ impl<T: Decide> TorusTorusPose<T> {
             match tori_coincide(r1.data(), r2.data(), band) {
                 TorusCoincidence::One(_) => return Err(TorusPoseRefusal::Coincident),
                 TorusCoincidence::Undecided(diag) => return Err(undecided_symmetry(diag)),
-                TorusCoincidence::OffRing(t) => return Err(TorusPoseRefusal::Torus(t)),
-                TorusCoincidence::Apart => {}
+                TorusCoincidence::OffRing { refusal, .. } => {
+                    return Err(TorusPoseRefusal::Torus(refusal));
+                }
+                TorusCoincidence::Apart { .. } => {}
             }
             // Both balls hold the section: the smaller is the tighter
             // reach, and where the comparison is not decided either

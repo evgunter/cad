@@ -541,7 +541,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         };
         for &face in &m.faces {
             let data = body
-                .passed_face(face)
+                .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
             let old = data.surface().clone();
             let new = geom_brep::offset_surface(&old, d, band)
@@ -713,15 +713,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             chart_of(fa).unwrap_or_else(|| unmoved_in_scope(fa)),
             chart_of(fb).unwrap_or_else(|| unmoved_in_scope(fb)),
         );
-        let start = linked(
-            &body.half_edges,
-            edge_data.he_plus,
-            EntityId::HalfEdge,
-            EntityId::Edge(edge),
-            "he_plus",
-        )
-        .start;
-        let end = body.proven_half_edge_end(edge_data.he_plus);
+        let (start, end) = crate::query::edge_ends(body, edge);
         let (p_start, p_end) = (
             point_at(start).unwrap_or_else(|| unplaced_in_scope(start)),
             point_at(end).unwrap_or_else(|| unplaced_in_scope(end)),
@@ -1034,25 +1026,13 @@ fn axial_frame<T: Real>(
             continue;
         }
         let found = match f.surface() {
-            Surface::Cylinder { origin, axis, .. } => Some(geom::Line {
-                origin: *origin,
-                dir: axis.normalize(),
-            }),
-            Surface::Cone { apex, axis, .. } => Some(geom::Line {
-                origin: *apex,
-                dir: axis.normalize(),
-            }),
-            Surface::Sphere { center, axis, .. } => Some(geom::Line {
-                origin: *center,
-                dir: axis.normalize(),
-            }),
             // A torus carries `center` + `axis` exactly as a sphere
             // does: the centre is the tube midplane's own point on the
             // axis, and the axis is the revolution axis itself.
-            Surface::Torus { center, axis, .. } => Some(geom::Line {
-                origin: *center,
-                dir: axis.normalize(),
-            }),
+            surface @ (Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }) => surface.axis_line().map(geom::Line::unit),
             Surface::Plane { .. } => None,
             other => {
                 return Err(ReplaceFaceError::TogetherAxialUnsupported {
@@ -1350,7 +1330,7 @@ fn solve_corner<T: Decide>(
 
     let h_old = frame.station(here);
     let radial_old = frame.radial(here);
-    let rho_old = radial_old.norm();
+    let (e_old, rho_old) = radial_old.direction_and_length();
     let mut profiles: Vec<Profile<T>> = Vec::new();
     let mut meridians: Vec<(Vec3<T>, T)> = Vec::new();
     for c in at {
@@ -1617,7 +1597,6 @@ fn solve_corner<T: Decide>(
         }
         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
     }
-    let e_old = radial_old / rho_old;
     match meridians[..] {
         // Carried: the seam's azimuth is the operand's own conventional
         // datum (D2). Carrying it is what makes an unmoved corner come
@@ -2196,7 +2175,7 @@ fn mint_carrier<T: Decide>(
             // own motion is not one.
             (Surface::Cylinder { .. }, Curve3::Line(geom::Line { origin, .. })) => {
                 let e = frame.radial(*origin);
-                let n = e.norm();
+                let (e_hat, n) = e.direction_and_length();
                 match decide("offset_axial_seam_radial", Margin::of(n), band) {
                     Ok(Sign::Positive) => {}
                     Ok(_) => {
@@ -2207,7 +2186,7 @@ fn mint_carrier<T: Decide>(
                     }
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-                translate(e.normalize() * ca.distance)
+                translate(e_hat * ca.distance)
             }
             // A sphere's seam is a GREAT circle about the sphere's own
             // centre, and the offset is concentric: same centre, same

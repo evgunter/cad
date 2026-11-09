@@ -882,32 +882,21 @@ impl Camera {
             f.y + r.y * sx + u.y * sy,
             f.z + r.z * sx + u.z * sy,
         );
-        // `powi(2)`, not `x * x` — the ratified interval-square rule
-        // (`scripts/gates/interval-square-allowlist.sh`), which this
-        // file is subject to like every other. The rule's own reason is
-        // the gate's: `powi(2)` is strictly tighter than `x * x` when
-        // the enclosure straddles zero and equal elsewhere, EXCEPT for a
-        // square below 2^-960 where the backend pads once more — so it
-        // is not "never wider", and whether a given enclosure can
-        // straddle zero is a global property of upstream callers that
-        // refactors change silently. Which is why the spelling is a
-        // gate rather than a judgement call at each site.
-        let len = (dir.x.powi(2) + dir.y.powi(2) + dir.z.powi(2)).sqrt();
         // `forward` is a unit vector and the offsets are perpendicular
         // to it, so the length is at least 1 for every finite cursor;
         // the guard is here because a non-finite one would otherwise
         // divide by NaN and hand back a poisoned ray as if it were an
         // answer, and the finiteness checks above are on the INPUT,
         // not on the arithmetic.
-        if !(len.is_finite() && len > 0.0) {
+        let Ok((unit, _)) = dir.checked_direction() else {
             return Err(CameraError::NotFinite {
                 what: "ray direction",
-                value: len,
+                value: dir.norm(),
             });
-        }
+        };
         Ok(Ray {
             origin: self.eye(),
-            dir: Vec3::new(dir.x / len, dir.y / len, dir.z / len),
+            dir: unit,
         })
     }
 }

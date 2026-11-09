@@ -441,11 +441,7 @@ pub(super) fn across<T: Decide>(
     rb: &Read<T>,
     band: Band,
 ) -> Vec<geom_core::UnitVec3<T>> {
-    let unit = |v: Vec3<T>| {
-        is_finite_length(v.norm())
-            .then(|| geom_core::UnitVec3::new(v, DEPTH_ACROSS, band).ok())
-            .flatten()
-    };
+    let unit = |v: Vec3<T>| geom_core::UnitVec3::new(v, DEPTH_ACROSS, band).ok();
     let chords = [ra, rb].into_iter().flat_map(|read| {
         read.depths
             .iter()

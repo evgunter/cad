@@ -604,11 +604,7 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
 /// vertices, read before it.
 fn strictly_inside<T: Decide>(m: T, speed: T) -> bool {
     matches!(
-        decide(
-            "chart_singularity_in_span",
-            Margin::of(m * speed),
-            Band::least()
-        ),
+        geom_core::k_stats::prove("chart_singularity_in_span", Margin::of(m * speed)),
         Ok(Sign::Positive)
     )
 }

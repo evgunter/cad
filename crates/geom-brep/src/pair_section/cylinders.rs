@@ -23,19 +23,15 @@ use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeEnd, NodeEnds,
     NodeLine, NodeSet, PairPose, PairSection, PairSide, RaySense, SectionComponent,
-    SectionDecision, SectionNode, TANGENT_COMPONENT, ZeroVerdict,
+    SectionDecision, SectionNode, ZeroVerdict,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
 use crate::intersect::{
-    SectionError, SectionRadius, cylinder_axes_parallel_reported, decide_across_reported,
-    parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, tilted_section_major,
+    SectionError, SectionRadius, cylinder_axes_parallel_reported, parallel_axes_at,
+    parallel_cylinder_gap_reported, parallel_swing, tilted_section_major,
 };
-
-/// The note the pinch's lobes carry: their arcs end at the node, and no
-/// march that starts at a node is built.
-pub const PINCH: &str = "the thinner wall touches the fatter one from inside, a node its two \
-                         lobes end at, and no march that starts at a node is built";
+use geom_core::k_stats::decide_across_reported;
 
 /// **The questions the cylinder pair's pose decides**, each on one
 /// margin in metres.
@@ -360,8 +356,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         }
         let (a1, a2) = (l1.dir, l2.dir);
         let cross = a1.cross(a2);
-        let sin = cross.norm();
-        let normal = cross / sin;
+        let (normal, sin) = cross.direction_and_length();
         let w = reach.foot_on(l2) - reach.foot_on(l1);
         let gap = w.dot(normal);
         // The common perpendicular's foot on the first axis, from the
@@ -637,12 +632,15 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
     }
 }
 
-/// **The parameter span of the line `origin + t·dir`** (`dir` unit)
-/// inside `region`, `None` where the line is clear of it.
+/// **The parameter span of `line`** (its `dir` unit) inside `region`,
+/// `None` where the line is clear of it. The foot is read on `dir` as
+/// unit, not through `Line::param`'s `/|dir|²`: `dir` is a cylinder's
+/// axis, unit by the frame convention, and the half-chord beside it is
+/// built in the same unit metres (row
+/// `an-axis-reads-its-direction-as-unit-by-convention-not-type`).
 fn region_span<T: Decide>(
     region: ExtentBall<T>,
-    origin: Point3<T>,
-    dir: Vec3<T>,
+    geom::Line { origin, dir }: geom::Line<T>,
     band: Band,
 ) -> Option<(T, T)> {
     let to = region.center() - origin;
@@ -827,8 +825,7 @@ fn radical_foot<T: Real>(
     across: Vec3<T>,
     [r1, r2]: [T; 2],
 ) -> (Point3<T>, Vec3<T>, T) {
-    let d = across.norm();
-    let u = across / d;
+    let (u, d) = across.direction_and_length();
     let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d * T::from_f64(2.0));
     (foot + u * x, u, x)
 }
@@ -866,11 +863,12 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     };
     // A ruling through `p`, cut to the region, where it reaches it.
     let ruling = |p: Point3<T>| {
-        region_span(pose.region, p, axis, band).map(|span| {
-            let line = Curve3::Line(geom::Line {
-                origin: p,
-                dir: axis,
-            });
+        let line = geom::Line {
+            origin: p,
+            dir: axis,
+        };
+        region_span(pose.region, line, band).map(|span| {
+            let line = Curve3::Line(line);
             let witness = line.eval((span.0 + span.1) * T::from_f64(0.5));
             (line, span, witness)
         })
@@ -897,7 +895,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         cut,
                         [false, false],
                         Some(witness),
-                        ClassCarrier::Unminted(TANGENT_COMPONENT),
+                        ClassCarrier::Unminted(super::NoCarrier::Tangent),
                     )
                 })
                 .into_iter()
@@ -923,7 +921,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         ComponentShape::Point,
                         [false, false],
                         Some(at),
-                        ClassCarrier::Unminted(TANGENT_COMPONENT),
+                        ClassCarrier::Unminted(super::NoCarrier::Tangent),
                     )],
                 })
             }
@@ -997,7 +995,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                                 },
                                 [false, false],
                                 None,
-                                ClassCarrier::Unminted(PINCH),
+                                ClassCarrier::Unminted(super::NoCarrier::Pinch),
                             )
                         })
                         .collect(),

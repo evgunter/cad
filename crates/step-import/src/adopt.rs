@@ -1096,16 +1096,13 @@ fn arc_rim_on_wall_boundary(
         return Ok(());
     };
     let eps = tol.eps();
-    let axis_norm = axis.norm();
-    let u_ref_norm = u_ref.norm();
-    if !(radius.is_finite() && radius > 0.0)
-        || !(axis_norm.is_finite() && axis_norm > 0.0)
-        || !(u_ref_norm.is_finite() && u_ref_norm > 0.0)
-    {
+    let unit = |v: geom_core::Vec3<f64>| v.checked_direction().ok().map(|(d, _)| d);
+    let (Some(a_hat), Some(u_hat)) = (unit(axis), unit(u_ref)) else {
+        return Err(ArcRimRefusal::Residual(f64::INFINITY));
+    };
+    if !(radius.is_finite() && radius > 0.0) {
         return Err(ArcRimRefusal::Residual(f64::INFINITY));
     }
-    let a_hat = axis.normalize();
-    let u_hat = u_ref.normalize();
     let v_hat = a_hat.cross(u_hat);
     let tau = core::f64::consts::TAU;
     // The angular slack: the ambient band through the lever arm.
@@ -1247,11 +1244,7 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     // verbatim).
     let along = dir.dot(candidate);
     let perpendicular = candidate - dir * along;
-    let norm = perpendicular.norm();
-    if !(norm.is_finite() && norm > 0.0) {
-        return None;
-    }
-    let y = perpendicular.normalize();
+    let (y, _) = perpendicular.checked_direction().ok()?;
     let z = dir.cross(y);
     Some(Affine3::from_parts(
         geom_core::Mat3::from_cols(dir, y, z),
@@ -1344,10 +1337,9 @@ fn carrier_on_surface(
         return false;
     };
     let eps = tol.eps();
-    let n = normal.norm();
-    if !(n.is_finite() && n > 0.0) {
+    let Some(n) = normal.checked_nonzero_length().ok() else {
         return false;
-    }
+    };
     (0..geom_brep::CERT_SAMPLES).all(|i| {
         let p = carrier.eval(geom_brep::sample_param(t0, t1, i));
         ((p - origin).dot(normal) / n).abs() <= eps

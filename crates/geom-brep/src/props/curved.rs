@@ -37,6 +37,7 @@ use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
+use crate::ladder::{Climb, Rung, climb_agreeing};
 use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
 
 /// The flux and area of a curved face from its **outer** loop:
@@ -1278,22 +1279,28 @@ fn unanimous_rim_side<T: Decide>(
     band: Band,
 ) -> Result<Option<Sign>, PropsError> {
     require_rims_at_extremes(&b.rims, b.ends((lo, hi)), b.arms, band)?;
-    let mut answer: Option<Sign> = None;
-    for rim in &b.rims {
-        let s = rim_side(rim, lo, hi, b.arms, band)?;
-        match answer {
-            // Equality is symmetric, so "every rim agrees with some
-            // rim" is one statement about the SET and does not depend
-            // on which rim the walk hands over first.
-            Some(a) if a != s => {
-                return Err(PropsError::NotIsoRectangle {
-                    what: "props_rim_side",
-                });
-            }
-            _ => answer = Some(s),
-        }
+    // Every rim's side, read as one ladder that checks its answers agree
+    // ([`climb_agreeing`]). Agreement is symmetric, so "every rim agrees
+    // with some rim" is one statement about the SET and does not depend
+    // on which rim the walk hands over first. A rim read in band is
+    // kept, and refuses only where no other rim decides; a degenerate
+    // face stops the read.
+    let climbed = climb_agreeing(
+        &b.rims,
+        |rim| match rim_side(rim, lo, hi, b.arms, band) {
+            Ok(s) => Rung::Answers(Ok(s)),
+            Err(e) => Rung::refused(e, PropsError::refusal, Err),
+        },
+        |a, b| matches!((a, b), (Ok(x), Ok(y)) if x == y),
+    );
+    match climbed {
+        Ok(Climb::Answered { answer, .. }) => answer.map(Some),
+        Ok(Climb::Passed) => Ok(None),
+        Ok(Climb::Undecided(e)) => Err(e),
+        Err(_) => Err(PropsError::NotIsoRectangle {
+            what: "props_rim_side",
+        }),
     }
-    Ok(answer)
 }
 
 // ---------------------------------------------------------------------

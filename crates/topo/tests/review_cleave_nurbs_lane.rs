@@ -252,11 +252,7 @@ fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
         );
     }
     assert!(
-        matches!(
-            cube.get_face(face)
-                .and_then(|f| cube.get_surface(f.surface)),
-            Some(geom::Surface::Nurbs(_))
-        ),
+        matches!(cube.face_surface(face), Some(geom::Surface::Nurbs(_))),
         "{face:?} is the cube's NURBS wall"
     );
     let united = topo::union(&brick, &cube, Tol::witness());

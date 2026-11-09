@@ -96,7 +96,7 @@
 //!   `(A² − c₀²)/r²`, `r` its larger semi-axis, which is the squared
 //!   sine of its crossing for a circle. That is a choice between two
 //!   sound readings, not a reading: it is taken off the log
-//!   (`curve_pair_pose_across`, `k_stats::check_unlogged`, ledger row
+//!   (`curve_pair_pose_across`, `k_stats::choose`, ledger row
 //!   F33, at [`Band::least`]), and a tie or an undecided difference
 //!   reads the first. **What is order-free**: the route (apart, level,
 //!   across, escalation) depends only on the pair, and across planes
@@ -135,10 +135,19 @@
 //! A residual `R(θ)` whose range is `[lo, hi]` is decided on its extremes
 //! (`curve_pair_pose_extreme`), each read as the interval its rounding
 //! spans ([`crate::roots::extreme_sign`]): definitely one-signed is
-//! [`Pose::Apart`], definitely straddling is two crossings, an end in the
-//! escalation gap escalates, and an extreme in the zero band is a touch
-//! there. The roots are read from the extreme nearer zero
+//! [`Pose::Apart`], definitely straddling is two crossings, an end of a
+//! distance in the escalation gap escalates (a height's, below), and an
+//! extreme in the zero band is a touch there. The roots are read from the extreme nearer zero
 //! ([`crate::roots::arc_past`]).
+//!
+//! **A conic's height above the other's plane is not its distance from
+//! the other**, only a lower bound on it, so an extreme of the height in
+//! the gap, the other extreme definite past it, says nothing the band
+//! answers: it places a touch there, read through its window and
+//! polished as any plane root's ("A crossing of the other's plane",
+//! below). Where the polish's basin is not proved there, the extreme's
+//! escalation is the refusal: what is open is the band's question, which
+//! a finer band decides, not the polish's premise.
 //!
 //! **A double root is decided by the gap between its roots along the
 //! curve**, never by the margin of a centre or an extreme: the chord
@@ -311,7 +320,8 @@
 //!
 //! The basin and the move are proofs' inequalities, read exactly
 //! ([`geom_core::k_stats::prove`]); a basin not proved refuses
-//! [`Unsettled::Meter`] on its row. The floor, the reach and the gap are
+//! [`Unsettled::Meter`] on its row, but at a touch a height's extreme in
+//! the gap placed, which escalates ("A first harmonic's roots"). The floor, the reach and the gap are
 //! metres of gap, read against the band. All are logged.
 //!
 //! # The spans' ends, and deflation
@@ -362,10 +372,12 @@
 //!   other carrier is the found meeting's own stretch (C5), which the
 //!   found meeting already answers;
 //! - **with no ring**, an arc holds no point within the band's
-//!   escalation of the other carrier: every piece reads off past the
-//!   escalation. Here a near-miss in the gap answers to nothing found, so
-//!   reading it off past the zero would decide a pair the band leaves
-//!   undecided. Past the escalation, it is decided apart.
+//!   escalation of the other span: every piece reads off past the
+//!   escalation, of the other carrier or, where that carrier runs on past
+//!   its span beside the arc, of the span itself. Here a near-miss in the
+//!   gap answers to nothing found, so reading it off past the zero would
+//!   decide a pair the band leaves undecided. Past the escalation, it is
+//!   decided apart.
 //!
 //! Every other plane root is polished and bounded as it would be with no
 //! meeting found; a candidate it gives nearer a found meeting than the
@@ -384,12 +396,13 @@
 //! and its tilt over the overlap (`curve_pair_pose_tilt`), the polish's
 //! clearance (`curve_pair_pose_clear`), and the like in the window's
 //! readings and the branch compares. A basin that is not proved refuses
-//! [`Unsettled::Meter`]. No escalation prunes a candidate.
+//! [`Unsettled::Meter`], but at a height's extreme in the gap, which
+//! escalates. No escalation prunes a candidate.
 
 mod window;
 
 use geom::{Azimuth, Curve3, CurveKind};
-use geom_core::k_stats::{check_unlogged, decide, straddle};
+use geom_core::k_stats::{Pick, choose, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
@@ -860,8 +873,10 @@ fn ends<T: Decide>((p0, p1): Ends<T>) -> T {
     (p0 - Point3::origin()).norm() + (p1 - Point3::origin()).norm()
 }
 
-/// The projection of a line span's two ends on the line `(o, u)`, `u` a
-/// unit: their distances along it from `o`.
+/// The projection of a line span's two ends on `line`: their distances
+/// along it from its origin. Its one caller, `line_conic`, hands it the
+/// line with its direction already normalised (`unit`), so the dot is
+/// the metres and is not divided again as [`geom::Line::height`] would.
 fn on_line<T: Decide>(
     geom::Line { origin: o, dir: u }: geom::Line<T>,
     (p0, p1): Ends<T>,
@@ -1210,7 +1225,17 @@ fn conic_conic<T: Decide>(
             (swing.powi(2) - c0.powi(2)) / p.abs().max(q.abs()).powi(2)
         };
         let by_b = steep(hb, swing_b, &kb) - steep(ha, swing_a, &ka);
-        if check_unlogged(row::ACROSS, by_b, Band::least(), "F33") == Ok(Sign::Positive) {
+        // Which conic to read across the other's plane: a heuristic's
+        // choice (ledger row F33). **At a tie the first is read**: either
+        // reading is sound there, each deciding or escalating on its own
+        // rows, and the window certifies a tangent pair's touch either way;
+        // the difference is antisymmetric bit for bit, so at `f64` only an
+        // exact zero reads by argument order.
+        let across_b = match choose(row::ACROSS, Margin::of(by_b), "F33") {
+            Pick::Positive => true,
+            Pick::Negative | Pick::Tie => false,
+        };
+        if across_b {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
             let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
             return Ok(swapped(read?));
@@ -1342,7 +1367,7 @@ fn transverse<T: Decide>(
         a: ka,
         span_a: a.params(),
         b: kb,
-        carrier_b: b.carrier(),
+        span_b: b,
         height: (c0, cp, sp),
     };
     let joints: Vec<_> = known
@@ -1368,7 +1393,24 @@ fn transverse<T: Decide>(
         }
         .closest(band)
     };
-    Ok(match harmonic_roots(ka, &range, band)? {
+    let extremes = match height_extremes(&range, band)? {
+        Extremes::Read(signs) => signs,
+        Extremes::Gap(theta, gap) => {
+            return match near(theta) {
+                Ok(Some(c)) => Ok(Pose::Tangent(c)),
+                Ok(None) => Ok(Pose::Apart),
+                // Where the window and the polish leave the touch
+                // unsettled, the band's own question is what is open: the
+                // height's extreme in the gap, which a finer band decides.
+                // The basin is only the polish's premise for reading it.
+                Err(MeetFault::Unsettled(Unsettled::Meter { row: row::BASIN })) => {
+                    Err(MeetFault::Escalated(gap))
+                }
+                Err(other) => Err(other),
+            };
+        }
+    };
+    Ok(match harmonic_roots(ka, &range, extremes, band)? {
         Harmonic::Apart => Pose::Apart,
         Harmonic::Touch(theta) => match near(theta)? {
             Some(c) => Pose::Tangent(c),
@@ -1730,6 +1772,22 @@ impl<T: Decide> Range<T> {
         }
     }
 
+    /// **Its extremes `lo` and `hi`, each read** as the interval its
+    /// noise spans (`curve_pair_pose_extreme`,
+    /// [`crate::roots::extreme_sign`]). What an extreme in the band's gap
+    /// decides is the caller's: a distance's escalates ([`owed`]), a
+    /// height's places a touch ([`height_extremes`]).
+    fn extremes(
+        &self,
+        band: Band,
+    ) -> (
+        Result<Sign, geom_core::Indeterminate>,
+        Result<Sign, geom_core::Indeterminate>,
+    ) {
+        let read = |x: T| extreme_sign(row::EXTREME, x, self.noise, band);
+        (read(self.lo), read(self.hi))
+    }
+
     /// `ℓ` in radians (module docs, "Across planes"): how far from `theta`
     /// the arc about it runs on which the harmonic, a metre residual,
     /// stays within the band's escalation and its own rounding.
@@ -1768,20 +1826,46 @@ fn owed<T: Decide>(
     band: Band,
 ) -> Result<Harmonic<T>, MeetFault> {
     Ok(match found {
-        [] => harmonic_roots(k, r, band)?,
+        [] => {
+            let (lo, hi) = r.extremes(band);
+            harmonic_roots(k, r, (lo?, hi?), band)?
+        }
         [theta] => Harmonic::Cross(vec![r.at_hi + r.at_hi - *theta]),
         _ => Harmonic::Cross(Vec::new()),
     })
 }
 
-/// A first harmonic's roots along `k` (module docs).
+/// How a height's extremes read (module docs, "A first harmonic's
+/// roots").
+enum Extremes<T> {
+    /// Each extreme's sign.
+    Read((Sign, Sign)),
+    /// One extreme in the band's gap, the other past it on its far side:
+    /// the angle of the one in the gap, a touch for its window, and its
+    /// escalation.
+    Gap(T, geom_core::Indeterminate),
+}
+
+/// **A conic's height above the other's plane, its extremes read**
+/// (module docs, "A first harmonic's roots"): as a distance's are, but
+/// for an extreme in the band's gap with the other definite past it,
+/// which places a touch for its window ([`Extremes::Gap`]).
+fn height_extremes<T: Decide>(r: &Range<T>, band: Band) -> Result<Extremes<T>, MeetFault> {
+    Ok(match r.extremes(band) {
+        (Err(gap), Ok(Sign::Positive)) => Extremes::Gap(r.at_hi + T::pi(), gap),
+        (Ok(Sign::Negative), Err(gap)) => Extremes::Gap(r.at_hi, gap),
+        (lo, hi) => Extremes::Read((lo?, hi?)),
+    })
+}
+
+/// A first harmonic's roots along `k`, its extremes `lo` and `hi` read
+/// (module docs).
 fn harmonic_roots<T: Decide>(
     k: &dyn Conic<T>,
     r: &Range<T>,
+    (lo, hi): (Sign, Sign),
     band: Band,
 ) -> Result<Harmonic<T>, MeetFault> {
-    let lo = extreme_sign(row::EXTREME, r.lo, r.noise, band)?;
-    let hi = extreme_sign(row::EXTREME, r.hi, r.noise, band)?;
     // The angle from `hi` of the roots read from each extreme: none
     // crossed reads a double root at that extreme.
     let past = |cross: T| arc_past(cross.max(T::zero()).min(T::one()));
