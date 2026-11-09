@@ -463,23 +463,17 @@ pub(crate) trait RaySpace<T: Decide>: Copy {
     /// `self - from`.
     fn disp(self, from: Self) -> Self::Disp;
 
-    /// `self + d`.
-    fn offset(self, d: Self::Disp) -> Self;
-
-    /// `d * t`.
-    fn scale(d: Self::Disp, t: T) -> Self::Disp;
-
     /// The inner product.
     fn dot(a: Self::Disp, b: Self::Disp) -> T;
-
-    /// The squared norm through the `powi(2)` door: a zero-straddling
-    /// enclosure squared via `Mul` gets a spurious negative lower
-    /// bound, `powi` keeps the tight nonnegative one.
-    fn norm_squared(d: Self::Disp) -> T;
 
     /// The length of `d` through this space's dimensional norm door
     /// (`Margin::norm2` / `Margin::norm3`).
     fn length_margin(d: Self::Disp) -> Margin<T>;
+
+    /// **`q`'s foot on the segment `a → b`**, this space's line held to
+    /// its span `(0, 1)`: [`geom::Line::foot_within`] in space,
+    /// [`geom_core::Line2::foot_within`] in the plane.
+    fn segment_foot(a: Self, b: Self, q: Self) -> Self;
 }
 
 impl<T: Decide> RaySpace<T> for Point3<T> {
@@ -489,24 +483,20 @@ impl<T: Decide> RaySpace<T> for Point3<T> {
         self - from
     }
 
-    fn offset(self, d: Vec3<T>) -> Self {
-        self + d
-    }
-
-    fn scale(d: Vec3<T>, t: T) -> Vec3<T> {
-        d * t
-    }
-
     fn dot(a: Vec3<T>, b: Vec3<T>) -> T {
         a.dot(b)
     }
 
-    fn norm_squared(d: Vec3<T>) -> T {
-        d.norm_squared()
-    }
-
     fn length_margin(d: Vec3<T>) -> Margin<T> {
         Margin::norm3(d)
+    }
+
+    fn segment_foot(a: Self, b: Self, q: Self) -> Self {
+        geom::Line {
+            origin: a,
+            dir: b - a,
+        }
+        .foot_within(q, (T::zero(), T::one()))
     }
 }
 
@@ -517,24 +507,20 @@ impl<T: Decide> RaySpace<T> for Point2<T> {
         self - from
     }
 
-    fn offset(self, d: Vec2<T>) -> Self {
-        self + d
-    }
-
-    fn scale(d: Vec2<T>, t: T) -> Vec2<T> {
-        d * t
-    }
-
     fn dot(a: Vec2<T>, b: Vec2<T>) -> T {
         a.dot(b)
     }
 
-    fn norm_squared(d: Vec2<T>) -> T {
-        d.norm_squared()
-    }
-
     fn length_margin(d: Vec2<T>) -> Margin<T> {
         Margin::norm2(d)
+    }
+
+    fn segment_foot(a: Self, b: Self, q: Self) -> Self {
+        geom_core::Line2 {
+            origin: a,
+            dir: b - a,
+        }
+        .foot_within(q, (T::zero(), T::one()))
     }
 }
 
@@ -660,19 +646,9 @@ where
     T: Decide,
     P: RaySpace<T>,
 {
-    let e = b.disp(a);
-    let w = q.disp(a);
-    let len2 = P::norm_squared(e);
-    let gap = match decide(rows.segment, P::length_margin(e), band)? {
-        Sign::Zero => w,
-        _ => {
-            // Foot parameter clamped to the span — evaluation lane
-            // (no comparison): t = clamp(w·e / e·e, 0, 1) via
-            // min/max.
-            let t = (P::dot(w, e) / len2).max(T::zero()).min(T::one());
-            let foot = a.offset(P::scale(e, t));
-            q.disp(foot)
-        }
+    let gap = match decide(rows.segment, P::length_margin(b.disp(a)), band)? {
+        Sign::Zero => q.disp(a),
+        _ => q.disp(P::segment_foot(a, b, q)),
     };
     // The distance stays a DISPLACEMENT until the door, so the
     // norm is taken inside `Margin::norm2`/`norm3` rather than
