@@ -2,10 +2,12 @@
 id: a-span-limited-distance-is-spelled-at-eight-sites
 kind: issue
 title: The distance from a point to a carrier's span is spelled at eight sites
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6666
 ---
 
 
