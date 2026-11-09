@@ -2,8 +2,10 @@
 id: no-carrier-touch-recourse-and-the-range-ending-left-by-6622
 kind: issue
 title: PR 6622's leftovers: NoCarrier::Touch's recourse offers a crossing that never carries, Seat drops the SplineError fact, and the range ending has a third spelling
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6653
 ---
 
 
