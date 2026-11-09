@@ -1564,8 +1564,10 @@ fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>
 impl<T: Decide> ConicArc<T> {
     /// A lower bound on the distance from `x` to the arc: the distance
     /// to the arc of the circle of radius `b` over the same span
-    /// ([`geom::Curve3::distance_within`]), less `|a − b|`, which bounds
-    /// how far a conic point lies from the circle's at the same parameter.
+    /// ([`geom::Curve3::distance_within`], whose reading of a box is a
+    /// floor under each of its points: `ring_path::arc_floor_rows`), less
+    /// `|a − b|`, which bounds how far a conic point lies from the
+    /// circle's at the same parameter.
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
@@ -1855,6 +1857,10 @@ pub(crate) mod cone_islands;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_path_grid;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod arc_floor_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

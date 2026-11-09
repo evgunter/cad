@@ -708,65 +708,48 @@ fn a_points_distance_within_a_span_is_the_dense_walks_least() {
     }
 }
 
-/// **A box astride the antipode of an arc's middle reads a floor under
-/// every point of it at `Interval`**: its azimuth is enclosed on one side
-/// of the cut only, so holding it to the span reaches one end while some
-/// of the box is nearer the other. The witness (`r ≈ 1.508`, the arc
-/// `(1.80, 6.03)`, a ±0.05 box) read 1.978 under the clamp alone, above a
-/// point of the box 1.930 from the arc; the nearer end's distance covers
-/// it. Every point of a grid over the box reads at or above the floor,
-/// and a box inside the arc reads within its enclosure.
+/// **A box about the arc's end ray reads a floor under every point of
+/// it, and never below the whole circle's clearance**: the box holds
+/// points inside the arc and past it, and its reading encloses its
+/// centre's distance with its low end at or above the clearance, which
+/// bounds every point's distance from below. So does a box well inside
+/// the arc. A box whose azimuth is named a
+/// turn from the arc is `topo`'s `ring_path::arc_floor_rows`.
 #[test]
-fn a_box_astride_the_arcs_far_side_reads_a_floor_under_every_point() {
+fn a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance() {
+    use core::f64::consts::FRAC_PI_2;
     use geom_core::Bounds as _;
+    let point = circle();
     let iv = |x: f64| geom_core::Interval::from_bounds(x, x);
-    let r = 1.507_656_089_420_911_2;
-    let span = (1.799_817_765_417_975_2, 6.028_197_567_811_072);
-    let point = Curve3::circle(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_z(),
-        r,
-        Vec3::unit_x(),
-    );
     let c: Curve3<geom_core::Interval> = Curve3::circle(
-        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+        boxed(Point3::new(0.0, 0.0, 1.0), 0.0),
         Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-        iv(r),
+        iv(2.0),
         Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
     );
-    let at = |centre: Point3<f64>| {
-        let got = c
-            .distance_within(boxed(centre, 0.05), (iv(span.0), iv(span.1)))
-            .unwrap();
-        let steps = [-1.0, -0.5, 0.0, 0.5, 1.0];
-        let mut least = f64::INFINITY;
-        for i in steps {
-            for j in steps {
-                for k in steps {
-                    let p = Point3::new(
-                        centre.x + 0.05 * i,
-                        centre.y + 0.05 * j,
-                        centre.z + 0.05 * k,
-                    );
-                    least = least.min(point.distance_within(p, span).unwrap());
-                }
-            }
-        }
-        (got, least)
-    };
-    let (got, least) = at(Point3::new(
-        1.575_227_195_471_407,
-        1.624_715_212_073_861_7,
-        0.344_122_334_117_553_9,
-    ));
+    let span = (iv(0.0), iv(FRAC_PI_2));
+    // On the ray of the arc's end at `π/2`, off the circle.
+    let centre = Point3::new(0.0, 3.0, 1.5);
+    let q = boxed(centre, 0.05);
+    let got = c.distance_within(q, span).unwrap();
+    let clear = c.clearance(q).unwrap();
+    let truth = point.distance_within(centre, (0.0, FRAC_PI_2)).unwrap();
     assert!(
-        got.lo() <= least && least < 1.94,
-        "astride the far side: the floor {} must be under every point of the box, the least {least}",
-        got.lo()
+        got.lo() >= clear.lo() && got.lo() <= truth && truth <= got.hi(),
+        "the reading encloses the box centre's distance {truth} and is no lower than the \
+         clearance {clear:?}: {got:?}"
     );
-    let (inside, least) = at(Point3::new(0.0, -2.5, 0.0));
+    let inside = boxed(Point3::new(2.0, 2.0, 1.5), 0.05);
+    let (read, clear) = (
+        c.distance_within(inside, span).unwrap(),
+        c.clearance(inside).unwrap(),
+    );
+    let truth = point
+        .distance_within(Point3::new(2.0, 2.0, 1.5), (0.0, FRAC_PI_2))
+        .unwrap();
     assert!(
-        inside.lo() <= least && least <= inside.hi(),
-        "a box inside the arc: {inside:?} against the least {least}"
+        read.lo() >= clear.lo() && read.lo() <= truth && truth <= read.hi(),
+        "a box well inside the arc reads its centre's distance {truth}, its low end the \
+         clearance's {clear:?} or above: {read:?}"
     );
 }

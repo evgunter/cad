@@ -574,30 +574,33 @@ impl<T: Decide> Curve3<T> {
     /// with the angle's distance from `q`'s azimuth, so the arc's nearest
     /// point is at `q`'s azimuth, read about the arc's middle, held to the
     /// span by `max`/`min`: `q`'s foot on the whole circle where it falls
-    /// in the arc, and the nearer end otherwise. That point's distance is
-    /// taken with the nearer end's by `min`: at `f64` the held point is
-    /// the arc's nearest, so the `min` changes nothing past rounding. At
-    /// `Interval` the azimuth of a box astride the antipode of the arc's
-    /// middle is enclosed on one side of the cut only, so the held point
-    /// is one end while some of the box is nearer the other; the ends'
-    /// distance covers those points. The whole circle's
-    /// [`Self::clearance`] bounds every point's distance from below, so the
-    /// reading takes it by `max`, which at `f64` moves nothing past
-    /// rounding and keeps a wide box's low end off the arc's ends. With no
-    /// comparison anywhere, the reading encloses the distance of every
-    /// point of a box, its low end a lower bound on all of them. An arc of
-    /// a turn or more is all inside.
+    /// in the arc, and the end on `q`'s side otherwise. At `f64` that is
+    /// the reading; the azimuth a turn either side of it holds to the
+    /// ends, which are no nearer, so the `min` over the three changes
+    /// nothing past rounding.
+    ///
+    /// At `Interval` the azimuth ([`crate::azimuth::Azimuth::near`]) encloses each
+    /// direction of a box by one name of its angle, the box's names
+    /// renamed by one whole number of turns, so where the box's
+    /// directions reach the antipode of the arc's middle some of them are
+    /// named a turn from their copy about the middle: the box astride the
+    /// antipode, and a box near the axis, whose directions span much of a
+    /// turn. Each point's copy about the middle lies in the azimuth's
+    /// enclosure or a turn either side of it, so the least of the three
+    /// held distances is a lower bound on every point's. The whole
+    /// circle's [`Self::clearance`] is one too, and is taken by `max`: at
+    /// `f64` it moves nothing past rounding, and it keeps a wide box's low
+    /// end off the arc's ends. No comparison is taken. An arc of a turn or
+    /// more is all inside.
     pub fn distance_within(&self, q: Point3<T>, (t0, t1): (T, T)) -> Option<T> {
         let (lo, hi) = (t0.min(t1), t0.max(t1));
         Some(match self.closed_form()? {
             ClosedForm::Line(line) => line.distance_within(q, (lo, hi)),
             ClosedForm::Circle => {
-                let at = self
-                    .param_near(q, crate::mid_param(lo, hi))?
-                    .max(lo)
-                    .min(hi);
-                let ends = (q - self.eval(lo)).norm().min((q - self.eval(hi)).norm());
-                (q - self.eval(at)).norm().min(ends).max(self.clearance(q)?)
+                let at = self.param_near(q, crate::mid_param(lo, hi))?;
+                let held = |s: T| (q - self.eval(s.max(lo).min(hi))).norm();
+                let named = held(at).min(held(at - T::tau())).min(held(at + T::tau()));
+                named.max(self.clearance(q)?)
             }
         })
     }
