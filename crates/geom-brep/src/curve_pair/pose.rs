@@ -76,8 +76,8 @@
 //! - **Two conics.** Each conic's height above the other's plane is a
 //!   first harmonic `c₀ + A·cos(θ − φ)` in its own angle, `A` its swing.
 //!   **The parallel argument runs first, whatever the swing reads**, as
-//!   the router's does: where the height read with its swing and its
-//!   rounding as its spread, `c₀ ∓ (A + noise)`, decides one-signed for
+//!   the router's does: where the height read with its swing as its
+//!   spread, `c₀ ∓ A`, decides one-signed for
 //!   either conic (`curve_pair_pose_parallel`), that conic
 //!   lies wholly on one side of the other's plane, past the band, and the
 //!   pair is [`Pose::Apart`]. Only then are the two swings read
@@ -137,7 +137,8 @@
 //! spans ([`crate::roots::extreme_sign`]): definitely one-signed is
 //! [`Pose::Apart`], definitely straddling is two crossings, an end of a
 //! distance in the escalation gap escalates (a height's, below), and an
-//! extreme in the zero band is a touch there. The roots are read from the extreme nearer zero
+//! extreme in the zero band is a touch there (below). Two definite
+//! crossings are read from the extreme nearer zero
 //! ([`crate::roots::arc_past`]).
 //!
 //! **A conic's height above the other's plane is not its distance from
@@ -149,17 +150,30 @@
 //! escalation is the refusal: what is open is the band's question, which
 //! a finer band decides, not the polish's premise.
 //!
-//! **A double root is decided by the gap between its roots along the
-//! curve**, never by the margin of a centre or an extreme: the chord
-//! between the two root points (`curve_pair_pose_root_gap`) decides one
-//! touch or two crossings. Two near-concentric circles stay within
-//! `d + |Δr|` of each other all the way round, so an extreme in the band
-//! says nothing about where they meet; the root gap does. Where the
-//! extreme is in the zero band, its crossing is read at the least its
-//! rounding allows, the extreme less its noise: roots that only the
-//! noise puts apart are a double root the band cannot split. Merged so,
-//! two crossings can lie up to about `√(8R·noise)` apart along a carrier
-//! of radius `R`, each within the zero band of the touch's point.
+//! **An extreme in the zero band is a touch at the extreme**, whatever lies
+//! between its roots, by C5 (`crates/geom-brep/README.md`: a meeting is a
+//! longest interval of one span everywhere definitely on the other):
+//!
+//! - **a distance** (a conic's signed distance from a line in its plane,
+//!   a circle's from a circle in its plane): between the roots the
+//!   residual runs from zero to the extreme and back, so the whole arc
+//!   between them lies within the zero band of the other carrier. It is
+//!   one meeting, however far apart its roots lie, and its touch is the
+//!   extreme's point;
+//! - **a height**: the touch is a locator, not a meeting. Its window and
+//!   the polish read what the arc about it holds ("A crossing of the
+//!   other's plane", below), as they do for an extreme in the gap. They
+//!   refuse differently: where the polish's basin is not proved, a touch
+//!   an extreme in the gap placed escalates on that extreme (the band's
+//!   question is open), and one an extreme in the zero band placed
+//!   refuses on the basin ([`Unsettled::Meter`]): the height is in the
+//!   zero band there, so the band has nothing open and the polish's
+//!   premise is what failed.
+//!
+//! **The gap between the roots along the curve decides only two definite
+//! crossings** (`curve_pair_pose_root_gap`): their chord in the zero band
+//! is one touch, the double root the band cannot split, and otherwise
+//! they are two crossings.
 //!
 //! **In one plane, a candidate admitted under a `Zero` reading is placed
 //! by the exactly degenerate formula**: a touch is the extreme's own
@@ -1178,11 +1192,6 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let ball = |c: &Curve3<T>| crate::ExtentBall::of_conic(c).ok_or(MeetFault::Desync);
     let arm = ball(a.carrier())?.lever().max(ball(b.carrier())?.lever());
-    let lever = arm.length();
-    let origin = Point3::origin();
-    let noise = geom_core::rounding_charge(
-        (ka.frame().origin - origin).norm() + (kb.frame().origin - origin).norm() + lever + lever,
-    );
     let ha = height(&ka, kb.frame().origin, kb.frame().axis);
     let hb = height(&kb, ka.frame().origin, ka.frame().axis);
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
@@ -1192,7 +1201,7 @@ fn conic_conic<T: Decide>(
     // clear of it all round is apart, whatever the swing reads.
     let mut heights = Vec::with_capacity(2);
     for (swing, (c0, _, _)) in sides {
-        let height = constant(row::PARALLEL, c0, swing + noise, band);
+        let height = constant(row::PARALLEL, c0, swing, band);
         if matches!(height, Ok(true)) {
             return Ok(Pose::Apart);
         }
@@ -1237,10 +1246,10 @@ fn conic_conic<T: Decide>(
         };
         if across_b {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
-            let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
+            let read = transverse((b, &kb, &ka, a), hb, swing_b, arm, &flipped, band);
             return Ok(swapped(read?));
         }
-        return transverse((a, &ka, &kb, b), ha, swing_a, (noise, arm), known, band);
+        return transverse((a, &ka, &kb, b), ha, swing_a, arm, known, band);
     };
     let oriented = |k: &dyn Conic<T>| k.frame().axis * (k.semi_axes().0 * k.semi_axes().1);
     if one_curve(&ka, &kb, band)? {
@@ -1264,7 +1273,7 @@ fn conic_conic<T: Decide>(
         }
     };
     match coplanar {
-        Coplanar::Circles => coplanar_circles(&ka, &kb, (noise, slant), &place, known, band),
+        Coplanar::Circles => coplanar_circles(&ka, &kb, slant, &place, known, band),
         Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
         Coplanar::Ellipses => coplanar_ellipses(a, &ka, &kb, &place, band),
     }
@@ -1353,7 +1362,7 @@ fn transverse<T: Decide>(
     (a, ka, kb, b): (&Span<'_, T>, &dyn Conic<T>, &dyn Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
     swing: T,
-    (noise, lever): (T, Lever<T>),
+    lever: Lever<T>,
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
@@ -1361,7 +1370,7 @@ fn transverse<T: Decide>(
         c0,
         swing,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
-        noise,
+        T::zero(),
     );
     let window = window::Window {
         a: ka,
@@ -1447,12 +1456,12 @@ fn constant<T: Decide>(
     }
 }
 
-/// Two circles in one plane (module docs): `noise` bounds their
-/// rounding, and `slant` how far they lie from one plane.
+/// Two circles in one plane (module docs): `slant` how far they lie from
+/// one plane.
 fn coplanar_circles<T: Decide>(
     ka: &dyn Conic<T>,
     kb: &dyn Conic<T>,
-    (noise, slant): (T, T),
+    slant: T,
     place: &impl Fn(T) -> Candidate<T>,
     known: &[Candidate<T>],
     band: Band,
@@ -1465,7 +1474,7 @@ fn coplanar_circles<T: Decide>(
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
         // radii whose gap reads zero all round with the centres' are one
         // curve, which the one-curve reading has just denied.
-        return if constant(row::RADII, ra - rb, d + noise + slant, band)? {
+        return if constant(row::RADII, ra - rb, d + slant, band)? {
             Ok(Pose::Concentric)
         } else {
             Err(MeetFault::Contradiction {
@@ -1487,7 +1496,7 @@ fn coplanar_circles<T: Decide>(
         at_hi: toward,
         cross_lo: (T::zero() - lo) * (near + rb) / swing,
         cross_hi: hi * (far + rb) / swing,
-        noise,
+        noise: T::zero(),
     };
     let found: Vec<T> = known.iter().map(|c| c.ta).collect();
     Ok(match owed(ka, &range, &found, band)? {
@@ -1872,29 +1881,25 @@ fn harmonic_roots<T: Decide>(
     let from_hi = past(r.cross_hi);
     let from_lo = T::pi() - past(r.cross_lo);
     let at_lo = r.at_hi + T::pi();
-    // An extreme in the zero band has crossed by no more than its own
-    // rounding can account for: its roots are read for the gap at the
-    // least crossing that rounding allows, its value less its noise, so
-    // two roots the noise alone puts apart read as the touch they are.
-    let least = |cross: T, extreme: T| {
-        let size = extreme.abs();
-        cross * (crate::roots::past_noise(size, r.noise) / size.max(r.noise))
-    };
-    let (psi, gap_psi, at_near) = match (lo, hi) {
+    let (psi, at_near) = match (lo, hi) {
         (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Harmonic::Apart),
         (Sign::Zero, Sign::Zero) => return Err(MeetFault::Unsettled(Unsettled::Tangency)),
-        (Sign::Zero, Sign::Positive) => (from_lo, T::pi() - past(least(r.cross_lo, r.lo)), at_lo),
-        (Sign::Negative, Sign::Zero) => (from_hi, past(least(r.cross_hi, r.hi)), r.at_hi),
+        // An extreme in the zero band is a touch at the extreme (module
+        // docs, "A first harmonic's roots").
+        (Sign::Zero, Sign::Positive) => return Ok(Harmonic::Touch(at_lo)),
+        (Sign::Negative, Sign::Zero) => return Ok(Harmonic::Touch(r.at_hi)),
         // Two definite crossings: read from the extreme that has crossed
         // the less, to its own relative precision.
         (Sign::Negative, Sign::Positive) => {
             let nearer_hi = r.cross_hi - r.cross_lo;
-            let psi = nearer_hi.select_le_zero(from_hi, from_lo);
-            (psi, psi, nearer_hi.select_le_zero(r.at_hi, at_lo))
+            (
+                nearer_hi.select_le_zero(from_hi, from_lo),
+                nearer_hi.select_le_zero(r.at_hi, at_lo),
+            )
         }
     };
     let roots = [r.at_hi + psi, r.at_hi - psi];
-    let gap = Margin::norm3(k.point_at(r.at_hi + gap_psi) - k.point_at(r.at_hi - gap_psi));
+    let gap = Margin::norm3(k.point_at(r.at_hi + psi) - k.point_at(r.at_hi - psi));
     Ok(match decide(row::ROOT_GAP, gap, band)? {
         Sign::Zero => Harmonic::Touch(at_near),
         Sign::Positive | Sign::Negative => Harmonic::Cross(roots.to_vec()),

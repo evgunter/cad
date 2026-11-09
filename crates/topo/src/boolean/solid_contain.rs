@@ -1002,7 +1002,7 @@ fn face_geo_arms<T: Decide>(
                 representative,
                 sense: proven(&body.faces, representative, EntityId::Face).sense,
             }),
-            None => match sphere_face_region(body, face, center, radius)? {
+            None => match sphere_face_region(body, face)? {
                 Some(region) => Ok(FaceGeo::SpherePatch {
                     center,
                     radius,
