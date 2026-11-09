@@ -1285,3 +1285,53 @@ fn a_line_beside_a_circle_or_a_line_far_from_the_origin_reads_as_at_it() {
     }
     assert!(bad.is_empty(), "{} pairs:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// **A height in the band's gap beside a definite gap in the plane reads
+/// apart** (`pose`'s module docs, "Two conics" and "The router"). A
+/// circle in a plane parallel to the unit circle's, tilted by `10⁻¹⁴`, at
+/// heights of 3 to 8 zero widths, and a line parallel to the plane at
+/// those heights: where the pair is apart in the plane (centres 2.5 and
+/// 3 m apart, the line 4 m from the centre) it reads apart; where it
+/// touches in the plane (centres 2 m apart, the line over the rim) the
+/// height is the pair's gap and it escalates; at half a zero width it
+/// meets once. In both orders. Red where a height in the gap escalates on
+/// its own, the swing-zero arm's and the router's level offset.
+#[test]
+fn a_height_in_the_gap_beside_a_definite_gap_in_the_plane_reads_apart() {
+    let at = needle_band();
+    let z = at.zero();
+    let c = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let axis = Vec3::new(1e-14, 0.0, 1.0).normalize();
+    let whole = (-PI, PI);
+    let mut bad = Vec::new();
+    for k in [0.5, 3.0, 5.0, 8.0] {
+        let mut pairs: Vec<(String, Curve3<f64>, (f64, f64))> = Vec::new();
+        for d in [2.0, 2.5, 3.0] {
+            let b = Curve3::circle(Point3::new(d, 0.0, k * z), axis, 1.0, u_for(axis));
+            pairs.push((format!("circle {d} m off"), b, whole));
+        }
+        for x in [1.0, 4.0] {
+            let l = line([x, 0.0, k * z], [0.0, 1.0, 0.0]);
+            pairs.push((format!("line {x} m off"), l, (-2.0, 2.0)));
+        }
+        for (label, b, sb) in pairs {
+            let touches = label.starts_with("circle 2 ") || label.starts_with("line 1 ");
+            for (order, r) in [
+                ("first first", read((&c, whole), (&b, sb), at)),
+                ("second first", read((&b, sb), (&c, whole), at)),
+            ] {
+                let ok = match (touches, k < 1.0) {
+                    (true, true) => matches!(&r, Ok(m) if m.points.len() == 1),
+                    (true, false) => {
+                        matches!(&r, Err(e) if matches!(e.fault, MeetFault::Escalated(_)))
+                    }
+                    (false, _) => matches!(&r, Ok(m) if m.points.is_empty()),
+                };
+                if !ok {
+                    bad.push(format!("{label} at {k} zero widths, {order}: {r:?}"));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} pairs:\n{}", bad.len(), bad.join("\n"));
+}

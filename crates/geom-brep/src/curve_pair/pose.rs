@@ -54,8 +54,12 @@
 //!   read zero over the overlap `s·(L + 2e)`, or zero over the longer
 //!   span, the pair is level where it can meet, and the offset at the
 //!   overlap's middle (`curve_pair_pose_offset`) decides: zero is level,
-//!   and otherwise the parallel margin having not decided refuses
-//!   [`Unsettled::Meter`]. A tilt over the longer span in its band
+//!   definite refuses [`Unsettled::Meter`], the parallel margin having
+//!   not decided, and in the gap what the offset measures decides
+//!   (`Offset`): a second line's distance escalates, and a line's height
+//!   above a conic's plane, only a lower bound on its distance from the
+//!   conic, is level, read by the arm in the plane with its candidates
+//!   read on both spans. A tilt over the longer span in its band
 //!   escalates.
 //! - **Two lines.** Crossing, the candidate is the first line's point
 //!   nearest the second. Level, the lines are [`Pose::Coincident`] only
@@ -83,11 +87,13 @@
 //!   pair is [`Pose::Apart`]. Only then are the two swings read
 //!   (`curve_pair_pose_swing`), both before either is acted on. One
 //!   read zero lies in a plane parallel to the other's, its height
-//!   constant to within that swing: the screen's one reading of that
-//!   height, acted on again, decides it. Zero all round, the conics lie
-//!   in one plane to within the slant `|c₀|` plus the swing (the larger
-//!   slant where both read zero), below; in the gap, its escalation is
-//!   the pair's. Only where neither
+//!   constant to within that swing, and the screen has not cleared it:
+//!   the conics lie in one plane to within the slant `|c₀|` plus the
+//!   swing (the larger slant where both read zero), below. A slant in the
+//!   gap is no meeting of its own: a height only bounds the distance from
+//!   below, so the arms in one plane read the pair and every candidate
+//!   they place is read on both spans, the slant included. Only where
+//!   neither
 //!   swing reads zero does one in the gap escalate. Both definite: the
 //!   height of one conic above the other's plane, a first harmonic whose
 //!   roots are where it crosses that plane, places the candidates, each
@@ -928,7 +934,7 @@ enum Route {
 fn route<T: Decide>(
     tilt: T,
     rate: T,
-    offset: T,
+    (offset, offset_is): (T, Offset),
     at: OnOneLine<T>,
     lever: Lever<T>,
     band: Band,
@@ -955,10 +961,27 @@ fn route<T: Decide>(
     if !level {
         return Ok(Route::Crossing);
     }
-    if definite(row::OFFSET, Margin::of(offset), band)? {
-        return Err(MeetFault::Unsettled(Unsettled::Meter { row: row::OFFSET }));
+    let offset = decide(row::OFFSET, Margin::of(offset), band);
+    match (offset, offset_is) {
+        (Ok(Sign::Positive | Sign::Negative), _) => {
+            Err(MeetFault::Unsettled(Unsettled::Meter { row: row::OFFSET }))
+        }
+        (Ok(Sign::Zero), _) | (Err(_), Offset::Height) => Ok(Route::Level),
+        (Err(gap), Offset::Distance) => Err(MeetFault::Escalated(gap)),
     }
-    Ok(Route::Level)
+}
+
+/// **What the router's offset measures**, which fixes what a level offset
+/// in the band's gap reads (module docs, "The router").
+#[derive(Clone, Copy)]
+enum Offset {
+    /// The second line's distance from the first: in the gap, the band's
+    /// escalation.
+    Distance,
+    /// The line's height above the conic's plane, a lower bound on its
+    /// distance from the conic: in the gap the line is level, and the arm
+    /// in the plane reads it, its candidates read on both spans.
+    Height,
 }
 
 /// Whether two lines are one curve within the band over both whole spans
@@ -1038,7 +1061,14 @@ fn line_line<T: Decide>(
             bound: None,
         }])
     };
-    match route(s, s / u1.dot(u2).abs(), off, at, arm, band)? {
+    match route(
+        s,
+        s / u1.dot(u2).abs(),
+        (off, Offset::Distance),
+        at,
+        arm,
+        band,
+    )? {
         Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
@@ -1088,7 +1118,14 @@ fn line_conic<T: Decide>(
         geom_core::rounding_charge(ends(ends_a)),
     );
     let height = (o + u * at.mid() - k.frame().origin).dot(n);
-    match route(den, den.abs(), height.abs(), at, arm, band)? {
+    match route(
+        den,
+        den.abs(),
+        (height.abs(), Offset::Height),
+        at,
+        arm,
+        band,
+    )? {
         Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
         Route::Crossing => {
@@ -1181,29 +1218,25 @@ fn conic_conic<T: Decide>(
     let sides = [(swing_a, ha), (swing_b, hb)];
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
-    let mut heights = Vec::with_capacity(2);
     for (swing, (c0, _, _)) in sides {
-        let height = constant(row::PARALLEL, c0, swing, band);
-        if matches!(height, Ok(true)) {
+        if matches!(constant(row::PARALLEL, c0, swing, band), Ok(true)) {
             return Ok(Pose::Apart);
         }
-        heights.push(height);
     }
     // Both swings are read before either is acted on, so the route does
     // not depend on which conic comes first. A conic whose swing reads
     // zero lies in a plane parallel to the other's, in it to within the
     // slant `|c₀|` plus its swing (the larger of the two where both are
-    // level); its height in the gap escalates. Only where neither reads
-    // zero does a swing in the gap escalate.
+    // level). A height the screen did not clear is a slant, not a
+    // meeting: the arms in one plane read the pair, and each candidate
+    // they place is read on both spans, the slant included. Only where
+    // neither reads zero does a swing in the gap escalate.
     let swings = sides.map(|(swing, _)| decide(row::SWING, Margin::of(swing), band));
     let mut slant: Option<T> = None;
-    for ((read, height), (swing, (c0, _, _))) in swings.iter().zip(heights).zip(sides) {
+    for (read, (swing, (c0, _, _))) in swings.iter().zip(sides) {
         if *read != Ok(Sign::Zero) {
             continue;
         }
-        // The screen's own reading: not clear, so in the zero band all
-        // round or escalated.
-        height?;
         let level = c0.abs() + swing;
         slant = Some(slant.map_or(level, |other| other.max(level)));
     }
