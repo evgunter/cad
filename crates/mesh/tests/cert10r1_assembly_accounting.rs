@@ -55,9 +55,9 @@ fn cert10r1_one_assembly_per_described_nurbs_face() {
     let body = sweep::test_support::swept_elbow(Tol::witness());
     let faces = body
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Nurbs(_) | geom::Surface::Approx(_))
             )
         })

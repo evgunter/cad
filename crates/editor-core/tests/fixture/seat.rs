@@ -52,7 +52,7 @@ pub fn product_face_frame(
         panic!("expected a face, got {:?}", ent.key)
     };
     let face = body.get_face(f).expect("the face");
-    match body.get_surface(face.surface).expect("the surface") {
+    match body.face_surface(f).expect("the surface") {
         topo::Surface::Plane {
             origin,
             normal,

@@ -79,8 +79,8 @@ fn tiers(body: &Body<f64>, what: &str) {
 
 fn minors(body: &Body<f64>) -> Vec<u64> {
     let mut out: Vec<u64> = Vec::new();
-    for (_, face) in body.faces() {
-        if let Some(Surface::Torus { minor_radius, .. }) = body.get_surface(face.surface) {
+    for (fk, _) in body.faces() {
+        if let Some(Surface::Torus { minor_radius, .. }) = body.face_surface(fk) {
             out.push(minor_radius.to_bits());
         }
     }
@@ -90,8 +90,8 @@ fn minors(body: &Body<f64>) -> Vec<u64> {
 
 fn u_refs(body: &Body<f64>) -> Vec<Vec3<f64>> {
     let mut out = Vec::new();
-    for (_, face) in body.faces() {
-        if let Some(Surface::Torus { u_ref, .. }) = body.get_surface(face.surface) {
+    for (fk, _) in body.faces() {
+        if let Some(Surface::Torus { u_ref, .. }) = body.face_surface(fk) {
             out.push(*u_ref);
         }
     }

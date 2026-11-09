@@ -314,9 +314,9 @@ pub fn vertices_at(body: &Body<f64>, at: V3) -> Vec<VertexKey> {
 pub fn faces_through_two_vertices_at(body: &Body<f64>, at: V3) -> usize {
     let at_v = vertices_at(body, at);
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             let mut met = Vec::new();
-            for &l in std::iter::once(&f.outer).chain(&f.rings) {
+            for (l, _, _) in body.face(*fk).expect("a live face").loops() {
                 if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
                     for he in body.loop_cycle(first).unwrap() {
                         let v = body.get_half_edge(he).unwrap().start;

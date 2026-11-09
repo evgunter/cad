@@ -14,9 +14,9 @@
 //! SUM, never the two terms one at a time (each just inside the band
 //! would sum to nearly twice it). The section rows that serve a verdict
 //! beside such a datum read that sum on each verdict's own side
-//! (`decide_across` in `crate::intersect`): `pc_parallel_gap`,
+//! (`decide_across` in `geom_core::k_stats`): `pc_parallel_gap`,
 //! `cc_coaxial`, `cc_parallel_gap`, `tangent_locus_internal_gap`,
-//! `coc_coaxial`, `pt_spiric_two_ovals`, `pt_cap_gap` and
+//! `coc_coaxial`, `pt_spiric_two_ovals` (`geom::spiric_regime`), `pt_cap_gap` and
 //! `pn_apex_section`. The tightest lever reads the position
 //! datum at the pivot nearest the ball's centre ([`ExtentBall::foot_on`]
 //! for an axis), where the lever is little more than the ball's radius.
@@ -709,13 +709,51 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     }
 }
 
-/// The farthest of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
-/// `k = 0..=16`, from `pivot`: each a point of the edge, so the edge's
-/// reach from `pivot` is never below it.
-fn sampled_reach<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T), pivot: Point3<T>) -> T {
+/// The largest `measure` of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
+/// `k = 0..=16`: each a point of the edge, so the edge's largest
+/// `measure` is never below it.
+fn sampled_reach<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+    measure: impl Fn(Point3<T>) -> T,
+) -> T {
     schedule(carrier, span, EXTENT_PIECES)
         .into_iter()
-        .fold(T::zero(), |far, x| far.max((x - pivot).norm()))
+        .fold(T::zero(), |far, x| far.max(measure(x)))
+}
+
+/// **Whether the region an edge's cover holds is the edge's own**, so a
+/// far distance or a coordinate range read off it is exact: on a line
+/// and on a circle arc, on no other kind. The one home of that split,
+/// which [`edge_reach_bounds`] and [`edge_coordinate_reach_below`] both
+/// read.
+fn cover_is_exact<T: Real>(carrier: &Curve3<T>) -> bool {
+    match carrier {
+        Curve3::Line(_) | Curve3::Circle(..) => true,
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => false,
+    }
+}
+
+/// **An edge's largest `|coordinate|`, bounded from below**: the session
+/// box's measure (`[tolerance.units]`: no coordinate of a model is larger
+/// in magnitude than the box). `world_box` is the box the region the edge
+/// occupies spans along the world axes, which the caller reads off that
+/// region (topo reads its edge's cover, `Cover::box_in` at
+/// `BoxAxes::World`). Where the cover is the edge's own
+/// ([`cover_is_exact`]) the box's largest `|coordinate|` is exact;
+/// otherwise, and where there is no box, the samples' largest, each a
+/// point of the edge. So a missing cover reads the edge's own points,
+/// never poison.
+pub fn edge_coordinate_reach_below<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+    world_box: Option<(Point3<T>, Point3<T>)>,
+) -> T {
+    let origin = Point3::origin();
+    match world_box.filter(|_| cover_is_exact(carrier)) {
+        Some((lo, hi)) => (lo - origin).norm_inf().max((hi - origin).norm_inf()),
+        None => sampled_reach(carrier, span, |x| (x - origin).norm_inf()),
+    }
 }
 
 /// **A lever known exactly, or only between two bounds.** A reading
@@ -791,12 +829,15 @@ pub fn edge_reach_bounds<T: SpanLocate>(
     pivot: Point3<T>,
     above: Lever<T>,
 ) -> LeverBounds<T> {
-    match carrier {
-        Curve3::Line(_) | Curve3::Circle(..) => LeverBounds::Exact(above),
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => LeverBounds::Between {
-            below: Lever::of_consumed_extent(sampled_reach(carrier, (t0, t1), pivot)),
+    if cover_is_exact(carrier) {
+        LeverBounds::Exact(above)
+    } else {
+        LeverBounds::Between {
+            below: Lever::of_consumed_extent(sampled_reach(carrier, (t0, t1), |x| {
+                (x - pivot).norm()
+            })),
             above,
-        },
+        }
     }
 }
 
@@ -1270,6 +1311,40 @@ fn minimax_on_axis<T: Real>(points: &[Point3<T>], axis: Line<T>) -> Point3<T> {
 mod tests {
     use super::*;
     use geom::Surface;
+
+    /// **The sampled arm reads coordinates, not distances**: an ellipse
+    /// out on the box's diagonal, centred at `(700, 700, 0)` with semi-axes
+    /// 150 and 100 in the `xy` plane, has every coordinate within 850 m and
+    /// points up to about 1.14 km from the origin. Its largest `|coordinate|`
+    /// from below is the samples' (the `x` extreme, 850, is a sample), in
+    /// the box; a distance read there is past it. Red against the sampled
+    /// arm reading `norm()`. A line or arc with no cover reads its samples
+    /// too, never poison.
+    #[test]
+    fn an_edge_out_on_the_diagonal_reads_its_largest_coordinate() {
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(700.0, 700.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            150.0,
+            100.0,
+        ));
+        let reach = edge_coordinate_reach_below(&ellipse, (0.0, core::f64::consts::TAU), None);
+        assert!((reach - 850.0).abs() < 1e-9, "{reach}");
+        assert!(reach < geom_core::tolerance::SESSION_BOX_EXTENT);
+        let line = Curve3::Line(geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(1.0, 1.0, 0.0).normalize(),
+        });
+        let reach = edge_coordinate_reach_below(&line, (0.0, 1200.0), None);
+        assert!(
+            reach.is_finite(),
+            "an uncovered line reads its samples: {reach}"
+        );
+        assert!((reach - 1200.0 / 2f64.sqrt()).abs() < 1e-9, "{reach}");
+    }
 
     /// **A conic span's lever reaches every point of it** from any pivot,
     /// round the whole turn, and on the circle no farther than the whole

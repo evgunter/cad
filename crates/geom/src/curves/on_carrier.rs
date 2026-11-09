@@ -256,7 +256,7 @@ impl CarrierEscalation {
 }
 
 /// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PieceWalkRefusal {
     /// The walk ran past its budget.
     Exhausted,
@@ -288,16 +288,6 @@ impl PieceWalkRefusal {
             Self::Exhausted => "a spline's piece walk ran past its budget",
             Self::Unbounded => "a spline's speed bound is zero or poison",
         }
-    }
-
-    /// The refusal [`Self::sentence`] renders, where it is one, over every
-    /// variant ([`strum::VariantArray`]).
-    #[must_use]
-    pub fn of_sentence(sentence: &str) -> Option<Self> {
-        <Self as strum::VariantArray>::VARIANTS
-            .iter()
-            .copied()
-            .find(|why| why.sentence() == sentence)
     }
 }
 
@@ -365,9 +355,8 @@ impl<T: Decide> Curve3<T> {
     /// **The point-against-span piece walk**: `(t0, t1)` halved depth
     /// first ([`geom_core::bisect`]), each piece read against `q` as
     /// [`PieceRead`], with `hi` a bound on the carrier's speed. What a
-    /// reading settles is `visit`'s: the one walk behind
-    /// [`Self::clear_of`] and every other reading of a point against a
-    /// span by its pieces.
+    /// reading settles is `visit`'s: [`Self::clear_of`] is one, and
+    /// `geom_brep`'s window of a span near a member's ball is another.
     ///
     /// # Errors
     ///

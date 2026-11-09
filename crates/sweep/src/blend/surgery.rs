@@ -1107,11 +1107,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 ) -> Result<RimPlan<'a, T>, BlendError> {
     let link0 = chain.first();
     let is_plane = |f: FaceKey| -> Option<bool> {
-        let fd = body.get_face(f)?;
-        Some(matches!(
-            body.get_surface(fd.surface)?,
-            Surface::Plane { .. }
-        ))
+        Some(matches!(body.face_surface(f)?, Surface::Plane { .. }))
     };
     for link in chain.links() {
         if !link.arm.is_coaxial_torus() {
@@ -2831,13 +2827,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     } in slivers
     {
         let fd = body
-            .get_face(s.cap)
+            .face(s.cap)
             .ok_or_else(|| unresolved(EntityId::Face(s.cap), "a cut-off's end face"))?;
         let decision = BlendDecision::RingClearance;
-        for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let lone = body
-                .get_loop(lp)
-                .ok_or_else(|| unresolved(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
+        for (lp, lone, _) in fd.loops() {
             if let topo::LoopBoundary::Empty { .. } = lone.boundary {
                 return Err(scaffolding(
                     EntityId::Loop(lp),
@@ -3122,21 +3115,23 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         let fd = body
             .get_face(face)
             .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
+        let surface = body
+            .face_surface(face)
+            .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
         // The latitude function: `None` the distance from the trim
         // centre, `Some(axis)` the height along the axis.
-        let direction = match body.get_surface(fd.surface) {
-            Some(Surface::Plane { .. }) => None,
-            Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
+        let direction = match surface {
+            Surface::Plane { .. } => None,
+            Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
                 Some(rim_circle.frame.axis)
             }
-            Some(_) => {
+            _ => {
                 return Err(unbuilt_geometry(
                     EntityId::Face(face),
                     "a rim's support is not a plane, cylinder, cone or sphere, whose \
                      latitudes the support-boundary meter reads",
                 ));
             }
-            None => return Err(unresolved(EntityId::Face(face), "a rim support's surface")),
         };
         // The latitude function's range over one piece, and whether that
         // range is a bound rather than the piece's own.
@@ -4348,10 +4343,10 @@ pub(super) fn chord_site<T: Decide>(
     fwd: usize,
 ) -> Result<(HalfEdgeKey, HalfEdgeKey, VertexKey, VertexKey), BlendError> {
     let fd = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face whose cycle a chord spans"))?;
     let mut carrying = Vec::with_capacity(1);
-    for &lp in core::iter::once(&fd.outer).chain(fd.rings.iter()) {
+    for (lp, _, _) in fd.loops() {
         let walk = loop_walk(body, lp).ok_or_else(|| {
             unwalked(
                 EntityId::Loop(lp),

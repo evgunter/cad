@@ -150,6 +150,38 @@ pub enum Reading<T> {
     Off,
 }
 
+/// Which of [`Span::read`]'s two readings a [`SpanRefusal`] rests on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpanReading {
+    /// The place read the foot inside the span, and the carrier's
+    /// reading refused.
+    Carrier,
+    /// The place against the span's ends refused, whatever the carrier
+    /// read: the refusal carried is the carrier's where both refused.
+    Place,
+}
+
+/// **Why [`Span::read`] refused**: the refusal, and the reading the
+/// answer rests on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpanRefusal {
+    /// The refusal.
+    pub refused: CarrierRefusal,
+    /// The reading it rests on.
+    pub of: SpanReading,
+}
+
+impl SpanRefusal {
+    /// The band's escalation this refusal is ([`CarrierRefusal::escalation`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom::PieceWalkRefusal`]: the refusal is no escalation.
+    pub fn escalation(self) -> Result<Indeterminate, geom::PieceWalkRefusal> {
+        self.refused.escalation()
+    }
+}
+
 impl<T> Reading<T> {
     /// The reading as a side of a meeting, or `None` off the span.
     pub fn hit(self) -> Option<Hit<T>> {
@@ -252,12 +284,17 @@ impl<'a, T: Decide> Span<'a, T> {
     /// span stands within the band's escalation of `member`, the
     /// member's cover. On a line, the cover's range along it
     /// ([`Cover::range_along`]) widened by the escalation either way,
-    /// within the span; on any other carrier, or for a member with no
-    /// cover (`None`), the whole span.
+    /// within the span. On any other carrier, the hull of the pieces of
+    /// the carrier's piece walk not decided farther than the escalation
+    /// from the cover's ball ([`Cover::ball`]); the whole span where the
+    /// walk cannot run, or for a member with no cover (`None`).
     pub fn window_near(&self, member: Option<&Cover<T>>, band: Band) -> (T, T) {
         let (lo, hi) = (self.t0.min(self.t1), self.t0.max(self.t1));
-        let (Curve3::Line(geom::Line { origin, dir }), Some(cover)) = (self.carrier, member) else {
+        let Some(cover) = member else {
             return (lo, hi);
+        };
+        let Curve3::Line(geom::Line { origin, dir }) = self.carrier else {
+            return self.pieces_near(cover, (lo, hi), band);
         };
         let (near, far) = cover.range_along(*dir);
         let base = (*origin - Point3::origin()).dot(*dir);
@@ -268,6 +305,47 @@ impl<'a, T: Decide> Span<'a, T> {
             within((near - base - reach) / per),
             within((far - base + reach) / per),
         )
+    }
+
+    /// [`Self::window_near`] off a line, by the carrier's piece walk
+    /// ([`Curve3::point_walk`]) about the cover's ball's centre: a piece is
+    /// cleared where its floor on that distance, less the ball's radius,
+    /// is proved past the escalation (a proof's inequality); halved while its
+    /// reach is chosen past the ball's radius and the escalation (a
+    /// resolution, sound either way, ledger row F37); and kept once
+    /// its reach is within them, so the window's ends are resolved to the
+    /// member's own size, or the escalation for a point. The whole span
+    /// where the carrier has no finite speed bound or the walk runs past
+    /// its budget.
+    fn pieces_near(&self, cover: &Cover<T>, (lo, hi): (T, T), band: Band) -> (T, T) {
+        let (centre, radius) = cover.ball();
+        let reach = radius + T::from_f64(band.escalate());
+        let positive = |row, m: T| matches!(k_stats::prove(row, Margin::of(m)), Ok(Sign::Positive));
+        if !geom_core::is_finite_length(self.hi.get())
+            || !positive("curve_pair_window_speed", self.hi.get())
+        {
+            return (lo, hi);
+        }
+        let mut kept: Option<(T, T)> = None;
+        let walked = self.carrier.point_walk(centre, (lo, hi), self.hi, |p| {
+            if positive("curve_pair_window_clear", p.gap - p.reach - reach) {
+                return geom::PieceStep::Settled;
+            }
+            if k_stats::choose(
+                "curve_pair_window_halve",
+                Margin::of(p.reach - reach),
+                "F37",
+            ) == k_stats::Pick::Positive
+            {
+                return geom::PieceStep::Halve;
+            }
+            kept = Some(kept.map_or(p.span, |(from, _)| (from, p.span.1)));
+            geom::PieceStep::<()>::Settled
+        });
+        match walked {
+            Ok(_) => kept.unwrap_or((lo, lo)),
+            Err(geom_core::bisect::Exhausted) => (lo, hi),
+        }
     }
 
     /// `t` within half a turn of the span's middle on a closed carrier,
@@ -464,8 +542,9 @@ impl<'a, T: Decide> Span<'a, T> {
     ///
     /// # Errors
     ///
-    /// Whichever reading the answer rests on refused (module docs).
-    pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, CarrierRefusal> {
+    /// Whichever reading the answer rests on refused (module docs), with
+    /// which ([`SpanRefusal`]).
+    pub fn read(&self, q: Point3<T>, near: T, band: Band) -> Result<Reading<T>, SpanRefusal> {
         let foot = self.carrier.foot(q, near);
         let (on, carrier) = k_stats::detached(|| foot.on_carrier(band));
         let on = match on {
@@ -488,7 +567,10 @@ impl<'a, T: Decide> Span<'a, T> {
         Ok(match place {
             Ok(Place::End(which)) => Reading::End(which),
             Ok(Place::Inside) => {
-                let (t, margin) = on?;
+                let (t, margin) = on.map_err(|refused| SpanRefusal {
+                    refused,
+                    of: SpanReading::Carrier,
+                })?;
                 Reading::On {
                     t: self.branch(t),
                     margin,
@@ -498,7 +580,12 @@ impl<'a, T: Decide> Span<'a, T> {
                 Ok(_) => Reading::Carrier,
                 Err(_) => Reading::Off,
             },
-            Err(refused) => return Err(on.err().unwrap_or(refused)),
+            Err(refused) => {
+                return Err(SpanRefusal {
+                    refused: on.err().unwrap_or(refused),
+                    of: SpanReading::Place,
+                });
+            }
         })
     }
 
@@ -513,7 +600,7 @@ impl<'a, T: Decide> Span<'a, T> {
         q: Point3<T>,
         near: T,
         band: Band,
-    ) -> Result<Option<Hit<T>>, CarrierRefusal> {
+    ) -> Result<Option<Hit<T>>, SpanRefusal> {
         self.read(q, near, band).map(Reading::hit)
     }
 }
