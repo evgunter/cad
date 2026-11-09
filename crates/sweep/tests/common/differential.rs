@@ -1103,7 +1103,7 @@ pub fn assert_meshed_geometry(label: &str, body: &Body<f64>, mesh: &mesh::Mesh, 
 pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
     for patch in &mesh.patches {
         let face = body.get_face(patch.face).expect("the patch's face");
-        let radial = |p: Point3<f64>| match *body.get_surface(face.surface).expect("its surface") {
+        let radial = |p: Point3<f64>| match *body.face_surface(patch.face).expect("its surface") {
             geom::Surface::Sphere { center, .. } => Some(p - center),
             geom::Surface::Cylinder { origin, axis, .. } => {
                 let d = p - origin;

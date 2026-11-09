@@ -128,9 +128,7 @@ fn supports(body: &Body<f64>, edge: EdgeKey) -> (SurfaceKey, SurfaceKey) {
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (Point3<f64>, f64, f64) {
-    let s = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap();
+    let s = body.face_surface(face).unwrap();
     match s {
         &Surface::Torus {
             center,
