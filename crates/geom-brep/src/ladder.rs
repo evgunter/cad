@@ -366,14 +366,12 @@ impl<A> Rung<A, Indeterminate> {
     }
 
     /// A reading that answers `Some`, says nothing (`None`: the zero
-    /// band, passed to the later rungs), or did not decide (kept).
+    /// band, passed to the later rungs), or did not decide (kept): an
+    /// [`Indeterminate`] stands by its margin and never aborts, so the
+    /// answer is `a` itself, with no refusal beside it.
     #[must_use]
     pub fn of_reading(reading: Result<Option<A>, Indeterminate>) -> Self {
-        match reading {
-            Ok(Some(a)) => Self::Answers(a),
-            Ok(None) => Self::Passes,
-            Err(cause) => Self::kept(cause),
-        }
+        Self::of_option(reading, Self::kept)
     }
 
     /// A reading the band did not decide, kept as what it is
@@ -385,6 +383,19 @@ impl<A> Rung<A, Indeterminate> {
 }
 
 impl<A, E> Rung<A, E> {
+    /// **A reading of an `Option` as its rung**, the one door for it:
+    /// `Some(a)` answers `a`, `None` passes, and a refusal stands as
+    /// `refused` says. [`Self::of_reading`] and [`Rung::answers`] read
+    /// through it; they differ only in what a refusal can do, so each
+    /// names that and nothing else.
+    pub fn of_option<R>(reading: Result<Option<A>, R>, refused: impl FnOnce(R) -> Self) -> Self {
+        match reading {
+            Ok(Some(a)) => Self::Answers(a),
+            Ok(None) => Self::Passes,
+            Err(e) => refused(e),
+        }
+    }
+
     /// The rung with its kept reading mapped by `f`, for a reader whose
     /// refusal carries more than the reading's own cause (the entity it
     /// was read at). An answer and a pass are unchanged.
@@ -421,11 +432,9 @@ impl<A, E> Rung<Result<A, E>, E> {
         reading: Result<Option<A>, E>,
         standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
     ) -> Self {
-        match reading {
-            Ok(Some(a)) => Self::Answers(Ok(a)),
-            Ok(None) => Self::Passes,
-            Err(e) => Self::refused(e, standing, Err),
-        }
+        Self::of_option(reading.map(|a| a.map(Ok)), |e| {
+            Self::refused(e, standing, Err)
+        })
     }
 }
 

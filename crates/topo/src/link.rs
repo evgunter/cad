@@ -533,6 +533,21 @@ pub enum TouchUnread {
 }
 
 impl TouchUnread {
+    /// **The touch refusal a kept standing reads as**, for a reading whose
+    /// standing has its home elsewhere ([`Refusal::of_apex`]): a reading
+    /// in band, by margin or not, or unsettled, is [`Self::InBand`]; a
+    /// limit is [`Self::Unanalysed`]. **Lossy**, not an inverse of
+    /// [`Self::refusal`]: a margin's diagnostics are dropped (no arm here
+    /// carries one, and the type is `Eq`), and an unsettled reading reads
+    /// back as in band, ranked ahead of where it stood.
+    #[must_use]
+    pub const fn kept(standing: Refusal) -> Self {
+        match standing {
+            Refusal::Margin(_) | Refusal::InBand | Refusal::Unsettled => Self::InBand,
+            Refusal::Limit => Self::Unanalysed,
+        }
+    }
+
     /// What this refusal is to a ladder over the faces or sectors that
     /// read it, as each variant's docs state it.
     ///
