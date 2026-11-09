@@ -481,7 +481,7 @@ impl<T: Decide> Curve3<T> {
             if t.point_value().is_none()
                 && let Some((lo, hi)) = t.structure_bracket()
             {
-                t = T::from_computed(0.5 * (lo + hi));
+                t = T::from_computed(crate::mid_param(lo, hi));
             }
             let next = self.foot_at(q, t);
             if !smaller(next.gap, best.gap) {

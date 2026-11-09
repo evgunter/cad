@@ -2432,16 +2432,7 @@ pub const COINCIDENCE_RECOURSE: &str = crate::coincidence_move_arm!();
 /// with [`COINCIDENCE_RECOURSE`]; every site that refuses on the
 /// format's range composes this fragment, and message-pinning tests pin
 /// it with `contains`.
-pub const RANGE_RECOURSE: &str = crate::range_recourse!();
-
-/// [`RANGE_RECOURSE`] as a literal for `concat!`.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! range_recourse {
-    () => {
-        "scale the geometry into the session's range"
-    };
-}
+pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
 
 /// What a direction-length decision decides, in words: the one subject
 /// every door that asks whether a direction vector has any length

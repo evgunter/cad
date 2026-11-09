@@ -8785,6 +8785,12 @@ fn orientation_refused(errors: &[ValidationError]) -> impl Iterator<Item = FaceK
 /// - two sides leaving along one tangent, and a cusp corner whose own
 ///   two sides do: first order cannot order them, and two coincident
 ///   lines there are the census's overlap.
+///
+/// Corners are grouped by point key, so a loop passing one place at two
+/// keys within band is not read here either. Where that loop's two
+/// surface cycles cross, on a face tier 3's one-region reading takes, a
+/// vertex of one placed off the face's side of the other is
+/// `CycleOffFaceSide` ([`crate::one_region`], which reads every vertex).
 fn pinch_corner_errors<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
@@ -10135,14 +10141,15 @@ fn plane_chart_normal<T: Real>(
 /// whether any query REFUSED — and the docs say so rather than
 /// leaving a reader to find it in the walk.
 enum RingNestingVerdict {
-    /// Nothing to report. Either a vertex of the ring was placed
-    /// definitely inside the outer loop's region — it is a hole of
-    /// that region, as a ring claims to be — or no vertex was placed
+    /// Nothing to report. Either every vertex of the ring placed was
+    /// placed definitely inside the outer loop's region — it is a hole
+    /// of that region, as a ring claims to be — or no vertex was placed
     /// either way AND no query refused, which is the ring whose
     /// every readable vertex came back `OnBoundary`.
     Inside,
     /// A named ring vertex is definitely OUTSIDE that region, so the
-    /// ring is not a hole in it.
+    /// ring is not a hole in it: it lies outside, or crosses the outer
+    /// loop.
     Outside {
         /// The witness.
         ring_vertex: VertexKey,
@@ -10188,26 +10195,25 @@ enum RingNestingVerdict {
 /// vertex, and a ring no vertex of which was placed is
 /// [`RingNestingVerdict::Undecided`].
 ///
-/// **One vertex speaks for the whole ring, and the premise that makes
-/// it so is that the two loops do not CROSS.** A ring disjoint from
-/// the outer boundary is a connected curve in one component of the
-/// plane minus that boundary, so any one of its points places all of
-/// it — whatever curve joins its vertices, arcs and whole circles
-/// included. The premise is not checked BY this arm; it is checked
-/// FOR it, by the contact arms that run first: on a planar face whose
-/// two loops carry only `Line` and `Circle` edges, any point the two
-/// loops share is a `RingMeetsOuter` — at a vertex of either loop
-/// (arms 1 and 2, arm 2 in both directions), along a shared arc
-/// (arm 3), or at a point that is a vertex of neither (arm 4 for two
-/// whole circles, arm 5 for every other edge pair) — so this function
-/// never runs on a pair that crosses. Where a loop carries an
-/// `Ellipse`, `Spiric` or NURBS edge the premise is checked only in
-/// part: a vertex of one loop standing on a vertex of the other is
-/// still arm 1's, but arms 2, 3 and 5 have no locus or meeting point
-/// for that edge, so a crossing along or through it is ASSUMED absent
-/// (check 9's banner lists it in the residue). The walk reads an
-/// ellipse exactly; what is assumed there is the premise, not the
-/// placement.
+/// **Every vertex of the ring is read** ([`crate::loop_side`]). A ring
+/// disjoint from the outer boundary is a connected curve in one
+/// component of the plane minus that boundary, so its vertices place
+/// alike, whatever curve joins them, arcs and whole circles included.
+/// That premise is checked by the contact arms that run first, on a
+/// planar face whose two loops carry only `Line` and `Circle` edges: any
+/// point the two loops share is a `RingMeetsOuter`, at a vertex of
+/// either loop (arms 1 and 2, arm 2 in both directions), along a shared
+/// arc (arm 3), or at a point that is a vertex of neither (arm 4 for two
+/// whole circles, arm 5 for every other edge pair). Where a loop
+/// carries an `Ellipse`, `Spiric` or NURBS edge the premise is checked
+/// only in part: a vertex of one loop on a vertex of the other is still
+/// arm 1's, but arms 2, 3 and 5 have no locus or meeting point for that
+/// edge (check 9's banner lists the residue). So no vertex is taken for
+/// the rest: a ring whose vertices place on both sides crosses the
+/// outer loop and is [`RingNestingVerdict::Outside`] at a vertex placed
+/// outside, whichever the walk reads first. A crossing that places no
+/// vertex outside (an edge bowing out between inside vertices) is the
+/// contact arms' alone.
 ///
 /// **Why a `Disc`-class ring gets no second instrument** — the one
 /// home of this argument; check 9's banner and `docs/KERNEL-VERBS.md`
@@ -10257,25 +10263,29 @@ fn ring_nesting<T: Decide>(
             .filter_map(|&rhe| body.half_edges.get(rhe).map(|h| h.start))
             .collect(),
     };
-    let mut undecided: Option<ContainError> = None;
-    for rv in queries {
+    // A ring vertex lies in the face's plane (check 5), the walk's
+    // in-plane precondition; the off-boundary one is the contact arms'
+    // where they can see the edge (the doc above). On the boundary is the
+    // contact half's question, not this one.
+    match crate::loop_side::inside_at_every_vertex(&queries, |rv| {
         let Some(rp) = vertex_point(body, rv) else {
-            continue;
+            return geom_brep::ladder::Rung::Passes;
         };
-        // A ring vertex lies in the face's plane (check 5), the walk's
-        // in-plane precondition; the off-boundary one is the contact
-        // arms' where they can see the edge (the doc above).
         match crate::splitting::containment::point_in_loop(body, outer, normal, rp, band) {
-            Ok(crate::splitting::LoopContainment::In) => return RingNestingVerdict::Inside,
-            Ok(crate::splitting::LoopContainment::Out) => {
-                return RingNestingVerdict::Outside { ring_vertex: rv };
-            }
-            // The contact half's question, not this one.
-            Ok(crate::splitting::LoopContainment::OnBoundary) => {}
-            Err(source) => undecided = undecided.or(Some(source.into())),
+            Ok(crate::splitting::LoopContainment::In) => geom_brep::ladder::Rung::Answers(true),
+            Ok(crate::splitting::LoopContainment::Out) => geom_brep::ladder::Rung::Answers(false),
+            Ok(crate::splitting::LoopContainment::OnBoundary) => geom_brep::ladder::Rung::Passes,
+            Err(source) => geom_brep::ladder::Rung::InBand(ContainError::from(source)),
         }
+    }) {
+        crate::loop_side::EveryVertex::Inside | crate::loop_side::EveryVertex::Unplaced => {
+            RingNestingVerdict::Inside
+        }
+        crate::loop_side::EveryVertex::Outside { at } => {
+            RingNestingVerdict::Outside { ring_vertex: at }
+        }
+        crate::loop_side::EveryVertex::Undecided(source) => RingNestingVerdict::Undecided(source),
     }
-    undecided.map_or(RingNestingVerdict::Inside, RingNestingVerdict::Undecided)
 }
 
 /// An edge's certified carrier, or `None` on a null or unresolvable
@@ -15745,6 +15755,58 @@ mod tests {
                     "{name}: must be refused by name; got {got:?}"
                 );
             }
+        }
+    }
+
+    /// **A ring crossing an ellipse-bearing outer loop is refused in every
+    /// walk order.** The ellipse lamina of
+    /// [`an_ellipse_bearing_outer_loop_is_decided_both_ways`], and a square
+    /// ring straddling its rim at `x = 1`: two corners inside, two
+    /// outside. Check 9's meeting arms have no row for an ellipse edge, so
+    /// only the nesting arm sees the crossing, and it must refuse it
+    /// whichever corner the ring's walk starts at.
+    #[test]
+    fn a_ring_crossing_an_ellipse_rim_is_refused_in_every_walk_order() {
+        let tol = Tol::witness();
+        let k = 0.4;
+        let on_plane = |x: f64, y: f64| Point3::new(x, y, k * x);
+        let outer: Vec<Point3<f64>> = [0.0, 1.0, 2.0]
+            .iter()
+            .map(|i| {
+                let t = i * std::f64::consts::TAU / 3.0;
+                on_plane(t.cos(), t.sin())
+            })
+            .collect();
+        let corners = [(0.7, -0.2), (1.3, -0.2), (1.3, 0.2), (0.7, 0.2)];
+        for start in 0..corners.len() {
+            let ring: Vec<Point3<f64>> = (0..corners.len())
+                .map(|i| {
+                    let (x, y) = corners[(start + i) % corners.len()];
+                    on_plane(x, y)
+                })
+                .collect();
+            let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+            let cylinder =
+                body.add_surface(crate::test_support_fixtures::CylFrame::canonical(1.0).surface());
+            let f = body.get_face(face).unwrap();
+            let (plane, outer_loop, ring_loop) = (f.surface, f.outer, f.rings[0]);
+            let edges: Vec<EdgeKey> = loop_cycle_of(&body, outer_loop)
+                .unwrap()
+                .into_iter()
+                .map(|he| body.get_half_edge(he).unwrap().edge)
+                .collect();
+            for e in edges {
+                recarry_as_ellipse_arc(&mut body, e, plane, cylinder, k, tol);
+            }
+            let got = nesting_words(&body, tol);
+            assert!(
+                got.iter().any(|e| matches!(
+                    e,
+                    ValidationError::RingOutsideOuter { face: fk, ring, .. }
+                        if *fk == face && *ring == ring_loop
+                )),
+                "the walk from corner {start}: the crossing ring is refused; got {got:?}"
+            );
         }
     }
 
