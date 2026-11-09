@@ -47,7 +47,9 @@
 #     through a context struct or a captured reader);
 #   * a search whose answer leaves the loop by assignment rather than by
 #     `return` or `break` (`found = Some(..)` read after the loop): its
-#     callee `?`s are not counted;
+#     callee `?`s are not counted. Those read at PR 6574 are listed, each
+#     with its disposition, on
+#     `work/onecopy/question-mark-ladders-the-gate-registered.md`;
 #   * a decision whose call and `?` sit on different lines;
 #   * a loop written as an iterator chain (`try_for_each`, `map(…)
 #     .collect::<Result<…>>()?`), or a header split over lines;
