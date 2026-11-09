@@ -926,6 +926,15 @@ pub enum NonzeroSign {
     Negative,
 }
 
+impl From<NonzeroSign> for Sign {
+    fn from(sign: NonzeroSign) -> Self {
+        match sign {
+            NonzeroSign::Positive => Self::Positive,
+            NonzeroSign::Negative => Self::Negative,
+        }
+    }
+}
+
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling
 /// for a predicate that reads a SIDE off the margin's sign and has no
 /// side to read when the margin is definitely zero — two normals whose
