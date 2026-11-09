@@ -57,9 +57,12 @@ Measure first: read a ruled and a torus face on several frames, at the band's ze
 - Lattice and near-corner queries (3e-8 to 1e-4 from a corner) disagree nowhere: 568 queries on the cylinder and torus, 664 on the cone.
 
 **Done.**
-- `geom::Surface::foot` reads a point's foot in closed form, beside `chart_point`, from the surface's geometric fields alone. It never reads `u_ref` or a chart frame, and returns `None` where the direction may be the zero vector, and for a spindle sheet or a spline. "May be" is the C6 structure decision on its length: the exact zero vector at `f64`, and at `Interval` any enclosure that holds zero, such as a cone's apex.
-- `QueryFoot::read` reads it for every door. This retires the sphere's arm in `region`.
+- `geom::Surface::foot` reads a point's foot in closed form, beside `chart_point`, from the surface's geometric fields alone. It never reads `u_ref` or a chart frame, and returns `None` where the direction may be the zero vector, and for a spindle sheet or a spline. "May be" is `Vec3::checked_direction`'s refusal, which now carries the C6 structure decision: the exact zero vector at `f64`, and at `Interval` any length whose enclosure holds zero, such as a cone's apex.
+- The radial direction is read off an offset rejected from the axis twice. Beside the axis the offset's rounding along the axis is not small against it, and a single rejection tilted the cone's generator by about 1e-7.
+- `QueryFoot::read` reads it for every door, except where the chart reads the query singular. There the chart's own point stands, so the pre-pass and the legs read one foot. This matters within the band of a cone's apex plane: the closed form takes the nappe by the raw sign of the height, while the chart names it. It retires the sphere's arm in `region`.
+- A flipped cone axis is the same locus. The ruled frame pin reads the cone on all six frames, as geom's pin does. Only on the apex plane, where the chart names a nappe by its axis, does the flipped frame answer otherwise, and that is pinned.
 - Pins:
-  - `a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`;
+  - `a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`, `a_query_beside_a_cones_apex_plane_reads_the_charts_nappe`;
   - `a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`;
-  - geom's `the_foot_is_the_charts_foot_on_no_chart`, `a_point_every_point_of_a_circle_is_nearest_has_no_foot` and `an_enclosure_that_holds_the_zero_direction_has_no_foot`.
+  - geom's `the_foot_is_the_charts_foot_on_no_chart` (with points within the band of each singularity), `a_point_every_point_of_a_circle_is_nearest_has_no_foot` and `an_enclosure_that_holds_the_zero_direction_has_no_foot`;
+  - geom-core's `an_enclosure_that_holds_zero_names_no_direction`.

@@ -38,3 +38,5 @@ So the fork is:
 C5 is ratified, so the change is Ev's to make. The fork is weighed first (designers, then an `[ev]` PR).
 
 **Measured cost of keeping C5:** about 5.6% of the queries placed exactly at the escalation off a cone or torus edge answer by frame. None do at the band's zero or off it.
+
+The count depends on how many frames are read: a query counts where any frame answers otherwise than the first, so more frames find more of them. The 135 and 133 are over five frames for the cone and six for the torus (the seam turned to four other azimuths, and the torus's axis flipped). They are a floor on how often a frame decides, not a rate.
