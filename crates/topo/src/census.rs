@@ -4185,12 +4185,14 @@ fn ef_overlap_lane<T: Decide>(
 /// line (a plane's is its own reading, and a sphere or a torus holds
 /// none, `None` with any other kind). A quadric that holds three points
 /// of a line holds the line, so the two points and their midpoint each
-/// read their residual (`name`) on the carrier: `Ok(true)` where all
-/// three read `Zero`, `Ok(false)` where one reads off, whatever the
-/// others read (all three are read first: one point definitely off
-/// decides it). The argument is exact; the readings are in band, so
-/// `Ok(true)` says the line lies on the carrier at the band, and a
-/// residual the band cannot read, with none off, is `Err`.
+/// read their residual (`name`) on the carrier ([`geom_brep::variety`]'s
+/// reading): `Ok(true)` where all three read `Zero`, `Ok(false)` where one
+/// reads off, whatever the others read (all three are read first: one
+/// point definitely off decides it). The ON side is this reading's own
+/// certificate, a degree count, which the variety's leaves to its
+/// readers. The readings are in band, so `Ok(true)` says the line lies on
+/// the carrier at the band, and a residual the band cannot read, with
+/// none off, is `Err`.
 pub(crate) fn line_on_quadric_carrier<T: Decide>(
     surface: &geom::Surface<T>,
     p0: Point3<T>,
@@ -4198,52 +4200,29 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     name: &'static str,
     band: Band,
 ) -> Option<Result<bool, Indeterminate>> {
+    use geom_brep::variety::{Piece, Variety};
     if !matches!(
         surface,
         geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
     ) {
         return None;
     }
-    Some(points_on_surface(
-        surface,
-        &[p0, p1, p0.lerp(p1, T::from_f64(0.5))],
-        name,
-        band,
-    ))
-}
-
-/// **Whether every one of `points` lies on `surface`**, each one's
-/// implicit residual decided on the band under `name`, read as an
-/// identity ladder ([`geom_brep::ladder::read_identity`]): `Ok(false)`
-/// where one reads definitely off, whatever the others read (a point in
-/// band ahead of it does not pre-empt it); `Ok(true)` where all read
-/// `Zero`; and the ladder's undecided reading where none is off.
-pub(crate) fn points_on_surface<T: Decide>(
-    surface: &geom::Surface<T>,
-    points: &[Point3<T>],
-    name: &'static str,
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    use geom_brep::ladder::{IdentityLadder, read_identity};
-    let residuals = points.iter().map(|&q| {
-        (
-            name,
-            Margin::of(geom_brep::implicit::implicit_residual(surface, q)),
-        )
-    });
-    match read_identity(residuals, band) {
-        IdentityLadder::Apart { .. } => Ok(false),
-        IdentityLadder::Zero(_) => Ok(true),
-        IdentityLadder::Undecided(cause) => Err(cause),
-    }
+    // A cylinder or a cone is a member whatever the ring site reads, since
+    // only a torus asks it.
+    let variety = Variety::of(surface, name, band).ok()??;
+    Some(
+        variety
+            .read_piece(&[p0, p1, p0.lerp(p1, T::from_f64(0.5))], name, band)
+            .map(|read| read == Piece::Sampled),
+    )
 }
 
 /// **One point definitely off a quadric decides that a line or a conic
 /// is not on it**, whatever an earlier point read
-/// ([`points_on_surface`], [`line_on_quadric_carrier`]).
+/// ([`geom_brep::variety`], [`line_on_quadric_carrier`]).
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod points_on_surface_rows {
+mod variety_reading_rows {
     use geom_core::{Band, Point3, Tol, Vec3};
 
     fn band() -> Band {
@@ -4307,11 +4286,18 @@ mod points_on_surface_rows {
             Point3::new(0.0, -1.2, 0.0),
             Point3::new(1.2, 0.0, 0.0),
         ];
+        let variety = geom_brep::variety::Variety::of(&sphere, "test_row", band())
+            .unwrap()
+            .unwrap();
         assert_eq!(
-            super::points_on_surface(&sphere, &samples, "test_row", band()),
-            Ok(false)
+            variety.read_piece(&samples, "test_row", band()),
+            Ok(geom_brep::variety::Piece::Off)
         );
-        assert!(super::points_on_surface(&sphere, &samples[..2], "test_row", band()).is_err());
+        assert!(
+            variety
+                .read_piece(&samples[..2], "test_row", band())
+                .is_err()
+        );
     }
 }
 

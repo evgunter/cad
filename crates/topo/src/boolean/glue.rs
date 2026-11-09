@@ -289,7 +289,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     let boxed = |covers: &[(FaceKey, crate::cover::FaceCovered<T>)]| -> Vec<(FaceKey, bvh::Aabb)> {
         covers
             .iter()
-            .map(|(k, c)| (*k, boxes::face_box_of(c, pad)))
+            .map(|(k, c)| (*k, boxes::cover_box(c.as_ref().ok(), pad)))
             .collect()
     };
     let (a_boxes, b_boxes) = (boxed(&a_covers), boxed(&b_covers));

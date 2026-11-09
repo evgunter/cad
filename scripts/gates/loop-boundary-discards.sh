@@ -217,7 +217,7 @@ REGISTER=(
   "crates/topo/src/splitting/containment.rs|carrier_loop||1|audited: the discard is answered as CorruptLoop, and point_in_face, the one caller, answers an Empty outer loop (no region) and steps over an Empty ring (no area) before asking"
   "crates/topo/src/splitting/containment.rs|certify_plane||1|audited: the discard is answered as CorruptLoop, the answer carrier_loop gives the same loop on the line after it in point_in_loop"
   "crates/topo/src/splitting/containment.rs|loop_points||1|unaudited"
-  "crates/topo/src/splitting/finish.rs|classify_shell||1|unaudited"
+  "crates/topo/src/splitting/finish.rs|shell_side||1|audited: a blind spot, not a covered one — a lone-vertex loop holds the shell's only reading of that vertex, and skipping it can leave a shell whose one off-plane vertex is lone unplaced (refused Corrupt or UnclassifiableComponent, never misplaced); work/onecopy/a-shell-whose-only-off-plane-vertex-is-lone-is-unplaced.md"
   "crates/topo/src/splitting/finish.rs|section_plane_restatements||1|audited: an Empty loop holds no edge, so it has no description to restate; describe_section_boundary, which re-describes the same loops right after, steps over it the same way"
   "crates/topo/src/splitting/section.rs|section_walk||1|audited: the discarded variant is answered — a lone-vertex loop refuses as SectionInvariant, the refusal join::loop_starts gives the same below loop"
   "crates/topo/src/splitting/section_loops.rs|loop_edges|LoopBoundary::Empty { .. } => return|1|audited: the discarded variant is answered by name — a lone-vertex loop is read as an outline edge nothing decides, so outlines_disjoint answers false and the hole is left unplaced"
