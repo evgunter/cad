@@ -140,7 +140,7 @@ fn hollowed(what: &str, body: &Body<f64>) -> Body<f64> {
         "{what}: tier 3"
     );
     assert_eq!(out.shells().count(), 2, "{what}: outer + cavity");
-    out
+    out.into_body()
 }
 
 /// Every vertex on `face`'s own boundary.
@@ -554,6 +554,7 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
     )
     .expect("the lune revolves")
     .body
+    .into_body()
 }
 
 /// **The klein elbow hollows to tier 3 and stops at the props door** —
@@ -669,7 +670,7 @@ fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows() {
     )
     .expect("the two-arc lune revolves")
     .body;
-    let mut body = body;
+    let mut body = body.into_body();
     let sphere = body
         .faces()
         .find(|(_, f)| {

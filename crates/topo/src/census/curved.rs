@@ -186,7 +186,7 @@ fn on_interior_reading<T: Decide>(
 
 /// **`e`'s tangent where `q` lies on its interior**, along its plus
 /// half and scaled to the edge's reach from `q`, its edge cover's far
-/// distance from above (`boolean::boxes::edge_reach_bounds`): the corner it bounds is read by
+/// distance from above (`boolean::crate::cover::edge_reach_bounds`): the corner it bounds is read by
 /// the wedge, which acts on every sign, so its lever is the region's own
 /// measure from where it is read, and where that is known only from both
 /// sides (an ellipse, spiric or spline edge, whose bound from above can
@@ -206,7 +206,7 @@ pub(super) fn tangent_on_interior<T: Decide>(
 ) -> Option<Option<Departure<T>>> {
     let tangent = edge_tangent_at(body, e, q, band, errors)?;
     let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
-    let lever = crate::boolean::boxes::edge_reach_bounds(body, e, edge, q)?;
+    let lever = crate::cover::edge_reach_bounds(body, e, edge, q)?;
     Some(tangent.map(|tangent| Departure::along(tangent.dir(), lever)))
 }
 

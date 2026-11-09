@@ -2,11 +2,11 @@
 id: boxes-not-finite-asks-x-minus-x
 kind: issue
 title: not_finite asks (x − x).is_poison(), which an unbounded Interval enclosure passes ([−∞,∞] is not poison), so a torus chart window end at infinity reads finite
-status: parked
+status: closed
 opened: 2026-10-13
+closed: 2026-11-08
 priority: P3
 cost: E
-blocked_on: [cover-topo-faces]
 ---
 
 
@@ -28,3 +28,9 @@ doc's premise ("no `is_finite`") restated.
 Not yet shown reachable end to end: it needs a window end whose
 enclosure is unbounded but not poison. Found by SYM-17's final pass, in
 the sweep for `x − x` / `0·x` finiteness spellings.
+
+## Closed (`cover-topo-faces`, 2026-11-08)
+
+`not_finite` (now `crates/topo/src/cover.rs`, the torus chart window)
+reads `!x.is_bounded()`, which decides both ends of an enclosure, as
+this row proposed.

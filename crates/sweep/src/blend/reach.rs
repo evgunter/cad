@@ -96,7 +96,7 @@ use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
     Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
 };
-use super::surgery::{degenerate, disagrees, loop_walk, unresolved, unwalked};
+use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -2652,12 +2652,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         r.skip.dedup();
         reaches.push(r);
     }
-    let boxes = FaceBoxes::of(body, band).map_err(|e| {
-        degenerate(
-            EntityId::Face(e.0),
-            "a face's stored surface, which its box reads",
-        )
-    })?;
+    let boxes = FaceBoxes::of(body, band);
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.

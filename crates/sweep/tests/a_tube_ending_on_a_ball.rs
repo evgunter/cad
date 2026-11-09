@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
+use topo::LeafBody as _;
 
 use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
 use profile::test_support::bulge_loop;
@@ -40,6 +41,7 @@ fn tube_at<T: geom_core::Decide + topo::AtRestPolicy>(a: T, z0: T, len: T) -> to
     extrude(&p, Extrusion::Distance { depth: len, side }, tol)
         .unwrap()
         .body
+        .into_body()
 }
 
 /// One tube pose against the ball.
@@ -252,7 +254,7 @@ fn probes() -> Vec<Probe> {
     }
     let cut = finished(
         "z ≥ 0",
-        brick((-3.0, 3.0), (-3.0, 3.0), (0.0, 3.0), tol),
+        brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (0.0, 3.0), tol),
         tol,
     );
     let half = match topo::intersect(&ball(), &cut, tol) {

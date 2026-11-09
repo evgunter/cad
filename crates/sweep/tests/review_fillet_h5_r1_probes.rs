@@ -241,7 +241,8 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
                 tol(),
             )
             .unwrap_or_else(|e| panic!("the ({rr}, {ry}) rim carves alone, got {e:?}"))
-            .body;
+            .body
+            .into_body();
         }
         let seq = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),

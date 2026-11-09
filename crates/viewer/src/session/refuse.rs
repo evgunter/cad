@@ -303,9 +303,10 @@ pub enum Refusal {
         /// The read, as the session op held it.
         read: Box<Operand>,
     },
-    /// A duplicate could not be placed — its input's landed value is
-    /// not one body with a width ([`combine::DuplicateFault`]).
-    Duplicate(combine::DuplicateFault),
+    /// The step that clears a body could not be measured — its input's
+    /// landed value is not one body with a width
+    /// ([`combine::StepClearFault`]).
+    StepClear(combine::StepClearFault),
     /// A gesture's frame could not be made: one of its numbers is not
     /// of its dimension or does not evaluate, its direction is none, or
     /// the body it reads the frame off offers no geometry to read
@@ -414,25 +415,16 @@ pub enum Refusal {
         /// The profile node, as the document held it at the refusal.
         node: SpokenNode,
     },
-    /// The placement editor's draft was loaded from a bundle the
-    /// placement no longer holds: it is not written over the one it
-    /// holds.
+    /// A bundle was drafted over one the placement no longer holds (an
+    /// undo, a redo, an edit from elsewhere): it is not written over the
+    /// one it holds.
     BundleStale {
         /// The placement, as the document held it at the refusal.
         node: SpokenNode,
     },
-    /// The placement editor's Create door was asked to place a body a
-    /// placement already copies: a placed body moves by that copy's
-    /// Edit door, and is never placed a second time by the door.
-    BodyPlaced {
-        /// The body, as the document held it at the refusal.
-        body: SpokenNode,
-        /// The copy whose Edit door moves it.
-        copy: SpokenNode,
-    },
-    /// The placement editor's Create door was asked to place a copy (a
-    /// placement or an instance): a copy moves by its own Edit door.
-    CreateOnACopy {
+    /// Place was asked of a copy (a placement or an instance): a copy is
+    /// edited by its own placement.
+    PlaceOnACopy {
         /// The copy, as the document held it at the refusal.
         copy: SpokenNode,
     },
@@ -444,9 +436,9 @@ pub enum Refusal {
     },
     /// The placement editor could not derive a bundle from its draft.
     Draft(Box<crate::matetool::MateToolError>),
-    /// The placement editor's Apply would place a copy that does not
+    /// The placement editor's bundle would place a copy that does not
     /// stand: its placement's fault, or `None` where what it reads does
-    /// not evaluate. It is withheld, and the draft stays open.
+    /// not evaluate. It is not written, and the editor holds the draft.
     PlacementFails {
         /// The fault the placement would evaluate to.
         fault: Option<Box<pncad::document::MateFault>>,
@@ -493,11 +485,7 @@ impl Refusal {
             },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
-            Self::BodyPlaced { body, copy } => Self::BodyPlaced {
-                body: again(body),
-                copy: again(copy),
-            },
-            Self::CreateOnACopy { copy } => Self::CreateOnACopy { copy: again(copy) },
+            Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
             Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
             Self::PlacementFails { fault } => Self::PlacementFails { fault },
@@ -513,7 +501,6 @@ impl Refusal {
             Self::VariableIsDefined(var) => Self::VariableIsDefined(var.respoken(doc)),
             Self::NotOffered(var) => Self::NotOffered(var.respoken(doc)),
             Self::OfferIsNamed(var) => Self::OfferIsNamed(var.respoken(doc)),
-            Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
             Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
             Self::Edit(error) => Self::Edit(Box::new(error.respoken(doc))),
@@ -530,6 +517,7 @@ impl Refusal {
                 current,
                 notation,
             },
+            Self::StepClear(fault) => Self::StepClear(fault.respoken(doc)),
             unspoken @ (Self::NoSuchVariable(_)
             | Self::NotABodyRead { .. }
             | Self::EmptyName
@@ -565,7 +553,7 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::NotABodyRead { .. }
-            | Self::Duplicate(_)
+            | Self::StepClear(_)
             | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -581,8 +569,7 @@ impl Refusal {
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
-            | Self::BodyPlaced { .. }
-            | Self::CreateOnACopy { .. }
+            | Self::PlaceOnACopy { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -618,7 +605,7 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::NotABodyRead { .. }
-            | Self::Duplicate(_)
+            | Self::StepClear(_)
             | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -629,8 +616,7 @@ impl Refusal {
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
-            | Self::BodyPlaced { .. }
-            | Self::CreateOnACopy { .. }
+            | Self::PlaceOnACopy { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -931,7 +917,7 @@ impl Refusal {
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
-            Self::Duplicate(fault) => {
+            Self::StepClear(fault) => {
                 write!(f, "{}", pncad::geom_brep::recourse::read_at(fault, at))
             }
             Self::Frame(fault) => write!(f, "{fault}"),
@@ -960,15 +946,10 @@ impl Refusal {
                 "{node}'s bundle changed since the editor loaded it; the editor's draft was not \
                  written — the editor now shows the bundle as it is"
             ),
-            Self::BodyPlaced { body, copy } => write!(
+            Self::PlaceOnACopy { copy } => write!(
                 f,
-                "{body} is placed by {copy}; move it by {copy}'s placement (the placement \
-                 editor's Edit door), not by a second copy"
-            ),
-            Self::CreateOnACopy { copy } => write!(
-                f,
-                "{copy} is a copy; move it by its own placement (the placement editor's Edit \
-                 door), not by a copy of it"
+                "{copy} is a copy; move it by its own placement in the placement editor, not \
+                 by a copy of it"
             ),
             Self::ValueNotRemoved { node } => write!(
                 f,

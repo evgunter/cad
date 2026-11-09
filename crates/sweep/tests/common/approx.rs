@@ -84,6 +84,7 @@ pub fn prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
         .expect("the square prism lofts")
         .body
+        .into_body()
 }
 
 /// A loft between a square and the SAME square rotated `theta` about
@@ -93,7 +94,7 @@ pub fn prism() -> Body<f64> {
 /// on. [`twisted_lofted`] is the same build with its keys kept, which
 /// is what an orientation row needs.
 pub fn twisted_loft(theta: f64) -> Body<f64> {
-    twisted_lofted(theta).body
+    twisted_lofted(theta).body.into_body()
 }
 
 /// The authored-ROLL loft, keyed: the tree's one lofted chart whose
