@@ -2,8 +2,10 @@
 id: the-line-router-charges-its-margins-with-world-origin-noise
 kind: issue
 title: The line router's two arms charge their screens and the in-plane Range with world-origin noise
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6642
 ---
 
 Filed by `onecopy/transverse-range`, which deleted `conic_conic`'s mint of the same form (`transverse-range-charges-the-global-height-with-world-origin-noise`).
@@ -25,3 +27,7 @@ Filed by `onecopy/transverse-range`, which deleted `conic_conic`'s mint of the s
 - Re-pose the two arms' readings locally, then delete both mints.
 - Pin a far-from-origin row, as `order_rows::the_needle_far_from_the_origin_reads_as_at_it` does for two conics: a line beside a conic and two lines, each translated by 1e3, read as at the origin in both orders.
 - Lower `pose.rs`'s row in `scripts/gates/bare-rounding-sites.tsv` again.
+
+## Resolved (PR 6642)
+
+Both mints are deleted. `route`'s parallel margin, `line_conic`'s polish `e` and its in-plane `Range` read uncharged. `OnOneLine` keeps the charge for the spans' ends as evaluated, `geom_core::one_line`'s own home. With every `Range` uncharged, `Range.noise` is gone. Pinned by `order_rows::a_line_beside_a_circle_or_a_line_far_from_the_origin_reads_as_at_it`, which is red with the mints: at 1e3 a line tangent to a circle escalated, and two parallel lines 2e-11 apart refused. `pose.rs`'s gate count drops from 7 to 5.

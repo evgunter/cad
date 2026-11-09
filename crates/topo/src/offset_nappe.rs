@@ -48,8 +48,7 @@
 //! ([`ReplaceFaceError::NappeStraddles`]), never guessed.
 
 use geom::Surface;
-use geom_brep::ladder::{Climb, Disagree, Rung, climb_agreeing};
-use geom_core::k_stats::decide;
+use geom_brep::ladder::{Answering, Climb, Disagree, Rung, climb, climb_agreeing};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -139,11 +138,32 @@ pub(crate) fn face_nappe_reading<T: Decide>(
         return Ok(Nappe::Opening);
     };
     let (station_min, station_max) = corner_stations(body, view, *apex, *axis);
-    let lo =
-        decide("offset_nappe", Margin::of(station_min), band).map_err(NappeRefusal::Escalated)?;
-    let hi =
-        decide("offset_nappe", Margin::of(station_max), band).map_err(NappeRefusal::Escalated)?;
-    match (lo, hi) {
+    // The lowest station decided above the apex puts every corner above
+    // it, and the highest decided below puts every corner below: either
+    // answers alone, whatever the other read (`station_min ≤
+    // station_max`; [`climb`], [`Answering::Any`]). Only where neither
+    // does are both read together.
+    let mut signs = [Sign::Zero; 2];
+    let extremes = [
+        (station_min, Sign::Positive, Nappe::Opening),
+        (station_max, Sign::Negative, Nappe::Mirror),
+    ];
+    let alone = climb(
+        Answering::Any,
+        extremes.into_iter().enumerate(),
+        |(at, (station, alone, nappe))| {
+            Rung::decide("offset_nappe", Margin::of(station), band, |d| {
+                signs[at] = d.sign;
+                (d.sign == alone).then_some(nappe)
+            })
+        },
+    );
+    match alone {
+        Climb::Answered { answer, .. } => return Ok(answer),
+        Climb::Undecided(cause) => return Err(NappeRefusal::Escalated(cause)),
+        Climb::Passed => {}
+    }
+    match (signs[0], signs[1]) {
         (Sign::Zero | Sign::Positive, Sign::Positive) => Ok(Nappe::Opening),
         (Sign::Negative, Sign::Negative | Sign::Zero) => Ok(Nappe::Mirror),
         _ => Err(NappeRefusal::Straddles {

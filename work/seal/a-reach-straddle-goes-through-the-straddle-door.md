@@ -2,10 +2,12 @@
 id: a-reach-straddle-goes-through-the-straddle-door
 kind: unit
 title: a carrier pair read Zero by its data and past the band by its extent bound is a straddle (C21, the torus witness), minted by k_stats::straddle through one geom-brep helper
-status: open
+status: closed
 opened: 2026-11-09
 priority: P1
 cost: M
+closed: 2026-11-09
+pr: 6646
 parent: glue-disagreements-and-held-contradictions-after-stage-4
 ---
 
@@ -29,3 +31,21 @@ CONTACTHOLD's `the-torus-witness-reads-only-vertices-two-tori-share` is orthogon
 ## Done when
 
 C21 and the torus witness are funnel-minted straddles on the escalation log, pinned at a K that reaches them, and no hand-built `Undecided` carries a decided margin on either path.
+
+## Dispatch (2026-11-09)
+
+Branch `seal/reach-straddle`. Review tier: **single, FULL**. The step joins two straddle sites through one geom-brep helper and widens an interval bound (`max(chord, sine)`), whose soundness is to be checked rather than read. It is no design decision: the fork settled the shapes.
+
+## Closed (2026-11-09, PR 6646)
+
+C21 and the torus witness mint their straddles through `k_stats::straddle`, on the escalation log. The PR body has the per-site table (each ending before and after), the interval argument for `upper`, the sweep and the premise corrections.
+
+- **`geom_brep::ladder::data_beneath_sum`** is the one helper: data decided `Zero` beside a sum that did not decide `Zero`. `tori_coincide` and `carrier_eq::coincident_over_extent` both call it. The data bound the carriers' separation, not the displacement over a partial extent, and the low end is the first datum's reading. C21's rows are `bool_plane_reach_straddle` and `carrier_{sphere,cyl,cone}_reach_straddle`.
+- **`TorusCoincidence::Apart { datum, by, upper }`.** `TorusDisplacement::upper` sums `max(chord, sine)`. The face-pair door (`carrier_eq::pair_door_reading`) hands the ring's apart back as `PairDoorReading::RingApart { upper, .. }`, and `carrier_pair_decided` passes `upper` to the witness, which mints `carrier_torus_witness_straddle`.
+- **Premise correction:** "apart ⇒ `upper` decided" holds for readable input only. A datum apart beside a non-finite datum leaves `upper` poisoned, and that pair now ends `Undecided` on the bound's poison, not `Apart`.
+- **The K note is C21's alone.** The witness straddle is reachable at any K.
+- **Pinned:**
+  - C21 at K = 1.5 on cylinder sheets, through `carrier_pair_decided` and `rest_pair_verdict`;
+  - the witness at the run's K on a torus patch.
+- **Filed:** `the-torus-floor-row-and-across-have-no-reader`.
+

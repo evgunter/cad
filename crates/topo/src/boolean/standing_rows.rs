@@ -33,7 +33,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         EdgeKey::default(),
         VertexKey::default(),
     );
-    let fixed: [(&str, BooleanError, Result<Refusal, Aborts>); 17] = [
+    let fixed: [(&str, BooleanError, Result<Refusal, Aborts>); 18] = [
         (
             "an escalation",
             BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag()),
@@ -124,6 +124,11 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             "a line's faces unplaced",
             line(LineUnread::Unplaced),
             Ok(Refusal::InBand),
+        ),
+        (
+            "a line's faces giving no reference",
+            line(LineUnread::NoReference),
+            Ok(Refusal::Limit),
         ),
         ("a vertex read twice", twice(false), Ok(Refusal::Limit)),
         (
