@@ -747,3 +747,4 @@
   - B builds nothing new: the at-rest embedding gate (6301) is the home, and no text changes.
   - The crux is whether the injectivity concession "near the shared cell" is metric or parametric. Round 1 asks each designer about it.
   - The branch-band lane is probing the injectivity question on a hairpin wall at 3e-10 and at 2e-8.
+- 07:58Z 6552's gate went green at 88bc2a6a, but main overlaps it in 4 topo files (boolean/mod.rs, rim_wedge.rs, census.rs, lib.rs). It joins the post-6619 re-merge queue: 6552, 6607, 6611, 6614, 6618.
