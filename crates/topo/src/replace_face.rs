@@ -3302,7 +3302,7 @@ fn carried_alike<T: Decide>(
     // Alike at every sample: any sample decided past ε answers "not
     // alike", whatever an earlier sample read ([`gaps_apart`]).
     let samples = [t0, tm, t1].map(|t| on_a.0.eval(t).distance(on_b.eval(t)));
-    match gaps_apart(samples, tol, band) {
+    match gaps_apart(&samples, tol, band) {
         Ok(Some(_)) => Ok(None),
         Ok(None) => Ok(Some(on_a)),
         Err(source) => Err(ReplaceFaceError::Escalated { source }),
@@ -4217,15 +4217,19 @@ fn past_eps(d: &Decided) -> bool {
 ///
 /// The kept reading, where no gap is past ε and one is in band.
 fn gaps_apart<T: Decide>(
-    gaps: impl IntoIterator<Item = T>,
+    gaps: &[T],
     tol: Tol,
     band: Band,
 ) -> Result<Option<(usize, T)>, Indeterminate> {
-    climb(Answering::Any, gaps.into_iter().enumerate(), |(at, gap)| {
-        Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
-            past_eps(&d).then_some((at, gap))
-        })
-    })
+    climb(
+        Answering::Any,
+        gaps.iter().copied().enumerate(),
+        |(at, gap)| {
+            Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
+                past_eps(&d).then_some((at, gap))
+            })
+        },
+    )
     .into_reading()
 }
 
@@ -4241,11 +4245,12 @@ fn corner_apart<T: Decide>(
     tol: Tol,
     band: Band,
 ) -> Result<Option<T>, Indeterminate> {
-    let pairs = points
+    let pairs: Vec<T> = points
         .iter()
         .enumerate()
-        .flat_map(|(i, a)| points[i + 1..].iter().map(move |b| a.distance(*b)));
-    gaps_apart(pairs, tol, band).map(|apart| apart.map(|(_, gap)| gap))
+        .flat_map(|(i, a)| points[i + 1..].iter().map(move |b| a.distance(*b)))
+        .collect();
+    gaps_apart(&pairs, tol, band).map(|apart| apart.map(|(_, gap)| gap))
 }
 
 /// [`gap_within_eps`]'s predicate name.
@@ -4828,7 +4833,7 @@ fn read_ends<T: Decide>(
     let ends = [(plan.start, p_start, t0), (plan.end, p_end, t1)];
     let gaps = ends.map(|(_, point, t)| carrier.eval(t).distance(point));
     if let Some((at, gap)) =
-        gaps_apart(gaps, tol, band).map_err(|source| ReplaceFaceError::Escalated { source })?
+        gaps_apart(&gaps, tol, band).map_err(|source| ReplaceFaceError::Escalated { source })?
     {
         let (vertex, ..) = ends[at];
         return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
@@ -6266,7 +6271,7 @@ mod corner_rows {
         // itself over a fine geometric sweep (the file reads ε once).
         let in_band = (0..2000)
             .map(|k| 1e-14 * 1.01f64.powi(k))
-            .find(|&g| gaps_apart([g], tol, band).is_err())
+            .find(|&g| gaps_apart(&[g], tol, band).is_err())
             .expect("some gap between ε and its band's edge reads in band");
         let points = [
             Point3::new(0.0, 0.0, 0.0),
