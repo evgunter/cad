@@ -1008,7 +1008,7 @@ impl<T: Decide> Line<T> {
 
 impl<T: Decide> Course<T> for Line<T> {
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
-        let s = (y - self.line.origin).dot(self.line.dir);
+        let s = self.line.height(y);
         match ray_walk::advance(at, Margin::of(s), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?
         {
