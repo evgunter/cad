@@ -1945,7 +1945,14 @@ fn walls_inside<T: Decide>(
                 diag,
             })
         }
-        Err(_) => Err(refused(EdgeInFaceGap::NoNormal)),
+        // A normal kept as its refusal states it is this reading's limit;
+        // the midpoint off the surface of a face it bounds is a defect.
+        Err(why) => Err(match why.refusal() {
+            Ok(_) => refused(EdgeInFaceGap::NoNormal),
+            Err(geom_brep::ladder::Aborts) => BooleanError::ClassificationInvariant {
+                what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
+            },
+        }),
     };
     // A face the point door reads no normal on (a spline or an
     // approximating face, `Ok(None)`) is an input this reading does not
@@ -2059,12 +2066,23 @@ fn walls_inside<T: Decide>(
 /// **A spline face `f`'s outward normal at the in-trim foot its placement
 /// reads `p` at** ([`super::spline_region::spline_face_placement`],
 /// [`crate::face_normal::spline_outward_normal_at`]): `None` where `p`
-/// reads at no in-trim foot, or the chart has no one normal there.
+/// reads at no in-trim foot, or where the placement or the normal
+/// refuses as a refusal that keeps its query ([`ContainError::refusal`],
+/// [`crate::face_normal::NormalAtError::refusal`]): the chart has no one
+/// normal there.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where the placement, or `p` on the chart
-/// at its foot, is in band.
+/// at its foot, is in band; [`BooleanError::ClassificationInvariant`]
+/// where either refuses the whole query (two of the door's definite
+/// readings disagree, or `p` reads off the chart at the foot it was
+/// placed at).
+///
+/// # Panics
+///
+/// Where the door answers that `f`, read out of `body`, does not
+/// resolve ([`super::contain::driver_face_stale`]).
 fn spline_floor<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -2092,7 +2110,15 @@ fn spline_floor<T: Decide>(
                 diag,
             });
         }
-        Err(_) => return Ok(None),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(why) => {
+            return match why.refusal() {
+                Ok(_) => Ok(None),
+                Err(geom_brep::ladder::Aborts) => Err(BooleanError::ClassificationInvariant {
+                    what: "a spline floor's placement of an edge's midpoint refuses the whole query",
+                }),
+            };
+        }
     };
     match crate::face_normal::spline_outward_normal_at(body, f, uv, p, band) {
         Ok(n) => Ok(Some(n.vec())),
@@ -2102,7 +2128,17 @@ fn spline_floor<T: Decide>(
                 diag,
             })
         }
-        Err(_) => Ok(None),
+        Err(SplineNormalError::StaleFace) => super::contain::driver_face_stale(f),
+        // The chart was read as a spline above, so the point door's arm
+        // and the placeholder's are a chart with no one normal here.
+        Err(SplineNormalError::NotSpline | SplineNormalError::PlaceholderChart) => Ok(None),
+        Err(SplineNormalError::At(why)) => match why.refusal() {
+            Ok(_) => Ok(None),
+            Err(geom_brep::ladder::Aborts) => Err(BooleanError::ClassificationInvariant {
+                what: "a spline floor reads an edge's midpoint off its chart at the foot its \
+                       placement read",
+            }),
+        },
     }
 }
 
@@ -2784,7 +2820,7 @@ fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
 fn meet_refused(fault: MeetFault, unread: BooleanError) -> BooleanError {
     match fault.kind() {
         MeetKind::Escalated(diag) | MeetKind::Touch(diag) => crossing_escalated(diag),
-        MeetKind::Unread => unread,
+        MeetKind::Unread(_) => unread,
         MeetKind::Fault { .. } => BooleanError::ClassificationInvariant {
             what: "the meeting reader contradicted itself on two edges' carriers",
         },

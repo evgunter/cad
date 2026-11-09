@@ -131,28 +131,13 @@ impl core::fmt::Display for TraceFault {
             Self::Unsettled(why) => write!(
                 f,
                 "a root count the door cannot certify ({})",
-                unsettled_words(*why)
+                why.sentence()
             ),
         }
     }
 }
 
 impl core::error::Error for TraceFault {}
-
-/// What an uncertified root count says of itself, in words.
-fn unsettled_words(why: Unsettled) -> &'static str {
-    match why {
-        Unsettled::Tangency => "a double root",
-        Unsettled::Meter { .. } => "a residual the band cannot meter",
-        Unsettled::Exhausted => "the walk ran past its piece budget",
-        Unsettled::Floor => "a piece at the walk's floor the band does not read past",
-        Unsettled::Resolvent => "a resolvent with no positive root",
-        Unsettled::CountDisagrees { .. } => "the built roots disagree with the certified count",
-        Unsettled::AtApex => "a root at a cone's apex",
-        Unsettled::Degenerate => "a residual whose leading term vanishes",
-        Unsettled::Crease => "a meeting at a spline's crease",
-    }
-}
 
 fn door(error: BooleanError) -> TraceFault {
     match error {

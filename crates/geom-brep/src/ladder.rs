@@ -157,12 +157,64 @@ pub enum Refusal {
     Unsettled,
 }
 
+/// **The ending a rendering of a standing composes**
+/// ([`Refusal::recourse`]): which recourse, kept as a value until it is
+/// rendered, since a margin's sizes its own words.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Ending {
+    /// The tolerance this margin sizes, then moving the geometry
+    /// ([`Indeterminate::ending`]).
+    Sized(Indeterminate),
+    /// Moving the geometry ([`geom_core::MOVE_RECOURSE`]).
+    Move,
+    /// A kernel approximation limit's lever
+    /// ([`geom_core::KERNEL_LIMIT_RECOURSE`]).
+    KernelLimit,
+    /// No way through yet ([`geom_core::NOT_YET_ENDING`]).
+    NotYet,
+}
+
+impl Ending {
+    /// The ending's words.
+    #[must_use]
+    pub fn render(self) -> std::borrow::Cow<'static, str> {
+        match self {
+            Self::Sized(diag) => diag.ending(geom_core::COINCIDENCE_RECOURSE).into(),
+            Self::Move => geom_core::MOVE_RECOURSE.into(),
+            Self::KernelLimit => geom_core::KERNEL_LIMIT_RECOURSE.into(),
+            Self::NotYet => geom_core::NOT_YET_ENDING.into(),
+        }
+    }
+}
+
 /// A refusal of the whole query ([`Refusal`]'s docs): the ladder stops
 /// on it ([`Rung::Aborts`]) with the answer its caller names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Aborts;
 
 impl Refusal {
+    /// **The recourse a rendering of this standing ends with** (D4 ¶1
+    /// (i), DESIGN `[failure.taxonomy]` as this type's docs read it):
+    /// - a reading ranked by its margin offers the tolerance that margin
+    ///   sizes, then moving the geometry ([`Ending::Sized`]);
+    /// - one in band with no margin, moving the geometry
+    ///   ([`Ending::Move`]);
+    /// - one a coarser band or a budget may settle, the kernel limit's
+    ///   lever ([`Ending::KernelLimit`]);
+    /// - a valid input the kernel does not read yet (row 2), no way
+    ///   through yet ([`Ending::NotYet`]).
+    ///
+    /// An abort has no ending here: its caller names its answer.
+    #[must_use]
+    pub const fn recourse(self) -> Ending {
+        match self {
+            Self::Margin(diag) => Ending::Sized(diag),
+            Self::InBand => Ending::Move,
+            Self::Unsettled => Ending::KernelLimit,
+            Self::Limit => Ending::NotYet,
+        }
+    }
+
     /// **A crease reading's standing**, stated once for every reader of
     /// one (a spline chart's normal at a point within the band of a line
     /// its normal is not continuous across, or of a pole): a distance in
