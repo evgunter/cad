@@ -770,3 +770,4 @@
   - FULL review: session_013mPGJ49aLEyBb6JNAZiN5E.
   - The C5 rewording of Ev's 6567 sentence is judged descriptive. That sentence recorded the gap this PR closes, and C5's decision is unchanged.
   - It conflicts with 6609 (`u_line`) in on_surface.rs and C5; whichever merges second keys `u_line`.
+- 08:20Z spiric-regime opened PR 6621 (head a43b5c58), with hosted CI green. It adds one predicate, geom::spiric_regime, and the three deciders route to it. FULL review dispatched; it also asks whether spiric_regime spells the ring question a third time.
