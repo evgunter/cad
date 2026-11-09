@@ -1531,6 +1531,16 @@ pub struct PredicateCensus {
     /// declare — declaring it makes that carrier's own call sites part
     /// of the census, so the chain terminates at literals or stays red.
     pub indirect: std::collections::BTreeSet<String>,
+    /// `<file>: <path>` per site whose name is a `const`, in place of an
+    /// `indirect` entry: the path's last segment is a `const` this walk
+    /// found declared under `src`. A roster holds each to a declared
+    /// [`NameCarrier::Const`], which reads the name out of it.
+    pub consts: std::collections::BTreeSet<String>,
+    /// Each declared carrier that matched nothing in the walk — for a
+    /// [`NameCarrier::Const`], no declaration that holds a name; for a
+    /// [`NameCarrier::Call`], no call or literal. A stale carrier reads
+    /// as `Const(NAME)` or `Call(token)`.
+    pub unfound: std::collections::BTreeSet<String>,
     /// `<file>: <text>` per `decide*` occurrence this reader cannot
     /// even find an argument list for — a spelling it does not know.
     pub unreadable: std::collections::BTreeSet<String>,
@@ -1566,28 +1576,45 @@ pub struct PredicateCensus {
 #[must_use]
 pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> PredicateCensus {
     let mut out = PredicateCensus::default();
-    for path in rust_sources(src) {
-        let text = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("a readable source file {}: {e}", path.display()));
+    let files: Vec<(String, String)> = rust_sources(src)
+        .into_iter()
+        .map(|path| {
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("a readable source file {}: {e}", path.display()));
+            let rel = path
+                .strip_prefix(src)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            (rel, text)
+        })
+        .collect();
+    // Every `const` the walk declares, so a site whose name is a path to
+    // one is told apart from a forwarded expression by what the tree
+    // holds, not by how the path is spelled.
+    let declared: std::collections::BTreeSet<String> = files
+        .iter()
+        .flat_map(|(_, text)| const_names(&code_only(text)))
+        .collect();
+    let mut found = std::collections::BTreeSet::new();
+    for (rel, text) in &files {
         // Comments are blanked in place, so prose that spells `decide (`
         // is not a call site and the offsets still index the file byte
         // for byte.
-        let code = code_and_literals(&text);
+        let code = code_and_literals(text);
         // Tokens are LOCATED in the code-only view, where a literal's
         // bytes are blanked, so prose inside a string that spells
         // `decide(` is not a call site either; they are READ from the
         // view that keeps literals. Both are blanked in place, so one
         // set of offsets indexes both.
-        let bare = code_only(&text);
-        let rel = path
-            .strip_prefix(src)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
+        let bare = code_only(text);
         for (kind, payload) in funnel_sites(&bare, &code) {
             match kind {
                 SiteKind::Name => {
                     out.names.insert(payload);
+                }
+                SiteKind::Indirect if names_a_const(&payload, &declared) => {
+                    out.consts.insert(format!("{rel}: {payload}"));
                 }
                 SiteKind::Indirect => {
                     out.indirect.insert(format!("{rel}: {payload}"));
@@ -1597,13 +1624,16 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                 }
             }
         }
-        for head in identity_sites(&bare, &code) {
-            out.indirect.insert(format!("{rel}: read_identity({head})"));
+        for (ordinal, (head, literals)) in identity_sites(&bare, &code).into_iter().enumerate() {
+            out.indirect
+                .insert(format!("{rel}: read_identity#{}({head})", ordinal + 1));
+            out.names.extend(literals);
         }
         for carrier in carriers {
             match *carrier {
                 NameCarrier::Call(token) => {
                     for open in carrier_groups(&bare, token) {
+                        found.insert(format!("Call({token})"));
                         let Some(end) = balanced_end(&bare, open) else {
                             out.unreadable.insert(format!("{rel}: {token}(… unclosed"));
                             continue;
@@ -1621,6 +1651,7 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                     for decl in const_decls(&bare, token) {
                         match const_literal(&code[decl..]) {
                             Some(Some(name)) => {
+                                found.insert(format!("Const({token})"));
                                 out.names.insert(name);
                             }
                             Some(None) => {}
@@ -1642,7 +1673,122 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
             }
         }
     }
+    out.unfound = carriers
+        .iter()
+        .map(|carrier| match carrier {
+            NameCarrier::Call(token) => format!("Call({token})"),
+            NameCarrier::Const(token) => format!("Const({token})"),
+        })
+        .filter(|key| !found.contains(key))
+        .collect();
     out
+}
+
+/// **The checks every predicate-name roster makes of its census**, in
+/// one place: each crate's `recourse_roster` asks this for its
+/// violations and asserts there are none, and holds its own doors'
+/// names on top.
+///
+/// - Nothing is invisible: no spelling the reader cannot read, and no
+///   `include!` or `#[path]` pulling source from outside `src` — a
+///   `#[path = "x.rs"]` naming a file under `src`, which the walk reads
+///   whole, is not a gap.
+/// - No declared carrier is stale: each [`NameCarrier`] matched
+///   something ([`PredicateCensus::unfound`]).
+/// - Every site whose name is a `const` names a declared
+///   [`NameCarrier::Const`], which reads the name out of it.
+/// - Where the roster lists its indirect sites (`listed`, as
+///   `(site, what carries the name there)`), the census's indirect sites
+///   are exactly those. A roster that admits them by a rule of its own
+///   passes `None` and holds them itself.
+#[must_use]
+pub fn roster_violations(
+    src: &std::path::Path,
+    census: &PredicateCensus,
+    carriers: &[NameCarrier],
+    listed: Option<&[(&str, &str)]>,
+) -> Vec<String> {
+    let mut out: Vec<String> = census
+        .unreadable
+        .iter()
+        .map(|site| format!("a spelling the reader cannot read: {site}"))
+        .collect();
+    for site in &census.unwalked {
+        if let Err(why) = mounted_under(src, site) {
+            out.push(format!("source the reader does not walk: {site}: {why}"));
+        }
+    }
+    out.extend(
+        census
+            .unfound
+            .iter()
+            .map(|carrier| format!("a declared carrier matched nothing in src: {carrier}")),
+    );
+    let consts: std::collections::BTreeSet<&str> = carriers
+        .iter()
+        .filter_map(|carrier| match carrier {
+            NameCarrier::Const(name) => Some(*name),
+            NameCarrier::Call(_) => None,
+        })
+        .collect();
+    for site in &census.consts {
+        let (_, path) = site.split_once(": ").expect("`<file>: <path>`");
+        let last = path.rsplit("::").next().unwrap_or(path);
+        if !consts.contains(last) {
+            out.push(format!(
+                "a site names the const `{last}`, not declared a carrier: {site}"
+            ));
+        }
+    }
+    if let Some(listed) = listed {
+        let named: std::collections::BTreeSet<&str> =
+            listed.iter().map(|(site, _)| *site).collect();
+        if named.len() != listed.len() {
+            out.push("an indirect site is listed twice".to_string());
+        }
+        out.extend(
+            census
+                .indirect
+                .iter()
+                .filter(|site| !named.contains(site.as_str()))
+                .map(|site| format!("an indirect site not listed: {site}")),
+        );
+        out.extend(
+            named
+                .iter()
+                .filter(|site| !census.indirect.contains(**site))
+                .map(|site| format!("a listed indirect site the census no longer finds: {site}")),
+        );
+    }
+    out
+}
+
+/// Whether the unwalked site `<file>:<line>` under `src` is a
+/// `#[path = "…"]` mounting a file under `src`, which the walk reads.
+fn mounted_under(src: &std::path::Path, site: &str) -> Result<(), String> {
+    let (file, line) = site.rsplit_once(':').ok_or("not `<file>:<line>`")?;
+    let line: usize = line.parse().map_err(|_| "not a line number")?;
+    let file = src.join(file);
+    let text = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    let code = code_and_literals(&text);
+    let attr = code
+        .lines()
+        .nth(line.saturating_sub(1))
+        .ok_or("no such line")?
+        .trim();
+    let target = attr
+        .strip_prefix("#[path =")
+        .and_then(|rest| rest.trim().strip_suffix(']'))
+        .and_then(plain_string_literal)
+        .ok_or_else(|| format!("not a `#[path = …]` mount: {attr}"))?;
+    let mounted = file
+        .parent()
+        .ok_or("a file with no directory")?
+        .join(target);
+    if target.contains("..") || !mounted.starts_with(src) || !mounted.is_file() {
+        return Err(format!("mounts `{target}`, which is not a file under src"));
+    }
+    Ok(())
 }
 
 /// What a `decide*` occurrence turned out to be.
@@ -1754,9 +1900,11 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
     out
 }
 
-/// The head of the first argument of every `read_identity` call in a
-/// blanked view — up to its first top-level comma, on one line.
-fn identity_sites(bare: &str, code: &str) -> Vec<String> {
+/// Every `read_identity` call in a blanked view, in order: the head of
+/// its first argument (up to its first top-level comma, on one line),
+/// and every plain literal inside the call — the data's names where
+/// they are spelled at the call.
+fn identity_sites(bare: &str, code: &str) -> Vec<(String, Vec<String>)> {
     const TOKEN: &str = "read_identity";
     let mut out = Vec::new();
     let mut at = 0usize;
@@ -1777,7 +1925,7 @@ fn identity_sites(bare: &str, code: &str) -> Vec<String> {
         }
         let open = bare.len() - rest.len();
         let Some(close) = balanced_end(bare, open) else {
-            out.push("… unclosed".to_string());
+            out.push(("… unclosed".to_string(), Vec::new()));
             continue;
         };
         let inner = &bare[open + 1..close];
@@ -1786,9 +1934,61 @@ fn identity_sites(bare: &str, code: &str) -> Vec<String> {
             .next()
             .map_or(0..inner.len(), |r| r);
         let head = &code[open + 1 + first.start..open + 1 + first.end];
-        out.push(one_line(head.trim().lines().next().unwrap_or("")));
+        out.push((
+            one_line(head.trim().lines().next().unwrap_or("")),
+            literals_within(&code[open + 1..close]),
+        ));
     }
     out
+}
+
+/// Every plain string literal in `code` (a [`code_and_literals`] view),
+/// at any depth.
+fn literals_within(code: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = code[at..].find('"') {
+        let start = at + hit;
+        match first_literal(&code[start..]) {
+            Some(name) => {
+                at = start + name.len() + 2;
+                out.push(name);
+            }
+            None => at = start + 1,
+        }
+    }
+    out
+}
+
+/// The identifier of every `const NAME` declaration in a blanked view.
+fn const_names(bare: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find("const ") {
+        let start = at + hit;
+        at = start + "const ".len();
+        if !boundary_before(bare, start) {
+            continue;
+        }
+        let name: String = bare[at..]
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        if !name.is_empty() && bare[at + name.len()..].trim_start().starts_with(':') {
+            out.push(name);
+        }
+    }
+    out
+}
+
+/// Whether `expr` is a path to one of `declared` — `NAME`,
+/// `super::NAME`, `Self::NAME`.
+fn names_a_const(expr: &str, declared: &std::collections::BTreeSet<String>) -> bool {
+    let segments: Vec<&str> = expr.split("::").collect();
+    segments
+        .iter()
+        .all(|seg| !seg.is_empty() && seg.chars().all(|c| c.is_alphanumeric() || c == '_'))
+        && segments.last().is_some_and(|last| declared.contains(*last))
 }
 
 /// The names of a tuple of plain string literals at the head of `code`
@@ -2204,19 +2404,37 @@ mod tests {
         std::fs::remove_dir_all(&dir).expect("cleanup");
     }
 
-    /// **Every `read_identity` call is an indirect site**, named by its
-    /// first argument's head; its declaration, an import and a doc
-    /// mention are not calls, and a literal datum inside the call does
-    /// not make the site readable.
+    /// **Every `read_identity` call is an indirect site, keyed by its
+    /// ordinal in its file**, so two calls rustfmt lays out alike are two
+    /// entries; its declaration, an import and a doc mention are not
+    /// calls, and a literal inside a call is read as a name.
     #[test]
     fn a_read_identity_call_is_an_indirect_site() {
         let raw = "use ladder::{read_identity};\n\
                    /// [`read_identity`] reads data.\n\
                    pub fn read_identity<T>(d: T) {}\n\
                    fn f() { geom_brep::ladder::read_identity(\n    [(\"lit\", m)], band); \
+                   read_identity(\n    [(\"other\", m)], band); \
                    read_identity(xs.map(|x| (NAME, x)), band); }\n";
-        let sites = super::identity_sites(&code_only(raw), &code_and_literals(raw));
-        assert_eq!(sites, ["[(\"lit\", m)]", "xs.map(|x| (NAME, x))"], "{raw}");
+        let dir = std::env::temp_dir().join(format!("tu-identity-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(dir.join("a.rs"), raw).expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.indirect.iter().collect::<Vec<_>>(),
+            [
+                "a.rs: read_identity#1([(\"lit\", m)])",
+                "a.rs: read_identity#2([(\"other\", m)])",
+                "a.rs: read_identity#3(xs.map(|x| (NAME, x)))",
+            ],
+            "{raw}"
+        );
+        assert_eq!(
+            census.names.iter().collect::<Vec<_>>(),
+            ["lit", "other"],
+            "{raw}"
+        );
     }
 
     /// **A `Const` carrier reads every `&str` declaration of its name
@@ -2284,6 +2502,52 @@ mod tests {
             .map(|(kind, s)| (matches!(kind, super::SiteKind::Name), s.as_str()))
             .collect();
         assert_eq!(read, [(false, "name"), (true, "lit")], "{raw}");
+    }
+
+    /// **The roster harness reports each kind of gap once and passes a
+    /// clean tree**: a `#[path]` to a file under `src` is walked, one
+    /// outside it is not; a stale carrier, an undeclared const site, and
+    /// an indirect site missing from or stale in the list each red.
+    #[test]
+    fn the_roster_harness_names_each_gap() {
+        let dir = std::env::temp_dir().join(format!("tu-roster-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "#[path = \"b.rs\"]\nmod b;\n#[path = \"../c.rs\"]\nmod c;\n\
+             const ROW: &str = \"row\";\nconst OTHER: &str = \"other\";\n\
+             fn f() { decide(ROW, m); decide(OTHER, m); decide(name, m); }\n\
+             /// prose naming a `#[path]` mount is not one\n",
+        )
+        .expect("write");
+        std::fs::write(dir.join("b.rs"), "fn g() {}\n").expect("write");
+        let carriers = [
+            super::NameCarrier::Const("ROW"),
+            super::NameCarrier::Call("gone"),
+        ];
+        let census = super::predicate_census(&dir, &carriers);
+        let said = super::roster_violations(&dir, &census, &carriers, Some(&[("a.rs: stale", "")]));
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.consts.iter().collect::<Vec<_>>(),
+            ["a.rs: OTHER", "a.rs: ROW"]
+        );
+        assert_eq!(
+            census.unwalked.iter().collect::<Vec<_>>(),
+            ["a.rs:1", "a.rs:3"],
+            "a doc comment's `#[path]` is prose"
+        );
+        let expect = [
+            "source the reader does not walk: a.rs:3",
+            "a declared carrier matched nothing in src: Call(gone)",
+            "a site names the const `OTHER`, not declared a carrier: a.rs: OTHER",
+            "an indirect site not listed: a.rs: name",
+            "a listed indirect site the census no longer finds: a.rs: stale",
+        ];
+        assert_eq!(said.len(), expect.len(), "{said:#?}");
+        for (said, expect) in said.iter().zip(expect) {
+            assert!(said.starts_with(expect), "{said} is not `{expect}…`");
+        }
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the

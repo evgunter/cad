@@ -1,36 +1,47 @@
-//! **The roster: every predicate name this crate decides carries its
+//! **The roster: every predicate name this crate decides carries a
 //! door's prefix, or is listed here with the door that decides it.**
 //!
 //! A topo name says its door in its spelling: `bool_` is the boolean's,
 //! `split_` the split's, `offset_` the replace-face offset's, and so on
 //! through [`DOORS`]. **The prefix is the convention a new name
-//! follows**: name it under its door's prefix, and this row reads it
-//! with nothing to add. A name under no prefix, or under another door's,
+//! follows**: name it under a door's prefix, and this row reads it with
+//! nothing to add. A name under no prefix, or under another door's,
 //! goes in [`EXCEPTIONS`] with the door that decides it, and a prefix
 //! that is a prefix of another is a red row rather than a ranking.
 //!
 //! The reader is `test_utils::source::predicate_census`, the tree's one
-//! home for this walk. It reads a name at a `decide*` call, or out of a
-//! carrier declared in [`CARRIERS`]: a `const` the name is spelled in,
-//! or a call or row struct whose literal arguments are names. **What it
-//! cannot read it reports**, and each is a red row here:
+//! home for this walk, and the checks every roster makes of it are
+//! `test_utils::source::roster_violations`. It reads a name at a
+//! `decide*` call, or out of a carrier declared in [`CARRIERS`]: a
+//! `const` the name is spelled in, or a call or row struct whose literal
+//! arguments are names. **What it cannot read it reports**, and each is
+//! a red row here:
 //!
 //! - a site whose name is a `const` this file does not declare;
 //! - any other indirect site not in [`INDIRECT`] — a funnel forwarding
 //!   its caller's name, a field of a row struct, and every
-//!   `geom_brep::ladder::read_identity` call, whose data the reader
-//!   cannot follow, so each lists where its data's names are spelled;
-//! - a spelling it does not know, and a file it does not walk.
+//!   `geom_brep::ladder::read_identity` call, keyed by its place in its
+//!   file and its own literals read as names;
+//! - a spelling it does not know, a file it does not walk, and a
+//!   declared carrier that no longer matches anything.
 //!
 //! A forwarding funnel whose callers are not read is a name this row
 //! does not see; the generic forwarders (`decided`, `zero`, `sign`, …),
 //! too common a token to declare crate-wide, are the follow-up row
 //! `topo-name-forwarders-hide-their-callers-names`.
+//!
+//! **When it runs.** The walk takes seconds, so this row is in the slow
+//! set: a PR runs it only when the PR names it, and the nightly runs it
+//! every night. A PR that adds a name or a site without touching this
+//! file meets it at the nightly, not at its own gate
+//! (`work/ciw/tree-wide-source-censuses-in-the-slow-set-run-on-no-pr-that-moves-a-site.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
-use test_utils::source::{NameCarrier, PredicateCensus, crate_dir, predicate_census};
+use test_utils::source::{
+    NameCarrier, PredicateCensus, crate_dir, predicate_census, roster_violations,
+};
 
 /// A door: the prefixes its names carry, and the error type its
 /// escalations are typed on.
@@ -67,6 +78,12 @@ const REPLACE_FACE: Door = Door {
     prefixes: &["offset_"],
     error: std::any::type_name::<topo::ReplaceFaceError<f64>>,
 };
+/// The recharts the Euler operators run on an attach, typed on
+/// `EulerOpError::RechartBoundaryEscalated`.
+const RECHART: Door = Door {
+    prefixes: &["rechart_"],
+    error: std::any::type_name::<topo::EulerOpError>,
+};
 const VALIDATION: Door = Door {
     prefixes: &[
         "census_",
@@ -76,6 +93,10 @@ const VALIDATION: Door = Door {
         "self_intersection_",
     ],
     error: std::any::type_name::<topo::ValidationError>,
+};
+const CLEARANCE: Door = Door {
+    prefixes: &["clearance_"],
+    error: std::any::type_name::<topo::clearance::MinSeparationRefusal>,
 };
 const CHART_REGION: Door = Door {
     prefixes: &["chart_"],
@@ -103,7 +124,9 @@ const DOORS: &[&Door] = &[
     &SPLIT_JOIN,
     &POINT_IN_LOOP,
     &REPLACE_FACE,
+    &RECHART,
     &VALIDATION,
+    &CLEARANCE,
     &CHART_REGION,
     &SHELL,
     &PCURVES,
@@ -142,7 +165,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("keep_turn_row", &REPLACE_FACE),
     ("positive_volume", &VALIDATION),
     ("positive_volume_enclosure", &VALIDATION),
-    ("rechart_boundary_residual", &VALIDATION),
     ("cone_row_apex", &CHART_REGION),
     ("nearest_branch_row", &CHART_REGION),
     ("period_fold_row", &CHART_REGION),
@@ -151,7 +173,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("loop_windings_joint_room", &PCURVES),
     ("planar_winding_spiric_refine", &PCURVES),
     ("undecided_mark_row", &PCURVES),
-    ("clearance_support_gap", &CLEARANCE),
     ("arm", &UNIT_TEST),
     ("asymptote", &UNIT_TEST),
     ("clear", &UNIT_TEST),
@@ -163,13 +184,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("t", &UNIT_TEST),
     ("width", &UNIT_TEST),
 ];
-
-/// The clearance engine's support gap, its one name: a door with no
-/// prefix of its own.
-const CLEARANCE: Door = Door {
-    prefixes: &[],
-    error: std::any::type_name::<topo::clearance::MinSeparationRefusal>,
-};
 
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
@@ -283,6 +297,8 @@ const ROW_FIELD: &str = "a field of a row struct, whose names are read at the st
 const IDENTITY: &str = "a `read_identity` call over data named by declared consts";
 const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
                              `cone_data`, whose names are declared consts";
+const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names are spelled in its own \
+                           match, which the census does not read";
 const NOT_A_NAME: &str = "another type's `decide*` method, whose first argument is not a name";
 const SAME_NAMED: &str = "census.rs's own `bounded`, a point filter sharing the declared \
                           `ConicRows::bounded` carrier's token";
@@ -292,13 +308,13 @@ const SAME_NAMED: &str = "census.rs's own `bounded`, a point filter sharing the 
 const INDIRECT: &[(&str, &str)] = &[
     ("boolean/carrier_eq.rs: &surface(ring", NOT_A_NAME),
     (
-        "boolean/carrier_eq.rs: read_identity(margins.iter().copied())",
+        "boolean/carrier_eq.rs: read_identity#1(margins.iter().copied())",
         IDENTITY_DATA,
     ),
     ("boolean/carrier_eq.rs: row", FORWARDS),
     ("boolean/cone_frame_rows.rs: x", NOT_A_NAME),
     ("boolean/contact_verify.rs: &first", NOT_A_NAME),
-    ("boolean/contact_verify.rs: off", FORWARDS),
+    ("boolean/contact_verify.rs: row.predicate(", CLOSED_TYPE),
     ("boolean/contact_verify.rs: on", FORWARDS),
     ("boolean/contain.rs: on_plane", FORWARDS),
     ("boolean/join.rs: name", FORWARDS),
@@ -310,9 +326,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/region.rs: cross", FORWARDS),
     ("boolean/region.rs: end.row", ROW_FIELD),
     ("boolean/rim_wedge.rs: name", FORWARDS),
-    ("boolean/rim_wedge.rs: read_identity([)", IDENTITY),
+    ("boolean/rim_wedge.rs: read_identity#1([)", IDENTITY),
     (
-        "boolean/rim_wedge.rs: read_identity([t0, t1].map(|t| {)",
+        "boolean/rim_wedge.rs: read_identity#2([t0, t1].map(|t| {)",
         IDENTITY,
     ),
     ("boolean/section_cert.rs: name", FORWARDS),
@@ -320,7 +336,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/solid_contain.rs: SCHEDULE_ROWS.reaches", ROW_FIELD),
     ("boolean/solid_contain.rs: name", FORWARDS),
     ("boolean/solid_contain.rs: order", FORWARDS),
-    ("boolean/solid_contain.rs: rows.advance", ROW_FIELD),
     ("boolean/solid_contain.rs: rows.beside", ROW_FIELD),
     ("boolean/solid_contain.rs: rows.clearance", ROW_FIELD),
     ("boolean/solid_contain.rs: rows.denom", ROW_FIELD),
@@ -330,15 +345,11 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/solid_contain.rs: rows.represents", ROW_FIELD),
     ("boolean/solid_contain.rs: rows.vertex", ROW_FIELD),
     (
-        "boolean/solid_contain/curved_edges.rs: rows.advance",
-        ROW_FIELD,
-    ),
-    (
         "boolean/solid_contain/curved_edges.rs: rows.order",
         ROW_FIELD,
     ),
     (
-        "boolean/surface_group.rs: read_identity(coaxial_margins(origin, axis, rim).map(|margin| \
+        "boolean/surface_group.rs: read_identity#1(coaxial_margins(self.axis, rim).map(|margin| \
          (BOOL_WRAP_RIM, margin)))",
         IDENTITY,
     ),
@@ -400,7 +411,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("ring_path.rs: name", FORWARDS),
     ("splitting/containment.rs: arm_row", FORWARDS),
     (
-        "splitting/containment.rs: read_identity(data.iter().map(|&(name, m, _)| (name, m)))",
+        "splitting/containment.rs: read_identity#1(data.iter().map(|&(name, m, _)| (name, m)))",
         IDENTITY,
     ),
     ("splitting/containment.rs: rows.turn", ROW_FIELD),
@@ -435,16 +446,18 @@ fn door_of(name: &str) -> Vec<&'static Door> {
 }
 
 /// **Every name the crate decides carries one door's prefix or is
-/// listed, every site the reader cannot read a name at is declared or
-/// listed, and nothing in `src` is invisible to it.** One census, read
-/// once: it walks the whole of `src`.
+/// listed, and the census meets the harness every roster shares**
+/// (`test_utils::source::roster_violations`: nothing invisible, no
+/// stale carrier, every const site a declared carrier, the indirect
+/// sites exactly [`INDIRECT`]). One census, read once: it walks the
+/// whole of `src`.
 #[test]
 fn every_decided_name_has_its_door_and_every_site_is_read() {
     let census = predicate_census(&src(), CARRIERS);
     the_doors_are_well_formed();
     names_have_doors(&census);
-    indirect_sites_are_listed(&census);
-    nothing_is_invisible(&census);
+    let violations = roster_violations(&src(), &census, CARRIERS, Some(INDIRECT));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 /// No prefix is another's prefix (a name would carry two doors), and
@@ -468,18 +481,16 @@ fn the_doors_are_well_formed() {
     assert_eq!(listed.len(), EXCEPTIONS.len(), "a name is listed twice");
 }
 
+/// Each name carries exactly one door's prefix or is an exception, each
+/// exception is decided, and each prefix has a name decided under it —
+/// which is also what keeps this row from passing over an empty census.
 fn names_have_doors(census: &PredicateCensus) {
-    assert!(
-        census.names.contains("bool_wrap_rim") && census.names.contains("split_ring_path_span"),
-        "the reader found no funnel calls it should have: {:?}",
-        census.names
-    );
     let listed: BTreeSet<&str> = EXCEPTIONS.iter().map(|(n, _)| *n).collect();
     for name in &census.names {
         let doors = door_of(name);
         assert!(
             doors.len() == 1 || listed.contains(name.as_str()),
-            "`{name}` is decided in the crate's src under {} — name it under its door's \
+            "`{name}` is decided in the crate's src under {} — name it under a door's \
              prefix, or list it in EXCEPTIONS with the door that decides it",
             match doors.as_slice() {
                 [] => "no door's prefix".to_string(),
@@ -507,85 +518,5 @@ fn names_have_doors(census: &PredicateCensus) {
                 (door.error)()
             );
         }
-    }
-}
-
-fn indirect_sites_are_listed(census: &PredicateCensus) {
-    let consts: BTreeSet<&str> = CARRIERS
-        .iter()
-        .filter_map(|carrier| match carrier {
-            NameCarrier::Const(name) => Some(*name),
-            NameCarrier::Call(_) => None,
-        })
-        .collect();
-    let mut unlisted = Vec::new();
-    let mut seen = BTreeSet::new();
-    for site in &census.indirect {
-        let (_, expr) = site.split_once(": ").expect("`<file>: <expr>`");
-        let last = expr.rsplit("::").next().unwrap_or(expr);
-        let is_const = !last.is_empty()
-            && last
-                .chars()
-                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
-        if is_const {
-            if !consts.contains(last) {
-                unlisted.push(format!("{site} (a const not declared in CARRIERS)"));
-            }
-        } else if INDIRECT.iter().any(|(s, _)| s == site) {
-            seen.insert(site.as_str());
-        } else {
-            unlisted.push(site.clone());
-        }
-    }
-    assert!(
-        unlisted.is_empty(),
-        "sites whose name the reader cannot read, neither declared nor listed in INDIRECT:\n{}",
-        unlisted.join("\n")
-    );
-    let stale: Vec<&str> = INDIRECT
-        .iter()
-        .map(|(s, _)| *s)
-        .filter(|s| !seen.contains(s))
-        .collect();
-    assert!(
-        stale.is_empty(),
-        "INDIRECT lists sites the census no longer finds: {stale:?}"
-    );
-}
-
-/// No spelling the reader does not know, and every file a `#[path]`
-/// mounts lies under `src`, which the reader walks whole.
-fn nothing_is_invisible(census: &PredicateCensus) {
-    assert!(
-        census.unreadable.is_empty(),
-        "spellings the reader cannot read: {:?}",
-        census.unreadable
-    );
-    assert!(
-        !census.unwalked.is_empty(),
-        "the reader found no `#[path]` mount it should have"
-    );
-    let src = src();
-    for site in &census.unwalked {
-        let (file, line) = site.rsplit_once(':').expect("`<file>:<line>`");
-        let line: usize = line.parse().expect("a line number");
-        let file = src.join(file);
-        let text = std::fs::read_to_string(&file).expect("a readable source file");
-        let code = test_utils::source::code_and_literals(&text);
-        let attr = code
-            .lines()
-            .nth(line - 1)
-            .expect("the line the census names");
-        let target = attr
-            .trim()
-            .strip_prefix("#[path =")
-            .and_then(|rest| rest.trim().strip_suffix(']'))
-            .and_then(test_utils::source::plain_string_literal)
-            .unwrap_or_else(|| panic!("{site}: not a `#[path = …]` mount: {attr}"));
-        let mounted = file.parent().expect("a file's directory").join(target);
-        assert!(
-            mounted.is_file() && mounted.starts_with(&src) && !target.contains(".."),
-            "{site} mounts `{target}`, which is not a file under src"
-        );
     }
 }
