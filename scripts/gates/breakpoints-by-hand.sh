@@ -19,20 +19,32 @@
 # `normalize-by-hand.sh` reads them), whitespace and rustfmt's wrap
 # across lines allowed throughout:
 #   * a closure that destructures a run and drops its multiplicity, passed
-#     to any adapter of `runs(…)` / `knot_runs(…)`, method or UFCS
-#     (`Knots::runs(k)`): `|(v, _)|`, `|(v, _m)|`, `|(v, ..)|`, `&`-borrowed,
-#     `move`, typed (`|(v, _): (f64, usize)|`), whatever its body (`v`, a
-#     call on `v`, a block), under `map`, `filter_map`, `for_each`, `any`,
-#     `all`, `find`, `filter`, `flat_map` or `inspect`;
+#     to an adapter of `runs(…)` / `knot_runs(…)` that takes the closure's
+#     value as the stream's, method or UFCS (`Knots::runs(k)`): `|(v, _)|`,
+#     `|(v, _m)|`, `|(v, ..)|`, `&`-borrowed, `move`, typed
+#     (`|(v, _): (f64, usize)|`), whatever its body (`v`, a call on `v`, a
+#     block), under `map`, `filter_map`, `find_map`, `flat_map` or
+#     `for_each`;
 #   * `for (v, _) in …runs(…)` (the same patterns);
 #   * `let (v, _) = …runs(…)….unzip()`;
-#   * `knots().to_vec()` followed, within the next four statements of the
-#     same file, by a `dedup()`.
+#   * every knot copied out, `knots()` or `values()` then `.to_vec()` or
+#     `.iter().copied()` / `.iter().cloned()` and a `collect`, and a
+#     `dedup()`, `dedup_by(…)` or `dedup_by_key(…)` in the same statement
+#     or within the next four statements of the same file.
+#
+# NOT REFUSED. A closure that ignores the multiplicity under an adapter
+# that passes the run on or asks a question of it, `filter`, `find`,
+# `inspect`, `any`, `all`, `position`, `take_while` or `skip_while`: the
+# `_` drops nothing from the stream there, and
+# `runs().filter(|(v, _)| …).map(|(_, m)| m)` needs the multiplicity it
+# keeps. A `map` that drops it later in the chain is still a site.
 #
 # BLIND SPOTS. A `.map(|r| r.0)` that indexes the pair rather than
 # destructuring it; the runs collected first and projected later, or a
-# `to_vec` and its `dedup` more than four statements apart; a helper fn
-# taking the runs as an argument; `interior_knot_runs()` (interior values
+# copy and its `dedup` more than four statements apart, or deduplicated by
+# another name (a `BTreeSet`, a hand loop); a helper fn taking the runs as
+# an argument; and `values()` is read by name, not by type, so a map's
+# `values()` copied and deduplicated cries wolf; `interior_knot_runs()` (interior values
 # only, a different set, and `InteriorKnot`-typed, so never this door's).
 # The second pass for the first is
 # `grep -rnE 'runs\([^()]*\)[^;]*\.map\(\|\w+\|[^;]*\.0\b' crates/*/src`.
@@ -58,7 +70,7 @@ gate() {
   GATE_SCAN_FILES=${#files[@]}
   local runs='(^|[^A-Za-z0-9_])(knot_)?runs[[:space:]]*\([^()]*\)'
   local dropped='&?[[:space:]]*\([[:space:]]*&?[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*,[[:space:]]*(_[A-Za-z0-9_]*|\.\.)[[:space:]]*\)'
-  local adapter='(map|filter_map|for_each|any|all|find|filter|flat_map|inspect)'
+  local adapter='(map|filter_map|find_map|flat_map|for_each)'
   local closure="$runs[^;]*\.$adapter[[:space:]]*\([[:space:]]*(move[[:space:]]+)?\|[[:space:]]*$dropped"
   local for_loop="(^|[^A-Za-z0-9_])for[[:space:]]+$dropped[[:space:]]+in[[:space:]][^;{]*(knot_)?runs[[:space:]]*\("
   local unzipped="(^|[^A-Za-z0-9_])let[[:space:]]+$dropped[^=;]*=[^;]*(knot_)?runs[[:space:]]*\([^;]*\.unzip[[:space:]]*\("
@@ -67,8 +79,16 @@ gate() {
     | gate_grep -vE "$(gate_record_anchor "$HOME_FILE")|$(gate_record_anchor "$TWIN_FILE")" || true)
   hits=$(printf '%s\n' "$stream" | gate_grep -E "$closure|$for_loop|$unzipped" || true)
   hits+=$(printf '%s\n' "$stream" | awk -F: '
-    /knots[[:space:]]*\([[:space:]]*\)[[:space:]]*\.[[:space:]]*to_vec[[:space:]]*\(/ { held = $0; file = $1; left = 4; next }
-    held != "" && $1 == file && left > 0 && /\.[[:space:]]*dedup[[:space:]]*\(/ { print held; held = ""; next }
+    BEGIN {
+      S = "[[:space:]]*"
+      COPY = "(^|[^A-Za-z0-9_])(knots|values)" S "\\(" S "\\)" S "\\." S "(to_vec" S "\\(|iter" S "\\(" S "\\)" S "\\." S "(copied|cloned)" S "\\(" S "\\)" S "\\." S "collect)"
+      DEDUP = "\\." S "dedup(_by(_key)?)?" S "\\("
+    }
+    $0 ~ COPY {
+      if ($0 ~ DEDUP) { print; held = ""; next }
+      held = $0; file = $1; left = 4; next
+    }
+    held != "" && $1 == file && left > 0 && $0 ~ DEDUP { print held; held = ""; next }
     held != "" { left--; if (left <= 0 || $1 != file) held = "" }
   ')
   if [ -n "$hits" ]; then
@@ -146,6 +166,22 @@ plant_to_vec_dedup() {
   printf 'pub fn b(kv: &KV) -> Vec<f64> {\n    let mut b: Vec<f64> = kv.knots().to_vec();\n    b.sort_by(f64::total_cmp);\n    b.dedup();\n    b\n}\n' >> "$1/crates/clean/src/lib.rs"
 }
 
+plant_values_dedup_by() {
+  printf 'pub fn b(k: &Knots) -> Vec<f64> {\n    let mut b = k.values().to_vec();\n    b.dedup_by(|a, b| a == b);\n    b\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_copied_collect_dedup() {
+  printf 'pub fn b(kv: &KV) -> Vec<f64> {\n    let mut b: Vec<f64> = kv.knots().iter().copied().collect();\n    b.dedup();\n    b\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_one_statement_dedup() {
+  printf 'pub fn b(kv: &KV) -> Vec<f64> { let mut b = kv.knots().to_vec(); b.dedup(); b }\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_filter_then_map() {
+  printf 'pub fn b(k: &K) -> Vec<f64> { k.runs().filter(|(v, _)| *v > 0.0).map(|(v, _)| v).collect() }\n' >> "$1/crates/clean/src/lib.rs"
+}
+
 # A multiplicity read, the other element, prose, a test module, a
 # fixture file and the homes themselves are not the shape.
 plant_not_sites() {
@@ -154,6 +190,11 @@ plant_not_sites() {
     printf 'pub fn e(k: &K) -> usize { k.runs().map(|(v, m)| m).sum() }\n'
     printf 'pub fn f(kv: &KV) -> Vec<f64> { kv.knots().to_vec() }\n'
     printf 'pub fn c(k: &K) -> Vec<f64> { k.runs().map(|(v, m)| v * m).collect() }\n'
+    printf 'pub fn g(k: &K, x: f64) -> Vec<usize> { k.runs().filter(|(v, _)| *v > x).map(|(_, m)| m).collect() }\n'
+    printf 'pub fn h(k: &K, x: f64) -> Option<(f64, usize)> { k.runs().find(|(v, _)| *v >= x) }\n'
+    printf 'pub fn i(k: &K, x: f64) -> bool { k.runs().any(|(v, _)| v == x) || k.runs().all(|(v, _)| v < x) }\n'
+    printf 'pub fn j(k: &K) -> usize { k.runs().inspect(|(v, _)| log(v)).map(|(_, m)| m).sum() }\n'
+    printf 'pub fn l(kv: &KV) -> Vec<f64> { let b = kv.values().to_vec(); b }\n'
     printf '// k.runs().map(|(v, _)| v) by hand\npub const S: &str = "k.runs().map(|(v, _)| v)";\n'
     printf '#[cfg(test)]\nmod tests {\n    fn u(k: &K) -> Vec<f64> { k.runs().map(|(v, _)| v).collect() }\n}\n'
   } >> "$1/crates/clean/src/lib.rs"
@@ -180,9 +221,13 @@ gate_selftest() {
   gate_selftest_case "$want" plant_for_loop
   gate_selftest_case "$want" plant_unzip
   gate_selftest_case "$want" plant_to_vec_dedup
-  gate_selftest_passes "a multiplicity read, other elements, prose, a test module, fixture files and the homes" plant_not_sites
+  gate_selftest_case "$want" plant_values_dedup_by
+  gate_selftest_case "$want" plant_copied_collect_dedup
+  gate_selftest_case "$want" plant_one_statement_dedup
+  gate_selftest_case "$want" plant_filter_then_map
+  gate_selftest_passes "a multiplicity read, a filter, find, any, all or inspect that passes the run on, other elements, a copy never deduplicated, prose, a test module, fixture files and the homes" plant_not_sites
   gate_selftest_homes --narrowed --subject "$HOME_SUBJECT" "$HOME_FILE" "$TWIN_FILE"
-  printf '%s selftest OK: passes a clean fixture carrying both homes, and a multiplicity read, other elements, prose, a test module and fixture files; fires on runs() and knot_runs() mapped to their breakpoint, borrowed, through value_channel and wrapped across lines, on a named or rest ignore, a typed closure, a call or block body, filter_map, UFCS, a for loop, an unzip, and knots().to_vec() then dedup; and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying both homes, and a multiplicity read, a filter, find, any, all or inspect that passes the run on, other elements, a copy never deduplicated, prose, a test module and fixture files; fires on runs() and knot_runs() mapped to their breakpoint, borrowed, through value_channel and wrapped across lines, on a named or rest ignore, a typed closure, a call or block body, filter_map, a map after a filter, UFCS, a for loop, an unzip, and knots() or values() copied by to_vec or iter().copied().collect() then dedup or dedup_by, apart or in one statement; and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
