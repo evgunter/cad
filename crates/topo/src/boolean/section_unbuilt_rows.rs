@@ -11,7 +11,9 @@
 use super::{BooleanError, SectionUnbuilt, SectionUnbuiltKind};
 use geom::{PieceWalkRefusal, SurfaceKind};
 use geom_brep::recourse::Reading;
-use geom_brep::{CarryError, CarryErrorKind, NoCarrier, TubeRefusal, WindsRefusal};
+use geom_brep::{
+    CarryError, CarryRefusal, CarryRefusalKind, LoopTubeUnread, NoCarrier, WindsRefusal,
+};
 use geom_core::spline::{KnotAlgebraError, KnotVectorIssue, SplineError};
 use strum::{IntoEnumIterator as _, VariantArray as _};
 use test_utils::refusal::Admission;
@@ -19,61 +21,58 @@ use test_utils::refusal::Admission;
 fn each<T: Copy + core::fmt::Debug>(
     what: &str,
     all: &[T],
-    carry: impl Fn(T) -> CarryError,
+    carry: impl Fn(T) -> CarryRefusal,
 ) -> Vec<(String, SectionUnbuilt)> {
     all.iter()
         .map(|&v| (format!("{what}({v:?})"), SectionUnbuilt::Carry(carry(v))))
         .collect()
 }
 
-fn carried(kind: CarryErrorKind) -> Vec<(String, SectionUnbuilt)> {
+fn carried(kind: CarryRefusalKind) -> Vec<(String, SectionUnbuilt)> {
     let one = |e| vec![(format!("{kind:?}"), SectionUnbuilt::Carry(e))];
     match kind {
-        CarryErrorKind::Unminted => each("Unminted", NoCarrier::VARIANTS, CarryError::Unminted),
-        CarryErrorKind::NoLane => one(CarryError::NoLane { scalar: "Interval" }),
-        CarryErrorKind::March => one(CarryError::March(geom_brep::SsiError::InvalidMarchTol {
+        CarryRefusalKind::Unminted => each("Unminted", NoCarrier::VARIANTS, CarryRefusal::Unminted),
+        CarryRefusalKind::NoLane => one(CarryRefusal::NoLane { scalar: "Interval" }),
+        CarryRefusalKind::March => one(CarryRefusal::March(geom_brep::SsiError::InvalidMarchTol {
             value: -1.0,
         })),
-        CarryErrorKind::Winds => each("Winds", WindsRefusal::VARIANTS, CarryError::Winds),
-        CarryErrorKind::Escalated => one(CarryError::Escalated(geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::value(5e-9),
-            band: geom_core::Band::new(1e-9, 1e-8).expect("a well-formed band"),
-            predicate: Some("ssi_tube_graph"),
-            terminal_sliver: false,
-        })),
-        CarryErrorKind::PadShort => vec![
+        CarryRefusalKind::Winds => each("Winds", WindsRefusal::VARIANTS, CarryRefusal::Winds),
+        CarryRefusalKind::PadShort => vec![
             (
                 "PadShort".to_owned(),
-                SectionUnbuilt::Carry(CarryError::PadShort {
+                SectionUnbuilt::Carry(CarryRefusal::PadShort {
                     pad: 1e-7,
                     hull_sup: 3e-7,
                 }),
             ),
             (
                 "PadShort (NaN bound)".to_owned(),
-                SectionUnbuilt::Carry(CarryError::PadShort {
+                SectionUnbuilt::Carry(CarryRefusal::PadShort {
                     pad: 1e-7,
                     hull_sup: f64::NAN,
                 }),
             ),
         ],
-        CarryErrorKind::TubeUnread => {
-            each("TubeUnread", TubeRefusal::VARIANTS, CarryError::TubeUnread)
-        }
-        CarryErrorKind::Desync => one(CarryError::Desync("a branch's winding is read per operand")),
-        CarryErrorKind::Unwalked => {
-            each("Unwalked", PieceWalkRefusal::VARIANTS, CarryError::Unwalked)
-        }
-        CarryErrorKind::Seat => vec![
+        CarryRefusalKind::TubeUnread => each(
+            "TubeUnread",
+            LoopTubeUnread::VARIANTS,
+            CarryRefusal::TubeUnread,
+        ),
+        CarryRefusalKind::Unwalked => each(
+            "Unwalked",
+            PieceWalkRefusal::VARIANTS,
+            CarryRefusal::Unwalked,
+        ),
+        CarryRefusalKind::Seat => vec![
             (
                 "Seat".to_owned(),
-                SectionUnbuilt::Carry(CarryError::Seat(KnotAlgebraError::KnotNotPresent {
+                SectionUnbuilt::Carry(CarryRefusal::Seat(KnotAlgebraError::KnotNotPresent {
                     u: 0.5,
                 })),
             ),
             (
                 "Seat (structure)".to_owned(),
-                SectionUnbuilt::Carry(CarryError::Seat(KnotAlgebraError::Structure(
+                SectionUnbuilt::Carry(CarryRefusal::Seat(KnotAlgebraError::Structure(
                     SplineError::KnotVectorInvalid {
                         reason: KnotVectorIssue::Decreasing { index: 3 },
                     },
@@ -91,8 +90,38 @@ fn samples(kind: SectionUnbuiltKind) -> Vec<(String, SectionUnbuilt)> {
                 what: "a cone's half-angle is not definitely positive",
             }),
         )],
-        SectionUnbuiltKind::Carry => CarryErrorKind::iter().flat_map(carried).collect(),
+        SectionUnbuiltKind::Carry => CarryRefusalKind::iter().flat_map(carried).collect(),
     }
+}
+
+/// **A carry's own two endings** — a reading in the band and a broken
+/// invariant, which the Boolean refuses as the decision and as its desync
+/// rather than as [`SectionUnbuilt`] — hold to the standard as a caller
+/// of `PairSection::carry` reads them.
+#[test]
+fn a_carrys_escalation_and_desync_end_on_one_recourse() {
+    let escalated = CarryError::Escalated(geom_core::Indeterminate {
+        margin: geom_core::MarginDiag::value(5e-9),
+        band: geom_core::Band::new(1e-9, 1e-8).expect("a well-formed band"),
+        predicate: Some("ssi_tube_graph"),
+        terminal_sliver: false,
+    });
+    let mut problems = Vec::new();
+    for (name, e) in [
+        ("Escalated", escalated),
+        (
+            "Desync",
+            CarryError::Desync("a component's tube pads no band"),
+        ),
+        (
+            "Refused",
+            CarryError::Refused(CarryRefusal::NoLane { scalar: "Interval" }),
+        ),
+    ] {
+        let text = e.render(Reading::Build);
+        problems.extend(test_utils::refusal::problems(name, &text, &[], false));
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
 /// **The spans of a door-ended arm's text a filed row owns**, admitted
@@ -155,9 +184,9 @@ fn every_section_unbuilt_arm_ends_on_one_recourse() {
 #[test]
 fn a_refused_seat_keeps_the_structures_fact() {
     let issue = KnotVectorIssue::Decreasing { index: 3 };
-    let text = CarryError::Seat(KnotAlgebraError::Structure(
+    let text = CarryError::Refused(CarryRefusal::Seat(KnotAlgebraError::Structure(
         SplineError::KnotVectorInvalid { reason: issue },
-    ))
+    )))
     .render(Reading::Build);
     assert!(
         text.contains(&issue.fact().to_string())

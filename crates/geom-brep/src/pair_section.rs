@@ -1577,7 +1577,9 @@ impl<T: Decide> PairSection<T> {
         band: Band,
     ) -> Result<CarriedSection<T>, CarryError> {
         let marched = || {
-            let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
+            let lane = lane.ok_or(CarryError::Refused(CarryRefusal::NoLane {
+                scalar: T::NAME,
+            }))?;
             (lane.march)(self, band)
         };
         self.listed(marched, band)
@@ -1620,12 +1622,14 @@ impl<T: Decide> PairSection<T> {
                 band,
             )?,
             Components::Reaching(_) => {
-                return Err(CarryError::Unminted(NoCarrier::SplineImplicitWhole));
+                return Err(CarryError::Refused(CarryRefusal::Unminted(
+                    NoCarrier::SplineImplicitWhole,
+                )));
             }
             Components::Counted(listed) => {
                 for c in listed {
                     if let ClassCarrier::Unminted(why) = c.carrier {
-                        return Err(CarryError::Unminted(why));
+                        return Err(CarryError::Refused(CarryRefusal::Unminted(why)));
                     }
                 }
                 let general = listed
@@ -1797,7 +1801,9 @@ impl<T: Decide> PairSection<T> {
                 (ClassCarrier::General, None) => Err(CarryError::Desync(
                     "the march found no branch on a component the classification names",
                 )),
-                (ClassCarrier::Unminted(why), _) => Err(CarryError::Unminted(*why)),
+                (ClassCarrier::Unminted(why), _) => {
+                    Err(CarryError::Refused(CarryRefusal::Unminted(*why)))
+                }
             })
             .collect()
     }
@@ -1930,7 +1936,9 @@ impl<T: Decide> PairSection<T> {
         if component.certificate.is_none() {
             return Ok(component.clone());
         }
-        let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
+        let lane = lane.ok_or(CarryError::Refused(CarryRefusal::NoLane {
+            scalar: T::NAME,
+        }))?;
         (lane.seat)(&self.pose, component, at, band)
     }
 }
@@ -2074,13 +2082,17 @@ fn march_over_the_ball(
         // Its components are read whole when the section is built, and
         // none is carried.
         PairPose::SplineImplicit(_) => {
-            return Err(CarryError::Unminted(NoCarrier::SplineImplicitWhole));
+            return Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::SplineImplicitWhole,
+            )));
         }
         PairPose::SplinePair(_) => {
-            return Err(CarryError::Unminted(NoCarrier::SplinePairWhole));
+            return Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::SplinePairWhole,
+            )));
         }
     }
-    .map_err(CarryError::March)?;
+    .map_err(CarryRefusal::March)?;
     let (a, b) = pose.operands();
     out.into_iter()
         .map(|br| {
@@ -2095,7 +2107,7 @@ fn march_over_the_ball(
                 [read(a), read(b)]
                     .into_iter()
                     .collect::<Result<Vec<_>, _>>()
-                    .map_err(CarryError::Winds)?
+                    .map_err(CarryRefusal::Winds)?
                     .try_into()
                     .map_err(|_| CarryError::Desync("a branch's winding is read per operand"))?
             } else {
@@ -2145,7 +2157,7 @@ impl Tube {
     ///   bounds it; the least over such boxes.
     ///
     /// An empty chain, or a box or carrier point that is refused, reads
-    /// no tube ([`CarryError::TubeUnread`], why by [`TubeRefusal`]).
+    /// no tube ([`CarryError::TubeUnread`], why by [`LoopTubeUnread`]).
     fn of(
         carrier: &Curve3<f64>,
         certificate: &SsiCertificate<f64>,
@@ -2165,7 +2177,9 @@ impl Tube {
         let lifted = net.map_scalar(lift);
         let chain = crate::ssi::certify::tube_chain(net, radius);
         if chain.is_empty() {
-            return Err(CarryError::TubeUnread(TubeRefusal::Empty));
+            return Err(CarryError::Refused(CarryRefusal::TubeUnread(
+                LoopTubeUnread::Empty,
+            )));
         }
         let pad = chain.iter().try_fold(0.0f64, |acc, &(b, _, (lo, hi))| {
             #[allow(clippy::cast_precision_loss)]
@@ -2183,17 +2197,19 @@ impl Tube {
                 if far.is_finite() {
                     Ok(acc.max(far))
                 } else {
-                    Err(CarryError::TubeUnread(TubeRefusal::of(part, &samples)))
+                    Err(CarryError::Refused(CarryRefusal::TubeUnread(
+                        LoopTubeUnread::of(part, &samples),
+                    )))
                 }
             })
         })?;
         if certificate.hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater)
             || certificate.hull_sup.is_nan()
         {
-            return Err(CarryError::PadShort {
+            return Err(CarryError::Refused(CarryRefusal::PadShort {
                 pad,
                 hull_sup: certificate.hull_sup,
-            });
+            }));
         }
         let witness = lifted.eval(lift(at));
         let holding: Vec<_> = chain
@@ -2212,9 +2228,8 @@ impl Tube {
                     "no box of a loop's tube holds its witness, though the chain tiles its span",
                 ));
             };
-            return Err(CarryError::TubeUnread(TubeRefusal::of(
-                b,
-                core::slice::from_ref(&witness),
+            return Err(CarryError::Refused(CarryRefusal::TubeUnread(
+                LoopTubeUnread::of(b, core::slice::from_ref(&witness)),
             )));
         }
         Ok(Self { chain, pad, reach })
@@ -2271,9 +2286,15 @@ fn seat_at(
 ) -> Result<CarriedComponent<f64>, CarryError> {
     match pose {
         PairPose::SplineImplicit(_) => {
-            return Err(CarryError::Unminted(NoCarrier::SplineImplicitWhole));
+            return Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::SplineImplicitWhole,
+            )));
         }
-        PairPose::SplinePair(_) => return Err(CarryError::Unminted(NoCarrier::SplinePairWhole)),
+        PairPose::SplinePair(_) => {
+            return Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::SplinePairWhole,
+            )));
+        }
         _ => {}
     }
     let Curve3::Nurbs(net) = &component.carrier else {
@@ -2299,7 +2320,7 @@ fn seat_at(
             let ends = [net.eval(lo), net.eval(hi)];
             return match at_the_start(net.eval(at), ends, band) {
                 Ok(true) => Ok(component.clone()),
-                Ok(false) => Err(CarryError::Seat(e)),
+                Ok(false) => Err(CarryError::Refused(CarryRefusal::Seat(e))),
                 Err(diag) => Err(CarryError::Escalated(diag)),
             };
         }
@@ -2315,7 +2336,7 @@ fn seat_at(
         extent,
         band,
     )
-    .map_err(CarryError::March)?;
+    .map_err(CarryRefusal::March)?;
     let span = seated.domain();
     let carrier = Curve3::Nurbs(std::sync::Arc::new(seated));
     let mid = 0.5 * (span.0 + span.1);
@@ -2399,17 +2420,18 @@ fn rotated(
     geom::NurbsCurve3::new(knots, control, weights).map_err(KnotAlgebraError::Structure)
 }
 
-/// **Why a section was not carried**, rendered with its one recourse:
-/// every arm states its sentence and its ending in [`CarryError::write`],
-/// one exhaustive match, and the march's own refusal is ended at the door
-/// that reads it.
+/// **Why a section was not carried, decided**: the section's own
+/// refusal, rendered with its one recourse — every arm states its
+/// sentence and its ending in one exhaustive match, and the march's own
+/// refusal is ended at the door that reads it. A reading in the band and a
+/// broken invariant are not this: they are [`CarryError`]'s other arms.
 #[derive(Clone, Debug)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumDiscriminants))]
 #[cfg_attr(
     any(test, feature = "test-support"),
-    strum_discriminants(name(CarryErrorKind), derive(strum::EnumIter))
+    strum_discriminants(name(CarryRefusalKind), derive(strum::EnumIter))
 )]
-pub enum CarryError {
+pub enum CarryRefusal {
     /// A component has no carrier: classification only.
     Unminted(NoCarrier),
     /// The general rung is not marched at this scalar.
@@ -2421,8 +2443,6 @@ pub enum CarryError {
     March(SsiError),
     /// A branch's winding was not read.
     Winds(WindsRefusal),
-    /// A reading in the band or poisoned.
-    Escalated(Indeterminate),
     /// A fitted loop's limb-2 bound stands past the pad its points are
     /// read within ([`CarriedComponent::pad`]).
     PadShort {
@@ -2432,9 +2452,7 @@ pub enum CarryError {
         hull_sup: f64,
     },
     /// A fitted loop's uniqueness tube could not be read ([`Tube::of`]).
-    TubeUnread(TubeRefusal),
-    /// The march and the classification disagree.
-    Desync(&'static str),
+    TubeUnread(LoopTubeUnread),
     /// A spline component's piece walk could not run
     /// ([`SiteRefusal::Unwalked`]).
     Unwalked(geom::PieceWalkRefusal),
@@ -2443,7 +2461,7 @@ pub enum CarryError {
     Seat(geom_core::spline::KnotAlgebraError),
 }
 
-impl CarryError {
+impl CarryRefusal {
     /// The refusal's sentence, then its one recourse.
     fn write(
         &self,
@@ -2454,12 +2472,6 @@ impl CarryError {
         let defect: &dyn Display = &geom_core::KERNEL_DEFECT_ENDING;
         match self {
             Self::March(e) => write!(f, "{}", crate::recourse::read_at(e, at)),
-            // The Indeterminate's Display carries the shared two-tolerance
-            // recourse exactly once.
-            Self::Escalated(diag) => write!(
-                f,
-                "whether a reading of the marched section clears the band is undecided: {diag}"
-            ),
             Self::Unminted(why) => write!(f, "{}. {}", why.sentence(), why.recourse()),
             Self::NoLane { scalar } => write!(
                 f,
@@ -2495,10 +2507,6 @@ impl CarryError {
                 why.sentence(),
                 why.recourse()
             ),
-            Self::Desync(what) => write!(
-                f,
-                "the march and the section's classification disagree: {what}. {defect}"
-            ),
             Self::Unwalked(why) => write!(
                 f,
                 "whether a marched loop's points lie on its fitted carrier could not be read: \
@@ -2516,13 +2524,59 @@ impl CarryError {
     }
 }
 
+crate::ended_by_write!(CarryRefusal);
+
+/// **Why a section was not carried**: decided ([`CarryRefusal`]), a
+/// reading in the band, or an invariant of the carry that does not hold.
+#[derive(Clone, Debug)]
+pub enum CarryError {
+    /// The section's own refusal.
+    Refused(CarryRefusal),
+    /// A reading in the band or poisoned.
+    Escalated(Indeterminate),
+    /// An invariant the carry holds by construction does not hold — the
+    /// march and the classification disagree, or a structure the carry
+    /// built is not the one it reads: a kernel fault, the payload naming
+    /// what broke.
+    Desync(&'static str),
+}
+
+impl From<CarryRefusal> for CarryError {
+    fn from(refusal: CarryRefusal) -> Self {
+        Self::Refused(refusal)
+    }
+}
+
+impl CarryError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<crate::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Refused(refusal) => write!(f, "{}", crate::recourse::read_at(refusal, at)),
+            // The Indeterminate's Display carries the shared two-tolerance
+            // recourse exactly once.
+            Self::Escalated(diag) => write!(
+                f,
+                "whether a reading of the marched section clears the band is undecided: {diag}"
+            ),
+            Self::Desync(what) => write!(
+                f,
+                "the section's carry broke an invariant it holds by construction: {what}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+        }
+    }
+}
+
 crate::ended_by_write!(CarryError);
 
 /// **Why a marched loop's uniqueness tube could not be read**
 /// ([`CarryError::TubeUnread`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
-pub enum TubeRefusal {
+pub enum LoopTubeUnread {
     /// The box chain is empty.
     Empty,
     /// A box or carrier point is certified but not finite: a coordinate
@@ -2533,7 +2587,7 @@ pub enum TubeRefusal {
     Uncertified,
 }
 
-impl TubeRefusal {
+impl LoopTubeUnread {
     /// **The one sentence this refusal is rendered by.**
     #[must_use]
     pub const fn sentence(self) -> &'static str {
@@ -2546,17 +2600,17 @@ impl TubeRefusal {
 
     /// **The recourse every rendering of this refusal ends with.**
     #[must_use]
-    pub const fn recourse(self) -> &'static dyn core::fmt::Display {
+    pub const fn recourse(self) -> &'static str {
         match self {
             // Limb 3 certified the loop over the same `box_chain` of its
             // carrier, and refuses an empty one
             // (`ssi::certify::probe_tube_analytic`). No row reaches it.
-            Self::Empty => &geom_core::KERNEL_DEFECT_ENDING,
-            Self::NotFinite => &geom_core::Recourse(geom_core::RANGE_RECOURSE),
+            Self::Empty => geom_core::KERNEL_DEFECT_ENDING,
+            Self::NotFinite => geom_core::RANGE_ENDING,
             // A certified fit's points come from finite control points and
             // positive weights; no path to an uncertified one is known, and
             // no row reaches it.
-            Self::Uncertified => &geom_core::KERNEL_DEFECT_ENDING,
+            Self::Uncertified => geom_core::KERNEL_DEFECT_ENDING,
         }
     }
 
@@ -2580,7 +2634,7 @@ impl TubeRefusal {
     }
 }
 
-impl core::fmt::Display for TubeRefusal {
+impl core::fmt::Display for LoopTubeUnread {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.sentence())
     }
@@ -2753,7 +2807,7 @@ impl<T: Decide> CarriedComponent<T> {
             .map_err(|e| match e {
                 SiteRefusal::Escalated(diag) => CarryError::Escalated(diag),
                 SiteRefusal::Desync(what) => CarryError::Desync(what),
-                SiteRefusal::Unwalked(why) => CarryError::Unwalked(why),
+                SiteRefusal::Unwalked(why) => CarryError::Refused(CarryRefusal::Unwalked(why)),
             })
     }
 }
@@ -3022,7 +3076,7 @@ mod wiring {
     /// the kernel's, whichever of the box or the points holds it.
     #[test]
     fn an_unread_tube_box_names_overflow_apart_from_an_uncertified_read() {
-        use super::TubeRefusal;
+        use super::LoopTubeUnread;
         use geom_core::{Interval, Point3};
         let unit = Interval::from_bounds(0.0, 1.0);
         let nai = Interval::from_bounds(f64::NAN, f64::NAN);
@@ -3040,18 +3094,18 @@ mod wiring {
             "the fixtures' decorations"
         );
         assert_eq!(
-            TubeRefusal::of(part, &[far]),
-            TubeRefusal::NotFinite,
+            LoopTubeUnread::of(part, &[far]),
+            LoopTubeUnread::NotFinite,
             "an overflowed point"
         );
         assert_eq!(
-            TubeRefusal::of(part, &[poison]),
-            TubeRefusal::Uncertified,
+            LoopTubeUnread::of(part, &[poison]),
+            LoopTubeUnread::Uncertified,
             "every point uncertified"
         );
         assert_eq!(
-            TubeRefusal::of(bad_part, &[far]),
-            TubeRefusal::Uncertified,
+            LoopTubeUnread::of(bad_part, &[far]),
+            LoopTubeUnread::Uncertified,
             "an uncertified box"
         );
     }
@@ -3658,7 +3712,7 @@ mod wiring {
                 assert!(
                     matches!(
                         Tube::of(&br.carrier, &loose, mid),
-                        Err(CarryError::PadShort { .. })
+                        Err(CarryError::Refused(super::CarryRefusal::PadShort { .. }))
                     ),
                     "{what}: a limb-2 bound past the pad refuses"
                 );

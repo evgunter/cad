@@ -2860,10 +2860,10 @@ pub enum SectionUnbuilt {
     /// The pair's section refused at the glue door, decided: an operand
     /// whose radius is not definitely positive.
     Refused(geom_brep::SectionError),
-    /// The section did not carry. Its escalation and its desync are not
-    /// held here: they refuse as the decision and as the join's desync
-    /// (`join::section_unbuilt`).
-    Carry(geom_brep::CarryError),
+    /// The section's carry refused, decided. A carry that escalated or
+    /// desynced is not this: it refuses as the decision and as the join's
+    /// desync (`join::section_unbuilt`).
+    Carry(geom_brep::CarryRefusal),
 }
 
 impl SectionUnbuilt {

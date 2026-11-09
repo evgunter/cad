@@ -1945,20 +1945,22 @@ fn bounding<'a, T: Decide>(
 pub(super) fn of_carried<T: Decide>(
     carried: Result<&geom_brep::CarriedSection<T>, &geom_brep::CarryError>,
 ) -> Section<T> {
-    use geom_brep::CarryError;
+    use geom_brep::{CarryError, CarryRefusal};
     let section = match carried {
         Ok(section) => section,
-        Err(CarryError::NoLane { scalar }) => return Section::NoLane(scalar),
+        Err(CarryError::Refused(CarryRefusal::NoLane { scalar })) => {
+            return Section::NoLane(scalar);
+        }
         Err(
-            CarryError::Unminted(_)
-            | CarryError::March(_)
-            | CarryError::Winds(_)
-            | CarryError::PadShort { .. }
-            | CarryError::TubeUnread(_)
+            CarryError::Refused(CarryRefusal::Unminted(_))
+            | CarryError::Refused(CarryRefusal::March(_))
+            | CarryError::Refused(CarryRefusal::Winds(_))
+            | CarryError::Refused(CarryRefusal::PadShort { .. })
+            | CarryError::Refused(CarryRefusal::TubeUnread(_))
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
-            | CarryError::Seat(_)
-            | CarryError::Unwalked(_),
+            | CarryError::Refused(CarryRefusal::Seat(_))
+            | CarryError::Refused(CarryRefusal::Unwalked(_)),
         ) => return Section::Unmarched,
     };
     let components = section.components();
