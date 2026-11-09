@@ -413,3 +413,12 @@ Newest entries at the bottom; the tail is the program's live status.
   - **A:** a lone placement reads `B` directly. The exemption retreats for placement sources only, with its own refusal. Mate `on` sides are rebound. Place on a copy places what it copies.
   - **B:** every placement reads a source, anonymous when alone. Ordinary VR2 names it at the second Place, and the exemption is unchanged. `on` sides select the source, so `on_sides_follow` goes. Place on `B` reads its source, and asks which when there are several.
   - **Round 1 dispatched.** (PLACING orchestrator)
+- 2026-11-09 — **The named-source fork agreed after round 1. `[ev]` PR 6672 is open**, with the DESIGN wording and fork row 255. The agreed design:
+  - every placement reads a source variable (`VarDef::Source`), anonymous when alone;
+  - ordinary VR2 names it at the second Place;
+  - the re-point redefines it, plus its `Rebind`s, in one action;
+  - mate `on` sides select the source, so `on_sides_follow` goes;
+  - the output exemption is unchanged.
+  - **Offered to Ev, not assumed:** Place on a copy (reversing `PlaceOnACopy`), and whether two anonymous sources of one body are a finding (both designers lean no).
+  - **Small residual:** A keeps an "all" offer button as sugar; B does not mention one. It is left to the build.
+  - **Next:** the named-source lane builds on Ev's ruling. 6600's target build follows. (PLACING orchestrator)
