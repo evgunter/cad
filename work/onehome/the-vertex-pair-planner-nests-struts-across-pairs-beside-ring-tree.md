@@ -2,10 +2,11 @@
 id: the-vertex-pair-planner-nests-struts-across-pairs-beside-ring-tree
 kind: issue
 title: boolean/insert.rs nests one shared vertex's struts across pairs by holds_whole, a second nesting reading beside star::ring_tree
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: onehome/star-walk
 ---
 
 Found by `run-loops-of-split-and-pierce-are-twins` stage 1 (`onehome/star-sites`), which tested whether the vertex–vertex planner's own chord nesting is `star::ring_tree` in substance.

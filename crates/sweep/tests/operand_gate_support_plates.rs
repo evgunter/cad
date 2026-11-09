@@ -77,9 +77,8 @@ fn pose(s: f64, seed: u64) -> Affine3<f64> {
 /// the move or the gate cannot certify the moved body (a pose the row
 /// skips: the question is the boolean's, not the move's).
 fn posed(body: &Body<f64>, map: &Affine3<f64>) -> Option<AtRestBody<f64>> {
-    use topo::AtRestPolicy;
     let b = topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol()), tol()).ok()?;
-    f64::gate_at_rest_kept(b, tol()).ok()
+    topo::finish(b, tol()).ok()
 }
 
 #[derive(Clone, Copy, PartialEq)]

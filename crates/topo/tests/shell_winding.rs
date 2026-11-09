@@ -40,12 +40,12 @@ fn hollow(lo: f64, hi: f64, wall: f64) -> Body<f64> {
     cut(
         &finished(
             "the block",
-            brick((lo, hi), (lo, hi), (lo, hi), tol()),
+            brick::<f64>((lo, hi), (lo, hi), (lo, hi), tol()),
             tol(),
         ),
         &finished(
             "the cavity",
-            brick(
+            brick::<f64>(
                 (lo + wall, hi - wall),
                 (lo + wall, hi - wall),
                 (lo + wall, hi - wall),
@@ -67,7 +67,7 @@ fn only_solid(body: &Body<f64>) -> SolidKey {
 /// `body`'s shells of `role` under `solid`, read off their own signed
 /// volumes — the premise each row asserts before it asserts a verdict.
 fn shells_of(body: &Body<f64>, solid: SolidKey, role: ShellRole) -> Vec<ShellKey> {
-    match topo::AtRestBody::validate(body.clone(), tol()) {
+    match topo::finish(body.clone(), tol()) {
         Ok(finished) => topo::classify_shells(&finished, tol()),
         // Raw door: a row's body that tier 3 refuses (SolidOuterShells, ShellWinding, NegativeVolume); the row asserts that verdict after this premise.
         Err(_) => topo::test_support::classify_unvalidated(body, tol()),

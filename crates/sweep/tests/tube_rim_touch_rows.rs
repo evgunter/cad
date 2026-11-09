@@ -17,7 +17,7 @@
 
 use geom_core::{Point2, Point3, Tol};
 use topo::test_support::mapped_cube;
-use topo::{AtRestBody, Body, ContactRecords, EntityId, ValidationError};
+use topo::{Body, ContactRecords, EntityId, ValidationError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -78,10 +78,10 @@ fn cylinder_pairs_refused(body: &Body<f64>, errors: &[ValidationError]) -> usize
 /// census cannot clear a contact nothing recorded.
 #[test]
 fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
-    let t = AtRestBody::validate(tube(), tol()).unwrap();
+    let t = topo::finish(tube(), tol()).unwrap();
     let exact = SIDE.powi(3) + std::f64::consts::PI * (1.0 - 0.25);
     for (rim, yv, k) in POSES {
-        let c = AtRestBody::validate(cube(yv, k, 0.0), tol()).unwrap();
+        let c = topo::finish(cube(yv, k, 0.0), tol()).unwrap();
         for (order, p, q) in [("tube ∪ cube", &t, &c), ("cube ∪ tube", &c, &t)] {
             let tag = format!("{rim} rim, k = {k}, {order}");
             let r = topo::union(p, q, tol()).unwrap();
@@ -118,9 +118,9 @@ fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
 /// from the tube.
 #[test]
 fn a_turned_face_clear_of_a_tube_rim_passes_tier_3_prime() {
-    let t = AtRestBody::validate(tube(), tol()).unwrap();
+    let t = topo::finish(tube(), tol()).unwrap();
     for (rim, yv, k) in POSES {
-        let c = AtRestBody::validate(cube(yv, k, 0.05), tol()).unwrap();
+        let c = topo::finish(cube(yv, k, 0.05), tol()).unwrap();
         let tag = format!("{rim} rim, k = {k}, 0.05 off");
         let r = topo::union(&t, &c, tol()).unwrap();
         let bb = r
@@ -272,22 +272,25 @@ fn a_turned_face_touching_or_cutting_a_torus_is_never_cleared() {
     }
 }
 
-/// The same cubes moved `0.5` off the torus: tier 3′ passes, cleared
-/// along the face's own normal (no world axis separates the pair). Not
-/// nearer: the whole torus's extent along a row is
-/// `(R + r)·|a⊥| + r·|aᵢ|` (`boxes::torus_extent`), which overshoots the
-/// support `R·|a⊥| + r` by about 0.37 at the first normal, and a gap of
-/// `1e-4` refuses.
+/// The same cubes moved off the torus, `0.5` and `1e-3`: tier 3′
+/// passes, cleared along the face's own normal (no world axis separates
+/// the pair). The torus face's cover reads the tube's own support along
+/// a turned direction, `R·|e⊥| + r` (`geom::cover::Cover::tube`), so a
+/// cube `1e-3` off clears; a box read as `(R + r)·|a⊥| + r·|aᵢ|`
+/// overshoots that support by about 0.37 at the first normal and
+/// refuses it.
 #[test]
 fn a_turned_face_clear_of_a_torus_passes_tier_3_prime() {
     for m in TORUS_NORMALS {
-        let tag = format!("m = {m:?}, 0.5 off");
-        let mut body = torus();
-        topo::graft_disjoint(&mut body, &cube_on_torus(m, 0.5)).unwrap();
-        assert_eq!(
-            topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol()),
-            Ok(()),
-            "{tag}: tier 3′ passes"
-        );
+        for gap in [0.5, 1e-3] {
+            let tag = format!("m = {m:?}, {gap} off");
+            let mut body = torus();
+            topo::graft_disjoint(&mut body, &cube_on_torus(m, gap)).unwrap();
+            assert_eq!(
+                topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol()),
+                Ok(()),
+                "{tag}: tier 3′ passes"
+            );
+        }
     }
 }

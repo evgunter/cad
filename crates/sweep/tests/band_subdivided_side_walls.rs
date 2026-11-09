@@ -93,7 +93,7 @@ fn stationed_prism(t: Tol) -> Body<f64> {
     let ex = subdivided_prism(t);
     let wall = &ex.walls[0][0];
     assert_eq!(wall.segments, vec![0, 1]);
-    cut_wall(ex.body, wall, &[1.0], t)
+    cut_wall(ex.body.into_body(), wall, &[1.0], t)
 }
 
 /// An axis-aligned cube of side `s` with its low corner at `(x0, y0, z0)`.
@@ -195,7 +195,7 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     assert_eq!(ex.body.faces().count(), 6);
     assert_eq!(validate_closed(&ex.body), Ok(()), "tier 2");
     assert_eq!(topo::validate_geometric(&ex.body, t), Ok(()), "tier 3");
-    let mut merged = ex.body.clone();
+    let mut merged = ex.body.clone().into_body();
     assert!(
         merged.merge_coplanar_faces(t).unwrap().groups.is_empty(),
         "nothing left for the structural rung to merge"
@@ -278,7 +278,7 @@ fn twice_stationed_prism(t: Tol) -> Body<f64> {
     .unwrap();
     let wall = &ex.walls[0][0];
     assert_eq!(wall.segments, vec![0, 1, 2]);
-    cut_wall(ex.body, wall, &[1.0, 2.0], t)
+    cut_wall(ex.body.into_body(), wall, &[1.0, 2.0], t)
 }
 
 /// **A seam joined twice reads through both joins.** The twice
@@ -387,7 +387,7 @@ fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
         );
         assert_eq!(station_vertices(&r.body), vec![], "{rev:?}");
         assert_eq!(topo::validate_geometric(&r.body, t), Ok(()), "{rev:?}");
-        let mut merged = r.body.clone();
+        let mut merged = r.body.clone().into_body();
         assert!(
             merged.merge_coplanar_faces(t).unwrap().groups.is_empty(),
             "{rev:?}: nothing left for the structural rung to merge"
@@ -420,7 +420,7 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
         Some(geom::Surface::Nurbs(_))
     ));
     assert_eq!(topo::validate_geometric(&l.body, t), Ok(()), "tier 3");
-    let mut m = l.body.clone();
+    let mut m = l.body.clone().into_body();
     assert!(m.merge_coplanar_faces(t).unwrap().groups.is_empty());
     let loft = finished("the subdivided loft", l.body.clone(), t);
     let err = union(&loft, &cube_at(0.5, -0.5, 0.5, 1.0), t).unwrap_err();

@@ -1525,3 +1525,116 @@ fn a_tilted_circle_arcs_range_at_interval_is_decided() {
         }
     }
 }
+
+/// **A convex hull's least distance is its hull's, not its pieces'**:
+/// two points at `x = ±1` stand 1 from the origin, which lies on the
+/// segment between them. Their hull reads 1 there, the union's own
+/// least; their convex hull reads 0, and its greatest stays 1. Red
+/// where the convex node reads its inner region's least.
+#[test]
+fn a_convex_hulls_least_distance_reaches_between_its_pieces() {
+    let pair = || {
+        Cover::points(vec![Point3::new(-1.0, 0.0, 0.0)])
+            .unwrap()
+            .hull(Cover::points(vec![Point3::new(1.0, 0.0, 0.0)]).unwrap())
+    };
+    let origin = Site::Point(Point3::origin());
+    assert_eq!(pair().distance_range(&origin), (1.0, 1.0), "the union");
+    let (near, far) = pair().convex().distance_range(&origin);
+    assert_eq!((near, far), (0.0, 1.0), "the convex hull");
+    let line = Site::Line(Line {
+        origin: Point3::new(0.0, -3.0, 0.0),
+        dir: Vec3::unit_y(),
+    });
+    assert_eq!(
+        pair().convex().distance_range(&line).0,
+        0.0,
+        "a line through the hull"
+    );
+    assert_eq!(
+        pair().convex().support(Vec3::unit_x()),
+        1.0,
+        "the support is the region's"
+    );
+}
+
+/// **A meet's ball is narrower than either piece's where they overlap
+/// in part**: two unit-radius point sets' boxes `[0, 2]` and `[1, 3]`
+/// along `x` meet in `[1, 2]`, whose ball has radius ½. Red where the
+/// meet reads the smaller piece ball alone (radius 1).
+#[test]
+fn a_meets_ball_is_its_boxs_where_the_pieces_overlap_in_part() {
+    let pair = |a: f64, b: f64| {
+        Cover::points(vec![Point3::new(a, 0.0, 0.0), Point3::new(b, 0.0, 0.0)]).unwrap()
+    };
+    let (c, r) = pair(0.0, 2.0).meet(pair(1.0, 3.0)).ball();
+    assert_eq!(
+        (c.x, c.y, c.z, r),
+        (1.5, 0.0, 0.0, 0.5),
+        "the overlap's ball"
+    );
+}
+
+/// **A tube reads its own core circle at its minor radius**, and a
+/// circle's distance bounds hold off it: the torus `R = 2`, `r = ½`
+/// about `z` stands within `[0, ½]` of its core, and a point set reads
+/// its points' exact distances. Red where the tube is read through its
+/// whole `(ρ, t)` box, which gives `½·√2`.
+#[test]
+fn a_tube_reads_its_core_at_its_minor_radius() {
+    let torus = Cover::tube(
+        &Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        2.0,
+        0.5,
+    )
+    .unwrap();
+    let (near, far) = torus.circle_range(Point3::origin(), Vec3::unit_z() * 3.0, 2.0);
+    assert_eq!((near, far), (0.0, 0.5), "the core");
+    let (near, far) = torus.circle_range(Point3::origin(), Vec3::unit_z(), 1.0);
+    assert!(
+        near <= 0.5 && far >= 1.5,
+        "a smaller coaxial circle: {near}, {far}"
+    );
+    let points =
+        Cover::points(vec![Point3::new(3.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0)]).unwrap();
+    let (near, far) = points.circle_range(Point3::origin(), Vec3::unit_z(), 2.0);
+    assert!(
+        (near - 1.0).abs() < 1e-15 && (far - 5.0f64.sqrt()).abs() < 1e-15,
+        "two points: {near}, {far}"
+    );
+}
+
+/// **A NaN bound in one lane poisons the whole box**: the box `[0, 1]³`
+/// with `min_x` NaN stays finite in `y` and `z`, so it would prune
+/// against `[0, 1] × [100, 101] × [0, 1]`; the cover's box is the poison
+/// box, which overlaps it. Red where `aabb` hands the BVH the one-lane
+/// NaN box.
+#[test]
+fn a_nan_bound_in_one_lane_poisons_the_whole_box() {
+    let one_lane = bvh::Aabb {
+        min_x: f64::NAN,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 1.0,
+        max_z: 1.0,
+    };
+    let far = bvh::Aabb {
+        min_x: 0.0,
+        min_y: 100.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 101.0,
+        max_z: 1.0,
+    };
+    assert!(!one_lane.overlaps(&far), "the one-lane NaN box prunes");
+    assert!(
+        super::whole_poison(one_lane).overlaps(&far),
+        "the cover's box never prunes on poison"
+    );
+    let finite = bvh::Aabb {
+        min_x: 0.0,
+        ..one_lane
+    };
+    assert_eq!(super::whole_poison(finite), finite, "a finite box is kept");
+}

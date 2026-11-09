@@ -17,7 +17,7 @@ use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Interval, Point2, Tol};
 use profile::RawLoop;
 use profile::SketchPlane;
-use sweep::{LoftError, ProfileLoop, loft_body};
+use sweep::{LoftError, ProfileLoop};
 
 fn sq() -> sweep::Section {
     vec![ProfileLoop::polygon(
@@ -50,7 +50,7 @@ fn an_interior_slab_at_the_band_edges_decides_the_same_at_interval() {
     for step in [0.5 * eps, 0.5 * (1.0 + k) * eps, 2.0 * k * eps] {
         let sections = vec![sq(), sq(), sq(), sq()];
         let places = stacked(&[0.0, 1.0, 1.0 + step, 2.0]);
-        let got = loft_body::<Interval>(
+        let got = sweep::test_support::loft_body_construction::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
             &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             2,
@@ -78,7 +78,7 @@ fn a_forward_stack_builds_at_interval_at_every_station_count() {
         #[allow(clippy::cast_precision_loss)]
         let zs: Vec<f64> = (0..k).map(|i| i as f64).collect();
         let sections = vec![sq(); k];
-        let out = loft_body::<Interval>(
+        let out = sweep::test_support::loft_body_construction::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
             &sweep::test_support::lift_places::<Interval>(&stacked(&zs), geom_core::Tol::witness()),
             k.min(4) - 1,

@@ -539,7 +539,7 @@ fn half_plane<T: Decide>(
         geom::Curve3::Line(_) => {
             LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p))
         }
-        _ => super::boxes::piece_reach_bounds(carrier, (ta, tb), (p, end), p),
+        _ => crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p),
     };
     let (ahead, behind) = if forward {
         ((t1, at_t1), (t0, at_t0))

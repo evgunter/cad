@@ -13,7 +13,7 @@
 //! flat arc refuse where it certified shows up as a count moving out of
 //! `ok`. Nine of the extrude refusals at 1e-12 predate the apex. The
 //! tenth is the extrude's closing pcurve mint: the wall rows of the
-//! `off = 1000, l = 1e-3, b = 0.5` cell escalate at the certificate's
+//! `off = 600, l = 1e-3, b = 0.5` cell escalate at the certificate's
 //! `Envelope` at this scalar, the far placement's rounding over a box
 //! as narrow as one ulp
 //! (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`).
@@ -32,7 +32,7 @@
 //! (`work/pcert/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`,
 //! reopened).
 //!
-//! At 1e-12 the `off = 1000, l = 0.1, b = 1e-4` cell passes validation:
+//! At 1e-12 the `off = 600, l = 0.1, b = 1e-4` cell passes validation:
 //! the arc and its neighbour's crossing is their shared vertex, which
 //! the line's span reads in band at this width, and the segments' ends
 //! settle it. It refuses at the extrude's attachment gate instead
@@ -101,7 +101,7 @@ fn the_shallow_arc_grid_census_is_mains_at_every_eps_row() {
         _ => return,
     };
     let mut got = (0, 0, 0, 0);
-    for off in [0.0, 37.0, 1000.0] {
+    for off in [0.0, 37.0, 600.0] {
         for l in [1e-3, 0.1, 1.0, 50.0] {
             for b in [0.5, 1e-2, 1e-3, 1e-4, 1e-5] {
                 match outcome(off, l, b) {

@@ -32,13 +32,21 @@ fn curved(body: &Body<f64>) -> Vec<FaceKey> {
 fn plate_boss_bar() -> Vec<AtRestBody<f64>> {
     let t = tol();
     vec![
-        finished("plate", brick((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), t), t),
+        finished(
+            "plate",
+            brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), t),
+            t,
+        ),
         finished(
             "boss",
             cylinder_of_arcs_at(2, 0.5, Point2::new(1.5, 1.5), 0.5, 1.0, t),
             t,
         ),
-        finished("bar", brick((1.4, 1.6), (0.5, 2.5), (0.8, 2.0), t), t),
+        finished(
+            "bar",
+            brick::<f64>((1.4, 1.6), (0.5, 2.5), (0.8, 2.0), t),
+            t,
+        ),
     ]
 }
 
@@ -91,7 +99,7 @@ fn two_bars_over_a_sunk_boss_leave_each_wall_piece_one_half_in_every_order() {
     let mut bodies = plate_boss_bar();
     bodies.push(finished(
         "bar over the seams",
-        brick((0.5, 2.5), (1.4, 1.6), (0.8, 1.9), t),
+        brick::<f64>((0.5, 2.5), (1.4, 1.6), (0.8, 1.9), t),
         t,
     ));
     let walls: BTreeSet<(usize, FaceKey)> =
