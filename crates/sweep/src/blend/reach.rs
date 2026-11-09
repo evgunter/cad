@@ -500,51 +500,18 @@ impl<T: Real> Bound<T> {
 fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
     match s {
         Surface::Plane { origin, normal, .. } => Some((x - *origin).dot(normal.normalize())),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some(
-            sheet_of(
-                geom::Line {
-                    origin: *origin,
-                    dir: axis.normalize(),
-                },
-                x,
-            )
-            .0 - *radius,
-        ),
+        Surface::Cylinder { radius, .. } => Some(sheet_of(s.axis_line()?, x).0 - *radius),
         Surface::Sphere { center, radius, .. } => Some((x - *center).norm() - *radius),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => {
-            let (rho, z) = sheet_of(
-                geom::Line {
-                    origin: *apex,
-                    dir: axis.normalize(),
-                },
-                x,
-            );
+        Surface::Cone { half_angle, .. } => {
+            let (rho, z) = sheet_of(s.axis_line()?, x);
             Some(rho * half_angle.cos() - z.abs() * half_angle.sin())
         }
         Surface::Torus {
-            center,
-            axis,
             major_radius,
             minor_radius,
             ..
         } => {
-            let (rho, z) = sheet_of(
-                geom::Line {
-                    origin: *center,
-                    dir: axis.normalize(),
-                },
-                x,
-            );
+            let (rho, z) = sheet_of(s.axis_line()?, x);
             Some(((rho - *major_radius).powi(2) + z.powi(2)).sqrt() - *minor_radius)
         }
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
@@ -579,60 +546,31 @@ fn surface_range<T: Real>(s: &Surface<T>, cell: &Cell<T>) -> Option<(T, T)> {
 /// about its own axis, with that axis.
 fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, geom::Line<T>)> {
     let one = T::one();
-    match s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some((
-            SheetFn::Line {
-                alpha: one,
-                beta: T::zero(),
-                gamma: -*radius,
-            },
-            geom::Line {
-                origin: *origin,
-                dir: axis.normalize(),
-            },
-        )),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Some((
-            SheetFn::Cone {
-                q: T::zero(),
-                cos: half_angle.cos(),
-                sin: half_angle.sin(),
-                sigma: one,
-            },
-            geom::Line {
-                origin: *apex,
-                dir: axis.normalize(),
-            },
-        )),
+    let f = match s {
+        Surface::Cylinder { radius, .. } => SheetFn::Line {
+            alpha: one,
+            beta: T::zero(),
+            gamma: -*radius,
+        },
+        Surface::Cone { half_angle, .. } => SheetFn::Cone {
+            q: T::zero(),
+            cos: half_angle.cos(),
+            sin: half_angle.sin(),
+            sigma: one,
+        },
         Surface::Torus {
-            center,
-            axis,
             major_radius,
             minor_radius,
             ..
-        } => Some((
-            SheetFn::Circle {
-                p: *major_radius,
-                q: T::zero(),
-                r: *minor_radius,
-                sigma: one,
-            },
-            geom::Line {
-                origin: *center,
-                dir: axis.normalize(),
-            },
-        )),
-        _ => None,
-    }
+        } => SheetFn::Circle {
+            p: *major_radius,
+            q: T::zero(),
+            r: *minor_radius,
+            sigma: one,
+        },
+        _ => return None,
+    };
+    Some((f, s.axis_line()?))
 }
 
 /// **A surface's distance read in the sheet about the unit axis `a`

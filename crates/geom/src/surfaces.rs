@@ -66,6 +66,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::convention::{ConventionEnd, RepresentabilityMargin};
+use crate::curves::Line;
 use crate::datum::{AnalyticData, DatumValue};
 use crate::frame::Frame;
 
@@ -369,6 +370,29 @@ impl<T: Real> Surface<T> {
             Self::Nurbs(_) => SurfaceKind::Nurbs,
             Self::Approx(_) => SurfaceKind::Approx,
         }
+    }
+
+    /// **A surface of revolution's axis, as a line**: from a cylinder's
+    /// axis point, a cone's apex, or a sphere's, a torus's or a spindle's
+    /// centre, along its stored axis normalised, so the readings that
+    /// take the axis as unit (meridian sheets, a revolve's seed) read it
+    /// as one. `None` for a plane, whose frame axis is a normal and not an
+    /// axis line, and for a net. The one door to the axis of a
+    /// [`Self::frame`]d surface of revolution.
+    #[must_use]
+    pub fn axis_line(&self) -> Option<Line<T>> {
+        let (origin, axis) = match *self {
+            Self::Cylinder { origin, axis, .. } => (origin, axis),
+            Self::Cone { apex, axis, .. } => (apex, axis),
+            Self::Sphere { center, axis, .. }
+            | Self::Torus { center, axis, .. }
+            | Self::Spindle { center, axis, .. } => (center, axis),
+            Self::Plane { .. } | Self::Nurbs(_) | Self::Approx(_) => return None,
+        };
+        Some(Line {
+            origin,
+            dir: axis.normalize(),
+        })
     }
 
     /// **The placement of an analytic surface**: a plane's origin,

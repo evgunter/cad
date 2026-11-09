@@ -865,49 +865,43 @@ impl<T: Decide> CylinderTorusPose<T> {
         Some((|| {
             radius_guard("ct_cylinder_radius", SectionRadius::Cylinder, radius, band)?;
             let ring = ring?;
-            let d = axis.normalize();
-            let line = Spine::Line(geom::Line { origin, dir: d });
-            let sweep = || swept(ring, line, [ring.r, radius], &CT_GAP, band);
-            let (stance, gap) = match axis_pose(
-                ring.frame().axis_line(),
-                geom::Line { origin, dir: d },
-                |_| T::zero(),
-                ring.ball(),
-                band,
-            ) {
-                AxisPose::Coaxial { slack, margin } => {
-                    const WALL: &str = "section_torus_coaxial_wall";
-                    let wall = decide_across_reported(
-                        [WALL, "section_torus_coaxial_wall_floor"],
-                        ring.r - (radius - ring.big_r).abs(),
-                        slack,
-                        band,
-                    )
-                    .map_err(undecided_gap)?;
-                    (
-                        CtStance::Coaxial {
-                            coaxial: margin,
-                            wall,
-                        },
-                        closed_gap(WALL, wall, None),
-                    )
-                }
-                AxisPose::Parallel { e, toward, slack } => {
-                    (CtStance::Parallel { e, toward, slack }, sweep()?)
-                }
-                AxisPose::Undecided(diag) => return Err(undecided_symmetry(diag)),
-                AxisPose::Other => {
-                    match torus_arms::square_pose(
-                        ring.frame().axis_line(),
-                        geom::Line { origin, dir: d },
-                        ring.ball(),
-                        band,
-                    ) {
-                        Some(wall) => (CtStance::Square(wall), sweep()?),
-                        None => (CtStance::General, sweep()?),
-                    }
-                }
+            let cylinder_axis = geom::Line {
+                origin,
+                dir: axis.normalize(),
             };
+            let ring_axis = ring.frame().axis_line();
+            let line = Spine::Line(cylinder_axis);
+            let sweep = || swept(ring, line, [ring.r, radius], &CT_GAP, band);
+            let (stance, gap) =
+                match axis_pose(ring_axis, cylinder_axis, |_| T::zero(), ring.ball(), band) {
+                    AxisPose::Coaxial { slack, margin } => {
+                        const WALL: &str = "section_torus_coaxial_wall";
+                        let wall = decide_across_reported(
+                            [WALL, "section_torus_coaxial_wall_floor"],
+                            ring.r - (radius - ring.big_r).abs(),
+                            slack,
+                            band,
+                        )
+                        .map_err(undecided_gap)?;
+                        (
+                            CtStance::Coaxial {
+                                coaxial: margin,
+                                wall,
+                            },
+                            closed_gap(WALL, wall, None),
+                        )
+                    }
+                    AxisPose::Parallel { e, toward, slack } => {
+                        (CtStance::Parallel { e, toward, slack }, sweep()?)
+                    }
+                    AxisPose::Undecided(diag) => return Err(undecided_symmetry(diag)),
+                    AxisPose::Other => {
+                        match torus_arms::square_pose(ring_axis, cylinder_axis, ring.ball(), band) {
+                            Some(wall) => (CtStance::Square(wall), sweep()?),
+                            None => (CtStance::General, sweep()?),
+                        }
+                    }
+                };
             Ok(Self {
                 cylinder: cylinder.clone(),
                 torus: torus.clone(),
