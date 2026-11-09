@@ -2,10 +2,13 @@
 id: the-ray-wall-twins-read-the-angle-predicates-off-scale
 kind: issue
 title: sweep's ray-wall margin twins stop on azimuth_near_cut_side and period_near_mark, not the pinned curve_foot_branch: red on main, unseen behind the probe feature
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: M
+closed: 2026-11-09
+pr: 6597
+branch: onecopy/twins-dimension
 ---
 
 
@@ -35,3 +38,7 @@ Both are taken under `k_stats::unlogged("F31", ..)` at `Band::least()`, a sign-o
 
 It recommended (1).
 
+
+## Closed
+
+PR 6597. The twins' scale claim covers margins classified against ε (D4 `[tolerance.margins]`). A sample decided at `Band::least()` is read for its sign only, and its record says so through `MarginSample::reads_sign_only` (`geom_core::k_stats`). The ray-wall twins and `topo`'s `rim_dim_boolean_twins` both read that method, and the pin now holds at 1e-6 only. The probe suite was already executed by the nightly (`RUN_FLOOR`); the ciw row is corrected.
