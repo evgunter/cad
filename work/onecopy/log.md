@@ -742,3 +742,8 @@
 - 07:52Z Designer A's first report is in. It is recorded off-PR until B delivers.
 - 07:52Z 6611's gate went red on ruff 504 alone.
   - 6607, 6611, 6614 and 6618 are queued to merge main once 6619 lands.
+- 07:56Z Branch-band fork: both first reports are in, and they split.
+  - A puts an embedded-arc check in the edge certificate, which changes ratified text in [edges] and [topology.census].
+  - B builds nothing new: the at-rest embedding gate (6301) is the home, and no text changes.
+  - The crux is whether the injectivity concession "near the shared cell" is metric or parametric. Round 1 asks each designer about it.
+  - The branch-band lane is probing the injectivity question on a hairpin wall at 3e-10 and at 2e-8.
