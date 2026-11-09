@@ -168,23 +168,61 @@ pub(crate) fn half_rows(
 }
 
 /// **The boolean tool's picks still waiting for a half**, each called
-/// as its panel line calls it: a member by its place in the list, a
-/// subtraction's seat by its role.
+/// as its panel line calls it ([`boolean_pick_called`]).
 pub(crate) fn boolean_waiting(tool: &BooleanTool) -> Vec<(usize, String)> {
     tool.awaiting_half()
         .into_iter()
-        .map(|i| {
-            let said = match tool.operation() {
-                BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
-                    .name()
-                    .to_owned(),
-                BooleanOp::Union | BooleanOp::Intersect => {
-                    format!("{} {}", Seat::Member.name(), i + 1)
-                }
-            };
-            (i, said)
+        .map(|i| (i, boolean_pick_called(tool, i)))
+        .collect()
+}
+
+/// **Pick `i` of the boolean tool as its panel line calls it**: a
+/// member by its place in the list, a subtraction's seat by its role.
+fn boolean_pick_called(tool: &BooleanTool, i: usize) -> String {
+    match tool.operation() {
+        BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
+            .name()
+            .to_owned(),
+        BooleanOp::Union | BooleanOp::Intersect => format!("{} {}", Seat::Member.name(), i + 1),
+    }
+}
+
+/// **The boolean tool's picks reading a family**, each called as its
+/// panel line calls it, with its family's members by their index values
+/// ([`crate::world::members_of`]) — a family whose count does not
+/// evaluate offers none.
+pub(crate) fn boolean_family_picks(
+    tool: &BooleanTool,
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+) -> Vec<(usize, String, Vec<Vec<i64>>)> {
+    tool.family_picks()
+        .into_iter()
+        .map(|(i, family)| {
+            let members = crate::world::members_of(doc, family).unwrap_or_default();
+            (i, boolean_pick_called(tool, i), members)
         })
         .collect()
+}
+
+/// **One row per pick reading a family**, each offering every member of
+/// it by the indices a read of it spells (`[1]`): the answer is the
+/// pick and the member a click chose, which it then reads alone.
+pub(crate) fn member_rows(
+    ui: &mut egui::Ui,
+    waiting: impl IntoIterator<Item = (usize, String, Vec<Vec<i64>>)>,
+) -> Option<(usize, Vec<i64>)> {
+    let mut chosen = None;
+    for (i, said, members) in waiting {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(format!("{said}: read member"));
+            for at in members {
+                if ui.button(crate::seats::member_said(&at)).clicked() {
+                    chosen = Some((i, at));
+                }
+            }
+        });
+    }
+    chosen
 }
 
 /// **What the boolean tool asks for under `op`**: any number of bodies
@@ -1185,6 +1223,10 @@ impl ViewerBehavior<'_> {
         );
         if let Some((pick, half)) = half_rows(ui, boolean_waiting(&tool), &self.theme) {
             self.tools.choose_half(pick, half);
+        }
+        let waiting = boolean_family_picks(&tool, self.session.committed_doc());
+        if let Some((pick, at)) = member_rows(ui, waiting) {
+            self.tools.choose_member(pick, at);
         }
         let Some(tool) = self.tools.boolean() else {
             return;

@@ -66,7 +66,10 @@
 //! half by its port. A viewport pick names the output it hit; a tree
 //! pick of a split names none, so a body seat holding it waits for its
 //! half ([`Seats::choose_half`]) and its commit refuses
-//! [`SeatError::HalfUnchosen`] until then.
+//! [`SeatError::HalfUnchosen`] until then. At a seat reading one member
+//! ([`Seat::reads_member`]) a viewport pick on a family's drawn member
+//! reads that member by its indices; a tree pick of the family reads it
+//! whole until a member is chosen ([`Seats::choose_member`]).
 //!
 //! **What is shared is the classifier, not the table.** Which kind a
 //! seat wants is stated here AND at each door's own `require_kind`
@@ -248,12 +251,6 @@ pub enum SeatError {
         /// Which one.
         seat: Seat,
     },
-    /// A seat reading one body holds a family picked in the tree, and
-    /// which of its members it reads is not chosen yet.
-    MemberUnchosen {
-        /// Which one.
-        seat: Seat,
-    },
 }
 
 impl core::fmt::Display for SeatError {
@@ -267,9 +264,6 @@ impl core::fmt::Display for SeatError {
                     "the {} is a split: choose its above or below half",
                     seat.name()
                 )
-            }
-            Self::MemberUnchosen { seat } => {
-                write!(f, "the {} is a family: choose its member", seat.name())
             }
         }
     }
@@ -355,9 +349,9 @@ pub(crate) enum Port {
     /// One member of a family, by its index values (`xs[i]`,
     /// [`crate::world::members_of`]).
     Member(Vec<i64>),
-    /// A family picked in the tree at a seat reading one member, its
-    /// member not chosen yet.
-    MemberPending,
+    /// A family read whole at a seat that may read one member: a tree
+    /// pick, which names the node and so every member.
+    Family,
 }
 
 impl Port {
@@ -384,9 +378,9 @@ impl Port {
 
     /// **The port a pick on `picked` reads at `seat`**, with the node
     /// the seat reads ([`crate::world::seat_read`]): at a seat reading
-    /// one member, a family's member drawn where the viewport pick hit
-    /// (`body`, [`crate::world::seat_member`]), or one still to choose
-    /// for a tree pick; else [`Self::of_pick`].
+    /// one member, the family's member drawn where a viewport pick hit
+    /// (`body`, [`crate::world::seat_member`]), or the family whole for
+    /// a tree pick, which names no member; else [`Self::of_pick`].
     pub(crate) fn at_seat(
         doc: &Doc<ProfileProgram>,
         picked: RecipeNodeId,
@@ -398,10 +392,7 @@ impl Port {
             let member = body.and_then(|body| crate::world::seat_member(doc, picked, body));
             return match (body, member) {
                 (_, Some((family, at))) => (family, Self::Member(at)),
-                (None, None) => (node, Self::MemberPending),
-                // A drawn body no member is found for: the family whole,
-                // which the door refuses at a body seat.
-                (Some(_), None) => (node, Self::Alone),
+                (_, None) => (node, Self::Family),
             };
         }
         (node, Self::of_pick(doc, node, port, seat.wants()))
@@ -412,9 +403,7 @@ impl Port {
         match self {
             Self::Output(port) => Operand::output(node, *port),
             Self::Half(half) => Operand::output(node, half.port()),
-            Self::Alone | Self::HalfPending | Self::Member(_) | Self::MemberPending => {
-                Operand::Node(node)
-            }
+            Self::Alone | Self::HalfPending | Self::Member(_) | Self::Family => Operand::Node(node),
         }
     }
 
@@ -422,9 +411,10 @@ impl Port {
     /// member's index values as exact `Count` literals.
     pub(crate) fn body_read(&self, node: RecipeNodeId) -> BodyRead<Formula> {
         match self {
-            Self::Member(at) => {
-                BodyRead::indexed(Operand::Node(node), at.iter().map(|&i| Formula::count(i)).collect())
-            }
+            Self::Member(at) => BodyRead::indexed(
+                Operand::Node(node),
+                at.iter().map(|&i| Formula::count(i)).collect(),
+            ),
             other => BodyRead::plain(other.read(node)),
         }
     }
@@ -437,12 +427,18 @@ impl Port {
         }
     }
 
-    /// This port with its member chosen, where it waits for one.
+    /// This port reading one member, where it reads a family whole or
+    /// one of its members.
     pub(crate) fn chosen_member(self, at: Vec<i64>) -> Self {
         match self {
-            Self::MemberPending => Self::Member(at),
+            Self::Family | Self::Member(_) => Self::Member(at),
             other => other,
         }
+    }
+
+    /// Whether this port reads a family: whole, or one member.
+    pub(crate) fn reads_family(&self) -> bool {
+        matches!(self, Self::Family | Self::Member(_))
     }
 }
 
@@ -463,7 +459,7 @@ pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: &Port) -> Stri
         Port::Half(half) => format!("{node_said}, {} half", half.name()),
         Port::HalfPending => format!("{node_said}, half not chosen"),
         Port::Member(at) => format!("{node_said}{}", member_said(at)),
-        Port::MemberPending => format!("{node_said}, member not chosen"),
+        Port::Family => format!("{node_said}, every member"),
         Port::Alone | Port::Output(_) => node_said,
     }
 }
@@ -491,9 +487,8 @@ impl Seats {
     /// boolean tool's change of operation), so nothing is re-read.
     pub(crate) fn holding(roles: [Seat; 2], held: [Option<(SpokenNode, Port)>; 2]) -> Self {
         let [a, b] = held;
-        let port = |pick: &Option<(SpokenNode, Port)>| {
-            pick.as_ref().map_or(Port::Alone, |p| p.1.clone())
-        };
+        let port =
+            |pick: &Option<(SpokenNode, Port)>| pick.as_ref().map_or(Port::Alone, |p| p.1.clone());
         let ports = [port(&a), port(&b)];
         Self {
             roles,
@@ -542,8 +537,9 @@ impl Seats {
     }
 
     /// **The member a seat holding a family reads**, by its index
-    /// values ([`crate::world::members_of`]), chosen after a tree pick
-    /// named the family alone; a no-op on a seat holding anything else.
+    /// values ([`crate::world::members_of`]), chosen in place of the
+    /// family whole or of another member; a no-op on a seat holding
+    /// anything else.
     pub fn choose_member(&mut self, i: usize, at: Vec<i64>) {
         if let Some(port) = self.ports.get_mut(i) {
             *port = core::mem::replace(port, Port::Alone).chosen_member(at);
@@ -555,9 +551,10 @@ impl Seats {
         self.ports.get(i) == Some(&Port::HalfPending)
     }
 
-    /// Whether seat `i` holds a family whose member is still to choose.
-    pub fn awaits_member(&self, i: usize) -> bool {
-        self.ports.get(i) == Some(&Port::MemberPending)
+    /// Whether seat `i` reads a family, whole or one member: a seat
+    /// whose member a panel may choose.
+    pub fn reads_family(&self, i: usize) -> bool {
+        self.ports.get(i).is_some_and(Port::reads_family)
     }
 
     /// **Seat `i`'s pick as the panel says it** ([`pick_said`]) by
@@ -751,20 +748,13 @@ impl Seats {
     }
 
     /// Seat `i`'s body read ([`Self::body_read`]), or the typed refusal
-    /// naming it: [`Self::require_read`]'s, or a family whose member is
-    /// not chosen.
+    /// naming it.
     ///
     /// # Errors
     ///
-    /// [`Self::require_read`]'s, and [`SeatError::MemberUnchosen`] when
-    /// the seat holds a family read alone.
+    /// [`Self::require_read`]'s.
     pub fn require_body_read(&self, i: usize) -> Result<BodyRead<Formula>, SeatError> {
         self.require_read(i)?;
-        if self.awaits_member(i) {
-            return Err(SeatError::MemberUnchosen {
-                seat: self.roles[i],
-            });
-        }
         self.body_read(i).ok_or(SeatError::Empty {
             seat: self.roles[i],
         })

@@ -973,6 +973,16 @@ impl Tools {
         }
     }
 
+    /// **The member pick `seat` of the open boolean tool reads**, by
+    /// its index values, when it holds a family picked alone
+    /// ([`crate::combine::BooleanTool::choose_member`]); a no-op for
+    /// every other tool, whose seats read a family whole.
+    pub fn choose_member(&mut self, seat: usize, at: Vec<i64>) {
+        if let Some(OpenTool::Boolean(tool)) = &mut self.open {
+            tool.choose_member(seat, at);
+        }
+    }
+
     /// **The survival step, once per frame** — the consumer obligation
     /// every tool's module docs state, discharged in one place.
     ///

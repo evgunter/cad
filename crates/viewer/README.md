@@ -2201,6 +2201,14 @@ held in pick order: a member list becomes the two seats from its first
 two members, and two seats become a member list of what they hold.
 `Clear picks` empties the tool and keeps the operation.
 
+**Each operand is the body read the pick reached**, a
+`BodyRead<Formula>`: a body; a split's half by its port, a tree pick
+of the split waiting for its half; or one member of a family by its
+indices (`pattern[1]`), for a viewport pick on that drawn member. A
+tree pick of a family names the node, so it reads the family whole
+until the panel's member row chooses one. The held-picks line says
+which (`Pattern 1[1]`, `Pattern 1, every member`).
+
 **A body picked twice is not refused anywhere.** A repeated read
 glues — `A ∪ A` and `A ∩ A` are `A`, `A ∖ A` the typed empty body — so
 the tool lists it twice and the session door commits it like any other

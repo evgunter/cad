@@ -699,11 +699,10 @@ pub fn seat_read(
     (node, port.filter(|_| names_a_port(doc, node)))
 }
 
-/// **Whether a seat's read of `node` is a family's**: a node evaluated
-/// once per member ([`members_of`]) that does not read as one body —
-/// what a seat reading one body reads one member of (`xs[i]`).
+/// **Whether `node` is a family**: evaluated once per member
+/// ([`members_of`]), so a read of it may name one member (`xs[i]`).
 pub fn is_family(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    !crate::combine::denotes_body(doc, node) && members_of(doc, node).is_some()
+    members_of(doc, node).is_some()
 }
 
 /// **The member a pick on body `body` of `node` reaches**, for a seat
