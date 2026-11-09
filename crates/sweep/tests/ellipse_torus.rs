@@ -283,7 +283,10 @@ fn a_torus_crossing_the_rim_reaches_the_join() {
                 match &e {
                     BooleanError::GermSectionSpiric { .. } => true,
                     BooleanError::GermSectionUnbuilt {
-                        why: topo::SectionUnbuilt::March(geom_brep::SsiError::TubeStraddles { .. }),
+                        why:
+                            topo::SectionUnbuilt::Carry(geom_brep::CarryError::March(
+                                geom_brep::SsiError::TubeStraddles { .. },
+                            )),
                         ..
                     } => coarse,
                     _ => false,

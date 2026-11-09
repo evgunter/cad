@@ -157,10 +157,6 @@ const BOUNDARY: ConicRows = ConicRows::bounded(
 /// symmetric pose's planes hold.
 const AIM_FRACTION: f64 = 1.0 - geom_core::GOLDEN_SECTION;
 
-/// How many even steps of each arc's span [`SphereFaceRegion::aim`]'s
-/// clearance reads.
-const CLEARANCE_SAMPLES: usize = 32;
-
 /// A trimmed sphere face's boundary: every arc of every loop, each with
 /// the direction its loop traverses it.
 #[derive(Clone, Debug)]
@@ -348,33 +344,20 @@ impl<T: Decide> SphereFaceRegion<T> {
     }
 
     /// A lower bound on the distance from `m` to every arc but the `k`th:
-    /// per arc, the greater of two, each never above the true distance —
-    /// `m`'s distance from the arc's whole circle
-    /// ([`geom::Curve3::clearance`]), and the least distance
-    /// from `m` to the arc's points at [`CLEARANCE_SAMPLES`] even steps of
-    /// its span less half the arc length between two of them (every point
-    /// of the arc lies within that of one), which reads an arc of `m`'s own
-    /// circle whose circle passes through `m`.
+    /// the least of the arcs' closed-form distances from `m`
+    /// ([`geom::Curve3::distance_within`]).
     fn clearance(&self, k: usize, m: Point3<T>) -> T {
-        let n = T::from_f64(CLEARANCE_SAMPLES as f64);
         let mut least: Option<T> = None;
         for (j, arc) in self.edges.iter().enumerate() {
             if j == k {
                 continue;
             }
-            let (&geom::Curve3::Circle(geom::Circle { radius, .. }), Some(circle)) =
-                (&arc.carrier, arc.carrier.clearance(m))
-            else {
+            let (geom::Curve3::Circle(_), Some(gap)) = (
+                &arc.carrier,
+                arc.carrier.distance_within(m, (arc.t0, arc.t1)),
+            ) else {
                 unreachable!("sphere_face_region admits circles only")
             };
-            let span = arc.t1 - arc.t0;
-            let step = span / n;
-            let (mut t, mut near) = (arc.t0, (arc.at(arc.t0) - m).norm());
-            for _ in 0..CLEARANCE_SAMPLES {
-                t = t + step;
-                near = near.min((arc.at(t) - m).norm());
-            }
-            let gap = circle.max(near - (radius * step).abs() * T::from_f64(0.5));
             least = Some(least.map_or(gap, |l| l.min(gap)));
         }
         // A face of one arc: nothing else to keep off.
