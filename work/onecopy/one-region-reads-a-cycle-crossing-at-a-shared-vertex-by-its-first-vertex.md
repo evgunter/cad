@@ -60,18 +60,28 @@ Check 9 covers both shapes. None reaches `one_region` alone except in the cases 
   reads each corner's wedge against the loop's other sides there,
   including the seam or strut half-edges the surface boundary drops, on a
   curved face in its tangent plane. A crossing there is
-  `PinchCornerCrossed`, and so is a touch: the loop pairs each cycle's
-  edges with each other, so each corner holds the other's sides, as two
-  loops touching are refused by arm 1.
+  `PinchCornerCrossed`. A touch there is refused too, but not by arm 1's
+  rule for two loops. The strut splits the loop so that each cycle's
+  corner at the point pairs that cycle's own two edges, and the outer
+  corner's wedge holds the other cycle's edges, so neither corner is a
+  slice of the face. A legal pinch is one loop whose corners at the
+  point pair the two lobes' edges, each a slice (Ev's rule, PR 4057). It
+  passes: `validate::tests::a_figure_eight_hole_with_a_closed_arc_passes`.
   Probe: `one_region::tests::two_surface_cycles_of_one_loop_crossing_at_a_shared_point_are_check_9s`.
   - A cylinder sheet, its sense set so its loop bounds its rectangle,
-    has an outer loop carrying a strut to an inner polygon closed by a
-    membrane, with the strut kept. That is one loop, which
+    has an outer loop carrying a strut, from the corner after `A`, to an
+    inner polygon closed by a membrane, with the strut kept. No polygon
+    edge runs along the strut. A first version led the strut from `A`
+    itself, so the polygon's edge to `A` lay along it, a degenerate
+    encoding. That is one loop, which
     `surface_cycles` walks as two cycles (asserted).
   - With the cycles apart, nothing is refused at the outer corner.
   - With the polygon's corner moved onto the outer corner's point key,
-    crossing or touching, `validate_geometric` refuses
-    `PinchCornerCrossed` there.
+    `validate_geometric` refuses `PinchCornerCrossed` there, whether the
+    polygon crosses the outer cycle or touches it. Both come through the
+    same mechanism, the outer corner's wedge holding the polygon's edges,
+    so the row proves that no meeting of the two cycles at a shared key
+    reaches `one_region`, not that the arm tells a crossing from a touch.
   - A first version of this probe read an unsensed sheet, which check 6
     refuses (`CurvedSenseInverted`). Its corners were complements, so
     the corner arm fired with the cycles apart too. The apart case now

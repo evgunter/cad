@@ -289,7 +289,8 @@ mod tests {
 
     /// The findings of a cylinder sheet whose one loop walks two surface
     /// cycles that meet at a point: the outer loop carries a strut from
-    /// its corner `A` at `(0, 0)` to an inner corner `W`, and a polygon
+    /// its corner `B` (the one after `A`, its first corner) to an inner
+    /// corner `W`, and a polygon
     /// `W → X → Y`, closed at `W` by a membrane, with the strut kept, so
     /// the surface boundary drops the strut and walks two cycles, the outer
     /// one and the polygon (asserted). Where `meet`, `X` is then moved onto
@@ -325,11 +326,14 @@ mod tests {
         };
         let a = body.get_half_edge(first).expect("a half-edge").start;
         let a_point = body.get_vertex(a).expect("A").point;
+        // The strut leaves the next corner `B`, so no polygon edge runs
+        // along it once `X` stands on `A`.
+        let from_b = body.get_half_edge(first).expect("A's half-edge").next;
         let strut = body
             .mev_line(
                 MevSite::Fan {
-                    he1: first,
-                    he2: first,
+                    he1: from_b,
+                    he2: from_b,
                 },
                 frame.at(0.5, 0.5),
                 tol,
@@ -387,17 +391,22 @@ mod tests {
         (crossed_at_a, a_point)
     }
 
-    /// **Two surface cycles of ONE loop that meet at a point are check
-    /// 9's `PinchCornerCrossed`** ([`one_loop_two_cycles_at_a_point`]).
+    /// **Two surface cycles of ONE loop that meet at a point key are
+    /// check 9's `PinchCornerCrossed`** ([`one_loop_two_cycles_at_a_point`]).
     /// Apart, the polygon's corner `X` off the outer corner `A`, nothing is
-    /// refused at `A`. Moved onto `A`'s point, whether the polygon then
-    /// crosses the outer cycle there (its third corner outside the sheet)
-    /// or only touches it (inside), the corner arm refuses at `A`: each
-    /// cycle's corner there holds the other's sides, since the loop pairs
-    /// each cycle's edges with each other. The touch is refused as two loops
-    /// touching at a point are by check 9's contact arm 1. The body is
-    /// deliberately ill-formed (scaffold line chords between points of the
-    /// cylinder), and only check 9's corner verdict at `A` is read.
+    /// refused at `A`. Moved onto `A`'s key, crossing the outer cycle there
+    /// (its third corner outside the sheet) or touching it (inside), the
+    /// corner arm refuses at `A`. Neither is a legal pinch: the strut
+    /// splits the loop so that each cycle's corner at `A` pairs that
+    /// cycle's own two edges, and the outer corner's wedge holds the
+    /// polygon's edges there, so neither corner is a slice of the face. A
+    /// legal pinch is one loop whose corners at the point pair the two
+    /// lobes' edges, each a slice (Ev's rule, PR 4057), and passes
+    /// (`validate::tests::a_figure_eight_hole_with_a_closed_arc_passes`).
+    /// The strut leaves another corner `B`, so no polygon edge runs along
+    /// it. The body is deliberately ill-formed (scaffold line chords
+    /// between points of the cylinder), and only check 9's corner verdict
+    /// at `A` is read.
     #[test]
     fn two_surface_cycles_of_one_loop_crossing_at_a_shared_point_are_check_9s() {
         let (apart, _) = one_loop_two_cycles_at_a_point((-0.5, 0.5), false);

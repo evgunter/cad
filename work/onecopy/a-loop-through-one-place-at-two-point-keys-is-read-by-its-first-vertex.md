@@ -42,3 +42,10 @@ tier 3 passes is not shown. The at-rest gate runs no census.
   `test_support_meeting`'s oracle does;
 - or have the agreeing check (`a-ladder-that-checks-its-answers-agree-has-no-home`)
   read every vertex there.
+
+**At a distinct key, a touch as well as a crossing goes unread by the
+corner arm.** At a shared key both are refused (see
+`one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex`):
+the strut-split cycles' corners there are not slices. At two keys within
+band the arm groups neither, so `one_region`'s read answers by its first
+vertex either way.
