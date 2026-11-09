@@ -1720,12 +1720,15 @@ Flagged, NOT fixed here (dispositions):
   - So the logged tie was never the driver's only cue. Where a dropped
     step leaves a meeting unproved, the window's escalation is the cue,
     on a row a box answers.
-  - Measured on this unit's head (`ci` profile, instrumented locally and
-    not kept): over the `geom-brep` and `topo` suites, 17,883 steps
-    were dropped at `Interval`, every one decided, and no step tied at
-    either scalar; `editor-core`'s suite reaches no polish step. The
-    move changes no outcome those suites reach; it is argued on the
-    tie's soundness, which
+  - Measured (`ci` profile, default ε, instrumented locally and not
+    kept), over the `geom-brep` and `topo` suites: `step_taken` is read
+    31,304 times at `f64`, which keeps 25,997 steps and drops 5,305 (one
+    of them a tie), and twice at `Interval`, which keeps one and drops
+    one, a tie. A dropped step ends the polish (`polish::pair`): the
+    iterate has not moved, so the next step would be the same one.
+    `editor-core`'s suite reaches no polish step. The move changes no
+    outcome those suites reach; it is argued on the tie's soundness,
+    which
     `curve_pair::walk::tests::a_polish_step_at_its_bound_or_astride_it_is_dropped`
     pins (an exact `16·slack` and an enclosure astride it are dropped,
     off the verdict log).
