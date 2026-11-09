@@ -586,10 +586,13 @@ impl<T: Decide> Curve3<T> {
     /// lower bound on `q`'s distance from the interval, past the band,
     /// where it is `Clear`.
     ///
-    /// Every reading of a point against a span by its pieces is a
-    /// [`Self::point_walk`] whose visit is its stop rule, and its callers
-    /// are that list. This one decides against the band, logged, and
-    /// returns the deciding reading, so it stops on a piece's reach.
+    /// Every reading of a point against a span by pieces whose reach is
+    /// the carrier's speed bound is a [`Self::point_walk`] whose visit is
+    /// its stop rule, and its callers are that list. A line's or a
+    /// circle's distance is closed-form ([`Self::distance_within`]), and
+    /// `topo`'s `pieced_arc` reads its own tighter ball cover. This one
+    /// decides against the band, logged, and returns the deciding reading,
+    /// so it stops on a piece's reach.
     ///
     /// # Errors
     ///
