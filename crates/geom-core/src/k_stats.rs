@@ -23,6 +23,15 @@
 //! because they are the same code and not because several bodies are
 //! kept level.
 //!
+//! **A door's signature is its roster entry.** The least-band gate
+//! (`scripts/gates/least-band-on-a-door.sh`) and the ledger census
+//! (`geom-core/tests/flagged_census.rs`) read the doors off this file's
+//! `pub` signatures, so a door takes its band as a parameter whose type
+//! names `Band`, and its ledger row as one `&str` parameter or one whose
+//! name holds `row`, never inside a struct argument. Every other `pub` fn
+//! here that takes a band or such a parameter is named as a non-door in
+//! the reader that would otherwise take it for one.
+//!
 //! Cost on the production path: one thread-local `Cell` write per
 //! decision, plus — **inside an open [`Bracket`]** — one `Vec` push per
 //! outcome, definite or not (see `decide`'s own contract below). That

@@ -734,6 +734,21 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "TouchesItself",
+            BooleanError::TouchesItself {
+                operand: Operand::A,
+                record: 0,
+                faces: [FaceKey::default(); 2],
+            },
+        ),
+        (
+            "ToolSeatCrossed",
+            BooleanError::ToolSeatCrossed {
+                record: 0,
+                faces: [FaceKey::default(); 2],
+            },
+        ),
+        (
             "NonManifoldResult",
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),

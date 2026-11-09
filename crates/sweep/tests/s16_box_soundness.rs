@@ -247,7 +247,7 @@ fn a_lofted_operand_reaches_the_fallbacks_re_gate() {
     let a = lofted();
     let nurbs_faces = a
         .faces()
-        .filter(|(_, f)| matches!(a.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .filter(|(fk, _)| matches!(a.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
         .count();
     assert!(
         nurbs_faces > 0,

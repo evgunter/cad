@@ -432,7 +432,7 @@ fn edge_surfaces(
     let face_of = |he: topo::HalfEdgeKey| -> Option<geom::Surface<f64>> {
         let l = body.get_half_edge(he)?.parent_loop;
         let f = body.get_loop(l)?.face;
-        body.get_surface(body.get_face(f)?.surface).cloned()
+        body.face_surface(f).cloned()
     };
     Some((face_of(e.he_plus)?, face_of(e.he_minus)?))
 }

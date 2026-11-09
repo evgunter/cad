@@ -54,13 +54,9 @@ fn pole<T: Real>(wall: &geom::NurbsSurface<T>, iu: usize, iv: usize) -> usize {
 fn arc_wall<T: topo::AtRestPolicy + geom_core::spline::SpanLocate>(
     lofted: &Lofted<T>,
 ) -> geom::NurbsSurface<T> {
-    let face = lofted
-        .body
-        .get_face(lofted.side_faces[0][1][0])
-        .expect("a built face");
     match lofted
         .body
-        .get_surface(face.surface)
+        .face_surface(lofted.side_faces[0][1][0])
         .expect("a described face")
     {
         Surface::Nurbs(n) => n.as_ref().clone(),
@@ -431,11 +427,8 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
         if zs.len() > degree + 1 {
             // The case's hypothesis: the body's walls carry the computed
             // interior knot.
-            let face = nominal
-                .body
-                .get_face(nominal.side_faces[0][0][0])
-                .expect("a built face");
-            let Some(Surface::Nurbs(net)) = nominal.body.get_surface(face.surface) else {
+            let Some(Surface::Nurbs(net)) = nominal.body.face_surface(nominal.side_faces[0][0][0])
+            else {
                 panic!("{what}: a lofted wall is a NURBS surface")
             };
             let knots = net.knot_values_v();
@@ -585,11 +578,10 @@ fn wall_bits<
         .flatten()
         .flatten()
         .flat_map(|f| {
-            let face = lofted.body.body_of().get_face(*f).expect("a built face");
             match lofted
                 .body
                 .body_of()
-                .get_surface(face.surface)
+                .face_surface(*f)
                 .expect("a described face")
             {
                 Surface::Nurbs(n) => n
@@ -662,11 +654,10 @@ fn wall_values<
 ) -> Vec<R> {
     let mut out = Vec::new();
     for face in lofted.side_faces.iter().flatten().flatten() {
-        let face = lofted.body.body_of().get_face(*face).expect("a built face");
         match lofted
             .body
             .body_of()
-            .get_surface(face.surface)
+            .face_surface(*face)
             .expect("a described face")
         {
             Surface::Nurbs(n) => {
@@ -836,12 +827,7 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
     // that carried any derivative at all would make the walls rational
     // in the height.
     for face in swept.side_faces.iter().flatten().flatten() {
-        let face = swept.body.get_face(*face).expect("a built face");
-        let Surface::Nurbs(n) = swept
-            .body
-            .get_surface(face.surface)
-            .expect("a described face")
-        else {
+        let Surface::Nurbs(n) = swept.body.face_surface(*face).expect("a described face") else {
             panic!("a swept wall is a NURBS surface");
         };
         assert!(

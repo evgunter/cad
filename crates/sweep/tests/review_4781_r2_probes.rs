@@ -550,9 +550,8 @@ fn ee_lines(r: &topo::BooleanBody<f64>) -> Vec<String> {
         .edge_edge()
         .map(|(e0, e1)| {
             let ends = |e| {
-                let edge = r.body.get_edge(e).expect("a recorded edge is live");
-                [edge.he_plus, edge.he_minus]
-                    .map(|he| r.body.half_edge_start_point(he).expect("an end"))
+                <[_; 2]>::from(r.body.edge_vertices(e).expect("a recorded edge is live"))
+                    .map(|v| topo::readback::vertex_point(&r.body, v).expect("an end"))
             };
             let [p, q] = ends(e0);
             let [s, t] = ends(e1);

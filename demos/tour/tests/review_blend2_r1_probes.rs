@@ -114,7 +114,7 @@ fn volume(body: &Body<f64>) -> f64 {
 fn face_shapes(body: &Body<f64>) -> Vec<String> {
     let mut out: Vec<String> = body
         .faces()
-        .map(|(_, f)| match body.get_surface(f.surface) {
+        .map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus {
                 major_radius,
                 minor_radius,

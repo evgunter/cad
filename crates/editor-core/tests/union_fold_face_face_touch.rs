@@ -153,10 +153,7 @@ fn touches(
         (v - volume).abs() < 1e-9,
         "{what}: volume {v}, want {volume}"
     );
-    let kind = |f: topo::FaceKey| {
-        let face = body.body().get_face(f).unwrap();
-        body.body().get_surface(face.surface).unwrap().kind()
-    };
+    let kind = |f: topo::FaceKey| body.body().face_surface(f).unwrap().kind();
     let ff: Vec<_> = contacts
         .rows()
         .iter()
