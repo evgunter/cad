@@ -38,3 +38,16 @@ Fix: settle the ray question, then a `geom::Line<T>` (or the half-line type) at 
 The sweep cannot see a line passed as two loose arguments under other names, or one stored as two struct fields. The shapes it did run:
 - `q: Point3<T>,` followed by `d: Vec3<T>` on the next line;
 - `(Point3<T>, Vec3<T>)` in type position.
+
+## Closed (2026-11-09, onecopy/line-placement)
+
+- **The ray question.** It is ruled as `geom::Ray { line }`, with one plain reading `advance(p)` and one decided reading `ahead(at, site, band)` under the reader's own row.
+  - The solid_contain ray doors, `curved_edges`, `trace::ray_crossings` and test-support `ray_counts` take `&Ray`.
+  - Every hand-spelled forward test reads `Ray::ahead` under its existing row, so the K stream is unchanged.
+  - The line × surface root doors take `geom::Line`s.
+  - `ray_walk` stays generic over its space: there is no `Ray2`.
+- **`join.rs`'s conic loop frame**, `section_cert`'s torus axis and `MappedSource::RevolvedPoint` carry a `geom::Line`. A stored `Frame` is read through `Frame::axis_line()`, and a stored surface through `Surface::axis_line()`.
+- **The swept axis pairs in topo, geom and geom-brep** take or hold a `Line` (the PR lists them).
+- **What remains is filed:**
+  - `props/curved.rs`'s family is `work/conearm/props-curved-carries-a-revolution-axis-as-loose-origin-and-axis.md`;
+  - the holders that carry a full frame are on `analytic-surfaces-spell-their-frame-field-by-field`.

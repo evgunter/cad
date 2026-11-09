@@ -70,3 +70,12 @@ fields (`SectionPlane::site`, `FaceGeo::Plane`, `SplitPlane`,
 `PlanarFace`, `SectionCtx`, …). Once `Plane { frame }` lands, they port
 onto it. That row also asks whether a seamless plane needs a reading of
 its own.
+
+## Frame holders found by the axis sweep (2026-11-09, `onecopy/line-placement`)
+
+The axis-line sweep found these holders. Each carries a full placement (a point, an axis and a seam), not just a line, so they were left for this stage's `Frame` rather than split into a `Line` plus a loose seam:
+- `topo`: `boolean/ruled_region.rs` `Ruled`, `boolean/torus_region.rs` `TorusFaceRegion`, `chord_join.rs` `WallChart`, `boolean/section_cert.rs` `Cone`, `ring_path.rs` `Oval`;
+- `geom-brep`: `pair_section/torus.rs` `Ring`, `pair_section/torus_arms.rs` `SphereMeridian`, `curve_face/circle_torus.rs` `roots_of`, `tangent.rs` `circle_span_bounds`;
+- `sweep`: `test_support.rs` `tube_frame`.
+
+`geom/src/cover.rs`'s `Slab` and `Frustum` hold the axis as a `UnitVec3`. A `Line` would drop that unit typing, so they stay too.

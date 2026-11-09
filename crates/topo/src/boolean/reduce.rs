@@ -3069,7 +3069,14 @@ fn conic_clearance<T: Decide>(
         ..
     } = *surface
     {
-        let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
+        let h = geom_brep::conic_cone_harmonics(
+            conic,
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            half_angle,
+        );
         let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
         let swing =
             hypot(h.c1, h.s1) + hypot(h.c2, h.s2) + geom_core::rounding_charge(h.terms) / h.per;
