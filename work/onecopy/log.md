@@ -858,3 +858,6 @@
   - NOTE residue filed as `bare-rounding-doors-are-read-in-column-zero-only`.
   - Its transverse-range row now waits for the needle-tilts lane after S.
 - 10:01Z PR 6622 FULL review: FIX. TubeUnread and NaN PadShort cite no guard. Tangent's payload is a &'static str with several meanings, and its recourse is decided in the renderer; the row's own root cause gets a typed reason here. Seat diagnostics restored, Admission reused, and the winding NaN is fixed or filed. Sent to the lane.
+- 10:10Z PR 6616's gate was green at 257f0049, but main overlapped it in slit.rs. I merged main (7c3a6c43); the build and breakpoints gate are clean. Re-gating.
+- 10:10Z PR 6615's gate was green at 56319d41, but main overlapped it in 3 files. Merging main hit a conflict in conic_arc.rs: main had added a comment, and 6615 had ported the line to unit_sign. I kept both. Build and run-gates are clean (87ee1cc9). Re-gating.
+- 10:10Z PR 6617 is gate-green at 821e541a. It is held for the ladder lane's D1 push (exhaustive refusal() per taxonomy row).
