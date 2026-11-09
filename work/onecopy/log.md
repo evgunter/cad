@@ -908,3 +908,8 @@
 - 11:35Z 6609 and 6617 went gate-green, but main overlapped both after 6614/6615 merged. Merged main into each, with build and gates clean: 6609 at 92249a8c, 6617 at 5555a3f4 (carries D1). Re-gating. Nothing else is merge-ready, so both should land on this round.
 - 11:44Z PR 6627 delta: MERGE. F1–F5 and S1 are closed; the census still reads 27 sites. NOTEs filed as `census-roster-shape-rules-miss-a-type-alias-a-string-row-and-scope-a-file-wide-exemption`. Merged main (e9dd6a73), build and gates clean. Gating.
 - 11:50Z PR 6632 FULL review: FIX. FIX-2 (root cause): generic-T form 1 has no home and is ungated, with 18 hits. bracket_mid moves to geom-core beside mid_param, generic, with f64 bit-identical, and the 7 bracket/box sites route to it. FIX-1: an orphaned test doc. FIX-3: a stale overflow claim. Sent to the lane.
+- 11:58Z Merged PR 6609 (loop-walks) at its gate-green head 92249a8c; main had not moved since. The on-surface-ties lane can now key the walk in 6624.
+- 11:58Z PR 6608 session-box delta: FIX.
+  - F7: the doc cited my F5 row, which was a duplicate of `work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md` (P1). I closed mine; 6608 points its cites there and adds the sphere example.
+  - N1: restore the arc looseness guard in a fast row.
+- 11:58Z Main is red on editor-core m10_sym plate pin (38 vs 28) and hosted CI on main skips tests. Asked the main-reds lane for status and a fix.

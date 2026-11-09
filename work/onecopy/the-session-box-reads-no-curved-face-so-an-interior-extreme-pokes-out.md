@@ -2,8 +2,9 @@
 id: the-session-box-reads-no-curved-face-so-an-interior-extreme-pokes-out
 kind: issue
 title: The session box reads a body's reach off its vertices and edges only, so a curved face whose extreme is interior is admitted past 1 km
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
 ---
 
 
@@ -20,3 +21,7 @@ This is the gap behind the module doc's "every check takes 'in the box' as its p
 **Fix shape:** read each face's coordinate range from its carrier over its region. One home for a face's axis-aligned extent may already exist in `Cover`/`world_box` or in extent.rs. Check before minting one.
 
 **Pin:** the z-offset sphere above is refused.
+
+## Closed (2026-11-09): a duplicate
+
+This finding was already filed as `work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md` (P1, open since 2026-11-02, with a torus example). PR 6608 adds the sphere example to that row and cites it.
