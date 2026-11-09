@@ -14,8 +14,11 @@
 #     reads. A point pair's middle is `p.mid(q)` (`Point2`/`Point3`),
 #     `bracket_mid` per coordinate.
 # A hand spelling of either form is refused and named with the home of
-# ITS form, so moving a site onto its home changes no bit. The home's
-# own file is exempt.
+# ITS form, so moving a site onto its home changes no `f64` or
+# `Interval` bit. A `Sym` form whose halving was a division by 2 becomes
+# the home's multiplication by ½: the same value, a different form (its
+# digest, and which denominators `Form::add` shares). The home's own file
+# is exempt.
 #
 # WHAT IS REFUSED, in production code under `crates/*/src` (comments and
 # string literals out, `#[cfg(test)]` modules and test-only mounts out,
@@ -33,7 +36,12 @@
 #     same prefix twice, with the same call parens and index
 #     (`lo + hi`, `z_lo + z_hi`, `x.lo() + x.hi()`, `lo[k] + hi[k]`);
 #     `E.0 + E.1` or `E[0] + E[1]`, E the same chain twice; or
-#     `S0 + S1`, S the same stem twice (`t0 + t1`, `e.t0 + e.t1`).
+#     `S0 + S1`, S the same stem twice (`t0 + t1`, `e.t0 + e.t1`);
+#   * `p.lerp(q, ½)`, the half `0.5` or `T::from_f64(0.5)`: `lerp`'s body
+#     at `t = ½` is `p.mid(q)`'s arithmetic, and `lerp` stays the door for
+#     a general `t`. The half is read as `lerp`'s last argument, so
+#     `.lerp(a, f(x, 0.5))` is refused too (a false positive; none is in
+#     the tree).
 #
 # BLIND SPOTS, each one a shape that passes:
 #   * `½(a + b)` under OTHER NAMES (`a`/`b`, `s`/`t`, `low`/`high`,
@@ -105,10 +113,12 @@ gate() {
     "($stem)0$s\\+$s\\@K1"
     "($stem)1$s\\+$s\\@K0"
   )
-  local view lower_hits sum_hits='' pair re k
+  local lerp_re="\\.lerp$s\\(.*,$s$times$s\\)"
+  local view lower_hits lerp_hits sum_hits='' pair re k
   view=$(gate_rust_code --skip-cfg-test --statements "${files[@]}" \
     | gate_grep -vE "$(gate_record_anchor_any "${HOMES[@]}")")
   lower_hits=$(printf '%s\n' "$view" | gate_grep -E "$lower")
+  lerp_hits=$(printf '%s\n' "$view" | gate_grep -E "$lerp_re")
   for pair in "${pairs[@]}"; do
     for k in 4 2; do
       re=${pair//@K/$k}
@@ -131,7 +141,11 @@ gate() {
     printf '%s\n' "$lower_hits"
     gate_error "a bracket's middle spelled lo + ½(hi − lo) by hand (above): read it as bracket_mid((lo, hi)) (geom_core::bracket_mid, re-exported as geom::bracket_mid), or p.mid(q) for a pair of points, its home"
   fi
-  if [ -n "$sum_hits$lower_hits" ]; then
+  if [ -n "$lerp_hits" ]; then
+    printf '%s\n' "$lerp_hits"
+    gate_error "a point pair's middle spelled p.lerp(q, ½) by hand (above): read it as p.mid(q) (Point2::mid / Point3::mid), its home"
+  fi
+  if [ -n "$sum_hits$lower_hits$lerp_hits" ]; then
     exit 1
   fi
   gate_ok "no bracket's middle spelled by hand outside mid_param and bracket_mid ($GATE_SCAN_FILES files)"
@@ -155,6 +169,8 @@ plant_lower_wrapped() { plant "$1" $'pub fn m(lo: f64, hi: f64) -> f64 {\n    lo
 plant_lower_scalar() { plant "$1" 'pub fn m<T: Real>(lo: P<T>, hi: P<T>) -> P<T> { lo + (hi - lo) * T::from_f64(0.5) }'; }
 plant_lower_scalar_leading() { plant "$1" 'pub fn m<T: Real>(a: T, b: T) -> T { a + T::from_f64(0.5) * (b - a) }'; }
 plant_lower_scalar_halved() { plant "$1" 'pub fn m<T: Real>(p: T, q: T) -> T { p + (q - p) / T::from_f64(2.0) }'; }
+plant_lerp_half() { plant "$1" 'pub fn m(p: P, q: P) -> P { p.lerp(q, 0.5) }'; }
+plant_lerp_scalar() { plant "$1" 'pub fn m<T: Real>(p: P<T>, q: P<T>) -> P<T> { p.lerp(q, T::from_f64(0.5)) }'; }
 plant_sum_half() { plant "$1" 'pub fn m(lo: f64, hi: f64) -> f64 { 0.5 * (lo + hi) }'; }
 plant_sum_trailing() { plant "$1" 'pub fn m(x: I) -> f64 { (x.lo() + x.hi()) * 0.5 }'; }
 plant_sum_halved() { plant "$1" 'pub fn m(z_lo: f64, z_hi: f64) -> f64 { (z_lo + z_hi) / 2.0 }'; }
@@ -188,6 +204,7 @@ plant_not_sites() {
     printf 'pub fn j(a: I, b: I) -> f64 { 0.5 * (a.lo() + b.hi()) + (z_lo + y_hi) * 0.5 }\n'
     printf 'pub fn k(f: [f64; 2], h: f64) -> f64 { (f[0] + f[1]) * 0.5 * h }\n'
     printf 'pub fn l<T: Real>(lo: T, hi: T, h: T) -> T { lo + (hi - lo) * T::from_f64(0.5) * h }\n'
+    printf 'pub fn n(p: P, q: P, t: f64) -> P { p.lerp(q, t).lerp(q, 0.25) }\n'
     printf '// 0.5 * (lo + hi) by hand\npub const S: &str = "lo + 0.5 * (hi - lo)";\n'
     printf '#[cfg(test)]\nmod tests {\n    fn m(lo: f64, hi: f64) -> f64 { 0.5 * (lo + hi) }\n}\n'
   } >> "$1/crates/clean/src/lib.rs"
@@ -208,9 +225,12 @@ gate_selftest() {
     plant_sum_stem_swapped plant_sum_scalar plant_sum_scalar_leading plant_sum_scalar_halved; do
     gate_selftest_case "read it as mid_param(lo, hi)" "$p"
   done
+  for p in plant_lerp_half plant_lerp_scalar; do
+    gate_selftest_case "read it as p.mid(q)" "$p"
+  done
   gate_selftest_passes "a grid step, an integer middle, other names, an unhalved sum, another operand, a halved product, a trapezoid, ends of two different pairs or brackets, prose, a test module, fixture files and the home" plant_not_sites
   gate_selftest_homes --narrowed --subject "$HOME_SUBJECT" "${HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the home, and a grid step, an integer middle, other names, an unhalved sum, another operand, a halved product, a trapezoid, ends of two different pairs or brackets, prose, a test module and fixture files; fires naming bracket_mid on lo + ½(hi − lo) with the half as 0.5 or T::from_f64(0.5) on either side or a division by 2.0 or T::from_f64(2.0), after return and wrapped across lines; fires naming mid_param on ½(lo + hi) halved the same ways, in either order, as Xlo + Xhi (indexed and called), E.0 + E.1, E[0] + E[1] and S0 + S1; and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the home, and a lerp at a general t, a grid step, an integer middle, other names, an unhalved sum, another operand, a halved product, a trapezoid, ends of two different pairs or brackets, prose, a test module and fixture files; fires naming bracket_mid on lo + ½(hi − lo) with the half as 0.5 or T::from_f64(0.5) on either side or a division by 2.0 or T::from_f64(2.0), after return and wrapped across lines; fires naming p.mid(q) on p.lerp(q, ½) with the half as 0.5 or T::from_f64(0.5); fires naming mid_param on ½(lo + hi) halved the same ways, in either order, as Xlo + Xhi (indexed and called), E.0 + E.1, E[0] + E[1] and S0 + S1; and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -1524,7 +1524,7 @@ pub(crate) fn centre_split<T: Real>(
 ) -> (T, T) {
     let chord = b - a;
     let len = chord.norm();
-    let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
+    let offset = (centre - a.mid(b)).dot(Vec2::new(-chord.y, chord.x)) / len;
     (sgn * (len * T::from_f64(0.5)), sgn * offset)
 }
 

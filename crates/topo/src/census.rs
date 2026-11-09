@@ -4216,7 +4216,7 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     let variety = Variety::of(surface, name, band).ok()??;
     Some(
         variety
-            .read_piece(&[p0, p1, p0.lerp(p1, T::from_f64(0.5))], name, band)
+            .read_piece(&[p0, p1, p0.mid(p1)], name, band)
             .map(|read| read == Piece::Sampled),
     )
 }

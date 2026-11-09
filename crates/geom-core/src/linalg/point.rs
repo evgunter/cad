@@ -103,7 +103,8 @@ impl<T: Real> Point2<T> {
     /// it by treating `t` and `1 − t` as independent whenever `t`
     /// itself carries width, which is the common case for a subdivision
     /// driver. The trade is decided in favour of the endpoint behaviour
-    /// above; it is not an oversight.
+    /// above; it is not an oversight. At `t = ½` it is [`Self::mid`]'s
+    /// arithmetic, and that is the door for a middle.
     pub fn lerp(self, other: Self, t: T) -> Self {
         self + (other - self) * t
     }
@@ -234,7 +235,8 @@ impl<T: Real> Point3<T> {
     /// it by treating `t` and `1 − t` as independent whenever `t`
     /// itself carries width, which is the common case for a subdivision
     /// driver. The trade is decided in favour of the endpoint behaviour
-    /// above; it is not an oversight.
+    /// above; it is not an oversight. At `t = ½` it is [`Self::mid`]'s
+    /// arithmetic, and that is the door for a middle.
     pub fn lerp(self, other: Self, t: T) -> Self {
         self + (other - self) * t
     }

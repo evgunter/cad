@@ -3355,7 +3355,7 @@ impl<T: SpanLocate> IntersectionDraft<T> {
             None => {
                 let chord = EdgeCurveSpec::line_between(p0, p1);
                 Self {
-                    witness: p0.lerp(p1, T::from_f64(0.5)),
+                    witness: p0.mid(p1),
                     carrier: chord.carrier,
                     param_start: chord.param_start,
                     param_end: chord.param_end,

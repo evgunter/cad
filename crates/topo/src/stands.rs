@@ -470,7 +470,7 @@ fn triple_centroid<T: Decide>(a: Point3<T>, b: Point3<T>, c: Point3<T>) -> Point
 /// The midpoint of two of a face's vertices: a face-interior candidate
 /// wherever the chord between them is a diagonal of the face.
 fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
-    a.lerp(b, T::from_f64(0.5))
+    a.mid(b)
 }
 
 /// Does [`point_in_face`] certify `p` strictly inside planar `face`?
