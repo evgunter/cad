@@ -806,4 +806,3 @@ fn a_seat_divided_along_a_ring_or_met_with_a_seat_refuses_at_the_carry() {
         }
     }
 }
-
