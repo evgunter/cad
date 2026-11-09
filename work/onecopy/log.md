@@ -1338,3 +1338,8 @@
     - sign-homes: widen to 10 test files; gate A (counted per-file pin with reason words); B filed P3.
     - normal-fault-kind: slit takes (b), `EdgeInFaceGap::DegenerateTorus(TorusRefusal)`. The dual-scalar finding (Replay is tier 2 only, so "tier 3 refuses it first" premises fail at dual) is to be swept across topo.
   - main-reds lane is back: 6674 fixes, then 6663, then triage.
+- 2026-11-10 00:05Z
+  - **Rulings:** loft-rim-red is (a), fix the cause: #6484's arc-rim mint certifies each spline-chart arc rim twice (the lane choice discards its PcurveCache, then certify_walked re-certifies). The count of 10 stays the pin, plus a distinct-set assert.
+  - **6670 (shell-winding):** option 1 landed (rung-at-a-time read, three tests to the slow set, suite = main 211 s); the cost note went on restfront's check-10 row.
+  - **6688 (sign-homes) opened:** NonzeroSign beside Sign; 10 incidence test files through the classifier; incidence-variant-sites gate. FULL review: session_013mPGJ49Y6aT7ZssznUq1pk. The lane goes on to by-kind-folds plus ring-sites-names (onecopy/torus-ring-names).
+  - The container restarted mid merge-check (disk at 98%). tgt-m cleared; the 6670 check is re-running.
