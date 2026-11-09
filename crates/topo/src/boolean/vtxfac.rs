@@ -92,7 +92,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use super::contain::FaceContainment;
 use super::plane_eq::PlaneEqError;
 use super::reduce::plane_desc;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::sectors::{
     BoolSector, Leaned, PierceLever, Unparted, build_sectors, leaned_lever, pierce_side,
@@ -113,28 +113,22 @@ use geom_core::Tol;
 
 /// **Each vertex that pierces a face and pairs with a vertex too**, with
 /// its first pair, and **each vertex that pierces a declared wall**: the
-/// two faces of a face–face record of the other operand's, in pierce
-/// order, with the record's index ([`Walls`]).
+/// two faces of an area record of the other operand's
+/// ([`crate::contact::area_record`]), in pierce order ([`Walls`]).
 ///
-/// Refuses before any pass writes:
-/// - [`BooleanError::VertexReadTwice`] where a vertex pierces two faces
-///   no record of the other operand declares a wall, pierces a third,
-///   or pierces a wall and pairs with a vertex too;
-/// - [`BooleanError::ToolSeatCrossed`] where a vertex of `A` pierces a
-///   wall of `B` in `A − B`: the cut would leave the sliver of `A`
-///   between the wall's two sections, which the finish keeps.
-///
-/// A pierce hangs struts at its vertex only where it crosses the face,
-/// so a vertex that pairs is read again only where its pierce touches
-/// ([`classify_vertex_on_face`] refuses before it writes, and
-/// [`partner_side`] and [`cone_classes`] read the touch). A vertex in
+/// Refuses [`BooleanError::VertexReadTwice`] before any pass writes
+/// where a vertex pierces two faces no area record of the other operand
+/// declares a wall, pierces a third, or pierces a wall and pairs with a
+/// vertex too. A pierce hangs struts at its vertex only where it
+/// crosses the face, so a vertex that pairs is read again only where its
+/// pierce touches ([`classify_vertex_on_face`] refuses before it writes,
+/// and [`partner_side`] and [`cone_classes`] read the touch). A vertex in
 /// several pairs and in no pierce is not returned, since the
 /// vertex-vertex passes read every pair before the first writes.
 pub(super) fn pierced_and_paired<T: Decide>(
     contacts: &ReductionContacts,
     records: [&super::OperandRecords; 2],
     bodies: [&Body<T>; 2],
-    op: BooleanOp,
 ) -> Result<(Rereads, Walls), BooleanError> {
     let mut rereads = BTreeMap::new();
     let mut walls = Walls::new();
@@ -142,16 +136,11 @@ pub(super) fn pierced_and_paired<T: Decide>(
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
-        let theirs = records[usize::from(operand == Operand::A)];
-        let theirs_body = bodies[usize::from(operand == Operand::A)];
-        // Two planar faces a record holds apart meet over an area, on one
-        // plane: no two planes touch along a line without crossing.
-        let planar = |f: FaceKey| crate::face_normal::face_plane(theirs_body, f).is_some();
+        let theirs = usize::from(operand == Operand::A);
         let declared = |x: FaceKey, y: FaceKey| {
-            theirs.ff.iter().find(|r| {
+            records[theirs].ff.iter().find(|r| {
                 ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
-                    && planar(x)
-                    && planar(y)
+                    && crate::contact::area_record(bodies[theirs], x, y)
             })
         };
         let mut pierces = BTreeMap::new();
@@ -160,24 +149,14 @@ pub(super) fn pierced_and_paired<T: Decide>(
                 pierces.insert(c.vertex, c.face);
                 continue;
             };
-            let twice = BooleanError::VertexReadTwice {
-                operand,
-                vertex: c.vertex,
-                reads: [SectorRead::Pierce(face), SectorRead::Pierce(c.face)],
-                in_band: None,
-            };
+            let twice = BooleanError::pierced_twice(operand, c.vertex, [face, c.face]);
             let Some(record) = declared(face, c.face) else {
                 return Err(twice);
             };
-            if op == BooleanOp::Subtract && operand == Operand::A {
-                return Err(BooleanError::ToolSeatCrossed {
-                    record: record.record,
-                    faces: [record.contact.a, record.contact.b],
-                });
-            }
             let wall = Wall {
                 faces: [face, c.face],
                 record: record.record,
+                seat: [record.contact.a, record.contact.b],
             };
             if walls.insert((operand, c.vertex), wall).is_some() {
                 return Err(twice);
@@ -206,24 +185,25 @@ pub(super) fn pierced_and_paired<T: Decide>(
     Ok((rereads, walls))
 }
 
-/// **A declared wall a vertex pierces**: the two planar faces of a
-/// face–face record of the pierced operand, which the vertex pierces at
-/// one point, in pierce order. Planar faces a record holds apart lie on
-/// one plane, over an area; a record of curved faces may be a tangency
-/// along a line, which is no wall, and is not read as one. The record declares them one two-sided
-/// wall, each face holding the material on its own side, so a vertex
-/// crossing it is read once against both: each face's crossing is
-/// minted at the vertex, the first face's Out run as any pierce's, the
-/// second face's In run ([`WallRead`]), and an edge of the vertex is In
-/// where either face reads it In. A vertex that only touches the wall,
-/// or whose two reads part from the mirror, refuses
-/// [`BooleanError::VertexReadTwice`] before the second face writes.
+/// **A declared wall a vertex pierces**: the two faces of an area record
+/// of the pierced operand ([`crate::contact::area_record`]), which the
+/// vertex pierces at one point, in pierce order. The record declares
+/// them one two-sided wall, each face holding the material on its own
+/// side, so the vertex is read once against both: the first face's run
+/// mints as any pierce's, the second face reads the orbit as no pierce
+/// wrote it and mints its runs on the other side ([`WallRead`]), and an
+/// edge of the vertex is In where either face reads it In
+/// ([`gathered`]). Where the two reads do not mirror each other, or the
+/// vertex crosses its tool's seat in a cut ([`super::seat_crossed`]), it
+/// refuses before the second face writes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Wall {
     /// The pierced faces, in pierce order.
     pub faces: [FaceKey; 2],
     /// The record's index in the pierced operand's records.
     pub record: u32,
+    /// The record's two faces, in its own order.
+    pub seat: [FaceKey; 2],
 }
 
 /// Each vertex that pierces a declared wall ([`Wall`]).
@@ -233,27 +213,86 @@ pub(super) type Walls = BTreeMap<(Operand, VertexKey), Wall>;
 /// ([`pierced_and_paired`]).
 pub(super) type Rereads = BTreeMap<(Operand, VertexKey), SectorRead>;
 
-/// **A wall's second face, read at its vertex** ([`Wall`]): the
-/// piercing operand as its pass began, and the halves each Out run of
-/// the wall's first face moved.
+/// **What a wall's first face read leaves its second** ([`WallRead`]):
+/// the real halves each run moved, in run order, and the classes it read
+/// for the vertex's edges.
+#[derive(Clone, Debug, Default)]
+pub(super) struct FirstFace {
+    pub moved: Vec<Vec<HalfEdgeKey>>,
+    pub classes: Vec<(HalfEdgeKey, SideCode)>,
+}
+
+/// **A wall's second face, read at its vertex** ([`Wall`]).
 ///
 /// A pierce reads only its vertex's orbit and the faces about it, and a
-/// mint moves only its vertex's orbit, so the operand as its pass began
-/// holds the vertex's orbit as no pierce has written it: the second
-/// face reads its sectors there. Its In runs are the halves the first
-/// face's Out runs moved, by the mirror the record declares (each face
-/// holds the material on its own side); they mint at the first face's
-/// copy, so the vertex's two sides each take one face's crossing and
-/// the copy between them holds neither.
+/// mint moves only its vertex's orbit (asserted where the second face
+/// reads, in debug builds), so the operand as its pass began holds the
+/// vertex's orbit as no pierce has written it: the second face reads
+/// its sectors there. Its In runs are the halves the first face's Out
+/// runs moved, by the mirror the record declares (each face holds the
+/// material on its own side); they mint at the first face's copy, so the
+/// vertex's two sides each take one face's crossing and the copy between
+/// them holds neither.
 #[derive(Clone, Copy)]
 pub(super) struct WallRead<'a, T: geom_core::Real> {
     /// The piercing operand as its vertex-on-face pass began.
     pub unwritten: &'a Body<T>,
-    /// The wall's first face.
-    pub first: FaceKey,
-    /// The real halves each of the first face's Out runs moved, in run
-    /// order.
-    pub moved: &'a [Vec<HalfEdgeKey>],
+    /// The wall.
+    pub wall: Wall,
+    /// The wall's first face's read.
+    pub first: &'a FirstFace,
+}
+
+/// **The classes a wall vertex's edges take**: In where either face
+/// reads them In, each face holding the material on its own side; the
+/// second face's otherwise.
+pub(super) fn gathered(
+    first: &[(HalfEdgeKey, SideCode)],
+    second: &[(HalfEdgeKey, SideCode)],
+) -> Vec<(HalfEdgeKey, SideCode)> {
+    second
+        .iter()
+        .map(|&(he, class)| {
+            let in_first = first.iter().any(|&(h, c)| h == he && c == SideCode::In);
+            (he, if in_first { SideCode::In } else { class })
+        })
+        .collect()
+}
+
+/// **The pass-start operand still holds `vertex`'s orbit as no pierce
+/// wrote it** ([`WallRead`]): each half the first face's runs moved now
+/// leaves one copy of `vertex`, and every other half of the unwritten
+/// orbit still leaves `vertex` itself, in the operand as it stands.
+#[cfg(debug_assertions)]
+fn debug_assert_unwritten<T: geom_core::Real>(
+    w: WallRead<'_, T>,
+    live: &Body<T>,
+    vertex: VertexKey,
+) {
+    let start = |he: HalfEdgeKey| live.get_half_edge(he).map(|h| h.start);
+    let moved: BTreeSet<HalfEdgeKey> = w.first.moved.iter().flatten().copied().collect();
+    let copies: BTreeSet<_> = moved.iter().map(|&he| start(he)).collect();
+    debug_assert!(
+        moved.is_empty() || (copies.len() == 1 && !copies.contains(&Some(vertex))),
+        "a wall's first face moved its runs to one copy of {vertex:?}: {copies:?}"
+    );
+    let Some(first) = w.unwritten.get_vertex(vertex).and_then(|v| v.emanating) else {
+        return;
+    };
+    let mut he = first;
+    loop {
+        if !moved.contains(&he) {
+            debug_assert_eq!(
+                start(he),
+                Some(vertex),
+                "a half of {vertex:?}'s unwritten orbit left it before its wall's second face read it"
+            );
+        }
+        match w.unwritten.orbit_step(he) {
+            Some(next) if next != first => he = next,
+            _ => break,
+        }
+    }
 }
 
 /// The pierced face's oriented datum at a pierce point: its outward
@@ -1033,24 +1072,25 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     }
     resolve_on_entries(&mut entries, band)?;
 
-    // Out-runs (the copy takes the OUT side — above ≙ OUT); a wall's
-    // second face's In runs, which mint at its first face's copy
-    // ([`WallRead`]).
-    let runs = match wall {
-        None => crate::star::runs(&entries),
-        Some(_) => crate::star::runs(
+    // The side the piercing runs take, and the one fact the runs, their
+    // germs, their copies and the ring's struts follow: Out (the copy
+    // takes the OUT side — above ≙ OUT), or a wall's second face's In,
+    // which mints at its first face's copy ([`WallRead`]).
+    let runs_side = match wall {
+        None => SideCode::Out,
+        Some(_) => SideCode::In,
+    };
+    let runs = match runs_side {
+        SideCode::In => crate::star::runs(
             &entries
                 .iter()
                 .map(|e| Entry {
-                    class: match e.class {
-                        SideCode::In => SideCode::Out,
-                        SideCode::Out => SideCode::In,
-                        on => on,
-                    },
+                    class: e.class.opposite(),
                     ..*e
                 })
                 .collect::<Vec<_>>(),
         ),
+        _ => crate::star::runs(&entries),
     };
     let moved: Vec<Vec<HalfEdgeKey>> = runs
         .iter()
@@ -1063,29 +1103,36 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         })
         .collect();
     if let Some(w) = wall {
-        // The mirror the record declares, read, at a crossing: where the
-        // faces' reads part from it (an edge On both, a sector flush with
-        // the wall, a run holding no edge), the second face's runs are
-        // not the first's copy, and where the vertex only touches the
-        // wall its edges may lie in it, which no line reader reads as a
-        // wall; either way the vertex is read twice.
-        let runs_of =
-            |m: &[Vec<HalfEdgeKey>]| m.iter().cloned().collect::<std::collections::BTreeSet<_>>();
+        // The mirror the record declares, read: where the faces' reads
+        // part from it (a sector flush with the wall, a run holding no
+        // edge, runs that are not the first face's), the second face's
+        // runs are not the first's copy, and the vertex is read twice.
+        let runs_of = |m: &[Vec<HalfEdgeKey>]| m.iter().cloned().collect::<BTreeSet<_>>();
+        let touches = moved.is_empty() && w.first.moved.is_empty();
+        let cut_by_the_seat = super::seat_crossed(op, pierced_op);
+        // A vertex touching the wall writes nothing on either face, but
+        // its edges may lie in the wall, which no line reader reads as
+        // one, and an operation keeping them keeps that line: it is read
+        // twice. A cut by the seat keeps nothing of the cut part at the
+        // wall, whose material lies on both sides there, so it reads the
+        // touch on both faces.
         if flush
-            || moved.is_empty()
             || moved.iter().any(Vec::is_empty)
-            || runs_of(&moved) != runs_of(w.moved)
+            || runs_of(&moved) != runs_of(&w.first.moved)
+            || (touches && !cut_by_the_seat)
         {
-            return Err(BooleanError::VertexReadTwice {
-                operand: piercing,
-                vertex,
-                reads: [
-                    SectorRead::Pierce(w.first),
-                    SectorRead::Pierce(contact.face),
-                ],
-                in_band: None,
+            return Err(BooleanError::pierced_twice(piercing, vertex, w.wall.faces));
+        }
+        // A cut crossing its tool's seat leaves the sliver of the cut part
+        // between the two faces' sections, which the finish keeps.
+        if cut_by_the_seat && !touches {
+            return Err(BooleanError::ToolSeatCrossed {
+                record: w.wall.record,
+                faces: w.wall.seat,
             });
         }
+        #[cfg(debug_assertions)]
+        debug_assert_unwritten(w, &*live, vertex);
     }
     let mut out = VtxFacOut {
         edges: Vec::new(),
@@ -1213,10 +1260,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .map(|&run| {
             let [(t0, o0), (t1, o1)] = run_transitions(run, n);
-            let held = |o: OutBound| match (wall, o) {
-                (None, o) => o,
-                (Some(_), OutBound::Start) => OutBound::End,
-                (Some(_), OutBound::End) => OutBound::Start,
+            let held = |o: OutBound| match (runs_side, o) {
+                (SideCode::In, OutBound::Start) => OutBound::End,
+                (SideCode::In, OutBound::End) => OutBound::Start,
+                (_, o) => o,
             };
             Ok((germ_of(t0, held(o0))?, germ_of(t1, held(o1))?))
         })
@@ -1277,6 +1324,15 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // The star names a strut's facing by the orbit; the Boolean's one
         // facing rule ([`super::insert::strut_faces_first`]) reads it by
         // the corner's geometry, and the two must agree.
+        // A wall's second face mints its runs at the first face's copy,
+        // each holding a real half (the mirror read above), so its site is
+        // a fan: a strut there would read its corner at `vertex`, which
+        // its halves have left.
+        if runs_side == SideCode::In && site.strut_corner().is_some() {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a wall's second face mints a strut",
+            });
+        }
         if let Some(corner) = site.strut_corner() {
             let corner_half = proven(&live.half_edges, corner, EntityId::HalfEdge);
             let arrival = linked(
@@ -1318,10 +1374,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 });
             }
         }
-        // The piercing run is Out; a wall's second face's, In.
-        let side = match wall {
-            None => NewVertexSide::Above,
-            Some(_) => NewVertexSide::Below,
+        let side = match runs_side {
+            SideCode::In => NewVertexSide::Below,
+            _ => NewVertexSide::Above,
         };
         let mint = live.mev_null_run(site, side)?;
         let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
@@ -1342,9 +1397,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         piercing,
         point: p,
         normal: n_pierced.vec(),
-        strut_side: match wall {
-            None => NewVertexSide::Below,
-            Some(_) => NewVertexSide::Above,
+        strut_side: match runs_side {
+            SideCode::In => NewVertexSide::Above,
+            _ => NewVertexSide::Below,
         },
         runs: run_edges
             .iter()
@@ -3163,7 +3218,6 @@ mod tests {
             c,
             [&Default::default(), &Default::default()],
             [&Body::<f64>::new(), &Body::<f64>::new()],
-            BooleanOp::Union,
         )
         .map(|(r, _)| r)
         {

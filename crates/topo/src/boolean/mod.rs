@@ -4588,6 +4588,17 @@ impl BooleanError {
         }
     }
 
+    /// **A vertex of `operand` read twice by two pierces**, of `faces`
+    /// in pierce order ([`BooleanError::VertexReadTwice`]).
+    pub(crate) fn pierced_twice(operand: Operand, vertex: VertexKey, faces: [FaceKey; 2]) -> Self {
+        Self::VertexReadTwice {
+            operand,
+            vertex,
+            reads: faces.map(SectorRead::Pierce),
+            in_band: None,
+        }
+    }
+
     /// Which arm refused, without the payload.
     ///
     /// Exhaustive over [`BooleanError`]: adding an arm there is a
@@ -6073,6 +6084,21 @@ pub(crate) fn section_segment_sites(
 #[cfg(any(test, feature = "test-support"))]
 pub type SegmentSites = (usize, Vec<[Point3<f64>; 2]>);
 
+/// A wall's second face read with no first face read before it
+/// (`vtxfac::WallRead`).
+const UNREAD_FIRST_FACE: BooleanError = BooleanError::ClassificationInvariant {
+    what: "a wall's second face is read before its first",
+};
+
+/// **Whether an area record's two faces lying in one result, or a
+/// vertex crossing them, is a cut crossing its tool's seat**
+/// ([`BooleanError::ToolSeatCrossed`]): a cut whose tool, `B`, holds the
+/// record. Every other operation that holds the faces in one shell
+/// touches itself ([`BooleanError::TouchesItself`]).
+pub(super) fn seat_crossed(op: BooleanOp, holder: Operand) -> bool {
+    op == BooleanOp::Subtract && holder == Operand::B
+}
+
 /// [`boolean_reduce`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
@@ -6168,12 +6194,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut edge_classes = Vec::new();
     let mut unread_partners = Vec::new();
 
-    let (rereads, walls) = vtxfac::pierced_and_paired(
-        &contacts,
-        [&decls.records_a, &decls.records_b],
-        [&a, &b],
-        op,
-    )?;
+    let (rereads, walls) =
+        vtxfac::pierced_and_paired(&contacts, [&decls.records_a, &decls.records_b], [&a, &b])?;
     // Each vertex that touches a face and pairs, its rows combined once
     // every pair is read, and each vertex in pairs alone, likewise
     // (`vtxfac::cone_classes`).
@@ -6199,11 +6221,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 Operand::A => Body::clone(&a),
                 Operand::B => Body::clone(&b),
             });
-        #[allow(clippy::type_complexity)]
-        let mut first_faces: std::collections::BTreeMap<
-            VertexKey,
-            (Vec<Vec<HalfEdgeKey>>, Vec<(HalfEdgeKey, SideCode)>),
-        > = std::collections::BTreeMap::new();
+        let mut first_faces: std::collections::BTreeMap<VertexKey, vtxfac::FirstFace> =
+            std::collections::BTreeMap::new();
         for (k, c) in pierced.iter().map(|c| c.record).enumerate() {
             let reread = rereads.get(&(operand, c.vertex)).copied();
             let (piercing_body, pierced_body) = match operand {
@@ -6212,16 +6231,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             };
             let wall = walls.get(&(operand, c.vertex)).copied();
             let second = match (wall, &unwritten) {
-                (Some(w), Some(unwritten)) if w.faces[1] == c.face => Some(vtxfac::WallRead {
-                    unwritten,
-                    first: w.faces[0],
-                    moved: &first_faces
-                        .get(&c.vertex)
-                        .ok_or(BooleanError::ClassificationInvariant {
-                            what: "a wall's second face is read before its first",
-                        })?
-                        .0,
-                }),
+                (Some(wall), Some(unwritten)) if wall.faces[1] == c.face => {
+                    Some(vtxfac::WallRead {
+                        unwritten,
+                        wall,
+                        first: first_faces.get(&c.vertex).ok_or(UNREAD_FIRST_FACE)?,
+                    })
+                }
                 _ => None,
             };
             let out = match vtxfac::classify_vertex_on_face(
@@ -6319,41 +6335,21 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     },
                 );
             } else if let Some(w) = wall {
-                // Each face of a wall holds the material on its own side,
-                // so an edge is In where either face reads it In.
                 if w.faces[0] == c.face {
-                    if out.flush || out.moved.is_empty() {
-                        return Err(BooleanError::VertexReadTwice {
-                            operand,
-                            vertex: c.vertex,
-                            reads: [
-                                SectorRead::Pierce(w.faces[0]),
-                                SectorRead::Pierce(w.faces[1]),
-                            ],
-                            in_band: None,
-                        });
-                    }
-                    first_faces.insert(c.vertex, (out.moved, out.classes));
+                    first_faces.insert(
+                        c.vertex,
+                        vtxfac::FirstFace {
+                            moved: out.moved,
+                            classes: out.classes,
+                        },
+                    );
                 } else {
-                    let (_, first) = first_faces.remove(&c.vertex).unwrap_or_default();
-                    let gathered: Vec<_> = out
-                        .classes
-                        .iter()
-                        .map(|&(he, class)| {
-                            let held = first.iter().find(|(h, _)| *h == he);
-                            match (class, held) {
-                                (SideCode::In, _) | (_, Some((_, SideCode::In))) => {
-                                    (he, SideCode::In)
-                                }
-                                _ => (he, class),
-                            }
-                        })
-                        .collect();
+                    let first = first_faces.remove(&c.vertex).ok_or(UNREAD_FIRST_FACE)?;
                     edge_classes.extend(piece_classes(
                         piercing_body,
                         operand,
                         c.vertex,
-                        &gathered,
+                        &vtxfac::gathered(&first.classes, &out.classes),
                         &mints,
                     )?);
                 }
