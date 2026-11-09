@@ -92,11 +92,12 @@ pub(super) struct Read<T: geom_core::Real> {
 
 impl<T: geom_core::Real> Read<T> {
     /// The depths the face's cover proposes ([`Source::Cover`]).
-    fn cover_sites(&self) -> impl Iterator<Item = Around<T>> + '_ {
+    fn cover_sites(&self) -> Vec<Around<T>> {
         self.depths
             .iter()
             .filter(|p| matches!(p.source, Source::Cover))
             .map(|p| p.depth)
+            .collect()
     }
 }
 
@@ -344,7 +345,7 @@ pub(super) fn across<T: Decide>(
             })
     });
     let off = |x: Point3<T>, origin: Point3<T>, axis: Vec3<T>| unit(split(x - origin, axis).0);
-    let between = |x: Around<T>, y: Around<T>| match (x, y) {
+    let line_of = |x: Around<T>, y: Around<T>| match (x, y) {
         (
             Around::Line(geom::Line { origin: o, dir: a }),
             Around::Line(geom::Line { origin: p, dir: b }),
@@ -358,9 +359,11 @@ pub(super) fn across<T: Decide>(
         (Around::Point(c), Around::Point(d)) => vec![unit(d - c)],
         _ => Vec::new(),
     };
+    let theirs = rb.cover_sites();
     let pairs = ra
         .cover_sites()
-        .flat_map(|x| rb.cover_sites().flat_map(move |y| between(x, y)));
+        .into_iter()
+        .flat_map(|x| theirs.iter().flat_map(move |&y| line_of(x, y)));
     chords.chain(pairs.flatten()).collect()
 }
 
