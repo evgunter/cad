@@ -1529,39 +1529,59 @@ mod tests {
             ("spindle", 0.5, 2.0, Ring, false, ring_lever),
         ] {
             let off = torus([0.0; 3], [0.0, 0.0, 1.0], major, minor, true);
-            let Err(CarrierEqError::OffRing { torus, refusal }) =
-                carrier_eq(&ring, &off, &at(1.0), b)
-            else {
-                panic!("{what}: the ladder refuses the convention");
-            };
-            assert_eq!(torus, geom_brep::PairSide::Second, "{what}");
-            let err = off_ring_torus(torus, refusal, [(Operand::A, key(1)), (Operand::B, key(2))]);
-            match (&err, in_band) {
+            for (side, (x, y), named) in [
                 (
-                    BooleanError::Escalated {
-                        decision: BooleanDecision::Torus(got),
-                        ..
-                    },
-                    true,
-                )
-                | (
-                    BooleanError::DegenerateTorus {
-                        convention: got,
-                        operand: Operand::B,
-                        ..
-                    },
-                    false,
-                ) => assert_eq!(*got, half, "{what}"),
-                _ => panic!("{what}: the half's refusal on the B face, got {err:?}"),
+                    geom_brep::PairSide::Second,
+                    (ring, off),
+                    (Operand::B, key(2)),
+                ),
+                (
+                    geom_brep::PairSide::First,
+                    (off, ring),
+                    (Operand::A, key(1)),
+                ),
+            ] {
+                let what = format!("{what}, {side:?}");
+                let Err(CarrierEqError::OffRing { torus, refusal }) =
+                    carrier_eq(&x, &y, &at(1.0), b)
+                else {
+                    panic!("{what}: the ladder refuses the convention");
+                };
+                assert_eq!(torus, side, "{what}");
+                let err =
+                    off_ring_torus(torus, refusal, [(Operand::A, key(1)), (Operand::B, key(2))]);
+                match (&err, in_band) {
+                    (
+                        BooleanError::Escalated {
+                            decision: BooleanDecision::Torus(got),
+                            ..
+                        },
+                        true,
+                    ) => assert_eq!(*got, half, "{what}"),
+                    (
+                        BooleanError::DegenerateTorus {
+                            convention,
+                            operand,
+                            face,
+                            ..
+                        },
+                        false,
+                    ) => {
+                        assert_eq!(*convention, half, "{what}");
+                        assert_eq!(
+                            (*operand, *face),
+                            named,
+                            "{what}: the face the ladder named"
+                        );
+                    }
+                    _ => panic!("{what}: the half's refusal, got {err:?}"),
+                }
+                let text = err.render(geom_brep::recourse::Reading::Build);
+                assert!(
+                    text.contains(lever) && !text.contains("not finite"),
+                    "{what}: the half's lever: {text}"
+                );
             }
-            if let BooleanError::DegenerateTorus { face, .. } = err {
-                assert_eq!(face, key(2), "{what}: the face the ladder named");
-            }
-            let text = err.render(geom_brep::recourse::Reading::Build);
-            assert!(
-                text.contains(lever) && !text.contains("not finite"),
-                "{what}: the half's lever: {text}"
-            );
         }
     }
 

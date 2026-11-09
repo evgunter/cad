@@ -5,7 +5,7 @@
 //! ([`face_carrier`]) and the extent a verdict is consumed over
 //! ([`pair_extent`]).
 
-use geom_brep::ExtentBall;
+use geom_brep::{ExtentBall, PairSide};
 use geom_core::{Band, Decide, Point3};
 
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict};
@@ -54,25 +54,6 @@ pub fn flush_pair_relation<T: Decide>(
     carrier_pair_relation(a, fa, b, fb, band)
 }
 
-/// Which face of a pair, in the order a door took them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PairFace {
-    /// The first face.
-    First,
-    /// The second face.
-    Second,
-}
-
-impl PairFace {
-    /// This face's entry of `pair`, given in the door's order.
-    pub fn of<X>(self, [first, second]: [X; 2]) -> X {
-        match self {
-            Self::First => first,
-            Self::Second => second,
-        }
-    }
-}
-
 /// Why a face pair has no carrier reading: the door's input, not a
 /// verdict.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,7 +66,7 @@ pub enum PairUnread {
     /// key does not resolve, its box has no claim to make (a NURBS
     /// placeholder, a boundary edge with no sound box), or the ball
     /// around it does not read.
-    Extent(PairFace),
+    Extent(PairSide),
 }
 
 /// **A face's consumed extent**: a ball enclosing every point of it,
@@ -163,15 +144,15 @@ pub(crate) fn pair_extent<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<PairExtent<T>, PairFace> {
-    let ball_a = face_ball(a, fa, band).ok_or(PairFace::First)?;
-    let ball_b = face_ball(b, fb, band).ok_or(PairFace::Second)?;
+) -> Result<PairExtent<T>, PairSide> {
+    let ball_a = face_ball(a, fa, band).ok_or(PairSide::First)?;
+    let ball_b = face_ball(b, fb, band).ok_or(PairSide::Second)?;
     // Two readable balls enclose readably short of overflow, which the
     // larger reach is what tips; the second face takes the blame
     // rather than neither.
     let reach = ExtentBall::enclosing(&[ball_a, ball_b])
         .and_then(ExtentBall::readable)
-        .ok_or(PairFace::Second)?;
+        .ok_or(PairSide::Second)?;
     Ok(PairExtent { reach })
 }
 

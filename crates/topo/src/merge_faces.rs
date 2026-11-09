@@ -984,10 +984,7 @@ fn unglued_pair_verdict(
             diag,
         }),
         Err(PlaneEqError::OffRing { torus, refusal }) => Err(MergeCoplanarError::DegenerateTorus {
-            face: match torus {
-                geom_brep::PairSide::First => faces[0],
-                geom_brep::PairSide::Second => faces[1],
-            },
+            face: torus.of(faces),
             refusal,
         }),
     }
@@ -4767,6 +4764,70 @@ mod tests {
             torus.contains("make the tube radius clearly smaller than the ring radius"),
             "the ring half's lever: {torus}"
         );
+    }
+
+    /// **The merge names the face a pair's refusal is about, in either
+    /// order.** Two faces of a brick whose surfaces are swapped for
+    /// spheres, one with a centre that is not finite, so its extent does
+    /// not read (`PairExtentUnread`), then for two tori, one a spindle,
+    /// so the ladder refuses its convention (`DegenerateTorus`). Tier 2
+    /// reads neither, so the brick passes the merge's gate either way;
+    /// the rows read the two comparisons directly.
+    #[test]
+    fn the_merge_names_the_face_a_pair_refusal_is_about() {
+        let tol = geom_core::Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let mut body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let keys: Vec<FaceKey> = body.faces().map(|(k, _)| k).take(2).collect();
+        let (bad, good) = (keys[0], keys[1]);
+        let mut set = |f: FaceKey, surface: Surface<f64>| {
+            let key = body.faces[f].surface;
+            body.surfaces[key] = surface;
+        };
+        let sphere = |x: f64| Surface::Sphere {
+            center: geom_core::Point3::new(x, 0.0, 0.0),
+            radius: 1.0,
+            axis: geom_core::Vec3::unit_z(),
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        set(bad, sphere(f64::NAN));
+        set(good, sphere(0.0));
+        for (f1, f2) in [(bad, good), (good, bad)] {
+            assert_eq!(
+                body.pair_reach(f1, f2, band).err(),
+                Some(MergeCoplanarError::PairExtentUnread { face: bad }),
+                "the reach of ({f1:?}, {f2:?})"
+            );
+            assert_eq!(
+                body.carriers_continue(f1, f2, band),
+                Err(MergeCoplanarError::PairExtentUnread { face: bad }),
+                "the carriers of ({f1:?}, {f2:?})"
+            );
+        }
+        let torus = |major: f64, minor: f64| Surface::Torus {
+            center: geom_core::Point3::origin(),
+            axis: geom_core::Vec3::unit_z(),
+            major_radius: major,
+            minor_radius: minor,
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        let mut set = |f: FaceKey, surface: Surface<f64>| {
+            let key = body.faces[f].surface;
+            body.surfaces[key] = surface;
+        };
+        set(bad, torus(1.0, 2.0));
+        set(good, torus(2.0, 0.5));
+        for (f1, f2) in [(bad, good), (good, bad)] {
+            assert!(
+                matches!(
+                    body.carriers_continue(f1, f2, band),
+                    Err(MergeCoplanarError::DegenerateTorus { face, .. }) if face == bad
+                ),
+                "the tori ({f1:?}, {f2:?}): {:?}",
+                body.carriers_continue(f1, f2, band)
+            );
+        }
     }
 
     /// The crate's one executable pin on this door's rendered

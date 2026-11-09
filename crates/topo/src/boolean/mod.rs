@@ -230,8 +230,8 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier,
-    flush_pair_relation, rest_locus,
+    PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier, flush_pair_relation,
+    rest_locus,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
@@ -1196,9 +1196,9 @@ pub(crate) struct InBandPair {
     pub(crate) a: FaceKey,
     /// The B-operand face.
     pub(crate) b: FaceKey,
-    /// The undecided reading: a rung of the plane ladder in band, or a
+    /// The undecided reading: a rung of the plane ladder in band, a
     /// coincidence measure undecided with the orientation already
-    /// decided.
+    /// decided, or a torus off its ring convention.
     pub(crate) reading: carrier_eq::CarrierEqError,
 }
 
@@ -1406,12 +1406,9 @@ impl<T: Real> Default for GluedPairs<T> {
 /// The refusal of a declared face whose consumed extent cannot be read
 /// ([`carrier_pair::PairUnread::Extent`]), at rest: an input condition, named
 /// by the operand whose face it is.
-pub(crate) fn unreadable_extent(face: carrier_pair::PairFace) -> BooleanError {
+pub(crate) fn unreadable_extent(face: geom_brep::PairSide) -> BooleanError {
     BooleanError::InvalidInput {
-        operand: match face {
-            carrier_pair::PairFace::First => Operand::A,
-            carrier_pair::PairFace::Second => Operand::B,
-        },
+        operand: face.of([Operand::A, Operand::B]),
         what: "a glued face's consumed extent cannot be read (its box has no claim to make, \
                or its boundary cannot be walked)",
     }
@@ -1530,10 +1527,7 @@ fn off_ring_torus(
     refusal: geom_brep::TorusRefusal,
     pair: [(Operand, FaceKey); 2],
 ) -> BooleanError {
-    let (operand, face) = match torus {
-        geom_brep::PairSide::First => pair[0],
-        geom_brep::PairSide::Second => pair[1],
-    };
+    let (operand, face) = torus.of(pair);
     match refusal.verdict {
         geom_brep::TorusVerdict::Refused(verdict) => BooleanError::DegenerateTorus {
             operand,
@@ -7888,11 +7882,11 @@ fn rim_unread<T: Real>(
 ) -> TangencyFailure {
     TangencyFailure::Refused(match unread {
         rim_wedge::RimUnread::InBand(diag) => BooleanError::coincidence(Coincide::Rim, read, diag),
-        rim_wedge::RimUnread::Unplaced { side, refusal } => {
+        rim_wedge::RimUnread::Unplaced { side, why } => {
             let (operand, face, surface) = side.of(faces);
-            match refusal {
-                Some(e) => reduce::esc(e, operand, face),
-                None => BooleanError::CurvedBooleanUnsupported {
+            match why {
+                rim_wedge::Unplaced::Door(e) => reduce::esc(e, operand, face),
+                rim_wedge::Unplaced::Trim => BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
                     kind: surface.kind(),
@@ -9743,6 +9737,45 @@ mod tests {
         }
     }
 
+    /// **The glue door's off-ring reading is quoted at the face it
+    /// named**, whichever operand the corner reads first: the door read
+    /// the pair in A's order, so its `Second` torus is B's face.
+    #[test]
+    fn the_doors_off_ring_reading_names_the_face_the_door_read() {
+        let key = |n: u64| FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | n));
+        let (fa, fb) = (key(1), key(2));
+        let band = Band::linear(Tol::witness()).unwrap();
+        let refusal = geom_brep::TorusRefusal::require(1.0, 2.0, band)
+            .expect_err("a spindle is off the ring convention");
+        let mut glue = Glue::<f64>::none();
+        glue.in_band.push(InBandPair {
+            a: fa,
+            b: fb,
+            reading: carrier_eq::CarrierEqError::OffRing {
+                torus: geom_brep::PairSide::Second,
+                refusal,
+            },
+        });
+        let declared = GluedPairs::without_struts(&glue, Default::default());
+        for pair in [
+            (Operand::A, fa, Operand::B, fb),
+            (Operand::B, fb, Operand::A, fa),
+        ] {
+            let got = declared.door_refusal(pair, None);
+            assert!(
+                matches!(
+                    got,
+                    Some(BooleanError::DegenerateTorus {
+                        operand: Operand::B,
+                        face,
+                        ..
+                    }) if face == fb
+                ),
+                "read as {pair:?}: {got:?}"
+            );
+        }
+    }
+
     /// **A rim piece a face's containment door left unread on no margin
     /// refuses as that face's** ([`rim_unread`]), as the tangent line's
     /// own placement refuses it: the door's refusal carried whole on the
@@ -9772,8 +9805,8 @@ mod tests {
             _ => panic!("a rim piece left unread is refused"),
         };
         let door = refused(rim_wedge::RimUnread::Unplaced {
-            side: carrier_pair::PairFace::Second,
-            refusal: Some(ContainError::RayExhausted),
+            side: geom_brep::PairSide::Second,
+            why: rim_wedge::Unplaced::Door(ContainError::RayExhausted),
         });
         assert!(
             matches!(
@@ -9787,8 +9820,8 @@ mod tests {
             "the door's refusal on the B face: {door:?}"
         );
         let trim = refused(rim_wedge::RimUnread::Unplaced {
-            side: carrier_pair::PairFace::First,
-            refusal: None,
+            side: geom_brep::PairSide::First,
+            why: rim_wedge::Unplaced::Trim,
         });
         assert!(
             matches!(

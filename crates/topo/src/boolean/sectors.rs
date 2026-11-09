@@ -281,10 +281,7 @@ impl<T: Decide> BoolSector<T> {
             band,
         )?;
         Ok(geom_core::Decided {
-            sign: match sign {
-                NonzeroSign::Positive => geom_core::Sign::Positive,
-                NonzeroSign::Negative => geom_core::Sign::Negative,
-            },
+            sign: sign.into(),
             margin,
         })
     }
