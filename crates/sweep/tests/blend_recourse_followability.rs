@@ -149,9 +149,8 @@ fn edges_at_first_vertex(body: &Body<f64>) -> Vec<EdgeKey> {
     query::all_edges(body)
         .into_iter()
         .filter(|k| {
-            let e = body.get_edge(*k).unwrap();
-            let s = body.get_half_edge(e.he_plus).unwrap().start;
-            s == v0 || body.half_edge_end(e.he_plus) == Some(v0)
+            let (s, t) = body.edge_vertices(*k).unwrap();
+            s == v0 || t == v0
         })
         .collect()
 }

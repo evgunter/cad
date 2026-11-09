@@ -637,9 +637,9 @@ fn a_join_of_the_seams_pieces_keeps_the_tangency() {
         let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
         piece
             .edges()
-            .filter(|(_, e)| {
-                on(point(piece.get_half_edge(e.he_plus).unwrap().start))
-                    && on(point(piece.half_edge_end(e.he_plus).unwrap()))
+            .filter(|&(k, _)| {
+                let (start, end) = piece.edge_vertices(k).unwrap();
+                on(point(start)) && on(point(end))
             })
             .map(|(k, _)| k)
             .collect()
@@ -1070,10 +1070,8 @@ fn a_conventional_form_stated_over_a_corner_is_a_defect() {
     let (edge, curve) = cube
         .edges()
         .find_map(|(k, e)| {
-            let (p0, p1) = (
-                point(cube.get_half_edge(e.he_plus)?.start),
-                point(cube.half_edge_end(e.he_plus)?),
-            );
+            let (start, end) = cube.edge_vertices(k)?;
+            let (p0, p1) = (point(start), point(end));
             let top = (p0.z, p1.z, p0.y, p1.y) == (1.0, 1.0, 0.0, 0.0);
             let c = cube.get_curve_geom(e.curve)?.certified()?;
             (top && c.description().pair().is_some()).then(|| (k, c.clone()))

@@ -177,12 +177,8 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
             assert_eq!(radius, SMALL_R - T, "{e:?}: meridian seam radius");
         }
         // Endpoints on the carrier, read from the vertices themselves.
-        let edge = cavity.get_edge(e).expect("edge");
-        let start = point(
-            cavity,
-            cavity.get_half_edge(edge.he_plus).expect("he").start,
-        );
-        let end = point(cavity, cavity.half_edge_end(edge.he_plus).expect("end"));
+        let (start, end) = cavity.edge_vertices(e).expect("edge ends");
+        let (start, end) = (point(cavity, start), point(cavity, end));
         assert!(
             c.eval(t0).distance(start) <= 1e-13,
             "{e:?}: start off its carrier"
