@@ -4435,8 +4435,9 @@ pub enum BooleanError {
     /// material, or a parting or division that left what it never
     /// makes, which are the kernel's own defects.
     ///
-    /// An abort where the gap is the kernel's defect ([`EdgeInFaceGap::is_defect`], row 4); a limit
-    /// otherwise, a parting not built (row 2).
+    /// An abort where the gap is the kernel's defect ([`EdgeInFaceGap::is_defect`], row 4) or an
+    /// invalid input ([`EdgeInFaceGap::is_invalid_input`], row 1(a)); a limit otherwise, a
+    /// parting not built (row 2).
     EdgeInFace {
         /// The edge, in the result's keys.
         edge: crate::entity::EdgeKey,
@@ -4830,6 +4831,24 @@ impl BooleanError {
         }
     }
 
+    /// **A face's outward normal that aborted a reading**, by the abort's
+    /// own row ([`crate::face_normal::NormalAtError::standing`]): an
+    /// invalid input is that refusal on `operand`'s `face`, in the
+    /// Boolean's words ([`Self::of_pierced_normal`]); a kernel fault is
+    /// the invariant `kernel` names, as a refusal that keeps its query
+    /// never reaches here.
+    pub(in crate::boolean) fn of_aborted_normal(
+        refusal: crate::face_normal::NormalAtError,
+        (operand, face): (Operand, FaceKey),
+        kernel: &'static str,
+    ) -> Self {
+        use crate::face_normal::NormalAbort;
+        match refusal.standing() {
+            Err(NormalAbort::InvalidInput) => Self::of_pierced_normal(refusal, operand, face),
+            Err(NormalAbort::KernelFault) | Ok(_) => Self::ClassificationInvariant { what: kernel },
+        }
+    }
+
     /// The refusal of a pierced face's outward normal at a pierce point
     /// (`face_normal::face_outward_normal_at`), in the Boolean's words.
     pub(crate) fn of_pierced_normal(
@@ -5035,7 +5054,9 @@ impl BooleanError {
             }),
             Self::EdgeUndescribed { fitted: true, .. } => Ok(Refusal::Limit),
             Self::EdgeUndescribed { fitted: false, .. } => Err(Aborts),
-            Self::EdgeInFace { gap, .. } if gap.is_defect() => Err(Aborts),
+            Self::EdgeInFace { gap, .. } if gap.is_defect() || gap.is_invalid_input() => {
+                Err(Aborts)
+            }
             Self::EdgeInFace { .. } => Ok(Refusal::Limit),
             Self::CrossingAtConeApex { .. }
             | Self::NormalAtConeApex { .. }
@@ -6014,7 +6035,14 @@ impl BooleanError {
                 )
             }
             Self::EdgeInFace { edge, face, gap } => {
-                if gap.is_defect() {
+                if gap.is_invalid_input() {
+                    write!(
+                        f,
+                        "edge {edge:?} of the result lies in face {face:?}, and {}. Recourse: \
+                         give each torus a tube radius smaller than its major radius",
+                        gap.words(),
+                    )
+                } else if gap.is_defect() {
                     write!(
                         f,
                         "edge {edge:?} of the result lies in face {face:?}, and {}. {}",

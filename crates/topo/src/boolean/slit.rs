@@ -161,6 +161,15 @@ pub enum EdgeInFaceGap {
     /// midpoint (a spline or approximating face, which this reading does
     /// not read, among them), to read the side by.
     NoNormal,
+    /// The face the edge lies in, or one of the edge's own faces, is a
+    /// torus decided outside the ring convention, whose normal there
+    /// refuses as an invalid input
+    /// ([`crate::face_normal::NormalAbort::InvalidInput`], DESIGN
+    /// `[failure.taxonomy]` row 1(a)): a shape the kernel's model never
+    /// represents. An abort; the operand that carried it in is not in
+    /// scope here, so the gap names it rather than
+    /// [`crate::BooleanError::DegenerateTorus`].
+    DegenerateTorus,
     /// One of the edge's faces is tangent to the face along the line,
     /// so each of the two edges would bound a cusp, a wedge of no angle
     /// (D1's doubled cusp), whose reading on a line of coincident edges
@@ -258,6 +267,12 @@ impl EdgeInFaceGap {
         matches!(self, Self::Crossed | Self::TwinIncident | Self::Redivided)
     }
 
+    /// Whether the case is an invalid input the kernel never represents
+    /// (row 1(a)) rather than a parting not built.
+    pub const fn is_invalid_input(&self) -> bool {
+        matches!(self, Self::DegenerateTorus)
+    }
+
     /// The words a refusal says it in: after "where" for a construction
     /// gap, after "and" for a defect.
     pub(super) const fn words(&self) -> &'static str {
@@ -266,6 +281,10 @@ impl EdgeInFaceGap {
                 "the face has no normal at its carrier's foot of the edge's midpoint, or one of \
                  the edge's own faces none at the midpoint (a spline face among them), to read \
                  the side by"
+            }
+            Self::DegenerateTorus => {
+                "the face, or one of the edge's own faces, is a torus outside the ring \
+                 convention (a horn or spindle torus), a shape the kernel does not represent"
             }
             Self::Shared => {
                 "an end of the edge lies on the face's boundary more than once, or the edge's \
@@ -1946,12 +1965,17 @@ fn walls_inside<T: Decide>(
             })
         }
         // A normal kept as its refusal states it is this reading's limit;
-        // the midpoint off the surface of a face it bounds is a defect.
-        Err(why) => Err(match why.refusal() {
+        // an abort is answered by its own row.
+        Err(why) => Err(match why.standing() {
             Ok(_) => refused(EdgeInFaceGap::NoNormal),
-            Err(geom_brep::ladder::Aborts) => BooleanError::ClassificationInvariant {
-                what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
-            },
+            Err(crate::face_normal::NormalAbort::InvalidInput) => {
+                refused(EdgeInFaceGap::DegenerateTorus)
+            }
+            Err(crate::face_normal::NormalAbort::KernelFault) => {
+                BooleanError::ClassificationInvariant {
+                    what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
+                }
+            }
         }),
     };
     // A face the point door reads no normal on (a spline or an

@@ -33,7 +33,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         EdgeKey::default(),
         VertexKey::default(),
     );
-    let fixed: [(&str, BooleanError, Result<Refusal, Aborts>); 18] = [
+    let fixed: [(&str, BooleanError, Result<Refusal, Aborts>); 19] = [
         (
             "an escalation",
             BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag()),
@@ -145,6 +145,11 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         (
             "an edge in a face, a defect",
             in_face(super::slit::EdgeInFaceGap::Crossed),
+            Err(Aborts),
+        ),
+        (
+            "an edge in a face on a torus outside the ring convention, an invalid input",
+            in_face(super::slit::EdgeInFaceGap::DegenerateTorus),
             Err(Aborts),
         ),
     ];
@@ -269,6 +274,15 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         Ok(Refusal::Limit),
         "an edge in a face, a parting not built"
     );
+    let torus = in_face(super::slit::EdgeInFaceGap::DegenerateTorus).to_string();
+    assert!(
+        torus.contains("torus outside the ring convention")
+            && torus.ends_with("give each torus a tube radius smaller than its major radius")
+            && !torus.contains(geom_core::KERNEL_DEFECT_ENDING)
+            && !torus.contains(geom_core::NOT_YET_ENDING),
+        "an edge in a face on a torus outside the ring convention ends with the input's \
+         recourse: {torus}"
+    );
     // The delegates read their payload's own standing.
     let solid = PointInSolidError::ZeroVolumeBody;
     assert_eq!(
@@ -337,4 +351,38 @@ fn in_face(gap: super::slit::EdgeInFaceGap) -> BooleanError {
         face: FaceKey::default(),
         gap,
     }
+}
+
+/// **A face's normal that aborted a Boolean reading is answered by its
+/// row** ([`BooleanError::of_aborted_normal`]): a torus outside the ring
+/// convention, an invalid input, is the Boolean's torus refusal on the
+/// face it names; the point off the surface, a kernel fault, is the
+/// invariant the caller names.
+#[test]
+fn an_aborted_normal_is_answered_by_its_row() {
+    use crate::face_normal::NormalAtError;
+    let face = FaceKey::default();
+    let horn = NormalAtError::DegenerateTorus {
+        convention: geom_brep::TorusConvention::Ring,
+        verdict: geom_brep::recourse::Refused::Negative {
+            margin: MarginDiag::INVALID,
+        },
+    };
+    let input = BooleanError::of_aborted_normal(horn, (Operand::B, face), "off");
+    assert!(
+        matches!(
+            input,
+            BooleanError::DegenerateTorus {
+                operand: Operand::B,
+                ..
+            }
+        ),
+        "an invalid input: {input:?}"
+    );
+    let fault =
+        BooleanError::of_aborted_normal(NormalAtError::OffSurface, (Operand::A, face), "off");
+    assert!(
+        matches!(fault, BooleanError::ClassificationInvariant { what: "off" }),
+        "a kernel fault: {fault:?}"
+    );
 }
