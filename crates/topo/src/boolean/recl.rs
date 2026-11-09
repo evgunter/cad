@@ -1843,9 +1843,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                     (Unread::Place { .. } | Unread::Side { .. }, _, Some(diag)) => {
                         BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
                     }
-                    (Unread::Arc { .. } | Unread::NoReference, _, Some(diag)) => {
-                        BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
-                    }
+                    (
+                        Unread::Arc { .. } | Unread::NoReference | Unread::ReferenceInBand,
+                        _,
+                        Some(diag),
+                    ) => BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
                     (_, _, None) => unread(super::LineUnread::Unplaced),
                 }
             };
@@ -2409,7 +2411,7 @@ mod tests {
             .reads_tied(Point3::new(-1.0, 0.0, 0.7), &[], band)
             .expect_err("the sliver reads nothing across the line");
         assert!(
-            matches!(unread, crate::link::Unread::NoReference),
+            matches!(unread, crate::link::Unread::ReferenceInBand),
             "no reference to read by: {unread:?}"
         );
         let p = prism_z::<f64>(
@@ -2514,7 +2516,7 @@ mod tests {
         match cone.reads_tied(q, &[], band) {
             Ok(m) => assert_eq!(m, crate::link::Material::Out),
             Err(unread) => assert!(
-                matches!(unread, crate::link::Unread::NoReference),
+                matches!(unread, crate::link::Unread::ReferenceInBand),
                 "an unread reading's cause: {unread:?}"
             ),
         }

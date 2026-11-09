@@ -838,26 +838,34 @@ pub(crate) enum Unread<T> {
         sector: Option<usize>,
         why: Unsettled<T>,
     },
-    /// No reference to read by: the cone has no wedge, no plane `q`'s
-    /// side of is decided, or every reference's arc to `q` decidedly
-    /// meets the apex. In band (`[failure.taxonomy]` row 1(b)), carrying
-    /// no margin: a plane left undecided is one `q` reads in band of
-    /// (`Against::Off`, outside its sector), and a reference refused out
-    /// at its reach is dropped here, so a tighter band may decide a
-    /// reference to read by.
+    /// No reference to read by, and no tighter band gives one: the cone
+    /// has no wedge (a whole-plane sector), or every reference's arc to
+    /// `q` decidedly meets the apex. A limit (`[failure.taxonomy]` row 2).
     NoReference,
+    /// No reference read, where a tighter band may give one: a plane `q`
+    /// reads in band of outside its sector (`Against::Off`), a side given
+    /// where the cone's own reading did not decide it, or a reference
+    /// refused out at its reach. In band (row 1(b)), carrying no margin.
+    ReferenceInBand,
 }
 
 impl<T: Decide> Unread<T> {
     /// What this refusal is to a ladder: its reading's
-    /// ([`Unsettled::refusal`]), and in band where no reference was there
-    /// to read by ([`Unread::NoReference`]'s doc says why).
+    /// ([`Unsettled::refusal`]); where no reference read, a limit
+    /// ([`Unread::NoReference`]) or in band ([`Unread::ReferenceInBand`]),
+    /// as each variant's doc says.
     ///
     /// # Errors
     ///
     /// [`Aborts`], where its reading's standing does.
     pub(crate) fn refusal(&self) -> Result<Refusal, Aborts> {
-        self.why().map_or(Ok(Refusal::InBand), Unsettled::refusal)
+        match self {
+            Self::NoReference => Ok(Refusal::Limit),
+            Self::ReferenceInBand => Ok(Refusal::InBand),
+            Self::Side { why, .. } | Self::Place { why, .. } | Self::Arc { why, .. } => {
+                why.refusal()
+            }
+        }
     }
 
     /// Whether the refusal is a given side the cone's own reading
@@ -871,7 +879,7 @@ impl<T: Decide> Unread<T> {
         match *self {
             Self::Side { sector, .. } | Self::Place { sector, .. } => Some(sector),
             Self::Arc { sector, .. } => sector,
-            Self::NoReference => None,
+            Self::NoReference | Self::ReferenceInBand => None,
         }
     }
 
@@ -879,7 +887,7 @@ impl<T: Decide> Unread<T> {
     fn why(&self) -> Option<&Unsettled<T>> {
         match self {
             Self::Side { why, .. } | Self::Place { why, .. } | Self::Arc { why, .. } => Some(why),
-            Self::NoReference => None,
+            Self::NoReference | Self::ReferenceInBand => None,
         }
     }
 
@@ -2062,11 +2070,19 @@ impl<T: Decide> Cone<T> {
                         .map(|c| (arc, t, base, c, ray))
                 })
             });
+        // Whether a tighter band may give a reference where none read: a
+        // plane `q` reads in band of, a side the cone's own reading did not
+        // decide, or a reference refused out at its reach.
+        let mut in_band =
+            (0..against.len()).any(|t| !own[t] || matches!(against[t], Against::Off(_)));
         let climbed = climb(Answering::First, references, |(arc, t, base, c, ray)| {
             let w = arc.reference(p, q, c, ray);
-            let refused = |why: Unread<T>| match arc {
+            let mut refused = |why: Unread<T>| match arc {
                 ArcReach::Near => Rung::refused(why, Unread::refusal),
-                ArcReach::Out => Rung::Passes,
+                ArcReach::Out => {
+                    in_band = true;
+                    Rung::Passes
+                }
             };
             match arc.clears(p, q, w, rd) {
                 Ok(true) => {}
@@ -2093,6 +2109,7 @@ impl<T: Decide> Cone<T> {
         match climbed {
             Climb::Answered { answer, .. } => answer,
             Climb::Undecided(why) => Err(why),
+            Climb::Passed if in_band => Err(Unread::ReferenceInBand),
             Climb::Passed => Err(Unread::NoReference),
         }
     }
@@ -5283,7 +5300,10 @@ mod tests {
         );
         let q = p(-1.0, 0.3, (band.zero() + band.escalate()) / 2.0);
         assert!(
-            matches!(read(q, &[(0, Sign::Negative)]), Err(Unread::NoReference)),
+            matches!(
+                read(q, &[(0, Sign::Negative)]),
+                Err(Unread::ReferenceInBand)
+            ),
             "in band, no reference: {:?}",
             read(q, &[(0, Sign::Negative)])
         );
@@ -5435,7 +5455,7 @@ mod tests {
         );
         let got = disc.reads_given(both, &[(0, Sign::Positive), (1, Sign::Negative)], rd);
         assert!(
-            matches!(got, Err(Unread::NoReference)),
+            matches!(got, Err(Unread::ReferenceInBand)),
             "both given: not read off either: {got:?}"
         );
         assert_eq!(
@@ -6115,7 +6135,8 @@ mod tests {
 /// Each cone refusal's standing on a ladder, as its variant's doc
 /// states its `[failure.taxonomy]` row: a band reading is kept in band
 /// (a margin by its margin), a given side the cone contradicts aborts,
-/// and a cone with no reference is in band.
+/// and where no reference read, a cone no band gives one is a limit and
+/// one a tighter band may is in band.
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod standing_rows {
@@ -6134,7 +6155,11 @@ mod standing_rows {
             why: Unsettled::Unplaced,
         };
         assert_eq!(arc.refusal(), Ok(Refusal::InBand));
-        assert_eq!(Unread::<f64>::NoReference.refusal(), Ok(Refusal::InBand));
+        assert_eq!(Unread::<f64>::NoReference.refusal(), Ok(Refusal::Limit));
+        assert_eq!(
+            Unread::<f64>::ReferenceInBand.refusal(),
+            Ok(Refusal::InBand)
+        );
         let origin = Point3::new(0.0, 0.0, 0.0);
         let zero = Unsettled::Zero("t", Distance::of(origin, origin, Vec3::new(0.0, 0.0, 1.0)));
         assert_eq!(zero.refusal(), Ok(Refusal::InBand));
