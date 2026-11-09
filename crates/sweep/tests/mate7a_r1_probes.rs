@@ -397,7 +397,7 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
                 Err(BooleanError::GermSectionUnbuilt {
                     a_kind: geom::SurfaceKind::Torus,
                     b_kind: geom::SurfaceKind::Torus,
-                    why: topo::SectionUnbuilt::March(march),
+                    why: topo::SectionUnbuilt::Carry(geom_brep::CarryError::March(march)),
                     ..
                 }) => {
                     if coarse {
