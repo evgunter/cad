@@ -171,6 +171,7 @@ pub mod joint;
 pub(crate) mod lineage;
 pub mod link;
 pub(crate) mod live;
+pub(crate) mod held_probe;
 pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod mirror;

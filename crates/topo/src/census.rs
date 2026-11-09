@@ -1934,14 +1934,16 @@ fn placed<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
-    match planar_face(geo, f) {
+    let out = match planar_face(geo, f) {
         Some(g) => contain(body, g, q, band, errors).map(Some),
         None => read_containment(
             f,
             crate::boolean::curved_face_containment(body, f, q, band),
             errors,
         ),
-    }
+    };
+    crate::held_probe::record("census.rs:placed", body, f, q, band, &format!("{out:?}").chars().take(12).collect::<String>());
+    out
 }
 
 /// **Whether `q` lies in the closure of a confirmed pair's overlap**

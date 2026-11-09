@@ -900,18 +900,37 @@ fn face_placement_decided<T: Decide>(
 /// # Errors
 ///
 /// The containment door's own refusal.
+#[track_caller]
 pub(in crate::boolean) fn placement_on_carrier<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
     band: Band,
 ) -> Result<ChartedPlacement, ContainError> {
+    let at = std::panic::Location::caller();
+    let site = format!("{}:{}", at.file().rsplit('/').next().unwrap_or("?"), at.line());
+    let out = (|| -> Result<ChartedPlacement, ContainError> {
     let view = body.face(face).ok_or(ContainError::StaleFace(face))?;
     match *view.surface() {
         geom::Surface::Plane { normal, .. } => contfp_decided(body, face, normal, q, band)
             .map(|(at, margin)| (CurvedPlacement::Trim(Some(at)), margin, None)),
         _ => curved_face_placement_decided(body, face, q, band),
     }
+    })();
+    let answer = match &out {
+        Ok((CurvedPlacement::OffCarrier, _, _)) => "OffCarrier".to_string(),
+        Ok((CurvedPlacement::Trim(None), _, _)) => "TrimNone".to_string(),
+        Ok((CurvedPlacement::Trim(Some(v)), _, _)) => match v {
+            FaceContainment::In => "In",
+            FaceContainment::Out => "Out",
+            FaceContainment::OnEdge(_) => "OnEdge",
+            FaceContainment::OnVertex(_) => "OnVertex",
+        }
+        .to_string(),
+        Err(_) => "Err".to_string(),
+    };
+    crate::held_probe::record(&site, body, face, q, band, &answer);
+    out
 }
 
 /// Why [`face_placement`] placed nothing.

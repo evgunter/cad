@@ -185,12 +185,14 @@ fn place<T: Decide>(
     station: Point3<T>,
     band: Band,
 ) -> Option<FaceContainment> {
-    match *surface {
+    let out = match *surface {
         Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
         _ => curved_face_containment(body, face, station, band)
             .ok()
             .flatten(),
-    }
+    };
+    crate::held_probe::record("cell_region.rs:place", body, face, station, band, &format!("{out:?}").chars().take(12).collect::<String>());
+    out
 }
 
 /// **A cell's ball**: a station of the cell's patch, and a radius about
