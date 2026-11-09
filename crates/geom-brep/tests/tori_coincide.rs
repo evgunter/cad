@@ -15,7 +15,7 @@ use crate::shared::tol::band;
 use core::f64::consts::TAU;
 use geom::Surface;
 use geom_brep::{
-    TorusCoincidence, TorusData, TorusDisplacement, TorusPoseRefusal, TorusQuestion,
+    TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusPoseRefusal, TorusQuestion,
     TorusTorusPose, tori_coincide,
 };
 use geom_core::Band;
@@ -98,10 +98,18 @@ fn the_pose_reads_two_tori_one_where_the_decision_does() {
         other => panic!("the tube in the band: {other:?}"),
     }
     let apart = data(Point3::origin(), z, 5.0, 0.06 + 1000.0 * b.escalate());
-    assert!(matches!(
-        tori_coincide(ring, apart, b),
-        TorusCoincidence::Apart
-    ));
+    match tori_coincide(ring, apart, b) {
+        TorusCoincidence::Apart { datum, by } => {
+            assert_eq!(datum, TorusDatum::MinorRadius, "the tube is what moved");
+            assert_eq!(by.sign, geom_core::Sign::Negative, "{by:?}");
+            assert_eq!(
+                by.margin,
+                geom_core::MarginDiag::value(0.06 - (0.06 + 1000.0 * b.escalate())),
+                "apart keeps the margin it was decided on"
+            );
+        }
+        other => panic!("the tube past the band: {other:?}"),
+    }
     assert!(pose(ring, apart).is_ok(), "apart, the pose is decided");
 }
 
@@ -211,7 +219,7 @@ fn a_pair_decided_one_or_apart_stands_where_the_decision_says() {
                     "decided one at a sampled distance {reach:e}: {what}"
                 );
             }
-            TorusCoincidence::Apart => {
+            TorusCoincidence::Apart { .. } => {
                 tally[1] += 1;
                 assert!(
                     reach > b.zero(),
@@ -219,7 +227,7 @@ fn a_pair_decided_one_or_apart_stands_where_the_decision_says() {
                 );
             }
             TorusCoincidence::Undecided(_) => tally[2] += 1,
-            TorusCoincidence::OffRing(refusal) => {
+            TorusCoincidence::OffRing { refusal, .. } => {
                 panic!("a ring torus refused {refusal:?}: {what}")
             }
         }
@@ -292,10 +300,18 @@ fn an_off_ring_or_poisoned_pair_is_refused_not_decided() {
     let b = band();
     let ring = data(Point3::origin(), Vec3::unit_z(), 2.0, 0.5);
     let spindle = data(Point3::origin(), Vec3::unit_z(), 1.0, 1.5);
-    assert!(matches!(
-        tori_coincide(ring, spindle, b),
-        TorusCoincidence::OffRing(_)
-    ));
+    for (x, y, side) in [
+        (ring, spindle, geom_brep::PairSide::Second),
+        (spindle, ring, geom_brep::PairSide::First),
+    ] {
+        assert!(
+            matches!(
+                tori_coincide(x, y, b),
+                TorusCoincidence::OffRing { torus, .. } if torus == side
+            ),
+            "the refusal names the spindle: {side:?}"
+        );
+    }
     assert!(matches!(
         TorusTorusPose::decide(&surface(ring), &surface(spindle), b).expect("tori"),
         Err(TorusPoseRefusal::Torus(_))

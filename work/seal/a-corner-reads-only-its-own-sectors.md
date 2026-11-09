@@ -2,16 +2,15 @@
 id: a-corner-reads-only-its-own-sectors
 kind: unit
 title: a corner meeting an unglued pair reads only its own sectors: no carrier re-read, unglued_coincidence and unglued_tilt retire, an off far bound ends Coincide::Sectors
-status: parked
+status: open
 opened: 2026-11-09
 priority: P1
 cost: M
 parent: glue-disagreements-and-held-contradictions-after-stage-4
-blocked_on: [carrier-readings-keep-the-margins-they-decided-on]
 ---
 
 
-Step 4 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09). Parked on step 1, which gives `bounds_off` its `Decided`.
+Step 4 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09). Step 1 gave `bounds_off` its `Decided` (`Result<Decided, Indeterminate>`), and this row was opened when step 1 closed.
 
 ## What
 

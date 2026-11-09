@@ -122,7 +122,7 @@
 use geom_brep::variety::{Piece, Variety};
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
+use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, Span, SpanEnd, meet};
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 
@@ -1403,24 +1403,13 @@ fn conic_or_line_on<T: Decide>(
             return Ok(Placed::Off);
         }
         (
-            &geom::Curve3::Spiric {
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            },
+            &geom::Curve3::Spiric { offset, .. },
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Cone { .. }
             | geom::Surface::Torus { .. },
         ) => {
-            return spiric_on_curved(
-                carrier,
-                (t0, t1),
-                (major_radius, minor_radius, offset),
-                surface,
-                band,
-            );
+            return spiric_on_curved(carrier, (t0, t1), offset, surface, band);
         }
         // A spiric lies in its own plane, so against a plane it reads as a
         // conic does: in it where the two planes are one, and otherwise
@@ -1533,9 +1522,13 @@ fn clears_plane<T: Decide>(
     }
 }
 
-/// The site [`spiric_on_curved`] decides a spiric's offset off zero, and
-/// short of `R − r`, under.
-const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
+/// The rows [`spiric_on_curved`] reads a spiric's regime under
+/// ([`geom::spiric_regime`]): its offset off zero, and short of `R − r`.
+const RIDER_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricRegimeSites::new(
+    "bool_rider_spiric_off_axis",
+    "bool_rider_spiric_regime",
+    "bool_rider_spiric_regime_floor",
+);
 
 /// **Where spiric `carrier`, over `(t0, t1)`, lies against sphere,
 /// cylinder, cone or ring torus `surface`**: off it along every piece
@@ -1559,9 +1552,9 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 /// are those of `Re G = Im G = 0`, four at most, while the oval has
 /// infinitely many.
 ///
-/// The arm admits only the two-oval regime, `0 < |d| < R − r`, decided
-/// here ([`RIDER_SPIRIC_REGIME`]) as [`geom::Curve3::spiric`] decides it
-/// at the mint. The argument needs only `d ≠ 0`, so the `R − r` bound is
+/// The arm admits only the two-oval regime, `0 < |d| < R − r`, read
+/// from [`geom::spiric_regime`] ([`RIDER_SPIRIC_REGIME`]), the predicate
+/// [`geom::Curve3::spiric`] mints under. The argument needs only `d ≠ 0`, so the `R − r` bound is
 /// conservative rather than required. It is kept because the carrier is
 /// defined only there: from `R − r` on its radicand goes negative, which
 /// is poison. Offset zero (two circles), the offsets from `R − r` on, and
@@ -1599,16 +1592,19 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 fn spiric_on_curved<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    (big, small, offset): (T, T, T),
+    offset: T,
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
     let unread = Placed::Unread(EdgeInFaceGap::CarrierUnread);
     let refused =
         |diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag);
-    let decided =
-        |m: T| crate::validate::decide(RIDER_SPIRIC_REGIME, Margin::of(m), band).map_err(refused);
-    if decided(offset)? == Sign::Zero || decided(big - small - offset.abs())? != Sign::Positive {
+    let Some(ring) = carrier.spiric_torus() else {
+        return Ok(unread);
+    };
+    if geom::spiric_regime(ring, offset, T::zero(), RIDER_SPIRIC_REGIME, band).map_err(refused)?
+        != geom::SpiricRegime::TwoOvals
+    {
         return Ok(unread);
     }
     let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band).map_err(refused)? else {
@@ -2788,14 +2784,12 @@ fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
 /// face's loops: `unread` where the reader's walk or root finder does
 /// not settle it.
 fn meet_refused(fault: MeetFault, unread: BooleanError) -> BooleanError {
-    match fault {
-        MeetFault::Escalated(diag) | MeetFault::Touch(diag) => crossing_escalated(diag),
-        MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => unread,
-        MeetFault::Desync | MeetFault::Contradiction { .. } => {
-            BooleanError::ClassificationInvariant {
-                what: "the meeting reader contradicted itself on two edges' carriers",
-            }
-        }
+    match fault.kind() {
+        MeetKind::Escalated(diag) | MeetKind::Touch(diag) => crossing_escalated(diag),
+        MeetKind::Unread => unread,
+        MeetKind::Fault { .. } => BooleanError::ClassificationInvariant {
+            what: "the meeting reader contradicted itself on two edges' carriers",
+        },
     }
 }
 
@@ -3591,6 +3585,116 @@ mod curved_carrier_rows {
                 "{what}"
             );
         }
+    }
+
+    /// **The mint, the plane × torus section and the rider read one
+    /// regime** ([`geom::spiric_regime`]), each under its own rows. At
+    /// offsets of a plane through the torus about `z` (`R = 2`, `r = 1`)
+    /// clear of the regime's boundary, or within a zero band of it, the
+    /// mint builds the oval exactly where the section serves two ovals
+    /// and the rider reads the oval off a ball about its `v = 0` point;
+    /// the section agrees again with its plane tilted off the axis by a
+    /// tenth of a zero band, read as the swing beside the margin. Where
+    /// the margin sits in the escalation sliver, each escalates, the mint
+    /// and the section on their own far row. Red on a reader whose
+    /// boundary sits inside the others' (a mint or rider admitting what
+    /// the section refuses). A section looser than the mint would still
+    /// pass here, since it mints through the mint: its own outer boundary
+    /// is pinned in `geom_brep`'s `intersect_table`
+    /// (`plane_torus_tilted_and_offset_route_to_rung_3`) and
+    /// `axis_rows_read_as_one_sum`
+    /// (`plane_torus_axis_in_plane_reads_each_row_as_it_moves`).
+    #[test]
+    fn the_mint_the_section_and_the_rider_read_one_regime() {
+        let eps = Tol::witness().eps();
+        let torus = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let mint = |offset: f64| {
+            geom::Curve3::spiric(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                1.0,
+                offset,
+                band(),
+            )
+        };
+        let lever = geom_brep::ExtentBall::of_torus(Point3::origin(), 2.0, 1.0).lever();
+        let section = |offset: f64, tilt: f64| {
+            let plane = geom::Surface::Plane {
+                origin: Point3::new(offset, 0.0, 0.0),
+                normal: Vec3::new(tilt.cos(), 0.0, tilt.sin()),
+                u_ref: Vec3::unit_y(),
+            };
+            geom_brep::plane_torus_section(&plane, &torus, lever, band())
+        };
+        let rider = |offset: f64, on_carrier: bool| {
+            let s = spiric(offset);
+            // Out of the regime the carrier has no points to centre on.
+            let center = if on_carrier {
+                s.eval(0.0)
+            } else {
+                Point3::origin()
+            };
+            let ball = geom::Surface::Sphere {
+                center,
+                radius: 0.3,
+                u_ref: Vec3::unit_x(),
+                axis: Vec3::unit_z(),
+            };
+            conic_or_line_on(&s, (-0.5, 0.5), &ball, band())
+        };
+        // A tenth of a zero band at the torus's reach, `R + r = 3`.
+        let tilt = 0.1 * band().zero() / 3.0;
+        for offset in [
+            0.0,
+            eps * 1e-3,
+            0.5,
+            -0.5,
+            1.0 - 1e-3,
+            1.0,
+            1.0 - eps * 1e-3,
+            1.5,
+        ] {
+            let two = mint(offset).is_ok();
+            for tilt in [0.0, tilt] {
+                let got = section(offset, tilt);
+                assert_eq!(
+                    matches!(got, Ok(geom_brep::PlaneTorusSection::SpiricOvals { .. })),
+                    two,
+                    "offset {offset:e}, tilt {tilt:e}: the section against the mint ({got:?})"
+                );
+            }
+            let read = rider(offset, two).unwrap();
+            assert_eq!(
+                read == Placed::Off,
+                two,
+                "offset {offset:e}: the rider against the mint ({read:?})"
+            );
+        }
+        let sliver = 1.0 - 0.5 * (band().zero() + band().escalate());
+        assert!(
+            matches!(mint(sliver), Err(geom::SpiricInvalid::Escalated(d))
+                if d.predicate == Some("spiric_two_ovals")),
+            "in the sliver the mint escalates on its own row: {:?}",
+            mint(sliver)
+        );
+        assert!(
+            matches!(section(sliver, 0.0), Err(geom_brep::SectionError::Escalated(d))
+                if d.predicate == Some("pt_spiric_two_ovals")),
+            "in the sliver the section escalates on its own row: {:?}",
+            section(sliver, 0.0)
+        );
+        assert!(
+            rider(sliver, false).is_err(),
+            "in the sliver the rider escalates"
+        );
     }
 
     /// **A spiric hugging a cylinder within the band over its whole span

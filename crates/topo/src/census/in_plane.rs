@@ -70,7 +70,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 use crate::body::Body;
 use crate::boolean::boxes::sweep_pad;
 use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
-use crate::boolean::{CarrierRelation, CurvedPlacement, FaceContainment, face_placement};
+use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
 use crate::cover::{edge_cover, edge_end_point};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey};
 use crate::live::{BoundaryMember, proven};
@@ -154,10 +154,7 @@ pub(super) fn apart_in_plane<T: Decide>(
     };
     let one_plane = matches!(
         crate::boolean::carrier_pair_decided(body, a, body, b, band),
-        Ok(Ok((
-            CarrierRelation::SameOriented | CarrierRelation::SameOpposite,
-            Some(_)
-        )))
+        Ok(Ok(verdict)) if verdict.one().is_some()
     );
     if one_plane {
         return la.iter().all(|x| outside(body, b, x.point, band))
