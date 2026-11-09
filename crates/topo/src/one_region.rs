@@ -287,6 +287,48 @@ mod tests {
     use super::*;
     use crate::joint::{Deck, Winding};
 
+    /// Re-carries every edge with an end at `vertex` on the line between
+    /// its end points, as certified chords: after a row moves a vertex,
+    /// its edges' departures there are read from the point where it now
+    /// stands, not from the line it was built on.
+    fn recarry_lines_at(
+        body: &mut Body<f64>,
+        vertex: crate::entity::VertexKey,
+        tol: geom_core::Tol,
+    ) {
+        let edges: Vec<EdgeKey> = body
+            .edges
+            .iter()
+            .filter(|(_, e)| {
+                [e.he_plus, e.he_minus]
+                    .iter()
+                    .any(|&h| body.get_half_edge(h).is_some_and(|h| h.start == vertex))
+            })
+            .map(|(k, _)| k)
+            .collect();
+        for edge in edges {
+            let e = body.get_edge(edge).expect("the edge").clone();
+            let end = |v| {
+                let key = body.get_vertex(v).expect("a vertex").point;
+                *body.points.get(key).expect("its point")
+            };
+            let s = end(body.get_half_edge(e.he_plus).expect("he+").start);
+            let t = end(body.half_edge_end(e.he_plus).expect("he+'s end"));
+            let curve = geom_brep::EdgeCurve::certify(
+                geom_brep::EdgeCurveSpec::line_between(s, t),
+                s,
+                t,
+                |_| None,
+                geom_core::test_support::fixture_lever(1.0),
+                geom_core::Band::linear(tol).expect("the witness band"),
+                geom_brep::NurbsLane::certified(),
+            )
+            .expect("the chord certifies");
+            *body.curves.get_mut(e.curve).expect("its curve") =
+                crate::null::CurveGeom::Certified(curve);
+        }
+    }
+
     /// The findings of a cylinder sheet whose one loop walks two surface
     /// cycles that meet at a point: the outer loop carries a strut from
     /// its corner `B` (the one after `A`, its first corner) to an inner
@@ -294,7 +336,7 @@ mod tests {
     /// `W → X → Y`, closed at `W` by a membrane, with the strut kept, so
     /// the surface boundary drops the strut and walks two cycles, the outer
     /// one and the polygon (asserted). Where `meet`, `X` is then moved onto
-    /// `A`'s point, so the loop passes it at two corners. `y` is the polygon's third
+    /// `A`'s point and its edges re-carried ([`recarry_lines_at`]), so the loop passes it at two corners. `y` is the polygon's third
     /// corner in the sheet's `(u, v)`. The sheet's sense is set so its
     /// loop bounds its rectangle (an inverted sheet's corners are their
     /// complements, which the corner arm reads as crossings everywhere).
@@ -374,6 +416,7 @@ mod tests {
             let gone = body.get_vertex(x_vertex).expect("X").point;
             body.vertices.get_mut(x_vertex).expect("X").point = a_point;
             body.points.remove(gone);
+            recarry_lines_at(&mut body, x_vertex, tol);
         }
         let errors = crate::validate_geometric(&body, tol)
             .err()
@@ -401,8 +444,10 @@ mod tests {
     /// cycle's own two edges, and the outer corner's wedge holds the
     /// polygon's edges there, so neither corner is a slice of the face. A
     /// legal pinch is one loop whose corners at the point pair the two
-    /// lobes' edges, each a slice (Ev's rule, PR 4057), and passes
-    /// (`validate::tests::a_figure_eight_hole_with_a_closed_arc_passes`).
+    /// lobes' edges, each a slice (Ev's rule, PR 4057), and passes, on a
+    /// plane (`validate::tests::a_figure_eight_hole_with_a_closed_arc_passes`)
+    /// and on this cylinder
+    /// ([`a_figure_eight_ring_on_a_cylinder_passes_and_its_crossed_twin_refuses`]).
     /// The strut leaves another corner `B`, so no polygon edge runs along
     /// it. The body is deliberately ill-formed (scaffold line chords
     /// between points of the cylinder), and only check 9's corner verdict
@@ -423,6 +468,132 @@ mod tests {
         assert!(
             !touch.is_empty(),
             "check 9's corner arm refuses the touch at A"
+        );
+    }
+
+    /// The findings at `P` of a cylinder sheet (sensed, as in
+    /// [`one_loop_two_cycles_at_a_point`]) carrying one ring through `P`
+    /// twice: a hexagon pinched at its waist, `P → R1 → R2 → Q → L2 → L1`
+    /// in the sheet's `(u, v)`, its two lobes either side of `u = 1.5`,
+    /// with `Q` then moved onto `P`'s key and its edges re-carried
+    /// ([`recarry_lines_at`]). Where `crossed`, the right lobe is walked
+    /// the other way (`R2` before `R1`), so each corner at `P` bridges the
+    /// lobes the wrong way. The rim's order is the hole's: walked the
+    /// other way round, the ring bounds its lobes rather than the sheet
+    /// outside them, every corner at `P` is its complement and both rows
+    /// refuse (measured; check 6 does not refuse that role on this
+    /// chord-built sheet). Returns the `PinchCornerCrossed` findings at
+    /// `P` and whether check 6 refused the face's orientation, which would
+    /// leave its corners unread. The edges are straight chords, as in the
+    /// strut rows, and only check 9's corner verdict at `P` is read.
+    fn figure_eight_ring_at_a_point(crossed: bool) -> (Vec<ValidationError>, bool) {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, plant_ring_face};
+        let tol = geom_core::Tol::witness();
+        let frame = CylFrame::canonical(1.0);
+        let mut body = Body::<f64>::new();
+        let face = cyl_wall_sheet(
+            &mut body,
+            frame,
+            (0.0, core::f64::consts::PI),
+            (0.0, 1.0),
+            tol,
+        );
+        crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
+        let outer = body.get_face(face).expect("the sheet").outer;
+        let crate::entity::LoopBoundary::Cycle { first } =
+            body.get_loop(outer).expect("its outer loop").boundary
+        else {
+            panic!("the sheet's outer loop is a cycle")
+        };
+        let (p, q) = (frame.at(1.5, 0.45), frame.at(1.5, 0.55));
+        let (r1, r2) = (frame.at(2.0, 0.2), frame.at(2.0, 0.8));
+        let right = if crossed { [r2, r1] } else { [r1, r2] };
+        let rim = [
+            p,
+            right[0],
+            right[1],
+            q,
+            frame.at(1.0, 0.8),
+            frame.at(1.0, 0.2),
+        ];
+        plant_ring_face(&mut body, first, &rim, tol);
+        let ring = *body
+            .get_face(face)
+            .expect("the sheet")
+            .rings
+            .first()
+            .expect("the sheet holds the ring");
+        let crate::entity::LoopBoundary::Cycle { first: start } =
+            body.get_loop(ring).expect("the ring").boundary
+        else {
+            panic!("the ring is a cycle")
+        };
+        let mut cycle = vec![start];
+        loop {
+            let next = body
+                .get_half_edge(*cycle.last().expect("a half-edge"))
+                .expect("a half-edge")
+                .next;
+            if next == start {
+                break;
+            }
+            cycle.push(next);
+        }
+        let at = |body: &Body<f64>, w: geom_core::Point3<f64>| {
+            cycle
+                .iter()
+                .map(|&h| body.get_half_edge(h).expect("a half-edge").start)
+                .find(|&v| {
+                    let key = body.get_vertex(v).expect("a vertex").point;
+                    body.points.get(key).is_some_and(|x| x.distance(w) < 1e-12)
+                })
+                .expect("a corner of the ring")
+        };
+        let (vp, vq) = (at(&body, p), at(&body, q));
+        let p_key = body.get_vertex(vp).expect("P").point;
+        let gone = body.get_vertex(vq).expect("Q").point;
+        body.vertices.get_mut(vq).expect("Q").point = p_key;
+        body.points.remove(gone);
+        recarry_lines_at(&mut body, vq, tol);
+        let errors = crate::validate_geometric(&body, tol)
+            .err()
+            .unwrap_or_default();
+        let inverted = errors.iter().any(|e| {
+            matches!(e,
+                ValidationError::LoopRoleInverted { face: f, .. }
+                | ValidationError::CurvedSenseInverted { face: f } if *f == face)
+        });
+        let crossed_at_p = errors
+            .iter()
+            .filter(|e| match e {
+                ValidationError::PinchCornerCrossed {
+                    face: f, vertex, ..
+                } => *f == face && body.get_vertex(*vertex).map(|v| v.point) == Some(p_key),
+                _ => false,
+            })
+            .cloned()
+            .collect();
+        (crossed_at_p, inverted)
+    }
+
+    /// **The legal pinch passes on a curved face** (Ev's rule, PR 4057,
+    /// on a cylinder): one ring through `P` at two corners, each pairing
+    /// the end of one lobe with the start of the other, both lobes walked
+    /// alike ([`figure_eight_ring_at_a_point`]), has no corner holding the
+    /// other's sides, and check 9 refuses nothing at `P`. Its twin, the
+    /// right lobe walked the other way, crosses at `P` and is refused, so
+    /// the corner arm reads this face (check 6 refuses neither
+    /// orientation). The positive half the strut rows above cannot show.
+    #[test]
+    fn a_figure_eight_ring_on_a_cylinder_passes_and_its_crossed_twin_refuses() {
+        let (legal, inverted) = figure_eight_ring_at_a_point(false);
+        assert!(!inverted, "check 6 reads the legal sheet's orientation");
+        assert!(legal.is_empty(), "the legal pinch passes at P: {legal:?}");
+        let (cross, inverted) = figure_eight_ring_at_a_point(true);
+        assert!(!inverted, "check 6 reads the crossed sheet's orientation");
+        assert!(
+            !cross.is_empty(),
+            "check 9's corner arm refuses the crossed twin at P"
         );
     }
 

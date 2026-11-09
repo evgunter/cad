@@ -66,7 +66,14 @@ Check 9 covers both shapes. None reaches `one_region` alone except in the cases 
   corner's wedge holds the other cycle's edges, so neither corner is a
   slice of the face. A legal pinch is one loop whose corners at the
   point pair the two lobes' edges, each a slice (Ev's rule, PR 4057). It
-  passes: `validate::tests::a_figure_eight_hole_with_a_closed_arc_passes`.
+  passes, on a plane (`validate::tests::a_figure_eight_hole_with_a_closed_arc_passes`)
+  and on a cylinder: `one_region::tests::a_figure_eight_ring_on_a_cylinder_passes_and_its_crossed_twin_refuses`
+  reads a hexagon ring pinched at its waist onto one key and finds
+  nothing at the pinch, and its twin, one lobe walked the other way, is
+  refused there. Walked the other way round as a whole, the ring's
+  corners are complements and both shapes refuse; check 6 does not
+  refuse that role on the chord-built sheet, so the row fixes the hole's
+  order by hand.
   Probe: `one_region::tests::two_surface_cycles_of_one_loop_crossing_at_a_shared_point_are_check_9s`.
   - A cylinder sheet, its sense set so its loop bounds its rectangle,
     has an outer loop carrying a strut, from the corner after `A`, to an
@@ -86,6 +93,9 @@ Check 9 covers both shapes. None reaches `one_region` alone except in the cases 
     refuses (`CurvedSenseInverted`). Its corners were complements, so
     the corner arm fired with the cycles apart too. The apart case now
     guards against that.
+  - The moved corner's edges are re-carried on the chords to where it
+    now stands, so its departures there are not read from the line it
+    was built on (a 0.1 endpoint residual before).
   - Only the corner arm's verdict at that point is read: the edges are
     straight chords, so the body is otherwise ill-formed.
 
