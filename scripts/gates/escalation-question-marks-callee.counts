@@ -109,9 +109,6 @@ crates/topo/src/pcurves.rs 1
 # ray_walk: on_boundary, any segment holding the point answers:
 # HAND-ROLLED.
 crates/topo/src/ray_walk.rs 1
-# replace_face: carried_alike, any sample apart answers "not alike":
-# HAND-ROLLED.
-crates/topo/src/replace_face.rs 1
 # ring_path: path_parity's five reads, every piece's crossing: NOT A
 # SEARCH.
 crates/topo/src/ring_path.rs 5
