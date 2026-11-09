@@ -2,10 +2,12 @@
 id: main-red-the-plates-sym-walk-ledger-reads-12-more-forms
 kind: issue
 title: main is red (slow set): m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row, the plate's Plain/Decision and Early/Decision lines read 12 more forms than pinned
-status: open
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: E
+closed: 2026-11-09
+pr: 6663
 ---
 
 
@@ -40,3 +42,5 @@ between the last commit that touched `PLATE_LEDGER` and `8ae2b9bfc`.
 Plain/Decision, Plain/Assertion and Early/Assertion lines further
 (53631, 9114, 10519; a refused direction reads its norm once), and
 leaves the plate pin for this row's owner to re-derive.
+
+**Closed by PR 6663** (2026-11-09): bisected to PRs 6568, 6594, 6588 and 6628, every call count and every plate decision unmoved; re-pinned at main `337c944730` at all three ε. The cost 6588 added is filed on BOXES (`work/boxes/cover-readers-moved-the-plates-sym-ledger-undisclosed.md`).
