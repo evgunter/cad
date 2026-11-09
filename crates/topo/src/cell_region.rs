@@ -185,6 +185,8 @@ fn place<T: Decide>(
     station: Point3<T>,
     band: Band,
 ) -> Option<FaceContainment> {
+    crate::held::Held::constructed(station, "a station of the face's own stored chart")
+        .check(surface, band);
     match *surface {
         Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
         _ => curved_face_containment(body, face, station, band)

@@ -651,7 +651,7 @@ fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
         .get_point(body.get_vertex(turn.vertex).expect("v").point)
         .expect("p");
     assert!(
-        (p - Point3::new(0.0, 0.0, 1.0)).norm() == 0.0,
+        p.equals_exactly(Point3::new(0.0, 0.0, 1.0)),
         "the turn is the teardrop's corner, got {p:?}"
     );
     match Verb::Fillet.run(&body, &rim) {

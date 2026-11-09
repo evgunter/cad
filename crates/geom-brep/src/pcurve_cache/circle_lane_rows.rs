@@ -706,7 +706,14 @@ fn cone_coefficient_excess(surface: &Surface<f64>, carrier: &Curve3<f64>) -> (bo
     let Some(conic) = carrier.conic() else {
         unreachable!("a circle row")
     };
-    let h = crate::implicit::conic_cone_harmonics(conic, apex, axis, half_angle);
+    let h = crate::implicit::conic_cone_harmonics(
+        conic,
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        },
+        half_angle,
+    );
     let frame = conic.frame();
     let (a, b) = conic.semi_axes();
     let q = |v: Vec3<f64>| [Q::of(v.x), Q::of(v.y), Q::of(v.z)];
@@ -1664,7 +1671,14 @@ fn the_other_charts_circle_coefficients_stay_within_their_charge() {
                 aq.mul(&bq).mul(&q_dot(&up, &vp)),
             ];
             let h = if wall {
-                crate::implicit::conic_cylinder_harmonics(conic, at, axis, r)
+                crate::implicit::conic_cylinder_harmonics(
+                    conic,
+                    geom::Line {
+                        origin: at,
+                        dir: axis,
+                    },
+                    r,
+                )
             } else {
                 crate::implicit::conic_sphere_harmonics(conic, at, r)
             };
@@ -1711,7 +1725,15 @@ fn the_other_charts_circle_coefficients_stay_within_their_charge() {
             .map(|j| pp.0[j].sub(&four_rr.mul(&sq.0[j].sub(&hh.0[j]))))
             .chain((0..5).map(|j| pp.1[j].sub(&four_rr.mul(&sq.1[j].sub(&hh.1[j])))))
             .collect();
-        let h = crate::implicit::conic_torus_harmonics(conic, at, axis, r, small);
+        let h = crate::implicit::conic_torus_harmonics(
+            conic,
+            geom::Line {
+                origin: at,
+                dir: axis,
+            },
+            r,
+            small,
+        );
         let stored: Vec<f64> = h.cos.iter().chain(h.sin.iter()).copied().collect();
         assert!(
             q_within(&stored, &exact, 1.0, geom_core::rounding_charge(h.terms)),

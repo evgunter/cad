@@ -22,7 +22,7 @@ use crate::entity::FaceKey;
 use geom_brep::OpenConic;
 use geom_core::{Band, Point3, Tol, Vec3};
 
-type Frame = Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>;
+type Frame = Result<Option<geom::Line<f64>>, FrameError>;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -98,7 +98,7 @@ fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> 
 /// refusal's variant and the predicate or conic it names.
 fn shape(frame: &Frame) -> String {
     match frame {
-        Ok(Some((c, a))) => format!("frame {c:?} {a:?}"),
+        Ok(Some(axis)) => format!("frame {:?} {:?}", axis.origin, axis.dir),
         Ok(None) => "straight".into(),
         Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
@@ -137,7 +137,7 @@ fn dandelin_centre(cone: &geom::Surface<f64>, q: Point3<f64>, n: Vec3<f64>) -> P
 }
 
 fn assert_conic_frame(got: &Frame, centre: Point3<f64>, normal: Vec3<f64>, what: &str) {
-    let Ok(Some((c, a))) = got else {
+    let Ok(Some(geom::Line { origin: c, dir: a })) = got else {
         panic!("{what}: the conic's frame, got {}", shape(got));
     };
     assert!(
@@ -949,10 +949,10 @@ fn the_mint_takes_the_pairs_held_reading() {
     let looped = SectionTable::holding_plane_cone(
         a,
         b,
-        Ok(PkSection::Loop(
-            Point3::new(0.0, 0.0, 1.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        )),
+        Ok(PkSection::Loop(geom::Line {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        })),
     );
     let at_apex = super::join::germ_branch(
         &looped,

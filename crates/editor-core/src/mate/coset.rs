@@ -33,7 +33,7 @@
 
 use geom_core::Real;
 use geom_core::k_stats::decide;
-use geom_core::linalg::{Affine3, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::linalg::{Affine3, Point3, UnitVec3, UnitVec3Error};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
 
 use super::LeverRefusal;
@@ -104,28 +104,19 @@ pub enum Subgroup<T: Real = f64> {
     Trivial,
 }
 
-/// Coordinate-wise equality of the linear types, which carry no
-/// `PartialEq` of their own (the kernel keeps float comparison at the
-/// decided-predicate door, deliberately). This is STRUCTURAL equality
-/// for tests and diagnostics — never a geometric one; two subgroups
-/// that are equal as SETS may differ here (a line stated at a
-/// different base point), which is exactly why the algebra decides
-/// coincidence through predicates instead of comparing values.
-fn vec_eq(a: Vec3<f64>, b: Vec3<f64>) -> bool {
-    a.to_array() == b.to_array()
-}
-
-fn point_eq(a: Point3<f64>, b: Point3<f64>) -> bool {
-    a.to_array() == b.to_array()
-}
-
+/// Coordinate-wise equality of the linear types
+/// ([`geom_core::Point3::equals_exactly`]): STRUCTURAL equality for tests
+/// and diagnostics, never a geometric one. Two subgroups that are equal
+/// as SETS may differ here (a line stated at a different base point),
+/// which is exactly why the algebra decides coincidence through
+/// predicates instead of comparing values.
 impl PartialEq for Subgroup<f64> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Se3, Self::Se3) | (Self::Trivial, Self::Trivial) => true,
             (Self::Planar { normal: a }, Self::Planar { normal: b })
             | (Self::Prismatic { direction: a }, Self::Prismatic { direction: b }) => {
-                vec_eq(a.get(), b.get())
+                a.get().equals_exactly(b.get())
             }
             (
                 Self::Cylindrical {
@@ -146,11 +137,13 @@ impl PartialEq for Subgroup<f64> {
                     point: pb,
                     direction: db,
                 },
-            ) => point_eq(*pa, *pb) && vec_eq(da.get(), db.get()),
-            (Self::Spherical { point: pa }, Self::Spherical { point: pb }) => point_eq(*pa, *pb),
+            ) => pa.equals_exactly(*pb) && da.get().equals_exactly(db.get()),
+            (Self::Spherical { point: pa }, Self::Spherical { point: pb }) => {
+                pa.equals_exactly(*pb)
+            }
             (Self::Parallel { direction: a }, Self::Parallel { direction: b })
             | (Self::PlaneTranslation { normal: a }, Self::PlaneTranslation { normal: b }) => {
-                vec_eq(a.get(), b.get())
+                a.get().equals_exactly(b.get())
             }
             (Self::Translation, Self::Translation) => true,
             // Different subgroups are unequal — spelled over the whole
@@ -179,8 +172,8 @@ impl PartialEq for Coset<f64> {
     fn eq(&self, other: &Self) -> bool {
         // A field added to `Coset` is an E0027 at the two patterns
         // below. The placement is read through `Affine3::cols` and its
-        // vectors through `Vec3::to_array` (in `vec_eq`), and each of
-        // those doors binds its type's fields by pattern, so a field
+        // vectors through `Vec3::equals_exactly`, and each of those
+        // doors binds its type's fields by pattern, so a field
         // added to `Affine3`, `Mat3` or `Vec3` is an E0027 there.
         let Self {
             subgroup,
@@ -195,7 +188,7 @@ impl PartialEq for Coset<f64> {
                 .cols()
                 .into_iter()
                 .zip(other_representative.cols())
-                .all(|(a, b)| vec_eq(a, b))
+                .all(|(a, b)| a.equals_exactly(b))
     }
 }
 
