@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Mat3, Point3, Vec3};
+use geom_core::{Affine3, Mat3, Point3, Vec3, length_out_of_format};
 
 use crate::chart;
 use crate::error::StepImportError;
@@ -458,7 +458,7 @@ impl<'a> Resolver<'a> {
         // direction field: dimensionless, but a unit vector's slack is
         // bounded by it just as tightly.
         let (unit, norm) = ratios.direction_and_length();
-        if !(norm.is_finite() && norm > 0.0) {
+        if length_out_of_format(ratios).is_some() || norm <= 0.0 {
             return Err(StepImportError::MalformedRecord {
                 id,
                 expected: "three direction ratios that are not all zero and are finite \
@@ -538,7 +538,7 @@ impl<'a> Resolver<'a> {
         let along = axis.dot(candidate);
         let perpendicular = candidate - axis * along;
         let (unit, norm) = perpendicular.direction_and_length();
-        if !(norm.is_finite() && norm > 0.0) {
+        if length_out_of_format(perpendicular).is_some() || norm <= 0.0 {
             return Err(StepImportError::MalformedRecord {
                 id,
                 expected: "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction) \
@@ -2408,7 +2408,7 @@ impl Resolver<'_> {
             let along = z.dot(f.u_ref);
             let x = f.u_ref - z * along;
             let (x_hat, n) = x.direction_and_length();
-            (n.is_finite() && n > 0.0).then(|| {
+            (length_out_of_format(x).is_none() && n > 0.0).then(|| {
                 let x = x_hat;
                 Mat3::from_cols(x, z.cross(x), z)
             })

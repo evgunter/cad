@@ -175,7 +175,7 @@
 
 use geom::{Curve3, NurbsCurve3};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Vec3, length_out_of_format};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
@@ -298,7 +298,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     // "Kind scope"): ends within ε_in determine no direction, and
     // that carrier is the closed class anyway — a segment shorter
     // than the interpretation budget can never promote to a line.
-    if !(len > eps_in) || !len.is_finite() {
+    if length_out_of_format(chord).is_some() || len <= eps_in {
         return None;
     }
     // INV-C3: the zero-radius cylinder composite is `dist(P, line)²`
@@ -392,7 +392,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     // surface recognizer's near-flat class, verbatim).
     let chord = s2 - s0;
     let (chord_dir, chord_norm) = chord.direction_and_length();
-    if !(chord_norm.is_finite() && chord_norm > 0.0) {
+    if length_out_of_format(chord).is_some() || chord_norm <= 0.0 {
         return Ok(None);
     }
     let off = geom::Line {
@@ -411,7 +411,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     // INCREASING-PARAMETER winding.
     let normal = (s1 - s0).cross(s2 - s0);
     let (axis, normal_norm) = normal.direction_and_length();
-    if !(normal_norm.is_finite() && normal_norm > 0.0) {
+    if length_out_of_format(normal).is_some() || normal_norm <= 0.0 {
         return Ok(None);
     }
     // The exact circumcenter of three coplanar points (the surface
@@ -423,7 +423,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     let center = s0 + (uxv.cross(u) * v.norm_squared() + v.cross(uxv) * u.norm_squared()) / denom;
     let radial = s0 - center;
     let (u_ref, radius) = radial.direction_and_length();
-    if !(radius.is_finite() && radius > eps_in) {
+    if length_out_of_format(radial).is_some() || radius <= eps_in {
         return Ok(None);
     }
     // The certificate. INV-C1 + INV-C2, both in metres at the end.

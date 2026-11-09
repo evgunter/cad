@@ -171,11 +171,14 @@ impl<T: Real> Frame<T> {
     pub fn square(&self) -> SquareFrame<T> {
         let axis = self.axis.normalize();
         let across = axis.cross(self.u_ref.cross(axis));
-        let (u_ref, len) = across.direction_and_length();
+        let ((u_ref, len), (_, u_len)) = (
+            across.direction_and_length(),
+            self.u_ref.direction_and_length(),
+        );
         SquareFrame {
             axis,
             u_ref,
-            width: len / self.u_ref.norm(),
+            width: len / u_len,
         }
     }
 }

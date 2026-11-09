@@ -85,6 +85,18 @@ fn normalizing_scale<T: Real>(w: T) -> Option<f64> {
     }
 }
 
+/// **The one prescale**: `v`, whose largest `|component|` is `witness`,
+/// brought into the squares' range by [`normalizing_scale`]'s exact power
+/// of two through `scale` (the type's componentwise `scale_pow2`), with
+/// that power; `v` itself and `None` where it is already in range. Every
+/// reading that rescales a vector before its norm reads it here.
+fn prescaled<T: Real, V>(v: V, witness: T, scale: impl FnOnce(V, f64) -> V) -> (V, Option<f64>) {
+    match normalizing_scale(witness) {
+        None => (v, None),
+        Some(k) => (scale(v, k), Some(k)),
+    }
+}
+
 impl<T: Real> Vec2<T> {
     /// Builds a vector from its components. A `const fn` (the doctest
     /// at [`super::Point3::new`] reads a constant of each of the four
@@ -238,23 +250,18 @@ impl<T: Real> Vec2<T> {
     /// `n = self.norm()`, bit for bit. Outside that range the length is
     /// the prescaled norm scaled back by the same power of two, so it
     /// is finite wherever the true length is: `(1e200, 0)` has length
-    /// `1e200`, not `∞`, and `(1e-170, 0)` has `1e-170`, not `0`.
+    /// `1e200`, not `∞`, and `(1e-170, 0)` has `1e-170`, not `0`. It is
+    /// within 2 ulps of the true length there, not exact: where the
+    /// largest component lies just above `2⁻⁷⁶⁷` the smaller components'
+    /// squares go subnormal after the prescale.
     ///
     /// **Total.** The zero vector yields an all-NaN direction and the
     /// length `0`; an infinite component yields the length `∞`; poison
     /// propagates into both.
     pub fn direction_and_length(self) -> (Self, T) {
-        match normalizing_scale(self.norm_witness()) {
-            None => {
-                let n = self.norm();
-                (self / n, n)
-            }
-            Some(k) => {
-                let scaled = self.map(|c| c.scale_pow2(k));
-                let n = scaled.norm();
-                (scaled / n, n.scale_pow2(k.recip()))
-            }
-        }
+        let (scaled, k) = prescaled(self, self.norm_witness(), |v, k| v.map(|c| c.scale_pow2(k)));
+        let n = scaled.norm();
+        (scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip())))
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -460,23 +467,18 @@ impl<T: Real> Vec3<T> {
     /// `n = self.norm()`, bit for bit. Outside that range the length is
     /// the prescaled norm scaled back by the same power of two, so it
     /// is finite wherever the true length is: `(1e200, 0, 0)` has length
-    /// `1e200`, not `∞`, and `(1e-170, 0, 0)` has `1e-170`, not `0`.
+    /// `1e200`, not `∞`, and `(1e-170, 0, 0)` has `1e-170`, not `0`. It
+    /// is within 2 ulps of the true length there, not exact: where the
+    /// largest component lies just above `2⁻⁷⁶⁷` the smaller components'
+    /// squares go subnormal after the prescale.
     ///
     /// **Total.** The zero vector yields an all-NaN direction and the
     /// length `0`; an infinite component yields the length `∞`; poison
     /// propagates into both.
     pub fn direction_and_length(self) -> (Self, T) {
-        match normalizing_scale(self.norm_witness()) {
-            None => {
-                let n = self.norm();
-                (self / n, n)
-            }
-            Some(k) => {
-                let scaled = self.map(|c| c.scale_pow2(k));
-                let n = scaled.norm();
-                (scaled / n, n.scale_pow2(k.recip()))
-            }
-        }
+        let (scaled, k) = prescaled(self, self.norm_witness(), |v, k| v.map(|c| c.scale_pow2(k)));
+        let n = scaled.norm();
+        (scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip())))
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -731,10 +733,7 @@ impl<T: Real> Vec3<T> {
     /// length.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let zero = T::zero();
-        let n = match normalizing_scale(self.norm_witness()) {
-            None => self,
-            Some(k) => self.map(|c| c.scale_pow2(k)),
-        };
+        let (n, _) = prescaled(self, self.norm_witness(), |v, k| v.map(|c| c.scale_pow2(k)));
         let scale = n.norm().min(n.norm_witness());
         let vy = Self::new(n.z, zero, -n.x);
         let vz = Self::new(-n.y, n.x, zero);
@@ -986,6 +985,66 @@ mod tests {
         assert_eq!(n2.to_bits(), 0.0f64.to_bits());
         let (_, n) = Vec3::new(f64::INFINITY, 1.0, 0.0).direction_and_length();
         assert_eq!(n, f64::INFINITY);
+    }
+
+    /// **Mixed magnitudes, every binade.** Out of range the pair is
+    /// within 2 ulps of the in-range pair scaled by the same power of two,
+    /// not exact: where the largest component lies just above `2⁻⁷⁶⁷` the
+    /// `2²⁵⁶` prescale lands it just above `2⁻⁵¹¹`, and the smaller
+    /// components' squares go subnormal. The two pinned vectors (found by
+    /// a 200 000-draw search over that band) reach the 2 ulps there, so
+    /// the bound is met and not loose.
+    #[test]
+    fn direction_and_length_are_within_two_ulps_at_every_binade() {
+        let ulps = |a: f64, b: f64| a.to_bits().abs_diff(b.to_bits());
+        let w3 = Vec3::from_array(
+            [
+                4_602_961_963_528_005_167,
+                4_602_315_575_974_780_686,
+                4_601_732_745_548_964_288,
+            ]
+            .map(f64::from_bits),
+        );
+        let w2 = Vec2::from_array(
+            [4_606_193_237_627_688_703, 4_602_668_359_208_288_026].map(f64::from_bits),
+        );
+        let worst = |pair: &dyn Fn(f64) -> (Vec<f64>, f64), want: (Vec<f64>, f64)| {
+            let mut at_766 = 0;
+            for e in -1020..=1020 {
+                let k = pow2(e);
+                let (d, n) = pair(k);
+                let du = d
+                    .iter()
+                    .zip(&want.0)
+                    .map(|(a, b)| ulps(*a, *b))
+                    .max()
+                    .unwrap_or(0);
+                let off = du.max(ulps(n, want.1 * k));
+                assert!(off <= 2, "2^{e}: {off} ulps");
+                if e == -766 {
+                    at_766 = off;
+                }
+            }
+            at_766
+        };
+        let v3 = |k: f64| {
+            let (d, n) = (w3 * k).direction_and_length();
+            (d.to_array().to_vec(), n)
+        };
+        let v2 = |k: f64| {
+            let (d, n) = (w2 * k).direction_and_length();
+            (d.to_array().to_vec(), n)
+        };
+        assert_eq!(
+            worst(&v3, (w3.normalize().to_array().to_vec(), w3.norm())),
+            2,
+            "Vec3 at 2^-766"
+        );
+        assert_eq!(
+            worst(&v2, (w2.normalize().to_array().to_vec(), w2.norm())),
+            2,
+            "Vec2 at 2^-766"
+        );
     }
 
     /// One vector through every binade: the direction is `normalize`'s

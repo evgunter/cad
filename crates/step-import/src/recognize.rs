@@ -79,7 +79,7 @@
 //! refuted one.
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Vec3, length_out_of_format};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
@@ -300,7 +300,7 @@ fn try_cylinder(
     // (the near-flat patch; D7's ambiguity class).
     let chord = qb - q0;
     let (chord_dir, chord_norm) = chord.direction_and_length();
-    if !(chord_norm.is_finite() && chord_norm > 0.0) {
+    if length_out_of_format(chord).is_some() || chord_norm <= 0.0 {
         return Ok(None);
     }
     let off = geom::Line {
@@ -326,7 +326,7 @@ fn try_cylinder(
     let center = q0 + (axb.cross(a) * b.norm_squared() + b.cross(axb) * a.norm_squared()) / denom;
     let radial = q0 - center;
     let (radial_hat, radius) = radial.direction_and_length();
-    if !(radius.is_finite() && radius > 0.0) {
+    if length_out_of_format(radial).is_some() || radius <= 0.0 {
         return Ok(None);
     }
     let cylinder = Surface::Cylinder {
