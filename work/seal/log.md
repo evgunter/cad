@@ -127,3 +127,12 @@
 - 2026-11-09 — **Glue step 2 is PR 6646, CI `gate ok` green on `d89337d37d`.** Single FULL review dispatched on that frozen head. The implementer's target is reclaimed.
   - **Shape:** one helper, `geom_brep::ladder::data_beneath_sum`, serves C21 and `tori_coincide`. `TorusCoincidence::Apart` gains `upper`, and its tilt term is `max(chord, sine)`.
   - **Premise correction to rule on at adjudication:** apart-beside-NaN now ends `Undecided(poison)` where main read `Apart`.
+- 2026-11-09 — **PR 6646 review in: APPROVE-WITH-FIXES, no MAJOR** (218,500 tokens, 16 min). Fix pass sent.
+  - **Confirmed:** `upper`'s soundness (re-derived, rounding included) and the one helper. The premise correction is accepted: apart beside NaN now ends in poison, under D2.
+  - **MINOR, by execution:** a C21 straddle whose first datum is nonzero offers a tolerance, where main offered none. The table had claimed otherwise. The fix pass corrects it and pins the case with a sphere row.
+  - **Class finding:** the C21 "tolerance offer: none" claim rested on fixtures whose axes agree exactly. A general claim pinned only on a degenerate fixture holds for the fixture, not the case.
+  - **Also in the fix pass:**
+    - doc truth: the data bound the carriers' separation, not the displacement over the extent;
+    - one torus path at the face-pair door, plus the helper's dead and discarded arms;
+    - a pin on the zero-tag;
+    - an independent oracle for the torus row.
