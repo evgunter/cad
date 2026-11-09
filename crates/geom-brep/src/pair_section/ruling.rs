@@ -393,8 +393,9 @@ pub(crate) trait Ruled<T: Real> {
 }
 
 /// **The thinner of two cylinders swept against the other.** The ruled
-/// wall is `foot + ρ(cos φ·n + sin φ·v) + t·axis`, `n` square to both axes
-/// and `v = axis × n`; the partner's axis runs through `foot + gap·n`
+/// wall is `foot + ρ(cos φ·n + sin φ·v) + t·axis` in the pose's `frame`
+/// (`foot` its origin, `n` its `u_ref`, square to both axes, and `v` its
+/// `v_ref`, `axis × n`); the partner's axis runs through `foot + gap·n`
 /// along `axis′`, with `cos = axis·axis′` and `beta = axis′·v`
 /// (`cos² + beta² = 1`, `beta ≠ 0` for crossing axes). A ruling meets the
 /// partner where `β²t² − 2β·ρ sin φ cos·t + C = 0`, whose discriminant is
@@ -404,10 +405,9 @@ pub(crate) trait Ruled<T: Real> {
 /// `r − ρ − e` (the nest level).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RuledCylinders<T: Real> {
-    pub(crate) foot: Point3<T>,
-    pub(crate) n: Vec3<T>,
-    pub(crate) v: Vec3<T>,
-    pub(crate) axis: Vec3<T>,
+    /// The ruled wall's axis through the common perpendicular's foot on
+    /// it, `u_ref` that perpendicular's unit direction.
+    pub(crate) frame: geom::Frame<T>,
     /// The ruled wall's radius.
     pub(crate) rho: T,
     /// The partner's.
@@ -444,7 +444,7 @@ impl<T: Real> RuledCylinders<T> {
     /// a root's numerator of `ρ + r`, divided by `β`; a ruling nearly
     /// parallel to the partner's axis levers both by `1/|β|`.
     fn charge(&self) -> (T, T) {
-        let size = (self.foot - Point3::origin()).norm() + self.rho + self.r + self.gap.abs();
+        let size = (self.frame.origin - Point3::origin()).norm() + self.rho + self.r + self.gap.abs();
         let t = rounding_charge(size + self.rho + self.r) * self.tilt().abs();
         (rounding_charge(size), t)
     }
@@ -476,10 +476,11 @@ impl<T: Real> Ruled<T> for RuledCylinders<T> {
             .plus(self.root(cell).scale(sheet.sign()))
             .scale(self.tilt())
             .widen(along);
-        V3::at(self.foot)
-            .plus(V3::along(self.n, cell.cos.scale(self.rho)))
-            .plus(V3::along(self.v, cell.sin.scale(self.rho)))
-            .plus(V3::along(self.axis, t))
+        let f = &self.frame;
+        V3::at(f.origin)
+            .plus(V3::along(f.u_ref, cell.cos.scale(self.rho)))
+            .plus(V3::along(f.v_ref(), cell.sin.scale(self.rho)))
+            .plus(V3::along(f.axis, t))
             .widen(point)
     }
 
@@ -497,9 +498,10 @@ impl<T: Real> Ruled<T> for RuledCylinders<T> {
             .plus(ds.scale(sheet.sign()))
             .scale(self.tilt())
             .widen(along * (T::one() + self.rho / root.lo));
-        V3::along(self.n, cell.sin.scale(T::zero() - self.rho))
-            .plus(V3::along(self.v, cell.cos.scale(self.rho)))
-            .plus(V3::along(self.axis, dt))
+        let f = &self.frame;
+        V3::along(f.u_ref, cell.sin.scale(T::zero() - self.rho))
+            .plus(V3::along(f.v_ref(), cell.cos.scale(self.rho)))
+            .plus(V3::along(f.axis, dt))
     }
 }
 
@@ -1238,7 +1240,7 @@ pub(crate) fn coverage(
     let Some(frame) = ruled.frame().map(|f| f.square()) else {
         return Err([0.0, core::f64::consts::TAU]);
     };
-    let (u, v) = (frame.u_ref, frame.axis.cross(frame.u_ref));
+    let (u, v) = (frame.u_ref, frame.v_ref());
     let (o, q, a, b, u, v) = (p3(o), p3(q), v3(a), v3(b), v3(u), v3(v));
     let (rho, r) = (lift(rho), lift(r));
     let ab = a.cross(b);
