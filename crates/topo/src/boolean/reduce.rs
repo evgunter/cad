@@ -7176,15 +7176,13 @@ mod declaration_order_rows {
         );
         for class in [GlueClass::Rest, GlueClass::Tangent] {
             let door = match class {
-                GlueClass::Tangent => crate::boolean::glued_tangency(
-                    &x,
-                    xw,
-                    &y,
-                    yw,
-                    crate::boolean::DeclarationRead::Spent(GlueClass::Tangent),
-                    b,
-                )
-                .is_ok(),
+                GlueClass::Tangent => {
+                    crate::boolean::glue::decided_glue(&x, &y, &crate::boolean::Glue::none(), b)
+                        .expect("the door reads every pair")
+                        .pairs
+                        .iter()
+                        .any(|p| (p.a, p.b) == (xw, yw) && p.class() == GlueClass::Tangent)
+                }
                 _ => contact_door((&x, xw), (&y, yw), class, None, b),
             };
             assert!(
