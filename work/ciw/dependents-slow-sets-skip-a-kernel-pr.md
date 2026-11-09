@@ -34,3 +34,5 @@ Three in this trigger's shape over 2026-11-04 to 11-06 is a count, not a revisit
 ## Count (2026-11-09, PR 6663)
 
 Four more on the same plate ledger (`m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned`), each a PR whose closure reached editor-core and whose seeds did not run the row: PR 6568 (`324300a2a1`), PR 6594 (`38099d0e88`), PR 6588 (`6bbebd7e31`), PR 6628 (`eae91f8825`). 6628 disclosed its move; the other three did not, and 6588's body said the row passed.
+
+One more from PR 6663's review: PR 6594 (`38099d0e88`) also moved `m10_9_pins_interval::m10_9_no_registrant_lies_on_any_measured_document` (`r2_rounded_pad` 1660 → 1684 symbolic), undisclosed. Filed as `work/onecopy/main-red-the-rounded-pad-reads-24-more-symbolic-decisions-since-planar-foot.md`.

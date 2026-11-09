@@ -43,4 +43,4 @@ Plain/Decision, Plain/Assertion and Early/Assertion lines further
 (53631, 9114, 10519; a refused direction reads its norm once), and
 leaves the plate pin for this row's owner to re-derive.
 
-**Closed by PR 6663** (2026-11-09): bisected to PRs 6568, 6594, 6588 and 6628, every call count and every plate decision unmoved; re-pinned at main `337c944730` at all three ε. The cost 6588 added is filed on BOXES (`work/boxes/cover-readers-moved-the-plates-sym-ledger-undisclosed.md`).
+**Closed by PR 6663** (2026-11-09): bisected to PRs 6568, 6594, 6588 and 6628, every call count on the plate ledger and every plate decision unmoved at these ε; re-pinned at main `337c944730` at all three ε. The cost 6588 added is filed on BOXES (`work/boxes/cover-readers-moved-the-plates-sym-ledger-undisclosed.md`).

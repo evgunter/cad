@@ -423,8 +423,10 @@ const PLATE_MAX_TERMS: usize = 38;
 /// (`topo::cover`): its norms, its maxima over corners and its arc
 /// windows' sines and cosines are `Plain/Decision` forms, and the
 /// largest form ([`PLATE_MAX_TERMS`]) is one of them, so a change to how
-/// a cover is read moves that line and that bound with no decision
-/// moving.
+/// a cover is read can move that line and that bound with no decision
+/// moving on the plate at these ε. That is the plate's fact, not a rule:
+/// freezing is not monotone in reach, so a form frozen past the degree
+/// budget can flip a verdict elsewhere.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1203 forms 53631 frozen 62 digest 5df7c7ece7524e793ed0648e5ab4c98f\n\
      Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
