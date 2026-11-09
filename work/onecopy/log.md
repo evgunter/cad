@@ -766,3 +766,7 @@
   - Round 3 asks B to trace A's torus-waist case (analytic faces only), and asks A about the three-state K framing and its closed-form residual.
 - 08:12Z bracket-mid: (a) has two named forms, each with its reason. bracket_mid keeps projection's NaN exit at an infinite bracket.
 - 08:15Z Branch-band: A's round 3 is in. A converges: the gate is the home, two P0 defects, a named residual, K's floor goes to Ev (A leans to raising it to 2). B's round-2 addendum holds that by_kind on a trimmed analytic face is correct. The torus waist (round 3) remains the one open point.
+- 08:18Z on-surface-ties opened PR 6624 (head e6472498). It closes `an-on-surface-edge-is-not-tied-to-its-curves-surface` and the radial row.
+  - FULL review: session_013mPGJ49aLEyBb6JNAZiN5E.
+  - The C5 rewording of Ev's 6567 sentence is judged descriptive. That sentence recorded the gap this PR closes, and C5's decision is unchanged.
+  - It conflicts with 6609 (`u_line`) in on_surface.rs and C5; whichever merges second keys `u_line`.
