@@ -426,3 +426,26 @@ fn a_crossing_on_a_sliver_keels_rim_is_confirmed_only_inside_its_cleared_radius(
         );
     }
 }
+
+/// **A lone vertex bounds the cleared disc**: on a box's top face whose
+/// one-vertex ring stands `0.1` from the point read, the disc is no wider
+/// than that, where the square's edges stand `0.4` off. Red where the
+/// ring read as an unwalkable loop ([`TouchUnread::Corrupt`]), or where
+/// it was skipped (a radius of `0.4`).
+#[test]
+fn a_lone_vertex_bounds_the_cleared_disc() {
+    let (body, top, _) = crate::test_support_fixtures::box_with_a_lone_ring(Tol::witness());
+    let outward = crate::face_normal::face_outward_normal(&body, top)
+        .expect("a planar face's outward normal")
+        .vec();
+    let sectors = FaceSector::cleared(&body, top, outward, p(0.5, 0.6, 1.0), &[Hold::Inside])
+        .expect("the face reads as a cleared disc");
+    for s in &sectors {
+        let clear = s.face.clear.expect("a cleared sector states its radius");
+        assert!(
+            clear <= 0.1 + 1e-12,
+            "the disc's radius {clear} reaches past the lone vertex 0.1 away"
+        );
+    }
+    assert!(!sectors.is_empty(), "the face gives a sector");
+}
