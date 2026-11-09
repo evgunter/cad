@@ -525,7 +525,7 @@ fn pair_along_line<T: Decide>(
     line: geom::Line<T>,
     band: Band,
 ) -> Result<(Vec<(HalfEdgeKey, HalfEdgeKey)>, usize), SplitJoinError> {
-    let keys: Vec<T> = crossings.iter().map(|c| line.param(c.point)).collect();
+    let keys: Vec<T> = crossings.iter().map(|c| line.height(c.point)).collect();
     let order = super::order::sort_along_line(&keys, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();

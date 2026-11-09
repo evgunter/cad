@@ -1117,9 +1117,11 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
             // Margin: perpendicular distance of the next chord's far
             // endpoint from the previous chord's carrier line (meters,
             // direct displacement).
-            let t = (prev.b() - prev.a()).normalize();
-            let d = next.b() - prev.a();
-            let margin = t.perp_dot(d);
+            let margin = geom_core::Line2 {
+                origin: prev.a(),
+                dir: prev.b() - prev.a(),
+            }
+            .side(next.b());
             Ok(matches!(
                 decide(names.lines, Margin::of(margin), band)?,
                 Sign::Zero

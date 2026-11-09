@@ -2282,7 +2282,7 @@ pub(super) fn strip_frame<T: Decide>(
     face: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>, T), BlendError> {
     let mid = certified_curve(body, l.edge)?.mid_point();
-    let (origin, _) = open_trimline(l, face)?;
+    let origin = open_trimline(l, face)?.origin;
     let m = (origin - mid).normalize();
     Ok((origin, m, (origin - mid).dot(m)))
 }
@@ -3255,11 +3255,10 @@ fn co_requested_trim<T: Decide>(
         .map(AdmittedOpen::link)
         .find(|l| l.edge == edge)
     {
-        let (origin, dir) = open_trimline(l, face)?;
-        let line = geom::Line { origin, dir };
+        let line = open_trimline(l, face)?;
         let at = |p: Point3<T>| line.param(p);
         let window = (at(stored.eval(ta)), at(stored.eval(tb)));
-        return Ok(Some((Curve3::Line(geom::Line { origin, dir }), window)));
+        return Ok(Some((Curve3::Line(line), window)));
     }
     if let Some(l) = rims
         .iter()
@@ -3272,16 +3271,16 @@ fn co_requested_trim<T: Decide>(
     Ok(None)
 }
 
-/// **An open link's trimline on its support `face`**, as the line's
-/// `(origin, dir)`. Every open band's trims are lines
+/// **An open link's trimline on its support `face`**, as its line.
+/// Every open band's trims are lines
 /// (`arms::plane_plane_blend` and the ruled arms mint them so), and
 /// one that is not refuses here rather than being read as one.
 pub(super) fn open_trimline<T: Real>(
     l: &Link<T>,
     face: FaceKey,
-) -> Result<(Point3<T>, Vec3<T>), BlendError> {
+) -> Result<geom::Line<T>, BlendError> {
     match l.trim_on(face) {
-        Some((Curve3::Line(geom::Line { origin, dir }), _)) => Ok((*origin, *dir)),
+        Some((Curve3::Line(line), _)) => Ok(*line),
         Some(_) => Err(unbuilt_geometry(
             EntityId::Edge(l.edge),
             "an open link's trimline is not a line",
