@@ -573,9 +573,8 @@ fn a_ray_down_a_shared_edge_refuses_with_both_faces() {
     assert_eq!(hits.len(), 2, "one hit per tied face: {:?}", named(&hits));
     for (i, hit) in hits.iter().enumerate() {
         assert_eq!(hit.t, 2.0, "tied face {i} answers the midpoint at t = 2");
-        assert_eq!(
-            hit.point.to_array().map(f64::to_bits),
-            midpoint.to_array().map(f64::to_bits),
+        assert!(
+            hit.point.same_bits(midpoint),
             "and places it at the shared edge's midpoint: every tied hit is TRUE"
         );
     }

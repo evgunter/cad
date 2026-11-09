@@ -190,7 +190,7 @@ fn faces_through_two_vertices_on_one_point(body: &Body<f64>) -> usize {
             }
             met.iter()
                 .enumerate()
-                .any(|(i, p)| met[i + 1..].iter().any(|q| (*p - *q).norm() == 0.0))
+                .any(|(i, p)| met[i + 1..].iter().any(|q| p.equals_exactly(*q)))
         })
         .count()
 }

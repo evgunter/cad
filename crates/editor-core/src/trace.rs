@@ -546,8 +546,7 @@ fn ray_to<T: Decide>(
     let crossings = kernel::ray_crossings(
         surface,
         face.sense,
-        origin,
-        dir,
+        &geom::Ray::new(origin, dir),
         reach_of(face, origin).map_err(TraceStepFault::Uncovered)?,
         band,
     )
@@ -669,9 +668,13 @@ pub fn trace_marks(
             let origin = face.sketch_to_body.transform_point(lift(from));
             let dir = face.sketch_to_body.transform_vec(lift_vec(heading));
             let reach = reach_of(face, origin).map_err(TraceStepFault::Uncovered)?;
-            let Ok(crossings) =
-                kernel::ray_crossings(surface, face.sense, origin, dir, reach, band)
-            else {
+            let Ok(crossings) = kernel::ray_crossings(
+                surface,
+                face.sense,
+                &geom::Ray::new(origin, dir),
+                reach,
+                band,
+            ) else {
                 out.refused += 1;
                 continue;
             };

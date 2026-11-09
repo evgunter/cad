@@ -9040,7 +9040,10 @@ pub(crate) fn point_corners<T: Decide>(
 /// **The normal check 9 reads a corner's wedge about**: `face_key`'s
 /// outward normal at `vertex`'s point
 /// ([`crate::face_normal::face_outward_normal_at`]); `None` where that
-/// door gives none there (`pinch_corner_errors`' residue).
+/// door gives none there (`pinch_corner_errors`' residue), a vertex the
+/// door reads off the face's surface among them: that is check 3's
+/// finding, and a caller that needs the normal refuses its absence
+/// (`splitting::section_cones`).
 ///
 /// # Errors
 ///
@@ -14924,7 +14927,7 @@ mod tests {
     ) {
         let e = body.get_edge(edge).unwrap().clone();
         let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
-        assert!(s.distance(t) == 0.0, "a closed edge");
+        assert!(s.equals_exactly(t), "a closed edge");
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
         let carrier = geom::Curve3::Circle(geom::Circle {
@@ -16488,7 +16491,7 @@ mod tests {
                 .iter()
                 .find(|(_, e)| {
                     edge_endpoints(&body, e.he_plus).is_some_and(|(a, b)| {
-                        let same = |x: Point3<f64>, y: Point3<f64>| (x - y).norm() == 0.0;
+                        let same = |x: Point3<f64>, y: Point3<f64>| x.equals_exactly(y);
                         (same(a, from) && same(b, to)) || (same(a, to) && same(b, from))
                     })
                 })

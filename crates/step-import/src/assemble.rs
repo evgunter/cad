@@ -44,7 +44,7 @@
 //! Planting skips a coincident anchor and refuses when the scan
 //! exhausts them; the self-loop's strut has a single candidate
 //! endpoint and refuses as soon as it turns out to be the vertex
-//! again (`coincide`, `strut_endpoint`).
+//! again (`strut_endpoint`).
 //!
 //! All phase-A geometry is the operators' own chord/self-loop
 //! scaffolding sugar (`mev_line` / `mef_chord` / `mekr_chord`); every
@@ -78,47 +78,6 @@ use geom_core::{FileCoincidence, Tol};
 /// endpoint beside an existing vertex ([`strut_endpoint`]).
 const STRUT_OFFSET: f64 = 1.0;
 
-/// Two scaffold endpoints are the same point — the state no strut may
-/// be minted in, at either mint site.
-///
-/// A scaffold strut is a `mev_line` chord between two points, and a
-/// chord whose endpoints coincide has no direction to certify
-/// against. The pair is therefore checked before the mint rather than
-/// left to the operator's certificate, which refuses in the kernel's
-/// vocabulary about carriers where the reader owes one about the
-/// file.
-///
-/// VALUE equality on all three components, because the carrier is
-/// built from the difference and the question is exactly whether
-/// that difference is zero. Three consequences, each with where it
-/// is decided:
-///
-/// * `0.0` and `-0.0` are one point. A parsed coordinate is never
-///   `-0.0` — [`crate::signed_zero`] owns that argument and
-///   `entities::as_real` flushes every literal at the read — so this
-///   is not the case the change is FOR; it is what the question
-///   being asked implies, and a predicate that answered it the other
-///   way would be answering a different question.
-/// * A coordinate that is not a number cannot arrive: a Part 21 real
-///   token is `+`, `-` or a digit followed by digits, `.` and an
-///   exponent (`Parser::value`), so `NaN` has no spelling to be
-///   lexed from. `==`'s one gap is therefore closed upstream rather
-///   than here.
-/// * An infinity DOES have a spelling — `1E999` parses to one, and
-///   nothing on the read path rejects it — and two equal infinities
-///   compare equal here, which is the answer that makes
-///   [`strut_endpoint`] withhold a strut at one.
-///
-/// **Exact, not toleranced**, though `Tol` is in scope at both call
-/// sites. The certificate a scaffold chord has to pass refuses a
-/// zero-span parameter interval, not a short one; asking `tol` here
-/// would refuse struts the operators accept, and would answer a
-/// different question (is this scaffold USEFUL) than the one the two
-/// sites share (can this chord be certified at all).
-fn coincide(a: geom_core::Point3<f64>, b: geom_core::Point3<f64>) -> bool {
-    a.x == b.x && a.y == b.y && a.z == b.z
-}
-
 /// The far endpoint of the temporary strut minted beside `p`, or
 /// `None` where that point would BE `p`.
 ///
@@ -144,9 +103,22 @@ fn coincide(a: geom_core::Point3<f64>, b: geom_core::Point3<f64>) -> bool {
 /// The reader takes untrusted coordinates, so the sum is checked
 /// rather than assumed: the caller refuses, which is the same
 /// standing [`Builder::plant`] gives the same state.
+///
+/// **A strut whose endpoints are one point** has no direction to
+/// certify: a `mev_line` chord is built from their difference, so the
+/// pair is checked before the mint, here and at the anchor scan, rather
+/// than left to the operator's certificate, which refuses in the
+/// kernel's vocabulary where the reader owes one about the file. The
+/// question is whether the difference is zero, so it is
+/// [`geom_core::Point3::equals_exactly`]: `0.0` and `-0.0` are one point
+/// (a parsed coordinate is never `-0.0`, [`crate::signed_zero`]), and a
+/// NaN cannot arrive (a Part 21 real token has no spelling for one).
+/// An infinity can (`1E999`), and two equal infinities are one point,
+/// which withholds the strut. It is exact, not toleranced: the
+/// certificate refuses a zero-span chord, not a short one.
 fn strut_endpoint(p: geom_core::Point3<f64>) -> Option<geom_core::Point3<f64>> {
     let offset = geom_core::Point3::new(p.x + STRUT_OFFSET, p.y, p.z);
-    (!coincide(offset, p)).then_some(offset)
+    (!offset.equals_exactly(p)).then_some(offset)
 }
 
 /// One edge-use in the flattened target complex.
@@ -675,11 +647,11 @@ impl<'a> Builder<'a> {
     fn plant(&mut self, edge_id: u64, vertex_id: u64, tol: Tol) -> Result<(), StepImportError> {
         let p = self.solid.vertices[&vertex_id];
         // Deterministic anchor scan: the first realized use whose
-        // start position differs from `p` ([`coincide`]).
+        // start position differs from `p` ([`strut_endpoint`]'s docs).
         for i in 0..self.use_he.len() {
             let Some(he) = self.use_he[i] else { continue };
             let anchor_pos = self.solid.vertices[&self.target.start_vertex[i]];
-            if coincide(anchor_pos, p) {
+            if anchor_pos.equals_exactly(p) {
                 continue;
             }
             let strut = self
@@ -1042,7 +1014,7 @@ mod tests {
         let minted = strut_endpoint(ordinary).expect("an ordinary coordinate mints a strut");
         assert_eq!(minted.x, 4.0, "the offset is absolute and along +x");
         assert_eq!((minted.y, minted.z), (ordinary.y, ordinary.z));
-        assert!(!coincide(minted, ordinary));
+        assert!(!minted.equals_exactly(ordinary));
 
         // `true` means the strut is MINTED at that coordinate. The
         // two tie bands are sampled on both parities, and each band's
@@ -1086,23 +1058,6 @@ mod tests {
                 if mints { "be minted" } else { "be withheld" }
             );
         }
-    }
-
-    /// Coincidence is the question "is this chord zero-length", asked
-    /// on all three components: a difference in any one of them is a
-    /// strut with a direction, and the two spellings of zero are one
-    /// point.
-    #[test]
-    fn scaffold_coincidence_is_all_three_components() {
-        let p = Point3::new(1.0, 2.0, 3.0);
-        assert!(coincide(p, p));
-        assert!(!coincide(p, Point3::new(1.0, 2.0, 3.000_000_000_000_001)));
-        assert!(!coincide(p, Point3::new(1.0, 2.000_000_000_000_001, 3.0)));
-        assert!(!coincide(p, Point3::new(1.000_000_000_000_000_2, 2.0, 3.0)));
-        assert!(
-            coincide(Point3::new(0.0, 0.0, 0.0), Point3::new(-0.0, -0.0, -0.0)),
-            "a chord between the two spellings of the origin is still zero-length"
-        );
     }
 
     /// **The site, not the rule.** Drives `insert_selfloop_tied` with

@@ -2637,7 +2637,7 @@ mod tests {
                     pair: got,
                     witness: w,
                 },
-            )) => assert!(got == pair && w.distance(witness) == 0.0, "{got:?} {w:?}"),
+            )) => assert!(got == pair && w.equals_exactly(witness), "{got:?} {w:?}"),
             other => panic!("jet-determinate must be the intrinsic tangency: {other:?}"),
         }
         assert!(matches!(
