@@ -1033,3 +1033,13 @@
 - 15:50Z PR 6644 FULL: MERGE (Interval: only the lane's own rows Escalated→On; pins red without the snap). The main merge had a semantic conflict (6643's lone-vertex test read split.above; whole_body_side now returns a tuple) → adapted (a7fc0ad5); build, gates, fmt and 6348 tests clean; gating. Follow-ups F1 (within_span decides on the witness t), F2 (Dual<Interval> tangent), F3 (carry pin and comment at the site, non-manifold row), F4 (a RawSplit constructor) → foot-and-pinch lane.
 - 15:50Z boolean-standing-2 opened PR 6652 (44e11428) → FULL review with session_013mPGJ3tP1vesXb7WfFmp5N.
 - 15:50Z Gates green: 6642 (b53f4003), 6651 (da16dbf0); both wait on their reviews.
+- 16:05Z Merged PR 6638 (transverse-range) at gate-green f6869d0d → 89d5ff7b. Delta MERGE; disjoint; merge check clean. 6642 retargeted onto main.
+- 16:05Z PR 6645 FULL: MERGE.
+  - Narrow "tighter, never lower" to point and rounding-width boxes; one sphere aim fell by an ulp.
+  - Q1: containment's arc_distance_floor and ring_path's ConicArc::distance_floor are older second homes of a point's distance from an arc. Plus 5 line-only foot-norm spellings and a second closed-form kind list beside foot_is_nearest.
+  - Main overlapped → merged main (3d1ea180); build, gates and geom+topo 4306 clean; re-gating. Follow-ups → census lane.
+- 16:05Z 6632 green at afccf6d9 but overlapped 6638's census.rs → merged main (f1fb3d42); build, gates and census rows clean; re-gating.
+- 16:05Z New PRs and reviews:
+  - 6649 first-vertex-reads (59d52602, gate green): loop_side::inside_at_every_vertex at read_cycle and ring_nesting, cost −0.8% → FULL with session_013mPGJ3BVt7iJw5XModx26D.
+  - 6651 review: FIX on the row only. Split read_cycle (a validator, taken by 6649) from the construction sites parked on 6592; the self-contradiction; pin doc → lane.
+  - 6637 second fix at d9387e40 (LineUnread::NoReference limit; clears Zero in band; tally split) → third small delta; gating.
