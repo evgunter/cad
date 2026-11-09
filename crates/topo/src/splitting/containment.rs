@@ -2123,11 +2123,8 @@ fn conic_crossings<T: Decide>(
     };
     let mut crossings = 0;
     for (root, y) in roots {
-        match decide(
-            "point_in_arc_loop_conic_advance",
-            Margin::of((y - q).dot(d)),
-            band,
-        )? {
+        let advance = Margin::of((y - q).dot(d));
+        match decide("point_in_arc_loop_conic_advance", advance, band)? {
             Sign::Positive => {}
             Sign::Negative => continue,
             Sign::Zero if on_carrier => continue,
