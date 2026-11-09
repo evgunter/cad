@@ -58,14 +58,8 @@ struct RimInputs {
 
 fn rim_inputs(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> RimInputs {
     let wall = face_across(body, edge, cap);
-    let s_cap = body
-        .get_surface(body.get_face(cap).unwrap().surface)
-        .unwrap()
-        .clone();
-    let s_wall = body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let s_cap = body.face_surface(cap).unwrap().clone();
+    let s_wall = body.face_surface(wall).unwrap().clone();
     let curve = body
         .get_curve_geom(body.get_edge(edge).unwrap().curve)
         .unwrap()
@@ -431,10 +425,7 @@ fn only_line_walls_carry_the_admitted_tilt() {
     .expect("an admitted tilt extrudes");
     let (mut cylinders, mut tilted_planes) = (0usize, 0usize);
     for &face in built.side_faces().iter().flatten() {
-        let surface = built
-            .body
-            .get_surface(built.body.get_face(face).unwrap().surface)
-            .unwrap();
+        let surface = built.body.face_surface(face).unwrap();
         match surface {
             geom::Surface::Cylinder { axis, .. } => {
                 cylinders += 1;

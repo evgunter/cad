@@ -1108,11 +1108,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 ) -> Result<RimPlan<'a, T>, BlendError> {
     let link0 = chain.first();
     let is_plane = |f: FaceKey| -> Option<bool> {
-        let fd = body.get_face(f)?;
-        Some(matches!(
-            body.get_surface(fd.surface)?,
-            Surface::Plane { .. }
-        ))
+        Some(matches!(body.face_surface(f)?, Surface::Plane { .. }))
     };
     for link in chain.links() {
         if !link.arm.is_coaxial_torus() {
@@ -2286,7 +2282,7 @@ pub(super) fn strip_frame<T: Decide>(
     face: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>, T), BlendError> {
     let mid = certified_curve(body, l.edge)?.mid_point();
-    let (origin, _) = open_trimline(l, face)?;
+    let origin = open_trimline(l, face)?.origin;
     let m = (origin - mid).normalize();
     Ok((origin, m, (origin - mid).dot(m)))
 }
@@ -2442,7 +2438,10 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
 }
 
 /// **How low and how high one boundary piece reaches along a unit
-/// direction `u`**: `(low, high)` with `low ≤ (p − c)·u ≤ high` for
+/// direction `u`**. This is a support function, linear in `u`, and not
+/// `geom::Line::height`: the ellipse arm below calls
+/// [`ArcReads::arc_along`] with a lifted direction that is not unit, and
+/// relies on that linearity. `(low, high)` with `low ≤ (p − c)·u ≤ high` for
 /// every point `p` of `carrier` over the window `(ta, tb)`, in closed
 /// form; `None` for a carrier with no closed form here. A linear
 /// function is extreme at a segment's ends; on a CIRCLE it is
@@ -2492,7 +2491,7 @@ trait ArcReads<T: Real> {
     /// How near and how far the arc over `(ta, tb)` comes to `c`.
     fn arc_distance(&self, window: (T, T), c: Point3<T>) -> (T, T);
     /// How low and how high the arc over `(ta, tb)` reaches along `u`
-    /// from `c`.
+    /// from `c`: `(p − c)·u`, linear in `u`, which need not be unit.
     fn arc_along(&self, window: (T, T), c: Point3<T>, u: Vec3<T>) -> (T, T);
 }
 
@@ -2829,13 +2828,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     } in slivers
     {
         let fd = body
-            .get_face(s.cap)
+            .face(s.cap)
             .ok_or_else(|| unresolved(EntityId::Face(s.cap), "a cut-off's end face"))?;
         let decision = BlendDecision::RingClearance;
-        for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let lone = body
-                .get_loop(lp)
-                .ok_or_else(|| unresolved(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
+        for (lp, lone, _) in fd.loops() {
             if let topo::LoopBoundary::Empty { .. } = lone.boundary {
                 return Err(scaffolding(
                     EntityId::Loop(lp),
@@ -3120,21 +3116,23 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         let fd = body
             .get_face(face)
             .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
+        let surface = body
+            .face_surface(face)
+            .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
         // The latitude function: `None` the distance from the trim
         // centre, `Some(axis)` the height along the axis.
-        let direction = match body.get_surface(fd.surface) {
-            Some(Surface::Plane { .. }) => None,
-            Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
+        let direction = match surface {
+            Surface::Plane { .. } => None,
+            Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
                 Some(rim_circle.frame.axis)
             }
-            Some(_) => {
+            _ => {
                 return Err(unbuilt_geometry(
                     EntityId::Face(face),
                     "a rim's support is not a plane, cylinder, cone or sphere, whose \
                      latitudes the support-boundary meter reads",
                 ));
             }
-            None => return Err(unresolved(EntityId::Face(face), "a rim support's surface")),
         };
         // The latitude function's range over one piece, and whether that
         // range is a bound rather than the piece's own.
@@ -3260,11 +3258,10 @@ fn co_requested_trim<T: Decide>(
         .map(AdmittedOpen::link)
         .find(|l| l.edge == edge)
     {
-        let (origin, dir) = open_trimline(l, face)?;
-        let line = geom::Line { origin, dir };
+        let line = open_trimline(l, face)?;
         let at = |p: Point3<T>| line.param(p);
         let window = (at(stored.eval(ta)), at(stored.eval(tb)));
-        return Ok(Some((Curve3::Line(geom::Line { origin, dir }), window)));
+        return Ok(Some((Curve3::Line(line), window)));
     }
     if let Some(l) = rims
         .iter()
@@ -3277,16 +3274,16 @@ fn co_requested_trim<T: Decide>(
     Ok(None)
 }
 
-/// **An open link's trimline on its support `face`**, as the line's
-/// `(origin, dir)`. Every open band's trims are lines
+/// **An open link's trimline on its support `face`**, as its line.
+/// Every open band's trims are lines
 /// (`arms::plane_plane_blend` and the ruled arms mint them so), and
 /// one that is not refuses here rather than being read as one.
 pub(super) fn open_trimline<T: Real>(
     l: &Link<T>,
     face: FaceKey,
-) -> Result<(Point3<T>, Vec3<T>), BlendError> {
+) -> Result<geom::Line<T>, BlendError> {
     match l.trim_on(face) {
-        Some((Curve3::Line(geom::Line { origin, dir }), _)) => Ok((*origin, *dir)),
+        Some((Curve3::Line(line), _)) => Ok(*line),
         Some(_) => Err(unbuilt_geometry(
             EntityId::Edge(l.edge),
             "an open link's trimline is not a line",
@@ -4347,10 +4344,10 @@ pub(super) fn chord_site<T: Decide>(
     fwd: usize,
 ) -> Result<(HalfEdgeKey, HalfEdgeKey, VertexKey, VertexKey), BlendError> {
     let fd = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face whose cycle a chord spans"))?;
     let mut carrying = Vec::with_capacity(1);
-    for &lp in core::iter::once(&fd.outer).chain(fd.rings.iter()) {
+    for (lp, _, _) in fd.loops() {
         let walk = loop_walk(body, lp).ok_or_else(|| {
             unwalked(
                 EntityId::Loop(lp),

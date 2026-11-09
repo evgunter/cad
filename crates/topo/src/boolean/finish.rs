@@ -446,7 +446,7 @@ fn section_boundary<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<HalfEdgeKey>, BooleanError> {
-    let f = body.passed_face(face).ok_or(BooleanError::JoinDesync {
+    let f = body.face(face).ok_or(BooleanError::JoinDesync {
         what: "a section face no longer resolves",
     })?;
     Ok(f.boundary()
@@ -604,7 +604,7 @@ fn section_loops<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, BooleanError> {
-    let f = body.passed_face(face).ok_or(BooleanError::JoinDesync {
+    let f = body.face(face).ok_or(BooleanError::JoinDesync {
         what: "a section face no longer resolves",
     })?;
     Ok(f.boundary_by_loop()

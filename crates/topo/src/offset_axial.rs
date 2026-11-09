@@ -541,7 +541,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         };
         for &face in &m.faces {
             let data = body
-                .passed_face(face)
+                .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
             let old = data.surface().clone();
             let new = geom_brep::offset_surface(&old, d, band)
@@ -713,15 +713,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             chart_of(fa).unwrap_or_else(|| unmoved_in_scope(fa)),
             chart_of(fb).unwrap_or_else(|| unmoved_in_scope(fb)),
         );
-        let start = linked(
-            &body.half_edges,
-            edge_data.he_plus,
-            EntityId::HalfEdge,
-            EntityId::Edge(edge),
-            "he_plus",
-        )
-        .start;
-        let end = body.proven_half_edge_end(edge_data.he_plus);
+        let (start, end) = crate::query::edge_ends(body, edge);
         let (p_start, p_end) = (
             point_at(start).unwrap_or_else(|| unplaced_in_scope(start)),
             point_at(end).unwrap_or_else(|| unplaced_in_scope(end)),
@@ -1027,20 +1019,20 @@ fn axial_frame<T: Real>(
         .find(|(k, _)| scope.holds_face(*k))
         .map(|(k, _)| k)
         .ok_or(ReplaceFaceError::EmptyGroup)?;
-    let mut seed: Option<(Point3<T>, Vec3<T>)> = None;
+    let mut seed: Option<geom::Line<T>> = None;
     for f in body.face_views() {
         let face = f.key();
         if !scope.holds_face(face) {
             continue;
         }
         let found = match f.surface() {
-            Surface::Cylinder { origin, axis, .. } => Some((*origin, axis.normalize())),
-            Surface::Cone { apex, axis, .. } => Some((*apex, axis.normalize())),
-            Surface::Sphere { center, axis, .. } => Some((*center, axis.normalize())),
             // A torus carries `center` + `axis` exactly as a sphere
             // does: the centre is the tube midplane's own point on the
             // axis, and the axis is the revolution axis itself.
-            Surface::Torus { center, axis, .. } => Some((*center, axis.normalize())),
+            surface @ (Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }) => surface.axis_line().map(geom::Line::unit),
             Surface::Plane { .. } => None,
             other => {
                 return Err(ReplaceFaceError::TogetherAxialUnsupported {
@@ -1054,7 +1046,7 @@ fn axial_frame<T: Real>(
             break;
         }
     }
-    let (seed_origin, dir) = seed.ok_or(ReplaceFaceError::TogetherAxialUnsupported {
+    let seed = seed.ok_or(ReplaceFaceError::TogetherAxialUnsupported {
         face: first,
         kind: SurfaceKind::Plane,
     })?;
@@ -1067,11 +1059,7 @@ fn axial_frame<T: Real>(
     // station of `0.2` came back `0.19999999999999996` purely from
     // subtracting and re-adding `2.0`. Measured on the byte-dump
     // harness, which now reports the curved fixtures unchanged.
-    let origin = geom::Line {
-        origin: seed_origin,
-        dir,
-    }
-    .foot(Point3::origin());
+    let (origin, dir) = (seed.foot(Point3::origin()), seed.dir);
     // The extent is the SCOPE's own furthest vertex from the axis
     // point: the length a direction error would move a corner by, which
     // is the geometry every alignment verdict here is about. A box
@@ -1342,7 +1330,7 @@ fn solve_corner<T: Decide>(
 
     let h_old = frame.station(here);
     let radial_old = frame.radial(here);
-    let rho_old = radial_old.norm();
+    let (e_old, rho_old) = radial_old.direction_and_length();
     let mut profiles: Vec<Profile<T>> = Vec::new();
     let mut meridians: Vec<(Vec3<T>, T)> = Vec::new();
     for c in at {
@@ -1609,7 +1597,6 @@ fn solve_corner<T: Decide>(
         }
         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
     }
-    let e_old = radial_old / rho_old;
     match meridians[..] {
         // Carried: the seam's azimuth is the operand's own conventional
         // datum (D2). Carrying it is what makes an unmoved corner come
@@ -2188,7 +2175,7 @@ fn mint_carrier<T: Decide>(
             // own motion is not one.
             (Surface::Cylinder { .. }, Curve3::Line(geom::Line { origin, .. })) => {
                 let e = frame.radial(*origin);
-                let n = e.norm();
+                let (e_hat, n) = e.direction_and_length();
                 match decide("offset_axial_seam_radial", Margin::of(n), band) {
                     Ok(Sign::Positive) => {}
                     Ok(_) => {
@@ -2199,7 +2186,7 @@ fn mint_carrier<T: Decide>(
                     }
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-                translate(e.normalize() * ca.distance)
+                translate(e_hat * ca.distance)
             }
             // A sphere's seam is a GREAT circle about the sphere's own
             // centre, and the offset is concentric: same centre, same
@@ -3176,7 +3163,10 @@ fn reauthor<T: Decide>(
                 azimuth_turn(
                     name,
                     read(theta, moved).z,
-                    (axis_origin, axis_dir),
+                    geom::Line {
+                        origin: axis_origin,
+                        dir: axis_dir,
+                    },
                     mapped.eval(s),
                     moved,
                     band,
@@ -3235,7 +3225,7 @@ fn reauthor<T: Decide>(
 fn azimuth_turn<T: Decide>(
     name: &'static str,
     off: T,
-    (origin, dir): (Point3<T>, Vec3<T>),
+    geom::Line { origin, dir }: geom::Line<T>,
     old: Point3<T>,
     moved: Point3<T>,
     band: Band,

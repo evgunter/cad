@@ -226,14 +226,14 @@ impl From<CarrierAbsence> for ReadbackError {
 }
 
 /// **A face's carrier surface, as the read-back doors refuse it**:
-/// [`Body::passed_face`]'s [`crate::live::FaceView::surface`], its one refusal (a stale face key) spelled
+/// [`Body::face`]'s [`crate::live::FaceView::surface`], its one refusal (a stale face key) spelled
 /// [`ReadbackError::Dangling`], with the surface's key and the face's
 /// orientation sense read off the record beside it.
 pub(crate) fn carrier_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(SurfaceKey, &Surface<T>, bool), ReadbackError> {
-    let f = body.passed_face(face).ok_or(ReadbackError::Dangling {
+    let f = body.face(face).ok_or(ReadbackError::Dangling {
         what: EntityId::Face(face),
     })?;
     Ok((f.record().surface, f.surface(), f.sense()))

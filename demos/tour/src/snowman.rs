@@ -299,8 +299,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (rho, y) = roll_centre();
     assert!(!rolled.band_faces.is_empty(), "the fillet mints a band");
     for &f in &rolled.band_faces {
-        let face = rolled.body.get_face(f).expect("a band face");
-        match *rolled.body.get_surface(face.surface).expect("its surface") {
+        match *rolled.body.face_surface(f).expect("its surface") {
             Surface::Torus {
                 center,
                 axis,

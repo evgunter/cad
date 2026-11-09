@@ -165,10 +165,7 @@ fn the_waisted_body_against_its_copy_refuses_at_the_line_cone_lane() {
             panic!("{label}: {r:?}");
         };
         // Both operands are the one body, so either's keys read it.
-        let surface = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .cloned();
+        let surface = body.face_surface(face).cloned();
         let carrier = body
             .get_edge(edge)
             .and_then(|e| body.get_curve_geom(e.curve))

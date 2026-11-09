@@ -142,6 +142,26 @@ re-posing that empties a file lowers or drops its row in the same change.
   `curve_pair::pose`, `implicit` and `pair_section::spline_implicit`.
   These entered main before the gate did, so nothing ratcheted them.
 
+- 2026-11-09 — the gate derives its doors from `geom_core::running`'s
+  `pub` items (`onecopy/gate-blind-spots`), so the rows above now also
+  count `direction_rounding`, `exact_vec`, `unit_defect`, `running::dot`
+  and `cross`, `SHORT_CHAIN_ULPS` and `DIRECTION_UNITS`. The same charges
+  are now seen through doors the hand-spelled list missed:
+  `section_cert::ruling`, `implicit`, `pcurve_cache`, `props::curved`,
+  `geom::frame`, `geom::curves::conic`, `topo::vertex_section` (its
+  `direction_rounding` over the section's sine) and `conic_quadric::mod`
+  (a `direction_rounding` term). **New row**: `topo::boolean::fan`
+  (`pose`): `conditioned` reads `direction_rounding(arm)/s` against the
+  band to decide whether two fans' crossing is read. That is rounding
+  read as the zero of a pose, owed a decision at the band on `s` itself.
+  The same lane swept `rounding_charge` terms that grow with distance
+  from the world origin. Each hit is already scheduled, here or under
+  the far-centre row: `curve_face::circle_torus`'s centre term
+  (`(C − O) + (c − O) + R`, beside its harmonic rung), `implicit`'s
+  `sample_rounding`, `profile::seg`'s `reach(q) + reach(centre)`, and
+  `curve_pair::pose`'s `one_curve_gap`. `conic_conic`'s `noise` is filed
+  as `work/onecopy/transverse-range-charges-the-global-height-with-world-origin-noise.md`.
+
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.

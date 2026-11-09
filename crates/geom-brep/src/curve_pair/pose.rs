@@ -96,7 +96,7 @@
 //!   `(A² − c₀²)/r²`, `r` its larger semi-axis, which is the squared
 //!   sine of its crossing for a circle. That is a choice between two
 //!   sound readings, not a reading: it is taken off the log
-//!   (`curve_pair_pose_across`, `k_stats::check_unlogged`, ledger row
+//!   (`curve_pair_pose_across`, `k_stats::choose`, ledger row
 //!   F33, at [`Band::least`]), and a tie or an undecided difference
 //!   reads the first. **What is order-free**: the route (apart, level,
 //!   across, escalation) depends only on the pair, and across planes
@@ -389,7 +389,7 @@
 mod window;
 
 use geom::{Azimuth, Curve3, CurveKind};
-use geom_core::k_stats::{check_unlogged, decide, straddle};
+use geom_core::k_stats::{Pick, choose, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
@@ -603,10 +603,10 @@ fn swapped<T: geom_core::Real>(pose: Pose<T>) -> Pose<T> {
     }
 }
 
-/// A line carrier's origin and direction.
-fn line_of<T: Decide>(c: &Curve3<T>) -> Result<(Point3<T>, Vec3<T>), MeetFault> {
+/// A line carrier's line.
+fn line_of<T: Decide>(c: &Curve3<T>) -> Result<geom::Line<T>, MeetFault> {
     match *c {
-        Curve3::Line(geom::Line { origin, dir }) => Ok((origin, dir)),
+        Curve3::Line(line) => Ok(line),
         Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
             Err(MeetFault::Desync)
         }
@@ -637,11 +637,6 @@ fn conic_of<T: Decide>(c: &Curve3<T>) -> Result<&dyn Conic<T>, MeetFault> {
 fn reach<T: Decide>(s: &Span<'_, T>) -> T {
     let (t0, t1) = s.params();
     Margin::metered_sup((t1 - t0).abs(), s.speeds().1).value()
-}
-
-/// The parameter of `q`'s foot on the line ([`geom::Line::param`]).
-fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
-    geom::Line { origin, dir }.param(q)
 }
 
 /// A lower bound on `q`'s distance from the carrier
@@ -751,7 +746,7 @@ fn witnesses<T: Decide>(
 /// A carrier the polish reads: a line, or a conic's frame.
 #[derive(Clone, Copy)]
 enum Side<'k, T: geom_core::Real> {
-    Line((Point3<T>, Vec3<T>)),
+    Line(geom::Line<T>),
     Conic(&'k dyn Conic<T>),
 }
 
@@ -760,7 +755,7 @@ impl<T: Decide> Side<'_, T> {
     /// [`Curve3::ders1`].
     fn ders(self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Self::Line((origin, dir)) => Curve3::Line(geom::Line { origin, dir }).ders1(t),
+            Self::Line(line) => Curve3::Line(line).ders1(t),
             Self::Conic(k) => k.jet_at(t),
         }
     }
@@ -769,7 +764,7 @@ impl<T: Decide> Side<'_, T> {
     /// `t1`: their difference at its greatest speed.
     fn run(self, t0: T, t1: T) -> T {
         let speed = match self {
-            Self::Line((_, dir)) => dir.norm(),
+            Self::Line(line) => line.dir.norm(),
             Self::Conic(k) => k.speed_hi(),
         };
         (t1 - t0).abs() * speed
@@ -865,9 +860,14 @@ fn ends<T: Decide>((p0, p1): Ends<T>) -> T {
     (p0 - Point3::origin()).norm() + (p1 - Point3::origin()).norm()
 }
 
-/// The projection of a line span's two ends on the line `(o, u)`, `u` a
-/// unit: their distances along it from `o`.
-fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), (p0, p1): Ends<T>) -> (T, T) {
+/// The projection of a line span's two ends on `line`: their distances
+/// along it from its origin. Its one caller, `line_conic`, hands it the
+/// line with its direction already normalised (`unit`), so the dot is
+/// the metres and is not divided again as [`geom::Line::height`] would.
+fn on_line<T: Decide>(
+    geom::Line { origin: o, dir: u }: geom::Line<T>,
+    (p0, p1): Ends<T>,
+) -> (T, T) {
     ((p0 - o).dot(u), (p1 - o).dot(u))
 }
 
@@ -947,15 +947,13 @@ fn route<T: Decide>(
 /// of the other's carrier. A line's distance from another is affine in
 /// its parameter, so its ends bound it over the span.
 fn one_line<T: Decide>(
-    (a, la): (Ends<T>, (Point3<T>, Vec3<T>)),
-    (b, lb): (Ends<T>, (Point3<T>, Vec3<T>)),
+    (a, la): (Ends<T>, geom::Line<T>),
+    (b, lb): (Ends<T>, geom::Line<T>),
     band: Band,
 ) -> Result<bool, MeetFault> {
-    let off =
-        |(origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>| geom::Line { origin, dir }.distance(q);
     for ((p0, p1), other) in [(a, lb), (b, la)] {
         for q in [p0, p1] {
-            if definite(row::OFFSET, Margin::of(off(other, q)), band)? {
+            if definite(row::OFFSET, Margin::of(other.distance(q)), band)? {
                 return Ok(false);
             }
         }
@@ -970,7 +968,16 @@ fn line_line<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (la, lb) = (line_of(a.carrier())?, line_of(b.carrier())?);
-    let ((o1, d1), (o2, d2)) = (la, lb);
+    let (
+        geom::Line {
+            origin: o1,
+            dir: d1,
+        },
+        geom::Line {
+            origin: o2,
+            dir: d2,
+        },
+    ) = (la, lb);
     let (u1, u2) = (d1.normalize(), d2.normalize());
     let n = u1.cross(u2);
     let s = n.norm();
@@ -980,17 +987,23 @@ fn line_line<T: Decide>(
     // origin makes far larger than the end's own distance
     // (`geom_core::one_line`, "The charge").
     let (ends_a, ends_b) = (line_ends(a)?, line_ends(b)?);
-    let produced = |(o, d): (Point3<T>, Vec3<T>), s: &Span<'_, T>| {
+    let produced = |geom::Line { origin: o, dir: d }: geom::Line<T>, s: &Span<'_, T>| {
         let (t0, t1) = s.params();
         (o - Point3::origin()).norm() * T::from_f64(2.0) + d.norm() * (t0.abs() + t1.abs())
     };
     let (a0, _) = ends_a;
     let at = on_one_line(u1, ends_a, ends_b, produced(la, a) + produced(lb, b));
-    let off = geom::Line {
-        origin: o2,
-        dir: u2,
-    }
-    .distance(a0 + u1 * at.mid());
+    let (unit1, unit2) = (
+        geom::Line {
+            origin: o1,
+            dir: u1,
+        },
+        geom::Line {
+            origin: o2,
+            dir: u2,
+        },
+    );
+    let off = unit2.distance(a0 + u1 * at.mid());
     let lever = reach(a).max(reach(b));
     // Unsourced lever: the longer span's arc length bounded through its
     // sup speed (`reach`), a metered span; the extent home's read of the
@@ -1005,8 +1018,8 @@ fn line_line<T: Decide>(
         let point = o1 + u1 * along;
         Pose::Generic(vec![Candidate {
             point,
-            ta: line_foot(la, point),
-            tb: line_foot(lb, point),
+            ta: la.param(point),
+            tb: lb.param(point),
             bound: None,
         }])
     };
@@ -1014,12 +1027,10 @@ fn line_line<T: Decide>(
         Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
-        Route::Level if one_line((ends_a, (o1, u1)), (ends_b, (o2, u2)), band)? => {
-            Ok(Pose::Coincident {
-                sense: sense(u1.dot(u2), arm, band)?,
-                witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
-            })
-        }
+        Route::Level if one_line((ends_a, unit1), (ends_b, unit2), band)? => Ok(Pose::Coincident {
+            sense: sense(u1.dot(u2), arm, band)?,
+            witnesses: witnesses(a, b, &|q| la.param(q), &|q| lb.param(q)),
+        }),
         // Level where they can meet but apart past the band along a span:
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
@@ -1037,8 +1048,9 @@ fn line_conic<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let line = line_of(a.carrier())?;
     let k = conic_of(b.carrier())?;
-    let (o, d) = line;
+    let geom::Line { origin: o, dir: d } = line;
     let u = d.normalize();
+    let unit = geom::Line { origin: o, dir: u };
     let n = k.frame().axis;
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
@@ -1061,7 +1073,7 @@ fn line_conic<T: Decide>(
     // span's start would charge both ends' evaluation, twice as many
     // (`work/cpair/the-line-conic-router-reads-its-projections-from-the-lines-carrier-origin`).
     let at = OnOneLine::of(
-        on_line((o, u), ends_a),
+        on_line(unit, ends_a),
         (c - k.speed_hi(), c + k.speed_hi()),
         screened,
     );
@@ -1078,7 +1090,7 @@ fn line_conic<T: Decide>(
             let polish = Polish {
                 a: Side::Line(line),
                 b: Side::Conic(&k),
-                start: (line_foot(line, point), foot(b, point)),
+                start: (line.param(point), foot(b, point)),
                 reach: e / den.abs(),
                 clear: clearance(b.carrier(), point),
                 lever: arm,
@@ -1108,7 +1120,7 @@ fn line_conic<T: Decide>(
         let point = k.point_at(theta);
         Candidate {
             point,
-            ta: line_foot(line, point),
+            ta: line.param(point),
             tb: theta,
             bound: None,
         }
@@ -1200,7 +1212,17 @@ fn conic_conic<T: Decide>(
             (swing.powi(2) - c0.powi(2)) / p.abs().max(q.abs()).powi(2)
         };
         let by_b = steep(hb, swing_b, &kb) - steep(ha, swing_a, &ka);
-        if check_unlogged(row::ACROSS, by_b, Band::least(), "F33") == Ok(Sign::Positive) {
+        // Which conic to read across the other's plane: a heuristic's
+        // choice (ledger row F33). **At a tie the first is read**: either
+        // reading is sound there, each deciding or escalating on its own
+        // rows, and the window certifies a tangent pair's touch either way;
+        // the difference is antisymmetric bit for bit, so at `f64` only an
+        // exact zero reads by argument order.
+        let across_b = match choose(row::ACROSS, Margin::of(by_b), "F33") {
+            Pick::Positive => true,
+            Pick::Negative | Pick::Tie => false,
+        };
+        if across_b {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
             let read = transverse((b, &kb, &ka, a), hb, swing_b, (noise, arm), &flipped, band);
             return Ok(swapped(read?));

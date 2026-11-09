@@ -87,7 +87,7 @@
 //! escalates.
 
 use geom_core::bisect::{Step, bisect};
-use geom_core::k_stats::{check_unlogged, decide, decide_reported, straddle};
+use geom_core::k_stats::{Pick, choose, decide, decide_reported, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed,
 };
@@ -256,7 +256,8 @@ impl CarrierEscalation {
 }
 
 /// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
 pub enum PieceWalkRefusal {
     /// The walk ran past its budget.
     Exhausted,
@@ -288,16 +289,6 @@ impl PieceWalkRefusal {
             Self::Exhausted => "a spline's piece walk ran past its budget",
             Self::Unbounded => "a spline's speed bound is zero or poison",
         }
-    }
-
-    /// The refusal [`Self::sentence`] renders, where it is one, over every
-    /// variant ([`strum::VariantArray`]).
-    #[must_use]
-    pub fn of_sentence(sentence: &str) -> Option<Self> {
-        <Self as strum::VariantArray>::VARIANTS
-            .iter()
-            .copied()
-            .find(|why| why.sentence() == sentence)
     }
 }
 
@@ -365,9 +356,8 @@ impl<T: Decide> Curve3<T> {
     /// **The point-against-span piece walk**: `(t0, t1)` halved depth
     /// first ([`geom_core::bisect`]), each piece read against `q` as
     /// [`PieceRead`], with `hi` a bound on the carrier's speed. What a
-    /// reading settles is `visit`'s: the one walk behind
-    /// [`Self::clear_of`] and every other reading of a point against a
-    /// span by its pieces.
+    /// reading settles is `visit`'s: [`Self::clear_of`] is one, and
+    /// `geom_brep`'s window of a span near a member's ball is another.
     ///
     /// # Errors
     ///
@@ -434,7 +424,7 @@ impl<T: Decide> Curve3<T> {
         };
         let knots = n.knot_values();
         let (lo, hi) = knots.domain();
-        let breaks: Vec<T> = knots.runs().map(|(k, _)| k).collect();
+        let breaks: Vec<T> = knots.breakpoints().collect();
         let mut samples = vec![self.foot_at(q, lo)];
         for k in breaks.windows(2) {
             samples.extend(
@@ -582,7 +572,7 @@ impl<T: Decide> Curve3<T> {
     ) -> Result<Clearance, CarrierRefusal> {
         let hi = crate::carrier_speed::speed_range(self).1;
         if !geom_core::is_finite_length(hi.get())
-            || decide("curve_carrier_speed", Margin::of(hi.get()), Band::least())
+            || geom_core::k_stats::prove("curve_carrier_speed", Margin::of(hi.get()))
                 != Ok(Sign::Positive)
         {
             return Err(PieceWalkRefusal::Unbounded.into());
@@ -657,14 +647,17 @@ fn spline_starts<T: Decide>(samples: &[Foot<'_, T>]) -> Vec<usize> {
     starts
 }
 
-/// Whether `a` is decided smaller than `b`: a heuristic's choice, read
-/// on the least band so it takes the sign alone, and decided outside the
-/// log (ledger row F32). An undecided pick keeps the candidate already
-/// held, which can lie on another branch of a spline; no reader rests on
+/// Whether `a` is decided smaller than `b`: a heuristic's choice
+/// ([`geom_core::k_stats::choose`], ledger row F32). **At a tie the
+/// candidate already held is kept** (`a` is not smaller): sound because
+/// the pick can lie on another branch of a spline, and no reader rests on
 /// which, since a foot's parameter is read only where something
 /// certifies it ([`OnCarrier::On`], [`Foot::nearest`]).
 fn smaller<T: Decide>(a: T, b: T) -> bool {
-    check_unlogged("curve_foot_polish", b - a, Band::least(), "F32") == Ok(Sign::Positive)
+    match choose("curve_foot_polish", Margin::of(b - a), "F32") {
+        Pick::Positive => true,
+        Pick::Negative | Pick::Tie => false,
+    }
 }
 
 #[cfg(test)]

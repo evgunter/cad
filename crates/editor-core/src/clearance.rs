@@ -2045,8 +2045,7 @@ pub(crate) fn closest_pair(
     over: &topo::clearance::Enclosure<'_>,
 ) -> Result<GeometryWitness, String> {
     let surface_at = |body: &Body<f64>, face: FaceKey| -> Option<Surface<f64>> {
-        let f = body.get_face(face)?;
-        Some(body.get_surface(f.surface)?.clone())
+        body.face_surface(face).cloned()
     };
     let (Some(sa), Some(sb)) = (surface_at(bx, face_a), surface_at(by, face_b)) else {
         return Err(

@@ -80,19 +80,17 @@ pub fn tangent_jet<T: Real>(
 ) -> TangentJet<T> {
     let g1 = implicit_gradient(s1, p);
     let g2 = implicit_gradient(s2, p);
-    let n1 = g1.norm();
-    let n2 = g2.norm();
+    let ((n_hat, n1), (_, n2)) = (g1.direction_and_length(), g2.direction_and_length());
     let sin_theta = normal_sine(g1, g2);
     // The shared normal (s1's side) and the transverse in-tangent-plane
     // direction d̂ = n̂ × τ̂.
-    let n_hat = g1 / n1;
     let d = n_hat.cross(tangent.normalize());
     let d_hat = d.normalize();
     // κᵢ = σᵢ·d̂ᵀ(∇²Fᵢ)d̂ / |∇Fᵢ| (docs on `kappa_rel`), both spelled
     // alike so a surface against itself reads κ_rel = 0 exactly;
     // σ₁ = +1 because n̂ is ∇F₁'s own direction.
     let k1 = implicit_hessian_form(s1, p, d_hat) / n1;
-    let k2 = implicit_hessian_form(s2, p, d_hat) / n2 * T::one().copysign(g2.dot(n_hat));
+    let k2 = implicit_hessian_form(s2, p, d_hat) / n2 * g2.dot(n_hat).unit_sign();
     TangentJet {
         sin_theta,
         kappa_rel: k1 - k2,

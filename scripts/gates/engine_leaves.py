@@ -11,7 +11,8 @@ qualifiers declared inside an engine, and the constructs it refuses.
     engine_leaves.py BASELINE CARGO_TOML [--base BASE_BASELINE] [--lines FILE]
 
 Prints `ROSE kind file: was -> now (the file's counted sites: L…)`,
-`RAISED kind file: base -> pin` against `--base` (`raised`),
+`RAISED kind file: base -> pin` and `RAISED ambiguous NAME` against
+`--base` (`raised`), or `CITED …` for a rise its line's row admits,
 `FELL kind file: was -> now`, `AMBIGUOUS-NEW name: …`, `AMBIGUOUS-GONE
 name`, `MALFORMED …`, then `TOTAL n`; `REFUSED …` on stderr when it
 cannot read its subject. The gate decides from them.
@@ -596,6 +597,7 @@ def baseline(path):
                 continue
             if cols[0] == 'ambiguous' and len(cols) == 2:
                 ambiguous.add(cols[1])
+                notes[('ambiguous', cols[1])] = note
                 continue
             ok = len(cols) == 3 and cols[0] in KINDS and cols[1].isdigit() and int(cols[1]) > 0
             if not ok or (cols[0], cols[2]) in allowed:
@@ -608,16 +610,24 @@ def baseline(path):
     return allowed, ambiguous, bad, notes
 
 
-def raised(allowed, notes, base_path):
+def raised(allowed, ambiguous, notes, base_path):
     """`RAISED …` for each pin above the base's pin of its kind and file
     (absent there: 0), or `CITED …` for the one rise admitted: a reader's
     pin (`names-*`) on a line whose note cites the `work/` row that retires
     the site (`GATE_ROW_CITATION_ERE`, lib.sh);
     `pin-cites-an-open-row.sh` holds that row open. Every other kind
-    admits no new site."""
+    admits no new site.
+
+    An `ambiguous NAME` line absent from the base is a rise too: every
+    bare use of NAME leaves the count once it is listed, so it is
+    `RAISED ambiguous NAME` unless its note cites the row that retires
+    the namesake (`CITED ambiguous NAME`)."""
     citation = re.compile(os.environ['GATE_ROW_CITATION_ERE'])
-    base, _, base_bad, _ = baseline(base_path)
+    base, base_ambiguous, base_bad, _ = baseline(base_path)
     out = [f'MALFORMED (base) {line[len("MALFORMED "):]}' for line in base_bad]
+    for name in sorted(ambiguous - base_ambiguous):
+        cited = citation.search(notes[('ambiguous', name)])
+        out.append(f'CITED ambiguous {name} ({cited.group()})' if cited else f'RAISED ambiguous {name}')
     for key, pin in sorted(allowed.items()):
         was = base.get(key, 0)
         if pin <= was:
@@ -656,7 +666,7 @@ def main():
     for line in bad:
         print(line)
     if base_for is not None:
-        for line in raised(allowed, notes, base_for):
+        for line in raised(allowed, listed, notes, base_for):
             print(line)
     for key in sorted(set(sites) | set(allowed)):
         now, was = len(sites.get(key, [])), allowed.get(key, 0)
