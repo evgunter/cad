@@ -150,18 +150,6 @@ impl Refusal {
         }
     }
 
-    /// **A carrier reading's refusal's standing**, stated once for every
-    /// reader of one: an escalation is ranked by its margin, and a walk
-    /// that could not run stands as the walk does ([`Self::of_walk`]).
-    /// Here rather than on [`geom::CarrierRefusal`], whose crate does not
-    /// see a ladder.
-    #[must_use]
-    pub fn of_carrier(refused: geom::CarrierRefusal) -> Self {
-        refused
-            .escalation()
-            .map_or_else(Self::of_walk, Self::Margin)
-    }
-
     /// The rung a reading refused with `e` stands as: kept by its kind.
     pub fn rung<A, E>(self, e: E) -> Rung<A, E> {
         self.kept(e).map_or_else(Rung::Unsettled, Rung::from)

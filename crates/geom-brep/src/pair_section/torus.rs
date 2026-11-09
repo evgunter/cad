@@ -51,11 +51,12 @@ use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, Sq
 use super::torus_coincidence::{TorusCoincidence, TorusData, tori_coincide};
 use super::{
     ClassCarrier, Coincident, ComponentShape, Components, PairPose, PairSection, SectionComponent,
-    SectionDecision, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
+    SectionDecision, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
-use crate::intersect::{SectionError, SectionRadius, decide_across_reported};
+use crate::intersect::{SectionError, SectionRadius};
 use crate::torus_convention::TorusRefusal;
+use geom_core::k_stats::decide_across_reported;
 
 // ---------------------------------------------------------------------
 // The axis pose
@@ -268,7 +269,7 @@ impl<T: Decide> Ring<T> {
         Some(
             TorusRefusal::require(major_radius + defect, minor_radius + defect, band)
                 .map_err(TorusPoseRefusal::Torus)
-                .map(|()| Self {
+                .map(|_| Self {
                     center,
                     axis,
                     u_ref,
@@ -516,7 +517,7 @@ fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> Sec
         shape,
         winds,
         touch,
-        ClassCarrier::Unminted(TANGENT_COMPONENT),
+        ClassCarrier::Unminted(super::NoCarrier::Tangent),
     )
 }
 
