@@ -2,11 +2,13 @@
 id: loop-walks-read-a-ray-against-an-arc-by-hand-rows-beside-meet
 kind: issue
 title: The planar loop walk and the sphere cut-in read a ray or a half-meridian against a boundary arc by hand rows beside curve_pair::meet
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
 refs: [region-landings-read-a-leg-against-an-edge-by-hand-rows-beside-meet, circle-plane-first-harmonic-has-three-hand-built-copies]
+closed: 2026-11-09
+pr: 6609
 ---
 
 Found by the sweep of `onecopy/meet-pose`, which moved the four region `landings` (`topo/src/boolean/{region,ruled_region,sphere_region,torus_region}.rs`) onto one reading, `region::landings`: one curve across the other's plane through the plane door, then the root on its plane's section curve. Two sites outside those doors still answer "where does this curve meet that boundary edge" with rows of their own:
@@ -26,3 +28,17 @@ Before either move, check what each caller needs: the loop walk counts crossings
 ## 2026-11-06: the cut-in half is done
 
 `apply_cut_ins` reads its arcs against the half-meridian through the co-surface arm, `geom_brep::curve_pair::on_surface` (`OnSurface::across`, the plane door with each root's place on its arc reported, then `SurfaceCurve::section_of`). Its root parameters still feed the split. `FirstHarmonic::conic_off_plane` and the `bool_sphere_cut_roots_*` rows are gone. What is left is the planar loop walk's ray against a conic arc (`splitting/containment.rs` `conic_crossings`).
+
+## Closed (2026-11-09, `onecopy/loop-walks`): the loop walk's ray reads the co-surface arm
+
+A ray of the walk and a conic arc of a planar loop lie on one plane, so the pair is co-surface (C5), not `meet`'s. `conic_crossings` (`crates/topo/src/splitting/containment.rs`) now reads the arc across the ray's square plane through `geom_brep::curve_pair::on_surface`:
+- the ray is the plane's new `SurfaceCurve::u_line`, on the plane through `q` along `d` with the walk's normal;
+- the arc is an `OnSurface` edge;
+- the plane door places each root on the arc's span.
+
+Each caller's reading is kept:
+- crossings are counted ahead along the ray (`point_in_arc_loop_conic_advance`);
+- a touch, a root at an end, or one at `q` the pre-pass missed grazes;
+- an in-band rung or a root in band of an end sets the ray aside.
+
+The unit-circle chord and its rows (`point_in_arc_loop_conic_{disc,window,end}`) retire. On the projected read the cut plane is the face normal's, the projection that read wants. The cut-in half closed in PR 6566.
