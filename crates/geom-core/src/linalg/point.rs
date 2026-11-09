@@ -257,6 +257,58 @@ impl<T: Real> Point3<T> {
 
 /// `Point − Point = Vec`: the displacement from `rhs` to `self` — the
 /// defining map of the torsor structure.
+/// **Exact equality of two points, the two questions it can be.** The
+/// linear types carry no `PartialEq`: a coincidence the kernel decides is
+/// a margin's (D10), and these are the two exact readings a caller may
+/// still mean. Use [`Point3::equals_exactly`] for "is the difference
+/// zero": the same value, `+0.0` one with `-0.0`, a NaN equal to nothing,
+/// as a degenerate chord or a record's structural equality asks. Use
+/// [`Point3::same_bits`] for "is this the same representation": a key
+/// that must be a function of the bits (a dedupe handle) or a
+/// reproducibility check, `-0.0` apart from `0.0` and a NaN equal to
+/// itself. Neither is [`crate::bit_identity`], the channel through which
+/// generic code asks whether two scalars of any `Real` are one
+/// description: these read `f64` coordinates, which need no punning. Each
+/// binds its type's fields by pattern, so a field added to the type is an
+/// E0027 here rather than a coordinate the equality skips.
+impl Point3<f64> {
+    /// Every coordinate `==` (the type's docs): `+0.0` equals `-0.0`,
+    /// and a NaN equals nothing. [`Self::same_bits`] is the
+    /// representation question.
+    #[must_use]
+    pub fn equals_exactly(self, other: Self) -> bool {
+        let (Self { x, y, z }, Self { x: u, y: v, z: w }) = (self, other);
+        x == u && y == v && z == w
+    }
+
+    /// Every coordinate's bits equal (the type's docs): `-0.0` apart from
+    /// `0.0`, and a NaN equal to the same NaN. [`Self::equals_exactly`] is
+    /// the value question.
+    #[must_use]
+    pub fn same_bits(self, other: Self) -> bool {
+        let (Self { x, y, z }, Self { x: u, y: v, z: w }) = (self, other);
+        x.to_bits() == u.to_bits() && y.to_bits() == v.to_bits() && z.to_bits() == w.to_bits()
+    }
+}
+
+/// [`Point3`]'s two exact equalities ([`Point3::equals_exactly`],
+/// [`Point3::same_bits`]), in the plane.
+impl Point2<f64> {
+    /// Every coordinate `==` ([`Point3::equals_exactly`]).
+    #[must_use]
+    pub fn equals_exactly(self, other: Self) -> bool {
+        let (Self { x, y }, Self { x: u, y: v }) = (self, other);
+        x == u && y == v
+    }
+
+    /// Every coordinate's bits equal ([`Point3::same_bits`]).
+    #[must_use]
+    pub fn same_bits(self, other: Self) -> bool {
+        let (Self { x, y }, Self { x: u, y: v }) = (self, other);
+        x.to_bits() == u.to_bits() && y.to_bits() == v.to_bits()
+    }
+}
+
 impl<T: Real> Sub for Point2<T> {
     type Output = Vec2<T>;
 
@@ -322,6 +374,36 @@ impl<T: Real> Sub<Vec3<T>> for Point3<T> {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// **The two exact equalities part at a signed zero, a NaN and an
+    /// underflowing difference**: `+0.0` and `-0.0` are one value and two
+    /// representations; a NaN is no value and one representation; two
+    /// points `1e-170` apart are two of each, where the norm of their
+    /// difference underflows to zero. Red where either reader is the
+    /// other, or reads the difference's norm.
+    #[test]
+    fn the_two_exact_equalities_part_at_a_signed_zero_a_nan_and_an_underflow() {
+        let (zero, signed) = (Point3::new(0.0, 1.0, 2.0), Point3::new(-0.0, 1.0, 2.0));
+        assert!(zero.equals_exactly(signed) && !zero.same_bits(signed), "±0");
+        let nan = Point3::new(f64::NAN, 1.0, 2.0);
+        assert!(!nan.equals_exactly(nan) && nan.same_bits(nan), "NaN");
+        let near = Point3::new(1e-170, 1.0, 2.0);
+        let base = Point3::new(0.0, 1.0, 2.0);
+        assert!(
+            (near - base).norm() == 0.0,
+            "the difference's norm underflows"
+        );
+        assert!(
+            !near.equals_exactly(base) && !near.same_bits(base),
+            "1e-170 apart"
+        );
+        let (a, b) = (Point2::new(-0.0, 3.0), Point2::new(0.0, 3.0));
+        assert!(a.equals_exactly(b) && !a.same_bits(b), "Point2 ±0");
+        let (u, v) = (Vec3::new(0.0, -0.0, 1.0), Vec3::new(0.0, 0.0, 1.0));
+        assert!(u.equals_exactly(v) && !u.same_bits(v), "Vec3 ±0");
+        let (u, v) = (Vec2::new(f64::NAN, 0.0), Vec2::new(f64::NAN, 0.0));
+        assert!(!u.equals_exactly(v) && u.same_bits(v), "Vec2 NaN");
+    }
 
     /// Coordinate strategy — see `vec.rs::tests::coord` for the range
     /// rationale (session-box-like magnitudes, no −0.0).

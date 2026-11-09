@@ -1322,7 +1322,7 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
                 .control()
                 .iter()
                 .zip(carrier.control())
-                .all(|(a, b)| a.x == b.x && a.y == b.y && a.z == b.z),
+                .all(|(a, b)| a.equals_exactly(*b)),
         "the fixture's premise: the carrier is the wall's u = 1 column, bit for bit"
     );
     let (t0, t1) = carrier.domain();

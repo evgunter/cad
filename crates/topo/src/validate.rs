@@ -16438,7 +16438,7 @@ mod tests {
                 .iter()
                 .find(|(_, e)| {
                     edge_endpoints(&body, e.he_plus).is_some_and(|(a, b)| {
-                        let same = |x: Point3<f64>, y: Point3<f64>| (x - y).norm() == 0.0;
+                        let same = |x: Point3<f64>, y: Point3<f64>| x.equals_exactly(y);
                         (same(a, from) && same(b, to)) || (same(a, to) && same(b, from))
                     })
                 })

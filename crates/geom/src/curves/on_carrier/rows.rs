@@ -145,7 +145,7 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
     let foot = c.foot(q, 0.0);
     assert!(foot.gap() < 1.5 * ZERO, "{}", foot.gap());
     assert!((foot.seed() - t).abs() < 1e-6, "{}", foot.seed());
-    assert!((foot.point() - q).norm() == 0.0);
+    assert!(foot.point().equals_exactly(q));
     assert!(
         foot.nearest().is_none(),
         "an ellipse's foot is a stationary point"

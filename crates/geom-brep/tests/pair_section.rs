@@ -937,7 +937,7 @@ fn a_closed_form_is_seated_by_its_span() {
                 .unwrap_or_else(|e| panic!("seat {at}: {e:?}"));
             assert_eq!(seated.span, (at, at + (hi - lo)), "seated at {at}");
             assert!(
-                (seated.carrier.eval(at) - c.carrier.eval(at)).norm() == 0.0,
+                seated.carrier.eval(at).equals_exactly(c.carrier.eval(at)),
                 "seat {at}: the carrier is as it was"
             );
         }

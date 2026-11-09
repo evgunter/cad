@@ -2299,7 +2299,7 @@ mod tests {
                     let arcs = torus_arcs(&quadric, &island);
                     for &a in &crests {
                         for &b in grid.iter().chain(&crests) {
-                            if (a - b).norm() == 0.0 {
+                            if a.equals_exactly(b) {
                                 continue;
                             }
                             let want = (island.inside)(a) != (island.inside)(b);

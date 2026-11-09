@@ -794,9 +794,7 @@ mod tests {
             // where the bit is set, its negation where it is not.
             let expected = if sense { normal } else { -normal };
             assert!(
-                flat.vec().x.to_bits() == expected.x.to_bits()
-                    && flat.vec().y.to_bits() == expected.y.to_bits()
-                    && flat.vec().z.to_bits() == expected.z.to_bits(),
+                flat.vec().same_bits(expected),
                 "sense {sense}: the planar door answered {:?}, not {expected:?}",
                 flat.vec()
             );
@@ -807,9 +805,7 @@ mod tests {
                     .unwrap()
                     .unwrap();
                 assert!(
-                    at.vec().x == flat.vec().x
-                        && at.vec().y == flat.vec().y
-                        && at.vec().z == flat.vec().z,
+                    at.vec().equals_exactly(flat.vec()),
                     "sense {sense} at {p:?}: {:?} vs {:?}",
                     at.vec(),
                     flat.vec()
@@ -838,7 +834,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert!(
-                (out.vec() - radial).norm() == 0.0,
+                out.vec().equals_exactly(radial),
                 "outward at {p:?}: {:?}",
                 out.vec()
             );
@@ -847,7 +843,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert!(
-                (inward.vec() + radial).norm() == 0.0,
+                inward.vec().equals_exactly(-radial),
                 "reversed at {p:?}: {:?}",
                 inward.vec()
             );
