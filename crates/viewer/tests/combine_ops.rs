@@ -4292,10 +4292,10 @@ fn a_family_picked_in_the_tree_is_read_whole_until_a_member_is_chosen() {
         }
     );
 
-    let mut duplicate = DuplicateTool::new();
-    duplicate.pick(&doc, pattern);
+    let mut patterned = PatternTool::new();
+    patterned.pick(&doc, pattern);
     assert_eq!(
-        duplicate.seats().read(0),
+        patterned.seats().read(0),
         Some(Operand::Node(pattern)),
         "a seat reading the family whole is unchanged"
     );
