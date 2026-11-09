@@ -759,3 +759,9 @@
   - F7 and F8 are filed as `the-ring-torus-question-has-two-homes`.
 - 08:10Z 6604's gate went red at 600e6b81 on the fast-set time check alone: viewer sketch_on_face::a_boss_sketched_on_a_side_lands took 1.000 s against a 1.0 s bound, already the tcost row a-boss-sketched-on-a-side-runs-at-the-fast-sets-one-second-bound. Added to the post-6619 queue.
 - 08:13Z 6619 now also moves the boss-on-a-side viewer test, which sits at the 1.0 s bound, to the slow set and closes its tcost row. Re-gating at e140a328. Stale gate watchers killed.
+- 08:12Z Reviews:
+  - 6615 FULL: FIX. All seven ports are bit-identical; the fixes are wording, sweep record and census blind spots. Sent to the lane. The decided-Sign ±1 home is filed as `a-decided-signs-unit-value-has-no-home`.
+- 08:12Z Branch-band fork, round 2:
+  - B conceded A's item 3 (whole-edge Near) as a P0 engine defect, and offered Ev three states on K<2.
+  - Round 3 asks B to trace A's torus-waist case (analytic faces only), and asks A about the three-state K framing and its closed-form residual.
+- 08:12Z bracket-mid: (a) has two named forms, each with its reason. bracket_mid keeps projection's NaN exit at an infinite bracket.
