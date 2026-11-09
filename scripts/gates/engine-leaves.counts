@@ -62,7 +62,7 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             174  boolean/mod.rs
+crate-visible             173  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              29  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs

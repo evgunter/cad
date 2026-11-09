@@ -1405,14 +1405,16 @@ impl<T: Real> GluedPair<T> {
             };
             return Self::tangent(fa, fb, tangency);
         }
-        match carrier_pair::carrier_pair_decided(a, fa, b, fb, band) {
+        let read = carrier_pair::carrier_pair_decided(a, fa, b, fb, band);
+        match read {
             Ok(Ok(CarrierVerdict::One { relation, margin }))
                 if Some(relation) == class.carrier_relation() =>
             {
-                Self::one_carrier(fa, fb, relation, margin).expect("an orientation")
+                Self::one_carrier(fa, fb, relation, margin)
             }
-            other => panic!("the glue door glues no {class:?} pair on {other:?}"),
+            _ => None,
         }
+        .unwrap_or_else(|| panic!("the glue door glues no {class:?} pair on {read:?}"))
     }
 
     /// A one-carrier pair the glue door decided under `relation` on
