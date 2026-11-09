@@ -852,3 +852,8 @@
 - 09:47Z [ev] 6625 check-in found no comment yet. Re-armed for 13:08Z.
 - 09:50Z PR 6617's fix-pass delta: MERGE. D1 goes in before merge: PropsError/ReplaceFaceError refusal() classify by wildcard, so row-2 unbuilt variants read as Abort. They must become exhaustive and cite their taxonomy rows. Also D2 (the map_kept spelling escapes the gate) and D3 (one doc sentence). Sent to the ladder lane.
 - 09:53Z PR 6627 FULL review: FIX. F1: signature-derived doors miss shapes silently, so the fix is a must-classify rule for every pub k_stats fn. F2: bare-call skip contradicts 'refuses rather than skips'. F3: the cone-flux twin is weakened by rank pairing. F4: the F35 audit bullet is stale. F5: the filed cpair row rests on a mis-attributed scalar (17,885 of the drops were f64). Sent to the lane.
+- 09:58Z Merged PR 6620 (gate blind spots) at 170697bd.
+  - Delta review: MERGE. The site set is identical line for line, and every mutation goes red.
+  - No overlap with main. run-gates on the merge with main is clean: 585 sites.
+  - NOTE residue filed as `bare-rounding-doors-are-read-in-column-zero-only`.
+  - Its transverse-range row now waits for the needle-tilts lane after S.
