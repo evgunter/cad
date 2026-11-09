@@ -419,7 +419,7 @@ fn carrier_verdict(
         return Some(Err(CarrierFail::Frame));
     };
     let kernel = || match topo::boolean::carrier_pair_decided(&a_in, fa, &b_in, fb, band) {
-        Ok(Ok((relation, Some(margin)))) if relation == wanted => {
+        Ok(Ok(topo::CarrierVerdict::One { relation, margin })) if relation == wanted => {
             Some(deferred::discharge_or_why(margin).map_err(CarrierFail::Undischarged))
         }
         _ => None,

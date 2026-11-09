@@ -114,6 +114,7 @@ impl Winding {
 
 /// **Why a loop's winding was not read.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
 pub enum WindsRefusal {
     /// The carrier is not a spline.
     NotSpline,
@@ -128,6 +129,53 @@ pub enum WindsRefusal {
     /// The loop's turning is not a whole number of turns: it does not
     /// close.
     Open,
+    /// A piece's turning is not a finite angle: a point of the carrier
+    /// stands past the format's range.
+    NotFinite,
+}
+
+impl WindsRefusal {
+    /// **The one sentence this refusal is rendered by.**
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::NotSpline => "the loop's carrier is not a spline",
+            Self::Unseparated => {
+                "a piece of the loop's tube reaches the axis or core it turns about, or turns \
+                 too far to be read from its ends"
+            }
+            Self::Untiled => "the loop's tube does not tile its carrier in order",
+            Self::Unordered => "the walk through the loop's tube is not shown to run round it once",
+            Self::Open => "the loop's turns are not a whole number",
+            Self::NotFinite => "a piece of the loop turns by an angle that is not finite",
+        }
+    }
+
+    /// **The recourse every rendering of this refusal ends with**: a
+    /// kernel defect where what the march built contradicts it, and "not
+    /// yet" where the reading does not settle a loop, which a looser
+    /// tolerance only makes worse by widening its tube, and the format's
+    /// range where a carrier point is not finite.
+    #[must_use]
+    pub const fn recourse(self) -> &'static str {
+        match self {
+            // Unreachable through `PairSection::carry`: `Tube::of` refuses
+            // a carrier that is not a spline as a desync before any winding
+            // is read. No row reaches it.
+            Self::NotSpline
+            // The tube's chain is one box per span of the carrier's refined
+            // vector, so it tiles the branch's span; the carry row that reads
+            // marched loops' winding about a wall's axis
+            // (`close_rings_carry_counted_and_marched`) refuses on a break.
+            | Self::Untiled
+            // A closed fit's ends are one point to its rounding, a gap many
+            // orders below `CLOSING_SLACK`; the same carry row refuses on a
+            // regression.
+            | Self::Open => geom_core::KERNEL_DEFECT_ENDING,
+            Self::Unseparated | Self::Unordered => geom_core::NOT_YET_ENDING,
+            Self::NotFinite => concat!("Recourse: ", geom_core::range_recourse!()),
+        }
+    }
 }
 
 /// **The largest principal difference trusted as a piece's turning**:
@@ -292,6 +340,9 @@ pub(crate) fn winding(
                 let from = chan.azimuth(net.eval(a)).near(0.0);
                 chan.azimuth(net.eval(b)).near(from) - from
             };
+            if !delta.is_finite() {
+                return Err(WindsRefusal::NotFinite);
+            }
             if !chan.clear(enclosure) || delta.abs() > TRUSTED_TURN {
                 return Err(WindsRefusal::Unseparated);
             }
@@ -598,7 +649,8 @@ mod tests {
     /// **A loop whose pieces reach a centre refuses**: a loop round the
     /// cylinder's axis read over boxes padded past its radius; a null
     /// path whose walk is not shown once round refuses `Unordered`; and
-    /// pieces that leave a gap in the span refuse.
+    /// pieces that leave a gap in the span, or a carrier point that is
+    /// not a number, refuse.
     #[test]
     fn a_piece_reaching_the_axis_refuses() {
         let wall = Surface::Cylinder {
@@ -647,6 +699,21 @@ mod tests {
             winding(&wall, &ring, (0.0, 1.0), &gap),
             Err(WindsRefusal::Untiled),
             "a span no piece covers"
+        );
+        // A carrier point that is not a number reads a turning that is
+        // not one: refused, not read as no turn.
+        let at = core::f64::consts::TAU * 10.0 / 64.0;
+        let poisoned = polygon(64, |s| {
+            if (s - at).abs() < 1e-12 {
+                Point3::new(f64::NAN, 0.0, 0.0)
+            } else {
+                Point3::new(0.5 * s.cos(), 0.5 * s.sin(), 0.1 * s.sin())
+            }
+        });
+        assert_eq!(
+            winding(&wall, &poisoned, (0.0, 1.0), &pieces(&ring, 1e-9)),
+            Err(WindsRefusal::NotFinite),
+            "a carrier point that is not a number"
         );
     }
 
