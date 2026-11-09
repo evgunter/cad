@@ -718,3 +718,4 @@
   - Q2(a): an ambiguous line must cite a row.
   - The doors are derived from geom_core::running's pub items.
 - 07:34Z Ruled for unbuilt-recourse: its six recourse classes are approved, and each defect class must cite its guard.
+- 07:35Z Ruled for bracket-mid (b): the home's body is the midpoint rule (f64::midpoint, on Real if generic), it keeps the bracket_mid name, all four forms route to it and are gated, and moves are reported under (a) and (b).
