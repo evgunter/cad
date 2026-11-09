@@ -39,3 +39,12 @@ kernel has a home for its geometry lever (`geom_core::COINCIDENCE_RECOURSE`,
 "move …" recourse inline (`grep -rn 'Recourse: move' crates/*/src`). This
 belongs with that move-recourse class: decide the class's one spelling,
 then route `NoCarrier`'s two through it.
+
+Main has since gained `geom_core::MOVE_RECOURSE`, `COINCIDENCE_RECOURSE`
+labelled as a whole ending (`move_recourse!`). That is the likely one
+spelling. `scripts/gates/recourse-ending-by-hand.sh` holds only pairs
+named `X_RECOURSE` / `X_ENDING`, so it does not hold
+`COINCIDENCE_RECOURSE` / `MOVE_RECOURSE`. About a dozen production sites
+write `Recourse: {COINCIDENCE_RECOURSE}`, several of them continuing it
+("; {note}", ", or …"). Deciding the class means deciding which of those
+are the whole ending, and then extending the gate's pairs.

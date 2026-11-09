@@ -5515,7 +5515,7 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     }
     if undecided(&o) && undecided(&r) {
         for (l, reading) in [(outer, &mut o), (ring, &mut r)] {
-            if let Some(s) = seam_germ_side(body, face, l, other_pristine, band)? {
+            if let Some(s) = seam_germ_side(body, face, l, (other_pristine, side.other()), band)? {
                 *reading = Reading::Side(s);
             }
         }
@@ -5598,15 +5598,17 @@ fn sliver_along_a_slit<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] where two chords read the
 /// loop's regions on opposite sides: they flank one crossing, so that is
-/// a kernel defect; and where a chord's point reads definitely off the
-/// surface of the region it bounds. [`BooleanError::JoinDesync`] where
+/// a kernel defect; where a chord's point reads definitely off the
+/// surface of the region it bounds; and where the region is a torus
+/// decided outside the ring convention, which the chord's germ pair's
+/// frame refuses first ([`section_refusal`]). [`BooleanError::JoinDesync`] where
 /// the chord's edge, curve or region no longer resolves. And the walk's
 /// and [`holding_face_normal`]'s own.
 fn seam_germ_side<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     l: LoopKey,
-    other: &Body<T>,
+    (other, other_is): (&Body<T>, Operand),
     band: Band,
 ) -> Result<Option<SideCode>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -5615,72 +5617,84 @@ fn seam_germ_side<T: Decide>(
     // normal or a germ in band, no face of `other` holding its point)
     // passes or is kept, and where none decides the loop is left to the
     // witness ladder.
-    let chord = |(mate, region): (HalfEdgeKey, FaceKey)| -> Rung<Result<SideCode, BooleanError>, NormalAtError> {
-        let resolved = (|| {
-            let m = body
-                .get_half_edge(mate)
-                .ok_or(desync("section mate no longer resolves"))?;
-            let edge = body
-                .get_edge(m.edge)
-                .ok_or(desync("section mate's edge no longer resolves"))?;
-            let curve = body
-                .get_curve_geom(edge.curve)
-                .ok_or(desync("section mate's edge carries no curve"))?
-                .certified();
-            Ok((edge.he_plus, curve))
-        })();
-        let (he_plus, curve) = match resolved {
-            Ok(read) => read,
-            Err(e) => return Rung::Aborts(Err(e)),
-        };
-        // A null edge is a strut's scaffolding: it has no carrier and
-        // lies on neither boundary, so it is no chord of the seam.
-        let Some(curve) = curve else {
-            return Rung::Passes;
-        };
-        let (t0, t1) = curve.params();
-        let tm = geom::mid_param(t0, t1);
-        let mid = curve.carrier().eval(tm);
-        let d = curve.carrier().deriv(tm);
-        let d = if mate == he_plus { d } else { -d };
-        // The chord's extent along its carrier, exact for a line and a
-        // circle: the lever its germ is read at. A closed chord, its two
-        // ends one point, reads by it as any other.
-        let extent = d.norm() * (t1 - t0).abs();
-        let n_r = match crate::face_normal::face_outward_normal_at(body, region, mid, band) {
-            Ok(Some(n_r)) => n_r.vec(),
-            Ok(None) => {
-                return Rung::Aborts(Err(desync(
-                    "a section chord's region no longer resolves",
-                )));
-            }
-            // A normal refused in band or at a limit is kept. A point off
-            // the region's own surface is a kernel defect, and so is a
-            // region on a torus outside the ring convention: the germ
-            // pair's frame refuses that torus before any chord is joined.
-            Err(why) => {
-                return rung_or_abort(why.refusal(), why, |why| {
-                    Err(BooleanError::ClassificationInvariant {
-                        what: match why {
-                            NormalAtError::DegenerateTorus { .. } => {
-                                "a section chord's region is a torus outside the ring \
-                                 convention, which the germ pair's frame refuses first"
-                            }
-                            _ => "a section chord's point reads off the surface of the region \
-                                  it bounds",
-                        },
+    let chord =
+        |(mate, region): (HalfEdgeKey, FaceKey)| -> Rung<Result<SideCode, BooleanError>, ()> {
+            let resolved = (|| {
+                let m = body
+                    .get_half_edge(mate)
+                    .ok_or(desync("section mate no longer resolves"))?;
+                let edge = body
+                    .get_edge(m.edge)
+                    .ok_or(desync("section mate's edge no longer resolves"))?;
+                let curve = body
+                    .get_curve_geom(edge.curve)
+                    .ok_or(desync("section mate's edge carries no curve"))?
+                    .certified();
+                Ok((edge.he_plus, curve))
+            })();
+            let (he_plus, curve) = match resolved {
+                Ok(read) => read,
+                Err(e) => return Rung::Aborts(Err(e)),
+            };
+            // A null edge is a strut's scaffolding: it has no carrier and
+            // lies on neither boundary, so it is no chord of the seam.
+            let Some(curve) = curve else {
+                return Rung::Passes;
+            };
+            let (t0, t1) = curve.params();
+            let tm = geom::mid_param(t0, t1);
+            let mid = curve.carrier().eval(tm);
+            let d = curve.carrier().deriv(tm);
+            let d = if mate == he_plus { d } else { -d };
+            // The chord's extent along its carrier, exact for a line and a
+            // circle: the lever its germ is read at. A closed chord, its two
+            // ends one point, reads by it as any other.
+            let extent = d.norm() * (t1 - t0).abs();
+            let n_r = match crate::face_normal::face_outward_normal_at(body, region, mid, band) {
+                Ok(Some(n_r)) => n_r.vec(),
+                Ok(None) => {
+                    return Rung::Aborts(Err(desync(
+                        "a section chord's region no longer resolves",
+                    )));
+                }
+                // A normal refused in band or at a limit is kept. A point off
+                // the region's own surface is a kernel defect, and so is a
+                // region on a torus decided outside the ring convention: the
+                // operands are finished bodies, which tier 3 refuses for such
+                // a torus (`ValidationError::DegenerateTorus`), and a section
+                // chord's germ pair's frame reads the convention again
+                // (`section_refusal`) before the join mints the chord.
+                Err(why) => {
+                    return rung_or_abort(why.refusal(), why, |why| {
+                        Err(BooleanError::ClassificationInvariant {
+                            what: match why {
+                                NormalAtError::DegenerateTorus { .. } => {
+                                    "a section chord's region is a torus outside the ring \
+                                     convention, which the germ pair's frame refuses first"
+                                }
+                                _ => {
+                                    "a section chord's point reads off the surface of the \
+                                      region it bounds"
+                                }
+                            },
+                        })
                     })
-                });
-            }
+                    .map_kept(|_| ());
+                }
+            };
+            let into_region = crate::stands::inward(n_r, d.normalize());
+            let n_f = match holding_face_normal((other, other_is), mid, band) {
+                Ok(Ok(Some(n_f))) => n_f,
+                Ok(Ok(None)) => return Rung::Passes,
+                Ok(Err(why)) => {
+                    return rung_or_abort(why.refusal(), why, |why| Err(why.aborted()))
+                        .map_kept(|_| ());
+                }
+                Err(e) => return Rung::Aborts(Err(e)),
+            };
+            germ_side(into_region, n_f, extent, band)
+                .map_or(Rung::Passes, |read| Rung::Answers(Ok(read)))
         };
-        let into_region = crate::stands::inward(n_r, d.normalize());
-        let n_f = match holding_face_normal(other, mid, band) {
-            Ok(Some(n_f)) => n_f,
-            Ok(None) => return Rung::Passes,
-            Err(e) => return Rung::Aborts(Err(e)),
-        };
-        germ_side(into_region, n_f, extent, band).map_or(Rung::Passes, |read| Rung::Answers(Ok(read)))
-    };
     let pairs = region_halves(body, face, l)?;
     let same = |a: &Result<SideCode, BooleanError>, b: &Result<SideCode, BooleanError>| matches!((a, b), (Ok(x), Ok(y)) if x == y);
     match climb_agreeing(pairs, chord, same) {
@@ -5720,54 +5734,133 @@ const SEAM_GERM_SIDE: &str = "bool_join_seam_germ_side";
 const SEAM_GERM_ON_PLANE: &str = "bool_join_seam_germ_on_plane";
 
 /// The outward normal at `q` of the one face of `other` that holds `q`
-/// strictly inside ([`super::contain::face_placement`]); `None` where no
-/// face does, two do, or a placement or the normal reads nothing there.
+/// strictly inside ([`super::contain::face_placement`]); `Ok(None)`
+/// where no face does, or two do, or `q` lies on a face's boundary; and
+/// the refusal, carried ([`HoldingUnread`]), where a placement or the
+/// holding face's normal did not read.
 ///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] where the holding face no longer
-/// resolves, and [`BooleanError::ClassificationInvariant`] where its
-/// normal reads `q` off the surface its placement put `q` on.
+/// resolves.
 ///
 /// # Panics
 ///
 /// On a stale face, as [`super::ops::place_witness`] does.
 fn holding_face_normal<T: Decide>(
-    other: &Body<T>,
+    (other, other_is): (&Body<T>, Operand),
     q: Point3<T>,
     band: Band,
-) -> Result<Option<Vec3<T>>, BooleanError> {
+) -> Result<Result<Option<Vec3<T>>, HoldingUnread>, BooleanError> {
     use super::contain::{CurvedPlacement, FaceContainment, PlacementError};
     let mut held = None;
     for (f, _) in other.faces() {
         match super::contain::face_placement(other, f, q, band, SEAM_GERM_ON_PLANE) {
             Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => {
                 if held.replace(f).is_some() {
-                    return Ok(None);
+                    return Ok(Ok(None));
                 }
             }
             Ok(CurvedPlacement::OffCarrier | CurvedPlacement::Trim(Some(FaceContainment::Out))) => {
             }
+            Ok(CurvedPlacement::Trim(Some(
+                FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_),
+            ))) => return Ok(Ok(None)),
+            Ok(CurvedPlacement::Trim(None)) => return Ok(Err(HoldingUnread::Trim)),
             Err(PlacementError::Door(super::ContainError::StaleFace(face))) => {
                 super::contain::driver_face_stale(face)
             }
-            Ok(CurvedPlacement::Trim(_)) | Err(_) => return Ok(None),
+            Err(why) => {
+                return Ok(Err(HoldingUnread::Placement {
+                    operand: other_is,
+                    face: f,
+                    why,
+                }));
+            }
         }
     }
     let Some(held) = held else {
-        return Ok(None);
+        return Ok(Ok(None));
     };
     match crate::face_normal::face_outward_normal_at(other, held, q, band) {
-        Ok(Some(n)) => Ok(Some(n.vec())),
+        Ok(Some(n)) => Ok(Ok(Some(n.vec()))),
         Ok(None) => Err(BooleanError::JoinDesync {
             what: "the face holding a section chord no longer resolves",
         }),
-        Err(crate::face_normal::NormalAtError::OffSurface) => {
-            Err(BooleanError::ClassificationInvariant {
-                what: "a section chord's holding face reads it off the surface it was placed on",
-            })
+        Err(why) => Ok(Err(HoldingUnread::Normal(why))),
+    }
+}
+
+/// **Why [`holding_face_normal`] read no holding face's normal**: a
+/// placement of the point in a face of the other operand, or that
+/// face's normal, refused; or a curved face's trim the door does not
+/// read.
+#[derive(Debug)]
+enum HoldingUnread {
+    /// Placing the point in this face of this operand refused.
+    Placement {
+        /// The operand the face is of.
+        operand: Operand,
+        /// The face.
+        face: FaceKey,
+        /// The placement's refusal.
+        why: super::contain::PlacementError,
+    },
+    /// A curved face's trim the door does not read. A limit.
+    Trim,
+    /// The holding face's normal at the point refused.
+    Normal(NormalAtError),
+}
+
+impl HoldingUnread {
+    /// What this refusal is to the chord ladder, as each reading states
+    /// it: a placement in band of a plane by its margin, the door's as
+    /// the door states it ([`super::ContainError::refusal`]), the normal's
+    /// as its own ([`NormalAtError::refusal`]).
+    fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use super::contain::PlacementError;
+        match self {
+            Self::Placement {
+                why: PlacementError::OnPlane(diag),
+                ..
+            } => Ok(geom_brep::ladder::Refusal::Margin(*diag)),
+            Self::Placement {
+                why: PlacementError::Door(e),
+                ..
+            } => e.refusal(),
+            Self::Trim => Ok(geom_brep::ladder::Refusal::Limit),
+            Self::Normal(why) => why.refusal(),
         }
-        Err(_) => Ok(None),
+    }
+
+    /// The answer the ladder stops with where this refusal aborts
+    /// ([`Self::refusal`]): the door's refusal on the operand's face it
+    /// was read on, or a holding face that reads the point off the
+    /// surface it was placed on.
+    fn aborted(self) -> BooleanError {
+        use super::contain::PlacementError;
+        match self {
+            Self::Placement {
+                operand,
+                face,
+                why: PlacementError::Door(refusal),
+            } => BooleanError::PointInFaceRefused {
+                operand,
+                face,
+                refusal,
+            },
+            Self::Placement {
+                why: PlacementError::OnPlane(_),
+                ..
+            }
+            | Self::Trim
+            // Gap: `NormalAtError::DegenerateTorus` aborts too, an invalid
+            // input, and reads here as a kernel defect. The ending an abort
+            // carries is not yet stated by `NormalAtError` itself.
+            | Self::Normal(_) => BooleanError::ClassificationInvariant {
+                what: "a section chord's holding face reads it off the surface it was placed on",
+            },
+        }
     }
 }
 
@@ -5828,6 +5921,126 @@ fn loop_roles(
                 BooleanError::from(SplitJoinError::SectionLoopUndecided { face })
             }
         }),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod holding_rows {
+    use geom_core::{Band, Point3, Tol};
+
+    use super::{HoldingUnread, holding_face_normal};
+    use crate::face_normal::NormalAtError;
+
+    /// **A chord held at a cone's apex is a refusal, not a face that does
+    /// not hold it**: a cone cap holds its apex inside, and the cone's
+    /// normal there reads `AtConeApex`. The holding face's reading
+    /// refuses, carried, and stands in band, so the chord ladder keeps
+    /// it rather than passing the chord on. Red where a normal's refusal
+    /// is read as no holding face.
+    #[test]
+    fn a_chord_held_at_a_cones_apex_refuses() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (body, _) = crate::test_support_fixtures::cone_cap(0.5, 1.0, Tol::witness());
+        let held = holding_face_normal((&body, super::Operand::A), Point3::origin(), band);
+        assert!(
+            matches!(
+                held,
+                Ok(Err(HoldingUnread::Normal(NormalAtError::AtConeApex { .. })))
+            ),
+            "the apex's holding face: {held:?}"
+        );
+        if let Ok(Err(why)) = held {
+            assert_eq!(
+                why.refusal(),
+                Ok(geom_brep::ladder::Refusal::InBand),
+                "an apex stands in band"
+            );
+        }
+    }
+
+    /// **A placement in a holding face that refuses is that refusal,
+    /// standing as the door states it**, read through the reader on the
+    /// public operators' bodies:
+    /// - a point at a half-disc cap's arc end, off both its corners at a
+    ///   band finer than the run's (`contain`'s
+    ///   `a_point_at_an_arc_end_clear_of_its_corners_is_a_finding`): the
+    ///   door's `ArcEndClearOfCorners`, an abort, answered as the door's
+    ///   refusal on the operand the face was read on;
+    /// - a point half the band off the cap: the cap's wall, a face whose
+    ///   trim the door does not read (`Trim(None)`), a limit;
+    /// - a point half the band off a block's top face: the placement in
+    ///   band of the plane, ranked by its margin.
+    ///
+    /// Red where a placement's refusal is read as no holding face, or the
+    /// abort is answered on another operand.
+    #[test]
+    fn a_holding_faces_placement_refusal_stands_as_the_door_states_it() {
+        use super::super::contain::PlacementError;
+        use super::super::{BooleanError, ContainError, Operand};
+        use crate::test_support_fixtures::half_disc_cap;
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let off = zero / 2.0;
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        let (body, _, end) = half_disc_cap(off, tol);
+        let held = holding_face_normal((&body, Operand::B), end, fine);
+        let Ok(Err(why)) = held else {
+            panic!("the arc end's placement refuses: {held:?}");
+        };
+        assert!(
+            matches!(
+                why,
+                HoldingUnread::Placement {
+                    why: PlacementError::Door(ContainError::ArcEndClearOfCorners(_)),
+                    ..
+                }
+            ),
+            "the door's finding: {why:?}"
+        );
+        assert_eq!(why.refusal(), Err(geom_brep::ladder::Aborts));
+        let aborted = why.aborted();
+        assert!(
+            matches!(
+                aborted,
+                BooleanError::PointInFaceRefused {
+                    operand: Operand::B,
+                    refusal: ContainError::ArcEndClearOfCorners(_),
+                    ..
+                }
+            ),
+            "the abort refuses on the operand the face was read on: {aborted:?}"
+        );
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let half = 0.5 * (band.zero() + band.escalate());
+        let (body, _, _) = half_disc_cap(0.0, tol);
+        let held = holding_face_normal((&body, Operand::A), Point3::new(0.0, 0.5, half), band);
+        assert!(
+            matches!(&held, Ok(Err(why @ HoldingUnread::Trim))
+                if why.refusal() == Ok(geom_brep::ladder::Refusal::Limit)),
+            "a face whose trim the door does not read, a limit: {held:?}"
+        );
+        let block = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let held = holding_face_normal(
+            (&block.body, Operand::A),
+            Point3::new(0.5, 0.5, 1.0 + half),
+            band,
+        );
+        assert!(
+            matches!(
+                &held,
+                Ok(Err(why @ HoldingUnread::Placement {
+                    why: PlacementError::OnPlane(_),
+                    ..
+                })) if matches!(why.refusal(), Ok(geom_brep::ladder::Refusal::Margin(_)))
+            ),
+            "a point in band of a face's plane, by its margin: {held:?}"
+        );
     }
 }
 

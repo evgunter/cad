@@ -24,6 +24,11 @@
 #   * the label and the fragment across a `;` (a `let` holding the
 #     format string, a helper that prefixes `Recourse: `);
 #   * `Recourse: {}` with `X_RECOURSE` as an argument other than the last;
+#   * a pair not named `X_RECOURSE` / `X_ENDING`: `COINCIDENCE_RECOURSE`
+#     and its labelled form `MOVE_RECOURSE` are not held, and about a dozen
+#     sites write `Recourse: {COINCIDENCE_RECOURSE}` (several continuing
+#     it, "; {note}" or ", or …"). That is the move-recourse class's to
+#     decide (`work/onecopy/carry-refusal-copies-and-hand-spelled-move-recourses.md`);
 #   * a fragment composed mid-sentence after words of the site's own
 #     (`profile::path`'s "Recourse: only the ratio …, {RANGE_RECOURSE}"),
 #     which is the fragment's intended use and is meant to pass.

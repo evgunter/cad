@@ -719,6 +719,8 @@ pub enum EdgeTangentUnread {
     Unwalked(geom::PieceWalkRefusal),
 }
 
+use geom_brep::ladder::Ending;
+
 impl EdgeTangentUnread {
     /// What this reason is to a ladder, as each variant's docs state it.
     /// It never refuses the whole query.
@@ -741,14 +743,57 @@ impl EdgeTangentUnread {
         }
     }
 
-    /// The recourse its rendering ends with: a curve the kernel does not
-    /// read yet, or the walk's own ([`geom::PieceWalkRefusal::recourse`]).
-    #[must_use]
-    pub const fn recourse(self) -> &'static str {
-        match self {
-            Self::NoCurve | Self::NoReach | Self::NoLength => NOT_YET_ENDING,
-            Self::Unwalked(why) => why.recourse(),
+    /// **A touch point's sentence for this reason**
+    /// ([`crate::link::TouchUnread::EdgeTangent`]): the touch, and its
+    /// standing's ending ([`Self::recourse`]), "for this shape" after a
+    /// reading not built yet.
+    pub(crate) fn touch_sentence(self) -> &'static str {
+        macro_rules! touch {
+            ($ending:expr) => {
+                concat!(
+                    "a curved edge meets the point, and the check could not read its \
+                     direction there. ",
+                    $ending
+                )
+            };
         }
+        match self.recourse() {
+            Ending::NotYet => touch!(concat!(geom_core::not_yet_ending!(), " for this shape")),
+            Ending::KernelLimit => touch!(geom_core::kernel_limit_recourse!()),
+            Ending::Move => touch!(geom_core::move_recourse!()),
+            Ending::Sized(_) => unreachable!("a curved edge's reason carries no margin to size"),
+        }
+    }
+
+    /// **The cross-solid backstop's sentence for this reason**: the
+    /// touch, its standing's ending ([`Self::recourse`], "for this shape"
+    /// after a reading not built yet), then the distance that clears the
+    /// pair.
+    pub(crate) fn backstop_sentence(self) -> &'static str {
+        macro_rules! backstop {
+            ($ending:expr) => {
+                concat!(
+                    "they touch on a curved edge whose direction there the check could not \
+                     read, so it cannot tell whether they overlap. ",
+                    $ending,
+                    "; otherwise ",
+                    crate::census::until_apart!()
+                )
+            };
+        }
+        match self.recourse() {
+            Ending::NotYet => backstop!(concat!(geom_core::not_yet_ending!(), " for this shape")),
+            Ending::KernelLimit => backstop!(geom_core::kernel_limit_recourse!()),
+            Ending::Move => backstop!(geom_core::move_recourse!()),
+            Ending::Sized(_) => unreachable!("a curved edge's reason carries no margin to size"),
+        }
+    }
+
+    /// The recourse its rendering ends with: its standing's
+    /// ([`geom_brep::ladder::Refusal::recourse`]).
+    #[must_use]
+    pub const fn recourse(self) -> geom_brep::ladder::Ending {
+        self.refusal().recourse()
     }
 }
 
@@ -875,6 +920,11 @@ pub enum CensusUnsupportedCause {
     /// A curved edge the census reads did not read, for its typed reason,
     /// whole: it renders by the reason's sentence and recourse.
     CurvedEdge(EdgeTangentUnread),
+    /// The meeting reading of two edges the census reads did not run to
+    /// an answer, for its typed reason, whole
+    /// ([`geom_brep::curve_pair::MeetUnread`]): it renders by the
+    /// reason's sentence and recourse.
+    Meeting(geom_brep::curve_pair::MeetUnread),
     /// The census's face-bounding sweep could not bound the face at
     /// all: it has no boundary vertex, because its outer loop is
     /// empty or its boundary does not resolve. Nothing about the
@@ -942,6 +992,7 @@ impl CensusUnsupportedCause {
             Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
             Self::CurvedEdge(why) => f.write_str(why.sentence()),
+            Self::Meeting(why) => f.write_str(&meeting_words(*why)),
             // The containment door's reading, at a build, whichever door
             // reads the census.
             Self::Containment(e) => write!(
@@ -3202,10 +3253,7 @@ pub(crate) const SESSION_BOX: &str =
 /// poisoned margin, the defect ending, as [`own_close`] gives it: no
 /// declaration or move makes the margin readable.
 fn too_close(margin: &geom_core::MarginDiag) -> &'static str {
-    own_close(
-        margin,
-        concat!("Recourse: ", geom_core::coincidence_move_arm!()),
-    )
+    own_close(margin, geom_core::MOVE_RECOURSE)
 }
 
 /// The ending of an undecided margin whose refusal does not carry which
@@ -4080,7 +4128,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
             escalation,
             diag,
         } => close_to_boundary(*decision, *escalation, diag),
-        ContainError::RayExhausted => (GRAZED.into(), MOVE_GEOMETRY.into()),
+        ContainError::RayExhausted => (GRAZED.into(), geom_core::MOVE_RECOURSE.into()),
         ContainError::StaleFace(_) => (
             "a face the check asked about does not resolve in the body".into(),
             DEFECT.into(),
@@ -4126,9 +4174,6 @@ const UNWALKABLE: &str = "its boundary could not be walked";
 /// for a point a pre-pass had already placed off the boundary.
 const GRAZED: &str = "a point the check read is off the boundary, but no test ray from it \
                       settled where it lies: each grazed the boundary or could not be read";
-
-/// The lever for a point with nothing to declare a coincidence with.
-const MOVE_GEOMETRY: &str = concat!("Recourse: ", geom_core::coincidence_move_arm!());
 
 /// A point too near a boundary to place ends as the escalation's decision
 /// gives it at rest, or in the unnamed lever where it names none
@@ -4186,12 +4231,15 @@ pub(crate) fn classify_point_in_solid(
              of its crossings came apart"
                 .into(),
             format!(
-                "{MOVE_GEOMETRY}; {}",
+                "{}; {}",
+                geom_core::MOVE_RECOURSE,
                 crate::boolean::solid_contain::KERNEL_BUG_NOTE
             )
             .into(),
         ),
-        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY.into()),
+        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => {
+            (GRAZED.into(), geom_core::MOVE_RECOURSE.into())
+        }
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
             (uncrossable(u), NOT_YET_ENDING.into())
@@ -4295,7 +4343,7 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
         ),
         // The rays are the check's own: no coincidence to declare, and no
         // margin to size a tolerance by (`ray_walk::NoRaySettled`).
-        ChartRegionError::RayExhausted => (GRAZED, MOVE_GEOMETRY),
+        ChartRegionError::RayExhausted => (GRAZED, geom_core::MOVE_RECOURSE),
         ChartRegionError::WitnessSegmentCapExceeded { .. }
         | ChartRegionError::WitnessCellCapExceeded { .. } => (
             "their boundaries cross too many times for the check to finish",
@@ -4343,6 +4391,19 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
     }
 }
 
+/// [`CensusUnsupportedCause::Meeting`]'s words: the meeting reading,
+/// and the reason's own sentence: a pose it has no closed form for, or
+/// what kept it from settling.
+fn meeting_words(why: geom_brep::curve_pair::MeetUnread) -> String {
+    match why.pose() {
+        Some(pose) => format!("the meeting reading of two edges has no closed form for {pose}"),
+        None => format!(
+            "the meeting reading of two edges did not settle: {}",
+            why.sentence()
+        ),
+    }
+}
+
 fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, Cow<'static, str>) {
     match cause {
         CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
@@ -4350,7 +4411,10 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
             let (why, recourse) = classify_contact_lane(e);
             (why.into(), recourse.into())
         }
-        CensusUnsupportedCause::CurvedEdge(why) => (why.sentence().into(), why.recourse().into()),
+        CensusUnsupportedCause::CurvedEdge(why) => (why.sentence().into(), why.recourse().render()),
+        CensusUnsupportedCause::Meeting(why) => {
+            (meeting_words(*why).into(), why.recourse().render())
+        }
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
             "a face has no corner to bound it by (an empty or broken outer loop)".into(),
@@ -12773,7 +12837,7 @@ mod tests {
         // nothing about it is close, at either level.
         assert_eq!(
             top(ContainError::RayExhausted),
-            (super::GRAZED.into(), super::MOVE_GEOMETRY.into())
+            (super::GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         );
         assert_eq!(read(S::Loop(L::CorruptLoop { r#loop })).1, super::DEFECT);
         // The solid door's own arena claims: defects at rest.

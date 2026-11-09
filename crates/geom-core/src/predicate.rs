@@ -2437,6 +2437,10 @@ pub const UNNAMED_PREDICATE: &str = "<unnamed>";
 /// full-string pins that rot.
 pub const COINCIDENCE_RECOURSE: &str = crate::coincidence_move_arm!();
 
+/// [`COINCIDENCE_RECOURSE`] as a whole ending, labelled: the recourse of
+/// a reading in band that no margin sizes.
+pub const MOVE_RECOURSE: &str = crate::move_recourse!();
+
 /// The one recourse for a quantity the floating-point format cannot
 /// hold — a length that overflows the norm or underflows to zero while
 /// its direction is good. No tolerance reaches it, so it never rides
@@ -2555,10 +2559,7 @@ pub const KERNEL_LIMIT_LAST_RESORT: &str = crate::kernel_limit_last_resort!();
 /// The whole last-resort recourse for a site whose payload gives no
 /// value to size the loosening to: the lever, then
 /// [`KERNEL_LIMIT_LAST_RESORT`].
-pub const KERNEL_LIMIT_RECOURSE: &str = concat!(
-    "Recourse: loosen the tolerance, ",
-    crate::kernel_limit_last_resort!()
-);
+pub const KERNEL_LIMIT_RECOURSE: &str = crate::kernel_limit_recourse!();
 
 /// [`KERNEL_DEFECT_ENDING`] as a literal, for `concat!` at a site
 /// whose prose is a `&'static str` (a constant cannot be spliced into
@@ -2589,6 +2590,29 @@ macro_rules! coincidence_move_arm {
 macro_rules! kernel_limit_last_resort {
     () => {
         "as a last resort; this refusal may indicate a kernel bug worth reporting"
+    };
+}
+
+/// [`KERNEL_LIMIT_RECOURSE`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! kernel_limit_recourse {
+    () => {
+        concat!(
+            "Recourse: loosen the tolerance, ",
+            $crate::kernel_limit_last_resort!()
+        )
+    };
+}
+
+/// [`MOVE_RECOURSE`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! move_recourse {
+    () => {
+        concat!("Recourse: ", $crate::coincidence_move_arm!())
     };
 }
 
