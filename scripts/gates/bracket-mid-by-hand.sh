@@ -26,8 +26,10 @@
 # and files named `test_support*`, `*_rows.rs` or `*_fuzz.rs` out, as
 # `atan2-sites.sh` reads them), whitespace between tokens allowed and
 # rustfmt's wrap across lines read as one statement. HALF below is
-# `0.5` or `T::from_f64(0.5)`, on either side of its product, or a
-# division by `2.0` or `T::from_f64(2.0)`; a halving behind a `*` or `/`,
+# `0.5` (`0.5_f64` too) or any path call on it, a lift
+# (`T::from_f64(0.5)`, `Interval::point(0.5)`, a local `pt(0.5)`), on
+# either side of its product, or a division by `2.0` or a lift of it
+# (a bare `/ 2` is an integer's and is not read); a halving behind a `*` or `/`,
 # or followed by one, is a different term (a grid step
 # `lo + 0.5 * (hi - lo) * i`, a halved product `l * (m0 + m1) * 0.5`, a
 # trapezoid `(f[0] + f[1]) * 0.5 * h`) and is not read.
@@ -35,21 +37,21 @@
 #     (`lo`, `x.lo()`, `self.b.0`), whatever the names;
 #   * `HALF(P)`, where the pair P is, in either order: `Xlo + Xhi`, X the
 #     same prefix twice, with the same call parens and index
-#     (`lo + hi`, `z_lo + z_hi`, `x.lo() + x.hi()`, `lo[k] + hi[k]`);
+#     (`lo + hi`, `z_lo + z_hi`, `x.lo() + x.hi()`, `lo[k] + hi[k]`),
+#     bare or each inside one lift (`pt(lo) + pt(hi)`);
 #     `E.0 + E.1` or `E[0] + E[1]`, E the same chain twice; or
 #     `S0 + S1`, S the same stem twice (`t0 + t1`, `e.t0 + e.t1`);
-#   * `HALF·A + HALF·B`, the sum of two halves, whatever the names and on
-#     either side of each product (`0.5 * lo + 0.5 * hi`,
-#     `lo * 0.5 + hi * 0.5`, `a / 2.0 + b / 2.0`), A and B chains as E is;
-#     and `a.midpoint(b)` or `f64::midpoint(a, b)`, std's form. Both read
-#     as `mid_param`. Neither is a second home: each rounds differently
-#     from the generic formula at the extremes (a subnormal half, ends
-#     past `f64::MAX / 2`), and DESIGN [scalars] has a formula round the
-#     same way at every scalar, so the `f64` build and a dual's value
-#     channel agree. Their overflow safety buys nothing here: a model's
-#     coordinates lie inside the session box, far below `f64::MAX / 2`,
-#     and an `∞` middle is poison that flows loudly. A zero-argument
-#     `.midpoint()` (a type's own door, `BoxAxis::midpoint`) is not read;
+#   * `HALF·A + HALF·B`, the sum of two halves on either side of each
+#     product (`0.5 * lo + 0.5 * hi`, `lo * 0.5 + hi * 0.5`,
+#     `a / 2.0 + b / 2.0`), where A and B are a PAIR of ends as P is
+#     above (two unrelated halves, `c + 0.5 * a + 0.5 * b` or a vector's,
+#     are a weighted sum and pass); and `a.midpoint(b)` or
+#     `f64::midpoint(a, b)`, std's form. Both read as `mid_param`; why
+#     neither is a second home is `mid_param`'s doc
+#     (`crates/geom-core/src/param.rs`), and the ruling is
+#     `work/onecopy/a-bracket-middle-is-also-spelled-half-lo-plus-half-hi-and-f64-midpoint.md`'s
+#     PR 6681. A zero-argument `.midpoint()` (a type's own door,
+#     `BoxAxis::midpoint`) is not read;
 #   * `p.lerp(q, ½)`, the half `0.5` or `T::from_f64(0.5)`: `lerp`'s body
 #     at `t = ½` is `p.mid(q)`'s arithmetic, and `lerp` stays the door for
 #     a general `t`. The half is read as `lerp`'s last argument, so
@@ -63,10 +65,11 @@
 #     second pass,
 #     `grep -rnE '0\.5 \* \([^()]+ \+ [^()]+\)|\([^()]+ \+ [^()]+\) (\* 0\.5|/ 2\.0)' crates/*/src`,
 #     lists them for a reader to sort by hand.
-#   * The sum of two halves with a parenthesised or indexed operand
-#     (`0.5 * (a - b) + 0.5 * c`, `0.5 * x[0] + 0.5 * x[1]`), or behind
-#     a `*`/`/`; and `midpoint` reached through a path other than
-#     `f64::` or a method call (`<f64>::midpoint`, a `use`d alias).
+#   * The sum of two halves with a parenthesised operand
+#     (`0.5 * (a - b) + 0.5 * c`), or behind a `*`/`/`; a division by
+#     `2_f64` written without its point; and `midpoint` reached through a
+#     path other than `f64::` or a method call (`<f64>::midpoint`, a
+#     `use`d alias).
 #   * `hi - HALF(hi - lo)`, the middle read from the upper end.
 #   * A width or a half bound by `let` first (`let w = hi - lo; … lo +
 #     0.5 * w`), and a half held under a name (`HALF`, `let h = 0.5`),
@@ -76,16 +79,60 @@
 #     since E is a chain of names, `()` calls and fields.
 #   * A middle taken through a local helper, a closure or a macro.
 #
-# FALSE POSITIVES it can raise: the stem rule reads ANY pair `S0 + S1`
-# halved as a bracket's ends, so two coefficients `c0 + c1` halved would
-# be refused; none is in the tree, and one that appears is renamed or
-# routed, whichever it is.
+# FALSE POSITIVES it can raise, none in the tree; one that appears is
+# renamed or routed, whichever it is:
+#   * the stem rule reads ANY pair `S0 + S1` halved as a bracket's ends,
+#     so two coefficients `c0 + c1` halved would be refused;
+#   * a HALF is any path call on `0.5`, so `scale(0.5) * (lo + hi)` is
+#     read as a halving;
+#   * the method arm cannot type its receiver, so an integer's
+#     overflow-safe `lo.midpoint(hi)` is refused too: spell it
+#     `usize::midpoint(lo, hi)`, which the path arm (`f64::` only) passes.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 HOMES=(crates/geom-core/src/param.rs)
 HOME_SUBJECT='the home of a bracket'"'"'s middle, mid_param and bracket_mid'
+
+# THE SUM OF HALVES, `HALF·A + HALF·B` (either side of each product, or
+# `A/2 + B/2`), read on the statement view, fires only where A and B are
+# a PAIR of ends in the sum form's sense: `Xlo`/`Xhi` with one prefix,
+# call and index, `E.0`/`E.1`, `E[0]`/`E[1]` or `S0`/`S1`, either order.
+# Two unrelated halves (`c + 0.5 * a + 0.5 * b`, a vector's halves) are a
+# weighted sum, not a middle.
+# shellcheck disable=SC2016
+HALVES_MATCHER='
+import re, sys
+LIFT = r"[A-Za-z_][A-Za-z0-9_:]*"
+HALF = r"(?:0\.5(?:_?f64)?|" + LIFT + r"\(\s*0\.5(?:_?f64)?\s*\))"
+DIV = r"(?:2\.0?(?:_?f64)?|" + LIFT + r"\(\s*2\.0?\s*\))"
+CH = r"[A-Za-z_][A-Za-z0-9_]*(?:\(\))?(?:\.[A-Za-z0-9_]+(?:\(\))?|\[[A-Za-z0-9_]+\])*"
+def half(n):
+    return (r"(?:" + HALF + r"\s*\*\s*(?P<" + n + r"a>" + CH + r")|(?P<" + n + r"b>" + CH
+            + r")\s*(?:\*\s*" + HALF + r"|/\s*" + DIV + r"))")
+SUM = re.compile(r"(?:^|[^A-Za-z0-9_.*/\s]|return)\s*" + half("x") + r"\s*\+\s*" + half("y")
+                 + r"(?=\s*(?:[^*/\s]|$))")
+END = re.compile(r"^(.*?)(lo|hi)((?:\(\))?(?:\[[A-Za-z0-9_]+\])?)$")
+def paired(a, b):
+    for x, y in ((a, b), (b, a)):
+        m, n = END.match(x), END.match(y)
+        if m and n and m.group(2) == "lo" and n.group(2) == "hi" and (m.group(1), m.group(3)) == (n.group(1), n.group(3)):
+            return True
+        for one, two in ((".0", ".1"), ("[0]", "[1]"), ("0", "1")):
+            if x.endswith(one) and y.endswith(two) and x[: -len(one)] == y[: -len(two)] and x[: -len(one)]:
+                return True
+    return False
+for record in sys.stdin:
+    text = record.rstrip("\n")
+    body = text.split(":", 2)[-1]
+    for m in SUM.finditer(body):
+        a = m.group("xa") or m.group("xb")
+        b = m.group("ya") or m.group("yb")
+        if paired(a, b):
+            print(text)
+            break
+'
 
 gate() {
   gate_require_crate_sources
@@ -101,8 +148,14 @@ gate() {
   GATE_SCAN_FILES=${#files[@]}
   local s='[[:space:]]*'
   local chain='[A-Za-z_][A-Za-z0-9_]*(\(\))?(\.[A-Za-z0-9_]+(\(\))?)*'
-  local times="(0\\.5|T::from_f64\\($s(0\\.5)$s\\))"
-  local by_half="(\\*$s$times|/$s(2\\.0?|T::from_f64\\($s(2\\.0?)$s\\)))"
+  # A HALF is `0.5` (`0.5_f64`, `0.5f64` too) or any path call on it, a
+  # lift (`T::from_f64(0.5)`, `Interval::point(0.5)`, a local `pt(0.5)`);
+  # a division is by `2.` or `2.0` or a lift of it (a bare `/ 2` is an
+  # integer's: a float divides only by a float). ONE group each, so the
+  # backreference numbers below stay fixed.
+  local lift='[A-Za-z_][A-Za-z0-9_:]*'
+  local times="(0\\.5[_f64]{0,4}|$lift\\(${s}0\\.5[_f64]{0,4}$s\\))"
+  local by_half="(\\*$s$times|/$s(2\\.0?[_f64]{0,4}|$lift\\(${s}2\\.0?$s\\)))"
   local edge='(^|[^A-Za-z0-9_.*/[:space:]]|return)[[:space:]]*'
   local tail="$s([^*/[:space:]]|\$)"
   # THE DIFFERENCE FORM. Group 1 is the edge and group 2 is E.
@@ -110,14 +163,18 @@ gate() {
   local lower="$edge($chain)$s\\+$s($times$s\\*$s$diff|$diff$s$by_half)$tail"
   # THE SUM FORM: a pair of ends, halved. A backreference's number is
   # global to its regex, so each shape is its own grep. In a shape, @K
-  # stands for the group its first end lands in (4 behind a leading
-  # halving: edge, halving, its inner 0.5; 2 before a trailing one), @L
-  # for K + 1 and @M for K + 3.
+  # stands for the group its first end lands in (3 behind a leading
+  # halving: edge, halving; 2 before a trailing one), @L for K + 1 and
+  # @M for K + 3; in a lifted pair (`pt(lo) + pt(hi)`, one lift on both
+  # ends) K is the lift, L the prefix, @P (K + 2) the call and @Q
+  # (K + 4) the index.
   local pfx='[A-Za-z0-9_.]*' call='((\(\))?)' idx='((\[[A-Za-z0-9_]+\])?)'
   local stem='[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*'
   local -a pairs=(
     "($pfx)lo$call$idx$s\\+$s\\@Khi\\@L\\@M"
     "($pfx)hi$call$idx$s\\+$s\\@Klo\\@L\\@M"
+    "($lift)\\(${s}($pfx)lo$call$idx$s\\)$s\\+$s\\@K\\($s\\@Lhi\\@P\\@Q$s\\)"
+    "($lift)\\(${s}($pfx)hi$call$idx$s\\)$s\\+$s\\@K\\($s\\@Llo\\@P\\@Q$s\\)"
     "($chain)\\.0$s\\+$s\\@K\\.1"
     "($chain)\\.1$s\\+$s\\@K\\.0"
     "($chain)\\[0\\]$s\\+$s\\@K\\[1\\]"
@@ -126,23 +183,25 @@ gate() {
     "($stem)1$s\\+$s\\@K0"
   )
   local lerp_re="\\.lerp$s\\(.*,$s$times$s\\)"
-  # THE SUM OF HALVES and STD'S FORM. A half is HALF·X, X·HALF or X/2.
-  local halfof="($times$s\\*$s$chain|$chain$s(\\*$s$times|/$s(2\\.0?|T::from_f64\\($s(2\\.0?)$s\\))))"
-  local halves_re="$edge$halfof$s\\+$s$halfof$tail"
   local std_re="(\\.midpoint$s\\($s[^)[:space:]]|(^|[^A-Za-z0-9_])f64$s::${s}midpoint$s\\()"
   local view lower_hits lerp_hits halves_hits std_hits sum_hits='' pair re k
   view=$(gate_rust_code --skip-cfg-test --statements "${files[@]}" \
     | gate_grep -vE "$(gate_record_anchor_any "${HOMES[@]}")")
   lower_hits=$(printf '%s\n' "$view" | gate_grep -E "$lower")
   lerp_hits=$(printf '%s\n' "$view" | gate_grep -E "$lerp_re")
-  halves_hits=$(printf '%s\n' "$view" | gate_grep -E "$halves_re")
+  if ! halves_hits=$(printf '%s\n' "$view" | python3 -c "$HALVES_MATCHER"); then
+    gate_error "$(gate_name): the halves matcher failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
+    exit 1
+  fi
   std_hits=$(printf '%s\n' "$view" | gate_grep -E "$std_re")
   for pair in "${pairs[@]}"; do
-    for k in 4 2; do
+    for k in 3 2; do
       re=${pair//@K/$k}
       re=${re//@L/$((k + 1))}
       re=${re//@M/$((k + 3))}
-      if [ "$k" = 4 ]; then
+      re=${re//@P/$((k + 2))}
+      re=${re//@Q/$((k + 4))}
+      if [ "$k" = 3 ]; then
         re="$edge$times$s\\*$s\\($s$re$s\\)$tail"
       else
         re="$edge\\($s$re$s\\)$s$by_half$tail"
@@ -199,8 +258,14 @@ plant_lerp_half() { plant "$1" 'pub fn m(p: P, q: P) -> P { p.lerp(q, 0.5) }'; }
 plant_lerp_scalar() { plant "$1" 'pub fn m<T: Real>(p: P<T>, q: P<T>) -> P<T> { p.lerp(q, T::from_f64(0.5)) }'; }
 plant_halves() { plant "$1" 'pub fn m(lo: f64, hi: f64) -> f64 { 0.5 * lo + 0.5 * hi }'; }
 plant_halves_trailing() { plant "$1" 'pub fn m(x: I) -> f64 { x.lo() * 0.5 + x.hi() * 0.5 }'; }
-plant_halves_divided() { plant "$1" 'pub fn m(a: f64, b: f64) -> f64 { a / 2.0 + b / 2.0 }'; }
-plant_halves_scalar() { plant "$1" 'pub fn m<T: Real>(a: T, b: T) -> T { T::from_f64(0.5) * a + b * T::from_f64(0.5) }'; }
+plant_halves_divided() { plant "$1" 'pub fn m(lo: f64, hi: f64) -> f64 { lo / 2.0 + hi / 2.0 }'; }
+plant_halves_scalar() { plant "$1" 'pub fn m<T: Real>(t0: T, t1: T) -> T { T::from_f64(0.5) * t0 + t1 * T::from_f64(0.5) }'; }
+plant_halves_indexed() { plant "$1" 'pub fn m(x: [f64; 2]) -> f64 { 0.5 * x[0] + 0.5 * x[1] }'; }
+plant_halves_tuple() { plant "$1" 'pub fn m(x: (f64, f64)) -> f64 { x.1 * 0.5 + x.0 * 0.5 }'; }
+plant_sum_lift() { plant "$1" 'pub fn m(lo: f64, hi: f64) -> I { (pt(lo) + pt(hi)) * pt(0.5) }'; }
+plant_sum_point() { plant "$1" 'pub fn m(x: I) -> I { Interval::point(0.5) * (x.lo() + x.hi()) }'; }
+plant_sum_suffixed() { plant "$1" 'pub fn m(lo: f64, hi: f64) -> f64 { 0.5_f64 * (lo + hi) }'; }
+plant_lower_lift() { plant "$1" 'pub fn m(a: I, b: I) -> I { a + (b - a) * pt(0.5) }'; }
 plant_halves_wrapped() { plant "$1" $'pub fn m(lo: f64, hi: f64) -> f64 {\n    0.5 * lo\n        + 0.5 * hi\n}'; }
 plant_std_method() { plant "$1" 'pub fn m(lo: f64, hi: f64) -> f64 { lo.midpoint(hi) }'; }
 plant_std_path() { plant "$1" 'pub fn m(lo: f64, hi: f64) -> f64 { f64::midpoint(lo, hi) }'; }
@@ -239,6 +304,8 @@ plant_not_sites() {
     printf 'pub fn l<T: Real>(lo: T, hi: T, h: T) -> T { lo + (hi - lo) * T::from_f64(0.5) * h }\n'
     printf 'pub fn n(p: P, q: P, t: f64) -> P { p.lerp(q, t).lerp(q, 0.25) }\n'
     printf 'pub fn o(a: B) -> f64 { a.midpoint() }\n'
+    printf 'pub fn s(c: f64, a: f64, b: f64, u: V, v: V) -> f64 { c + 0.5 * a + 0.5 * b + (0.5 * u + 0.5 * v).x }\n'
+    printf 'pub fn t(cleared: u64, stop: u64) -> u64 { cleared + (stop - cleared) / 2 }\n'
     printf 'pub fn q(a: f64, b: f64, c: f64) -> f64 { 0.5 * a + 0.25 * b + c * 2.0 }\n'
     printf 'pub fn r(a: f64, b: f64, h: f64) -> f64 { h * 0.5 * a + 0.5 * b * h }\n'
     printf '// 0.5 * (lo + hi) by hand\npub const S: &str = "lo + 0.5 * (hi - lo)";\n'
@@ -253,15 +320,17 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   local p
   for p in plant_lower_half plant_lower_trailing plant_lower_halved plant_lower_return plant_lower_wrapped \
-    plant_lower_scalar plant_lower_scalar_leading plant_lower_scalar_halved; do
+    plant_lower_scalar plant_lower_scalar_leading plant_lower_scalar_halved plant_lower_lift; do
     gate_selftest_case "read it as bracket_mid((lo, hi))" "$p"
   done
   for p in plant_sum_half plant_sum_trailing plant_sum_halved plant_sum_swapped plant_sum_indexed \
     plant_sum_tuple plant_sum_tuple_swapped plant_sum_pair plant_sum_pair_swapped plant_sum_stem \
-    plant_sum_stem_swapped plant_sum_scalar plant_sum_scalar_leading plant_sum_scalar_halved; do
+    plant_sum_stem_swapped plant_sum_scalar plant_sum_scalar_leading plant_sum_scalar_halved \
+    plant_sum_lift plant_sum_point plant_sum_suffixed; do
     gate_selftest_case "read it as mid_param(lo, hi)" "$p"
   done
-  for p in plant_halves plant_halves_trailing plant_halves_divided plant_halves_scalar plant_halves_wrapped; do
+  for p in plant_halves plant_halves_trailing plant_halves_divided plant_halves_scalar plant_halves_wrapped \
+    plant_halves_indexed plant_halves_tuple; do
     gate_selftest_case "spelled ½lo + ½hi by hand" "$p"
   done
   for p in plant_std_method plant_std_path; do
@@ -272,7 +341,7 @@ gate_selftest() {
   done
   gate_selftest_passes "a grid step, an integer middle, other names, an unhalved sum, another operand, a halved product, a trapezoid, ends of two different pairs or brackets, prose, a test module, fixture files and the home" plant_not_sites
   gate_selftest_homes --narrowed --subject "$HOME_SUBJECT" "${HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the home, and a zero-argument midpoint door, other weighted sums, halves behind a product, a lerp at a general t, a grid step, an integer middle, other names, an unhalved sum, another operand, a halved product, a trapezoid, ends of two different pairs or brackets, prose, a test module and fixture files; fires naming bracket_mid on lo + ½(hi − lo) with the half as 0.5 or T::from_f64(0.5) on either side or a division by 2.0 or T::from_f64(2.0), after return and wrapped across lines; fires naming mid_param on ½lo + ½hi (HALF on either side, /2.0, T::from_f64, wrapped) and on the std a.midpoint(b) and f64::midpoint(a, b); fires naming p.mid(q) on p.lerp(q, ½) with the half as 0.5 or T::from_f64(0.5); fires naming mid_param on ½(lo + hi) halved the same ways, in either order, as Xlo + Xhi (indexed and called), E.0 + E.1, E[0] + E[1] and S0 + S1; and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the home, and a zero-argument midpoint door, other weighted sums, unpaired halves (a scalar and a vector), an integer halving, halves behind a product, a lerp at a general t, a grid step, an integer middle, other names, an unhalved sum, another operand, a halved product, a trapezoid, ends of two different pairs or brackets, prose, a test module and fixture files; fires naming bracket_mid on lo + ½(hi − lo) with the half as 0.5 or T::from_f64(0.5) on either side or a division by 2.0 or T::from_f64(2.0), after return and wrapped across lines; fires naming mid_param on ½lo + ½hi over a paired lo/hi, t0/t1, x[0]/x[1] and x.1/x.0 (HALF on either side, /2.0, T::from_f64, wrapped) and on the std a.midpoint(b) and f64::midpoint(a, b); fires naming p.mid(q) on p.lerp(q, ½) with the half as 0.5 or T::from_f64(0.5); fires naming mid_param on ½(lo + hi) halved the same ways and through a lift (pt(0.5), Interval::point(0.5)) and 0.5_f64, in either order, as Xlo + Xhi (indexed and called), E.0 + E.1, E[0] + E[1] and S0 + S1; and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

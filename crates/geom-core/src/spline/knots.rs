@@ -359,6 +359,11 @@ pub enum KnotVectorIssue {
         /// Index of the offending knot.
         index: usize,
     },
+    /// A knot lies past [`KNOT_MAGNITUDE_MAX`] in magnitude.
+    PastHalfMax {
+        /// Index of the offending knot.
+        index: usize,
+    },
     /// `knots[index] < knots[index − 1]` — not non-decreasing.
     Decreasing {
         /// Index of the first knot that decreases.
@@ -394,6 +399,11 @@ impl KnotVectorIssue {
                 f,
                 "knot {index} is not finite, and knots are structure, compared exactly and never \
                  to a tolerance"
+            ),
+            KnotVectorIssue::PastHalfMax { index } => write!(
+                f,
+                "knot {index} lies past half the largest finite number in magnitude, where \
+                 the middle of a span reaching it is not representable"
             ),
             KnotVectorIssue::Decreasing { index } => {
                 write!(f, "knot {index} decreases, which a knot vector never does")
@@ -432,6 +442,11 @@ impl core::fmt::Display for KnotVectorIssue {
             KnotVectorIssue::NonFinite { .. } => {
                 write!(f, "{fact}. Recourse: supply a finite value there")
             }
+            KnotVectorIssue::PastHalfMax { .. } => write!(
+                f,
+                "{fact}. Recourse: describe the geometry on a smaller parameter domain; an \
+                 affine change of parameter leaves its shape as it is"
+            ),
             KnotVectorIssue::Decreasing { .. } => write!(
                 f,
                 "{fact}. Recourse: supply the values in ascending order, repeating one to raise \
@@ -455,34 +470,10 @@ impl core::fmt::Display for KnotVectorIssue {
 }
 
 /// Why [`KnotVector::mirror_symmetric`] refuses: the vector is not its
-/// own reflection about its domain, or the reflection cannot be
-/// computed.
+/// own reflection about its domain. The reflection `lo + hi` is always
+/// finite: an admitted knot lies within [`KNOT_MAGNITUDE_MAX`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum KnotMirrorError {
-    /// The reflection `lo + hi` overflows to an infinity, so the domain
-    /// names no reflection and the test is not defined on it.
-    ///
-    /// Without the guard the arithmetic would not go WRONG: an
-    /// overflowing head carries a NaN residual, a NaN compares equal to
-    /// nothing, and the scan would refuse at index 0 with an
-    /// [`Self::AsymmetricPair`] naming the clamp pair — a true verdict
-    /// with a misleading reason, since that pair is the one pair the
-    /// scan is guaranteed to hold. The guard names the DOMAIN's defect
-    /// instead of an innocent pair. It also refuses a vector that IS
-    /// its own reflection in ℝ but whose `lo + hi` overflows: the test
-    /// that would admit it cannot be run.
-    ///
-    /// The same NaN residual settles the per-pair case the guard does
-    /// not cover. A pair whose own head overflows while `lo + hi` stays
-    /// finite is necessarily asymmetric — its real sum exceeds the
-    /// finite `lo + hi` — and its NaN residual refuses it, which is the
-    /// right answer for the right reason.
-    ReflectionNotFinite {
-        /// The domain's start.
-        lo: f64,
-        /// The domain's end.
-        hi: f64,
-    },
     /// Knots `index` and `mirror_index` do not sum to `lo + hi`, so the
     /// vector is not its own reflection.
     AsymmetricPair {
@@ -504,14 +495,6 @@ pub enum KnotMirrorError {
 impl core::fmt::Display for KnotMirrorError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            KnotMirrorError::ReflectionNotFinite { lo, hi } => write!(
-                f,
-                "knot mirror: the domain [{}, {}] has no finite reflection sum, so whether \
-                 the vector is its own reflection cannot be decided. Recourse: re-express \
-                 the vector on a domain whose ends sum finitely and ask on that",
-                Readable(*lo),
-                Readable(*hi)
-            ),
             KnotMirrorError::AsymmetricPair {
                 index,
                 mirror_index,
@@ -1240,9 +1223,8 @@ impl KnotVector {
     ///
     /// # Errors
     ///
-    /// [`KnotMirrorError::ReflectionNotFinite`] when `lo + hi`
-    /// overflows; otherwise [`KnotMirrorError::AsymmetricPair`] naming
-    /// the first pair, from the outside in, whose exact sum misses.
+    /// [`KnotMirrorError::AsymmetricPair`] naming the first pair, from
+    /// the outside in, whose exact sum misses.
     ///
     /// [`two_sum`]: crate::exact::two_sum
     pub fn mirror_symmetric(&self) -> Result<(), KnotMirrorError> {
@@ -1303,9 +1285,6 @@ impl KnotVector {
         // Indexing justified: a clamped vector is never empty.
         let (lo, hi) = (self.knots[0], other.knots[other.knots.len() - 1]);
         let reflection = two_sum(lo, hi);
-        if !reflection.0.is_finite() {
-            return Err(KnotMirrorError::ReflectionNotFinite { lo, hi });
-        }
         Ok(self
             .knots
             .iter()
@@ -1676,6 +1655,15 @@ pub(crate) fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
 /// and both end runs exactly `degree + 1` long ([`end_runs_clamped`]).
 /// [`KnotVector::clamped`] adds its degree and interior clauses to
 /// these; [`LooseKnots::new`] is these alone.
+/// **The largest magnitude a knot may have**, `f64::MAX / 2`. Below it
+/// every parameter a knot vector bounds has a finite middle
+/// ([`crate::mid_param`]: two ends' sum stays finite) and a finite
+/// width, so a reading of a parameter bracket's middle never meets an
+/// overflowed `∞`. Every knot vector is admitted through
+/// [`KnotVector::clamped`] (and so `on_domain`, and `from_algebra`'s
+/// revalidation) or `Knots::new`, which both refuse past it.
+pub const KNOT_MAGNITUDE_MAX: f64 = f64::MAX / 2.0;
+
 fn end_clamped(knots: &[f64], degree: usize) -> Result<(), SplineError> {
     let issue = |reason| Err(SplineError::KnotVectorInvalid { reason });
     // Ahead of the value clauses: a short list is refused as short.
@@ -1685,6 +1673,9 @@ fn end_clamped(knots: &[f64], degree: usize) -> Result<(), SplineError> {
     for (index, k) in knots.iter().enumerate() {
         if !k.is_finite() {
             return issue(KnotVectorIssue::NonFinite { index });
+        }
+        if k.abs() > KNOT_MAGNITUDE_MAX {
+            return issue(KnotVectorIssue::PastHalfMax { index });
         }
     }
     for index in 1..knots.len() {
@@ -2271,7 +2262,7 @@ mod tests {
     fn every_knot_vector_issue_arm_names_a_recourse() {
         const RECOURSE_WORDS: &[&str] = &["supply", "describe", "repeat", "drop"];
         let arms = knot_vector_issue_arms();
-        assert_eq!(arms.len(), 7, "an arm was added without a row here");
+        assert_eq!(arms.len(), 8, "an arm was added without a row here");
         for arm in &arms {
             let text = arm.to_string();
             assert_eq!(
@@ -2398,39 +2389,43 @@ mod tests {
         );
     }
 
-    /// A domain whose reflection overflows is refused rather than
-    /// answered. Without the guard the scan would not pass vacuously —
-    /// the overflowing head's residual is a NaN and compares equal to
-    /// nothing — it would refuse at index 0 and blame the clamp pair;
-    /// the guard names the domain's defect instead.
+    /// **A knot past `f64::MAX / 2` is refused at admission**, so a
+    /// domain whose ends would sum past the largest finite number
+    /// (`(1e308, 1.5e308)`, whose reflection and middle overflow) is no
+    /// knot vector at all, named by the first knot over the bound.
     #[test]
-    fn a_domain_with_no_finite_reflection_refuses() {
+    fn a_knot_past_half_the_largest_finite_number_is_refused() {
         let (lo, hi): (f64, f64) = (1e308, 1.5e308);
-        assert!(!(lo + hi).is_finite(), "the fixture's reflection overflows");
         assert!(
-            two_sum(lo, hi).1.is_nan(),
-            "so the residual is a NaN, and an unguarded scan would refuse at index 0"
+            !(lo + hi).is_finite(),
+            "the fixture's ends sum past f64::MAX"
         );
-        let e = kv(&[lo, lo, lo, hi, hi, hi], 2)
-            .mirror_symmetric()
-            .unwrap_err();
         assert_eq!(
-            e,
-            KnotMirrorError::ReflectionNotFinite { lo, hi },
-            "the test refuses a reflection it cannot compute"
+            KnotVector::clamped(vec![lo, lo, lo, hi, hi, hi], 2),
+            Err(SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::PastHalfMax { index: 0 },
+            }),
+            "1e308 is past f64::MAX / 2 (≈ 8.99e307), so the first knot is refused"
         );
+        let edge = KNOT_MAGNITUDE_MAX;
         assert!(
-            e.to_string().starts_with(
-                "knot mirror: the domain [1e308, 1.5e308] has no finite reflection sum"
-            ),
-            "the refusal names a domain at the ceiling of the range readably: {e}"
+            KnotVector::clamped(vec![-edge, -edge, edge, edge], 1).is_ok(),
+            "the bound itself is admitted: its two ends still sum finitely"
         );
-        // And it refuses a vector that IS its own reflection in ℝ, for
-        // the same reason: the test that would admit it cannot be run.
         assert_eq!(
-            kv(&[lo, lo, lo, 1.25e308, hi, hi, hi], 2).mirror_symmetric(),
-            Err(KnotMirrorError::ReflectionNotFinite { lo, hi }),
-            "a genuinely symmetric vector whose lo + hi overflows is refused too"
+            KnotVector::clamped(vec![0.0, 0.0, edge.next_up(), edge.next_up()], 1),
+            Err(SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::PastHalfMax { index: 2 },
+            }),
+            "one ulp past the bound is refused"
+        );
+        let unit = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        assert_eq!(
+            unit.on_domain(0.0, 1.5e308),
+            Err(SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::PastHalfMax { index: 2 },
+            }),
+            "a domain carried past the bound is refused through the same door"
         );
     }
 
@@ -2446,14 +2441,7 @@ mod tests {
             lo: 0.0,
             hi: 1.0,
         };
-        let arms = [
-            KnotMirrorError::ReflectionNotFinite {
-                lo: 1e308,
-                hi: 1.5e308,
-            },
-            pair(3, 3),
-            pair(3, 4),
-        ];
+        let arms = [pair(3, 3), pair(3, 4)];
         for arm in &arms {
             let text = arm.to_string();
             assert_eq!(
@@ -2471,11 +2459,12 @@ mod tests {
 
     /// One of each [`KnotVectorIssue`], so the row above and the
     /// transitive arm of the row below read the same population.
-    fn knot_vector_issue_arms() -> [KnotVectorIssue; 7] {
+    fn knot_vector_issue_arms() -> [KnotVectorIssue; 8] {
         [
             KnotVectorIssue::DegreeZero,
             KnotVectorIssue::TooShort,
             KnotVectorIssue::NonFinite { index: 2 },
+            KnotVectorIssue::PastHalfMax { index: 2 },
             KnotVectorIssue::Decreasing { index: 3 },
             KnotVectorIssue::StartNotClamped,
             KnotVectorIssue::EndNotClamped,

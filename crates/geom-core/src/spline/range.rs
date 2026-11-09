@@ -108,9 +108,12 @@ impl ParamRange {
         (self.start, self.end)
     }
 
-    /// [`crate::mid_param`] of the ends. NaN only for the whole line
+    /// [`crate::mid_param`] of the ends. NaN for the whole line
     /// `(−∞, +∞)`, which has no midpoint; [`ParamRange::clamp_to`] a
-    /// finite domain first.
+    /// finite domain first. Clamped to a knot vector's domain it is
+    /// finite: a knot lies within [`crate::spline::KNOT_MAGNITUDE_MAX`],
+    /// so two ends never sum past `f64::MAX`. An unclamped range whose
+    /// ends lie past `f64::MAX / 2` on one side reads `±∞`.
     pub fn mid(self) -> f64 {
         crate::mid_param(self.start.0, self.end.0)
     }

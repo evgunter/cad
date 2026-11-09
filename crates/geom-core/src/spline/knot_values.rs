@@ -230,6 +230,14 @@ impl<T: SpanLocate> Knots<T> {
                     reason: super::knots::KnotVectorIssue::NonFinite { index: at },
                 });
             }
+            if value.structure_bracket().is_some_and(|(lo, hi)| {
+                lo.abs() > super::knots::KNOT_MAGNITUDE_MAX
+                    || hi.abs() > super::knots::KNOT_MAGNITUDE_MAX
+            }) {
+                return Err(SplineError::KnotVectorInvalid {
+                    reason: super::knots::KnotVectorIssue::PastHalfMax { index: at },
+                });
+            }
             at += multiplicity;
             if let Some(prev) = last {
                 runs_ascend(prev, value, index)?;
