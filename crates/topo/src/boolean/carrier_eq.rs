@@ -486,11 +486,8 @@ pub(crate) fn carrier_eq_reading<T: Decide>(
                 outward: w2,
             },
         ) => {
-            let (coincidence, same) = tori_pair(
-                (*p1, *a1, *r1, *t1, *w1),
-                (*p2, *a2, *r2, *t2, *w2),
-                band,
-            );
+            let (coincidence, same) =
+                tori_pair((*p1, *a1, *r1, *t1, *w1), (*p2, *a2, *r2, *t2, *w2), band);
             torus_verdict(coincidence, same)
         }
         (
@@ -535,11 +532,12 @@ pub(super) fn pair_door_reading<T: Decide>(
 ) -> Result<CarrierVerdict, CarrierEqError> {
     match carrier_eq_reading(c1, c2, extent, band) {
         Ok(CarrierVerdict::One { relation, margin }) => {
-            let margin = coincident_over_extent(c1, c2, extent, (relation, margin), band)
-                .map_err(|diag| CarrierEqError::Undecided {
+            let margin = coincident_over_extent(c1, c2, extent, (relation, margin), band).map_err(
+                |diag| CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::not_zero(diag),
                     relation,
-                })?;
+                },
+            )?;
             Ok(CarrierVerdict::One { relation, margin })
         }
         verdict => verdict,

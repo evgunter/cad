@@ -405,4 +405,3 @@ fn an_off_ring_or_poisoned_pair_is_refused_not_decided() {
         other => panic!("the poisoned centre beside an axis decided apart: {other:?}"),
     }
 }
-

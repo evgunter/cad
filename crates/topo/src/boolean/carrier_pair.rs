@@ -664,7 +664,10 @@ mod lever_rows {
         b.set_face_sense(fb, !sense).unwrap();
         let reach = (1.0 + 0.9 * e - 1.0) + 0.9 * e;
         let (at_door, at_contact) = straddled((&a, fa), (&b, fb), pinned);
-        assert_eq!(at_door, at_contact, "the contact door quotes the face-pair door");
+        assert_eq!(
+            at_door, at_contact,
+            "the contact door quotes the face-pair door"
+        );
         assert_eq!(
             at_door.predicate,
             Some("carrier_cyl_reach_straddle"),
@@ -730,7 +733,10 @@ mod lever_rows {
                     .map(|p| torus_distance(&ca, p)),
             )
             .fold(0.0, f64::max);
-        assert!(witness <= band().zero(), "the corners read Zero: {witness:e}");
+        assert!(
+            witness <= band().zero(),
+            "the corners read Zero: {witness:e}"
+        );
         let ring = |c: CarrierDesc<f64>| match c {
             CarrierDesc::Torus {
                 center,
@@ -748,7 +754,10 @@ mod lever_rows {
         };
         let upper = geom_brep::TorusDisplacement::of(ring(ca), ring(cb)).upper;
         let (at_door, at_contact) = straddled((&a, fa), (&b, fb), band());
-        assert_eq!(at_door, at_contact, "the contact door quotes the face-pair door");
+        assert_eq!(
+            at_door, at_contact,
+            "the contact door quotes the face-pair door"
+        );
         assert_eq!(
             at_door.predicate,
             Some("carrier_torus_witness_straddle"),
