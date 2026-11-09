@@ -3010,9 +3010,9 @@ pub enum BooleanError {
     /// convention half whose in-band arm is
     /// [`BooleanDecision::Torus`], and it ends in the same lever.
     ///
-    /// As the normal door states a degenerate torus
-    /// ([`crate::face_normal::NormalAtError::refusal`]): an abort, a shape the kernel's model never
-    /// represents (row 1(a)).
+    /// As the convention states a torus decided outside it
+    /// ([`geom_brep::TorusConvention::decided_refusal`]): an abort, a shape
+    /// the kernel's model never represents (row 1(a)).
     DegenerateTorus {
         /// The pierced face's operand.
         operand: Operand,
@@ -5039,15 +5039,7 @@ impl BooleanError {
             | Self::NormalAtConeApex { .. }
             | Self::VertexNearConeAxis { .. } => Ok(Refusal::of_apex()),
             Self::NormalAtSplineCrease { reading, .. } => Ok(Refusal::of_crease(*reading)),
-            Self::DegenerateTorus {
-                convention,
-                verdict,
-                ..
-            } => crate::face_normal::NormalAtError::DegenerateTorus {
-                convention: *convention,
-                verdict: *verdict,
-            }
-            .refusal(),
+            Self::DegenerateTorus { convention, .. } => convention.decided_refusal(),
             Self::CurvedSectorSideUnsupported { .. }
             | Self::CurvedPierceUnsupported { .. }
             | Self::CurvedBooleanUnsupported { .. }

@@ -66,6 +66,10 @@ use geom_brep::sector_shape::{
 impl SectorFaceError {
     /// The split's refusal of `vertex`, whose sector the walk could not
     /// resolve: a kind the split does not cut, or a cone's apex undecided.
+    /// A crease's reading is not carried: only a spline face has one, and
+    /// the split cuts no spline face (its executed arms are the plane,
+    /// cylinder and cone's), so the face's kind is the refusal whatever
+    /// the reading, a row-2 "not built" (`[failure.taxonomy]`).
     pub(crate) fn split_refusal(self, vertex: VertexKey) -> SplitReduceError {
         match self {
             Self::Unsupported { face, kind }

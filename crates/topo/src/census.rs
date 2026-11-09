@@ -8771,8 +8771,13 @@ fn corner_normal<T: Decide>(
             VertexFace::Tangent(n) => Ok(n.vec()),
             VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(TouchUnread::Unreadable),
         },
-        Err(SectorFaceError::ApexUndecided { .. }) => Err(TouchUnread::InBand),
-        Err(_) => Err(TouchUnread::Unreadable),
+        Err(SectorFaceError::ApexUndecided { .. }) => Err(TouchUnread::kept(Refusal::of_apex())),
+        Err(SectorFaceError::Crease { reading, .. }) => {
+            Err(TouchUnread::kept(Refusal::of_crease(reading)))
+        }
+        Err(SectorFaceError::Unsupported { .. } | SectorFaceError::Unplaced { .. }) => {
+            Err(TouchUnread::Unreadable)
+        }
     }
 }
 

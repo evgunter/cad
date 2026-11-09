@@ -38,6 +38,19 @@ pub enum TorusConvention {
 }
 
 impl TorusConvention {
+    /// **A torus decided outside this half of the convention**, as a
+    /// ladder reads it ([`crate::ladder::Refusal`]): a shape the kernel's
+    /// model never represents, an invalid input (row 1(a)), so it aborts.
+    /// The one home of that class: the normal door and the germ-pair
+    /// frame refuse the same fact, and both read it here.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`], always.
+    pub const fn decided_refusal(self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        Err(crate::ladder::Aborts)
+    }
+
     /// What the half decides, as a clause with no colon or dash of its
     /// own.
     #[must_use]
