@@ -13,7 +13,7 @@ The sweep found these 3D sites that read the unit-direction height inline, `(p â
 - `crates/topo/src/ring_path.rs` `LoopSplit::margin`, `Side` arm (~`:890`)
 - `crates/topo/src/boolean/region.rs` (~`:1133`)
 - `crates/topo/src/clearance.rs` (~`:3402`)
-- `crates/sweep/src/blend/surgery.rs` (~`:2484`, `:2613`, `:3167`, `:5972`)
+- `crates/sweep/src/blend/surgery.rs` (~`:2462`, `:2598`, `:3156`, `:5895`)
 - `crates/sweep/src/blend/reach.rs` (~`:1096`, `:1454`)
 - `crates/geom-brep/src/intersect/conic_arc.rs` (~`:355`)
 

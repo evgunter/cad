@@ -19,7 +19,7 @@ Found by the FULL review of PR 6475. With the normal's component boxes of width 
 Re-read under PR 6568's ruling A′. **`Line::param` keeps its division by `|dir|²`.** It is the parameterization, which must be correct for any nonzero `dir`: chords `b − a`, and `Curve3::Line` carriers minted unnormalized. A unit read, `param` as the bare dot, would be wrong by about `δ·|w|` on a direction off unit by `δ`. A frame axis is unit only to the convention's `ε/arm`, and a line `dir` is not checked at all. The width is the price of that correctness. The typed unit axis (`an-axis-reads-its-direction-as-unit-by-convention-not-type`) is where a unit read could return.
 
 **The row's sites read the parameter as a length**, so they now read `Line::height` (`w·dir / |dir|`), the metric reading:
-- `shell.rs` `MovedWall::walls_cross`'s `along`;
+- `shell.rs` `walls_cross`'s `along` (a free fn);
 - the moved-wall ball read in `cut_counting`, now `height_and_distance`;
 - `splitting/join.rs` `pair_along_line`'s sort keys.
 
@@ -33,4 +33,4 @@ Measured width of the key difference `k(y) − k(x)`: 2000 random tilted directi
 | 1e-12 | 1.19e-11 | 8.9e-12 | 6.0e-12 |
 | 1e-9 | 1.19e-8 | 8.9e-9 | 6.0e-9 |
 
-So `height` recovers about a quarter of the width `param` cost against the bare dot. The rest is the division that keeps it correct off unit.
+So `height` recovers about half of the width `param` cost against the bare dot. The rest is the division that keeps it correct off unit.
