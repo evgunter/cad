@@ -37,3 +37,12 @@ pin.
 **Fix**: move the curved containment door and its types to root
 modules, repoint the boolean's readers, and drop `cover.rs`'s
 `names-boolean` line.
+
+## Note from `onecopy/path-parity` (2026-11-09)
+
+The chord_join ring rows on cone, torus and sphere sheets ask the curved
+containment door whether the islands they plant lie in their faces, in
+one test helper, `chord_join::island_rows::assert_in_face`, which reads
+`curved_face_containment`, `FaceContainment` and `ContainError`. Its
+`names-boolean` pin cites this row, and it reads the door from the root
+once the door moves.

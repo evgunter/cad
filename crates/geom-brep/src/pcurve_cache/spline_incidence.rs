@@ -331,7 +331,7 @@ impl<'a, T: Decide> Net<'a, T> {
             .map(|j| refined(ku, rows.iter().map(|r| r[j]).collect(), track))
             .collect::<Option<_>>()?;
         let nu = columns.first()?.len();
-        let (bu, bv) = (breaks(ku)?, breaks(kv)?);
+        let (bu, bv) = (ku.breakpoint_values()?, kv.breakpoint_values()?);
         let (cu, cv) = (bu.len() - 1, bv.len() - 1);
         if nu != cu * pu + 1 || nv != cv * pv + 1 {
             return None;
@@ -515,15 +515,13 @@ impl<'a, T: Decide> Net<'a, T> {
 
 /// Whether an in-band floor is shown past the band's zero, so its cell
 /// holds no point within the zero band of the sample: an exact order
-/// ([`Band::least`]), since an enclosure straddling the zero is in band
-/// too and may hold such a point.
+/// ([`geom_core::k_stats::prove`]), since an enclosure straddling the
+/// zero is in band too and may hold such a point. Not a reading of the
+/// gap against the band: it is asked only where that reading
+/// ([`decide`] at `band`) refused, and the band would refuse it again.
 fn past_zero<T: Decide>(gap: T, band: Band) -> bool {
     matches!(
-        decide(
-            HULL,
-            Margin::of(gap - T::from_f64(band.zero())),
-            Band::least()
-        ),
+        geom_core::k_stats::prove(HULL, Margin::of(gap - T::from_f64(band.zero()))),
         Ok(Sign::Positive)
     )
 }
@@ -660,12 +658,6 @@ fn shadow_box<T: SpanLocate>(control: &[Point3<T>]) -> ([f64; 3], [f64; 3]) {
         }
     }
     (lo, hi)
-}
-
-/// The break values of `knots`, one per run, on the value channel.
-fn breaks<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
-    let out: Vec<f64> = knots.runs().map(|(v, _)| v.value_channel()).collect();
-    out.iter().all(|x| x.is_finite()).then_some(out)
 }
 
 /// The middle of a value's bracket: the walk's order, and the value an

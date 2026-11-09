@@ -1718,12 +1718,11 @@ fn sphere_plane<T: Decide>(
 
 /// **Sphere × sphere**: one circle.
 fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Band) -> Section<T> {
-    let dd = (c2 - c1).norm();
+    let (k, dd) = (c2 - c1).direction_and_length();
     const REACH: &str = "section_sphere_pair_reach";
     const NEST: &str = "section_sphere_pair_nest";
     match signs([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
         Ok([true, true]) => {
-            let k = (c2 - c1) / dd;
             let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
             let rad = ((r1 - x) * (r1 + x)).sqrt();
             // Picked off the axes, as `sphere_plane`'s witness is.
@@ -1743,7 +1742,6 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
             tan.into()
         }
         Err(tan) => touch(tan, &[REACH, NEST], || {
-            let k = (c2 - c1) / dd;
             c1 + k * ((dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd))
         }),
     }

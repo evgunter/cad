@@ -29,7 +29,6 @@ crates/profile/src/path/arc_fillet.rs	about	1	user
 crates/profile/src/sugar.rs	at_corner	2	user
 crates/profile/src/sugar.rs	setback	1	user
 crates/step-import/src/normalize/singularity.rs	crossings	1	harmonic
-crates/sweep/src/blend/reach.rs	sheet_clip	1	turn
 crates/sweep/src/blend/surgery.rs	attach_contact	1	turn
 # turn_past is arc_past's (0, τ] read at T: Real, where Azimuth::near (Decide) does not apply.
 crates/sweep/src/revolve/axis.rs	turn_past	1	past-at-real

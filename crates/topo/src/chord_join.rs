@@ -2448,7 +2448,7 @@ fn chord_spec<T: Decide>(
             let (t1, t2) = (ruling.param(p1), ruling.param(p2));
             // The ruling's speed: it meters a parameter span in metres
             // and makes the plane's `u_ref` unit.
-            let len = ruling.dir.norm();
+            let (ruling_hat, len) = ruling.dir.direction_and_length();
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw
@@ -2477,7 +2477,7 @@ fn chord_spec<T: Decide>(
                         normal: ctx.normal.get(),
                         // Honest u_ref: the ruling direction lies in
                         // the plane by the tangency classification.
-                        u_ref: ruling.dir / len,
+                        u_ref: ruling_hat,
                     });
                     ctx.plane_key = Some(k);
                     k
@@ -3969,7 +3969,15 @@ impl<T: Decide> IslandReading<T> {
     /// The paths to `q` from every outer-loop point of `face`
     /// ([`outer_references`]), in the order they are asked, each read by
     /// `read` until one decides: a side ladder ([`paths_rung`]), so a
-    /// path set aside ahead of one that decides is superseded.
+    /// path set aside ahead of one that decides is superseded. Its
+    /// premise is the input's, not a theorem: the island lies in the
+    /// face, so every outer-loop point is on the same side of it. The
+    /// boolean's ring lane reads it mid-operation (`boolean::join`'s
+    /// `ring_run_ccw`), on a run of a ring of the operand's face, which
+    /// check 9 placed in the face at rest, closed by a section piece the
+    /// reduction kept where the face holds it. That is the construction's
+    /// guarantee: no check re-reads the island against the outer loop
+    /// there (`work/onecopy/the-ring-lanes-island-is-not-checked-in-its-face.md`).
     pub(crate) fn read_paths<R>(
         &self,
         body: &Body<T>,
@@ -4021,15 +4029,30 @@ impl<T: Decide> IslandReading<T> {
 /// **The premise**, which makes every side ladder [`Answering::Any`]:
 /// the decided readings agree. Every reading answers one question —
 /// which side of a curve a point lies on, the same whatever path or
-/// point reads it. For the winding's references and a ring's paths it
-/// holds by construction (each reads one point's side). For a ring's
-/// vertices it holds because the ring does not cross the curve it is
-/// read against: a ring crossing it would have decided vertices on both
-/// sides, and the walk would answer with the first. That is the premise
-/// `validate::ring_nesting` rests on, checked by check 9's contact arms
-/// on `Line` and `Circle` edges and assumed on `Ellipse`, `Spiric` and
-/// NURBS ones
-/// (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
+/// point reads it. For a ring's paths it holds by construction (each
+/// reads one point's side). For the points of a loop or the vertices of
+/// a ring or cycle — every ladder that reads a loop's side point by
+/// point cites this — it holds because the loop does not cross the
+/// curve it is read against:
+///
+/// - **A touch switches no side.** A simple loop that meets the curve
+///   only at touches that do not cross it lies on one side of it. A
+///   touch at a vertex the loop shares with the curve, or at a copy of
+///   one (a pinch, where the split's reduction keeps one vertex per
+///   piece), reads on the curve and passes, and every other point reads
+///   the one side.
+/// - **A crossing would read both sides**, and the walk would answer
+///   with the first. At rest that is excluded by the premise
+///   `validate::ring_nesting` rests on, checked by check 9's contact
+///   arms on `Line` and `Circle` edges and assumed on `Ellipse`,
+///   `Spiric` and NURBS ones
+///   (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
+///   Mid-operation it is excluded where the division identifies every
+///   vertex it passes through. A loop that crosses the run at a vertex
+///   the division did not identify (fate's rehome, [`ChordJoiner`]'s
+///   `rehome_rings`; the split identifies every vertex within band) is
+///   the residual (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
+///
 /// Under it, which decided reading is taken changes nothing.
 fn paths_rung<T: Decide, R>(
     quadric: &Quadric<T>,
@@ -4827,7 +4850,8 @@ impl RimSide {
                 .map_err(escalated)?;
                 // The first point read definitely off the plane decides,
                 // and any such point reads the one side (the loop does not
-                // cross its ring's plane); an escalation escalates only
+                // cross its ring's plane: [`paths_rung`]'s premise, the
+                // plane for the curve); an escalation escalates only
                 // where none does.
                 use geom_brep::ladder::{Answering, Climb, Rung, climb};
                 let points = loop_points(body, outer)?;
@@ -5446,7 +5470,8 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// the run. A vertex whose reading escalates says nothing either, and
 /// the next is asked; the first escalation escalates only where no
 /// vertex decides ([`climb`]). The vertices agree because the
-/// ring does not cross the run ([`paths_rung`]'s premise).
+/// ring does not cross the run, and a touch switches no side
+/// ([`paths_rung`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -5561,6 +5586,9 @@ mod side_ladder_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod island_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;

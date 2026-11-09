@@ -473,7 +473,7 @@ mod tests {
         };
         let lifted = net.map_scalar(lift);
         let g = Interval::from_bounds(-pad, pad);
-        let knots: Vec<f64> = net.knot_values().runs().map(|(v, _)| v).collect();
+        let knots: Vec<f64> = net.knot_values().breakpoints().collect();
         knots
             .windows(2)
             .map(|w| {
