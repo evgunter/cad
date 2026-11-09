@@ -100,7 +100,7 @@ fn spec(body: &mut Body<f64>, surface: SurfaceKey, a: &Arc3) -> EdgeCurveSpec<f6
 /// at azimuths ±2.9.
 fn sheet(s: Sph, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
     // The loop rule ([`super::island_rows`]).
-    let (lo, hi, t) = (-0.97, 0.97, if sense { 2.9 } else { -2.9 });
+    let (lo, hi, t) = (-0.97, 0.97, super::island_rows::loop_start(sense, 2.9));
     let mut body = Body::<f64>::new();
     let start = s.at(-t, lo);
     let seed = body.mvfs(start, sense).unwrap();
