@@ -34,7 +34,6 @@ use super::{
     PairUnread, TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
-use crate::contact::GlueClass;
 use crate::entity::FaceKey;
 
 /// **Which operand's description a glued pair keeps** (`docs/DESIGN.md`
@@ -85,8 +84,9 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
             continue;
         }
         let glued = match carrier_pair_decided(a, fa, b, fb, band) {
-            Ok(Ok(CarrierVerdict::One { relation, margin })) => GlueClass::of_senses(relation)
-                .map(|class| GluedPair::decided(fa, fb, class, margin)),
+            Ok(Ok(CarrierVerdict::One { relation, margin })) => {
+                GluedPair::one_carrier(fa, fb, relation, margin)
+            }
             Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
             | Err(PairUnread::OutsideInventory) => {
                 tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency))

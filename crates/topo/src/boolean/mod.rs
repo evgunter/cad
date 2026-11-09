@@ -1112,13 +1112,15 @@ impl<T: Real> GlueVerdict<T> {
             Operand::A => self.b,
             Operand::B => self.a,
         };
-        GluedPair {
-            given: Some(GivenDecision {
+        GluedPair::given_as(
+            at,
+            other,
+            self.class,
+            GivenDecision {
                 margin: self.margin,
                 line: self.line,
-            }),
-            ..GluedPair::new(at, other, self.class)
-        }
+            },
+        )
     }
 
     /// The verdicts `rows` record: each row relating an A-operand face
@@ -1272,43 +1274,107 @@ impl<T: Real> Glue<T> {
 /// the declaration door records ([`verify_glued_contacts`]): a pair is
 /// decided once.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum Glued<T: Real> {
-    /// One carrier ([`carrier_pair::carrier_pair_decided`]), on the
+enum Glued<T: Real> {
+    /// One carrier ([`carrier_pair::carrier_pair_decided`]): its
+    /// orientation, never `Distinct` ([`GluedPair::one_carrier`]), and the
     /// margin that decided it.
-    OneCarrier(MarginDiag),
+    OneCarrier {
+        relation: CarrierRelation,
+        margin: MarginDiag,
+    },
     /// Distinct carriers tangent along a locus the witness lane
     /// certified ([`glued_tangency`]).
     Tangent(Tangency<T>),
 }
 
-/// **One glued cross-operand face pair and its class**: a pair an
+/// Where a glued pair's decision comes from: the glue door, or the fold
+/// step's given verdict. The class is the decision's.
+#[derive(Clone, Copy, Debug)]
+enum Origin<T: Real> {
+    /// The glue door decided it.
+    Decided(Glued<T>),
+    /// A fold step was given it, under `class`.
+    Given {
+        class: GlueClass,
+        decision: GivenDecision<T>,
+    },
+    /// A test row's pair, under `class`, with no decision: an index row
+    /// the declaration door never reads.
+    #[cfg(test)]
+    Bare(GlueClass),
+}
+
+/// **One glued cross-operand face pair and its decision**: a pair an
 /// operation decided, or one an n-ary union's fold step was given
-/// ([`GlueVerdict::given_at`]); a given pair carries the decision it
-/// was given on, and a pair the glue door decided what it decided.
+/// ([`GlueVerdict::given_at`]). Its class is its decision's
+/// ([`Self::class`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct GluedPair<T: Real = f64> {
     /// The A-operand face.
     pub(crate) a: FaceKey,
     /// The B-operand face.
     pub(crate) b: FaceKey,
-    /// The coincidence the pair glues as.
-    pub(crate) class: GlueClass,
-    /// The decision a given pair carries; none for a pair the operation
-    /// decided.
-    pub(crate) given: Option<GivenDecision<T>>,
-    /// What the glue door decided; none for a given pair.
-    pub(crate) decided: Option<Glued<T>>,
+    /// What decided the pair.
+    origin: Origin<T>,
 }
 
 impl<T: Real> GluedPair<T> {
-    /// A glued pair, under `class`, carrying no decision of its own.
+    /// A glued pair under `class` with no decision: an index row of a
+    /// test the declaration door never reads.
+    #[cfg(test)]
     pub(crate) fn new(a: FaceKey, b: FaceKey, class: impl Into<GlueClass>) -> Self {
         Self {
             a,
             b,
-            class: class.into(),
-            given: None,
-            decided: None,
+            origin: Origin::Bare(class.into()),
+        }
+    }
+
+    /// The coincidence the pair glues as.
+    pub(crate) fn class(&self) -> GlueClass {
+        match self.origin {
+            Origin::Decided(Glued::OneCarrier { relation, .. }) => match relation {
+                CarrierRelation::SameOpposite => GlueClass::Rest,
+                CarrierRelation::SameOriented => GlueClass::Continuation,
+                CarrierRelation::Distinct => {
+                    unreachable!("a one-carrier glue holds an orientation (GluedPair::one_carrier)")
+                }
+            },
+            Origin::Decided(Glued::Tangent(_)) => GlueClass::Tangent,
+            Origin::Given { class, .. } => class,
+            #[cfg(test)]
+            Origin::Bare(class) => class,
+        }
+    }
+
+    /// The decision a given pair carries; none for a pair the operation
+    /// decided.
+    pub(crate) fn given(&self) -> Option<GivenDecision<T>> {
+        match self.origin {
+            Origin::Given { decision, .. } => Some(decision),
+            _ => None,
+        }
+    }
+
+    /// What the glue door decided; none for a given pair.
+    fn decided(&self) -> Option<Glued<T>> {
+        match self.origin {
+            Origin::Decided(glued) => Some(glued),
+            _ => None,
+        }
+    }
+
+    /// A pair a fold step was given under `class`.
+    pub(crate) fn given_as(
+        a: FaceKey,
+        b: FaceKey,
+        class: GlueClass,
+        decision: GivenDecision<T>,
+    ) -> Self {
+        Self {
+            a,
+            b,
+            origin: Origin::Given { class, decision },
         }
     }
 
@@ -1343,26 +1409,33 @@ impl<T: Real> GluedPair<T> {
             Ok(Ok(CarrierVerdict::One { relation, margin }))
                 if Some(relation) == class.carrier_relation() =>
             {
-                Self::decided(fa, fb, class, margin)
+                Self::one_carrier(fa, fb, relation, margin).expect("an orientation")
             }
             other => panic!("the glue door glues no {class:?} pair on {other:?}"),
         }
     }
 
-    /// A one-carrier pair the glue door decided under `class` on
-    /// `margin`.
-    pub(crate) fn decided(a: FaceKey, b: FaceKey, class: GlueClass, margin: MarginDiag) -> Self {
-        Self {
-            decided: Some(Glued::OneCarrier(margin)),
-            ..Self::new(a, b, class)
-        }
+    /// A one-carrier pair the glue door decided under `relation` on
+    /// `margin`; none for `Distinct`, which is no one carrier.
+    pub(crate) fn one_carrier(
+        a: FaceKey,
+        b: FaceKey,
+        relation: CarrierRelation,
+        margin: MarginDiag,
+    ) -> Option<Self> {
+        (relation != CarrierRelation::Distinct).then_some(Self {
+            a,
+            b,
+            origin: Origin::Decided(Glued::OneCarrier { relation, margin }),
+        })
     }
 
     /// A tangency the glue door glued on what the witness lane certified.
     pub(crate) fn tangent(a: FaceKey, b: FaceKey, tangency: Tangency<T>) -> Self {
         Self {
-            decided: Some(Glued::Tangent(tangency)),
-            ..Self::new(a, b, GlueClass::Tangent)
+            a,
+            b,
+            origin: Origin::Decided(Glued::Tangent(tangency)),
         }
     }
 
@@ -1370,9 +1443,9 @@ impl<T: Real> GluedPair<T> {
     /// records it for a face–face record to cite: its two faces, its
     /// class's relation, its margin.
     pub(crate) fn restated_by(&self, row: &crate::Coincidence) -> bool {
-        self.given.is_some_and(|given| {
+        self.given().is_some_and(|given| {
             row.face_pair() == Some((self.a, self.b))
-                && row.relation.glued_class() == Some(self.class)
+                && row.relation.glued_class() == Some(self.class())
                 && row.margin == given.margin
         })
     }
@@ -1929,7 +2002,11 @@ impl<T: Real> GluedPairs<T> {
             }))
             .collect();
         Self {
-            map: decls.pairs.iter().map(|d| ((d.a, d.b), d.class)).collect(),
+            map: decls
+                .pairs
+                .iter()
+                .map(|d| ((d.a, d.b), d.class()))
+                .collect(),
             verified,
             one_sided,
             extent: std::collections::BTreeMap::new(),
@@ -7091,7 +7168,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let rest_contacts = decls
         .pairs
         .iter()
-        .filter(|d| d.class == GlueClass::Rest)
+        .filter(|d| d.class() == GlueClass::Rest)
         .map(|d| (d.a, d.b))
         .filter(|pair| declared.verified.one_carrier.contains(pair))
         .collect();
@@ -7434,43 +7511,24 @@ fn verify_glued_contacts<T: Decide>(
     band: Band,
 ) -> Result<VerifiedGlue<T>, BooleanError> {
     let mut verified = VerifiedGlue::default();
-    for &GluedPair {
-        a: fa,
-        b: fb,
-        class,
-        decided,
-        ..
-    } in &decls.pairs
-    {
-        match decided {
+    for pair in &decls.pairs {
+        let (fa, fb) = (pair.a, pair.b);
+        match pair.decided() {
             Some(Glued::Tangent(tangency)) => {
-                let interiors = match (tangency.line, tangency.overlap) {
-                    (Some(line), Some(both)) => locus_through_both_faces(
-                        [
-                            (a, fa, Operand::A, tangency.kinds.0),
-                            (b, fb, Operand::B, tangency.kinds.1),
-                        ],
-                        &geom::Curve3::Line(line),
-                        both,
-                        DeclarationRead::Spent(GlueClass::Tangent),
+                if let (Some(line), Some(both)) = (tangency.line, tangency.overlap) {
+                    record_touch(
+                        &mut verified,
+                        [(a, fa), (b, fb)],
+                        tangency.kinds,
+                        (line, both),
+                        tangency.margin,
                         band,
-                    )?,
-                    _ => false,
-                };
-                if interiors {
-                    verified.touches.push(GluedTouch {
-                        a: fa,
-                        b: fb,
-                        margin: tangency.margin,
-                        row: verified.coincidences.len(),
-                    });
+                    )?;
+                    verified.lines.insert((fa, fb), line);
                 }
                 verified
                     .coincidences
                     .push(tangent_row(fa, fb, tangency.margin));
-                if let Some(line) = tangency.line {
-                    verified.lines.insert((fa, fb), line);
-                }
                 verified.tangent.insert(
                     (fa, fb),
                     TangentCert {
@@ -7479,11 +7537,11 @@ fn verify_glued_contacts<T: Decide>(
                     },
                 );
             }
-            Some(Glued::OneCarrier(margin)) => {
+            Some(Glued::OneCarrier { margin, .. }) => {
                 verified.one_carrier.insert((fa, fb));
                 verified
                     .coincidences
-                    .push(one_carrier_row(a, fa, b, fb, class, margin));
+                    .push(one_carrier_row(a, fa, b, fb, pair.class(), margin));
             }
             None => {
                 return Err(BooleanError::ClassificationInvariant {
@@ -7493,6 +7551,36 @@ fn verify_glued_contacts<T: Decide>(
         }
     }
     Ok(verified)
+}
+
+/// **A glued tangency's touch**, where its line runs through both faces'
+/// interiors ([`locus_through_both_faces`], over where the faces' extents
+/// along it meet): a face–face row ([`VerifiedGlue::touches`]) citing the
+/// tangency's row, the next one recorded, on `margin`. Whether it does.
+fn record_touch<T: Decide>(
+    verified: &mut VerifiedGlue<T>,
+    [(a, fa), (b, fb)]: [(&Body<T>, FaceKey); 2],
+    kinds: (geom::SurfaceKind, geom::SurfaceKind),
+    (line, overlap): (geom::Line<T>, (T, T)),
+    margin: MarginDiag,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let through = locus_through_both_faces(
+        [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
+        &geom::Curve3::Line(line),
+        overlap,
+        DeclarationRead::Spent(GlueClass::Tangent),
+        band,
+    )?;
+    if through {
+        verified.touches.push(GluedTouch {
+            a: fa,
+            b: fb,
+            margin,
+            row: verified.coincidences.len(),
+        });
+    }
+    Ok(through)
 }
 
 /// **The given pairs as verified** (DM4: a union's fold step decides no
@@ -7526,33 +7614,28 @@ fn given_verdicts<T: Decide>(
     let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
     let pad = witness_pad::<T>(band);
     let mut verified = VerifiedGlue::default();
-    for &GluedPair {
-        a: fa,
-        b: fb,
-        class,
-        given,
-        ..
-    } in &decls.pairs
-    {
-        match class {
+    for pair in &decls.pairs {
+        let (fa, fb) = (pair.a, pair.b);
+        match pair.class() {
             GlueClass::Tangent => {
                 let kinds = (kind(a, fa), kind(b, fb));
-                let given = given.ok_or(invariant("a given pair carries no decision"))?;
+                let given = pair
+                    .given()
+                    .ok_or(invariant("a given pair carries no decision"))?;
+                // The step's own faces' extents along the given line, and a
+                // row only beside the touch: the line is the deciding
+                // operation's, and the step decides nothing of the carriers.
                 if let Some(line) = given.line {
                     let (_, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
-                    if locus_through_both_faces(
-                        [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
-                        &geom::Curve3::Line(line),
-                        overlap,
-                        DeclarationRead::Spent(GlueClass::Tangent),
+                    let touch = (line, overlap);
+                    if record_touch(
+                        &mut verified,
+                        [(a, fa), (b, fb)],
+                        kinds,
+                        touch,
+                        given.margin,
                         band,
                     )? {
-                        verified.touches.push(GluedTouch {
-                            a: fa,
-                            b: fb,
-                            margin: given.margin,
-                            row: verified.coincidences.len(),
-                        });
                         verified
                             .coincidences
                             .push(tangent_row(fa, fb, given.margin));
@@ -8594,13 +8677,8 @@ fn validate_declarations<T: Decide>(
             Err(bad(operand, carrier_eq::OUTSIDE_REST_INVENTORY))
         }
     };
-    for &GluedPair {
-        a: fa,
-        b: fb,
-        class,
-        ..
-    } in &decls.pairs
-    {
+    for pair in &decls.pairs {
+        let (fa, fb, class) = (pair.a, pair.b, pair.class());
         // A pair declared twice under DIFFERENT classes is a caller bug
         // refused here — the check the `GluedPairs` map's
         // last-write-wins build would otherwise resolve silently now
@@ -8608,7 +8686,7 @@ fn validate_declarations<T: Decide>(
         if decls
             .pairs
             .iter()
-            .any(|d| (d.a, d.b) == (fa, fb) && d.class != class)
+            .any(|d| (d.a, d.b) == (fa, fb) && d.class() != class)
         {
             return Err(bad(
                 Operand::A,

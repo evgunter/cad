@@ -66,7 +66,7 @@ fn a_glued_pairs_row_carries_the_doors_margin() {
         let out = super::union(&a, &b, tol()).unwrap();
         let rows = &out.body().expect("the union builds").coincidences;
         let mut read = 0;
-        for pair in decls.pairs.iter().filter(|p| p.class.is_one_carrier()) {
+        for pair in decls.pairs.iter().filter(|p| p.class().is_one_carrier()) {
             let Ok(Ok(super::CarrierVerdict::One { margin, .. })) =
                 super::carrier_pair::carrier_pair_decided(&a, pair.a, &b, pair.b, band())
             else {
@@ -77,7 +77,7 @@ fn a_glued_pairs_row_carries_the_doors_margin() {
                 .filter(|r| r.face_pair() == Some((pair.a, pair.b)))
                 .collect();
             assert!(
-                matches!(&row[..], [r] if r.margin == margin && r.relation == pair.class.relation()),
+                matches!(&row[..], [r] if r.margin == margin && r.relation == pair.class().relation()),
                 "{what}: {pair:?}'s row: {row:?}, the door's margin {margin:?}"
             );
             read += 1;
@@ -143,7 +143,7 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
     let glued = decls
         .pairs
         .iter()
-        .find(|p| p.class == GlueClass::Rest)
+        .find(|p| p.class() == GlueClass::Rest)
         .expect("the door glues the top against the tilted bottom, Rest");
     let (na, nb) = match (
         face_carrier(&lower, glued.a).unwrap(),
@@ -414,12 +414,12 @@ fn a_glued_tangency_records_the_margin_the_door_certified() {
     let tangent: Vec<_> = decls
         .pairs
         .iter()
-        .filter(|p| p.a == wall && p.class == GlueClass::Tangent)
+        .filter(|p| p.a == wall && p.class() == GlueClass::Tangent)
         .collect();
     let [pair] = tangent[..] else {
         panic!("the door glues the wall and the brick's face tangent: {tangent:?}");
     };
-    let Some(Glued::Tangent(tangency)) = pair.decided else {
+    let Some(Glued::Tangent(tangency)) = pair.decided() else {
         panic!("a glued tangency carries what the door certified: {pair:?}");
     };
     assert!(
