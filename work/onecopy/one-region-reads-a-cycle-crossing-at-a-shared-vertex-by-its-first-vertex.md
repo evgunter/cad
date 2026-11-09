@@ -43,7 +43,7 @@ check, `a-ladder-that-checks-its-answers-agree-has-no-home`, after
 
 ## Closed (`onecopy/shared-vertex-crossing`): check 9 catches it
 
-Check 9 covers both shapes, past the residue named below.
+Check 9 covers both shapes. None reaches `one_region` alone except in the cases named below.
 
 - **Two distinct loops meeting at a point** are its contact arm 1
   (`RingMeetsOuter` / `RingMeetsRing` `Vertex`, on any carrier).
@@ -83,9 +83,11 @@ A strut is an edge the face lies on both sides of. `surface_cycles` drops
 it, so it adds no point the two cycles share.
 
 **What the corner arm does not cover,** where `one_region` reads alone:
-- `pinch_corner_errors`' stated residue: a cone's apex, which
-  `one_region` does read; a NURBS or `Approx` face; a side along a NURBS
-  edge; two sides leaving along one tangent.
+- `pinch_corner_errors`' stated residue (`validate::pinch_corner_errors`'
+  doc): a cone's apex, which `one_region` does read (filed as
+  `two-cycles-crossing-at-a-cones-apex-are-read-by-their-first-vertex`);
+  a NURBS or `Approx` face; a side along a NURBS edge; two sides leaving
+  along one tangent; a cusp corner.
 - **Two distinct point keys within band** of one place, which
   `loop_point_groups` does not group. Measured: neither the corner arm
   nor arm 1 refuses it. That is the real residual, filed as

@@ -229,11 +229,13 @@ pub(crate) fn door_side<T: Decide>(
 /// `RingMeetsRing`). Two surface cycles of one loop, split by a seam or
 /// a strut, that share a point key pass it at two corners of the loop,
 /// and a crossing there is check 9's `PinchCornerCrossed`, save where that
-/// arm is silent (`pinch_corner_errors`' residue: a cone's apex, which
-/// this read does read, a NURBS or `Approx` face, a side along a NURBS
-/// edge, two sides leaving along one tangent). Its corners are grouped
-/// by point-key equality, so a loop passing one place twice through two
-/// distinct keys within band is not read there either
+/// arm is silent. None reaches this read alone except in those cases:
+/// `pinch_corner_errors`' residue, a cone's apex (which this read does
+/// read: `work/onecopy/two-cycles-crossing-at-a-cones-apex-are-read-by-their-first-vertex.md`),
+/// a NURBS or `Approx` face, a side along a NURBS edge, two sides leaving
+/// along one tangent, and a cusp corner; and a loop passing one place
+/// twice through two distinct point keys within band, since the arm
+/// groups its corners by key equality
 /// (`work/onecopy/a-loop-through-one-place-at-two-point-keys-is-read-by-its-first-vertex.md`).
 /// So a
 /// vertex read in band ahead of the answer is superseded. An unplaced
@@ -393,7 +395,9 @@ mod tests {
     /// or only touches it (inside), the corner arm refuses at `A`: each
     /// cycle's corner there holds the other's sides, since the loop pairs
     /// each cycle's edges with each other. The touch is refused as two loops
-    /// touching at a point are by check 9's contact arm 1.
+    /// touching at a point are by check 9's contact arm 1. The body is
+    /// deliberately ill-formed (scaffold line chords between points of the
+    /// cylinder), and only check 9's corner verdict at `A` is read.
     #[test]
     fn two_surface_cycles_of_one_loop_crossing_at_a_shared_point_are_check_9s() {
         let (apart, _) = one_loop_two_cycles_at_a_point((-0.5, 0.5), false);

@@ -32,7 +32,7 @@ because the first vertex it placed happened to lie off the face's side.
 `validate_pseudomanifold` added nothing at that body, which tier 3
 already refuses for its scaffold edges. Whether the census's
 vertex–vertex coincidence (`UnrecordedContact`, or
-`BoundaryCrossesItself` under a record) refuses the shape on a body
+`BoundaryCrossesItself` under a record, which is read on a solid) refuses the shape on a body
 tier 3 passes is not shown. The at-rest gate runs no census.
 
 **What closes this row:**
