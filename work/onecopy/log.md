@@ -1292,3 +1292,20 @@
   - **6676 (foot-closed-forms) ready:** frame-dependent answers per door, cylinder 536→0, cone 483→135, torus 712→133; Interval `structure_nonzero` refusal. FULL review: session_013mPGJ3UsQyVyvJG8WNfU1j. The lane goes on to an-axis-reads-its-direction-as-unit (onecopy/unit-axis).
   - **6675 re-merged after SEAL's 6673** at d184ee33; gating.
   - **6664 re-merged after 6673** at 24c4de66: the point gate caught SEAL's glued_pair_rows line equality, routed to Point3/Vec3 `equals_exactly`; gating.
+- 2026-11-09 22:30Z
+  - **Merge-rule change, mine to make.** With three programs merging, "overlap → merge main → re-gate on hosted CI" never converged; each landing invalidated the next. New rule, for a PR whose own hosted gate is green, when main overlaps it:
+    - merge main into it locally, clean;
+    - run `cargo check --workspace --tests`, `GATE_BASE=origin/main run-gates`, fmt, and nextest ci over every crate the PR touches plus geom-core/geom-brep/topo;
+    - if all pass, push that merge and merge the PR at that head at once, provided main has moved only by STATUS renders since.
+
+    The hosted gate has already passed on the PR's own change; the local run covers the interaction.
+  - **Merged under it:**
+    - 6669 (held-points), 1ed3cd06: +sweep and editor-core 5797/5797.
+    - 6665 (line-placement), 88079157: 10372/10372 over geom, geom-core, geom-brep, topo and sweep (the first run hit a full disk; tgt-m was cleared and rerun).
+    - 6675 (QML T2), e3343e8a: 9798/9798.
+    - 6664 (point-equality), 4c61e48d: 8698/8698.
+  - **Rulings:** unit-axis is A (mint computed, possibly-zero directions once via `UnitVec3` at each site; no Axis type; Line keeps 6665's any-nonzero ruling). B and C are rejected.
+  - **Next units:**
+    - T3/T4 to open (ladder lane).
+    - line-holders-the-line-placement-sweep-missed (line lane).
+    - incidence-pins-in-three-rows and nonzero-signs-readings (point-equality lane, onecopy/sign-homes).
