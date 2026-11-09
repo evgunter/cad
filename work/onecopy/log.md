@@ -1285,3 +1285,10 @@
     - The review's minors go to the bracket lane as onecopy/bracket-mid-3, after prose-census-red: the Interval `pt(0.5)` halving class (quad cells.rs:280, trimmed.rs:1229), the premise for parameter middles (∞ is quiet at cell_midpoint), the ParamRange::mid and cell_origin docs, and gate precision (integer receivers, paired stems for halves, `0.5_f64`, header to cite not argue).
   - 6668's fix pass is in (c29f9ead), disjoint; gating.
   - SEAL's 6673 merged into recl.rs/reduce/census/validate, so 6675 and 6664 are re-merging main again (guarded push this time: only if check, gates, fmt and nextest all pass).
+- 2026-11-09 21:45Z
+  - **Merged PR 6668 (local-heights), 4be3840e.** FULL FIX folded: lost root answers 122/67 disclosed, torus_touch witness. Gate green at c29f9ead; disjoint; combined check clean.
+    - Needle-tilts lane → a-needle-pose-at-the-zeros-edge + arc-trim-margin (onecopy/needle-basin).
+  - **6679 (topo-roster) opened:** 577 names, prefix table, identity consts. FULL review: session_013mPGJ1e9xK5xueRTgabtZh. The lane goes on to topo-forwarders (step 2).
+  - **6676 (foot-closed-forms) ready:** frame-dependent answers per door, cylinder 536→0, cone 483→135, torus 712→133; Interval `structure_nonzero` refusal. FULL review: session_013mPGJ3UsQyVyvJG8WNfU1j. The lane goes on to an-axis-reads-its-direction-as-unit (onecopy/unit-axis).
+  - **6675 re-merged after SEAL's 6673** at d184ee33; gating.
+  - **6664 re-merged after 6673** at 24c4de66: the point gate caught SEAL's glued_pair_rows line equality, routed to Point3/Vec3 `equals_exactly`; gating.
