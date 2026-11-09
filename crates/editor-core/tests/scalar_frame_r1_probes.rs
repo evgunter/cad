@@ -103,8 +103,8 @@ fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
     .expect("the hollow elbow builds");
     for (what, body) in [("solid", &solid.body), ("hollow", &hollow.body)] {
         let mut tori = 0;
-        for (_, f) in body.faces() {
-            if let Some(Surface::Torus { axis: a, u_ref, .. }) = body.get_surface(f.surface) {
+        for (fk, _) in body.faces() {
+            if let Some(Surface::Torus { axis: a, u_ref, .. }) = body.face_surface(fk) {
                 tori += 1;
                 assert_eq!(
                     bits3(*a),

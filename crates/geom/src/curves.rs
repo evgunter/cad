@@ -738,6 +738,17 @@ impl<T: Real> Line<T> {
         self.origin + self.dir * t
     }
 
+    /// **The same line with its direction normalised**, for a reader that
+    /// takes the direction as unit (a meridian sheet's axis, a revolve's
+    /// seed). Readings on `self` itself need no unit direction.
+    #[must_use]
+    pub fn unit(self) -> Self {
+        Self {
+            origin: self.origin,
+            dir: self.dir.normalize(),
+        }
+    }
+
     /// The parameter of `p`'s foot: `(p − origin)·dir / |dir|²`, the
     /// coefficient of [`Vec3::project_onto`] in its association.
     #[must_use]
