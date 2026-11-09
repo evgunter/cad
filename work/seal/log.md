@@ -99,3 +99,45 @@
   - Filed by the pass: `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` (P1, M, by inspection). The crack and readers rows were restated.
   - The plan's slate now lists the four glue steps, the umbrella, and the three rows this unit's review left.
   - The implementer reports a red on main that is not this PR's: the slow-set row `union_fold_face_face_touch::a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line` fails "the body has a value: Unevaluated" on a clean main worktree. Its handling is below.
+- 2026-11-09 — **PR 6613 merged** (`a83e4b956b`), with its dual-review row last. The blinded coding (byte 175, A = R2) found eight bilateral and a tally of 0: neither review raised a MAJOR. Lane, target and both review scratch dirs reclaimed.
+  - **The protocol hash is `24b76fff0e`, not `db69dd9d5a`.** This working copy is shallow, so `git log -1 -- docs/DUAL-REVIEW-PROTOCOL.md` here stops at the graft; a full-history lane gives the right one. The two trees are identical; the row cites `24b76fff0e`.
+  - **The main red the implementer reported is the nightly's.** Nightly 87 (11-09) is red on several jobs, the slow-set full suites among them, and the newest `triage/nightly-*` branch is 10-29. That is GREEN's ground (act on the triage, not beside it), so I leave it to the triage and tell Ev at hand-back.
+- 2026-11-09 — **Glue step 1 dispatched:** `carrier-readings-keep-the-margins-they-decided-on` on `seal/carrier-readings-keep-margins`. Review tier single, FULL, for the reason in the row.
+- 2026-11-09 — **The duplicated `memories/` bullets went to Ev as `[ev]` PR 6633.** It deletes the first copies of the Express-lane and `-n` bullets, since the later copies say the same and more. It waits for Ev's sign-off, as any `memories/` change does.
+- 2026-11-09 — **Glue step 1 is PR 6634, CI `gate ok` green on `1de5db3b8b`.** Single FULL review dispatched on that frozen head (tier logged at dispatch in the row). The implementer's target is reclaimed. The lane's rulings to make at adjudication:
+  - `CarrierVerdict` grew a third variant, `TwoKinds`. My first read: right, since the kind-mismatch arm decides no datum, and the alternative is the hand mint the step removes.
+  - The plane ladder's orientation rung stays on `decide_nonzero`.
+  - I1/I2 wait on step 3's Rest verdict, but step 3's row does not name them yet. The fix pass records them there.
+- 2026-11-09 — **PR 6634 review in: APPROVE-WITH-FIXES, no MAJOR** (267,451 tokens, 37 min). Fix pass sent to the implementer.
+  - **Rulings:** `TwoKinds` is confirmed. The orientation rung stays on `decide_nonzero`: `jointly` keeps a Zero tag only where both inputs are Zeros, so carrying the rung in `One` would unprove Sym Zeros.
+  - **Class findings and their homes:**
+    - **Routing behind new endings goes unpinned** when rows test the ending function rather than the arm that reaches it. Six mutants survived (face and side swaps, a dropped door refusal). Fix pass, item 1.
+    - **"Closing a duplication adds a copy":** the PairSide/PairFace matches, two `NonzeroSign`→`Sign` conversions, the `TorusVerdict` dispatch written four times. Fixed, or filed as rows, in the fix pass.
+    - **A pre-existing blind spot:** `plane_eq::senses` decides `bool_plane_orient` a second time. The fix pass files it as a row.
+    - **Two sweep tests fail `OutsideSessionBox` on main too.** The fix pass checks whether they are in the slow set; the nightly is GREEN's.
+- 2026-11-09 — **PR 6634 merged** (`ad8371a76f`). Glue step 1 is done, and step 4 (`a-corner-reads-only-its-own-sectors`) is open now. Lane, target and scratch reclaimed. Next, serially:
+  1. REFS `the-reference-path-reads-every-node-from-mint-to-read`.
+  2. Glue step 2 (`a-reach-straddle-goes-through-the-straddle-door`).
+- 2026-11-09 — **PR 6634 fix pass in (`4c33cb1f81`, `gate ok` green); state-synced for merge.**
+  - **Routing pins:** all six surviving mutants are now pinned, each shown red. Census ~6290's table row is corrected.
+  - **I7:** its deferred arm's log is restored to main's.
+  - **Leftovers recorded:** I1/I2 on step 3's row, I7 on SECTOR's row.
+  - **Filed in `work/seal/`, all P3:** four rows, three from the review's style findings and the `plane_eq::senses` second decision.
+  - **The two `OutsideSessionBox` slow-set rows** are evidence on ONEHOME's existing `main-red-four-sweep-slow-rows-refuse-outside-session-box`. The nightly red is GREEN's.
+- 2026-11-09 — **Glue step 2 is PR 6646, CI `gate ok` green on `d89337d37d`.** Single FULL review dispatched on that frozen head. The implementer's target is reclaimed.
+  - **Shape:** one helper, `geom_brep::ladder::data_beneath_sum`, serves C21 and `tori_coincide`. `TorusCoincidence::Apart` gains `upper`, and its tilt term is `max(chord, sine)`.
+  - **Premise correction to rule on at adjudication:** apart-beside-NaN now ends `Undecided(poison)` where main read `Apart`.
+- 2026-11-09 — **PR 6646 review in: APPROVE-WITH-FIXES, no MAJOR** (218,500 tokens, 16 min). Fix pass sent.
+  - **Confirmed:** `upper`'s soundness (re-derived, rounding included) and the one helper. The premise correction is accepted: apart beside NaN now ends in poison, under D2.
+  - **MINOR, by execution:** a C21 straddle whose first datum is nonzero offers a tolerance, where main offered none. The table had claimed otherwise. The fix pass corrects it and pins the case with a sphere row.
+  - **Class finding:** the C21 "tolerance offer: none" claim rested on fixtures whose axes agree exactly. A general claim pinned only on a degenerate fixture holds for the fixture, not the case.
+  - **Also in the fix pass:**
+    - doc truth: the data bound the carriers' separation, not the displacement over the extent;
+    - one torus path at the face-pair door, plus the helper's dead and discarded arms;
+    - a pin on the zero-tag;
+    - an independent oracle for the torus row.
+- 2026-11-09 — **PR 6646 fix pass in (`a065581371`, `gate ok` green). Merged on the orchestrator's read of the delta; state-synced.**
+  - **Docs and pins:** C21's tolerance offer is disclosed and pinned by a sphere row. The docs now say the data bound the carriers' separation. A pin on the `jointly` zero-tag kills the surviving mutant. The torus row checks its enclosure against closed-form values.
+  - **One torus path:** `carrier_eq::ladder_reading` returns `PairDoorReading::{Verdict, RingApart { relation, by, upper }}`. The corner maps `RingApart` to `Apart(by)`, and the door hands `upper` to the witness. `tori_pair`/`torus_verdict` are gone.
+  - **The helper** takes only a non-Zero sum, so neither caller holds a dead arm.
+  - **Two reds the fix pass caught at ε = 1e-12, both its own:** the offer is absent at 1e-12, and a thin torus patch did not certify. Both are fixed.

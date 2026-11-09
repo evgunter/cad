@@ -322,8 +322,10 @@ This section is where that rule's parts live.
   form. No `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
   `running`'s charge doors (its `pub` items) outside this crate. Every
-  site is a listed entry, each a formula or a stored form owed a
-  re-posing, and an entry whose site has gone must be dropped. A count
+  site is a listed entry with its reason: in production, a formula or a
+  stored form owed a re-posing, an error-free transformation, or
+  test-support code; in a test, its oracle. An entry whose site has gone
+  must be dropped. A count
   raised beside a new site is held only by review, not against the
   merge base
   (`work/guard/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).

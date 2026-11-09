@@ -1,7 +1,7 @@
 ---
 id: an-in-band-lens-reads-as-shared-interior
 kind: issue
-title: A lens between two arc crossings shallower than the zero reads as shared interior: the witness search takes a crossing the meeting reader refused
+title: A lens of non-circular arcs shallower than the zero may read as shared interior: the witness search takes crossings the meeting reader parts within the band, unmeasured since circular lenses read touching
 status: open
 opened: 2026-10-28
 priority: P2
@@ -50,3 +50,11 @@ The witness search reads a crossing only from a meeting set the reader
 did not refuse, or reads the lens at second order. Either way the row's
 known `Ok(true)` below the zero turns to unread or `Ok(false)`, and the
 row is turned with it.
+
+## Evidence from `onecopy/transverse-range` (2026-11-09)
+
+The orchestrator ruled that an extreme of a first harmonic in the zero band reads its touch at the extreme, by C5 (`curve_pair::pose`'s module docs, "A first harmonic's roots"). Since then, two coplanar circular arcs bounding a lens shallower than the zero meet in one touch, and both readings read them touching (`Ok(false)`) at 0.05ε, 0.3ε and 0.9ε on arcs of 20, 100 and 1000 widths. `census.rs` `arc_interiors::a_lens_across_the_band_is_never_read_apart` now pins that. The witness search still reads as shared interior whatever two crossings the meeting reader parts within the band. Lenses of non-circular arcs, which the coplanar subdivisions read, were not measured.
+
+## Narrowed (PR 6638)
+
+The known `Ok(true)` this row's `Owed` waited on is gone for circular arcs. A lens of two circular arcs shallower than the zero is one touch, and both readings read it touching at every radius and depth measured above. `arc_interiors::a_lens_across_the_band_is_never_read_apart` now pins that. `curve_pair::order_rows::two_circles_overlapping_by_a_lens_read_it_by_its_depth` pins the meeting reader's branches beneath it: one touch below the zero, an escalation in the gap, and two crossings past it. What remains is unmeasured: lenses of non-circular arcs, which the coplanar subdivisions read, and whether the witness search reads as shared interior any two crossings the meeting reader still parts within the band.
