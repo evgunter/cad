@@ -2,10 +2,12 @@
 id: a-parameter-middle-can-overflow-and-a-lifted-halving-escapes-the-gate
 kind: issue
 title: A parameter bracket's middle can overflow on admitted knots, and a halving through a local lift escapes bracket-mid-by-hand
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6690
 ---
 
 
