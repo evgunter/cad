@@ -149,15 +149,16 @@ pub enum LengthOutOfFormat {
 fn direction_and_length<T: Real, V: Prescale<T>>(v: V) -> (V, T) {
     let (scaled, k) = prescaled(v, v.witness());
     let n = scaled.length();
-    (scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip())))
+    (scaled / n, unscaled(n, k))
 }
 
-/// [`direction_and_length`], or the rule's refusal. Inside the range
-/// the prescale is the identity, so the norm it reads IS the plain norm
-/// and is read once; past it the rule reads the plain norm itself.
-fn checked_direction_and_length<T: Real, V: Prescale<T>>(
+/// The prescaled vector, its norm and the power it was scaled by, or the
+/// rule's refusal. Inside the range the prescale is the identity, so
+/// the norm it reads IS the plain norm and is read once; past it the
+/// rule reads the plain norm itself.
+fn checked_prescaled<T: Real, V: Prescale<T>>(
     v: V,
-) -> Result<(V, T), LengthOutOfFormat> {
+) -> Result<(V, T, Option<f64>), LengthOutOfFormat> {
     let witness = v.witness();
     let (scaled, k) = prescaled(v, witness);
     let n = scaled.length();
@@ -167,8 +168,13 @@ fn checked_direction_and_length<T: Real, V: Prescale<T>>(
     } else if is_underflowed_length(plain, witness) {
         Err(LengthOutOfFormat::Underflowed)
     } else {
-        Ok((scaled / n, k.map_or(n, |k| n.scale_pow2(k.recip()))))
+        Ok((scaled, n, k))
     }
+}
+
+/// The prescaled norm `n` scaled back by the power `k` it was read at.
+fn unscaled<T: Real>(n: T, k: Option<f64>) -> T {
+    k.map_or(n, |k| n.scale_pow2(k.recip()))
 }
 
 impl<T: Real> Vec2<T> {
@@ -349,7 +355,7 @@ impl<T: Real> Vec2<T> {
     /// or is poison, [`LengthOutOfFormat::Underflowed`] where it
     /// underflowed to zero.
     pub fn checked_direction_and_length(self) -> Result<(Self, T), LengthOutOfFormat> {
-        checked_direction_and_length(self)
+        checked_prescaled(self).map(|(scaled, n, k)| (scaled / n, unscaled(n, k)))
     }
 
     /// The length half of
@@ -360,7 +366,7 @@ impl<T: Real> Vec2<T> {
     ///
     /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
     pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
-        checked_direction_and_length(self).map(|(_, n)| n)
+        checked_prescaled(self).map(|(_, n, k)| unscaled(n, k))
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -591,7 +597,7 @@ impl<T: Real> Vec3<T> {
     /// or is poison, [`LengthOutOfFormat::Underflowed`] where it
     /// underflowed to zero.
     pub fn checked_direction_and_length(self) -> Result<(Self, T), LengthOutOfFormat> {
-        checked_direction_and_length(self)
+        checked_prescaled(self).map(|(scaled, n, k)| (scaled / n, unscaled(n, k)))
     }
 
     /// The length half of
@@ -602,7 +608,7 @@ impl<T: Real> Vec3<T> {
     ///
     /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
     pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
-        checked_direction_and_length(self).map(|(_, n)| n)
+        checked_prescaled(self).map(|(_, n, k)| unscaled(n, k))
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
