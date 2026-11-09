@@ -1383,6 +1383,9 @@ fn link_reads<T: Decide>(
             LinkRefusal::Unread(TouchUnread::EdgeTangent(_) | TouchUnread::OffInterior) => {
                 "a cell on a curved edge whose direction does not read there"
             }
+            LinkRefusal::Unread(TouchUnread::OffSurface) => {
+                "a cell whose point one of its faces reads off its own surface"
+            }
             LinkRefusal::Unread(TouchUnread::Corrupt) => "a cell whose topology does not read",
         };
         unsupported_as("gap", class, read.class())
