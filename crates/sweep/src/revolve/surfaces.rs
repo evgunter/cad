@@ -113,8 +113,10 @@ pub(super) fn revolved_strut_spec<T: Real>(
             MappedSource::RevolvedPoint {
                 point,
                 place: frame.place,
-                axis_origin: frame.o3,
-                axis_dir: frame.a3,
+                axis: geom::Line {
+                    origin: frame.o3,
+                    dir: frame.a3,
+                },
                 angle: theta,
             },
         )),

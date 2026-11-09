@@ -487,7 +487,7 @@ pub fn contfp<T: Decide>(
 /// [`contfp`], with the margin that decided an `OnEdge` or `OnVertex`
 /// verdict (`None` for `In` and `Out`, which decide no coincidence).
 /// A site that reads a face of either kind reads
-/// [`placement_on_carrier`], the one dispatch, rather than this beside
+/// [`placement_unheld`], the one dispatch, rather than this beside
 /// the curved door.
 ///
 /// # Errors
@@ -840,7 +840,7 @@ pub(crate) enum CurvedPlacement {
 /// and in a boolean's carry onto the pieces of a divided face, and a
 /// section witness in its face. On a plane, `q` is first decided on the
 /// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
-/// decision's nonzero, then [`placement_on_carrier`] places it; on a
+/// decision's nonzero, then [`placement_unheld`] places it; on a
 /// curved face that door places it outright. `Trim(None)` is the curved
 /// door's remainder, a face it does not read.
 ///
@@ -866,24 +866,44 @@ pub(crate) fn face_placement<T: Decide>(
             Err(diag) => return Err(PlacementError::OnPlane(diag)),
         }
     }
-    placement_on_carrier(body, face, q, band)
+    placement_unheld(body, face, q, band)
         .map(|(at, _, _)| at)
         .map_err(PlacementError::Door)
 }
 
 /// **Where a point the caller holds on `face`'s carrier lies against
-/// the face**: the dispatch of every placement, the plane's
-/// [`contfp_decided`] (with the face's stored normal, which it reads
-/// sign-blind) or the curved [`curved_face_placement_decided`]. On a
-/// plane it decides no on-plane margin and never answers `OffCarrier`:
-/// the caller's construction, or its own decision, put `q` there. What
-/// a curved face's `OffCarrier` means is the caller's to say, at the
-/// call.
+/// the face** ([`crate::held::Held`]): its premise checked in debug
+/// builds, then [`placement_unheld`]. On a plane it decides no on-plane
+/// margin; what a curved face's `OffCarrier` means at a held point is
+/// the caller's to say, at the call.
 ///
 /// # Errors
 ///
 /// The containment door's own refusal.
+#[track_caller]
 pub(in crate::boolean) fn placement_on_carrier<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    held: crate::held::Held<T>,
+    band: Band,
+) -> Result<ChartedPlacement, ContainError> {
+    if let Some(view) = body.face(face) {
+        held.check(view.surface(), band);
+    }
+    placement_unheld(body, face, held.point(), band)
+}
+
+/// **Where a point lies against `face`, with nothing said of its
+/// carrier**: the dispatch of every placement, the plane's
+/// [`contfp_decided`] (with the face's stored normal, which it reads
+/// sign-blind) or the curved [`curved_face_placement_decided`], whose
+/// `OffCarrier` is a reading. A point the caller holds on the carrier
+/// goes through [`placement_on_carrier`].
+///
+/// # Errors
+///
+/// The containment door's own refusal.
+pub(in crate::boolean) fn placement_unheld<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
@@ -981,7 +1001,15 @@ fn curved_interior_placement<T: Decide>(
             half_angle,
             ..
         } => {
-            let elevation = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
+            let elevation = geom_brep::cone_elevation(
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle,
+                None,
+                q,
+            );
             ruled_face_containment(body, face, elevation, q, band, cut)
         }
         geom::Surface::Sphere { center, radius, .. } => {
@@ -997,8 +1025,10 @@ fn curved_interior_placement<T: Decide>(
             body,
             face,
             TorusCarrier {
-                center,
-                axis,
+                axis: geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
                 major_radius,
                 minor_radius,
             },
@@ -1086,8 +1116,7 @@ fn region_placement(
 
 /// One torus carrier's data, as [`torus_face_containment`] reads it.
 struct TorusCarrier<T: geom_core::Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     major_radius: T,
     minor_radius: T,
 }
@@ -1117,13 +1146,11 @@ fn torus_face_containment<T: Decide>(
     cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
     let TorusCarrier {
-        center,
         axis,
         major_radius,
         minor_radius,
     } = carrier;
-    let elevation =
-        super::solid_contain::torus_elevation(center, axis, major_radius, minor_radius, q);
+    let elevation = super::solid_contain::torus_elevation(axis, major_radius, minor_radius, q);
     if cut.is_none() {
         match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
             Ok(Sign::Zero) => {}
