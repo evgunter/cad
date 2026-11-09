@@ -81,7 +81,13 @@ pub mod implicit;
 pub mod intersect;
 pub mod keys;
 mod krawczyk;
-pub mod ladder;
+/// Transitional: the ladder lives at [`geom_core::ladder`]; this path
+/// stays only until the callers move
+/// (`work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md`).
+#[doc(hidden)]
+pub mod ladder {
+    pub use geom_core::ladder::*;
+}
 pub mod locus;
 pub mod mapped;
 pub(crate) mod memo;

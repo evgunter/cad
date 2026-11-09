@@ -36,19 +36,19 @@
 //! ahead of every kept rung is spliced at once. The caller declares what
 //! an answer may do with the kept readings ahead of it ([`Answering`]):
 //! where every answering rung gives one answer, a kept reading's run is
-//! spliced superseded ([`geom_core::k_stats::splice_superseded`]), since
+//! spliced superseded ([`crate::k_stats::splice_superseded`]), since
 //! the answer does not rest on it; where which rung answers chooses the
 //! answer, it stays live, since a kept rung ahead may truly have answered
 //! first. An agreeing ladder's answer supersedes its kept rungs as `Any`
 //! does; its disagreement and an abort keep every run live. Every run is
 //! spliced in rung order.
 
-use geom_core::k_stats::{
+use crate::k_stats::{
     Detached, Magnitude, decide_magnitude_reported, decide_reported, detached, splice,
     splice_superseded,
 };
-use geom_core::predicate::{Decided, Indeterminate};
-use geom_core::{Band, Decide, Margin, MarginDiag, Sign};
+use crate::predicate::{Decided, Indeterminate};
+use crate::{Band, Decide, Margin, MarginDiag, Sign};
 
 /// What one rung of a ladder read ([`climb`]).
 #[derive(Clone, Debug, PartialEq)]
@@ -137,19 +137,6 @@ pub enum Refusal {
 pub struct Aborts;
 
 impl Refusal {
-    /// **A spline walk's refusal's standing**, stated once for every
-    /// reader of one: a walk past its budget is unsettled (no margin, and
-    /// a coarser band may settle it); a spline with no speed bound is a
-    /// limit no tolerance moves. Here rather than on
-    /// [`geom::PieceWalkRefusal`], whose crate does not see a ladder.
-    #[must_use]
-    pub const fn of_walk(why: geom::PieceWalkRefusal) -> Self {
-        match why {
-            geom::PieceWalkRefusal::Exhausted => Self::Unsettled,
-            geom::PieceWalkRefusal::Unbounded => Self::Limit,
-        }
-    }
-
     /// The rung a reading refused with `e` stands as: kept by its kind.
     pub fn rung<A, E>(self, e: E) -> Rung<A, E> {
         self.kept(e).map_or_else(Rung::Unsettled, Rung::from)
@@ -225,7 +212,7 @@ fn banded<T: Decide, R>(
     margin: Margin<T>,
     read: impl FnOnce(Margin<T>) -> Result<R, Indeterminate>,
 ) -> Result<R, Kept<Indeterminate>> {
-    let margin = if geom_core::is_finite_length(margin.value()) {
+    let margin = if crate::is_finite_length(margin.value()) {
         margin
     } else {
         Margin::of(margin.value() - margin.value())
@@ -745,9 +732,9 @@ impl<E> Evidence<E> {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::k_stats::Bracket;
-    use geom_core::predicate::{Band, Indeterminate};
-    use geom_core::{Margin, MarginDiag, Sign};
+    use crate::k_stats::Bracket;
+    use crate::predicate::{Band, Indeterminate};
+    use crate::{Margin, MarginDiag, Sign};
 
     use super::{Answering, Climb, Evidence, IdentityLadder, Ranked, Rung, climb, read_identity};
 
@@ -767,7 +754,7 @@ mod tests {
             recorded
                 .escalations
                 .iter()
-                .map(geom_core::k_stats::Escalation::predicate)
+                .map(crate::k_stats::Escalation::predicate)
                 .collect(),
         )
     }
@@ -919,7 +906,7 @@ mod tests {
             climb_agreeing(
                 [("a", 5e-9), ("b", 0.0), ("c", 0.0)],
                 |(name, m): (&'static str, f64)| {
-                    Rung::<bool, geom_core::predicate::Indeterminate>::decide(
+                    Rung::<bool, crate::predicate::Indeterminate>::decide(
                         name,
                         Margin::of(m),
                         band(),
@@ -1112,7 +1099,7 @@ mod tests {
     #[cfg(feature = "probe")]
     #[test]
     fn the_sample_stream_interleaves_in_rung_order() {
-        use geom_core::k_stats::{self, Probe};
+        use crate::k_stats::{self, Probe};
         k_stats::start_recording();
         let data = [("a", 0.0), ("b", 5e-9), ("c", 0.0), ("d", 0.0)];
         let got = read_identity(data.iter().map(|&(n, m)| (n, Margin::of(Probe(m)))), band());

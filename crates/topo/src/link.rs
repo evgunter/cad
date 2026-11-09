@@ -573,7 +573,7 @@ impl EdgeTangentUnread {
         match self {
             Self::OffInterior => Err(Aborts),
             Self::NoCurve | Self::Unmetered => Ok(Refusal::Limit),
-            Self::Unwalked(why) => Ok(Refusal::of_walk(why)),
+            Self::Unwalked(why) => Ok(why.refusal()),
         }
     }
 }

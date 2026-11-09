@@ -442,3 +442,4 @@
   - M2: put recourse on `PieceWalkRefusal`, so the join and section renderings agree.
   - S2 and S3.
   - A P3 class row for three clearance walks, two `SiteRefusal` sorts and the census's `WALK_*`.
+- 2026-11-09 — QML T3 moved `geom_brep::ladder` to `geom_core::ladder` (orchestrator ruling A: it imports only geom-core and no ratified text places it), so profile's `seg::arc_arc` can climb. `geom_brep::ladder` stays as a `#[doc(hidden)]` transitional re-export, retired by `geom-brep-ladder-re-export-awaits-its-callers` (P3). `Refusal::of_walk` became `geom::PieceWalkRefusal::refusal`, since geom now sees the ladder. (ONECOPY implementer, `onecopy/refusal-standing`)

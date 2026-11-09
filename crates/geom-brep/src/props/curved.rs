@@ -37,8 +37,8 @@ use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
-use crate::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
+use geom_core::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 
 /// The flux and area of a curved face from its **outer** loop:
 /// [`curved_face_loops`] over that one loop. `band` is the run's

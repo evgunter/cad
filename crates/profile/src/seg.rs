@@ -20,6 +20,7 @@
 //! carrier closed forms for the containment forest's parity test.
 
 use crate::gate::{Escalation, Gate, check_unlogged, decide, decide_reported};
+use geom_core::ladder::{Answering, Climb, Kept, Rung, climb};
 use geom_core::one_line::on_one_line_2d;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
@@ -1975,15 +1976,29 @@ fn arc_arc<T: Decide>(
             // strictly inside the other span is an overlap, not the
             // touch [`touches`] would read.
             let mut contacts = Vec::new();
-            for (host, q) in [(g1, s2.a), (g1, s2.b), (g2, s1.a), (g2, s1.b)] {
-                match arc_span(host, q, band)? {
-                    Sign::Positive => return Ok(PairOutcome::Overlap),
-                    Sign::Zero => contacts.push(Contact {
-                        point: q,
-                        kind: CKind::Touch,
-                    }),
-                    Sign::Negative => {}
+            // A ladder over the four ends ([`climb`], [`Answering::Any`]:
+            // a theorem, any end strictly inside the other span is an
+            // overlap), so an end read in band is kept and refuses only
+            // where no other end overlaps; an end at a span's end is a
+            // touch.
+            let ends = [(g1, s2.a), (g1, s2.b), (g2, s1.a), (g2, s1.b)];
+            match climb(Answering::Any, ends, |(host, q)| {
+                match arc_span(host, q, band) {
+                    Ok(Sign::Positive) => Rung::Answers(()),
+                    Ok(Sign::Zero) => {
+                        contacts.push(Contact {
+                            point: q,
+                            kind: CKind::Touch,
+                        });
+                        Rung::Passes
+                    }
+                    Ok(Sign::Negative) => Rung::Passes,
+                    Err(e) => Kept::of(*e.source()).map(|_| e).into(),
                 }
+            }) {
+                Climb::Answered { .. } => return Ok(PairOutcome::Overlap),
+                Climb::Undecided(e) => return Err(e),
+                Climb::Passed => {}
             }
             // A full turn holds every carrier point, so a pair with
             // one never reaches here: the loop above found an overlap.

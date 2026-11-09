@@ -35,9 +35,6 @@ crates/geom-brep/src/ssi/certify.rs 1
 # premise: NOT A SEARCH.
 crates/geom-brep/src/ssi/march.rs 1
 crates/geom-brep/src/ssi/refine.rs 1
-# profile seg: arc_arc, any end over the other arc answers Overlap:
-# HAND-ROLLED.
-crates/profile/src/seg.rs 1
 # attach: unvouched reads every edge: NOT A SEARCH.
 crates/topo/src/attach.rs 1
 # carrier_touch: off_face and ball_off_face (any cluster or edge not off

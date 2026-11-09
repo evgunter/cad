@@ -399,9 +399,9 @@ use crate::half_angle::{
     DegreeTwo, Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows,
     certified_subdivision_touching,
 };
-use crate::ladder::read_identity;
 use crate::roots::{Roots, Unsettled, arc_past, extreme_sign};
 use geom::Conic;
+use geom_core::ladder::read_identity;
 
 /// How two carriers read as one curve run: their parameters increase the
 /// same way along it, or opposite ways.

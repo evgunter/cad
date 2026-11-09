@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # rung-holds-one-home.sh — a reading of whether one rung holds becomes
-# its rung in ONE place, `geom_brep::ladder`'s `Rung::holds`, and a
+# its rung in ONE place, `geom_core::ladder`'s `Rung::holds`, and a
 # refusal stands by its own standing in one place, `Rung::refused`. ONE
 # home; ci.yml's `lint` job runs every gate in this directory.
 #
@@ -15,11 +15,12 @@
 #
 # WHAT IS READ: production sources (`crates/*/src`, less test-only mounts
 # and `#[cfg(test)]` items) other than the home,
-# `crates/geom-brep/src/ladder.rs`, in the statement view (comments and
+# `crates/geom-core/src/ladder.rs`, in the statement view (comments and
 # literals blanked, one record per statement, so a call rustfmt splits
 # over lines is read whole), for:
 #   * an arm `Ok(true) => Rung::Answers`, the hand-rolled `Rung::holds`
-#     (the path written `ladder::Rung` or `geom_brep::ladder::Rung`, the
+#     (the path written `ladder::Rung`, `geom_core::ladder::Rung` or the
+#     transitional `geom_brep::ladder::Rung`, the
 #     body a `return`), in either order against its `Ok(false)` arm, since
 #     a match is one record;
 #   * `rung_or_abort(X.refusal(), X, Err)` (or `X.1.refusal()`; the abort
@@ -49,9 +50,10 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-HOME_FILE=crates/geom-brep/src/ladder.rs
-# A path to the ladder's `Rung`: bare, `ladder::` or `geom_brep::ladder::`.
-LADDER='((geom_brep::)?ladder::)?'
+HOME_FILE=crates/geom-core/src/ladder.rs
+# A path to the ladder's `Rung`: bare, `ladder::`, `geom_core::ladder::`
+# or the transitional `geom_brep::ladder::`.
+LADDER='((geom_core::|geom_brep::)?ladder::)?'
 HOLDS_RE='Ok\(true\)[[:space:]]*=>[[:space:]]*(return[[:space:]]+)?'"$LADDER"'Rung::Answers'
 # The abort the ladder hands back as the answer: `Err` (or `Result::Err`),
 # or a closure `|e| Err(e)`, its binding typed or not.
@@ -80,10 +82,10 @@ gate() {
   )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
-    gate_error "a bool reading or a refusal is turned into a rung by hand: use geom_brep::ladder's Rung::holds(reading, yes, standing) or Rung::refused(e, standing)"
+    gate_error "a bool reading or a refusal is turned into a rung by hand: use geom_core::ladder's Rung::holds(reading, yes, standing) or Rung::refused(e, standing)"
     exit 1
   fi
-  gate_ok "no bool reading or refusal is turned into a rung outside geom_brep::ladder"
+  gate_ok "no bool reading or refusal is turned into a rung outside geom_core::ladder"
 }
 
 plant_holds() {
@@ -141,7 +143,7 @@ plant_mapped_match() {
 }
 
 plant_in_the_home() {
-  mkdir -p "$1/crates/geom-brep/src"
+  mkdir -p "$(dirname "$1/$HOME_FILE")"
   printf 'pub fn holds(r: Result<bool, E>) -> Rung<Result<(), E>, E> { match r { Ok(true) => Rung::Answers(Ok(())),\n _ => Rung::Passes } }\n' \
     > "$1/$HOME_FILE"
 }

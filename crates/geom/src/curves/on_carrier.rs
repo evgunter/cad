@@ -266,6 +266,18 @@ pub enum PieceWalkRefusal {
 }
 
 impl PieceWalkRefusal {
+    /// **This refusal's standing**, stated once for every reader of one
+    /// ([`geom_core::ladder::Refusal`]): a walk past its budget is
+    /// unsettled (no margin, and a coarser band may settle it); a spline
+    /// with no speed bound is a limit no tolerance moves.
+    #[must_use]
+    pub const fn refusal(self) -> geom_core::ladder::Refusal {
+        match self {
+            Self::Exhausted => geom_core::ladder::Refusal::Unsettled,
+            Self::Unbounded => geom_core::ladder::Refusal::Limit,
+        }
+    }
+
     /// **The recourse every rendering of this refusal ends with**: a walk
     /// past its budget is a kernel approximation limit, whose last resort
     /// is the tolerance; a spline with no speed bound is a carrier no walk
