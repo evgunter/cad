@@ -1343,3 +1343,11 @@
   - **6670 (shell-winding):** option 1 landed (rung-at-a-time read, three tests to the slow set, suite = main 211 s); the cost note went on restfront's check-10 row.
   - **6688 (sign-homes) opened:** NonzeroSign beside Sign; 10 incidence test files through the classifier; incidence-variant-sites gate. FULL review: session_013mPGJ49Y6aT7ZssznUq1pk. The lane goes on to by-kind-folds plus ring-sites-names (onecopy/torus-ring-names).
   - The container restarted mid merge-check (disk at 98%). tgt-m cleared; the 6670 check is re-running.
+- 2026-11-10 00:30Z
+  - **Merged PR 6670 (shell-winding), f13e0878,** under the local-merge procedure: 9803/9803 over geom-core, geom-brep, topo and sweep. Its lane goes on to the-census-lexical-scope-reader-keeps-minting-blind-spots (onecopy/scope-parser), options first.
+  - **6666 delta review (session_013mPGJ3ykyNSXEK99MX4U6Q): MERGE.**
+    - The cosine arm has 0 violations over 60k boxes; it is never higher at f64 (≤3e-14).
+    - At Interval it is looser in straddles: lower in 6,021/60k boxes, up to near zero at wide boxes. I added that disclosure to the body myself.
+    - Every pin discriminates as claimed. M4 (6677's form) is caught only by the side_reader probe, as intended.
+    - The merge check is running.
+  - **6674's fix pass is in** (608c85e7); gating.
