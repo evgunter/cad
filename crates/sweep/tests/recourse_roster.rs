@@ -69,7 +69,7 @@ const INDIRECT: &[(&str, &str)] = &[
          `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
     ),
     (
-        "loft/stacking.rs: read_identity(a.iter())",
+        "loft/stacking.rs: read_identity#1(a.iter())",
         "the loft's pinned-rim identity, whose data are named by `LOFT_RIM_PINNED`, a declared \
          carrier",
     ),
@@ -585,30 +585,18 @@ fn the_material_side_offer_names_the_margin_it_carries() {
 /// A name built somewhere other than the call — a const, a struct
 /// field, a `concat!` — is exactly the name a census misses, and two
 /// hand-rolled readers were defeated that way before the shared one
-/// existed. So the reader reports rather than skips, and each kind of
-/// report is a red row here: an indirect site whose carrier nobody has
-/// declared, a spelling it cannot parse, and a file it does not walk.
+/// existed. So the reader reports rather than skips, and the checks
+/// every roster makes of what it reports are one harness
+/// (`test_utils::source::roster_violations`): an indirect site not
+/// declared in INDIRECT, a const site whose const is not a carrier, a
+/// stale carrier, a spelling it cannot parse, and a file it does not
+/// walk.
 #[test]
 fn nothing_in_src_is_invisible_to_the_reader() {
-    let census = census();
-    let declared: BTreeSet<String> = INDIRECT.iter().map(|(site, _)| site.to_string()).collect();
-    assert_eq!(
-        census.indirect, declared,
-        "the funnel calls whose name the reader cannot read at the site are not the ones \
-         declared in INDIRECT"
-    );
-    assert!(
-        census.unreadable.is_empty(),
-        "a `decide*` call is spelled in a way the reader cannot parse, so the gate it names \
-         is outside the roster: {:?}",
-        census.unreadable
-    );
-    assert!(
-        census.unwalked.is_empty(),
-        "an `include!` or `#[path]` pulls source into this crate from a file the reader does \
-         not walk, so a gate there is outside the roster: {:?}",
-        census.unwalked
-    );
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let violations =
+        test_utils::source::roster_violations(&src, &census(), CARRIERS, Some(INDIRECT));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 /// **`split_edge`'s in-band interiority reads whole through the blend's

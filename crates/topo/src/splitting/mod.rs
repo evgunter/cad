@@ -721,7 +721,7 @@ impl SplitReduceError {
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
         use core::fmt::Display as _;
-        use geom_core::RANGE_RECOURSE;
+        use geom_core::RANGE_ENDING;
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::CurvedBooleanUnsupported { kind, .. } => write!(
@@ -836,12 +836,12 @@ impl SplitReduceError {
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
                 "a chord at a vertex has no finite length (a component overflows the norm \
-                 or is not a number). Recourse: {RANGE_RECOURSE}"
+                 or is not a number). {RANGE_ENDING}"
             ),
             Self::UnderflowedSectorChord { .. } => write!(
                 f,
-                "a chord at a vertex has a length that underflows to zero. Recourse: \
-                 {RANGE_RECOURSE}"
+                "a chord at a vertex has a length that underflows to zero. \
+                 {RANGE_ENDING}"
             ),
             Self::ConsecutiveOnSectors { vertex } => write!(
                 f,
