@@ -1497,7 +1497,7 @@ fn distance<T: Decide>(geo: &Geo<T>, u: Point3<T>, cell: EntityId) -> Option<Mar
         EntityId::Vertex(v) => Some(Margin::norm3(u - *geo.vmap.get(&v)?)),
         EntityId::Edge(e) => {
             let e = line_edge(geo, e)?.span();
-            Some(Margin::norm3(u - e.line().foot_within(u, e.at)))
+            Some(Margin::of(e.line().distance_within(u, e.at)))
         }
         EntityId::Face(f) => {
             let f = planar_face(geo, f)?;

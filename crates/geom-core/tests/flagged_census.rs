@@ -651,6 +651,8 @@ fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
          pub fn one(label: [&'static str; 1]) {}\n\
          pub fn owned_list(labels: &[String]) {}\n\
          pub fn static_list(labels: &'static [&'static str]) {}\n\
+         pub fn mut_list(labels: &mut [&str]) {}\n\
+         pub fn mut_static_list(labels: &'a mut [String]) {}\n\
          pub fn row_list(rows: &'static [&'static str]) {}\n\
          impl Bracket {\n    pub fn cite(&self, ledger_row: &'static str) {}\n}\n\
          #[cfg(test)]\nmod tests {\n    pub fn in_a_test(ledger_row: &'static str) {}\n}\n",
