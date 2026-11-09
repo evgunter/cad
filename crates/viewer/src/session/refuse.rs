@@ -90,8 +90,9 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
 
 /// **Whether `read` in `doc` is the wanted kind**: [`admits`] for a
 /// node named alone, and for a port the kind of the variable it names
-/// (a split's half is a body) — the gate every body seat's commit asks
-/// of the read it holds.
+/// (a split's half is a body), a family being, as [`admits`] reads it,
+/// a variable evaluated once per member or a `Bodies` one — the gate
+/// every body seat's commit asks of the read it holds.
 pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWanted) -> bool {
     use pncad::document::{SlotKind, VarKind};
     let var = match read {
@@ -103,8 +104,14 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Pick { .. } => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
+    let repeats = |var: pncad::document::VarId| {
+        doc.var_reach(var)
+            .chain()
+            .is_some_and(|chain| !chain.is_empty())
+    };
     let kind = match wanted {
         NodeKindWanted::Body => VarKind::Body,
+        NodeKindWanted::Instances if var.is_some_and(repeats) => return true,
         NodeKindWanted::Instances => VarKind::Bodies,
         NodeKindWanted::Profile => return false,
     };
