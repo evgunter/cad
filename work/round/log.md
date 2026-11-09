@@ -213,3 +213,25 @@ on `log.md`, so a unit PR's tracker commit should not touch the log.
 Watching: this session stays subscribed to PRs 6542 and 6547 and acts on
 Ev's answers there (the second, Ev-decision commit of each design-fork
 row; updating the PR in place).
+
+## 2026-11-09 — carrier identity ruled; picked back up (`active`)
+
+Ev on PR 6542 asked what had forced the August compromise the merges
+were. A history lane traced it: round 10 (2026-08-11/12) set the
+"own segment" state; LIB-RESPELL (#531, 2026-08-15) found validation then
+refused a declared tangent joint between two pieces on one carrier
+(`TangencyContradicted { same_carrier }`, reproduced on that commit's
+parent) and added `extend_leg_to` to dodge it; the OnArc dissolution
+(2026-08-16) copied the move for arcs under a bit-identity condition.
+The sixth round (2026-09-02) retired the refusal, and no one revisited
+the workaround. On main with all three merge sites disabled, validation
+refuses nothing. Ev: "this sounds great!"
+
+Took the recommendation (both merges retire). The fork's log row (254;
+253 was taken on main meanwhile) carries the decision and the mapping.
+`carriers-are-identical-…` unparked and dispatched as the build unit
+(`round/extensions-are-their-own-segments`, single FULL review). Loft's
+segment-by-segment correspondence, the one remaining cost, filed on
+LATHE as `loft-corresponds-sections-by-segment-not-by-run` (P2). PR 6547
+answered Ev's two questions (the side door; the anchor lever now states
+its target distance) and waits on Ev.
