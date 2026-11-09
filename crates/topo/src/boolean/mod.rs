@@ -7771,8 +7771,11 @@ fn witness_pad<T: Real>(band: Band) -> T {
 /// meet ([`locus_through_both_faces`]). Each face's span is its cover's
 /// range along the line ([`crate::cover::face_cover`],
 /// [`geom::cover::Cover::range_along`]), which holds every point of the
-/// face. So extents meeting at one point meet at an end of each, where
-/// no interiors meet.
+/// face. The union is widened by the band's pad ([`witness_pad`], a
+/// tolerance: a witness point stands within the band of each face, not
+/// on it), which can only meter the witness over more. The overlap is
+/// not: widened, it would read extents meeting at one point as meeting
+/// along a length, where no interiors meet.
 #[allow(clippy::type_complexity)]
 fn witness_span<T: Decide>(
     a: &Body<T>,
@@ -7793,8 +7796,9 @@ fn witness_span<T: Decide>(
         Ok((lo + at, hi + at))
     };
     let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);
+    let pad = witness_pad::<T>(band);
     Ok((
-        (sa.0.min(sb.0), sa.1.max(sb.1)),
+        (sa.0.min(sb.0) - pad, sa.1.max(sb.1) + pad),
         (sa.0.max(sb.0), sa.1.min(sb.1)),
     ))
 }

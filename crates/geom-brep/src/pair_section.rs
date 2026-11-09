@@ -428,7 +428,7 @@ impl<T: Decide> CylinderSpherePose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_covered(&self.sphere.cover())
+        ExtentBall::of_covered(self.sphere.cover().as_ref().ok())
     }
 
     /// The cylinder's radius `r` and the sphere's `R`, both decided

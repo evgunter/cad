@@ -674,7 +674,7 @@ impl<T: Decide> SphereTorusPose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_covered(&self.sphere.cover())
+        ExtentBall::of_covered(self.sphere.cover().as_ref().ok())
     }
 
     /// How the sphere stands.

@@ -1161,7 +1161,7 @@ fn conic_conic<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
-    let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(&c.cover());
+    let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
     let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
     let lever = arm.length();
     let origin = Point3::origin();

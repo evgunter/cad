@@ -1404,7 +1404,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             "bool_sphere_iso_meridian",
             Margin::levered(
                 n_c.dot(axis),
-                geom_brep::ExtentBall::of_covered(&curve.carrier().cover()).lever(),
+                geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok()).lever(),
             ),
         )? {
             // A meridian GREAT circle: centred at the sphere centre,
@@ -1437,7 +1437,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     "bool_sphere_trim_pole_interior",
                     Margin::levered(
                         pole.dot(m_hat) - c_h,
-                        geom_brep::ExtentBall::of_covered(&surf.cover()).lever(),
+                        geom_brep::ExtentBall::of_covered(surf.cover().as_ref().ok()).lever(),
                     ),
                     band,
                 )

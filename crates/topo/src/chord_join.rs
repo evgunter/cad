@@ -1005,14 +1005,14 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
 /// the face's cover: on a cone the [`geom_brep::Reach::Face`] the cone
 /// lane reads ([`crate::cover::cone_face_reach`]), on a cylinder the
 /// [`WallReach`] [`wall_face_section`] reads, on a torus its farthest
-/// distance. A sphere's lane reads none. `within` is a window along a
-/// cone's axis the consumed region also lies in: the partner wall face's,
+/// distance. A sphere's lane reads none. `within` is a second face's
+/// cover the consumed region also lies in: the partner wall face's,
 /// where `face` is the plane the boolean cuts it with.
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
-    (wall, within): (&geom::Surface<T>, Option<(T, T)>),
+    (wall, within): (&geom::Surface<T>, Option<&geom::cover::Cover<T>>),
     band: Band,
 ) -> Result<SectionReach<T>, SplitJoinError> {
     let p = body.resolve_vertex_point(at, Proven);
@@ -1278,10 +1278,10 @@ pub(crate) enum JoinLane<'a, T: Real> {
     BoolPlanar {
         /// The partner wall surface (value; from the other operand).
         wall: geom::Surface<T>,
-        /// The partner wall face's window along a cone's axis from the
-        /// apex (`crate::cover::face_range_along`), which the section
-        /// this face shares with it lies in; `None` off a cone.
-        window: Option<(T, T)>,
+        /// The partner wall face's cover (`crate::cover::face_cover`),
+        /// which the section this face shares with it lies in; `None` off
+        /// a cone.
+        window: Option<geom::cover::Cover<T>>,
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
         /// The germ's branch: the loop of a two-loop section the chord
@@ -1434,7 +1434,9 @@ impl<T: geom_core::spline::SpanLocate> SectionCurve<T> {
     /// along), an oval's own extent.
     fn lever(&self) -> geom_core::Lever<T> {
         match self {
-            Self::Conic(c) => geom_brep::ExtentBall::of_covered(&c.carrier.cover()).lever(),
+            Self::Conic(c) => {
+                geom_brep::ExtentBall::of_covered(c.carrier.cover().as_ref().ok()).lever()
+            }
             Self::Oval(o) => o.extent,
         }
     }
@@ -2346,7 +2348,7 @@ fn chord_spec<T: Decide>(
                 band,
                 face,
                 wall_key,
-                (&wall, window),
+                (&wall, window.as_ref()),
                 (partner_key, branch),
                 u1,
                 u2,
@@ -2747,7 +2749,7 @@ fn bool_planar_chord_spec<T: Decide>(
     band: Band,
     face: FaceKey,
     plane_key: SurfaceKey,
-    (wall, partner_window): (&geom::Surface<T>, Option<(T, T)>),
+    (wall, partner_window): (&geom::Surface<T>, Option<&geom::cover::Cover<T>>),
     (partner_key, branch): (&mut Option<SurfaceKey>, crate::boolean::Branch),
     u1: VertexKey,
     u2: VertexKey,
@@ -4774,7 +4776,8 @@ impl RimSide {
                     "bool_lone_ring_region_side",
                     Margin::levered(
                         left,
-                        geom_brep::ExtentBall::of_covered(&curve.carrier().cover()).lever(),
+                        geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok())
+                            .lever(),
                     ),
                     band,
                 )

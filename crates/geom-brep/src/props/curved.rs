@@ -622,7 +622,7 @@ pub fn require_one_chart_branch<T: Decide>(
                     "props_circle_axis_class",
                     Margin::levered(
                         n_c.dot(axis),
-                        crate::ExtentBall::of_covered(&e.carrier.cover()).lever(),
+                        crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     ),
                     band,
                     PropsCheck::Inventory,
@@ -1900,7 +1900,7 @@ fn cylinder_boundary<T: Decide>(
                     "props_circle_axis_class",
                     Margin::levered(
                         n_c.dot(axis),
-                        crate::ExtentBall::of_covered(&e.carrier.cover()).lever(),
+                        crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     ),
                     band,
                     PropsCheck::Inventory,
@@ -1923,7 +1923,7 @@ fn cylinder_boundary<T: Decide>(
                     "props_cylinder_circle_tilt",
                     Margin::levered(
                         T::one() - n_c.dot(axis).abs(),
-                        crate::ExtentBall::of_covered(&e.carrier.cover()).lever(),
+                        crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     ),
                     band,
                     Premise::OnSurface,
@@ -1938,7 +1938,7 @@ fn cylinder_boundary<T: Decide>(
                 require_rim_incidence(
                     w,
                     n_c,
-                    crate::ExtentBall::of_covered(&e.carrier.cover()).lever(),
+                    crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     axis,
                     band,
                 )?;
@@ -2348,7 +2348,7 @@ fn require_cone_circle<T: Decide>(
     circle: &Curve3<T>,
     band: Band,
 ) -> Result<Sign, PropsError> {
-    let rim = crate::ExtentBall::of_covered(&circle.cover()).lever();
+    let rim = crate::ExtentBall::of_covered(circle.cover().as_ref().ok()).lever();
     let s = classify(
         "props_circle_axis_class",
         Margin::levered(n_c.dot(axis), rim),
@@ -3169,7 +3169,7 @@ fn cone_boundary<T: Decide>(
                 require_rim_incidence(
                     center - apex,
                     n_c,
-                    crate::ExtentBall::of_covered(&e.carrier.cover()).lever(),
+                    crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     axis,
                     band,
                 )?;
@@ -4940,7 +4940,7 @@ fn sphere_boundary<T: Decide>(
             "props_circle_axis_class",
             Margin::levered(
                 n_c.dot(axis),
-                crate::ExtentBall::of_covered(&e.carrier.cover()).lever(),
+                crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
             ),
             band,
             PropsCheck::Inventory,
@@ -4961,7 +4961,7 @@ fn sphere_boundary<T: Decide>(
                 require_rim_incidence(
                     w,
                     n_c,
-                    crate::ExtentBall::of_covered(&e.carrier.cover()).lever(),
+                    crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     axis,
                     band,
                 )?;
@@ -5910,7 +5910,7 @@ fn torus_classify<'a, T: Decide>(
             "props_circle_axis_class",
             Margin::levered(
                 n_c.dot(axis),
-                crate::ExtentBall::of_covered(&e.carrier.cover()).lever(),
+                crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
             ),
             band,
             PropsCheck::Inventory,
@@ -5932,7 +5932,7 @@ fn torus_classify<'a, T: Decide>(
                 require_rim_incidence(
                     c_c - center,
                     n_c,
-                    crate::ExtentBall::of_covered(&e.carrier.cover()).lever(),
+                    crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     axis,
                     band,
                 )?;
@@ -6177,7 +6177,7 @@ fn torus_meridian_orient<T: Decide>(
     // The axis is a pure number, levered by the anchor meridian's reach
     // from the torus centre, where the frame it aims is consumed.
     let meridian =
-        crate::ExtentBall::of_covered(&geom::cover::Cover::circle(c_c, n_c, minor).ok_or(()));
+        crate::ExtentBall::of_covered(geom::cover::Cover::circle(c_c, n_c, minor).as_ref());
     let reach = meridian.lever_from(center);
     let aim = UnitVec3::levered(axis, "props_torus_axis", band, reach).map_err(|e| match e {
         LeveredUnitError::Direction(e) => {

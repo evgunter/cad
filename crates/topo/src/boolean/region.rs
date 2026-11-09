@@ -1071,7 +1071,7 @@ macro_rules! fixture_turns {
                 start,
                 end,
                 |_| None,
-                geom_brep::ExtentBall::of_covered(&circle.cover()).lever(),
+                geom_brep::ExtentBall::of_covered(circle.cover().as_ref().ok()).lever(),
                 band,
                 geom_brep::NurbsLane::certified(),
             )

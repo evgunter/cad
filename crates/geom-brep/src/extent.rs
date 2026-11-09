@@ -288,12 +288,14 @@ impl<T: Real> ExtentBall<T> {
 
     /// **The ball about `at` holding a region**: out to `cover`'s far
     /// distance from `at` ([`Cover::distance_range`]). A region with no
-    /// cover (`None`) reads a poison radius, which a reading levered at
-    /// it escalates.
+    /// cover (`None`) reads the poison ball ([`Self::of_covered`]), which
+    /// a reading levered at it escalates.
     #[must_use]
     pub fn of_cover_from(cover: Option<&Cover<T>>, at: Point3<T>) -> Self {
-        let far = cover.map_or_else(poison, |c| c.distance_range(&Site::Point(at)).1);
-        Self::new(at, far)
+        cover.map_or_else(
+            || Self::of_covered(None),
+            |c| Self::new(at, c.distance_range(&Site::Point(at)).1),
+        )
     }
 
     /// **The ball a cover names** ([`Cover::ball`]): it holds the
@@ -317,11 +319,12 @@ impl<T: Real> ExtentBall<T> {
     /// **The ball an entity's cover reading names** ([`Self::of_cover`]
     /// of `covered`, a carrier's [`geom::Surface::cover`] or
     /// [`Curve3::cover`], an edge's or a face's): poison where the entity
-    /// has no cover, which a reading levered at it escalates.
+    /// has no cover (`None`), which a reading levered at it escalates.
+    /// The one spelling of a ball with no cover.
     #[must_use]
-    pub fn of_covered<E>(covered: &Result<Cover<T>, E>) -> Self {
-        covered.as_ref().map_or_else(
-            |_| {
+    pub fn of_covered(covered: Option<&Cover<T>>) -> Self {
+        covered.map_or_else(
+            || {
                 let p = poison();
                 Self::new(Point3::new(p, p, p), p)
             },
@@ -1015,29 +1018,17 @@ impl<T: SpanLocate> Reach<T> {
     }
 
     /// A point the reach stands for: a ball's centre, the point a length
-    /// was measured from, a span's first consumed point or conic centre.
-    /// Its distance from a pivot is at most a ball's or a span's lever
-    /// from there, so the floor in [`Self::lever_between`] binds only on
-    /// a caller's length ([`Self::Measured`]; no caller hands the cylinder
-    /// pair a [`Self::Face`]).
+    /// was measured from, a span's first consumed point (its carrier at
+    /// `t0`, a point of the region). Its distance from a pivot is at most
+    /// a ball's or a span's lever from there, so the floor in
+    /// [`Self::lever_between`] binds only on a caller's length
+    /// ([`Self::Measured`]; no caller hands the cylinder pair a
+    /// [`Self::Face`]).
     fn reading_point(&self) -> Point3<T> {
         match self {
             Self::Ball(ball) => ball.center(),
             Self::Measured { at, .. } | Self::Face { at, .. } => *at,
-            Self::Span {
-                carrier:
-                    Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { origin: center, .. },
-                        ..
-                    })
-                    | Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { origin: center, .. },
-                        ..
-                    })
-                    | Curve3::Spiric { center, .. },
-                ..
-            } => *center,
-            Self::Span { .. } => self.span_points()[0],
+            Self::Span { carrier, t0, .. } => carrier.eval(*t0),
         }
     }
 
@@ -1674,6 +1665,75 @@ mod tests {
                 "from {pivot:?}: {got} against {want}"
             );
         }
+    }
+
+    /// **An entity with no cover reads the poison ball**, which no
+    /// lever reads past: [`ExtentBall::of_covered`] of `None`, and the
+    /// ball about a point of a region with no cover. A finite ball here
+    /// would lever a reading over a region nobody bounded.
+    #[test]
+    fn an_entity_with_no_cover_reads_the_poison_ball() {
+        let at = Point3::new(1.0, 2.0, 3.0);
+        for (label, ball) in [
+            ("of_covered", ExtentBall::<f64>::of_covered(None)),
+            ("of_cover_from", ExtentBall::of_cover_from(None, at)),
+        ] {
+            assert!(ball.readable().is_none(), "{label}: {ball:?} reads");
+            assert!(
+                ball.lever_from(at).length().is_poison(),
+                "{label}: its lever from a point is not poison"
+            );
+        }
+        let covered = Surface::Sphere {
+            center: at,
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+        .cover()
+        .unwrap();
+        let ball = ExtentBall::of_covered(Some(&covered));
+        assert!(
+            (ball.radius() - 2.0).abs() < 1e-12,
+            "a sphere's cover reads its own ball, got {ball:?}"
+        );
+    }
+
+    /// **A short arc far from its centre levers from a point of the
+    /// arc**: a 1 m arc of a 1 km circle. Its ball and its foot's lever
+    /// are read about a point of the arc, so they reach a metre and not
+    /// the kilometre to the circle's centre, a point outside the region
+    /// consumed.
+    #[test]
+    fn a_short_arc_far_from_its_centre_levers_from_the_arc() {
+        let r = 1000.0;
+        let reach = Reach::Span {
+            carrier: Curve3::circle(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                r,
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            t0: 0.0,
+            t1: 1.0 / r,
+        };
+        let ball = reach.ball();
+        assert!(
+            ball.radius() < 1.01,
+            "the arc's ball reaches {}",
+            ball.radius()
+        );
+        // An axis through the arc's middle, across its plane.
+        let axis = Line {
+            origin: Point3::new(r, 0.5, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let (_, lever) = reach.foot_lever(axis);
+        assert!(
+            lever.length() < 1.01,
+            "the foot's lever reaches {}, past the arc",
+            lever.length()
+        );
     }
 
     /// The enclosing ball sits at the parts' mean and reaches each

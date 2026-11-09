@@ -574,7 +574,7 @@ impl SolidJoin {
         &mut self,
         body: &mut Body<T>,
         plan: &JoinPlan,
-        (wall, window): (geom::Surface<T>, Option<(T, T)>),
+        (wall, window): (geom::Surface<T>, Option<geom::cover::Cover<T>>),
         partner_face: FaceKey,
         branch: super::Branch,
         leave: Leave<T>,
@@ -2890,22 +2890,21 @@ pub(super) fn frame_extent<T: Decide>(
 /// [`frame_extent`]'s refusal: a wall with no cover to lever at.
 const UNCOVERED_WALL: &str = "a germ wall has no cover";
 
-/// The window along a cone wall's axis from its apex that `face`
-/// reaches over ([`face_range_along`](crate::cover::face_range_along)):
-/// the partner's face, which the planar side's section lies in, or the
-/// planar face, which the frame's does. `None` off a cone, or for a face
-/// with no cover, which narrows nothing: the reader's own face's window
-/// holds the section without it.
+/// The partner face a cone wall's section also lies in, as its cover
+/// ([`crate::cover::face_cover`]): the partner's face, which the planar
+/// side's section lies in, or the planar face, which the frame's does.
+/// `None` off a cone, or for a face with no cover, which narrows
+/// nothing: the reader's own face's cover holds the section without it.
 fn cone_window<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     wall: &geom::Surface<T>,
     band: Band,
-) -> Option<(T, T)> {
-    let &geom::Surface::Cone { apex, axis, .. } = wall else {
+) -> Option<geom::cover::Cover<T>> {
+    if !matches!(wall, geom::Surface::Cone { .. }) {
         return None;
-    };
-    crate::cover::face_range_along(body, face, apex, axis, band).ok()
+    }
+    crate::cover::face_cover(body, face, band).ok()
 }
 
 /// [`frame_extent`]'s plane×cone arm: the cone face's reach from `at`,
@@ -2919,7 +2918,7 @@ fn cone_reach<T: Decide>(
     band: Band,
 ) -> Result<FrameExtent<T>, &'static str> {
     let within = cone_window(plane_body, plane_face, cone, band);
-    crate::cover::cone_face_reach(body, face, at, (cone, within), band)
+    crate::cover::cone_face_reach(body, face, at, (cone, within.as_ref()), band)
         .map(FrameExtent::Cone)
         .map_err(|_| UNCOVERED_WALL)
 }
@@ -4357,7 +4356,7 @@ fn pt_germ_frame<T: Decide>(
         }
         Ok(geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 }) => {
             let oval = |curve: geom::Curve3<T>| {
-                let ball = geom_brep::ExtentBall::of_covered(&curve.cover());
+                let ball = geom_brep::ExtentBall::of_covered(curve.cover().as_ref().ok());
                 match curve {
                     geom::Curve3::Spiric {
                         center,

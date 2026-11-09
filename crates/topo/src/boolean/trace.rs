@@ -346,9 +346,10 @@ pub fn circle_crossings<T: Decide>(
         }
     };
     let rate = InfSpeed::new(radius);
-    let reach =
-        geom_brep::ExtentBall::of_covered(&Curve3::circle(center, axis, radius, u_ref).cover())
-            .lever();
+    let reach = geom_brep::ExtentBall::of_covered(
+        geom::cover::Cover::circle(center, axis, radius).as_ref(),
+    )
+    .lever();
     let mut out = Vec::new();
     for point in points {
         let w = point - center;

@@ -668,7 +668,7 @@ fn tangency_readings<T: Decide>(a: WallReading<T>, b: WallReading<T>) -> Tangenc
 /// under-claimed arm shrinks the margin and makes a face that is not
 /// parallel to the split plane likelier to decide `Zero`: a wrong
 /// answer, not a loud one. A face with no cover has no arm, and is
-/// refused ([`UnboundedFace`]): a ruled face whose outer loop is a lone
+/// refused ([`UncoveredFace`]): a ruled face whose outer loop is a lone
 /// vertex, whose locus is unbounded, or one whose boundary holds an edge
 /// with no cover (null scaffolding among them).
 ///
@@ -678,20 +678,21 @@ pub(crate) fn face_extent<T: Decide>(
     vertex: VertexKey,
     face: FaceKey,
     band: Band,
-) -> Result<Lever<T>, UnboundedFace> {
+) -> Result<Lever<T>, UncoveredFace> {
     crate::cover::face_reach_from(body, face, body.resolve_vertex_point(vertex, Proven), band)
-        .map_err(|_| UnboundedFace { face })
+        .map_err(|why| UncoveredFace { face, why })
 }
 
-/// [`face_extent`]'s refusal: `face` has no cover.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct UnboundedFace {
+/// [`face_extent`]'s refusal: `face` has no cover, and why.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct UncoveredFace {
     pub(crate) face: FaceKey,
+    why: crate::cover::FaceUncovered,
 }
 
-impl From<UnboundedFace> for SplitReduceError {
-    fn from(UnboundedFace { face }: UnboundedFace) -> Self {
-        Self::UnboundedFace { face }
+impl From<UncoveredFace> for SplitReduceError {
+    fn from(UncoveredFace { face, why }: UncoveredFace) -> Self {
+        Self::UncoveredFace { face, why }
     }
 }
 
@@ -1040,7 +1041,7 @@ mod tests {
         assert!(
             matches!(
                 face_extent(&body, seed.vertex, seed.face, wband()),
-                Err(UnboundedFace { face }) if face == seed.face
+                Err(UncoveredFace { face, .. }) if face == seed.face
             ),
             "an empty OUTER loop refuses at its own lone vertex; it must not answer zero"
         );

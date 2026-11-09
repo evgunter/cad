@@ -59,7 +59,7 @@ pub(super) fn arcs_along<T: Decide>(
         };
         let (tangent, arrival) = curve.walk_tangents(he == edge.he_plus);
         let tangent = tangent.normalize();
-        let arm = geom_brep::ExtentBall::of_covered(&curve.carrier().cover()).lever();
+        let arm = geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok()).lever();
         // Off the tangent's line rules the arc out whatever its
         // direction; an arc decided backward is ruled out whatever its
         // offset. Only an arc neither rules out escalates.

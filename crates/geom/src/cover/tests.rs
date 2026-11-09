@@ -1638,3 +1638,59 @@ fn a_nan_bound_in_one_lane_poisons_the_whole_box() {
     };
     assert_eq!(super::whole_poison(finite), finite, "a finite box is kept");
 }
+
+/// **A hull of many small pieces reads the ball about its box**: three
+/// points on a line, hulled one at a time. The balls about each pair's
+/// midpoint grow to 1.25; the ball about the hull's box is 1, and a hull
+/// hulled again, or met with something, keeps it.
+#[test]
+fn a_hull_of_small_pieces_reads_the_ball_about_its_box() {
+    let p = |x: f64| Cover::points(vec![Point3::new(x, 0.0, 0.0)]).unwrap();
+    let hull = p(0.0).hull(p(1.0)).hull(p(2.0));
+    let (c, r) = hull.ball();
+    assert!(
+        (r - 1.0).abs() < 1e-15 && (c - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-15,
+        "the hull's ball is ({c:?}, {r}), not its box's (1, 0, 0) out to 1"
+    );
+    let big = Cover::points(vec![Point3::new(1.0, 0.0, 0.0)])
+        .unwrap()
+        .hull(Cover::points(vec![Point3::new(1.0, 50.0, 0.0)]).unwrap());
+    let (_, r_meet) = hull.clone().meet(big).ball();
+    assert!(r_meet <= 1.0 + 1e-15, "the meet's ball reaches {r_meet}");
+    let (_, r_again) = hull.convex().hull(p(1.0)).ball();
+    assert!(
+        r_again <= 1.0 + 1e-15,
+        "the hull hulled again reaches {r_again}"
+    );
+}
+
+/// **A whole circle held by its centre, axis and radius** is the region
+/// of every point at its radius in its plane, whatever its seam: its
+/// ball is its centre out to the radius, its support along the axis is
+/// the centre's, and along its plane the radius past it.
+#[test]
+fn a_whole_circle_is_its_turn_whatever_its_seam() {
+    let (c, axis, r) = (Point3::new(1.0, -2.0, 3.0), Vec3::new(0.0, 0.6, 0.8), 2.5);
+    let circle = Cover::circle(c, axis, r).unwrap();
+    let (centre, radius) = circle.ball();
+    assert!(
+        (centre - c).norm() < 1e-12 && (radius - r).abs() < 1e-12,
+        "the circle's ball is ({centre:?}, {radius})"
+    );
+    let along = |e: Vec3<f64>| circle.support(e) - (c - Point3::origin()).dot(e);
+    assert!(
+        along(axis).abs() < 1e-12,
+        "it stands {} off its plane",
+        along(axis)
+    );
+    let across = Vec3::new(0.0, 0.8, -0.6);
+    assert!(
+        (along(across) - r).abs() < 1e-12,
+        "it reaches {} across",
+        along(across)
+    );
+    assert!(
+        Cover::circle(Point3::new(f64::NAN, 0.0, 0.0), axis, r).is_none(),
+        "a non-finite centre has a cover"
+    );
+}

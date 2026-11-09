@@ -6843,6 +6843,7 @@ fn sweep_conformal_patches<T: Decide>(
                         | ChartRegionError::EdgeScale
                         | ChartRegionError::WitnessSegmentCapExceeded { .. }
                         | ChartRegionError::WitnessCellCapExceeded { .. }
+                        | ChartRegionError::FaceUncovered(_)
                         | ChartRegionError::Corrupt),
                     )) => {
                         // The refusal is CARRIED, not replaced. The
@@ -12097,6 +12098,7 @@ fn confirm_patch<T: Decide>(
             | ChartRegionError::EdgeScale
             | ChartRegionError::WitnessSegmentCapExceeded { .. }
             | ChartRegionError::WitnessCellCapExceeded { .. }
+            | ChartRegionError::FaceUncovered(_)
             | ChartRegionError::Corrupt),
         )) => {
             // Carried, as at the sweep arm and for the same

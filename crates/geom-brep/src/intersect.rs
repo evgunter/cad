@@ -2429,14 +2429,17 @@ pub fn plane_cone_section<T: Decide>(
     let rim_r = t.abs() * (sin_a / cos_a);
     // A circle with no cover (the plane along the axis puts it at no
     // finite point) is no candidate section, and adds no reach.
-    let rim = Curve3::circle(apex + a * t, a, rim_r, cone_u);
-    let arm = rim
-        .cover()
+    let arm = geom::cover::Cover::circle(apex + a * t, a, rim_r)
         .map_or(extent, |c| ExtentBall::of_cover(&c).lever().max(extent));
     match decide("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(rim)),
+        Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::circle(
+            apex + a * t,
+            a,
+            rim_r,
+            cone_u,
+        ))),
         Sign::Positive | Sign::Negative => {
             let tilt = ConeTilt::new(c, s, (sin_a, cos_a), discr);
             match decide("pn_conic_type", Margin::levered(discr, extent), band)
@@ -2845,7 +2848,7 @@ pub fn plane_torus_section<T: Decide>(
         Sign::Positive | Sign::Negative => {
             let tilt = Margin::levered(
                 a.cross(n).norm(),
-                ExtentBall::of_covered(&torus.cover()).lever(),
+                ExtentBall::of_covered(torus.cover().as_ref().ok()).lever(),
             );
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {

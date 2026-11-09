@@ -4257,6 +4257,10 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
         }
+        ChartRegionError::FaceUncovered(_) => (
+            "a face's region cannot be bounded (its carrier or a boundary edge has no cover)",
+            DEFECT,
+        ),
         // A plane trim edge's incidence read: its reason from the one
         // table, its ending by the one map, at rest.
         ChartRegionError::TrimOffFace { read, .. } => {

@@ -581,8 +581,15 @@ pub(crate) fn critical_gap<T: Decide>(
 ) -> Result<Gap<T>, Indeterminate> {
     let sweep = Sweep {
         core,
-        core_lever: crate::ExtentBall::of_covered(&geom::Curve3::Circle(core.circle).cover())
-            .lever(),
+        core_lever: crate::ExtentBall::of_covered(
+            geom::cover::Cover::circle(
+                core.circle.frame.origin,
+                core.circle.frame.axis,
+                core.circle.radius,
+            )
+            .as_ref(),
+        )
+        .lever(),
         spine,
         levels: [ra + rb, (ra - rb).abs()],
         rows,

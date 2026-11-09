@@ -366,6 +366,10 @@ pub enum ChartRegionError {
     /// levers by edge lengths, so either end reads a height wrong.
     /// Recourse is the model's scale, not ε.
     EdgeScale,
+    /// A face of the pair has no cover ([`crate::cover::face_cover`]), so
+    /// its carrier gates have no region to read: the carrier's own refusal
+    /// and each boundary entity that left its boundary unread.
+    FaceUncovered(crate::cover::FaceUncovered),
     /// The topology could not be walked, or the crossing walk
     /// contradicted itself (fail-loud kernel-invariant class).
     Corrupt,
@@ -520,6 +524,11 @@ impl ChartRegionError {
             Self::EdgeScale => write!(
                 f,
                 "chart-region: {EDGE_SCALE_REASON}. {EDGE_SCALE_RECOURSE}"
+            ),
+            Self::FaceUncovered(why) => write!(
+                f,
+                "chart-region: a face of the pair has no region to read its carriers over: \
+                 {why}"
             ),
             Self::Corrupt => write!(
                 f,
@@ -1177,15 +1186,16 @@ fn plane_frame<T: Decide>(
 }
 
 /// **A face of the pair's region** ([`crate::cover::face_cover`]): the
-/// extent its carrier gates read. A face with no cover is refused, as a
-/// face that does not resolve is.
+/// extent its carrier gates read. A face with no cover refuses with its
+/// reason ([`ChartRegionError::FaceUncovered`]); a face that does not
+/// resolve is [`ChartRegionError::Corrupt`].
 fn pair_cover<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
 ) -> Result<geom::cover::Cover<T>, ChartRegionError> {
     body.passed_face(face).ok_or(ChartRegionError::Corrupt)?;
-    crate::cover::face_cover(body, face, band).map_err(|_| ChartRegionError::Corrupt)
+    crate::cover::face_cover(body, face, band).map_err(ChartRegionError::FaceUncovered)
 }
 
 /// Every boundary vertex of a face, outer loop then rings, cycle order
@@ -1273,8 +1283,9 @@ fn carrier_agreement<T: Decide + Bounds>(
     let (o_b, n_b) = plane_frame(body_b, face_b)?;
     let mut worst = T::zero();
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
+        let cover = pair_cover(body, face, band)?;
         for (o, n) in [(o_a, n_a), (o_b, n_b)] {
-            let (lo, hi) = pair_cover(body, face, band)?.range_along(n);
+            let (lo, hi) = cover.range_along(n);
             let base = (o - geom_core::Point3::origin()).dot(n);
             worst = worst.max((lo - base).abs()).max((hi - base).abs());
         }
@@ -3986,6 +3997,12 @@ mod tests {
                 }
             }
             ChartRegionErrorKind::EdgeScale => ChartRegionError::EdgeScale,
+            ChartRegionErrorKind::FaceUncovered => ChartRegionError::FaceUncovered(
+                crate::cover::FaceUncovered::of_carrier(geom::cover::Uncovered::new(
+                    geom::cover::Entity::Surface(geom::SurfaceKind::Plane),
+                    geom::cover::Unknown::Unbounded,
+                )),
+            ),
             ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
         };
         let arms: Vec<_> = <ChartRegionErrorKind as strum::IntoEnumIterator>::iter()

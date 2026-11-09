@@ -56,7 +56,7 @@ impl FaceUncovered {
 
     /// The refusal of a face whose carrier refused and whose arm read no
     /// boundary.
-    pub(crate) fn of_carrier(carrier: Uncovered) -> Self {
+    pub fn of_carrier(carrier: Uncovered) -> Self {
         Self {
             carrier,
             boundary: Vec::new(),
@@ -209,10 +209,7 @@ pub(crate) fn meet_within<T: Real>(
     match (a, b) {
         (Ok(a), Ok(b)) => within(&a.clone().meet(b.clone())),
         (Ok(one), Err(_)) | (Err(_), Ok(one)) => within(one),
-        (Err(_), Err(_)) => {
-            let poison = geom_core::poison();
-            geom_brep::ExtentBall::of_cover_from(None, Point3::new(poison, poison, poison))
-        }
+        (Err(_), Err(_)) => geom_brep::ExtentBall::of_covered(None),
     }
 }
 
@@ -409,9 +406,14 @@ pub(crate) fn face_range_along<T: Decide>(
     axis: Vec3<T>,
     band: Band,
 ) -> Result<(T, T), FaceUncovered> {
-    let (lo, hi) = face_cover(body, face, band)?.range_along(axis);
+    Ok(range_from(&face_cover(body, face, band)?, at, axis))
+}
+
+/// A cover's range along `axis` read from `at`: bounds on `(x − at)·axis`.
+fn range_from<T: Real>(cover: &Cover<T>, at: Point3<T>, axis: Vec3<T>) -> (T, T) {
+    let (lo, hi) = cover.range_along(axis);
     let base = (at - Point3::origin()).dot(axis);
-    Ok((lo - base, hi - base))
+    (lo - base, hi - base)
 }
 
 /// **How far `face` reaches from `at` either way along `axis`**:
@@ -435,10 +437,10 @@ pub(crate) fn face_axial_range<T: Decide>(
 }
 
 /// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),
-/// measured from `at` against `cone`'s axis: its window along the axis
-/// from the apex ([`face_range_along`]), narrowed to `within` where the
-/// consumed region lies in a second face too (that face's window, read
-/// the same way), and [`face_reach_from`] `at` as its lever.
+/// measured from `at` against `cone`'s axis: its cover's window along
+/// the axis from the apex, met with `within`'s where the consumed region
+/// lies in a second face too ([`Cover::meet`]), and [`face_reach_from`]
+/// `at` as its lever.
 ///
 /// # Errors
 ///
@@ -447,19 +449,20 @@ pub(crate) fn cone_face_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     at: Point3<T>,
-    (cone, within): (&Surface<T>, Option<(T, T)>),
+    (cone, within): (&Surface<T>, Option<&Cover<T>>),
     band: Band,
 ) -> Result<geom_brep::Reach<T>, FaceUncovered> {
     let &Surface::Cone { apex, axis, .. } = cone else {
         unreachable!("the plane×cone arm's reach is asked of a cone")
     };
-    let (lo, hi) = face_range_along(body, face, apex, axis, band)?;
-    let (lo, hi) = within.map_or((lo, hi), |(from, to)| (lo.max(from), hi.min(to)));
+    let cover = face_cover(body, face, band)?;
+    let region = within.map_or_else(|| cover.clone(), |w| cover.clone().meet(w.clone()));
+    let (lo, hi) = range_from(&region, apex, axis);
     let at_axis = (at - apex).dot(axis);
     Ok(geom_brep::Reach::of_face(
         at,
         (at_axis - lo, hi - at_axis),
-        face_reach_from(body, face, at, band)?,
+        geom_brep::ExtentBall::of_cover_from(Some(&cover), at).lever(),
     ))
 }
 
@@ -692,7 +695,7 @@ fn sphere_window<T: Decide>(
             SPHERE_SEAM,
             Margin::levered(
                 seam.get().dot(unit.get()),
-                geom_brep::ExtentBall::of_covered(&surface.cover()).lever(),
+                geom_brep::ExtentBall::of_covered(surface.cover().as_ref().ok()).lever(),
             ),
             band,
         );
@@ -1263,3 +1266,7 @@ pub(crate) fn edge_end_point<T: Real>(
     .start;
     body.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
 }
+
+#[cfg(test)]
+#[path = "cover_reach_rows.rs"]
+mod cover_reach_rows;

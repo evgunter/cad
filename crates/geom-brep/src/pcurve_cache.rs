@@ -7194,7 +7194,7 @@ fn run_spiric_checks<T: Decide>(
                 ..
             },
         ) => {
-            let arm = crate::ExtentBall::of_covered(&surface.cover()).lever();
+            let arm = crate::ExtentBall::of_covered(surface.cover().as_ref().ok()).lever();
             let torus_center = |t: WallTorus| t.center(c_c, n_c, c_offset);
             // The axis is gated for PARALLELISM only — a sine of unit
             // vectors, levered over the chart torus's ball. Which
@@ -7342,7 +7342,6 @@ fn run_spiric_checks<T: Decide>(
         }
         SpiricImage::Wall { .. } => {
             let Surface::Torus {
-                major_radius: chart_major,
                 minor_radius: chart_minor,
                 ..
             } = *surface
@@ -7377,7 +7376,11 @@ fn run_spiric_checks<T: Decide>(
                 .sqrt()
                 .min((f_min_c.powi(2) + c_offset.powi(2)).sqrt());
             let d_theta = T::pi() * T::from_f64(0.5) * (f_drift + d_offset.abs()) / rho_min;
-            let arm = chart_major + chart_minor;
+            // The chart torus's ball: the farthest a point of it stands
+            // from its centre, the arm an angular drift moves it over.
+            let arm = crate::ExtentBall::of_covered(surface.cover().as_ref().ok())
+                .lever()
+                .length();
             arm * d_theta
                 + chart_minor * sense_drift * reach
                 + arm * sense_drift * T::pi()
