@@ -28,7 +28,6 @@ fn key(k: u64) -> EdgeKey {
 
 fn edge(k: u64, curve: geom::Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -> Edge<f64> {
     RegionEdge {
-        on: Default::default(),
         edge: key(k),
         r#loop: LoopKey::default(),
         cycle: 0,
@@ -57,15 +56,25 @@ fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> Edge<f64> {
     edge(k, geom::Curve3::line(a, d / len), (0.0, len), true)
 }
 
+/// The region on `surface`, a cylinder or a cone, under the fixtures'
+/// one record.
+fn on(surface: &geom::Surface<f64>) -> (Charted<f64>, Ruled<f64>) {
+    (
+        Charted::record(Default::default(), surface),
+        Ruled::of(surface).unwrap(),
+    )
+}
+
 fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
+    let (charted, surface) = on(&geom::Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: z_axis(),
+        radius: 1.0,
+        u_ref: x_axis(),
+    });
     RuledFaceRegion {
-        record: Default::default(),
-        surface: Ruled::Cylinder {
-            origin: Point3::origin(),
-            axis: z_axis(),
-            radius: 1.0,
-            u_ref: x_axis(),
-        },
+        charted,
+        surface,
         sense: true,
         outer: LoopKey::default(),
         scale: 1.0,
@@ -232,14 +241,15 @@ fn a_wall_under_a_tilted_section_reads_its_region() {
 }
 
 fn cone(edges: Vec<Edge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
+    let (charted, surface) = on(&geom::Surface::Cone {
+        apex: Point3::origin(),
+        axis: z_axis(),
+        half_angle: ALPHA,
+        u_ref: x_axis(),
+    });
     RuledFaceRegion {
-        record: Default::default(),
-        surface: Ruled::Cone {
-            apex: Point3::origin(),
-            axis: z_axis(),
-            half_angle: ALPHA,
-            u_ref: x_axis(),
-        },
+        charted,
+        surface,
         sense: true,
         outer: LoopKey::default(),
         scale,
@@ -343,7 +353,6 @@ fn cone_faces_read_their_regions_through_the_apex() {
 #[test]
 fn a_reversed_face_reads_the_same_region() {
     let band = RuledFaceRegion {
-        record: Default::default(),
         sense: false,
         ..cylinder(vec![
             rim(1, 0.0, 1.0, (0.0, TAU), false),
@@ -485,7 +494,7 @@ fn a_cone_faces_scale_bounds_its_reach_from_the_apex() {
 
 /// `p`'s foot on the region's surface, as the door reads it.
 fn foot(region: &RuledFaceRegion<f64>, p: Point3<f64>) -> QueryFoot<f64> {
-    QueryFoot::read(&Legs::surface(region), p, b())
+    QueryFoot::read(Legs::charted(region).surface(), p, b())
 }
 
 /// **A generator edge through the apex reaches both nappes**, read at

@@ -1002,7 +1002,7 @@ fn face_geo_arms<T: Decide>(
                 representative,
                 sense: proven(&body.faces, representative, EntityId::Face).sense,
             }),
-            None => match sphere_face_region(body, face, center, radius)? {
+            None => match sphere_face_region(body, face)? {
                 Some(region) => Ok(FaceGeo::SpherePatch {
                     center,
                     radius,
@@ -2346,9 +2346,7 @@ fn region_hit(
         Ok(side) => Ok(side),
         Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
         Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
-        Err(e @ (RegionRefusal::WoundPastPeriod | RegionRefusal::OffRecord)) => {
-            Err(RayFault::Fatal(e.of_face(face)))
-        }
+        Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
         Err(e @ RegionRefusal::Unreadable(_)) => Err(RayFault::Blocked(e.of_face(face))),
     }
 }
@@ -4300,9 +4298,7 @@ fn root_held<T: Decide>(
         Ok(side) => Ok(side),
         Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
         Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
-        Err(e @ (RegionRefusal::WoundPastPeriod | RegionRefusal::OffRecord)) => {
-            Err(RayFault::Fatal(e.of_face(face)))
-        }
+        Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
         // An edge whose reading ran out at this hit: a limit of the
         // reader this ray met, which another ray may miss.
         Err(e @ RegionRefusal::Unreadable(_)) => Err(RayFault::Blocked(e.of_face(face))),

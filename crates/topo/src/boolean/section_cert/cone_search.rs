@@ -185,11 +185,12 @@ pub(super) struct Frame {
 }
 
 impl Frame {
-    /// The radial direction at azimuth `u` ([`geom::Frame::radial`]):
-    /// `e2` is `a × e1`'s orthonormal partner, so the frame's own second
-    /// leg reads it.
+    /// The radial direction at azimuth `u`, spelled here rather than read
+    /// off `geom::Frame::radial`: this search is an oracle against the
+    /// cone arms, which chart through geom's azimuth, so its own frame
+    /// keeps a spelling of its own.
     pub(super) fn radial(&self, u: f64) -> Vec3<f64> {
-        geom::Frame::new(self.apex, self.a, self.e1).radial(u)
+        self.e1 * u.cos() + self.e2 * u.sin()
     }
     pub(super) fn at(&self, u: f64, t: f64) -> Point3<f64> {
         let (s, c) = self.alpha.sin_cos();

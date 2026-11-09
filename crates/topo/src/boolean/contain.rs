@@ -1029,7 +1029,7 @@ fn sphere_face_containment<T: Decide>(
             Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
         }
     }
-    let region = match super::sphere_region::sphere_face_region(body, face, center, radius) {
+    let region = match super::sphere_region::sphere_face_region(body, face) {
         Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
@@ -1054,11 +1054,9 @@ fn region_placement(
             diag,
         }),
         Err(RegionRefusal::RayExhausted { .. }) => Err(ContainError::RayExhausted),
-        Err(
-            e @ (RegionRefusal::WoundPastPeriod
-            | RegionRefusal::OffRecord
-            | RegionRefusal::Unreadable(_)),
-        ) => Err(solid_err(e.of_face(face))),
+        Err(e @ (RegionRefusal::WoundPastPeriod | RegionRefusal::Unreadable(_))) => {
+            Err(solid_err(e.of_face(face)))
+        }
     }
 }
 

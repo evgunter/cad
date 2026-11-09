@@ -27,14 +27,13 @@
 
 use geom_brep::curve_face::plane_crossing::{RootPlace, SpanEnds};
 use geom_brep::curve_pair::on_surface::{
-    AcrossRefusal, CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve,
+    AcrossRefusal, Charted, CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve,
 };
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey};
-use crate::geometry::SurfaceKey;
 use crate::live::BoundaryMember;
 use crate::null::Scaffolding;
 use crate::ray_walk::{self, Crossings, RayFault};
@@ -63,10 +62,6 @@ pub(crate) enum RegionRefusal {
     /// A boundary arc winds definitely past a whole turn, which bounds
     /// no region.
     WoundPastPeriod,
-    /// An edge was read against a leg charted from another surface record
-    /// than its face's ([`geom_brep::curve_pair::on_surface::AcrossRefusal`]):
-    /// a door read on two faces, which bounds no region.
-    OffRecord,
     /// The boundary reading of an edge on its own carrier ran out of depth
     /// or budget before it placed the point: no reading in the band, and
     /// no path starts from a point it has not placed.
@@ -85,7 +80,7 @@ impl RegionRefusal {
             Self::RayExhausted { outer } => {
                 PointInSolidError::Loop(PointInLoopError::RayExhausted { r#loop: outer })
             }
-            Self::WoundPastPeriod | Self::OffRecord => PointInSolidError::CorruptFace { face },
+            Self::WoundPastPeriod => PointInSolidError::CorruptFace { face },
             Self::Unreadable(cause) => PointInSolidError::EdgeCarrierUnsupported { face, cause },
         }
     }
@@ -234,13 +229,13 @@ impl<T: Decide> QueryFoot<T> {
 
 /// Which curve of a pair is read across the other's plane
 /// ([`Legs::across`]).
-pub(in crate::boolean) enum ReadAcross<T: geom_core::Real> {
+pub(in crate::boolean) enum ReadAcross {
     /// The edge across the leg's plane, in the edge's parameter.
     EdgeOverLeg,
-    /// The leg across the edge's plane through `on` of unit normal
-    /// `normal`, in the leg's parameter; the door places each root on
-    /// the edge ([`Legs::on_edge_plane`]).
-    LegOverEdge { on: Point3<T>, normal: Vec3<T> },
+    /// The leg across the edge's own plane ([`OnSurface::plane`]), in the
+    /// leg's parameter; the door places each root on the edge
+    /// ([`Legs::on_edge_plane`]).
+    LegOverEdge,
 }
 
 /// **Where `leg` meets `edge`**: each meeting's point, the edge's
@@ -278,9 +273,9 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
         Ok(())
     };
     let mut out = Vec::new();
+    let on = OnSurface::edge(door.charted().key(), &edge.carrier, (edge.t0, edge.t1));
     match door.across(leg, edge, band)? {
         ReadAcross::EdgeOverLeg => {
-            let on = OnSurface::edge(edge.on, &edge.carrier, (edge.t0, edge.t1));
             match on.across(&curve, D::COMPONENT, band).map_err(across)? {
                 CoSurface::InPlane => in_plane()?,
                 CoSurface::Touch => return Err(RayFault::Graze),
@@ -310,20 +305,22 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
                 }
             }
         }
-        ReadAcross::LegOverEdge { on, normal } => {
+        ReadAcross::LegOverEdge => {
             let (params, whole) = leg.course.span(leg.end.map(|end| end.place), edge);
             let ends = if whole {
                 SpanEnds::Endless
             } else {
                 SpanEnds::Ended
             };
-            match curve
-                .across_plane(params, ends, (on, normal), D::COMPONENT, band)
-                .map_err(in_band)?
+            match on
+                .under(&curve, params, ends, D::COMPONENT, band)
+                .map_err(across)?
             {
                 CoSurface::InPlane => in_plane()?,
                 CoSurface::Touch => return Err(RayFault::Graze),
-                CoSurface::Unlaned => unreachable!("a leg is a circle or a line"),
+                CoSurface::Unlaned => {
+                    unreachable!("a door reads a leg across a conic's or a spiric's plane only")
+                }
                 CoSurface::Roots(roots) => {
                     // At or in band of the leg's own end: the leg's place
                     // reads it.
@@ -339,13 +336,20 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
     Ok(out)
 }
 
-/// An edge's reading against a leg refused: in band sets the path aside,
-/// and an edge of a face on another record than the leg's is a door built
-/// on two faces ([`RegionRefusal::OffRecord`]).
+/// An edge's reading against a leg refused: in band sets the path aside.
+///
+/// # Panics
+///
+/// On a pair on two records: a door keys its edges and charts its legs
+/// from its one record ([`Legs::charted`]), so a mismatch is a fault in
+/// the door's wiring, not in the face.
 fn across(refusal: AcrossRefusal) -> Fault {
     match refusal {
         AcrossRefusal::InBand(diag) => in_band(diag),
-        AcrossRefusal::OffRecord { .. } => RayFault::InBand(RegionRefusal::OffRecord),
+        AcrossRefusal::OffRecord { edge, curve } => unreachable!(
+            "a region door keys its edges and charts its legs from one record: the edge's \
+             {edge:?}, the leg's {curve:?}"
+        ),
     }
 }
 
@@ -378,10 +382,6 @@ pub(in crate::boolean) fn built<T: Decide>(
 /// on its certified carrier, of a kind its door admits ([`boundary`]).
 #[derive(Clone, Debug)]
 pub(crate) struct RegionEdge<T: geom_core::Real> {
-    /// The face's surface record, which tier 3 places the edge on: what
-    /// ties it to a leg charted from that record
-    /// ([`OnSurface::edge`]).
-    pub(in crate::boolean) on: SurfaceKey,
     pub(crate) edge: EdgeKey,
     /// The loop the edge bounds.
     pub(crate) r#loop: LoopKey,
@@ -441,7 +441,6 @@ pub(crate) fn boundary<T: Decide>(
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.passed_face(face).ok_or_else(corrupt)?;
-    let record = f.record().surface;
     let mut null = Vec::new();
     for (_, members, role) in f.boundary_by_loop() {
         for member in members {
@@ -483,7 +482,6 @@ pub(crate) fn boundary<T: Decide>(
             };
             let (t0, t1) = curve.params();
             edges.push(RegionEdge {
-                on: record,
                 edge: h.edge,
                 r#loop: h.parent_loop,
                 cycle,
@@ -720,9 +718,11 @@ pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
     /// The lever of the closest crossing's sine.
     fn lever(&self) -> T;
 
-    /// The surface, whose chart's channels a root's section is read
-    /// through and whose chart a query's foot is read in ([`QueryFoot`]).
-    fn surface(&self) -> geom::Surface<T>;
+    /// The face's surface record, its key and surface: every leg is
+    /// charted on it ([`SurfaceCurve`]), every edge keyed by it
+    /// ([`OnSurface::edge`]), and a query's foot read in its chart
+    /// ([`QueryFoot`]).
+    fn charted(&self) -> &Charted<T>;
 
     /// Which of `leg` and `edge` is read across the other's plane: the
     /// edge across the leg's unless the door says otherwise.
@@ -735,7 +735,7 @@ pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
         _leg: &Leg<T, Self::Course>,
         _edge: &RegionEdge<T>,
         _band: Band,
-    ) -> Result<ReadAcross<T>, Fault> {
+    ) -> Result<ReadAcross, Fault> {
         Ok(ReadAcross::EdgeOverLeg)
     }
 
@@ -1113,7 +1113,6 @@ fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
 mod tests {
     use super::*;
     use core::f64::consts::{FRAC_PI_2, PI};
-    use geom_brep::curve_pair::on_surface::Charted;
     use slotmap::KeyData;
 
     fn b() -> Band {
@@ -1136,7 +1135,6 @@ mod tests {
 
     fn edge(carrier: geom::Curve3<f64>, (t0, t1): (f64, f64)) -> RegionEdge<f64> {
         RegionEdge {
-            on: Default::default(),
             edge: EdgeKey::from(KeyData::from_ffi(1)),
             r#loop: LoopKey::default(),
             cycle: 0,
@@ -1158,7 +1156,7 @@ mod tests {
             u_ref: Vec3::new(0.0, -1.0, 0.0),
         };
         Line::on(built(SurfaceCurve::ruling(
-            Charted::new(Default::default(), &cylinder),
+            &Charted::record(Default::default(), &cylinder),
             Point2::new(0.0, 0.0),
             true,
             true,
@@ -1181,7 +1179,7 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         Round::on(built(SurfaceCurve::parallel(
-            Charted::new(Default::default(), &cylinder),
+            &Charted::record(Default::default(), &cylinder),
             Point2::new(0.0, 0.0),
             true,
         )))

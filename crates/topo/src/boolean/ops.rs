@@ -6869,6 +6869,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let &geom::Surface::Sphere { axis, .. } = face.surface() else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
+        let record = geom_brep::curve_pair::on_surface::Charted::record(sphere, face.surface());
         let axis = axis.normalize();
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
@@ -6890,18 +6891,8 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // on the same sphere, so it meets the meridian where it crosses
         // the meridian's plane on the half-plane `h`
         // ([`geom_brep::curve_pair::on_surface`]).
-        // The sphere re-charted on `h` is the face's own record, `sphere`,
-        // on another frame: the cut's centre and radius are that record's.
         let meridian = match geom_brep::curve_pair::on_surface::SurfaceCurve::meridian(
-            geom_brep::curve_pair::on_surface::Charted::new(
-                sphere,
-                &geom::Surface::Sphere {
-                    center: cut.center,
-                    radius: r,
-                    axis,
-                    u_ref: h,
-                },
-            ),
+            &record.turned(h),
             geom_core::Point2::new(T::zero(), T::zero()),
             true,
         ) {
@@ -6966,10 +6957,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         }
                         _ => unread(),
                     };
-                    let region =
-                        super::sphere_region::sphere_face_region(body, piece, cut.center, r)
-                            .map_err(read)?
-                            .ok_or_else(unread)?;
+                    let region = super::sphere_region::sphere_face_region(body, piece)
+                        .map_err(read)?
+                        .ok_or_else(unread)?;
                     // The region's own refusal: in band of an arc, or no
                     // ray of its walk settled, or an arc that bounds
                     // nothing — each a piece not read against the circle.
@@ -6977,7 +6967,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         super::region::RegionRefusal::Escalated(diag) => esc(diag),
                         super::region::RegionRefusal::RayExhausted { .. }
                         | super::region::RegionRefusal::WoundPastPeriod
-                        | super::region::RegionRefusal::OffRecord
                         | super::region::RegionRefusal::Unreadable(_) => unread(),
                     };
                     let [lo, hi] = crossings;
@@ -7070,13 +7059,15 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     Err(geom_brep::curve_pair::on_surface::AcrossRefusal::InBand(diag)) => {
                         return Err(esc(diag));
                     }
-                    // A piece of the cut face on another record than the
-                    // face's own sphere: the piece set is corrupt.
-                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::OffRecord { .. }) => {
-                        return Err(corrupt(
-                            "cut-in: a piece of the sphere face lies on another surface record",
-                        ));
-                    }
+                    // Every piece inherits the cut face's record (the
+                    // `mef` below): a piece on another is a fault here.
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::OffRecord {
+                        edge,
+                        curve,
+                    }) => unreachable!(
+                        "cut-in: a piece of the sphere face on another record than the \
+                         face's: the piece's {edge:?}, the face's {curve:?}"
+                    ),
                 };
                 let rising = sign(
                     "bool_sphere_cut_span",

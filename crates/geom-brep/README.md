@@ -914,11 +914,12 @@ where one crosses the other's plane, through the plane door
 (`curve_face::plane_crossing`), at a root on the curve's own section of
 that plane, read through the surface's chart: the co-surface arm
 (`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
-harmonic (`pose::height`). A curve on a surface is built from a surface
-value and chart coordinates, charted from a surface record whose key it
-carries; an edge carries its face's record, and the arm refuses a pair on
-two records. That the value is the record's surface, where a caller
-re-charts it, stays that caller's. Every consumer holding two curves on one surface
+harmonic (`pose::height`). A curve on a surface is built from chart
+coordinates on a surface record: its key, and its surface as stored or
+turned about its own axis. An edge carries its face's record, and the
+arm refuses a pair on two records whichever way it reads the pair. That
+the key and the surface are one record's stays the caller's, which reads
+both off one face. Every consumer holding two curves on one surface
 reads that arm (the region doors' landings, the sphere cut-in), and
 none hands the pair to `meet`.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
