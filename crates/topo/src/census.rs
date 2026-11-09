@@ -7576,64 +7576,6 @@ mod self_touch;
 #[cfg(test)]
 mod self_touch_curved;
 
-/// [`TouchUnread::EdgeTangent`]'s sentence: the touch, and the reason's
-/// own recourse ([`crate::validate::EdgeTangentUnread::recourse`]), the
-/// touch lane's "for this shape" on a reading not built yet. Each is
-/// built once, over every reason
-/// ([`crate::validate::EdgeTangentUnread::ALL`]).
-fn edge_tangent_touch(why: crate::validate::EdgeTangentUnread) -> &'static str {
-    use crate::validate::EdgeTangentUnread;
-    static SENTENCES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
-        EdgeTangentUnread::ALL
-            .iter()
-            .map(|why| {
-                let recourse = edge_tangent_recourse(*why);
-                format!(
-                    "a curved edge meets the point, and the check could not read its \
-                     direction there. {recourse}"
-                )
-            })
-            .collect()
-    });
-    SENTENCES[why.listed()].as_str()
-}
-
-/// A curved edge's touch recourse: the reason's own
-/// ([`crate::validate::EdgeTangentUnread::recourse`]), with the touch
-/// lane's "for this shape" on a reading not built yet.
-fn edge_tangent_recourse(why: crate::validate::EdgeTangentUnread) -> String {
-    let recourse = why.recourse();
-    if recourse == geom_core::NOT_YET_ENDING {
-        format!("{recourse} for this shape")
-    } else {
-        recourse.to_owned()
-    }
-}
-
-/// [`TouchUnread::backstop_sentence`] for a curved edge whose direction
-/// did not read: the touch, and the reason's own recourse
-/// ([`crate::validate::EdgeTangentUnread::recourse`]), "for this shape"
-/// on a reading not built yet, then the distance that clears the pair.
-/// Built once, over every reason
-/// ([`crate::validate::EdgeTangentUnread::ALL`]).
-fn edge_tangent_backstop(why: crate::validate::EdgeTangentUnread) -> &'static str {
-    use crate::validate::EdgeTangentUnread;
-    static SENTENCES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
-        EdgeTangentUnread::ALL
-            .iter()
-            .map(|why| {
-                let recourse = edge_tangent_recourse(*why);
-                format!(
-                    "they touch on a curved edge whose direction there the check could not \
-                     read, so it cannot tell whether they overlap. {recourse}; \
-                     otherwise move them until their bounding boxes no longer overlap"
-                )
-            })
-            .collect()
-    });
-    SENTENCES[why.listed()].as_str()
-}
-
 impl TouchUnread {
     /// The cross-solid backstop's reason for a touch left unread.
     fn undecided(self) -> Undecided {
@@ -7696,7 +7638,7 @@ impl TouchUnread {
                  Recourse: rescale the model so every edge length is an ordinary number, \
                  or move them until their bounding boxes no longer overlap"
             }
-            Self::EdgeTangent(why) => edge_tangent_backstop(why),
+            Self::EdgeTangent(why) => why.backstop_sentence(),
             Self::OffInterior => concat!(
                 "they touch on a curved edge where two readings of where the touch lies on \
                  it disagree. ",
@@ -7769,7 +7711,7 @@ impl TouchUnread {
                 "an edge there is too long or too short to measure. Recourse: rescale the \
                  model so every edge length is an ordinary number"
             }
-            Self::EdgeTangent(why) => edge_tangent_touch(why),
+            Self::EdgeTangent(why) => why.touch_sentence(),
             Self::OffInterior => concat!(
                 "a curved edge meets the point, and two readings of where the point lies on \
                  it disagree. ",

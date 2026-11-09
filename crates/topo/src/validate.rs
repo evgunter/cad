@@ -765,6 +765,56 @@ impl EdgeTangentUnread {
         }
     }
 
+    /// The touch lane's recourse: [`Self::recourse`], with "for this
+    /// shape" on a reading not built yet.
+    fn touch_recourse(self) -> String {
+        let recourse = self.recourse();
+        if recourse == NOT_YET_ENDING {
+            format!("{recourse} for this shape")
+        } else {
+            recourse.to_owned()
+        }
+    }
+
+    /// **A touch point's sentence for this reason**
+    /// ([`crate::link::TouchUnread::EdgeTangent`]): the touch, and the
+    /// touch lane's recourse. Built once over [`Self::ALL`].
+    pub(crate) fn touch_sentence(self) -> &'static str {
+        static SENTENCES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
+            EdgeTangentUnread::ALL
+                .iter()
+                .map(|why| {
+                    format!(
+                        "a curved edge meets the point, and the check could not read its \
+                         direction there. {}",
+                        why.touch_recourse()
+                    )
+                })
+                .collect()
+        });
+        SENTENCES[self.listed()].as_str()
+    }
+
+    /// **The cross-solid backstop's sentence for this reason**: the
+    /// touch, the touch lane's recourse, then the distance that clears
+    /// the pair. Built once over [`Self::ALL`].
+    pub(crate) fn backstop_sentence(self) -> &'static str {
+        static SENTENCES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
+            EdgeTangentUnread::ALL
+                .iter()
+                .map(|why| {
+                    format!(
+                        "they touch on a curved edge whose direction there the check could \
+                         not read, so it cannot tell whether they overlap. {}; otherwise \
+                         move them until their bounding boxes no longer overlap",
+                        why.touch_recourse()
+                    )
+                })
+                .collect()
+        });
+        SENTENCES[self.listed()].as_str()
+    }
+
     /// The recourse its rendering ends with: a curve the kernel does not
     /// read yet, or the walk's own ([`geom::PieceWalkRefusal::recourse`]).
     #[must_use]
