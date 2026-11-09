@@ -107,7 +107,7 @@ once at its hit lines and its exits.
 | `topo::boolean::insert::mint_plans` | 932 | NOT A SEARCH: every plan is keyed |
 | `topo::boolean::insert::fan_germ_dir` | 2590 | NOT A SEARCH: a unique-holder read (two rays within one pair refuse) |
 | `topo::boolean::join::surface_pair_reach` | 2976 | NOT A SEARCH: a maximum over every pair |
-| `topo::boolean::join::seam_germ_side` | 5653 | **HAND-ROLLED, the agreeing shape**: ported to `ladder::climb_agreeing` by `a-ladder-that-checks-its-answers-agree-has-no-home` |
+| `topo::boolean::join::seam_germ_side` | 5653 | **HAND-ROLLED, the agreeing shape**: ported to `ladder::climb_agreeing` (`a-ladder-that-checks-its-answers-agree-has-no-home`); its `?` is now a rung |
 | `topo::boolean::ops::apply_cut_ins` | 7211, 7212 | NOT A SEARCH: a unique-holder read (a second holder is unread) |
 | `topo::boolean::recl::resolve_edge_edge` | 1614 | NOT A SEARCH: each slot is filled from its own face |
 | `topo::boolean::reduce::face_tree` | 918 | NOT A SEARCH: every face's box is collected |
@@ -120,3 +120,20 @@ once at its hit lines and its exits.
 A unique-holder read is not the agreeing shape: two holders are a
 contradiction, so the read needs every element, and a `?` in band
 refuses what the uniqueness needs.
+
+## Other agreeing copies (PR 6606's review)
+
+Loops that read every element and compare the answers, beside the
+three in the table above. Each is a candidate for `ladder::climb_agreeing`;
+read each before porting it. In two of them a disagreement is a valid
+answer of its own, not a fault (`climb_agreeing` leaves that to its
+caller):
+
+- `geom_brep::second_order` (≈`second_order.rs:151`);
+- `geom_brep::curve_face::composite::one_signed` (≈`composite.rs:462`);
+- `geom_brep::ssi::section` (≈`ssi/section.rs:424`);
+- `topo::boolean::vtxfac` (≈`vtxfac.rs:301`): a disagreement maps to a
+  valid answer;
+- `topo::boolean::rim_wedge` (≈`rim_wedge.rs:500`): a disagreement maps
+  to a valid answer.
+
