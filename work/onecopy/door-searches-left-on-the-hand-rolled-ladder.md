@@ -1,16 +1,18 @@
 ---
 id: door-searches-left-on-the-hand-rolled-ladder
 kind: issue
-title: Door searches still hand-rolling geom_brep::ladder::climb after three tranches: the pierce pass, and the Any ports' unreached record rows
+title: The Any ports' unreached record rows, left after four tranches onto geom_brep::ladder::climb
 status: open
 opened: 2026-11-03
 priority: P1
 cost: E
-refs: [6495]
+refs: [6495, 6598]
 ---
 
 The remainder of `witness-and-door-searches-hand-roll-the-ladder`, after
-three tranches onto `geom_brep::ladder::climb`: PR 6454
+four tranches onto `geom_brep::ladder::climb`: PR 6598
+(`onecopy/ladder-climb-4`, `topo::boolean`'s pierce pass, split into
+`vtxfac::read_vertex_on_face` and `vtxfac::mint_pierce`), PR 6454
 (`onecopy/ladder-climb`), PR 6495 (`onecopy/ladder-climb-2`) and
 `onecopy/ladder-climb-3`, which ported census's four interior-meeting
 searches, `offset_axial`'s corner pairs, `ssi::refine::fit_minimum`,
@@ -30,14 +32,6 @@ below still spells the rule by hand, with what a port needs.
 
 ## Left
 
-- **`topo::boolean`'s pierce pass** (`boolean_reduce_declared_strategy`
-  in `boolean/mod.rs`, the `classify_vertex_on_face` loop). Each
-  classification writes the piercing body as it is read: after an
-  escalation, the loop re-reads every later pierce only to see whether
-  one refuses definitely. A port first splits read from mint, as
-  `vtxfac::faces_holding_pierce` does. Then the read pass is the same
-  conjunction that function climbs: `Ok` passes, a definite refusal
-  aborts, and `Escalated` is kept in band.
 - **The `Any` record paths are unreached.** In the full review of PR 6495,
   no `Any` port kept a reading and then answered: over 2,090 rows (topo,
   geom-brep, sweep, step-import), with the ported ladders instrumented.
@@ -45,7 +39,9 @@ below still spells the rule by hand, with what a port needs.
   `ladder.rs`'s own rows and `ray_walk`'s. A row needing a kept reading
   ahead of a deciding one is owed for each port. The cheapest is
   `side_reader::cast_aims` with a `Pair` ahead of a deciding ray, and no
-  fixture builds one today.
+  fixture builds one today. These rows travel with the debug check on
+  the `Any` ports' premises, in
+  `work/onecopy/a-ladder-that-checks-its-answers-agree-has-no-home.md`.
 
 - **The class beyond this list.** The loops that keep a first refusal
   and that no row named are listed, undispositioned, in
