@@ -1824,8 +1824,8 @@ fn a_shell_reads_a_nearby_core_no_nearer_than_its_points() {
 /// about, level or none**: a cylinder wall and a cone's frustum their
 /// axis lines, a torus and a solid tube their core, a sphere its centre
 /// (one spelling, whether built as a sphere or as a torus of no spine).
-/// A meet proposes both sides', a hull and a convex hull none, and a
-/// chart patch none (its carrier proposes the core). The frustum has no
+/// A meet proposes both sides', a hull and a convex hull none, a
+/// chart patch none (its carrier proposes the core), and an arc none. The frustum has no
 /// level. Red where a piece with an axis and no level proposes nothing,
 /// or a meet drops a side.
 #[test]
@@ -1891,6 +1891,11 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     assert!(cone.convex().about().is_empty(), "a convex hull none");
     let point = Cover::points(vec![frame.origin]).unwrap();
     assert!(point.about().is_empty(), "a point set none");
+    // An arc is its window's piece met with its whole conic's: two arc
+    // pieces of one axis, and neither proposes it, so the meet proposes
+    // nothing twice.
+    let arc = Cover::arc(&frame, (0.5, 0.5), ParamWindow::new(0.0, 1.0)).unwrap();
+    assert!(arc.about().is_empty(), "an arc none");
 }
 
 /// **A cone's frustum holds its surface over the window, on any
