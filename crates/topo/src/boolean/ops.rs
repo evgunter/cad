@@ -5620,19 +5620,23 @@ impl<'a> Held<'a> {
         }
     }
 
-    /// **No shell holds both faces of a carried face–face record.** Two
-    /// pieces an operand held apart over an area, joined into one solid
+    /// **No shell holds both faces of a carried area record.** Two
+    /// pieces an operand held apart over an area (a face–face record of
+    /// two planar faces, which meet on one plane), joined into one solid
     /// elsewhere, lie on each other inside one shell, which the census
     /// and tier 3′ do not read: [`BooleanError::TouchesItself`], or, in
     /// a cut whose tool's record it is, [`BooleanError::ToolSeatCrossed`]
-    /// (the sliver the cut leaves between the seat's two sections).
-    fn apart<T: Real>(&self, body: &Body<T>) -> Result<(), BooleanError> {
+    /// (the sliver the cut leaves between the seat's two sections). A
+    /// record of curved faces may be a tangency along a line, which
+    /// tier 3′ reads inside one shell, and is left to it.
+    fn apart<T: Decide>(&self, body: &Body<T>) -> Result<(), BooleanError> {
         let shell = |f: FaceKey| body.get_face(f).map(|d| d.shell);
+        let planar = |f: FaceKey| crate::face_normal::face_plane(body, f).is_some();
         for row in self.contacts.rows() {
             let crate::ContactKind::FaceFace(x, y) = row.record.kind() else {
                 continue;
             };
-            if shell(x).is_none() || shell(x) != shell(y) {
+            if shell(x).is_none() || shell(x) != shell(y) || !planar(x) || !planar(y) {
                 continue;
             }
             for backing in row.cites.iter() {

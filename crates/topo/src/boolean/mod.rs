@@ -6168,8 +6168,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut edge_classes = Vec::new();
     let mut unread_partners = Vec::new();
 
-    let (rereads, walls) =
-        vtxfac::pierced_and_paired(&contacts, [&decls.records_a, &decls.records_b], op)?;
+    let (rereads, walls) = vtxfac::pierced_and_paired(
+        &contacts,
+        [&decls.records_a, &decls.records_b],
+        [&a, &b],
+        op,
+    )?;
     // Each vertex that touches a face and pairs, its rows combined once
     // every pair is read, and each vertex in pairs alone, likewise
     // (`vtxfac::cone_classes`).

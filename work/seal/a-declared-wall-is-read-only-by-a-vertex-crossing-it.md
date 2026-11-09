@@ -45,6 +45,17 @@ still refuse `VertexReadTwice` in every op:
   link against the pierced face alone, not the wall it is part of.
   `vtxfac::pierced_and_paired` likewise refuses a vertex that pierces a
   wall and pairs.
+- **A record of curved faces.** Only a record of two planar faces is
+  read as a wall (`vtxfac::Wall`), and only such a record is held
+  apart at the result gate (`ops::Held::apart`): planar faces a record
+  holds apart lie on one plane, over an area, while a curved record
+  may be a tangency along a line (a rod resting on a plate, which
+  `sweep`'s `face_face_touch` bridges and tier 3′ reads inside one
+  shell). A coaxial area seat (a shaft in a bore, sphere on sphere)
+  is a wall the readers do not yet read: a vertex through it still
+  reads twice, and a union bridging it is not refused at the gate.
+  Telling an area record from a tangency without re-deciding the
+  carriers is part of this row.
 - **A vertex whose reads part from the mirror**: an edge of it lying in
   the wall (On both faces), a sector flush with the wall, a run with no
   edge. The coplanar sector reader (Eq. 15.3's lump) reads each face

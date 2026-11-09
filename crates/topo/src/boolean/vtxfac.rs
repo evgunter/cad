@@ -130,9 +130,10 @@ use geom_core::Tol;
 /// [`partner_side`] and [`cone_classes`] read the touch). A vertex in
 /// several pairs and in no pierce is not returned, since the
 /// vertex-vertex passes read every pair before the first writes.
-pub(super) fn pierced_and_paired(
+pub(super) fn pierced_and_paired<T: Decide>(
     contacts: &ReductionContacts,
     records: [&super::OperandRecords; 2],
+    bodies: [&Body<T>; 2],
     op: BooleanOp,
 ) -> Result<(Rereads, Walls), BooleanError> {
     let mut rereads = BTreeMap::new();
@@ -142,9 +143,15 @@ pub(super) fn pierced_and_paired(
         (Operand::B, &contacts.b_on_a),
     ] {
         let theirs = records[usize::from(operand == Operand::A)];
+        let theirs_body = bodies[usize::from(operand == Operand::A)];
+        // Two planar faces a record holds apart meet over an area, on one
+        // plane: no two planes touch along a line without crossing.
+        let planar = |f: FaceKey| crate::face_normal::face_plane(theirs_body, f).is_some();
         let declared = |x: FaceKey, y: FaceKey| {
             theirs.ff.iter().find(|r| {
-                [r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x]
+                ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
+                    && planar(x)
+                    && planar(y)
             })
         };
         let mut pierces = BTreeMap::new();
@@ -199,9 +206,11 @@ pub(super) fn pierced_and_paired(
     Ok((rereads, walls))
 }
 
-/// **A declared wall a vertex pierces**: the two faces of a face–face
-/// record of the pierced operand, which the vertex pierces at one
-/// point, in pierce order. The record declares them one two-sided
+/// **A declared wall a vertex pierces**: the two planar faces of a
+/// face–face record of the pierced operand, which the vertex pierces at
+/// one point, in pierce order. Planar faces a record holds apart lie on
+/// one plane, over an area; a record of curved faces may be a tangency
+/// along a line, which is no wall, and is not read as one. The record declares them one two-sided
 /// wall, each face holding the material on its own side, so a vertex
 /// crossing it is read once against both: each face's crossing is
 /// minted at the vertex, the first face's Out run as any pierce's, the
@@ -3153,6 +3162,7 @@ mod tests {
         let read = |c: &ReductionContacts| match pierced_and_paired(
             c,
             [&Default::default(), &Default::default()],
+            [&Body::<f64>::new(), &Body::<f64>::new()],
             BooleanOp::Union,
         )
         .map(|(r, _)| r)
