@@ -1404,24 +1404,13 @@ fn conic_or_line_on<T: Decide>(
             return Ok(Placed::Off);
         }
         (
-            &geom::Curve3::Spiric {
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            },
+            &geom::Curve3::Spiric { offset, .. },
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Cone { .. }
             | geom::Surface::Torus { .. },
         ) => {
-            return spiric_on_curved(
-                carrier,
-                (t0, t1),
-                (major_radius, minor_radius, offset),
-                surface,
-                band,
-            );
+            return spiric_on_curved(carrier, (t0, t1), offset, surface, band);
         }
         // A spiric lies in its own plane, so against a plane it reads as a
         // conic does: in it where the two planes are one, and otherwise
@@ -1534,6 +1523,13 @@ fn clears_plane<T: Decide>(
     }
 }
 
+/// The rows [`spiric_on_curved`] reads a spiric's regime under
+/// ([`geom::spiric_regime`]): its offset off zero, and short of `R − r`.
+const RIDER_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricRegimeSites {
+    off_axis: "bool_rider_spiric_regime",
+    two_ovals: ["bool_rider_spiric_regime", "bool_rider_spiric_regime_floor"],
+};
+
 /// **Where spiric `carrier`, over `(t0, t1)`, lies against sphere,
 /// cylinder, cone or ring torus `surface`**: off it along every piece
 /// wherever its section is in the two-oval regime and a point of the
@@ -1557,8 +1553,8 @@ fn clears_plane<T: Decide>(
 /// infinitely many.
 ///
 /// The arm admits only the two-oval regime, `0 < |d| < R − r`, read
-/// from [`geom::spiric_regime`], the predicate [`geom::Curve3::spiric`]
-/// mints under. The argument needs only `d ≠ 0`, so the `R − r` bound is
+/// from [`geom::spiric_regime`] ([`RIDER_SPIRIC_REGIME`]), the predicate
+/// [`geom::Curve3::spiric`] mints under. The argument needs only `d ≠ 0`, so the `R − r` bound is
 /// conservative rather than required. It is kept because the carrier is
 /// defined only there: from `R − r` on its radicand goes negative, which
 /// is poison. Offset zero (two circles), the offsets from `R − r` on, and
@@ -1596,14 +1592,17 @@ fn clears_plane<T: Decide>(
 fn spiric_on_curved<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    (big, small, offset): (T, T, T),
+    offset: T,
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
     let unread = Placed::Unread(EdgeInFaceGap::CarrierUnread);
     let refused =
         |diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag);
-    if geom::spiric_regime(big, small, offset, T::zero(), band).map_err(refused)?
+    let Some(ring) = carrier.spiric_torus() else {
+        return Ok(unread);
+    };
+    if geom::spiric_regime(ring, offset, T::zero(), RIDER_SPIRIC_REGIME, band).map_err(refused)?
         != geom::SpiricRegime::TwoOvals
     {
         return Ok(unread);
@@ -3561,6 +3560,83 @@ mod spiric_quadric_rows {
                 conic_or_line_on(&s, (-0.5, 0.5), &wall, band()).unwrap(),
                 UNREAD,
                 "{what}"
+            );
+        }
+    }
+
+    /// **The mint, the plane × torus section and the rider read one
+    /// regime** ([`geom::spiric_regime`]): at each offset of an
+    /// axis-parallel plane through the torus about `z` (`R = 2`, `r = 1`),
+    /// the mint builds the oval exactly where the section serves two
+    /// ovals and the rider reads the oval off a ball about its `v = 0`
+    /// point. Red on any reader moving its boundary off the others'.
+    #[test]
+    fn the_mint_the_section_and_the_rider_read_one_regime() {
+        let eps = Tol::witness().eps();
+        let torus = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        for offset in [
+            0.0,
+            eps * 1e-3,
+            0.5,
+            -0.5,
+            1.0 - 1e-3,
+            1.0,
+            1.0 - eps * 1e-3,
+            1.5,
+        ] {
+            let mint = geom::Curve3::spiric(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                1.0,
+                offset,
+                band(),
+            );
+            let plane = geom::Surface::Plane {
+                origin: Point3::new(offset, 0.0, 0.0),
+                normal: Vec3::unit_x(),
+                u_ref: Vec3::unit_y(),
+            };
+            let section = geom_brep::plane_torus_section(
+                &plane,
+                &torus,
+                geom_brep::ExtentBall::of_torus(Point3::origin(), 2.0, 1.0).lever(),
+                band(),
+            );
+            let s = spiric(offset);
+            // Out of the regime the carrier has no points to centre on.
+            let center = if mint.is_ok() {
+                s.eval(0.0)
+            } else {
+                Point3::origin()
+            };
+            let ball = geom::Surface::Sphere {
+                center,
+                radius: 0.3,
+                u_ref: Vec3::unit_x(),
+                axis: Vec3::unit_z(),
+            };
+            let rider = conic_or_line_on(&s, (-0.5, 0.5), &ball, band()).unwrap();
+            let two = mint.is_ok();
+            assert_eq!(
+                matches!(
+                    section,
+                    Ok(geom_brep::PlaneTorusSection::SpiricOvals { .. })
+                ),
+                two,
+                "offset {offset:e}: the section against the mint ({section:?})"
+            );
+            assert_eq!(
+                rider == Placed::Off,
+                two,
+                "offset {offset:e}: the rider against the mint ({rider:?})"
             );
         }
     }

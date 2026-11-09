@@ -1050,26 +1050,25 @@ pub fn decide_magnitude_reported<T: Decide>(
     }
 }
 
-/// **A two-sided row read across the consumed region**
-/// (`geom_brep::extent`'s module docs): `datum` the row's signed margin
-/// where its pivot reads it, and `swing` a LENGTH, the most the term
-/// its routing row admitted (a tilt levered at the row's own reach, or
-/// a position the row is read beside) moves that reading at a consumed
-/// point; each caller derives its own. Across the region the reading stands inside
+/// **A two-sided row read across a region**: `datum` the row's signed
+/// margin where its pivot reads it, and `swing` a LENGTH, the most a
+/// term the caller admitted (a tilt levered at the row's own reach, or
+/// a position the row is read beside) moves that reading at a point the
+/// verdict serves; each caller derives its own. Across the region the reading stands inside
 /// `datum ± swing`, so each verdict is decided on its own side of that
 /// bracket, each the point deviation that flips it:
 ///
-/// - `far`, `|datum| + swing`, the farthest a consumed point reads from
-///   the flip: Zero ⇒ [`Sign::Zero`] at every consumed point;
+/// - `far`, `|datum| + swing`, the farthest a point of the region reads
+///   from the flip: Zero ⇒ [`Sign::Zero`] at every point;
 /// - otherwise `floor`, the bracket's reading nearest the flip (`datum`
 ///   shrunk toward zero by `swing`, zero where the bracket holds it): a
-///   definite sign holds at every consumed point. A floor decided Zero
+///   definite sign holds at every point. A floor decided Zero
 ///   beside a definite far straddles the band, and escalates through
 ///   the gate.
 ///
 /// The two terms are never decided one at a time: each just inside the
-/// band would sum to nearly twice it. `topo`'s section certificate reads
-/// its axis rows through this door too.
+/// band would sum to nearly twice it. At zero swing it is the plain
+/// two-sided reading of `datum`, under two names.
 ///
 /// # Errors
 ///

@@ -114,8 +114,7 @@ use geom::Surface;
 use geom::{Curve3, EllipseInvalid, Frame, SpiricInvalid, SquareFrame, SurfaceKind};
 use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
-pub use geom_core::k_stats::decide_across;
-pub(crate) use geom_core::k_stats::decide_across_reported;
+use geom_core::k_stats::{decide_across, decide_across_reported};
 
 use crate::ExtentBall;
 use crate::dihedral::{decide, decide_magnitude, decide_reported};
@@ -2630,6 +2629,13 @@ pub enum PlaneTorusSection<T: Real> {
     Empty,
 }
 
+/// The rows [`plane_torus_section`] reads the spiric regime under
+/// ([`geom::spiric_regime`]).
+const PT_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricRegimeSites {
+    off_axis: "pt_spiric_off_axis",
+    two_ovals: ["pt_spiric_two_ovals", "pt_spiric_two_ovals_floor"],
+};
+
 /// Classifies and constructs the plane×torus axis-aligned sections.
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
@@ -2654,8 +2660,9 @@ pub enum PlaneTorusSection<T: Real> {
 ///    axis ⇒ [`PlaneTorusSection::MeridianCircles`], each standing at
 ///    most that sum off the plane; definite (`pt_axis_plane_gap_floor`) ⇒ the
 ///    axis-parallel plane OFF the axis, and then the spiric's regime
-///    ([`geom::spiric_regime`], `d` that same gap), read with that tilt
-///    displacement beside it: two ovals ⇒
+///    ([`geom::spiric_regime`] under `pt_spiric_off_axis` and
+///    `pt_spiric_two_ovals` / `pt_spiric_two_ovals_floor`, `d` that same
+///    gap), read with that tilt displacement beside it: two ovals ⇒
 ///    [`PlaneTorusSection::SpiricOvals`], minted through
 ///    [`Curve3::spiric`]; otherwise the section is a node, a folded
 ///    loop or empty, and refuses as routed to the general rung.
@@ -2709,7 +2716,7 @@ pub fn plane_torus_section<T: Decide>(
         return Err(wrong());
     };
 
-    TorusRefusal::require(big_r, r, band).map_err(SectionError::DegenerateTorus)?;
+    let ring = TorusRefusal::require(big_r, r, band).map_err(SectionError::DegenerateTorus)?;
 
     // The axis tilt is levered at the extent for the fork alone. Each
     // served row below decides the displacement it puts on its minted
@@ -2749,18 +2756,26 @@ pub fn plane_torus_section<T: Decide>(
                 Sign::Positive | Sign::Negative => {
                     // Off the axis: the spiric's regime, read with the
                     // tilt that moves the minted ovals' plane beside it.
-                    match geom::spiric_regime(big_r, r, d, tilt.value(), band)
+                    match geom::spiric_regime(ring, d, tilt.value(), PT_SPIRIC_REGIME, band)
                         .map_err(SectionError::Escalated)?
                     {
                         geom::SpiricRegime::TwoOvals => {}
-                        geom::SpiricRegime::ThroughAxis | geom::SpiricRegime::PastInnerEquator => {
+                        geom::SpiricRegime::PastInnerEquator => {
                             return Err(SectionError::RoutesToGeneralRung {
                                 pair: "plane×torus",
-                                why: "an axis-parallel plane outside the spiric's two-oval \
-                                      regime (at or past the torus's inner equator, a node, \
-                                      one folded loop or nothing) — and the pair's \
+                                why: "an axis-parallel plane at or past the torus's inner \
+                                      equator cuts a node, one folded loop or nothing — not \
+                                      the two ovals the spiric carries — and the pair's \
                                       general-rung arm has not retired (arms retire one at \
                                       a time, each with its proof)",
+                            });
+                        }
+                        // Unreachable: `pt_axis_plane_gap_floor` read `|d|`, less the
+                        // lean, definite, so `d` alone reads definite too.
+                        geom::SpiricRegime::ThroughAxis => {
+                            return Err(SectionError::RoutesToGeneralRung {
+                                pair: "plane×torus",
+                                why: "the plane read both off the torus's axis and through it",
                             });
                         }
                     }

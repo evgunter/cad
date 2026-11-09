@@ -40,7 +40,9 @@ that predicate's to state.
 
 ## Closed (2026-11-09, PR 6621)
 
-`geom::spiric_regime` (beside `Curve3::spiric`) holds the regime once,
-with a `swing` the section passes its levered tilt through; the mint,
-`plane_torus_section` and `topo`'s `spiric_on_curved` read it.
-`decide_across` moved to `geom_core::k_stats` so `geom` can reach it.
+`geom::spiric_regime` (beside `Curve3::spiric`) holds the regime once.
+Each reader passes its own site names (`SpiricRegimeSites`) and a
+`swing`; the section passes its levered tilt. The mint,
+`plane_torus_section` and `topo`'s `spiric_on_curved` read it, each
+with a `geom::RingTorus`. `decide_across` moved to `geom_core::k_stats`
+so `geom` can reach it.

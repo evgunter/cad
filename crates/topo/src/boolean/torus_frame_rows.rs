@@ -636,7 +636,7 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
 /// so a disagreement between them is a band. Three poses:
 ///
 /// - the axis-parallel plane `zero/2` short of the inner equator, where
-///   the table reads a node (`spiric_two_ovals` Zero) and the
+///   the table reads a node (`pt_spiric_two_ovals` Zero) and the
 ///   certificate's near-tube margin decides Zero;
 /// - a plane 20° off the axis, `zero/2` inside tangency to the tube,
 ///   whose near-tube margin decides Zero;

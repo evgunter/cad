@@ -464,18 +464,36 @@ pub enum SpiricRegime {
     PastInnerEquator,
 }
 
-/// **Whether an axis-parallel plane at signed stand-off `offset` from a
-/// ring torus's axis cuts it in two ovals**, `0 < |offset| < R − r`: the
-/// regime's one statement, which [`Curve3::spiric`] mints under and
-/// every reader of a spiric's regime asks.
+/// **The site names one reader of [`spiric_regime`] decides under**, so a
+/// refusal and its `k_stats` stream name the reading that met them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpiricRegimeSites {
+    /// The offset off zero.
+    pub off_axis: &'static str,
+    /// The two-oval margin's far and floor rows (`decide_across`).
+    pub two_ovals: [&'static str; 2],
+}
+
+impl SpiricRegimeSites {
+    /// [`Curve3::spiric`]'s own rows.
+    pub const MINT: Self = Self {
+        off_axis: "spiric_off_axis",
+        two_ovals: ["spiric_two_ovals", "spiric_two_ovals_floor"],
+    };
+}
+
+/// **Whether an axis-parallel plane at signed stand-off `offset` from
+/// the axis of ring torus `ring` cuts it in two ovals**,
+/// `0 < |offset| < R − r`: the regime's one statement, which
+/// [`Curve3::spiric`] mints under and every reader of a spiric's regime
+/// asks, each under its own `sites`.
 ///
-/// - `spiric_off_axis` — margin `offset` (m): Zero ⇒
+/// - `sites.off_axis` — margin `offset` (m): Zero ⇒
 ///   [`SpiricRegime::ThroughAxis`].
-/// - `spiric_two_ovals` / `spiric_two_ovals_floor` — margin
-///   `(R − r) − |offset|` (m), the length the regime closes by, decided
-///   before any root is taken, read with `swing` beside it
-///   ([`geom_core::k_stats::decide_across`]): Positive ⇒
-///   [`SpiricRegime::TwoOvals`], else
+/// - `sites.two_ovals` — margin `(R − r) − |offset|` (m), the length the
+///   regime closes by, decided before any root is taken, read with
+///   `swing` beside it ([`geom_core::k_stats::decide_across`]): Positive
+///   ⇒ [`SpiricRegime::TwoOvals`], else
 ///   [`SpiricRegime::PastInnerEquator`].
 ///
 /// `swing` is a length: the most a term the caller's own routing
@@ -487,20 +505,20 @@ pub enum SpiricRegime {
 ///
 /// [`Indeterminate`], naming the row left in band.
 pub fn spiric_regime<T: Decide>(
-    major_radius: T,
-    minor_radius: T,
+    ring: crate::RingTorus<T>,
     offset: T,
     swing: T,
+    sites: SpiricRegimeSites,
     band: Band,
 ) -> Result<SpiricRegime, Indeterminate> {
     use geom_core::k_stats::{decide, decide_across};
-    if decide("spiric_off_axis", Margin::of(offset), band)? == Sign::Zero {
+    if decide(sites.off_axis, Margin::of(offset), band)? == Sign::Zero {
         return Ok(SpiricRegime::ThroughAxis);
     }
     Ok(
         match decide_across(
-            ["spiric_two_ovals", "spiric_two_ovals_floor"],
-            (major_radius - minor_radius) - offset.abs(),
+            sites.two_ovals,
+            (ring.major_radius() - ring.minor_radius()) - offset.abs(),
             swing,
             band,
         )? {
@@ -1162,7 +1180,8 @@ impl<T: Decide> Curve3<T> {
     /// - `ring_torus_convention` ([`crate::ring_torus`], the convention's
     ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
-    /// - the regime, [`spiric_regime`] at no swing: two ovals required;
+    /// - the regime, [`spiric_regime`] at no swing under
+    ///   [`SpiricRegimeSites::MINT`]: two ovals required;
     ///   through the axis ⇒ [`SpiricInvalid::ThroughAxis`] (one kind per
     ///   configuration, most exact first: that oval is a `Circle`); at
     ///   or past the inner equator ⇒ [`SpiricInvalid::NotTwoOvals`].
@@ -1199,7 +1218,8 @@ impl<T: Decide> Curve3<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotARing),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
-        match spiric_regime(major_radius, minor_radius, offset, T::zero(), band) {
+        let ring = crate::RingTorus::decided(major_radius, minor_radius);
+        match spiric_regime(ring, offset, T::zero(), SpiricRegimeSites::MINT, band) {
             Ok(SpiricRegime::TwoOvals) => {}
             Ok(SpiricRegime::ThroughAxis) => return Err(SpiricInvalid::ThroughAxis),
             Ok(SpiricRegime::PastInnerEquator) => return Err(SpiricInvalid::NotTwoOvals),
@@ -1229,6 +1249,23 @@ impl<T: Decide> Curve3<T> {
             minor_radius,
             offset,
         })
+    }
+}
+
+impl<T: Real> Curve3<T> {
+    /// A [`Curve3::Spiric`]'s torus, decided a ring at its mint
+    /// ([`Curve3::spiric`], the kind's one deciding door, D3); `None` for
+    /// every other kind.
+    #[must_use]
+    pub fn spiric_torus(&self) -> Option<crate::RingTorus<T>> {
+        match *self {
+            Self::Spiric {
+                major_radius,
+                minor_radius,
+                ..
+            } => Some(crate::RingTorus::decided(major_radius, minor_radius)),
+            _ => None,
+        }
     }
 }
 
@@ -2366,6 +2403,43 @@ mod tests {
             mk(1.2, 0.225, 0.05, tilted).err(),
             Some(SpiricInvalid::FrameNotOrthogonal)
         );
+    }
+
+    /// **[`spiric_regime`] reads its two-oval margin across the swing.**
+    /// At `R − r = 0.975` beside a swing of `0.5`, a margin `0.6` holds
+    /// two ovals at every point served, a margin half a zero band past the
+    /// swing escalates on the caller's floor row, and a margin `−0.6`
+    /// reads past the inner equator; an offset in the zero band reads
+    /// through the axis under the caller's own name. Red on a swing
+    /// dropped (the half-band margin then reads two ovals) or on a row
+    /// decided under another caller's name.
+    #[test]
+    fn spiric_regime_reads_its_margin_across_the_swing() {
+        let ring = crate::RingTorus::decided(1.2, 0.225);
+        let sites = SpiricRegimeSites {
+            off_axis: "test_off_axis",
+            two_ovals: ["test_two_ovals", "test_two_ovals_floor"],
+        };
+        let at = |margin: f64| spiric_regime(ring, 0.975 - margin, 0.5, sites, band());
+        assert_eq!(at(0.6), Ok(SpiricRegime::TwoOvals), "clear of the swing");
+        assert_eq!(
+            at(-0.6),
+            Ok(SpiricRegime::PastInnerEquator),
+            "past the equator by more than the swing"
+        );
+        let in_band = at(0.5 + 0.5 * band().zero()).expect_err("floor in band");
+        assert_eq!(
+            in_band.predicate,
+            Some("test_two_ovals_floor"),
+            "{in_band:?}"
+        );
+        assert_eq!(
+            spiric_regime(ring, 1e-12, 0.5, sites, band()),
+            Ok(SpiricRegime::ThroughAxis),
+            "an offset in the zero band"
+        );
+        let poison = spiric_regime(ring, f64::NAN, 0.0, sites, band()).expect_err("poison");
+        assert_eq!(poison.predicate, Some("test_off_axis"), "{poison:?}");
     }
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {

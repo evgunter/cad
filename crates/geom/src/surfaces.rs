@@ -568,6 +568,56 @@ pub fn is_ring_torus<T: geom_core::Decide>(major_radius: T, minor_radius: T, ban
         && positive(ring_torus(major_radius, minor_radius, band))
 }
 
+/// **A torus's radii, read as a ring**: `R > r > 0`, both halves of
+/// the convention decided `Positive`. Its fields are private, so the
+/// value is the evidence of those verdicts: only
+/// [`RingTorus::of_halves`] (from [`torus_tube`]'s and [`ring_torus`]'s
+/// verdicts), [`crate::Curve3::spiric`]'s own decisions, and a minted spiric's
+/// torus ([`crate::Curve3::spiric_torus`]) make one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RingTorus<T> {
+    major_radius: T,
+    minor_radius: T,
+}
+
+impl<T: Real> RingTorus<T> {
+    /// The ring of radii `(major_radius, minor_radius)` where `tube`
+    /// ([`torus_tube`]'s verdict) and `ring` ([`ring_torus`]'s) both
+    /// read `Positive`; `None` otherwise.
+    #[must_use]
+    pub fn of_halves(
+        (major_radius, minor_radius): (T, T),
+        tube: geom_core::Decided,
+        ring: geom_core::Decided,
+    ) -> Option<Self> {
+        (tube.sign == geom_core::Sign::Positive && ring.sign == geom_core::Sign::Positive)
+            .then_some(Self {
+                major_radius,
+                minor_radius,
+            })
+    }
+
+    /// Radii already decided a ring by the caller in this crate.
+    pub(crate) fn decided(major_radius: T, minor_radius: T) -> Self {
+        Self {
+            major_radius,
+            minor_radius,
+        }
+    }
+
+    /// `R`.
+    #[must_use]
+    pub fn major_radius(self) -> T {
+        self.major_radius
+    }
+
+    /// `r`.
+    #[must_use]
+    pub fn minor_radius(self) -> T {
+        self.minor_radius
+    }
+}
+
 /// What a refusal of the placeholder chart
 /// ([`Surface::is_placeholder_chart`]) says, wherever it is refused —
 /// one text, so every reader sees the same fact in the same words.

@@ -135,24 +135,33 @@ impl TorusRefusal {
     }
 
     /// Both halves of the convention on a torus of radii `major` and
-    /// `minor`, the tube first ([`geom::ring_torus`] says why): the first
-    /// that refuses.
+    /// `minor`, the tube first ([`geom::ring_torus`] says why): the ring
+    /// they read, or the first that refuses.
     ///
     /// # Errors
     ///
     /// The refusing half's [`TorusRefusal`].
-    pub fn require<T: geom_core::Decide>(major: T, minor: T, band: Band) -> Result<(), Self> {
-        let tube = Self::of(TorusConvention::Tube, geom::torus_tube(minor, band), band);
-        match tube.or_else(|| {
-            Self::of(
-                TorusConvention::Ring,
-                geom::ring_torus(major, minor, band),
-                band,
-            )
-        }) {
-            None => Ok(()),
-            Some(refusal) => Err(refusal),
-        }
+    pub fn require<T: geom_core::Decide>(
+        major: T,
+        minor: T,
+        band: Band,
+    ) -> Result<geom::RingTorus<T>, Self> {
+        let half = |convention, decided: Result<Decided, Indeterminate>| match decided {
+            Err(diag) => Err(Self {
+                convention,
+                verdict: TorusVerdict::Undecided(diag),
+            }),
+            Ok(decided) => Refused::of(decided, band).map_or(Ok(decided), |refused| {
+                Err(Self {
+                    convention,
+                    verdict: TorusVerdict::Refused(refused),
+                })
+            }),
+        };
+        let tube = half(TorusConvention::Tube, geom::torus_tube(minor, band))?;
+        let ring = half(TorusConvention::Ring, geom::ring_torus(major, minor, band))?;
+        Ok(geom::RingTorus::of_halves((major, minor), tube, ring)
+            .unwrap_or_else(|| unreachable!("both halves read Positive above")))
     }
 }
 

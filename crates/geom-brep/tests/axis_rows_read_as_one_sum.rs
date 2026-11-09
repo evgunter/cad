@@ -478,7 +478,7 @@ fn plane_torus_axis_in_plane_reads_each_row_as_it_moves() {
     let short_of_equator = |past: f64| (1.0 - 4.0 * R) - past_edge(1.0, past);
     let got = axial_cut(SWING * z, short_of_equator(FLOOR_IN), 2.0);
     assert!(
-        escalated_on(&got, "spiric_two_ovals_floor"),
+        escalated_on(&got, "pt_spiric_two_ovals_floor"),
         "K + 0.3 beside 0.6: escalates on the floor, got {got:?}"
     );
     let got = axial_cut(SWING * z, short_of_equator(FLOOR_OUT), 2.0);
