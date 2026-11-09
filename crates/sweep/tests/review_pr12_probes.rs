@@ -245,11 +245,11 @@ fn probe_e_hexagon_tier3_error() {
             let txt = format!("{e:?}");
             if let Some(i) = txt.find("FaceKey(") {
                 let key: String = txt[i..].chars().take_while(|c| *c != ' ').collect();
-                for (k, fc) in f.body.faces() {
+                for (k, _) in f.body.faces() {
                     if format!("{k:?}").starts_with(key.trim_end_matches(',')) {
                         println!(
                             "PROBE E: failing face {k:?} kind {:?} corner? {} blend? {}",
-                            f.body.get_surface(fc.surface).map(|s| match s {
+                            f.body.face_surface(k).map(|s| match s {
                                 geom::Surface::Plane { .. } => "plane",
                                 geom::Surface::Cylinder { .. } => "cylinder",
                                 geom::Surface::Sphere { .. } => "sphere",
@@ -480,11 +480,11 @@ fn probe_i_door_a_full_tool() {
     .expect_err("door A full");
     println!("PROBE I: {err:?}");
     for (body, tag) in [(&blank, "blank"), (&tool, "tool")] {
-        for (k, f) in body.faces() {
+        for (k, _) in body.faces() {
             if format!("{k:?}").starts_with("FaceKey(9v") {
                 println!(
                     "PROBE I: {tag} face {k:?} surface {:?}",
-                    body.get_surface(f.surface)
+                    body.face_surface(k)
                 );
             }
         }

@@ -54,7 +54,7 @@ pub mod span;
 mod walk;
 
 pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, pose};
-pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd};
+pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd, SpanReading, SpanRefusal};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -152,6 +152,9 @@ pub enum MeetFault {
     /// before it could certify the candidates. Unsettled: no margin, and
     /// a coarser band may settle it.
     Unsettled(Unsettled),
+    /// A spline's piece walk could not run, reading a point on a span. As
+    /// the walk's refusal stands ([`crate::ladder::Refusal::of_walk`]).
+    Unwalked(geom::PieceWalkRefusal),
     /// A pose the pair's arm has no closed form for. A limit.
     Unsupported {
         /// The pose.
@@ -182,8 +185,46 @@ impl MeetFault {
         match self {
             Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(*diag)),
             Self::Unsettled(_) => Ok(Refusal::Unsettled),
+            Self::Unwalked(why) => Ok(Refusal::of_walk(*why)),
             Self::Unsupported { .. } => Ok(Refusal::Limit),
             Self::Desync | Self::Contradiction { .. } => Err(Aborts),
+        }
+    }
+}
+
+/// **What a [`MeetFault`] is to a consumer that does not tell its
+/// limits apart** ([`MeetFault::kind`]): the one grouping of its arms,
+/// so no consumer spells the group by hand.
+#[derive(Clone, Copy, Debug)]
+pub enum MeetKind {
+    /// A decision fell in the band's gap ([`MeetFault::Escalated`]).
+    Escalated(Indeterminate),
+    /// A meeting in band ([`MeetFault::Touch`]).
+    Touch(Indeterminate),
+    /// The reading did not run to an answer, and no margin says how far
+    /// it was: unsettled, a walk that could not run, or a pose with no
+    /// closed form.
+    Unread,
+    /// A kernel fault, never a pose: the carrier misread, or the readings
+    /// that contradict.
+    Fault {
+        /// What faulted.
+        what: &'static str,
+    },
+}
+
+impl MeetFault {
+    /// This refusal's group ([`MeetKind`]).
+    #[must_use]
+    pub const fn kind(&self) -> MeetKind {
+        match self {
+            Self::Escalated(diag) => MeetKind::Escalated(*diag),
+            Self::Touch(diag) => MeetKind::Touch(*diag),
+            Self::Unsettled(_) | Self::Unwalked(_) | Self::Unsupported { .. } => MeetKind::Unread,
+            Self::Desync => MeetKind::Fault {
+                what: "a carrier the meeting table misread",
+            },
+            Self::Contradiction { readings } => MeetKind::Fault { what: readings },
         }
     }
 }
@@ -202,15 +243,8 @@ impl From<RootRefusal> for MeetFault {
 }
 
 impl From<geom::PieceWalkRefusal> for MeetFault {
-    /// A spline's walk past its budget as unsettled, and a spline with no
-    /// speed bound as a pose the reader does not serve.
     fn from(why: geom::PieceWalkRefusal) -> Self {
-        match why {
-            geom::PieceWalkRefusal::Exhausted => Self::Unsettled(Unsettled::Exhausted),
-            geom::PieceWalkRefusal::Unbounded => Self::Unsupported {
-                pose: "a spline whose speed bound is zero or poison",
-            },
-        }
+        Self::Unwalked(why)
     }
 }
 
@@ -388,8 +422,8 @@ impl<T: Decide> Found<T> {
     fn read(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
         let on_both = || {
             both(
-                a.contact(c.point, c.ta, band),
-                b.contact(c.point, c.tb, band),
+                a.contact(c.point, c.ta, band).map_err(|r| r.refused),
+                b.contact(c.point, c.tb, band).map_err(|r| r.refused),
             )
         };
         let Some(bound) = c.bound else {
@@ -656,6 +690,14 @@ impl From<geom::CarrierRefusal> for MeetFault {
         refusal
             .escalation()
             .map_or_else(Self::from, Self::Escalated)
+    }
+}
+
+impl From<SpanRefusal> for MeetFault {
+    /// A point-on-span refusal as the meeting's: its carrier refusal's
+    /// ([`From<geom::CarrierRefusal>`]), whichever reading it rests on.
+    fn from(refusal: SpanRefusal) -> Self {
+        refusal.refused.into()
     }
 }
 

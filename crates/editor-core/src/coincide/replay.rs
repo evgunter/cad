@@ -508,33 +508,25 @@ fn one_cylinder(
 /// rims, each the radius of the meridian end it turns, where the
 /// wall's cylinder reads one end's alone.
 fn rim_radii(body: &topo::Body<Lane>, face: FaceKey) -> Vec<Lane> {
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.face(face) else {
         return Vec::new();
     };
-    let mut radii = Vec::new();
-    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let first = match body.get_loop(lp).map(|l| &l.boundary) {
-            Some(topo::LoopBoundary::Cycle { first }) => *first,
-            // A lone vertex bounds no rim.
-            Some(topo::LoopBoundary::Empty { .. }) | None => continue,
-        };
-        let mut at = first;
-        while let Some(he) = body.get_half_edge(at) {
-            if let Some(geom::Curve3::Circle(geom::Circle { radius, .. })) = body
+    // A lone vertex bounds no rim, and has no cycle.
+    f.half_edges()
+        .into_iter()
+        .filter_map(|he| {
+            let he = body.get_half_edge(he)?;
+            match body
                 .get_edge(he.edge)
                 .and_then(|e| body.get_curve_geom(e.curve))
                 .and_then(topo::CurveGeom::certified)
                 .map(geom_brep::EdgeCurve::carrier)
             {
-                radii.push(*radius);
+                Some(geom::Curve3::Circle(geom::Circle { radius, .. })) => Some(*radius),
+                _ => None,
             }
-            at = he.next;
-            if at == first {
-                break;
-            }
-        }
-    }
-    radii
+        })
+        .collect()
 }
 
 /// The face `cell` names, as the replay built it: the body of the read

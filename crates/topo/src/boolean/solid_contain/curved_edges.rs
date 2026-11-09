@@ -17,13 +17,13 @@
 //!   cross it at one root, so their one point is read against the seam
 //!   once.
 //! - **Whether it meets it.** That ray point is read against the edge's
-//!   span as the census reads it ([`crate::census::edge_span`]): on the
-//!   carrier ([`geom::Curve3::foot`]'s `on_carrier`, zero in the band, off
-//!   only past it on a lower bound), and where its foot sits against the
-//!   span's ends ([`geom_brep::curve_pair::Span::place`]). On the carrier,
-//!   or in the band's gap, inside the span, the ray meets the edge. In
-//!   band of an end it is marked a graze; past the span its nearest point
-//!   is that end, read as a vertex. Off the carrier from every crossing,
+//!   span as the census reads it ([`crate::census::edge_span`]), by the
+//!   point-on-span reading ([`geom_brep::curve_pair::Span::read`]): on the
+//!   carrier (zero in the band, off only past it on a lower bound), and
+//!   where its foot sits against the span's ends. On the carrier, or in
+//!   the band's gap, inside the span, the ray meets the edge. In band of
+//!   an end, or where the place refuses, it is marked a graze; past the
+//!   span its nearest point is that end, read as a vertex. Off the carrier from every crossing,
 //!   it passes clear, and each face reads its own crossing.
 //! - **Which crossing it stands for.** A met edge is half a crossing for
 //!   each face, at that face's carrier crossing nearest where the ray
@@ -282,7 +282,7 @@ fn narrow<T: Decide>(
 /// carrier's lower bound, where it has a closed form) is clear of it
 /// there. One that is not lies near the carrier, where its foot is well
 /// placed, and is carried to the ray's closest approach by alternate
-/// feet, which is read on the carrier and against the span's ends.
+/// feet, which the point-on-span reading reads ([`geom_brep::curve_pair::Span::read`]).
 fn passes<T: Decide>(
     span: &crate::census::EdgeSpan<T>,
     q: Point3<T>,
@@ -312,21 +312,27 @@ fn passes<T: Decide>(
         r = ray.foot(carrier.eval(near));
     }
     let s = ray.param(r);
-    let gap = match carrier.foot(r, near).on_carrier(band) {
-        Ok(geom::OnCarrier::Off) => return Passes::Clear,
-        Ok(geom::OnCarrier::On { .. }) => Gap::Zero,
-        Err(refusal) => match refusal.escalation() {
-            Ok(diag) => Gap::InBand(diag),
-            Err(_) => return Passes::Undecided,
-        },
-    };
-    match span.span().place(r, near, band) {
-        Ok(geom_brep::curve_pair::Place::Inside) => Passes::Met(s, gap),
-        Ok(geom_brep::curve_pair::Place::Past) => Passes::Clear,
-        // In band of an end, or undecided against one, a walk that could
-        // not run included: the ray passes within reach of its vertex, a
+    use geom_brep::curve_pair::{Reading, SpanReading, SpanRefusal};
+    match span.span().read(r, near, band) {
+        Ok(Reading::On { .. }) => Passes::Met(s, Gap::Zero),
+        // Off the carrier, or past the span clear of both ends, whatever
+        // the carrier refused there (an escalation or a walk that could
+        // not run): no reading of the carrier puts the point on the edge.
+        Ok(Reading::Off | Reading::Carrier) => Passes::Clear,
+        // In band of an end, or undecided against one, whatever the
+        // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.
-        Ok(geom_brep::curve_pair::Place::End(_)) | Err(_) => Passes::End(s),
+        Ok(Reading::End(_))
+        | Err(SpanRefusal {
+            of: SpanReading::Place,
+            ..
+        }) => Passes::End(s),
+        Err(SpanRefusal {
+            refused,
+            of: SpanReading::Carrier,
+        }) => refused
+            .escalation()
+            .map_or(Passes::Undecided, |diag| Passes::Met(s, Gap::InBand(diag))),
     }
 }
 
@@ -410,6 +416,38 @@ mod straddle_rows {
         assert!(
             matches!(passes(&past, q, d, at, band), Passes::Clear),
             "an arc past the closest approach"
+        );
+    }
+
+    /// **A place refusal at the door is a graze at the edge's end**: a
+    /// ray along the radius of a circle through its point half the band
+    /// past an arc's start, its chord to the start in band, so the span's
+    /// place refuses (`span_rows`' `a_refusal_names_the_reading_it_rests_on`).
+    /// The door reads it as the ray passing the end, which refuses the
+    /// ray, never as meeting the edge in band. Red where a place refusal
+    /// is read as a wedge.
+    #[test]
+    fn a_place_refusal_at_the_door_is_a_graze_at_the_end() {
+        let band = Band::new(ZERO, 10.0 * ZERO).unwrap();
+        let half = 0.5 * (band.zero() + band.escalate());
+        let centre = Point3::new(0.0, 0.0, 1.0);
+        let circle = geom::Curve3::circle(centre, Vec3::unit_z(), 2.0, Vec3::unit_x());
+        let arc = EdgeSpan::of(circle.clone(), (0.5, 2.5));
+        let at = circle.eval(0.5 - half / 2.0);
+        assert!(
+            matches!(
+                arc.span().read(at, 0.5, band),
+                Err(geom_brep::curve_pair::SpanRefusal {
+                    of: geom_brep::curve_pair::SpanReading::Place,
+                    ..
+                })
+            ),
+            "the span's place refuses the point"
+        );
+        let radial = (at - centre).normalize();
+        assert!(
+            matches!(passes(&arc, at - radial, radial, at, band), Passes::End(_)),
+            "the ray grazes the arc's start"
         );
     }
 }

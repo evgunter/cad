@@ -2,10 +2,17 @@
 id: a-knot-vectors-breakpoints-are-collected-four-times-with-no-door
 kind: issue
 title: A knot vector's distinct breakpoints are collected by hand at four sites, with no Knots::breakpoints door
+<<<<<<< HEAD
 status: dispatched
+=======
+status: closed
+>>>>>>> origin/main
 opened: 2026-11-04
 priority: P3
 cost: E
+closed: 2026-11-06
+pr: 6577
+branch: onecopy/spline-certificates
 ---
 
 Filed by SPLICE's `splice/rim-arc-on-cylinder` (PR 6481), from its review.

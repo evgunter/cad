@@ -2,10 +2,17 @@
 id: a-heuristics-choice-has-no-door-of-its-own
 kind: issue
 title: A heuristic's choice decided on the least band takes the logged door unless someone argues it out (F31, F32): one door for such choices would make the next one land there
+<<<<<<< HEAD
 status: dispatched
+=======
+status: closed
+>>>>>>> origin/main
 opened: 2026-11-03
 priority: P2
 cost: E
+closed: 2026-11-09
+pr: 6602
+branch: onecopy/choose-door
 ---
 
 

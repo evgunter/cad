@@ -2,9 +2,15 @@
 id: census-reads-its-contact-refusals-by-string-equality
 kind: issue
 title: The census identifies its edge-tangent refusals by string equality on ContactRefusal::NotCertifiable's what
+<<<<<<< HEAD
 status: dispatched
+=======
+status: closed
+>>>>>>> origin/main
 priority: P3
 opened: 2026-11-06
+closed: 2026-11-09
+pr: 6614
 ---
 
 

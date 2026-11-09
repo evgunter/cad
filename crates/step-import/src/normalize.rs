@@ -86,6 +86,7 @@ use std::collections::BTreeMap;
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::period::Period;
 
 use crate::entities::{EdgeSpec, EdgeUse, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
@@ -659,10 +660,7 @@ fn seam_vertex_on_loop(
             continue;
         };
         let q = crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius);
-        let mut t = geom::Conic::azimuth(circle, q).near(0.0);
-        while t <= spec.t0 {
-            t += TAU;
-        }
+        let t = Period::new(TAU).above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
         if t < spec.t1 {
             crossing = Some((u.edge, t, q));
             break;

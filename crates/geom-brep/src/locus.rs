@@ -12,9 +12,10 @@ use crate::dihedral::decide;
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
     ParallelAxes, PlaneCylinder, RuledFrame, RuledSection, cylinder_axes_parallel_reported,
-    decide_across_reported, parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing,
-    ruled_frame, ruled_gap, ruled_parallel, ruled_section,
+    parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, ruled_frame, ruled_gap,
+    ruled_parallel, ruled_section,
 };
+use geom_core::k_stats::decide_across_reported;
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
 /// ruling): the closed-form contact line of a tangent carrier pair,
@@ -305,9 +306,17 @@ fn closed_form_locus<T: Decide>(
                 ..
             },
         ) => {
-            let axes = parallel_axes_at(reach, (o1, a1), (o2, a2));
-            let swing = parallel_swing(reach, (o1, a1), (o2, a2), axes.d);
-            let read = cylinders_locus(((o1, a1), (o2, a2)), (r1, r2), &axes, swing, reach, band);
+            let line1 = geom::Line {
+                origin: o1,
+                dir: a1,
+            };
+            let line2 = geom::Line {
+                origin: o2,
+                dir: a2,
+            };
+            let axes = parallel_axes_at(reach, line1, line2);
+            let swing = parallel_swing(reach, line1, line2, axes.d);
+            let read = cylinders_locus((line1, line2), (r1, r2), &axes, swing, reach, band);
             let pending = Pending::Cylinders {
                 radii: (r1, r2),
                 dirs: (a1, a2),
@@ -367,9 +376,8 @@ fn plane_cylinder_locus<T: Decide>(
 
 /// The parallel-cylinder arm, its axes read once at the feet (`axes`,
 /// their `swing` across the reach): the axes row, then the gap rows.
-#[allow(clippy::type_complexity)]
 fn cylinders_locus<T: Decide>(
-    lines: ((Point3<T>, Vec3<T>), (Point3<T>, Vec3<T>)),
+    lines: (geom::Line<T>, geom::Line<T>),
     (r1, r2): (T, T),
     axes: &ParallelAxes<T>,
     swing: T,
@@ -378,7 +386,7 @@ fn cylinders_locus<T: Decide>(
 ) -> Result<TangentLocus<T>, TangentLocusError> {
     let escalate = TangentLocusError::Escalated;
     let (line1, line2) = lines;
-    let a1 = line1.1;
+    let a1 = line1.dir;
     // Each tangency below is one only with the axes parallel, so its
     // margin stands for both.
     let (parallel, axis_log) =

@@ -461,9 +461,7 @@ pub(crate) fn driver_face_stale(face: FaceKey) -> ! {
 /// `face`'s outer loop and rings ([`crate::live::FaceView::loops`]), the face
 /// the caller's key.
 fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, ContainError> {
-    let face_data = body
-        .passed_face(face)
-        .ok_or(ContainError::StaleFace(face))?;
+    let face_data = body.face(face).ok_or(ContainError::StaleFace(face))?;
     Ok(face_data.loops().map(|(lk, _, _)| lk).collect())
 }
 
@@ -648,6 +646,12 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// — for the conic disposition — `bool_contact_arc_{span,straddle,end_vertex}`,
 /// for the spiric `bool_contact_spiric{,_end,_clear,_leaf}`, and for the
 /// spline `bool_contact_spline{,_end,_clear,_leaf}`.
+///
+/// Which cell holds `q` is the answer (`OnVertex(v)`, `OnEdge(e)`: its
+/// consumers read the key), so a cell read in band may be the true
+/// holder and no later cell answers past it: a vertex's escalation
+/// refuses ahead of every edge, and one loop's ahead of every later loop,
+/// as [`crate::splitting::containment::CarrierLoop::place_off`] refuses ahead of a later edge.
 fn boundary_pre_pass<T: Decide>(
     body: &Body<T>,
     loops: &[LoopKey],

@@ -22,8 +22,9 @@ below still spells the rule by hand, with what a port needs.
 - `topo::boolean::join::seam_germ_side` and `topo::boolean::sectors::tangent_lump`'s
   bounds read every rung and refuse where two answers disagree, a shape
   `climb` does not hold:
-  `work/onecopy/a-ladder-that-checks-its-answers-agree-has-no-home.md`. That
-  row also holds the debug check the `Any` ports' premises want.
+  `work/onecopy/a-ladder-that-checks-its-answers-agree-has-no-home.md`,
+  which ports both onto `ladder::climb_agreeing`. The debug check the
+  `Any` ports' premises want went to the `Any` design fork's `[ev]` PR.
 - `topo::link::Cone::reads_given`'s reference loop waits on its
   `Unsettled` variants being classed:
   `work/onecopy/cone-reads-given-reference-loop-waits-on-its-unsettled-classes.md`.

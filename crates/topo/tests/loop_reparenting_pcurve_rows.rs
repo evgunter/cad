@@ -36,12 +36,22 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCertifyError};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::pcurves::validate_pcurves;
 use topo::{Body, FaceKey, LoopKey, PcurveMintError};
+
+/// Whether a finding is the mint's refusal of a carrier decided off its
+/// chart, read by the one incidence classifier.
+fn off_chart(finding: &PcurveMintError) -> bool {
+    matches!(
+        finding,
+        PcurveMintError::Certify { error, .. }
+            if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
+    )
+}
 
 fn tol() -> Tol {
     Tol::witness()
@@ -263,10 +273,9 @@ fn sheet() -> Sheet {
 
 /// `(rows stored, half-edges with no row)` over every loop of `face`.
 fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
-    let f = body.get_face(face).unwrap();
     let mut stored = 0;
     let mut rowless = 0;
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             continue;
         };
@@ -717,9 +726,10 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
 
 /// Every half-edge of `face`'s loops.
 fn halves_of(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
             topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
             topo::LoopBoundary::Empty { .. } => None,
@@ -732,9 +742,8 @@ fn halves_of(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
 /// certificate and its joint element — what "byte for byte" means for
 /// a carry.
 fn rows_deep(body: &Body<f64>, face: FaceKey) -> Vec<String> {
-    let f = body.get_face(face).unwrap();
     let mut out = Vec::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             continue;
         };
@@ -1225,7 +1234,7 @@ fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurv
     let bottom = s.body.get_half_edge(he_at(&s.body, s.low, a)).unwrap().edge;
     let mid = s.body.get_half_edge(he_at(&s.body, s.low, c)).unwrap().edge;
     let back = s.body.get_face(s.plane).unwrap().clone();
-    let original = s.body.get_surface(back.surface).unwrap().clone();
+    let original = s.body.face_surface(s.plane).unwrap().clone();
     // A back on the cylinder under a second key (the second-key row)
     // contains the rims, and its key is that row's subject: it is left
     // where it is.
@@ -1474,13 +1483,7 @@ fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
         "tier 3 re-derives both rowless pieces and names each one's refusal: {findings:?}"
     );
     assert!(
-        findings.iter().all(|f| matches!(
-            f,
-            PcurveMintError::Certify {
-                error: PcurveCertifyError::CarrierOffChart { .. },
-                ..
-            }
-        )),
+        findings.iter().all(off_chart),
         "the mint reads the chord off the wall: {findings:?}"
     );
     let refused = topo::mint_pcurves(&mut s.body, tol())
@@ -1867,15 +1870,7 @@ fn an_edge_carrier_swap_off_the_chart_leaves_its_faces_rowless() {
     let findings = validate_pcurves(&s.body, band());
     let refused = topo::mint_pcurves(&mut s.body, tol()).unwrap_err();
     assert!(
-        findings.len() == 2
-            && findings.iter().all(|f| matches!(
-                f,
-                PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart { .. },
-                    ..
-                }
-            ))
-            && findings.contains(&refused),
+        findings.len() == 2 && findings.iter().all(off_chart) && findings.contains(&refused),
         "tier 3 reads the mint's refusal on each face the line bounds: {findings:?}"
     );
 }

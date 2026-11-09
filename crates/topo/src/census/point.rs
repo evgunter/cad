@@ -60,7 +60,7 @@ enum Locus<T: Real> {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
-    match *body.passed_face(f)?.surface() {
+    match *body.face(f)?.surface() {
         geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
         geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere { center, radius }),
         _ => None,
@@ -135,7 +135,7 @@ fn circle_plane<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Locus<T>> {
     let d = plane_across(a, n);
-    let sin = d.norm();
+    let (toward, sin) = d.direction_and_length();
     let s = n.dot(c - o);
     if !separates(sin / r, r, band, errors)? {
         return Some(
@@ -145,7 +145,6 @@ fn circle_plane<T: Decide>(
             },
         );
     }
-    let toward = d / sin;
     Some(Locus::Touch(
         match decided("pm_census_point_plane", Margin::of(s), band, errors)? {
             Sign::Positive => coincident(s, r * sin, c - toward * r, band, errors)?,
@@ -190,11 +189,10 @@ fn sphere_sphere<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
     let v = c2 - c1;
-    let dist = v.norm();
+    let (u, dist) = v.direction_and_length();
     if decided("pm_census_point_centre", Margin::of(dist), band, errors)? != Sign::Positive {
         return Some(Touch::Apart);
     }
-    let u = v / dist;
     let small = r1.min(r2);
     match decided(
         "pm_census_point_gap",

@@ -5763,7 +5763,7 @@ mod tests {
             .map(|he| body.face_of_half_edge(he).unwrap())
             .find(|&f| {
                 matches!(
-                    body.passed_face(f).map(|f| f.surface()),
+                    body.face(f).map(|f| f.surface()),
                     Some(geom::Surface::Plane { .. })
                 )
             })

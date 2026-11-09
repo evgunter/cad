@@ -2,10 +2,19 @@
 id: the-least-band-gates-door-list-is-a-hand-copy-of-k-stats-doors
 kind: issue
 title: least-band-on-a-door.sh keeps a hand-copied subset of k_stats' doors, and flagged_census keeps its own: two hand lists of one roster
+<<<<<<< HEAD
 status: open
 opened: 2026-11-09
 priority: P3
 cost: E
+=======
+status: closed
+opened: 2026-11-09
+priority: P3
+cost: E
+closed: 2026-11-09
+pr: 6627
+>>>>>>> origin/main
 ---
 
 

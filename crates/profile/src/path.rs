@@ -2457,7 +2457,11 @@ mod directed {
         /// ([`super::PendingRunOut::rides`]) each decide under a key of
         /// their own.
         pub(super) fn across(&self, p: Point2<T>) -> T {
-            self.dir.unit.perp_dot(p - self.anchor)
+            geom_core::Line2 {
+                origin: self.anchor,
+                dir: self.dir.unit,
+            }
+            .side(p)
         }
 
         /// How far along this line's direction `p` stands from `from`,
@@ -3504,6 +3508,14 @@ fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc
 /// angle about it is 2δ, whose quarter-tangent X is.
 fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
     let d = b - a;
+    // The unit read is the consistent one for this construction. With
+    // `c = a + perp(u)·ρ` and `ρ = |d|²/(2·u×d)` read on the same stored
+    // `u`, `‖a − c‖ = |u|·|ρ|` and `‖b − c‖² = |d|² − 2ρ·(u×d) + |u|²ρ²`,
+    // which is `|u|²ρ²` exactly: the centre sits on the chord's
+    // bisector whatever `|u|` is, so the arc meets both ends. Reading
+    // `across` through `Line2::side`'s `/|u|` would take it off the
+    // bisector by the unit's rounding (a recorded keep,
+    // `tangent-arcs-construction-reads-across-on-its-stored-unit`).
     let (along, across) = (u.dot(d), u.perp_dot(d));
     let x = crate::sugar::split_half_tan(across, along, d.norm());
     let rho = d.norm_squared() / (T::from_f64(2.0) * across);
@@ -3540,8 +3552,8 @@ fn tangent_arc_geom<T: Decide>(
 ) -> Result<TangentArcGeom<T>, PathError<T>> {
     let d = p - at;
     let u = dep.unit;
-    let along = u.dot(d);
-    let across = u.perp_dot(d);
+    let departure = geom_core::Line2 { origin: at, dir: u };
+    let (along, across) = (departure.height(p), departure.side(p));
     // A target ON the departure line is not a carrier question —
     // the 2026-09-02 ruling took those away — but it is still a
     // GEOMETRY one, and only forward of the tip is it answerable:
@@ -4400,18 +4412,36 @@ impl<T: Decide> Core<T> {
         let w = arr_pos - pending.origin;
         let wn = w.norm_squared().sqrt();
         // (1) a turn zero at tolerance admits no corner: the turn
-        // margin sin φ levered by the anchor separation.
-        let cross = u1.perp_dot(u2);
-        let turn = decide(
-            Gate::PathCornerTurn,
-            // Unsourced lever: the two anchors' separation, a length of the consumed path
-            // with no extent home in `profile`.
-            Margin::levered(cross, geom_core::Lever::unsourced(wn)),
-            band,
-        )
-        .map_err(PathError::escalated)?;
-        let Some((sgn, sense)) =
-            crate::sugar::turn_side::<T>(turn).zip(crate::sugar::turn_sense(turn))
+        // margin sin φ levered by the anchor separation, and only a turn
+        // decided nonzero places the corner (`Line2::meet`).
+        let incoming = geom_core::Line2 {
+            origin: pending.origin,
+            dir: u1,
+        };
+        let arrival = geom_core::Line2 {
+            origin: arr_pos,
+            dir: u2,
+        };
+        let meet = incoming
+            .meet(&arrival, |cross| {
+                decide(
+                    Gate::PathCornerTurn,
+                    // Unsourced lever: the two anchors' separation, a length of the consumed path
+                    // with no extent home in `profile`.
+                    Margin::levered(cross, geom_core::Lever::unsourced(wn)),
+                    band,
+                )
+            })
+            .map_err(PathError::escalated)?;
+        // (2) the corner must lie ahead of the incoming ray's origin
+        // and behind the arrival side's anchor (ray parameters, meters).
+        let (turn, cross, at) = match meet {
+            geom_core::LineMeet::Cross { t, s, turn, det } => (turn, det, Some((t, s))),
+            geom_core::LineMeet::Parallel { det } => (Sign::Zero, det, None),
+        };
+        let Some(((sgn, sense), (t_ray, s_arr))) = crate::sugar::turn_side::<T>(turn)
+            .zip(crate::sugar::turn_sense(turn))
+            .zip(at)
         else {
             return Err(PathError::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
@@ -4423,13 +4453,9 @@ impl<T: Decide> Core<T> {
                 radius: pending.radius,
             });
         };
-        // (2) the corner must lie ahead of the incoming ray's origin
-        // and behind the arrival side's anchor (ray parameters, meters).
-        let t_ray = w.perp_dot(u2) / cross;
-        let s_arr = w.perp_dot(u1) / cross;
         // The corner is derived before the windows are read, because a
         // window refusal is ABOUT it: the sentence names the point.
-        let corner = pending.origin + u1 * t_ray;
+        let corner = incoming.at(t_ray);
         match decide(Gate::PathCornerAdvance, Margin::of(t_ray), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
@@ -5690,9 +5716,14 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         tol: Tol,
     ) -> Result<Option<BuiltArc<T>>, PathError<T>> {
         let at = self.tip_pos()?.at;
-        let chord_len = self.arc_chord(end, tol)?;
+        // The chord decided nonzero, so the line through it has a direction.
+        self.arc_chord(end, tol)?;
         let band = linear_band(tol)?;
-        let offset = (end - at).perp_dot(via - at) / chord_len;
+        let offset = geom_core::Line2 {
+            origin: at,
+            dir: end - at,
+        }
+        .side(via);
         // `via` left of the chord puts the arc on the chord's left, which
         // a clockwise turn from `at` traverses.
         let sense = match decide(Gate::PathArcViaOffset, Margin::of(offset), band) {

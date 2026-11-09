@@ -3060,11 +3060,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         face: designated,
         error: error.from_driver(),
     };
-    let ends = |body: &Body<T>, edge: EdgeKey| {
-        let data = proven(&body.edges, edge, EntityId::Edge);
-        let start = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start;
-        (start, body.proven_half_edge_end(data.he_plus))
-    };
+    let ends = crate::query::edge_ends::<T>;
     // The pole: the one vertex every seam reaches and nothing else does.
     let pole = {
         let (a, b) = ends(body, seams[0]);
@@ -4926,7 +4922,7 @@ fn walls_cross<T: Decide>(
     let line = geom::Line { origin: p0, dir: d };
     let on_a = a.cut(line, band)?;
     let on_b = b.cut(line, band)?;
-    let along = |p: geom_core::Point3<T>| line.param(p);
+    let along = |p: geom_core::Point3<T>| line.height(p);
     // Where the two faces are joined: every moved common edge, which
     // lies on `L`, and every shared vertex, widened to twice the
     // escalation width either side. Two joined faces come arbitrarily
@@ -5110,7 +5106,8 @@ impl<T: Decide> ArcPiece<T> {
 
 impl<T: Decide> MovedWall<T> {
     /// The intervals of the line `L` (its `dir` unit, in this face's
-    /// plane) the face covers, as `(lo, hi)` in `L`'s parameter (module
+    /// plane) the face covers, as `(lo, hi)` in heights along `L`
+    /// ([`geom::Line::height`], its parameter where `dir` is unit; module
     /// docs of [`moved_walls_cross`] for the reading): the union of the
     /// two readings that count a point on `L` with one side and with the
     /// other. Each reading holds the boundary stretches on `L` of a face
@@ -5221,7 +5218,7 @@ impl<T: Decide> MovedWall<T> {
                     // one in the half-turn before it `φ − root`.
                     let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
-                    crossings.push(line.param(at(theta)));
+                    crossings.push(line.height(at(theta)));
                 }
                 continue;
             }
@@ -5241,10 +5238,10 @@ impl<T: Decide> MovedWall<T> {
                 let mut splits = 0;
                 while let Some((piece, a, b)) = work.pop_front() {
                     let (c, rho) = piece.ball();
-                    let along = line.param(c);
-                    // The offset off `L` as a vector, not `|w|² − along²`,
-                    // which cancels to noise when a small ball sits close.
-                    let perp = line.distance(c);
+                    // The offset off `L` as its own distance, not
+                    // `|w|² − along²`, which cancels to noise when a small
+                    // ball sits close.
+                    let (along, perp) = line.height_and_distance(c);
                     // Undecided reaches: the read only grows the set.
                     if !matches!(
                         decide("shell_moved_wall_ball_reach", Margin::of(rho - perp), band),
@@ -5267,7 +5264,7 @@ impl<T: Decide> MovedWall<T> {
                     if side_of(a)? != side_of(b)? {
                         let (sp, sq) = ((a.1 - line.origin).dot(m), (b.1 - line.origin).dot(m));
                         let x = a.1 + (b.1 - a.1) * (sp / (sp - sq));
-                        crossings.push(line.param(x));
+                        crossings.push(line.height(x));
                     }
                 }
                 continue;
@@ -5276,7 +5273,7 @@ impl<T: Decide> MovedWall<T> {
             if side_of(key(edge.start))? != side_of(key(edge.end))? {
                 let (sp, sq) = ((p - line.origin).dot(m), (q - line.origin).dot(m));
                 let x = p + (q - p) * (sp / (sp - sq));
-                crossings.push(line.param(x));
+                crossings.push(line.height(x));
             }
         }
         // Ordered by decided comparisons, a selection rather than a

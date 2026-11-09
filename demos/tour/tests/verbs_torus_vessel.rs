@@ -173,7 +173,7 @@ fn sense_of(centre_rho: f64) -> f64 {
 fn stored_minors(body: &Body<f64>) -> Vec<u64> {
     let mut out: Vec<f64> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })

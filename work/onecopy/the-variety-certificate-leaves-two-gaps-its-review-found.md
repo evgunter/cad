@@ -2,10 +2,20 @@
 id: the-variety-certificate-leaves-two-gaps-its-review-found
 kind: issue
 title: PR 6577's delta review: slit's conic site has no pin for an in-band ring escalating, and the breakpoints gate misses two dedup shapes and over-fires under filter-like adapters
+<<<<<<< HEAD
 status: open
 opened: 2026-11-09
 priority: P3
 cost: E
+=======
+status: closed
+opened: 2026-11-09
+priority: P3
+cost: E
+closed: 2026-11-09
+branch: onecopy/variety-gaps
+pr: 6616
+>>>>>>> origin/main
 ---
 
 

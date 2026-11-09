@@ -41,7 +41,7 @@ fn band() -> Band {
 fn minted_face(body: &Body<f64>, pick: impl Fn(&Surface<f64>) -> bool) -> (FaceKey, HalfEdgeKey) {
     body.faces()
         .find_map(|(fk, f)| {
-            if !pick(body.get_surface(f.surface).unwrap()) {
+            if !pick(body.face_surface(fk).unwrap()) {
                 return None;
             }
             let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary
@@ -149,12 +149,13 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
             *e,
             topo::PcurveMintError::Certify {
                 half_edge,
-                error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Cone,
-                    ..
-                },
+                ref error,
                 ..
-            } if half_edge == made.he_plus || half_edge == made.he_minus
+            } if (half_edge == made.he_plus || half_edge == made.he_minus)
+                && matches!(
+                    geom_brep::IncidenceRead::of(error),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                )
         )
     };
     let findings = validate_pcurves(&body, band());
@@ -399,8 +400,10 @@ fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
         b.get_loop(lk).unwrap().face
     };
     let on_spline = |b: &Body<f64>, h: HalfEdgeKey| {
-        let f = b.get_face(face_of(b, h)).unwrap();
-        b.get_surface(f.surface).unwrap().spline_chart().is_some()
+        b.face_surface(face_of(b, h))
+            .unwrap()
+            .spline_chart()
+            .is_some()
     };
     let wall_images = |b: &Body<f64>, killed: &[HalfEdgeKey]| {
         format!(
@@ -509,8 +512,10 @@ fn a_re_parameterized_certified_edge_leaves_its_spline_wall_as_found() {
     let base = lofted_prism();
     let on_spline = |b: &Body<f64>, h: HalfEdgeKey| {
         let lk = b.get_half_edge(h).unwrap().parent_loop;
-        let f = b.get_face(b.get_loop(lk).unwrap().face).unwrap();
-        b.get_surface(f.surface).unwrap().spline_chart().is_some()
+        b.face_surface(b.get_loop(lk).unwrap().face)
+            .unwrap()
+            .spline_chart()
+            .is_some()
     };
     let wall_images = |b: &Body<f64>| {
         format!(
