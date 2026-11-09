@@ -218,8 +218,10 @@ pub(super) fn rate_bound_over<S, C>(
     total
 }
 
-/// The jets of `t`, `cos t` and `sin t` from enclosures of their values.
-pub(super) fn trig_jets(t: Interval, c: Interval, s: Interval) -> (Jet, Jet, Jet) {
+/// The jets of `t`, `cos t` and `sin t` over the bracket `t`, the
+/// values read through [`trig_of`], so a refused `t` gives refused jets.
+pub(super) fn trig_jets(t: Interval) -> (Jet, Jet, Jet) {
+    let (c, s) = trig_of(t);
     let z = Interval::zero();
     (
         Jet([t, Interval::one(), z, z, z]),
@@ -270,8 +272,7 @@ pub(super) fn composite<const N: usize>(
         pieces,
         |_, _| (),
         |(), t| {
-            let (c, s) = trig_range(t.lo(), t.hi());
-            let (tj, cj, sj) = trig_jets(t, c, s);
+            let (tj, cj, sj) = trig_jets(t);
             g(tj, cj, sj)
         },
     )

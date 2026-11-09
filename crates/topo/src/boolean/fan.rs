@@ -46,7 +46,7 @@ use geom_core::Lever;
 /// every point of a line through the apex, so a ruling-shaped bound's
 /// far point reads it at its reach.
 pub(super) fn nappe_offset<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>, q: Point3<T>) -> T {
-    let a = nappe_axis(apex, like);
+    let a = apex.nappe_axis(like);
     let (z, rho) = geom::Line {
         origin: apex.apex,
         dir: a,
@@ -54,12 +54,6 @@ pub(super) fn nappe_offset<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>, q: Poin
     .height_and_distance(q);
     let (sin, cos) = apex.half_angle.sin_cos();
     geom_brep::implicit::cone_offset(rho, z, sin, cos)
-}
-
-/// The cone's unit axis turned toward the nappe `like` (a ruling the face
-/// leaves the apex along) lies on.
-pub(super) fn nappe_axis<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>) -> Vec3<T> {
-    apex.axis * T::one().copysign(like.dot(apex.axis))
 }
 
 /// **A bound's side of a sector's face** at the base vertex: a plane's
@@ -126,7 +120,7 @@ pub(super) fn fan_within_signs<T: Decide>(
     // A direction on the cone leaves the apex `cos α` along its nappe's
     // axis, well clear of zero: the nappe it lies on is read at the
     // sector's arm.
-    let along = dir.normalize().dot(nappe_axis(apex, s.start));
+    let along = dir.normalize().dot(apex.nappe_axis(s.start));
     if decide("bool_fan_nappe", Margin::levered(along, s.arm), band).map_err(escalate)?
         != Sign::Positive
     {
@@ -210,7 +204,7 @@ pub(super) fn meeting<T: Decide>(
             plane_fan(((b_op, b_site, b), apex), normal.vec(), band)
         }
         (BoolFace::Apex(pa), BoolFace::Apex(pb)) => {
-            let (axa, axb) = (nappe_axis(pa, a.start), nappe_axis(pb, b.start));
+            let (axa, axb) = (pa.nappe_axis(a.start), pb.nappe_axis(b.start));
             let tangency = || BooleanError::CurvedBooleanUnsupported {
                 operand: a_op,
                 face: a.face,
@@ -280,7 +274,7 @@ pub(super) enum Coaxial<T> {
 }
 
 /// **The one-cone ladder** for two fans at one apex, each read by its
-/// nappe's axis ([`nappe_axis`], the caller's): coaxial
+/// nappe's axis ([`ConeApex::nappe_axis`], the caller's): coaxial
 /// (`bool_fans_coaxial`, `‖a₁ × a₂‖` levered by `arm`), then on one nappe
 /// (`bool_fan_nappe`, `a₁·a₂`), then of one aperture (`bool_fans_one_cone`).
 /// The one home of the reading, which [`meeting`] and [`nappe_classes`]
@@ -519,7 +513,7 @@ pub(super) fn nappe_classes<T: Decide>(
             return Err(unbuilt(first.face));
         };
         let arm = first.arm.min(s.arm);
-        let axes = (nappe_axis(apex, first.start), nappe_axis(other, s.start));
+        let axes = (apex.nappe_axis(first.start), other.nappe_axis(s.start));
         let one = matches!(
             one_cone((apex, axes.0), (other, axes.1), arm, band)?,
             Coaxial::OneCone
