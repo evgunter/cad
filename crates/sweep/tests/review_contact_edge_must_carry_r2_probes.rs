@@ -488,7 +488,8 @@ fn r2_a_sphere_support_toward_osculation_never_reaches_the_rule() {
 /// contact edges and filleting both yields four, and the
 /// `tangent_second_order` sample count is `2 × (CERT_SAMPLES − 2)` per
 /// contact edge either way — the rule's interior stations plus the
-/// certification door's re-ask. Counting at two edge counts is what
+/// certification door's re-ask, beside the door's finish
+/// (`finish_spend`). Counting at two edge counts is what
 /// separates "per contact edge" from "per carve".
 #[cfg(feature = "probe")]
 #[test]
@@ -519,8 +520,15 @@ fn r2_the_rules_stations_scale_with_the_contact_edge_count() {
             2 * request.len(),
             "two contact edges per requested crease"
         );
+        let finish =
+            crate::contact_edge_must_carry::finish_spend(&out.body, "tangent_second_order", tol());
         assert_eq!(
-            spent,
+            finish,
+            contact * 2 * interior,
+            "the door's finish reads each contact edge's stations twice more: tier 2's edge wedge and tier 3's recertification"
+        );
+        assert_eq!(
+            spent - finish,
             contact * 2 * interior,
             "{} crease(s): the rule's stations once per contact edge, beside the certificate's",
             request.len()
