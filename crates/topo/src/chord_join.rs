@@ -5471,21 +5471,13 @@ fn ring_side<T: Decide>(
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
     let read = |v: VertexKey| {
-        let reading = point_in_loop(
+        vertex_side(point_in_loop(
             body,
             run,
             normal,
             body.resolve_vertex_point(v, Proven),
             band,
-        );
-        vertex_side(
-            reading.map(|at| match at {
-                LoopContainment::In => Some(RingSide::In),
-                LoopContainment::Out => Some(RingSide::Out),
-                LoopContainment::OnBoundary => None,
-            }),
-            PointInLoopError::refusal,
-        )
+        ))
     };
     match climb(Answering::Any, ring_vertices(body, ring)?, read) {
         Climb::Answered { answer, .. } => answer.map_err(SplitJoinError::from),
@@ -5494,18 +5486,19 @@ fn ring_side<T: Decide>(
     }
 }
 
-/// One ring vertex's reading as [`ring_side`]'s rung: a decided side
-/// answers, a vertex on the run (`None`) passes, and a refusal stands by
-/// `standing`, its own ([`Rung::refused`]): kept, or aborting with itself.
-fn vertex_side<E>(
-    reading: Result<Option<RingSide>, E>,
-    standing: impl FnOnce(&E) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts>,
-) -> Rung<Result<RingSide, E>, E> {
-    match reading {
-        Ok(Some(side)) => Rung::Answers(Ok(side)),
-        Ok(None) => Rung::Passes,
-        Err(e) => Rung::refused(e, standing),
-    }
+/// One ring vertex's containment as [`ring_side`]'s rung
+/// ([`Rung::answers`]): a decided side answers, a vertex on the run
+/// passes, and a refusal stands by its own standing
+/// ([`PointInLoopError::refusal`]).
+fn vertex_side(
+    reading: Result<LoopContainment, PointInLoopError>,
+) -> Rung<Result<RingSide, PointInLoopError>, PointInLoopError> {
+    let side = |at| match at {
+        LoopContainment::In => Some(RingSide::In),
+        LoopContainment::Out => Some(RingSide::Out),
+        LoopContainment::OnBoundary => None,
+    };
+    Rung::answers(reading.map(side), PointInLoopError::refusal)
 }
 
 /// Where ring re-homing puts a bystander ring.

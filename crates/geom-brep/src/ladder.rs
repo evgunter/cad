@@ -361,16 +361,27 @@ impl<A, E> Rung<A, E> {
 impl<A, E> Rung<Result<A, E>, E> {
     /// **A reading of whether one rung holds** as its rung: holding
     /// answers `Ok(yes)`, not holding passes, and a refusal stands by
-    /// `standing` ([`Self::refused`]). The one home of the reader that
+    /// `standing` ([`Self::answers`]). The one home of the reader that
     /// answers a `bool` over a refusal with a standing.
     pub fn holds(
         reading: Result<bool, E>,
         yes: A,
         standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
     ) -> Self {
+        Self::answers(reading.map(|held| held.then_some(yes)), standing)
+    }
+
+    /// **A reading that answers `Some(a)`** as its rung: `Some` answers
+    /// `Ok(a)`, `None` passes, and a refusal stands by `standing`
+    /// ([`Self::refused`]): [`Self::holds`] where the answer is read
+    /// rather than fixed.
+    pub fn answers(
+        reading: Result<Option<A>, E>,
+        standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
+    ) -> Self {
         match reading {
-            Ok(true) => Self::Answers(Ok(yes)),
-            Ok(false) => Self::Passes,
+            Ok(Some(a)) => Self::Answers(Ok(a)),
+            Ok(None) => Self::Passes,
             Err(e) => Self::refused(e, standing),
         }
     }
