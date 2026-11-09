@@ -4459,7 +4459,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "result_pinched_at_cone_apex",
             "revert",
             "rim_cusp_arm_unbuilt",
-            "scaffolding_operand",
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
