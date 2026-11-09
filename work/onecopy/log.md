@@ -1018,3 +1018,4 @@
 - 14:50Z carrier-standing-2 opened PR 6648 (650875a1): typed-reason 3/7(C)/11(B)(i), leftovers, holding_face_normal → FULL review with session_013mPGJ5AURPj9f5Uzr4HKv7; gating. Filed: an aborting touch waits; two boolean normal readers absorb refusals.
 - 14:55Z line-placement Q3: the cut is approved. This PR ports topo's ~25 and the small geom/geom-brep holders; props/curved's ~30 go to a PROPS row; surface axes are built via Frame::axis_line().
 - 14:55Z 6638 fix pass at bcea2b66 (1e4 claim corrected; residue row filed; lens depth row red under M3; atrest narrowed; umbrella repointed) → delta with session_013mPGJ5pxD6AT4GPvwns2YC, then 6642 FULL (ec860498) with the same reviewer; 6638 gating.
+- 14:58Z 6637 at a6bd9336 (main merged; NoReference split into limit + ReferenceInBand, with 4 assertions moved; record wording exact; seeds on the splitdoor row) → small delta with session_013mPGJ5anAaqvSq3TzpQnZG; gating.
