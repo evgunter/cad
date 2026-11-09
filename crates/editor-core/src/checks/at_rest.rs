@@ -516,7 +516,7 @@ where
                 return None;
             };
             let crate::eval::measure::Carrier::Point { at, .. } =
-                crate::eval::measure::carrier_of(body, *ent)
+                crate::eval::measure::carrier_of(body, *ent, band)
             else {
                 return None;
             };
@@ -545,7 +545,7 @@ where
         let carrier = |i: usize| {
             let (body, ent) = &read.cells[i];
             if !said.poses {
-                return Some(crate::eval::measure::carrier_of(body, *ent));
+                return Some(crate::eval::measure::carrier_of(body, *ent, band));
             }
             let kind = pose_kind::<T>(&read.cells[i])?;
             crate::eval::read_off_cell(body, *ent, kind, band).ok()
@@ -1070,7 +1070,10 @@ fn pairing_read<T: Decide>(
     };
     let (outer_carrier, inner_carrier) = (carrier(outer)?, carrier(inner)?);
     let at = face_point(body, outer)?;
-    let (r_outer, r_inner) = (reach_of(body, outer, at)?, reach_of(body, inner, at)?);
+    let (r_outer, r_inner) = (
+        reach_of(body, outer, at, band)?,
+        reach_of(body, inner, at, band)?,
+    );
     constant_pairing(outer_carrier.0, inner_carrier.0, r_outer + r_inner, band).then(|| {
         PairingRead {
             outer: outer_carrier,
@@ -1745,6 +1748,7 @@ fn could_quiet(
                 body: 0,
                 key: EntityKey::Face(key),
             },
+            band,
         )
     };
     let (from_a, from_b) = (of(a), of(b));
@@ -1957,20 +1961,17 @@ fn beyond(
             body: 0,
             key: EntityKey::Face(face),
         },
+        band,
     );
     let origin = match &carrier {
         Carrier::Plane { origin, .. } | Carrier::Cylinder { origin, .. } => *origin,
         _ => return Err("the containment check has no lane for this carrier".to_owned()),
     };
-    // Every face of the intersection a plane or a cylinder patch, whose
-    // reach its own boundary bounds.
+    // The region is sized to hold every face of the overlap: each face's
+    // cover's farthest from the carrier's point.
     let mut reach = 0.0_f64;
-    for (f, held) in result.faces() {
-        match result.get_surface(held.surface) {
-            Some(topo::Surface::Plane { .. } | topo::Surface::Cylinder { .. }) => {}
-            _ => return Err("a face of the overlap the containment check cannot bound".to_owned()),
-        }
-        let r = reach_of(result, f, origin).ok_or("a face of the overlap with no reach")?;
+    for (f, _) in result.faces() {
+        let r = reach_of(result, f, origin, band).ok_or("a face of the overlap with no cover")?;
         reach = reach.max(r);
     }
     let pad = reach.mul_add(0.5, 1e3 * tol.eps());

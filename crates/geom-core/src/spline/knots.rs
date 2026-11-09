@@ -1436,6 +1436,14 @@ impl KnotVector {
         runs_in(&self.knots)
     }
 
+    /// **The distinct breakpoints, ascending, clamps included**: where the
+    /// spline's Bézier pieces begin and end, each once ([`Self::knot_runs`]
+    /// with the multiplicities dropped). The held-value twin is
+    /// [`super::Knots::breakpoints`].
+    pub fn breakpoints(&self) -> impl DoubleEndedIterator<Item = f64> + Clone + '_ {
+        self.knot_runs().map(|(k, _)| k)
+    }
+
     /// The clamped single-segment (Bézier) vector on `[0, 1]`:
     /// `degree + 1` zeros followed by `degree + 1` ones. Total, with
     /// nothing refused and nothing substituted: the clamped-v1 form
