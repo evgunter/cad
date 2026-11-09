@@ -782,3 +782,13 @@
     - Fork log row 256 carries the recommendation half.
   - I'm subscribed to 6625.
   - The branch-band lane lands the outcome on 6618: it closes the row, appends to the P0 unit, fixes two doc overstatements, and files a Hit::On naming row.
+- 08:24Z PR 6576's taxonomy pass is in (head aaa78137, main merged).
+  - Its lint went red on ruff 504; it joins the post-6619 queue.
+  - Delta review dispatched. It also asks whether DegenerateTorus, Limit in NormalAtError but Abort in BooleanError, should delegate.
+  - 6598 still merges after 6576.
+- 08:24Z PR 6618 (head 8dfb187f) carries the fork's outcome:
+  - the row is closed;
+  - the P0-unit section is appended in work/clear;
+  - two doc overstatements are fixed;
+  - the naming row `branch-names-both-a-closed-carriers-turn-and-a-fold` is filed.
+  - Queued after 6619.
