@@ -15,11 +15,11 @@
 #     `bracket_mid` per coordinate.
 # A hand spelling of either form is refused and named with the home of
 # ITS form, so moving a site onto its home moves no `f64` or `Sym`
-# value. Where the halving was a division by 2, the home's
-# multiplication by ½ makes a different `Sym` form for the same value
-# (its digest, and which denominators `Form::add` shares), and at
-# `Interval` an endpoint of magnitude below about `2⁻⁹⁵⁹` can widen
-# outward by one ulp, which is sound. The home's own file is exempt.
+# value; at `Interval` an enclosure can only narrow, by one ulp under the
+# 2Prod floor where the halving was a division, and never widens (the
+# product by ½ is exact at every normal magnitude). Where the halving
+# was a division by 2 its `Sym` form differs (its digest, and which
+# denominators `Form::add` shares). The home's own file is exempt.
 #
 # WHAT IS REFUSED, in production code under `crates/*/src` (comments and
 # string literals out, `#[cfg(test)]` modules and test-only mounts out,

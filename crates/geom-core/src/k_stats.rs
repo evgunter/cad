@@ -931,9 +931,32 @@ pub enum NonzeroSign {
     Negative,
 }
 
+impl NonzeroSign {
+    /// **The decided side's unit value**, `+1` or `−1` at `T`: the one
+    /// spelling of a ±1 read off a sign already decided. Its hull twin,
+    /// read off a value rather than a decision, is
+    /// [`crate::Real::unit_sign`].
+    #[must_use]
+    pub fn unit<T: Real>(self) -> T {
+        match self {
+            Self::Positive => T::one(),
+            Self::Negative => -T::one(),
+        }
+    }
+
+    /// The other side.
+    #[must_use]
+    pub fn flip(self) -> Self {
+        match self {
+            Self::Positive => Self::Negative,
+            Self::Negative => Self::Positive,
+        }
+    }
+}
+
 impl From<NonzeroSign> for Sign {
-    fn from(sign: NonzeroSign) -> Self {
-        match sign {
+    fn from(side: NonzeroSign) -> Self {
+        match side {
             NonzeroSign::Positive => Self::Positive,
             NonzeroSign::Negative => Self::Negative,
         }

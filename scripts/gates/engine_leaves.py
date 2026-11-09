@@ -45,7 +45,8 @@ any length, for a type. `$crate`, `topo` (this crate's own name) and a
 such name, so the exclusion is read rather than silent.
 
 WHAT AN OCCURRENCE IS. A token of the name, not after `.` (a method or
-field), not qualified by an external crate, and not resolving to an
+field), not qualified by an external crate, not an associated type's
+binding (`Item` in `Iterator<Item = X>`), and not resolving to an
 external crate's import. Under a capitalised head (`H::name`) it counts
 unless H is `Self`, a type parameter, a std type, a type declared
 outside the engines or imported from elsewhere, or an engine name
@@ -554,6 +555,10 @@ def names_engine(f, e, eng):
         if pre is None or (pre and pre[0] in ext):
             continue
         nxt = toks[i + 1][0] if i + 1 < len(toks) else ''
+        prev = toks[i - 1][0] if i >= 1 else ''
+        bound_to = toks[i + 2][0] if i + 2 < len(toks) else ''
+        if not pre and prev in ('<', ',') and nxt == '=' and bound_to not in ('=', '>'):
+            continue                        # an associated type's binding
         if t == e:
             before = toks[i - len(pre) * 2 - 1][0] if i - len(pre) * 2 >= 1 else ''
             if before in ('mod', 'in') or not (pre or nxt == '::'):
