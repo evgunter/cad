@@ -280,8 +280,6 @@ impl<T: Real> Point3<T> {
     }
 }
 
-/// `Point − Point = Vec`: the displacement from `rhs` to `self` — the
-/// defining map of the torsor structure.
 /// **Exact equality of two points, the two questions it can be.** The
 /// linear types carry no `PartialEq`: a coincidence the kernel decides is
 /// a margin's (D10), and these are the two exact readings a caller may
@@ -334,6 +332,8 @@ impl Point2<f64> {
     }
 }
 
+/// `Point − Point = Vec`: the displacement from `rhs` to `self` — the
+/// defining map of the torsor structure.
 impl<T: Real> Sub for Point2<T> {
     type Output = Vec2<T>;
 
@@ -408,26 +408,56 @@ mod tests {
     /// other, or reads the difference's norm.
     #[test]
     fn the_two_exact_equalities_part_at_a_signed_zero_a_nan_and_an_underflow() {
-        let (zero, signed) = (Point3::new(0.0, 1.0, 2.0), Point3::new(-0.0, 1.0, 2.0));
-        assert!(zero.equals_exactly(signed) && !zero.same_bits(signed), "±0");
-        let nan = Point3::new(f64::NAN, 1.0, 2.0);
-        assert!(!nan.equals_exactly(nan) && nan.same_bits(nan), "NaN");
-        let near = Point3::new(1e-170, 1.0, 2.0);
-        let base = Point3::new(0.0, 1.0, 2.0);
-        assert!(
-            (near - base).norm() == 0.0,
-            "the difference's norm underflows"
-        );
-        assert!(
-            !near.equals_exactly(base) && !near.same_bits(base),
-            "1e-170 apart"
-        );
-        let (a, b) = (Point2::new(-0.0, 3.0), Point2::new(0.0, 3.0));
-        assert!(a.equals_exactly(b) && !a.same_bits(b), "Point2 ±0");
-        let (u, v) = (Vec3::new(0.0, -0.0, 1.0), Vec3::new(0.0, 0.0, 1.0));
-        assert!(u.equals_exactly(v) && !u.same_bits(v), "Vec3 ±0");
-        let (u, v) = (Vec2::new(f64::NAN, 0.0), Vec2::new(f64::NAN, 0.0));
-        assert!(!u.equals_exactly(v) && u.same_bits(v), "Vec2 NaN");
+        // Each coordinate in turn: the origin with that one coordinate
+        // set to `x`.
+        let at = |k: usize, x: f64| {
+            let mut c = [0.0; 3];
+            c[k] = x;
+            Point3::from_array(c)
+        };
+        let base = Point3::new(0.0, 0.0, 0.0);
+        for k in 0..3 {
+            let signed = at(k, -0.0);
+            assert!(
+                base.equals_exactly(signed) && !base.same_bits(signed),
+                "coordinate {k}: ±0"
+            );
+            let nan = at(k, f64::NAN);
+            assert!(
+                !nan.equals_exactly(nan) && nan.same_bits(nan),
+                "coordinate {k}: NaN"
+            );
+            let near = at(k, 1e-170);
+            assert!(
+                (near - base).norm() == 0.0,
+                "coordinate {k}: the norm underflows"
+            );
+            assert!(
+                !near.equals_exactly(base) && !near.same_bits(base),
+                "coordinate {k}: 1e-170 apart"
+            );
+            let u = Vec3::from_array(signed.to_array());
+            assert!(
+                u.equals_exactly(Vec3::new(0.0, 0.0, 0.0))
+                    && !u.same_bits(Vec3::new(0.0, 0.0, 0.0)),
+                "Vec3 coordinate {k}: ±0"
+            );
+        }
+        for k in 0..2 {
+            let (mut c, mut d) = ([3.0; 2], [3.0; 2]);
+            (c[k], d[k]) = (-0.0, 0.0);
+            let (a, b) = (Point2::from_array(c), Point2::from_array(d));
+            assert!(
+                a.equals_exactly(b) && !a.same_bits(b),
+                "Point2 coordinate {k}: ±0"
+            );
+            c[k] = f64::NAN;
+            let u = Vec2::from_array(c);
+            assert!(
+                !u.equals_exactly(u) && u.same_bits(u),
+                "Vec2 coordinate {k}: NaN"
+            );
+        }
     }
 
     /// Coordinate strategy — see `vec.rs::tests::coord` for the range

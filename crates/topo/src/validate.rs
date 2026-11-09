@@ -14936,7 +14936,7 @@ mod tests {
     ) {
         let e = body.get_edge(edge).unwrap().clone();
         let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
-        assert!(s.distance(t) == 0.0, "a closed edge");
+        assert!(s.equals_exactly(t), "a closed edge");
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
         let carrier = geom::Curve3::Circle(geom::Circle {

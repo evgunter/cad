@@ -373,9 +373,8 @@ fn mirrors_to_its_image(what: &str, body: Body<f64>) {
                 .find(|(j, _)| *j == k)
                 .expect("the key survives")
                 .1;
-            assert_eq!(
-                q.to_array().map(f64::to_bits),
-                map.transform_point(*p).to_array().map(f64::to_bits),
+            assert!(
+                q.same_bits(map.transform_point(*p)),
                 "{label}: point {k:?} is the reflection of the source's"
             );
         }

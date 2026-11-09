@@ -5078,7 +5078,7 @@ mod tests {
         let b = band();
         let got = sector_face(&body, Operand::A, apex_vertex, apex_he, b);
         assert!(
-            matches!(got, Ok((f, BoolFace::Apex(at))) if f == face && at.apex.distance(apex) == 0.0),
+            matches!(got, Ok((f, BoolFace::Apex(at))) if f == face && at.apex.equals_exactly(apex)),
             "the apex corner: {got:?}"
         );
         let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)

@@ -7522,7 +7522,7 @@ mod segment_curve_tests {
             "the interval runs back"
         );
         assert!(
-            back.carrier.eval(-1.0).distance(line.eval(1.0)) == 0.0,
+            back.carrier.eval(-1.0).equals_exactly(line.eval(1.0)),
             "from the far end"
         );
         let stated = SegmentCurve::of(

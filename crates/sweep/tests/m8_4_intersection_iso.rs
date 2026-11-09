@@ -1186,7 +1186,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
     let plus = body.get_edge(edge).unwrap().he_plus;
     let from = vertex_at(&body, body.get_half_edge(plus).unwrap().start);
     assert!(
-        from.distance(end) == 0.0,
+        from.equals_exactly(end),
         "the rim runs from the row's u = {u_hi} end to its u = {u_lo} end: starts at {from:?}"
     );
     // The row run back by the kernel's own door, and the row on its
