@@ -48,3 +48,15 @@
     - `sides_mixed` is an `unreachable!` invariant;
     - C22 is one level up: the glue door keeps one verdict table for every pair it reads (Glued / InBand / Apart), and the corner reads it rather than re-deciding the pair, retiring README C4's agent-written corner sentence.
   - Round 1 is running, each designer shown the other's `For Ev`.
+- 2026-11-09 — **Fork `glue-disagreements-carry`, round 1: both moved, and they crossed on three points.**
+  - **Now agreed:**
+    - a reading's definite "no" is a typed verdict, and a contradiction exists only at rest against a record. The Boolean then mints none: `BooleanError::ContactContradicted` and the conformal screen are decided-twice debris;
+    - `CarrierVerdict::{One, Apart(Decided)}`;
+    - the corner stops re-reading the carrier pair, and its Apart refusal is `Coincide::Sectors`;
+    - README C4's agent-written corner sentence retires.
+  - **Crossed:** A moved to B's first positions (the witness as a gate rejection, a door verdict table, `sides_mixed` unreachable), and B moved to A's (witness straddle, no table, `sides_mixed` typed). `Decided.predicate`: A adopted it and B withdrew it.
+  - Round 2 asks the question beneath each:
+    - is a carrier-wide upper an honest bound on the faces;
+    - does the lane admit a rim where n1·n2 varies;
+    - does any reader need the door's Apart for a decision or recourse;
+    - with row enums, does the predicate field have a reader.
