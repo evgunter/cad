@@ -402,3 +402,9 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Design forks the row leaves open** (how the name comes into being, the exemption's reach) are the lane's to report, not to choose. `[ev]` 6600's target build follows. (PLACING orchestrator)
 - 2026-11-09 — **Conflict markers committed again**, in three placing rows, by the merge of main in `9e64a3e93d`. `git add -A` ran after a failed merge in the same shell line, and lint failed in that line without stopping the commit. Fixed forward by taking main's closed rows.
   - **Class:** a merge and a commit must not share one `&&`-less shell line. Check `git diff --name-only --diff-filter=U` and gate the commit on lint (`lint | grep -q ok &&`). (PLACING orchestrator)
+- 2026-11-09 — **The named-source lane scoped and stopped.** Report: `~/.local/share/cad-work/placing-named-source-scoping.md`.
+  - **The finding:** Ev's `bracket = B` needs a body-alias variable. The kernel has none, and ratified DESIGN text excludes one ("Only an operation defines a shape"; a body variable is defined by a construction … or a placement).
+  - **Settled already:** VR2's no-minted-names rule (Ev, PR 4296); naming at the moment of sharing; delete-by-continuation extending to definition readers.
+  - **Six forks remain:** where the name comes from; how far the exemption retreats; what reads the name; hand editing; several aliases; what an alias may read.
+  - **Design fork dispatched** to two designers (arm byte 100, label byte 205; mapping on `analysis/design-fork/placing-named-source`). Brief: `~/.local/share/cad-work/placing-fork-named-brief.md`.
+  - **The lane is idle** at `/home/user/wt-named-source` until the ruling. (PLACING orchestrator)
