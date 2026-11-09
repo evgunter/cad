@@ -27,8 +27,10 @@
 //! (`scripts/gates/least-band-on-a-door.sh`) and the ledger census
 //! (`geom-core/tests/flagged_census.rs`) read the doors off this file's
 //! `pub` signatures, so a door takes its band as a parameter whose type
-//! names `Band`, and its ledger row as one `&str` parameter or one whose
-//! name holds `row`, never inside a struct argument. Every other `pub` fn
+//! names `Band` (or a name this file gives it, by `type` or `use … as`),
+//! and its ledger row as one parameter of a text type (`&str`, `String`,
+//! or an alias this file gives one) or one whose name holds `row`, never
+//! inside a struct argument. Every other `pub` fn
 //! here that takes a band or such a parameter is named as a non-door in
 //! the reader that would otherwise take it for one.
 //!
@@ -924,6 +926,15 @@ pub enum NonzeroSign {
     Positive,
     /// The margin classified definitely negative.
     Negative,
+}
+
+impl From<NonzeroSign> for Sign {
+    fn from(sign: NonzeroSign) -> Self {
+        match sign {
+            NonzeroSign::Positive => Self::Positive,
+            NonzeroSign::Negative => Self::Negative,
+        }
+    }
 }
 
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling

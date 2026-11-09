@@ -2169,7 +2169,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                     return Ok(None);
                 }
                 let (placement, _, _) =
-                    super::contain::curved_face_placement_decided(piercing_body, face, p, band)
+                    super::contain::placement_on_carrier(piercing_body, face, p, band)
                         .map_err(|e| super::reduce::esc(e, piercing, face))?;
                 let kind = kind_of(piercing_body, face);
                 match placement {
@@ -2180,7 +2180,8 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                         return Err(unbuilt(face, kind, false));
                     }
                     // Off the face, or on its boundary, which the sweep's
-                    // pierces and splits hold.
+                    // pierces and splits hold. OffCarrier → not held (the
+                    // residual above decided `p` on the carrier).
                     super::contain::CurvedPlacement::OffCarrier
                     | super::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
                 }
@@ -2218,10 +2219,10 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 // point lies in the face. On the face's boundary the point
                 // is a vertex or an edge of the piercing body: the sweep's
                 // pierces and splits hold it.
-                let (at, _) =
-                    super::contain::contfp_decided(piercing_body, face, plane.normal, p, band)
-                        .map_err(|e| super::reduce::esc(e, piercing, face))?;
-                if at != FaceContainment::In {
+                let (at, _, _) = super::contain::placement_on_carrier(piercing_body, face, p, band)
+                    .map_err(|e| super::reduce::esc(e, piercing, face))?;
+                // OffCarrier → not held (the side above decided `p` on the plane).
+                if at != super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) {
                     return Ok(None);
                 }
                 (plane.normal, None, side)
@@ -2758,26 +2759,22 @@ fn unglued_flat_sector<T: Decide>(
     ) {
         // The parallel rung reads the tilt above's margin, decided zero,
         // and the offset is `p`'s standing off two planes it lies on.
-        Ok((super::PlaneRelation::Distinct, _)) => BooleanError::ClassificationInvariant {
-            what: "geometrically coplanar sector with definitely-distinct plane",
-        },
+        Ok(super::CarrierVerdict::Apart(_) | super::CarrierVerdict::TwoKinds) => {
+            BooleanError::ClassificationInvariant {
+                what: "geometrically coplanar sector with definitely-distinct plane",
+            }
+        }
         // One plane at the sector's arm, for a pair the glue door did
         // not glue over the faces.
-        Ok((rel, margin)) => super::unglued_corner(
+        Ok(super::CarrierVerdict::One {
+            relation: rel,
+            margin,
+        }) => super::unglued_corner(
             declared,
             pair,
             senses,
             s.bounds_off(n_pierced, band).err(),
-            // The ladder decides one carrier only on a margin, so a
-            // reading without one is a broken invariant.
-            || match margin {
-                Some(margin) => {
-                    super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band)
-                }
-                None => BooleanError::ClassificationInvariant {
-                    what: "a corner pair the ladder read one carrier on no margin",
-                },
-            },
+            || super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band),
         ),
         // In band, unreachable here: `bool_sector_coplanar` read this
         // same margin (the two normals' cross, at the sector's reach)
@@ -2794,6 +2791,9 @@ fn unglued_flat_sector<T: Decide>(
             [(piercing, s.face), (pierced_op, pierced)],
             declared.carriers_read(pair, relation),
         ),
+        Err(PlaneEqError::OffRing { torus, refusal }) => {
+            super::off_ring_torus(torus, refusal, [(piercing, s.face), (pierced_op, pierced)])
+        }
     }
 }
 

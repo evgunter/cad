@@ -640,9 +640,13 @@ fn spun(c: &Curve3<f64>, at: Point3<f64>, k: Vec3<f64>, t: f64) -> Curve3<f64> {
 /// both orders. And the near-circle alone turned about the tangent, the
 /// long ellipse's normal and their cross, by up to `10⁻⁴` either way: the
 /// end stays shared ([`span_gap`] in the zero band), and each pose reads
-/// one meeting in both orders, but for three that refuse in both
-/// (`meet-refuses-a-near-tangent-tilt-in-both-orders`). A refused pose
-/// that comes to decide reads one meeting too.
+/// one meeting in both orders. Turned about the cross by `±10⁻⁵`, the
+/// near-circle's height above the long ellipse's plane dips into the
+/// band's gap: red where an extreme of a height in the gap escalates
+/// rather than placing a touch for its window. Turned about the normal by
+/// `−10⁻⁴`, the long ellipse's plane root lies beside the near-circle's
+/// carrier past its span, within the band's gap of it: red where an arc
+/// no ring bounds is read off the other carrier only, not its span.
 #[test]
 fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
     let [(a, sa), (b, sb)] = needle_pair();
@@ -669,8 +673,6 @@ fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
             bad.extend(agree(&label, (&a, &b), &got, &back, at));
         }
     }
-    // The residue's three, `(axis, tilt)`.
-    let refused = [(1, -1e-4), (2, 1e-5), (2, -1e-5)];
     for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
         .iter()
         .enumerate()
@@ -686,10 +688,8 @@ fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
                 bad.push(format!("{label}: the end parts by {gap:e}"));
             }
             let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
-            let one = |r: &Read| matches!(r, Ok(m) if m.points.len() == 1);
-            let residue = refused.contains(&(n, t));
             for (order, r) in [("first first", &got), ("second first", &back)] {
-                if !(one(r) || residue && r.is_err()) {
+                if !matches!(r, Ok(m) if m.points.len() == 1) {
                     bad.push(format!("{label}, {order}: not one meeting: {r:?}"));
                 }
             }
@@ -707,7 +707,11 @@ fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
 /// near-circle's plane root, beside no found meeting, reads off past the
 /// escalation throughout its window: no meeting, in both orders. Red
 /// where a window with no ring is not read, and the root goes to a polish
-/// whose basin the near-parallel tangents leave unproved.
+/// whose basin the near-parallel tangents leave unproved. Turned about
+/// the normal by `10⁻⁶`, the long ellipse's arc there passes within the
+/// band's gap of the near-circle's carrier past its span ([`span_gap`]
+/// against the whole carrier, `2.5·10⁻¹²`), and reads off only against
+/// the span.
 #[test]
 fn the_needle_tilted_about_its_far_vertex_reads_no_meeting_where_the_window_is_off() {
     let [(a, sa), (b, sb)] = needle_pair();
@@ -722,6 +726,7 @@ fn the_needle_tilted_about_its_far_vertex_reads_no_meeting_where_the_window_is_o
         ("about the tangent by -1e-4", tangent, -1e-4),
         ("about the cross by -1e-6", cross, -1e-6),
         ("about the cross by -1e-5", cross, -1e-5),
+        ("about the normal by 1e-6", normal, 1e-6),
     ] {
         let b = spun(&b, vertex, k, t);
         let gap = span_gap(&a, sa, &b, sb);
@@ -1064,4 +1069,104 @@ fn thin_ellipses_tangent_at_a_vertex_meet_once_on_the_local_distance() {
         );
     }
     assert_eq!(agree("thin", (&small, &long), &got, &back, at), None);
+}
+
+/// **A height's extreme in the band's gap, beside no meeting, reads
+/// apart.** The near-circle turned about the cross by `±10⁻⁵`, its height
+/// above the long ellipse's plane dipping into the band's gap, then moved
+/// back by `10⁻⁶` and `10⁻⁵`, or by `10⁻⁴` and `10⁻³` either way, along the
+/// line the two planes share: each height
+/// above the other's plane is unchanged, so the near-circle is still the
+/// one read across, and the spans part past the band ([`span_gap`]). The touch it
+/// places reads off throughout its window: no meeting, in both orders.
+/// Red where an extreme of a height in the gap escalates.
+#[test]
+fn a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart() {
+    let [(a, sa), (b0, sb)] = needle_pair();
+    let at = needle_band();
+    let vertex = a.eval(sa.1);
+    let (_, tangent) = a.conic().unwrap().jet_at(sa.1);
+    let tangent = tangent.normalize();
+    let normal = a.conic().unwrap().frame().axis;
+    let cross = tangent.cross(normal).normalize();
+    let mut bad = Vec::new();
+    for t in [1e-5, -1e-5] {
+        let turned = spun(&b0, vertex, cross, t);
+        let shared = normal
+            .cross(turned.conic().unwrap().frame().axis)
+            .normalize();
+        for d in [-1e-6, -1e-5, 1e-4, -1e-4, 1e-3, -1e-3] {
+            let b = turned.translated(shared * d).unwrap();
+            let gap = span_gap(&a, sa, &b, sb);
+            let label = format!("turned {t:e}, moved {d:e}, gap {gap:e}");
+            if gap <= at.escalate() {
+                bad.push(format!("{label}: the oracle's gap is not past the band"));
+            }
+            for (order, r) in [
+                ("first first", read((&a, sa), (&b, sb), at)),
+                ("second first", read((&b, sb), (&a, sa), at)),
+            ] {
+                if !matches!(&r, Ok(m) if m.points.is_empty()) {
+                    bad.push(format!("{label}, {order}: not apart: {r:?}"));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **The needle tilted on a half-decade grid reads its oracle's answer in
+/// either order.** The near-circle turned about the shared end and about
+/// the long ellipse's far vertex, about the tangent there, the long
+/// ellipse's normal and their cross, by `±10⁻⁸` to `±3.2·10⁻⁴` at
+/// half-decade steps: where [`span_gap`] is in the zero band the pose
+/// reads one meeting, past the escalation none, in both orders; in the
+/// band's gap either a refusal or an answer is the band's. Red where the
+/// window reads an arc against the other carrier past its span, or a
+/// height's extreme in the gap escalates.
+#[test]
+fn the_needle_tilted_on_a_half_decade_grid_reads_its_oracle_in_either_order() {
+    let [(a, sa), (b0, sb)] = needle_pair();
+    let at = needle_band();
+    let tilts: Vec<f64> = (0..10)
+        .flat_map(|i| {
+            let m = 1e-8 * 10f64.powf(f64::from(i) / 2.0);
+            [m, -m]
+        })
+        .collect();
+    let mut bad = Vec::new();
+    for (end, pivot) in [("shared end", sa.1), ("far vertex", sa.0)] {
+        let vertex = a.eval(pivot);
+        let (_, tangent) = a.conic().unwrap().jet_at(pivot);
+        let tangent = tangent.normalize();
+        let normal = a.conic().unwrap().frame().axis;
+        for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
+            .iter()
+            .enumerate()
+        {
+            for &t in &tilts {
+                let b = spun(&b0, vertex, *k, t);
+                let gap = span_gap(&a, sa, &b, sb);
+                let want = if gap <= at.zero() {
+                    Some(1)
+                } else if gap > at.escalate() {
+                    Some(0)
+                } else {
+                    None
+                };
+                let Some(want) = want else { continue };
+                for (order, r) in [
+                    ("first first", read((&a, sa), (&b, sb), at)),
+                    ("second first", read((&b, sb), (&a, sa), at)),
+                ] {
+                    if r.as_ref().ok().map(|m| m.points.len()) != Some(want) {
+                        bad.push(format!(
+                            "{end}, axis {n} by {t:e}, gap {gap:e}, {order}: want {want}: {r:?}"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
 }

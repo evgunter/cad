@@ -67,7 +67,7 @@ fn a_glued_pairs_row_carries_the_doors_margin() {
         let rows = &out.body().expect("the union builds").coincidences;
         let mut read = 0;
         for pair in decls.pairs.iter().filter(|p| p.class.is_one_carrier()) {
-            let Ok(Ok((_, Some(margin)))) =
+            let Ok(Ok(super::CarrierVerdict::One { margin, .. })) =
                 super::carrier_pair::carrier_pair_decided(&a, pair.a, &b, pair.b, band())
             else {
                 panic!("{what}: the door glued {pair:?} on a margin");
