@@ -1225,3 +1225,40 @@ fn the_needle_far_from_the_origin_reads_as_at_it() {
     }
     assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// **Two circles in one plane overlapping by a lens read it by its depth**
+/// (`pose`'s module docs, "A first harmonic's roots"). Unit circles whose
+/// centres are `2 − depth` apart: a lens shallower than the zero is one
+/// touch (C5), one in the band's gap escalates, and one past the
+/// escalation is two crossings, in both orders. Red where two definite
+/// crossings are merged whatever their gap. A distance's extreme in the
+/// gap read as a touch escalates too, where its point is read on both
+/// spans.
+#[test]
+fn two_circles_overlapping_by_a_lens_read_it_by_its_depth() {
+    let at = needle_band();
+    let z = at.zero();
+    let a = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let whole = (-PI, PI);
+    let mut bad = Vec::new();
+    for k in [0.5, 3.0, 8.0, 50.0, 1e4] {
+        let b = circle([2.0 - k * z, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+        for (order, r) in [
+            ("first first", read((&a, whole), (&b, whole), at)),
+            ("second first", read((&b, whole), (&a, whole), at)),
+        ] {
+            let ok = if k * z < at.zero() {
+                matches!(&r, Ok(m) if m.points.len() == 1)
+            } else if k * z <= at.escalate() {
+                matches!(&r, Err(e) if matches!(e.fault, MeetFault::Escalated(_)))
+            } else {
+                matches!(&r, Ok(m) if m.points.len() == 2)
+            };
+            if !ok {
+                bad.push(format!("a lens {k}·zero deep, {order}: {r:?}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} lenses:\n{}", bad.len(), bad.join("\n"));
+}
+

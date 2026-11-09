@@ -162,7 +162,13 @@
 //!   extreme's point;
 //! - **a height**: the touch is a locator, not a meeting. Its window and
 //!   the polish read what the arc about it holds ("A crossing of the
-//!   other's plane", below), as they do for an extreme in the gap.
+//!   other's plane", below), as they do for an extreme in the gap. They
+//!   refuse differently: where the polish's basin is not proved, a touch
+//!   an extreme in the gap placed escalates on that extreme (the band's
+//!   question is open), and one an extreme in the zero band placed
+//!   refuses on the basin ([`Unsettled::Meter`]): the height is in the
+//!   zero band there, so the band has nothing open and the polish's
+//!   premise is what failed.
 //!
 //! **The gap between the roots along the curve decides only two definite
 //! crossings** (`curve_pair_pose_root_gap`): their chord in the zero band
