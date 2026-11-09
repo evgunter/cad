@@ -306,7 +306,9 @@ def doors():
     if not kinds:
         sys.exit(f"REFUSED {RUNNING} declares no `pub` item: the charge doors cannot be read")
     root, rmods = {}, set()
-    for m in re.finditer(r"^\s*pub\s+use\s+([^;]*);", read_stripped(LIB), re.M):
+    lib = read_stripped(LIB)
+    reexports = [re.match(r"pub\s+use\s+([^;]*);", lib[at:]) for at, where in pub_tokens(lib) if where == "top"]
+    for m in filter(None, reexports):
         for segs, alias in use_items(m.group(1)):
             segs = lead(segs)
             if not segs or segs[0] != "running":
@@ -702,6 +704,12 @@ plant_path_read_twice() {
   add_clean "$1" 'pub fn pad(x: f64) -> f64 { use geom_core::running; geom_core::running::exact_vec(x) }'
 }
 
+# A one-line attributed re-export is read like any other.
+plant_attributed_reexport() {
+  printf '#[doc(hidden)] pub use running::DIRECTION_UNITS as HIDDEN_UNITS;\n' >> "$1/crates/geom-core/src/lib.rs"
+  add_clean "$1" 'pub fn pad(x: f64) -> f64 { x * geom_core::HIDDEN_UNITS }'
+}
+
 plant_unrecognised_item() { printf 'pub mod inner {}\n' >> "$1/crates/geom-core/src/running.rs"; }
 plant_unrecognised_root() { printf 'pub use running::private_helper;\n' >> "$1/crates/geom-core/src/lib.rs"; }
 
@@ -730,6 +738,7 @@ gate_selftest() {
   gate_selftest_passes "an alias used outside its own scope" plant_alias_out_of_scope
   gate_selftest_passes "another crate's running module" plant_running_unbound
   gate_selftest_case "UNLISTED" plant_indirect_crate_alias
+  gate_selftest_case "UNLISTED" plant_attributed_reexport
   gate_selftest_passes "a path read two ways, at its count of one" plant_path_read_twice
   gate_selftest_case "UNRECOGNISED" plant_unrecognised_item
   gate_selftest_case "UNRECOGNISED" plant_unrecognised_root
@@ -742,7 +751,7 @@ gate_selftest() {
   gate_selftest_case "UNLISTED crates/clean/src/lib.rs (test)" plant_test_module_as_prod
   gate_selftest_passes "a listed site" plant_listed
   gate_selftest_passes "a comment, a string and geom-core's own" plant_not_sites
-  printf '%s selftest OK: passes a clean fixture, a listed site, a compound reason, comments, strings and geom-core itself, a generic door name counted only under its import in scope (a method of that name inside the scope not counted), and an import, a restricted item or a door type named in a signature, a generic list or <Vec<Rounded>>:: or a turbofish alone; fires on an unlisted site of each spelling (bare f64::EPSILON and UNIT_ROUNDOFF, a rounding_charge call, a Rounded path, a carrier_resolution call, direction_rounding and a constant the gate never names, a door declared in the fixture running module as a fn or a type alias), passing a const fn door at its exact count and a path read two ways at a count of one, an alias used outside its scope and the running module of another crate not counted, through each binding (a door alias, a running module alias, {self as r}, a running glob, a root glob, a crate alias, a type alias, a qualified path), through each root spelling (a re-export, renamed, through crate::), on an attributed one-line door, an indirect crate alias, on an unrecognised running item or root re-export, a pub item made by macro_rules! or a macro call, an oracle inside a compound reason, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a listed site, a compound reason, comments, strings and geom-core itself, a generic door name counted only under its import in scope (a method of that name inside the scope not counted), and an import, a restricted item or a door type named in a signature, a generic list or <Vec<Rounded>>:: or a turbofish alone; fires on an unlisted site of each spelling (bare f64::EPSILON and UNIT_ROUNDOFF, a rounding_charge call, a Rounded path, a carrier_resolution call, direction_rounding and a constant the gate never names, a door declared in the fixture running module as a fn or a type alias), passing a const fn door at its exact count and a path read two ways at a count of one, an alias used outside its scope and the running module of another crate not counted, through each binding (a door alias, a running module alias, {self as r}, a running glob, a root glob, a crate alias, a type alias, a qualified path), through each root spelling (a re-export, renamed, through crate::), on an attributed one-line door and re-export, an indirect crate alias, on an unrecognised running item or root re-export, a pub item made by macro_rules! or a macro call, an oracle inside a compound reason, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
