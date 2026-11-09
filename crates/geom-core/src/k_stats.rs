@@ -629,9 +629,12 @@ pub fn straddle(name: &'static str, lower: Decided, upper: Decided, band: Band) 
 /// The log is the verdict-diff engine's (the witness's certification
 /// verdicts against the leaf's, row for row) and the subdivision
 /// driver's (an escalation is its cue to refine). A reading belongs
-/// here when no outcome of it can change what the caller certifies:
-/// logged, it would put rows in one lane's vector that the other lane
-/// cannot have, or hand the driver a cue that refining cannot answer.
+/// here when logging it would mislead one of them: it would put rows in
+/// one lane's vector that the other lane cannot have, or hand the driver
+/// a cue that refining cannot answer. Whether an outcome can change what
+/// the caller certifies is not the test: F20's cross-check refuses a
+/// certificate on a bad sample, and is read here for the vectors'
+/// parity.
 ///
 /// `ledger_row` is the obligation [`decide_flagged`] carries: the audit
 /// row in `docs/predicate-dimension-audit.md` that argues why the
