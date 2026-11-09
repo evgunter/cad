@@ -45,7 +45,7 @@ use geom_core::interval::Interval;
 use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
-use crate::boolean::{FaceContainment, contfp, curved_face_containment};
+use crate::boolean::{CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
@@ -153,7 +153,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
         return CellRegion::Undecided;
     }
     let at = stored.eval(T::from_computed(mu), T::from_computed(mv));
-    match place(body, face, stored, at, band) {
+    match place(body, face, at, band) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,
         Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)) | None => {
@@ -163,8 +163,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 }
 
 /// **Where the face's point door places the point `(u, v)` of `face`'s
-/// stored chart**: [`crate::contfp`] on a plane,
-/// [`crate::curved_face_containment`] on a curved carrier. `None` for
+/// stored chart** (`boolean::placement_on_carrier`). `None` for
 /// a face that does not resolve, a door that refuses, and
 /// a curved door's unread remainder.
 pub fn station_region<T: Decide + CertifiedBounds>(
@@ -175,21 +174,19 @@ pub fn station_region<T: Decide + CertifiedBounds>(
 ) -> Option<FaceContainment> {
     let surface = body.face(face)?.surface();
     let station = surface.eval(T::from_computed(u), T::from_computed(v));
-    place(body, face, surface, station, band)
+    place(body, face, station, band)
 }
 
 fn place<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    surface: &Surface<T>,
     station: Point3<T>,
     band: Band,
 ) -> Option<FaceContainment> {
-    match *surface {
-        Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
-        _ => curved_face_containment(body, face, station, band)
-            .ok()
-            .flatten(),
+    match placement_on_carrier(body, face, station, band).ok()?.0 {
+        // OffCarrier → Out (trusted on carrier).
+        CurvedPlacement::OffCarrier => Some(FaceContainment::Out),
+        CurvedPlacement::Trim(at) => at,
     }
 }
 

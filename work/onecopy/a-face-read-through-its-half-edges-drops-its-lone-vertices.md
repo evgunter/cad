@@ -1,7 +1,7 @@
 ---
 id: a-face-read-through-its-half-edges-drops-its-lone-vertices
 kind: issue
-title: glue's face closures and lineage's face cell read a face's vertices off its half-edges, so a face's lone vertices are missing from both
+title: glue's face closures, lineage's face cell and the census's face boundary read a face's vertices off its half-edges, so a face's lone vertices are missing from all three
 status: open
 opened: 2026-11-09
 ---
@@ -16,7 +16,7 @@ vertex too.
 
 ## The finding
 
-Two more readers take a face's vertices off its half-edges, which a
+Three more readers take a face's vertices off its half-edges, which a
 lone-vertex loop does not have (`BoundaryMember::half_edge`'s doc: "the
 one disposition of a lone-vertex loop for a reader of half-edges"):
 
@@ -33,12 +33,17 @@ one disposition of a lone-vertex loop for a reader of half-edges"):
   face's loops' `LoopBoundary::Empty { vertex }` records, not
   `FaceView::boundary`.
 
-Not checked: whether either can see a lone vertex today, i.e. whether a
+- `topo/src/census.rs`'s `FaceGeo.boundary` ("every vertex on the
+  face's outer loop and rings"), built from `unchecked_face_cycles`'
+  half-edge starts, and the `vertex_faces` incidence read off it: a
+  face's lone vertex is in neither.
+
+Not checked: whether any of them can see a lone vertex today, i.e. whether a
 boolean input or a lineage subject carries one. `separation.rs`'s
 `lone_vertices` fixture builds a tier-1-valid body that does.
 
 ## Fix
 
-Read each face's vertices through `BoundaryMember::vertex()` (glue), or
-add the loops' empty-boundary vertices (lineage). Pin each with a body
+Read each face's vertices through `BoundaryMember::vertex()` (glue,
+census), or add the loops' empty-boundary vertices (lineage). Pin each with a body
 holding a lone vertex.
