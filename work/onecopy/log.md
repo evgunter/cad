@@ -1144,3 +1144,4 @@
   - PR 6658 (ring-island) at gate-green 6e2b9f82 → 2a3bc893.
 - 20:25Z On-surface-ties → onecopy/foot-closed-forms: the stale region doc, the ruled/torus sibling measurement plus the leg/uv half, and where the foot's closed forms live.
 - 20:25Z Catch-ups pushed: 6598 a5b3df2b, 6652 c99814d0, 6655 c6d6f3c8 (all gating).
+- 20:30Z Ladder lane: the 6637 reviewer's 'clears is nonnegative' invariant is false (the near-antipodal bisector normalize(q̂+ŵ) fires 7 tests) → its attempt reverted, doc honest. Ruled: it's a [simple.conditioned] defect, so file a re-posing row, not a refusal. T2 PR next.
