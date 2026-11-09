@@ -430,13 +430,43 @@ fn a_glued_tangency_records_the_margin_the_door_certified() {
     let rows: Vec<_> = verified
         .coincidences
         .iter()
-        .filter(|r| r.face_pair() == Some((pair.a, pair.b)))
+        .enumerate()
+        .filter(|(_, r)| r.face_pair() == Some((pair.a, pair.b)))
+        .collect();
+    let [(at, row)] = rows[..] else {
+        panic!("one row for the tangency: {rows:?}");
+    };
+    assert!(
+        row.margin == tangency.margin && row.relation == crate::Relation::SurfaceTangent,
+        "the row carries the door's margin {:?}: {row:?}",
+        tangency.margin
+    );
+    // The line runs through both faces' interiors, so the touch is a
+    // face–face row citing the tangency's, on the door's margin.
+    let touches: Vec<_> = verified
+        .touches
+        .iter()
+        .filter(|t| (t.a, t.b) == (pair.a, pair.b))
         .collect();
     assert!(
-        matches!(&rows[..], [r] if r.margin == tangency.margin
-            && r.relation == crate::Relation::SurfaceTangent),
-        "the row carries the door's margin {:?}: {rows:?}",
-        tangency.margin
+        matches!(&touches[..], [t] if t.margin == tangency.margin && t.row == at),
+        "the face–face row cites the tangency's row {at} on the door's margin: {touches:?}"
+    );
+    let (Some(kept), Some(line)) = (verified.lines.get(&(pair.a, pair.b)), tangency.line) else {
+        panic!("the line the door decided is handed on: {tangency:?}");
+    };
+    assert!(
+        kept.origin.to_array() == line.origin.to_array()
+            && kept.dir.to_array() == line.dir.to_array(),
+        "the line kept is the door's: {kept:?}, {line:?}"
+    );
+    assert_eq!(
+        verified.tangent.get(&(pair.a, pair.b)).copied(),
+        Some(super::TangentCert {
+            kinds: (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Plane),
+            line: true,
+        }),
+        "the cover reads the pair's kinds and a line locus"
     );
     let bare = Glue {
         pairs: vec![GluedPair::new(pair.a, pair.b, GlueClass::Tangent)],
@@ -449,4 +479,59 @@ fn a_glued_tangency_records_the_margin_the_door_certified() {
         ),
         "a glued pair the door decided nothing of is read nowhere again"
     );
+}
+
+/// **A glued one-carrier pair's row is the margin the door decided it
+/// on**, read once. A brick standing `0.3·ε` over a cube's top: the door
+/// glues the top and the bottom `Rest` on a margin the gap reads, and the
+/// declaration door records that margin, at the ladder that read it.
+#[test]
+fn a_glued_rest_pair_records_the_margin_the_door_decided() {
+    use super::Glued;
+    let lift = 1.0 + 0.3 * band().zero();
+    let lower = finished(
+        "the cube",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let upper = finished(
+        "the brick",
+        brick::<f64>((0.25, 0.75), (0.25, 0.75), (lift, 2.0), tol()),
+        tol(),
+    );
+    let none = Glue::none();
+    let decls = glue::decided_glue(&lower, &upper, &none, band())
+        .unwrap()
+        .into_owned();
+    let rest: Vec<_> = decls
+        .pairs
+        .iter()
+        .filter(|p| p.class() == GlueClass::Rest)
+        .collect();
+    let [pair] = rest[..] else {
+        panic!(
+            "the door glues the top and the bottom Rest: {:?}",
+            decls.pairs
+        );
+    };
+    let Some(Glued::OneCarrier { margin, .. }) = pair.decided() else {
+        panic!("a glued Rest pair carries the door's margin: {pair:?}");
+    };
+    assert!(
+        !margin.is_invalid() && margin != geom_core::MarginDiag::value(0.0),
+        "the fixture's gap reads a margin: {margin:?}"
+    );
+    let verified = verify_glued_contacts(&lower, &upper, &decls, band()).unwrap();
+    let rows: Vec<_> = verified
+        .coincidences
+        .iter()
+        .filter(|r| r.face_pair() == Some((pair.a, pair.b)))
+        .collect();
+    assert!(
+        matches!(&rows[..], [r] if r.margin == margin
+            && r.relation == crate::Relation::SameOpposite
+            && r.site == crate::DecisionSite::PlaneLadder),
+        "the row carries the door's margin {margin:?}: {rows:?}"
+    );
+    assert!(verified.one_carrier.contains(&(pair.a, pair.b)));
 }
