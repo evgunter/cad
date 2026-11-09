@@ -928,3 +928,7 @@
 - 13:00Z [ev] 6592's third check-in found no comment from Ev. It still merges clean with main (fork-log row 255), and so does 6625 (row 256). Check-ins on 6592 have stopped; the next GitHub event will bring it back.
 - 13:12Z Main red: face_normal's hand-fold scan (slow set) flags two loop-rule fixtures that PR 6607 added. I fixed it myself: island_rows::loop_start, sanctioned once. Opened as onecopy/sense-fold-fixtures; gating 5d71c05f. Delta review of 6576's fix pass dispatched; its N5 is filed as `holding-face-normal-absorbs-a-refusal-as-no-holding-face`.
 - 13:20Z PR 6622 delta: MERGE. NOTEs filed as `no-carrier-touch-recourse-and-the-range-ending-left-by-6622`. Main overlapped it in boolean/mod.rs; merged main (ae22d63e), build and gates clean. Gating.
+- 13:35Z Merged PR 6635 (sense-fold fixtures, a fix for the main red 6607 caused) at its gate-green head 5d71c05f; main had not moved since.
+- 13:35Z PR 6629 delta: MERGE. The lane's 20 sweep reds don't reproduce on the reviewer's box, so they were the lane's environment. NOTEs filed as `carrier-standing-leftovers-f37-tie-and-a-recourse-restated-by-variant`.
+  - Merged main (30e8a9eb). One import conflict in stacking.rs (MeetKind vs read_identity); took both and dropped the unused MeetFault.
+  - My chained command pushed before its checks finished. A full disk had failed the test build and truncated lever-sources. After freeing the disk, gates pass and the loft tests pass 100/100. Gating.
