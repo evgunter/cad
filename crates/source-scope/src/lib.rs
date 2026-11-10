@@ -400,10 +400,37 @@ struct Node {
 const FOLLOW_DEPTH: usize = 64;
 
 /// What a path reaches: an in-file module, or a binding.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Target {
     Module(usize),
     Bound(Bound),
+}
+
+/// **The one rule for what several sources of a name give**: the in-file
+/// globs of a scope, or the imports of one name in it. Equal answers are
+/// one; none is `None`; one is itself; more than one is
+/// [`Bound::Ambiguous`] over the bindings among them (two different
+/// in-file modules by one name are not a binding, and are dropped).
+fn one_of(found: Vec<Target>) -> Option<Target> {
+    let mut distinct: Vec<Target> = Vec::new();
+    for t in found {
+        if !distinct.contains(&t) {
+            distinct.push(t);
+        }
+    }
+    match distinct.len() {
+        0 => None,
+        1 => distinct.pop(),
+        _ => Some(Target::Bound(Bound::Ambiguous(
+            distinct
+                .into_iter()
+                .filter_map(|t| match t {
+                    Target::Bound(b) => Some(b),
+                    Target::Module(_) => None,
+                })
+                .collect(),
+        ))),
+    }
 }
 
 /// `found`, wrapped in the globs `held` that leave the file, if any.
@@ -685,25 +712,20 @@ impl Reader {
         if let Some(decls) = node.names.get(name) {
             return Some(self.follow(n, value_of(decls), depth + 1, name));
         }
-        let mut found: Vec<Bound> = Vec::new();
+        let mut found: Vec<Target> = Vec::new();
         let mut held: Vec<Vec<String>> = Vec::new();
         for g in &node.globs {
             let target = &g[..g.len() - 1];
             match self.path_from(n, target, depth + 1, None) {
                 Some(Target::Module(m)) => {
-                    if let Some(b) = self.in_node(m, name, depth + 1)
-                        && !found.contains(&b)
-                    {
-                        found.push(b);
-                    }
+                    found.extend(self.in_node(m, name, depth + 1).map(Target::Bound));
                 }
                 _ => held.push(g.clone()),
             }
         }
-        let found = match found.len() {
-            0 => None,
-            1 => found.pop(),
-            _ => Some(Bound::Ambiguous(found)),
+        let found = match one_of(found) {
+            Some(Target::Bound(b)) => Some(b),
+            Some(Target::Module(_)) | None => None,
         };
         wrap(held, found)
     }
@@ -830,7 +852,7 @@ impl Reader {
             return self.walk(c, rest, depth + 1);
         }
         if skip != Some((n, name)) {
-            let mut found: Vec<Target> = self.nodes[n]
+            let imports: Vec<Target> = self.nodes[n]
                 .names
                 .get(name)
                 .into_iter()
@@ -841,30 +863,21 @@ impl Reader {
                 })
                 .map(|path| self.through_import(n, name, path, rest, depth + 1))
                 .collect();
-            match found.len() {
-                0 => {}
-                1 => return found.pop(),
-                _ => {
-                    return Some(Target::Bound(Bound::Ambiguous(
-                        found
-                            .into_iter()
-                            .filter_map(|t| match t {
-                                Target::Bound(b) => Some(b),
-                                Target::Module(_) => None,
-                            })
-                            .collect(),
-                    )));
-                }
-            }
-        }
-        for g in &self.nodes[n].globs {
-            if let Some(Target::Module(m)) = self.path_from(n, &g[..g.len() - 1], depth + 1, None)
-                && let Some(found) = self.head_in_node(m, name, rest, depth + 1, None)
-            {
+            if let Some(found) = one_of(imports) {
                 return Some(found);
             }
         }
-        None
+        let globbed: Vec<Target> = self.nodes[n]
+            .globs
+            .iter()
+            .filter_map(
+                |g| match self.path_from(n, &g[..g.len() - 1], depth + 1, None) {
+                    Some(Target::Module(m)) => self.head_in_node(m, name, rest, depth + 1, None),
+                    _ => None,
+                },
+            )
+            .collect();
+        one_of(globbed)
     }
 
     /// **The one home of "an import's path stands in for the head"**:
