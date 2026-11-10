@@ -866,7 +866,9 @@ fn assemble<T: Decide>(
         let hi = if i + 1 < count {
             folds[i + 1]
         } else {
-            folds[0] + T::tau()
+            // The folds are angles by construction: the last arc wraps
+            // one turn round.
+            folds[0] + geom_core::period::Period::<T>::angle().length()
         };
         let mid = (lo + hi) / two;
         match side(mid) {

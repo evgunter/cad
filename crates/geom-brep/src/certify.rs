@@ -4023,13 +4023,10 @@ fn decide_turn<T: Decide>(
         // (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
         // The metres decision runs on that line alone, so every other
         // line's span is decided once, as before.
-        (
-            None,
-            line @ (Curve3::Line(_)
-            | Curve3::Circle(_)
-            | Curve3::Ellipse(_)
-            | Curve3::Spiric { .. }),
-        ) => {
+        (None, Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. }) => {
+            unreachable!("a conic and a spiric state a period (`Curve3::period`)")
+        }
+        (None, line @ Curve3::Line(_)) => {
             forward(Margin::of(span))?;
             if line.as_line().is_some_and(|geom::Line { dir, .. }| {
                 matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero))

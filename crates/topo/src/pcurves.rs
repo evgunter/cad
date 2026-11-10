@@ -5009,12 +5009,12 @@ pub(crate) fn lever_periods<T: Decide>(
 pub(crate) fn branches_astride<T: Decide>(
     name: &'static str,
     gap: T,
-    period: T,
+    period: Period<T>,
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<[i32; 2], BranchMiss> {
-    let j = Period::new(period)
-        .decide(name, gap - period * T::from_f64(0.5), meter, band)
+    let j = period
+        .decide(name, gap - period.half(), meter, band)
         .map_err(|stop| stop.miss)?;
     Ok([j, j + 1])
 }

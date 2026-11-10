@@ -146,7 +146,7 @@ use crate::types::TessellateError;
 // the walk's rotation and pole handling, and the emission itself.
 use geom_core::period::Period;
 pub(crate) use topo::chart::{Chart, ChartKind};
-pub(crate) use topo::chart_iso::{TAU, TravKind};
+pub(crate) use topo::chart_iso::TravKind;
 
 /// One directed boundary traversal: an edge's chord ids in the loop's
 /// walking direction, plus its iso classification.
@@ -380,17 +380,24 @@ pub(crate) fn overused_identified_edge_in(
 /// [`Period::near`], which renames about one reference and breaks only an
 /// exact tie, to the upper copy: here a whole zone, a quarter turn either
 /// side of the tie, is placed by a second reference, `anchor`.
+///
+/// Every copy is the period's own ([`Period::near`]), so no whole-period
+/// integer is read off a value (C4): the copy about `prev`, and in the
+/// tie zone the copies about half a turn either side of it, the one at or
+/// below `prev` and the one at or above.
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
-    let k = (prev - raw) / TAU;
-    if (k - k.round()).abs() < 0.25 {
-        raw + TAU * k.round()
+    // `u` is an azimuth, an angle by construction.
+    let turn = Period::<f64>::angle();
+    let near = turn.near(raw, prev);
+    if (near - prev).abs() < turn.half() / 2.0 {
+        near
     } else {
-        let c1 = raw + TAU * k.floor();
-        let c2 = raw + TAU * k.ceil();
-        if (c1 - anchor).abs() <= (c2 - anchor).abs() {
-            c1
+        let below = turn.near(raw, prev - turn.half());
+        let above = turn.near(raw, prev + turn.half());
+        if (below - anchor).abs() <= (above - anchor).abs() {
+            below
         } else {
-            c2
+            above
         }
     }
 }
@@ -1360,6 +1367,7 @@ pub(crate) fn loop_polygon(
 mod tests {
     use super::*;
     use geom::Surface;
+    use topo::chart_iso::TAU;
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(kind: ChartKind) -> Chart {
