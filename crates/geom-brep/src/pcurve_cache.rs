@@ -8073,8 +8073,7 @@ fn arc_rim_weight<T: SpanLocate>(
 /// an unbounded miss.
 fn arc_rim_weight_miss<T: Real>(radius: T, sin_half: T, cos_half: T, w: T) -> T {
     let one = T::one();
-    let lever = sin_half
-        * (sin_half * sin_half + T::from_f64(16.0 / 27.0) * cos_half * cos_half).sqrt()
+    let lever = sin_half * (sin_half.powi(2) + T::from_f64(16.0 / 27.0) * cos_half.powi(2)).sqrt()
         / (cos_half * (one + w.min(one)) * (one + cos_half.min(one)));
     radius * (w - cos_half).abs() * cos_half.select_le_zero(T::from_f64(f64::INFINITY), lever)
 }

@@ -7,7 +7,8 @@
 //! certificate's envelope must hold the miss sampled off the geometry
 //! (`iso_arc_weight_rows`).
 //!
-//! `CAD_ISO_ARC_DUMP=<file>` appends each certified row as a JSON line
+//! Built with `CAD_ISO_ARC_DUMP=<file>` (read at compile time, as the
+//! mutant sites are), the search appends each certified row as a JSON line
 //! for `scripts/oracles/iso_arc_weight_miss_mpmath.py`, which re-derives
 //! the miss at 50 digits.
 test_utils::gated_to![
@@ -59,7 +60,7 @@ fn draw(g: &mut fuzz::Rng) -> ArcRow {
 }
 
 fn dump(row: &ArcRow, scalar: &str, envelope: f64) {
-    let Some(path) = std::env::var_os("CAD_ISO_ARC_DUMP") else {
+    let Some(path) = option_env!("CAD_ISO_ARC_DUMP") else {
         return;
     };
     let (pts, w) = row.column();

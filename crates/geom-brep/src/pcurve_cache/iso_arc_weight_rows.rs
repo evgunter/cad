@@ -23,6 +23,23 @@ use geom::{Curve3, NurbsSurface, Surface};
 use geom_core::spline::{KnotVector, Knots, SpanLocate};
 use geom_core::{Bounds, Decide, Interval, Point3, Real, Vec3};
 
+/// The scalars the rows certify at, each read at its upper end.
+pub(super) trait Scalar: Decide {
+    fn upper(self) -> f64;
+}
+
+impl Scalar for f64 {
+    fn upper(self) -> f64 {
+        self
+    }
+}
+
+impl Scalar for Interval {
+    fn upper(self) -> f64 {
+        self.hi()
+    }
+}
+
 use super::harmonic_sup_rows::{band, zero};
 use super::{Pcurve, PcurveCache};
 use crate::pick_arc_rim;
@@ -155,13 +172,13 @@ impl ArcRow {
     }
 
     /// The arc rim's certificate at `T`, at the run's band.
-    pub(super) fn certify<T: Decide + Bounds>(&self) -> Verdict {
+    pub(super) fn certify<T: Scalar>(&self) -> Verdict {
         self.certify_to::<T>(self.angle())
     }
 
     /// The arc rim's certificate at `T` for an edge over `[0, end]`, the
     /// image picked over the whole arc.
-    pub(super) fn certify_to<T: Decide + Bounds>(&self, end: f64) -> Verdict {
+    pub(super) fn certify_to<T: Scalar>(&self, end: f64) -> Verdict {
         let band = band();
         let f = T::from_f64;
         let (carrier, wall) = (self.carrier::<T>(), self.wall::<T>());
@@ -172,7 +189,7 @@ impl ArcRow {
             Ok(Some(image)) => {
                 match PcurveCache::certify(image, f(0.0), f(end), &carrier, &wall, band) {
                     Ok(c) => Verdict::Certified {
-                        envelope: c.certificate().envelope.hi(),
+                        envelope: c.certificate().envelope.upper(),
                     },
                     Err(e) => Verdict::Refused(format!("{e:?}")),
                 }
@@ -235,7 +252,7 @@ impl ArcRow {
 
 const R: f64 = 0.005;
 
-fn assert_holds<T: Decide + Bounds>(row: &ArcRow, label: &str) -> f64 {
+fn assert_holds<T: Scalar>(row: &ArcRow, label: &str) -> f64 {
     match row.certify::<T>() {
         Verdict::Certified { envelope } => {
             let miss = row.sampled_miss();
