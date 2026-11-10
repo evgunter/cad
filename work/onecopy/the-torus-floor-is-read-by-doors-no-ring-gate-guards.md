@@ -23,6 +23,8 @@ Two doors read the floor without that decision:
 - `crates/geom-brep/src/curve_face/ellipse_torus.rs:152`, `torus_walk`: `f_per_metre: h.f_per_metre_lo` in its `SubdivisionFrame`, reached from `ellipse_torus_roots` on any `Surface::Torus`.
 - `crates/geom-brep/src/curve_face/circle_torus.rs:368`, the ladder walk: `f_per_metre: h.f_per_metre_lo`. Its `geom::ring_torus` test at `:291` gates only the meridian's special pose, and a torus off D3's convention "takes the ladder".
 
+**Reachable, by the public API.** `circle_torus_roots` and `ellipse_torus_roots` are `pub`, and step-import's `TOROIDAL_SURFACE` carries `R ≤ r` verbatim (`crates/geom/src/surfaces.rs:223-231`). That was found in PR 6761's review. Production callers run on rings that tier 3 has validated. **Check first:** tori minted mid-operation, before at-rest validation, may not be such rings. The candidates are `offset_axial`, and blend tori that reach `reduce`.
+
 A floor that stands above the exact one understates `noise / f_per_metre`, so a root can be placed tighter than its rounding allows. A zero floor divides by zero.
 
 ## The question

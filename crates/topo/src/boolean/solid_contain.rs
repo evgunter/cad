@@ -1257,7 +1257,7 @@ pub(crate) fn trim_window_short<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let rows = TurnRows::exact("bool_sphere_trim_period");
-    Period::new(T::tau())
+    Period::angle()
         .strictly_partial(
             rows,
             Extent::between(raw.0, raw.1),

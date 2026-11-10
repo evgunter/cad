@@ -1380,8 +1380,13 @@ pub(crate) fn path_parity<T: Decide>(
                             Margin::of(charge(rho_less(p), slack)),
                         )
                     };
-                    let (s0, s1) = (side(from)?, side(to)?);
-                    if s0 == Sign::Zero || s1 == Sign::Zero || s0 != s1 {
+                    // Either end decided on the cylinder answers alone, so
+                    // both are read before either refuses.
+                    let (s0, s1) = (side(from), side(to));
+                    if [s0, s1].contains(&Ok(Sign::Zero)) {
+                        return Ok(None);
+                    }
+                    if s0? != s1? {
                         return Ok(None);
                     }
                 }
@@ -1425,7 +1430,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let (d0, d1) = (offset(from), offset(to));
                     let side =
                         |d| decide_m("split_ring_path_segment_side", Margin::of(charge(d, slack)));
-                    let (s0, s1) = (side(d0)?, side(d1)?);
+                    let (s0, s1) = (side(d0), side(d1));
                     // A segment decided apart from a conic arc meets it
                     // nowhere. One along the plane says nothing unless its
                     // length is in the band: the lead from a point already
@@ -1433,12 +1438,16 @@ pub(crate) fn path_parity<T: Decide>(
                     // nowhere where that point is decided off it (on the
                     // plane's other loop, or out of the arc's span, read at
                     // the arc's least speed).
-                    if (s0 == Sign::Zero || s1 == Sign::Zero)
+                    // Either end decided on the plane lets the miss answer
+                    // without the other end, so the miss is read before
+                    // either end's refusal; past it, both ends are needed.
+                    if [s0, s1].contains(&Ok(Sign::Zero))
                         && let LoopArc::Conic(conic) = arc
                         && segment_misses((from, to), conic, slack, band)?
                     {
                         return Ok(Some(flip));
                     }
+                    let (s0, s1) = (s0?, s1?);
                     if s0 == Sign::Zero && s1 == Sign::Zero {
                         let point =
                             decide_m("split_ring_path_lead_point", Margin::of((to - from).norm()))?
@@ -3175,6 +3184,45 @@ mod tests {
                     "{what}: decided"
                 );
             }
+        }
+    }
+
+    /// **A segment with one end decided on the crest cylinder says nothing
+    /// of a crest arc, whatever its other end reads**
+    /// (**`split_ring_path_crest_side`**): its first end lies in the band
+    /// off the cylinder `ρ = R`, its last on the crest. The last end
+    /// answers alone, so the first's refusal is not the pair's. Red
+    /// against reading the ends in order with `?`, which refuses at the
+    /// first.
+    #[test]
+    fn a_segment_ending_on_the_crest_cylinder_answers_past_an_end_in_band() {
+        use super::torus_islands::{crest_islands, on_torus, torus};
+        use core::f64::consts::FRAC_PI_2;
+        let gray = 0.5 * (band().zero() + band().escalate());
+        for f in frames() {
+            let quadric = Quadric::of(&torus(f, false)).unwrap();
+            let (_, island) = crest_islands(f).into_iter().next().unwrap();
+            let crest: Vec<_> = torus_arcs(&quadric, &island)
+                .into_iter()
+                .filter(|arc| matches!(arc, LoopArc::Crest { .. }))
+                .collect();
+            assert_eq!(crest.len(), 1, "the island's one crest arc");
+            let top = on_torus(f, 0.0, FRAC_PI_2);
+            let from = top + f.x * gray;
+            let path = Path {
+                pieces: vec![Piece::Segment {
+                    from,
+                    to: top,
+                    ruling: Vec3::zero(),
+                    lever: geom_brep::ExtentBall::point(from).lever(),
+                }],
+                arrival: f.z,
+            };
+            assert_eq!(
+                path_parity(&path, &crest, None, band()),
+                Ok(None),
+                "the end on the crest answers"
+            );
         }
     }
 

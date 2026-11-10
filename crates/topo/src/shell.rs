@@ -2950,7 +2950,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, ShellError<T>> {
     let surface = body.proven_face(faces[0]).surface();
     let (Some(_), Some(chart)) = (
-        crate::pcurves::chart_period(surface, band),
+        crate::pcurves::chart_u_period(surface, band),
         crate::chart::Chart::of(surface),
     ) else {
         return Ok(false);
@@ -5311,8 +5311,8 @@ impl<T: Decide> MovedWall<T> {
                     }
                     // A piece in the half-turn after `φ` holds `φ + root`,
                     // one in the half-turn before it `φ − root`.
-                    let half = geom_core::period::Period::new(T::tau())
-                        .run_from(phi, geom::mid_param(lo, hi));
+                    let half =
+                        geom_core::period::Period::angle().run_from(phi, geom::mid_param(lo, hi));
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
                     crossings.push(line.height(at(theta)));
                 }

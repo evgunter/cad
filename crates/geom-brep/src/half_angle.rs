@@ -852,7 +852,7 @@ fn subdivision<T: Decide>(
     // wall crossing's `at_end`, and the ruling's fixed `(−π, π)` window,
     // which re-sorts its roots. None reads the root as an identity.
     let mid = geom::mid_param(t0, t1);
-    let reported = |t: T| geom_core::period::Period::new(T::tau()).near(t, mid);
+    let reported = |t: T| geom_core::period::Period::angle().near(t, mid);
     let mut roots: Vec<T> = Vec::new();
     let mut touches: Vec<Touch<T>> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {

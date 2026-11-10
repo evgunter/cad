@@ -374,7 +374,7 @@ impl<T: Decide> Azimuth<T> {
                 Band::least(),
             )
         });
-        Period::new(T::tau()).near(read, reference)
+        Period::angle().near(read, reference)
     }
 
     fn read_in(self, window: Window, row: &'static str, band: Band) -> T {

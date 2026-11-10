@@ -1107,7 +1107,7 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
             _ => RevolveError::AngleEscalated { source },
         })?;
     let rows = TurnRows::exact("revolve_angle_headroom");
-    match Period::new(T::tau()).strictly_partial(rows, angle, Exact::new(r_max), band) {
+    match Period::angle().strictly_partial(rows, angle, Exact::new(r_max), band) {
         Ok(true) => Ok(sign == NonzeroSign::Positive),
         Ok(false) => Err(RevolveError::FullRangeAngle),
         Err(undecided) => Err(RevolveError::AngleEscalated {

@@ -2934,7 +2934,7 @@ fn keep_turn<T: Decide>(
     edge: EdgeKey,
     band: Band,
 ) -> Result<T, ReplaceFaceError<T>> {
-    let (gap, period) = (read - old, geom_brep::Period::new(T::tau()));
+    let (gap, period) = (read - old, geom_brep::Period::angle());
     match period
         .decide(
             "offset_axial_keep_turn",
