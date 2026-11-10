@@ -32,7 +32,7 @@ const LEG_LENGTH_LEVER: &str = "author a longer leg";
 /// The lever of an undecided declared seam arrival: the declaration
 /// rides the target, so the geometry is what moves.
 const SEAM_ARRIVAL_LEVER: &str =
-    "move the geometry so the two directions agree (the declaration is the target)";
+    geom_core::move_lever!("so the two directions agree (the declaration is the target)");
 
 /// Declares [`Gate`] from one table, so each gate's name, ending and
 /// subject are written once, side by side, and [`Gate::ALL`] holds every

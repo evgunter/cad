@@ -1427,9 +1427,14 @@ impl core::fmt::Display for StatedSpan {
     }
 }
 
+/// The lever of a tangency the second order or the tube decides: one
+/// sentence for both checks.
+const TANGENT_CURVATURE_LEVER: &str =
+    geom_core::move_lever!("so the faces curve apart more clearly where they touch");
+
 /// The lever of both transversality decisions: the sampled angle and
 /// the uniqueness tube's bound are moved by the same change.
-const CROSS_LEVER: &str = "move the geometry so the surfaces cross at a clearer angle";
+const CROSS_LEVER: &str = geom_core::move_lever!("so the surfaces cross at a clearer angle");
 
 impl<'a> Decision<'a, CertCheck> {
     /// The certification check this decision is a refused arm of, where
@@ -1513,8 +1518,10 @@ impl CertCheck {
             // refusal of it is the certificate's limit, which the lever
             // reaches, never a stored contradiction.
             Self::ParamSpanMeter => Ending::Sized(SizedDecision {
-                lever: "move the geometry so this spline edge runs steadily forward, never \
-                        stalling or turning back",
+                lever: geom_core::move_lever!(
+                    "so this spline edge runs steadily forward, never \
+                        stalling or turning back"
+                ),
                 size: length_noun!(),
                 passes: SizedPass::Positive,
                 side: RefusedSide::Lever,
@@ -1543,7 +1550,7 @@ impl CertCheck {
             Self::TransversalityArm => Ending::Sized(crate::DIHEDRAL_ARM),
             Self::TangentPlanes => Ending::Undefined(TANGENT_PLANES_RECOURSE),
             Self::TangentSecondOrder => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the faces curve apart more clearly where they touch",
+                lever: TANGENT_CURVATURE_LEVER,
                 size: curvature_noun!(),
                 passes: SizedPass::Positive,
                 side: RefusedSide::StoredContradiction,
@@ -1553,7 +1560,7 @@ impl CertCheck {
             // definite refusal of it is the certificate's limit, which
             // the lever reaches, never a stored contradiction.
             Self::TangentTube => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the faces curve apart more clearly where they touch",
+                lever: TANGENT_CURVATURE_LEVER,
                 size: curvature_noun!(),
                 passes: SizedPass::Positive,
                 side: RefusedSide::Lever,
@@ -1585,8 +1592,10 @@ impl CertCheck {
             // own degeneracy, and the stored face is what the lever
             // edits, so it ends in the lever at rest too.
             Self::PlaneNurbsChartSpeed => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the spline face varies along both of its \
-                        parameter directions",
+                lever: geom_core::move_lever!(
+                    "so the spline face varies along both of its \
+                        parameter directions"
+                ),
                 size: "degenerate face",
                 passes: SizedPass::Positive,
                 side: RefusedSide::Lever,
@@ -6505,7 +6514,7 @@ mod tests {
     ///
     /// At the interval scalar the guard reads the same door: an exact
     /// `[0, 0]` direction refuses as the point's zero does, and a direction
-    /// whose enclosure straddles zero by more than the band is not decided,
+    /// whose enclosure straddles zero past the band's escalation is not decided,
     /// so the metred span escalates rather than certifying.
     #[test]
     fn a_lines_span_is_forward_in_metres_where_its_dir_is_zero() {
@@ -6564,7 +6573,10 @@ mod tests {
         let flat = Vec3::new(iv(0.0), iv(0.0), iv(0.0));
         let err = certify_interval(along(flat, iv(1.0)), origin).unwrap_err();
         assert!(zero_refusal(&err), "[0, 0]: {err:?}");
-        let wide = Interval::from_bounds(-2e-8, 2e-8);
+        // A straddle past the escalation of the band in force, so its
+        // metred span reads neither zero nor positive at every ε.
+        let reach = 2.0 * band().escalate();
+        let wide = Interval::from_bounds(-reach, reach);
         let straddling = Vec3::new(wide, iv(0.0), iv(0.0));
         let err = certify_interval(along(straddling, iv(1.0)), origin).unwrap_err();
         assert!(
@@ -9914,7 +9926,7 @@ mod tests {
                 Ending::Incidence => crate::IncidenceRead::Off(None).ending(Reading::Build),
                 _ => check.recourse(RefusedArm::SignCertain(None), Reading::Build),
             };
-            let named = at_build.starts_with("Recourse: move the geometry");
+            let named = at_build.starts_with(geom_core::MOVE_RECOURSE);
             assert_eq!(named, matches!(want, Class::Sized(..)), "{check:?}");
         }
     }
