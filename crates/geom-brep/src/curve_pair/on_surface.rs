@@ -44,7 +44,12 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign,
 use crate::curve_face::plane_crossing::{
     ConicRootFault, SpanEnds, SpanPlaneMeet, SpanRoot, span_plane_meet,
 };
+
 use crate::keys::SurfaceKey;
+
+/// How far, relative to a radius of at least 1, [`SurfaceCurve::starting_at`]'s
+/// point may lie off its circle in a debug build.
+const ON_CIRCLE: f64 = 1e-6;
 
 /// **Which of the curves its plane cuts from the surface a curve is**:
 /// what a root on that plane is read against ([`SurfaceCurve::section_of`]).
@@ -409,7 +414,9 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// On a line: a line's origin is a point of its locus, so it does not
     /// move, and asking is a caller's defect. In debug builds, where `p`
-    /// lies farther from the circle than about `1e-6` of its radius.
+    /// lies farther from the circle, off its plane or off its radius, than
+    /// `1e-6·max(r, 1)`: `1e-6` of the radius `r`, and an absolute `1e-6`
+    /// below a radius of 1 (point values only; an enclosure is not checked).
     #[must_use]
     pub fn starting_at(self, p: Point3<T>) -> Self {
         let Shape::Circle(c) = self.shape else {
@@ -425,7 +432,7 @@ impl<T: Decide> SurfaceCurve<T> {
                     .abs()
                     .max((w.norm() - c.radius).abs());
                 match (off.point_value(), c.radius.point_value()) {
-                    (Some(off), Some(r)) => off <= 1e-6 * r.max(1.0),
+                    (Some(off), Some(r)) => off <= ON_CIRCLE * r.max(1.0),
                     _ => true,
                 }
             },

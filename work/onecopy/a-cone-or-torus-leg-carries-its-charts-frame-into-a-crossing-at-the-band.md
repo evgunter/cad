@@ -63,5 +63,5 @@ The pins are `ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_
 
 **What remains on this row:**
 - B, the rulings' origin;
-- C, centre and radius from the foot. Both change the locus, which is what the module doc's rule protects, so they need an argument for what keeps such a curve on its surface.
+- C, centre and radius from the foot. Both change the locus, which is what C5 governs ("built from chart coordinates on a surface record", `crates/geom-brep/README.md:917`), so they need an argument for what keeps such a curve on its surface.
 - The frame a `SurfaceCurve` carries in its section and plane: `Section::HalfPlane`'s `toward` azimuth of `u`, a line's plane normal `f.axis × f.radial(u)`, and the crossings read through them. This is the 18/26 that C leaves.
