@@ -1413,6 +1413,36 @@ pub(crate) struct Evaluation {
 }
 
 impl Evaluation {
+    /// **The table a name door reads `name` in, and the name there**: a
+    /// node or a variable as itself; one member of a family, `xs[i]`, by
+    /// the member's own name, read at the family as the family's table
+    /// names that entity ([`pncad::select::family_entity`]). A name no
+    /// entity of the member answers to raises `ReadbackError`
+    /// `no_such_name`.
+    fn named_at(
+        &self,
+        py: Python<'_>,
+        node: super::doc::SelectAt,
+        name: &str,
+    ) -> PyResult<(pncad::select::At, pncad::prelude::StableName)> {
+        let name = super::doc::name_from_text(name)?;
+        match node {
+            super::doc::SelectAt::At(at) => Ok((at.at(), name)),
+            super::doc::SelectAt::Member(read) => {
+                let (at, member) = read.member()?;
+                let whole = pncad::select::family_entity(&self.inner, at, &member, &name)
+                    .ok_or_else(|| {
+                        super::readback::readback_err(
+                            py,
+                            &pncad::select::InterrogateError::NoSuchName,
+                            &self.doc,
+                        )
+                    })?;
+                Ok((at, whole))
+            }
+        }
+    }
+
     /// **`at` read as one body**: a selector reads one body, and a
     /// family read whole raises `SelectRefusal` (`reason="family"`),
     /// naming the member read to write, `xs[i]`.
@@ -1766,11 +1796,11 @@ impl Evaluation {
     fn face_frame(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         name: &str,
     ) -> PyResult<super::readback::Pose> {
-        let name = super::doc::name_from_text(name)?;
-        pncad::select::face_frame(&self.inner, node.at(), &name)
+        let (at, name) = self.named_at(py, node, name)?;
+        pncad::select::face_frame(&self.inner, at, &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1892,11 +1922,11 @@ impl Evaluation {
     fn denotation(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         name: &str,
     ) -> PyResult<super::readback::Denotation> {
-        let name = super::doc::name_from_text(name)?;
-        pncad::select::denotation(&self.inner, node.at(), &name)
+        let (at, name) = self.named_at(py, node, name)?;
+        pncad::select::denotation(&self.inner, at, &name)
             .map(super::readback::Denotation)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }

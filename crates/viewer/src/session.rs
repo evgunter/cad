@@ -5914,7 +5914,10 @@ pub(crate) fn member_selection(
         let (at, _) = found.first()?;
         found.iter().all(|(other, _)| other == at).then(|| {
             let at: Vec<i64> = at.iter().copied().map(i64::from).collect();
-            (at, found.iter().map(|(_, own)| own.clone()).collect::<Vec<_>>())
+            (
+                at,
+                found.iter().map(|(_, own)| own.clone()).collect::<Vec<_>>(),
+            )
         })
     };
     match member() {

@@ -48,7 +48,8 @@ fn selection_of(doc: &ProfileDoc, id: RecipeNodeId) -> &editor_core::var::Select
     let Some(Node::Fillet { selection, .. }) = doc.node(id) else {
         panic!("{id:?} is a fillet");
     };
-    doc.selection(*selection).expect("a fillet reads a selection")
+    doc.selection(*selection)
+        .expect("a fillet reads a selection")
 }
 
 /// The least x any vertex of `id`'s body stands at.
@@ -77,7 +78,10 @@ fn error_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKind {
 fn a_member_is_selected_by_its_own_names_and_carried_as_the_familys() {
     let (doc, cube, k, xs) = family("select-member");
     let edge = an_edge(&doc, cube);
-    let (doc, fillet) = insert(doc, Node::fillet(member(xs, 2), len(0.1), vec![edge.clone()]));
+    let (doc, fillet) = insert(
+        doc,
+        Node::fillet(member(xs, 2), len(0.1), vec![edge.clone()]),
+    );
     let select = selection_of(&doc, fillet);
     assert_eq!(select.names, [edge.clone()], "the member's own name");
     assert_eq!(select.body.at.len(), 1, "the selection holds its one index");
@@ -94,7 +98,9 @@ fn a_member_is_selected_by_its_own_names_and_carried_as_the_familys() {
     let ev = eval(&doc);
     assert_eq!(least_x(&ev, fillet), 4.0, "the fillet stands at member 2");
     let xs_read = doc.output(xs, 0).expect("the family's read");
-    let table = ev.table(doc.output(fillet, 0).expect("the fillet's read")).expect("a table");
+    let table = ev
+        .table(doc.output(fillet, 0).expect("the fillet's read"))
+        .expect("a table");
     let keyed: Vec<&StableName> = table
         .iter()
         .map(|(name, _)| name)
@@ -103,7 +109,10 @@ fn a_member_is_selected_by_its_own_names_and_carried_as_the_familys() {
             _ => None,
         })
         .collect();
-    assert!(!keyed.is_empty(), "the fillet carries entities keyed by `xs`");
+    assert!(
+        !keyed.is_empty(),
+        "the fillet carries entities keyed by `xs`"
+    );
     for of in keyed {
         assert!(
             matches!(
@@ -202,7 +211,8 @@ fn a_mate_sides_index_is_a_written_count() {
         .next()
         .expect("a face");
     let (doc, other) = insert(doc, fixture::stood(cube));
-    let at = Formula::modulo(Formula::var(k, Dimension::Count), Formula::count(3)).expect("a count");
+    let at =
+        Formula::modulo(Formula::var(k, Dimension::Count), Formula::count(3)).expect("a count");
     let side = Operand::select(BodyRead::indexed(xs, vec![at]), vec![top.clone()]);
     let refused = editor_core::apply(
         &doc,
@@ -256,7 +266,11 @@ fn a_per_copy_selection_reads_the_next_member() {
     .expect("the measure inserts");
     let gap = measured.measured.measures[0];
     let doc = measured.doc;
-    assert_eq!(doc.node_reach(gap).chain(), Some(&[k][..]), "a measure per member");
+    assert_eq!(
+        doc.node_reach(gap).chain(),
+        Some(&[k][..]),
+        "a measure per member"
+    );
     let ev = eval(&doc);
     let members = ev
         .value(gap)
@@ -270,7 +284,11 @@ fn a_per_copy_selection_reads_the_next_member() {
             other => panic!("a measure, not a {}", other.kind_name()),
         })
         .collect();
-    assert_eq!(gaps, [2.0, 2.0, 4.0], "each member to the next, the last to the first");
+    assert_eq!(
+        gaps,
+        [2.0, 2.0, 4.0],
+        "each member to the next, the last to the first"
+    );
 }
 
 /// **A member that is a boolean's empty result refuses a selection of

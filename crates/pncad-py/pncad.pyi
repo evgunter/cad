@@ -5652,11 +5652,13 @@ class Evaluation:
         or has no vertex off the axis.
         """
         ...
-    def face_frame(self, node: NodeId | Var, name: str) -> Pose:
+    def face_frame(self, node: NodeId | Var | IndexedRead, name: str) -> Pose:
         """Where the named face SITS — its carrier's frame, as of THIS
         evaluation. The forward twin of the materializers: they hand
         out names, this asks one where it is, and `name` is one of
-        their opaque texts handed back unread.
+        their opaque texts handed back unread. One member of a family,
+        `xs[i]` at counts written as numbers, is asked by the member's
+        own name, as `select(xs[i], ...)` answers it.
 
         The answer is the CARRIER's frame copied out of stored
         geometry — a definitional re-read, no measurement and no pad —
@@ -5701,8 +5703,9 @@ class Evaluation:
         Raises `ReadbackError` as `face_frame` does, with
         `wrong_kind` for an edge or vertex name."""
 
-    def denotation(self, node: NodeId | Var, name: str) -> Denotation:
-        """How this name resolves — uniquely, or as a tie. The
+    def denotation(self, node: NodeId | Var | IndexedRead, name: str) -> Denotation:
+        """How this name resolves — uniquely, or as a tie, in `node` or
+        one member of a family, `xs[i]`, by its own name. The
         referencing question, answered without exposing what it
         resolves to, and the door to ask BEFORE a frame: a frame door
         for the name's OWN kind refuses a tie rather than picking a
