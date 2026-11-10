@@ -23,8 +23,8 @@ use crate::pcurve_cache::FidelityLegs;
 const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
-/// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 33] = [
+/// own one (`topo-v-var`) under the same variable.
+pub(super) const SITES: [&str; 37] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -57,7 +57,11 @@ pub(super) const SITES: [&str; 33] = [
     "spline-bound-undercut",
     "spline-on-cut-short",
     "spline-product-uncharged",
+    "spline-shown-unread",
     "sampled-line-incidence",
+    "arc-rim-weight-unpaid",
+    "arc-rim-span-unpaid",
+    "arc-rim-tangent-under",
 ];
 
 fn on(site: &str) -> bool {
@@ -241,6 +245,13 @@ pub(super) fn spline_on_cut_short() -> bool {
     on("spline-on-cut-short")
 }
 
+/// `read_shown`'s spline arm, and the point read's, passing every
+/// carrier and point unread: a carrier off its wall ends as its image's
+/// bound at the certificate doors (its rows are `spline_door_rows`).
+pub(super) fn spline_shown_unread() -> bool {
+    on("spline-shown-unread")
+}
+
 /// The cylinder arm's ruling reading folded again: an in-band reading
 /// takes the meridian form rather than the general lane (its rows are
 /// `cylinder_line_rows`).
@@ -315,4 +326,25 @@ pub(crate) fn lane_envelope_bound() -> bool {
 /// `circle_lane_rows`).
 pub(crate) fn cone_terms_unprojected() -> bool {
     on("cone-terms-unprojected")
+}
+
+/// An arc rim's decided weight margins left out of its envelope: the
+/// envelope misses a column whose weight is off `cos(h/2)` inside the
+/// band (its rows are `iso_arc_weight_miss` and its search).
+pub(super) fn arc_rim_weight_unpaid() -> bool {
+    on("arc-rim-weight-unpaid")
+}
+
+/// An arc rim's in-band overshoot past its image's arc left out of its
+/// envelope: the envelope misses the chord the clamped map leaves (its
+/// row is `iso_arc_weight_rows::a_span_past_the_arc_pays_its_overshoot`).
+pub(super) fn arc_rim_span_unpaid() -> bool {
+    on("arc-rim-span-unpaid")
+}
+
+/// An arc rim's weight lever read with `12/27` for `16/27`, under-reading
+/// the tangential miss a short sub-arc's weight costs (its row is
+/// `iso_arc_weight_rows::a_short_sub_arc_pays_its_tangential_miss`).
+pub(super) fn arc_rim_tangent_under() -> bool {
+    on("arc-rim-tangent-under")
 }

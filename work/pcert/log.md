@@ -1110,3 +1110,38 @@ E1c waits on the answer.
     - tess's crease-gap row widened (δ-dependent);
     - evidence on `loft-builds-at-interval-and-refuses-a-rational-column-at-sym`;
     - onecopy's axis-foot antipode row.
+- 2026-11-10 — **`a-spline-charts-certificate-door-reads-no-incidence-so-an-off-carrier-ends-as-its-images-bound` merged** (PR 6531). A spline chart's certificate doors read the carrier's incidence where the image refuses, through one home (`incidence_ended`).
+  - The read is skipped only where the certificate's span is shown to cover the span asked (`covers`: c0 ≤ a0 ≤ a1 ≤ c1, via `k_stats::param_order`). A holding certificate's envelope is a sup over the span it covers.
+  - Endings, per E1d: off ends `Incidence(Off)` with each door's term; in band ends the lever. A carrier that certified on main certifies unchanged.
+  - Analytic charts read first at every door (`certify_fitted`/`certify_general` newly, disclosed).
+  - Dual's `validate_pcurves`, including `restate`'s stated Fitted arm, now finds an off carrier.
+  - The point read gains an f64 Gauss–Newton foot; the foot is skipped on a chart too narrow for it.
+  - Review tier: single FULL, cost-led. APPROVE-WITH-FIXES, 0 MAJOR; the envelope argument held.
+    - Fix list GG: a span-coverage rule, a foot panic, endings, one wrapper, and a trace of the sampled-meter gap.
+    - The delta verifier gave APPROVE-WITH-FIXES and confirmed the GG2 trace.
+    - Fix list HH (reversed-span covers; `exact_arc_rim` and `row_image_refusal` route a non-definite read in band) was read by the orchestrator.
+  - Read-first cost 4–10× on lofts; read-on-refusal costs about 1.0–1.1×.
+  - Paused 2026-11-04 to 2026-11-10 at the weekly limit. Resumed with main merges: main sealed `Incidence`, and `spline_pair_arc_rim`'s in-band row now ends `Incidence(Undecided)`.
+  - Filed:
+    - `a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter` (P1). Every product path mints, so not P0; the construction tier and pncad's re-exported `EdgeCurve::certify` can obtain the sampled certificate but not store it.
+    - onehome `an-elbow-revolve-costs-65x-since-the-finished-body-door` (P2, bisected to PR 6371; PR 6803).
+- 2026-11-10 — **`a-cylinder-lines-class-gate-re-decides-its-incidence-as-the-standoff` closed with no fold** (PR 6800). The premise failed: the class gate's `norm_gap` standoff and the incidence read are two facts.
+  - The gate reads the gap at the meridian form's anchor, the line's origin. That is check 4's own Radius term, which a Zero must bound to certify.
+  - The incidence read is the gap's supremum over the span. It bounds the origin's gap only when the span holds the origin.
+  - Counterexample row `a_line_whose_span_holds_no_origin_reads_its_origins_standoff`: green on main, red under the fold. AB1's row could not see the fold, because its lean is tangential.
+  - "Span sup + lean" is not exact either: second-order excess, unsound at Interval. `MarginDiag` is reporting-only and a lower bound.
+  - The m10 D-tab stays [18, 24] until sym's rule lands. Sym's row is narrowed: all 12 decisions need the rule, and `pcurve_envelope` reads the same term.
+  - The alternative, re-anchoring the meridian azimuth at a span point so one read serves both, would move every cylinder line's image and check 4's lemma, and would buy no decision. Not taken.
+  - Review tier: orchestrator's read. Its outcome changed no production code, only a row and two work files.
+- 2026-11-10 — **`an-iso-arcs-envelope-omits-its-in-band-weight-margin` closed** (PR 6801). The arc-rim envelope now pays each sub-arc's in-band weight margin.
+  - The bound paid is `R·|w−c|·sin α·√(tan²α + 16/27)/((1+min(w,1))(1+min(c,1)))`. It is within 13% of the exact pointwise sup at every angle (mpmath oracle `scripts/oracles/iso_arc_weight_miss_mpmath.py`) and grows as `1/c`.
+  - Where `c ≤ 0`: at f64 the envelope refuses; at Interval it escalates (NaI), as does a straddle.
+  - Sibling fix: a span inside the band of an arc end pays its overshoot, as the overshoot's arc length through the circle's one metre reading.
+  - Review tier: single FULL, soundness-led. APPROVE-WITH-FIXES, 0 MAJOR: the bound held on 1500 arcs at 50 digits, independently, and the Möbius argument held.
+  - Fix list JJ, read by the orchestrator:
+    - a short sub-arc row (1°, 3°, 10°), red under the new `arc-rim-tangent-under` mutant (12/27 for 16/27);
+    - the `c ≤ 0` prose (NaI, not +∞);
+    - the oracle's f64 allowance scaled by radius, and derive mode extended;
+    - the off-arc clamp doc;
+    - the weight read once beside its margin.
+  - Filed P3 `a-margin-decided-through-a-bool-helper-or-outside-pcurve-cache-is-unswept`: the sweep's blind spot.

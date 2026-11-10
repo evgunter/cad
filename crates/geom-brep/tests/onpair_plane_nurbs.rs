@@ -364,7 +364,8 @@ fn an_arc_rim_certifies_on_its_pair_through_its_exact_image() {
 /// **Off the wall, both causes.** The rim at radius `1 + off` lies on
 /// the cap and `off` off the wall. No boundary-row image holds it at the
 /// pick's probe (`iso: None`); the on-wall rim's image stated for it
-/// refuses at its map residual, and the refusal reads as that check,
+/// refuses at its certificate's incidence read, and the refusal reads as
+/// that check (the map residual's limb, which the read bounds from below),
 /// not as the fitted path's bound, which an arc's bent foot path
 /// inflates whether the rim is on the wall or off it.
 #[test]
@@ -383,28 +384,35 @@ fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
     let refused = arc_on_pair(carrier, Some(quarter_image()));
     let Err(
         e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal {
-            iso: Some(geom_brep::PcurveCheck::MapResidual),
+            iso: Some(geom_brep::PcurveCheck::ChartIncidence),
             ..
         })),
     ) = &refused
     else {
-        panic!("the stated image refuses at its map residual: {refused:?}");
+        panic!("the stated image's certificate reads the rim off the wall: {refused:?}");
+    };
+    // The read's margin is a lower bound on the rim's distance from the
+    // wall, `off`, kept with the exact image's check.
+    let read = match e.decision() {
+        Some((
+            geom_brep::CertCheck::PlaneNurbsHullValue,
+            geom_brep::recourse::RefusedArm::SignCertain(Some(read)),
+        )) => read
+            .diagnostic_f64_for_error_text()
+            .value()
+            .expect("an f64 read is a point margin"),
+        other => {
+            panic!("the refusal reads as the exact image's check, by the read's margin: {other:?}")
+        }
     };
     assert!(
-        matches!(
-            e.decision(),
-            Some((
-                geom_brep::CertCheck::PlaneNurbsHullValue,
-                geom_brep::recourse::RefusedArm::SignCertain(None)
-            ))
-        ),
-        "the refusal reads as the exact image's check: {:?}",
-        e.decision()
+        read > 0.5 * off && read <= off,
+        "the read's margin {read:e} is the rim's distance {off:e} from below"
     );
     assert!(
         e.to_string()
-            .contains("exact image along a boundary row of its wall misses it"),
-        "the refusal names the exact image's check: {e}"
+            .contains("exact boundary-row image's certificate reads it off its wall"),
+        "the refusal names the exact image's certificate: {e}"
     );
 }
 
@@ -538,10 +546,10 @@ fn a_polynomial_row_offers_no_measured_arc() {
     );
 }
 
-/// **An edge running past its image's arc is refused at the span**,
-/// before its samples are read. The quarter rim's image holds every
-/// sub-span of its arc, and refuses a span reaching before its start or
-/// past its end, typed: the envelope bounds nothing off the arc.
+/// **An edge running past its image's arc is refused.** The quarter
+/// rim's image holds every sub-span of its arc; a span reaching before
+/// its start or past its end runs off the bounded wall, and the door's
+/// incidence read ends it before the image's span gate is reached.
 #[test]
 fn an_iso_arc_refuses_a_span_past_its_arc() {
     let (carrier, quarter) = rim(1.0, core::f64::consts::FRAC_PI_2);
@@ -551,10 +559,11 @@ fn an_iso_arc_refuses_a_span_past_its_arc() {
     certify(0.2, 0.9).expect("a span inside the arc certifies");
     for (t0, t1) in [(-0.01, 0.9), (0.2, quarter + 0.01)] {
         match certify(t0, t1) {
-            Err(geom_brep::PcurveCertifyError::IsoUnsupported { what }) => assert!(
-                what.starts_with("an arc rim whose edge runs past its image's arc"),
-                "[{t0}, {t1}]: refused at the span: {what}"
-            ),
+            Err(e)
+                if matches!(
+                    geom_brep::IncidenceRead::of(&e),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                ) => {}
             other => panic!("[{t0}, {t1}] runs past the arc [0, {quarter}]: {other:?}"),
         }
     }
