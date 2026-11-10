@@ -1808,9 +1808,10 @@ pub fn roster_violations(
 
 /// Whether the unwalked site `<file>:<line>` under `src` is one the
 /// walk covers after all: a `#[path = "…"]` mounting a file under
-/// `src`, which the walk reads, or an `include!("…")` of a data file
-/// under `src` — not a `.rs` file, and spelling no `decide` — which
-/// holds no site to read.
+/// `src`, which the walk reads; a `#[path]` mounting a file outside it
+/// that spells no `decide`; or an `include!("…")` of a data file under
+/// `src` — not a `.rs` file, and spelling no `decide`. Neither of the
+/// last two holds a site to read.
 fn mounted_under(src: &std::path::Path, site: &str) -> Result<(), String> {
     let (file, line) = site.rsplit_once(':').ok_or("not `<file>:<line>`")?;
     let line: usize = line.parse().map_err(|_| "not a line number")?;
@@ -1843,8 +1844,26 @@ fn mounted_under(src: &std::path::Path, site: &str) -> Result<(), String> {
         .parent()
         .ok_or("a file with no directory")?
         .join(target);
-    if target.contains("..") || !mounted.starts_with(src) || !mounted.is_file() {
-        return Err(format!("mounts `{target}`, which is not a file under src"));
+    if !mounted.is_file() {
+        return Err(format!("mounts `{target}`, which is not a file"));
+    }
+    let under_src = !target.contains("..") && mounted.starts_with(src);
+    if !under_src && !is_data {
+        // A `#[path]` mount outside `src` (a test oracle shared with the
+        // integration suites) is walked by no census: it is no blind spot
+        // only while it spells no `decide`.
+        let body = std::fs::read_to_string(&mounted).map_err(|e| e.to_string())?;
+        if body.contains("decide") {
+            return Err(format!(
+                "mounts `{target}`, which is not under src and spells `decide`"
+            ));
+        }
+        return Ok(());
+    }
+    if !under_src {
+        return Err(format!(
+            "includes `{target}`, which is not a file under src"
+        ));
     }
     if is_data {
         let body = std::fs::read_to_string(&mounted).map_err(|e| e.to_string())?;
@@ -2930,6 +2949,33 @@ mod tests {
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(
             violations[0].contains("b.rs:2") && violations[0].contains("c.rs"),
+            "{violations:?}"
+        );
+    }
+
+    /// **A mount from outside `src` is no blind spot while it spells no
+    /// `decide`**: a shared test oracle passes, a mounted file that
+    /// decides is red.
+    #[test]
+    fn a_mount_from_outside_src_is_walked_only_while_it_decides_nothing() {
+        let base = std::env::temp_dir().join(format!("tu-outside-{}", std::process::id()));
+        let (dir, outside) = (base.join("src"), base.join("tests"));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::create_dir_all(&outside).expect("temp dir");
+        std::fs::write(outside.join("oracle.rs"), "pub fn q() {}\n").expect("write");
+        std::fs::write(outside.join("decides.rs"), "fn d() { decide(x) }\n").expect("write");
+        std::fs::write(
+            dir.join("m.rs"),
+            "#[path = \"../tests/oracle.rs\"]\nmod oracle;\n\
+             #[path = \"../tests/decides.rs\"]\nmod decides;\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        let violations = super::roster_violations(&dir, &census, &[], None);
+        std::fs::remove_dir_all(&base).expect("cleanup");
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("m.rs:3") && violations[0].contains("decides.rs"),
             "{violations:?}"
         );
     }
