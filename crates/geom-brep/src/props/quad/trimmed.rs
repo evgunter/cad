@@ -790,7 +790,7 @@ impl Chord {
     /// EVERY knot and crossing cut is mandatory, and nothing may drop
     /// one: a dropped cut leaves a piece straddling a knot by the width
     /// of whatever guard dropped it, with no term paying for it. That is
-    /// the invariant [`knot_aligned_cuts`] states in capitals for its own
+    /// the invariant [`knot_aligned_cuts`](super::cells::knot_aligned_cuts) states in capitals for its own
     /// mandatory set; this list applies none of that function's SLIVER
     /// guard. A hairline piece is the safe outcome, and a piece of zero
     /// width is removed by the dedup.
@@ -1228,7 +1228,7 @@ fn composite_piece(
         return Some(Piece::Column(h.hi() * ((band - v0) * f).mag()));
     };
     let column = Column::under(vbreaks, cell);
-    let mi = (pi + qi) * pt(0.5);
+    let mi = geom::mid_param(pi, qi);
     let cu = Collapse::AtSpan { mid: m, t: &mi };
     let value = h * column_integral(wv, &column, chord.ell(mi), &|cv| flux_at(s, su, sv, cu, cv));
     // `φ''` over the piece, every term read on the located cells'

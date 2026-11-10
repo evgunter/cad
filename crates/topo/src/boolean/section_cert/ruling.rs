@@ -106,7 +106,7 @@ use crate::rows::ChartRows;
 use geom_core::running::{self, Rounded};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::sign;
+use super::sign_as;
 use geom_brep::half_angle::{
     DegreeTwo, RootSlack, SubdivisionFrame, Terms, TrigPoly, certified_subdivision,
 };
@@ -591,7 +591,7 @@ fn before<T: Decide>(
         value: (y - x) * speed,
         error: slacks,
     };
-    match sign(row, Margin::of(gap.toward_zero()), band) {
+    match sign_as(row, Margin::of(gap.toward_zero()), band) {
         Some(Sign::Positive) => Ok(true),
         Some(Sign::Negative) => Ok(false),
         _ => Err(row),
@@ -621,7 +621,7 @@ pub(super) fn read<T: Decide>(
 ) -> Result<Reading<T>, &'static str> {
     reading(chart, partner, rows, true, band).map_err(|(row, resolution)| {
         let resolved = matches!(
-            sign(rows.precision(), Margin::of(resolution), band),
+            sign_as(rows.precision(), Margin::of(resolution), band),
             Some(Sign::Zero)
         );
         if !resolved || reading(chart, partner, rows, false, band).is_ok() {
@@ -742,12 +742,12 @@ fn reading<T: Decide>(
             for theta in found {
                 let p1_at = at_line(theta)[1];
                 let half = p1_at.div_exact(two);
-                let leaving = match sign(rows.asymptote(), Margin::of(shrunk(half, charged)), band)
-                {
-                    Some(Sign::Positive) => Sign::Negative,
-                    Some(Sign::Negative) => Sign::Positive,
-                    _ => return Err(refused(rows.asymptote())),
-                };
+                let leaving =
+                    match sign_as(rows.asymptote(), Margin::of(shrunk(half, charged)), band) {
+                        Some(Sign::Positive) => Sign::Negative,
+                        Some(Sign::Negative) => Sign::Positive,
+                        _ => return Err(refused(rows.asymptote())),
+                    };
                 asymptotes.push((theta, leaving));
             }
         }
@@ -787,7 +787,7 @@ fn reading<T: Decide>(
             b + w * t
         };
         let side = |theta: T| {
-            sign(
+            sign_as(
                 rows.fold(),
                 Margin::of(shrunk(clearance(theta), charged)),
                 band,
