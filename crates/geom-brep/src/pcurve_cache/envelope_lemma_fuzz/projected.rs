@@ -960,7 +960,11 @@ fn a_part_beside_a_horns_cusp_is_read_at_its_own_height() {
     );
     for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
         let d = sheet_distance(major, minor, a, b);
-        assert!(d <= read.hi(), "({a}, {b}) is {d} from the horn, past {}", read.hi());
+        assert!(
+            d <= read.hi(),
+            "({a}, {b}) is {d} from the horn, past {}",
+            read.hi()
+        );
     }
 }
 

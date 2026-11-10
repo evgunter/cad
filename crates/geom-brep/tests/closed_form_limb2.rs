@@ -650,7 +650,6 @@ fn past_a_thin_lemons_apex_limb_2_reads_the_sheet_not_its_circle() {
     );
 }
 
-
 /// **Limb 2 against a horn reads the sheet up to its cusp.** The horn
 /// `R = r = 1` (its cusp at the centre) and its meridian, the circle
 /// about `(1, 0, 0)`, from its top to the cusp on either side
@@ -671,11 +670,18 @@ fn limb_2_against_a_horn_reads_the_sheet_up_to_its_cusp() {
         u_ref: Vec3::unit_x(),
     };
     let (_, plane) = lemon_and_its_meridian_plane();
-    for band in [Band::new(1e-9, 3e-9).unwrap(), Band::new(1e-12, 3e-12).unwrap()] {
+    for band in [
+        Band::new(1e-9, 3e-9).unwrap(),
+        Band::new(1e-12, 3e-12).unwrap(),
+    ] {
         for span in [(PI / 2.0, PI), (-PI, -PI / 2.0)] {
             let own = geom_brep::analytic_edge_limbs(&meridian(1.0), span, &horn, &plane, band);
-            assert!(own.is_ok(), "band {band:?}, the horn's meridian over {span:?}: {own:?}");
-            let off = geom_brep::analytic_edge_limbs(&meridian(1.0 + 1e-6), span, &horn, &plane, band);
+            assert!(
+                own.is_ok(),
+                "band {band:?}, the horn's meridian over {span:?}: {own:?}"
+            );
+            let off =
+                geom_brep::analytic_edge_limbs(&meridian(1.0 + 1e-6), span, &horn, &plane, band);
             assert!(
                 matches!(
                     off,
