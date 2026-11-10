@@ -766,8 +766,9 @@ fn require_chord_adjacent<T: Real>(
 /// The lever of an edge at rest whose faces' join reads in band or mixed
 /// along it ([`EulerOpError::RestJoinUndecided`],
 /// [`EulerOpError::RestJoinMixed`]).
-pub(crate) const REST_JOIN_LEVER: &str =
-    "move the geometry so the faces meet clearly smoothly or clearly at a corner along the edge";
+pub(crate) const REST_JOIN_LEVER: &str = geom_core::move_lever!(
+    "so the faces meet clearly smoothly or clearly at a corner along the edge"
+);
 
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
