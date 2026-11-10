@@ -460,7 +460,10 @@ impl<'a, T: Decide> Span<'a, T> {
         // (`place_param` and `place_at` both read `branch`), so the start
         // arm moves nothing today: it is the same reading for a parameter
         // on the lower copy, kept so the side does not rest on which copy
-        // the tie takes.
+        // the tie takes. The meter is this door's own (each side at the
+        // carrier's sup speed, [`Self::side`]): the copy rule is the one
+        // question it shares with `topo`'s ring lane, which meters a
+        // root's side by the slope its piece crosses at.
         let (start, stop) = if self.carrier.is_periodic() {
             Period::new(T::tau()).span_margins(t, (self.t0, self.t1))
         } else {

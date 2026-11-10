@@ -1699,6 +1699,7 @@ fn span_readings<T: Decide>(
         )
     };
     let (start, stop) = period.map_or((t - lo, hi - t), |p| p.span_margins(t, (lo, hi)));
+
     [read(start), read(stop)]
 }
 
