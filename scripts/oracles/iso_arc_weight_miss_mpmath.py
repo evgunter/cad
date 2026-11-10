@@ -37,7 +37,12 @@ mp.dps = 50
 
 def bound(a, d):
     c, w = cos(a), cos(a) + d
-    return abs(d) * sin(a) * sqrt(tan(a) ** 2 + mpf(16) / 27) / ((1 + min(w, 1)) * (1 + min(c, 1)))
+    return (
+        abs(d)
+        * sin(a)
+        * sqrt(tan(a) ** 2 + mpf(16) / 27)
+        / ((1 + min(w, 1)) * (1 + min(c, 1)))
+    )
 
 
 def closed_form(a, d, s):
@@ -73,7 +78,9 @@ def unit_sub_arc_miss(a, e0, e1, d, s):
     return sqrt(dx * dx + dy * dy), abs(sqrt(b[0] ** 2 + b[1] ** 2) - 1)
 
 
-def sup(f, lo=mpf(0), hi=mpf(1), n=200):
+def sup(f, lo=None, hi=None, n=200):
+    lo = mpf(0) if lo is None else lo
+    hi = mpf(1) if hi is None else hi
     xs = [lo + (hi - lo) * i / n for i in range(n + 1)]
     vals = [f(x) for x in xs]
     i = max(range(n + 1), key=lambda j: vals[j])
@@ -89,7 +96,7 @@ def sup(f, lo=mpf(0), hi=mpf(1), n=200):
 
 def derive():
     bad = 0
-    rng = random.Random(0x150A)
+    rng = random.Random(0x150A)  # noqa: S311 — a fixed oracle sample, not a secret
     worst = mpf(0)
     for _ in range(300):
         a = mpf(rng.uniform(1e-3, 1.5))
@@ -105,12 +112,14 @@ def derive():
     a, d = mpf("0.4"), mpf("1e-9")
     c = cos(a)
     ratio = closed_form(a, d, mpf(1) / 2) / (d * (1 - c) / (c * (1 + c)))
-    print(f"middle against R·d·(1-c)/(c(1+c)): {mp.nstr(ratio, 12)} (w = c + d in one factor)")
+    print(
+        f"middle against R·d·(1-c)/(c(1+c)): {mp.nstr(ratio, 12)} (w = c + d in one factor)"
+    )
     print("  h deg   sup/(R|d|)   radial sup/(R|d|)   bound/sup")
     for hdeg in [1, 10, 45, 90, 120, 129.43, 131.06, 150, 170, 179, 179.9]:
         a = mpf(hdeg) * mp.pi / 360
-        s_pt = sup(lambda s: unit_sub_arc_miss(a, mpf(3), mpf(1), d, s)[0])
-        s_rad = sup(lambda s: unit_sub_arc_miss(a, mpf(3), mpf(1), d, s)[1])
+        s_pt = sup(lambda s, a=a: unit_sub_arc_miss(a, mpf(3), mpf(1), d, s)[0])
+        s_rad = sup(lambda s, a=a: unit_sub_arc_miss(a, mpf(3), mpf(1), d, s)[1])
         print(
             f"  {hdeg:7}  {mp.nstr(s_pt / d, 8):>11}  {mp.nstr(s_rad / d, 8):>17}"
             f"  {mp.nstr(bound(a, d) / s_pt, 8):>10}"
@@ -121,7 +130,10 @@ def derive():
         e0, e1 = mpf(10) ** rng.uniform(-15, 15), mpf(1)
         d = mpf(rng.choice([-1, 1])) * mpf(10) ** rng.uniform(-15, -2)
         d = max(d, -cos(a) / 2)
-        s_pt = sup(lambda s: unit_sub_arc_miss(a, e0, e1, d, s)[0], n=60)
+        s_pt = sup(
+            lambda s, a=a, e0=e0, e1=e1, d=d: unit_sub_arc_miss(a, e0, e1, d, s)[0],
+            n=60,
+        )
         r = bound(a, d) / s_pt
         lowest = min(lowest, r)
         if r < 1:
@@ -144,7 +156,7 @@ def dumped(path):
             for k in range(n):
                 p, w = pts[2 * k : 2 * k + 3], wt[2 * k : 2 * k + 3]
 
-                def miss(t, k=k, p=p, w=w):
+                def miss(t, k=k, p=p, w=w, h=h, r=r):
                     s = standard_s(t - (k + mpf(1) / 2) * h, h)
                     b = rq(p, w, mobius(s, w[0], w[2]))
                     return sqrt((b[0] - r * cos(t)) ** 2 + (b[1] - r * sin(t)) ** 2)
@@ -156,16 +168,25 @@ def dumped(path):
             # allowed here, scaled by the map's Möbius skew.
             allow = mpf(0)
             if row["scalar"] == "f64":
-                skew = max(max(sqrt(wt[2 * k] / wt[2 * k + 2]), sqrt(wt[2 * k + 2] / wt[2 * k])) for k in range(n))
+                skew = max(
+                    max(
+                        sqrt(wt[2 * k] / wt[2 * k + 2]), sqrt(wt[2 * k + 2] / wt[2 * k])
+                    )
+                    for k in range(n)
+                )
                 allow = 16 * mpf(2) ** -52 * max(abs(x) for q in pts for x in q) * skew
             if worst > allow:
                 ratio = env / worst
                 lowest = ratio if lowest is None else min(lowest, ratio)
             if env < worst - allow:
                 bad += 1
-                print(f"VIOLATION ({row['scalar']}): envelope {env} under the miss {mp.nstr(worst, 6)}: {line.strip()}")
+                print(
+                    f"VIOLATION ({row['scalar']}): envelope {env} under the miss {mp.nstr(worst, 6)}: {line.strip()}"
+                )
     shown = "n/a" if lowest is None else mp.nstr(lowest, 6)
-    print(f"{rows} certified rows; lowest envelope/miss over a miss past rounding {shown}")
+    print(
+        f"{rows} certified rows; lowest envelope/miss over a miss past rounding {shown}"
+    )
     return bad
 
 
