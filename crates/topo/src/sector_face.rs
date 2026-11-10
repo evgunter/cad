@@ -24,7 +24,7 @@
 //!    tangent plane at its apex, and is read there as its circle of
 //!    rulings ([`VertexFace::Apex`]), each with its own normal: a
 //!    reader takes the normal along the ruling it means
-//!    ([`VertexFace::normal_along`]), and none is NaN.
+//!    ([`ConeApex::normal_along`]), and none is NaN.
 //!
 //! **Every arm folds in the face's `sense` bit** (S10) by minting an
 //! [`OutwardNormal`]: each reads a CHART normal and returns it as the
@@ -114,17 +114,6 @@ pub(crate) enum VertexFace<T: geom_core::Real> {
 }
 
 impl<T: Decide> VertexFace<T> {
-    /// The outward normal approached along `d`, a direction the face
-    /// leaves the vertex in: the tangent plane's, or at an apex the
-    /// normal along the ruling `d` lies on, which is constant along it
-    /// ([`ConeApex::normal_along`]).
-    pub(crate) fn normal_along(&self, d: Vec3<T>) -> OutwardNormal<T> {
-        match self {
-            Self::Tangent(normal) | Self::NearAxis(normal) => *normal,
-            Self::Apex(apex) => apex.normal_along(d),
-        }
-    }
-
     /// The tangent plane's outward normal; a row that read an apex
     /// panics naming it.
     #[cfg(test)]

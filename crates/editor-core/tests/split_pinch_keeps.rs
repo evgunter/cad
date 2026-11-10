@@ -213,11 +213,8 @@ fn denoted(
     let at = |key: &EntityKey| match *key {
         EntityKey::Vertex(v) => mean(vec![v]),
         EntityKey::Edge(e) => {
-            let he = body.body().get_edge(e).unwrap().he_plus;
-            mean(vec![
-                body.body().get_half_edge(he).unwrap().start,
-                body.body().half_edge_end(he).unwrap(),
-            ])
+            let (v0, v1) = body.body().edge_vertices(e).unwrap();
+            mean(vec![v0, v1])
         }
         EntityKey::Face(f) => {
             let topo::LoopBoundary::Cycle { first } = body
@@ -298,11 +295,7 @@ fn operand_edge(
                 key: EntityKey::Edge(e),
                 ..
             }) => {
-                let he = body.body().get_edge(*e).unwrap().he_plus;
-                let (s, t) = (
-                    body.body().get_half_edge(he).unwrap().start,
-                    body.body().half_edge_end(he).unwrap(),
-                );
+                let (s, t) = body.body().edge_vertices(*e).unwrap();
                 ((at(s, a) && at(t, b)) || (at(s, b) && at(t, a))).then(|| n.clone())
             }
             _ => None,

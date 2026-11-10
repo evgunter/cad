@@ -221,6 +221,7 @@ pub(crate) mod review_m1_pr5_internal;
 pub(crate) mod ring_path;
 #[cfg(test)]
 mod row_walk_proofs;
+pub mod rows;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
@@ -405,14 +406,14 @@ pub mod test_support {
     };
     pub use crate::star::with_ring_root;
     pub use crate::test_support_fixtures::{
-        CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
-        StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,
-        brick_with_fresh_keys, computed_edge_channels, cube_into, cyl_arc_at, cyl_wall_sheet,
-        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, drill_hole,
+        CubeOps, CylFrame, CylKey, FaceGeometry, HINGED_ALONG_B, NullStrutListing, Prism, PrismOps,
+        RingFaceOps, StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence,
+        brick, brick_with_fresh_keys, computed_edge_channels, cube_into, cyl_arc_at,
+        cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, drill_hole,
         every_chord_stated_as_its_pair, face_facing, fresh_keyed_body, geometric_cube, holed_block,
         identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
         plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, set_sheet_sense, split_plane,
-        straddle_seat, wedge_on_a_block_top,
+        straddle_seat, tool_on_a_block_corner, wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
@@ -1317,7 +1318,8 @@ pub mod test_support {
     /// **Where `face` holds `p`, as the census confirms it**: the read
     /// that places a `(vertex, face)` record at rest, and that the
     /// boolean's carry asks of a divided face's pieces
-    /// ([`crate::boolean::face_placement`]). `Ok(Some(_))` placed (a
+    /// ([`crate::boolean::face_placement`]), which decides `p` against the
+    /// face's carrier rather than holding it there. `Ok(Some(_))` placed (a
     /// point decided off a planar face's plane is `Out`), `Ok(None)` a
     /// curved trim's unread remainder, `Err` the escalations or refusal
     /// the census would push.
@@ -1437,7 +1439,7 @@ pub use entity::{
     LoopKey, LoopRole, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 pub use euler::{BadArgument, EulerOpError, RechartDoor};
-pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
+pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
 pub use live::FaceView;
 pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
@@ -1520,10 +1522,10 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite, LoopContainment,
-    LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
-    SectionEdge, SectionEndReading, SectionError, SectionGermFault, SectionGermReading,
-    SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading,
+    ApexSectionReading, BoundClass, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite,
+    LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
+    PointInLoopError, Section, SectionEdge, SectionEndReading, SectionError, SectionGermFault,
+    SectionGermReading, SectionPinMiss, SectionPolygon, SectionRegion, SectorReading,
     SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
     SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
     UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,

@@ -736,8 +736,8 @@ pub enum SsiError {
     /// that validated, and surfaced with the spline layer's own
     /// refusal rather than swallowed (D4 ¶2).
     ChartRow {
-        /// The spline layer's typed refusal.
-        source: geom_core::spline::SplineError,
+        /// The spline layer's typed refusal of the row read.
+        source: geom_core::spline::Built<geom_core::spline::SplineError>,
     },
     /// The NURBS × NURBS boundary pass isolated no answer on a face of
     /// the two knot rectangles' product, or could not read a row or
@@ -1261,9 +1261,9 @@ impl core::fmt::Display for SsiError {
                 write!(f, "ssi: {what}")
             }
             Self::CarrierEnclosure(r) => write!(f, "ssi: {r}"),
-            Self::ChartRow { .. } => write!(
+            Self::ChartRow { source } => write!(
                 f,
-                "ssi: a NURBS wall's boundary row is not valid spline structure"
+                "ssi: a NURBS wall's boundary row is not valid spline structure: {source}"
             ),
             Self::PairBoundaryUnresolved { pieces, cause } => match cause {
                 PairBoundaryCause::Unresolved => write!(
@@ -1538,9 +1538,11 @@ impl SsiError {
             // is the kernel's.
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
             // Interpolation takes no tolerance, runs no knot algebra and
-            // reads no rows: these are the approximating fits' refusals.
+            // reads no rows: these are the approximating fits' refusals,
+            // and the march asks no degree 0 (`Structure`).
             Self::Fit(
                 FitError::InvalidTolerance { .. }
+                | FitError::Structure(_)
                 | FitError::KnotAlgebra(_)
                 | FitError::RaggedRows { .. }
                 | FitError::BudgetExhausted { .. },
@@ -1549,7 +1551,7 @@ impl SsiError {
             // 3-D images and chord parameters are computed afterwards in
             // f64. A chord below the running total's rounding is absorbed,
             // so two parameters tie (`ParamCountMismatch`, its knots
-            // `Structure`); a step below an image's resolution repeats a
+            // `Assembly`); a step below an image's resolution repeats a
             // point, and two images too far apart or too near for their
             // distance to be represented leave a chord with no length
             // (`DegenerateChord`); an image can overflow
@@ -1560,7 +1562,7 @@ impl SsiError {
                 FitError::NonFinitePoint { .. }
                 | FitError::DegenerateChord { .. }
                 | FitError::ParamCountMismatch { .. }
-                | FitError::Structure(_)
+                | FitError::Assembly(_)
                 | FitError::Lsq(_),
             ) => Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
@@ -2314,8 +2316,9 @@ pub(crate) const WRONG_LANE_RECOURSE: &str = "Recourse: look the pair up in the 
 /// zero ([`TubeDegeneracy::WallConstantAcrossLocus`]): the face's own
 /// degeneracy. The stored face is what the lever edits, so the ending
 /// is the same at rest as at a build.
-const WALL_COLLAPSED_RECOURSE: &str = "Recourse: move the geometry so the spline face does not \
-     collapse to a point or a curve where the surfaces meet";
+const WALL_COLLAPSED_RECOURSE: &str = geom_core::move_recourse!(
+    "so the spline face does not collapse to a point or a curve where the surfaces meet"
+);
 
 /// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
 /// on **one shared parameter** (the OQ4 contract).
@@ -3552,7 +3555,7 @@ fn plane_pcurve(
         control,
         carrier.weights().to_vec(),
     )
-    .map_err(|e| SsiError::Fit(geom::FitError::Structure(e)))
+    .map_err(|e| SsiError::Fit(geom::FitError::Assembly(geom_core::spline::Built::new(e))))
 }
 
 /// The ℝ⁴ trace's fitted product **without a certificate** — the OQ4
@@ -5117,10 +5120,12 @@ mod ending_tests {
             (
                 "chart row",
                 SsiError::ChartRow {
-                    source: geom_core::spline::SplineError::ControlCountMismatch {
-                        control: 3,
-                        expected: 4,
-                    },
+                    source: geom_core::spline::Built::new(
+                        geom_core::spline::SplineError::ControlCountMismatch {
+                            control: 3,
+                            expected: 4,
+                        },
+                    ),
                 },
             ),
             (

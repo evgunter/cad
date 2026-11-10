@@ -37,9 +37,6 @@ crates/geom-brep/src/ssi/march.rs 1
 crates/geom-brep/src/ssi/refine.rs 1
 # attach: unvouched reads every edge: NOT A SEARCH.
 crates/topo/src/attach.rs 1
-# carrier_touch: off_face and ball_off_face (any cluster or edge not off
-# answers "not off"): HAND-ROLLED.
-crates/topo/src/boolean/carrier_touch.rs 2
 # contain: boundary_pre_pass's per-loop place_off: WHICH (its doc says so).
 crates/topo/src/boolean/contain.rs 1
 # edge_join: joinable's regularity read over the two surfaces: HAND-ROLLED
@@ -53,13 +50,11 @@ crates/topo/src/boolean/factored_crossing.rs 1
 crates/topo/src/boolean/fate.rs 2
 # insert: walk_order's comparison (a sort) and reconcile_pass's cuts (every
 # run's): NOT A SEARCH. reconcile_pass's held_cut call, which chooses the
-# way round a run is minted: WHICH. held_cut's three reads (`nested`, both
-# `tied_held`): its owner only names SharedVertexCrossings, so any held
-# cut answers: HAND-ROLLED (question-mark-ladders-the-gate-registered).
+# way round a run is minted: WHICH. (held_cut climbs, Any: QML T5.)
 # reconcile_shared's fixpoint (`reconcile_pass(..)?` until a pass turns
 # nothing, then `return hang_at_shared(..)`): every pass is needed, so
 # NOT A SEARCH.
-crates/topo/src/boolean/insert.rs 7
+crates/topo/src/boolean/insert.rs 4
 # join: bool_connect's partners, every segment's: NOT A SEARCH.
 crates/topo/src/boolean/join.rs 1
 # boolean mod: vertex_at, which vertex is at the point: WHICH.
@@ -74,38 +69,23 @@ crates/topo/src/boolean/recl.rs 3
 # event: WHICH. (first_unsupported_pair's two box reads left with main's
 # operand gate, e4516384d5.)
 crates/topo/src/boolean/reduce.rs 5
-# region: on_boundary, any edge holding the point answers: HAND-ROLLED.
-crates/topo/src/boolean/region.rs 1
-# rim_wedge: departures's two cover reads (either pair's departure
-# answers): HAND-ROLLED; reach's four reads, every arc's: NOT A SEARCH.
+# rim_wedge: departures's two cover reads: WHICH, the first piece whose
+# covers settle the kind (EdgeKindUnread, Mixed, NoEdge) answers, and
+# pieces can answer different kinds (QML T4; the site says so); reach's
+# four reads, every arc's: NOT A SEARCH.
 crates/topo/src/boolean/rim_wedge.rs 6
 # section_cert ruling: roots walks sorted roots to the first past the
 # window: NOT A SEARCH.
 crates/topo/src/boolean/section_cert/ruling.rs 1
-# sectors: partner_cuts (2): every cut inside a sector is applied, and a
-# cut in band stays in band of the bound it is near through every later
-# split: NOT A SEARCH; rays_within (1), any ray not within answers "no":
-# HAND-ROLLED; closed_reach (2), which face holds the reach: WHICH.
-# (crescent climbs its bound pairs.)
-crates/topo/src/boolean/sectors.rs 5
+# sectors: closed_reach (2), which face holds the reach: WHICH.
+# (crescent climbs its bound pairs, rays_within its sectors.)
+crates/topo/src/boolean/sectors.rs 2
 # slit: slot_from_far_end, which slot: WHICH.
 crates/topo/src/boolean/slit.rs 1
 # vtxfac: germ_order, a sort: NOT A SEARCH.
 crates/topo/src/boolean/vtxfac.rs 1
-# census: span_clear's three reads, a lone vertex's and a side's end and
-# interior (anything meeting answers "not clear"): HAND-ROLLED.
-crates/topo/src/census.rs 3
-# chart_region: polygon_relation, the first decisive vertex answers:
-# HAND-ROLLED.
-crates/topo/src/chart_region.rs 1
 # pcurves: site_rows reads every half's pcurve: NOT A SEARCH.
 crates/topo/src/pcurves.rs 1
-# ray_walk: on_boundary, any segment holding the point answers:
-# HAND-ROLLED.
-crates/topo/src/ray_walk.rs 1
-# shell: band_seam (any side not winding once answers "no") and
-# wraps_its_period (any start winding once answers "yes"): HAND-ROLLED.
-crates/topo/src/shell.rs 2
 # containment: place_off (WHICH, ruled). conic_crossings reads its roots
 # through the co-surface arm once, outside its loop; inside it, a root in
 # band of an arc's end returns its `Undecided` refusal, a `return Err` this
@@ -114,7 +94,12 @@ crates/topo/src/shell.rs 2
 crates/topo/src/splitting/containment.rs 1
 # section_cones: next_fusion, which section fuses: WHICH.
 crates/topo/src/splitting/section_cones.rs 1
-# stands: face_interior_point's three reads (any certified interior point
-# answers): HAND-ROLLED; witness_insides' reading, a ranking of its own
-# (On, Blocked, InBand), listed with them.
-crates/topo/src/stands.rs 4
+# stands: face_interior_point's three reads carry only refusals of the
+# whole query (certified_in_face reads every inconclusive refusal as
+# `false` itself, and the face walks' Desync aborts): NOT A SEARCH.
+# (insides_at, witness_insides' reading, climbs, Any: QML T5.)
+crates/topo/src/stands.rs 3
+# star: Star::refine, every datum's extremum inside a sector is cut, and
+# one in band stays in band of the bound it is near through every later
+# cut: NOT A SEARCH.
+crates/topo/src/star/walk.rs 1

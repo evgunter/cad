@@ -450,10 +450,15 @@ fn doubled_back_fillet_corner_refuses_with_its_turn_within_tolerance() {
                     align,
                     lever,
                     lever_of: profile::path::TurnLever::AnchorSeparation,
+                    corner,
                 },
             radius,
         } => {
             assert_eq!(radius, 0.5);
+            assert!(
+                corner.is_none(),
+                "the straight pair places no corner: {corner:?}"
+            );
             assert_eq!(sin_turn, 0.0, "the rays are collinear");
             assert_eq!(align, -1.0, "and opposed");
             assert_eq!(lever, 1.0, "levered by the anchors' separation");
@@ -490,6 +495,7 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
                 align,
                 lever,
                 lever_of,
+                ..
             },
         ..
     } = err

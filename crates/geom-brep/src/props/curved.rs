@@ -571,7 +571,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 // the arm read EVERY `Line` carrier as a generator and
                 // answered `NotOneChartBranch` on a line the shape
                 // door refuses.
-                if classify(
+                if classify_as(
                     "props_meridian_apex",
                     cone_generator_miss(apex, dir, e),
                     band,
@@ -625,7 +625,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 };
                 // Meridians only (see the fn docs): the parse's own
                 // rim/meridian split, on the parse's own margin.
-                if classify(
+                if classify_as(
                     "props_circle_axis_class",
                     Margin::levered(
                         n_c.dot(axis),
@@ -777,7 +777,7 @@ fn rim_dir(s: NonzeroSign, forward: bool) -> NonzeroSign {
 /// because it is about the REFUSAL and not the decision — and because
 /// `tools/k-lint`'s `predicate_roster` reads a mint's margin as the
 /// funnel call's second argument, deliberately by spelling.
-fn classify<T: Decide>(
+fn classify_as<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -827,7 +827,7 @@ fn require_zero<T: Decide>(
     band: Band,
     premise: Premise,
 ) -> Result<(), PropsError> {
-    match classify(name, margin, band, premise.check())? {
+    match classify_as(name, margin, band, premise.check())? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(premise.refusal(name)),
     }
@@ -835,7 +835,7 @@ fn require_zero<T: Decide>(
 
 /// Require a definitely-positive extent (degenerate ⇒ typed error).
 fn require_extent<T: Decide>(margin: Margin<T>, band: Band) -> Result<(), PropsError> {
-    match classify("props_face_extent", margin, band, PropsCheck::Extent)? {
+    match classify_as("props_face_extent", margin, band, PropsCheck::Extent)? {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(PropsError::DegenerateFace),
     }
@@ -1042,7 +1042,7 @@ fn level_coincides<T: Decide>(
         RimLevel::Length(_) => Margin::of(gap),
         RimLevel::Unit(..) => Margin::levered(gap, arms.level),
     };
-    Ok(classify(name, margin, band, PropsCheck::Inventory)? == Sign::Zero)
+    Ok(classify_as(name, margin, band, PropsCheck::Inventory)? == Sign::Zero)
 }
 
 /// How far apart two rim levels are, **in the level's own units**:
@@ -1242,7 +1242,7 @@ fn rim_side<T: Decide>(
         RimLevel::Length(v) => Margin::of(lo + hi - v - v),
         RimLevel::Unit(s, _) => Margin::levered(lo + hi - s - s, arms.level),
     };
-    match classify("props_rim_side", margin, band, PropsCheck::Inventory)? {
+    match classify_as("props_rim_side", margin, band, PropsCheck::Inventory)? {
         Sign::Positive => Ok(rim.d_u_sign.into()),
         Sign::Negative => Ok(rim.d_u_sign.flip().into()),
         Sign::Zero => Err(PropsError::DegenerateFace),
@@ -1620,7 +1620,7 @@ fn mean_width_side<T: Decide>(
     (area, length): (T, T),
     band: Band,
 ) -> Result<Sign, PropsError> {
-    classify(
+    classify_as(
         name,
         Margin::over_lever(area * T::from_f64(2.0), length),
         band,
@@ -1897,7 +1897,7 @@ fn cylinder_boundary<T: Decide>(
                     },
                 radius: r_c,
             }) => {
-                let s = classify(
+                let s = classify_as(
                     "props_circle_axis_class",
                     Margin::levered(
                         n_c.dot(axis),
@@ -2096,10 +2096,10 @@ fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsE
         cause,
         check: PropsCheck::Inventory,
     };
-    let net = "props_cone_apex_loop_net";
-    let (_, extent) = Extent::decide_signed(net, total, InfSpeed::new(arm), band).map_err(
+    const NET: &str = "props_cone_apex_loop_net";
+    let (_, extent) = Extent::decide_signed(NET, total, InfSpeed::new(arm), band).map_err(
         |cause: geom_core::Indeterminate| match cause.margin.rejected_sign() {
-            Some(Sign::Zero) => PropsError::ConeLoop { what: net },
+            Some(Sign::Zero) => PropsError::ConeLoop { what: NET },
             _ => escalated(cause),
         },
     )?;
@@ -2258,8 +2258,8 @@ fn cone_loops<T: Decide>(
     }
     let (lo, hi) = min_max(&ends)?;
     let nappe = match (
-        classify("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
-        classify("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
+        classify_as("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
+        classify_as("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
     ) {
         (Sign::Negative, Sign::Positive) => return Err(PropsError::NappeSpanning),
         (_, Sign::Positive) => T::one(),
@@ -2342,7 +2342,7 @@ fn require_cone_circle<T: Decide>(
     band: Band,
 ) -> Result<NonzeroSign, PropsError> {
     let rim = crate::ExtentBall::of_circle(center, r_c).lever();
-    let s = classify(
+    let s = classify_as(
         "props_circle_axis_class",
         Margin::levered(n_c.dot(axis), rim),
         band,
@@ -2481,7 +2481,7 @@ fn require_cone_ellipse<T: Decide>(
         };
         middle = middle + T::one();
     }
-    if classify(
+    if classify_as(
         "props_cone_ellipse_nappe",
         Margin::of(h_low),
         band,
@@ -2664,10 +2664,7 @@ fn require_cone_conic_spans<T: Decide>(
                 let Some(floor) = geom::carrier_speed::speed_floor(ellipse) else {
                     unreachable!("`speed_floor` answers an ellipse")
                 };
-                let rows = TurnRows::bounded(
-                    "props_cone_ellipse_span_winding",
-                    "props_cone_ellipse_span_winding_straddle",
-                );
+                let rows = crate::rows::PROPS_CONE_ELLIPSE_SPAN_WINDING.rows();
                 require_span_within_period(
                     (e.t0, e.t1),
                     floor,
@@ -2790,7 +2787,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
                 continue;
             }
             let ((p, a), (q, b)) = (w.vertices[i], w.vertices[j]);
-            if classify(
+            if classify_as(
                 "props_cone_loop_vertex",
                 Margin::of((p - q).norm()),
                 band,
@@ -2807,7 +2804,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
                 dir: axis,
             }
             .distance(p);
-            if classify(
+            if classify_as(
                 "props_cone_loop_vertex_sheet",
                 Margin::metered((a - b).abs() - T::pi(), InfSpeed::new(rho)),
                 band,
@@ -2959,7 +2956,7 @@ fn cone_loop_winding<T: Decide>(
         .offset(p)
     };
     let off = |name, rho: T| {
-        classify(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
+        classify_as(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
     };
     let mut arm = T::zero();
     let mut through_apex = false;
@@ -2993,7 +2990,7 @@ fn cone_loop_winding<T: Decide>(
         through_apex = through_apex || a_apex || b_apex;
         arm = arm.max(a.norm()).max(b.norm());
         let sense = |n: Vec3<T>, rho: T| -> Result<T, PropsError> {
-            classify(
+            classify_as(
                 "props_cone_arc_sense",
                 Margin::levered(n.dot(axis), Lever::curvature_radius(rho)),
                 band,
@@ -3037,7 +3034,7 @@ fn cone_loop_winding<T: Decide>(
                 for (x, y) in [(a, m1), (m1, m2), (m2, b)] {
                     let principal = turn_about(axis, x, y);
                     thirds = thirds
-                        + match classify(
+                        + match classify_as(
                             "props_cone_arc_turn",
                             Margin::metered(principal * sense, InfSpeed::new(rho)),
                             band,
@@ -3224,7 +3221,7 @@ fn cone_apex_level<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let (lo, hi) = min_max(&b.levels)?;
-    if classify(
+    if classify_as(
         "props_rim_only_extent",
         Margin::of(hi - lo),
         band,
@@ -3619,7 +3616,7 @@ fn require_solid_angle<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<(), PropsError> {
-    match classify(
+    match classify_as(
         name,
         Margin::levered(angle, Lever::curvature_radius(radius)),
         band,
@@ -3822,7 +3819,7 @@ fn require_on_loop<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    match classify(name, margin, band, PropsCheck::Inventory)? {
+    match classify_as(name, margin, band, PropsCheck::Inventory)? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(PropsError::SphereLoop { what: name }),
     }
@@ -3868,7 +3865,7 @@ fn require_cusp_free<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<(), PropsError> {
-    match classify(
+    match classify_as(
         "props_sphere_loop_cusp",
         Margin::levered((depart + arrive).norm(), Lever::curvature_radius(radius)),
         band,
@@ -3935,7 +3932,7 @@ fn side_of_sphere_loops<T: Decide>(
         [one] => pole_free_side(center, radius, axis, one, held, band),
         [_, _, ..] => {
             for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
-                if classify(
+                if classify_as(
                     "props_sphere_face_area",
                     Margin::levered(
                         claimed_area(center, gauss, left),
@@ -4283,7 +4280,7 @@ pub fn sphere_region_cover<T: Decide>(
         census = census + claimed_area(region.center, loops, *sense);
     }
     // Above the threshold `c` spheres, below it, or in its band.
-    let above = |c: f64| match classify(
+    let above = |c: f64| match classify_as(
         "props_sphere_region_cover",
         Margin::levered(
             census - T::from_computed(c) * sphere,
@@ -4323,14 +4320,14 @@ fn pole_against_arc<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<(Sign, bool), PropsError> {
-    let plane = classify(
+    let plane = classify_as(
         "props_sphere_pole_plane",
         Margin::of(arc.axis.dot(p - arc.centre)),
         band,
         PropsCheck::Inventory,
     )?;
     let on = plane == Sign::Zero
-        && classify(
+        && classify_as(
             "props_sphere_pole_on_arc",
             arc_point_margin(arc, p),
             band,
@@ -4403,7 +4400,7 @@ fn pole_side<T: Decide>(
         unreachable!("every circulation is read, so the turning is")
     };
     Ok(
-        match classify(
+        match classify_as(
             "props_sphere_pole_winding",
             Margin::levered(turning, Lever::curvature_radius(radius)),
             band,
@@ -4750,7 +4747,7 @@ fn require_span_within_period<T: Decide, R: TurnRate<T>>(
     {
         Ok(extent)
     } else {
-        Err(refuse(rows.turn))
+        Err(refuse(rows.turn()))
     }
 }
 
@@ -4952,7 +4949,7 @@ fn sphere_boundary<T: Decide>(
                 },
             });
         };
-        let s = classify(
+        let s = classify_as(
             "props_circle_axis_class",
             Margin::levered(
                 n_c.dot(axis),
@@ -5786,7 +5783,7 @@ fn sheet_apex_jumps<T: Decide>(
         };
         let (into, out) = (pieces[j].edge, pieces[next].edge);
         let at = radial(into.traversal_ends().1).norm();
-        if classify(
+        if classify_as(
             "props_sheet_apex_junction",
             Margin::of(at),
             band,
@@ -5798,7 +5795,7 @@ fn sheet_apex_jumps<T: Decide>(
         let (d_in, d_out) = (radial(meridian_middle(into)), radial(meridian_middle(out)));
         let lever = d_in.norm().min(d_out.norm());
         let turn = turn_about(axis, d_in, d_out);
-        let positive = match classify(
+        let positive = match classify_as(
             "props_sheet_apex_turn",
             Margin::metered(turn, InfSpeed::new(lever)),
             band,
@@ -5921,7 +5918,7 @@ fn torus_classify<'a, T: Decide>(
                 },
             });
         };
-        let s = classify(
+        let s = classify_as(
             "props_circle_axis_class",
             Margin::levered(
                 n_c.dot(axis),
@@ -6130,7 +6127,7 @@ fn fold_chain<T: Decide>(
         for pair in chain.windows(2) {
             let (a, b) = (pair[0].edge, pair[1].edge);
             let gap = if forward { b.t0 - a.t1 } else { a.t0 - b.t1 };
-            if classify(
+            if classify_as(
                 "props_meridian_pieces_meet",
                 Margin::metered(gap, InfSpeed::new(minor)),
                 exact,
@@ -6219,7 +6216,7 @@ fn torus_meridian_orient<T: Decide>(
         )
     })?;
     let tau = frame.v().get();
-    let orient = classify(
+    let orient = classify_as(
         "props_meridian_orient",
         Margin::levered(
             // Read against `sgn R·ρ̂` (`geom::meridian_side`, decided at

@@ -108,8 +108,7 @@ fn pt(p: Point3<f64>) -> String {
 /// (`he_plus`'s start to its end).
 fn edge_ends(body: &Body<f64>, e: topo::EdgeKey) -> Option<String> {
     let edge = body.get_edge(e)?;
-    let plus = body.get_half_edge(edge.he_plus)?;
-    let (v0, v1) = (plus.start, body.half_edge_end(edge.he_plus)?);
+    let (v0, v1) = body.edge_vertices(e)?;
     let (k0, k1) = (body.get_vertex(v0)?.point, body.get_vertex(v1)?.point);
     let (p0, p1) = (*body.get_point(k0)?, *body.get_point(k1)?);
     let face = |he| -> Option<topo::FaceKey> {

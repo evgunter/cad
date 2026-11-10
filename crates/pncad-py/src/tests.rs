@@ -2027,6 +2027,8 @@ fn node_error_tags_are_the_published_words() {
         ToleranceConflict => "tolerance_conflict",
         ParamBox => "param_box",
         Seed => "seed",
+        RecordRefused => "record_refused",
+        RecordMispaired => "record_mispaired",
         WrongOperand => "wrong_operand",
         NoSuchPiece => "no_such_piece",
         PieceShape => "piece_shape",
@@ -3957,6 +3959,7 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
             source: Indeterminate {
                 margin: MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
+                // UNDECIDED-NAME: the cause a ring-contact arm carries to Python (first)
                 predicate: Some("ring_contact"),
                 terminal_sliver: false,
             },
@@ -3972,6 +3975,7 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
             source: Indeterminate {
                 margin: MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
+                // UNDECIDED-NAME: the cause a ring-contact arm carries to Python (second)
                 predicate: Some("ring_contact"),
                 terminal_sliver: false,
             },
@@ -4431,6 +4435,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join",
             "join_carrier_unsupported",
             "join_desync",
+            "join_pairs_tied",
+            "join_partners_tied",
             "join_undecided",
             "line_material_unread",
             "line_wedges",
@@ -5219,6 +5225,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile",
             "profile_lane_replay",
             "profile_replay",
+            "record_mispaired",
+            "record_refused",
             "revolve",
             "seed",
             "select_resolve",
@@ -5371,6 +5379,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "circle_split_count",
             "continuation_target_off_ray",
+            "cusp_doubles_back_over_leg",
             "degenerate_arc_center",
             "degenerate_arc_chord",
             "degenerate_arc_spec",
@@ -5777,6 +5786,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fit",
             "knot_algebra",
             "no_parameter_step",
+            "parameters_invalid",
             "path_folds_back",
             "path_stations_coincide",
             "path_tangent_vanishes",

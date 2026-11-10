@@ -2143,6 +2143,14 @@ impl MarginDiag {
         }
     }
 
+    /// The signs the gate that rejected this reading passes, where a gate
+    /// rejected it; `None` for every other reading. With
+    /// [`MarginDiag::rejected_sign`], the whole of the gate's tag.
+    #[must_use]
+    pub fn rejected_passing(self) -> Option<SizedPass> {
+        self.tag().map(|r| r.passes)
+    }
+
     /// The gate's tag, where a gate rejected this reading.
     const fn tag(self) -> Option<Rejection> {
         match self.0 {
@@ -2698,14 +2706,59 @@ macro_rules! kernel_limit_recourse {
     };
 }
 
+/// **The move a site names more closely, as a lever**:
+/// `move_lever!("so the surfaces clearly part")` is `move the geometry so
+/// the surfaces clearly part`, the fragment [`COINCIDENCE_RECOURSE`] and
+/// the site's condition, for a slot a recourse label is put before (a
+/// `LeverOnly`'s or a `SizedDecision`'s `lever`, a refusal's own
+/// sentence). The literal must start with `so `, checked at compile
+/// time; that form is an expression, not a literal, so it does not nest
+/// in `concat!`. `move_recourse!` is this lever labelled. Its `@words`
+/// arm is the two macros' shared inner form, which skips the check; no
+/// crate but this one names it (`scripts/gates/recourse-ending-by-hand.sh`).
+#[doc(hidden)]
+#[macro_export]
+macro_rules! move_lever {
+    (@words $so:expr) => {
+        concat!($crate::coincidence_move_arm!(), " ", $so)
+    };
+    ($so:expr) => {{
+        const _: () = assert!(
+            $crate::predicate::continues_with_so($so),
+            "move_lever!'s condition starts with \"so \""
+        );
+        $crate::move_lever!(@words $so)
+    }};
+}
+
 /// [`MOVE_RECOURSE`] as a literal, for `concat!`; see
-/// `kernel_defect_ending!`.
+/// `kernel_defect_ending!`. With a literal, `move_lever!` labelled, as
+/// a whole ending: `move_recourse!("so the surfaces clearly part")` is
+/// `Recourse: move the geometry so the surfaces clearly part`. The
+/// literal must start with `so `, checked at compile time; that form is
+/// an expression, not a literal, so it does not nest in `concat!`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! move_recourse {
     () => {
         concat!("Recourse: ", $crate::coincidence_move_arm!())
     };
+    ($so:expr) => {{
+        const _: () = assert!(
+            $crate::predicate::continues_with_so($so),
+            "move_recourse!'s condition starts with \"so \""
+        );
+        concat!("Recourse: ", $crate::move_lever!(@words $so))
+    }};
+}
+
+/// Whether `s` starts with `so `: `move_recourse!`'s condition, checked
+/// at compile time.
+#[doc(hidden)]
+#[must_use]
+pub const fn continues_with_so(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() > 3 && b[0] == b's' && b[1] == b'o' && b[2] == b' '
 }
 
 /// [`KERNEL_OR_FILE_DEFECT_ENDING`] as a literal, for `concat!`; see
@@ -4756,6 +4809,7 @@ mod tests {
         assert_eq!(err.predicate, None);
 
         let named = err.with_predicate("side_of_plane");
+        // UNDECIDED-NAME: the name with_predicate attaches, any name the test reads back
         assert_eq!(named.predicate, Some("side_of_plane"));
         // Margin and band pass through untouched.
         assert_eq!(named.margin, err.margin);
@@ -4764,6 +4818,7 @@ mod tests {
         // Re-attaching replaces: the outermost predicate wins.
         assert_eq!(
             named.with_predicate("transversality").predicate,
+            // UNDECIDED-NAME: the name with_predicate replaces the first with, read back
             Some("transversality")
         );
     }
@@ -4832,6 +4887,7 @@ mod tests {
         let enclosure = Indeterminate {
             margin: MarginDiag::enclosure(-2e-9, 5e-9),
             band,
+            // UNDECIDED-NAME: the enclosure cause Display's golden string is pinned on
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         };

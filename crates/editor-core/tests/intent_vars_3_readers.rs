@@ -1706,7 +1706,7 @@ fn the_assertion_key_reads_the_value_at_the_runs_scalar() {
             .content_key
     };
     assert_eq!(key(on_a), key(on_b), "equal values, equal content");
-    let seeded = editor_core::evaluate::<geom_core::Dual64>(
+    let seeded = editor_core::test_support::evaluate_bound::<geom_core::Dual64>(
         &doc,
         None,
         &editor_core::CancelToken::new(),

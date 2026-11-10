@@ -64,11 +64,8 @@ fn point_at(body: &Body<f64>, v: VertexKey) -> V {
 }
 
 fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
-    let he = body.get_edge(e).expect("an edge").he_plus;
-    [
-        body.get_half_edge(he).expect("a half-edge").start,
-        body.half_edge_end(he).expect("an end"),
-    ]
+    let (v0, v1) = body.edge_vertices(e).expect("an edge");
+    [v0, v1]
 }
 
 /// The edge whose ends lie within `1e-9` of `a` and `b`, relative to

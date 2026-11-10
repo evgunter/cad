@@ -92,7 +92,10 @@ pub(crate) struct GermFoot<T: Real> {
 /// **A plane×cone pair's two lines through the cone's apex**
 /// ([`SectionTable::plane_cone`]): the apex, the lines' directions in
 /// the order `geom_brep::plane_cone_section` returns them, and the
-/// lever its decisions were read at.
+/// lever its decisions were read at. Each direction is a ruling of the
+/// cone's squared frame (`PlaneConeSection::ApexLinePair`), unit to
+/// rounding and never the zero vector, so a reader takes it as a line's
+/// direction with no decision.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ApexLines<T: Real> {
     pub(crate) apex: geom_core::Point3<T>,

@@ -714,7 +714,7 @@ fn vertex_face_side<T: Decide>(
 /// ahead of a question: the refusal of the decision that refused it.
 fn vertex_refusal(
     refusal: VertexRefusal,
-    x_is: Operand,
+    (x_is, vertex): (Operand, VertexKey),
     read: &dyn Fn(Coincide) -> DeclarationRead,
     band: Band,
 ) -> BooleanError {
@@ -722,14 +722,13 @@ fn vertex_refusal(
     match refusal {
         VertexRefusal::Offset(diag) => coincidence(Coincide::VertexOnFace, diag),
         VertexRefusal::Section(diag) => coincidence(Coincide::VertexOnSection, diag),
-        VertexRefusal::Sector(e) => e.boolean_refusal(x_is, band),
-        VertexRefusal::Walk(crate::splitting::SplitReduceError::SliverSector {
-            reading: crate::splitting::SectorReading::Escalated(diag),
-            ..
-        }) => BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag),
+        VertexRefusal::Star(fault) => super::sectors::star_fault(fault, x_is, vertex, band),
+        VertexRefusal::Side { diag, .. } => {
+            BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
+        }
         VertexRefusal::Walk(_) => BooleanError::ClassificationInvariant {
-            what: "the neighbourhood walk refused a vertex of an operand at rest (a null edge \
-                   or a degenerate chord, which a finished operand holds none of)",
+            what: "the vertex section asked the split's record for a far vertex's side, which \
+                   the Boolean's reading does not keep",
         },
         VertexRefusal::Plane(what) => BooleanError::ClassificationInvariant { what },
     }
@@ -820,11 +819,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                 });
             }
             Err(super::PlaneEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(
-                    rung,
-                    super::PlaneDoor::Neighbours,
-                    diag,
-                ));
+                return Err(BooleanError::plane_identity(rung, diag));
             }
             Err(super::PlaneEqError::OffRing { torus, refusal }) => {
                 return Err(super::off_ring_torus(
@@ -1232,7 +1227,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             (chart_origin, chart_normal),
                             band,
                         )
-                        .map_err(|refusal| vertex_refusal(refusal, x_is, &read, band))
+                        .map_err(|refusal| vertex_refusal(refusal, (x_is, w), &read, band))
                     };
                     let (d1, d2) = (side(u, pu)?, side(v, pv)?);
                     let (s1, s2) = (d1.sign, d2.sign);
@@ -1461,9 +1456,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 )
             };
             let read = |which| edge_face_read(x, x_is, &edge, face, declared, which);
-            let on_face = |refusal| vertex_refusal(refusal, x_is, &read, band);
-            let d1 = side(u, pu).map_err(on_face)?;
-            let d2 = side(v, pv).map_err(on_face)?;
+            let on_face = |w| move |refusal| vertex_refusal(refusal, (x_is, w), &read, band);
+            let d1 = side(u, pu).map_err(on_face(u))?;
+            let d2 = side(v, pv).map_err(on_face(v))?;
             match (d1.sign, d2.sign) {
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                     // Proper plane crossing: locate p on the carrier and
@@ -6308,7 +6303,7 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
         (plane.origin, plane.normal),
         band,
     )
-    .map_err(|refusal| vertex_refusal(refusal, x_is, &read, band))?;
+    .map_err(|refusal| vertex_refusal(refusal, (x_is, w), &read, band))?;
     if on.sign != Sign::Zero {
         return Ok(false);
     }
@@ -7277,17 +7272,17 @@ mod declaration_order_rows {
         );
     }
 
-    /// **A coplanar sector's in-band parallelism refuses on the sector**,
-    /// on a union: a parallelepiped cornered at a point of a block's top
-    /// face by a 5° wedge angle, its face there tilted by an in-band
-    /// angle about the wedge's one edge, so the wedge's two edges read
-    /// on that face while its normal reads in-band parallel at the
-    /// corner's arm. Two poses: standing on the block, its bottom face
-    /// opposed to the block's top; and sunk into it, its top face flush
-    /// with the block's top and aligned with it. The sector names the
-    /// one-carrier class the senses make the pair (`Rest` opposed, a
-    /// continuation aligned), and its recourse is the geometry or the
-    /// tolerance, where that lies above `EPS_MIN` (D4 ¶4).
+    /// **A coplanar sector of a pair the glue door did not glue refuses
+    /// on its own bounds**, on a union: a parallelepiped cornered at a
+    /// point of a block's top face by a 5° wedge angle, its face there
+    /// tilted by an in-band angle about the wedge's one edge, so the
+    /// wedge's two edges read on that face. Two poses: standing on the
+    /// block, its bottom face opposed to the block's top; and sunk into
+    /// it, its top face flush with the block's top and aligned with it.
+    /// Either way the corner refuses on the steeper bound's tie, naming no
+    /// class (carrier identity is the glue door's alone), and its
+    /// recourse is the geometry or the tolerance, where that lies above
+    /// `EPS_MIN` (D4 ¶4).
     #[test]
     fn a_coplanar_sectors_in_band_parallelism_refuses_on_the_sector() {
         use crate::test_support_fixtures::{brick, mapped_cube};
@@ -7305,14 +7300,13 @@ mod declaration_order_rows {
             brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
             tol,
         );
-        let poses: [(&'static str, crate::body::Body<f64>, GlueClass); 2] = [
+        let poses: [(&'static str, crate::body::Body<f64>); 2] = [
             (
                 "standing on the block",
                 mapped_cube::<f64>(
                     move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
                     tol,
                 ),
-                GlueClass::Rest,
             ),
             (
                 "sunk into the block",
@@ -7322,19 +7316,17 @@ mod declaration_order_rows {
                     },
                     tol,
                 ),
-                GlueClass::Continuation,
             ),
         ];
-        for (label, wedge, class) in poses {
+        for (label, wedge) in poses {
             let wedge = finished(label, wedge, tol);
             let got = crate::boolean::union(&block, &wedge, tol).map(|_| ());
             assert!(
                 matches!(
                     decision_of(label, &got),
-                    BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
-                        if s.class() == class
+                    BooleanDecision::Coincidence(Coincide::CornerBound, DeclarationRead::Moot)
                 ),
-                "{label}: the sector names {class:?}, as the senses make the pair: {got:?}"
+                "{label}: the corner refuses on its own bound: {got:?}"
             );
             let Err(BooleanError::Escalated { diag, .. }) = &got else {
                 panic!("{label}: an escalation: {got:?}");
@@ -7349,13 +7341,14 @@ mod declaration_order_rows {
                 .expect_err("it refuses")
                 .render(geom_brep::recourse::Reading::Build);
             assert!(
-                text.starts_with("how two corners of the two solids overlap where they meet is ")
-                    && text.contains(
-                        "Recourse: move the parts so they clearly meet or clearly stand apart \
-                         there"
-                    )
-                    && text.contains(", or, if this gap is intended, tighten the tolerance below ")
-                        == offers
+                text.starts_with(
+                    "whether a corner of one solid lying on a face of the other leaves its plane \
+                     is "
+                ) && text.contains(
+                    "Recourse: move the parts so the corner's edges clearly leave the other \
+                     face's plane"
+                ) && text.contains(", or, if this rise is intended, tighten the tolerance below ")
+                    == offers
                     && !text.contains("declare"),
                 "{label}: offered exactly above EPS_MIN ({offers}): {text}"
             );
@@ -9926,5 +9919,37 @@ mod review_5993_rows {
                 "a legal line with two certified-able roots ends as a kernel defect at ε {eps:e}: {got:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod vertex_refusal_tests {
+    use super::*;
+    use crate::star::StarFault;
+    use crate::vertex_section::VertexRefusal;
+
+    /// **A corner refusal keeps its kind through the Boolean**: a star
+    /// fault the section reading raises at a vertex near a cone's axis is
+    /// the Boolean's own [`BooleanError::VertexNearConeAxis`], naming the
+    /// operand and the face, never a broken invariant (the split's half is
+    /// `vertex_section::tests::a_star_fault_in_the_section_reading_is_the_splits_own`).
+    #[test]
+    fn a_star_fault_in_the_section_reading_is_the_booleans_own() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let face = FaceKey::default();
+        let got = vertex_refusal(
+            VertexRefusal::Star(StarFault::NearAxis(face)),
+            (Operand::B, VertexKey::default()),
+            &|_| DeclarationRead::Moot,
+            band,
+        );
+        assert!(
+            matches!(
+                got,
+                BooleanError::VertexNearConeAxis { operand: Operand::B, face: f, .. } if f == face
+            ),
+            "{got:?}"
+        );
     }
 }

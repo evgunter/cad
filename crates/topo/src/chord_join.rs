@@ -122,6 +122,7 @@
 use geom::Conic;
 use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use geom_brep::{EdgeCurveSpec, Pcurve};
+use geom_core::ladder::{Aborts, Refusal};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -614,6 +615,88 @@ pub enum SplitJoinError {
     },
 }
 
+impl SplitJoinError {
+    /// **What this refusal is to a ladder** ([`Refusal`]), per cause and
+    /// exhaustive, so a cause added here states its standing before it
+    /// compiles. Each is its doc's class: an escalation by its margin, a
+    /// cause the band may part in band, a lane or row not built a limit,
+    /// and a kernel fault or corruption an abort.
+    ///
+    /// **A cause that mixes classes stands as an abort**, since a ladder
+    /// must never read past what may be a fault or an in-band coincidence:
+    /// [`Self::UnpairedLooseEnds`], [`Self::RingHomingAmbiguous`],
+    /// [`Self::SectionLoopUndecided`],
+    /// [`Self::SectionInvariant`], [`Self::RunImageIncidence`] (its ending is
+    /// rendered, not typed) and [`Self::Section`] (the table's refusal, which
+    /// states no standing of its own:
+    /// `work/onecopy/the-section-tables-refusal-states-no-standing.md`).
+    ///
+    /// A ladder reads a join refusal in two places, both over the
+    /// Boolean's pierce germs ([`crate::BooleanError::refusal`]'s readers):
+    /// through a pierce germ's branch (`boolean::join::germ_branch`, whose
+    /// one join refusal is [`Self::SectionUnwalked`]), and through the apex
+    /// section's table refusal ([`ApexSectionReading::Refused`]).
+    ///
+    /// # Errors
+    ///
+    /// [`Aborts`] for a kernel fault, corruption or a mixed cause, and each
+    /// payload's own aborts.
+    pub(crate) fn refusal(&self) -> Result<Refusal, Aborts> {
+        match self {
+            Self::OrderEscalated { diag }
+            | Self::Escalated { diag, .. }
+            | Self::SectionEndEscalated { diag, .. }
+            | Self::TangentChordEscalated { diag, .. }
+            | Self::TangentChordBendEscalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::SectionUnwalked(why) => Ok(why.refusal()),
+            Self::RingHoming(why) => why.refusal(),
+            // A tighter band may part each.
+            Self::PoleEdgesCoincide { .. }
+            | Self::SectionDepartureGrazes { .. }
+            | Self::SectionCrossings {
+                case: ConicCrossingsCase::Grazing,
+                ..
+            } => Ok(Refusal::InBand),
+            // A lane or row not built (row 2).
+            Self::SectionUnarmed { .. }
+            | Self::RingIslandUnread { .. }
+            | Self::RunImageNotYet { .. }
+            | Self::SectionUnresolved { .. }
+            | Self::OpenConicChord { .. }
+            | Self::RunEdgeCarrierUnsupported { .. }
+            | Self::CurvedSlitTrace { .. }
+            | Self::SingleSiteSectionLoop { .. }
+            | Self::ApexUnlifted { .. } => Ok(Refusal::Limit),
+            // A kernel fault, a corruption, two readings that disagree.
+            Self::SectionLoopMixed { .. }
+            | Self::CutInvariant { .. }
+            | Self::Corrupt { .. }
+            | Self::LineageRow(_)
+            | Self::Band(_)
+            | Self::Euler(_)
+            | Self::TangentChordRefuted { .. }
+            // Its doc argues every pose the reduction admits reaches a
+            // slit trace or a refusal first, so reaching it is the
+            // reduction's fault.
+            | Self::DegenerateSection { .. } => Err(Aborts),
+            // Mixed: a zero gap the band may part beside senses that
+            // disagree with the geometry.
+            Self::SectionCrossings {
+                case: ConicCrossingsCase::NotAlternating,
+                ..
+            }
+            | Self::UnpairedLooseEnds { .. }
+            // An ill-conditioned operand's ring, or a ray no band decides,
+            // beside the structural causes its doc lists.
+            | Self::RingHomingAmbiguous { .. }
+            | Self::SectionLoopUndecided { .. }
+            | Self::SectionInvariant { .. }
+            | Self::RunImageIncidence { .. }
+            | Self::Section { .. } => Err(Aborts),
+        }
+    }
+}
+
 impl From<EulerOpError> for SplitJoinError {
     fn from(e: EulerOpError) -> Self {
         Self::Euler(e.from_driver())
@@ -692,9 +775,13 @@ impl SplitJoinError {
                     diag.ending(JOIN_RECOURSE)
                 )
             ),
+            // A fault ([`Self::refusal`]): the reduction admits no pose that
+            // reaches it, so its ending is the kernel's, not a lever.
             Self::DegenerateSection { .. } => write!(
                 f,
-                "a section is degenerate: it bounds zero area. Recourse: {JOIN_RECOURSE}"
+                "a section is degenerate: it bounds zero area, which no section the \
+                 reduction admits does. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::CurvedSlitTrace { .. } => write!(
                 f,
@@ -1943,7 +2030,7 @@ enum ArcEnd<T> {
 /// The candidate arc of `conic` from `th1` (the exact conic parameter
 /// of the chord's start) to `to`, running forward from the start: the
 /// ccw arc as it stands, the cw arc on the axis-flipped carrier.
-fn oriented_arc<T: Real>(
+fn oriented_arc<T: Decide>(
     conic: &SectionCurve<T>,
     face: FaceKey,
     th1: T,
@@ -1962,14 +2049,14 @@ fn oriented_arc<T: Real>(
     // less the other's, which would carry `ulp(τ)` in a short arc.
     if ccw {
         let span = match to {
-            ArcEnd::At(th2) => (th2 - th1).reduce_periodic(tau),
+            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th1, th2),
             ArcEnd::WholeTurn => tau,
         };
         Ok((conic.carrier().clone(), th1, th1 + span))
     } else {
         // The cw arc: the carrier run back runs forward from p1.
         let span = match to {
-            ArcEnd::At(th2) => (th1 - th2).reduce_periodic(tau),
+            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th2, th1),
             ArcEnd::WholeTurn => tau,
         };
         let flipped = conic
@@ -2005,8 +2092,12 @@ fn chord_arc<T: Decide>(
             let th1 = conic.param(p1);
             let middle = match p2 {
                 None => th1,
-                Some(p2) if ccw => th1 + (conic.param(p2) - th1).reduce_periodic(tau) * half,
-                Some(p2) => th1 - (th1 - conic.param(p2)).reduce_periodic(tau) * half,
+                Some(p2) if ccw => {
+                    th1 + geom_core::period::Period::new(tau).run_from(th1, conic.param(p2)) * half
+                }
+                Some(p2) => {
+                    th1 - geom_core::period::Period::new(tau).run_from(conic.param(p2), th1) * half
+                }
             };
             SectionCurve::Conic(conic.seamed_near(middle))
         }
@@ -2145,13 +2236,12 @@ fn arc_leaving<T: Decide>(
     };
     let tangent = conic.tangent(conic.param(p1));
     let along = leave.dir.dot(tangent) / tangent.norm();
+    const CHORD_LEAVE_GERM: &str = "chord_arc_leave_germ";
+    const CHORD_LEAVE_SECTION: &str = "chord_arc_leave_section";
     let (name, margin) = match leave.datum {
-        Datum::Germ => (
-            "chord_arc_leave_germ",
-            Margin::levered(along, conic.lever()),
-        ),
+        Datum::Germ => (CHORD_LEAVE_GERM, Margin::levered(along, conic.lever())),
         Datum::Section => (
-            "chord_arc_leave_section",
+            CHORD_LEAVE_SECTION,
             Margin::levered(along, geom_brep::curvature_lever_arm(wall, p1)),
         ),
     };
@@ -2718,16 +2808,16 @@ pub(crate) fn apex_section_ruling<T: Decide>(
             return Err(ApexRulingFault::Escalated(diag));
         }
         Err(section) => {
-            return Err(ApexRulingFault::Disagrees(ApexSectionReading::Refused(
-                Box::new(section),
-            )));
+            return Err(ApexRulingFault::Disagrees(
+                ApexSectionReading::of_table_refusal(section),
+            ));
         }
         Ok(Some(WallSection {
             case: SectionCase::Conic(_),
             ..
         })) => {
             return Err(ApexRulingFault::Disagrees(
-                ApexSectionReading::ClosedOffApex,
+                ApexSectionReading::clear_of_apex(false),
             ));
         }
         Ok(_) => unreachable!(
@@ -2973,7 +3063,7 @@ fn carried_chord_spec<T: Decide>(
     let place = |p: Point3<T>| -> Result<geom_brep::ArcPlace<T>, SplitJoinError> {
         match component.place(&ctx.nodes, p, band) {
             Ok(geom_brep::ArcPlace::At(t)) => Ok(geom_brep::ArcPlace::At(match turn {
-                Some(turn) => lo + (t - lo).reduce_periodic(turn),
+                Some(turn) => geom_core::period::Period::new(turn).at_or_above(t, lo),
                 None => t,
             })),
             Ok(end) => Ok(end),
@@ -6562,8 +6652,12 @@ mod tests {
         let face = FaceKey::default();
         let msg =
             SplitJoinError::DegenerateSection { face }.render(geom_brep::recourse::Reading::Build);
-        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
-        assert!(!msg.contains("declare"), "{msg}");
+        assert_eq!(
+            msg.matches(JOIN_RECOURSE).count(),
+            0,
+            "a fault offers no lever: {msg}"
+        );
+        assert!(msg.contains(geom_core::KERNEL_DEFECT_ENDING), "{msg}");
 
         let msg = SplitJoinError::Escalated {
             face,
@@ -6605,6 +6699,9 @@ mod tests {
     /// 3. **A copy in another crate.** The count is scoped to
     ///    `topo/src`; `crate::validate::decide` is `pub(crate)`, so a
     ///    foreign crate would have to call `geom_core`'s directly.
+    /// 4. **A `const` decided outside the file that declares it.** A
+    ///    rung's spellings are its literal and the consts its file
+    ///    declares to hold it, read per file.
     #[test]
     fn the_chord_arc_rung_is_decided_in_one_place() {
         let files = crate::source_walk::crate_sources();
@@ -6630,14 +6727,27 @@ mod tests {
             let mut sites = 0;
             for path in &files {
                 let text = std::fs::read_to_string(path).expect("a readable source file");
+                // The rung is spelled as its literal or as a `const` the
+                // file declares to hold it.
+                let mut spellings = vec![rung.clone()];
+                spellings.extend(text.lines().filter_map(|line| {
+                    let decl = line.trim().split_once("const ")?.1;
+                    let (name, value) = decl.split_once(':')?;
+                    value
+                        .contains(&format!("= {rung};"))
+                        .then(|| name.trim().to_owned())
+                }));
                 // DECIDE sites, counted on a whitespace-stripped copy so
                 // a call broken across lines counts the same as an
                 // inline one.
                 let stripped: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-                sites += stripped.matches(&format!("decide({rung}")).count();
-                // A rung chosen from a `match` and decided under a bound
-                // name still counts: its literal lives in its home.
-                sites += stripped.matches(&format!("=>({rung},")).count();
+                for spelling in &spellings {
+                    sites += stripped.matches(&format!("decide({spelling}")).count();
+                    // A rung chosen from a `match` and decided under a
+                    // bound name still counts: its spelling lives in its
+                    // home.
+                    sites += stripped.matches(&format!("=>({spelling},")).count();
+                }
                 assert!(
                     path == &home || !text.contains(rung.as_str()),
                     "{} names {rung}: the chord's arc has been re-forked out of {}, which \
@@ -7389,8 +7499,7 @@ mod torn_hop_rows {
             })
             .unwrap();
         let he = body.get_edge(edge).unwrap().he_plus;
-        let u1 = body.get_half_edge(he).unwrap().start;
-        let u2 = body.half_edge_end(he).unwrap();
+        let (u1, u2) = body.edge_vertices(edge).unwrap();
         let spec = |b: &Body<f64>| {
             super::along_edge_spec(b, &JoinLane::AlongEdge, Some(edge), face, u1, u2)
                 .map(|s| s.is_some())

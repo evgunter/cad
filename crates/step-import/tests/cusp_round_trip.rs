@@ -57,11 +57,8 @@ fn tangent_edges(body: &topo::Body<f64>) -> Vec<[Point3<f64>; 2]> {
         .iter()
         .filter(|(_, m)| **m == topo::ContactMark::Tangent)
         .map(|(e, _)| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            [
-                point(body.get_half_edge(he).unwrap().start),
-                point(body.half_edge_end(he).unwrap()),
-            ]
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            [point(v0), point(v1)]
         })
         .collect()
 }
