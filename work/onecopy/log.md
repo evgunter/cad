@@ -1504,3 +1504,4 @@
 - 02:40Z 6690 delta: FIX (Interval rows skip their text assert; net.rs MAX/2 prose false; gate misses diff/called-stem/from_f64 div, two vocabularies) → bracket lane. 6686 at fd54cbbb (conflict resolved by lane) gating.
 - 02:44Z argmin: 504 reds remain, all first_pair exact mutual ties with a conic germ in the round (proof covers straight only). Ruled: PR the door + 4 zero-move sites now, first_pair left unported (row-cited, no unproved declaration); probe the tie flip (last vs first pick) over the 525 processes to find a counterexample or route to a prover.
 - 02:50Z Merged 6686 (aac331f2; gate green at fd54cbbb, main moved only by onehome text). 6701 merged with main (incl. 6686) → 88a23b0f, check+gates clean, gating (prior head 31655de7 was green).
+- 02:53Z PR 6708 crease-at (76d8b436; prove-door Crease read, kept_edge, 0 moves) → FULL review session_013mPGJ4t6C8MSEJymSxuJiG. Warned roster-reach of overlap on the raw-sign row/register.
