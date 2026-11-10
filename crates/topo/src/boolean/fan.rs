@@ -203,11 +203,11 @@ pub(super) fn meeting<T: Decide>(
                 BooleanError::coincidence(Coincide::CornerCrossing, DeclarationRead::Moot, diag)
             };
             // A norm levered by a minimum of chord norms: a magnitude.
-            const NAME: &str = "bool_faces_parallel";
-            match decide_magnitude_reported(NAME, Margin::levered(int.norm(), arm), band) {
+            let tilt = Margin::levered(int.norm(), arm);
+            match decide_magnitude_reported("bool_faces_parallel", tilt, band) {
                 Ok((Magnitude::Positive, _)) => Ok(Meeting::Rays(vec![int, -int])),
                 Ok((Magnitude::Zero, margin)) if unglued_planes => Err(crossing(gate_rejection(
-                    NAME,
+                    "bool_faces_parallel",
                     geom_core::Decided {
                         sign: Sign::Zero,
                         margin,
