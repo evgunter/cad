@@ -4,11 +4,13 @@
 favour of the Opus/Fable model comparison.** No unit dispatches a
 review under this protocol, and no new row is recorded, except that a
 unit whose reviews were already dispatched finishes here and records
-its row. From then on every dual-tier unit gets the cross-model pair
-of `docs/MODEL-COMPARE-PROTOCOL.md` rule 2, which carries this
-protocol's instrument (the pair, lane isolation, the fair-pair rule,
-the adjudication instrument and blinded coding) over to it. The M-tier
-arms of rule 1 stop with the pause. Resuming is Ev's call; the rules
+its row. From then on dual-tier units run under
+`docs/MODEL-COMPARE-PROTOCOL.md` rule 2: an H or L unit gets a
+cross-model pair, which carries this protocol's instrument (the pair,
+lane isolation, the fair-pair rule, the adjudication instrument and
+blinded coding) over to it, and an M or S unit runs this protocol's
+sequential arm with a randomly drawn model reviewing first and the
+other model second. The holdout arm stops with the pause. Resuming is Ev's call; the rules
 below stand as they were, so it needs no migration.
 
 Opened by Ev, in-chat, 2026-09-23. This file holds ONLY the protocol

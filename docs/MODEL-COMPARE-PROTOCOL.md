@@ -41,7 +41,18 @@ docs/MODEL-COMPARE-PROTOCOL.md`, after a fetch).
    - the **implementer arm**, at the implementer's dispatch;
    - the **reviewer arm**, at the review's dispatch, for a
      SINGLE-review unit;
-   - for a **DUAL-tier unit**, whatever its letter, the **slot
+   - for a **DUAL-tier unit lettered M or S**, the **first
+     reviewer's model**: the unit runs SEQUENTIALLY. One review on a
+     frozen head; if it raises any MAJOR, a second review runs after
+     the fix pass, on the fix pass's head, by the OTHER model, briefed
+     with the same claims to falsify plus the adjudicated findings
+     whose fixes it confirms, and reviewing the whole unit, not only
+     the delta. A first review that raises no MAJOR is the unit's only
+     review. The row records each review's model, verdict and
+     findings, whether the second ran, and what it raised that the
+     first did not. Such a unit counts toward the reviewer question
+     through its first review, like a single review;
+   - for a **DUAL-tier unit lettered H or L**, the **slot
      order**: its two reviewers are one Opus and one Fable,
      dispatched CONCURRENTLY on the SAME FROZEN HEAD (named in both
      briefs and the row), and the byte says which model is R1 (even →
@@ -52,8 +63,8 @@ docs/MODEL-COMPARE-PROTOCOL.md`, after a fetch).
      (its rule 4), the verdict ladder, the BILATERAL / UNILATERAL
      coding and tally criteria (its rule 6), and blinded coding (its
      rule 7, A/B re-randomised by a recorded byte). The fix pass runs
-     off the adjudicated union of both reviews' findings. A dual-tier
-     unit is a paired observation for the reviewer question: the same
+     off the adjudicated union of both reviews' findings. Such a unit
+     is a paired observation for the reviewer question: the same
      code, read by both models.
 
    Each byte, its arm and the date are committed at once to a branch
@@ -147,8 +158,8 @@ docs/MODEL-COMPARE-PROTOCOL.md`, after a fetch).
    same". Unrecoverable figures are missing data, never zeros.
 9. **Record at merge.** The row rides the unit's own PR as its LAST
    commit, after every review is delivered, since it names the arms
-   and reviewers read `git log`; a missing field blocks the row. A
-   dual-tier unit's row also carries the pair's correspondence (the
+   and reviewers read `git log`; a missing field blocks the row. An
+   H- or L-lettered dual-tier unit's row also carries the pair's correspondence (the
    bilateral headline, the unilateral findings each way with
    severity, the tally candidates) and the blind coder's byte and
    result.

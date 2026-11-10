@@ -17,7 +17,7 @@ on the readouts are in `docs/dual-review-log/rulings.md`.
 
 **PAUSED (Ev, in-chat, 2026-11-10)** after readout 6, in favour of
 the Opus/Fable model comparison (`docs/MODEL-COMPARE-PROTOCOL.md`),
-which now gives every dual-tier unit a cross-model pair. Units whose
+under which a dual-tier unit's reviewers are one Opus and one Fable. Units whose
 reviews were already dispatched still finish here; nothing new enters.
 
 **Instrument note (Ev, in-chat, 2026-11-10): FABLE 5.2 RELEASE

@@ -31,8 +31,10 @@ Both leave `docs/` when the experiment concludes.
   `docs/MODEL-COMPARE-LOG.md`. Opus vs Fable as implementers and as
   reviewers, on quality, time and token cost; every unit sent to a
   single or dual review draws its implementer's model, a single
-  review draws its reviewer's, a dual-tier unit gets one Opus and one
-  Fable reviewer, and the unit is a row.
+  review draws its reviewer's, a dual-tier unit's reviewers are one
+  Opus and one Fable (a concurrent pair at H or L; at M or S a drawn
+  model first and the other second only if the first raises a MAJOR),
+  and the unit is a row.
 
 **Paused** (read only if Ev resumes it): **dual Opus review
 concordance** — `docs/DUAL-REVIEW-PROTOCOL.md` and
