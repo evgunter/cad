@@ -466,7 +466,9 @@ pub enum SpiricRegime {
 
 /// **The site names one reader of [`spiric_regime`] decides under**, so a
 /// refusal and its `k_stats` stream name the reading that met them:
-/// three distinct names, one per margin ([`SpiricRegimeSites::new`]).
+/// three distinct names, one per margin.
+/// Minted only by its reader ([`SpiricReader::sites`]), so no two readers
+/// share a name (`reader_rows`, in this crate's root).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SpiricRegimeSites {
     off_axis: &'static str,
@@ -483,13 +485,18 @@ impl SpiricRegimeSites {
 
     /// The rows for the offset off zero (`off_axis`) and the two-oval
     /// margin's far and floor rows ([`geom_core::k_stats::decide_across`]).
+    /// Private: a reader names its rows at [`SpiricReader::sites`].
     ///
     /// # Panics
     ///
     /// Where two of the names are equal: each names its own margin. In a
     /// `const` item the panic is a compile error.
     #[must_use]
-    pub const fn new(off_axis: &'static str, far: &'static str, floor: &'static str) -> Self {
+    pub(crate) const fn new(
+        off_axis: &'static str,
+        far: &'static str,
+        floor: &'static str,
+    ) -> Self {
         assert!(
             !crate::str_eq(off_axis, far)
                 && !crate::str_eq(off_axis, floor)
@@ -499,6 +506,55 @@ impl SpiricRegimeSites {
         Self {
             off_axis,
             two_ovals: [far, floor],
+        }
+    }
+}
+
+impl SpiricRegimeSites {
+    /// The reader's three rows: off the axis, then the two-oval margin's
+    /// far and floor rows.
+    #[must_use]
+    pub(crate) const fn rows(self) -> [&'static str; 3] {
+        [self.off_axis, self.two_ovals[0], self.two_ovals[1]]
+    }
+}
+
+/// **Every reader of [`spiric_regime`]**, each with its own rows
+/// ([`Self::sites`]): a new reader is a variant here, which the roster
+/// (`reader_rows`, in this crate's root) reads off this enum, so its names are
+/// checked against every other reader's when this crate compiles.
+///
+/// **This enum is the registry of who reads the spiric regime.** It spells
+/// its callers' row names, `topo`'s and `geom-brep`'s, as strings only:
+/// those names are global to the `k_stats` stream and the ledger
+/// (`docs/predicate-dimension-audit.md`) already, and this crate depends
+/// on nothing of its callers to hold them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
+pub enum SpiricReader {
+    /// [`Curve3::spiric`]'s mint.
+    Mint,
+    /// The Boolean's rider, reading a spiric edge against a curved face.
+    BooleanRider,
+    /// The plane×torus section, choosing the spiric it mints.
+    PlaneTorus,
+}
+
+impl SpiricReader {
+    /// The reader's rows.
+    #[must_use]
+    pub const fn sites(self) -> SpiricRegimeSites {
+        match self {
+            Self::Mint => SpiricRegimeSites::MINT,
+            Self::BooleanRider => SpiricRegimeSites::new(
+                "bool_rider_spiric_off_axis",
+                "bool_rider_spiric_regime",
+                "bool_rider_spiric_regime_floor",
+            ),
+            Self::PlaneTorus => SpiricRegimeSites::new(
+                "pt_spiric_off_axis",
+                "pt_spiric_two_ovals",
+                "pt_spiric_two_ovals_floor",
+            ),
         }
     }
 }
@@ -2608,8 +2664,8 @@ mod tests {
     #[test]
     fn spiric_regime_reads_its_margin_across_the_swing() {
         let ring = crate::RingTorus::decided(1.2, 0.225);
-        let sites =
-            SpiricRegimeSites::new("test_off_axis", "test_two_ovals", "test_two_ovals_floor");
+        let sites = SpiricReader::PlaneTorus.sites();
+        let [off_axis, _, floor] = sites.rows();
         let at = |margin: f64| spiric_regime(ring, 0.975 - margin, 0.5, sites, band());
         assert_eq!(at(0.6), Ok(SpiricRegime::TwoOvals), "clear of the swing");
         assert_eq!(
@@ -2618,18 +2674,14 @@ mod tests {
             "past the equator by more than the swing"
         );
         let in_band = at(0.5 + 0.5 * band().zero()).expect_err("floor in band");
-        assert_eq!(
-            in_band.predicate,
-            Some("test_two_ovals_floor"),
-            "{in_band:?}"
-        );
+        assert_eq!(in_band.predicate, Some(floor), "{in_band:?}");
         assert_eq!(
             spiric_regime(ring, 1e-12, 0.5, sites, band()),
             Ok(SpiricRegime::ThroughAxis),
             "an offset in the zero band"
         );
         let poison = spiric_regime(ring, f64::NAN, 0.0, sites, band()).expect_err("poison");
-        assert_eq!(poison.predicate, Some("test_off_axis"), "{poison:?}");
+        assert_eq!(poison.predicate, Some(off_axis), "{poison:?}");
     }
 
     /// **A reader's three regime rows need three names**: one name on
