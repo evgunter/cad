@@ -83,3 +83,4 @@
     - STEP's placement is minted at f64 from axis and reference, and reported.
   - **Off-question rows to file:** `RigidMotion::computed_at` (an up crossing via `from_computed` on main), `chain_turns` taking a `Mat3`, and the Python `Frame` constructors that no API consumes.
   (ONEHOME orchestrator)
+- 2026-11-10: PR 6760 merged. The OutsideSessionBox main-red family was every refusal real (each margin equals the fixture's extent less 1000 m, checked against the geometry for seven rows), so it was fixtures moved inside the 1 km box, with refusal rows just past it and no kernel change. The full review was APPROVE-WITH-FIXES. Its fix pass restored `parallel_cylinder_join`'s stand-down guard (its reason is false near `EPS_MIN`), unified the box-unit helpers, and made the refusal rows assert their margin. (ONEHOME orchestrator)

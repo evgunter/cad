@@ -324,7 +324,13 @@ pub mod test_support {
     /// A test whose assertion needs another width states that one.
     #[must_use]
     pub fn pinned_resolution<T: Real>(tol: geom_core::Tol) -> crate::Settle<T> {
-        crate::Settle::Resolution(quantity::Length::from_meters(pinned_len(tol)))
+        resolution(pinned_len(tol))
+    }
+
+    /// [`crate::Settle::Resolution`] of `meters`: the width a row states.
+    #[must_use]
+    pub fn resolution<T: Real>(meters: f64) -> crate::Settle<T> {
+        crate::Settle::Resolution(quantity::Length::from_meters(meters))
     }
 
     /// **`body`'s volume and area as numbers met at

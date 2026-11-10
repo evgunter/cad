@@ -54,7 +54,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::period::{Exact, Extent, NotForward, Period, Turn, TurnRows, TurnUndecided, Within};
+use geom_core::period::{Exact, Extent, NotForward, Turn, TurnRows, TurnUndecided, Within};
 use geom_core::spline::SpanLocate;
 use geom_core::{
     Band, BandError, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign,
@@ -3965,7 +3965,6 @@ fn decide_turn<T: Decide>(
             cause: undecided.diag,
         }),
     };
-    let one_turn = Period::new(T::tau());
     // A periodic carrier's span is forward at the carrier's speed floor
     // (`geom::carrier_speed::speed_floor`, the one spelling the conic
     // readers share): a circle's radius; an ellipse's smaller semi-axis
@@ -3981,6 +3980,10 @@ fn decide_turn<T: Decide>(
             let Some(floor) = geom::carrier_speed::speed_floor(periodic) else {
                 unreachable!("check 2: `speed_floor` answers every periodic carrier")
             };
+            // Each kind's own period: a conic's, or the spiric's.
+            let one_turn = periodic
+                .conic()
+                .map_or_else(geom::spiric_period, |conic| conic.period());
             // Forward at the floor, or, short of it, by the chord between
             // the span's end points with its sense at the sup speed: a
             // short span at an ellipse's fast vertex reads its arc at up

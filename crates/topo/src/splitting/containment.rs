@@ -137,7 +137,7 @@ use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
 use geom_brep::ladder::{IdentityLadder, read_identity};
 use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass};
-use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
+use geom_core::period::{Exact, Extent, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -905,10 +905,10 @@ impl<T: Decide> ConicArc<T> {
         rows: ConicRows,
         band: Band,
     ) -> Result<Option<Self>, ConicArcError> {
-        if carrier.conic().is_none() {
+        let Some(conic) = carrier.conic() else {
             return Ok(None);
-        }
-        let one_turn = Period::new(T::tau());
+        };
+        let one_turn = conic.period();
         let Some(floor) = geom::carrier_speed::speed_floor(carrier) else {
             unreachable!("`speed_floor` answers a circle and an ellipse")
         };
