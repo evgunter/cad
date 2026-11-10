@@ -125,7 +125,7 @@ const LINK_PIECE_MEET: &str = "link_piece_meet";
 const LINK_BALL: &str = "link_offset_ball";
 /// K name: a point's distance from the piece of a link's boundary it is
 /// nearest, and two points of a segment's distance apart, in metres
-/// ([`Link::lowest_on`]'s ties, [`Cone::touches`]' rays), each a norm
+/// ([`Link::lowest_on`]'s ties, [`Link::touches`]' rays), each a norm
 /// ([`metric::Distance::apart`]).
 const LINK_TIE: &str = "link_offset_tie";
 /// K name: a point of a link's boundary, or the lowest of a segment of
@@ -419,9 +419,15 @@ pub(crate) mod metric {
     pub(crate) enum Refusal {
         /// In band: the gate's escalation, on the log.
         InBand(Indeterminate),
-        /// Decided by the band, as this, and read another way over the
-        /// slack: no escalation.
-        Slack(Decided),
+        /// Decided by the band, as `decided`, and read another way over
+        /// the slack: no escalation. `lower` and `upper` are the distance
+        /// moved down and up by the slack, each read, which straddle the
+        /// band.
+        Slack {
+            decided: Decided,
+            lower: Decided,
+            upper: Decided,
+        },
         /// Decided by the band, as `decided`, and in band once the slack
         /// moved it: the moved reading's escalation.
         Moved {
@@ -452,14 +458,35 @@ pub(crate) mod metric {
         let Some(slack) = r.slack else {
             return Ok(got);
         };
-        let moved = match got.sign {
+        let (moved, away) = match got.sign {
             Sign::Zero => return Ok(got),
-            Sign::Positive => d.0 - slack,
-            Sign::Negative => d.0 + slack,
+            Sign::Positive => (d.0 - slack, d.0 + slack),
+            Sign::Negative => (d.0 + slack, d.0 - slack),
         };
         match decided_as(name, moved, r.band) {
             Ok(m) if m.sign == got.sign => Ok(got),
-            Ok(_) => Err(Refusal::Slack(got)),
+            // `moved` decided, so the slack is readable; `away` is the
+            // band's reading moved by it farther from zero, so it decides
+            // the sign that reading decided.
+            Ok(moved) => {
+                let away = decided_as(name, away, r.band).unwrap_or_else(|why| {
+                    unreachable!(
+                        "`{name}`: a reading decided {:?} moved by its slack away from zero \
+                         reads in band: {why:?}",
+                        got.sign
+                    )
+                });
+                let (lower, upper) = if got.sign == Sign::Positive {
+                    (moved, away)
+                } else {
+                    (away, moved)
+                };
+                Err(Refusal::Slack {
+                    decided: got,
+                    lower,
+                    upper,
+                })
+            }
             Err(why) => Err(Refusal::Moved { decided: got, why }),
         }
     }
@@ -512,7 +539,7 @@ impl<T> From<metric::Refusal> for Unsettled<T> {
             metric::Refusal::InBand(diag) | metric::Refusal::Moved { why: diag, .. } => {
                 Unsettled::InBand(diag)
             }
-            metric::Refusal::Slack(_) => Unsettled::Slack,
+            metric::Refusal::Slack { .. } => Unsettled::Slack,
         }
     }
 }
@@ -1544,7 +1571,7 @@ fn wedge_distance<T: Decide>(
 /// *point's* offset across the plane through `p` square to the direction
 /// to `r`, in metres (the direction is normalized here), and it is a
 /// different decision in two ways:
-/// - it is decided through [`metric::settle`]'s [`Reading`], whose slack
+/// - it is decided through [`metric::settle_as`]'s [`Reading`], whose slack
 ///   must hold the sign over every sector within the tie. The ahead line
 ///   turns with the ray through the tie ([`Reading::tied`]), and a metre
 ///   slack moves only a margin in metres;
