@@ -115,6 +115,20 @@ pub enum SpanEnd {
     Stop,
 }
 
+/// **Which speed bound [`Span::end_gap`] meters a gap at**: the one whose
+/// reading the caller will act on is sound.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GapMeter {
+    /// The inf over the gap: a decided `Positive` or `Negative` is sound,
+    /// its `Zero` is not "at the end": it reaches up to the band times the
+    /// ratio of the sup to the inf over the gap's window, which is the
+    /// window's ratio, not the whole carrier's.
+    Clear,
+    /// The sup over the gap: a decided `Zero` is within the band of the
+    /// end, in arc and in chord.
+    Within,
+}
+
 /// Where [`Span::place`] puts a point's foot against the span's ends.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Place {
@@ -311,6 +325,56 @@ impl<'a, T: Decide> Span<'a, T> {
         match hit {
             Hit::On { t, .. } => t,
             Hit::End(which) => self.end(which).0,
+        }
+    }
+
+    /// **How far `t` stands inside the span from one of its ends, in
+    /// metres**: the one door for a parameter's gap from a span's end.
+    ///
+    /// The gap is `t − t0` from the start and `t1 − t` from the stop, so it
+    /// is positive inside the span and negative past that end. It is
+    /// metered at a bound on the carrier's speed over the gap itself
+    /// ([`geom::carrier_speed::speed_between`]), never at the speed at `t`
+    /// alone, which bounds no arc over the gap. Which bound is the reader's
+    /// to name:
+    /// - [`GapMeter::Clear`] meters at the inf: it under-reads the arc, so
+    ///   a decided `Positive` ("clear inside") or `Negative` ("clear past")
+    ///   is sound, and its `Zero` reaches up to the band times the window's
+    ///   sup-to-inf ratio in arc, so no reader may take it as "at the end".
+    /// - [`GapMeter::Within`] meters at the sup: it over-reads the arc, so
+    ///   a decided `Zero` is within the band in arc, and so in chord, of the
+    ///   end.
+    ///
+    /// Whether `t` is AT an end is [`Self::place_param`]'s question, read
+    /// by the chord to the end's point; this door is for a reader that
+    /// needs the gap's size against the band. It reads no period: `t` is
+    /// named on the span's own branch by its caller.
+    #[must_use]
+    pub fn end_gap(&self, t: T, end: SpanEnd, meter: GapMeter) -> Margin<T> {
+        self.end_gap_widened(t, end, T::zero(), meter)
+    }
+
+    /// [`Self::end_gap`] from the end moved outward by `by`, a parameter
+    /// step: `t − (t0 − by)` or `(t1 + by) − t`, metered over the window
+    /// from `t` to that widened end. A reader that grants a candidate a
+    /// reach past the span's ends (a graze's root within `δ` of its
+    /// extremum) asks it.
+    #[must_use]
+    pub fn end_gap_widened(&self, t: T, end: SpanEnd, by: T, meter: GapMeter) -> Margin<T> {
+        let (at, gap) = match end {
+            SpanEnd::Start => {
+                let at = self.t0 - by;
+                (at, t - at)
+            }
+            SpanEnd::Stop => {
+                let at = self.t1 + by;
+                (at, at - t)
+            }
+        };
+        let (inf, sup) = geom::carrier_speed::speed_between(self.carrier, t, at);
+        match meter {
+            GapMeter::Clear => Margin::metered(gap, inf),
+            GapMeter::Within => Margin::metered_sup(gap, sup),
         }
     }
 

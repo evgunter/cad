@@ -54,7 +54,7 @@ pub mod span;
 mod walk;
 
 pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, pose};
-pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd, SpanRefusal};
+pub use span::{GapMeter, Hit, PastBy, Place, Reading, Span, SpanEnd, SpanRefusal};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};

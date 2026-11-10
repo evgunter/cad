@@ -292,15 +292,16 @@ impl<T: Decide> Azimuth<T> {
     /// `(−1, τ − 1]`, and one on the cut reads the closed end `τ − 1`. One
     /// in band just inside the open end, at angle `−1 + δ`, reads
     /// `τ − 1 + δ`: the turned formula, a hair past the window, which
-    /// placement's marks take back. A direction of no length (or, at `Interval`,
-    /// one whose enclosure reaches zero length: no bounded reciprocal)
-    /// names no angle, and every angle names its zero-length vector alike:
-    /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
-    /// does at `f64` (a pole's zero-radius parallel, a sub-band rim's
-    /// centre on the axis). At `Interval` the rule broadens the same way:
-    /// an enclosure of the length that straddles zero has no bounded
-    /// reciprocal, so it reads `0` too, although the direction it encloses
-    /// may have length.
+    /// placement's marks take back. A direction whose length may be zero
+    /// ([`geom_core::structure_nonzero`]'s structure decision) names no
+    /// angle, and every angle names its zero-length vector alike: it reads
+    /// `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)` does at
+    /// `f64` (a pole's zero-radius parallel, a sub-band rim's centre on the
+    /// axis). At `Interval` the rule broadens the same way: an enclosure of
+    /// the length that straddles zero reads `0` too, although the direction
+    /// it encloses may have length. A direction with a component that is not
+    /// finite is no direction of no length: it names none, and reads NaN, as
+    /// [`Self::near`] does.
     pub fn principal(self, band: Band) -> T {
         self.principal_in(Window::Angle, band)
     }
@@ -378,6 +379,13 @@ impl<T: Decide> Azimuth<T> {
     }
 
     fn read_in_as(self, window: Window, row: &'static str, band: Band) -> T {
+        // Poison first, as `near` reads it: a NaN or infinite component
+        // names no direction, so it reads no angle rather than the chart's
+        // `u_ref`, which is what a zero length reads.
+        if !(geom_core::real::is_finite_length(self.y) && geom_core::real::is_finite_length(self.x))
+        {
+            return T::from_f64(f64::NAN);
+        }
         if !geom_core::structure_nonzero(self.length()) {
             return T::zero();
         }
@@ -468,6 +476,30 @@ mod tests {
     use geom_core::Real;
 
     use super::*;
+
+    /// **A poisoned direction names no angle**: a NaN or infinite
+    /// component reads NaN through the principal read and through `near`
+    /// alike, never the chart's `u_ref`, which is what a direction of no
+    /// length reads (`0`).
+    #[test]
+    fn a_poisoned_direction_reads_no_angle() {
+        let band = Band::least();
+        for (y, x) in [
+            (f64::NAN, 1.0),
+            (0.0, f64::NAN),
+            (f64::INFINITY, 1.0),
+            (1.0, f64::NEG_INFINITY),
+        ] {
+            let az = Azimuth::of(y, x);
+            assert!(az.principal(band).is_nan(), "({y}, {x}) principal");
+            assert!(az.near(0.5).is_nan(), "({y}, {x}) near");
+        }
+        assert_eq!(
+            Azimuth::of(0.0, 0.0).principal(band),
+            0.0,
+            "no length reads u_ref"
+        );
+    }
 
     /// The two doors agree **bit for bit** with the formula
     /// `DESIGN.md`'s parameterization row and the two module headers
