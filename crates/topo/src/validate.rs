@@ -8796,7 +8796,7 @@ pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
 /// every pair reads them in, less the pairs the boxes clear (D9).
 ///
 /// A ring's box is the hull of its edges' boxes
-/// ([`crate::boolean::boxes::edge_box`]: a superset of each edge's
+/// ([`crate::boxes::edge_box`]: a superset of each edge's
 /// locus, the poison box where an edge has none), padded by the
 /// sweep's own pad, `escalate + 2·zero`. A pair is cleared only when
 /// the two boxes are strictly disjoint on some axis, so the rings are
@@ -8818,7 +8818,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     if rings.len() < 2 {
         return Vec::new();
     }
-    let pad = crate::boolean::boxes::sweep_pad(band);
+    let pad = crate::boxes::sweep_pad(band);
     let (index, boxes): (Vec<usize>, Vec<bvh::Aabb>) = rings
         .iter()
         .enumerate()
@@ -8827,7 +8827,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
             let ring_box = cycle
                 .iter()
                 .filter_map(|&he| body.half_edges.get(he))
-                .map(|h| crate::boolean::boxes::edge_box(body, h.edge, pad))
+                .map(|h| crate::boxes::edge_box(body, h.edge, pad))
                 .reduce(|a, b| a.hull(&b))?;
             Some((i, ring_box))
         })

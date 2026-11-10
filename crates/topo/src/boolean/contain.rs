@@ -1264,6 +1264,44 @@ mod tests {
     use crate::entity::LoopBoundary;
     use geom_core::Tol;
 
+    /// **The face-level containment door keeps its two kinds of `Out`
+    /// apart on a cone** (on `crate::boxes`' cone-wall fixture). A point
+    /// on the MIRROR nappe is on the double-cone carrier the face's
+    /// surface states, so
+    /// `curved_face_placement` answers `Trim(Some(Out))` — a sibling
+    /// face's incidence — and never `OffCarrier`, which the crossing
+    /// layer reads as a contradiction of its own on-carrier
+    /// certificate. A point off the carrier is `OffCarrier`, and a
+    /// carrier point outside the azimuth window is `Trim(Some(Out))`.
+    #[test]
+    fn a_cone_band_places_the_mirror_nappe_on_its_carrier() {
+        use crate::boxes::tests::cone_wall;
+        let alpha = 30.0_f64.to_radians();
+        let (mut body, face) = cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        let band = Band::linear(Tol::witness()).unwrap();
+        crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, Tol::witness());
+        let at = |u: f64, z: f64, off: f64| {
+            let rho = z.abs() * alpha.tan() + off;
+            Point3::new(rho * u.cos(), rho * u.sin(), z)
+        };
+        let place = |p| curved_face_placement(&body, face, p, band).unwrap();
+        assert_eq!(
+            place(at(0.5, 0.75, 0.0)),
+            CurvedPlacement::Trim(Some(FaceContainment::In))
+        );
+        assert_eq!(
+            place(at(0.5, -0.75, 0.0)),
+            CurvedPlacement::Trim(Some(FaceContainment::Out)),
+            "the mirror nappe is on the carrier"
+        );
+        assert_eq!(place(at(0.5, 0.75, 1e-3)), CurvedPlacement::OffCarrier);
+        assert_eq!(
+            place(at(2.0, 0.75, 0.0)),
+            CurvedPlacement::Trim(Some(FaceContainment::Out)),
+            "outside the azimuth window"
+        );
+    }
+
     /// Each escalation ends as its decision and its reading give it (D4
     /// ¶1 (i)), pinned by literal text over the arms each site can raise:
     /// a sized decision's lever with the tolerance its in-band margin

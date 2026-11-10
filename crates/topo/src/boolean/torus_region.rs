@@ -1123,7 +1123,7 @@ mod tests {
     #[test]
     fn a_walls_null_edge_bounds_nothing() {
         let wall = || {
-            crate::boolean::boxes::tests::torus_wall(
+            crate::boxes::tests::torus_wall(
                 Point3::origin(),
                 Vec3::unit_z(),
                 Vec3::unit_x(),

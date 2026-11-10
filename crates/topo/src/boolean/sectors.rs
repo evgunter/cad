@@ -4583,7 +4583,7 @@ mod tests {
     #[test]
     fn a_cone_sector_off_the_apex_is_the_faces_outward_normal() {
         let alpha = 0.5_f64;
-        let (mut body, face) = super::super::boxes::tests::cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        let (mut body, face) = crate::boxes::tests::cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
         let vertices: Vec<VertexKey> = body.vertices.keys().collect();
         for sense in [true, false] {
             body.set_face_sense(face, sense).unwrap();

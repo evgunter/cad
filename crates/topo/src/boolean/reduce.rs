@@ -4,7 +4,7 @@
 //!
 //! - **Candidate generation through the `bvh` tree** (M5 PR 8, C10 —
 //!   the documented quadratic of M3, retired): each edge fragment
-//!   queries the per-direction face tree ([`super::boxes`], padded
+//!   queries the per-direction face tree ([`crate::boxes`], padded
 //!   vertex-extent boxes) instead of scanning every face. THE TREE
 //!   PRUNES, PREDICATES DECIDE: candidates arrive in ascending face
 //!   arena order (a subsequence of the brute-force scan), the exact
@@ -63,18 +63,18 @@
 
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
 use super::plane_eq::PlaneDesc;
-use super::separating::Item;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, EfContact, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
+use crate::boxes;
 use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
 use crate::sector_shape::SlitTips;
+use crate::separating::Item;
 use crate::splitting::PlaneSide as SplitSide;
 use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
@@ -459,7 +459,7 @@ pub(super) struct UnsupportedPair {
 ///   the operation and the gate has nothing to say about it.
 /// - **The boxes separate along the world's axes only**, so an
 ///   overlap is followed by the narrow phase
-///   ([`super::separating::apart`]), which reads both faces along
+///   ([`crate::separating::apart`]), which reads both faces along
 ///   directions that turn with the operands. A pair it parts is
 ///   certified apart as a box non-overlap is, and the verdict is the
 ///   pair's rather than the pose's.
@@ -470,7 +470,7 @@ pub(super) struct UnsupportedPair {
 ///   built from it say the faces "may meet" rather than claiming a
 ///   meeting the kernel has not computed.
 ///
-/// The pad is the sweep's own ([`super::boxes::sweep_pad`]), and the
+/// The pad is the sweep's own ([`crate::boxes::sweep_pad`]), and the
 /// sweep's curved arm reads the same narrow phase behind its tree, for
 /// an edge and for either face it lies on: a face pair the gate parts,
 /// the sweep parts too, for every edge of that face. The converse does
@@ -523,8 +523,8 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     supported: impl Fn(&geom::Surface<T>) -> bool,
     covered: impl Fn(Operand, FaceKey, FaceKey) -> bool,
 ) -> Result<Option<UnsupportedPair>, BooleanError> {
-    let pad = super::boxes::sweep_pad(band);
-    let axes = super::separating::OperandAxes::new(super::boxes::axis_key);
+    let pad = crate::boxes::sweep_pad(band);
+    let axes = crate::separating::OperandAxes::new(crate::boxes::axis_key);
     for (operand, body, other) in [(Operand::A, a, b), (Operand::B, b, a)] {
         // Arena order both ways, and no box is built for an operand
         // that carries no unsupported kind at all — the common case
@@ -547,15 +547,15 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             .face_views()
             .map(|f| {
                 let (key, kind) = (f.key(), f.surface().kind());
-                Ok((key, kind, super::boxes::face_box(other, key, pad, band)))
+                Ok((key, kind, crate::boxes::face_box(other, key, pad, band)))
             })
             .collect::<Result<_, BooleanError>>()?;
         for (face, kind) in offenders {
-            let boxed = super::boxes::face_box(body, face, pad, band);
+            let boxed = crate::boxes::face_box(body, face, pad, band);
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box)
                     && !covered(operand, face, other_face)
-                    && !super::separating::apart(
+                    && !crate::separating::apart(
                         (body, Item::Face(face)),
                         (other, Item::Face(other_face)),
                         axes.of(a, b, band),
@@ -652,7 +652,7 @@ pub(super) fn plane_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
 /// reads its side by: the split's rule
 /// ([`crate::vertex_section::decide_vertex_on_plane`]). The face's
 /// outward normal is read into the section table as a unit direction
-/// over the face's reach ([`super::separating::planar_axis`]), and a
+/// over the face's reach ([`crate::separating::planar_axis`]), and a
 /// far vertex of `x` takes its side from its own offset, under this
 /// door's name.
 fn vertex_face_side<T: Decide>(
@@ -666,7 +666,7 @@ fn vertex_face_side<T: Decide>(
         let outward = crate::face_normal::face_outward_normal(y, face).ok_or(
             VertexRefusal::Plane("the face's plane has no outward normal (not a plane)"),
         )?;
-        let normal = super::separating::planar_axis(
+        let normal = crate::separating::planar_axis(
             y,
             face,
             || crate::census::face_reach(y, face, band),
@@ -917,7 +917,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     knobs: &SweepKnobs,
     mut trace: Option<&mut SweepPairs<(EdgeKey, FaceKey)>>,
     deferred: &mut Vec<DeferredTouch>,
-    axes: &super::separating::OperandAxes<T>,
+    axes: &crate::separating::OperandAxes<T>,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let faces: Vec<FaceKey> = y.faces().map(|(k, _)| k).collect();
@@ -998,7 +998,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // The parents' reading is the operand gate's, so a pair
                 // the gate cleared is cleared here too.
                 let apart_from_face = |item| {
-                    super::separating::apart(
+                    crate::separating::apart(
                         (x, item),
                         (y, Item::Face(face)),
                         axes.of(x, y, band),
@@ -1650,7 +1650,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut deferred = Vec::new();
     // Both directions read one axis set, taken when the first curved
     // face is met.
-    let axes = super::separating::OperandAxes::new(super::boxes::axis_key);
+    let axes = crate::separating::OperandAxes::new(crate::boxes::axis_key);
     sweep_direction(
         (a, a_tips),
         b,
@@ -7161,7 +7161,7 @@ mod declaration_order_rows {
     /// torus and no shared rim.
     #[test]
     fn the_circle_torus_lane_escalates_as_its_own_decision_and_no_declaration_settles_it() {
-        use crate::boolean::boxes::tests::torus_wall;
+        use crate::boxes::tests::torus_wall;
         let tol = Tol::witness();
         let b = Band::linear(tol).expect("the witness band");
         let mid = (b.zero() + b.escalate()) / 2.0;

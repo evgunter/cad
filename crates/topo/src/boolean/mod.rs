@@ -73,7 +73,6 @@
 //! tests pin both directions on brick fixtures.
 
 mod arcs;
-pub(crate) mod boxes;
 mod carrier_cross;
 pub mod carrier_eq;
 pub(crate) mod carrier_pair;
@@ -189,7 +188,6 @@ pub(crate) mod region;
 mod rim_wedge;
 pub(crate) mod ruled_region;
 pub(crate) mod sectors;
-pub(crate) mod separating;
 mod shell_witness;
 mod slit;
 pub use slit::EdgeInFaceGap;
@@ -393,8 +391,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | join::BOOL_GERM_PLANE_NORMAL
         | crate::cover::SPHERE_AXIS
         | crate::cover::SPHERE_SEAM_UNIT
-        | separating::PAIR_AXIS
-        | separating::PAIR_NORMAL
+        | crate::separating::PAIR_AXIS
+        | crate::separating::PAIR_NORMAL
         | solid_contain::POINT_AXIS => geom_core::DIRECTION_LENGTH_SUBJECT,
         crate::cover::SPHERE_SEAM => {
             "whether a sphere's seam direction is square to its polar axis"
@@ -404,7 +402,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         geom_core::UNIT_DIRECTION_ARM => {
             "whether the reach a direction is read over has any length"
         }
-        separating::PAIR_GAP => {
+        crate::separating::PAIR_GAP => {
             "how far apart two faces lie along a direction that turns with them"
         }
         "bool_pierce_normal_on_chart" | "bool_pierce_normal_on_cone" => {
@@ -6880,14 +6878,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         // a curved face only where its box holds the point.
         let mut curved_boxes = std::collections::BTreeMap::new();
         if minted.iter().any(|(_, plan)| plan.is_some()) {
-            let pad = boxes::sweep_pad(band);
+            let pad = crate::boxes::sweep_pad(band);
             let curved: Vec<FaceKey> = piercing_body
                 .faces()
                 .map(|(k, _)| k)
                 .filter(|&k| crate::face_normal::face_plane(piercing_body, k).is_none())
                 .collect();
             for face in curved {
-                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band));
+                curved_boxes.insert(face, crate::boxes::face_box(piercing_body, face, pad, band));
             }
         }
         let box_holds = |face: FaceKey, p: Point3<T>| {
@@ -8307,7 +8305,7 @@ fn route_rim<T: Decide>(
 /// The pad a face's reach along a witness line is widened by: the
 /// band's sweep pad, a tolerance.
 fn witness_pad<T: Real>(band: Band) -> T {
-    T::from_f64(boxes::sweep_pad(band))
+    T::from_f64(crate::boxes::sweep_pad(band))
 }
 
 /// The parameter spans of the line `origin + t·dir` (`dir` unit) the

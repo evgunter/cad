@@ -337,10 +337,10 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
 use crate::boolean::{
     ContactKind, ContactRecords, ContainError, FaceContainment, SolidContainment, contfp,
 };
+use crate::boxes::{edge_box, face_box, sweep_pad};
 use crate::chart_region::{ChartRegionError, RegionLane};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::face_normal::NormalAbort;
@@ -9322,7 +9322,7 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// read off the two faces.
 ///
 /// The test is the boolean's narrow phase
-/// ([`crate::boolean::separating::apart_by`]): both faces' covers are
+/// ([`crate::separating::apart_by`]): both faces' covers are
 /// read along the direction, a sphere face's with its pole-side cut
 /// along it ([`crate::cover::face_cover_toward`]), and the pair
 /// clears only on a gap, less both faces' [`sweep_pad`], decided
@@ -9336,7 +9336,7 @@ fn backstop_apart<T: Decide>(
     proposed: Vec<geom_core::UnitVec3<T>>,
     band: Band,
 ) -> bool {
-    use crate::boolean::separating::{Item, apart_by, planar_axis};
+    use crate::separating::{Item, apart_by, planar_axis};
     let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
         .into_iter()
         .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
@@ -14614,12 +14614,8 @@ mod tests {
                     "{what}, {f:?}: a net poisoned in x bounds its locus on no axis, got {reach:?}"
                 );
                 // The boolean lane's answer for the same net: the poison box.
-                let boxed = crate::boolean::boxes::face_box(
-                    &body,
-                    f,
-                    0.0,
-                    Band::linear(Tol::witness()).unwrap(),
-                );
+                let boxed =
+                    crate::boxes::face_box(&body, f, 0.0, Band::linear(Tol::witness()).unwrap());
                 assert!(
                     [
                         boxed.min_x,
@@ -14701,12 +14697,8 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let seeds = swap_placeholders(&mut body, &crate::fixtures::poisoned_net(|_| true));
-        let b = crate::boolean::boxes::face_box(
-            &body,
-            seeds[0],
-            1e-9,
-            Band::linear(Tol::witness()).unwrap(),
-        );
+        let b =
+            crate::boxes::face_box(&body, seeds[0], 1e-9, Band::linear(Tol::witness()).unwrap());
         eprintln!("[face_box] masquerade box = {b:?}");
         let far = bvh::Aabb::from_points([
             Point3::new(0.0, 100.0, 100.0),
@@ -18653,7 +18645,7 @@ mod torn_reach_rows {
     #[test]
     fn the_cone_window_panics_on_a_torn_curve() {
         let (mut body, face) =
-            crate::boolean::boxes::tests::cone_wall(30.0_f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
+            crate::boxes::tests::cone_wall(30.0_f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
         assert!(reach(&body, face), "the sound cone wall has a reach");
         let edge = body.get_half_edge(first_member(&body, face)).unwrap().edge;
         let curve = body.get_edge(edge).unwrap().curve;
