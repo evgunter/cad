@@ -91,12 +91,12 @@ fn rim_at<T: Decide + Bounds>(body: &Body<T>, z: f64) -> Vec<EdgeKey> {
     every_edge(body)
         .into_iter()
         .filter(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
             let at = |v| {
                 let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
                 (mid(p.z) - z).abs() < 1e-9
             };
-            at(body.get_half_edge(he).unwrap().start) && at(body.half_edge_end(he).unwrap())
+            let (s, t) = body.edge_vertices(e).unwrap();
+            at(s) && at(t)
         })
         .collect()
 }

@@ -204,12 +204,10 @@ fn a_rounded_pockets_mouth_filleted_by_name_removes_pappuss_volume() {
     let t = table(&ev0, cut);
     let mouth: Vec<StableName> = b
         .edges()
-        .filter(|(_, e)| {
+        .filter(|(k, _)| {
             let at = |v| *b.get_point(b.get_vertex(v).unwrap().point).unwrap();
-            let (p, q) = (
-                at(b.get_half_edge(e.he_plus).unwrap().start),
-                at(b.half_edge_end(e.he_plus).unwrap()),
-            );
+            let (s, t) = b.edge_vertices(*k).unwrap();
+            let (p, q) = (at(s), at(t));
             let inside = |p: geom_core::Point3<f64>| {
                 p.x > 0.45 && p.x < 2.55 && p.y > 0.35 && p.y < 1.65 && (p.z - 1.0).abs() < 1e-9
             };

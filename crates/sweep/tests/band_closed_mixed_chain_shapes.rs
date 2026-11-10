@@ -263,15 +263,12 @@ fn mid<T: Bounds>(x: T) -> f64 {
 }
 
 fn ends<T: Decide + Bounds>(body: &Body<T>, e: EdgeKey) -> (Point3<f64>, Point3<f64>) {
-    let he = body.get_edge(e).unwrap().he_plus;
     let at = |v| {
         let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         Point3::new(mid(p.x), mid(p.y), mid(p.z))
     };
-    (
-        at(body.get_half_edge(he).unwrap().start),
-        at(body.half_edge_end(he).unwrap()),
-    )
+    let (s, t) = body.edge_vertices(e).unwrap();
+    (at(s), at(t))
 }
 
 /// The edges whose ends both lie at height `z` and satisfy `keep`.
