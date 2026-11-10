@@ -163,7 +163,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         face_of: Operand::B,
         why,
     };
-    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 10] = [
+    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 12] = [
         (
             "a result no model represents, non-manifold",
             BooleanError::NonManifoldResult {
@@ -234,38 +234,13 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             Ok(Refusal::Unsettled),
         ),
         (
-            "the apex's table and walk disagree",
-            BooleanError::ApexSection {
-                operand: op,
-                face,
-                reading: crate::splitting::ApexSectionReading::NoRulingInside,
-            },
-            Err(Aborts),
-        ),
-        (
-            "the apex's table refuses a section not built",
-            BooleanError::ApexSection {
-                operand: op,
-                face,
-                reading: crate::splitting::ApexSectionReading::Refused(Box::new(
-                    crate::chord_join::SplitJoinError::SectionUnarmed {
-                        face,
-                        divided: geom::SurfaceKind::Plane,
-                        wall: geom::SurfaceKind::Nurbs,
-                    },
-                )),
-            },
-            Ok(Refusal::Limit),
-        ),
-        (
             "a germ's spline component walked past its budget",
-            crate::chord_join::SplitJoinError::SectionUnwalked(geom::PieceWalkRefusal::Exhausted)
-                .into(),
+            crate::SplitJoinError::SectionUnwalked(geom::PieceWalkRefusal::Exhausted).into(),
             Ok(Refusal::Unsettled),
         ),
         (
             "a join's mixed cause",
-            crate::chord_join::SplitJoinError::UnpairedLooseEnds { count: 2 }.into(),
+            crate::SplitJoinError::UnpairedLooseEnds { count: 2 }.into(),
             Err(Aborts),
         ),
     ];

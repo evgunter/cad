@@ -185,7 +185,7 @@ impl ApexSectionReading {
     ///
     /// [`geom_core::ladder::Aborts`] for a disagreement, and the table
     /// refusal's own aborts.
-    pub(crate) fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+    pub fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
         match self {
             Self::Refused(section) => section.refusal(),
             Self::ClosedOffApex | Self::NoRulingInside | Self::BothRulingsInside => {
@@ -1327,4 +1327,37 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         }
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod apex_section_standing_rows {
+    use geom_core::ladder::{Aborts, Refusal};
+
+    use super::ApexSectionReading;
+    use crate::SplitJoinError;
+    use crate::entity::FaceKey;
+
+    /// **An apex section stands by its reading** (the Boolean's
+    /// vertex-on-face climb reads it): the table and the walk disagreeing
+    /// is a kernel fault, and the table's own refusal stands as it does.
+    /// Red where a reading reverts to one standing for all.
+    #[test]
+    fn an_apex_section_stands_by_its_reading() {
+        for disagrees in [
+            ApexSectionReading::ClosedOffApex,
+            ApexSectionReading::NoRulingInside,
+            ApexSectionReading::BothRulingsInside,
+        ] {
+            assert_eq!(disagrees.refusal(), Err(Aborts), "{disagrees:?}");
+        }
+        let unarmed = ApexSectionReading::Refused(Box::new(SplitJoinError::SectionUnarmed {
+            face: FaceKey::default(),
+            divided: geom::SurfaceKind::Plane,
+            wall: geom::SurfaceKind::Nurbs,
+        }));
+        assert_eq!(unarmed.refusal(), Ok(Refusal::Limit), "a section not built");
+        let mixed =
+            ApexSectionReading::Refused(Box::new(SplitJoinError::UnpairedLooseEnds { count: 2 }));
+        assert_eq!(mixed.refusal(), Err(Aborts), "a mixed cause");
+    }
 }
