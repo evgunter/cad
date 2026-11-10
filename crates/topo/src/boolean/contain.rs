@@ -20,12 +20,10 @@ use super::region::RegionRefusal;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
 use crate::live::{linked, proven};
-use crate::ray_walk::ParityRows;
 use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
-    BoundaryRows, ConicRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
+    BoundaryRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
 };
-use crate::splitting::pieced_arc::ArcRows;
 use crate::splitting::{Escalation, LoopDecision, Uncrossable};
 use crate::validate::decide;
 
@@ -650,7 +648,7 @@ fn boundary_pre_pass<T: Decide>(
     }
     let mut read = Vec::with_capacity(loops.len());
     for &lk in loops {
-        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS.conic, band)?
+        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS.conic(), band)?
             .place_off(q, ROWS, band)
             .map_err(|e| ContainError::Escalated {
                 decision: Some(LoopDecision::Boundary.into()),
@@ -721,34 +719,8 @@ enum PrePass<T: geom_core::Real> {
 /// `bool_contact_spiric_end`, `bool_contact_spline_end`).
 const END_VERTEX: &str = "bool_contact_arc_end_vertex";
 
-/// The pre-pass's rows for a straight edge: [`crate::ray_walk::on_segment`]
-/// reads `segment` (the edge's own length, the degeneracy gate) and
-/// `boundary` (the distance from `q` to the closed segment) and nothing
-/// else, so `side` and `advance` are never minted.
-const EDGE_ROWS: ParityRows = ParityRows {
-    segment: "bool_contact_edge_length",
-    boundary: "bool_contact_edge",
-    side: "bool_contact_edge_side",
-    advance: "bool_contact_edge_advance",
-};
-
 /// The pre-pass's rows ([`crate::splitting::containment::LoopEdge::contact`]).
-const ROWS: BoundaryRows = BoundaryRows {
-    line: &EDGE_ROWS,
-    conic: ConicRows::bounded("bool_contact_arc_span", "bool_contact_arc_straddle"),
-    spiric: ArcRows {
-        end: "bool_contact_spiric_end",
-        clear: "bool_contact_spiric_clear",
-        on: "bool_contact_spiric",
-        leaf: "bool_contact_spiric_leaf",
-    },
-    spline: ArcRows {
-        end: "bool_contact_spline_end",
-        clear: "bool_contact_spline_clear",
-        on: "bool_contact_spline",
-        leaf: "bool_contact_spline_leaf",
-    },
-};
+const ROWS: BoundaryRows = crate::rows::CONTACT;
 
 /// **Point-in-face containment on a CURVED face** — the face-level
 /// analog of the solid door's hit test, and the door the curved sweep

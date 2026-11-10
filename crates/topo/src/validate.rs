@@ -387,6 +387,7 @@
 //! entities are surgery transients, banned at rest by name like the
 //! other scaffolding shapes).
 
+pub(crate) use crate::rows::WedgeNames;
 use core::fmt;
 use std::borrow::Cow;
 
@@ -6890,10 +6891,7 @@ pub(crate) enum PlusVVerdict {
 /// Check 7's names: the bracket's high end under `positive_volume`, the
 /// refusal this check has always made, and its low end under
 /// `positive_volume_enclosure`, whether the sign is already certain.
-pub(crate) const PLUS_V: crate::props::RoleNames = crate::props::RoleNames {
-    high: "positive_volume",
-    low: "positive_volume_enclosure",
-};
+pub(crate) const PLUS_V: crate::props::RoleNames = crate::rows::PLUS_V;
 
 /// Check 7's name on the interval re-derivation, which reads the exact
 /// value of the stored geometry ([`crate::props::Round::certify`]).
@@ -9198,32 +9196,8 @@ fn wedge_holds<T: Decide>(
     wedge_holds_named(&PINCH_CORNER, n, a, b, d, band)
 }
 
-/// The predicate names one caller of [`wedge_holds_named`] decides its
-/// four signs under, so each question's K samples stay its own.
-pub(crate) struct WedgeNames {
-    /// Whether the direction leaves the wedge's first bound inward.
-    pub(crate) after_leaving: &'static str,
-    /// Whether it lies short of the second bound.
-    pub(crate) before_arriving: &'static str,
-    /// Whether the wedge turns under or over a half turn.
-    pub(crate) turn: &'static str,
-    /// Whether a wedge of no turn is straight or a cusp.
-    pub(crate) straight: &'static str,
-    /// Where a sign read at both bounds of its lever straddles the band
-    /// ([`decide_agreed`]). Recorded only where a departure is
-    /// [`Departure::Between`]; a caller that hands exact departures alone
-    /// names a row that never records, and says so at its site.
-    pub(crate) straddle: &'static str,
-}
-
 /// Tier 3's pinch-corner names ([`wedge_holds`]).
-const PINCH_CORNER: WedgeNames = WedgeNames {
-    after_leaving: "pinch_corner_after_leaving",
-    before_arriving: "pinch_corner_before_arriving",
-    turn: "pinch_corner_turn",
-    straight: "pinch_corner_straight",
-    straddle: "pinch_corner_straddle",
-};
+const PINCH_CORNER: WedgeNames = crate::rows::PINCH_CORNER;
 
 /// [`wedge_holds`] under the caller's predicate names: the same reading,
 /// asked of another question.
@@ -9248,7 +9222,7 @@ pub(crate) fn wedge_holds_named<T: Decide>(
                 f: &dyn Fn(geom_core::Vec3<T>, geom_core::Vec3<T>) -> T| match y {
         Departure::Exact(y) => decide(name, Margin::of(f(x.above(), y)), band),
         Departure::Between(lo, hi) => decide_agreed(
-            (name, names.straddle),
+            (name, names.straddle()),
             Margin::of(f(x.below(), lo)),
             Margin::of(f(x.above(), hi)),
             band,
@@ -9257,10 +9231,10 @@ pub(crate) fn wedge_holds_named<T: Decide>(
     let off = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| n.dot(x.cross(y)) / x.norm();
     let left = |name, x, y| read(name, x, y, &off).map(|s| s == Sign::Positive);
     let (after_a, before_b) = (
-        left(names.after_leaving, a, d),
-        left(names.before_arriving, d, b),
+        left(names.after_leaving(), a, d),
+        left(names.before_arriving(), d, b),
     );
-    match read(names.turn, a, b, &off)? {
+    match read(names.turn(), a, b, &off)? {
         // Under a half turn: inside both bounds.
         Sign::Positive => match (after_a, before_b) {
             (Ok(false), _) | (_, Ok(false)) => Ok(false),
@@ -9273,7 +9247,7 @@ pub(crate) fn wedge_holds_named<T: Decide>(
             (Ok(false), Ok(false)) => Ok(false),
             (Err(e), _) | (_, Err(e)) => Err(e),
         },
-        Sign::Zero => match read(names.straight, a, b, &|x, y| x.dot(y) / x.norm())? {
+        Sign::Zero => match read(names.straight(), a, b, &|x, y| x.dot(y) / x.norm())? {
             Sign::Negative => after_a,
             Sign::Zero | Sign::Positive => Ok(false),
         },
