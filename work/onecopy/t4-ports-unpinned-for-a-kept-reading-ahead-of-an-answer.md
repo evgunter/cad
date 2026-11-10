@@ -31,6 +31,20 @@ These four are not pinned, because no cheap fixture reaches a kept rung ahead of
 **QML T6 adds one** (`onecopy/refusal-standing`). The reach probe saw it answer past no kept reading in-suite.
 - **`census::span_clear`** (`crates/topo/src/census.rs`, the edge–face pierce census's clearance). **Fixture:** an edge whose span runs over a face, the face's boundary holding first a side whose end reads in band of the span (`on_edge_interior_reading` escalates), then a side whose interior meets it (`interiors_meet`). `span_clear` answers "not clear" and pushes nothing. A first-refusal loop pushed the first member's escalation and returned `None`.
 
+## Not yet ported: `vtxfac::partner_side` (filed 2026-11-10, measured)
+
+`topo::boolean::vtxfac::partner_side` reads every bound's side with `?`, so a bound read in band refuses the whole read. It does so even where two other bounds are *decided* on opposite sides, which by itself is `PartnerRead::Across` (a theorem). That is the kept-reading-ahead-of-an-answer shape. It is not a `climb_agreeing` port, since there a disagreement is an answer (PR 6750's site comment). Its port is its own: answer `Across` where two decided bounds differ, else refuse on a kept bound, else the side.
+
+**Reach, measured:** a probe (not committed) logged each call that refuses in band, over the topo, sweep and editor-core `ci` sets at the default ε and at `1e-12`.
+- 6 calls at each ε, all in one unit test, `boolean::vtxfac::tests::a_partners_side_of_a_face_is_read_off_its_bounds`.
+- 2 of their 6 bounds are in band, and **none** has two decided bounds on opposite sides.
+- So no in-suite outcome moves.
+
+**Fixture**, in that test's own frame (`cone(rays)` over the plane datum `z = 0`, `read` checking every rotation):
+- rays `[[1.0, 0.0, h], [0.0, 1.0, 1.0], [-1.0, -1.0, -1.0]]`, with `h = 0.5 · (band.zero() + band.escalate())`;
+- the first ray's bound reads in band (`Escalated { decision: Coincidence(SectorSide, Moot) }`), and the other two are decided on opposite sides.
+- Today: the escalation, in every rotation. Ported: `Across` in every rotation.
+
 ## Every Any ladder, held by a gate (the any-pins unit, after PR 6739)
 
 `door-searches-left-on-the-hand-rolled-ladder` closed into this row. Its last item, "the `Any` record paths are unreached", was the same debt for every `Any` port, not only QML's. `scripts/gates/any-climb-pins.sh` now registers every production `Answering::Any` ladder, keyed by its function (44 at filing), in `any-climb-pins.counts`:
@@ -56,4 +70,5 @@ The 18 beyond the seven above, each with the fixture its pin needs (a kept rung 
 
 ## Done when
 
-No entry of `scripts/gates/any-climb-pins.counts` names this row: each has a pin as described, red under a first-refusal loop, or the register names a stated reason it cannot be reached.
+- No entry of `scripts/gates/any-climb-pins.counts` names this row: each has a pin as described, red under a first-refusal loop, or the register names a stated reason it cannot be reached.
+- `partner_side` is ported as above, with the fixture as its pin.

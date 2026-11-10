@@ -74,6 +74,12 @@
 //! (`work/intent/a-part-drops-its-census-findings-at-the-seam.md`), so
 //! every evaluation scalar names how it localizes an overlap. A dual
 //! keeps the default, the decided overlap reported `Unlocalized::Lane`.
+//! 2026-11-10: a dual's door is [`editor_core::eval::evaluate_recorded`],
+//! which takes the base-scalar evaluation of record (DUAL-DESIGN DL3) and
+//! refuses every node it refused; [`editor_core::eval::evaluate`] gained
+//! `OwnRecord`, which no dual meets, so no dual evaluation is
+//! record-free. The literal below is unchanged: it is the set both doors
+//! share, and each door adds its one term (`OwnRecord`, `BoundToRecord`).
 
 use geom_core::Dual64;
 use geom_core::predicate::Decide;
@@ -119,7 +125,29 @@ where
         + editor_core::analysis::SeedScalar
         + editor_core::mate::SolveScalar
         + editor_core::ProfileLane
-        + editor_core::checks::at_rest::LocalizeLane,
+        + editor_core::checks::at_rest::LocalizeLane
+        + editor_core::eval::BoundToRecord,
+{
+    let _ = editor_core::eval::evaluate_recorded::<T>;
+}
+
+/// The same detector for the record-free door, which adds `OwnRecord`
+/// (a scalar whose evaluation is its own build of record) to the
+/// literal.
+fn the_own_record_door_asks_for_nothing_outside_the_literal<T>()
+where
+    T: Decide
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::AtRestPolicy
+        + editor_core::eval::ContentBits
+        + editor_core::analysis::AxisScalar
+        + editor_core::analysis::SeedScalar
+        + editor_core::mate::SolveScalar
+        + editor_core::ProfileLane
+        + editor_core::checks::at_rest::LocalizeLane
+        + editor_core::eval::OwnRecord,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
@@ -158,8 +186,9 @@ fn the_literal_asks_for_nothing_evaluate_does_not<T: editor_core::eval::EvalScal
     requires_every_evaluate_bound::<T>();
 }
 
-/// **E4's door is open.** A `Dual64` meets every bound `evaluate` asks
-/// for: `evaluate::<Dual64>` is a well-typed function of this library.
+/// **E4's door is open.** A `Dual64` meets every bound its door asks
+/// for: `evaluate_recorded::<Dual64>` is a well-typed function of this
+/// library.
 #[test]
 fn dual64_meets_every_evaluate_bound() {
     requires_every_evaluate_bound::<Dual64>();
@@ -184,4 +213,5 @@ fn dual_interval_meets_every_evaluate_bound() {
 fn f64_clears_both_directions_of_the_set_equality() {
     requires_every_evaluate_bound::<f64>();
     the_literal_asks_for_nothing_evaluate_does_not::<f64>();
+    the_own_record_door_asks_for_nothing_outside_the_literal::<f64>();
 }

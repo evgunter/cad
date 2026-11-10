@@ -163,7 +163,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         face_of: Operand::B,
         why,
     };
-    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 10] = [
+    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 12] = [
         (
             "a result no model represents, non-manifold",
             BooleanError::NonManifoldResult {
@@ -232,6 +232,16 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             "a walk past its budget",
             unsettled(geom_brep::roots::Unsettled::Exhausted),
             Ok(Refusal::Unsettled),
+        ),
+        (
+            "a germ's spline component walked past its budget",
+            crate::SplitJoinError::SectionUnwalked(geom::PieceWalkRefusal::Exhausted).into(),
+            Ok(Refusal::Unsettled),
+        ),
+        (
+            "a join's mixed cause",
+            crate::SplitJoinError::UnpairedLooseEnds { count: 2 }.into(),
+            Err(Aborts),
         ),
     ];
     for (label, error, want) in more {

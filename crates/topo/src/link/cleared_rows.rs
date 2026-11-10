@@ -156,7 +156,7 @@ fn a_cleared_sector_is_the_disc_its_other_edges_clear_on_the_faces_side() {
     };
     assert_eq!(
         c.cleared(p(1.0, 0.0, 0.0), &[corner]).err(),
-        Some(TouchUnread::Unreadable),
+        Some(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "a corner of a face with an arc edge is not a disc"
     );
     assert_eq!(

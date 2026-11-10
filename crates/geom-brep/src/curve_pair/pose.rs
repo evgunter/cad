@@ -546,19 +546,11 @@ mod row {
 }
 
 /// The coplanar conic subdivision's rows.
-const COPLANAR_ROWS: SubdivisionRows = SubdivisionRows {
-    clear: "curve_pair_coplanar_sub_clear",
-    monotone: "curve_pair_coplanar_sub_monotone",
-    side: "curve_pair_coplanar_sub_side",
-    width: "curve_pair_coplanar_sub_width",
-};
+const COPLANAR_ROWS: SubdivisionRows = crate::rows::COPLANAR;
 
 /// The coplanar subdivision's touch rows (module docs, "A touch in the
 /// subdivision").
-const COPLANAR_TOUCH: TouchRows = TouchRows {
-    convex: "curve_pair_coplanar_sub_convex",
-    stretch: "curve_pair_coplanar_sub_touch",
-};
+const COPLANAR_TOUCH: TouchRows = crate::rows::COPLANAR_TOUCH;
 
 /// **The pose of `a`'s and `b`'s carriers** (module docs), dispatched
 /// through the table ([`super::method`]).
