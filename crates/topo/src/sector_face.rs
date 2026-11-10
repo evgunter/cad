@@ -810,6 +810,46 @@ pub(crate) mod tests {
         (body, top, mid)
     }
 
+    /// [`spline_topped_cube`] on a degree-1 chart over `x ∈ [−1, 1]`
+    /// creased at its knot `u = ½`, where `x = 0`: the top face's `x = 0`
+    /// edge runs along the crease, and is split at its middle. The body,
+    /// the top face and the new vertex, whose sectors' edges leave it
+    /// along the crease, so neither side of it is theirs.
+    pub(crate) fn split_along_crease() -> (Body<f64>, FaceKey, VertexKey) {
+        let chart = planar_chart(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[-1.0, 0.0, 1.0]);
+        let (mut body, top) = spline_topped_cube(chart, true);
+        let edge = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                let c = body.stored_curve(e).unwrap();
+                let (t0, t1) = c.params();
+                let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
+                a.z == 1.0 && b.z == 1.0 && a.x == 0.0 && b.x == 0.0
+            })
+            .expect("the top face's x = 0 edge");
+        let (t0, t1) = body.stored_curve(edge).unwrap().params();
+        let mid = body
+            .split_edge(edge, 0.5 * (t0 + t1), Tol::witness())
+            .unwrap()
+            .vertex;
+        (body, top, mid)
+    }
+
+    /// **A vertex whose edge runs along a crease refuses typed**: the
+    /// edge's half at the vertex lies on the crease line, reaching past it
+    /// on neither side, so the sector's side is not read
+    /// ([`geom_brep::chart_normal_beside`]).
+    #[test]
+    fn a_vertex_whose_edge_runs_along_a_crease_refuses() {
+        let (body, top, mid) = split_along_crease();
+        let got = resolve(&body, mid, sector_of(&body, mid, top), band());
+        assert!(
+            matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs, .. }) if face == top),
+            "{got:?}"
+        );
+    }
+
     /// The orbit half-edge at `vertex` whose sector is a corner of `face`.
     pub(crate) fn sector_of(body: &Body<f64>, vertex: VertexKey, face: FaceKey) -> HalfEdgeKey {
         body.vertex_orbit_linked(vertex)
