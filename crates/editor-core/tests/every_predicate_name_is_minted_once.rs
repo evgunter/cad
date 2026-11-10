@@ -5,7 +5,7 @@
 //! would merge their samples under it. Names are minted two ways:
 //!
 //! - **as a row bundle's rows**, held in the minting crate's row registry
-//!   (`geom_brep::rows`, `topo::rows`, `sweep::rows`), whose own `const`
+//!   (`geom::rows`, `geom_brep::rows`, `topo::rows`, `sweep::rows`), whose own `const`
 //!   assertion keeps a crate's names distinct;
 //! - **as a plain site**, a literal at a `k_stats` door.
 //!
@@ -18,6 +18,7 @@
 /// Every registry's roster, by crate.
 fn rosters() -> Vec<(&'static str, &'static [&'static [&'static str]])> {
     vec![
+        ("geom", geom::rows::ROSTER),
         ("geom-brep", geom_brep::rows::ROSTER),
         ("topo", topo::rows::ROSTER),
         ("sweep", sweep::rows::ROSTER),
