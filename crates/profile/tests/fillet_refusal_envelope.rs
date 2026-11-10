@@ -440,22 +440,26 @@ fn anchors_of() -> (Point2<f64>, Point2<f64>, Point2<f64>) {
 }
 
 /// **A pair's radius levers fold into the wider menu.** A corner whose
-/// trim eats an anchor names "reduce the radius or move the anchor",
-/// one whose carriers a radius swallows names "reduce the radius"; the
-/// pair names the first, which already holds the second, in either list
-/// order.
+/// trim eats an anchor names where that anchor has to lie or a radius
+/// bound, one whose carriers a radius swallows names "reduce the
+/// radius"; the pair names the first, which already holds the second,
+/// in either list order.
 ///
 /// Red if the pair names the narrower lever, or names one per corner.
 #[test]
 fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
-    use profile::{FilletLeg, FilletLegCarrier, NoCornerReason, path::CornerRefusal};
+    use profile::{FilletLegCarrier, LegFit, NoCornerReason, path::CornerRefusal};
+    let leg = |setback: f64, available: f64| LegFit {
+        carrier: FilletLegCarrier::Line,
+        setback,
+        available,
+        overruns: setback > available,
+    };
     let anchor = CornerRefusal {
         at: Point2::new(1.0, 0.0),
         reason: CornerReason::AnchorOutsideTrimmedExtent {
-            side: FilletLeg::Outgoing,
-            carrier: FilletLegCarrier::Line,
-            setback: 0.4,
-            available: 0.3,
+            legs: [leg(0.4, 1.0), leg(0.4, 0.3)],
+            radius_at_anchor: Some(0.225),
         },
     };
     let radius = CornerRefusal {
@@ -472,7 +476,10 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
         }
         .to_string();
         assert!(
-            said.ends_with(". Recourse: reduce the radius or move the anchor"),
+            said.ends_with(
+                ". Recourse: anchor the outgoing leg at least 0.4000000001 m from the corner, \
+                 or use a radius of 0.22499999999 m or less"
+            ),
             "the pair names the wider menu once: {said}"
         );
     }

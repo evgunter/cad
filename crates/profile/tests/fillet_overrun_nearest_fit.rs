@@ -44,7 +44,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{anchor_fit_at, arc_arc, close, grid_a, line_arc};
+use crate::common::{anchor_fit_at, anchor_fit_payload_at, arc_arc, close, grid_a, line_arc};
 use geom_core::Sign;
 use geom_core::k_stats;
 use profile::path::CornerReason;
@@ -140,41 +140,47 @@ fn two_overrunning_candidates_report_the_least_deficit_one() {
     );
 }
 
-/// **The reported leg is the one whose setback outruns its extent by
-/// more.** On authoring 11131's nearer candidate the outgoing leg
-/// overruns by more than the incoming one, so the sentence names the
-/// outgoing leg's numbers — not the incoming leg's, which is the leg
-/// the fit gate classifies first.
+/// **Both legs ride.** On authoring 11131's nearer candidate both legs
+/// overrun, the outgoing one by more; the payload carries both legs'
+/// numbers and calls both overruns, so the sentence can name where each
+/// anchor has to lie.
 #[test]
-fn the_reported_leg_is_the_one_the_deficit_is_on() {
+fn both_overrunning_legs_ride_the_payload() {
     let err = arc_arc(CASE_11131, R_11131).expect_err("r = 0.15 refuses");
-    let (side, _, setback, available) = anchor_fit_at(&err, CORNER_11131);
-    assert_eq!(side, FilletLeg::Outgoing, "the worse leg");
+    let (legs, _) = anchor_fit_payload_at(&err, CORNER_11131);
+    assert!(legs[0].overruns && legs[1].overruns, "{legs:?}");
     assert!(
-        close(setback, CORNER_11131_WORSE.0) && close(available, CORNER_11131_WORSE.1),
-        "got setback {setback} available {available}"
+        close(legs[1].setback, CORNER_11131_WORSE.0)
+            && close(legs[1].available, CORNER_11131_WORSE.1),
+        "the outgoing leg: {legs:?}"
     );
     assert!(
-        setback - available > CORNER_11131_INCOMING.0 - CORNER_11131_INCOMING.1,
-        "the reported leg's overrun is the candidate's larger one"
+        close(legs[0].setback, CORNER_11131_INCOMING.0)
+            && close(legs[0].available, CORNER_11131_INCOMING.1),
+        "the incoming leg: {legs:?}"
     );
 }
 
-/// The same leg rule on the line×arc channel, where the offset line is
-/// tangent to the offset circle and the ONE candidate overruns both
-/// legs: the straight leg by 0.2 m, the circular one by π − 0.6 m.
+/// The same on the line×arc channel, where the offset line is tangent
+/// to the offset circle and the ONE candidate overruns both legs: the
+/// straight leg by 0.2 m, the circular one by π − 0.6 m.
 #[test]
-fn a_single_candidate_reports_its_worse_leg_on_the_line_arc_channel() {
+fn a_single_candidate_carries_both_legs_on_the_line_arc_channel() {
     let err = line_arc_both_legs_overrun().expect_err("r = 1 overruns both legs");
-    let (side, carrier, setback, available) = anchor_fit_at(&err, (2.0, 0.0));
-    assert_eq!(side, FilletLeg::Outgoing);
+    let (legs, _) = anchor_fit_payload_at(&err, (2.0, 0.0));
+    assert!(legs[0].overruns && legs[1].overruns, "{legs:?}");
+    assert_eq!(legs[0].carrier, FilletLegCarrier::Line);
     assert!(
-        matches!(carrier, FilletLegCarrier::Arc { radius, .. } if close(radius, 2.0)),
-        "{carrier:?}"
+        close(legs[0].setback, 2.0) && close(legs[0].available, 1.8),
+        "{legs:?}"
     );
     assert!(
-        close(setback, PI) && close(available, 0.6),
-        "got {setback} / {available}"
+        matches!(legs[1].carrier, FilletLegCarrier::Arc { radius, .. } if close(radius, 2.0)),
+        "{legs:?}"
+    );
+    assert!(
+        close(legs[1].setback, PI) && close(legs[1].available, 0.6),
+        "{legs:?}"
     );
 }
 
@@ -361,9 +367,9 @@ fn grid_a_census_of_the_reports_that_changed() {
             return;
         };
         for c in corners {
-            if let CornerReason::AnchorOutsideTrimmedExtent { side, .. } = c.reason {
+            if let CornerReason::AnchorOutsideTrimmedExtent { legs, .. } = &c.reason {
                 entries += 1;
-                match side {
+                match crate::common::worse_leg(legs).0 {
                     FilletLeg::Incoming => incoming += 1,
                     FilletLeg::Outgoing => outgoing += 1,
                 }

@@ -654,31 +654,22 @@ pub enum CornerReason<T: Real> {
     /// **Whose numbers.** At an arc-carrier corner the offset carriers
     /// can admit two candidate circles that both round the corner and
     /// both overrun a leg; the payload is then the candidate nearest to
-    /// fitting IN THE SETBACK METRIC (`fillet_select::nearest_candidate`
-    /// over the candidates' setback pairs), on that candidate's worse
-    /// leg — the leg whose setback outruns its extent by more, ties to
-    /// the incoming leg. `setback − available` is that leg's overrun, a
-    /// setback-currency number: it is NOT the radius reduction that
-    /// would make the corner fit (a setback does not scale 1:1 with
-    /// the radius on either leg kind), and the sentence's recourse is
-    /// deliberately un-metered.
+    /// fitting (`fillet_select::nearest_candidate` over the candidates'
+    /// setback pairs). Its two numbers meter the two levers
+    /// ([`Recourse::AnchorOrRadius`]): an overrun leg fits once its
+    /// anchor lies `setback` from the corner, and the corner's anchors
+    /// fit at `radius_at_anchor` or less.
     AnchorOutsideTrimmedExtent {
-        /// Which side's anchor the trim would eat: the reported
-        /// candidate's worse leg.
-        side: FilletLeg,
-        /// **G2 §3c**: that side's CARRIER KIND, carrying the angular
-        /// margin `(extent − setback)/R` for a circular side. A bare
-        /// linear setback says nothing on a circle, so the payload is
-        /// metered in the carrier's own currency (M5 S2's
-        /// does-not-fit diagnostic shape, at the algebra door).
-        carrier: FilletLegCarrier,
-        /// The reported candidate's tangent setback from the corner on
-        /// that side, meters (diagnostic; an arc length `R·Δθ` on a
-        /// circular side).
-        setback: T,
-        /// The anchored extent available to the trim, meters (same
-        /// currency as `setback`).
-        available: T,
+        /// The reported candidate's `[incoming, outgoing]` legs.
+        legs: [LegFit<T>; 2],
+        /// The radius of the fillet tangent to an overrun leg's carrier
+        /// exactly at its anchor and to the other carrier, on the
+        /// reported candidate's branch: the smaller over its overrun
+        /// legs, meters. The tangency is linear in the radius on both
+        /// leg kinds, so this is a closed form, not a search. `None`
+        /// where that form degenerates — no positive radius on that
+        /// branch, or none below the authored one.
+        radius_at_anchor: Option<T>,
     },
     /// The requested radius demands the **enclosing** tangency at this
     /// corner: on the named side the signed offset radius ρ = R − σ·τ·r
@@ -719,6 +710,28 @@ pub enum CornerReason<T: Real> {
         /// number.
         largest_tangent_radius: Option<T>,
     },
+}
+
+/// One leg of the candidate an anchor-fit refusal reports
+/// ([`CornerReason::AnchorOutsideTrimmedExtent`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LegFit<T: Real> {
+    /// **G2 §3c**: the leg's CARRIER KIND, carrying the angular margin
+    /// `(extent − setback)/R` for a circular leg. A bare linear setback
+    /// says nothing on a circle, so the payload is metered in the
+    /// carrier's own currency (M5 S2's does-not-fit diagnostic shape,
+    /// at the algebra door).
+    pub carrier: FilletLegCarrier,
+    /// The tangent setback from the corner along the leg, meters (an
+    /// arc length `R·Δθ` on a circular leg): where the leg's anchor has
+    /// to lie for this candidate's trim to fit it.
+    pub setback: T,
+    /// The extent the leg's anchor pins, from the corner along the leg
+    /// (same currency as `setback`).
+    pub available: T,
+    /// Whether the fit gate refused this leg — its setback overruns
+    /// `available` past the band.
+    pub overruns: bool,
 }
 
 /// One derived corner of a carrier pair, and why no fillet of the
@@ -772,21 +785,33 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                     "every tangent circle of that radius touches a side past this corner"
                 ),
             },
-            // The carrier rides the payload; the sentence names the
-            // anchor and the two lengths that decide it. The recourse is
-            // the pair's, stated once after every corner.
-            Self::AnchorOutsideTrimmedExtent {
-                side,
-                setback,
-                available,
-                ..
-            } => write!(
-                f,
-                "the fillet trim would eat the {side}'s anchor (setback {setback} m, \
-                 {available} m available)",
-                setback = num(setback),
-                available = num(available)
-            ),
+            // The carriers ride the payload; the sentence names the
+            // anchors the trim eats and both legs' lengths that decide
+            // it. The recourse is the pair's, stated once after every
+            // corner.
+            Self::AnchorOutsideTrimmedExtent { legs, .. } => {
+                match [legs[0].overruns, legs[1].overruns] {
+                    [true, true] => f.write_str("the fillet trim would eat both legs' anchors")?,
+                    [true, false] => {
+                        write!(f, "the fillet trim would eat the {}'s anchor", LEGS[0])?
+                    }
+                    [false, true] => {
+                        write!(f, "the fillet trim would eat the {}'s anchor", LEGS[1])?
+                    }
+                    [false, false] => f.write_str("the fillet trim would eat a leg's anchor")?,
+                }
+                write!(
+                    f,
+                    " ({in_leg}: setback {s0} m, {a0} m available; {out_leg}: setback {s1} m, \
+                     {a1} m available)",
+                    in_leg = LEGS[0],
+                    out_leg = LEGS[1],
+                    s0 = num(&legs[0].setback),
+                    a0 = num(&legs[0].available),
+                    s1 = num(&legs[1].setback),
+                    a1 = num(&legs[1].available),
+                )
+            }
             // The offset radius rho that decides the swallow rides the
             // payload; the sentence names the carrier's own radius.
             Self::EnclosesLegCarrier {
@@ -831,44 +856,75 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
     }
 }
 
+/// A fillet corner's legs, in the order every `[incoming, outgoing]`
+/// pair is stored.
+const LEGS: [FilletLeg; 2] = [FilletLeg::Incoming, FilletLeg::Outgoing];
+
 impl<T: Real> CornerReason<T> {
-    /// The lever this corner names, or `None` where it names none.
-    fn lever(&self) -> Option<CornerLever> {
+    /// **What this corner's author changes**, as the values to set, or
+    /// `None` where the corner names no lever.
+    #[must_use]
+    pub fn recourse(&self) -> Option<Recourse<T>> {
         match self {
-            Self::AnchorOutsideTrimmedExtent { .. } => Some(CornerLever::RadiusOrAnchor),
+            Self::AnchorOutsideTrimmedExtent {
+                legs,
+                radius_at_anchor,
+            } => Some(Recourse::AnchorOrRadius {
+                anchors: LEGS
+                    .into_iter()
+                    .zip(legs)
+                    .filter(|(_, leg)| leg.overruns)
+                    .map(|(side, leg)| (side, leg.setback))
+                    .collect(),
+                radius: *radius_at_anchor,
+            }),
             Self::EnclosesLegCarrier { .. }
             | Self::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint) => {
-                Some(CornerLever::Radius)
+                Some(Recourse::Radius)
             }
             Self::OutsideAnchors(CornerWindow::BehindIncomingRay) => {
-                Some(CornerLever::IncomingShortOfCorner)
+                Some(Recourse::IncomingShortOfCorner)
             }
             Self::OutsideAnchors(CornerWindow::BehindArrivalAnchor) => {
-                Some(CornerLever::ArrivalBeyondCorner)
+                Some(Recourse::ArrivalBeyondCorner)
             }
             Self::NoTangentCircle(NoCornerReason::NoCornerSideCandidate) => None,
         }
     }
 }
 
-/// What a refused corner's author changes. A pair's refusal states one
-/// recourse after its corners: their common lever, or, where its two
-/// corners name different levers, each corner's beside its ordinal.
+/// **What a refused corner's author changes** — one lever per arm, each
+/// stated as the value to set rather than an amount to add.
 ///
-/// The levers that meet in one pair are those of one channel
-/// (`crates/profile/README.md`, "Which corners are entries"): the
-/// straight door lists one corner, and the arc door lists either the
-/// corners its anchor windows discarded or those its construction
-/// refused, never both. So two window corners can disagree (one behind
-/// the incoming side, the other past the arrival anchor), and there the
-/// author's lever is the one for the corner they meant, which only they
-/// know; two construction corners agree up to the anchor, which
-/// [`CornerLever::subsumes`] folds into the wider menu.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CornerLever {
-    RadiusOrAnchor,
+/// A pair's refusal states one recourse after its corners, their
+/// exhaustive merge. The levers that meet in one pair are those of one
+/// channel (`crates/profile/README.md`, "Which corners are entries"):
+/// the straight door lists one corner, and the arc door lists either
+/// the corners its anchor windows discarded or those its construction
+/// refused, never both. Two construction corners agree up to the
+/// anchor, so they merge into the wider menu, with the largest radius
+/// bound among them: below it the fillet clears that corner's anchors.
+/// Two window corners can disagree (one behind the incoming side, the
+/// other past the arrival anchor), and there the author's lever is the
+/// one for the corner they meant, which only they know, so each corner
+/// keeps its own.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Recourse<T: Real> {
+    /// Anchor each overrun leg at least its setback from the corner,
+    /// or use a radius of at most `radius`.
+    AnchorOrRadius {
+        /// Each overrun leg, with the distance from the corner along it
+        /// at which its anchor has to lie, meters.
+        anchors: Vec<(FilletLeg, T)>,
+        /// This corner's bound for the radius, meters, where the closed
+        /// form gives one.
+        radius: Option<T>,
+    },
+    /// Use a smaller radius.
     Radius,
+    /// Start the incoming side short of the corner.
     IncomingShortOfCorner,
+    /// Anchor the arrival side beyond the corner.
     ArrivalBeyondCorner,
 }
 
@@ -877,80 +933,199 @@ enum CornerLever {
 const CORNER_IS_NEVER_AUTHORED: &str =
     "a fillet's corner is where its carriers cross, never an authored point";
 
-impl CornerLever {
-    /// Whether naming `self` already names `other`'s repair: moving the
-    /// anchor is the wider menu of the two radius levers.
-    const fn subsumes(self, other: Self) -> bool {
-        matches!(
-            (self, other),
-            (Self::RadiusOrAnchor, Self::Radius | Self::RadiusOrAnchor)
-                | (Self::Radius, Self::Radius)
-                | (Self::IncomingShortOfCorner, Self::IncomingShortOfCorner)
-                | (Self::ArrivalBeyondCorner, Self::ArrivalBeyondCorner)
-        )
+/// "or use a radius of X m or less", X rendered on the fitting side,
+/// or the lever named without a value where there is none.
+fn write_radius_lever<T: Real>(
+    f: &mut core::fmt::Formatter<'_>,
+    radius: Option<&T>,
+) -> core::fmt::Result {
+    match radius {
+        Some(bound) => write!(
+            f,
+            "use a radius of {} m or less",
+            num_toward(bound, Toward::Below)
+        ),
+        None => f.write_str("reduce the radius"),
     }
+}
 
-    /// The lever as the pair's whole recourse.
-    fn write_whole(self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::RadiusOrAnchor => f.write_str("reduce the radius or move the anchor"),
-            Self::Radius => f.write_str("reduce the radius"),
-            Self::IncomingShortOfCorner => write!(
-                f,
-                "start the incoming side short of the corner (end its leg, or move its \
-                 start); {CORNER_IS_NEVER_AUTHORED}"
-            ),
-            Self::ArrivalBeyondCorner => write!(
-                f,
-                "anchor the arrival side beyond the corner, within half a turn on an arc; \
-                 {CORNER_IS_NEVER_AUTHORED}"
-            ),
-        }
+/// "the incoming leg at least S m [and the outgoing leg at least S m]",
+/// each S rendered on the fitting side.
+fn write_anchor_targets<T: Real>(
+    f: &mut core::fmt::Formatter<'_>,
+    anchors: &[(FilletLeg, T)],
+) -> core::fmt::Result {
+    let mut sep = "";
+    for (side, at_least) in anchors {
+        write!(
+            f,
+            "{sep}the {side} at least {} m",
+            num_toward(at_least, Toward::Above)
+        )?;
+        sep = " and ";
     }
+    Ok(())
+}
 
+impl<T: Real> Recourse<T> {
     /// The lever for one of two corners, which the clause names as
     /// "it".
-    const fn for_one(self) -> &'static str {
+    fn write_for_one(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::RadiusOrAnchor => "reduce the radius or move the anchor",
-            Self::Radius => "reduce the radius",
-            Self::IncomingShortOfCorner => "start the incoming side short of it",
+            Self::AnchorOrRadius { anchors, radius } => {
+                if !anchors.is_empty() {
+                    f.write_str("anchor ")?;
+                    write_anchor_targets(f, anchors)?;
+                    f.write_str(" from it, or ")?;
+                }
+                write_radius_lever(f, radius.as_ref())
+            }
+            Self::Radius => f.write_str("reduce the radius"),
+            Self::IncomingShortOfCorner => f.write_str("start the incoming side short of it"),
             Self::ArrivalBeyondCorner => {
-                "anchor the arrival side beyond it, within half a turn on an arc"
+                f.write_str("anchor the arrival side beyond it, within half a turn on an arc")
             }
         }
     }
 }
 
-/// The pair's one recourse over its corners' levers, in list order.
-fn write_pair_recourse(
+/// A pair's one recourse over its corners' ([`Recourse`]'s docs).
+enum PairRecourse<'a, T: Real> {
+    /// No corner names a lever.
+    Unnamed,
+    /// Every lever named is a radius lever, and at least one is an
+    /// anchor-fit corner's: its anchors, beside its ordinal, and the
+    /// largest radius bound among them.
+    AnchorOrRadius {
+        anchors: Vec<(usize, &'a [(FilletLeg, T)])>,
+        radius: Option<T>,
+    },
+    /// Every lever named is the bare radius one.
+    Radius,
+    /// Every lever named is this window's.
+    Window(&'a Recourse<T>),
+    /// The corners name levers no one menu covers: each keeps its own.
+    Each,
+}
+
+impl<'a, T: Real> PairRecourse<'a, T> {
+    /// The merge of the corners' recourses, in list order.
+    fn of(recourses: &'a [Option<Recourse<T>>]) -> Self {
+        recourses
+            .iter()
+            .enumerate()
+            .filter_map(|(k, r)| r.as_ref().map(|r| (k, r)))
+            .fold(Self::Unnamed, |merged, (k, next)| merged.with(k, next))
+    }
+
+    fn with(self, k: usize, next: &'a Recourse<T>) -> Self {
+        match (self, next) {
+            (Self::Each, _) => Self::Each,
+            (Self::Unnamed | Self::Radius, Recourse::AnchorOrRadius { anchors, radius }) => {
+                Self::AnchorOrRadius {
+                    anchors: vec![(k, anchors.as_slice())],
+                    radius: *radius,
+                }
+            }
+            (
+                Self::AnchorOrRadius {
+                    anchors: mut merged,
+                    radius: bound,
+                },
+                Recourse::AnchorOrRadius { anchors, radius },
+            ) => {
+                merged.push((k, anchors.as_slice()));
+                Self::AnchorOrRadius {
+                    anchors: merged,
+                    radius: match (bound, *radius) {
+                        (Some(a), Some(b)) => Some(a.max(b)),
+                        (bound, None) => bound,
+                        (None, radius) => radius,
+                    },
+                }
+            }
+            (merged @ Self::AnchorOrRadius { .. }, Recourse::Radius) => merged,
+            (Self::Unnamed | Self::Radius, Recourse::Radius) => Self::Radius,
+            (Self::Unnamed, window) => Self::Window(window),
+            (
+                Self::Window(held @ Recourse::IncomingShortOfCorner),
+                Recourse::IncomingShortOfCorner,
+            )
+            | (Self::Window(held @ Recourse::ArrivalBeyondCorner), Recourse::ArrivalBeyondCorner) => {
+                Self::Window(held)
+            }
+            (
+                Self::Window(_) | Self::Radius | Self::AnchorOrRadius { .. },
+                Recourse::AnchorOrRadius { .. }
+                | Recourse::Radius
+                | Recourse::IncomingShortOfCorner
+                | Recourse::ArrivalBeyondCorner,
+            ) => Self::Each,
+        }
+    }
+}
+
+/// The pair's one recourse over its corners' recourses, in list order.
+fn write_pair_recourse<T: Real>(
     f: &mut core::fmt::Formatter<'_>,
-    levers: &[Option<CornerLever>],
+    recourses: &[Option<Recourse<T>>],
 ) -> core::fmt::Result {
-    let named: Vec<CornerLever> = levers.iter().flatten().copied().collect();
-    if named.is_empty() {
+    let merged = PairRecourse::of(recourses);
+    if matches!(merged, PairRecourse::Unnamed) {
         return Ok(());
     }
     f.write_str(". Recourse: ")?;
-    if let Some(common) = named
-        .iter()
-        .copied()
-        .find(|l| named.iter().all(|other| l.subsumes(*other)))
-    {
-        return common.write_whole(f);
+    match merged {
+        PairRecourse::Unnamed => Ok(()),
+        PairRecourse::AnchorOrRadius { anchors, radius } => {
+            let ordinals = anchors.iter().filter(|(_, a)| !a.is_empty()).count() > 1;
+            let mut sep = "anchor ";
+            for (k, targets) in anchors.iter().filter(|(_, a)| !a.is_empty()) {
+                f.write_str(sep)?;
+                write_anchor_targets(f, targets)?;
+                f.write_str(match (ordinals, k) {
+                    (false, _) => " from the corner",
+                    (true, 0) => " from the first corner",
+                    (true, 1) => " from the second",
+                    (true, _) => " from the next",
+                })?;
+                sep = ", or ";
+            }
+            if sep != "anchor " {
+                f.write_str(", or ")?;
+            }
+            write_radius_lever(f, radius.as_ref())
+        }
+        PairRecourse::Radius => f.write_str("reduce the radius"),
+        PairRecourse::Window(Recourse::IncomingShortOfCorner) => write!(
+            f,
+            "start the incoming side short of the corner (end its leg, or move its \
+             start); {CORNER_IS_NEVER_AUTHORED}"
+        ),
+        PairRecourse::Window(Recourse::ArrivalBeyondCorner) => write!(
+            f,
+            "anchor the arrival side beyond the corner, within half a turn on an arc; \
+             {CORNER_IS_NEVER_AUTHORED}"
+        ),
+        PairRecourse::Window(lever @ (Recourse::AnchorOrRadius { .. } | Recourse::Radius)) => {
+            lever.write_for_one(f)
+        }
+        PairRecourse::Each => {
+            let mut sep = "";
+            for (k, recourse) in recourses.iter().enumerate() {
+                let Some(recourse) = recourse else { continue };
+                let at = match k {
+                    0 => "at the first corner",
+                    1 => "at the second",
+                    _ => "at the next",
+                };
+                write!(f, "{sep}{at}, ")?;
+                recourse.write_for_one(f)?;
+                sep = "; ";
+            }
+            Ok(())
+        }
     }
-    let mut sep = "";
-    for (k, lever) in levers.iter().enumerate() {
-        let Some(lever) = lever else { continue };
-        let at = match k {
-            0 => "at the first corner",
-            1 => "at the second",
-            _ => "at the next",
-        };
-        write!(f, "{sep}{at}, {}", lever.for_one())?;
-        sep = "; ";
-    }
-    Ok(())
 }
 
 /// Typed refusals of the authoring algebra — geometry the lattice
@@ -1894,6 +2069,92 @@ pub(crate) fn num<T: core::fmt::Debug>(v: &T) -> String {
     raw
 }
 
+/// Which side of its exact value a recourse's number is spelled on
+/// ([`num_toward`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Toward {
+    /// Strictly above: a least distance to set.
+    Above,
+    /// Strictly below: a greatest radius to use.
+    Below,
+}
+
+/// **A recourse's number, spelled strictly on its fitting side**: the
+/// shortest decimal on [`num`]'s grid that lies strictly `toward` the
+/// exact value, so the number an author types back clears the boundary
+/// the refusal reports instead of landing on it. Rounding to nearest
+/// would land on the refusing side about half the time.
+pub(crate) fn num_toward<T: core::fmt::Debug>(v: &T, toward: Toward) -> String {
+    let raw = format!("{v:?}");
+    let Ok(x) = raw.parse::<f64>() else {
+        return raw;
+    };
+    if !x.is_finite() {
+        return raw;
+    }
+    let tol = (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9);
+    let exponential = raw.contains('e');
+    let spell = |y: f64, prec: usize| {
+        if exponential {
+            format!("{y:.prec$e}")
+        } else {
+            format!("{y:.prec$}")
+        }
+    };
+    let fits = |y: f64| match toward {
+        Toward::Above => y > x,
+        Toward::Below => y < x,
+    };
+    for prec in 0..=17 {
+        let nearest = spell(x, prec);
+        let Ok(back) = nearest.parse::<f64>() else {
+            continue;
+        };
+        // One unit of the last place spelled, toward the fitting side.
+        let unit = if exponential {
+            let exp: i32 = nearest
+                .rsplit_once('e')
+                .and_then(|(_, e)| e.parse().ok())
+                .unwrap_or(0);
+            10f64.powi(exp - i32::try_from(prec).unwrap_or(0))
+        } else {
+            10f64.powi(-i32::try_from(prec).unwrap_or(0))
+        };
+        let short = if fits(back) {
+            nearest
+        } else {
+            spell(
+                match toward {
+                    Toward::Above => back + unit,
+                    Toward::Below => back - unit,
+                },
+                prec,
+            )
+        };
+        if short
+            .parse::<f64>()
+            .is_ok_and(|y| fits(y) && (y - x).abs() <= tol)
+        {
+            if exponential || !short.contains('.') {
+                return short;
+            }
+            return short
+                .trim_end_matches('0')
+                .trim_end_matches('.')
+                .to_string();
+        }
+    }
+    // The grid is finer than `x`'s own spacing only past 17 figures:
+    // the adjacent `f64` is the nearest spelling that fits.
+    format!(
+        "{:?}",
+        match toward {
+            Toward::Above => x.next_up(),
+            Toward::Below => x.next_down(),
+        }
+    )
+}
+
 impl<T: Real> core::fmt::Display for PathError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2024,9 +2285,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 }) {
                     write!(f, "; these carriers may admit no fillet at all")?;
                 }
-                let levers: Vec<Option<CornerLever>> =
-                    corners.iter().map(|c| c.reason.lever()).collect();
-                write_pair_recourse(f, &levers)
+                let recourses: Vec<Option<Recourse<T>>> =
+                    corners.iter().map(|c| c.reason.recourse()).collect();
+                write_pair_recourse(f, &recourses)
             }
             Self::FilletOffsetLeverTooShort {
                 side,
@@ -2886,9 +3147,14 @@ impl<T: Real> Core<T> {
     }
 
     /// Installs the guide this lowering runs under, replacing the
-    /// fresh recording one [`Core::empty`] mints.
+    /// fresh recording one [`Core::empty`] mints. An entry verb that
+    /// opens a fillet opens it before its guide is installed, so a
+    /// guide that draws is handed that incoming side here.
     pub(crate) fn adopt(&mut self, guide: crate::structure::Guide<T>) {
         self.guide = guide;
+        if let (Some(drawing), Some((pending, meta))) = (self.guide.drawn(), &self.pending) {
+            drawing.opened(meta.bound_at, pending.radius(), pending.side());
+        }
     }
 
     /// The structure this lowering selected — taken at the close,
@@ -2897,11 +3163,37 @@ impl<T: Real> Core<T> {
         core::mem::replace(&mut self.guide, crate::structure::Guide::recording())
     }
 
-    /// **Hands an arc fillet's fit its two sides**, the fused verb at
+    /// **Opens a fillet**: every fillet verb's incoming side goes
+    /// through here, and a pass that draws its construction records it
+    /// now, before any later step can refuse.
+    fn open_pending(&mut self, pending: verbs::Pending<T>, meta: PendingMeta) {
+        if let Some(drawing) = self.guide.drawn() {
+            drawing.opened(meta.bound_at, pending.radius(), pending.side());
+        }
+        self.pending = Some((pending, meta));
+    }
+
+    /// **The open fillet's arrival side is bound**: every resolution
+    /// calls this before any gate of its own runs, so a pass that draws
+    /// has the arrival even where that resolution then refuses.
+    fn bound_arrival(&self, arrival: arc_fillet::FilletSide<T>) {
+        if let (Some(drawing), Some((_, meta))) = (self.guide.drawn(), &self.pending) {
+            drawing.arrival(meta.bound_at, arrival);
+        }
+    }
+
+    /// The open fillet's fit answered `fit`, for a pass that draws.
+    fn fit_answered(&self, step: usize, fit: impl FnOnce() -> program::FilletFit<T>) {
+        if let Some(drawing) = self.guide.drawn() {
+            drawing.fit(step, fit());
+        }
+    }
+
+    /// **Hands an arc fillet's fit its two sides**, the fillet verb at
     /// `step` having authored them: every arc-carrier resolution goes
-    /// through here. A pass that draws its construction is handed the
-    /// sides before the fit runs, so a refused fit still has them, and
-    /// the fillet circle once it resolves.
+    /// through here. A pass that draws records the fillet circle the
+    /// fit finds; a refused fit records its overruns itself
+    /// ([`arc_fillet::resolve`]).
     pub(crate) fn fit_arc_fillet(
         &mut self,
         resolver: verbs::ArcResolver<T>,
@@ -2911,13 +3203,15 @@ impl<T: Real> Core<T> {
         tol: Tol,
     ) -> Result<arc_fillet::ArcFilletTrims<T>, PathError<T>> {
         let [incoming, arrival] = sides;
-        if let Some(drawing) = self.guide.drawn() {
-            drawing.sides(step, radius, incoming, arrival);
-        }
         let trims = resolver(&mut self.guide, incoming, arrival, radius, tol)?;
-        if let Some(drawing) = self.guide.drawn() {
-            drawing.fillet(&trims);
-        }
+        self.fit_answered(step, || {
+            program::FilletFit::Fillet(program::Carrier::Circle {
+                centre: trims.arc.center,
+                radius: trims.arc.radius,
+                anchor: trims.t1,
+                winding: trims.sense,
+            })
+        });
         Ok(trims)
     }
 
@@ -3872,25 +4166,42 @@ fn emit_straight_leg_at<T: Decide>(
 /// envelope the arc-carrier channel builds, so a consumer matches one
 /// shape whichever pair refused. Nothing is sorted here: one entry is
 /// already nearest.
+///
+/// On a straight leg the setback is `r·|tan(φ/2)|`, so the fillet that
+/// ends exactly at a leg's anchor has radius `r·available/setback`: the
+/// closed form of `radius_at_anchor` on this pair, one branch and no
+/// search.
 fn map_fillet_err<T: Real>(refusal: TrimRefusal<T>, corner: Point2<T>, radius: T) -> PathError<T> {
     match refusal {
         TrimRefusal::DoesNotFit {
-            leg,
+            overruns,
             setback,
-            leg_length,
-        } => one_corner(
-            corner,
-            radius,
-            CornerReason::AnchorOutsideTrimmedExtent {
-                side: leg,
-                // The line×line seam has only straight sides by
-                // construction, so its carrier kind is structural, not
-                // measured — no bracket read enters `path.rs`.
+            lengths,
+            ..
+        } => {
+            // The line×line seam has only straight sides by
+            // construction, so its carrier kind is structural, not
+            // measured — no bracket read enters `path.rs`.
+            let leg = |k: usize| LegFit {
                 carrier: FilletLegCarrier::Line,
                 setback,
-                available: leg_length,
-            },
-        ),
+                available: lengths[k],
+                overruns: overruns[k],
+            };
+            let reach = match overruns {
+                [true, true] => lengths[0].min(lengths[1]),
+                [false, true] => lengths[1],
+                [true, false] | [false, false] => lengths[0],
+            };
+            one_corner(
+                corner,
+                radius,
+                CornerReason::AnchorOutsideTrimmedExtent {
+                    legs: [leg(0), leg(1)],
+                    radius_at_anchor: Some(radius * reach / setback),
+                },
+            )
+        }
         TrimRefusal::Escalated(source) => PathError::escalated(source),
     }
 }
@@ -4307,6 +4618,10 @@ impl<T: Decide> Core<T> {
         kind: ArrivalKind,
         tol: Tol,
     ) -> Result<(ArcData<T>, Sign), PathError<T>> {
+        self.bound_arrival(arc_fillet::FilletSide {
+            anchor: arr_pos,
+            carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
+        });
         let (pending, meta) = self.take_pending("fillet resolution without an opened fillet")?;
         let pending = match pending {
             verbs::Pending::Ray(ray) => ray,
@@ -4402,8 +4717,22 @@ impl<T: Decide> Core<T> {
         // (4) the shared line×line closed form, anchored: head = the
         // ray's origin, next = the arrival's anchor.
         let mut trims =
-            line_line_fillet_trims(pending.origin, corner, arr_pos, pending.radius, band)
-                .map_err(|e| map_fillet_err(e, corner, pending.radius))?;
+            line_line_fillet_trims(pending.origin, corner, arr_pos, pending.radius, band).map_err(
+                |e| {
+                    if let TrimRefusal::DoesNotFit { tangents, .. } = e {
+                        self.fit_answered(meta.bound_at, || {
+                            program::FilletFit::Overrun(vec![program::Overrun::new(
+                                corner,
+                                tangents[1] + Vec2::new(-u2.y, u2.x) * (sgn * pending.radius),
+                                pending.radius,
+                                tangents,
+                                sense,
+                            )])
+                        });
+                    }
+                    map_fillet_err(e, corner, pending.radius)
+                },
+            )?;
         // A straight carrier pair derives ONE corner and its
         // construction admits one candidate, so the fit signs are this
         // resolution's whole discrete content.
@@ -4412,6 +4741,14 @@ impl<T: Decide> Core<T> {
             .line_fits(trims.fit_in, trims.fit_out)
             .map_err(PathError::Structure)?;
         let arc = fillet_arc_carrier(&trims, u2, pending.radius, sgn);
+        self.fit_answered(meta.bound_at, || {
+            program::FilletFit::Fillet(program::Carrier::Circle {
+                centre: arc.center,
+                radius: arc.radius,
+                anchor: trims.t1,
+                winding: sense,
+            })
+        });
         let built = fillet_arc(
             arc,
             trims.bulge,
@@ -5390,14 +5727,14 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             bound_at: self.core.current_step()?,
             incoming_radius: false,
         };
-        self.core.pending = Some((
+        self.core.open_pending(
             verbs::Pending::Ray(verbs::PendingRay {
                 origin: at,
                 dir: ang,
                 radius,
             }),
             meta,
-        ));
+        );
         Ok(in_state(
             self.core,
             Tip {
@@ -6475,14 +6812,28 @@ mod tests {
         let s = CornerRefusal {
             at: Point2::new(0.25_f64, 0.5_f64),
             reason: CornerReason::AnchorOutsideTrimmedExtent {
-                side: FilletLeg::Incoming,
-                carrier,
-                setback: 0.017_f64 - 0.009_f64,
-                available: 0.0135_f64 - 0.01_f64,
+                legs: [
+                    LegFit {
+                        carrier,
+                        setback: 0.017_f64 - 0.009_f64,
+                        available: 0.0135_f64 - 0.01_f64,
+                        overruns: true,
+                    },
+                    LegFit {
+                        carrier: FilletLegCarrier::Line,
+                        setback: 0.017_f64 - 0.009_f64,
+                        available: 1.0,
+                        overruns: false,
+                    },
+                ],
+                radius_at_anchor: None,
             },
         }
         .to_string();
-        assert!(s.contains("(setback 0.008 m, 0.0035 m available)"), "{s}");
+        assert!(
+            s.contains("(incoming leg: setback 0.008 m, 0.0035 m available;"),
+            "{s}"
+        );
         assert!(!s.contains("0.008000000000000002"), "{s}");
         assert!(!s.contains("0.0034999999999999996"), "{s}");
 

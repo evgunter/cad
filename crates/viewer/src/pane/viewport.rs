@@ -306,17 +306,19 @@ pub(crate) fn push_committed(
 /// The doors' profile previews, as each door holds one.
 type Previews = ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>;
 
-/// What each door's fused fillet steps construct, taken with its preview.
+/// What each door's fillet steps construct, taken with its preview.
 type Constructions = ProfileDoors<Option<sketch::Construction>>;
 
 /// How many legs a full turn of a construction circle is drawn with.
 const CONSTRUCTION_LEGS_PER_TURN: u32 = 96;
 
-/// **Each door's construction, appended to a lane**: per fused fillet
-/// step ([`sketch::Construction`]), the two sides its fit was handed
-/// and its fillet circle where it resolved — the geometry the kept
-/// pieces were cut from, drawn whether or not the step's fit refused,
-/// since a refusal is when it is needed.
+/// **Each door's construction, appended to a lane**: per fillet step
+/// ([`sketch::Construction`]), the sides its fit was handed and its
+/// answer — the fillet circle where it resolved, the circle that
+/// overran where the anchor fit refused it — and a mark at each corner
+/// a refusal names: the geometry the kept pieces were cut from, drawn
+/// whether or not the step's fit refused, since a refusal is when it is
+/// needed.
 ///
 /// A circle is drawn as a full turn. A line side is drawn on the side
 /// of its anchor the fit reads it from — ahead of an incoming side's,
@@ -324,21 +326,41 @@ const CONSTRUCTION_LEGS_PER_TURN: u32 = 96;
 /// anchor, or four fillet radii where the step has none. Each side
 /// carries a heading mark at its anchor, sized against `view` (none
 /// without one): the point the fit anchors it at and the way the path
-/// travels it, which is what a refusal about the wrong side names.
+/// travels it, which is what a refusal about the wrong side names. A
+/// refused corner is a cross on its diagonals, and an overrunning
+/// circle's tangent points a cross square to the plane, at the same
+/// size.
 fn push_constructions(
     lane: &mut marks::LegLane,
     constructions: &Constructions,
     view: Option<screen::View>,
 ) {
-    use pncad::profile::path::program::Carrier;
+    use pncad::profile::path::program::{Carrier, FilletFit};
     for built in constructions.as_ref().into_array().into_iter().flatten() {
         let plane = &built.plane;
+        let tick_at = |at: pncad::geom_core::Point2<f64>| {
+            view.and_then(|view| view.screen_metres_at(plane.to_world(at), TIP_MARK_PX))
+        };
         for step in &built.steps {
-            let carriers = [Some(step.incoming), Some(step.arrival), step.fillet];
+            let (answer, tangents): (Vec<Carrier<f64>>, Vec<_>) = match &step.fit {
+                Some(FilletFit::Fillet(fillet)) => (vec![*fillet], Vec::new()),
+                Some(FilletFit::Overrun(overruns)) => (
+                    overruns.iter().map(|o| o.circle).collect(),
+                    overruns.iter().flat_map(|o| o.tangents).collect(),
+                ),
+                None => (Vec::new(), Vec::new()),
+            };
+            let sides: Vec<(Carrier<f64>, bool)> = core::iter::once((step.incoming, true))
+                .chain(step.arrival.map(|arrival| (arrival, false)))
+                .collect();
+            let carriers: Vec<Carrier<f64>> = sides
+                .iter()
+                .map(|(carrier, _)| *carrier)
+                .chain(answer.iter().copied())
+                .collect();
             let reach = |from: pncad::geom_core::Point2<f64>| {
                 carriers
                     .iter()
-                    .flatten()
                     .filter_map(|other| match *other {
                         Carrier::Circle { centre, radius, .. } => {
                             Some(from.distance(centre) + radius)
@@ -348,12 +370,12 @@ fn push_constructions(
                     .reduce(f64::max)
                     .unwrap_or(4.0 * step.radius.abs())
             };
-            for carrier in carriers.iter().flatten() {
+            for carrier in &carriers {
                 if let Carrier::Circle { centre, radius, .. } = *carrier {
                     push_circle(lane, plane, centre, radius);
                 }
             }
-            for (carrier, ahead) in [(step.incoming, true), (step.arrival, false)] {
+            for &(carrier, ahead) in &sides {
                 let (anchor, heading) = match carrier {
                     Carrier::Circle {
                         centre,
@@ -380,14 +402,37 @@ fn push_constructions(
                         (anchor, [dir.x, dir.y])
                     }
                 };
-                let world = plane.to_world(anchor);
-                if let Some(tick) = view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX))
-                {
+                if let Some(tick) = tick_at(anchor) {
                     push_heading_mark(lane, plane, [anchor.x, anchor.y], heading, tick);
                 }
             }
+            for at in tangents {
+                if let Some(tick) = tick_at(at) {
+                    push_cross(lane, plane, [at.x, at.y], [1.0, 0.0], tick);
+                }
+            }
+        }
+        for &at in &built.refused_corners {
+            if let Some(tick) = tick_at(at) {
+                let diagonal = core::f64::consts::FRAC_1_SQRT_2;
+                push_cross(lane, plane, [at.x, at.y], [diagonal, diagonal], tick);
+            }
         }
     }
+}
+
+/// A cross through `here`, its arms along the unit `heading` and square
+/// to it, each a mark length `tick` across.
+fn push_cross(
+    lane: &mut marks::LegLane,
+    plane: &pncad::profile::SketchPlane<f64>,
+    here: [f64; 2],
+    heading: [f64; 2],
+    tick: f64,
+) {
+    let at_offset = offsets(here, heading, tick);
+    push_segment(lane, plane, at_offset(-0.5, 0.0), at_offset(0.5, 0.0));
+    push_segment(lane, plane, at_offset(0.0, -0.5), at_offset(0.0, 0.5));
 }
 
 /// A full turn of the circle about `centre` of `radius`, in

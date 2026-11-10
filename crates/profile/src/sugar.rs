@@ -227,15 +227,20 @@ pub(crate) struct LineFilletTrims<T: Real> {
 /// file is the ratified fillet-gate seam).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum TrimRefusal<T: Real> {
-    /// A Negative `fillet_leg_fit`: the tangent setback exceeds the
-    /// (first, in incoming→outgoing order) overrun leg's extent.
+    /// A Negative `fillet_leg_fit` on at least one leg: the tangent
+    /// setback exceeds that leg's extent. Both legs ride, in
+    /// `[incoming, outgoing]` order.
     DoesNotFit {
-        /// The overrun leg.
-        leg: FilletLeg,
-        /// The tangent setback from the corner along the leg.
+        /// Which legs the setback overruns. The outgoing leg is
+        /// classified whatever the incoming one answered, and is not
+        /// called an overrun where its own classification escalated.
+        overruns: [bool; 2],
+        /// The tangent setback from the corner, the same on both legs.
         setback: T,
-        /// The overrun leg's extent.
-        leg_length: T,
+        /// The legs' extents.
+        lengths: [T; 2],
+        /// The tangent points the trim would cut at.
+        tangents: [Point2<T>; 2],
     },
     /// An in-band or poisoned fit margin (doubled-back corners and
     /// zero legs land here).
@@ -278,29 +283,36 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     let setback = radius * half_tan.abs();
     let len1 = v1.norm_squared().sqrt();
     let len2 = v2.norm_squared().sqrt();
-    let fit = |len: T, leg: FilletLeg| -> Result<Sign, TrimRefusal<T>> {
-        match decide_passing(
+    let fit = |len: T| {
+        decide_passing(
             Gate::FilletLegFit,
             Margin::of(len - setback),
             band,
             RUN_PASSES,
-        ) {
-            Ok(Sign::Negative) => Err(TrimRefusal::DoesNotFit {
-                leg,
-                setback,
-                leg_length: len,
-            }),
-            Ok(sign) => Ok(sign),
-            Err(source) => Err(TrimRefusal::Escalated(source)),
-        }
+        )
+        .map_err(TrimRefusal::Escalated)
     };
-    let fit_in = fit(len1, FilletLeg::Incoming)?;
-    let fit_out = fit(len2, FilletLeg::Outgoing)?;
-    // t1's division is guarded by use: it is consumed only on a Positive
-    // fit (len1 > setback ≥ 0 ⇒ len1 > 0); on other fits the value may
-    // be poison and is dead — total evaluation code, no branch.
+    let fit_in = fit(len1)?;
+    let fit_out = fit(len2);
+    // t1's division is guarded by use: the emission consumes it only on
+    // a Positive fit (len1 > setback ≥ 0 ⇒ len1 > 0), and a refusal
+    // carries it as a drawing; on other fits the value may be poison
+    // and is dead — total evaluation code, no branch.
     let t1 = corner - v1 * (setback / len1);
     let t2 = corner + v2 * (setback / len2);
+    let overruns = [
+        fit_in == Sign::Negative,
+        matches!(fit_out, Ok(Sign::Negative)),
+    ];
+    if overruns.contains(&true) {
+        return Err(TrimRefusal::DoesNotFit {
+            overruns,
+            setback,
+            lengths: [len1, len2],
+            tangents: [t1, t2],
+        });
+    }
+    let fit_out = fit_out?;
     Ok(LineFilletTrims {
         t1,
         t2,
@@ -472,17 +484,21 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     /// radius pushes a tangent point off the far end of a leg on each
     /// of them. EVERY such candidate is carried, in enumeration order,
     /// with both legs' numbers at the scalar; which one the refusal is
-    /// about, and which of its legs, is the door's pick (`map_refusal`
-    /// in `path::arc_fillet`, through
-    /// [`crate::fillet_select::nearest_candidate`]) — the candidate
-    /// nearest to fitting in the setback metric, read off the
-    /// diagnostic channel, so that nothing here compares.
+    /// about is the door's pick (`map_refusal` in `path::arc_fillet`,
+    /// through [`crate::fillet_select::nearest_candidate`]) — the
+    /// candidate nearest to fitting, read off the diagnostic channel,
+    /// so that nothing here compares.
     DoesNotFit {
         /// The first overrunning corner-side candidate.
         first: OverrunCandidate<T>,
         /// The second, where the offset carriers admitted two centres
         /// and both overran.
         second: Option<OverrunCandidate<T>>,
+        /// The `[incoming, outgoing]` legs' fillets that end exactly at
+        /// their anchors, for the door to assign to the candidates.
+        at_anchor: [AtAnchor<T>; 2],
+        /// The corner's turn sense, which every candidate rounds it in.
+        sense: ArcSweep,
     },
     /// The offset carriers admit no corner-side candidate at all.
     ///
@@ -507,26 +523,50 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
 pub(crate) struct OverrunCandidate<T: Real> {
     /// The `[incoming, outgoing]` legs' fit numbers.
     pub legs: [OverrunLeg<T>; 2],
+    /// The candidate circle's centre.
+    pub center: Point2<T>,
+    /// Its `[incoming, outgoing]` tangent points.
+    pub tangents: [Point2<T>; 2],
+    /// Which branch of the offset construction it is on ([`branch`]).
+    pub branch: T,
+}
+
+/// The fillet tangent to one leg's carrier exactly at that leg's
+/// anchor, and to the other leg's carrier, on the corner's turn side.
+///
+/// Its centre is `P + r·m`, `m` the anchor's normal toward the turn,
+/// and tangency to the other carrier is linear in `r` on both kinds (on
+/// a circle the `r²` terms cancel), so `r` is a closed form: no search.
+/// It is a fillet of the corner only where `r` and both offset radii
+/// are positive and its centre is on the branch of the candidate the
+/// door assigns it to; those are the door's reads, not this body's.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AtAnchor<T: Real> {
+    /// The radius `r`, meters.
+    pub radius: T,
+    /// Its centre's branch ([`branch`]).
+    pub branch: T,
+    /// The `[incoming, outgoing]` offset radii `R − σ·τ·r` at that
+    /// radius (`None` on a straight leg).
+    pub offsets: [Option<T>; 2],
 }
 
 /// One leg's fit numbers on an overrunning candidate.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct OverrunLeg<T: Real> {
-    /// Which leg.
-    pub side: FilletLeg,
     /// The leg's carrier radius, `None` for a straight leg — the door
     /// turns it into a [`crate::FilletLegCarrier`].
     pub carrier_radius: Option<T>,
     /// The fit margin `extent − setback`, meters (the door divides by
     /// the carrier radius for the angular story). Negative on a leg
-    /// that overran; the candidate's WORSE leg is the one with the
-    /// smaller margin, and `−margin` there is the overrun the refusal
-    /// reports — in the setback metric, not a radius amount.
+    /// that overran.
     pub margin: T,
     /// The tangent setback from the corner along the leg.
     pub setback: T,
     /// The leg's extent.
     pub leg_length: T,
+    /// Whether the fit gate refused this leg.
+    pub overruns: bool,
 }
 
 /// The ratified arc-carrier fillet construction (M5 S2) — the
@@ -715,8 +755,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             // carried are this candidate's own, for the corner the
             // author actually named.
             //
-            // Which CANDIDATE the refusal is about, and which of its
-            // legs, is the door's pick (`path::arc_fillet::map_refusal`,
+            // Which CANDIDATE the refusal is about is the door's pick (`path::arc_fillet::map_refusal`,
             // through `fillet_select::nearest_candidate`): every
             // corner-side overrun is carried out with both legs'
             // numbers, in enumeration order, so that this `T: Decide`
@@ -726,18 +765,21 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             // never changes the recorded sample sequence; an escalation
             // in a later candidate's gates aborts through `?` and drops
             // the array with it.
-            let leg_numbers = |leg: &Leg<T>, setback: T, margin: T| OverrunLeg {
-                side: leg.side,
+            let leg_numbers = |leg: &Leg<T>, setback: T, margin: T, fit: Sign| OverrunLeg {
                 carrier_radius: leg.arc.map(|a| a.radius),
                 margin,
                 setback,
                 leg_length: leg.len,
+                overruns: fit == Sign::Negative,
             };
             let candidate = OverrunCandidate {
                 legs: [
-                    leg_numbers(&leg_in, sb_in, margin_in),
-                    leg_numbers(&leg_out, sb_out, margin_out),
+                    leg_numbers(&leg_in, sb_in, margin_in, fit_in),
+                    leg_numbers(&leg_out, sb_out, margin_out, fit_out),
                 ],
+                center,
+                tangents: [t1, t2],
+                branch: branch(&leg_in, &leg_out, center),
             };
             // Two distinct circles, or a line and a circle, meet in at
             // most two points: that is why `offset_circles` and
@@ -758,7 +800,26 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     }
     if survivors.is_empty() {
         return Err(match overruns {
-            [Some(first), second] => ArcTrimRefusal::DoesNotFit { first, second },
+            [Some(first), second] => {
+                let at_anchor = |leg: &Leg<T>, at, other: &Leg<T>, other_at| {
+                    let (radius, centre) = leg.radius_at_anchor(at, other, other_at, sgn);
+                    AtAnchor {
+                        radius,
+                        branch: branch(&leg_in, &leg_out, centre),
+                        offsets: [&leg_in, &leg_out]
+                            .map(|l| l.arc.map(|a| offset_radius(&a, sgn, radius))),
+                    }
+                };
+                ArcTrimRefusal::DoesNotFit {
+                    first,
+                    second,
+                    at_anchor: [
+                        at_anchor(&leg_in, head, &leg_out, next),
+                        at_anchor(&leg_out, next, &leg_in, head),
+                    ],
+                    sense,
+                }
+            }
             [None, _] => ArcTrimRefusal::NoCorner {
                 reason: NoCornerReason::NoCornerSideCandidate,
             },
@@ -1018,7 +1079,52 @@ fn offset_radius<T: Real>(arc: &ArcCarrier<T>, sgn: T, radius: T) -> T {
     arc.radius - sgn * arc.turn * radius
 }
 
+/// Which branch of a corner's offset construction a candidate centre
+/// `o` is on, as a signed quantity: the side of the carriers' axis it
+/// lies on — the centre line of two circles, or the line's direction
+/// through a circle's centre — which a branch keeps as the radius
+/// moves. Zero on a straight pair, which has one branch.
+fn branch<T: Real>(leg_in: &Leg<T>, leg_out: &Leg<T>, o: Point2<T>) -> T {
+    match (leg_in.arc, leg_out.arc) {
+        (Some(a), Some(b)) => (b.center - a.center).perp_dot(o - a.center),
+        (Some(a), None) => (o - a.center).dot(leg_out.dir),
+        (None, Some(b)) => (o - b.center).dot(leg_in.dir),
+        (None, None) => T::zero(),
+    }
+}
+
 impl<T: Real> Leg<T> {
+    /// The fillet tangent to this leg's carrier exactly at its anchor
+    /// `at` and to `other`'s carrier (anchored at `other_at`), on the
+    /// `sgn` turn side: its radius and its centre ([`AtAnchor`]).
+    fn radius_at_anchor(
+        &self,
+        at: Point2<T>,
+        other: &Self,
+        other_at: Point2<T>,
+        sgn: T,
+    ) -> (T, Point2<T>) {
+        let dir = match self.arc {
+            None => self.dir,
+            Some(arc) => left_normal(at - arc.center) * (arc.turn / arc.radius),
+        };
+        let m = left_normal(dir) * sgn;
+        let radius = match other.arc {
+            // σ·n₂·(P + r·m − A₂) = r.
+            None => {
+                let n2 = left_normal(other.dir);
+                sgn * n2.dot(at - other_at) / (T::one() - sgn * n2.dot(m))
+            }
+            // |P + r·m − c₂| = R₂ − σ·τ₂·r.
+            Some(arc) => {
+                let w = at - arc.center;
+                let half = w.dot(m) + sgn * arc.turn * arc.radius;
+                (arc.radius.powi(2) - w.norm_squared()) / (half + half)
+            }
+        };
+        (radius, at + m * radius)
+    }
+
     /// Resolves `shape` into the leg between `corner` and `far` (the
     /// chain head for the incoming side, `next` for the outgoing one).
     ///

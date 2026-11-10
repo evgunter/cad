@@ -50,7 +50,7 @@ use pncad::document::{
     WrittenLoopFault, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Point3, Tol, Vec2};
-use pncad::profile::path::program::{FusedConstruction, replay_drawn};
+use pncad::profile::path::program::{FilletConstruction, replay_drawn};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
     PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
@@ -1592,15 +1592,14 @@ pub fn preview(
     drawn(plane, loops, tol, chord).0
 }
 
-/// **[`preview`], and what the loops' fused fillet steps construct**,
-/// both out of the one replay of each loop
+/// **[`preview`], and what the loops' fillet steps construct**, both
+/// out of the one replay of each loop
 /// ([`pncad::profile::path::program::replay_drawn`]) whose refusal the
 /// preview carries.
 ///
-/// The construction is drawn whether or not the preview is: a fused
-/// step whose fit refuses leaves the sides it was handed, and a chain
-/// refused at its first leg has no prefix to draw but still has them.
-/// A resolution that refuses constructs nothing.
+/// The construction is drawn whether or not the preview is: a fillet
+/// step whose fit refuses leaves what it was handed, and a chain
+/// refused at its first leg has no prefix to draw but still has it.
 pub fn drawn(
     plane: SketchPlane<f64>,
     loops: &[Vec<Step<f64>>],
@@ -1615,24 +1614,39 @@ pub fn drawn(
         .iter()
         .map(|steps| replay_drawn(steps, tol))
         .unzip();
+    let refused_corners = replays
+        .iter()
+        .filter_map(|replayed| replayed.as_ref().err())
+        .flat_map(|refused| match &refused.kind {
+            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerOfPair { corners, .. }) => {
+                corners.iter().map(|c| c.at).collect()
+            }
+            _ => Vec::new(),
+        })
+        .collect();
     (
         preview_replayed(plane, &resolved, replays, tol, chord),
         Construction {
             plane,
             steps: built.concat(),
+            refused_corners,
         },
     )
 }
 
-/// **What a door's fused fillet steps construct**, on the plane its
-/// preview is placed on: the sides each step's fit was handed and the
-/// fillet circle it found, as far as the replay reached them.
+/// **What a door's fillet steps construct**, on the plane its preview
+/// is placed on: the sides each step's fit was handed and its answer,
+/// as far as the replay reached them, and the corners its refusals
+/// name.
 #[derive(Clone, Debug)]
 pub struct Construction {
     /// The plane the preview the steps belong to is placed on.
     pub plane: SketchPlane<f64>,
-    /// Every loop's fused steps, in loop order and then program order.
-    pub steps: Vec<FusedConstruction<f64>>,
+    /// Every loop's fillet steps, in loop order and then program order.
+    pub steps: Vec<FilletConstruction<f64>>,
+    /// Each corner a loop's refusal names ([`pncad::profile::CornerRefusal::at`]),
+    /// in loop order and then the refusal's own.
+    pub refused_corners: Vec<pncad::geom_core::Point2<f64>>,
 }
 
 impl Construction {
@@ -1642,6 +1656,7 @@ impl Construction {
         Self {
             plane,
             steps: Vec::new(),
+            refused_corners: Vec::new(),
         }
     }
 }
