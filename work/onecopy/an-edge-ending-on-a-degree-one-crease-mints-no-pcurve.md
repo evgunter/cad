@@ -42,7 +42,9 @@ a cube top whose degree-1 chart has a collapsed middle span, columns
 
 A real body with a spline face folded at a boundary vertex gets no pcurves
 on the edges at the fold. So the face's corner there reads
-`SectorFaceError::Unplaced` (fail-safe, `Unreadable`), and
+`SectorFaceError::Unplaced`, a curved abort (`Curved(Unplaced)`): safe
+against a wrong reading, not against a missed touch, which goes
+undetected, and
 `geom_brep::chart_normal_beside`'s straddle reading (a corner holding
 both sides of a fold refuses unless the two one-sided normals are decided
 equal) is reached by geom-brep rows only, never through a topo body.
@@ -53,3 +55,8 @@ equal) is reached by geom-brep rows only, never through a topo body.
 is a disabled red citing this row. It asserts that the ridge corner
 refuses `Crease` and that each slope's corner reads its own slope. It
 runs once the edges at the fold mint.
+
+Re-enabling this row is also the only pin on `sector_face`'s bound and
+chord wiring: both the edge choice and the `(own, next)` order. Every
+topo fixture that mints today is flat, so a mutant reading one bounding
+edge for both survives every other row (PR 6749's mutant table).

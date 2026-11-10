@@ -7,7 +7,7 @@ opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [glue-disagreements-and-held-contradictions-after-stage-4, cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect, material-arm-split-ends-as-a-hand-minted-invalid]
+blocked_on: [cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect, material-arm-split-ends-as-a-hand-minted-invalid]
 ---
 
 Unit 6 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
@@ -48,6 +48,12 @@ A blocker row may close without retiring its mint. Re-run the
 re-scope's two passes when the last blocker closes. The ratchet gate
 (`hand-minted-indeterminate-ratchet-gate`) is what that re-run should
 find at zero.
+
+## C24: a public poison reading (moved here 2026-11-10)
+
+Moved from `glue-disagreements-and-held-contradictions-after-stage-4` when its four steps closed (step 4, PR 6693).
+
+C24 is `crates/sweep/src/blend/battery.rs:129`, `measured`: a reporting projection whose NaN reads `MarginDiag::INVALID`, on BAND and CARVE's ground. It is honest poison. Once this row makes `INVALID` crate-private, `measured` needs a public poison reading, and offering that reading is this row's to do.
 
 ## Slate triage
 
