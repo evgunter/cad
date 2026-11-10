@@ -449,7 +449,7 @@ fn a_ringed_cone_faces_sense_flip_fails_tier_3() {
 /// **The ring's volume at the certified scalar, through point maps.**
 /// [`the_rings_volume_brackets_its_closed_form_at_the_certified_scalar`]
 /// with each map the `f64` row's entered at `Interval` as points, which
-/// the decided door admits as given: ∪ and cone ∖ box pass tier 3 and
+/// the suites' door (`geom_core::test_support::rigid`) admits as given: ∪ and cone ∖ box pass tier 3 and
 /// their volume enclosures bracket the closed forms, at every ε row.
 #[test]
 fn the_rings_volume_brackets_its_closed_form_through_point_maps() {

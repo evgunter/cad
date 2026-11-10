@@ -61,41 +61,47 @@ apart from rounding, which the carried verdict
 (`a-rigid-motion-rewrites-and-recertifies-every-edge`) relies on, so
 this row is built first, before the `moved` door.
 
-**Revised by PR 6717's review (2026-11-10).** Ev ratified on PR 5068
-that a frame exists at a scalar only by being minted there, so no door
-lifts an `f64` re-mint to a box scalar. A levered band also charges an
-honest rotation its own rounding. The rule is therefore:
+**Revised by PR 6717's review, final state (fork 258, 2026-11-10).**
+Ev ratified on PR 5068 that a frame exists at a scalar only by being
+minted there, so no door lifts a frame up from `f64` and nothing
+re-derives rigidity from twelve numbers at a box scalar. The rule:
 
-- **Within rounding.** A margin within its own rounding (at most
-  `rounding_charge` of its term bound, `16u·t`, the admission floor's
-  statement) is a rigid map stored in floating point. It is admitted as
-  given, at its own scalar, decided at no band.
-- **At the band.** A margin beyond that is levered by the session box
-  and decided against the band. `Zero` admits the map as given at the
-  door; a decided defect refuses `NotRigid`, naming the check.
-- **Re-mint at the boundary.** A map rigid only at the band is re-minted
-  (Gram–Schmidt) where the value enters the model (`RigidMotion::adopt`),
-  and the re-mint is a reported model change.
-- **Minted at its scalar.** A door that computes its turn at an
-  enclosure scalar (the sphere re-cut) mints it there.
+- **Every motion is minted by construction at its scalar.** The mate
+  solve's coset algebra carries `RigidMotion`: each pose's frame is
+  `RigidMotion::aimed`, a coset's representative is
+  `frame_of(to) ∘ frame_of(on)⁻¹` composed as motions, `ball_meets`
+  composes the turns, the chart's least turn is `RigidMotion::least_turn`
+  and its `S·O` the turn's own axes signed (`with_signed_axes`), and
+  `settle`'s arms are the rotation mints, `spun_about`, `standing_at`
+  and `translated`. `solve::admitted` is gone. The sphere re-cut mints
+  its turns (`turned_between`).
+- **`check_rigid` exists only at `f64`.** It admits a map whose seven
+  margins are within their own rounding (`16u·t`, the admission floor's
+  statement) with its bits kept, and refuses any other `NotRigid`,
+  naming the margin. No band, no box lever, no re-mint. Its callers are
+  the viewer's layout load and gesture (`Frame::admission_fault`) and a
+  library caller's matrix.
+- **STEP builds each placement by `build_axes`** as a
+  `RigidMotion::from_axis_and_reference` mint, then `B ∘ A⁻¹` composed
+  as motions. Where a frame's stated fields are no rigid frame within
+  their rounding, the move is reported (`PlacementReMinted`, naming the
+  transform, with the farthest a session-box point moved).
 
 Done when:
 - F10's `decide_flagged` site is gone, and the census count drops by
   one.
-- `check_rigid` admits within-rounding and at-band maps as given. 2000
-  honest rotations are admitted at ε = 1e-12, at `EPS_MIN`, and at
-  `K = 2` and `K = 1.1` at their least ε, at `f64` and point-entered
-  at `Interval`.
-- STEP adopts a placement at ε_in bounded by the run's `K·ε`:
-  - a placement inside that band is re-minted, reported as
-    `PlacementReMinted`, and places a 2.5 m cylinder about 1 km out past
-    check 1;
-  - one beyond the band refuses `PlacementMap`, naming the transform.
+- `check_rigid` is `f64`-only and band-free. 2000 honest rotations are
+  admitted at `f64`, and a margin beyond rounding refuses.
+- The mate solve composes every placed motion; `solve::admitted`,
+  `Composed` and `SOLVE_MAP_REWITNESS` are gone, and the M10 box-lane
+  rows and the 1e-12 rows run green.
+- STEP mints every placement by `build_axes`. A frame beyond rounding
+  is reported, and it places a 2.5 m cylinder about 1 km out past
+  check 1. A frame within rounding reports nothing.
 - The sphere re-cut mints its turns (`turned_between`).
-- **Still open, pending the fork on where a document's literal frame
-  is adopted:** a placement's literal frame inside the levered band is
-  admitted as given (main's behaviour, levered), and its re-mint is not
-  yet built.
+- No up door: `Frame::affine`/`Frame::motion` are `f64`-only. The one
+  remaining up crossing, `RigidMotion::<f64>::computed_at`, is filed
+  (`work/onehome/a-skin-stations-turn-crosses-up-from-f64-through-computed-at.md`).
 
 ## Fence
 
@@ -105,3 +111,4 @@ territory`, shared with offset). Cross-reference F10.
 - 2026-11-02 — moved from SHELF to SHELL by `git mv` when SHELF merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SHELF had fallen far under it).
 - 2026-11-10 — moved from SHELL to ONEHOME and raised P3 → P1 by Ev's PR 6589 comment; decided by fork 256; built first in the rigid-motion unit. (ONEHOME orchestrator)
 - 2026-11-10 — the done-when's numbers corrected: "a column 1e-10 off unit passes" was the orchestrator's error. Levered by the session box, 1e-10 is about 200ε at the default ε, so it refuses at the kernel band, and passes only at a STEP file's band that admits it (`[import]`, adoption). A point map is decided at `f64` (an application of fork 256, not a fork). (ONEHOME orchestrator, via the rigid-motion lane)
+- 2026-11-10 — Decided/Done-when rewritten to fork 258's final state: every motion minted by construction, `check_rigid` `f64`-only with no band, STEP by `build_axes`. (ONEHOME rigid-motion lane)

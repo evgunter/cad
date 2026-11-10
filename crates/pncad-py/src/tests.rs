@@ -5958,7 +5958,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "nothing_to_import",
             "pcurves",
             "placement",
-            "placement_map",
             "recognition_ambiguous",
             "rim_off_wall_boundary",
             "singularity_side_undecided",

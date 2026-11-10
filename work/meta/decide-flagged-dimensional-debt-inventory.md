@@ -59,13 +59,13 @@ routes, it does not execute.
 
 ## F10 retired (2026-11-10, ONEHOME rigid-motion unit)
 
-`RigidMotion::check_rigid` now admits a map as given when each of its
-seven rigidity residuals is within its own rounding (`rounding_charge`
-of its term bound), and otherwise decides each residual's excess
-through `Margin::levered` at `Lever::session_box()`. A map rigid only
-at the band is re-minted where it enters the model
-(`RigidMotion::adopt`). That is fork 256's decision as PR 6717's review
-revised it, on PR 6589 and the row
+`RigidMotion::check_rigid` now exists at `f64` alone. It admits a map
+as given when each of its seven rigidity residuals is within its own
+rounding (`rounding_charge` of its term bound), and refuses any other.
+It decides nothing, against no band. Every motion at a box scalar is
+minted by its construction, so no residual there is decided at all.
+That is fork 256's decision, revised by PR 6717's review into fork 258's
+final state, on PR 6589 and the row
 `work/onehome/a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses.md`.
 The F10 row has left the table above. `LEDGER_FLAGGED_SITES` is 4: F13,
 F14, F16 and F22.

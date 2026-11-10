@@ -34,8 +34,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_core::linalg::{Affine3, Mat3};
-use geom_core::predicate::Band;
+use geom_core::linalg::Affine3;
 use geom_core::{Decide, Real};
 
 use super::coset::{Arm, Coset, PoseSymmetry, SubgroupFamily};
@@ -387,60 +386,6 @@ pub fn solve_document(
 /// ([`crate::eval::solve_document_at`]).
 pub use crate::eval::solve_document_at;
 
-/// **The solved map admitted as the motion it is**: through the decided
-/// door ([`geom_core::RigidMotion::check_rigid`]) where that door calls
-/// it, and re-witnessed where the band cannot. The solve composes its
-/// map of rigid pieces only — the poses' orthonormal frames, turns
-/// about witnessed axes, slides — so it is a rotation and a translation
-/// at every point a box lane encloses, while the enclosure's own
-/// columns can be too wide for the seven rigidity margins to read zero
-/// (a pose read off geometry that a widened parameter moves). Such a
-/// map is admitted by Gram–Schmidt over its first two columns
-/// ([`geom_core::RigidMotion::gram_schmidt`], under
-/// [`SOLVE_MAP_REWITNESS`]): each point's map is its own orthonormal
-/// frame, so the witness encloses every point's map, and its third
-/// axis is the cross product, which a map of turns alone holds.
-/// Neither a decided defect nor a map the door calls is touched, so a
-/// map read at a point keeps its bits. A placement's literal frame
-/// passes this door as a solved map does, so a map rigid only at the
-/// band is admitted as given here, pending where a document's frame is
-/// adopted
-/// (`work/onehome/a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses.md`).
-///
-/// Every mated placement's map passes this door, whole or as the part
-/// the solve did not compose as motions ([`super::value::Composed`]); a
-/// bundle with no mate is composed as motions and asks it nothing
-/// ([`super::value::unmated_motion`]).
-/// Where the band decides the seven margins, every lane decides the
-/// same seven. Where a box lane's cannot, the undecided margin is
-/// logged as an escalation, so that leaf never certifies, and the
-/// re-witness's own decisions ride only such a leaf: they never make a
-/// certified leaf's decisions differ from the nominal's.
-///
-/// # Errors
-///
-/// [`crate::NodeErrorKind::Motion`]: the decided door's refusal, where
-/// the band decided a defect or the re-witness could not read the
-/// columns' frame either.
-pub(crate) fn admitted<T: SolveScalar>(
-    map: &Affine3<T>,
-    band: Band,
-) -> Result<geom_core::RigidMotion<T>, crate::NodeErrorKind> {
-    let refusal = match geom_core::RigidMotion::check_rigid(map, band) {
-        Err(refusal @ geom_core::RigidMotionError::Undecided { .. }) => refusal,
-        decided => return decided.map_err(crate::NodeErrorKind::Motion),
-    };
-    let origin = geom_core::linalg::Point3::origin() + map.translation;
-    geom_core::RigidMotion::gram_schmidt(
-        origin,
-        map.linear.c0,
-        map.linear.c1,
-        SOLVE_MAP_REWITNESS,
-        band,
-    )
-    .map_err(|_| crate::NodeErrorKind::Motion(refusal))
-}
-
 /// **A direction two of whose coordinates are exactly zero is the
 /// third axis**, its sign the third coordinate's: the unit it is, read
 /// exactly, where a box lane's normalisation of a length it cannot
@@ -485,10 +430,6 @@ pub(crate) fn tightened<T: SolveScalar>(pose: PoseValue<T>) -> PoseValue<T> {
         other => other,
     }
 }
-
-/// The funnel name the re-witness of a solved map decides its frame
-/// under ([`admitted`]).
-pub(crate) const SOLVE_MAP_REWITNESS: &str = "solve_map_rewitness";
 
 // ---- A9: relative freedom ----
 
@@ -602,44 +543,31 @@ pub(crate) struct ReadMate<T: Real> {
 /// width in `c`). So at `Sym` a
 /// frame is a rational function of the pose, with no guard the
 /// symbolic tier cannot see through.
-fn frame_of<T: SolveScalar>(pose: &PoseValue<T>) -> Affine3<T> {
-    use geom_core::linalg::{Point3, Vec3};
-    let aimed = |origin: Point3<T>, d: geom_core::UnitVec3<T>| {
-        let d = d.get();
-        let (a, b, c) = (d.x, d.y, d.z);
-        let one = T::one();
-        let (x, y) = if c.quoted() < 0.0 {
-            let k = one - c;
-            (
-                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, a),
-                Vec3::new(a * b / k, b.powi(2) / k - one, T::zero() - b),
-            )
-        } else {
-            let k = one + c;
-            (
-                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, T::zero() - a),
-                Vec3::new(T::zero() - a * b / k, one - b.powi(2) / k, T::zero() - b),
-            )
-        };
-        Affine3::from_parts(Mat3::from_cols(x, y, d), origin - Point3::origin())
-    };
+fn frame_of<T: SolveScalar>(
+    pose: &PoseValue<T>,
+) -> Result<geom_core::RigidMotion<T>, geom_core::RigidMotionError> {
+    use geom_core::RigidMotion;
+    let aimed =
+        |origin, d: geom_core::UnitVec3<T>| RigidMotion::aimed(origin, d, d.get().z.quoted() < 0.0);
     match *pose {
-        PoseValue::Point { position } => {
-            Affine3::from_parts(Mat3::identity(), position - Point3::origin())
-        }
-        PoseValue::Direction { dir } => aimed(Point3::origin(), dir),
+        PoseValue::Point { position } => RigidMotion::world_at(position),
+        PoseValue::Direction { dir } => aimed(geom_core::linalg::Point3::origin(), dir),
         PoseValue::Axis(line) => aimed(line.foot(), line.dir()),
         PoseValue::Plane { normal, offset } => aimed(PoseValue::plane_foot(normal, offset), normal),
-        PoseValue::Frame(f) => f.to_affine(),
+        PoseValue::Frame(f) => Ok(f),
     }
 }
 
-/// The inverse of a rigid map, its linear part transposed: a frame's
-/// columns are orthonormal by construction, so no determinant is
-/// divided by.
-fn rigid_inverse<T: Real>(map: Affine3<T>) -> Affine3<T> {
-    let linear = map.linear.transpose();
-    Affine3::from_parts(linear, -(linear * map.translation))
+/// **Where a pose's frame stands** ([`frame_of`]'s origin), read with no
+/// frame built.
+fn pose_origin<T: SolveScalar>(pose: &PoseValue<T>) -> geom_core::linalg::Point3<T> {
+    match *pose {
+        PoseValue::Point { position } => position,
+        PoseValue::Direction { .. } => geom_core::linalg::Point3::origin(),
+        PoseValue::Axis(line) => line.foot(),
+        PoseValue::Plane { normal, offset } => PoseValue::plane_foot(normal, offset),
+        PoseValue::Frame(f) => f.origin(),
+    }
 }
 
 /// **One mate's coset** (A11 (1), FORK-S3M): the copy's relative poses
@@ -650,12 +578,23 @@ fn rigid_inverse<T: Real>(map: Affine3<T>) -> Affine3<T> {
 /// kept, so a mate's sense is its `Flip`.
 ///
 /// The two poses are of one kind: the door refuses two of different
-/// kinds ([`MateFault::KindsDiffer`]).
-pub fn mate_coset<T: SolveScalar>(on: &PoseValue<T>, to: &PoseValue<T>) -> Coset<T> {
-    Coset {
+/// kinds ([`MateFault::KindsDiffer`]). Each pose's frame is minted as
+/// the motion it is ([`geom_core::RigidMotion::aimed`]) and the two are
+/// composed as motions, so nothing re-derives the representative's
+/// rigidity from its entries.
+///
+/// # Errors
+///
+/// [`geom_core::RigidMotionError::NonFinite`] where a frame or the
+/// composed origin is not finite.
+pub fn mate_coset<T: SolveScalar>(
+    on: &PoseValue<T>,
+    to: &PoseValue<T>,
+) -> Result<Coset<T>, geom_core::RigidMotionError> {
+    Ok(Coset {
         subgroup: to.symmetry(),
-        representative: frame_of(to) * rigid_inverse(frame_of(on)),
-    }
+        representative: frame_of(to)?.compose(frame_of(on)?.inverse()?)?,
+    })
 }
 
 /// **One constraint's equations, as the bundle rule reads them**
@@ -1129,22 +1068,25 @@ pub(crate) fn equations_of<P>(
 pub(crate) fn fold_bundle<T: SolveScalar>(
     placement: RecipeNodeId,
     mates: &[ReadMate<T>],
-) -> Result<Coset<T>, Box<MateFault>> {
+) -> Result<Coset<T>, crate::NodeErrorKind> {
     let mut held = Coset::unconstrained();
     for m in mates {
-        held = super::coset::intersect(held, mate_coset(&m.on, &m.to)).ok_or_else(|| {
-            let met = mates
-                .iter()
-                .fold(SubgroupFamily::Se3, |held, m| {
-                    held.meet(mate_coset(&m.on, &m.to).subgroup.family())
-                })
-                .codimension();
-            Box::new(MateFault::Overconstrained {
-                placement,
-                constraints: mates.iter().map(|m| m.mate.id).collect(),
-                free: 6 - met,
-            })
-        })?;
+        let added = mate_coset(&m.on, &m.to).map_err(crate::NodeErrorKind::Motion)?;
+        held = super::coset::intersect(held, added)
+            .map_err(crate::NodeErrorKind::Motion)?
+            .ok_or_else(|| {
+                let met = mates
+                    .iter()
+                    .fold(SubgroupFamily::Se3, |held, m| {
+                        held.meet(m.to.symmetry().family())
+                    })
+                    .codimension();
+                crate::NodeErrorKind::Mate(Box::new(MateFault::Overconstrained {
+                    placement,
+                    constraints: mates.iter().map(|m| m.mate.id).collect(),
+                    free: 6 - met,
+                }))
+            })?;
     }
     Ok(held)
 }
@@ -1152,9 +1094,9 @@ pub(crate) fn fold_bundle<T: SolveScalar>(
 /// What one bundle's fold placed its copy at, in its target space.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Folded<T: Real> {
-    /// At this map from its own coordinates, and the map as the rigid
-    /// motion its composition made, where the lane composes one.
-    Pinned(Affine3<T>, Option<super::value::Composed<T>>),
+    /// At this motion from its own coordinates, composed as motions from
+    /// its mates' frames and its values.
+    Pinned(geom_core::RigidMotion<T>),
     /// By the motion the values compose: a bundle with no mate
     /// ([`super::value::unmated_motion`]), or a lone point mate's chain
     /// ([`super::value::point_motion`]).
@@ -1228,9 +1170,8 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
         }
         _ => {}
     }
-    let coset = fold_bundle(placement, mates).map_err(|f| fault(*f))?;
-    let (at, rigid) = super::value::settle(coset, values, chart)?;
-    Ok(Folded::Pinned(at, rigid))
+    let coset = fold_bundle(placement, mates)?;
+    Ok(Folded::Pinned(super::value::settle(coset, values, chart)?))
 }
 
 /// **The fold's arm**: the copy's reach in its own coordinates, plus
@@ -1247,7 +1188,7 @@ pub(crate) fn bundle_arm<T: SolveScalar>(
     mates: &[ReadMate<T>],
 ) -> Result<Arm, Box<MateFault>> {
     let from_origin = |pose: &PoseValue<T>| {
-        let o = frame_of(pose).translation;
+        let o = pose_origin(pose) - geom_core::linalg::Point3::origin();
         (o.x.powi(2) + o.y.powi(2) + o.z.powi(2)).sqrt().upper()
     };
     let datum = mates
@@ -1684,67 +1625,5 @@ mod tests {
             Sym::opaque(Interval::from_bounds(1.0, 2.0)),
         );
         assert_eq!((zero.value.lo(), zero.value.hi()), (0.0, 0.0));
-    }
-
-    /// **Both arms of the solved map's door return a rigid motion**: a
-    /// map the door decides, whose column is off unit inside the band at
-    /// the session box's extent, comes back as given; one off by 0.4 of
-    /// the band unlevered refuses as the decided defect it is; and an
-    /// enclosure too wide for the levered margins to decide is
-    /// re-witnessed by Gram–Schmidt.
-    ///
-    /// *Breaks if* the decided arm touches the map's bits, or the
-    /// undecided arm refuses a box of rigid maps.
-    #[test]
-    fn both_arms_of_the_admission_return_a_rigid_motion() {
-        use geom_core::linalg::{Affine3, Mat3, Vec3};
-        use geom_core::tolerance::SESSION_BOX_EXTENT;
-        use geom_core::{Band, Interval, Real, RigidMotionError, Tol};
-        let band = Band::linear(Tol::witness()).unwrap();
-        let (s, c) = 0.3_f64.sin_cos();
-        let stretched = |k: f64| {
-            Affine3::from_parts(
-                Mat3::from_cols(
-                    Vec3::new(c, s, 0.0) * (1.0 + k),
-                    Vec3::new(-s, c, 0.0),
-                    Vec3::new(0.0, 0.0, 1.0),
-                ),
-                Vec3::new(1.0, 2.0, 3.0),
-            )
-        };
-        let inside = 0.2 * band.zero() / SESSION_BOX_EXTENT;
-        let decided = super::admitted(&stretched(inside), band).expect("inside the band");
-        assert_eq!(
-            decided.u().get().x.to_bits(),
-            stretched(inside).linear.c0.x.to_bits(),
-            "the decided arm keeps the map's bits"
-        );
-        assert!(
-            matches!(
-                super::admitted(&stretched(0.4 * band.zero()), band),
-                Err(crate::NodeErrorKind::Motion(RigidMotionError::NotRigid {
-                    check: "transform_rigid_col0_unit"
-                }))
-            ),
-            "a column 0.4 bands off unit is a decided defect at the box's extent"
-        );
-        let w = band.escalate() / SESSION_BOX_EXTENT;
-        let wide = |x: f64| Interval::from_bounds(x - w, x + w);
-        let boxed = Affine3::from_parts(
-            Mat3::from_cols(
-                Vec3::new(wide(c), wide(s), Interval::from_f64(0.0)),
-                Vec3::new(wide(-s), wide(c), Interval::from_f64(0.0)),
-                Vec3::new(0.0, 0.0, 1.0).map(Interval::from_f64),
-            ),
-            Vec3::new(1.0, 2.0, 3.0).map(Interval::from_f64),
-        );
-        assert!(
-            matches!(
-                geom_core::RigidMotion::check_rigid(&boxed, band),
-                Err(RigidMotionError::Undecided { .. })
-            ),
-            "the box is too wide for the levered margins to decide"
-        );
-        super::admitted(&boxed, band).expect("the undecided arm re-witnesses a box of turns");
     }
 }

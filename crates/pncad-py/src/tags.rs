@@ -2165,7 +2165,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Join { .. } => "join",
         StepImportError::SingularityUndecided { .. } => "singularity_undecided",
         StepImportError::SingularitySideUndecided { .. } => "singularity_side_undecided",
-        StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",

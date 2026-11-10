@@ -426,28 +426,36 @@ pub enum NormalizationKind {
     /// own splits) and the faces it became with every edge and vertex
     /// they use.
     FaceSplitAtC0Knot,
-    /// **An assembly placement re-minted as an exact rigid motion**
-    /// (`[import]`, `[tolerance.boundary]`): the file's
-    /// `ITEM_DEFINED_TRANSFORMATION` is rigid at the file's adoption band
-    /// ([`geom_core::FileCoincidence::adoption_band`]) but not within its
-    /// own rounding, so the import re-mints it by Gram–Schmidt
-    /// ([`geom_core::RigidMotion::adopt`]) and places the copy by the
-    /// re-mint. A healing move, reported: a point with every coordinate
-    /// within the session box moves by at most `moved_by`. Keyed by the
-    /// transformation's instance id, not a face; its census pair is
-    /// empty, since no face, edge or vertex changes.
+    /// **An assembly placement whose stated fields `build_axes` moved**
+    /// (`[import]`, `[tolerance.boundary]`): every placement frame is
+    /// minted from its fields by ISO 10303-42's `build_axes` (the axis
+    /// normalized, the reference direction projected perpendicular and
+    /// normalized), and a frame of this `ITEM_DEFINED_TRANSFORMATION`
+    /// whose fields as stated are no rigid frame within their own
+    /// rounding was moved by that construction. A STEP `direction` is a
+    /// ratio vector, so the normalization is the file's own semantics,
+    /// not a heal; it is reported so the move is on record. `moved_by` is
+    /// measured against the raw stated matrix: its columns the reference
+    /// direction, the axis crossed with it and the axis, as the file
+    /// states them, unnormalized. Over the session box it is the
+    /// farthest a point moves between that matrix and the built frame,
+    /// summed over the pair. A file's ε_in bounds no such move
+    /// (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
+    /// Keyed by the transformation's instance id, not a face; its census
+    /// pair is empty, since no face, edge or vertex changes.
     PlacementReMinted {
-        /// The `ITEM_DEFINED_TRANSFORMATION` that was re-minted.
+        /// The `ITEM_DEFINED_TRANSFORMATION` whose frames were moved.
         transform: u64,
-        /// The re-mint's displacement bound (metres): the adoption
-        /// band's zero times [`geom_core::RigidMotion::RE_MINT_BANDS`].
+        /// The move (metres): over the session box, the farthest a point
+        /// moves between a frame's raw stated matrix and its built one,
+        /// summed over the pair.
         moved_by: f64,
     },
 }
 
-/// [`NormalizationKind::PlacementReMinted`]'s K row: the re-mint's two
-/// directions, decided under one name.
-pub const STEP_PLACEMENT_RE_MINT: &str = "step_placement_re_mint";
+/// The K row a placement frame's two directions are decided under where
+/// `build_axes` mints it ([`NormalizationKind::PlacementReMinted`]).
+pub const STEP_PLACEMENT_AXES: &str = "step_placement_axes";
 
 /// Where a file put a chart singularity that is not yet a vertex in
 /// the pole form ([`NormalizationKind::ChartSingularityVertex`]).
@@ -820,9 +828,9 @@ pub fn import_step(
             // for id.
             //
             // Each instance then goes through the kernel's own
-            // placement doors (M7-4 Leg D): the map is adopted at the
-            // file's band (`RigidMotion::adopt`), re-minted and reported
-            // where it is rigid only at that band, and `transform_rigid`
+            // placement doors (M7-4 Leg D): the motion its placement pair
+            // minted (`build_axes`, then `B ∘ A⁻¹` composed as motions),
+            // and `transform_rigid`
             // RE-CERTIFIES every carrier against the mapped geometry,
             // so a placed copy is as first-class as an unplaced one —
             // and a map this reader let through that the kernel will
@@ -844,7 +852,6 @@ pub fn import_step(
             // from the same spec, so joins the same vertices.
             let mut normalizations = model.normalizations.clone();
             let mut joined = std::collections::BTreeSet::new();
-            let mut reminted = std::collections::BTreeSet::new();
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
                 let file = geom_core::FileCoincidence::new(eps_in);
@@ -855,44 +862,10 @@ pub fn import_step(
                 let mut applied = None;
                 let one = match instance.placed {
                     Some(entities::Placed {
-                        map: Some(map),
+                        map: Some(motion),
                         transform,
                         ..
                     }) => {
-                        // A placement is adopted at the file's own band
-                        // (ε_in, bounded by the run's K·ε): a map rigid
-                        // there but not within its rounding is re-minted,
-                        // and the re-mint is reported.
-                        let band = file.adoption_band(tol).map_err(|source| {
-                            StepImportError::Placement {
-                                transform,
-                                source: topo::TransformError::Band(source),
-                                file,
-                            }
-                        })?;
-                        let (motion, re_minted) =
-                            geom_core::RigidMotion::adopt(&map, STEP_PLACEMENT_RE_MINT, band)
-                                .map_err(|source| StepImportError::PlacementMap {
-                                    transform,
-                                    source,
-                                })?;
-                        if re_minted && reminted.insert(transform) {
-                            let empty = FaceCensus {
-                                faces: 0,
-                                edges: 0,
-                                vertices: 0,
-                            };
-                            normalizations.push(StructureNormalization {
-                                face: transform,
-                                kind: NormalizationKind::PlacementReMinted {
-                                    transform,
-                                    moved_by: band.zero()
-                                        * geom_core::RigidMotion::<f64>::RE_MINT_BANDS,
-                                },
-                                file_census: empty,
-                                kernel_census: empty,
-                            });
-                        }
                         applied = Some(motion.to_affine());
                         topo::transform_rigid(&one, &motion, tol).map_err(|source| {
                             StepImportError::Placement {

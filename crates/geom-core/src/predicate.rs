@@ -1786,27 +1786,6 @@ impl FileCoincidence {
         self.eps_in
     }
 
-    /// **The band an import adopts the file's data at** (`[import]`,
-    /// `[tolerance.boundary]`): ε_in, at least the run's ε and at most
-    /// its ε_input `K·ε`, at the run's K. Adoption is where the file's
-    /// data is brought up to the kernel's invariants, so a snap it makes
-    /// (an assembly placement re-minted as an exact rigid motion,
-    /// [`crate::RigidMotion::adopt`]) moves a point with every
-    /// coordinate within the session box by at most
-    /// [`crate::RigidMotion::RE_MINT_BANDS`] times this band's zero, and
-    /// never refuses what the kernel's own band would admit. Above
-    /// `K·ε` the file's coincidence distance is no snap the kernel makes
-    /// on its behalf: a placement off rigid by more refuses
-    /// (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
-    ///
-    /// # Errors
-    ///
-    /// [`Band::linear`]'s, read at that ε.
-    pub fn adoption_band(self, tol: crate::Tol) -> Result<Band, BandError> {
-        let eps = tol.eps();
-        Band::from_thresholds(self.eps_in.clamp(eps, tol.k() * eps), tol.k())
-    }
-
     /// **A residual's miss read at the import door** (D4 ¶1, D7): a
     /// certification refusal whose miss lies beyond ε and within ε_in
     /// names setting ε to ε_in as a stopgap, beside re-exporting the file
