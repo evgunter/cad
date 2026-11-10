@@ -156,3 +156,17 @@
     - `a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate` (P2): at the cusp the two sheets are tangent rather than crossing;
     - `limb-2s-floor-on-a-sheet-reads-the-whole-torus` (P3).
   - **Review tier: single FULL**, set at dispatch. One cloud reviewer was dispatched (`spiricarm/review-6521-brief`).
+- 2026-11-10 — **Resumed after a six-day pause.** The weekly usage limit stopped every lane on 2026-11-04 at about 11:00 UTC.
+  - Nothing on the track moved meanwhile: both lane branches are where they stopped, and the program stayed `active`.
+  - The sphere fix pass (PR 6509) had one local commit unpushed and 18 files modified. Its lane was resumed with a push-first instruction and a merge of main (about 3000 commits; `quad_lane.rs` and `rotational.rs` both moved).
+  - **PR 6521's single FULL review was delivered:** APPROVE-WITH-FIXES, no MAJOR.
+    - The apex fuzz ran 1M draws with no under-read.
+    - The certified-interval fallback was judged consistent with [verdicts]: it chooses between two certified upper bounds, and the band decision on the result is unchanged. Not a question for Ev.
+    - Found:
+      - M7 is not equivalent; a cone row catches it.
+      - The lune row cannot see θ's sign.
+      - The witness row never reaches the side check.
+      - The near-sphere football (R ≈ ±0.01) refuses part way, unfiled.
+      - The horn-cusp row is under-banded (P2 → P1).
+    - The fix pass was sent to the part-way lane, resumed.
+  - **Class (logged at adjudication):** "a mutant declared equivalent without running every row of its subject" was wrong here. A row in another file caught it. An equivalence claim needs the whole subject's rows, not the PR's own set.
